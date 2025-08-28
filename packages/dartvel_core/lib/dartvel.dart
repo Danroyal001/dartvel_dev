@@ -4,7 +4,10 @@ library dartvel_core;
 import 'dart:convert';
 import 'package:shelf/shelf.dart';
 
-typedef Handler = Future<Response> Function(Request req);
+// Re-export common Shelf types so backends can import only dartvel_core.
+export 'package:shelf/shelf.dart' show Request, Response, Middleware;
+
+typedef RequestType = Request;
 typedef ResponseType = Response;
 
 class Res {
@@ -27,7 +30,7 @@ Middleware cors({
   String allowHeaders = 'Origin, X-Requested-With, Content-Type, Accept, Authorization',
   String allowMethods = 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
 }) {
-  return (Handler inner) {
+  return (inner) {
     return (Request req) async {
       if (req.method == 'OPTIONS') {
         return Response.ok('',

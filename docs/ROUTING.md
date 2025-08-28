@@ -26,3 +26,7 @@ Widget build(BuildContext context) {
   ...
 }
 ```
+
+## 404 Handling
+- To redirect unknown routes, set `notFoundRedirect` in your `dartvel:` config (e.g., `/`).
+- Trailing slash normalization is enabled by default (`/path/` → `/path`); disable via `routingNormalizeTrailingSlash: false`.

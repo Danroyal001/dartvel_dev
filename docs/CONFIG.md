@@ -16,6 +16,8 @@ All configuration lives under the **`dartvel:`** key in your app's `pubspec.yaml
 | `transitions.durationMs` | int | `220` | no | Default transition duration in ms. | ✅ Implemented |
 | `transitions.curve` | enum | `easeInOut` | no | Default curve: `linear`\|`easeIn`\|`easeOut`\|`easeInOut`\|`decelerate`. | ✅ Implemented |
 | `routingRedirects` | list | `[]` | no | Cross-platform in-app redirects (pattern `:id` supported). | ✅ Implemented |
+| `routingNormalizeTrailingSlash` | bool | `true` | no | Redirect `/path/` → `/path` (keeps query). Root `/` unaffected. | ✅ Implemented |
+| `notFoundRedirect` | string | `''` | no | If set, unknown routes redirect to this path (e.g., `/`). | ✅ Implemented |
 | `i18n.strategy` | string | `query` | no | Strategy. Currently only `query` is supported. | ✅ Implemented |
 | `i18n.param` | string | `lang` | no | Query parameter name used for locale (e.g., `?lang=en-US`). | ✅ Implemented |
 | `i18n.defaultLocale` | string | `''` | no | Default locale tag when the query is absent/invalid. | ✅ Implemented |

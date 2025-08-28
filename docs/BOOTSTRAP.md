@@ -74,7 +74,7 @@ class IndexPage extends DartvelPage {
 }
 ```
 
-## 4) Generate router & config
+## 4) Generate router & config (+backend routes)
 ```bash
 dart run dartvel_cli:dartvel routes
 ```
@@ -84,6 +84,16 @@ This emits:
 - `.dart_tool/dartvel_client/dartvel_runtime.dart`
 - `.dart_tool/dartvel_client/router.g.dart`
 - `.dart_tool/dartvel_backend.g.dart`
+ - `.dart_tool/dartvel_backend_routes.g.dart`
+
+Optional sanity check:
+```bash
+dart run dartvel_cli:doctor
+```
+Shows pages found, backend functions count, and config tips.
+
+404 behavior (optional):
+- Set `notFoundRedirect: /` under `dartvel:` to redirect unknown routes to a path of your choice.
 
 ## 5) Wire up your app
 `lib/main.dart`:
@@ -110,3 +120,31 @@ flutter run -d chrome
 ```
 
 > Tip: For Android emulator, set `devBackendHost: http://10.0.2.2:3000`.
+
+Optional: start a Shelf server that uses generated backend routes (see example):
+```bash
+dart run bin/server.dart
+```
+
+## Backend function quickstart
+Create a handler under `lib/backend/functions/**/*.method.dart` (method in: get, post, put, patch, delete, head, options):
+```dart
+// lib/backend/functions/hello.get.dart
+import 'package:dartvel_core/dartvel.dart';
+
+Future<ResponseType> handler(RequestType req) async {
+  return Res.json({'ok': true, 'hello': 'world'});
+}
+```
+Run `dart run dartvel_cli:routes` again to regenerate backend routes.
+
+## Production build
+Set `prodBackendHost` in `pubspec.yaml -> dartvel` and build:
+```bash
+flutter build web
+```
+You can override the backend URL at build time:
+```bash
+flutter build web \
+  --dart-define=DARTVEL_BACKEND_URL=https://staging.example.com
+```

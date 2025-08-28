@@ -9,7 +9,8 @@ void main(List<String> args) async {
   final parser = ArgParser()
     ..addCommand('routes')
     ..addCommand('dev')
-    ..addCommand('build');
+    ..addCommand('build')
+    ..addCommand('doctor');
 
   final result = parser.parse(args);
   final cmd = result.command?.name ?? 'routes';
@@ -25,8 +26,17 @@ void main(List<String> args) async {
       await _generate(validateProd: true);
       stdout.writeln('Generated production-ready artifacts.');
       break;
+    case 'doctor':
+      final code = await _doctor();
+      exit(code);
+      // no break
     default:
-      stdout.writeln('Usage: dartvel [routes|dev|build]');
+      stdout.writeln('Usage:');
+      stdout.writeln('  dart run dartvel_cli:dartvel <routes|dev|build>');
+      stdout.writeln('  dart run dartvel_cli:routes');
+      stdout.writeln('  dart run dartvel_cli:dev');
+      stdout.writeln('  dart run dartvel_cli:build');
+      stdout.writeln('  dart run dartvel_cli:doctor');
   }
 }
 
@@ -68,6 +78,10 @@ Future<void> _generate({bool validateProd = false}) async {
   final durationMs = _asInt(transitions['durationMs'], 220);
   final curve = (transitions['curve'] ?? 'easeInOut').toString();
 
+  // Routing options
+  final normalizeTrailing = _asBool(dv['routingNormalizeTrailingSlash'], true);
+  final notFoundRedirect = (dv['notFoundRedirect'] ?? '').toString();
+
   // Scan pages
   final pageGlob = Glob('$pagesDir/**.page.dart');
   final pageFiles = <File>[];
@@ -82,13 +96,19 @@ Future<void> _generate({bool validateProd = false}) async {
   String _routeFor(String rel) {
     var path = rel.replaceFirst(RegExp('^$pagesDir/?'), '').replaceAll('\\', '/');
     path = path.replaceFirst(RegExp(r'\.page\.dart$'), '');
+    // index at root → '/'
     if (path == 'index') return '/';
-    path = path.replaceAllMapped(RegExp(r'\(([^)]+)\)/'), (m) => ''); // (group) folder – no URL
+    // strip group folders
+    path = path.replaceAllMapped(RegExp(r'\(([^)]+)\)/'), (m) => '');
+    // dynamic and catch-all segments
     path = path.replaceAllMapped(RegExp(r'\[([^\]]+)\]'), (m) {
       final seg = m.group(1)!;
       if (seg.startsWith('...')) return '*${seg.substring(3)}';
       return ':$seg';
     });
+    // support nested index: foo/index → /foo
+    path = path.replaceFirst(RegExp(r'/index$'), '');
+    if (path.isEmpty) return '/';
     return '/$path';
   }
 
@@ -116,6 +136,9 @@ Future<void> _generate({bool validateProd = false}) async {
   // Ensure dirs
   final clientDir = Directory(p.join(root, '.dart_tool', 'dartvel_client'))..createSync(recursive: true);
   final backendOut = Directory(p.join(root, '.dart_tool'))..createSync();
+  if (pageFiles.isEmpty) {
+    stdout.writeln('dartvel: no pages found under "$pagesDir" (looking for **/*.page.dart)');
+  }
 
   // Client config
   File(p.join(clientDir.path, 'dartvel_config.g.dart')).writeAsStringSync('''
@@ -224,10 +247,19 @@ class DartvelRuntime {
     )
   ''').join(',\\n');
 
-  // Global redirect builder from routingRedirects
+  // Global redirect builder from routingRedirects + normalization
   final sbRedirect = StringBuffer();
   sbRedirect.writeln('String? _globalRedirect(BuildContext context, GoRouterState state) {');
   sbRedirect.writeln('  final path = state.uri.path;');
+  if (notFoundRedirect.isNotEmpty) {
+    sbRedirect.writeln("  if (state.error != null) return '${_esc(notFoundRedirect)}';");
+  }
+  if (normalizeTrailing) {
+    sbRedirect.writeln("  if (path.length > 1 && path.endsWith('/')) {");
+    sbRedirect.writeln("    final newUri = state.uri.replace(path: path.substring(0, path.length - 1));");
+    sbRedirect.writeln('    return newUri.toString();');
+    sbRedirect.writeln('  }');
+  }
   if (redirects.isNotEmpty) {
     for (final r in redirects) {
       final from = r['from']!;
@@ -285,7 +317,153 @@ const int    backendPort = $backendPort;
 const String apiBasePath = '${_esc(apiBasePath)}';
 ''');
 
+  // Backend routes (functions)
+  final fnGlob = Glob(p.join(backendDir, 'functions/**.dart'));
+  final fs2 = const LocalFileSystem();
+  final fnFiles = <File>[];
+  for (final e in fnGlob.listFileSystemSync(fs2, root: root, followLinks: false)) {
+    if (e is File) fnFiles.add(File(e.path));
+  }
+
+  final methodSet = {'get','post','put','patch','delete','head','options'};
+  String routeFromRel(String rel) {
+    // rel like lib/backend/functions/blog/[id].get.dart
+    var path = rel.replaceFirst(RegExp('^$backendDir/functions/?'), '').replaceAll('\\\\', '/');
+    // strip group folders (parentheses)
+    path = path.replaceAllMapped(RegExp(r'\(([^)]+)\)/'), (_) => '');
+    // strip extension .dart and method suffix
+    if (path.endsWith('.dart')) path = path.substring(0, path.length - 5);
+    // split last segment by '.' to separate name and method
+    final lastSlash = path.lastIndexOf('/');
+    final dir = lastSlash == -1 ? '' : path.substring(0, lastSlash);
+    final base = lastSlash == -1 ? path : path.substring(lastSlash + 1);
+    final dot = base.lastIndexOf('.');
+    final name = dot == -1 ? base : base.substring(0, dot);
+    // Convert [id] -> <id>; [...slug] -> <slug|.*>
+    String segConv(String s) {
+      return s
+        .replaceAllMapped(RegExp(r'\[(\.\.\.)?([^\]]+)\]'), (m) => m[1] == '...'
+            ? '<' + (m[2] ?? '') + '|.*>'
+            : '<' + (m[2] ?? '') + '>');
+    }
+    final dirConv = dir.split('/').where((s) => s.isNotEmpty).map(segConv).join('/');
+    final nameConv = segConv(name);
+    final combined = [dirConv, nameConv].where((s) => s.isNotEmpty).join('/');
+    return combined.isEmpty ? '' : '/'+combined;
+  }
+
+  final backendImports = <String>[];
+  final backendEntries = <Map<String, String>>[]; // {i, method, path}
+
+  for (var i = 0; i < fnFiles.length; i++) {
+    final abs = fnFiles[i].path;
+    final rel = p.relative(abs, from: root).replaceAll('\\\\', '/');
+    final pathRel = rel;
+    // detect method from filename
+    final base = p.basenameWithoutExtension(rel); // removes .dart
+    final dot = base.lastIndexOf('.');
+    final method = (dot != -1) ? base.substring(dot + 1).toLowerCase() : '';
+    if (!methodSet.contains(method)) continue;
+    final importPath = rel.replaceFirst(RegExp(r'^lib/'), 'package:$pkgName/');
+    backendImports.add("import '$importPath' as f$i;");
+    final urlPath = routeFromRel(pathRel);
+    backendEntries.add({'i': '$i', 'method': method, 'path': urlPath});
+  }
+
+  final backendRoutes = '''
+// GENERATED – do not edit.
+import 'package:shelf/shelf.dart';
+import 'package:shelf_router/shelf_router.dart';
+import 'dartvel_backend.g.dart' as cfg;
+${backendImports.join('\n')}
+
+Router buildBackendRouter() {
+  final router = Router();
+${backendEntries.map((e) => "  router.${e['method']}(cfg.apiBasePath + '${_esc(e['path'] ?? '')}', f${e['i']}.handler);").join('\n')}
+  return router;
+}
+''';
+  File(p.join(backendOut.path, 'dartvel_backend_routes.g.dart')).writeAsStringSync(backendRoutes);
+
   stdout.writeln('dartvel: generated .dart_tool/dartvel_client/* and .dart_tool/dartvel_backend.g.dart');
+}
+
+Future<int> _doctor() async {
+  int warnings = 0;
+  final root = Directory.current.path;
+  final pubspecFile = File(p.join(root, 'pubspec.yaml'));
+  if (!pubspecFile.existsSync()) {
+    stderr.writeln('doctor: pubspec.yaml not found at project root');
+    return 2;
+  }
+  final yaml = loadYaml(await pubspecFile.readAsString()) as YamlMap;
+  final deps = (yaml['dependencies'] ?? {}) as YamlMap;
+  final devDeps = (yaml['dev_dependencies'] ?? {}) as YamlMap;
+  final dv = (yaml['dartvel'] ?? {}) as YamlMap;
+
+  bool _hasDep(String name) => deps.containsKey(name) || devDeps.containsKey(name);
+
+  void warn(String msg) {
+    warnings++;
+    stdout.writeln('WARN: ' + msg);
+  }
+
+  stdout.writeln('dartvel doctor:');
+
+  // Check essential deps
+  if (!_hasDep('go_router')) warn('Missing dependency: go_router (required by router)');
+  if (!_hasDep('dartvel_flutter')) warn('Missing dependency: dartvel_flutter');
+
+  // Config keys
+  final pagesDir = (dv['pagesDir'] ?? 'lib/pages').toString();
+  final backendDir = (dv['backendDir'] ?? 'lib/backend').toString();
+  final prodBackendHost = (dv['prodBackendHost'] ?? '').toString();
+
+  // Paths
+  final pagesPath = p.join(root, pagesDir);
+  final backendPath = p.join(root, backendDir);
+  final pagesExists = Directory(pagesPath).existsSync();
+  final backendExists = Directory(backendPath).existsSync();
+
+  stdout.writeln('• pagesDir: ' + pagesDir + (pagesExists ? ' (ok)' : ' (missing)'));
+  if (!pagesExists) warn('pagesDir does not exist: ' + pagesDir);
+  stdout.writeln('• backendDir: ' + backendDir + (backendExists ? ' (ok)' : ' (missing)'));
+  if (!backendExists) warn('backendDir does not exist: ' + backendDir);
+
+  // Pages presence
+  if (pagesExists) {
+    final glob = Glob(p.join(pagesDir, '**.page.dart'));
+    final fs = const LocalFileSystem();
+    final list = glob.listFileSystemSync(fs, root: root, followLinks: false);
+    final count = list.length;
+    stdout.writeln('• pages found: ' + count.toString());
+    if (count == 0) warn('No pages found under ' + pagesDir + ' (need *.page.dart)');
+  }
+
+  // Backend functions
+  final fnGlob = Glob(p.join(backendDir, 'functions/**.dart'));
+  final fs = const LocalFileSystem();
+  final methodSet = {'get','post','put','patch','delete','head','options'};
+  int fnCount = 0;
+  for (final e in fnGlob.listFileSystemSync(fs, root: root, followLinks: false)) {
+    final rel = p.relative(e.path, from: root).replaceAll('\\\\', '/');
+    final base = p.basenameWithoutExtension(rel);
+    final dot = base.lastIndexOf('.');
+    final method = (dot != -1) ? base.substring(dot + 1).toLowerCase() : '';
+    if (methodSet.contains(method)) fnCount++;
+  }
+  stdout.writeln('• backend functions: ' + fnCount.toString());
+  if (fnCount == 0) warn('No backend functions found under ' + backendDir + '/functions');
+
+  // prodBackendHost
+  if (prodBackendHost.isEmpty) {
+    warn('prodBackendHost is empty (required for build)');
+  } else {
+    stdout.writeln('• prodBackendHost: ' + prodBackendHost);
+  }
+
+  stdout.writeln(warnings == 0 ? 'Doctor finished with no issues.' : 'Doctor finished with ' + warnings.toString() + ' warning(s).');
+  return warnings == 0 ? 0 : 0; // non-fatal
 }
 
 int _asInt(Object? v, int dflt) {
@@ -298,6 +476,16 @@ int _asInt(Object? v, int dflt) {
 }
 
 String _esc(String s) => s.replaceAll(r'$', r'\\$').replaceAll("'", r"\\'");
+
+bool _asBool(Object? v, bool dflt) {
+  if (v is bool) return v;
+  if (v is String) {
+    final s = v.toLowerCase().trim();
+    if (s == 'true' || s == '1' || s == 'yes') return true;
+    if (s == 'false' || s == '0' || s == 'no') return false;
+  }
+  return dflt;
+}
 
 String _transitionEnum(String v) {
   switch (v) {
