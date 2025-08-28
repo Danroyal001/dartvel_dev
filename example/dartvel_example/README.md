@@ -12,13 +12,15 @@ dart pub get --directory ../packages/dartvel_flutter
 dart pub get --directory ../packages/dartvel_cli
 flutter pub get
 
-# 2) Generate dartvel artifacts (router + client/backend configs)
+# 2) Generate dartvel artifacts (router + client/backend configs + backend routes)
 dart run dartvel_cli:dartvel routes
 
 # 3) Run Flutter (web)
 flutter run -d chrome
 
-# (Optional) Start your backend server separately; example only shows API stub code.
+# (Optional) Start your backend server (example provided)
+# From this directory:
+#   dart run bin/server.dart
 ```
 
 Routes:

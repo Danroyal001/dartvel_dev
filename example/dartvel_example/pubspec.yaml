@@ -47,6 +47,8 @@ dartvel:
   routingRedirects:
     - { from: "/old", to: "/" }
     - { from: "/post/:id", to: "/blog/:id" }
+  routingNormalizeTrailingSlash: true
+  notFoundRedirect: /
 
   i18n:
     strategy: query

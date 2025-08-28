@@ -14,7 +14,17 @@ lib/backend/
   remoteFileStorageConfig.dart
 ```
 
-**Handlers** return `Response` (type alias `ResponseType`) and can use helpers from `dartvel_core/Res`:
+**Functions → Routes**
+- Place handlers under `lib/backend/functions/**/*.method.dart` where `.method` is one of `get|post|put|patch|delete|head|options`.
+- File path maps to URL path, with support for groups and dynamic segments:
+  - `lib/backend/functions/hello.get.dart` → `GET /api/hello`
+  - `lib/backend/functions/blog/[id].get.dart` → `GET /api/blog/<id>`
+  - `lib/backend/functions/docs/[...slug].get.dart` → `GET /api/docs/<slug|.*>`
+- Group folders `(admin)/users.get.dart` are stripped from the URL.
+
+The CLI generates a router at `.dart_tool/dartvel_backend_routes.g.dart` and a config at `.dart_tool/dartvel_backend.g.dart` (`backendHost`, `backendPort`, `apiBasePath`).
+
+**Handlers** return `Response` (alias `ResponseType`) and can use helpers from `dartvel_core/Res`:
 
 ```dart
 // lib/backend/functions/hello.get.dart
@@ -25,7 +35,8 @@ Future<ResponseType> handler(Request req) async {
 }
 ```
 
-> The CLI currently generates **config files** only. You are free to wire the HTTP server as you prefer, or use a small Shelf entry that imports your routes and binds to `backendHost/backendPort` (from `.dart_tool/dartvel_backend.g.dart`).
+> The CLI currently generates **config files and a routes file**. You are free to wire the HTTP server as you prefer, or use a small Shelf entry that imports your routes and binds to `backendHost/backendPort` (from `.dart_tool/dartvel_backend.g.dart`).
+> Example server: see `example/dartvel_example/bin/server.dart`.
 
 ## API base
 - The Flutter client builds request URLs using `.dart_tool/dartvel_client/dartvel_runtime.dart` with:
