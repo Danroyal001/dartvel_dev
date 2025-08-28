@@ -1,5 +1,5 @@
 
-# Troubleshooting — dartvel v2.1
+# Troubleshooting — dartvel v0.1
 
 ## Router not updating
 - Re-run `dart run dartvel_cli:routes` after adding/renaming pages or changing config.

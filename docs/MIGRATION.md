@@ -1,5 +1,5 @@
 
-# Migration to dartvel v2.1
+# Migration to dartvel v0.1
 
 - Replace `host` → `backendHost`, `port` → `backendPort` in `pubspec.yaml`.
 - Rename `seoDefaults` → `webSeoDefaults`.

@@ -1,5 +1,5 @@
 
-# dartvel Config Reference (v2.2)
+# dartvel Config Reference (v0.1)
 
 All configuration lives under the **`dartvel:`** key in your app's `pubspec.yaml`.
 
