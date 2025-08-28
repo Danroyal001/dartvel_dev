@@ -1,0 +1,26 @@
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <base href="/">
+    <meta charset="UTF-8">
+    <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+    <meta name="description" content="Dartvel Example App">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dartvel Example</title>
+    <link rel="manifest" href="manifest.json">
+  </head>
+  <body>
+    <script>
+      window.addEventListener('load', function(ev) {
+        // Flutter bootstrap; this is the minimal loader used by recent Flutter versions.
+        _flutter.loader.loadEntrypoint({}).then(function(engineInitializer) {
+          return engineInitializer.initializeEngine();
+        }).then(function(appRunner) {
+          return appRunner.runApp();
+        });
+      });
+    </script>
+    <script src="flutter.js" defer></script>
+  </body>
+</html>

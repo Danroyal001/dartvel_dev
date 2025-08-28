@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "dartvel v2.1 Config Schema",
+  "type": "object",
+  "properties": {
+    "backendHost": {
+      "type": "string",
+      "default": "0.0.0.0"
+    },
+    "backendPort": {
+      "type": "integer",
+      "default": 3000,
+      "minimum": 1,
+      "maximum": 65535
+    },
+    "devBackendHost": {
+      "type": "string",
+      "format": "uri"
+    },
+    "prodBackendHost": {
+      "type": "string",
+      "format": "uri"
+    },
+    "pagesDir": {
+      "type": "string",
+      "default": "lib/pages"
+    },
+    "backendDir": {
+      "type": "string",
+      "default": "lib/backend"
+    },
+    "apiBasePath": {
+      "type": "string",
+      "default": "/api"
+    },
+    "webSeoDefaults": {
+      "type": "object",
+      "properties": {
+        "siteName": {
+          "type": "string",
+          "default": ""
+        },
+        "defaultTitle": {
+          "type": "string",
+          "default": ""
+        },
+        "defaultDescription": {
+          "type": "string",
+          "default": ""
+        },
+        "defaultImage": {
+          "type": "string",
+          "default": ""
+        },
+        "twitterHandle": {
+          "type": "string",
+          "default": ""
+        }
+      },
+      "additionalProperties": false
+    },
+    "webTransitions": {
+      "type": "object",
+      "properties": {
+        "default": {
+          "type": "string",
+          "enum": [
+            "none",
+            "fade",
+            "slideLeft",
+            "slideUp",
+            "scale",
+            "sharedAxis"
+          ],
+          "default": "fade"
+        },
+        "durationMs": {
+          "type": "integer",
+          "default": 220,
+          "minimum": 0
+        },
+        "curve": {
+          "type": "string",
+          "enum": [
+            "linear",
+            "easeIn",
+            "easeOut",
+            "easeInOut",
+            "decelerate"
+          ],
+          "default": "easeInOut"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": [],
+  "additionalProperties": true,
+  "description": "Only keys listed here are acted on in v2.1; other web* keys are reserved for future versions."
+}
