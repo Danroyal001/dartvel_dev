@@ -1,0 +1,62 @@
+
+name: dartvel_example
+description: Example app using dartvel v2.2
+version: 0.0.2
+publish_to: "none"
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  go_router: ^14.2.0
+  dio: ^5.5.0
+  dartvel_core:
+    path: ../../packages/dartvel_core
+  dartvel_flutter:
+    path: ../../packages/dartvel_flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  lints: ^4.0.0
+  dartvel_cli:
+    path: ../../packages/dartvel_cli
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/
+
+dartvel:
+  backendHost: 0.0.0.0
+  backendPort: 3000
+  devBackendHost: http://localhost:3000
+  prodBackendHost: https://api.example.com
+
+  pagesDir: lib/pages
+  backendDir: lib/backend
+  apiBasePath: /api
+
+  transitions:
+    default: fade
+    durationMs: 200
+    curve: easeInOut
+
+  routingRedirects:
+    - { from: "/old", to: "/" }
+    - { from: "/post/:id", to: "/blog/:id" }
+
+  i18n:
+    strategy: query
+    param: lang
+    defaultLocale: en-US
+    locales: [en-US, fr-FR]
+
+  webSeoDefaults:
+    siteName: Dartvel Demo
+    defaultTitle: Dartvel Demo
+    defaultDescription: A demo of dartvel pages with SEO + transitions.
+    defaultImage: assets/og_default.png
+    twitterHandle: "@dartvel_demo"

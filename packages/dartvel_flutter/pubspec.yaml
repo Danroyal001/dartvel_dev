@@ -1,0 +1,14 @@
+
+name: dartvel_flutter
+description: Flutter helpers for dartvel pages (SEO + transitions + route state)
+version: 0.1.0
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  go_router: ^14.2.0
+
+flutter:
+  uses-material-design: false
