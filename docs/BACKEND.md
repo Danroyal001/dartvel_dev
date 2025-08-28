@@ -1,5 +1,5 @@
 
-# Backend (in-app) — dartvel v2.1
+# Backend (in-app) — dartvel v0.1
 
 Your backend code lives under **`lib/backend`** (configurable via `backendDir`). Typical layout:
 ```

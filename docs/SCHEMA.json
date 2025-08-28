@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "dartvel v2.1 Config Schema",
+  "title": "dartvel v0.1 Config Schema",
   "type": "object",
   "properties": {
     "backendHost": {
@@ -96,5 +96,5 @@
   },
   "required": [],
   "additionalProperties": true,
-  "description": "Only keys listed here are acted on in v2.1; other web* keys are reserved for future versions."
+  "description": "Only keys listed here are acted on in v0.1; other web* keys are reserved for future versions."
 }

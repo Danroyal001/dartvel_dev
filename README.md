@@ -1,5 +1,5 @@
 
-# dartvel (v2.2)
+# dartvel (v0.1)
 
 Flutter-first file-system routing with cross-platform transitions, redirects, and query-based i18n; plus web SEO injection.
 

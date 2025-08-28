@@ -1,5 +1,5 @@
 
-# CLI — dartvel_cli (v2.2)
+# CLI — dartvel_cli (v0.1)
 
 Commands:
 - `dart run dartvel_cli:dartvel routes` — Generate router and config files.

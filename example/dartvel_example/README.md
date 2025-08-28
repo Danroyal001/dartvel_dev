@@ -1,7 +1,7 @@
 
 # dartvel_example
 
-A minimal Flutter app using **dartvel v2.1** (web SEO, transitions, file-system routing).
+A minimal Flutter app using **dartvel v0.1** (web SEO, transitions, file-system routing).
 
 ## Run (Web)
 

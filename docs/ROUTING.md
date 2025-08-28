@@ -1,5 +1,5 @@
 
-# Routing (File-System) — dartvel v2.1
+# Routing (File-System) — dartvel v0.1
 
 - Pages live under **`lib/pages`** (configurable via `pagesDir`).
 - Each file must be named **`*.page.dart`** and define a **class ending with `Page`** that **extends `DartvelPage`**.

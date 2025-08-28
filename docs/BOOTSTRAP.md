@@ -1,5 +1,5 @@
 
-# Bootstrapping a dartvel Project (v2.1)
+# Bootstrapping a dartvel Project (v0.1)
 
 > This guide assumes a *standard Flutter* project.
 

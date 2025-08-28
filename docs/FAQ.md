@@ -1,5 +1,5 @@
 
-# FAQ — dartvel v2.1
+# FAQ — dartvel v0.1
 
 **Q: Does dartvel render HTML on the server (SSR)?**  
 A: No. Pages are standard Flutter widgets. SEO is applied by injecting head/meta tags on web at runtime. Future versions may add SSG-like data prerender.
