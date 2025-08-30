@@ -1,4 +1,3 @@
-
 library dartvel_flutter;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -7,7 +6,7 @@ import 'package:go_router/go_router.dart';
 
 // conditional SEO impl (web does real work; others no-op)
 import 'src/seo_platform_stub.dart'
-  if (dart.library.html) 'src/seo_platform_web.dart' as seo_platform;
+    if (dart.library.html) 'src/seo_platform_web.dart' as seo_platform;
 
 class DartvelRouteState extends InheritedWidget {
   final Map<String, String> params;
@@ -30,7 +29,7 @@ class DartvelRouteState extends InheritedWidget {
 
 extension DartvelRouteX on BuildContext {
   Map<String, String> get dvParams => DartvelRouteState.of(this).params;
-  Map<String, String> get dvQuery  => DartvelRouteState.of(this).query;
+  Map<String, String> get dvQuery => DartvelRouteState.of(this).query;
 }
 
 class SeoProps {
@@ -53,14 +52,14 @@ class SeoProps {
   });
 
   SeoProps merge(SeoProps other) => SeoProps(
-    title: other.title ?? title,
-    description: other.description ?? description,
-    canonicalUrl: other.canonicalUrl ?? canonicalUrl,
-    imageUrl: other.imageUrl ?? imageUrl,
-    siteName: other.siteName ?? siteName,
-    twitterHandle: other.twitterHandle ?? twitterHandle,
-    extraMeta: {...extraMeta, ...other.extraMeta},
-  );
+        title: other.title ?? title,
+        description: other.description ?? description,
+        canonicalUrl: other.canonicalUrl ?? canonicalUrl,
+        imageUrl: other.imageUrl ?? imageUrl,
+        siteName: other.siteName ?? siteName,
+        twitterHandle: other.twitterHandle ?? twitterHandle,
+        extraMeta: {...extraMeta, ...other.extraMeta},
+      );
 
   static const empty = SeoProps();
 }
@@ -78,17 +77,88 @@ class PageTransitionSpec {
     this.curve = Curves.easeInOut,
   });
 
-  static const none = PageTransitionSpec(type: DvTransition.none, duration: Duration.zero, curve: Curves.linear);
+  static const none = PageTransitionSpec(
+      type: DvTransition.none, duration: Duration.zero, curve: Curves.linear);
 }
 
 abstract class DartvelPage extends StatelessWidget {
   const DartvelPage({super.key});
 
   /// Web SEO only (Next/Nuxt "head"). No-op on non-web platforms.
-  SeoProps buildWebSeo(Map<String, String> params, Map<String, String> query) => SeoProps.empty;
+  SeoProps buildWebSeo(Map<String, String> params, Map<String, String> query) =>
+      SeoProps.empty;
 
   /// Optional per-page transition override.
   PageTransitionSpec get transition => const PageTransitionSpec();
+
+  /// Optional data prefetch hook (runs in a loader wrapper).
+  /// Return any object; access it via `DvDataScope.of(context).data`.
+  Future<Object?> loadData(
+          Map<String, String> params, Map<String, String> query) async =>
+      null;
+}
+
+// ==============================
+// Layouts (Next/Nuxt-like)
+// ==============================
+
+abstract class DartvelLayout extends StatelessWidget {
+  final Widget child;
+  const DartvelLayout({super.key, required this.child});
+}
+
+// ==============================
+// Data loader & scope
+// ==============================
+
+class DvDataScope extends InheritedWidget {
+  final Object? data;
+  const DvDataScope({super.key, required this.data, required Widget child})
+      : super(child: child);
+
+  static DvDataScope of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<DvDataScope>()!;
+
+  @override
+  bool updateShouldNotify(DvDataScope oldWidget) => data != oldWidget.data;
+}
+
+class DvDataLoader extends StatelessWidget {
+  final Future<Object?> Function() load;
+  final Widget child;
+  final Widget? loading;
+  final Widget? error;
+
+  const DvDataLoader(
+      {super.key,
+      required this.load,
+      required this.child,
+      this.loading,
+      this.error});
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Object?>(
+      future: load(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return loading ??
+              const Center(
+                  child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2)));
+        }
+        if (snapshot.hasError) {
+          return error ??
+              Center(
+                  child: Text('Load error',
+                      style: Theme.of(context).textTheme.bodyMedium));
+        }
+        return DvDataScope(data: snapshot.data, child: child);
+      },
+    );
+  }
 }
 
 class DartvelSeo extends StatelessWidget {
@@ -128,19 +198,24 @@ CustomTransitionPage<T> dvTransitionPage<T>({
     );
   }
 
-  Widget builder(BuildContext c, Animation<double> a, Animation<double> sA, Widget ch) {
+  Widget builder(
+      BuildContext c, Animation<double> a, Animation<double> sA, Widget ch) {
     final curved = CurvedAnimation(parent: a, curve: spec.curve);
     switch (spec.type) {
       case DvTransition.fade:
         return FadeTransition(opacity: curved, child: ch);
       case DvTransition.slideLeft:
         return SlideTransition(
-          position: Tween<Offset>(begin: const Offset(0.08, 0), end: Offset.zero).animate(curved),
+          position:
+              Tween<Offset>(begin: const Offset(0.08, 0), end: Offset.zero)
+                  .animate(curved),
           child: ch,
         );
       case DvTransition.slideUp:
         return SlideTransition(
-          position: Tween<Offset>(begin: const Offset(0, 0.08), end: Offset.zero).animate(curved),
+          position:
+              Tween<Offset>(begin: const Offset(0, 0.08), end: Offset.zero)
+                  .animate(curved),
           child: ch,
         );
       case DvTransition.scale:
@@ -151,7 +226,9 @@ CustomTransitionPage<T> dvTransitionPage<T>({
       case DvTransition.sharedAxis:
         final fade = FadeTransition(opacity: curved, child: ch);
         return SlideTransition(
-          position: Tween<Offset>(begin: const Offset(0, 0.04), end: Offset.zero).animate(curved),
+          position:
+              Tween<Offset>(begin: const Offset(0, 0.04), end: Offset.zero)
+                  .animate(curved),
           child: fade,
         );
       case DvTransition.none:
@@ -192,7 +269,8 @@ class DvI18nScope extends InheritedWidget {
       context.dependOnInheritedWidgetOfExactType<DvI18nScope>()!;
 
   @override
-  bool updateShouldNotify(DvI18nScope oldWidget) => localeTag != oldWidget.localeTag;
+  bool updateShouldNotify(DvI18nScope oldWidget) =>
+      localeTag != oldWidget.localeTag;
 }
 
 class DvI18n {
@@ -215,7 +293,8 @@ class DvI18n {
   /// Update query parameter (e.g., ?lang=xx-YY) while preserving path and other query keys.
   static void updateLang(BuildContext context, String param, String newLang) {
     final router = GoRouter.of(context);
-    final uri = Uri.parse(router.location);
+    final state = GoRouterState.of(context);
+    final uri = state.uri;
     final qp = Map<String, String>.from(uri.queryParameters);
     qp[param] = newLang;
     final newUri = uri.replace(queryParameters: qp);

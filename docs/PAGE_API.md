@@ -47,3 +47,39 @@ ElevatedButton(
 - Override `transition` per page.
 - Global defaults in `pubspec.yaml -> dartvel.transitions`.
 - Available types: `none`, `fade`, `slideLeft`, `slideUp`, `scale`, `sharedAxis`.
+
+## Layouts (root and per-segment)
+- Root: create `lib/pages/_layout.page.dart` exporting a class that extends `DartvelLayout` and takes a required `child`:
+```dart
+import 'package:flutter/material.dart';
+import 'package:dartvel_flutter/dartvel_flutter.dart';
+
+class Layout extends DartvelLayout {
+  const Layout({super.key, required super.child});
+  @override
+  Widget build(BuildContext context) => Scaffold(body: child);
+}
+```
+- The generator wraps every page with the root layout.
+- Per-segment: add `_layout.page.dart` inside any folder under `lib/pages/**` (including group folders like `(admin)`); pages under that folder are wrapped by that layout in addition to the root.
+- Data Loading (per page)
+- Override `loadData(params, query)` in your `DartvelPage` to fetch data before rendering. The router wraps your page in a `DvDataLoader` and exposes the result via `DvDataScope`:
+```dart
+class BlogIdPage extends DartvelPage {
+  const BlogIdPage({super.key});
+
+  @override
+  Future<Object?> loadData(Map<String, String> params, Map<String, String> query) async {
+    final id = params['id'];
+    // fetch from your backend, e.g., using Dio
+    // return await api.getPost(id);
+    return {'id': id, 'title': 'Hello $id'};
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final data = DvDataScope.of(context).data as Map?;
+    return Scaffold(body: Center(child: Text('Post: \\${data?['title']}')));
+  }
+}
+```

@@ -1,0 +1,5 @@
+#!/usr/bin/env dart
+
+import 'dartvel.dart' as cli;
+
+void main(List<String> args) => cli.main(const ['watch']);

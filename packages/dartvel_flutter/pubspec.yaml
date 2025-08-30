@@ -9,6 +9,7 @@ dependencies:
   flutter:
     sdk: flutter
   go_router: ^14.2.0
+  web: ^1.0.0
 
 flutter:
   uses-material-design: false
