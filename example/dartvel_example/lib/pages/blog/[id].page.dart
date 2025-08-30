@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 
@@ -7,7 +6,9 @@ class BlogIdPage extends DartvelPage {
 
   @override
   SeoProps buildWebSeo(Map<String, String> params, Map<String, String> query) {
+    
     final id = params['id'] ?? 'unknown';
+    
     return SeoProps(
       title: 'Blog $id • Dartvel Demo',
       description: 'Reading blog post $id.',

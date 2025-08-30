@@ -30,3 +30,24 @@ Widget build(BuildContext context) {
 ## 404 Handling
 - To redirect unknown routes, set `notFoundRedirect` in your `dartvel:` config (e.g., `/`).
 - Trailing slash normalization is enabled by default (`/path/` → `/path`); disable via `routingNormalizeTrailingSlash: false`.
+
+## Layouts
+- Root: add `lib/pages/_layout.page.dart` with a class extending `DartvelLayout` (constructor: `{ required Widget child }`).
+- Per-segment: add `_layout.page.dart` inside any folder (including group folders like `(admin)`).
+- The router wraps pages with the ancestor chain (root → segment) in that order.
+
+## Guards (per-segment)
+- Add `_guard.dart` inside any folder under `lib/pages/**` to run before pages in that folder.
+- Export a top-level function:
+```dart
+// lib/pages/blog/_guard.dart
+import 'dart:async';
+import 'package:flutter/widgets.dart';
+import 'package:go_router/go_router.dart';
+
+FutureOr<String?> guard(BuildContext context, GoRouterState state) async {
+  // return a path to redirect, or null to allow
+  return null;
+}
+```
+- Guards run in ancestor order (root → segment). First non-null redirect wins.

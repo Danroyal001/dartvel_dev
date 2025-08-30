@@ -12,9 +12,17 @@ Flutter-first file-system routing with cross-platform transitions, redirects, an
 ## TL;DR
 1) Add `dartvel:` to your app's `pubspec.yaml`.
 2) Create pages in `lib/pages/**/*.page.dart` (extend `DartvelPage`).
-3) Run `dart run dartvel_cli:routes` to generate router/configs.
+3) Generate router/configs either with dartvel or build_runner:
+   - Option A (CLI): `dart run dartvel_cli:routes`
+   - Option B (build_runner): add `dev_dependencies: { build_runner: ^2, dartvel_cli: ^0.1 }` and run `dart run build_runner build`
    - Also generates backend routes from `lib/backend/functions/**/*.method.dart`.
 4) Use `MaterialApp.router(routerConfig: createDartvelRouter())`.
+
+### Dev mode (auto-start backend + Flutter)
+- `dart run dartvel_cli:dev` (or `dart run dartvel_cli:run`)
+  - Starts file watching/regeneration
+  - Runs the dev backend server from generated routes
+  - Launches Flutter (pass `-d <device>` or omit to select interactively)
 
 ### Sample `dartvel:` config
 ```yaml
@@ -54,6 +62,17 @@ dartvel:
 
 ## Backend Quickstart
 - Write handlers under `lib/backend/functions/**/*.method.dart` (method in: get, post, put, patch, delete, head, options).
+  - If the filename has no explicit method suffix (e.g., `foo/bar/[id].dart`), dartvel defaults to `POST`.
+
+### Example backend features (in example app)
+- Streaming (SSE): `GET /api/stream/ticks` emits 10 ticks (1s apart)
+- Polling: `GET /api/poll/now` returns `{ now, changed }` vs `?last=...`
+- In-memory collections: CRUD for `/api/db/todos` (GET/POST/PUT/DELETE)
+- Remote file storage (local demo):
+  - `POST /api/storage/upload?name=foo.bin` with raw body
+  - `GET /api/storage/file/foo.bin` returns file bytes
+
+See `example/dartvel_example/lib/backend/functions/` for implementations.
 - Example: `lib/backend/functions/hello.get.dart`
   ```dart
   import 'package:dartvel_core/dartvel.dart';
@@ -63,3 +82,14 @@ dartvel:
   - `dart run dartvel_cli:routes`
 - Run the example server (or wire your own Shelf entry):
   - `dart run bin/server.dart` (see `example/dartvel_example/bin/server.dart`)
+
+## Generated files and Git ignore
+- Client (Flutter) generated files live under `lib/dartvel_client/` and are safe to commit or ignore.
+  - `router.g.dart`, `functions.g.dart`, `dartvel_config.g.dart`, `dartvel_runtime.dart`
+- Backend (Shelf) generated files live under `.dart_tool/` and are ephemeral.
+  - `.dart_tool/dartvel_backend.g.dart`, `.dart_tool/dartvel_backend_routes.g.dart`
+- Running `dartvel` will ensure `.gitignore` contains entries for these (idempotent):
+  - `/lib/dartvel_client/`
+  - `/.dart_tool/dartvel_backend.g.dart`
+  - `/.dart_tool/dartvel_backend_routes.g.dart`
+  If you prefer to commit client files, remove that line from your `.gitignore`.

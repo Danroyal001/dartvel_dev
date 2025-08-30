@@ -24,6 +24,25 @@ lib/backend/
 
 The CLI generates a router at `.dart_tool/dartvel_backend_routes.g.dart` and a config at `.dart_tool/dartvel_backend.g.dart` (`backendHost`, `backendPort`, `apiBasePath`).
 
+**Typed Functions (v0.1)**
+- Define a plain Dart function whose name matches the file base name. The generator adapts request info to your parameters.
+- Param sources (in order): path params → query → JSON body.
+- Return values: `Response` (as-is), `Stream<String|List<int>>` (streamed), `String` (text), anything else (JSON).
+
+Examples:
+```dart
+// lib/backend/functions/hello.get.dart
+Map<String, dynamic> hello(String name) => {'hello': name};
+
+// lib/backend/functions/blog/[id].get.dart
+Future<Map<String, dynamic>> id(String id) async => {'id': id};
+
+// Streaming (SSE-like)
+Stream<String> progress() async* {
+  for (var i = 0; i < 3; i++) { yield 'step:' + i.toString(); }
+}
+```
+
 **Handlers** return `Response` (alias `ResponseType`) and can use helpers from `dartvel_core/Res`:
 
 ```dart
@@ -35,7 +54,7 @@ Future<ResponseType> handler(Request req) async {
 }
 ```
 
-> The CLI currently generates **config files and a routes file**. You are free to wire the HTTP server as you prefer, or use a small Shelf entry that imports your routes and binds to `backendHost/backendPort` (from `.dart_tool/dartvel_backend.g.dart`).
+> The CLI generates **routes** and **configs**. Use a small Shelf entry that imports your routes and binds to `backendHost/backendPort` (from `.dart_tool/dartvel_backend.g.dart`).
 > Example server: see `example/dartvel_example/bin/server.dart`.
 
 ## API base
