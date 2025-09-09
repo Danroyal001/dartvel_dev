@@ -1,6 +1,6 @@
 # dartvel (v0.1)
 
-Flutter-first file-system routing with cross-platform transitions, redirects, and query-based i18n; plus web SEO injection and generated backend routes from function files.
+A framework for simplifying the creation and deployment of fullstack flutter and dart apps
 
 - 📚 **Docs:** see [`/docs/`](./docs)
 - 🧪 **Example app:** [`/example/dartvel_example`](./example/dartvel_example)
