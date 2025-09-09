@@ -56,12 +56,36 @@ class DartvelShelf {
     return this;
   }
 
-  DartvelShelf get(String p, Handler h) { _add('GET', p, h); return this; }
-  DartvelShelf post(String p, Handler h) { _add('POST', p, h); return this; }
-  DartvelShelf put(String p, Handler h) { _add('PUT', p, h); return this; }
-  DartvelShelf delete(String p, Handler h) { _add('DELETE', p, h); return this; }
-  DartvelShelf head(String p, Handler h) { _add('HEAD', p, h); return this; }
-  DartvelShelf options(String p, Handler h) { _add('OPTIONS', p, h); return this; }
+  DartvelShelf get(String p, Handler h) {
+    _add('GET', p, h);
+    return this;
+  }
+
+  DartvelShelf post(String p, Handler h) {
+    _add('POST', p, h);
+    return this;
+  }
+
+  DartvelShelf put(String p, Handler h) {
+    _add('PUT', p, h);
+    return this;
+  }
+
+  DartvelShelf delete(String p, Handler h) {
+    _add('DELETE', p, h);
+    return this;
+  }
+
+  DartvelShelf head(String p, Handler h) {
+    _add('HEAD', p, h);
+    return this;
+  }
+
+  DartvelShelf options(String p, Handler h) {
+    _add('OPTIONS', p, h);
+    return this;
+  }
+
   DartvelShelf static(String m, {required String dir}) {
     _routes.add(_Route.native('STATIC', m, {'dir': dir}));
     return this;
@@ -113,10 +137,10 @@ class DartvelShelf {
     }));
     final p = pkgffi.malloc.allocate<ffi.Uint8>(cfgBytes.length);
     p.asTypedList(cfgBytes.length).setAll(0, cfgBytes);
-    _server = gen.dv_server_bootstrap(p, cfgBytes.length);
+    _server = gen.dvServerBootstrap(p, cfgBytes.length);
     pkgffi.malloc.free(p);
     if (_server == 0) {
-      final err = gen.dv_last_error();
+      final err = gen.dvLastError();
       throw StateError('Bootstrap failed');
     }
     _runWorker();
@@ -125,7 +149,7 @@ class DartvelShelf {
   void _runWorker() async {
     final reqPtr = pkgffi.malloc.allocate<gen.RequestEnvelope>(1);
     while (true) {
-      final has = gen.dv_server_poll_job(_server, reqPtr);
+      final has = gen.dvServerPollJob(_server, reqPtr);
       if (has == 0) {
         await Future.delayed(Duration(milliseconds: 1));
         continue;
@@ -151,12 +175,15 @@ class DartvelShelf {
       // Read URL and headers from RX buffer attached to request_id
       int total = e.path_off + e.path_len;
       total = (e.hdr_off + e.hdr_len) > total ? (e.hdr_off + e.hdr_len) : total;
-      total = (e.body_off + e.body_len) > total ? (e.body_off + e.body_len) : total;
+      total =
+          (e.body_off + e.body_len) > total ? (e.body_off + e.body_len) : total;
       final rxBuf = pkgffi.malloc.allocate<ffi.Uint8>(total);
-      final read = gen.dv_request_metadata_read(e.request_id, rxBuf, total);
+      final read = gen.dvRequestMetadataRead(e.request_id, rxBuf, total);
       final slice = rxBuf.asTypedList(read);
-      final urlStr = utf8.decode(slice.sublist(e.path_off, e.path_off + e.path_len));
-      final hdrStr = utf8.decode(slice.sublist(e.hdr_off, e.hdr_off + e.hdr_len));
+      final urlStr =
+          utf8.decode(slice.sublist(e.path_off, e.path_off + e.path_len));
+      final hdrStr =
+          utf8.decode(slice.sublist(e.hdr_off, e.hdr_off + e.hdr_len));
       final bodyBytes = slice.sublist(e.body_off, e.body_off + e.body_len);
       pkgffi.malloc.free(rxBuf);
       final url = Uri.parse(urlStr);
@@ -178,7 +205,7 @@ class DartvelShelf {
           bodyStream: Stream<List<int>>.value(bodyBytes),
           params: url.queryParameters);
       final res = await Future<w.Response>.value(_dartHandlers[routeId]!(req));
-      final tx = gen.dv_response_open_stream(e.request_id);
+      final tx = gen.dvResponseOpenStream(e.request_id);
       final env = pkgffi.malloc.allocate<gen.ResponseEnvelope>(1);
       env.ref.request_id = e.request_id;
       env.ref.status = res.status;
@@ -187,16 +214,16 @@ class DartvelShelf {
       env.ref.body_tx = tx;
       env.ref.content_len = 0xFFFFFFFFFFFFFFFF;
       env.ref.finalize = res.body == null ? 1 : 0;
-      gen.dv_server_submit_response(_server, env);
+      gen.dvServerSubmitResponse(_server, env);
       pkgffi.malloc.free(env);
       if (res.body != null && !res.isSseNative) {
         await for (final chunk in res.body!.stream) {
           final p = pkgffi.malloc.allocate<ffi.Uint8>(chunk.length);
           p.asTypedList(chunk.length).setAll(0, chunk);
-          gen.dv_response_write_chunk(tx, p, chunk.length);
+          gen.dvResponseWriteChunk(tx, p, chunk.length);
           pkgffi.malloc.free(p);
         }
-        gen.dv_response_finalize_stream(tx);
+        gen.dvResponseFinalizeStream(tx);
       }
     }
   }

@@ -12,7 +12,7 @@ import 'package:watcher/watcher.dart';
 import 'package:dartvel_shelf/dartvel_shelf.dart' as dvs;
 
 Future<void> main(List<String> args) async {
-  final parser = ArgParser()
+  final mainParser = ArgParser()
     ..addCommand('routes')
     ..addCommand('build')
     ..addCommand('doctor')
@@ -29,15 +29,16 @@ Future<void> main(List<String> args) async {
     ..addOption('web-renderer')
     ..addFlag('verbose', abbr: 'v', defaultsTo: false);
 
-  parser.addCommand('dev', devParser);
-  parser.addCommand('run', devParser);
+  mainParser.addCommand('dev', devParser);
+  mainParser.addCommand('run', devParser);
+
   final previewParser = ArgParser()
     ..addOption('dir', defaultsTo: 'build/web')
     ..addOption('host', defaultsTo: '127.0.0.1')
     ..addOption('port', defaultsTo: '4321');
-  parser.addCommand('preview', previewParser);
+  mainParser.addCommand('preview', previewParser);
 
-  final result = parser.parse(args);
+  final result = mainParser.parse(args);
 
   final cmd = result.command?.name ?? 'help';
   switch (cmd) {
@@ -64,24 +65,26 @@ Future<void> main(List<String> args) async {
     case 'preview':
       await _preview(result.command!);
       break;
+    case '--help':
     case 'help':
-      _help();
-      break;
     default:
       _help();
+      break;
   }
 }
 
 void _help() {
   stdout.writeln('Usage:');
-  stdout.writeln('  dartvel <routes|dev|build|doctor|watch> ');
+  stdout.writeln('  dartvel <routes|dev|build|doctor|watch|preview> ');
 }
 
 Future<void> _generate({bool validateProd = false}) async {
   final root = Directory.current.path;
+  
   // Unique build id for this generation (UTC ISO + epoch millis)
   final _now = DateTime.now().toUtc();
   final buildId = '${_now.toIso8601String()}#${_now.millisecondsSinceEpoch}';
+  
   stdout.writeln('dartvel: generator build $buildId');
   final pubspecFile = File(p.join(root, 'pubspec.yaml'));
   if (!pubspecFile.existsSync()) {
@@ -99,15 +102,19 @@ Future<void> _generate({bool validateProd = false}) async {
   final devBackendHost =
       (dv['devBackendHost'] ?? 'http://localhost:$backendPort').toString();
   final prodBackendHost = (dv['prodBackendHost'] ?? '').toString();
+  
   if (validateProd && prodBackendHost.isEmpty) {
     stderr.writeln('dartvel.prodBackendHost is required for build.');
+
     exit(3);
   }
 
   final pagesDir = (dv['pagesDir'] ?? 'lib/pages').toString();
   final backendDir = (dv['backendDir'] ?? 'lib/backend').toString();
+  
   // Env files (public)
   final envFiles = <String>[];
+  
   if (dv['envFiles'] is YamlList) {
     for (final f in (dv['envFiles'] as YamlList)) {
       if (f != null) envFiles.add(f.toString());

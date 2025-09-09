@@ -22,7 +22,7 @@ class SseSink {
     final bytes = utf8.encode(b.toString());
     final p = pkgffi.malloc.allocate<ffi.Uint8>(bytes.length);
     p.asTypedList(bytes.length).setAll(0, bytes);
-    gen.dv_response_write_for_request(_requestId, p, bytes.length);
+    gen.dvResponseWriteForRequest(_requestId, p, bytes.length);
     pkgffi.malloc.free(p);
   }
 
