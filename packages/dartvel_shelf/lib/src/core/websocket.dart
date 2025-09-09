@@ -13,14 +13,14 @@ class WebSocketChannel {
     final bytes = utf8.encode(text);
     final p = pkgffi.malloc.allocate<ffi.Uint8>(bytes.length);
     p.asTypedList(bytes.length).setAll(0, bytes);
-    gen.dv_ws_send_text(_wsId, p, bytes.length);
+    gen.dvWsSendText(_wsId, p, bytes.length);
     pkgffi.malloc.free(p);
   }
 
   void sendBinary(List<int> data) {
     final p = pkgffi.malloc.allocate<ffi.Uint8>(data.length);
     p.asTypedList(data.length).setAll(0, data);
-    gen.dv_ws_send_bin(_wsId, p, data.length);
+    gen.dvWsSendBin(_wsId, p, data.length);
     pkgffi.malloc.free(p);
   }
 
@@ -28,7 +28,7 @@ class WebSocketChannel {
     final rb = utf8.encode(reason);
     final p = pkgffi.malloc.allocate<ffi.Uint8>(rb.length);
     p.asTypedList(rb.length).setAll(0, rb);
-    gen.dv_ws_close(_wsId, code, p, rb.length);
+    gen.dvWsClose(_wsId, code, p, rb.length);
     pkgffi.malloc.free(p);
   }
 
