@@ -5,7 +5,7 @@ All configuration lives under the **`dartvel:`** key in your app's `pubspec.yaml
 
 | Key | Type | Default | Required | Description | Status |
 |-----|------|---------|----------|-------------|--------|
-| `backendHost` | string | `0.0.0.0` | no | Bind address for the Shelf backend (your server process). | ✅ Implemented |
+| `backendHost` | string | `0.0.0.0` | no | Bind address for the dartvel_shelf backend (your server process). | ✅ Implemented |
 | `backendPort` | int | `3000` | no | Bind port for the backend. | ✅ Implemented |
 | `devBackendHost` | string | `http://localhost:{backendPort}` | no | Base URL the Flutter app calls during **development**. | ✅ Implemented |
 | `prodBackendHost` | string | — | **yes** (for `build`) | Base URL the Flutter app uses in **release** builds. | ✅ Implemented |

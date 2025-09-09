@@ -142,18 +142,10 @@ class DvDataLoader extends StatelessWidget {
       future: load(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return loading ??
-              const Center(
-                  child: SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2)));
+          return loading ?? const DvDefaultLoading();
         }
         if (snapshot.hasError) {
-          return error ??
-              Center(
-                  child: Text('Load error',
-                      style: Theme.of(context).textTheme.bodyMedium));
+          return error ?? const DvDefaultError();
         }
         return DvDataScope(data: snapshot.data, child: child);
       },
@@ -243,6 +235,49 @@ CustomTransitionPage<T> dvTransitionPage<T>({
     transitionDuration: spec.duration,
     reverseTransitionDuration: spec.duration,
   );
+}
+
+// ==============================
+// Default Loading/Error Widgets
+// ==============================
+
+class DvDefaultLoading extends StatelessWidget {
+  const DvDefaultLoading({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(
+        child: SizedBox(
+          width: 24,
+          height: 24,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      ),
+    );
+  }
+}
+
+class DvDefaultError extends StatelessWidget {
+  final String? message;
+  const DvDefaultError({super.key, this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    final text = message ?? 'Something went wrong';
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline, color: Colors.redAccent),
+            const SizedBox(height: 8),
+            Text(text, style: Theme.of(context).textTheme.bodyMedium),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 // ==============================

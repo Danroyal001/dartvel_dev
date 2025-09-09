@@ -93,6 +93,43 @@
       },
       "additionalProperties": false
     }
+    ,
+    "envFiles": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [ ".env", ".env.local" ]
+    },
+    "routingRedirects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "from": { "type": "string" },
+          "to": { "type": "string" }
+        },
+        "required": ["from", "to"],
+        "additionalProperties": false
+      },
+      "default": []
+    },
+    "routingNormalizeTrailingSlash": {
+      "type": "boolean",
+      "default": true
+    },
+    "notFoundRedirect": {
+      "type": "string",
+      "default": ""
+    },
+    "i18n": {
+      "type": "object",
+      "properties": {
+        "strategy": { "type": "string", "enum": ["query"], "default": "query" },
+        "param": { "type": "string", "default": "lang" },
+        "defaultLocale": { "type": "string", "default": "" },
+        "locales": { "type": "array", "items": {"type": "string"}, "default": [] }
+      },
+      "additionalProperties": false
+    }
   },
   "required": [],
   "additionalProperties": true,
