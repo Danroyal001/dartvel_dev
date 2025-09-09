@@ -1,13 +1,12 @@
 
 name: dartvel_core
-description: Shelf helpers (Res), types, simple CORS for dartvel backend
+description: Core helpers (Res), types, simple CORS hint for dartvel backend
 version: 0.1.0
 environment:
   sdk: ">=3.4.0 <4.0.0"
 dependencies:
-  shelf: ^1.4.1
-  shelf_router: ^1.1.4
-  shelf_static: ^1.1.2
+  dartvel_shelf:
+    path: ../dartvel_shelf
   mime: ^1.0.4
   http_parser: ^4.0.2
   shelf_multipart: ^1.0.0

@@ -10,7 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   go_router: ^14.2.0
-  dartvel_core:        # Shelf helpers for your backend handlers (in-app)
+  dartvel_core:        # Core helpers and types for backend handlers (dartvel_shelf-based)
     path: ../dartvel/packages/dartvel_core
   dartvel_flutter:     # Page API, SEO & transitions
     path: ../dartvel/packages/dartvel_flutter
@@ -44,6 +44,9 @@ dartvel:
     default: fade
     durationMs: 220
     curve: easeInOut
+
+  # Optional: env files. PUBLIC_* keys are exposed to Flutter via env.g.dart
+  envFiles: [ .env, .env.local ]
 ```
 
 ## 3) Create your first page
@@ -80,9 +83,11 @@ dart run dartvel_cli:dartvel routes
 ```
 
 This emits:
-- `.dart_tool/dartvel_client/dartvel_config.g.dart`
-- `.dart_tool/dartvel_client/dartvel_runtime.dart`
-- `.dart_tool/dartvel_client/router.g.dart`
+- `lib/dartvel_client/dartvel_config.g.dart`
+- `lib/dartvel_client/dartvel_runtime.dart`
+- `lib/dartvel_client/router.g.dart`
+- `lib/dartvel_client/functions.g.dart`
+- `lib/dartvel_client/env.g.dart`
 - `.dart_tool/dartvel_backend.g.dart`
  - `.dart_tool/dartvel_backend_routes.g.dart`
 
@@ -95,11 +100,17 @@ Shows pages found, backend functions count, and config tips.
 404 behavior (optional):
 - Set `notFoundRedirect: /` under `dartvel:` to redirect unknown routes to a path of your choice.
 
+Loading/Error states (optional):
+- Add sibling files next to a page to customize data loader UI:
+  - `lib/pages/index.loading.dart` → `IndexPageLoading`
+  - `lib/pages/index.error.dart` → `IndexPageError`
+- If you don’t add them, defaults are provided: `DvDefaultLoading` and `DvDefaultError`.
+
 ## 5) Wire up your app
 `lib/main.dart`:
 ```dart
 import 'package:flutter/material.dart';
-import '.dart_tool/dartvel_client/router.g.dart';
+import 'package:your_app/dartvel_client/router.g.dart';
 void main() => runApp(const MyApp());
 
 class MyApp extends StatelessWidget {
@@ -121,9 +132,13 @@ flutter run -d chrome
 
 > Tip: For Android emulator, set `devBackendHost: http://10.0.2.2:3000`.
 
-Optional: start a Shelf server that uses generated backend routes (see example):
-```bash
-dart run bin/server.dart
+Optional: start a custom server by importing the generated backend app:
+```dart
+import '.dart_tool/dartvel_backend_routes.g.dart' as gen;
+Future<void> main() async {
+  final app = gen.buildBackend();
+  await app.listen(address: '0.0.0.0', port: 3000);
+}
 ```
 
 ## Backend function quickstart
@@ -138,6 +153,22 @@ Future<ResponseType> handler(RequestType req) async {
 ```
 Run `dart run dartvel_cli:routes` again to regenerate backend routes.
 
+## Public env values in Flutter
+1) Add an env file like `.env`:
+```
+PUBLIC_GREETING=Hello
+SECRET_TOKEN=do_not_export
+```
+2) Configure `envFiles` under `dartvel:` (or rely on defaults).
+3) Run `dart run dartvel_cli:dartvel routes`.
+4) Use from Flutter:
+```dart
+import 'package:your_app/dartvel_client/env.g.dart';
+final greeting = DartvelEnv.get('PUBLIC_GREETING');
+```
+
+Only `PUBLIC_*` keys are exported to `env.g.dart`.
+
 ## Production build
 Set `prodBackendHost` in `pubspec.yaml -> dartvel` and build:
 ```bash
@@ -147,4 +178,9 @@ You can override the backend URL at build time:
 ```bash
 flutter build web \
   --dart-define=DARTVEL_BACKEND_URL=https://staging.example.com
+```
+
+Preview a built web folder locally (SPA fallback included):
+```bash
+dart run dartvel_cli:dartvel preview --dir build/web --port 5000
 ```

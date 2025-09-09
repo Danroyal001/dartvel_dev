@@ -1,0 +1,28 @@
+name: build
+on:
+  push: { branches: [ main ] }
+  pull_request:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Set up Dart
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: "stable"
+      - name: Build Rust
+        run: |
+          cd rust
+          cargo build --release
+          cargo --version
+      - name: Generate header
+        run: |
+          sudo apt-get update && sudo apt-get install -y cbindgen
+          cd rust
+          cbindgen --config cbindgen.toml -o include/dartvel_shelf.h
+      - name: Dart get + ffigen
+        run: |
+          dart pub get
+          dart run ffigen || echo "ffigen optional; pre-generated bindings present"

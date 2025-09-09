@@ -41,8 +41,12 @@ dartvel:
     durationMs: 220
     curve: easeInOut
 
+  # Optional: env files. PUBLIC_* keys are exposed to Flutter via env.g.dart
+  envFiles: [ .env, .env.local ]
+
   routingRedirects:
     - { from: "/old", to: "/" }
+
   routingNormalizeTrailingSlash: true  # '/path/' -> '/path'
   notFoundRedirect: /                 # unknown routes -> '/'
 
@@ -59,6 +63,20 @@ dartvel:
     defaultImage: assets/og_default.png
     twitterHandle: "@myapp"
 ```
+
+### Loading/Error UI
+- For any `*.page.dart` with class `XxxPage`, you may add:
+  - `*.loading.dart` with `XxxPageLoading`
+  - `*.error.dart` with `XxxPageError`
+- If missing, framework defaults are used: `DvDefaultLoading`, `DvDefaultError`.
+
+### PUBLIC_* env in Flutter
+- Env files configured via `dartvel.envFiles` are read and only `PUBLIC_*` keys are exported to `lib/dartvel_client/env.g.dart`.
+- Use them in Flutter:
+  ```dart
+  import 'package:your_app/dartvel_client/env.g.dart';
+  final base = DartvelEnv.get('PUBLIC_API_BASE');
+  ```
 
 ## Backend Quickstart
 - Write handlers under `lib/backend/functions/**/*.method.dart` (method in: get, post, put, patch, delete, head, options).
@@ -80,13 +98,13 @@ See `example/dartvel_example/lib/backend/functions/` for implementations.
   ```
 - Generate routes/configs:
   - `dart run dartvel_cli:routes`
-- Run the example server (or wire your own Shelf entry):
-  - `dart run bin/server.dart` (see `example/dartvel_example/bin/server.dart`)
+- Development backend is launched by the CLI (`dartvel dev`). For custom servers, import the generated `.dart_tool/dartvel_backend_routes.g.dart` and call `listen()` on the returned `DartvelShelf` app.
 
 ## Generated files and Git ignore
 - Client (Flutter) generated files live under `lib/dartvel_client/` and are safe to commit or ignore.
   - `router.g.dart`, `functions.g.dart`, `dartvel_config.g.dart`, `dartvel_runtime.dart`
-- Backend (Shelf) generated files live under `.dart_tool/` and are ephemeral.
+  - `env.g.dart`
+- Backend (dartvel_shelf) generated files live under `.dart_tool/` and are ephemeral.
   - `.dart_tool/dartvel_backend.g.dart`, `.dart_tool/dartvel_backend_routes.g.dart`
 - Running `dartvel` will ensure `.gitignore` contains entries for these (idempotent):
   - `/lib/dartvel_client/`

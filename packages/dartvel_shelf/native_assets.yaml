@@ -1,0 +1,12 @@
+format-version: 1.0.0
+assets:
+  - target: linux_x64
+    path: rust/target/release/libdartvel_shelf.so
+  - target: linux_arm64
+    path: rust/target/release/libdartvel_shelf.so
+  - target: macos_arm64
+    path: rust/target/release/libdartvel_shelf.dylib
+  - target: macos_x64
+    path: rust/target/release/libdartvel_shelf.dylib
+  - target: windows_x64
+    path: rust/target/release/dartvel_shelf.dll

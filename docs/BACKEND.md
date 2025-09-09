@@ -21,8 +21,9 @@ lib/backend/
   - `lib/backend/functions/blog/[id].get.dart` → `GET /api/blog/<id>`
   - `lib/backend/functions/docs/[...slug].get.dart` → `GET /api/docs/<slug|.*>`
 - Group folders `(admin)/users.get.dart` are stripped from the URL.
+ - If a filename has no explicit method (e.g., `hello.dart` or `blog/[id].dart`), the CLI defaults the method to `POST`.
 
-The CLI generates a router at `.dart_tool/dartvel_backend_routes.g.dart` and a config at `.dart_tool/dartvel_backend.g.dart` (`backendHost`, `backendPort`, `apiBasePath`).
+The CLI generates a backend app builder at `.dart_tool/dartvel_backend_routes.g.dart` (returns `DartvelShelf`) and a config at `.dart_tool/dartvel_backend.g.dart` (`backendHost`, `backendPort`, `apiBasePath`).
 
 **Typed Functions (v0.1)**
 - Define a plain Dart function whose name matches the file base name. The generator adapts request info to your parameters.
@@ -54,11 +55,10 @@ Future<ResponseType> handler(Request req) async {
 }
 ```
 
-> The CLI generates **routes** and **configs**. Use a small Shelf entry that imports your routes and binds to `backendHost/backendPort` (from `.dart_tool/dartvel_backend.g.dart`).
-> Example server: see `example/dartvel_example/bin/server.dart`.
+> The CLI generates **routes** and **configs**. A development server is launched by `dartvel dev`. For custom servers, import the generated `buildBackend()` and call `listen()` on it.
 
 ## API base
-- The Flutter client builds request URLs using `.dart_tool/dartvel_client/dartvel_runtime.dart` with:
+- The Flutter client builds request URLs using `lib/dartvel_client/dartvel_runtime.dart` (imported as a package) with:
   - **dev:** `devBackendHost`
   - **prod:** `prodBackendHost`
 - The path prefix is `apiBasePath` (default `/api`).

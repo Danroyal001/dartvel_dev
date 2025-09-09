@@ -1,71 +1,59 @@
 library dartvel_core;
 
+import 'dart:async';
 import 'dart:convert';
-import 'package:shelf/shelf.dart';
+import 'package:dartvel_shelf/dartvel_shelf.dart' as dv;
 
-// Re-export common Shelf types so backends can import only dartvel_core.
-export 'package:shelf/shelf.dart' show Request, Response, Middleware;
+// Re-export common types so backends can import only dartvel_core.
+export 'package:dartvel_shelf/dartvel_shelf.dart' show Request, Response, Headers;
 
-typedef RequestType = Request;
-typedef ResponseType = Response;
+typedef RequestType = dv.Request;
+typedef ResponseType = dv.Response;
 
 class Res {
-  static Response json(Object data,
+  static dv.Response json(Object data,
           {int status = 200, Map<String, String>? headers}) =>
-      Response(status, body: jsonEncode(data), headers: {
-        'content-type': 'application/json; charset=utf-8',
-        ...?headers
-      });
+      dv.Response(status,
+          headers: dv.Headers({
+            'content-type': 'application/json; charset=utf-8',
+            ...?headers
+          }),
+          body: Stream<List<int>>.value(utf8.encode(jsonEncode(data))));
 
-  static Response text(String data,
+  static dv.Response text(String data,
           {int status = 200, Map<String, String>? headers}) =>
-      Response(status,
-          body: data,
-          headers: {'content-type': 'text/plain; charset=utf-8', ...?headers});
+      dv.Response.text(data,
+          status: status, headers: dv.Headers(headers ?? const {}));
 
-  static Response bytes(List<int> data,
+  static dv.Response bytes(List<int> data,
           {int status = 200, Map<String, String>? headers}) =>
-      Response(status, body: data, headers: headers);
+      dv.Response(status,
+          headers: dv.Headers(headers ?? const {}),
+          body: Stream<List<int>>.value(data));
 
-  static Response notFound([String message = 'Not found']) =>
+  static dv.Response notFound([String message = 'Not found']) =>
       text(message, status: 404);
 
-  static Response sse(Stream<String> events,
+  static dv.Response sse(Stream<String> events,
       {int status = 200, Map<String, String>? headers}) {
     final stream = events
         .map((e) => 'data: ' + e.replaceAll('\n', '\ndata: ') + '\n\n')
         .map(utf8.encode);
-    return Response(status, body: stream, headers: {
-      'content-type': 'text/event-stream; charset=utf-8',
-      'cache-control': 'no-cache',
-      'connection': 'keep-alive',
-      ...?headers,
-    });
+    return dv.Response(status,
+        headers: dv.Headers({
+          'content-type': 'text/event-stream; charset=utf-8',
+          'cache-control': 'no-cache',
+          'connection': 'keep-alive',
+          ...?headers,
+        }),
+        body: stream);
   }
 }
 
-Middleware cors({
-  String allowOrigin = '*',
-  String allowHeaders =
-      'Origin, X-Requested-With, Content-Type, Accept, Authorization',
-  String allowMethods = 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-}) {
-  return (inner) {
-    return (Request req) async {
-      if (req.method == 'OPTIONS') {
-        return Response.ok('', headers: {
-          'access-control-allow-origin': allowOrigin,
-          'access-control-allow-headers': allowHeaders,
-          'access-control-allow-methods': allowMethods,
-        });
-      }
-      final res = await inner(req);
-      return res.change(headers: {
-        'access-control-allow-origin': allowOrigin,
-        'access-control-allow-headers': allowHeaders,
-        'access-control-allow-methods': allowMethods,
-        ...res.headers,
-      });
-    };
-  };
+// Middleware hints for dartvel_shelf (string-identifiable)
+class _CorsMw {
+  @override
+  String toString() => 'cors';
 }
+
+Object cors() => _CorsMw();
