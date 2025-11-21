@@ -1,0 +1,28 @@
+Feature #1: Structured Project Organization
+============================================================
+
+Summary
+-------
+Define opinionated layout and supporting docs/commands.
+
+Progress
+--------
+- 2025-09-27: Documented current structure in `docs/project_structure.md` (covers deliverables 1 & 2).
+- 2025-09-27: Added `dartvel new` command generating starter layout (covers deliverable 3).
+- Next: extend `dartvel doctor` validation + migration guidance.
+
+Key Deliverables
+-----------------
+1. Audit current example apps to document existing folder expectations.
+2. Draft a canonical project layout guide (frontend, backend, infra).
+3. Implement `dartvel new` bootstrap command with starter templates.
+4. Add validation in CLI doctor to flag deviations and suggest fixes.
+5. Create migration notes for legacy layouts.
+
+Open Questions
+--------------
+- TBD during discovery.
+
+Dependencies
+------------
+- To be assessed.

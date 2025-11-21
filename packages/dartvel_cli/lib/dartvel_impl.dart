@@ -11,12 +11,100 @@ import 'package:yaml/yaml.dart';
 import 'package:watcher/watcher.dart';
 import 'package:dartvel_shelf/dartvel_shelf.dart' as dvs;
 
+void _log(String message) => stdout.writeln('[dartvel] ' + message);
+
+enum _PackageManager { apt, dnf, yum, pacman, zypper, apk }
+
+class _LinuxDependency {
+  final String binary;
+  final String description;
+  final Map<_PackageManager, List<String>> packages;
+
+  const _LinuxDependency(
+      {required this.binary,
+      required this.description,
+      required this.packages});
+
+  List<String> packagesFor(_PackageManager manager) =>
+      packages[manager] ?? const <String>[];
+}
+
+const List<_LinuxDependency> _linuxDependencies = [
+  _LinuxDependency(
+    binary: 'ninja',
+    description: 'Ninja build tool',
+    packages: {
+      _PackageManager.apt: ['ninja-build'],
+      _PackageManager.dnf: ['ninja-build'],
+      _PackageManager.yum: ['ninja-build'],
+      _PackageManager.pacman: ['ninja'],
+      _PackageManager.zypper: ['ninja'],
+      _PackageManager.apk: ['ninja'],
+    },
+  ),
+  _LinuxDependency(
+    binary: 'cmake',
+    description: 'CMake build system',
+    packages: {
+      _PackageManager.apt: ['cmake'],
+      _PackageManager.dnf: ['cmake'],
+      _PackageManager.yum: ['cmake'],
+      _PackageManager.pacman: ['cmake'],
+      _PackageManager.zypper: ['cmake'],
+      _PackageManager.apk: ['cmake'],
+    },
+  ),
+  _LinuxDependency(
+    binary: 'pkg-config',
+    description: 'pkg-config utility',
+    packages: {
+      _PackageManager.apt: ['pkg-config'],
+      _PackageManager.dnf: ['pkgconf-pkg-config'],
+      _PackageManager.yum: ['pkgconfig'],
+      _PackageManager.pacman: ['pkgconf'],
+      _PackageManager.zypper: ['pkg-config'],
+      _PackageManager.apk: ['pkgconf'],
+    },
+  ),
+  _LinuxDependency(
+    binary: 'clang',
+    description: 'Clang compiler',
+    packages: {
+      _PackageManager.apt: ['clang'],
+      _PackageManager.dnf: ['clang'],
+      _PackageManager.yum: ['clang'],
+      _PackageManager.pacman: ['clang'],
+      _PackageManager.zypper: ['clang'],
+      _PackageManager.apk: ['clang'],
+    },
+  ),
+  _LinuxDependency(
+    binary: 'ld.lld',
+    description: 'LLVM LLD linker',
+    packages: {
+      _PackageManager.apt: ['lld'],
+      _PackageManager.dnf: ['lld'],
+      _PackageManager.yum: ['lld'],
+      _PackageManager.pacman: ['lld'],
+      _PackageManager.zypper: ['lld'],
+      _PackageManager.apk: ['lld'],
+    },
+  ),
+];
+
 Future<void> main(List<String> args) async {
   final mainParser = ArgParser()
     ..addCommand('routes')
     ..addCommand('build')
     ..addCommand('doctor')
     ..addCommand('watch');
+
+  final newParser = ArgParser()
+    ..addOption('template', help: 'Starter template to use', defaultsTo: 'app')
+    ..addFlag('force',
+        help: 'Overwrite existing directory if present', defaultsTo: false)
+    ..addFlag('overwrite', help: 'Alias for --force', defaultsTo: false);
+  mainParser.addCommand('new', newParser);
 
   // dev/run command with common Flutter flags passthrough
   final devParser = ArgParser(allowTrailingOptions: true)
@@ -45,6 +133,9 @@ Future<void> main(List<String> args) async {
     case 'routes':
       await _generate();
       stdout.writeln('Generated routes and client artifacts.');
+      break;
+    case 'new':
+      await _new(result.command!);
       break;
     case 'dev':
     case 'run':
@@ -80,11 +171,11 @@ void _help() {
 
 Future<void> _generate({bool validateProd = false}) async {
   final root = Directory.current.path;
-  
+
   // Unique build id for this generation (UTC ISO + epoch millis)
   final _now = DateTime.now().toUtc();
   final buildId = '${_now.toIso8601String()}#${_now.millisecondsSinceEpoch}';
-  
+
   stdout.writeln('dartvel: generator build $buildId');
   final pubspecFile = File(p.join(root, 'pubspec.yaml'));
   if (!pubspecFile.existsSync()) {
@@ -102,7 +193,7 @@ Future<void> _generate({bool validateProd = false}) async {
   final devBackendHost =
       (dv['devBackendHost'] ?? 'http://localhost:$backendPort').toString();
   final prodBackendHost = (dv['prodBackendHost'] ?? '').toString();
-  
+
   if (validateProd && prodBackendHost.isEmpty) {
     stderr.writeln('dartvel.prodBackendHost is required for build.');
 
@@ -111,10 +202,10 @@ Future<void> _generate({bool validateProd = false}) async {
 
   final pagesDir = (dv['pagesDir'] ?? 'lib/pages').toString();
   final backendDir = (dv['backendDir'] ?? 'lib/backend').toString();
-  
+
   // Env files (public)
   final envFiles = <String>[];
-  
+
   if (dv['envFiles'] is YamlList) {
     for (final f in (dv['envFiles'] as YamlList)) {
       if (f != null) envFiles.add(f.toString());
@@ -877,32 +968,98 @@ const String dvGenBuildId = '$buildId';
   final backendRoutes = '''
 // GENERATED – do not edit.
 import 'dart:convert' as conv;
+import 'dart:typed_data';
 import 'package:dartvel_shelf/dartvel_shelf.dart' as dv;
 import 'dartvel_backend.g.dart' as cfg;
 ${backendImports.join('\n')}
 
 // Multipart structures and parser (bytes): collects text fields and files
-class DvMultipartFile { final String name; final String filename; final String contentType; final Uint8List bytes; DvMultipartFile(this.name,this.filename,this.contentType,this.bytes); }
-Map<String, dynamic> _parseMultipartForm(Uint8List body, String contentType) {
-  final m = RegExp(r'boundary=([^;]+)').firstMatch(contentType);
-  if (m == null) return <String,dynamic>{};
-  final boundary = '--' + m.group(1)!;
-  final bnd = Uint8List.fromList(conv.latin1.encode(boundary));
-  int idxOf(Uint8List d, Uint8List p, int s){ for(int i=s;i<=d.length-p.length;i++){ bool ok=true; for(int j=0;j<p.length;j++){ if(d[i+j]!=p[j]){ ok=false; break;} } if(ok) return i; } return -1; }
-  final out = <String,dynamic>{};
-  int pos = 0; final first = idxOf(body,bnd,pos); if(first==-1) return out; pos = first + bnd.length + 2;
-  final crlf2 = Uint8List.fromList([13,10,13,10]);
-  while(pos < body.length){ final hdrEnd = idxOf(body, crlf2, pos); if(hdrEnd==-1) break; final hdr = conv.latin1.decode(body.sublist(pos,hdrEnd)); pos = hdrEnd+4; int next = idxOf(body,bnd,pos); if(next==-1) next = body.length; int end = next-2; if(end<pos) end=pos; final part = Uint8List.fromList(body.sublist(pos,end)); pos = next + bnd.length + 2; final cd = RegExp(r'content-disposition:[^\r\n]*', caseSensitive:false).firstMatch(hdr); if(cd==null) continue; final nm = RegExp(r'name=\"([^\"]+)\"').firstMatch(cd.group(0)!); if(nm==null) continue; final name = nm.group(1)!; final fnm = RegExp(r'filename=\"([^\"]*)\"').firstMatch(cd.group(0)!); String ctype=''; final ctM = RegExp(r'content-type:\s*([^\r\n]+)', caseSensitive:false).firstMatch(hdr); if(ctM!=null) ctype = ctM.group(1)!.trim(); if(fnm!=null){ final filename = fnm.group(1) ?? ''; out[name] = DvMultipartFile(name,filename,ctype,part); } else { out[name] = conv.utf8.decode(part, allowMalformed:true); }
-    if(next+ bnd.length + 4 <= body.length){ final tail = conv.latin1.decode(body.sublist(next, (next+bnd.length+4).clamp(0,body.length))); if(tail.startsWith(boundary+'--')) break; }
+class DvMultipartFile {
+  final String name;
+  final String filename;
+  final String contentType;
+  final Uint8List bytes;
+  DvMultipartFile(this.name, this.filename, this.contentType, this.bytes);
+}
+
+Map<String, dynamic> _parseMultipartForm(
+    Uint8List body, String contentType) {
+  final match = RegExp(r"boundary=([^;]+)").firstMatch(contentType);
+  if (match == null) return <String, dynamic>{};
+
+  final boundary = "--" + match.group(1)!;
+  final boundaryBytes = Uint8List.fromList(conv.latin1.encode(boundary));
+
+  int idxOf(Uint8List data, Uint8List pattern, int start) {
+    for (var i = start; i <= data.length - pattern.length; i++) {
+      var ok = true;
+      for (var j = 0; j < pattern.length; j++) {
+        if (data[i + j] != pattern[j]) {
+          ok = false;
+          break;
+        }
+      }
+      if (ok) return i;
+    }
+    return -1;
+  }
+
+  final out = <String, dynamic>{};
+  var pos = 0;
+  final first = idxOf(body, boundaryBytes, pos);
+  if (first == -1) return out;
+  pos = first + boundaryBytes.length + 2;
+
+  final crlf2 = Uint8List.fromList(const [13, 10, 13, 10]);
+
+  while (pos < body.length) {
+    final headerEnd = idxOf(body, crlf2, pos);
+    if (headerEnd == -1) break;
+    final header =
+        conv.latin1.decode(body.sublist(pos, headerEnd));
+    pos = headerEnd + 4;
+    var next = idxOf(body, boundaryBytes, pos);
+    if (next == -1) next = body.length;
+    var end = next - 2;
+    if (end < pos) end = pos;
+    final part = Uint8List.fromList(body.sublist(pos, end));
+    pos = next + boundaryBytes.length + 2;
+
+    final cd = RegExp('content-disposition:[^\\r\\n]*',
+            caseSensitive: false)
+        .firstMatch(header);
+    if (cd == null) continue;
+    final nameMatch = RegExp('name="([^"]+)"')
+        .firstMatch(cd.group(0)!);
+    if (nameMatch == null) continue;
+    final fieldName = nameMatch.group(1)!;
+    final fileMatch =
+        RegExp('filename="([^"]*)"').firstMatch(cd.group(0)!);
+    var contentType = '';
+    final ctMatch = RegExp('content-type:\\s*([^\\r\\n]+)',
+            caseSensitive: false)
+        .firstMatch(header);
+    if (ctMatch != null) contentType = ctMatch.group(1)!.trim();
+
+    if (fileMatch != null) {
+      final filename = fileMatch.group(1) ?? '';
+      out[fieldName] =
+          DvMultipartFile(fieldName, filename, contentType, part);
+    } else {
+      out[fieldName] = conv.utf8.decode(part, allowMalformed: true);
+    }
+
+    if (next + boundaryBytes.length + 4 <= body.length) {
+      final tail = conv.latin1.decode(body.sublist(
+          next, (next + boundaryBytes.length + 4).clamp(0, body.length)));
+      if (tail.startsWith(boundary + '--')) break;
+    }
   }
   return out;
 }
 
-dv.DartvelShelf buildBackend() {
-  final app = dv.DartvelShelf();
-  app.use('log');
-  app.use('cors');
-  // Default health endpoint – can be overridden by adding a backend function at /health
+dv.Router buildBackendRouter() {
+  final router = dv.Router();
   bool _hasHealth = false;
 ${backendEntries.map((e) {
     final path = _esc(e['path'] ?? '');
@@ -910,7 +1067,7 @@ ${backendEntries.map((e) {
     final i = e['i']!;
     final typed = e['typed'] ?? '';
     if (typed.isEmpty) {
-      return "  app." +
+      return "  router." +
           method +
           "(cfg.apiBasePath + '" +
           path +
@@ -961,12 +1118,9 @@ ${backendEntries.map((e) {
       argList.add(tnamed ? (pn + ': ' + expr) : expr);
     }
     final callArgs = argList.join(', ');
-    // Count path params like <id> and <slug|.*>
-    final _paramCount = RegExp(r"<[^>]+>").allMatches(path).length;
     if (path == '/health' && method.toLowerCase() == 'get') {
-      // mark that health is explicitly defined by user
       return "  _hasHealth = true;\n" +
-          '''  app.${method}(cfg.apiBasePath + '${path}', (dv.Request req) async {
+          '''  router.${method}(cfg.apiBasePath + '${path}', (dv.Request req) async {
     Object? body;
     try {
       if (req.method != 'GET' && req.method != 'HEAD') {
@@ -1007,7 +1161,7 @@ ${backendEntries.map((e) {
     }
   });''';
     }
-    return '''  app.${method}(cfg.apiBasePath + '${path}', (dv.Request req) async {
+    return '''  router.${method}(cfg.apiBasePath + '${path}', (dv.Request req) async {
     Object? body;
     try {
       if (req.method != 'GET' && req.method != 'HEAD') {
@@ -1049,11 +1203,19 @@ ${backendEntries.map((e) {
     }
   });''';
   }).join('\n')}
-  // Provide default health endpoint if not defined by user
   if (!_hasHealth) {
-    app.get(cfg.apiBasePath + '/health', (dv.Request _) async => dv.Response.text('ok'));
+    router.get(cfg.apiBasePath + '/health', (dv.Request _) async => dv.Response.text('ok'));
   }
-  return app;
+  return router;
+}
+
+dv.Router buildBackend() => buildBackendRouter();
+
+Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls, bool h2c = false}) {
+  final router = buildBackendRouter();
+  final bindHost = host ?? cfg.backendHost;
+  final bindPort = port ?? cfg.backendPort;
+  return dv.serve(router.call, host: bindHost, port: bindPort, tls: tls, h2c: h2c);
 }
 ''';
   File(p.join(backendOut.path, 'dartvel_backend_routes.g.dart'))
@@ -1115,7 +1277,7 @@ ${backendEntries.map((e) {
       "  final hdrs = {...DartvelClient.defaultHeaders, ...?headers};");
   sbClient.writeln("  final m = method.toUpperCase();");
   sbClient.writeln(
-      "  final send = (data == null && m != 'GET' && m != 'HEAD') ? '' : data;");
+      "  var send = (data == null && m != 'GET' && m != 'HEAD') ? '' : data;");
   sbClient.writeln(
       "  final ct = (hdrs['content-type'] ?? hdrs['Content-Type'] ?? '').toLowerCase();");
   sbClient.writeln(
@@ -1166,7 +1328,8 @@ ${backendEntries.map((e) {
       sbClient.writeln(
           '  if (query != null) { query.forEach((k, v) { fb[k] = v; }); }');
       sbClient.writeln('  final uri = base;');
-      sbClient.writeln("  final _hdrs = <String,String>{...?(headers ?? const {})};");
+      sbClient.writeln(
+          "  final _hdrs = <String,String>{...?(headers ?? const {})};");
       if (method == 'post') {
         // Enforce multipart form-data for all generated POST endpoints
         sbClient.writeln(
@@ -1289,7 +1452,7 @@ ${backendEntries.map((e) {
       final convExpr = conv(rtype);
       if (convExpr.isEmpty) {
         // Custom type – require a mapper
-      final sigApiMapper = sigApi.replaceFirst(
+        final sigApiMapper = sigApi.replaceFirst(
             ' }', ", required ${rtype} Function(Object?) fromJson }");
         sbClient.writeln('Future<' +
             rtype +
@@ -1617,16 +1780,51 @@ Future<void> _preview(ArgResults cmd) async {
     exit(2);
   }
 
-  final app = dvs.DartvelShelf();
-  app.use('log');
-  app.static('/', dir: abs);
-  await app.listen(address: host, port: port);
+  Future<dvs.Response> _serveStatic(dvs.Request req) async {
+    final rawPath = req.url.path;
+    final rel = rawPath == '/' ? 'index.html' : rawPath.substring(1);
+    final resolved = p.normalize(p.join(abs, rel));
+    if (!p.isWithin(abs, resolved)) {
+      return dvs.Response.text('Forbidden', status: 403);
+    }
+    final file = File(resolved);
+    if (!file.existsSync()) {
+      return dvs.Response.text('Not Found', status: 404);
+    }
+    final bytes = await file.readAsBytes();
+    final headers = dvs.Headers();
+    if (resolved.endsWith('.html')) {
+      headers.set('content-type', 'text/html; charset=utf-8');
+    } else if (resolved.endsWith('.css')) {
+      headers.set('content-type', 'text/css; charset=utf-8');
+    } else if (resolved.endsWith('.js')) {
+      headers.set('content-type', 'application/javascript; charset=utf-8');
+    } else if (resolved.endsWith('.json')) {
+      headers.set('content-type', 'application/json; charset=utf-8');
+    } else if (resolved.endsWith('.png')) {
+      headers.set('content-type', 'image/png');
+    } else if (resolved.endsWith('.jpg') || resolved.endsWith('.jpeg')) {
+      headers.set('content-type', 'image/jpeg');
+    } else if (resolved.endsWith('.svg')) {
+      headers.set('content-type', 'image/svg+xml');
+    } else {
+      headers.set('content-type', 'application/octet-stream');
+    }
+    return dvs.Response(200,
+        headers: headers, body: Stream<List<int>>.value(bytes));
+  }
+
+  final router = dvs.Router()
+    ..get('/', _serveStatic)
+    ..get('/:rest(.*)', _serveStatic);
+
+  final handle = await dvs.serve(router.call, host: host, port: port);
   stdout.writeln('[preview] Serving ' +
       abs +
       ' at http://' +
-      host +
+      handle.host +
       ':' +
-      port.toString());
+      handle.port.toString());
   stdout.writeln('[preview] Press Ctrl-C to stop.');
   await Completer<void>().future;
 }
@@ -1679,6 +1877,241 @@ String _curveExpr(String v) {
   }
 }
 
+Future<String?> _resolveExecutable(String command) async {
+  try {
+    final result = await Process.run('which', [command]);
+    if (result.exitCode != 0) return null;
+    final out = result.stdout;
+    if (out is String) {
+      final trimmed = out.trim();
+      return trimmed.isEmpty ? null : trimmed;
+    }
+    if (out is List<int>) {
+      final text = utf8.decode(out).trim();
+      return text.isEmpty ? null : text;
+    }
+    return null;
+  } catch (_) {
+    return null;
+  }
+}
+
+Future<bool> _commandExists(String command) async =>
+    (await _resolveExecutable(command)) != null;
+
+Future<_PackageManager?> _detectPackageManager() async {
+  const candidates = [
+    (_PackageManager.apt, ['apt-get']),
+    (_PackageManager.dnf, ['dnf']),
+    (_PackageManager.yum, ['yum']),
+    (_PackageManager.pacman, ['pacman']),
+    (_PackageManager.zypper, ['zypper']),
+    (_PackageManager.apk, ['apk']),
+  ];
+  for (final (manager, commands) in candidates) {
+    for (final name in commands) {
+      if (await _commandExists(name)) {
+        return manager;
+      }
+    }
+  }
+  return null;
+}
+
+String _packageManagerLabel(_PackageManager manager) {
+  switch (manager) {
+    case _PackageManager.apt:
+      return 'apt';
+    case _PackageManager.dnf:
+      return 'dnf';
+    case _PackageManager.yum:
+      return 'yum';
+    case _PackageManager.pacman:
+      return 'pacman';
+    case _PackageManager.zypper:
+      return 'zypper';
+    case _PackageManager.apk:
+      return 'apk';
+  }
+}
+
+bool _isRootUser() {
+  final uid = Platform.environment['EUID'] ?? Platform.environment['UID'];
+  if (uid == '0') return true;
+  final user = Platform.environment['USER'];
+  return user == 'root';
+}
+
+bool _isLinuxDevice(String? deviceId) {
+  if (deviceId == null || deviceId.isEmpty) return false;
+  final id = deviceId.toLowerCase();
+  return id == 'linux' || id.startsWith('linux-') || id.contains('/linux');
+}
+
+List<String>? _buildInstallCommand(
+    _PackageManager manager, List<String> packages) {
+  if (packages.isEmpty) return null;
+  final needsSudo = !_isRootUser();
+  final prefix = <String>[];
+  if (needsSudo) prefix.add('sudo');
+  switch (manager) {
+    case _PackageManager.apt:
+      return [...prefix, 'apt-get', 'install', '-y', ...packages];
+    case _PackageManager.dnf:
+      return [...prefix, 'dnf', 'install', '-y', ...packages];
+    case _PackageManager.yum:
+      return [...prefix, 'yum', 'install', '-y', ...packages];
+    case _PackageManager.pacman:
+      return [...prefix, 'pacman', '-Sy', '--noconfirm', ...packages];
+    case _PackageManager.zypper:
+      return [...prefix, 'zypper', '--non-interactive', 'install', ...packages];
+    case _PackageManager.apk:
+      return [...prefix, 'apk', 'add', '--no-cache', ...packages];
+  }
+}
+
+Future<int> _runLoggedProcess(List<String> command,
+    {String tag = 'cmd'}) async {
+  _log('[$tag] executing: ' + command.join(' '));
+  final process = await Process.start(command.first, command.sublist(1));
+  final stdoutFuture = process.stdout
+      .transform(utf8.decoder)
+      .transform(const LineSplitter())
+      .forEach((line) => _log('[$tag][out] ' + line));
+  final stderrFuture = process.stderr
+      .transform(utf8.decoder)
+      .transform(const LineSplitter())
+      .forEach((line) => _log('[$tag][err] ' + line));
+  final code = await process.exitCode;
+  await Future.wait([stdoutFuture, stderrFuture]);
+  _log('[$tag] exit code ' + code.toString());
+  return code;
+}
+
+Future<void> _ensureLinuxDependencies() async {
+  if (!Platform.isLinux) {
+    _log(
+        'Skipping Linux dependency check (platform=${Platform.operatingSystem}).');
+    return;
+  }
+
+  _log('Checking required Linux desktop dependencies...');
+  final missing = <_LinuxDependency>[];
+  for (final dep in _linuxDependencies) {
+    final present = await _commandExists(dep.binary);
+    if (present) {
+      _log('Dependency present: ' + dep.binary);
+    } else {
+      _log('Dependency missing: ' + dep.binary + ' (' + dep.description + ')');
+      missing.add(dep);
+    }
+  }
+
+  if (missing.isEmpty) {
+    _log('All required Linux dependencies are installed.');
+    return;
+  }
+
+  final manager = await _detectPackageManager();
+  if (manager == null) {
+    _log(
+        'Unable to detect supported package manager; install missing dependencies manually.');
+    return;
+  }
+
+  _log('Detected package manager: ' + _packageManagerLabel(manager));
+  final packages = <String>{};
+  for (final dep in missing) {
+    packages.addAll(dep.packagesFor(manager));
+  }
+  packages.removeWhere((pkg) => pkg.isEmpty);
+
+  if (packages.isEmpty) {
+    _log('No package mappings available for ' +
+        _packageManagerLabel(manager) +
+        '; install the missing tools manually.');
+    return;
+  }
+
+  final command = _buildInstallCommand(manager, packages.toList()..sort());
+  if (command == null) {
+    _log(
+        'Unable to construct install command; aborting automatic installation.');
+    return;
+  }
+
+  _log('Attempting to install missing packages: ' + packages.join(', '));
+  final code = await _runLoggedProcess(command, tag: 'deps');
+  if (code == 0) {
+    _log('Dependency installation completed successfully.');
+  } else {
+    _log('Dependency installation failed (exit code ' +
+        code.toString() +
+        '). Please install the packages manually.');
+  }
+}
+
+Future<Map<String, String>> _flutterEnvOverrides() async {
+  if (!Platform.isLinux) return const {};
+
+  final overrides = <String, String>{};
+  final snapNinja = File('/snap/flutter/current/usr/bin/ninja');
+  if (!snapNinja.existsSync()) {
+    final ninjaPath = await _resolveExecutable('ninja');
+    if (ninjaPath != null) {
+      _log(
+          'Using system ninja at $ninjaPath for Flutter (snap binary missing).');
+      overrides['FLUTTER_NINJA'] = ninjaPath;
+      overrides['NINJA_PATH'] = ninjaPath;
+      overrides['CMAKE_MAKE_PROGRAM'] = ninjaPath;
+    } else {
+      _log('Flutter snap ninja binary missing and no ninja found in PATH.');
+    }
+  }
+
+  final lldPath =
+      await _resolveExecutable('ld.lld') ?? await _resolveExecutable('lld');
+  if (lldPath != null) {
+    _log('Using linker at $lldPath for Flutter builds.');
+    overrides['CMAKE_LINKER'] = lldPath;
+    overrides['LD'] = lldPath;
+    overrides['LLD_PATH'] = lldPath;
+  } else {
+    _log('LLD linker (ld.lld) not found; Flutter desktop builds may fail.');
+  }
+
+  return overrides;
+}
+
+Future<void> _resetFlutterLinuxBuildArtifacts(
+    String projectRoot, Map<String, String> env) async {
+  if (!Platform.isLinux) return;
+  if (env.isEmpty) return;
+  final buildDir = Directory(p.join(projectRoot, 'build', 'linux'));
+  if (!buildDir.existsSync()) return;
+  final targets = [
+    File(p.join(buildDir.path, 'CMakeCache.txt')),
+    File(p.join(buildDir.path, 'CMakeCache.txt.backup')), // just in case
+    File(p.join(buildDir.path, 'build.ninja')),
+    File(p.join(buildDir.path, 'x64', 'debug', 'CMakeCache.txt')),
+    File(p.join(buildDir.path, 'x64', 'debug', 'build.ninja')),
+    File(p.join(buildDir.path, 'x64', 'profile', 'CMakeCache.txt')),
+    File(p.join(buildDir.path, 'x64', 'profile', 'build.ninja')),
+    File(p.join(buildDir.path, 'x64', 'release', 'CMakeCache.txt')),
+    File(p.join(buildDir.path, 'x64', 'release', 'build.ninja')),
+  ];
+  for (final file in targets) {
+    if (file.existsSync()) {
+      _log('Removing stale ${p.relative(file.path, from: projectRoot)}');
+      try {
+        await file.delete();
+      } catch (err) {
+        _log('Failed to delete ${file.path}: $err');
+      }
+    }
+  }
+}
+
 Future<void> _dev(ArgResults cmd) async {
   final root = Directory.current.path;
   await _generate();
@@ -1689,19 +2122,17 @@ Future<void> _dev(ArgResults cmd) async {
   final devServer = File(p.join(toolDir.path, 'dartvel_dev_server.dart'));
   // Always rewrite to ensure latest runtime (switch from shelf to dartvel_shelf)
   devServer.writeAsStringSync('''
-import 'package:dartvel_shelf/dartvel_shelf.dart' as dv;
+import 'dart:async';
 import 'dartvel_backend.g.dart' as cfg;
 import 'dartvel_backend_routes.g.dart' as gen;
 
 Future<void> main() async {
   // ignore: avoid_print
   print('dartvel backend build: ' + (cfg.dvGenBuildId));
-  final app = gen.buildBackend();
-  await app.listen(address: '0.0.0.0', port: cfg.backendPort);
-  // Print a friendly line (DartvelShelf does not expose the bound address here)
-  // Assume localhost for convenience in logs.
+  final handle = await gen.startBackend(host: '0.0.0.0', port: cfg.backendPort);
   // ignore: avoid_print
-  print('dartvel backend listening on http://localhost:' + cfg.backendPort.toString() + cfg.apiBasePath);
+  print('dartvel backend listening on http://' + handle.host + ':' + handle.port.toString() + cfg.apiBasePath);
+  await Completer<void>().future;
 }
 ''');
 
@@ -1801,6 +2232,11 @@ Future<void> main() async {
   }
   if (cmd['verbose'] == true) flutterArgs.add('-v');
 
+  final targetIsLinux = _isLinuxDevice(deviceOpt);
+  if (targetIsLinux) {
+    await _ensureLinuxDependencies();
+  }
+
   stdout.writeln('dartvel dev: starting backend and Flutter app...');
   try {
     // Try to locate native dartvel_shelf library and pass via env for backend
@@ -1844,7 +2280,13 @@ Future<void> main() async {
     stdout.writeln('WARN: failed to start backend');
   }
   try {
-    flutterP = await _spawn('flutter', flutterArgs, 'flutter');
+    Map<String, String> flutterEnv = const {};
+    if (targetIsLinux) {
+      flutterEnv = await _flutterEnvOverrides();
+      await _resetFlutterLinuxBuildArtifacts(root, flutterEnv);
+    }
+    flutterP = await _spawn('flutter', flutterArgs, 'flutter',
+        extraEnv: flutterEnv.isEmpty ? null : flutterEnv);
   } catch (_) {
     stdout.writeln(
         'WARN: failed to start Flutter app. Ensure Flutter SDK is installed.');
@@ -1901,4 +2343,185 @@ Future<void> main() async {
     if (backP != null) backP!.exitCode,
     if (flutterP != null) flutterP!.exitCode,
   ].whereType<Future<int>>());
+}
+
+Future<void> _new(ArgResults cmd) async {
+  final rest = cmd.rest;
+  if (rest.isEmpty) {
+    stderr.writeln('Usage: dartvel new <project_name> [--template app]');
+    exit(2);
+  }
+  final projectName = rest.first;
+  final targetDir = Directory(p.join(Directory.current.path, projectName));
+  final force = (cmd['force'] as bool) || (cmd['overwrite'] as bool);
+  if (targetDir.existsSync() && !force) {
+    stderr.writeln('Directory "' +
+        targetDir.path +
+        '" already exists. Use --force to overwrite.');
+    exit(3);
+  }
+  if (targetDir.existsSync() && force) {
+    _log('Removing existing directory ' + targetDir.path + ' (force).');
+    await targetDir.delete(recursive: true);
+  }
+  targetDir.createSync(recursive: true);
+
+  String sanitize(String input) =>
+      input.replaceAll(RegExp(r'[^a-z0-9_]+'), '_');
+  final packageName = sanitize(projectName.toLowerCase());
+
+  void writeFile(String relPath, String contents) {
+    final file = File(p.join(targetDir.path, relPath));
+    file.createSync(recursive: true);
+    file.writeAsStringSync(contents);
+  }
+
+  final pubspec = '''
+name: $packageName
+description: A new Dartvel project.
+publish_to: "none"
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  dartvel_flutter:
+    path: ../packages/dartvel_flutter
+  dartvel_core:
+    path: ../packages/dartvel_core
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+
+dartvel:
+  backendHost: 0.0.0.0
+  backendPort: 3000
+  devBackendHost: http://localhost:3000
+  apiBasePath: /api
+  pagesDir: lib/pages
+  backendDir: lib/backend
+  envFiles: [ .env, .env.local ]
+''';
+  writeFile('pubspec.yaml', pubspec.trim() + "\n");
+
+  writeFile(
+      'analysis_options.yaml', 'include: package:lints/recommended.yaml\n');
+
+  final readme = '''# $projectName
+
+Generated with `dartvel new`. Run the following to get started:
+
+```
+cd $projectName
+flutter pub get
+dart run dartvel_cli:dartvel dev
+```
+
+Project layout follows the recommended Dartvel structure.
+''';
+  writeFile('README.md', readme);
+
+  const indexPage = '''import 'package:dartvel_flutter/dartvel_flutter.dart';
+import 'package:flutter/material.dart';
+
+class IndexPage extends DartvelPage {
+  const IndexPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Welcome to Dartvel')),
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Hello from Dartvel starter template!'),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () => context.go('/about'),
+              child: const Text('Go to /about'),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+}
+''';
+  writeFile('lib/pages/index.page.dart', indexPage);
+
+  const aboutPage = '''import 'package:dartvel_flutter/dartvel_flutter.dart';
+import 'package:flutter/material.dart';
+
+class AboutPage extends DartvelPage {
+  const AboutPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('About')),
+      body: const Center(
+        child: Text('Edit lib/pages/about.page.dart to customise.'),
+      ),
+    );
+  }
+}
+''';
+  writeFile('lib/pages/about.page.dart', aboutPage);
+
+  const layoutPage = '''import 'package:dartvel_flutter/dartvel_flutter.dart';
+import 'package:flutter/material.dart';
+
+class RootLayout extends DartvelLayout {
+  const RootLayout({super.key, required super.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(child: child),
+    );
+  }
+}
+''';
+  writeFile('lib/pages/_layout.page.dart', layoutPage);
+
+  const helloFunction = '''import 'package:dartvel_core/dartvel.dart';
+
+Future<ResponseType> handler(RequestType req) async {
+  final name = req.url.queryParameters['name'] ?? 'friend';
+  return Res.json({'message': 'Hello, ' + name + '!'});
+}
+''';
+  writeFile('lib/backend/functions/hello.get.dart', helloFunction);
+
+  const echoFunction = '''import 'package:dartvel_core/dartvel.dart';
+
+Future<ResponseType> handler(RequestType req) async {
+  final body = await req.body.jsonDecode();
+  return Res.json({'echo': body});
+}
+''';
+  writeFile('lib/backend/functions/echo.post.dart', echoFunction);
+
+  const gitignore = '''/.dart_tool/
+/build/
+.env
+.env.local
+lib/dartvel_client/
+''';
+  writeFile('.gitignore', gitignore);
+
+  File(p.join(targetDir.path, '.env'))
+      .writeAsStringSync('PUBLIC_API_HOST=http://localhost:3000\n');
+
+  stdout.writeln('Created Dartvel project in ' + targetDir.path + '.');
+  stdout
+      .writeln('Run `cd ' + projectName + ' && flutter pub get` to continue.');
 }

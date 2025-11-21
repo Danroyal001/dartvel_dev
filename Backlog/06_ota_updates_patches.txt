@@ -1,0 +1,22 @@
+Feature #6: Ota Updates Patches
+============================================================
+
+Summary
+-------
+Provide OTA update pipeline similar to Expo/CodePush.
+
+Key Deliverables
+-----------------
+1. Define OTA manifest format and signing requirements.
+2. Integrate Codemagic and Shorebird APIs for build artifact uploads.
+3. Implement CLI commands for publishing updates and rollback.
+4. Add client runtime to poll/apply updates with fallback.
+5. Document release process and governance policies.
+
+Open Questions
+--------------
+- TBD during discovery.
+
+Dependencies
+------------
+- To be assessed.

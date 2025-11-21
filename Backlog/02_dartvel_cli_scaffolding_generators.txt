@@ -1,0 +1,27 @@
+Feature #2: Dartvel Cli Scaffolding Generators
+============================================================
+
+Summary
+-------
+Expand CLI capabilities beyond routes/build to cover full project lifecycle.
+
+Progress
+--------
+- 2025-09-27: Added baseline `dartvel new` command with starter files (deliverable 2).
+- Upcoming: extend scaffolding for pages/layouts/guards and design plugin architecture.
+
+Key Deliverables
+-----------------
+1. Design CLI plugin architecture for future extensions.
+2. Implement `dartvel new <template>` command with app/library templates.
+3. Add scaffolders for pages, layouts, guards, backend functions.
+4. Provide completion scripts and help text updates.
+5. Write integration tests covering primary commands.
+
+Open Questions
+--------------
+- TBD during discovery.
+
+Dependencies
+------------
+- To be assessed.

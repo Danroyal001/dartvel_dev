@@ -1,0 +1,22 @@
+Feature #15: Ui Scaffolding
+============================================================
+
+Summary
+-------
+Ship UI component libraries & generators.
+
+Key Deliverables
+-----------------
+1. Create `dartvel_ui` package with design tokens.
+2. Implement form/table/list scaffolding from schema inputs.
+3. Offer premium starter kits via template marketplace.
+4. Integrate CLI prompts for choosing UI kits when scaffolding pages.
+5. Document styling overrides and theming support.
+
+Open Questions
+--------------
+- TBD during discovery.
+
+Dependencies
+------------
+- To be assessed.

@@ -1,0 +1,22 @@
+Feature #32: Drag Drop Ai Code Assist
+============================================================
+
+Summary
+-------
+CreatorX Studio-driven visual/AI building.
+
+Key Deliverables
+-----------------
+1. Integrate Studio canvas with Dartvel project format.
+2. Enable round-trip sync between Studio and code.
+3. Embed AI assist for component generation + wiring.
+4. Design conflict resolution workflows.
+5. Pilot with limited user group before GA.
+
+Open Questions
+--------------
+- TBD during discovery.
+
+Dependencies
+------------
+- To be assessed.

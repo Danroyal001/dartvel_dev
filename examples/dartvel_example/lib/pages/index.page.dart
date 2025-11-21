@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:dartvel_example/dartvel_client/functions.g.dart';
+import 'package:flutter/widget_previews.dart';
 import 'package:go_router/go_router.dart';
 
 class IndexPage extends DartvelPage {
+  @Preview()
   const IndexPage({super.key});
 
   @override

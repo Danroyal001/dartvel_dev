@@ -1,0 +1,22 @@
+Feature #11: Push Email Notifications
+============================================================
+
+Summary
+-------
+Enable push notifications and email flows.
+
+Key Deliverables
+-----------------
+1. Integrate with FCM/APNs for push and provide CLI provisioning helpers.
+2. Offer email provider adapters (SES, SendGrid).
+3. Create notification scheduler API.
+4. Add backend function examples for transactional messages.
+5. Document consent management and unsubscribe flows.
+
+Open Questions
+--------------
+- TBD during discovery.
+
+Dependencies
+------------
+- To be assessed.

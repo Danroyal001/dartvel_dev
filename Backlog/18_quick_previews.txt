@@ -1,0 +1,22 @@
+Feature #18: Quick Previews
+============================================================
+
+Summary
+-------
+Deliver preview app & web preview pipeline.
+
+Key Deliverables
+-----------------
+1. Design preview protocol for streaming builds to devices.
+2. Implement mobile preview client (Flutter) similar to Expo Go.
+3. Add QR provisioning and session security.
+4. Integrate CLI command `dartvel preview --live`.
+5. Document network requirements and troubleshooting.
+
+Open Questions
+--------------
+- TBD during discovery.
+
+Dependencies
+------------
+- To be assessed.

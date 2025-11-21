@@ -1,0 +1,22 @@
+Feature #13: Permissions Management
+============================================================
+
+Summary
+-------
+Expose tooling for project-wide permission models.
+
+Key Deliverables
+-----------------
+1. Model hierarchical permissions and roles.
+2. Integrate permission checks into routing/middleware.
+3. Provide CLI to scaffold policy files and audits.
+4. Add unit tests verifying deny-by-default stance.
+5. Document patterns for multi-tenant apps.
+
+Open Questions
+--------------
+- TBD during discovery.
+
+Dependencies
+------------
+- To be assessed.

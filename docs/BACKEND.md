@@ -23,7 +23,7 @@ lib/backend/
 - Group folders `(admin)/users.get.dart` are stripped from the URL.
  - If a filename has no explicit method (e.g., `hello.dart` or `blog/[id].dart`), the CLI defaults the method to `POST`.
 
-The CLI generates a backend app builder at `.dart_tool/dartvel_backend_routes.g.dart` (returns `DartvelShelf`) and a config at `.dart_tool/dartvel_backend.g.dart` (`backendHost`, `backendPort`, `apiBasePath`).
+The CLI generates a backend router builder at `.dart_tool/dartvel_backend_routes.g.dart` (returns a `Router`) and a config at `.dart_tool/dartvel_backend.g.dart` (`backendHost`, `backendPort`, `apiBasePath`). Call `buildBackendRouter()` and pass the result to `serve()` (or use `startBackend()` for a ready-to-run helper).
 
 **Typed Functions (v0.1)**
 - Define a plain Dart function whose name matches the file base name. The generator adapts request info to your parameters.

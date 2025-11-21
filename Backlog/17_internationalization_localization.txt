@@ -1,0 +1,22 @@
+Feature #17: Internationalization Localization
+============================================================
+
+Summary
+-------
+Complete i18n tooling end-to-end.
+
+Key Deliverables
+-----------------
+1. Integrate ARB/Intl workflow with CLI commands.
+2. Provide locale detection and routing integration.
+3. Offer translation management guidance (Crowdin/Lokalise).
+4. Add tests ensuring fallback chains work on all platforms.
+5. Document best practices for dynamic content.
+
+Open Questions
+--------------
+- TBD during discovery.
+
+Dependencies
+------------
+- To be assessed.
