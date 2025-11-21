@@ -1,24 +1,16 @@
-.PHONY: all release debug bindings example h3-certs clean
+.PHONY: init run run-https gen-certs clean
 
-all: release bindings
+init:
+	@dart pub get
 
-release:
-	cd rust && cargo build --release
-	cd rust && cbindgen --config cbindgen.toml -o include/dartvel_shelf.h
+run: init
+	@dart run example/hello.dart
 
-debug:
-	cd rust && cargo build
-	cd rust && cbindgen --config cbindgen.toml -o include/dartvel_shelf.h
+gen-certs:
+	@scripts/generate_dev_certs.sh
 
-bindings:
-	dart pub get
-	- dart run ffigen
-
-example:
-	dart run example/server.dart
-
-h3-certs:
-	bash scripts/gen_cert_self_signed.sh
+run-https: init
+	@dart run example/https_demo.dart
 
 clean:
-	rm -rf build .dart_tool rust/target
+	@find . -name "*.dylib" -o -name "*.so" -o -name "*.dll" -delete || true

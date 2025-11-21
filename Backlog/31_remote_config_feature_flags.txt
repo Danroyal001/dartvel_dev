@@ -1,0 +1,22 @@
+Feature #31: Remote Config Feature Flags
+============================================================
+
+Summary
+-------
+Allow runtime feature toggles.
+
+Key Deliverables
+-----------------
+1. Design config store schema with targeting rules.
+2. Implement client SDK with caching and evaluation.
+3. Add backend management UI (ties to admin dashboard).
+4. Ensure audit logging + rollout metrics.
+5. Write tests covering rule evaluation edge cases.
+
+Open Questions
+--------------
+- TBD during discovery.
+
+Dependencies
+------------
+- To be assessed.

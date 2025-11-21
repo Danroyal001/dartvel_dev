@@ -1,0 +1,22 @@
+Feature #22: Image Asset Optimization
+============================================================
+
+Summary
+-------
+Optimise assets across platforms.
+
+Key Deliverables
+-----------------
+1. Integrate image compression pipeline (Sharp/Resizer).
+2. Add vector/icon font generation utilities.
+3. Provide CLI command to audit asset sizes.
+4. Document asset loading best practices per platform.
+5. Evaluate CDN integration for DartvelCloud deployment.
+
+Open Questions
+--------------
+- TBD during discovery.
+
+Dependencies
+------------
+- To be assessed.

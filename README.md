@@ -98,7 +98,7 @@ See `example/dartvel_example/lib/backend/functions/` for implementations.
   ```
 - Generate routes/configs:
   - `dart run dartvel_cli:routes`
-- Development backend is launched by the CLI (`dartvel dev`). For custom servers, import the generated `.dart_tool/dartvel_backend_routes.g.dart` and call `listen()` on the returned `DartvelShelf` app.
+- Development backend is launched by the CLI (`dartvel dev`). For custom servers, import the generated `.dart_tool/dartvel_backend_routes.g.dart`, call `buildBackendRouter()`, and pass the result to `serve()` from `dartvel_shelf` (or call `startBackend()` for a ready-to-serve helper).
 
 ## Generated files and Git ignore
 - Client (Flutter) generated files live under `lib/dartvel_client/` and are safe to commit or ignore.
@@ -111,3 +111,4 @@ See `example/dartvel_example/lib/backend/functions/` for implementations.
   - `/.dart_tool/dartvel_backend.g.dart`
   - `/.dart_tool/dartvel_backend_routes.g.dart`
   If you prefer to commit client files, remove that line from your `.gitignore`.
+

@@ -30,7 +30,7 @@ Generated files:
   - `env.g.dart` (PUBLIC_* values from env files)
 - Backend (dartvel_shelf): `.dart_tool/`
   - `dartvel_backend.g.dart`
-  - `dartvel_backend_routes.g.dart` (builds a `DartvelShelf` app for `lib/backend/functions/**/*.method.dart`)
+  - `dartvel_backend_routes.g.dart` (builds a `Router` for `lib/backend/functions/**/*.method.dart` and exposes `startBackend()` helpers)
 
 Prerequisites for backend (native core)
 - Build the Rust core once before `dartvel dev/run` so the native library is available:

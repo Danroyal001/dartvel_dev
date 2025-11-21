@@ -1,66 +1,50 @@
 #ifndef DARTVEL_SHELF_H
 #define DARTVEL_SHELF_H
 
-#pragma once
-
-/* Generated with cbindgen:0.29.0 */
-
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 
-typedef struct SliceU8 {
+#define AW_FLAG_H2C 1
+
+typedef struct FfiStr {
   const uint8_t *ptr;
-  uintptr_t len;
-} SliceU8;
+  size_t len;
+} FfiStr;
 
-typedef struct RequestEnvelope {
-  uint64_t request_id;
-  uint32_t route_id;
-  uint8_t method;
-  uint32_t path_off;
-  uint32_t path_len;
-  uint32_t hdr_off;
-  uint32_t hdr_len;
-  uint32_t body_off;
-  uint32_t body_len;
-  uint64_t body_rx;
-  uint64_t deadline_ns;
-} RequestEnvelope;
+typedef struct FfiBuf {
+  const uint8_t *ptr;
+  size_t len;
+} FfiBuf;
 
-typedef struct ResponseEnvelope {
-  uint64_t request_id;
+typedef void (*DartReqHandler)(uint64_t,
+                               struct FfiStr,
+                               struct FfiStr,
+                               const uint8_t*,
+                               size_t,
+                               struct FfiBuf);
+
+typedef struct FfiResp {
   uint16_t status;
-  uint32_t hdr_off;
-  uint32_t hdr_len;
-  uint64_t body_tx;
-  uint64_t content_len;
-  uint8_t finalize;
-} ResponseEnvelope;
+  struct FfiBuf body;
+  const uint8_t *hdrs;
+  size_t hdrs_len;
+} FfiResp;
 
-struct SliceU8 dv_last_error(void);
+void aw_register_handler(DartReqHandler cb);
 
-uint64_t dv_server_bootstrap(const uint8_t *cfg_ptr, uintptr_t cfg_len);
+int32_t aw_configure_cors(struct FfiStr config_json);
 
-uint8_t dv_server_poll_job(uint64_t server, struct RequestEnvelope *out_req);
+int32_t aw_tls_rustls_from_pem(struct FfiBuf cert_pem, struct FfiBuf key_pem);
 
-uint8_t dv_server_submit_response(uint64_t _server, const struct ResponseEnvelope *_resp);
+int32_t aw_start(struct FfiStr host, uint16_t port, uint32_t flags);
 
-uintptr_t dv_request_metadata_read(uint64_t _h, uint8_t *_dst, uintptr_t _cap);
+int32_t aw_stop(uint64_t server_id);
 
-uintptr_t dv_response_write_chunk(uint64_t h, const uint8_t *src, uintptr_t len);
+int32_t aw_complete(uint64_t req_id, struct FfiResp resp);
 
-uint64_t dv_response_open_stream(uint64_t r);
-
-uint8_t dv_response_finalize_stream(uint64_t tx);
-
-uintptr_t dv_response_write_for_request(uint64_t r, const uint8_t *src, uintptr_t len);
-
-uintptr_t dv_ws_send_text(uint64_t _ws, const uint8_t *_src, uintptr_t _len);
-
-uintptr_t dv_ws_send_bin(uint64_t _ws, const uint8_t *_src, uintptr_t _len);
-
-uint8_t dv_ws_close(uint64_t _ws, uint16_t _code, const uint8_t *_reason, uintptr_t _len);
+void aw_free(void *ptr_, size_t len);
 
 #endif  /* DARTVEL_SHELF_H */

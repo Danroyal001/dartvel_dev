@@ -1,0 +1,22 @@
+Feature #9: Authentication Authorization Middleware
+============================================================
+
+Summary
+-------
+Deliver auth stack with providers, guards, RBAC.
+
+Key Deliverables
+-----------------
+1. Design unified auth interface supporting email/password, OAuth, and Magic Links.
+2. Implement guard middleware hooking into backend routers.
+3. Provide session/token management helpers for Flutter runtime.
+4. Add RBAC/ABAC policy configuration and enforcement.
+5. Write end-to-end samples & tests covering protected routes.
+
+Open Questions
+--------------
+- TBD during discovery.
+
+Dependencies
+------------
+- To be assessed.

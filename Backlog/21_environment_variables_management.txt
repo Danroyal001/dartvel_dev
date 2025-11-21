@@ -1,0 +1,22 @@
+Feature #21: Environment Variables Management
+============================================================
+
+Summary
+-------
+Strengthen environment handling.
+
+Key Deliverables
+-----------------
+1. Add schema validation for env keys.
+2. Support encrypted secrets and separate scopes (client/server).
+3. Implement watch mode for env changes during dev.
+4. Document precedence rules and best practices.
+5. Add tests covering merge precedence and overrides.
+
+Open Questions
+--------------
+- TBD during discovery.
+
+Dependencies
+------------
+- To be assessed.
