@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 
 import 'src/commands/build_command.dart';
+import 'src/commands/deploy_command.dart';
 import 'src/commands/dev_command.dart';
 import 'src/commands/doctor_command.dart';
 import 'src/commands/init_command.dart';
@@ -27,6 +28,7 @@ Future<void> main(List<String> args) async {
     ..addCommand(DevCommand())
     ..addCommand(RoutesCommand())
     ..addCommand(BuildCommand())
+    ..addCommand(DeployCommand())
     ..addCommand(PreviewCommand())
     ..addCommand(WatchCommand())
     ..addCommand(PluginCommand())
