@@ -16,8 +16,8 @@ class DartvelRouteState extends InheritedWidget {
     super.key,
     required this.params,
     required this.query,
-    required Widget child,
-  }) : super(child: child);
+    required super.child,
+  });
 
   static DartvelRouteState of(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<DartvelRouteState>()!;
@@ -96,6 +96,10 @@ abstract class DartvelPage extends StatelessWidget {
   Future<Object?> loadData(
           Map<String, String> params, Map<String, String> query) async =>
       null;
+
+  /// Optional SSG paths for dynamic routes.
+  /// Returns a list of param maps (e.g. [{'id': '1'}, {'id': '2'}]).
+  Future<List<Map<String, String>>> get staticPaths async => [];
 }
 
 // ==============================
@@ -113,8 +117,7 @@ abstract class DartvelLayout extends StatelessWidget {
 
 class DvDataScope extends InheritedWidget {
   final Object? data;
-  const DvDataScope({super.key, required this.data, required Widget child})
-      : super(child: child);
+  const DvDataScope({super.key, required this.data, required super.child});
 
   static DvDataScope of(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<DvDataScope>()!;
@@ -290,8 +293,8 @@ class DvI18nScope extends InheritedWidget {
   const DvI18nScope({
     super.key,
     required this.localeTag,
-    required Widget child,
-  }) : super(child: child);
+    required super.child,
+  });
 
   Locale get locale {
     final parts = localeTag.replaceAll('_', '-').split('-');

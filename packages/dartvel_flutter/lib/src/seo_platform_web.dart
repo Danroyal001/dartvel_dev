@@ -26,6 +26,7 @@ void applySeo(SeoProps p) {
 
   if (p.canonicalUrl != null) {
     final head = doc.head!;
+
     final existing =
         head.querySelector('link[rel="canonical"]') as web.HTMLLinkElement?;
     final link =
@@ -38,10 +39,12 @@ void applySeo(SeoProps p) {
   // OpenGraph
   _upsertMeta('og:title', p.title ?? '', attr: 'property');
   _upsertMeta('og:description', p.description ?? '', attr: 'property');
-  if (p.imageUrl != null)
+  if (p.imageUrl != null) {
     _upsertMeta('og:image', p.imageUrl!, attr: 'property');
-  if (p.siteName != null)
+  }
+  if (p.siteName != null) {
     _upsertMeta('og:site_name', p.siteName!, attr: 'property');
+  }
 
   // Twitter
   if (p.twitterHandle != null) _upsertMeta('twitter:site', p.twitterHandle!);

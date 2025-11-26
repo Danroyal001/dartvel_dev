@@ -25,6 +25,7 @@ use rustls::{
 };
 use rustls_pemfile::Item;
 
+
 // ===== C ABI structs =====
 #[repr(C)]
 pub struct FfiBuf {
@@ -58,6 +59,7 @@ struct CorsOptions {
 }
 
 #[derive(Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 struct CorsOptionsRaw {
     #[serde(default)]
     allow_any_origin: bool,
@@ -233,11 +235,14 @@ pub extern "C" fn aw_register_handler(cb: DartReqHandler) {
 pub extern "C" fn aw_configure_cors(config_json: FfiStr) -> i32 {
     if config_json.len == 0 {
         if let Some(mutex) = CORS_CONFIG.get() {
-            *mutex.lock().unwrap() = None;
+            *safe_lock(mutex) = None;
         }
         return 0;
     }
 
+    if config_json.ptr.is_null() {
+        return 0;
+    }
     let json_slice = unsafe { std::slice::from_raw_parts(config_json.ptr, config_json.len) };
     let json_str = match std::str::from_utf8(json_slice) {
         Ok(s) => s,
@@ -246,7 +251,7 @@ pub extern "C" fn aw_configure_cors(config_json: FfiStr) -> i32 {
 
     if json_str.trim().is_empty() {
         if let Some(mutex) = CORS_CONFIG.get() {
-            *mutex.lock().unwrap() = None;
+            *safe_lock(mutex) = None;
         }
         return 0;
     }
@@ -268,7 +273,7 @@ pub extern "C" fn aw_configure_cors(config_json: FfiStr) -> i32 {
     };
 
     let mutex = CORS_CONFIG.get_or_init(|| Mutex::new(None));
-    *mutex.lock().unwrap() = Some(Arc::new(parsed));
+    *safe_lock(mutex) = Some(Arc::new(parsed));
     0
 }
 
@@ -276,6 +281,9 @@ pub extern "C" fn aw_configure_cors(config_json: FfiStr) -> i32 {
 pub extern "C" fn aw_tls_rustls_from_pem(cert_pem: FfiBuf, key_pem: FfiBuf) -> i32 {
     // Parse certificate chain
     let certs = {
+        if cert_pem.ptr.is_null() {
+            return 2;
+        }
         let mut r = Cursor::new(unsafe { std::slice::from_raw_parts(cert_pem.ptr, cert_pem.len) });
         let mut out = Vec::<CertificateDer<'static>>::new();
         for item in rustls_pemfile::read_all(&mut r) {
@@ -294,6 +302,9 @@ pub extern "C" fn aw_tls_rustls_from_pem(cert_pem: FfiBuf, key_pem: FfiBuf) -> i
     };
 
     let sk = {
+        if key_pem.ptr.is_null() {
+            return 3;
+        }
         let mut r = Cursor::new(unsafe { std::slice::from_raw_parts(key_pem.ptr, key_pem.len) });
         let mut key: Option<PrivateKeyDer<'static>> = None;
         for item in rustls_pemfile::read_all(&mut r) {
@@ -340,17 +351,22 @@ pub extern "C" fn aw_tls_rustls_from_pem(cert_pem: FfiBuf, key_pem: FfiBuf) -> i
 
 #[no_mangle]
 pub extern "C" fn aw_start(host: FfiStr, port: u16, flags: u32) -> i32 {
-    let host_string =
-        unsafe { std::str::from_utf8_unchecked(std::slice::from_raw_parts(host.ptr, host.len)) }
-            .to_string();
-    let server_id = NEXT_SERVER_ID
-        .get()
-        .unwrap()
-        .fetch_add(1, Ordering::Relaxed);
+    if host.ptr.is_null() {
+        return -1;
+    }
+    let host_slice = unsafe { std::slice::from_raw_parts(host.ptr, host.len) };
+    let host_string = match std::str::from_utf8(host_slice) {
+        Ok(s) => s.to_string(),
+        Err(_) => return -1,
+    };
+    let server_id = match NEXT_SERVER_ID.get() {
+        Some(id) => id.fetch_add(1, Ordering::Relaxed),
+        None => return -1,
+    };
 
     let cors_config = {
         let mutex = CORS_CONFIG.get_or_init(|| Mutex::new(None));
-        mutex.lock().unwrap().clone()
+        safe_lock(mutex).clone()
     };
 
     std::thread::spawn(move || {
@@ -392,11 +408,11 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, flags: u32) -> i32 {
 
             let server = http_server.run();
             if let Some(handles) = SERVER_HANDLES.get() {
-                handles.lock().unwrap().insert(server_id, server.handle());
+                safe_lock(handles).insert(server_id, server.handle());
             }
             let _ = server.await;
             if let Some(handles) = SERVER_HANDLES.get() {
-                handles.lock().unwrap().remove(&server_id);
+                safe_lock(handles).remove(&server_id);
             }
         });
     });
@@ -407,7 +423,7 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, flags: u32) -> i32 {
 #[no_mangle]
 pub extern "C" fn aw_stop(server_id: u64) -> i32 {
     if let Some(handles) = SERVER_HANDLES.get() {
-        let handle = handles.lock().unwrap().remove(&server_id);
+        let handle = safe_lock(handles).remove(&server_id);
         if let Some(handle) = handle {
             let _ = handle.stop(true);
             return 0;
@@ -418,13 +434,21 @@ pub extern "C" fn aw_stop(server_id: u64) -> i32 {
 
 #[no_mangle]
 pub extern "C" fn aw_complete(req_id: u64, resp: FfiResp) -> i32 {
-    let mut map = PENDING_RESPONSES.get().unwrap().lock().unwrap();
+    let map_mutex = match PENDING_RESPONSES.get() {
+        Some(m) => m,
+        None => return 1,
+    };
+    let mut map = safe_lock(map_mutex);
     if let Some(tx) = map.remove(&req_id) {
         let owned = unsafe {
+            if resp.hdrs.is_null() && resp.hdrs_len > 0 {
+                return 1;
+            }
+            if resp.body.ptr.is_null() && resp.body.len > 0 {
+                return 1;
+            }
             let headers = std::slice::from_raw_parts(resp.hdrs, resp.hdrs_len).to_vec();
             let body = std::slice::from_raw_parts(resp.body.ptr, resp.body.len).to_vec();
-            aw_free(resp.hdrs as *mut c_void, resp.hdrs_len);
-            aw_free(resp.body.ptr as *mut c_void, resp.body.len);
             FfiRespOwned {
                 status: resp.status,
                 headers,
@@ -438,14 +462,7 @@ pub extern "C" fn aw_complete(req_id: u64, resp: FfiResp) -> i32 {
     }
 }
 
-#[no_mangle]
-pub extern "C" fn aw_free(ptr_: *mut c_void, len: usize) {
-    if !ptr_.is_null() && len > 0 {
-        unsafe {
-            let _ = Vec::from_raw_parts(ptr_ as *mut u8, len, len);
-        }
-    }
-}
+
 
 // ===== Helpers =====
 fn headers_flat(req: &HttpRequest) -> Vec<u8> {
@@ -468,7 +485,10 @@ async fn dart_proxy_with_fallback(
     mut payload: web::Payload,
     fallback: Option<fn() -> HttpResponse>,
 ) -> HttpResponse {
-    let req_id = NEXT_ID.get().unwrap().fetch_add(1, Ordering::Relaxed);
+    let req_id = match NEXT_ID.get() {
+        Some(id) => id.fetch_add(1, Ordering::Relaxed),
+        None => return HttpResponse::InternalServerError().body("Backend not initialized"),
+    };
 
     let method = req.method().as_str().as_bytes().to_vec();
     let target = req.uri().to_string().into_bytes();
@@ -504,12 +524,11 @@ async fn dart_proxy_with_fallback(
     };
 
     let (response_tx, response_rx) = oneshot::channel::<FfiRespOwned>();
-    PENDING_RESPONSES
-        .get()
-        .unwrap()
-        .lock()
-        .unwrap()
-        .insert(req_id, response_tx);
+    if let Some(mutex) = PENDING_RESPONSES.get() {
+        safe_lock(mutex).insert(req_id, response_tx);
+    } else {
+        return HttpResponse::InternalServerError().finish();
+    }
 
     if let Some(cb) = DART_REQUEST_HANDLER.get() {
         (cb)(
@@ -596,4 +615,14 @@ fn default_healths_response() -> HttpResponse {
     HttpResponse::PermanentRedirect()
         .append_header(("location", "/health"))
         .finish()
+}
+
+fn safe_lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    match m.lock() {
+        Ok(g) => g,
+        Err(p) => {
+            eprintln!("WARN: Mutex poisoned, recovering");
+            p.into_inner()
+        }
+    }
 }

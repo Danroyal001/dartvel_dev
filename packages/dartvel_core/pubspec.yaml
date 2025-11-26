@@ -1,5 +1,6 @@
 
 name: dartvel_core
+publish_to: 'none'
 description: Core helpers (Res), types, simple CORS hint for dartvel backend
 version: 0.1.0
 environment:
@@ -10,3 +11,5 @@ dependencies:
   mime: ^1.0.4
   http_parser: ^4.0.2
   shelf_multipart: ^1.0.0
+dev_dependencies:
+  test: ^1.28.0

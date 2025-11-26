@@ -1,15 +1,20 @@
-import 'package:shelf/shelf.dart';
+import 'package:dartvel_shelf/dartvel_shelf.dart';
 import 'dart:async';
 import '../.dart_tool/dartvel_backend_routes.g.dart' as gen;
 
 Future<void> main() async {
   final handler = gen.buildBackendRouter();
   Future<void> probe(String method, String path) async {
-    final req = Request(method, Uri.parse('http://localhost:3000$path'));
+    final req = Request(
+      method: method,
+      url: Uri.parse('http://localhost:3000$path'),
+      headers: Headers(),
+      bodyStream: const Stream.empty(),
+    );
     try {
       final res = await handler(req);
-      final body = await res.readAsString();
-      print('TEST $method $path -> ${res.statusCode} $body');
+      final body = await res.body?.text() ?? '';
+      print('TEST $method $path -> ${res.status} $body');
     } catch (e, st) {
       print('ERROR $method $path: $e');
       print(st);
@@ -22,4 +27,3 @@ Future<void> main() async {
   await probe('DELETE', '/api/user/u1');
   await probe('POST', '/api/blog/last_viewed_date_2025-08-29');
 }
-

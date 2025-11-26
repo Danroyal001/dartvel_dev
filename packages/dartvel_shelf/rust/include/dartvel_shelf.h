@@ -45,6 +45,4 @@ int32_t aw_stop(uint64_t server_id);
 
 int32_t aw_complete(uint64_t req_id, struct FfiResp resp);
 
-void aw_free(void *ptr_, size_t len);
-
 #endif  /* DARTVEL_SHELF_H */

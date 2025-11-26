@@ -1,7 +1,24 @@
-
 include: package:lints/recommended.yaml
+
 linter:
   rules:
     prefer_const_constructors: true
     prefer_const_literals_to_create_immutables: true
     always_declare_return_types: true
+    directives_ordering: true
+    prefer_final_locals: true
+    unawaited_futures: true
+    avoid_print: true
+    prefer_single_quotes: true
+    sort_child_properties_last: true
+    curly_braces_in_flow_control_structures: true
+    avoid_empty_else: true
+    avoid_relative_lib_imports: true
+    avoid_types_as_parameter_names: true
+    control_flow_in_finally: true
+    empty_statements: true
+    hash_and_equals: true
+    iterable_contains_unrelated_type: true
+    list_remove_unrelated_type: true
+    no_duplicate_case_values: true
+    prefer_void_to_null: true
