@@ -6,8 +6,8 @@ Builder dartvelBuilder(BuilderOptions options) => _DartvelBuilder();
 
 class _DartvelBuilder implements Builder {
   @override
-  final buildExtensions = const {
-    r'$lib$': const [],
+  final buildExtensions = {
+    r'$lib$': [],
   };
 
   @override
