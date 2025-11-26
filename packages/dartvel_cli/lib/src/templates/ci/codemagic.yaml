@@ -1,0 +1,150 @@
+# Codemagic CI/CD Configuration for Dartvel
+# Supports Android, iOS, Web, Windows, macOS, Linux
+
+workflows:
+  android-workflow:
+    name: Android Build
+    instance_type: mac_mini_m1
+    max_build_duration: 60
+    environment:
+      android_signing:
+        - dartvel_keystore
+      groups:
+        - google_play
+      vars:
+        PACKAGE_NAME: "com.example.app"
+      flutter: stable
+    scripts:
+      - name: Get dependencies
+        script: |
+          flutter pub get
+          cd packages/dartvel_cli && dart pub get && cd ../..
+      - name: Generate routes
+        script: |
+          dart run dartvel_cli:dartvel routes
+      - name: Build APK
+        script: |
+          flutter build apk --release
+      - name: Build App Bundle
+        script: |
+          flutter build appbundle --release
+    artifacts:
+      - build/**/outputs/**/*.apk
+      - build/**/outputs/**/*.aab
+    publishing:
+      email:
+        recipients:
+          - dev@example.com
+      google_play:
+        credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
+        track: internal
+
+  ios-workflow:
+    name: iOS Build
+    instance_type: mac_mini_m1
+    max_build_duration: 60
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.example.app
+      groups:
+        - app_store_connect
+      vars:
+        APP_ID: 1234567890
+      flutter: stable
+      xcode: latest
+    scripts:
+      - name: Get dependencies
+        script: |
+          flutter pub get
+          cd packages/dartvel_cli && dart pub get && cd ../..
+      - name: Generate routes
+        script: |
+          dart run dartvel_cli:dartvel routes
+      - name: Build IPA
+        script: |
+          flutter build ipa --release --export-options-plist=/Users/builder/export_options.plist
+    artifacts:
+      - build/ios/ipa/*.ipa
+    publishing:
+      email:
+        recipients:
+          - dev@example.com
+      app_store_connect:
+        api_key: $APP_STORE_CONNECT_KEY_IDENTIFIER
+        key_id: $APP_STORE_CONNECT_KEY_ID
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+
+  web-workflow:
+    name: Web Build
+    instance_type: linux_x2
+    max_build_duration: 30
+    environment:
+      flutter: stable
+    scripts:
+      - name: Get dependencies
+        script: |
+          flutter pub get
+          cd packages/dartvel_cli && dart pub get && cd ../..
+      - name: Generate routes
+        script: |
+          dart run dartvel_cli:dartvel routes
+      - name: Build Web
+        script: |
+          flutter build web --release --web-renderer canvaskit
+    artifacts:
+      - build/web/**
+    publishing:
+      email:
+        recipients:
+          - dev@example.com
+
+  desktop-workflow:
+    name: Desktop Builds (Windows, macOS, Linux)
+    instance_type: mac_mini_m1
+    max_build_duration: 60
+    environment:
+      flutter: stable
+    scripts:
+      - name: Get dependencies
+        script: |
+          flutter pub get
+      - name: Generate routes
+        script: |
+          dart run dartvel_cli:dartvel routes
+      - name: Build macOS
+        script: |
+          flutter build macos --release
+      - name: Build Linux
+        script: |
+          flutter build linux --release
+      - name: Build Windows
+        script: |
+          flutter build windows --release
+    artifacts:
+      - build/macos/**/*.app
+      - build/linux/**/*
+      - build/windows/**/*.exe
+
+  tv-workflow:
+    name: TV Platforms (Android TV, Apple TV)
+    instance_type: mac_mini_m1
+    max_build_duration: 60
+    environment:
+      flutter: stable
+    scripts:
+      - name: Get dependencies
+        script: |
+          flutter pub get
+      - name: Generate routes
+        script: |
+          dart run dartvel_cli:dartvel routes
+      - name: Build for Android TV
+        script: |
+          flutter build apk --release --target-platform android-arm64
+      - name: Build for Apple TV (via tvOS)
+        script: |
+          # Note: Requires Flutter tvOS support
+          echo "Apple TV build requires tvOS fork of Flutter"
+    artifacts:
+      - build/**/outputs/**/*.apk
