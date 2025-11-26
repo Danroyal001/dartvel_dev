@@ -22,9 +22,7 @@ dependencies:
     path: ../../packages/dartvel_shelf
   dartvel_flutter:
     path: ../../packages/dartvel_flutter
-  envied: ^0.5.4
   mime: ^1.0.0
-  shorebird_code_push: ^1.0.0
 
 dev_dependencies:
   flutter_test:
@@ -35,10 +33,7 @@ dev_dependencies:
   args: ^2.5.0
   glob: ^2.1.2
   file: ^7.0.0
-  yaml: ^3.1.2
   watcher: ^1.1.0
-  build_runner: ^2.7.0
-  envied_generator: ^0.5.4
 
 flutter:
   uses-material-design: true

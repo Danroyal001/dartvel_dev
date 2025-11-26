@@ -41,21 +41,6 @@ class DevCommand extends Command<void> {
     final root = Directory.current.path;
     await generate();
 
-    // Run build_runner to generate env.g.dart
-    Logger.log('dartvel dev: running build_runner...');
-    final buildRunner = await Process.run(
-      'dart',
-      ['run', 'build_runner', 'build', '--delete-conflicting-outputs'],
-      runInShell: true,
-      workingDirectory: root,
-    );
-    if (buildRunner.exitCode != 0) {
-      Logger.log('ERROR: build_runner failed');
-      Logger.log(buildRunner.stdout.toString());
-      Logger.log(buildRunner.stderr.toString());
-      exit(buildRunner.exitCode);
-    }
-
     // Ensure a dev server entry under .dart_tool
     final toolDir = Directory(p.join(root, '.dart_tool'))
       ..createSync(recursive: true);
