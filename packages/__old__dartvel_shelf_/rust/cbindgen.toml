@@ -1,8 +1,0 @@
-language = "C"
-pragma_once = true
-include_guard = "DARTVEL_SHELF_H"
-include_version = true
-documentation = true
-
-[export]
-include = ["RequestEnvelope","ResponseEnvelope","SliceU8","dv_last_error","dv_server_bootstrap","dv_server_poll_job","dv_server_submit_response","dv_request_metadata_read","dv_response_write_chunk","dv_response_open_stream","dv_response_finalize_stream","dv_response_write_for_request","dv_ws_send_text","dv_ws_send_bin","dv_ws_close"]

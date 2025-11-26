@@ -153,6 +153,9 @@ Future<ServerHandle> serve(
         out.ref.hdrs_len = hdrsFlat.length;
 
         api.aw_complete(reqId, out.ref);
+// Memory freed by Rust; no manual free needed.
+        // pkgffi.malloc.free(hdrsNative);
+        // pkgffi.malloc.free(bodyNative);
         pkgffi.calloc.free(bodyBuf);
         pkgffi.calloc.free(out);
       } catch (_) {

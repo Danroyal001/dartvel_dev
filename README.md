@@ -9,20 +9,29 @@ A framework for simplifying the creation and deployment of fullstack flutter and
   - `packages/dartvel_flutter`
   - `packages/dartvel_cli`
 
-## TL;DR
-1) Add `dartvel:` to your app's `pubspec.yaml`.
-2) Create pages in `lib/pages/**/*.page.dart` (extend `DartvelPage`).
-3) Generate router/configs either with dartvel or build_runner:
-   - Option A (CLI): `dart run dartvel_cli:routes`
-   - Option B (build_runner): add `dev_dependencies: { build_runner: ^2, dartvel_cli: ^0.1 }` and run `dart run build_runner build`
-   - Also generates backend routes from `lib/backend/functions/**/*.method.dart`.
-4) Use `MaterialApp.router(routerConfig: createDartvelRouter())`.
+## CLI Commands
 
-### Dev mode (auto-start backend + Flutter)
-- `dart run dartvel_cli:dev` (or `dart run dartvel_cli:run`)
-  - Starts file watching/regeneration
-  - Runs the dev backend server from generated routes
-  - Launches Flutter (pass `-d <device>` or omit to select interactively)
+Dartvel comes with a powerful CLI to manage your project.
+
+### Core Commands
+- `dart run dartvel_cli:new <name>`: Create a new Dartvel project.
+- `dart run dartvel_cli:dev`: Start the development server and Flutter app (with hot reload).
+- `dart run dartvel_cli:build`: Build the project for production (includes SSG).
+- `dart run dartvel_cli:preview`: Serve the production build locally.
+- `dart run dartvel_cli:doctor`: Check project health and dependencies.
+
+### Generators
+- `dart run dartvel_cli:routes`: Generate routes, client API, and environment variables.
+- `dart run dartvel_cli:watch`: Watch for file changes and regenerate routes automatically.
+
+### Plugins & Updates
+- `dart run dartvel_cli:plugin add <name>`: Add a plugin (e.g., `auth`).
+- `dart run dartvel_cli:updates push`: Push an OTA update via Shorebird.
+
+## Getting Started
+1) Create a new project: `dart run dartvel_cli:new my_app`
+2) Enter dev mode: `cd my_app && dart run dartvel_cli:dev`
+3) Open `lib/pages/index.page.dart` and start editing!
 
 ### Sample `dartvel:` config
 ```yaml

@@ -112,22 +112,6 @@ class DartvelShelfBindings {
           'aw_complete');
   late final _aw_complete =
       _aw_completePtr.asFunction<int Function(int, FfiResp)>();
-
-  void aw_free(
-    ffi.Pointer<ffi.Void> ptr_,
-    int len,
-  ) {
-    return _aw_free(
-      ptr_,
-      len,
-    );
-  }
-
-  late final _aw_freePtr = _lookup<
-      ffi.NativeFunction<
-          ffi.Void Function(ffi.Pointer<ffi.Void>, ffi.Size)>>('aw_free');
-  late final _aw_free =
-      _aw_freePtr.asFunction<void Function(ffi.Pointer<ffi.Void>, int)>();
 }
 
 final class FfiStr extends ffi.Struct {

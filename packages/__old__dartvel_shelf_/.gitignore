@@ -1,7 +1,0 @@
-/.dart_tool/
-/build/
-/rust/target/
-*.dll
-*.dylib
-*.so
-*.zip
