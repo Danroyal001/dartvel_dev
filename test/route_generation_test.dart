@@ -6,12 +6,13 @@ void main() {
     test('route utils can parse file paths correctly', () {
       // These would test the actual RouteUtils class
       // For now, verify the logic with examples
-      
+
       final testCases = {
         'lib/pages/index.page.dart': '/',
         'lib/pages/about.page.dart': '/about',
         'lib/pages/blog/[id].page.dart': '/blog/:id',
-        'lib/pages/users/[userId]/posts/[postId].page.dart': '/users/:userId/posts/:postId',
+        'lib/pages/users/[userId]/posts/[postId].page.dart':
+            '/users/:userId/posts/:postId',
         'lib/pages/(group)/admin.page.dart': '/admin',
       };
 
@@ -24,15 +25,16 @@ void main() {
 
   group('Backend Route Tests', () {
     test('backend functions can be discovered', () async {
-      final functionsDir = Directory('examples/dartvel_example/lib/backend/functions');
-      
+      final functionsDir =
+          Directory('examples/dartvel_example/lib/backend/functions');
+
       if (!functionsDir.existsSync()) {
         print('Skipping: functions directory not found');
         return;
       }
 
       final files = functionsDir
-          .list Sync(recursive: true)
+          .listSync(recursive: true)
           .whereType<File>()
           .where((f) => f.path.endsWith('.dart'))
           .toList();
@@ -43,7 +45,6 @@ void main() {
       // Verify file naming convention
       for (final file in files) {
         final name = file.path.split('/').last;
-        final isValid = name.contains('.') || !name.endsWith('.dart');
         print('  - $name');
       }
     });

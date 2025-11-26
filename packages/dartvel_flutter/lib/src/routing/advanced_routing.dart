@@ -2,9 +2,11 @@
 import 'package:flutter/widgets.dart';
 
 /// Route group configuration
+/// Note: RouteBase is from go_router package
 class RouteGroup {
   final String prefix;
-  final List<RouteBase> routes;
+  final List<dynamic>
+      routes; // Using dynamic to avoid go_router dependency here
   final List<NavigatorObserver>? observers;
   final String? redirect;
   final Widget Function(BuildContext, Widget)? wrapper;
