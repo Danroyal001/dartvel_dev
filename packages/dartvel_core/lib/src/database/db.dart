@@ -1,15 +1,3 @@
-// Database ORM - Serverpod-inspired
-import 'dart:async';
-
-/// Base class for database models
-abstract class DartvelModel {
-  Map<String, dynamic> toJson();
-
-  String get tableName;
-
-  Map<String, dynamic> get primaryKey;
-}
-
 /// Database connection configuration
 class DbConfig {
   final String host;
