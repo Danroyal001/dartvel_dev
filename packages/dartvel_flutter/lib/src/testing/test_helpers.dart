@@ -1,143 +1,151 @@
-// Testing utilities
+// Flutter Test Helpers for Dartvel
+//
+// NOTE: These utilities require `flutter_test` as a dev dependency.
+// Add to your pubspec.yaml:
+//
+// dev_dependencies:
+//   flutter_test:
+//     sdk: flutter
+//
+// These helpers are OPTIONAL and only needed for Flutter widget testing.
+
+// Uncomment below when flutter_test is added to pubspec.yaml:
+
+/*
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 /// Mock HTTP client for testing
-class MockHttpClient {
-  final Map<String, dynamic> _responses = {};
-  final List<String> _requestLog = [];
-
-  void mockGet(String url, dynamic response) {
-    _responses['GET:$url'] = response;
-  }
-
-  void mockPost(String url, dynamic response) {
-    _responses['POST:$url'] = response;
-  }
-
-  void mockPut(String url, dynamic response) {
-    _responses['PUT:$url'] = response;
-  }
-
-  void mockDelete(String url, dynamic response) {
-    _responses['DELETE:$url'] = response;
-  }
-
-  Future<dynamic> get(String url) async {
-    _requestLog.add('GET:$url');
-    final response = _responses['GET:$url'];
-    if (response is Exception) throw response;
-    return response;
-  }
-
-  Future<dynamic> post(String url, {dynamic body}) async {
-    _requestLog.add('POST:$url');
-    final response = _responses['POST:$url'];
-    if (response is Exception) throw response;
-    return response;
-  }
-
-  List<String> get requestLog => List.unmodifiable(_requestLog);
-
-  void clearLog() => _requestLog.clear();
-
-  void reset() {
-    _responses.clear();
-    _requestLog.clear();
+class MockHttpClient extends http.BaseClient {
+  final Map<String, dynamic> responses;
+  
+  MockHttpClient(this.responses);
+  
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    final response = responses[request.url.toString()];
+    
+    if (response == null) {
+      return http.StreamedResponse(
+        Stream.value([]),
+        404,
+      );
+    }
+    
+    final encoded = jsonEncode(response);
+    return http.StreamedResponse(
+      Stream.value(utf8.encode(encoded)),
+      200,
+      headers: {'content-type': 'application/json'},
+    );
   }
 }
 
-/// Test helpers
+/// Test helpers for widget testing
 class TestHelpers {
-  /// Wait for async operations
-  static Future<void> pumpAndSettle(WidgetTester tester,
-      {Duration duration = const Duration(milliseconds: 100)}) async {
+  /// Pump and settle shorthand
+  static Future<void> pumpAndSettle(
+    WidgetTester tester, [
+    Duration duration = const Duration(milliseconds: 100),
+  ]) async {
     await tester.pumpAndSettle(duration);
   }
-
-  /// Find by text
-  static Finder text(String text) => find.text(text);
-
-  /// Find by key
-  static Finder byKey(Key key) => find.byKey(key);
-
-  /// Find by type
-  static Finder byType<T>() => find.byType(T);
-
-  /// Tap widget
+  
+  /// Common finders
+  static Finder textFinder(String text) => find.text(text);
+  
+  static Finder keyFinder(Key key) => find.byKey(key);
+  
+  static Finder typeFinder<T>() => find.byType(T);
+  
+  /// Tap helper
   static Future<void> tap(WidgetTester tester, Finder finder) async {
     await tester.tap(finder);
     await tester.pumpAndSettle();
   }
-
-  /// Enter text
+  
+  /// Enter text helper
   static Future<void> enterText(
-      WidgetTester tester, Finder finder, String text) async {
+    WidgetTester tester,
+    Finder finder,
+    String text,
+  ) async {
     await tester.enterText(finder, text);
     await tester.pumpAndSettle();
   }
-
-  /// Scroll
-  static Future<void> scroll(WidgetTester tester, Finder finder,
-      {double delta = -300}) async {
-    await tester.drag(finder, Offset(0, delta));
+  
+  /// Scroll helper
+  static Future<void> scroll(
+    WidgetTester tester,
+    Finder finder,
+    Offset offset,
+  ) async {
+    await tester.drag(finder, offset);
     await tester.pumpAndSettle();
   }
 }
 
-/// Mocknavigation observer
+/// Mock navigator observer for testing navigation
 class MockNavigatorObserver extends NavigatorObserver {
   final List<Route<dynamic>> pushedRoutes = [];
   final List<Route<dynamic>> poppedRoutes = [];
-
+  
   @override
   void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
     pushedRoutes.add(route);
+    super.didPush(route, previousRoute);
   }
-
+  
   @override
   void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
     poppedRoutes.add(route);
-  }
-
-  void reset() {
-    pushedRoutes.clear();
-    poppedRoutes.clear();
+    super.didPop(route, previousRoute);
   }
 }
 
-/// API test helpers
+/// API testing helpers
 class ApiTestHelpers {
-  static Map<String, dynamic> createUser({
-    String id = '123',
-    String email = 'test@example.com',
-    String name = 'Test User',
-  }) {
-    return {
-      'id': id,
-      'email': email,
-      'name': name,
-    };
+  /// Create a mock HTTP client with predefined responses
+  static MockHttpClient createMockClient(Map<String, dynamic> responses) {
+    return MockHttpClient(responses);
   }
-
-  static Map<String, dynamic> createToken({
-    String token = 'test_token',
-    int expiresIn = 3600,
-  }) {
-    return {
-      'token': token,
-      'expiresIn': expiresIn,
-    };
-  }
-
-  static Map<String, dynamic> createError({
-    String message = 'Test error',
-    int code = 400,
-  }) {
-    return {
-      'error': {
-        'message': message,
-        'code': code,
-      },
-    };
+  
+  /// Verify API response structure
+  static bool verifyResponseStructure(
+    dynamic response,
+    List<String> requiredFields,
+  ) {
+    if (response is! Map) return false;
+    
+    for (final field in requiredFields) {
+      if (!response.containsKey(field)) return false;
+    }
+    
+    return true;
   }
 }
+*/
+
+// Example usage when flutter_test is available:
+/*
+void main() {
+  testWidgets('Example test', (tester) async {
+    // Build widget
+    await tester.pumpWidget(MyApp());
+    
+    // Use helpers
+    await TestHelpers.tap(tester, find.byType(ElevatedButton));
+    expect(find.text('Hello'), findsOneWidget);
+  });
+  
+  test('API mock test', () {
+    final mockClient = ApiTestHelpers.createMockClient({
+      'https://api.example.com/users': {'users': []},
+    });
+    
+    // Use mockClient in your tests
+  });
+}
+*/

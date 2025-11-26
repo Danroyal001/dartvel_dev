@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:args/command_runner.dart';
-import 'package:path/path.dart' as p;
 import '../utils/logger.dart';
 
 class BuildCommand extends Command<void> {
