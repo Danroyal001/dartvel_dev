@@ -1,10 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:args/command_runner.dart';
-import 'package:path/path.dart' as p;
 import 'package:watcher/watcher.dart';
-import 'package:yaml/yaml.dart';
-
+import 'package:path/path.dart' as p;
 import '../generators/routes_generator.dart';
 import '../utils/logger.dart';
 
@@ -13,44 +11,70 @@ class WatchCommand extends Command<void> {
   final String name = 'watch';
 
   @override
-  final String description = 'Watch for file changes and regenerate routes.';
+  String get description =>
+      'Watch for file changes and regenerate routes/config.';
 
   @override
   Future<void> run() async {
     final root = Directory.current.path;
-    final pubspecFile = File(p.join(root, 'pubspec.yaml'));
-    if (!pubspecFile.existsSync()) {
-      Logger.log('watch: pubspec.yaml not found at project root', isError: true);
-      exit(2);
+    final pagesDir = p.join(root, 'lib', 'pages');
+    final backendDir = p.join(root, 'lib', 'backend');
+    final envFiles = ['.env', '.env.local'];
+
+    Logger.log('👀 Watching for changes...');
+    Logger.log('  Pages: $pagesDir');
+    Logger.log('  Backend: $backendDir');
+    Logger.log('  Env: ${envFiles.join(', ')}');
+    Logger.log('');
+    Logger.log('Press Ctrl+C to stop');
+
+    // Initial generation
+    await _regenerate();
+
+    // Watch directories
+    final watchers = <Watcher>[];
+
+    if (Directory(pagesDir).existsSync()) {
+      watchers.add(DirectoryWatcher(pagesDir));
     }
-    final yaml = loadYaml(await pubspecFile.readAsString()) as YamlMap;
-    final dv = (yaml['dartvel'] ?? {}) as YamlMap;
-    final pagesDir = (dv['pagesDir'] ?? 'lib/pages').toString();
-    final backendDir = (dv['backendDir'] ?? 'lib/backend').toString();
 
-    Logger.log('dartvel watch: watching for changes (Ctrl-C to stop) ...');
-    await generate();
+    if (Directory(backendDir).existsSync()) {
+      watchers.add(DirectoryWatcher(backendDir));
+    }
 
-    final watchers = <Stream<WatchEvent>>[
-      DirectoryWatcher(p.join(root, pagesDir)).events,
-      DirectoryWatcher(p.join(root, backendDir)).events,
-      FileWatcher(p.join(root, 'pubspec.yaml')).events,
-    ];
+    for (final envFile in envFiles) {
+      final file = File(p.join(root, envFile));
+      if (file.existsSync()) {
+        watchers.add(FileWatcher(file.path));
+      }
+    }
 
-    Timer? debounce;
-    void scheduleGen() {
-      debounce?.cancel();
-      debounce = Timer(const Duration(milliseconds: 250), () async {
-        Logger.log('[watch] change detected → regenerating...');
-        await generate();
+    // Debounce mechanism
+    Timer? debounceTimer;
+    final debounceDelay = const Duration(milliseconds: 500);
+
+    for (final watcher in watchers) {
+      watcher.events.listen((event) {
+        debounceTimer?.cancel();
+        debounceTimer = Timer(debounceDelay, () async {
+          Logger.log('');
+          Logger.log('📝 Change detected: ${event.path}');
+          await _regenerate();
+        });
       });
     }
 
-    for (final s in watchers) {
-      s.listen((_) => scheduleGen());
-    }
+    // Keep running
+    await Future<void>.error('Interrupted');
+  }
 
-    // keep running
-    await Completer<void>().future;
+  Future<void> _regenerate() async {
+    try {
+      Logger.log('🔄 Regenerating routes...');
+      await generate();
+      Logger.log('✅ Done');
+    } catch (e) {
+      Logger.log('❌ Error: $e');
+    }
   }
 }
