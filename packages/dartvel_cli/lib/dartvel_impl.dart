@@ -6,7 +6,6 @@ import 'src/commands/deploy_command.dart';
 import 'src/commands/dev_command.dart';
 import 'src/commands/doctor_command.dart';
 import 'src/commands/init_command.dart';
-import 'src/commands/new_command.dart';
 import 'src/commands/plugin_command.dart';
 import 'src/commands/preview_command.dart';
 import 'src/commands/routes_command.dart';
@@ -24,7 +23,6 @@ Future<void> main(List<String> args) async {
   final runner = CommandRunner<void>('dartvel', 'The Dartvel CLI tool.')
     ..addCommand(InitCommand())
     ..addCommand(DoctorCommand())
-    ..addCommand(NewCommand())
     ..addCommand(DevCommand())
     ..addCommand(RoutesCommand())
     ..addCommand(BuildCommand())
