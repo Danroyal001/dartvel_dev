@@ -1,0 +1,144 @@
+# GitHub Actions CI/CD for Dartvel
+name: Dartvel Multi-Platform Build
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Run analyzer
+        run: flutter analyze
+      - name: Run tests
+        run: flutter test
+
+  build-android:
+    name: Build Android
+    needs: analyze
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+      - name: Generate routes
+        run: dart run dartvel_cli:dartvel routes
+      - name: Build APK
+        run: flutter build apk --release
+      - name: Build App Bundle
+        run: flutter build appbundle --release
+      - uses: actions/upload-artifact@v3
+        with:
+          name: android-release
+          path: |
+            build/app/outputs/flutter-apk/*.apk
+            build/app/outputs/bundle/**/*.aab
+
+  build-ios:
+    name: Build iOS
+    needs: analyze
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+      - name: Generate routes
+        run: dart run dartvel_cli:dartvel routes
+      - name: Build iOS (no codesign)
+        run: flutter build ios --release --no-codesign
+      - uses: actions/upload-artifact@v3
+        with:
+          name: ios-release
+          path: build/ios/iphoneos/*.app
+
+  build-web:
+    name: Build Web
+    needs: analyze
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+      - name: Generate routes
+        run: dart run dartvel_cli:dartvel routes
+      - name: Build Web
+        run: flutter build web --release --web-renderer canvaskit
+      - uses: actions/upload-artifact@v3
+        with:
+          name: web-release
+          path: build/web/
+
+  build-windows:
+    name: Build Windows
+    needs: analyze
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+      - name: Generate routes
+        run: dart run dartvel_cli:dartvel routes
+      - name: Build Windows
+        run: flutter build windows --release
+      - uses: actions/upload-artifact@v3
+        with:
+          name: windows-release
+          path: build/windows/runner/Release/
+
+  build-macos:
+    name: Build macOS
+    needs: analyze
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+      - name: Generate routes
+        run: dart run dartvel_cli:dartvel routes
+      - name: Build macOS
+        run: flutter build macos --release
+      - uses: actions/upload-artifact@v3
+        with:
+          name: macos-release
+          path: build/macos/Build/Products/Release/*.app
+
+  build-linux:
+    name: Build Linux
+    needs: analyze
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+      - run: |
+          sudo apt-get update -y
+          sudo apt-get install -y ninja-build libgtk-3-dev
+      - name: Generate routes
+        run: dart run dartvel_cli:dartvel routes
+      - name: Build Linux
+        run: flutter build linux --release
+      - uses: actions/upload-artifact@v3
+        with:
+          name: linux-release
+          path: build/linux/x64/release/bundle/
