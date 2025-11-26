@@ -1,22 +1,17 @@
-targets:
-  $default:
-    builders:
-      dartvel_cli|dartvel_builder:
-        enabled: true
 builders:
-  dartvel_builder:
+  dartvel:
     import: "package:dartvel_cli/builder.dart"
     builder_factories: ["dartvelBuilder"]
-    build_extensions: {
-      ".dart": [
-        "dartvel_client/router.g.dart",
-        "dartvel_client/functions.g.dart",
-        "dartvel_client/dartvel_config.g.dart",
-        "dartvel_client/dartvel_runtime.dart",
-        ".dart_tool/dartvel_backend.g.dart",
-        ".dart_tool/dartvel_backend_routes.g.dart"
-      ]
-    }
+    build_extensions:
+      "$lib$":
+        - "dartvel_client/router.g.dart"
+        - "dartvel_client/functions.g.dart"
+        - "dartvel_client/env.g.dart"
+        - "dartvel_client/dartvel_runtime.dart"
+        - "dartvel_client/dartvel_config.g.dart"
+        - "dartvel_client/dartvel_client.dart"
+      "$.dart_tool$":
+        - "dartvel_backend_routes.g.dart"
     auto_apply: dependents
     build_to: source
-    required_inputs: ["lib/pages/**.page.dart", "lib/backend/functions/**.dart", "pubspec.yaml"]
+    required_inputs: [".dart", "pubspec.yaml", ".env"]
