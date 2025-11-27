@@ -264,7 +264,7 @@ void _configureStatic(gen.DartvelShelfBindings api, String? staticDir) {
   final bytes = Uint8List.fromList(path.codeUnits);
   final strPtr = pkgffi.calloc<gen.FfiStr>();
   ffi.Pointer<ffi.Uint8>? dataPtr;
-  
+
   if (bytes.isEmpty) {
     strPtr.ref
       ..ptr = ffi.Pointer.fromAddress(0)
@@ -291,3 +291,4 @@ void _configureStatic(gen.DartvelShelfBindings api, String? staticDir) {
 
 void _configureCompression(gen.DartvelShelfBindings api, bool enabled) {
   api.aw_configure_compression(enabled ? 1 : 0);
+}

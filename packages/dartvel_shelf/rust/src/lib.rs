@@ -356,6 +356,35 @@ pub extern "C" fn aw_tls_rustls_from_pem(cert_pem: FfiBuf, key_pem: FfiBuf) -> i
 }
 
 #[no_mangle]
+pub extern "C" fn aw_configure_static(path: FfiStr) -> i32 {
+    if path.len == 0 || path.ptr.is_null() {
+        // Clear static directory
+        if let Some(mutex) = STATIC_DIR.get() {
+            *safe_lock(mutex) = None;
+        }
+        return 0;
+    }
+
+    // SAFETY: FfiStr contract guarantees ptr is valid for len bytes
+    let path_slice = unsafe { std::slice::from_raw_parts(path.ptr, path.len) };
+    let path_string = match std::str::from_utf8(path_slice) {
+        Ok(s) => s.to_string(),
+        Err(_) => return 1,
+    };
+
+    let mutex = STATIC_DIR.get_or_init(|| Mutex::new(None));
+    *safe_lock(mutex) = Some(path_string);
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn aw_configure_compression(enabled: i32) -> i32 {
+    let mutex = COMPRESSION_ENABLED.get_or_init(|| Mutex::new(false));
+    *safe_lock(mutex) = enabled != 0;
+    0
+}
+
+#[no_mangle]
 pub extern "C" fn aw_start(host: FfiStr, port: u16, flags: u32) -> i32 {
     if host.ptr.is_null() {
         return -1;
