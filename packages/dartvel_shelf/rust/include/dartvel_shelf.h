@@ -39,6 +39,10 @@ int32_t aw_configure_cors(struct FfiStr config_json);
 
 int32_t aw_tls_rustls_from_pem(struct FfiBuf cert_pem, struct FfiBuf key_pem);
 
+int32_t aw_configure_static(struct FfiStr path);
+
+int32_t aw_configure_compression(int32_t enabled);
+
 int32_t aw_start(struct FfiStr host, uint16_t port, uint32_t flags);
 
 int32_t aw_stop(uint64_t server_id);
