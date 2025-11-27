@@ -1,6 +1,7 @@
-import 'package:test/test.dart';
+// ignore_for_file: avoid_print
 import 'dart:io';
 import 'package:path/path.dart' as p;
+import 'package:test/test.dart';
 
 void main() {
   group('Real End-to-End Tests', () {
@@ -121,7 +122,7 @@ void main() {
 
         print('✅ Analyzed: ${p.basename(filePath)} - PASSED');
       }
-    }, timeout: Timeout(Duration(seconds: 30)));
+    }, timeout: const Timeout(Duration(seconds: 30)));
 
     test('project structure is correct', () {
       final requiredDirs = [

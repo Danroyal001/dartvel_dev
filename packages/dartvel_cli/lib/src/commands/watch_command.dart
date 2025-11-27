@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:args/command_runner.dart';
-import 'package:watcher/watcher.dart';
 import 'package:path/path.dart' as p;
+import 'package:watcher/watcher.dart';
 import '../generators/routes_generator.dart';
 import '../utils/logger.dart';
 

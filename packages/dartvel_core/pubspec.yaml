@@ -11,5 +11,8 @@ dependencies:
   mime: ^1.0.4
   http_parser: ^4.0.2
   shelf_multipart: ^1.0.0
+  drift: ^2.14.0
 dev_dependencies:
   test: ^1.28.0
+  build_runner: ^2.4.0
+  drift_dev: ^2.14.0

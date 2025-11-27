@@ -1,4 +1,6 @@
 // Analytics integration - Firebase/Mixpanel/etc
+import 'dart:developer' as developer;
+
 abstract class AnalyticsProvider {
   Future<void> logEvent(String name, [Map<String, Object>? parameters]);
   Future<void> setUserId(String? userId);
@@ -69,21 +71,22 @@ class Analytics {
 class DebugAnalyticsProvider implements AnalyticsProvider {
   @override
   Future<void> logEvent(String name, [Map<String, Object>? parameters]) async {
-    print('Analytics:logEvent: $name ${parameters ?? {}}');
+    developer.log('Analytics:logEvent: $name ${parameters ?? {}}',
+        name: 'dartvel');
   }
 
   @override
   Future<void> setUserId(String? userId) async {
-    print('Analytics:setUserId: $userId');
+    developer.log('Analytics:setUserId: $userId', name: 'dartvel');
   }
 
   @override
   Future<void> setUserProperty(String name, String value) async {
-    print('Analytics:setUserProperty: $name = $value');
+    developer.log('Analytics:setUserProperty: $name = $value', name: 'dartvel');
   }
 
   @override
   Future<void> logScreenView(String screenName, {String? screenClass}) async {
-    print('Analytics:logScreenView: $screenName');
+    developer.log('Analytics:logScreenView: $screenName', name: 'dartvel');
   }
 }

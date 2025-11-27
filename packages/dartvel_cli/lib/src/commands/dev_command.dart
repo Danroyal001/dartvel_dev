@@ -70,9 +70,21 @@ Future<void> main() async {
 }
 ''');
 
-    // Start processes: backend + flutter; add in-process file watching and stdin passthrough
+    // Start processes: build_runner + backend + flutter
+    Process? buildRunnerP;
     Process? backP;
     Process? flutterP;
+
+    // Start build_runner watch first
+    Logger.log('📦 Starting build_runner watch...');
+    try {
+      buildRunnerP = await _spawn(
+          'dart',
+          ['run', 'build_runner', 'watch', '--delete-conflicting-outputs'],
+          'build_runner');
+    } catch (_) {
+      Logger.log('⚠️  build_runner not available (skipping)');
+    }
 
     // Build flutter args
     final flutterArgs = <String>['run'];
@@ -211,6 +223,7 @@ Future<void> main() async {
 
     // Keep running until one exits
     await Future.any([
+      if (buildRunnerP != null) buildRunnerP.exitCode,
       if (backP != null) backP.exitCode,
       if (flutterP != null) flutterP.exitCode,
     ].whereType<Future<int>>());
@@ -239,9 +252,9 @@ Future<void> main() async {
 
     pipe(p.stdout, stdout);
     pipe(p.stderr, stderr);
-    p.exitCode.then((code) {
+    unawaited(p.exitCode.then((code) {
       stdout.writeln('[$tag] exited with code $code');
-    });
+    }));
     return p;
   }
 }

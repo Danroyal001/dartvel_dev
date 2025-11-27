@@ -91,6 +91,8 @@ Future<ServerHandle> serve(
   TlsConfig? tls, // enables HTTPS + ALPN → HTTP/2
   bool h2c = false, // plaintext HTTP/2 (advanced)
   CorsOptions? cors,
+  String? staticDir, // Path to static files directory
+  bool compression = true, // Enable/disable compression
 }) async {
   final subdir = Platform.isMacOS
       ? (Platform.version.contains('arm64') ? 'macos-arm64' : 'macos-x64')
@@ -175,6 +177,8 @@ Future<ServerHandle> serve(
   api.aw_register_handler(dartRequestHandler.nativeFunction);
 
   _configureCors(api, cors);
+  _configureStatic(api, staticDir);
+  _configureCompression(api, compression);
 
   if (tls != null) {
     final certBytes = Uint8List.fromList(tls.certPem.codeUnits);
@@ -254,3 +258,36 @@ void _configureCors(gen.DartvelShelfBindings api, CorsOptions? cors) {
     throw StateError('CORS config failed (code=$rc)');
   }
 }
+
+void _configureStatic(gen.DartvelShelfBindings api, String? staticDir) {
+  final path = staticDir ?? '';
+  final bytes = Uint8List.fromList(path.codeUnits);
+  final strPtr = pkgffi.calloc<gen.FfiStr>();
+  ffi.Pointer<ffi.Uint8>? dataPtr;
+  
+  if (bytes.isEmpty) {
+    strPtr.ref
+      ..ptr = ffi.Pointer.fromAddress(0)
+      ..len = 0;
+  } else {
+    dataPtr = pkgffi.malloc<ffi.Uint8>(bytes.length)
+      ..asTypedList(bytes.length).setAll(0, bytes);
+    strPtr.ref
+      ..ptr = dataPtr.cast()
+      ..len = bytes.length;
+  }
+
+  final rc = api.aw_configure_static(strPtr.ref);
+
+  if (dataPtr != null) {
+    pkgffi.malloc.free(dataPtr);
+  }
+  pkgffi.calloc.free(strPtr);
+
+  if (rc != 0) {
+    throw StateError('Static config failed (code=$rc)');
+  }
+}
+
+void _configureCompression(gen.DartvelShelfBindings api, bool enabled) {
+  api.aw_configure_compression(enabled ? 1 : 0);

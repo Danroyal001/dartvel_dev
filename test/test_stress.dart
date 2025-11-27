@@ -1,6 +1,6 @@
+// ignore_for_file: avoid_print
 import 'dart:async';
 import 'dart:io';
-import 'dart:convert';
 
 void main() async {
   print('Starting stress test...');
@@ -14,7 +14,6 @@ void main() async {
         final req =
             await client.getUrl(Uri.parse('http://127.0.0.1:3000/api/health'));
         final resp = await req.close();
-        final body = await resp.transform(utf8.decoder).join();
         if (resp.statusCode != 200) {
           print('Request $i failed: ${resp.statusCode}');
         }

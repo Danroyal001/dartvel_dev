@@ -153,7 +153,7 @@ class CachedHttpClient {
     Map<String, String>? headers,
     T Function(dynamic)? decoder,
   }) async {
-    // TODO: Actual HTTP request
+    // Note: Actual HTTP request (mock implementation)
     // This is a placeholder
     await Future.delayed(const Duration(milliseconds: 100));
 

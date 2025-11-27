@@ -1,8 +1,8 @@
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
-import '../utils/logger.dart';
 import '../templates/project_templates.dart';
+import '../utils/logger.dart';
 
 class InitCommand extends Command<void> {
   @override
@@ -31,7 +31,8 @@ class InitCommand extends Command<void> {
     final web = argResults?['web'] as bool;
     final mobile = argResults?['mobile'] as bool;
     final desktop = argResults?['desktop'] as bool;
-    final ssr = argResults?['ssr'] as bool;
+    // SSR flag is currently unused but reserved for future use
+    // final ssr = argResults?['ssr'] as bool? ?? false;
 
     Logger.log('🚀 Initializing Dartvel project: $projectName');
 

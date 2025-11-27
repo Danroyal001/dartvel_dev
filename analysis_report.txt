@@ -1,0 +1,72 @@
+Analyzing dartvel...
+
+  error - packages/dartvel_core/lib/src/analytics/analytics.dart:69:1 - 'class' can't be used as an identifier because it's a keyword. Try renaming this to be an identifier that isn't a keyword. - expected_identifier_but_got_keyword
+  error - packages/dartvel_core/lib/src/analytics/analytics.dart:69:1 - Expressions can't be used in a map literal. Try removing the expression or converting it to be a map entry. - expression_in_map
+  error - packages/dartvel_core/lib/src/analytics/analytics.dart:69:1 - Undefined name 'class'. Try correcting the name to one that is defined, or defining the name. - undefined_identifier
+  error - packages/dartvel_core/lib/src/analytics/analytics.dart:69:7 - Expected to find ','. - expected_token
+  error - packages/dartvel_core/lib/src/analytics/analytics.dart:69:7 - Expressions can't be used in a map literal. Try removing the expression or converting it to be a map entry. - expression_in_map
+  error - packages/dartvel_core/lib/src/analytics/analytics.dart:69:7 - Undefined name 'DebugAnalyticsProvider'. Try correcting the name to one that is defined, or defining the name. - undefined_identifier
+  error - packages/dartvel_core/lib/src/analytics/analytics.dart:69:30 - Expected to find ','. - expected_token
+  error - packages/dartvel_core/lib/src/analytics/analytics.dart:69:30 - Expressions can't be used in a map literal. Try removing the expression or converting it to be a map entry. - expression_in_map
+  error - packages/dartvel_core/lib/src/analytics/analytics.dart:69:30 - Undefined name 'implements'. Try correcting the name to one that is defined, or defining the name. - undefined_identifier
+  error - packages/dartvel_core/lib/src/analytics/analytics.dart:69:41 - Expected to find ','. - expected_token
+  error - packages/dartvel_core/lib/src/analytics/analytics.dart:69:41 - Expressions can't be used in a map literal. Try removing the expression or converting it to be a map entry. - expression_in_map
+  error - packages/dartvel_core/lib/src/analytics/analytics.dart:69:59 - Expected to find ','. - expected_token
+  error - packages/dartvel_core/lib/src/analytics/analytics.dart:69:59 - Expressions can't be used in a map literal. Try removing the expression or converting it to be a map entry. - expression_in_map
+  error - packages/dartvel_core/lib/src/analytics/analytics.dart:70:3 - Expected an identifier. - missing_identifier
+  error - packages/dartvel_core/lib/src/analytics/analytics.dart:70:3 - Expected to find '}'. - expected_token
+  error - packages/dartvel_core/lib/src/analytics/analytics.dart:89:1 - Expected to find ';'. - expected_token
+  error - packages/dartvel_core/lib/src/analytics/analytics.dart:90:1 - Expected to find ')'. - expected_token
+  error - packages/dartvel_core/lib/src/analytics/analytics.dart:90:1 - Expected to find '}'. - expected_token
+  error - packages/dartvel_core/lib/src/notifications/push.dart:82:1 - 'class' can't be used as an identifier because it's a keyword. Try renaming this to be an identifier that isn't a keyword. - expected_identifier_but_got_keyword
+  error - packages/dartvel_core/lib/src/notifications/push.dart:82:1 - Expected a statement. - missing_statement
+  error - packages/dartvel_core/lib/src/notifications/push.dart:82:1 - Expected to find ';'. - expected_token
+  error - packages/dartvel_core/lib/src/notifications/push.dart:82:1 - Undefined name 'class'. Try correcting the name to one that is defined, or defining the name. - undefined_identifier
+  error - packages/dartvel_core/lib/src/notifications/push.dart:82:7 - Undefined class 'DebugPushNotificationProvider'. Try changing the name to the name of an existing class, or creating a class with the name 'DebugPushNotificationProvider'. - undefined_class
+  error - packages/dartvel_core/lib/src/notifications/push.dart:82:37 - Expected to find ';'. - expected_token
+  error - packages/dartvel_core/lib/src/notifications/push.dart:82:48 - Expected to find ';'. - expected_token
+  error - packages/dartvel_core/lib/src/notifications/push.dart:102:28 - Expected to find ';'. - expected_token
+  error - packages/dartvel_core/lib/src/notifications/push.dart:102:42 - Functions must have an explicit list of parameters. Try adding a parameter list. - missing_function_parameters
+  error - packages/dartvel_core/lib/src/notifications/push.dart:105:28 - Expected to find ';'. - expected_token
+  error - packages/dartvel_core/lib/src/notifications/push.dart:105:28 - The name 'get' is already defined. Try renaming one of the declarations. - duplicate_definition
+           - The first definition of this name at packages/dartvel_core/lib/src/notifications/push.dart:102:28.
+  error - packages/dartvel_core/lib/src/notifications/push.dart:105:51 - Functions must have an explicit list of parameters. Try adding a parameter list. - missing_function_parameters
+  error - packages/dartvel_core/lib/src/notifications/push.dart:122:1 - Expected to find '}'. - expected_token
+  error - packages/dartvel_core/lib/src/updates/ota.dart:144:1 - 'class' can't be used as an identifier because it's a keyword. Try renaming this to be an identifier that isn't a keyword. - expected_identifier_but_got_keyword
+  error - packages/dartvel_core/lib/src/updates/ota.dart:144:1 - Expected a statement. - missing_statement
+  error - packages/dartvel_core/lib/src/updates/ota.dart:144:1 - Expected to find ';'. - expected_token
+  error - packages/dartvel_core/lib/src/updates/ota.dart:144:1 - Undefined name 'class'. Try correcting the name to one that is defined, or defining the name. - undefined_identifier
+  error - packages/dartvel_core/lib/src/updates/ota.dart:144:7 - Expected to find ';'. - expected_token
+  error - packages/dartvel_core/lib/src/updates/ota.dart:144:7 - Undefined name 'ShorebirdUpdater'. Try correcting the name to one that is defined, or defining the name. - undefined_identifier
+  error - packages/dartvel_core/lib/src/updates/ota.dart:145:3 - Can't have modifier 'static' here. Try removing 'static'. - extraneous_modifier
+  error - packages/dartvel_core/lib/src/updates/ota.dart:145:15 - Expected to find ';'. - expected_token
+  error - packages/dartvel_core/lib/src/updates/ota.dart:145:19 - Expected to find ';'. - expected_token
+  error - packages/dartvel_core/lib/src/updates/ota.dart:145:19 - Undefined name 'isSupported'. Try correcting the name to one that is defined, or defining the name. - undefined_identifier
+  error - packages/dartvel_core/lib/src/updates/ota.dart:147:12 - A value of type 'bool' can't be returned from the method 'checkAndUpdate' because it has a return type of 'Future<void>'. - return_of_invalid_type
+  error - packages/dartvel_core/lib/src/updates/ota.dart:150:3 - Can't have modifier 'static' here. Try removing 'static'. - extraneous_modifier
+  error - packages/dartvel_core/lib/src/updates/ota.dart:151:10 - Undefined name 'isSupported'. Try correcting the name to one that is defined, or defining the name. - undefined_identifier
+  error - packages/dartvel_core/lib/src/updates/ota.dart:158:3 - Can't have modifier 'static' here. Try removing 'static'. - extraneous_modifier
+  error - packages/dartvel_core/lib/src/updates/ota.dart:159:10 - Undefined name 'isSupported'. Try correcting the name to one that is defined, or defining the name. - undefined_identifier
+  error - packages/dartvel_core/lib/src/updates/ota.dart:163:1 - Expected to find '}'. - expected_token
+warning - packages/dartvel_core/lib/src/notifications/push.dart:82:37 - The value of the local variable 'implements' isn't used. Try removing the variable or using it. - unused_local_variable
+warning - packages/dartvel_core/lib/src/notifications/push.dart:87:16 - The declaration 'initialize' isn't referenced. Try removing the declaration of 'initialize'. - unused_element
+warning - packages/dartvel_core/lib/src/notifications/push.dart:92:19 - The declaration 'getToken' isn't referenced. Try removing the declaration of 'getToken'. - unused_element
+warning - packages/dartvel_core/lib/src/notifications/push.dart:97:16 - The declaration 'requestPermission' isn't referenced. Try removing the declaration of 'requestPermission'. - unused_element
+warning - packages/dartvel_core/lib/src/notifications/push.dart:102:28 - The value of the local variable 'get' isn't used. Try removing the variable or using it. - unused_local_variable
+warning - packages/dartvel_core/lib/src/notifications/push.dart:102:32 - The declaration 'onMessage' isn't referenced. Try removing the declaration of 'onMessage'. - unused_element
+warning - packages/dartvel_core/lib/src/notifications/push.dart:105:28 - The value of the local variable 'get' isn't used. Try removing the variable or using it. - unused_local_variable
+warning - packages/dartvel_core/lib/src/notifications/push.dart:105:32 - The declaration 'onMessageOpenedApp' isn't referenced. Try removing the declaration of 'onMessageOpenedApp'. - unused_element
+warning - packages/dartvel_core/lib/src/notifications/push.dart:108:16 - The declaration 'subscribeToTopic' isn't referenced. Try removing the declaration of 'subscribeToTopic'. - unused_element
+warning - packages/dartvel_core/lib/src/notifications/push.dart:113:16 - The declaration 'unsubscribeFromTopic' isn't referenced. Try removing the declaration of 'unsubscribeFromTopic'. - unused_element
+warning - packages/dartvel_core/lib/src/notifications/push.dart:118:8 - The declaration 'simulateMessage' isn't referenced. Try removing the declaration of 'simulateMessage'. - unused_element
+warning - packages/dartvel_core/lib/src/updates/ota.dart:145:15 - The value of the local variable 'get' isn't used. Try removing the variable or using it. - unused_local_variable
+warning - packages/dartvel_core/lib/src/updates/ota.dart:150:10 - Dead code. Try removing the code, or fixing the code before it so that it can be reached. - dead_code
+warning - packages/dartvel_core/lib/src/updates/ota.dart:150:23 - The declaration 'checkForUpdate' isn't referenced. Try removing the declaration of 'checkForUpdate'. - unused_element
+warning - packages/dartvel_core/lib/src/updates/ota.dart:158:23 - The declaration 'downloadUpdate' isn't referenced. Try removing the declaration of 'downloadUpdate'. - unused_element
+warning - packages/dartvel_flutter/lib/src/routing/advanced_routing.dart:107:28 - Dead code. Try removing the code, or fixing the code before it so that it can be reached. - dead_code
+   info - packages/dartvel_core/lib/src/notifications/push.dart:83:9 - The local variable '_messageController' starts with an underscore. Try renaming the variable to not start with an underscore. - no_leading_underscores_for_local_identifiers
+   info - packages/dartvel_core/lib/src/notifications/push.dart:84:9 - The local variable '_openedController' starts with an underscore. Try renaming the variable to not start with an underscore. - no_leading_underscores_for_local_identifiers
+   info - packages/dartvel_core/lib/src/notifications/push.dart:102:32 - The function 'onMessage' should have a return type but doesn't. Try adding a return type to the function. - always_declare_return_types
+   info - packages/dartvel_core/lib/src/notifications/push.dart:105:32 - The function 'onMessageOpenedApp' should have a return type but doesn't. Try adding a return type to the function. - always_declare_return_types
+
+67 issues found.
