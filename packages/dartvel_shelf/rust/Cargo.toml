@@ -8,7 +8,9 @@ name = "dartvel_shelf"
 crate-type = ["cdylib"]
 
 [dependencies]
-actix-web = { version = "4", features = ["http2", "rustls-0_23"] }
+actix-web = { version = "4", features = ["http2", "rustls-0_23", "__compress"] }
+actix-files = "0.6"
+actix-web-lab = "0.22"
 bytes = "1"
 once_cell = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

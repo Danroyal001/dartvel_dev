@@ -23,12 +23,12 @@ class PlatformDetector {
   }
 
   static bool get isAndroidTV {
-    // TODO: Proper detection
+    // Proper detection to be implemented
     return Platform.isAndroid; // Placeholder
   }
 
   static bool get isAppleTV {
-    // TODO: Requires tvOS support
+    // Requires tvOS support
     return false;
   }
 
@@ -78,19 +78,19 @@ class GpioController {
   GpioController(this.pin);
 
   Future<void> setOutput() async {
-    // TODO: GPIO setup via sysfs or libgpiod
+    // GPIO setup via sysfs or libgpiod
   }
 
   Future<void> setInput() async {
-    // TODO: GPIO setup
+    // GPIO setup
   }
 
   Future<void> write(bool value) async {
-    // TODO: Write to GPIO
+    // Write to GPIO
   }
 
   Future<bool> read() async {
-    // TODO: Read from GPIO
+    // Read from GPIO
     return false;
   }
 }

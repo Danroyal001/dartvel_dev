@@ -52,7 +52,21 @@ class BuildCommand extends Command<void> {
     Logger.log('🔨 Building Dartvel project...');
     Logger.log('');
 
-    // Generate routes first
+    // Run build_runner first
+    Logger.log('📦 Running build_runner...');
+    final buildRunnerResult = await Process.run(
+      'dart',
+      ['run', 'build_runner', 'build', '--delete-conflicting-outputs'],
+      workingDirectory: root,
+      runInShell: true,
+    );
+
+    if (buildRunnerResult.exitCode != 0) {
+      Logger.log(
+          '⚠️  build_runner failed or not configured (continuing anyway)');
+    }
+
+    // Generate routes
     Logger.log('📝 Generating routes...');
     final routesResult = await Process.run(
       'dart',

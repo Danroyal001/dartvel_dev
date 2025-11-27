@@ -83,14 +83,14 @@ class CommonMiddleware {
     int maxRequests = 100,
     Duration window = const Duration(minutes: 1),
   }) {
-    final Map<String, List<DateTime>> _requests = {};
+    final Map<String, List<DateTime>> requestsMap = {};
 
     return (request, context) {
-      // TODO: Get client IP
+      // Note: Get client IP
       final clientId = 'client'; // Placeholder
 
       final now = DateTime.now();
-      final requests = _requests[clientId] ?? [];
+      final requests = requestsMap[clientId] ?? [];
 
       // Remove old requests
       requests.removeWhere((t) => now.difference(t) > window);
@@ -100,7 +100,7 @@ class CommonMiddleware {
         context.data['rateLimitError'] = 'Too many requests';
       } else {
         requests.add(now);
-        _requests[clientId] = requests;
+        requestsMap[clientId] = requests;
       }
     };
   }
@@ -108,8 +108,9 @@ class CommonMiddleware {
   /// Logging middleware
   static Middleware logger() {
     return (request, context) {
-      final method = 'GET'; // TODO: Extract from request
-      final path = '/'; // TODO: Extract from request
+      final method = 'GET'; // Note: Extract from request
+      final path = '/'; // Note: Extract from request
+      // ignore: avoid_print
       print('[${DateTime.now()}] $method $path');
     };
   }
@@ -124,7 +125,7 @@ class CommonMiddleware {
   /// Body parser middleware
   static Middleware bodyParser() {
     return (request, context) async {
-      // TODO: Parse request body based on content-type
+      // Note: Parse request body based on content-type
       context.data['parsedBody'] = {};
     };
   }

@@ -1,5 +1,6 @@
 // Push notifications abstraction
 import 'dart:async';
+import 'dart:developer' as developer;
 
 /// Push notification message
 class PushNotification {
@@ -85,7 +86,8 @@ class DebugPushNotificationProvider implements PushNotificationProvider {
 
   @override
   Future<void> initialize() async {
-    print('PushNotifications: initialized (debug mode)');
+    developer.log('PushNotifications: initialized (debug mode)',
+        name: 'dartvel');
   }
 
   @override
@@ -95,7 +97,7 @@ class DebugPushNotificationProvider implements PushNotificationProvider {
 
   @override
   Future<void> requestPermission() async {
-    print('PushNotifications: permission requested');
+    developer.log('PushNotifications: permission requested', name: 'dartvel');
   }
 
   @override
@@ -106,12 +108,13 @@ class DebugPushNotificationProvider implements PushNotificationProvider {
 
   @override
   Future<void> subscribeToTopic(String topic) async {
-    print('PushNotifications: subscribed to $topic');
+    developer.log('PushNotifications: subscribed to $topic', name: 'dartvel');
   }
 
   @override
   Future<void> unsubscribeFromTopic(String topic) async {
-    print('PushNotifications: unsubscribed from $topic');
+    developer.log('PushNotifications: unsubscribed from $topic',
+        name: 'dartvel');
   }
 
   // Test helper

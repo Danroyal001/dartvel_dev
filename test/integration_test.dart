@@ -1,6 +1,6 @@
+// ignore_for_file: avoid_print
 import 'dart:io';
 import 'package:test/test.dart';
-import 'package:path/path.dart' as p;
 
 void main() {
   group('CLI Integration Tests', () {
@@ -57,7 +57,7 @@ void main() {
           File('examples/dartvel_example/lib/dartvel_client/functions.g.dart');
       expect(functionsFile.existsSync(), isTrue,
           reason: 'Functions file should be generated');
-    }, timeout: Timeout(Duration(seconds: 30)));
+    }, timeout: const Timeout(Duration(seconds: 30)));
 
     test('generated router contains routes', () async {
       final routerFile =

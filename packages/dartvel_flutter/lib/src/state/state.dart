@@ -1,4 +1,5 @@
 // State management - Simple but powerful
+import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 
 /// Observable value
@@ -80,10 +81,10 @@ class StoreWithMiddleware<TState> extends SimpleStore<TState> {
   final List<Middleware<TState>> _middleware;
 
   StoreWithMiddleware(
-    TState initialState,
-    TState Function(TState, dynamic) reducer,
+    super.initialState,
+    super.reducer,
     this._middleware,
-  ) : super(initialState, reducer);
+  );
 
   @override
   void dispatch(dynamic action) {
@@ -124,10 +125,9 @@ Middleware<TState> asyncMiddleware<TState>() {
   };
 }
 
-/// Logging middleware
 Middleware<TState> loggingMiddleware<TState>() {
   return (state, action, dispatch) {
-    print('[Action] ${action.runtimeType}');
+    developer.log('[Action] ${action.runtimeType}', name: 'dartvel');
     return action;
   };
 }

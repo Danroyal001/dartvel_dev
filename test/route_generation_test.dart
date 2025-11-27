@@ -1,5 +1,7 @@
-import 'package:test/test.dart';
+// ignore_for_file: avoid_print
 import 'dart:io';
+
+import 'package:test/test.dart';
 
 void main() {
   group('Route Generation Tests', () {

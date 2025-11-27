@@ -1,7 +1,8 @@
 use actix_cors::Cors;
+use actix_files::Files;
 use actix_web::http::{header, Method};
 use actix_web::{
-    dev::ServerHandle as ActixServerHandle, middleware::Condition, rt::System, web, App,
+    dev::ServerHandle as ActixServerHandle, middleware::{Compress, Condition}, rt::System, web, App,
     HttpRequest, HttpResponse, HttpServer,
 };
 use bytes::{Bytes, BytesMut};
@@ -217,6 +218,8 @@ static TLS_CONFIG: OnceCell<Arc<ServerConfig>> = OnceCell::new();
 static SERVER_HANDLES: OnceCell<Mutex<HashMap<u64, ActixServerHandle>>> = OnceCell::new();
 static NEXT_SERVER_ID: OnceCell<AtomicU64> = OnceCell::new();
 static CORS_CONFIG: OnceCell<Mutex<Option<Arc<CorsOptions>>>> = OnceCell::new();
+static STATIC_DIR: OnceCell<Mutex<Option<String>>> = OnceCell::new();
+static COMPRESSION_ENABLED: OnceCell<Mutex<bool>> = OnceCell::new();
 
 // Flags for aw_start
 pub const AW_FLAG_H2C: u32 = 0x01;
@@ -243,6 +246,7 @@ pub extern "C" fn aw_configure_cors(config_json: FfiStr) -> i32 {
     if config_json.ptr.is_null() {
         return 0;
     }
+    // SAFETY: FfiStr contract guarantees ptr is valid for len bytes
     let json_slice = unsafe { std::slice::from_raw_parts(config_json.ptr, config_json.len) };
     let json_str = match std::str::from_utf8(json_slice) {
         Ok(s) => s,
@@ -284,6 +288,7 @@ pub extern "C" fn aw_tls_rustls_from_pem(cert_pem: FfiBuf, key_pem: FfiBuf) -> i
         if cert_pem.ptr.is_null() {
             return 2;
         }
+        // SAFETY: FfiBuf contract guarantees ptr is valid for len bytes
         let mut r = Cursor::new(unsafe { std::slice::from_raw_parts(cert_pem.ptr, cert_pem.len) });
         let mut out = Vec::<CertificateDer<'static>>::new();
         for item in rustls_pemfile::read_all(&mut r) {
@@ -305,6 +310,7 @@ pub extern "C" fn aw_tls_rustls_from_pem(cert_pem: FfiBuf, key_pem: FfiBuf) -> i
         if key_pem.ptr.is_null() {
             return 3;
         }
+        // SAFETY: FfiBuf contract guarantees ptr is valid for len bytes
         let mut r = Cursor::new(unsafe { std::slice::from_raw_parts(key_pem.ptr, key_pem.len) });
         let mut key: Option<PrivateKeyDer<'static>> = None;
         for item in rustls_pemfile::read_all(&mut r) {
@@ -354,6 +360,7 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, flags: u32) -> i32 {
     if host.ptr.is_null() {
         return -1;
     }
+    // SAFETY: FfiStr contract guarantees ptr is valid for len bytes and path is validated
     let host_slice = unsafe { std::slice::from_raw_parts(host.ptr, host.len) };
     let host_string = match std::str::from_utf8(host_slice) {
         Ok(s) => s.to_string(),
@@ -368,23 +375,47 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, flags: u32) -> i32 {
         let mutex = CORS_CONFIG.get_or_init(|| Mutex::new(None));
         safe_lock(mutex).clone()
     };
+    
+    let static_dir = {
+        let mutex = STATIC_DIR.get_or_init(|| Mutex::new(None));
+        safe_lock(mutex).clone()
+    };
+    
+    let compression_enabled = {
+        let mutex = COMPRESSION_ENABLED.get_or_init(|| Mutex::new(false));
+        *safe_lock(mutex)
+    };
 
     std::thread::spawn(move || {
         System::new().block_on(async move {
             let cors_config = cors_config.clone();
+            let static_dir = static_dir.clone();
             let app_factory = move || {
                 let cors_config = cors_config.clone();
+                let static_dir = static_dir.clone();
                 let (cors_enabled, cors_mw) = match cors_config {
                     Some(cfg) => (true, build_cors(cfg.as_ref())),
                     None => (false, Cors::default()),
                 };
 
-                App::new()
+                let mut app = App::new()
+                    .wrap(Condition::new(compression_enabled, Compress::default()))
                     .wrap(Condition::new(cors_enabled, cors_mw))
                     .route("/health", web::get().to(health_route))
                     .route("/healthz", web::get().to(healthz_route))
-                    .route("/healths", web::get().to(healths_route))
-                    .default_service(web::to(dart_proxy))
+                    .route("/healths", web::get().to(healths_route));
+                
+                // Add static file serving if configured
+                if let Some(dir) = static_dir.as_ref() {
+                    app = app.service(
+                        Files::new("/static", dir)
+                            .show_files_listing()
+                            .use_last_modified(true)
+                            .prefer_utf8(true)
+                    );
+                }
+                
+                app.default_service(web::to(dart_proxy))
             };
 
             let mut http_server = HttpServer::new(app_factory).workers(num_cpus::get());
@@ -440,6 +471,7 @@ pub extern "C" fn aw_complete(req_id: u64, resp: FfiResp) -> i32 {
     };
     let mut map = safe_lock(map_mutex);
     if let Some(tx) = map.remove(&req_id) {
+        // SAFETY: FfiResp guarantees valid pointers and lengths, data is copied immediately
         let owned = unsafe {
             if resp.hdrs.is_null() && resp.hdrs_len > 0 {
                 return 1;

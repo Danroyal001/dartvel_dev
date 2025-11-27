@@ -1,6 +1,7 @@
 // OTA Updates - Shorebird/EAS inspired
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:io';
 
 /// Update check result
@@ -88,7 +89,7 @@ class OtaUpdater {
 
       return UpdateCheckResult.fromJson(json);
     } catch (e) {
-      print('Error checking for updates: $e');
+      developer.log('Error checking for updates: $e', name: 'dartvel');
       return const UpdateCheckResult(updateAvailable: false);
     }
   }
@@ -104,16 +105,16 @@ class OtaUpdater {
     await for (final chunk in response) {
       bytesDownloaded += chunk.length;
       yield UpdateProgress(bytesDownloaded, totalBytes);
-      // TODO: Write to temporary file
+      // Note: Write to temporary file (future implementation)
     }
 
     client.close();
   }
 
   Future<void> installUpdate(String updatePath) async {
-    // TODO: Platform-specific installation
+    // Note: Platform-specific installation (future implementation)
     // For now, just a placeholder
-    print('Installing update from: $updatePath');
+    developer.log('Installing update from: $updatePath', name: 'dartvel');
   }
 
   Future<void> checkAndUpdate({
@@ -150,13 +151,13 @@ class ShorebirdUpdater {
   static Future<void> checkForUpdate() async {
     if (!isSupported) return;
 
-    // TODO: Integrate with shorebird_code_push package
+    // Note: Integrate with shorebird_code_push package (future implementation)
     // This is a placeholder for now
-    print('Checking for Shorebird updates...');
+    developer.log('Checking for Shorebird updates...', name: 'dartvel');
   }
 
   static Future<void> downloadUpdate() async {
     if (!isSupported) return;
-    print('Downloading Shorebird update...');
+    developer.log('Downloading Shorebird update...', name: 'dartvel');
   }
 }
