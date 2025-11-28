@@ -45,13 +45,13 @@ class ClientGenerator {
       final ioFile = File(path);
       if (!ioFile.existsSync()) continue;
       // Skip layout files from page list
-      if (p.basename(path) == '_layout.page.dart') continue;
+      if (p.basename(path) == '_layout.dart') continue;
       pageFiles.add(ioFile);
     }
     pageFiles.sort((a, b) => a.path.compareTo(b.path));
 
-    // Scan layouts: any _layout.page.dart under pagesDir
-    final layoutGlob = Glob(p.join(pagesDir, '**/_layout.page.dart'));
+    // Scan layouts: any _layout.dart under pagesDir
+    final layoutGlob = Glob(p.join(pagesDir, '**/_layout.dart'));
     final layoutFiles = <File>[];
     for (final e
         in layoutGlob.listFileSystemSync(fs, root: root, followLinks: false)) {
@@ -59,7 +59,7 @@ class ClientGenerator {
       if (ioFile.existsSync()) layoutFiles.add(ioFile);
     }
     // Fallback: add root layout if present
-    final rl = File(p.join(root, pagesDir, '_layout.page.dart'));
+    final rl = File(p.join(root, pagesDir, '_layout.dart'));
     if (rl.existsSync() && !layoutFiles.any((f) => p.equals(f.path, rl.path))) {
       layoutFiles.add(rl);
     }
