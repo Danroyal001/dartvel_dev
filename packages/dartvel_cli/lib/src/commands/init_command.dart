@@ -6,12 +6,14 @@ import '../utils/logger.dart';
 
 class InitCommand extends Command<void> {
   @override
-  final String name = 'init';
+  final String name = 'create';
 
   @override
   String get description =>
-      'Initialize a new Dartvel project with best practices.';
+      'Initialize a new Dartvel project with best practices.${aliases.isEmpty ? '' : ' (Aliases: ${aliases.join(', ')})'}';
 
+  @override
+  final List<String> aliases = ['init', 'new'];
   InitCommand() {
     argParser
       ..addFlag('web', defaultsTo: true, help: 'Include web platform')

@@ -13,7 +13,6 @@ import 'src/commands/updates_command.dart';
 import 'src/commands/version_command.dart';
 import 'src/commands/watch_command.dart';
 import 'src/commands/prerender_command.dart';
-import 'src/commands/create_command.dart';
 
 Future<void> main(List<String> args) async {
   // Handle --version flag
@@ -24,7 +23,6 @@ Future<void> main(List<String> args) async {
 
   final runner = CommandRunner<void>('dartvel', 'The Dartvel CLI tool.')
     ..addCommand(InitCommand())
-    ..addCommand(CreateCommand()) // Alias for init
     ..addCommand(DoctorCommand())
     ..addCommand(DevCommand())
     // run and start are aliases in DevCommand
