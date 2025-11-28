@@ -20,18 +20,31 @@ dependencies:
     sdk: flutter
   go_router: ^14.2.0
   dio: ^5.5.0
-  dartvel_core: ^0.1.0
-  dartvel_shelf: ^0.1.0
-  dartvel_flutter: ^0.1.0
+  # dartvel_core: ^0.1.0 # Uncomment when published
+  # dartvel_shelf: ^0.1.0 # Uncomment when published
+  # dartvel_flutter: ^0.1.0 # Uncomment when published
   ${web ? 'flutter_web_plugins:\n    sdk: flutter' : ''}
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   lints: ^4.0.0
-  dartvel_cli: ^0.1.0
+  # dartvel_cli: ^0.1.0 # Uncomment when published
   build_runner: ^2.4.8
-  dartvel_generator: ^1.0.0
+  # dartvel_generator: ^1.0.0 # Uncomment when published
+
+# Temporary overrides for local development
+dependency_overrides:
+  dartvel_core:
+    path: /home/sigmadev/Documents/SigmaDev/creatorx_stuff/dartvel/packages/dartvel_core
+  dartvel_shelf:
+    path: /home/sigmadev/Documents/SigmaDev/creatorx_stuff/dartvel/packages/dartvel_shelf
+  dartvel_flutter:
+    path: /home/sigmadev/Documents/SigmaDev/creatorx_stuff/dartvel/packages/dartvel_flutter
+  dartvel_cli:
+    path: /home/sigmadev/Documents/SigmaDev/creatorx_stuff/dartvel/packages/dartvel_cli
+  dartvel_generator:
+    path: /home/sigmadev/Documents/SigmaDev/creatorx_stuff/dartvel/packages/dartvel_generator
 
 flutter:
   uses-material-design: true
