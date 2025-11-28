@@ -1,18 +1,19 @@
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
-import '../utils/logger.dart';
 
 class DoctorCommand extends Command<void> {
   @override
   final String name = 'doctor';
 
   @override
-  final String description = 'Check your environment and project for common issues.';
+  final String description =
+      'Check your environment and project for common issues.';
 
   @override
   Future<void> run() async {
-    Logger.log('�� Dartvel Doctor\n');
+    print('Dartvel Doctor');
+    print('==================================================\n');
 
     var allGood = true;
 
@@ -25,21 +26,52 @@ class DoctorCommand extends Command<void> {
     // 3. Check Git
     allGood = await _checkGit() && allGood;
 
-    // 4. If in a Dartvel project, check project-specific things
+    print('\n--------------------------------------------------');
+    print('Optional Tools');
+    print('--------------------------------------------------\n');
+
+    // 4. Check Shorebird (optional)
+    await _checkShorebird();
+
+    // 5. Check Codemagic CLI (optional)
+    await _checkCodemagic();
+
+    print('\n--------------------------------------------------');
+    print('Project Status');
+    print('--------------------------------------------------\n');
+
+    // 6. If in a Dartvel project, check project-specific things
     final pubspec = File(p.join(Directory.current.path, 'pubspec.yaml'));
     if (pubspec.existsSync()) {
-      Logger.log('\n📦 Project Check');
       await _checkProjectConfig();
     } else {
-      Logger.log('\n📦 Not in a Dartvel project');
-      Logger.log('ℹ️  Run this command in a project directory for additional checks');
+      print('[-] Not in a Dartvel project');
+      print(
+          '    Run this command in a project directory for additional checks');
     }
 
-    Logger.log('');
+    print('');
     if (allGood) {
-      Logger.log('✅ All system checks passed!');
+      print('[+] All system checks passed!');
     } else {
-      Logger.log('⚠️  Some checks failed. See above for details.');
+      print('[!] Some checks failed. See above for details.');
+    }
+
+    // 7. Run flutter doctor for comprehensive Flutter environment check
+    print('\n==================================================');
+    print('Flutter Doctor Output');
+    print('==================================================\n');
+    try {
+      final flutterDoctorProcess = await Process.start(
+        'flutter',
+        ['doctor', '-v'],
+        runInShell: true,
+      );
+      await stdout.addStream(flutterDoctorProcess.stdout);
+      await stderr.addStream(flutterDoctorProcess.stderr);
+      await flutterDoctorProcess.exitCode;
+    } catch (_) {
+      print('[!] Could not run flutter doctor');
     }
   }
 
@@ -47,26 +79,30 @@ class DoctorCommand extends Command<void> {
     try {
       final result = await Process.run('dart', ['--version'], runInShell: true);
       if (result.exitCode == 0) {
-        final version = (result.stdout.toString() + result.stderr.toString()).split('\n').first.trim();
-        Logger.log('✅ Dart SDK: $version');
+        final version = (result.stdout.toString() + result.stderr.toString())
+            .split('\n')
+            .first
+            .trim();
+        print('[+] Dart SDK: $version');
         return true;
       }
     } catch (_) {}
-    Logger.log('❌ Dart SDK: Not found or not in PATH');
+    print('[!] Dart SDK: Not found or not in PATH');
     return false;
   }
 
   Future<bool> _checkFlutterSDK() async {
     try {
-      final result = await Process.run('flutter', ['--version'], runInShell: true);
+      final result =
+          await Process.run('flutter', ['--version'], runInShell: true);
       if (result.exitCode == 0) {
         final lines = result.stdout.toString().split('\n');
         final version = lines.isNotEmpty ? lines.first.trim() : 'installed';
-        Logger.log('✅ Flutter SDK: $version');
+        print('[+] Flutter SDK: $version');
         return true;
       }
     } catch (_) {}
-    Logger.log('❌ Flutter SDK: Not found or not in PATH');
+    print('[!] Flutter SDK: Not found or not in PATH');
     return false;
   }
 
@@ -75,16 +111,46 @@ class DoctorCommand extends Command<void> {
       final result = await Process.run('git', ['--version'], runInShell: true);
       if (result.exitCode == 0) {
         final version = result.stdout.toString().trim();
-        Logger.log('✅ Git: $version');
+        print('[+] Git: $version');
         return true;
       }
     } catch (_) {}
-    Logger.log('⚠️  Git: Not found (recommended for version control)');
+    print('[!] Git: Not found (recommended for version control)');
     return true; // Not critical
   }
 
+  Future<void> _checkShorebird() async {
+    try {
+      final result =
+          await Process.run('shorebird', ['--version'], runInShell: true);
+      if (result.exitCode == 0) {
+        final version = result.stdout.toString().trim();
+        print('[+] Shorebird: $version');
+      } else {
+        print('[-] Shorebird: Not installed (optional for OTA updates)');
+      }
+    } catch (_) {
+      print('[-] Shorebird: Not installed (optional for OTA updates)');
+    }
+  }
+
+  Future<void> _checkCodemagic() async {
+    try {
+      final result =
+          await Process.run('codemagic', ['--version'], runInShell: true);
+      if (result.exitCode == 0) {
+        final version = result.stdout.toString().trim();
+        print('[+] Codemagic CLI: $version');
+      } else {
+        print('[-] Codemagic CLI: Not installed (optional for CI/CD)');
+      }
+    } catch (_) {
+      print('[-] Codemagic CLI: Not installed (optional for CI/CD)');
+    }
+  }
+
   Future<void> _checkProjectConfig() async {
-    Logger.log('  ℹ️  Dartvel project checks not yet fully implemented');
-    Logger.log('  ℹ️  Project detection and validation coming soon');
+    print('    Dartvel project checks not yet fully implemented');
+    print('    Project detection and validation coming soon');
   }
 }
