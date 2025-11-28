@@ -9,6 +9,7 @@ import 'generated/bindings.dart' as gen; // produced by ffigen via build hook
 import 'wintercg.dart';
 import 'router.dart';
 import 'header_codec.dart';
+import 'ssr_helper.dart';
 import 'package:ffi/ffi.dart' as pkgffi;
 
 typedef _NativeCb = gen.DartReqHandlerFunction;
@@ -92,6 +93,7 @@ Future<ServerHandle> serve(
   bool h2c = false, // plaintext HTTP/2 (advanced)
   CorsOptions? cors,
   String? staticDir, // Path to static files directory
+  String? spaRoot, // Path to SPA root (e.g. build/web) for SSR injection
   bool compression = true, // Enable/disable compression
 }) async {
   final subdir = Platform.isMacOS
@@ -111,7 +113,22 @@ Future<ServerHandle> serve(
   final dylib = ffi.DynamicLibrary.open(uri!.toFilePath());
 
   final api = gen.DartvelShelfBindings(dylib);
-  final effective = (handler is Router) ? handler.call : handler;
+
+  // Wrap handler with SSR middleware if spaRoot is provided
+  var effectiveHandler = handler;
+  if (spaRoot != null) {
+    effectiveHandler = (Request req) async {
+      final resp = await handler(req);
+      if (resp.status == 404 && req.method == 'GET') {
+        // Fallback to SPA index.html with injection
+        return handleSsrFallback(req, spaRoot);
+      }
+      return resp;
+    };
+  }
+
+  final effective =
+      (effectiveHandler is Router) ? effectiveHandler.call : effectiveHandler;
 
   void handleRequest(int reqId, gen.FfiStr method, gen.FfiStr target,
       ffi.Pointer<ffi.Uint8> hdrsPtr, int hdrsLen, gen.FfiBuf body) {
@@ -178,6 +195,7 @@ Future<ServerHandle> serve(
 
   _configureCors(api, cors);
   _configureStatic(api, staticDir);
+  _configureSpaRoot(api, spaRoot);
   _configureCompression(api, compression);
 
   if (tls != null) {
@@ -286,6 +304,36 @@ void _configureStatic(gen.DartvelShelfBindings api, String? staticDir) {
 
   if (rc != 0) {
     throw StateError('Static config failed (code=$rc)');
+  }
+}
+
+void _configureSpaRoot(gen.DartvelShelfBindings api, String? spaRoot) {
+  final path = spaRoot ?? '';
+  final bytes = Uint8List.fromList(path.codeUnits);
+  final strPtr = pkgffi.calloc<gen.FfiStr>();
+  ffi.Pointer<ffi.Uint8>? dataPtr;
+
+  if (bytes.isEmpty) {
+    strPtr.ref
+      ..ptr = ffi.Pointer.fromAddress(0)
+      ..len = 0;
+  } else {
+    dataPtr = pkgffi.malloc<ffi.Uint8>(bytes.length)
+      ..asTypedList(bytes.length).setAll(0, bytes);
+    strPtr.ref
+      ..ptr = dataPtr.cast()
+      ..len = bytes.length;
+  }
+
+  final rc = api.aw_configure_spa_root(strPtr.ref);
+
+  if (dataPtr != null) {
+    pkgffi.malloc.free(dataPtr);
+  }
+  pkgffi.calloc.free(strPtr);
+
+  if (rc != 0) {
+    throw StateError('SPA root config failed (code=$rc)');
   }
 }
 

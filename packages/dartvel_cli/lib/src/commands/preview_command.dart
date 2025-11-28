@@ -14,8 +14,7 @@ class PreviewCommand extends Command<void> {
     argParser
       ..addOption('port',
           abbr: 'p', defaultsTo: '8080', help: 'Port to serve on')
-      ..addOption('host',
-          abbr: 'h', defaultsTo: '127.0.0.1', help: 'Host to bind to');
+      ..addOption('host', defaultsTo: '127.0.0.1', help: 'Host to bind to');
   }
 
   @override

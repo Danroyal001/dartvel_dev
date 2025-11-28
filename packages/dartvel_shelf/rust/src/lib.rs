@@ -210,7 +210,6 @@ struct FfiRespOwned {
     headers: Vec<u8>,
     body: Vec<u8>,
 }
-
 static PENDING_RESPONSES: OnceCell<Mutex<HashMap<u64, oneshot::Sender<FfiRespOwned>>>> =
     OnceCell::new();
 static NEXT_ID: OnceCell<AtomicU64> = OnceCell::new();
@@ -219,6 +218,7 @@ static SERVER_HANDLES: OnceCell<Mutex<HashMap<u64, ActixServerHandle>>> = OnceCe
 static NEXT_SERVER_ID: OnceCell<AtomicU64> = OnceCell::new();
 static CORS_CONFIG: OnceCell<Mutex<Option<Arc<CorsOptions>>>> = OnceCell::new();
 static STATIC_DIR: OnceCell<Mutex<Option<String>>> = OnceCell::new();
+static SPA_ROOT_DIR: OnceCell<Mutex<Option<String>>> = OnceCell::new();
 static COMPRESSION_ENABLED: OnceCell<Mutex<bool>> = OnceCell::new();
 
 // Flags for aw_start
@@ -378,6 +378,27 @@ pub extern "C" fn aw_configure_static(path: FfiStr) -> i32 {
 }
 
 #[no_mangle]
+pub extern "C" fn aw_configure_spa_root(path: FfiStr) -> i32 {
+    if path.len == 0 || path.ptr.is_null() {
+        if let Some(mutex) = SPA_ROOT_DIR.get() {
+            *safe_lock(mutex) = None;
+        }
+        return 0;
+    }
+
+    // SAFETY: FfiStr contract guarantees ptr is valid for len bytes
+    let path_slice = unsafe { std::slice::from_raw_parts(path.ptr, path.len) };
+    let path_string = match std::str::from_utf8(path_slice) {
+        Ok(s) => s.to_string(),
+        Err(_) => return 1,
+    };
+
+    let mutex = SPA_ROOT_DIR.get_or_init(|| Mutex::new(None));
+    *safe_lock(mutex) = Some(path_string);
+    0
+}
+
+#[no_mangle]
 pub extern "C" fn aw_configure_compression(enabled: i32) -> i32 {
     let mutex = COMPRESSION_ENABLED.get_or_init(|| Mutex::new(false));
     *safe_lock(mutex) = enabled != 0;
@@ -443,8 +464,22 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, flags: u32) -> i32 {
                             .prefer_utf8(true)
                     );
                 }
-                
-                app.default_service(web::to(dart_proxy))
+
+                let spa_root = {
+                    let mutex = SPA_ROOT_DIR.get_or_init(|| Mutex::new(None));
+                    safe_lock(mutex).clone()
+                };
+
+                if let Some(dir) = spa_root {
+                     app = app.service(
+                        Files::new("/", dir)
+                            .use_last_modified(true)
+                            .prefer_utf8(true)
+                            .default_handler(web::to(dart_proxy))
+                    );
+                } else {
+                    app = app.default_service(web::to(dart_proxy));
+                }
             };
 
             let mut http_server = HttpServer::new(app_factory).workers(num_cpus::get());
