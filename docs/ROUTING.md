@@ -32,8 +32,8 @@ Widget build(BuildContext context) {
 - Trailing slash normalization is enabled by default (`/path/` → `/path`); disable via `routingNormalizeTrailingSlash: false`.
 
 ## Layouts
-- Root: add `lib/pages/_layout.page.dart` with a class extending `DartvelLayout` (constructor: `{ required Widget child }`).
-- Per-segment: add `_layout.page.dart` inside any folder (including group folders like `(admin)`).
+- Root: add `lib/pages/_layout.dart` with a class extending `DartvelLayout` (constructor: `{ required Widget child }`).
+- Per-segment: add `_layout.dart` inside any folder (including group folders like `(admin)`).
 - The router wraps pages with the ancestor chain (root → segment) in that order.
 
 ## Guards (per-segment)

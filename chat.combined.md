@@ -56,7 +56,7 @@ It aims to be the **"Next.js/Expo of Flutter"**, merging features from Serverpod
 - ❌ Hardcode secrets.
 - ❌ Use `eval`/`exec`.
 - ❌ Swallow exceptions silently.
-- ❌ **USE EMOJIS IN CLI OUTPUT** (Strictly forbidden, except where explicitly allowed).
+- ❌ **USE EMOJIS ANYWHERE IN THE CODEBASE** (Strictly forbidden, except where explicitly allowed).
 
 ---
 
@@ -117,3 +117,43 @@ Flutter Doctor Output
 - `packages/dartvel_shelf`: Rust-powered backend server.
 - `packages/dartvel_generator`: Code generation logic.
 - `example/dartvel_example`: Reference implementation.
+
+---
+
+## 7. Feature Checklist (Comprehensive)
+
+### Core Features
+1. [ ] Structured Project Organization
+2. [ ] Dartvel CLI, Scaffolding generators
+3. [ ] Platform API access
+4. [ ] Advanced Routing (File-based, Config based, Deeplinking, URL scheme, Route bundle splitting)
+5. [ ] Backend functions and API Management + Streaming + WebSockets (WinterCG/WinterTC Compliant)
+6. [ ] Over-the-Air (OTA) Updates and patches (Like Expo Updates, powered by Codemagic and ShoreBird)
+7. [ ] Templating
+8. [ ] Database integration / Migrations / ORM
+9. [ ] Authentication, Authorization, Middleware
+10. [ ] Caching
+11. [ ] Push and Email (requires server) Notifications
+12. [ ] Queued Tasks / Background tasks / Scheduled Tasks
+13. [ ] Permissions management
+14. [ ] Config management
+15. [ ] UI Scaffolding (Forms, Tables, Premium Starter Kits, etc)
+16. [ ] Multiplatform support (Android, iOS/iPadOS, Web, Windows, Linux, macOS, Android TV, WearOS, tvOS, watchOS, WebOS, Tizen)
+17. [ ] Internationalization and Localization
+18. [ ] Quick Previews in the preview app (Like Expo Go)
+19. [ ] Cloud builds via DartvelCloud (Like EAS, powered by CodeMagic)
+20. [ ] Store Signing and publishing via DartvelCloud
+21. [ ] Environment variables management
+22. [ ] Image/Asset optimization
+23. [ ] Analytics, Monitoring, Crashlytics and Logging
+24. [ ] Event system, Pub/Sub
+25. [ ] Web SEO
+26. [ ] Custom CLI Commands
+27. [ ] Dartvel Cloud (Edge Deployment)
+28. [ ] In-build opt-in Admin/CMS dashboard
+29. [ ] Server hydration / initial server data
+30. [ ] Utils for strings, arrays, hashmaps, dates, cross-platform concurrency
+31. [ ] Remote config / Feature flags
+32. [ ] Drag-and-Drop / AI-Driven Development with Code Assist
+33. [ ] Compliance features (audit logs, GDPR tools, HIPAA-ready)
+
