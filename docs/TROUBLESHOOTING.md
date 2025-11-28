@@ -2,8 +2,8 @@
 # Troubleshooting — dartvel v0.1
 
 ## Router not updating
-- Re-run `dart run dartvel_cli:routes` after adding/renaming pages or changing config.
- - Check for route conflicts with `dart run dartvel_cli:doctor` (will list files mapping to the same route).
+- Re-run `dartvel routes` after adding/renaming pages or changing config.
+ - Check for route conflicts with `dartvel doctor` (will list files mapping to the same route).
 
 ## 404 / wrong route
 - Ensure file name ends with `.page.dart` and class ends with `Page` and **extends `DartvelPage`**.

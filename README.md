@@ -14,23 +14,24 @@ A framework for simplifying the creation and deployment of fullstack flutter and
 Dartvel comes with a powerful CLI to manage your project.
 
 ### Core Commands
-- `dart run dartvel_cli:new <name>`: Create a new Dartvel project.
-- `dart run dartvel_cli:dev`: Start the development server and Flutter app (with hot reload).
-- `dart run dartvel_cli:build`: Build the project for production (includes SSG).
-- `dart run dartvel_cli:preview`: Serve the production build locally.
-- `dart run dartvel_cli:doctor`: Check project health and dependencies.
+- `dartvel create [name]`: Create a new Dartvel project (interactive).
+- `dartvel dev`: Start the development server and Flutter app (with hot reload).
+- `dartvel build`: Build the project for production (includes SSG).
+- `dartvel preview`: Serve the production build locally.
+- `dartvel doctor`: Check system environment and project health.
 
 ### Generators
-- `dart run dartvel_cli:routes`: Generate routes, client API, and environment variables.
-- `dart run dartvel_cli:watch`: Watch for file changes and regenerate routes automatically.
+- `dartvel routes`: Generate routes, client API, and environment variables.
+- `dartvel watch`: Watch for file changes and regenerate routes automatically.
 
 ### Plugins & Updates
-- `dart run dartvel_cli:plugin add <name>`: Add a plugin (e.g., `auth`).
-- `dart run dartvel_cli:updates push`: Push an OTA update via Shorebird.
+- `dartvel plugin add <name>`: Add a plugin (e.g., `auth`).
+- `dartvel updates push`: Push an OTA update via Shorebird.
 
 ## Getting Started
-1) Create a new project: `dart run dartvel_cli:new my_app`
-2) Enter dev mode: `cd my_app && dart run dartvel_cli:dev`
+## Getting Started
+1) Create a new project: `dartvel create` (or `dartvel create my_app`)
+2) Enter dev mode: `cd my_app && dartvel dev`
 3) Open `lib/pages/index.page.dart` and start editing!
 
 ### Sample `dartvel:` config
@@ -106,7 +107,8 @@ See `example/dartvel_example/lib/backend/functions/` for implementations.
   Future<ResponseType> handler(RequestType req) async => Res.json({'ok': true});
   ```
 - Generate routes/configs:
-  - `dart run dartvel_cli:routes`
+- Generate routes/configs:
+  - `dartvel routes`
 - Development backend is launched by the CLI (`dartvel dev`). For custom servers, import the generated `.dart_tool/dartvel_backend_routes.g.dart`, call `buildBackendRouter()`, and pass the result to `serve()` from `dartvel_shelf` (or call `startBackend()` for a ready-to-serve helper).
 
 ## Generated files and Git ignore
