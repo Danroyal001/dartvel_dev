@@ -12,6 +12,6 @@ builders:
         - "dartvel_client/dartvel_client.dart"
       "$.dart_tool$":
         - "dartvel_backend_routes.g.dart"
-    auto_apply: dependents
+    auto_apply: none  # Disabled - use router_builder from dartvel_generator instead
     build_to: source
     required_inputs: [".dart", "pubspec.yaml", ".env"]

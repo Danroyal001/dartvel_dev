@@ -10,7 +10,6 @@ use futures_util::StreamExt as _;
 use once_cell::sync::OnceCell;
 use std::{
     collections::HashMap,
-    ffi::c_void,
     io::Cursor,
     sync::{
         atomic::{AtomicU64, Ordering},
@@ -480,6 +479,8 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, flags: u32) -> i32 {
                 } else {
                     app = app.default_service(web::to(dart_proxy));
                 }
+                
+                app
             };
 
             let mut http_server = HttpServer::new(app_factory).workers(num_cpus::get());

@@ -5,6 +5,10 @@ targets:
         enabled: true
         generate_for:
           - lib/**.dart
+      dartvel_generator|router_builder:
+        enabled: true
+        generate_for:
+          - pubspec.yaml
 
 builders:
   route_builder:
@@ -14,3 +18,11 @@ builders:
     auto_apply: dependents
     build_to: cache
     applies_builders: ["source_gen|combining_builder"]
+
+  router_builder:
+    import: "package:dartvel_generator/dartvel_generator.dart"
+    builder_factories: ["routerBuilder"]
+    build_extensions: {"pubspec.yaml": ["lib/dartvel_client/router.g.dart", "lib/dartvel_client/env.g.dart", "lib/dartvel_client/dartvel_config.g.dart", "lib/dartvel_client/dartvel_runtime.dart"]}
+    auto_apply: dependents
+    build_to: source
+    required_inputs: []
