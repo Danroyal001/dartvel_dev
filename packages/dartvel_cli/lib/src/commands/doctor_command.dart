@@ -16,42 +16,6 @@ class DoctorCommand extends Command<void> {
 
   @override
   Future<void> run() async {
-    int warnings = 0;
-    final root = Directory.current.path;
-    final pubspecFile = File(p.join(root, 'pubspec.yaml'));
-    if (!pubspecFile.existsSync()) {
-      Logger.log('doctor: pubspec.yaml not found at project root',
-          isError: true);
-      return;
-    }
-    // ... (rest of the file is fine, just need to remove return at the end)
-
-    // I need to be careful not to replace the whole body if I don't have to.
-    // But I need to change the class definition too.
-
-    final yaml = loadYaml(await pubspecFile.readAsString()) as Map;
-    final deps = (yaml['dependencies'] ?? {}) as Map;
-    final devDeps = (yaml['dev_dependencies'] ?? {}) as Map;
-    final dv = (yaml['dartvel'] ?? {}) as Map;
-
-    bool hasDep(String name) =>
-        deps.containsKey(name) || devDeps.containsKey(name);
-
-    void warn(String msg) {
-      warnings++;
-      Logger.log('WARN: $msg');
-    }
-
-    Logger.log('dartvel doctor:');
-
-    // Check essential deps
-    if (!hasDep('go_router')) {
-      warn('Missing dependency: go_router (required by router)');
-    }
-    if (!hasDep('dartvel_flutter')) {
-      warn('Missing dependency: dartvel_flutter');
-    }
-
     // Config keys
     final pagesDir = (dv['pagesDir'] ?? 'lib/pages').toString();
     final backendDir = (dv['backendDir'] ?? 'lib/backend').toString();
