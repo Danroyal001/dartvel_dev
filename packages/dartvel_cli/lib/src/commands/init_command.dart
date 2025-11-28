@@ -25,8 +25,23 @@ class InitCommand extends Command<void> {
 
   @override
   Future<void> run() async {
-    final root = Directory.current.path;
-    final projectName = argResults?['name'] as String? ?? p.basename(root);
+    var root = Directory.current.path;
+    String? projectName;
+
+    // Check for positional argument (target directory)
+    if (argResults!.rest.isNotEmpty) {
+      final targetDir = argResults!.rest.first;
+      root = p.join(root, targetDir);
+      projectName = p.basename(root);
+
+      final dir = Directory(root);
+      if (!dir.existsSync()) {
+        dir.createSync(recursive: true);
+        Logger.log('Created project directory: $targetDir');
+      }
+    }
+
+    projectName ??= argResults?['name'] as String? ?? p.basename(root);
     final org = argResults?['org'] as String;
     final web = argResults?['web'] as bool;
     final mobile = argResults?['mobile'] as bool;
@@ -34,7 +49,7 @@ class InitCommand extends Command<void> {
     // SSR flag is currently unused but reserved for future use
     // final ssr = argResults?['ssr'] as bool? ?? false;
 
-    Logger.log('🚀 Initializing Dartvel project: $projectName');
+    Logger.log('🚀 Initializing Dartvel project: $projectName in $root');
 
     // Create pubspec.yaml
     final pubspecFile = File(p.join(root, 'pubspec.yaml'));

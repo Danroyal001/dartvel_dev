@@ -1,0 +1,16 @@
+targets:
+  $default:
+    builders:
+      dartvel_generator|route_builder:
+        enabled: true
+        generate_for:
+          - lib/**.dart
+
+builders:
+  route_builder:
+    import: "package:dartvel_generator/src/route_generator.dart"
+    builder_factories: ["routeBuilder"]
+    build_extensions: {".dart": [".route_generator.g.part"]}
+    auto_apply: dependents
+    build_to: cache
+    applies_builders: ["source_gen|combining_builder"]

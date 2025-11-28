@@ -67,6 +67,48 @@ class DartvelShelfBindings {
   late final _aw_tls_rustls_from_pem =
       _aw_tls_rustls_from_pemPtr.asFunction<int Function(FfiBuf, FfiBuf)>();
 
+  int aw_configure_static(
+    FfiStr path,
+  ) {
+    return _aw_configure_static(
+      path,
+    );
+  }
+
+  late final _aw_configure_staticPtr =
+      _lookup<ffi.NativeFunction<ffi.Int32 Function(FfiStr)>>(
+          'aw_configure_static');
+  late final _aw_configure_static =
+      _aw_configure_staticPtr.asFunction<int Function(FfiStr)>();
+
+  int aw_configure_spa_root(
+    FfiStr path,
+  ) {
+    return _aw_configure_spa_root(
+      path,
+    );
+  }
+
+  late final _aw_configure_spa_rootPtr =
+      _lookup<ffi.NativeFunction<ffi.Int32 Function(FfiStr)>>(
+          'aw_configure_spa_root');
+  late final _aw_configure_spa_root =
+      _aw_configure_spa_rootPtr.asFunction<int Function(FfiStr)>();
+
+  int aw_configure_compression(
+    int enabled,
+  ) {
+    return _aw_configure_compression(
+      enabled,
+    );
+  }
+
+  late final _aw_configure_compressionPtr =
+      _lookup<ffi.NativeFunction<ffi.Int32 Function(ffi.Int32)>>(
+          'aw_configure_compression');
+  late final _aw_configure_compression =
+      _aw_configure_compressionPtr.asFunction<int Function(int)>();
+
   int aw_start(
     FfiStr host,
     int port,

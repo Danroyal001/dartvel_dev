@@ -17,9 +17,9 @@ void main() {
     });
 
     test('ttl expiration', () async {
-      await cache.set('key', 'value', ttl: Duration(milliseconds: 100));
+      await cache.set('key', 'value', ttl: const Duration(milliseconds: 100));
       expect(await cache.get('key'), equals('value'));
-      await Future.delayed(Duration(milliseconds: 150));
+      await Future.delayed(const Duration(milliseconds: 150));
       expect(await cache.get('key'), isNull);
     });
   });
@@ -37,7 +37,7 @@ void main() {
       await manager.schedule('test_task', {});
 
       // Allow event loop to process
-      await Future.delayed(Duration(milliseconds: 50));
+      await Future.delayed(const Duration(milliseconds: 50));
 
       expect(executed, isTrue);
     });

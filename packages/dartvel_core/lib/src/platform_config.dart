@@ -1,4 +1,3 @@
-import 'dart:io';
 
 /// Supported platforms for Dartvel framework
 enum Platform {

@@ -20,18 +20,19 @@ class DoctorCommand extends Command<void> {
     final root = Directory.current.path;
     final pubspecFile = File(p.join(root, 'pubspec.yaml'));
     if (!pubspecFile.existsSync()) {
-      Logger.log('doctor: pubspec.yaml not found at project root', isError: true);
+      Logger.log('doctor: pubspec.yaml not found at project root',
+          isError: true);
       return;
     }
     // ... (rest of the file is fine, just need to remove return at the end)
-    
+
     // I need to be careful not to replace the whole body if I don't have to.
     // But I need to change the class definition too.
 
-    final yaml = loadYaml(await pubspecFile.readAsString()) as YamlMap;
-    final deps = (yaml['dependencies'] ?? {}) as YamlMap;
-    final devDeps = (yaml['dev_dependencies'] ?? {}) as YamlMap;
-    final dv = (yaml['dartvel'] ?? {}) as YamlMap;
+    final yaml = loadYaml(await pubspecFile.readAsString()) as Map;
+    final deps = (yaml['dependencies'] ?? {}) as Map;
+    final devDeps = (yaml['dev_dependencies'] ?? {}) as Map;
+    final dv = (yaml['dartvel'] ?? {}) as Map;
 
     bool hasDep(String name) =>
         deps.containsKey(name) || devDeps.containsKey(name);
@@ -58,8 +59,8 @@ class DoctorCommand extends Command<void> {
     final prodBackendHost = (dv['prodBackendHost'] ?? '').toString();
     // Env files
     final envFiles = <String>[];
-    if (dv['envFiles'] is YamlList) {
-      for (final f in (dv['envFiles'] as YamlList)) {
+    if (dv['envFiles'] is List) {
+      for (final f in (dv['envFiles'] as List)) {
         if (f != null) envFiles.add(f.toString());
       }
     } else {
@@ -72,8 +73,7 @@ class DoctorCommand extends Command<void> {
     final pagesExists = Directory(pagesPath).existsSync();
     final backendExists = Directory(backendPath).existsSync();
 
-    Logger.log(
-        '• pagesDir: $pagesDir${pagesExists ? ' (ok)' : ' (missing)'}');
+    Logger.log('• pagesDir: $pagesDir${pagesExists ? ' (ok)' : ' (missing)'}');
     if (!pagesExists) warn('pagesDir does not exist: $pagesDir');
     Logger.log(
         '• backendDir: $backendDir${backendExists ? ' (ok)' : ' (missing)'}');
@@ -92,8 +92,9 @@ class DoctorCommand extends Command<void> {
 
       // Detect route conflicts
       String routeFor(String rel) {
-        var path =
-            rel.replaceFirst(RegExp('^$pagesDir/?'), '').replaceAll('\\\\', '/');
+        var path = rel
+            .replaceFirst(RegExp('^$pagesDir/?'), '')
+            .replaceAll('\\\\', '/');
         path = path.replaceFirst(RegExp(r'\.page\.dart$'), '');
         if (path == 'index') return '/';
         path = path.replaceAllMapped(RegExp(r'\(([^)]+)\)/'), (m) => '');
@@ -199,18 +200,21 @@ class DoctorCommand extends Command<void> {
     try {
       final sbCheck = await Process.run('shorebird', ['--version']);
       if (sbCheck.exitCode == 0) {
-        Logger.log('• Shorebird: installed (version: ${(sbCheck.stdout as String).trim()})');
+        Logger.log(
+            '• Shorebird: installed (version: ${(sbCheck.stdout as String).trim()})');
         final sbDoctor = await Process.start(
-          'shorebird', 
+          'shorebird',
           ['doctor'],
           mode: ProcessStartMode.inheritStdio,
         );
         await sbDoctor.exitCode;
       } else {
-        warn('Shorebird not found (required for OTA updates). Install via https://shorebird.dev');
+        warn(
+            'Shorebird not found (required for OTA updates). Install via https://shorebird.dev');
       }
     } catch (_) {
-      warn('Shorebird not found (required for OTA updates). Install via https://shorebird.dev');
+      warn(
+          'Shorebird not found (required for OTA updates). Install via https://shorebird.dev');
     }
 
     // Flutter check
@@ -220,7 +224,7 @@ class DoctorCommand extends Command<void> {
       final flutterCheck = await Process.run('flutter', ['--version']);
       if (flutterCheck.exitCode == 0) {
         final flutterDoctor = await Process.start(
-          'flutter', 
+          'flutter',
           ['doctor'],
           mode: ProcessStartMode.inheritStdio,
         );

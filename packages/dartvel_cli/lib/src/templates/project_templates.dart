@@ -30,6 +30,8 @@ dev_dependencies:
     sdk: flutter
   lints: ^4.0.0
   dartvel_cli: ^0.1.0
+  build_runner: ^2.4.8
+  dartvel_generator: ^1.0.0
 
 flutter:
   uses-material-design: true
