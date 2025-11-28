@@ -29,18 +29,35 @@ class InitCommand extends Command<void> {
   Future<void> run() async {
     var root = Directory.current.path;
     String? projectName;
+    String? targetDir;
 
-    // Check for positional argument (target directory)
+    // Check for positional argument
     if (argResults!.rest.isNotEmpty) {
-      final targetDir = argResults!.rest.first;
-      root = p.join(root, targetDir);
-      projectName = p.basename(root);
+      targetDir = argResults!.rest.first;
+    } else {
+      // Prompt user if no argument provided
+      stdout.write('Project name (leave blank for current directory): ');
+      final input = stdin.readLineSync()?.trim();
+      if (input != null && input.isNotEmpty) {
+        targetDir = input;
+      }
+    }
+
+    // Handle target directory
+    if (targetDir != null && targetDir != '.') {
+      if (p.isAbsolute(targetDir)) {
+        root = targetDir;
+      } else {
+        root = p.join(root, targetDir);
+      }
 
       final dir = Directory(root);
       if (!dir.existsSync()) {
         dir.createSync(recursive: true);
         Logger.log('Created project directory: $targetDir');
       }
+    } else {
+      Logger.log('Initializing in current directory: $root');
     }
 
     projectName ??= argResults?['name'] as String? ?? p.basename(root);
