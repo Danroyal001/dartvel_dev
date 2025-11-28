@@ -1,3 +1,4 @@
+import 'dart:io' as io;
 
 /// Supported platforms for Dartvel framework
 enum Platform {
@@ -104,11 +105,11 @@ class PlatformConfig {
 
   /// Detect the current running platform
   static Platform detectCurrent() {
-    if (Platform.isAndroid) return Platform.android;
-    if (Platform.isIOS) return Platform.ios;
-    if (Platform.isWindows) return Platform.windows;
-    if (Platform.isMacOS) return Platform.macos;
-    if (Platform.isLinux) return Platform.linux;
+    if (io.Platform.isAndroid) return Platform.android;
+    if (io.Platform.isIOS) return Platform.ios;
+    if (io.Platform.isWindows) return Platform.windows;
+    if (io.Platform.isMacOS) return Platform.macos;
+    if (io.Platform.isLinux) return Platform.linux;
     // Web detection would work differently in actual web context
     return Platform.linux; // fallback
   }
