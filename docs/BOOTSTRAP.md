@@ -79,7 +79,7 @@ class IndexPage extends DartvelPage {
 
 ## 4) Generate router & config (+backend routes)
 ```bash
-dart run dartvel_cli:dartvel routes
+dartvel routes
 ```
 
 This emits:
@@ -93,7 +93,7 @@ This emits:
 
 Optional sanity check:
 ```bash
-dart run dartvel_cli:doctor
+dartvel doctor
 ```
 Shows pages found, backend functions count, and config tips.
 
@@ -151,7 +151,7 @@ Future<ResponseType> handler(RequestType req) async {
   return Res.json({'ok': true, 'hello': 'world'});
 }
 ```
-Run `dart run dartvel_cli:routes` again to regenerate backend routes.
+Run `dartvel routes` again to regenerate backend routes.
 
 ## Public env values in Flutter
 1) Add an env file like `.env`:
@@ -160,7 +160,7 @@ PUBLIC_GREETING=Hello
 SECRET_TOKEN=do_not_export
 ```
 2) Configure `envFiles` under `dartvel:` (or rely on defaults).
-3) Run `dart run dartvel_cli:dartvel routes`.
+3) Run `dartvel routes`.
 4) Use from Flutter:
 ```dart
 import 'package:your_app/dartvel_client/env.g.dart';
@@ -182,5 +182,5 @@ flutter build web \
 
 Preview a built web folder locally (SPA fallback included):
 ```bash
-dart run dartvel_cli:dartvel preview --dir build/web --port 5000
+dartvel preview --dir build/web --port 5000
 ```

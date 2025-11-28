@@ -2,22 +2,15 @@
 # CLI — dartvel_cli (v0.1)
 
 Commands:
-- `dart run dartvel_cli:dartvel routes` — Generate client router, client helpers, backend routes.
-- `dart run dartvel_cli:dartvel dev` — Watch, auto‑generate, start backend + `flutter run` (with stdin pass‑through).
-- `dart run dartvel_cli:dartvel run` — Alias for `dev` (accepts Flutter‑like flags).
-- `dart run dartvel_cli:dartvel build` — Generate artifacts and require `prodBackendHost`.
-- `dart run dartvel_cli:dartvel doctor` — Check config, pages, deps, env, and route conflicts.
-- `dart run dartvel_cli:dartvel watch` — Watch pages/backend/config and regenerate on change.
-- `dart run dartvel_cli:dartvel preview` — Serve a built web directory with SPA fallback (default `build/web`).
-
-Wrappers (shorthand):
-- `dart run dartvel_cli:routes`
-- `dart run dartvel_cli:dev`
-- `dart run dartvel_cli:run`
-- `dart run dartvel_cli:build`
- - `dart run dartvel_cli:watch`
- - `dart run dartvel_cli:doctor`
- - `dart run dartvel_cli:preview`
+Commands:
+- `dartvel create [name]` — Create a new project (interactive). Aliases: `init`, `new`.
+- `dartvel routes` — Generate client router, client helpers, backend routes.
+- `dartvel dev` — Watch, auto‑generate, start backend + `flutter run` (with stdin pass‑through).
+- `dartvel run` — Alias for `dev` (accepts Flutter‑like flags).
+- `dartvel build` — Generate artifacts and require `prodBackendHost`.
+- `dartvel doctor` — Check system deps (Dart, Flutter, Git, Shorebird) and project config.
+- `dartvel watch` — Watch pages/backend/config and regenerate on change.
+- `dartvel preview` — Serve a built web directory with SPA fallback (default `build/web`).
 
 `dev`/`run` flags (subset): `-d/--device`, `--release`, `--profile`, `--debug`, `--dart-define`, `--dart-define-from-file`, `--web-renderer`, `-v/--verbose`.
 
@@ -53,10 +46,14 @@ Loading/Error UI conventions:
 - If missing, framework defaults are used: `DvDefaultLoading`, `DvDefaultError`.
 
 Doctor checks:
-- Verifies essential deps, counts pages and backend functions.
-- Reports route conflicts when multiple files map to the same route.
-- Validates env files (configured via `envFiles`) and reports PUBLIC_* keys discovered.
+Doctor checks:
+- **System Dependencies**: Checks Dart SDK, Flutter SDK, Git, Shorebird (optional), Codemagic (optional).
+- **Project Checks** (if run in project root):
+  - Verifies essential deps, counts pages and backend functions.
+  - Reports route conflicts when multiple files map to the same route.
+  - Validates env files (configured via `envFiles`) and reports PUBLIC_* keys discovered.
+- **Flutter Doctor**: Runs `flutter doctor -v` for comprehensive diagnostics.
 
 Preview server:
-- `dart run dartvel_cli:dartvel preview [--dir build/web] [--host 127.0.0.1] [--port 4321]`
+- `dartvel preview [--dir build/web] [--host 127.0.0.1] [--port 4321]`
 - Serves static files with SPA fallback to `index.html` for unknown GET routes.

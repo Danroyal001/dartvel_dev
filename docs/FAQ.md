@@ -24,4 +24,4 @@ A: Yes. Add sibling files next to your page file:
 A: Put them in `.env` (or `.env.local`) and list those in `dartvel.envFiles`. Only `PUBLIC_*` keys are exported to `lib/dartvel_client/env.g.dart` and can be read with `DartvelEnv.get('PUBLIC_KEY')`.
 
 **Q: How do I preview my built web app locally?**  
-A: `dart run dartvel_cli:dartvel preview --dir build/web` serves files with SPA fallback to `index.html`.
+A: `dartvel preview --dir build/web` serves files with SPA fallback to `index.html`.
