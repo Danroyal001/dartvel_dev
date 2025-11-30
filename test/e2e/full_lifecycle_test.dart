@@ -97,7 +97,7 @@ void main() {
     test('Run dartvel doctor', () async {
       final result = await Process.run(
         'dart',
-        ['run', 'dartvel_cli', 'doctor'],
+        [dartvelBin, 'doctor'],
         workingDirectory: projectPath,
       );
 
@@ -105,7 +105,7 @@ void main() {
       print('Doctor stderr: ${result.stderr}');
 
       expect(result.exitCode, 0, reason: 'dartvel doctor should pass');
-    }, timeout: const Timeout(Duration(seconds: 300)));
+    }, timeout: Timeout(Duration(seconds: 30)));
 
     test('Build web app', () async {
       // Run build_runner first to generate router.g.dart
