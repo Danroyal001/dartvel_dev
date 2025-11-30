@@ -280,12 +280,14 @@ class RouterBuilder implements Builder {
     }
 
     // i18n
-    final i18n = (dv['i18n'] ?? {}) as YamlMap;
+    final i18n = (dv['i18n'] as Map?) ?? {};
+    final defaultLocale = i18n['defaultLocale'] as String? ?? 'en';
+    final locales = <String>{defaultLocale};
     final i18nParam = (i18n['param'] ?? 'lang').toString();
     final i18nDefault = (i18n['defaultLocale'] ?? '').toString();
     final i18nLocales = <String>[];
-    if (i18n['locales'] is YamlList) {
-      for (final v in (i18n['locales'] as YamlList)) {
+    if (i18n['locales'] is List) {
+      for (final v in (i18n['locales'] as List)) {
         if (v != null) i18nLocales.add(v.toString());
       }
     }
