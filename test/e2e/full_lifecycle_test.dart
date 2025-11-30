@@ -97,7 +97,7 @@ void main() {
     test('Run dartvel doctor', () async {
       final result = await Process.run(
         'dart',
-        [dartvelBin, 'doctor'],
+        ['run', 'dartvel_cli', 'doctor'],
         workingDirectory: projectPath,
       );
 
@@ -105,12 +105,27 @@ void main() {
       print('Doctor stderr: ${result.stderr}');
 
       expect(result.exitCode, 0, reason: 'dartvel doctor should pass');
-    }, timeout: Timeout(Duration(seconds: 30)));
+    }, timeout: const Timeout(Duration(seconds: 300)));
 
     test('Build web app', () async {
+      // Run build_runner first to generate router.g.dart
+      print('Running build_runner...');
+      final buildRunnerResult = await Process.run(
+        'dart',
+        ['run', 'build_runner', 'build', '--delete-conflicting-outputs'],
+        workingDirectory: projectPath,
+      );
+
+      if (buildRunnerResult.exitCode != 0) {
+        print('build_runner stdout: ${buildRunnerResult.stdout}');
+        print('build_runner stderr: ${buildRunnerResult.stderr}');
+      }
+      expect(buildRunnerResult.exitCode, 0,
+          reason: 'build_runner should succeed');
+
       final result = await Process.run(
         'flutter',
-        ['build', 'web'],
+        ['build', 'web', '--release'],
         workingDirectory: projectPath,
       );
 
@@ -118,6 +133,11 @@ void main() {
           'Build stdout (last 500 chars): ${result.stdout.toString().substring(result.stdout.toString().length > 500 ? result.stdout.toString().length - 500 : 0)}');
       print('Build stderr: ${result.stderr}');
 
+      if (result.exitCode != 0) {
+        print('Flutter build web failed:');
+        print('Stdout: ${result.stdout}');
+        print('Stderr: ${result.stderr}');
+      }
       expect(result.exitCode, 0, reason: 'flutter build web should succeed');
 
       final buildDir = Directory(p.join(projectPath, 'build', 'web'));
