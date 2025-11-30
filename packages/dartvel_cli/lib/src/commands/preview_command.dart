@@ -1,9 +1,7 @@
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
-import 'package:shelf/shelf.dart' as shelf;
-import 'package:shelf/shelf_io.dart' as shelf_io;
-import 'package:shelf_static/shelf_static.dart';
+import 'package:dartvel_shelf/dartvel_shelf.dart';
 import '../utils/logger.dart';
 
 class PreviewCommand extends Command<void> {
@@ -36,42 +34,27 @@ class PreviewCommand extends Command<void> {
     Logger.log('📦 Serving build/web on http://$host:$port');
     Logger.log('Press Ctrl+C to stop');
 
-    // Create static file handler
-    final handler = createStaticHandler(
-      buildDir.path,
-      defaultDocument: 'index.html',
-      listDirectories: false,
-    );
-
-    // Add SPA fallback for client-side routing
-    final cascade = shelf.Cascade().add(handler).add((request) async {
-      // Fallback to index.html for SPA routing
-      final indexFile = File(p.join(buildDir.path, 'index.html'));
-      if (await indexFile.exists()) {
-        final content = await indexFile.readAsString();
-        return shelf.Response.ok(
-          content,
-          headers: {'Content-Type': 'text/html'},
-        );
-      }
-      return shelf.Response.notFound('Not found');
-    });
-
     try {
-      final server = await shelf_io.serve(
-        cascade.handler,
-        host,
-        port,
+      // Use dartvel_shelf to serve static files at root
+      final server = await serve(
+        (request) async {
+          // Fallback handler - SPA files are handled automatically by spaRoot
+          return Response.text('Not found', status: 404);
+        },
+        host: host,
+        port: port,
+        spaRoot: buildDir.path,
+        compression: true,
       );
 
       Logger.log('✅ Server started successfully');
       Logger.log('');
 
-      // Keep the server running
+      // Keep server running
       await ProcessSignal.sigint.watch().first;
 
       Logger.log('\n🛑 Shutting down server...');
-      await server.close();
+      server.stop();
     } catch (e) {
       Logger.log('❌ Failed to start server: $e');
       exit(1);
