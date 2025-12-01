@@ -1,0 +1,67 @@
+name: basic_app
+description: A basic Dartvel example application
+publish_to: "none"
+version: 0.0.1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  go_router: ^14.2.0
+  dio: ^5.5.0
+  dartvel_core: ^0.1.0
+  dartvel_shelf: ^0.1.0
+  dartvel_flutter: ^0.1.0
+  flutter_web_plugins:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  lints: ^4.0.0
+  dartvel_cli: ^0.1.0
+  build_runner: ^2.4.8
+  dartvel_generator: ^1.0.0
+
+# Temporary overrides for local development
+dependency_overrides:
+  dartvel_core:
+    path: /home/sigmadev/Documents/SigmaDev/creatorx_stuff/dartvel/packages/dartvel_core
+  dartvel_shelf:
+    path: /home/sigmadev/Documents/SigmaDev/creatorx_stuff/dartvel/packages/dartvel_shelf
+  dartvel_flutter:
+    path: /home/sigmadev/Documents/SigmaDev/creatorx_stuff/dartvel/packages/dartvel_flutter
+  dartvel_cli:
+    path: /home/sigmadev/Documents/SigmaDev/creatorx_stuff/dartvel/packages/dartvel_cli
+  dartvel_generator:
+    path: /home/sigmadev/Documents/SigmaDev/creatorx_stuff/dartvel/packages/dartvel_generator
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/
+
+dartvel:
+  backendHost: 0.0.0.0
+  backendPort: 3000
+  devBackendHost: http://localhost:3000
+  prodBackendHost: https://api.reproduction-app.com
+  pagesDir: lib/pages
+  backendDir: lib/backend
+  apiBasePath: /api
+  envFiles: [.env, .env.local]
+  plugins: []
+  webPrerender: false
+  ota: false
+
+  transitions:
+    default: fade
+    durationMs: 200
+    curve: easeInOut
+
+  webSeoDefaults:
+    siteName: reproduction app
+    defaultTitle: Welcome
+    defaultDescription: A Dartvel application
