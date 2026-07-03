@@ -1,10 +1,11 @@
-use actix_cors::Cors;
-use actix_files::Files;
-use actix_web::http::{header, Method};
-use actix_web::{
-    dev::ServerHandle as ActixServerHandle, middleware::{Compress, Condition}, rt::System, web, App,
-    HttpRequest, HttpResponse, HttpServer,
+use axum::{
+    body::Body,
+    http::{header, Method, Request, Response, StatusCode},
+    response::IntoResponse,
+    routing::get,
+    Router,
 };
+use tower_http::cors::CorsLayer;
 use bytes::{Bytes, BytesMut};
 use futures_util::StreamExt as _;
 use once_cell::sync::OnceCell;
@@ -16,7 +17,7 @@ use std::{
         Arc, Mutex,
     },
 };
-use tokio::sync::oneshot;
+use tokio::sync::{mpsc, oneshot};
 use serde::Deserialize;
 
 use rustls::{
@@ -24,7 +25,6 @@ use rustls::{
     ServerConfig,
 };
 use rustls_pemfile::Item;
-
 
 // ===== C ABI structs =====
 #[repr(C)]
@@ -43,6 +43,7 @@ pub struct FfiResp {
     pub body: FfiBuf,
     pub hdrs: *const u8,
     pub hdrs_len: usize,
+    pub is_stream: u8,
 }
 
 #[derive(Clone)]
@@ -159,29 +160,33 @@ fn parse_cors_options(raw: CorsOptionsRaw) -> Result<CorsOptions, CorsConfigErro
     })
 }
 
-fn build_cors(cfg: &CorsOptions) -> Cors {
-    let mut cors = Cors::default();
+fn build_cors(cfg: &CorsOptions) -> CorsLayer {
+    let mut cors = CorsLayer::new();
 
     if cfg.allow_any_origin {
-        cors = cors.allow_any_origin();
+        cors = cors.allow_origin(tower_http::cors::Any);
     } else {
+        let mut origins = Vec::new();
         for origin in &cfg.origins {
-            cors = cors.allowed_origin(origin);
+            if let Ok(value) = origin.parse::<axum::http::HeaderValue>() {
+                origins.push(value);
+            }
+        }
+        if !origins.is_empty() {
+            cors = cors.allow_origin(origins);
         }
     }
 
     if cfg.allow_any_method {
-        cors = cors.allow_any_method();
+        cors = cors.allow_methods(tower_http::cors::Any);
     } else if !cfg.methods.is_empty() {
-        cors = cors.allowed_methods(cfg.methods.clone());
+        cors = cors.allow_methods(cfg.methods.clone());
     }
 
     if cfg.allow_any_header {
-        cors = cors.allow_any_header();
+        cors = cors.allow_headers(tower_http::cors::Any);
     } else if !cfg.headers.is_empty() {
-        for header in &cfg.headers {
-            cors = cors.allowed_header(header.clone());
-        }
+        cors = cors.allow_headers(cfg.headers.clone());
     }
 
     if !cfg.expose_headers.is_empty() {
@@ -189,11 +194,11 @@ fn build_cors(cfg: &CorsOptions) -> Cors {
     }
 
     if let Some(max_age) = cfg.max_age {
-        cors = cors.max_age(Some(max_age as usize));
+        cors = cors.max_age(std::time::Duration::from_secs(max_age as u64));
     }
 
     if cfg.allow_credentials {
-        cors = cors.supports_credentials();
+        cors = cors.allow_credentials(true);
     }
 
     cors
@@ -201,19 +206,26 @@ fn build_cors(cfg: &CorsOptions) -> Cors {
 
 // Dart request callback: void(req_id, method, target, hdrs_flat, hdrs_len, body)
 pub type DartReqHandler = extern "C" fn(u64, FfiStr, FfiStr, *const u8, usize, FfiBuf);
+// Dart stream cancel callback: void(req_id)
+pub type DartStreamCancelHandler = extern "C" fn(u64);
 
 // ===== Globals =====
 static DART_REQUEST_HANDLER: OnceCell<DartReqHandler> = OnceCell::new();
+static DART_CANCEL_HANDLER: OnceCell<DartStreamCancelHandler> = OnceCell::new();
+
 struct FfiRespOwned {
     status: u16,
     headers: Vec<u8>,
     body: Vec<u8>,
+    is_stream: u8,
 }
 static PENDING_RESPONSES: OnceCell<Mutex<HashMap<u64, oneshot::Sender<FfiRespOwned>>>> =
     OnceCell::new();
+static PENDING_STREAM_SENDERS: OnceCell<Mutex<HashMap<u64, mpsc::Sender<Result<Bytes, axum::BoxError>>>>> =
+    OnceCell::new();
 static NEXT_ID: OnceCell<AtomicU64> = OnceCell::new();
 static TLS_CONFIG: OnceCell<Arc<ServerConfig>> = OnceCell::new();
-static SERVER_HANDLES: OnceCell<Mutex<HashMap<u64, ActixServerHandle>>> = OnceCell::new();
+static SERVER_HANDLES: OnceCell<Mutex<HashMap<u64, axum_server::Handle>>> = OnceCell::new();
 static NEXT_SERVER_ID: OnceCell<AtomicU64> = OnceCell::new();
 static CORS_CONFIG: OnceCell<Mutex<Option<Arc<CorsOptions>>>> = OnceCell::new();
 static STATIC_DIR: OnceCell<Mutex<Option<String>>> = OnceCell::new();
@@ -223,6 +235,39 @@ static COMPRESSION_ENABLED: OnceCell<Mutex<bool>> = OnceCell::new();
 // Flags for aw_start
 pub const AW_FLAG_H2C: u32 = 0x01;
 
+// Stream wrapper to trigger Dart cancellation on drop
+struct CancelOnDropStream<S> {
+    inner: S,
+    req_id: u64,
+}
+
+impl<S> futures_util::stream::Stream for CancelOnDropStream<S>
+where
+    S: futures_util::stream::Stream + Unpin,
+{
+    type Item = S::Item;
+
+    fn poll_next(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Self::Item>> {
+        use std::pin::Pin;
+        Pin::new(&mut self.inner).poll_next(cx)
+    }
+}
+
+impl<S> Drop for CancelOnDropStream<S> {
+    fn drop(&mut self) {
+        if let Some(map_mutex) = PENDING_STREAM_SENDERS.get() {
+            let mut map = safe_lock(map_mutex);
+            map.remove(&self.req_id);
+        }
+        if let Some(cb) = DART_CANCEL_HANDLER.get() {
+            (cb)(self.req_id);
+        }
+    }
+}
+
 // ===== FFI Exports =====
 #[no_mangle]
 pub extern "C" fn aw_register_handler(cb: DartReqHandler) {
@@ -231,6 +276,12 @@ pub extern "C" fn aw_register_handler(cb: DartReqHandler) {
     let _ = NEXT_ID.set(AtomicU64::new(1));
     let _ = SERVER_HANDLES.set(Mutex::new(HashMap::new()));
     let _ = NEXT_SERVER_ID.set(AtomicU64::new(1));
+}
+
+#[no_mangle]
+pub extern "C" fn aw_register_cancel_handler(cb: DartStreamCancelHandler) {
+    let _ = DART_CANCEL_HANDLER.set(cb);
+    let _ = PENDING_STREAM_SENDERS.set(Mutex::new(HashMap::new()));
 }
 
 #[no_mangle]
@@ -315,7 +366,7 @@ pub extern "C" fn aw_tls_rustls_from_pem(cert_pem: FfiBuf, key_pem: FfiBuf) -> i
         for item in rustls_pemfile::read_all(&mut r) {
             let item = match item {
                 Ok(item) => item,
-                Err(_) => return 3,
+                Err(_) => return 3;
             };
             match item {
                 Item::Pkcs8Key(k) => {
@@ -405,11 +456,11 @@ pub extern "C" fn aw_configure_compression(enabled: i32) -> i32 {
 }
 
 #[no_mangle]
-pub extern "C" fn aw_start(host: FfiStr, port: u16, flags: u32) -> i32 {
+pub extern "C" fn aw_start(host: FfiStr, port: u16, _flags: u32) -> i32 {
     if host.ptr.is_null() {
         return -1;
     }
-    // SAFETY: FfiStr contract guarantees ptr is valid for len bytes and path is validated
+    // SAFETY: FfiStr contract guarantees ptr is valid for len bytes
     let host_slice = unsafe { std::slice::from_raw_parts(host.ptr, host.len) };
     let host_string = match std::str::from_utf8(host_slice) {
         Ok(s) => s.to_string(),
@@ -425,88 +476,58 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, flags: u32) -> i32 {
         safe_lock(mutex).clone()
     };
     
-    let static_dir = {
-        let mutex = STATIC_DIR.get_or_init(|| Mutex::new(None));
-        safe_lock(mutex).clone()
-    };
-    
     let compression_enabled = {
         let mutex = COMPRESSION_ENABLED.get_or_init(|| Mutex::new(false));
         *safe_lock(mutex)
     };
 
+    let handle = axum_server::Handle::new();
+    if let Some(handles) = SERVER_HANDLES.get() {
+        safe_lock(handles).insert(server_id, handle.clone());
+    }
+
+    let host_clone = host_string.clone();
+    let handle_clone = handle.clone();
+
     std::thread::spawn(move || {
-        System::new().block_on(async move {
-            let cors_config = cors_config.clone();
-            let static_dir = static_dir.clone();
-            let app_factory = move || {
-                let cors_config = cors_config.clone();
-                let static_dir = static_dir.clone();
-                let (cors_enabled, cors_mw) = match cors_config {
-                    Some(cfg) => (true, build_cors(cfg.as_ref())),
-                    None => (false, Cors::default()),
-                };
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .expect("Failed to build Tokio runtime");
 
-                let mut app = App::new()
-                    .wrap(Condition::new(compression_enabled, Compress::default()))
-                    .wrap(Condition::new(cors_enabled, cors_mw))
-                    .route("/health", web::get().to(health_route))
-                    .route("/healthz", web::get().to(healthz_route))
-                    .route("/healths", web::get().to(healths_route));
-                
-                // Add static file serving if configured
-                if let Some(dir) = static_dir.as_ref() {
-                    app = app.service(
-                        Files::new("/static", dir)
-                            .show_files_listing()
-                            .use_last_modified(true)
-                            .prefer_utf8(true)
-                    );
-                }
+        rt.block_on(async move {
+            let mut app = Router::new()
+                .route("/health", get(health_handler))
+                .route("/healthz", get(healthz_handler))
+                .route("/healths", get(healths_handler))
+                .fallback(catch_all_handler);
 
-                let spa_root = {
-                    let mutex = SPA_ROOT_DIR.get_or_init(|| Mutex::new(None));
-                    safe_lock(mutex).clone()
-                };
+            if compression_enabled {
+                app = app.layer(tower_http::compression::CompressionLayer::new());
+            }
 
-                if let Some(dir) = spa_root {
-                     app = app.service(
-                        Files::new("/", dir)
-                            .use_last_modified(true)
-                            .prefer_utf8(true)
-                            .default_handler(web::to(dart_proxy))
-                    );
-                } else {
-                    app = app.default_service(web::to(dart_proxy));
-                }
-                
-                app
-            };
+            if let Some(cfg) = cors_config {
+                app = app.layer(build_cors(&cfg));
+            }
 
-            let mut http_server = HttpServer::new(app_factory).workers(num_cpus::get());
+            let addr = format!("{}:{}", host_clone, port);
+            let parsed_addr: std::net::SocketAddr = addr.parse().expect("Failed to parse address");
 
             if let Some(tls_config) = TLS_CONFIG.get() {
-                #[allow(deprecated)]
-                {
-                    http_server = http_server
-                        .bind_rustls_0_23((host_string.as_str(), port), (**tls_config).clone())
-                        .expect("bind_rustls_0_23 failed");
-                }
-            } else if (flags & AW_FLAG_H2C) != 0 {
-                http_server = http_server
-                    .bind_auto_h2c((host_string.as_str(), port))
-                    .expect("bind_auto_h2c failed");
+                let rustls_config = axum_server::tls_rustls::RustlsConfig::from_config(tls_config.clone());
+                axum_server::bind_rustls(parsed_addr, rustls_config)
+                    .handle(handle_clone)
+                    .serve(app.into_make_service())
+                    .await
+                    .expect("Failed to start HTTPS server");
             } else {
-                http_server = http_server
-                    .bind((host_string.as_str(), port))
-                    .expect("bind failed");
+                axum_server::bind(parsed_addr)
+                    .handle(handle_clone)
+                    .serve(app.into_make_service())
+                    .await
+                    .expect("Failed to start HTTP server");
             }
 
-            let server = http_server.run();
-            if let Some(handles) = SERVER_HANDLES.get() {
-                safe_lock(handles).insert(server_id, server.handle());
-            }
-            let _ = server.await;
             if let Some(handles) = SERVER_HANDLES.get() {
                 safe_lock(handles).remove(&server_id);
             }
@@ -519,9 +540,9 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, flags: u32) -> i32 {
 #[no_mangle]
 pub extern "C" fn aw_stop(server_id: u64) -> i32 {
     if let Some(handles) = SERVER_HANDLES.get() {
-        let handle = safe_lock(handles).remove(&server_id);
-        if let Some(handle) = handle {
-            let _ = handle.stop(true);
+        let mut map = safe_lock(handles);
+        if let Some(handle) = map.remove(&server_id) {
+            handle.graceful_shutdown(Some(std::time::Duration::from_secs(5)));
             return 0;
         }
     }
@@ -541,15 +562,20 @@ pub extern "C" fn aw_complete(req_id: u64, resp: FfiResp) -> i32 {
             if resp.hdrs.is_null() && resp.hdrs_len > 0 {
                 return 1;
             }
-            if resp.body.ptr.is_null() && resp.body.len > 0 {
+            if resp.body.ptr.is_null() && resp.body.len > 0 && resp.is_stream == 0 {
                 return 1;
             }
             let headers = std::slice::from_raw_parts(resp.hdrs, resp.hdrs_len).to_vec();
-            let body = std::slice::from_raw_parts(resp.body.ptr, resp.body.len).to_vec();
+            let body = if resp.is_stream == 0 {
+                std::slice::from_raw_parts(resp.body.ptr, resp.body.len).to_vec()
+            } else {
+                Vec::new()
+            };
             FfiRespOwned {
                 status: resp.status,
                 headers,
                 body,
+                is_stream: resp.is_stream,
             }
         };
         let _ = tx.send(owned);
@@ -559,10 +585,45 @@ pub extern "C" fn aw_complete(req_id: u64, resp: FfiResp) -> i32 {
     }
 }
 
+#[no_mangle]
+pub extern "C" fn aw_stream_send_chunk(req_id: u64, chunk: FfiBuf) -> i32 {
+    if chunk.ptr.is_null() && chunk.len > 0 {
+        return 1;
+    }
+    let bytes_vec = unsafe { std::slice::from_raw_parts(chunk.ptr, chunk.len) }.to_vec();
+    let bytes = Bytes::from(bytes_vec);
+    if let Some(map_mutex) = PENDING_STREAM_SENDERS.get() {
+        let map = safe_lock(map_mutex);
+        if let Some(tx) = map.get(&req_id) {
+            let tx_clone = tx.clone();
+            tokio::spawn(async move {
+                let _ = tx_clone.send(Ok(bytes)).await;
+            });
+            0
+        } else {
+            2
+        }
+    } else {
+        3
+    }
+}
 
+#[no_mangle]
+pub extern "C" fn aw_stream_complete(req_id: u64) -> i32 {
+    if let Some(map_mutex) = PENDING_STREAM_SENDERS.get() {
+        let mut map = safe_lock(map_mutex);
+        if map.remove(&req_id).is_some() {
+            0
+        } else {
+            1
+        }
+    } else {
+        2
+    }
+}
 
 // ===== Helpers =====
-fn headers_flat(req: &HttpRequest) -> Vec<u8> {
+fn headers_flat(req: &Request<Body>) -> Vec<u8> {
     let mut out = Vec::new();
     for (k, v) in req.headers().iter() {
         out.extend_from_slice(k.as_str().as_bytes());
@@ -573,25 +634,29 @@ fn headers_flat(req: &HttpRequest) -> Vec<u8> {
     out
 }
 
-async fn dart_proxy(req: HttpRequest, payload: web::Payload) -> HttpResponse {
-    dart_proxy_with_fallback(req, payload, None).await
+async fn dart_proxy(req: Request<Body>) -> Response<Body> {
+    dart_proxy_with_fallback(req, None).await
 }
 
 async fn dart_proxy_with_fallback(
-    req: HttpRequest,
-    mut payload: web::Payload,
-    fallback: Option<fn() -> HttpResponse>,
-) -> HttpResponse {
+    req: Request<Body>,
+    fallback: Option<fn() -> Response<Body>>,
+) -> Response<Body> {
     let req_id = match NEXT_ID.get() {
         Some(id) => id.fetch_add(1, Ordering::Relaxed),
-        None => return HttpResponse::InternalServerError().body("Backend not initialized"),
+        None => return Response::builder()
+            .status(StatusCode::INTERNAL_SERVER_ERROR)
+            .body(Body::from("Backend not initialized"))
+            .unwrap(),
     };
 
     let method = req.method().as_str().as_bytes().to_vec();
     let target = req.uri().to_string().into_bytes();
     let flattened_headers = headers_flat(&req);
+    
     let mut body_buf = BytesMut::new();
-    while let Some(chunk) = payload.next().await {
+    let mut body_stream = req.into_body().into_data_stream();
+    while let Some(chunk) = body_stream.next().await {
         match chunk {
             Ok(bytes) => body_buf.extend_from_slice(&bytes),
             Err(_) => {
@@ -600,31 +665,29 @@ async fn dart_proxy_with_fallback(
             }
         }
     }
-    let bytes: Bytes = body_buf.freeze();
+    let bytes = body_buf.freeze();
 
-    // Owned buffers live until response is received
-    let m = method;
-    let t = target;
-    let h = flattened_headers;
-    let b = bytes.clone();
     let method_ffi = FfiStr {
-        ptr: m.as_ptr(),
-        len: m.len(),
+        ptr: method.as_ptr(),
+        len: method.len(),
     };
     let target_ffi = FfiStr {
-        ptr: t.as_ptr(),
-        len: t.len(),
+        ptr: target.as_ptr(),
+        len: target.len(),
     };
     let body_ffi = FfiBuf {
-        ptr: b.as_ptr(),
-        len: b.len(),
+        ptr: bytes.as_ptr(),
+        len: bytes.len(),
     };
 
     let (response_tx, response_rx) = oneshot::channel::<FfiRespOwned>();
     if let Some(mutex) = PENDING_RESPONSES.get() {
         safe_lock(mutex).insert(req_id, response_tx);
     } else {
-        return HttpResponse::InternalServerError().finish();
+        return Response::builder()
+            .status(StatusCode::INTERNAL_SERVER_ERROR)
+            .body(Body::empty())
+            .unwrap();
     }
 
     if let Some(cb) = DART_REQUEST_HANDLER.get() {
@@ -632,19 +695,21 @@ async fn dart_proxy_with_fallback(
             req_id,
             method_ffi,
             target_ffi,
-            h.as_ptr(),
-            h.len(),
+            flattened_headers.as_ptr(),
+            flattened_headers.len(),
             body_ffi,
         );
     } else {
-        return HttpResponse::InternalServerError().finish();
+        return Response::builder()
+            .status(StatusCode::INTERNAL_SERVER_ERROR)
+            .body(Body::empty())
+            .unwrap();
     }
 
     match tokio::time::timeout(std::time::Duration::from_secs(60), response_rx).await {
         Ok(Ok(resp)) => {
-            let status_code = actix_web::http::StatusCode::from_u16(resp.status)
-                .unwrap_or(actix_web::http::StatusCode::OK);
-            let mut builder = HttpResponse::build(status_code);
+            let status_code = StatusCode::from_u16(resp.status).unwrap_or(StatusCode::OK);
+            let mut builder = Response::builder().status(status_code);
 
             let hdrs = resp.headers;
             let mut i = 0;
@@ -663,55 +728,151 @@ async fn dart_proxy_with_fallback(
                     + i;
                 let val = std::str::from_utf8(&hdrs[i..ve]).unwrap_or_default();
                 i = ve + 1;
-                builder.append_header((key.to_string(), val.to_string()));
+                if !key.is_empty() {
+                    builder = builder.header(key, val);
+                }
             }
 
-            if status_code == actix_web::http::StatusCode::NOT_FOUND {
+            if status_code == StatusCode::NOT_FOUND {
                 if let Some(fallback_fn) = fallback {
                     return fallback_fn();
                 }
             }
 
-            builder.body(Bytes::from(resp.body))
+            if resp.is_stream != 0 {
+                let (tx, rx) = mpsc::channel::<Result<Bytes, axum::BoxError>>(100);
+                if let Some(map_mutex) = PENDING_STREAM_SENDERS.get() {
+                    safe_lock(map_mutex).insert(req_id, tx);
+                }
+                
+                let receiver_stream = tokio_stream::wrappers::ReceiverStream::new(rx);
+                let cancel_stream = CancelOnDropStream {
+                    inner: receiver_stream,
+                    req_id,
+                };
+                
+                builder.body(Body::from_stream(cancel_stream)).unwrap()
+            } else {
+                builder.body(Body::from(resp.body)).unwrap()
+            }
         }
         _ => {
+            if let Some(mutex) = PENDING_RESPONSES.get() {
+                safe_lock(mutex).remove(&req_id);
+            }
             if let Some(fallback_fn) = fallback {
                 fallback_fn()
             } else {
-                HttpResponse::GatewayTimeout().finish()
+                Response::builder()
+                    .status(StatusCode::GATEWAY_TIMEOUT)
+                    .body(Body::empty())
+                    .unwrap()
             }
         }
     }
 }
 
-async fn health_route(req: HttpRequest, payload: web::Payload) -> HttpResponse {
-    dart_proxy_with_fallback(req, payload, Some(default_health_response)).await
+async fn health_handler(req: Request<Body>) -> Response<Body> {
+    dart_proxy_with_fallback(req, Some(default_health_response)).await
 }
 
-async fn healthz_route(req: HttpRequest, payload: web::Payload) -> HttpResponse {
-    dart_proxy_with_fallback(req, payload, Some(default_healthz_response)).await
+async fn healthz_handler(req: Request<Body>) -> Response<Body> {
+    dart_proxy_with_fallback(req, Some(default_healthz_response)).await
 }
 
-async fn healths_route(req: HttpRequest, payload: web::Payload) -> HttpResponse {
-    dart_proxy_with_fallback(req, payload, Some(default_healths_response)).await
+async fn healths_handler(req: Request<Body>) -> Response<Body> {
+    dart_proxy_with_fallback(req, Some(default_healths_response)).await
 }
 
-fn default_health_response() -> HttpResponse {
-    HttpResponse::Ok()
-        .content_type("application/json; charset=utf-8")
-        .body(r#"{"status":"ok"}"#)
+fn default_health_response() -> Response<Body> {
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
+        .body(Body::from(r#"{"status":"ok"}"#))
+        .unwrap()
 }
 
-fn default_healthz_response() -> HttpResponse {
-    HttpResponse::PermanentRedirect()
-        .append_header(("location", "/health"))
-        .finish()
+fn default_healthz_response() -> Response<Body> {
+    Response::builder()
+        .status(StatusCode::PERMANENT_REDIRECT)
+        .header(header::LOCATION, "/health")
+        .body(Body::empty())
+        .unwrap()
 }
 
-fn default_healths_response() -> HttpResponse {
-    HttpResponse::PermanentRedirect()
-        .append_header(("location", "/health"))
-        .finish()
+fn default_healths_response() -> Response<Body> {
+    Response::builder()
+        .status(StatusCode::PERMANENT_REDIRECT)
+        .header(header::LOCATION, "/health")
+        .body(Body::empty())
+        .unwrap()
+}
+
+async fn catch_all_handler(
+    req: Request<Body>,
+) -> impl IntoResponse {
+    let path = req.uri().path().to_string();
+    
+    // 1. Static dir check
+    let static_dir = {
+        let mutex = STATIC_DIR.get_or_init(|| Mutex::new(None));
+        safe_lock(mutex).clone()
+    };
+    if let Some(dir) = static_dir {
+        if path.starts_with("/static/") {
+            let relative_path = &path["/static".len()..];
+            if let Some(file_path) = get_static_file(&dir, relative_path) {
+                return serve_file_response(file_path).await;
+            }
+        }
+    }
+
+    // 2. SPA root check
+    let spa_root = {
+        let mutex = SPA_ROOT_DIR.get_or_init(|| Mutex::new(None));
+        safe_lock(mutex).clone()
+    };
+    if let Some(dir) = spa_root {
+        if let Some(file_path) = get_static_file(&dir, &path) {
+            return serve_file_response(file_path).await;
+        }
+        if req.method() == Method::GET {
+            let index_path = std::path::PathBuf::from(&dir).join("index.html");
+            if index_path.is_file() {
+                return serve_file_response(index_path).await;
+            }
+        }
+    }
+
+    // 3. Fallback to Dart
+    dart_proxy(req).await
+}
+
+fn get_static_file(dir: &str, path: &str) -> Option<std::path::PathBuf> {
+    let mut file_path = std::path::PathBuf::from(dir);
+    let sanitized = path.trim_start_matches('/');
+    if sanitized.contains("..") {
+        return None;
+    }
+    file_path.push(sanitized);
+    if file_path.is_file() {
+        Some(file_path)
+    } else {
+        None
+    }
+}
+
+async fn serve_file_response(path: std::path::PathBuf) -> Response<Body> {
+    use tower::ServiceExt;
+    let service = tower_http::services::ServeFile::new(path);
+    let dummy_req = Request::builder().body(Body::empty()).unwrap();
+    match service.oneshot(dummy_req).await {
+        Ok(resp) => resp.map(Body::new),
+        Err(_) => Response::builder()
+            .status(StatusCode::INTERNAL_SERVER_ERROR)
+            .body(Body::from("Failed to serve file"))
+            .unwrap(),
+    }
 }
 
 fn safe_lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {

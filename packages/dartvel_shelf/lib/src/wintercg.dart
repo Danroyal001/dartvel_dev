@@ -119,7 +119,8 @@ class Response {
   final int status;
   final Headers headers;
   final Stream<List<int>>? _body;
-  Response(this.status, {Headers? headers, Stream<List<int>>? body})
+  final bool isStream;
+  Response(this.status, {Headers? headers, Stream<List<int>>? body, this.isStream = false})
       : headers = headers ?? Headers(),
         _body = body;
 
@@ -150,7 +151,7 @@ class Response {
     final controller = StreamController<List<int>>();
     scheduleMicrotask(() => fn(controller.sink));
     return Response(status,
-        headers: headers ?? Headers(), body: controller.stream);
+        headers: headers ?? Headers(), body: controller.stream, isStream: true);
   }
 
   static Response redirect(String location, [int status = 302]) {

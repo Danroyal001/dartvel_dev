@@ -35,3 +35,36 @@ class Patch {
   final String path;
   const Patch([this.path = '/']);
 }
+
+/// Annotation for a Dartvel Page
+class DVPage {
+  final String? path;
+  const DVPage([this.path]);
+}
+
+/// Annotation for a functional widget Page
+class DVFunctionalWidget {
+  const DVFunctionalWidget();
+}
+
+/// Annotation for a Dartvel Data Model
+class DVModel {
+  const DVModel();
+}
+
+/// Annotation for a Dartvel Backend Function
+class DVBackendFunction {
+  const DVBackendFunction();
+}
+
+/// Annotation for a Backend Cron Job
+class DVBackendCron {
+  final String cron;
+  const DVBackendCron(this.cron);
+}
+
+/// Annotation for a Client Cron Job
+class DVClientCron {
+  final String cron;
+  const DVClientCron(this.cron);
+}

@@ -5,6 +5,12 @@ environment:
 
 dev_dependencies:
   lints: ^4.0.0
-  test: ^1.28.0
+  test: ^1.26.3
   path: any
   http: ^1.6.0
+  dartvel_cli:
+    path: packages/dartvel_cli
+  dartvel_core:
+    path: packages/dartvel_core
+  dartvel_generator:
+    path: packages/dartvel_generator

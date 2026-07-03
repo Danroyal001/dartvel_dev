@@ -1,12 +1,317 @@
 library dartvel_flutter;
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:async';
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mix/mix.dart';
 
 // conditional SEO impl (web does real work; others no-op)
 import 'src/seo_platform_stub.dart'
     if (dart.library.html) 'src/seo_platform_web.dart' as seo_platform;
+
+// ==========================================
+// UI & Styling Primitives (NEW_SPEC.md)
+// ==========================================
+
+class DVStyleModifier {
+  final Style style;
+  const DVStyleModifier([this.style = const Style.empty()]);
+
+  DVStyleModifier padding(double value) =>
+      DVStyleModifier(Style.concat([style, Style(BoxSpec.padding(value))]));
+
+  DVStyleModifier margin(double value) =>
+      DVStyleModifier(Style.concat([style, Style(BoxSpec.margin(value))]));
+
+  DVStyleModifier rounded(double value) =>
+      DVStyleModifier(Style.concat([style, Style(BoxSpec.borderRadius(value))]));
+
+  DVStyleModifier color(Color value) =>
+      DVStyleModifier(Style.concat([style, Style(TextSpec.style(TextStyle(color: value)))]));
+
+  DVStyleModifier backgroundColor(Color value) =>
+      DVStyleModifier(Style.concat([style, Style(BoxSpec.color(value))]));
+
+  DVStyleModifier width(double value) =>
+      DVStyleModifier(Style.concat([style, Style(BoxSpec.width(value))]));
+
+  DVStyleModifier height(double value) =>
+      DVStyleModifier(Style.concat([style, Style(BoxSpec.height(value))]));
+
+  DVStyleModifier shadow(List<BoxShadow> shadows) =>
+      DVStyleModifier(Style.concat([style, Style(BoxSpec.shadows(shadows))]));
+
+  DVStyleModifier card() => DVStyleModifier(Style.concat([
+        style,
+        const Style(
+          BoxSpec.color(Colors.white),
+          BoxSpec.padding(16),
+          BoxSpec.borderRadius(8),
+        )
+      ]));
+}
+
+class DVBox extends StatelessWidget {
+  final Widget? child;
+  final DVStyleModifier? modifier;
+
+  const DVBox({
+    super.key,
+    this.child,
+    this.modifier,
+  });
+
+  DVBox styleModifier(DVStyleModifier mod) => DVBox(
+        modifier: mod,
+        child: child,
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final effectiveStyle = modifier?.style ?? const Style.empty();
+    return Box(
+      style: effectiveStyle,
+      child: child,
+    );
+  }
+}
+
+class DVText extends StatelessWidget {
+  final String text;
+  final DVStyleModifier? modifier;
+
+  const DVText(
+    this.text, {
+    super.key,
+    this.modifier,
+  });
+
+  DVText styleModifier(DVStyleModifier mod) => DVText(
+        text,
+        modifier: mod,
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final effectiveStyle = modifier?.style ?? const Style.empty();
+    return StyledText(
+      text,
+      style: effectiveStyle,
+    );
+  }
+}
+
+// ==========================================
+// Riverpod-powered Signals & State
+// ==========================================
+
+final _signalProviders = Expando<List<StateProvider<Object?>>>();
+final _signalListeners = Expando<Map<StateProvider<Object?>, ProviderSubscription<Object?>>>();
+
+class DVSignal<T> {
+  final ProviderContainer container;
+  final StateProvider<T> provider;
+  final Element element;
+
+  DVSignal(this.container, this.provider, this.element);
+
+  T read() => container.read(provider);
+
+  T get value {
+    final listeners = _signalListeners[element] ??= {};
+    if (!listeners.containsKey(provider)) {
+      final sub = container.listen<T>(provider, (prev, next) {
+        if (element.mounted) {
+          element.markNeedsBuild();
+        }
+      });
+      listeners[provider] = sub;
+    }
+    return container.read(provider);
+  }
+
+  set value(T newValue) {
+    container.read(provider.notifier).state = newValue;
+  }
+
+  void update(T Function(T) cb) {
+    container.read(provider.notifier).update(cb);
+  }
+}
+
+extension DVSignalContextX on BuildContext {
+  DVSignal<T> signal<T>(T initialValue) {
+    final element = this as Element;
+    final container = ProviderScope.containerOf(this);
+
+    var list = _signalProviders[element];
+    if (list == null) {
+      list = [];
+      _signalProviders[element] = list;
+    }
+
+    // Attempt to locate an existing provider of matching type
+    StateProvider<T>? matchedProvider;
+    for (final p in list) {
+      if (p is StateProvider<T>) {
+        matchedProvider = p;
+        break;
+      }
+    }
+
+    if (matchedProvider == null) {
+      matchedProvider = StateProvider<T>((ref) => initialValue);
+      list.add(matchedProvider);
+    }
+
+    return DVSignal<T>(container, matchedProvider, element);
+  }
+
+  T global<T>() => DV.global<T>();
+}
+
+extension DVModelSignalX on Object {
+  DVSignal<T> signal<T>(BuildContext context) {
+    return context.signal<T>(this as T);
+  }
+}
+
+DVSignal<T> signal<T>(BuildContext context, T value) => context.signal<T>(value);
+
+// ==========================================
+// Model Forms
+// ==========================================
+
+class DVForm<T> extends StatefulWidget {
+  final T? initialValue;
+  final Widget Function(BuildContext, T)? builder;
+
+  const DVForm({
+    super.key,
+    this.initialValue,
+    this.builder,
+  });
+
+  const DVForm.builder({
+    super.key,
+    required Widget Function(BuildContext, T) builder,
+    this.initialValue,
+  }) : builder = builder;
+
+  @override
+  State<DVForm<T>> createState() => _DVFormState<T>();
+}
+
+class _DVFormState<T> extends State<DVForm<T>> {
+  late T formValue;
+
+  @override
+  void initState() {
+    super.initState();
+    formValue = widget.initialValue ?? _instantiateDefault();
+  }
+
+  T _instantiateDefault() {
+    try {
+      return (T as dynamic).call();
+    } catch (_) {
+      return null as T;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.builder != null) {
+      return widget.builder!(context, formValue);
+    }
+    return Form(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextFormField(
+            decoration: const InputDecoration(labelText: 'Form Input'),
+            onChanged: (val) {
+              // Stub update
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==========================================
+// Platform, Auth, Theme, Tenants & SEO
+// ==========================================
+
+class DVCamera {
+  const DVCamera();
+  Future<List<int>> takePhoto() async => [];
+}
+
+class DVLocation {
+  const DVLocation();
+  Future<Map<String, double>> getCoordinates() async => {'lat': 0.0, 'lng': 0.0};
+}
+
+class DVNotifications {
+  const DVNotifications();
+  Future<void> sendLocalNotification(String title, String body) async {}
+}
+
+class DVPlatform {
+  const DVPlatform();
+
+  bool get isAndroid => !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+  bool get isIOS => !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+  bool get isWeb => kIsWeb;
+
+  DVCamera get camera => const DVCamera();
+  DVLocation get location => const DVLocation();
+  DVNotifications get notifications => const DVNotifications();
+}
+
+class DVAuth {
+  const DVAuth();
+  Object? get currentUser => null;
+  Future<void> signIn() async {}
+  Future<void> signOut() async {}
+  Future<void> signUp() async {}
+}
+
+class DVTheme {
+  const DVTheme();
+  ThemeMode get mode => ThemeMode.system;
+  void setMode(ThemeMode mode) {}
+}
+
+class DV {
+  static final _globals = <Type, Object>{};
+
+  static T global<T>([T? instance]) {
+    if (instance != null) {
+      _globals[T] = instance as Object;
+      return instance;
+    }
+    final inst = _globals[T];
+    if (inst == null) {
+      throw StateError('Global instance of type $T not registered');
+    }
+    return inst as T;
+  }
+
+  static DVPlatform get Platform => const DVPlatform();
+  static DVAuth get Auth => const DVAuth();
+  static DVTheme get Theme => const DVTheme();
+  static String get currentTenant => 'default';
+}
+
+// ==========================================
+// Existing Routing & Page Transitions
+// ==========================================
 
 class DartvelRouteState extends InheritedWidget {
   final Map<String, String> params;
@@ -84,36 +389,22 @@ class PageTransitionSpec {
 abstract class DartvelPage extends StatelessWidget {
   const DartvelPage({super.key});
 
-  /// Web SEO only (Next/Nuxt "head"). No-op on non-web platforms.
   SeoProps buildWebSeo(Map<String, String> params, Map<String, String> query) =>
       SeoProps.empty;
 
-  /// Optional per-page transition override.
   PageTransitionSpec get transition => const PageTransitionSpec();
 
-  /// Optional data prefetch hook (runs in a loader wrapper).
-  /// Return any object; access it via `DvDataScope.of(context).data`.
   Future<Object?> loadData(
           Map<String, String> params, Map<String, String> query) async =>
       null;
 
-  /// Optional SSG paths for dynamic routes.
-  /// Returns a list of param maps (e.g. [{'id': '1'}, {'id': '2'}]).
   Future<List<Map<String, String>>> get staticPaths async => [];
 }
-
-// ==============================
-// Layouts (Next/Nuxt-like)
-// ==============================
 
 abstract class DartvelLayout extends StatelessWidget {
   final Widget child;
   const DartvelLayout({super.key, required this.child});
 }
-
-// ==============================
-// Data loader & scope
-// ==============================
 
 class DvDataScope extends InheritedWidget {
   final Object? data;
@@ -240,10 +531,6 @@ CustomTransitionPage<T> dvTransitionPage<T>({
   );
 }
 
-// ==============================
-// Default Loading/Error Widgets
-// ==============================
-
 class DvDefaultLoading extends StatelessWidget {
   const DvDefaultLoading({super.key});
 
@@ -275,7 +562,7 @@ class DvDefaultError extends StatelessWidget {
           children: [
             const Icon(Icons.error_outline, color: Colors.redAccent),
             const SizedBox(height: 8),
-            Text(text, style: Theme.of(context).textTheme.bodyMedium),
+            Text(text, style: TextStyle(fontSize: 14)),
           ],
         ),
       ),
@@ -283,12 +570,8 @@ class DvDefaultError extends StatelessWidget {
   }
 }
 
-// ==============================
-// I18n scope & helpers (query-based)
-// ==============================
-
 class DvI18nScope extends InheritedWidget {
-  final String localeTag; // e.g., "en-US"
+  final String localeTag;
 
   const DvI18nScope({
     super.key,
@@ -328,7 +611,6 @@ class DvI18n {
     return Locale(parts[0], parts[1]);
   }
 
-  /// Update query parameter (e.g., ?lang=xx-YY) while preserving path and other query keys.
   static void updateLang(BuildContext context, String param, String newLang) {
     final router = GoRouter.of(context);
     final state = GoRouterState.of(context);

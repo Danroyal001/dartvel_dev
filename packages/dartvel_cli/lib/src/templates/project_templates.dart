@@ -33,18 +33,6 @@ dev_dependencies:
   build_runner: ^2.4.8
   dartvel_generator: ^1.0.0
 
-# Temporary overrides for local development
-dependency_overrides:
-  dartvel_core:
-    path: /home/sigmadev/Documents/SigmaDev/creatorx_stuff/dartvel/packages/dartvel_core
-  dartvel_shelf:
-    path: /home/sigmadev/Documents/SigmaDev/creatorx_stuff/dartvel/packages/dartvel_shelf
-  dartvel_flutter:
-    path: /home/sigmadev/Documents/SigmaDev/creatorx_stuff/dartvel/packages/dartvel_flutter
-  dartvel_cli:
-    path: /home/sigmadev/Documents/SigmaDev/creatorx_stuff/dartvel/packages/dartvel_cli
-  dartvel_generator:
-    path: /home/sigmadev/Documents/SigmaDev/creatorx_stuff/dartvel/packages/dartvel_generator
 
 flutter:
   uses-material-design: true

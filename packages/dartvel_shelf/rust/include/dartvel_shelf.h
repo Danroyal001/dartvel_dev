@@ -26,14 +26,19 @@ typedef void (*DartReqHandler)(uint64_t,
                                size_t,
                                struct FfiBuf);
 
+typedef void (*DartStreamCancelHandler)(uint64_t);
+
 typedef struct FfiResp {
   uint16_t status;
   struct FfiBuf body;
   const uint8_t *hdrs;
   size_t hdrs_len;
+  uint8_t is_stream;
 } FfiResp;
 
 void aw_register_handler(DartReqHandler cb);
+
+void aw_register_cancel_handler(DartStreamCancelHandler cb);
 
 int32_t aw_configure_cors(struct FfiStr config_json);
 
@@ -50,5 +55,9 @@ int32_t aw_start(struct FfiStr host, uint16_t port, uint32_t flags);
 int32_t aw_stop(uint64_t server_id);
 
 int32_t aw_complete(uint64_t req_id, struct FfiResp resp);
+
+int32_t aw_stream_send_chunk(uint64_t req_id, struct FfiBuf chunk);
+
+int32_t aw_stream_complete(uint64_t req_id);
 
 #endif  /* DARTVEL_SHELF_H */

@@ -171,7 +171,8 @@ const String dvGenBuildId = '$buildId';
         'tparams': typedParams,
         'ttypes': typedTypes,
         'tnamed': tnamed,
-        'rtype': rtype
+        'rtype': rtype,
+        'src': src,
       });
     }
 
@@ -240,10 +241,8 @@ ${backendEntries.map((e) {
         argList.add(tnamed ? ('$pn: $expr') : expr);
       }
       final callArgs = argList.join(', ');
-      if (path == '/health' && method.toLowerCase() == 'get') {
-        return "  _hasHealth = true;\n"
-            '''  router.$method(cfg.apiBasePath + '$path', (dv.Request req) async {
-    Object? body;
+      final usesBody = callArgs.contains('body');
+      final bodyBlock = usesBody ? '''    Object? body;
     try {
       if (req.method != 'GET' && req.method != 'HEAD') {
         final ct = req.headers.get('content-type') ?? '';
@@ -260,14 +259,25 @@ ${backendEntries.map((e) {
           }
         }
       }
-    } catch (e) { /* ignore body read errors */ }
+    } catch (e) { /* ignore body read errors */ }''' : '';
+
+      if (path == '/health' && method.toLowerCase() == 'get') {
+        return "  _hasHealth = true;\n"
+            '''  router.$method(cfg.apiBasePath + '$path', (dv.Request req) async {
+$bodyBlock
     try {
       Object? result = await f$i.$typed($callArgs);
       if (result is dv.Response) return result;
       if (result is Stream<List<int>>) return dv.Response(200, body: result);
       if (result is Stream) {
-        final s = (result as Stream).map((e) => e is String ? conv.utf8.encode(e) : (e as List<int>));
-        return dv.Response(200, body: s);
+        return dv.Response(200,
+            headers: dv.Headers({
+              'content-type': 'text/event-stream; charset=utf-8',
+              'cache-control': 'no-cache',
+              'connection': 'keep-alive',
+            }),
+            body: result.map((e) => 'data: \${e.toString().replaceAll(\'\\n\', \'\\ndata: \')}\\n\\n').map(conv.utf8.encode),
+            isStream: true);
       }
       if (result is String) return dv.Response.text(result);
       return dv.Response(200,
@@ -275,7 +285,7 @@ ${backendEntries.map((e) {
           body: Stream<List<int>>.value(conv.utf8.encode(conv.jsonEncode(result))));
     } catch (e, st) {
       // ignore: avoid_print
-      print('[dartvel backend] ERROR in ${method.toUpperCase()} $path: ' + e.toString());
+      print('[dartvel backend] ERROR in ${method.toUpperCase()} $path: \${e.toString()}');
       // ignore: avoid_print
       print(st);
       return dv.Response(500, body: Stream<List<int>>.value(conv.utf8.encode('Internal Server Error')));
@@ -283,31 +293,20 @@ ${backendEntries.map((e) {
   });''';
       }
       return '''  router.$method(cfg.apiBasePath + '$path', (dv.Request req) async {
-    Object? body;
-    try {
-      if (req.method != 'GET' && req.method != 'HEAD') {
-        final ct = req.headers.get('content-type') ?? '';
-        if (ct.contains('multipart/form-data')) {
-          body = await _parseMultipart(req.body.stream, ct);
-        } else {
-          final raw = await req.body.text();
-          if (ct.contains('application/json')) {
-            body = raw.isEmpty ? null : conv.jsonDecode(raw);
-          } else if (ct.contains('application/x-www-form-urlencoded')) {
-            try { body = Uri.splitQueryString(raw); } catch (_) { body = <String,String>{}; }
-          } else {
-            body = raw;
-          }
-        }
-      }
-    } catch (e) { /* ignore body read errors */ }
+$bodyBlock
     try {
       Object? result = await f$i.$typed($callArgs);
       if (result is dv.Response) return result;
       if (result is Stream<List<int>>) return dv.Response(200, body: result);
       if (result is Stream) {
-        final s = (result as Stream).map((e) => e is String ? conv.utf8.encode(e) : (e as List<int>));
-        return dv.Response(200, body: s);
+        return dv.Response(200,
+            headers: dv.Headers({
+              'content-type': 'text/event-stream; charset=utf-8',
+              'cache-control': 'no-cache',
+              'connection': 'keep-alive',
+            }),
+            body: result.map((e) => 'data: \${e.toString().replaceAll(\'\\n\', \'\\ndata: \')}\\n\\n').map(conv.utf8.encode),
+            isStream: true);
       }
       if (result is String) return dv.Response.text(result);
       return dv.Response(200,
@@ -316,7 +315,7 @@ ${backendEntries.map((e) {
     } catch (e, st) {
       // Print a visible error for non-GET methods to aid debugging
       // ignore: avoid_print
-      print('[dartvel backend] ERROR in ${method.toUpperCase()} $path: ' + e.toString());
+      print('[dartvel backend] ERROR in ${method.toUpperCase()} $path: \${e.toString()}');
       // ignore: avoid_print
       print(st);
       return dv.Response(500, body: Stream<List<int>>.value(conv.utf8.encode('Internal Server Error')));
@@ -346,6 +345,7 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
     sbClient.writeln('// GENERATED – do not edit.');
     sbClient.writeln('// BUILD: $buildId');
     sbClient.writeln('library dartvel_client_functions;');
+    sbClient.writeln("import 'dart:convert';");
     sbClient.writeln("import 'package:dio/dio.dart';");
     sbClient.writeln("import 'dartvel_runtime.dart';");
     sbClient.writeln(
@@ -364,6 +364,43 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
         "  if (send is Map && ct.contains('application/x-www-form-urlencoded')) {\n    final q = <String,String>{};\n    send.forEach((k, v) { if (k == null) return; final kk = k.toString(); if (v == null) return; if (v is List) { q[kk] = v.map((e)=> e?.toString() ?? '').join(','); } else { q[kk] = v.toString(); } });\n    send = q.entries.map((e)=> '\${Uri.encodeQueryComponent(e.key)}=\${Uri.encodeQueryComponent(e.value)}').join('&');\n  }");
     sbClient.writeln(
         '  return _dvDio.requestUri(uri, data: send, options: Options(method: methodUpper, headers: hdrs));');
+    sbClient.writeln('}');
+    sbClient.writeln(
+        'Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson, {String method = "GET", Object? data, Map<String, String>? headers}) async* {');
+    sbClient.writeln('  final hdrs = {...DartvelClient.defaultHeaders, ...(headers ?? {})};');
+    sbClient.writeln('  final response = await _dvDio.requestUri(');
+    sbClient.writeln('    uri,');
+    sbClient.writeln('    data: data,');
+    sbClient.writeln('    options: Options(');
+    sbClient.writeln('      method: method.toUpperCase(),');
+    sbClient.writeln('      headers: hdrs,');
+    sbClient.writeln('      responseType: ResponseType.stream,');
+    sbClient.writeln('    ),');
+    sbClient.writeln('  );');
+    sbClient.writeln('  final bodyStream = (response.data as ResponseBody).stream;');
+    sbClient.writeln('  var buffer = "";');
+    sbClient.writeln('  await for (final chunk in bodyStream) {');
+    sbClient.writeln('    buffer += utf8.decode(chunk);');
+    sbClient.writeln('    while (true) {');
+    sbClient.writeln('      final lineEnd = buffer.indexOf("\\n");');
+    sbClient.writeln('      if (lineEnd == -1) break;');
+    sbClient.writeln('      final line = buffer.substring(0, lineEnd).trim();');
+    sbClient.writeln('      buffer = buffer.substring(lineEnd + 1);');
+    sbClient.writeln('      if (line.startsWith("data:")) {');
+    sbClient.writeln('        final payload = line.substring(5).trim();');
+    sbClient.writeln('        if (payload.isNotEmpty) {');
+    sbClient.writeln('          try {');
+    sbClient.writeln('            final json = jsonDecode(payload);');
+    sbClient.writeln('            yield fromJson(json);');
+    sbClient.writeln('          } catch (_) {');
+    sbClient.writeln('            if ("" is T) {');
+    sbClient.writeln('              yield payload as T;');
+    sbClient.writeln('            }');
+    sbClient.writeln('          }');
+    sbClient.writeln('        }');
+    sbClient.writeln('      }');
+    sbClient.writeln('    }');
+    sbClient.writeln('  }');
     sbClient.writeln('}');
 
     for (final e in backendEntries) {
@@ -483,96 +520,177 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
         }
         final qpAdd = qpLines.join('\n  ');
 
-        final fnameApi = '${fname}Api';
-        // Determine conversion expression for known simple return types.
-        String conv(String t) {
-          final tt = t.replaceAll(' ', '');
-          if (tt == 'String') return 'r.data as String';
-          if (tt == 'int') {
-            return "(r.data is int) ? (r.data as int) : (int.tryParse(r.data?.toString() ?? '') ?? 0)";
-          }
-          if (tt == 'double') {
-            return "(r.data is double) ? (r.data as double) : (double.tryParse(r.data?.toString() ?? '') ?? 0.0)";
-          }
-          if (tt == 'num') {
-            return "(r.data is num) ? (r.data as num) : (num.tryParse(r.data?.toString() ?? '') ?? 0)";
-          }
-          if (tt == 'bool') {
-            return "(r.data is bool) ? (r.data as bool) : ((r.data?.toString().toLowerCase() ?? '') == 'true')";
-          }
-          if (tt.startsWith('List<String')) {
-            return '(r.data as List).map((e)=>e.toString()).toList() as $t';
-          }
-          if (tt.startsWith('List<int')) {
-            return "(r.data as List).map((e){ if (e is int) return e; return int.tryParse(e?.toString() ?? '') ?? 0; }).toList() as $t";
-          }
-          if (tt.startsWith('List<double')) {
-            return "(r.data as List).map((e){ if (e is double) return e; return double.tryParse(e?.toString() ?? '') ?? 0.0; }).toList() as $t";
-          }
-          if (tt.startsWith('List<bool')) {
-            return "(r.data as List).map((e)=> (e is bool) ? e : ((e?.toString().toLowerCase() ?? '') == 'true')).toList() as $t";
-          }
-          if (tt.startsWith('Map<String,dynamic') ||
-              tt.startsWith('Map<String,Object')) {
-            return 'Map<String, dynamic>.from(r.data as Map)';
-          }
-          // Fallback: require a mapper
-          return '';
-        }
+        final hasDvBackendFn = (e['src'] ?? '').contains('@DVBackendFunction') || (e['src'] ?? '').contains('@dvBackendFunction');
+        final fnameApi = (hasDvBackendFn && e['typed']!.isNotEmpty) ? e['typed']! : '${fname}Api';
+        
+        final isStreamType = rtype.startsWith('Stream<');
 
-        final convExpr = conv(rtype);
-        if (convExpr.isEmpty) {
-          // Custom type – require a mapper
-          final sigApiMapper = sigApi.replaceFirst(
-              ' }', ', required $rtype Function(Object?) fromJson }');
-          sbClient.writeln('Future<$rtype> $fnameApi($sigApiMapper) async {');
-        } else {
-          sbClient.writeln('Future<$rtype> $fnameApi($sigApi) async {');
-        }
-        sbClient
-            .writeln("  var routePath = '${colon.replaceAll("'", "\\'")}';");
-        sbClient.writeln('  final Map<String, Object?> pp = $ppExpr;');
-        sbClient.writeln(
-            "  pp.forEach((k, v) { final rep = (v is List) ? v.map((e)=>e.toString()).join('/') : ((v?.toString()) ?? ''); routePath = routePath.replaceAll(':\$k', Uri.encodeComponent(rep)); });");
-        sbClient.writeln('  final base = DartvelRuntime.api(routePath);');
-        // Build both query and form bodies; choose at runtime per method
-        final qp = StringBuffer();
-        qp.writeln('  final qq = <String, String>{};');
-        qp.writeln(
-            "  if (query != null) { query.forEach((k, v) { qq[k] = v?.toString() ?? ''; }); }");
-        if (qpAdd.isNotEmpty) qp.writeln('  $qpAdd');
-        sbClient.writeln(qp.toString());
-        sbClient.writeln('  final fb = <String, dynamic>{};');
-        for (var j = 0; j < tparams.length; j++) {
-          final pName = tparams[j];
-          if (!names.contains(pName)) {
-            sbClient.writeln("  fb['$pName'] = $pName;");
+        if (isStreamType) {
+          String innerType = 'dynamic';
+          final match = RegExp(r'^Stream<(.+)>$').firstMatch(rtype);
+          if (match != null) {
+            innerType = match.group(1)!.trim();
           }
-        }
-        sbClient.writeln(
-            '  if (query != null) { query.forEach((k, v) { fb[k] = v; }); }');
-        sbClient.writeln("  final methodUpper = '${method.toUpperCase()}';");
-        sbClient.writeln(
-            "  final uri = (methodUpper == 'GET' || methodUpper == 'HEAD') ? base.replace(queryParameters: qq) : base;");
-        sbClient.writeln(
-            "  final reqHeaders = (methodUpper == 'GET' || methodUpper == 'HEAD') ? (headers ?? const {}) : (headers ?? const {});");
-        if (method == 'post') {
-          // Enforce multipart form-data for POST typed API methods
+
+          String convStream(String t) {
+            final tt = t.replaceAll(' ', '');
+            if (tt == 'String') return '(v) => v as String';
+            if (tt == 'int') {
+              return "(v) => (v is int) ? (v as int) : (int.tryParse(v?.toString() ?? '') ?? 0)";
+            }
+            if (tt == 'double') {
+              return "(v) => (v is double) ? (v as double) : (double.tryParse(v?.toString() ?? '') ?? 0.0)";
+            }
+            if (tt == 'num') {
+              return "(v) => (v is num) ? (v as num) : (num.tryParse(v?.toString() ?? '') ?? 0)";
+            }
+            if (tt == 'bool') {
+              return "(v) => (v is bool) ? (v as bool) : ((v?.toString().toLowerCase() ?? '') == 'true')";
+            }
+            return '';
+          }
+
+          final convExprStream = convStream(innerType);
+          if (convExprStream.isEmpty) {
+            final sigApiMapper = sigApi.replaceFirst(
+                ' }', ', required $innerType Function(Object?) fromJson }');
+            sbClient.writeln('Stream<$innerType> $fnameApi($sigApiMapper) {');
+          } else {
+            sbClient.writeln('Stream<$innerType> $fnameApi($sigApi) {');
+          }
+
+          sbClient
+              .writeln("  var routePath = '${colon.replaceAll("'", "\\'")}';");
+          sbClient.writeln('  final Map<String, Object?> pp = $ppExpr;');
           sbClient.writeln(
-              "  final reqPayload = (methodUpper == 'GET' || methodUpper == 'HEAD') ? body : ((body is FormData) ? body : (body == null ? FormData.fromMap(fb) : (body is Map ? FormData.fromMap(Map<String,dynamic>.from(body)) : body)));");
-        } else {
+              "  pp.forEach((k, v) { final rep = (v is List) ? v.map((e)=>e.toString()).join('/') : ((v?.toString()) ?? ''); routePath = routePath.replaceAll(':\$k', Uri.encodeComponent(rep)); });");
+          sbClient.writeln('  final base = DartvelRuntime.api(routePath);');
+          final qp = StringBuffer();
+          qp.writeln('  final qq = <String, String>{};');
+          qp.writeln(
+              "  if (query != null) { query.forEach((k, v) { qq[k] = v?.toString() ?? ''; }); }");
+          if (qpAdd.isNotEmpty) qp.writeln('  $qpAdd');
+          sbClient.writeln(qp.toString());
+          sbClient.writeln('  final fb = <String, dynamic>{};');
+          for (var j = 0; j < tparams.length; j++) {
+            final pName = tparams[j];
+            if (!names.contains(pName)) {
+              sbClient.writeln("  fb['$pName'] = $pName;");
+            }
+          }
           sbClient.writeln(
-              "  final reqPayload = (methodUpper == 'GET' || methodUpper == 'HEAD') ? body : ((body is FormData) ? body : (body ?? fb));");
-        }
-        sbClient.writeln(
-            "  final r = await _dvRequest('$method', uri, data: reqPayload, headers: reqHeaders);");
-        if (convExpr.isEmpty) {
-          sbClient.writeln('  return fromJson(r.data);');
+              '  if (query != null) { query.forEach((k, v) { fb[k] = v; }); }');
+          final isGetOrHead = method.toUpperCase() == 'GET' || method.toUpperCase() == 'HEAD';
+          sbClient.writeln("  final uri = ${isGetOrHead ? 'base.replace(queryParameters: qq)' : 'base'};");
+          sbClient.writeln("  final reqHeaders = headers ?? const <String, String>{};");
+          if (isGetOrHead) {
+            sbClient.writeln("  final reqPayload = body;");
+          } else if (method == 'post') {
+            sbClient.writeln(
+                "  final reqPayload = (body is FormData) ? body : (body == null ? FormData.fromMap(fb) : (body is Map ? FormData.fromMap(Map<String,dynamic>.from(body)) : body));");
+          } else {
+            sbClient.writeln(
+                "  final reqPayload = (body is FormData) ? body : (body ?? fb);");
+          }
+          if (convExprStream.isEmpty) {
+            sbClient.writeln(
+                "  return _dvStream<$innerType>(uri, fromJson, method: '$method', data: reqPayload, headers: reqHeaders);");
+          } else {
+            sbClient.writeln(
+                "  return _dvStream<$innerType>(uri, $convExprStream, method: '$method', data: reqPayload, headers: reqHeaders);");
+          }
+          sbClient.writeln('}');
+          sbClient.writeln('');
         } else {
-          sbClient.writeln('  return $convExpr;');
+          // Future types
+          String conv(String t) {
+            final tt = t.replaceAll(' ', '');
+            if (tt == 'String') return 'r.data as String';
+            if (tt == 'int') {
+              return "(r.data is int) ? (r.data as int) : (int.tryParse(r.data?.toString() ?? '') ?? 0)";
+            }
+            if (tt == 'double') {
+              return "(r.data is double) ? (r.data as double) : (double.tryParse(r.data?.toString() ?? '') ?? 0.0)";
+            }
+            if (tt == 'num') {
+              return "(r.data is num) ? (r.data as num) : (num.tryParse(r.data?.toString() ?? '') ?? 0)";
+            }
+            if (tt == 'bool') {
+              return "(r.data is bool) ? (r.data as bool) : ((r.data?.toString().toLowerCase() ?? '') == 'true')";
+            }
+            if (tt.startsWith('List<String')) {
+              return '(r.data as List).map((e)=>e.toString()).toList() as $t';
+            }
+            if (tt.startsWith('List<int')) {
+              return "(r.data as List).map((e){ if (e is int) return e; return int.tryParse(e?.toString() ?? '') ?? 0; }).toList() as $t";
+            }
+            if (tt.startsWith('List<double')) {
+              return "(r.data as List).map((e){ if (e is double) return e; return double.tryParse(e?.toString() ?? '') ?? 0.0; }).toList() as $t";
+            }
+            if (tt.startsWith('List<bool')) {
+              return "(r.data as List).map((e)=> (e is bool) ? e : ((e?.toString().toLowerCase() ?? '') == 'true')).toList() as $t";
+            }
+            if (tt.startsWith('Map<String,dynamic') ||
+                tt.startsWith('Map<String,Object')) {
+              return 'Map<String, dynamic>.from(r.data as Map)';
+            }
+            // Fallback: require a mapper
+            return '';
+          }
+
+          final convExpr = conv(rtype);
+          if (convExpr.isEmpty) {
+            // Custom type – require a mapper
+            final sigApiMapper = sigApi.replaceFirst(
+                ' }', ', required $rtype Function(Object?) fromJson }');
+            sbClient.writeln('Future<$rtype> $fnameApi($sigApiMapper) async {');
+          } else {
+            sbClient.writeln('Future<$rtype> $fnameApi($sigApi) async {');
+          }
+          sbClient
+              .writeln("  var routePath = '${colon.replaceAll("'", "\\'")}';");
+          sbClient.writeln('  final Map<String, Object?> pp = $ppExpr;');
+          sbClient.writeln(
+              "  pp.forEach((k, v) { final rep = (v is List) ? v.map((e)=>e.toString()).join('/') : ((v?.toString()) ?? ''); routePath = routePath.replaceAll(':\$k', Uri.encodeComponent(rep)); });");
+          sbClient.writeln('  final base = DartvelRuntime.api(routePath);');
+          // Build both query and form bodies; choose at runtime per method
+          final qp = StringBuffer();
+          qp.writeln('  final qq = <String, String>{};');
+          qp.writeln(
+              "  if (query != null) { query.forEach((k, v) { qq[k] = v?.toString() ?? ''; }); }");
+          if (qpAdd.isNotEmpty) qp.writeln('  $qpAdd');
+          sbClient.writeln(qp.toString());
+          sbClient.writeln('  final fb = <String, dynamic>{};');
+          for (var j = 0; j < tparams.length; j++) {
+            final pName = tparams[j];
+            if (!names.contains(pName)) {
+              sbClient.writeln("  fb['$pName'] = $pName;");
+            }
+          }
+          sbClient.writeln(
+              '  if (query != null) { query.forEach((k, v) { fb[k] = v; }); }');
+          final isGetOrHead = method.toUpperCase() == 'GET' || method.toUpperCase() == 'HEAD';
+          sbClient.writeln("  final uri = ${isGetOrHead ? 'base.replace(queryParameters: qq)' : 'base'};");
+          sbClient.writeln("  final reqHeaders = headers ?? const <String, String>{};");
+          if (isGetOrHead) {
+            sbClient.writeln("  final reqPayload = body;");
+          } else if (method == 'post') {
+            sbClient.writeln(
+                "  final reqPayload = (body is FormData) ? body : (body == null ? FormData.fromMap(fb) : (body is Map ? FormData.fromMap(Map<String,dynamic>.from(body)) : body));");
+          } else {
+            sbClient.writeln(
+                "  final reqPayload = (body is FormData) ? body : (body ?? fb);");
+          }
+          sbClient.writeln(
+              "  final r = await _dvRequest('$method', uri, data: reqPayload, headers: reqHeaders);");
+          if (convExpr.isEmpty) {
+            sbClient.writeln('  return fromJson(r.data);');
+          } else {
+            sbClient.writeln('  return $convExpr;');
+          }
+          sbClient.writeln('}');
+          sbClient.writeln('');
         }
-        sbClient.writeln('}');
-        sbClient.writeln('');
       }
     }
 

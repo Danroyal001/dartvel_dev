@@ -380,10 +380,6 @@ ${(() {
     final routerContent = '''
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-// ignore_for_file: prefer_const_constructors
-// ignore_for_file: prefer_const_literals_to_create_immutables
-// ignore_for_file: public_member_api_docs
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:dartvel_flutter/dartvel_flutter.dart';
@@ -407,6 +403,7 @@ const _projectDefaultTransition = PageTransitionSpec(
 
 ${sbRedirect.toString()}
 
+/// Creates the GoRouter instance for Dartvel routing.
 GoRouter createDartvelRouter() => GoRouter(
   routes: [
 $routesSrc
@@ -454,10 +451,11 @@ $routesSrc
 
     final sbEnv = StringBuffer();
     sbEnv.writeln('// GENERATED CODE - DO NOT MODIFY BY HAND');
-    sbEnv.writeln('// ignore_for_file: non_constant_identifier_names');
     sbEnv.writeln('library dartvel_client_env;');
     sbEnv.writeln('');
+    sbEnv.writeln('/// Environment variables provider.');
     sbEnv.writeln('class Env {');
+    sbEnv.writeln('  /// Decrypts obfuscated values.');
     sbEnv.writeln(
       '  static String _d(List<int> c, int k) => String.fromCharCodes(c.map((x) => x ^ k));',
     );
@@ -466,18 +464,23 @@ $routesSrc
       final parts = obf.split(', ');
       final key = parts.last;
       final list = parts.sublist(0, parts.length - 1).join(', ');
+      sbEnv.writeln('  // ignore: non_constant_identifier_names');
+      sbEnv.writeln('  /// Value of ${e.key} environment variable.');
       sbEnv.writeln('  static String get ${e.key} => _d($list, $key);');
     }
     sbEnv.writeln('}');
     sbEnv.writeln('');
-    sbEnv.writeln('// Legacy map support');
+    sbEnv.writeln('/// Legacy map support for environment variables.');
     sbEnv.writeln('final Map<String, String> dvPublicEnv = {');
     for (final e in publicEnv.entries) {
       sbEnv.writeln("  '${e.key}': Env.${e.key},");
     }
     sbEnv.writeln('};');
+    sbEnv.writeln('/// Public environment variable manager.');
     sbEnv.writeln('class DartvelEnv {');
+    sbEnv.writeln('  /// Map of all public environment variables.');
     sbEnv.writeln('  static final Map<String, String> public = dvPublicEnv;');
+    sbEnv.writeln('  /// Gets a public environment variable by key.');
     sbEnv.writeln('  static String? get(String key) => dvPublicEnv[key];');
     sbEnv.writeln('}');
     await buildStep.writeAsString(

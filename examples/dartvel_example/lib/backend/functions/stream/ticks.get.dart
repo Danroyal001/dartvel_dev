@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'package:dartvel_core/dartvel.dart';
 
-Future<ResponseType> handler(RequestType req) async {
+@DVBackendFunction()
+Stream<String> getTicks() {
   final controller = StreamController<String>();
   int i = 0;
   Timer.periodic(const Duration(seconds: 1), (t) {
@@ -12,5 +13,5 @@ Future<ResponseType> handler(RequestType req) async {
       controller.close();
     }
   });
-  return Res.sse(controller.stream);
+  return controller.stream;
 }

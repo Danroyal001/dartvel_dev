@@ -37,6 +37,20 @@ class DartvelShelfBindings {
   late final _aw_register_handler =
       _aw_register_handlerPtr.asFunction<void Function(DartReqHandler)>();
 
+  void aw_register_cancel_handler(
+    DartStreamCancelHandler cb,
+  ) {
+    return _aw_register_cancel_handler(
+      cb,
+    );
+  }
+
+  late final _aw_register_cancel_handlerPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(DartStreamCancelHandler)>>(
+          'aw_register_cancel_handler');
+  late final _aw_register_cancel_handler =
+      _aw_register_cancel_handlerPtr.asFunction<void Function(DartStreamCancelHandler)>();
+
   int aw_configure_cors(
     FfiStr config_json,
   ) {
@@ -154,6 +168,36 @@ class DartvelShelfBindings {
           'aw_complete');
   late final _aw_complete =
       _aw_completePtr.asFunction<int Function(int, FfiResp)>();
+
+  int aw_stream_send_chunk(
+    int req_id,
+    FfiBuf chunk,
+  ) {
+    return _aw_stream_send_chunk(
+      req_id,
+      chunk,
+    );
+  }
+
+  late final _aw_stream_send_chunkPtr =
+      _lookup<ffi.NativeFunction<ffi.Int32 Function(ffi.Uint64, FfiBuf)>>(
+          'aw_stream_send_chunk');
+  late final _aw_stream_send_chunk =
+      _aw_stream_send_chunkPtr.asFunction<int Function(int, FfiBuf)>();
+
+  int aw_stream_complete(
+    int req_id,
+  ) {
+    return _aw_stream_complete(
+      req_id,
+    );
+  }
+
+  late final _aw_stream_completePtr =
+      _lookup<ffi.NativeFunction<ffi.Int32 Function(ffi.Uint64)>>(
+          'aw_stream_complete');
+  late final _aw_stream_complete =
+      _aw_stream_completePtr.asFunction<int Function(int)>();
 }
 
 final class FfiStr extends ffi.Struct {
@@ -180,6 +224,9 @@ final class FfiResp extends ffi.Struct {
 
   @ffi.Size()
   external int hdrs_len;
+
+  @ffi.Uint8()
+  external int is_stream;
 }
 
 typedef DartReqHandler
@@ -188,5 +235,10 @@ typedef DartReqHandlerFunction = ffi.Void Function(
     ffi.Uint64, FfiStr, FfiStr, ffi.Pointer<ffi.Uint8>, ffi.Size, FfiBuf);
 typedef DartDartReqHandlerFunction = void Function(
     int, FfiStr, FfiStr, ffi.Pointer<ffi.Uint8>, int, FfiBuf);
+
+typedef DartStreamCancelHandler
+    = ffi.Pointer<ffi.NativeFunction<DartStreamCancelHandlerFunction>>;
+typedef DartStreamCancelHandlerFunction = ffi.Void Function(ffi.Uint64);
+typedef DartDartStreamCancelHandlerFunction = void Function(int);
 
 const int AW_FLAG_H2C = 1;

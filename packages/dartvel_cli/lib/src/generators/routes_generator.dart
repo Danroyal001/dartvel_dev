@@ -24,7 +24,7 @@ Future<void> generate({bool validateProd = false}) async {
   }
   final yaml = loadYaml(await pubspecFile.readAsString()) as YamlMap;
   final pkgName = (yaml['name'] ?? 'app').toString();
-  final dv = (yaml['dartvel'] ?? {}) as YamlMap;
+  final dv = yaml['dartvel'] is YamlMap ? yaml['dartvel'] as YamlMap : YamlMap.wrap({});
 
   final backendHost = (dv['backendHost'] ?? '0.0.0.0').toString();
   final backendPort = asInt(dv['backendPort'], 3000);
@@ -54,15 +54,16 @@ Future<void> generate({bool validateProd = false}) async {
   }
 
   // Web defaults
-  final seo = (dv['webSeoDefaults'] ?? {}) as YamlMap;
+  final seo = dv['webSeoDefaults'] is YamlMap ? dv['webSeoDefaults'] as YamlMap : YamlMap.wrap({});
   final seoSiteName = (seo['siteName'] ?? '').toString();
   final seoTitle = (seo['defaultTitle'] ?? '').toString();
   final seoDesc = (seo['defaultDescription'] ?? '').toString();
   final seoImage = (seo['defaultImage'] ?? '').toString();
   final seoTwitter = (seo['twitterHandle'] ?? '').toString();
 
-  final transitions =
-      (dv['webTransitions'] ?? dv['transitions'] ?? {}) as YamlMap;
+  final transitions = dv['webTransitions'] is YamlMap
+      ? dv['webTransitions'] as YamlMap
+      : (dv['transitions'] is YamlMap ? dv['transitions'] as YamlMap : YamlMap.wrap({}));
   final defaultTransition = (transitions['default'] ?? 'fade').toString();
   final durationMs = asInt(transitions['durationMs'], 220);
   final curve = (transitions['curve'] ?? 'easeInOut').toString();
