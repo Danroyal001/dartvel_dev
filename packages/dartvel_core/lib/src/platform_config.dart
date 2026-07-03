@@ -1,4 +1,5 @@
-import 'dart:io' as io;
+import 'platform/platform_detect.dart'
+    if (dart.library.io) 'platform/platform_detect_io.dart' as pd;
 
 /// Supported platforms for Dartvel framework
 enum Platform {
@@ -12,6 +13,7 @@ enum Platform {
   tizenOS,
   webOS,
   embeddedLinux,
+  fireOS,
   web;
 
   /// Check if the platform supports native code
@@ -42,6 +44,8 @@ enum Platform {
         return 'webOS (LG)';
       case Platform.embeddedLinux:
         return 'Embedded Linux';
+      case Platform.fireOS:
+        return 'Fire OS (Amazon)';
       case Platform.web:
         return 'Web';
     }
@@ -70,6 +74,8 @@ enum Platform {
         return 'flutter build linux'; // webOS typically uses custom tooling
       case Platform.embeddedLinux:
         return 'flutter build linux --target-platform linux-arm64';
+      case Platform.fireOS:
+        return 'flutter build apk --target-platform android-arm64'; // FireOS runs apks
       case Platform.web:
         return 'flutter build web';
     }
@@ -105,13 +111,7 @@ class PlatformConfig {
 
   /// Detect the current running platform
   static Platform detectCurrent() {
-    if (io.Platform.isAndroid) return Platform.android;
-    if (io.Platform.isIOS) return Platform.ios;
-    if (io.Platform.isWindows) return Platform.windows;
-    if (io.Platform.isMacOS) return Platform.macos;
-    if (io.Platform.isLinux) return Platform.linux;
-    // Web detection would work differently in actual web context
-    return Platform.linux; // fallback
+    return pd.detectCurrentPlatform();
   }
 
   /// Get all supported platforms with their status

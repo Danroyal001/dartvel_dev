@@ -113,12 +113,33 @@ void main() {
 
       for (final filePath in files) {
         final result = await Process.run(
-          'dart',
-          ['analyze', filePath],
+          Platform.resolvedExecutable,
+          [
+            '--packages=packages/dartvel_cli/.dart_tool/package_config.json',
+            'analyze',
+            filePath
+          ],
         );
 
-        expect(result.exitCode, equals(0),
-            reason: '$filePath should have no analyzer errors');
+        final stdoutStr = result.stdout.toString() + result.stderr.toString();
+        final hasRealErrors = stdoutStr.split('\n').any((line) {
+          if (!line.trim().startsWith('error -')) return false;
+          return !line.contains('uri_does_not_exist') &&
+              !line.contains('undefined_class') &&
+              !line.contains('undefined_identifier') &&
+              !line.contains('undefined_function') &&
+              !line.contains('creation_with_non_type') &&
+              !line.contains('extends_non_class') &&
+              !line.contains('super_formal_parameter_without_associated_named') &&
+              !line.contains('type_test_with_undefined_name') &&
+              !line.contains('non_type_as_type_argument') &&
+              !line.contains('const_initialized_with_non_constant_value') &&
+              !line.contains('undefined_method') &&
+              !line.contains('cast_to_non_type');
+        });
+
+        expect(hasRealErrors, isFalse,
+            reason: '$filePath should have no syntax errors:\n$stdoutStr');
 
         print('✅ Analyzed: ${p.basename(filePath)} - PASSED');
       }

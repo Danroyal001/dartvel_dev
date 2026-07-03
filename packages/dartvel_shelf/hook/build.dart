@@ -8,6 +8,12 @@ Future<void> main(List<String> args) async {
     final pkgRoot = Directory.fromUri(input.packageRoot);
     final rustDir = Directory('${pkgRoot.path}/rust');
 
+    final cargoCheck = await Process.run('cargo', ['--version']).catchError((_) => ProcessResult(-1, 127, '', ''));
+    if (cargoCheck.exitCode != 0) {
+      stdout.writeln('dartvel_shelf hook: cargo not found on system, skipping Rust compilation.');
+      return;
+    }
+
     if (!rustDir.existsSync()) {
       stdout.writeln('dartvel_shelf hook: rust directory missing, skipping.');
       return;

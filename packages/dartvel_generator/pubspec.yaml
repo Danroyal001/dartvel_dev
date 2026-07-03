@@ -16,8 +16,11 @@ dependencies:
   glob: ^2.1.2
   yaml: ^3.1.2
   path: ^1.9.0
+  dartvel_core:
+    path: ../dartvel_core
 
 dev_dependencies:
   lints: ^3.0.0
   test: ^1.25.2
   build_runner: ^2.4.8
+  source_gen_test: ^1.1.0

@@ -20,6 +20,9 @@ class BuildCommand extends Command<void> {
             'windows',
             'macos',
             'linux',
+            'webos',
+            'tvos',
+            'fireos',
             'all'
           ],
           defaultsTo: 'all',
@@ -84,7 +87,7 @@ class BuildCommand extends Command<void> {
         isProfile ? '--profile' : (isRelease ? '--release' : '--debug');
 
     final platforms = platform == 'all'
-        ? ['android', 'ios', 'web', 'windows', 'macos', 'linux']
+        ? ['android', 'ios', 'web', 'windows', 'macos', 'linux', 'webos', 'tvos', 'fireos']
         : [platform];
 
     for (final p in platforms) {
@@ -150,6 +153,20 @@ class BuildCommand extends Command<void> {
       case 'web':
         args.addAll(['--web-renderer', 'canvaskit']);
         break;
+      case 'webos':
+        // webOS builds are web builds targetting webOS packaging
+        args[1] = 'web';
+        args.addAll(['--web-renderer', 'canvaskit']);
+        break;
+      case 'tvos':
+        // tvOS is built as an iOS configuration flavor or custom target
+        args[1] = 'ios';
+        args.add('--no-codesign');
+        break;
+      case 'fireos':
+        // FireOS is Android based
+        args[1] = 'apk';
+        break;
       case 'ios':
         // IPA export
         args.add('--no-codesign'); // For CI/CD
@@ -184,15 +201,18 @@ class BuildCommand extends Command<void> {
   Future<bool> _isPlatformAvailable(String platform) async {
     switch (platform) {
       case 'android':
+      case 'fireos':
         return true; // Usually available
       case 'ios':
       case 'macos':
+      case 'tvos':
         return Platform.isMacOS;
       case 'windows':
         return Platform.isWindows || Platform.isLinux; // Cross-compile possible
       case 'linux':
         return Platform.isLinux || Platform.isMacOS;
       case 'web':
+      case 'webos':
         return true;
       default:
         return false;

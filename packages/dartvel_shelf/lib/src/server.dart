@@ -13,6 +13,7 @@ import 'ssr_helper.dart';
 import 'package:ffi/ffi.dart' as pkgffi;
 
 typedef _NativeCb = gen.DartReqHandlerFunction;
+typedef _NativeCancelCb = gen.DartStreamCancelHandlerFunction;
 
 class ServerHandle {
   final String host;
@@ -20,6 +21,7 @@ class ServerHandle {
   final int _id;
   final gen.DartvelShelfBindings _api;
   final ffi.NativeCallable<_NativeCb> _dartHandler;
+  final ffi.NativeCallable<_NativeCancelCb> _dartCancelHandler;
   bool _stopped = false;
 
   ServerHandle(
@@ -28,6 +30,7 @@ class ServerHandle {
     this._id,
     this._api,
     this._dartHandler,
+    this._dartCancelHandler,
   );
 
   Future<void> stop() async {
@@ -35,6 +38,7 @@ class ServerHandle {
     _stopped = true;
     _api.aw_stop(_id);
     _dartHandler.close();
+    _dartCancelHandler.close();
   }
 }
 
@@ -130,6 +134,8 @@ Future<ServerHandle> serve(
   final effective =
       (effectiveHandler is Router) ? effectiveHandler.call : effectiveHandler;
 
+  final activeSubscriptions = <int, StreamSubscription<List<int>>>{};
+
   void handleRequest(int reqId, gen.FfiStr method, gen.FfiStr target,
       ffi.Pointer<ffi.Uint8> hdrsPtr, int hdrsLen, gen.FfiBuf body) {
     final methodStr = String.fromCharCodes(
@@ -152,46 +158,96 @@ Future<ServerHandle> serve(
 
       try {
         final resp = await effective(req);
-        final bodyData = await resp.body?.bytesU8() ?? Uint8List(0);
         final hdrsFlat = encodeHeaders(resp.headers.multiValueMap);
-
         final hdrsNative = pkgffi.malloc<ffi.Uint8>(hdrsFlat.length)
           ..asTypedList(hdrsFlat.length).setAll(0, hdrsFlat);
-        final bodyNative = pkgffi.malloc<ffi.Uint8>(bodyData.length)
-          ..asTypedList(bodyData.length).setAll(0, bodyData);
 
         final out = pkgffi.calloc<gen.FfiResp>();
         out.ref.status = resp.status;
-
-        final bodyBuf = pkgffi.calloc<gen.FfiBuf>();
-        bodyBuf.ref.ptr = bodyNative.cast();
-        bodyBuf.ref.len = bodyData.length;
-        out.ref.body = bodyBuf.ref;
-
         out.ref.hdrs = hdrsNative.cast();
         out.ref.hdrs_len = hdrsFlat.length;
 
-        api.aw_complete(reqId, out.ref);
-// Memory freed by Rust; no manual free needed.
-        // pkgffi.malloc.free(hdrsNative);
-        // pkgffi.malloc.free(bodyNative);
-        pkgffi.calloc.free(bodyBuf);
-        pkgffi.calloc.free(out);
+        final isSse = resp.headers.get('content-type')?.contains('text/event-stream') == true;
+        final isStream = resp.isStream || isSse;
+
+        if (isStream && resp.body != null) {
+          out.ref.is_stream = 1;
+          final bodyBuf = pkgffi.calloc<gen.FfiBuf>();
+          bodyBuf.ref.ptr = ffi.Pointer.fromAddress(0);
+          bodyBuf.ref.len = 0;
+          out.ref.body = bodyBuf.ref;
+
+          api.aw_complete(reqId, out.ref);
+          pkgffi.calloc.free(bodyBuf);
+          pkgffi.calloc.free(out);
+
+          late StreamSubscription<List<int>> subscription;
+          subscription = resp.body!.stream.listen(
+            (chunk) {
+              final chunkNative = pkgffi.malloc<ffi.Uint8>(chunk.length)
+                ..asTypedList(chunk.length).setAll(0, chunk);
+              final chunkBuf = pkgffi.calloc<gen.FfiBuf>();
+              chunkBuf.ref.ptr = chunkNative.cast();
+              chunkBuf.ref.len = chunk.length;
+
+              api.aw_stream_send_chunk(reqId, chunkBuf.ref);
+
+              pkgffi.calloc.free(chunkBuf);
+              pkgffi.malloc.free(chunkNative);
+            },
+            onDone: () {
+              activeSubscriptions.remove(reqId);
+              api.aw_stream_complete(reqId);
+            },
+            onError: (Object e) {
+              activeSubscriptions.remove(reqId);
+              api.aw_stream_complete(reqId);
+            },
+            cancelOnError: true,
+          );
+          activeSubscriptions[reqId] = subscription;
+        } else {
+          out.ref.is_stream = 0;
+          final bodyData = await resp.body?.bytesU8() ?? Uint8List(0);
+          final bodyNative = pkgffi.malloc<ffi.Uint8>(bodyData.length)
+            ..asTypedList(bodyData.length).setAll(0, bodyData);
+
+          final bodyBuf = pkgffi.calloc<gen.FfiBuf>();
+          bodyBuf.ref.ptr = bodyNative.cast();
+          bodyBuf.ref.len = bodyData.length;
+          out.ref.body = bodyBuf.ref;
+
+          api.aw_complete(reqId, out.ref);
+          pkgffi.calloc.free(bodyBuf);
+          pkgffi.calloc.free(out);
+        }
       } catch (_) {
         final out = pkgffi.calloc<gen.FfiResp>();
         out.ref.status = 500;
+        out.ref.is_stream = 0;
         out.ref.body = (pkgffi.calloc<gen.FfiBuf>()..ref.len = 0).ref;
         out.ref.hdrs = pkgffi.malloc<ffi.Uint8>(0).cast();
         out.ref.hdrs_len = 0;
         api.aw_complete(reqId, out.ref);
+        pkgffi.calloc.free(out);
       }
     });
   }
 
   final dartRequestHandler =
       ffi.NativeCallable<_NativeCb>.listener(handleRequest);
-
   api.aw_register_handler(dartRequestHandler.nativeFunction);
+
+  final dartCancelHandler = ffi.NativeCallable<_NativeCancelCb>.listener((int reqId) {
+    final subscription = activeSubscriptions.remove(reqId);
+    subscription?.cancel();
+  });
+  try {
+    api.aw_register_cancel_handler(dartCancelHandler.nativeFunction);
+  } catch (e) {
+    // Gracefully handle case where pre-compiled binary lacks stream cancellation symbol
+    print('Warning: stream cancel handler registration skipped (not supported by native library).');
+  }
 
   _configureCors(api, cors);
   _configureStatic(api, staticDir);
@@ -245,7 +301,7 @@ Future<ServerHandle> serve(
     throw StateError('aw_start failed ($serverId)');
   }
 
-  return ServerHandle(host, port, serverId, api, dartRequestHandler);
+  return ServerHandle(host, port, serverId, api, dartRequestHandler, dartCancelHandler);
 }
 
 void _configureCors(gen.DartvelShelfBindings api, CorsOptions? cors) {

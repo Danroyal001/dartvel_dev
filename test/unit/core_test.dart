@@ -1,5 +1,5 @@
 import 'package:test/test.dart';
-import 'package:dartvel_core/dartvel_core.dart';
+import 'package:dartvel_core/dartvel.dart';
 import 'package:dartvel_core/src/cache/cache.dart';
 import 'package:dartvel_core/src/tasks/background_tasks.dart';
 
@@ -44,7 +44,7 @@ void main() {
   });
 }
 
-class _TestTask implements Task {
+class _TestTask extends Task {
   final String _name;
   final Function _callback;
 

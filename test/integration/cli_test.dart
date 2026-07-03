@@ -33,7 +33,7 @@ dartvel:
           print('Doctor stderr: ${result.stderr}');
         }
         expect(result.exitCode, equals(0));
-        expect(result.stdout.toString(), contains('Dartvel doctor'));
+        expect(result.stdout.toString(), contains('Dartvel Doctor'));
       } finally {
         tempDir.deleteSync(recursive: true);
       }
