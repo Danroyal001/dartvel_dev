@@ -66,7 +66,7 @@ class ClientGenerator {
     layoutFiles.sort((a, b) => a.path.compareTo(b.path));
 
     final pageImports = <String>[];
-    final pageEntries = <Map<String, String>>[];
+    final pageEntries = <Map<String, dynamic>>[];
     final layoutImports = <String>[];
     final layoutMapByDir = <String, Map<String, String>>{}; // dir -> {i, class}
 
@@ -75,17 +75,26 @@ class ClientGenerator {
       final rel = p.relative(abs, from: root).replaceAll('\\', '/');
       final importPath =
           rel.replaceFirst(RegExp(r'^lib/'), 'package:$pkgName/');
-      // Parse class name by scanning file for `class Xxx extends DartvelPage`
+      // Parse class name by scanning file for class/functional widget
       final src = await File(abs).readAsString();
       final m =
-          RegExp(r'class\s+([A-Za-z_][A-Za-z0-9_]*)\s+extends\s+DartvelPage')
+          RegExp(r'class\s+([A-Za-z_][A-Za-z0-9_]*)\s+extends\s+(DartvelPage|DVClassWidget)')
               .firstMatch(src);
-      if (m == null) {
-        stderr.writeln(
-            'dartvel: could not find a class extending DartvelPage in $rel');
-        continue;
+      String className;
+      bool isFunctional = false;
+      if (m != null) {
+        className = m.group(1)!;
+      } else {
+        final mf = RegExp(r'@DVFunctionalWidget\(\)\s+Widget\s+([A-Za-z_][A-Za-z0-9_]*)\(')
+            .firstMatch(src);
+        if (mf == null) {
+          stderr.writeln(
+              'dartvel: could not find class extending DartvelPage/DVClassWidget or @DVFunctionalWidget in $rel');
+          continue;
+        }
+        className = mf.group(1)!;
+        isFunctional = true;
       }
-      final className = m.group(1)!;
 
       pageImports.add("import '$importPath' as p$i;");
       String route;
@@ -122,6 +131,7 @@ class ClientGenerator {
         'class': className,
         'route': route,
         'dir': dir,
+        'isFunctional': isFunctional,
         if (loadingAlias != null) 'loadingAlias': loadingAlias,
         if (errorAlias != null) 'errorAlias': errorAlias,
       });
@@ -150,10 +160,10 @@ class ClientGenerator {
     }
 
     // Detect route conflicts (same computed route from multiple files)
-    final routeToEntries = <String, List<Map<String, String>>>{};
+    final routeToEntries = <String, List<Map<String, dynamic>>>{};
     for (final e in pageEntries) {
       routeToEntries
-          .putIfAbsent(e['route']!, () => <Map<String, String>>[])
+          .putIfAbsent(e['route']!, () => <Map<String, dynamic>>[])
           .add(e);
     }
     final conflicts = routeToEntries.entries.where((kv) => kv.value.length > 1);
@@ -426,9 +436,11 @@ class DartvelRuntime {
     GoRoute(
       path: '${esc(e['route']!)}',
 ${guardRedirectFor(e['dir']!)}      pageBuilder: (context, state) {
-        final page = const p${e['i']}.${e['class']}();
         final params = Map<String, String>.from(state.pathParameters);
         final query  = Map<String, String>.from(state.uri.queryParameters);
+        ${e['isFunctional'] == true
+            ? 'final page = p${e['i']}.${e['class']}(context);'
+            : 'final page = const p${e['i']}.${e['class']}();'}
         final withState = DartvelRouteState(params: params, query: query, child: page);
 
         // i18n scope (query strategy only; no-op if not configured)
@@ -441,7 +453,9 @@ ${guardRedirectFor(e['dir']!)}      pageBuilder: (context, state) {
             : (DvI18n.normalize(langRaw, i18nLocales, i18nDefault.isEmpty ? (langRaw ?? '') : i18nDefault));
         final withI18n = DvI18nScope(localeTag: langTag, child: withState);
 
-        final loaderWrapped = DvDataLoader(
+        ${e['isFunctional'] == true
+            ? 'final loaderWrapped = withI18n;'
+            : '''final loaderWrapped = DvDataLoader(
           load: () => page.loadData(params, query),
           child: withI18n,
 ${(() {
@@ -462,16 +476,18 @@ ${(() {
                 b.writeln("          error: const DvDefaultError(),");
               }
               return b.toString();
-            })()}        );
+            })()}        );'''}
 
         final seoWrapped = DartvelSeo(
-          props: page.buildWebSeo(params, query),
+          props: ${e['isFunctional'] == true ? 'SeoProps.empty' : 'page.buildWebSeo(params, query)'},
           defaults: _defaultSeo,
           child: loaderWrapped,
         );
-        final spec = page.transition == const PageTransitionSpec()
+        final spec = ${e['isFunctional'] == true
+            ? '_projectDefaultTransition'
+            : '''page.transition == const PageTransitionSpec()
             ? _projectDefaultTransition
-            : page.transition;
+            : page.transition'''};
         return dvTransitionPage(
           key: state.pageKey,
           child: ${wrapWithLayouts(e['dir']!, 'seoWrapped')},
@@ -553,7 +569,7 @@ $routesSrc
   }
 
   static void _generateSsgBuilder(
-      List<Map<String, String>> entries, List<String> imports, String root) {
+      List<Map<String, dynamic>> entries, List<String> imports, String root) {
     final sb = StringBuffer();
     sb.writeln('// GENERATED – do not edit.');
     sb.writeln('import \'dart:convert\';');
@@ -576,6 +592,10 @@ $routesSrc
       final isDynamic = routePath.contains(':');
 
       sb.writeln('  // $routePath');
+      if (e['isFunctional'] == true) {
+        sb.writeln('  // Skipped functional widget page: $routePath');
+        continue;
+      }
       sb.writeln('  try {');
       sb.writeln('    final page = const $prefix.$className();');
 

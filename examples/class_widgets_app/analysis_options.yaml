@@ -1,0 +1,12 @@
+include: package:lints/recommended.yaml
+
+analyzer:
+  exclude:
+    - "lib/dartvel_client/**"
+    - ".dart_tool/**"
+
+linter:
+  rules:
+    - prefer_const_constructors
+    - prefer_const_literals_to_create_immutables
+    - avoid_print
