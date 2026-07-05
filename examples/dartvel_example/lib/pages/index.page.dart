@@ -162,7 +162,7 @@ Widget indexPage(BuildContext context) {
               children: [
                 const Text('4. Model Form (DVForm<User>)', style: TextStyle(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
-                DVForm<User>(
+                DVForm<User>.builder(
                   initialValue: const User(name: 'John Doe', email: 'john@example.com'),
                   builder: (context, user) {
                     return Column(

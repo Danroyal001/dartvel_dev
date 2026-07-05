@@ -13,6 +13,10 @@ import 'src/commands/updates_command.dart';
 import 'src/commands/version_command.dart';
 import 'src/commands/watch_command.dart';
 import 'src/commands/prerender_command.dart';
+import 'src/commands/db_command.dart';
+import 'src/commands/generate_command.dart';
+import 'src/commands/observability_commands.dart';
+import 'src/commands/ai_command.dart';
 
 Future<void> main(List<String> args) async {
   // Handle --version flag
@@ -34,6 +38,12 @@ Future<void> main(List<String> args) async {
     ..addCommand(WatchCommand())
     ..addCommand(PluginCommand())
     ..addCommand(UpdatesCommand())
+    ..addCommand(DbCommand())
+    ..addCommand(GenerateCommand())
+    ..addCommand(LogsCommand())
+    ..addCommand(TracesCommand())
+    ..addCommand(MetricsCommand())
+    ..addCommand(AiCommand())
     ..addCommand(VersionCommand());
 
   try {
