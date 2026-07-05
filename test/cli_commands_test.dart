@@ -168,6 +168,45 @@ void main() {
       print('✅ Deploy command help displayed');
     });
 
+    test('dartvel new CLI commands (db, generate, observability, ai) exist', () async {
+      // 1. db command
+      final dbRes = await Process.run(
+        Platform.resolvedExecutable,
+        ['pub', 'global', 'run', 'dartvel_cli:dartvel', 'db', '--help'],
+        runInShell: true,
+      );
+      expect(dbRes.exitCode, 0);
+      expect(dbRes.stdout.toString(), contains('Manage the Dartvel database'));
+
+      // 2. generate command
+      final genRes = await Process.run(
+        Platform.resolvedExecutable,
+        ['pub', 'global', 'run', 'dartvel_cli:dartvel', 'generate', '--help'],
+        runInShell: true,
+      );
+      expect(genRes.exitCode, 0);
+      expect(genRes.stdout.toString(), contains('Generate Dartvel template files'));
+
+      // 3. observability commands
+      final logsRes = await Process.run(
+        Platform.resolvedExecutable,
+        ['pub', 'global', 'run', 'dartvel_cli:dartvel', 'logs', '--help'],
+        runInShell: true,
+      );
+      expect(logsRes.exitCode, 0);
+
+      // 4. ai command
+      final aiRes = await Process.run(
+        Platform.resolvedExecutable,
+        ['pub', 'global', 'run', 'dartvel_cli:dartvel', 'ai', '--help'],
+        runInShell: true,
+      );
+      expect(aiRes.exitCode, 0);
+      expect(aiRes.stdout.toString(), contains('Leverage Dartvel AI integration'));
+
+      print('✅ All new CLI commands verified');
+    });
+
     test('dartvel plugin list shows available plugins', () async {
       final result = await Process.run(
         Platform.resolvedExecutable,

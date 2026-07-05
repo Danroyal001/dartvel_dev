@@ -177,17 +177,13 @@ class DVForm<T> extends StatefulWidget {
   final T? initialValue;
   final Widget Function(BuildContext, T)? builder;
 
-  const DVForm({
-    super.key,
-    this.initialValue,
-    this.builder,
-  });
+  const DVForm([this.initialValue]) : builder = null;
 
   const DVForm.builder({
     super.key,
-    required Widget Function(BuildContext, T) builder,
+    required Widget Function(BuildContext, T) this.builder,
     this.initialValue,
-  }) : builder = builder;
+  });
 
   @override
   State<DVForm<T>> createState() => _DVFormState<T>();
@@ -215,17 +211,41 @@ class _DVFormState<T> extends State<DVForm<T>> {
     if (widget.builder != null) {
       return widget.builder!(context, formValue);
     }
+    
+    // Automatic Form Generation from Model JSON Map
+    final fields = <Widget>[];
+    if (formValue != null) {
+      try {
+        final jsonMap = (formValue as dynamic).toJson() as Map<String, dynamic>;
+        jsonMap.forEach((key, value) {
+          fields.add(
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              child: TextFormField(
+                initialValue: value?.toString() ?? '',
+                decoration: InputDecoration(
+                  labelText: key.toUpperCase(),
+                  border: const OutlineInputBorder(),
+                ),
+                onChanged: (val) {
+                  // Best-effort update or stub
+                },
+              ),
+            ),
+          );
+        });
+      } catch (_) {
+        fields.add(const Text('No form controls generated. Model must support toJson().'));
+      }
+    } else {
+      fields.add(Text('Empty form for type $T'));
+    }
+
     return Form(
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
-        children: [
-          TextFormField(
-            decoration: const InputDecoration(labelText: 'Form Input'),
-            onChanged: (val) {
-              // Stub update
-            },
-          ),
-        ],
+        children: fields,
       ),
     );
   }

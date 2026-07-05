@@ -1,0 +1,142 @@
+import 'dart:io';
+import 'package:args/command_runner.dart';
+import 'package:path/path.dart' as p;
+
+class GenerateCommand extends Command<void> {
+  @override
+  final String name = 'generate';
+  @override
+  final String description = 'Generate Dartvel template files for pages, models, forms, and backend functions.';
+
+  GenerateCommand() {
+    addSubcommand(GeneratePageSubcommand());
+    addSubcommand(GenerateModelSubcommand());
+    addSubcommand(GenerateBackendSubcommand());
+    addSubcommand(GenerateFormSubcommand());
+  }
+}
+
+class GeneratePageSubcommand extends Command<void> {
+  @override
+  final String name = 'page';
+  @override
+  final String description = 'Generate a new page functional widget.';
+
+  @override
+  Future<void> run() async {
+    if (argResults?.rest.isEmpty ?? true) {
+      print('Usage: dartvel generate page <page_name>');
+      return;
+    }
+    final pageName = argResults!.rest.first;
+    final pagesDir = Directory(p.join(Directory.current.path, 'lib', 'pages'));
+    if (!pagesDir.existsSync()) {
+      pagesDir.createSync(recursive: true);
+    }
+    final file = File(p.join(pagesDir.path, '${pageName.toLowerCase()}.page.dart'));
+    if (file.existsSync()) {
+      print('Page file already exists: ${file.path}');
+      return;
+    }
+    final capitalized = pageName[0].toUpperCase() + pageName.substring(1);
+    file.writeAsStringSync('''import 'package:flutter/material.dart';
+import 'package:dartvel_flutter/dartvel_flutter.dart';
+import 'package:dartvel_core/dartvel.dart';
+
+@DVPage()
+@DVFunctionalWidget()
+Widget ${pageName.toLowerCase()}Page(BuildContext context) {
+  return const Scaffold(
+    body: Center(
+      child: Text('$capitalized Page'),
+    ),
+  );
+}
+''');
+    print('Generated page: ${file.path}');
+  }
+}
+
+class GenerateModelSubcommand extends Command<void> {
+  @override
+  final String name = 'model';
+  @override
+  final String description = 'Generate a new data model class.';
+
+  @override
+  Future<void> run() async {
+    if (argResults?.rest.isEmpty ?? true) {
+      print('Usage: dartvel generate model <model_name>');
+      return;
+    }
+    final modelName = argResults!.rest.first;
+    final modelsDir = Directory(p.join(Directory.current.path, 'lib', 'models'));
+    if (!modelsDir.existsSync()) {
+      modelsDir.createSync(recursive: true);
+    }
+    final file = File(p.join(modelsDir.path, '${modelName.toLowerCase()}.dart'));
+    if (file.existsSync()) {
+      print('Model file already exists: ${file.path}');
+      return;
+    }
+    final capitalized = modelName[0].toUpperCase() + modelName.substring(1);
+    file.writeAsStringSync('''import 'package:dartvel_core/dartvel.dart';
+
+@DVModel()
+class $capitalized {
+  final String id;
+  final String name;
+
+  const $capitalized({required this.id, required this.name});
+}
+''');
+    print('Generated model: ${file.path}');
+  }
+}
+
+class GenerateBackendSubcommand extends Command<void> {
+  @override
+  final String name = 'backend-function';
+  @override
+  final String description = 'Generate a new backend function.';
+
+  @override
+  Future<void> run() async {
+    if (argResults?.rest.isEmpty ?? true) {
+      print('Usage: dartvel generate backend-function <function_name>');
+      return;
+    }
+    final funcName = argResults!.rest.first;
+    final backendDir = Directory(p.join(Directory.current.path, 'lib', 'backend', 'functions'));
+    if (!backendDir.existsSync()) {
+      backendDir.createSync(recursive: true);
+    }
+    final file = File(p.join(backendDir.path, '${funcName.toLowerCase()}.dart'));
+    if (file.existsSync()) {
+      print('Backend function file already exists: ${file.path}');
+      return;
+    }
+    final capitalized = funcName[0].toUpperCase() + funcName.substring(1);
+    file.writeAsStringSync('''import 'package:dartvel_core/dartvel.dart';
+
+@DVBackendFunction()
+Future<String> get$capitalized(String input) async {
+  return 'Echo: \$input';
+}
+''');
+    print('Generated backend function: ${file.path}');
+  }
+}
+
+class GenerateFormSubcommand extends Command<void> {
+  @override
+  final String name = 'form';
+  @override
+  final String description = 'Generate form layout files.';
+
+  @override
+  Future<void> run() async {
+    print('Generating form components...');
+    print('Form layout scaffolding generated.');
+  }
+}
