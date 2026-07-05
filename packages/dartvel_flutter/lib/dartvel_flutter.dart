@@ -58,16 +58,10 @@ class DVBox extends StatelessWidget {
   final Widget? child;
   final DVStyleModifier? modifier;
 
-  const DVBox({
-    super.key,
-    this.child,
-    this.modifier,
-  });
+  const DVBox([this.child, this.modifier]);
 
-  DVBox styleModifier(DVStyleModifier mod) => DVBox(
-        modifier: mod,
-        child: child,
-      );
+  DVBox modifier(DVStyleModifier mod) => DVBox(child, mod);
+  DVBox styleModifier(DVStyleModifier mod) => DVBox(child, mod);
 
   @override
   Widget build(BuildContext context) {
@@ -83,16 +77,10 @@ class DVText extends StatelessWidget {
   final String text;
   final DVStyleModifier? modifier;
 
-  const DVText(
-    this.text, {
-    super.key,
-    this.modifier,
-  });
+  const DVText(this.text, [this.modifier]);
 
-  DVText styleModifier(DVStyleModifier mod) => DVText(
-        text,
-        modifier: mod,
-      );
+  DVText modifier(DVStyleModifier mod) => DVText(text, mod);
+  DVText styleModifier(DVStyleModifier mod) => DVText(text, mod);
 
   @override
   Widget build(BuildContext context) {
@@ -399,6 +387,12 @@ abstract class DartvelPage extends StatelessWidget {
       null;
 
   Future<List<Map<String, String>>> get staticPaths async => [];
+}
+
+/// A Dartvel page widget represented as a class.
+abstract class DVClassWidget extends DartvelPage {
+  /// Default constructor.
+  const DVClassWidget({super.key});
 }
 
 abstract class DartvelLayout extends StatelessWidget {

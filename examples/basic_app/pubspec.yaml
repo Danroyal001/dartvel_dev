@@ -28,15 +28,15 @@ dev_dependencies:
 # Temporary overrides for local development
 dependency_overrides:
   dartvel_core:
-    path: /home/sigmadev/Documents/SigmaDev/creatorx_stuff/dartvel/packages/dartvel_core
+    path: ../../packages/dartvel_core
   dartvel_shelf:
-    path: /home/sigmadev/Documents/SigmaDev/creatorx_stuff/dartvel/packages/dartvel_shelf
+    path: ../../packages/dartvel_shelf
   dartvel_flutter:
-    path: /home/sigmadev/Documents/SigmaDev/creatorx_stuff/dartvel/packages/dartvel_flutter
+    path: ../../packages/dartvel_flutter
   dartvel_cli:
-    path: /home/sigmadev/Documents/SigmaDev/creatorx_stuff/dartvel/packages/dartvel_cli
+    path: ../../packages/dartvel_cli
   dartvel_generator:
-    path: /home/sigmadev/Documents/SigmaDev/creatorx_stuff/dartvel/packages/dartvel_generator
+    path: ../../packages/dartvel_generator
 
 flutter:
   uses-material-design: true

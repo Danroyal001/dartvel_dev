@@ -95,7 +95,7 @@ class RouterBuilder implements Builder {
 
     // 5. Process Pages
     final pageImports = <String>[];
-    final pageEntries = <Map<String, String>>[];
+    final pageEntries = <Map<String, dynamic>>[];
     final layoutImports = <String>[];
     final layoutMapByDir = <String, Map<String, String>>{};
     final guardImports = <String>[];
@@ -110,15 +110,24 @@ class RouterBuilder implements Builder {
       );
       final src = await buildStep.readAsString(asset);
       final m = RegExp(
-        r'class\s+([A-Za-z_][A-Za-z0-9_]*)\s+extends\s+DartvelPage',
+        r'class\s+([A-Za-z_][A-Za-z0-9_]*)\s+extends\s+(DartvelPage|DVClassWidget)',
       ).firstMatch(src);
-      if (m == null) {
-        log.warning(
-          'dartvel: could not find a class extending DartvelPage in $path',
-        );
-        continue;
+      String className;
+      bool isFunctional = false;
+      if (m != null) {
+        className = m.group(1)!;
+      } else {
+        final mf = RegExp(r'@DVFunctionalWidget\(\)\s+Widget\s+([A-Za-z_][A-Za-z0-9_]*)\(')
+            .firstMatch(src);
+        if (mf == null) {
+          log.warning(
+            'dartvel: could not find class extending DartvelPage/DVClassWidget or @DVFunctionalWidget in $path',
+          );
+          continue;
+        }
+        className = mf.group(1)!;
+        isFunctional = true;
       }
-      final className = m.group(1)!;
       pageImports.add("import '$importPath' as p$i;");
 
       String route;
@@ -160,6 +169,7 @@ class RouterBuilder implements Builder {
         'class': className,
         'route': route,
         'dir': dir,
+        'isFunctional': isFunctional,
         if (loadingAlias != null) 'loadingAlias': loadingAlias,
         if (errorAlias != null) 'errorAlias': errorAlias,
       });
@@ -299,9 +309,11 @@ class RouterBuilder implements Builder {
     GoRoute(
       path: '${esc(e['route']!)}',
 ${guardRedirectFor(e['dir']!)}      pageBuilder: (context, state) {
-        final page = const p${e['i']}.${e['class']}();
         final params = Map<String, String>.from(state.pathParameters);
         final query  = Map<String, String>.from(state.uri.queryParameters);
+        ${e['isFunctional'] == true
+            ? 'final page = p${e['i']}.${e['class']}(context);'
+            : 'final page = const p${e['i']}.${e['class']}();'}
         final withState = DartvelRouteState(params: params, query: query, child: page);
 
         final i18nParam = '${esc(i18nParam)}';
@@ -313,7 +325,9 @@ ${guardRedirectFor(e['dir']!)}      pageBuilder: (context, state) {
             : (DvI18n.normalize(langRaw, i18nLocales, i18nDefault.isEmpty ? (langRaw ?? '') : i18nDefault));
         final withI18n = DvI18nScope(localeTag: langTag, child: withState);
 
-        final loaderWrapped = DvDataLoader(
+        ${e['isFunctional'] == true
+            ? 'final loaderWrapped = withI18n;'
+            : '''final loaderWrapped = DvDataLoader(
           load: () => page.loadData(params, query),
           child: withI18n,
 ${(() {
@@ -333,16 +347,18 @@ ${(() {
               b.writeln("          error: const DvDefaultError(),");
             }
             return b.toString();
-          })()}        );
+          })()}        );'''}
 
         final seoWrapped = DartvelSeo(
-          props: page.buildWebSeo(params, query),
+          props: ${e['isFunctional'] == true ? 'SeoProps.empty' : 'page.buildWebSeo(params, query)'},
           defaults: _defaultSeo,
           child: loaderWrapped,
         );
-        final spec = page.transition == const PageTransitionSpec()
+        final spec = ${e['isFunctional'] == true
+            ? '_projectDefaultTransition'
+            : '''page.transition == const PageTransitionSpec()
             ? _projectDefaultTransition
-            : page.transition;
+            : page.transition'''};
         return dvTransitionPage(
           key: state.pageKey,
           child: ${wrapWithLayouts(e['dir']!, 'seoWrapped')},
