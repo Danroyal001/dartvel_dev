@@ -15,9 +15,8 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: DVBox(
-            modifier: style,
-            child: const DVText('Save'),
-          ),
+            const DVText('Save'),
+          ).modifier(style),
         ),
       ),
     );

@@ -296,6 +296,40 @@ class DVTheme {
   void setMode(ThemeMode mode) {}
 }
 
+class DVAI {
+  const DVAI();
+  Future<String> chat(String prompt, {String provider = 'gemini'}) async => 'AI Response';
+  Future<List<double>> embed(String text) async => [];
+  Future<Map<String, dynamic>> structuredOutput(String prompt, Map<String, dynamic> schema) async => {};
+}
+
+class DVDatabase {
+  const DVDatabase();
+  Future<List<Map<String, dynamic>>> query(String sql, [List<Object?>? params]) async => [];
+  Future<int> execute(String sql, [List<Object?>? params]) async => 0;
+}
+
+class DVCache {
+  const DVCache();
+  Future<T?> get<T>(String key) async => null;
+  Future<void> set(String key, Object? value, [Duration? ttl]) async {}
+  Future<void> delete(String key) async {}
+}
+
+class DVStorage {
+  const DVStorage();
+  Future<void> upload(String key, List<int> bytes) async {}
+  Future<List<int>> download(String key) async => [];
+  Future<void> delete(String key) async {}
+}
+
+class DVRealtime {
+  const DVRealtime();
+  Future<void> syncModel(Object model) async {}
+  Future<void> presence(String channel) async {}
+  Future<void> subscribe(String channel, Function(dynamic) onEvent) async {}
+}
+
 class DV {
   static final _globals = <Type, Object>{};
 
@@ -314,6 +348,11 @@ class DV {
   static DVPlatform get Platform => const DVPlatform();
   static DVAuth get Auth => const DVAuth();
   static DVTheme get Theme => const DVTheme();
+  static DVAI get AI => const DVAI();
+  static DVDatabase get DB => const DVDatabase();
+  static DVCache get Cache => const DVCache();
+  static DVStorage get Storage => const DVStorage();
+  static DVRealtime get Realtime => const DVRealtime();
   static String get currentTenant => 'default';
 }
 
