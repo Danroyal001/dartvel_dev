@@ -158,8 +158,29 @@ extension DVSignalContextX on BuildContext {
     return DVSignal<T>(container, matchedProvider, element);
   }
 
-  T global<T>() => DV.global<T>();
+  T global<T>() {
+    final provider = _globalProviders.putIfAbsent(
+      T,
+      () => StateProvider<Object?>((ref) => DV.global<T>()),
+    ) as StateProvider<T>;
+
+    final container = ProviderScope.containerOf(this);
+    DV.container = container;
+    final element = this as Element;
+    final listeners = _signalListeners[element] ??= {};
+    if (!listeners.containsKey(provider)) {
+      final sub = container.listen<T>(provider, (prev, next) {
+        if (element.mounted) {
+          element.markNeedsBuild();
+        }
+      });
+      listeners[provider] = sub;
+    }
+    return container.read(provider);
+  }
 }
+
+final _globalProviders = <Type, StateProvider<Object?>>{};
 
 extension DVModelSignalX on Object {
   DVSignal<T> signal<T>(BuildContext context) {
@@ -332,10 +353,17 @@ class DVRealtime {
 
 class DV {
   static final _globals = <Type, Object>{};
+  static ProviderContainer? container;
 
   static T global<T>([T? instance]) {
     if (instance != null) {
       _globals[T] = instance as Object;
+      final provider = _globalProviders[T];
+      if (provider != null && container != null) {
+        container!.read(provider.notifier).state = instance;
+      } else if (provider == null) {
+        _globalProviders[T] = StateProvider<Object?>((ref) => instance);
+      }
       return instance;
     }
     final inst = _globals[T];
