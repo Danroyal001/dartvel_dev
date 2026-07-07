@@ -1,8 +1,4 @@
-I think the current vision has grown beyond a framework—it's effectively becoming a **full-stack application platform** centered around Flutter. The only addition I'd make from this point onward is polishing and implementation details rather than adding major features.
-
-Here's the updated high-level picture, including the Rust backend integration, while keeping it concise.
-
----
+# New Spec v2
 
 # Dartvel — The Complete Vision
 
@@ -32,7 +28,7 @@ Everything else should be generated.
 
 # Design Goals
 
-* Flutter-first
+* Dart-first
 * AI-first
 * Convention over configuration
 * Zero boilerplate
@@ -59,6 +55,7 @@ services/
 
 main.dart
 ```
+
 
 No controllers.
 
@@ -111,23 +108,24 @@ DVBox(...)
 DVText(...)
 ```
 
+
 Everything else is built from them.
 
-Images
+Images ( .backgroundImage() modifier on DVBox )
 
-Cards
+Cards ( .card() modifier on DVBox )
 
 Rows
 
 Columns
 
-Buttons
+Buttons ( .onTap() or .onPressed() alias modifier on DVBox or DVText )
 
 Containers
 
 Layouts
 
-Forms
+Forms ( DVForm does exist )
 
 Lists
 
@@ -141,7 +139,7 @@ Navigation
 
 Built on Mix.
 
-Supports every Mix modifier.
+Supports EVERY Mix modifier.
 
 Shared styles:
 
@@ -152,12 +150,18 @@ final primary =
         .rounded(12);
 ```
 
+N/B: Let's actually use `DVModifier` since it covers widget functionality too, not just styles. We'll keep `DVStyleModifier` as an alias for backword compatibility
+
+
 Usage
 
 ```dart
 DVText("Save")
     .styleModifier(primary);
 ```
+
+N/B: Let's actually use `.modifier()` since it covers widget functionality too, not just styles. We'll keep `.styleModifier()` as an alias for backword compatibility
+
 
 Fluent modifiers
 
@@ -175,7 +179,7 @@ Fluent modifiers
 
 No `.wrap()`.
 
-Wrapping is automatic.
+Wrapping is automatically handled by dartvel where necessary.
 
 ---
 
@@ -185,7 +189,11 @@ Class
 
 ```dart
 @DVPage()
-class UsersPage extends DVClassWidget {}
+class UsersPage extends DVClassWidget {
+    Widget build(
+        BuildContext context
+    ) {}
+}
 ```
 
 Functional
@@ -195,8 +203,10 @@ Functional
 @DVFunctionalWidget()
 Widget usersPage(
     BuildContext context
-)
+) {}
 ```
+
+DVPage handles routing, transitions, scaffolding, e.t.c
 
 ---
 
@@ -239,12 +249,14 @@ Navigation is strongly typed.
 ```dart
 .navigateToPage(.users)
 
+// For routes with parameters
 .navigateToPage(
-    .user(id)
+    .users(id)
 )
 ```
 
 ---
+
 
 # State
 
