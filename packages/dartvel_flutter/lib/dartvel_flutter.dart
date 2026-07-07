@@ -388,6 +388,17 @@ class DV {
 // Existing Routing & Page Transitions
 // ==========================================
 
+class DVRouteTarget {
+  final String path;
+  const DVRouteTarget(this.path);
+}
+
+extension DartvelNavigationX on BuildContext {
+  void navigateToPage(DVRouteTarget target) {
+    go(target.path);
+  }
+}
+
 class DartvelRouteState extends InheritedWidget {
   final Map<String, String> params;
   final Map<String, String> query;

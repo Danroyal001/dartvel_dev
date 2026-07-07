@@ -561,6 +561,36 @@ $routesSrc
   ],
   redirect: _globalRedirect,
 );
+
+${(() {
+    final sbRoutes = StringBuffer();
+    sbRoutes.writeln('/// Strongly typed route targets for type-safe navigation.');
+    sbRoutes.writeln('class DVRoutes {');
+    for (final e in pageEntries) {
+      final routePath = e['route'] as String;
+      final cleanPath = routePath.replaceAll(RegExp(r'/:[A-Za-z0-9_]+'), '');
+      var name = cleanPath.replaceAll('/', '').trim();
+      if (name.isEmpty) {
+        name = 'index';
+      }
+      
+      final paramRegex = RegExp(r':([A-Za-z0-9_]+)');
+      final params = paramRegex.allMatches(routePath).map((m) => m.group(1)!).toList();
+      
+      if (params.isEmpty) {
+        sbRoutes.writeln("  static const $name = DVRouteTarget('$routePath');");
+      } else {
+        final funcParams = params.map((p) => "required String $p").join(', ');
+        var interpPath = routePath;
+        for (final p in params) {
+          interpPath = interpPath.replaceFirst(':$p', '\$$p');
+        }
+        sbRoutes.writeln("  static DVRouteTarget $name({$funcParams}) => DVRouteTarget('$interpPath');");
+      }
+    }
+    sbRoutes.writeln('}');
+    return sbRoutes.toString();
+  })()}
 ''';
     File(p.join(libClientDir.path, 'router.g.dart'))
         .writeAsStringSync('// BUILD: $buildId\n$router');
