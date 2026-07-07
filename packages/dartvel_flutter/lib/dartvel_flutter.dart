@@ -16,35 +16,54 @@ import 'src/seo_platform_stub.dart'
 // UI & Styling Primitives (NEW_SPEC.md)
 // ==========================================
 
-class DVStyleModifier {
+class DVModifier {
   final Style style;
-  const DVStyleModifier([this.style = const Style.empty()]);
+  final VoidCallback? onTapCallback;
+  final DecorationImage? bgImage;
 
-  DVStyleModifier padding(double value) =>
-      DVStyleModifier(Style.concat([style, Style(BoxSpec.padding(value))]));
+  const DVModifier({
+    this.style = const Style.empty(),
+    this.onTapCallback,
+    this.bgImage,
+  });
 
-  DVStyleModifier margin(double value) =>
-      DVStyleModifier(Style.concat([style, Style(BoxSpec.margin(value))]));
+  const DVModifier.fromStyle([this.style = const Style.empty()])
+      : onTapCallback = null,
+        bgImage = null;
 
-  DVStyleModifier rounded(double value) =>
-      DVStyleModifier(Style.concat([style, Style(BoxSpec.borderRadius(value))]));
+  DVModifier _copyWith({Style? style, VoidCallback? onTapCallback, DecorationImage? bgImage}) {
+    return DVModifier(
+      style: style ?? this.style,
+      onTapCallback: onTapCallback ?? this.onTapCallback,
+      bgImage: bgImage ?? this.bgImage,
+    );
+  }
 
-  DVStyleModifier color(Color value) =>
-      DVStyleModifier(Style.concat([style, Style(TextSpec.style(TextStyle(color: value)))]));
+  DVModifier padding(double value) =>
+      _copyWith(style: Style.concat([style, Style(BoxSpec.padding(value))]));
 
-  DVStyleModifier backgroundColor(Color value) =>
-      DVStyleModifier(Style.concat([style, Style(BoxSpec.color(value))]));
+  DVModifier margin(double value) =>
+      _copyWith(style: Style.concat([style, Style(BoxSpec.margin(value))]));
 
-  DVStyleModifier width(double value) =>
-      DVStyleModifier(Style.concat([style, Style(BoxSpec.width(value))]));
+  DVModifier rounded(double value) =>
+      _copyWith(style: Style.concat([style, Style(BoxSpec.borderRadius(value))]));
 
-  DVStyleModifier height(double value) =>
-      DVStyleModifier(Style.concat([style, Style(BoxSpec.height(value))]));
+  DVModifier color(Color value) =>
+      _copyWith(style: Style.concat([style, Style(TextSpec.style(TextStyle(color: value)))]));
 
-  DVStyleModifier shadow(List<BoxShadow> shadows) =>
-      DVStyleModifier(Style.concat([style, Style(BoxSpec.shadows(shadows))]));
+  DVModifier backgroundColor(Color value) =>
+      _copyWith(style: Style.concat([style, Style(BoxSpec.color(value))]));
 
-  DVStyleModifier card() => DVStyleModifier(Style.concat([
+  DVModifier width(double value) =>
+      _copyWith(style: Style.concat([style, Style(BoxSpec.width(value))]));
+
+  DVModifier height(double value) =>
+      _copyWith(style: Style.concat([style, Style(BoxSpec.height(value))]));
+
+  DVModifier shadow(List<BoxShadow> shadows) =>
+      _copyWith(style: Style.concat([style, Style(BoxSpec.shadows(shadows))]));
+
+  DVModifier card() => _copyWith(style: Style.concat([
         style,
         const Style(
           BoxSpec.color(Colors.white),
@@ -52,43 +71,77 @@ class DVStyleModifier {
           BoxSpec.borderRadius(8),
         )
       ]));
+
+  DVModifier onTap(VoidCallback callback) => _copyWith(onTapCallback: callback);
+  DVModifier onPressed(VoidCallback callback) => _copyWith(onTapCallback: callback);
+
+  DVModifier backgroundImage(DecorationImage image) => _copyWith(bgImage: image);
 }
+
+typedef DVStyleModifier = DVModifier;
 
 class DVBox extends StatelessWidget {
   final Widget? child;
-  final DVStyleModifier? modifier;
+  final DVModifier? modifier;
 
   const DVBox([this.child, this.modifier]);
 
-  DVBox modifier(DVStyleModifier mod) => DVBox(child, mod);
-  DVBox styleModifier(DVStyleModifier mod) => DVBox(child, mod);
+  DVBox modifier(DVModifier mod) => DVBox(child, mod);
+  DVBox styleModifier(DVModifier mod) => DVBox(child, mod);
 
   @override
   Widget build(BuildContext context) {
     final effectiveStyle = modifier?.style ?? const Style.empty();
-    return Box(
+    Widget result = Box(
       style: effectiveStyle,
       child: child,
     );
+
+    if (modifier?.bgImage != null) {
+      result = Container(
+        decoration: BoxDecoration(
+          image: modifier!.bgImage,
+        ),
+        child: result,
+      );
+    }
+
+    if (modifier?.onTapCallback != null) {
+      result = GestureDetector(
+        onTap: modifier!.onTapCallback,
+        child: result,
+      );
+    }
+
+    return result;
   }
 }
 
 class DVText extends StatelessWidget {
   final String text;
-  final DVStyleModifier? modifier;
+  final DVModifier? modifier;
 
   const DVText(this.text, [this.modifier]);
 
-  DVText modifier(DVStyleModifier mod) => DVText(text, mod);
-  DVText styleModifier(DVStyleModifier mod) => DVText(text, mod);
+  DVText modifier(DVModifier mod) => DVText(text, mod);
+  DVText styleModifier(DVModifier mod) => DVText(text, mod);
 
   @override
   Widget build(BuildContext context) {
     final effectiveStyle = modifier?.style ?? const Style.empty();
-    return StyledText(
+    Widget result = StyledText(
       text,
       style: effectiveStyle,
     );
+
+    if (modifier?.onTapCallback != null) {
+      result = GestureDetector(
+        onTap: modifier!.onTapCallback,
+        child: result,
+      );
+    }
+
+    return result;
   }
 }
 
@@ -291,16 +344,96 @@ class DVNotifications {
   Future<void> sendLocalNotification(String title, String body) async {}
 }
 
+class DVBluetooth {
+  const DVBluetooth();
+  Future<bool> isEnabled() async => false;
+  Stream<List<String>> scanDevices() => const Stream.empty();
+}
+
+class DVNfc {
+  const DVNfc();
+  Future<bool> isAvailable() async => false;
+  Future<String> readTag() async => '';
+}
+
+class DVClipboard {
+  const DVClipboard();
+  Future<void> copy(String text) async {}
+  Future<String?> paste() async => null;
+}
+
+class DVShare {
+  const DVShare();
+  Future<void> shareText(String text) async {}
+}
+
+class DVSensors {
+  const DVSensors();
+  Stream<Map<String, double>> get accelerometer => const Stream.empty();
+  Stream<Map<String, double>> get gyroscope => const Stream.empty();
+}
+
+class DVBiometrics {
+  const DVBiometrics();
+  Future<bool> canAuthenticate() async => false;
+  Future<bool> authenticate() async => false;
+}
+
+class DVDeepLinks {
+  const DVDeepLinks();
+  Future<String?> getInitialLink() async => null;
+  Stream<String> getLinkStream() => const Stream.empty();
+}
+
+class DVHaptics {
+  const DVHaptics();
+  Future<void> vibrate() async {}
+  Future<void> lightVibrate() async {}
+}
+
+class DVContacts {
+  const DVContacts();
+  Future<List<Map<String, String>>> getContacts() async => [];
+}
+
 class DVPlatform {
   const DVPlatform();
 
   bool get isAndroid => !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
   bool get isIOS => !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+  bool get isWindows => !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+  bool get isLinux => !kIsWeb && defaultTargetPlatform == TargetPlatform.linux;
+  bool get isMacOS => !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS;
+  bool get isFuchsia => !kIsWeb && defaultTargetPlatform == TargetPlatform.fuchsia;
   bool get isWeb => kIsWeb;
+  
+  bool get isTizen => false;
+  bool get isWebOS => false;
+  bool get isAmazon => false;
+  bool get isTV => false;
+  bool get isWatch => false;
+  bool get isFoldable => false;
+
+  double get screenWidth => 375.0;
+  double get screenHeight => 812.0;
+  Map<String, double> get safeAreas => {'top': 44.0, 'bottom': 34.0, 'left': 0.0, 'right': 0.0};
+  String get breakpoint => 'mobile';
+  Orientation get orientation => Orientation.portrait;
+  String get deviceType => 'phone';
+  String get screenShape => 'rectangle';
 
   DVCamera get camera => const DVCamera();
   DVLocation get location => const DVLocation();
   DVNotifications get notifications => const DVNotifications();
+  DVBluetooth get bluetooth => const DVBluetooth();
+  DVNfc get nfc => const DVNfc();
+  DVClipboard get clipboard => const DVClipboard();
+  DVShare get share => const DVShare();
+  DVSensors get sensors => const DVSensors();
+  DVBiometrics get biometrics => const DVBiometrics();
+  DVDeepLinks get deepLinks => const DVDeepLinks();
+  DVHaptics get haptics => const DVHaptics();
+  DVContacts get contacts => const DVContacts();
 }
 
 class DVAuth {
