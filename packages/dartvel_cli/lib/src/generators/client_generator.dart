@@ -565,6 +565,75 @@ $routesSrc
     File(p.join(libClientDir.path, 'router.g.dart'))
         .writeAsStringSync('// BUILD: $buildId\n$router');
 
+    // Generate config.g.dart matching pubspec.yaml configuration keys
+    final dbMap = dv['database'] is YamlMap ? dv['database'] as YamlMap : YamlMap.wrap({});
+    final dbProvider = (dbMap['provider'] ?? 'sqlite').toString();
+    final dbPath = (dbMap['path'] ?? 'dartvel.db').toString();
+
+    final storageMap = dv['storage'] is YamlMap ? dv['storage'] as YamlMap : YamlMap.wrap({});
+    final storageProvider = (storageMap['provider'] ?? 'local').toString();
+
+    final authMap = dv['auth'] is YamlMap ? dv['auth'] as YamlMap : YamlMap.wrap({});
+    final authProviders = <String>[];
+    if (authMap['providers'] is YamlList) {
+      for (final p in (authMap['providers'] as YamlList)) {
+        if (p != null) authProviders.add("'$p'");
+      }
+    } else {
+      authProviders.add("'email'");
+    }
+
+    final aiMap = dv['ai'] is YamlMap ? dv['ai'] as YamlMap : YamlMap.wrap({});
+    final aiProvider = (aiMap['provider'] ?? 'gemini').toString();
+
+    final mtMap = dv['multiTenancy'] is YamlMap ? dv['multiTenancy'] as YamlMap : YamlMap.wrap({});
+    final mtEnabled = asBool(mtMap['enabled'], false);
+
+    final pwaMap = dv['pwa'] is YamlMap ? dv['pwa'] as YamlMap : YamlMap.wrap({});
+    final pwaEnabled = asBool(pwaMap['enabled'], true);
+
+    final permissionsList = <String>[];
+    if (dv['permissions'] is YamlList) {
+      for (final p in (dv['permissions'] as YamlList)) {
+        if (p != null) permissionsList.add("'$p'");
+      }
+    }
+
+    final configContent = '''
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// Build ID: $buildId
+
+/// Centrally generated Dartvel configuration matching your pubspec.yaml.
+class DartvelConfig {
+  /// The database provider (e.g. sqlite, postgres, mysql).
+  static const databaseProvider = '$dbProvider';
+  
+  /// The path to database file (if sqlite).
+  static const databasePath = '$dbPath';
+  
+  /// The storage provider (e.g. local, s3, r2).
+  static const storageProvider = '$storageProvider';
+  
+  /// The list of active authentication providers.
+  static const authProviders = <String>[${authProviders.join(', ')}];
+  
+  /// The primary AI model provider.
+  static const aiProvider = '$aiProvider';
+  
+  /// Whether multi-tenancy is active.
+  static const multiTenancyEnabled = $mtEnabled;
+  
+  /// Whether PWA manifest & worker are enabled.
+  static const pwaEnabled = $pwaEnabled;
+  
+  /// List of platform permissions requested.
+  static const permissions = <String>[${permissionsList.join(', ')}];
+}
+''';
+
+    File(p.join(libClientDir.path, 'config.g.dart'))
+        .writeAsStringSync(configContent);
+
     _generateSsgBuilder(pageEntries, pageImports, root);
   }
 
