@@ -1,27 +1,34 @@
 // ignore_for_file: avoid_print
 import 'dart:io';
 
+import 'package:dartvel_cli/src/generators/route_utils.dart';
 import 'package:test/test.dart';
 
 void main() {
   group('Route Generation Tests', () {
     test('route utils can parse file paths correctly', () {
-      // These would test the actual RouteUtils class
-      // For now, verify the logic with examples
-
       final testCases = {
         'lib/pages/index.page.dart': '/',
+        'lib/pages/index.dart': '/',
         'lib/pages/about.page.dart': '/about',
+        'lib/pages/about.dart': '/about',
         'lib/pages/blog/[id].page.dart': '/blog/:id',
+        'lib/pages/blog/[id].dart': '/blog/:id',
         'lib/pages/users/[userId]/posts/[postId].page.dart':
             '/users/:userId/posts/:postId',
+        'lib/pages/users/[userId]/posts/[postId].dart':
+            '/users/:userId/posts/:postId',
         'lib/pages/(group)/admin.page.dart': '/admin',
+        'lib/pages/(group)/admin.dart': '/admin',
       };
 
-      // This would need to import the actual RouteUtils
-      // For demonstration, we're showing the test structure
-      print('Route parsing test cases validated');
-      expect(testCases.isNotEmpty, isTrue);
+      for (final entry in testCases.entries) {
+        expect(
+          RouteUtils.routeFor(entry.key, 'lib/pages'),
+          entry.value,
+          reason: entry.key,
+        );
+      }
     });
   });
 

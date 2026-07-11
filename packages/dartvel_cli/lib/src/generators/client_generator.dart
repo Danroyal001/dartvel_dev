@@ -36,7 +36,7 @@ class ClientGenerator {
     required YamlMap dv,
   }) async {
     // Scan pages
-    final pageGlob = Glob('$pagesDir/**.page.dart');
+    final pageGlob = Glob('$pagesDir/**.dart');
     final pageFiles = <File>[];
     final fs = const LocalFileSystem();
     for (final e
@@ -44,8 +44,14 @@ class ClientGenerator {
       final path = e.path;
       final ioFile = File(path);
       if (!ioFile.existsSync()) continue;
-      // Skip layout files from page list
-      if (p.basename(path) == '_layout.dart') continue;
+      // Skip framework companion files from page discovery. A route page can be
+      // either the legacy *.page.dart form or the spec form with @DVPage().
+      final basename = p.basename(path);
+      if (basename == '_layout.dart' || basename == '_guard.dart') continue;
+      if (basename.endsWith('.loading.dart') ||
+          basename.endsWith('.error.dart')) {
+        continue;
+      }
       pageFiles.add(ioFile);
     }
     pageFiles.sort((a, b) => a.path.compareTo(b.path));
@@ -75,10 +81,16 @@ class ClientGenerator {
       final rel = p.relative(abs, from: root).replaceAll('\\', '/');
       final importPath =
           rel.replaceFirst(RegExp(r'^lib/'), 'package:$pkgName/');
-      // Parse class name by scanning file for class/functional widget
+      // Parse class name by scanning file for a page class or functional widget.
       final src = await File(abs).readAsString();
+      final hasPageAnnotation = src.contains('@DVPage');
+      final isLegacyPageFile = rel.endsWith('.page.dart');
+      if (!hasPageAnnotation && !isLegacyPageFile) {
+        continue;
+      }
       final m =
-          RegExp(r'class\s+([A-Za-z_][A-Za-z0-9_]*)\s+extends\s+(DartvelPage|DVClassWidget)')
+          RegExp(
+                  r'(?:@DVPage\([^)]*\)\s*)?class\s+([A-Za-z_][A-Za-z0-9_]*)\s+extends\s+(DartvelPage|DVClassWidget)')
               .firstMatch(src);
       String className;
       bool isFunctional = false;
@@ -107,8 +119,9 @@ class ClientGenerator {
       final dir = p.dirname(rel).replaceAll('\\', '/');
 
       // Detect optional .loading.dart and .error.dart siblings
-      final String baseNoSuffix =
-          rel.replaceFirst(RegExp(r'\.page\.dart$'), '');
+      final String baseNoSuffix = rel
+          .replaceFirst(RegExp(r'\.page\.dart$'), '')
+          .replaceFirst(RegExp(r'\.dart$'), '');
       final loadingRel = '$baseNoSuffix.loading.dart';
       final errorRel = '$baseNoSuffix.error.dart';
       String? loadingAlias;
@@ -218,8 +231,8 @@ class ClientGenerator {
     // Ensure dirs
     // Ensure dirs
     Directory(p.join(root, '.dart_tool')).createSync();
-    if (pageFiles.isEmpty) {
-      log('dartvel: no pages found under "$pagesDir" (looking for **/*.page.dart)');
+    if (pageEntries.isEmpty) {
+      log('dartvel: no pages found under "$pagesDir" (looking for @DVPage() pages or legacy **/*.page.dart)');
     }
 
     // Client runtime/helper – write only under lib/dartvel_client

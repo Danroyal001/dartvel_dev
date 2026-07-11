@@ -55,11 +55,16 @@ Future<void> generate({bool validateProd = false}) async {
   }
 
   // Web defaults
-  final seo = dv['webSeoDefaults'] is YamlMap ? dv['webSeoDefaults'] as YamlMap : YamlMap.wrap({});
+  final seo = dv['seo'] is YamlMap
+      ? dv['seo'] as YamlMap
+      : (dv['webSeoDefaults'] is YamlMap
+          ? dv['webSeoDefaults'] as YamlMap
+          : YamlMap.wrap({}));
   final seoSiteName = (seo['siteName'] ?? '').toString();
-  final seoTitle = (seo['defaultTitle'] ?? '').toString();
-  final seoDesc = (seo['defaultDescription'] ?? '').toString();
-  final seoImage = (seo['defaultImage'] ?? '').toString();
+  final seoTitle = (seo['defaultTitle'] ?? seo['title'] ?? '').toString();
+  final seoDesc =
+      (seo['defaultDescription'] ?? seo['description'] ?? '').toString();
+  final seoImage = (seo['defaultImage'] ?? seo['image'] ?? '').toString();
   final seoTwitter = (seo['twitterHandle'] ?? '').toString();
 
   final transitions = dv['webTransitions'] is YamlMap

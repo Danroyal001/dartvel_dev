@@ -33,7 +33,7 @@ class GeneratePageSubcommand extends Command<void> {
     if (!pagesDir.existsSync()) {
       pagesDir.createSync(recursive: true);
     }
-    final file = File(p.join(pagesDir.path, '${pageName.toLowerCase()}.page.dart'));
+    final file = File(p.join(pagesDir.path, '${pageName.toLowerCase()}.dart'));
     if (file.existsSync()) {
       print('Page file already exists: ${file.path}');
       return;

@@ -111,6 +111,37 @@ class ModelGenerator {
         sb.writeln('    );');
         sb.writeln('  }');
         sb.writeln('}');
+
+        // Generated form controls helper
+        sb.writeln();
+        sb.writeln('/// Generated form controls for [$className]');
+        sb.writeln('class ${className}FormControls extends DVFormControls {');
+        sb.writeln('  final $className? ${className.toLowerCase()};');
+        sb.writeln('  ${className}FormControls([this.${className.toLowerCase()}]) : super(${className.toLowerCase()});');
+        
+        for (final field in fields) {
+          final name = field['name']!;
+          final type = field['type']!;
+          var defaultVal = 'null';
+          if (type == 'String') defaultVal = "''";
+          else if (type == 'int') defaultVal = '0';
+          else if (type == 'double') defaultVal = '0.0';
+          else if (type == 'bool') defaultVal = 'false';
+
+          sb.writeln();
+          sb.writeln('  $type get $name => ${className.toLowerCase()}?.$name ?? $defaultVal;');
+          if (name.toLowerCase().contains('email')) {
+            sb.writeln("  bool get ${name}IsValid => $name.isNotEmpty && $name.contains('@');");
+          } else {
+            sb.writeln('  bool get ${name}IsValid => true;');
+          }
+        }
+        sb.writeln('}');
+        sb.writeln();
+        sb.writeln('final bool _registered_${className} = () {');
+        sb.writeln('  registerFormControlsFactory<$className>((model) => ${className}FormControls(model as $className?));');
+        sb.writeln('  return true;');
+        sb.writeln('}();');
       }
     }
 

@@ -862,16 +862,37 @@ fn get_static_file(dir: &str, path: &str) -> Option<std::path::PathBuf> {
     }
 }
 
+fn get_mime_type(path: &std::path::Path) -> &'static str {
+    match path.extension().and_then(|s| s.to_str()) {
+        Some("html") => "text/html",
+        Some("css") => "text/css",
+        Some("js") => "application/javascript",
+        Some("png") => "image/png",
+        Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("gif") => "image/gif",
+        Some("svg") => "image/svg+xml",
+        Some("json") => "application/json",
+        Some("wasm") => "application/wasm",
+        _ => "application/octet-stream",
+    }
+}
+
 async fn serve_file_response(path: std::path::PathBuf) -> Response<Body> {
-    use tower::ServiceExt;
-    let service = tower_http::services::ServeFile::new(path);
-    let dummy_req = Request::builder().body(Body::empty()).unwrap();
-    match service.oneshot(dummy_req).await {
-        Ok(resp) => resp.map(Body::new),
-        Err(_) => Response::builder()
-            .status(StatusCode::INTERNAL_SERVER_ERROR)
-            .body(Body::from("Failed to serve file"))
-            .unwrap(),
+    match tokio::fs::read(&path).await {
+        Ok(bytes) => {
+            let mime = get_mime_type(&path);
+            Response::builder()
+                .status(StatusCode::OK)
+                .header(header::CONTENT_TYPE, mime)
+                .body(Body::from(bytes))
+                .unwrap()
+        }
+        Err(err) => {
+            Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .body(Body::from(format!("File not found: {}", err)))
+                .unwrap()
+        }
     }
 }
 

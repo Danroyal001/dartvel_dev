@@ -5,6 +5,7 @@ class ProjectTemplates {
     bool web = true,
     bool mobile = true,
     bool desktop = false,
+    String? localPackagesDir,
   }) =>
       '''
 name: $name
@@ -20,18 +21,18 @@ dependencies:
     sdk: flutter
   go_router: ^14.2.0
   dio: ^5.5.0
-  dartvel_core: ^0.1.0
-  dartvel_shelf: ^0.1.0
-  dartvel_flutter: ^0.1.0
+  dartvel_core: ${localPackagesDir == null ? '^0.1.0' : '\n    path: ${localPackagesDir}/dartvel_core'}
+  dartvel_shelf: ${localPackagesDir == null ? '^0.1.0' : '\n    path: ${localPackagesDir}/dartvel_shelf'}
+  dartvel_flutter: ${localPackagesDir == null ? '^0.1.0' : '\n    path: ${localPackagesDir}/dartvel_flutter'}
   ${web ? 'flutter_web_plugins:\n    sdk: flutter' : ''}
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   lints: ^4.0.0
-  dartvel_cli: ^0.1.0
+  dartvel_cli: ${localPackagesDir == null ? '^0.1.0' : '\n    path: ${localPackagesDir}/dartvel_cli'}
   build_runner: ^2.4.8
-  dartvel_generator: ^1.0.0
+  dartvel_generator: ${localPackagesDir == null ? '^1.0.0' : '\n    path: ${localPackagesDir}/dartvel_generator'}
 
 
 flutter:
@@ -57,7 +58,7 @@ dartvel:
     durationMs: 200
     curve: easeInOut
 
-  webSeoDefaults:
+  seo:
     siteName: ${name.replaceAll('_', ' ')}
     defaultTitle: Welcome
     defaultDescription: A Dartvel application
@@ -83,9 +84,11 @@ PUBLIC_GREETING=Hello from Dartvel!
 ''';
 
   static const String indexPageTemplate =
-      '''import 'package:dartvel_flutter/dartvel_flutter.dart';
+      '''import 'package:dartvel_core/dartvel.dart';
+import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/material.dart';
 
+@DVPage()
 class IndexPage extends DartvelPage {
   const IndexPage({super.key});
 
@@ -332,8 +335,12 @@ This will:
 ```
 lib/
 ├── pages/              # Page components (file-based routing)
+├── models/             # @DVModel classes
 ├── backend/
 │   └── functions/      # API endpoints
+├── components/         # Shared UI widgets
+├── styles/             # Shared DVModifier styles
+├── services/           # Business logic and integrations
 └── main.dart
 
 .env                    # Environment variables (gitignored)
@@ -345,10 +352,12 @@ pubspec.yaml           # Dependencies and Dartvel config
 Create a new file in `lib/pages/`:
 
 ```dart
-// lib/pages/about.page.dart
+// lib/pages/about.dart
+import 'package:dartvel_core/dartvel.dart';
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/material.dart';
 
+@DVPage()
 class AboutPage extends DartvelPage {
   const AboutPage({super.key});
 

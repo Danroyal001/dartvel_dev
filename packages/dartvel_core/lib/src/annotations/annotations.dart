@@ -47,9 +47,10 @@ class DVFunctionalWidget {
   const DVFunctionalWidget();
 }
 
-/// Annotation for a Dartvel Data Model
+/// Annotation and base class for a Dartvel Data Model
 class DVModel {
   const DVModel();
+  Map<String, dynamic> toJson() => const {};
 }
 
 /// Annotation for a Dartvel Backend Function
@@ -67,4 +68,18 @@ class DVBackendCron {
 class DVClientCron {
   final String cron;
   const DVClientCron(this.cron);
+}
+
+class DVFormControls {
+  final dynamic model;
+  const DVFormControls([this.model]);
+  void submit() {}
+  void reset() {}
+}
+
+typedef DVFormControlsFactory = DVFormControls Function(Object? model);
+final Map<Type, DVFormControlsFactory> formControlsFactories = {};
+
+void registerFormControlsFactory<T>(DVFormControlsFactory factory) {
+  formControlsFactories[T] = factory;
 }

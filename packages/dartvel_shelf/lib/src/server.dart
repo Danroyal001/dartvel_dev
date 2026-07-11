@@ -2,8 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi' as ffi;
 import 'dart:isolate';
-import 'dart:io' show Platform;
+import 'dart:io';
 import 'dart:typed_data';
+import 'package:path/path.dart' as p;
 
 import 'generated/bindings.dart' as gen; // produced by ffigen via build hook
 import 'wintercg.dart';
@@ -122,9 +123,20 @@ Future<ServerHandle> serve(
   var effectiveHandler = handler;
   if (spaRoot != null) {
     effectiveHandler = (Request req) async {
+      // 1. Try serving static file from spaRoot
+      final pathPart = req.url.path.startsWith('/') ? req.url.path.substring(1) : req.url.path;
+      if (pathPart.isNotEmpty && !pathPart.contains('..')) {
+        final file = File(p.join(spaRoot, pathPart));
+        if (await file.exists() && (await FileSystemEntity.isFile(file.path))) {
+          final bytes = await file.readAsBytes();
+          final mime = getMimeType(file.path);
+          return Response(200, headers: Headers()..set('content-type', mime), body: Stream.value(bytes));
+        }
+      }
+
+      // 2. Fall back to normal handler or SPA index
       final resp = await handler(req);
       if (resp.status == 404 && req.method == 'GET') {
-        // Fallback to SPA index.html with injection
         return handleSsrFallback(req, spaRoot);
       }
       return resp;
@@ -251,7 +263,7 @@ Future<ServerHandle> serve(
 
   _configureCors(api, cors);
   _configureStatic(api, staticDir);
-  _configureSpaRoot(api, spaRoot);
+  _configureSpaRoot(api, null);
   _configureCompression(api, compression);
 
   if (tls != null) {
@@ -395,4 +407,21 @@ void _configureSpaRoot(gen.DartvelShelfBindings api, String? spaRoot) {
 
 void _configureCompression(gen.DartvelShelfBindings api, bool enabled) {
   api.aw_configure_compression(enabled ? 1 : 0);
+}
+
+String getMimeType(String path) {
+  final ext = p.extension(path).toLowerCase();
+  switch (ext) {
+    case '.html': return 'text/html';
+    case '.css': return 'text/css';
+    case '.js': return 'application/javascript';
+    case '.png': return 'image/png';
+    case '.jpg':
+    case '.jpeg': return 'image/jpeg';
+    case '.gif': return 'image/gif';
+    case '.svg': return 'image/svg+xml';
+    case '.json': return 'application/json';
+    case '.wasm': return 'application/wasm';
+    default: return 'application/octet-stream';
+  }
 }
