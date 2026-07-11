@@ -5,7 +5,9 @@ class RouteUtils {
   static String routeFor(String rel, String pagesDir) {
     var path =
         rel.replaceFirst(RegExp('^$pagesDir/?'), '').replaceAll('\\', '/');
-    path = path.replaceFirst(RegExp(r'\.page\.dart$'), '');
+    path = path
+        .replaceFirst(RegExp(r'\.page\.dart$'), '')
+        .replaceFirst(RegExp(r'\.dart$'), '');
 
     // Validation
     if (path.contains('[') && !path.contains(']')) {

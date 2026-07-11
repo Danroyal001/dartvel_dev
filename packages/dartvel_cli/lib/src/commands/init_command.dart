@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 import '../templates/project_templates.dart';
@@ -102,18 +103,24 @@ class InitCommand extends Command<void> {
       Logger.log('ℹ️  Overwriting pubspec.yaml with Dartvel configuration...');
     }
 
+    final localPackagesDir = await _localPackagesDir();
     pubspecFile.writeAsStringSync(ProjectTemplates.pubspecTemplate(
       name: projectName,
       org: org,
       web: web,
       mobile: mobile,
       desktop: desktop,
+      localPackagesDir: localPackagesDir,
     ));
 
     // Create directory structure
     final directories = [
       'lib/pages',
+      'lib/models',
       'lib/backend/functions',
+      'lib/components',
+      'lib/styles',
+      'lib/services',
       'assets',
       '.dartvel',
     ];
@@ -128,7 +135,7 @@ class InitCommand extends Command<void> {
         .writeAsStringSync(ProjectTemplates.envExampleTemplate);
 
     // Create example page
-    File(p.join(root, 'lib/pages/index.page.dart'))
+    File(p.join(root, 'lib/pages/index.dart'))
         .writeAsStringSync(ProjectTemplates.indexPageTemplate);
 
     // Create loading and error states
@@ -181,5 +188,30 @@ class InitCommand extends Command<void> {
     Logger.log('  3. Open http://localhost:3000 in your browser');
     Logger.log('');
     Logger.log('📚 Docs: https://dartvel.dev');
+  }
+
+  Future<String?> _localPackagesDir() async {
+    try {
+      final uri = await Isolate.resolvePackageUri(
+        Uri.parse('package:dartvel_cli/dartvel_impl.dart'),
+      );
+      if (uri == null || !uri.isScheme('file')) return null;
+      final packageDir = Directory(p.dirname(p.dirname(uri.toFilePath())));
+      final packagesDir = packageDir.parent;
+      final required = [
+        'dartvel_core',
+        'dartvel_shelf',
+        'dartvel_flutter',
+        'dartvel_cli',
+        'dartvel_generator',
+      ];
+      final hasAll = required.every(
+        (name) =>
+            File(p.join(packagesDir.path, name, 'pubspec.yaml')).existsSync(),
+      );
+      return hasAll ? packagesDir.path : null;
+    } catch (_) {
+      return null;
+    }
   }
 }

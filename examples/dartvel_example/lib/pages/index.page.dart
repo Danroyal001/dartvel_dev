@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:dartvel_example/dartvel_client/functions.g.dart';
 import 'package:dartvel_example/models/user.dart';
+import 'package:dartvel_example/dartvel_client/models.g.dart';
 import 'package:dartvel_core/dartvel.dart';
 
 StreamSubscription<String>? _subscription;
@@ -163,24 +164,25 @@ Widget indexPage(BuildContext context) {
                 const Text('4. Model Form (DVForm<User>)', style: TextStyle(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
                 DVForm<User>.builder(
-                  initialValue: const User(name: 'John Doe', email: 'john@example.com'),
-                  builder: (context, user) {
+                  (formControls) {
+                    final userControls = formControls as UserFormControls;
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Editing model: User(${user.name}, ${user.email})'),
+                        Text('Editing model: User(${userControls.name}, ${userControls.email})'),
                         const SizedBox(height: 8),
                         TextFormField(
-                          initialValue: user.name,
+                          initialValue: userControls.name,
                           decoration: const InputDecoration(labelText: 'Name'),
                         ),
                         TextFormField(
-                          initialValue: user.email,
+                          initialValue: userControls.email,
                           decoration: const InputDecoration(labelText: 'Email'),
                         ),
                       ],
                     );
                   },
+                  const User(name: 'John Doe', email: 'john@example.com'),
                 ),
               ],
             ),

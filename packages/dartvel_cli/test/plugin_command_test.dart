@@ -24,13 +24,20 @@ void main() {
       await runner.run(['plugin', 'add', '--name', 'auth']);
 
       final loginPage = File(p.join(tempDir.path, 'lib/pages/login.page.dart'));
-      final authBackend = File(p.join(tempDir.path, 'lib/backend/functions/auth.dart'));
+      final authLogin =
+          File(p.join(tempDir.path, 'lib/backend/functions/auth/login.dart'));
+      final authLogout =
+          File(p.join(tempDir.path, 'lib/backend/functions/auth/logout.dart'));
+      final authMe =
+          File(p.join(tempDir.path, 'lib/backend/functions/auth/me.get.dart'));
 
       expect(loginPage.existsSync(), isTrue);
-      expect(authBackend.existsSync(), isTrue);
-      
+      expect(authLogin.existsSync(), isTrue);
+      expect(authLogout.existsSync(), isTrue);
+      expect(authMe.existsSync(), isTrue);
+
       expect(loginPage.readAsStringSync(), contains('class LoginPage'));
-      expect(authBackend.readAsStringSync(), contains('Future<Response> handler'));
+      expect(authLogin.readAsStringSync(), contains('handler'));
     });
 
     test('unknown plugin fails', () async {

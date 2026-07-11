@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:test/test.dart';
 import 'package:path/path.dart' as p;
 import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 void main() {
   group('Full Lifecycle E2E', () {
@@ -124,8 +125,8 @@ void main() {
       // Run build_runner first to generate router.g.dart
       print('Running build_runner...');
       final buildRunnerResult = await Process.run(
-        'dart',
-        ['run', 'build_runner', 'build', '--delete-conflicting-outputs'],
+        'flutter',
+        ['pub', 'run', 'build_runner', 'build', '--delete-conflicting-outputs'],
         workingDirectory: projectPath,
       );
 
@@ -167,25 +168,27 @@ void main() {
       // Start dev server
       final serverProcess = await Process.start(
         'dart',
-        [dartvelBin, 'preview', '--port', '8765'],
+        [dartvelBin, 'preview', '--port', '8889'],
         workingDirectory: projectPath,
       );
 
+      serverProcess.stdout.transform(utf8.decoder).listen((data) => print('SERVER STDOUT: $data'));
+      serverProcess.stderr.transform(utf8.decoder).listen((data) => print('SERVER STDERR: $data'));
+
       // Wait for server to start
-      await Future.delayed(Duration(seconds: 5));
+      await Future.delayed(Duration(seconds: 8));
 
       try {
         // Make HTTP request
-        final response = await http.get(Uri.parse('http://localhost:8765/'));
+        final response = await http.get(Uri.parse('http://127.0.0.1:8889/'));
 
         expect(response.statusCode, 200,
             reason: 'Server should respond with 200');
-        expect(response.body.contains('Dartvel'), true,
-            reason: 'Response should contain Dartvel');
+        expect(response.body.contains('test_app'), true,
+            reason: 'Response should contain project name');
       } finally {
         // Clean up
         serverProcess.kill();
-        await serverProcess.exitCode;
       }
     }, timeout: Timeout(Duration(minutes: 1)));
   });

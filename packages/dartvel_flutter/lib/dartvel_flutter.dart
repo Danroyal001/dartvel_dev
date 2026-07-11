@@ -5,110 +5,145 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+export 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mix/mix.dart';
 
 // conditional SEO impl (web does real work; others no-op)
 import 'src/seo_platform_stub.dart'
     if (dart.library.html) 'src/seo_platform_web.dart' as seo_platform;
+
+import 'package:dartvel_core/dartvel.dart';
 
 // ==========================================
 // UI & Styling Primitives (NEW_SPEC.md)
 // ==========================================
 
 class DVModifier {
-  final Style style;
+  final EdgeInsetsGeometry? paddingValue;
+  final EdgeInsetsGeometry? marginValue;
+  final BorderRadiusGeometry? borderRadius;
+  final Color? textColor;
+  final Color? boxColor;
+  final double? widthValue;
+  final double? heightValue;
+  final List<BoxShadow>? shadows;
   final VoidCallback? onTapCallback;
   final DecorationImage? bgImage;
 
   const DVModifier({
-    this.style = const Style.empty(),
+    this.paddingValue,
+    this.marginValue,
+    this.borderRadius,
+    this.textColor,
+    this.boxColor,
+    this.widthValue,
+    this.heightValue,
+    this.shadows,
     this.onTapCallback,
     this.bgImage,
   });
 
-  const DVModifier.fromStyle([this.style = const Style.empty()])
-      : onTapCallback = null,
+  const DVModifier.fromStyle()
+      : paddingValue = null,
+        marginValue = null,
+        borderRadius = null,
+        textColor = null,
+        boxColor = null,
+        widthValue = null,
+        heightValue = null,
+        shadows = null,
+        onTapCallback = null,
         bgImage = null;
 
-  DVModifier _copyWith({Style? style, VoidCallback? onTapCallback, DecorationImage? bgImage}) {
+  DVModifier _copyWith({
+    EdgeInsetsGeometry? paddingValue,
+    EdgeInsetsGeometry? marginValue,
+    BorderRadiusGeometry? borderRadius,
+    Color? textColor,
+    Color? boxColor,
+    double? widthValue,
+    double? heightValue,
+    List<BoxShadow>? shadows,
+    VoidCallback? onTapCallback,
+    DecorationImage? bgImage,
+  }) {
     return DVModifier(
-      style: style ?? this.style,
+      paddingValue: paddingValue ?? this.paddingValue,
+      marginValue: marginValue ?? this.marginValue,
+      borderRadius: borderRadius ?? this.borderRadius,
+      textColor: textColor ?? this.textColor,
+      boxColor: boxColor ?? this.boxColor,
+      widthValue: widthValue ?? this.widthValue,
+      heightValue: heightValue ?? this.heightValue,
+      shadows: shadows ?? this.shadows,
       onTapCallback: onTapCallback ?? this.onTapCallback,
       bgImage: bgImage ?? this.bgImage,
     );
   }
 
   DVModifier padding(double value) =>
-      _copyWith(style: Style.concat([style, Style(BoxSpec.padding(value))]));
+      _copyWith(paddingValue: EdgeInsets.all(value));
 
   DVModifier margin(double value) =>
-      _copyWith(style: Style.concat([style, Style(BoxSpec.margin(value))]));
+      _copyWith(marginValue: EdgeInsets.all(value));
 
   DVModifier rounded(double value) =>
-      _copyWith(style: Style.concat([style, Style(BoxSpec.borderRadius(value))]));
+      _copyWith(borderRadius: BorderRadius.circular(value));
 
-  DVModifier color(Color value) =>
-      _copyWith(style: Style.concat([style, Style(TextSpec.style(TextStyle(color: value)))]));
+  DVModifier color(Color value) => _copyWith(textColor: value);
 
-  DVModifier backgroundColor(Color value) =>
-      _copyWith(style: Style.concat([style, Style(BoxSpec.color(value))]));
+  DVModifier backgroundColor(Color value) => _copyWith(boxColor: value);
 
-  DVModifier width(double value) =>
-      _copyWith(style: Style.concat([style, Style(BoxSpec.width(value))]));
+  DVModifier width(double value) => _copyWith(widthValue: value);
 
-  DVModifier height(double value) =>
-      _copyWith(style: Style.concat([style, Style(BoxSpec.height(value))]));
+  DVModifier height(double value) => _copyWith(heightValue: value);
 
-  DVModifier shadow(List<BoxShadow> shadows) =>
-      _copyWith(style: Style.concat([style, Style(BoxSpec.shadows(shadows))]));
+  DVModifier shadow(List<BoxShadow> shadows) => _copyWith(shadows: shadows);
 
-  DVModifier card() => _copyWith(style: Style.concat([
-        style,
-        const Style(
-          BoxSpec.color(Colors.white),
-          BoxSpec.padding(16),
-          BoxSpec.borderRadius(8),
-        )
-      ]));
+  DVModifier card() => _copyWith(
+        boxColor: boxColor ?? Colors.white,
+        paddingValue: paddingValue ?? const EdgeInsets.all(16),
+        borderRadius: borderRadius ?? BorderRadius.circular(8),
+      );
 
   DVModifier onTap(VoidCallback callback) => _copyWith(onTapCallback: callback);
-  DVModifier onPressed(VoidCallback callback) => _copyWith(onTapCallback: callback);
+  DVModifier onPressed(VoidCallback callback) =>
+      _copyWith(onTapCallback: callback);
 
-  DVModifier backgroundImage(DecorationImage image) => _copyWith(bgImage: image);
+  DVModifier backgroundImage(DecorationImage image) =>
+      _copyWith(bgImage: image);
 }
 
 typedef DVStyleModifier = DVModifier;
 
 class DVBox extends StatelessWidget {
   final Widget? child;
-  final DVModifier? modifier;
+  final DVModifier? _modifier;
 
-  const DVBox([this.child, this.modifier]);
+  const DVBox([this.child, DVModifier? modifier]) : _modifier = modifier;
 
   DVBox modifier(DVModifier mod) => DVBox(child, mod);
   DVBox styleModifier(DVModifier mod) => DVBox(child, mod);
 
   @override
   Widget build(BuildContext context) {
-    final effectiveStyle = modifier?.style ?? const Style.empty();
-    Widget result = Box(
-      style: effectiveStyle,
+    Widget result = Container(
+      width: _modifier?.widthValue,
+      height: _modifier?.heightValue,
+      margin: _modifier?.marginValue,
+      padding: _modifier?.paddingValue,
+      decoration: BoxDecoration(
+        color: _modifier?.boxColor,
+        borderRadius: _modifier?.borderRadius,
+        boxShadow: _modifier?.shadows,
+        image: _modifier?.bgImage,
+      ),
       child: child,
     );
 
-    if (modifier?.bgImage != null) {
-      result = Container(
-        decoration: BoxDecoration(
-          image: modifier!.bgImage,
-        ),
-        child: result,
-      );
-    }
-
-    if (modifier?.onTapCallback != null) {
+    if (_modifier?.onTapCallback != null) {
       result = GestureDetector(
-        onTap: modifier!.onTapCallback,
+        onTap: _modifier!.onTapCallback,
         child: result,
       );
     }
@@ -119,24 +154,23 @@ class DVBox extends StatelessWidget {
 
 class DVText extends StatelessWidget {
   final String text;
-  final DVModifier? modifier;
+  final DVModifier? _modifier;
 
-  const DVText(this.text, [this.modifier]);
+  const DVText(this.text, [DVModifier? modifier]) : _modifier = modifier;
 
   DVText modifier(DVModifier mod) => DVText(text, mod);
   DVText styleModifier(DVModifier mod) => DVText(text, mod);
 
   @override
   Widget build(BuildContext context) {
-    final effectiveStyle = modifier?.style ?? const Style.empty();
-    Widget result = StyledText(
+    Widget result = Text(
       text,
-      style: effectiveStyle,
+      style: TextStyle(color: _modifier?.textColor),
     );
 
-    if (modifier?.onTapCallback != null) {
+    if (_modifier?.onTapCallback != null) {
       result = GestureDetector(
-        onTap: modifier!.onTapCallback,
+        onTap: _modifier!.onTapCallback,
         child: result,
       );
     }
@@ -150,7 +184,8 @@ class DVText extends StatelessWidget {
 // ==========================================
 
 final _signalProviders = Expando<List<StateProvider<Object?>>>();
-final _signalListeners = Expando<Map<StateProvider<Object?>, ProviderSubscription<Object?>>>();
+final _signalListeners =
+    Expando<Map<StateProvider<Object?>, ProviderSubscription<Object?>>>();
 
 class DVSignal<T> {
   final ProviderContainer container;
@@ -241,7 +276,8 @@ extension DVModelSignalX on Object {
   }
 }
 
-DVSignal<T> signal<T>(BuildContext context, T value) => context.signal<T>(value);
+DVSignal<T> signal<T>(BuildContext context, T value) =>
+    context.signal<T>(value);
 
 // ==========================================
 // Model Forms
@@ -249,15 +285,12 @@ DVSignal<T> signal<T>(BuildContext context, T value) => context.signal<T>(value)
 
 class DVForm<T> extends StatefulWidget {
   final T? initialValue;
-  final Widget Function(BuildContext, T)? builder;
+  final Widget Function(dynamic)? builder;
 
   const DVForm([this.initialValue]) : builder = null;
 
-  const DVForm.builder({
-    super.key,
-    required Widget Function(BuildContext, T) this.builder,
-    this.initialValue,
-  });
+  const DVForm.builder(Widget Function(dynamic) this.builder, [this.initialValue, Key? key])
+      : super(key: key);
 
   @override
   State<DVForm<T>> createState() => _DVFormState<T>();
@@ -282,10 +315,13 @@ class _DVFormState<T> extends State<DVForm<T>> {
 
   @override
   Widget build(BuildContext context) {
+    final factory = formControlsFactories[T];
+    final formControls = factory != null ? factory(formValue) : DVFormControls(formValue);
+
     if (widget.builder != null) {
-      return widget.builder!(context, formValue);
+      return widget.builder!(formControls);
     }
-    
+
     // Automatic Form Generation from Model JSON Map
     final fields = <Widget>[];
     if (formValue != null) {
@@ -309,7 +345,8 @@ class _DVFormState<T> extends State<DVForm<T>> {
           );
         });
       } catch (_) {
-        fields.add(const Text('No form controls generated. Model must support toJson().'));
+        fields.add(const Text(
+            'No form controls generated. Model must support toJson().'));
       }
     } else {
       fields.add(Text('Empty form for type $T'));
@@ -336,7 +373,8 @@ class DVCamera {
 
 class DVLocation {
   const DVLocation();
-  Future<Map<String, double>> getCoordinates() async => {'lat': 0.0, 'lng': 0.0};
+  Future<Map<String, double>> getCoordinates() async =>
+      {'lat': 0.0, 'lng': 0.0};
 }
 
 class DVNotifications {
@@ -399,14 +437,17 @@ class DVContacts {
 class DVPlatform {
   const DVPlatform();
 
-  bool get isAndroid => !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+  bool get isAndroid =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
   bool get isIOS => !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
-  bool get isWindows => !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+  bool get isWindows =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
   bool get isLinux => !kIsWeb && defaultTargetPlatform == TargetPlatform.linux;
   bool get isMacOS => !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS;
-  bool get isFuchsia => !kIsWeb && defaultTargetPlatform == TargetPlatform.fuchsia;
+  bool get isFuchsia =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.fuchsia;
   bool get isWeb => kIsWeb;
-  
+
   bool get isTizen => false;
   bool get isWebOS => false;
   bool get isAmazon => false;
@@ -416,7 +457,8 @@ class DVPlatform {
 
   double get screenWidth => 375.0;
   double get screenHeight => 812.0;
-  Map<String, double> get safeAreas => {'top': 44.0, 'bottom': 34.0, 'left': 0.0, 'right': 0.0};
+  Map<String, double> get safeAreas =>
+      {'top': 44.0, 'bottom': 34.0, 'left': 0.0, 'right': 0.0};
   String get breakpoint => 'mobile';
   Orientation get orientation => Orientation.portrait;
   String get deviceType => 'phone';
@@ -439,9 +481,25 @@ class DVPlatform {
 class DVAuth {
   const DVAuth();
   Object? get currentUser => null;
+
   Future<void> signIn() async {}
+  Future<void> signInWithEmailAndPassword({
+    required String email,
+    required String password,
+  }) async {}
+
+  Future<void> signInWithProvider(String provider) async {}
+  Future<void> signInWithRawOAuth(Map<String, Object?> oauth) async {}
+  Future<void> signInWithPasskey() async {}
+  Future<void> signInWithWeb3() async {}
   Future<void> signOut() async {}
   Future<void> signUp() async {}
+
+  Widget SignInWithEmailAndPasswordPage() => const Scaffold(body: Center(child: Text('Sign In Page')));
+  Widget SignInWithProviderPage() => const Scaffold(body: Center(child: Text('Sign In With Provider Page')));
+  Widget SignInWithRawOAuthPage() => const Scaffold(body: Center(child: Text('Sign In With OAuth Page')));
+  Widget SignInWithPasskeyPage() => const Scaffold(body: Center(child: Text('Sign In With Passkey Page')));
+  Widget SignInWithWeb3Page() => const Scaffold(body: Center(child: Text('Sign In With Web3 Page')));
 }
 
 class DVTheme {
@@ -452,14 +510,24 @@ class DVTheme {
 
 class DVAI {
   const DVAI();
-  Future<String> chat(String prompt, {String provider = 'gemini'}) async => 'AI Response';
+  Future<String> chat(String prompt, {String provider = 'gemini'}) async =>
+      'AI Response';
   Future<List<double>> embed(String text) async => [];
-  Future<Map<String, dynamic>> structuredOutput(String prompt, Map<String, dynamic> schema) async => {};
+  Future<Map<String, dynamic>> structuredOutput(
+    String prompt,
+    Map<String, dynamic> schema,
+  ) async =>
+      {};
 }
 
 class DVDatabase {
   const DVDatabase();
-  Future<List<Map<String, dynamic>>> query(String sql, [List<Object?>? params]) async => [];
+  Future<List<Map<String, dynamic>>> query(
+    String sql, [
+    List<Object?>? params,
+  ]) async =>
+      [];
+
   Future<int> execute(String sql, [List<Object?>? params]) async => 0;
 }
 
@@ -511,6 +579,7 @@ class DV {
   static DVTheme get Theme => const DVTheme();
   static DVAI get AI => const DVAI();
   static DVDatabase get DB => const DVDatabase();
+  static DVDatabase get Database => const DVDatabase();
   static DVCache get Cache => const DVCache();
   static DVStorage get Storage => const DVStorage();
   static DVRealtime get Realtime => const DVRealtime();
@@ -587,6 +656,8 @@ class SeoProps {
 
   static const empty = SeoProps();
 }
+
+typedef DVSeo = SeoProps;
 
 enum DvTransition { none, fade, slideLeft, slideUp, scale, sharedAxis }
 

@@ -41,6 +41,8 @@ Everything else should be generated.
 
 ---
 
+# ~ Expected results/goals:
+
 # Project Structure
 
 ```text
@@ -312,7 +314,7 @@ counter.read();
 user.read();
 ```
 
-Internally powered by Riverpod.
+Internally powered by Riverpod, so in works in flutter and in pure dart.
 
 ---
 
@@ -350,20 +352,28 @@ DVForm<User>()
 Editing
 
 ```dart
+// Accepts the model as a positional Arg. The Arg type is DVModel, base class for all the models
 DVForm<User>(user)
 ```
 
 Manual
 
 ```dart
-DVForm<User>.builder(...)
+DVForm<User>.builder((formControls) {})
 ```
 
-Generated controls.
+Editing
 
-Generated validation.
+```dart
+// Accepts the model as a positional Arg. The Arg type is DVModel, base class for all the models
+DVForm<User>.builder((formControls) {}, user)
+```
 
-Generated submit.
+Generated controls ( formControls.email, e.t.c ).
+
+Generated validation ( formControls.emailIsValid, e.t.c ).
+
+Generated submit ( formControls.submit(), .reset() ).
 
 ---
 
@@ -373,8 +383,10 @@ Backend code is ordinary Dart.
 
 ```dart
 @DVBackendFunction()
-Future<User> getUser(...)
+Future<User> getUser(...) {}
 ```
+
+Parameters are automatically validated by type, with automatic valudation messages generated. The messages can be customized if needed. Automatic request and response conversion.
 
 Call it like
 
@@ -382,19 +394,24 @@ Call it like
 await getUser(id);
 ```
 
-No REST.
+In frontend or backend code. Works the same.
+
+No raw REST (but still available).
 
 No controllers.
 
 No routes.
 
-No generated SDKs.
+No generated SDKs (but still available).
+
+No manual openapi configs, they get auto-generated
 
 Just typed functions.
 
-Under the hood, Dartvel compiles backend functions into a high-performance Rust runtime built on Axum and Tokio, exposing them through zero-boilerplate, strongly typed APIs. Developers continue writing only Dart. 
+Under the hood, Dartvel compiles backend functions into a high-performance Rust runtime built on Axum and Tokio, exposing them through zero-boilerplate, strongly typed, zero-copy, FFI APIs. Developers continue writing only Dart. 
 
 ---
+
 
 # Streaming Functions
 
@@ -411,7 +428,7 @@ Example
 Stream<Message> messages()
 ```
 
-Automatically translated to efficient streaming endpoints (such as Server-Sent Events) while preserving Dart's native `Stream<T>` API.
+Automatically translated to efficient streaming endpoints (such as Server-Sent Events or websockets with automatic fallback to polling) while preserving Dart's native `Stream<T>` API.
 
 ---
 
@@ -433,18 +450,29 @@ Client
 
 # Authentication
 
-Firebase-style.
+Like firebase and Clerk.
 
 ```dart
 DV.Auth.currentUser
 ```
 
 ```dart
-DV.Auth.signIn()
+DV.Auth.signInWithEmailAndPassword()
+
+DV.Auth.signInWithProvider() // google, facebook, e.t.c
+
+DV.Auth.signInWithRawOAuth()
+
+DV.Auth.signInWithPasskey() // Triggers the passkey flow for the OS or browser, with safe fallback
+
+DV.Auth.signInWithWeb3()
 
 DV.Auth.signOut()
 
 DV.Auth.signUp()
+
+// e.t.c
+// We'll also have prebuilt pages for each one. Just Make the first letter uppercase for the class name, and add `Page`, e.g `DV.Auth.SignInWithEmailAndPasswordPage()`
 ```
 
 Providers
@@ -475,7 +503,7 @@ Light
 
 System
 
-Dynamic switching
+Dynamic or manual switching
 
 ---
 
@@ -533,7 +561,7 @@ Foldables
 
 ---
 
-# Native APIs
+Native APIs:
 
 Expo-style.
 
@@ -567,7 +595,11 @@ Contacts
 
 Permissions managed centrally through `pubspec.yaml`.
 
+
+All under DV.Platform.*
+
 ---
+
 
 # Database
 

@@ -47,15 +47,18 @@ class RouterBuilder implements Builder {
     final envFiles =
         (dv['envFiles'] as YamlList?)?.map((e) => e.toString()).toList() ??
             ['.env', '.env.local'];
-    final seoSiteName =
-        (dv['webSeoDefaults']?['siteName'] ?? pkgName).toString();
+    final seo = dv['seo'] is YamlMap
+        ? dv['seo'] as YamlMap
+        : (dv['webSeoDefaults'] is YamlMap
+            ? dv['webSeoDefaults'] as YamlMap
+            : YamlMap.wrap({}));
+    final seoSiteName = (seo['siteName'] ?? pkgName).toString();
     final seoTitle =
-        (dv['webSeoDefaults']?['defaultTitle'] ?? 'Dartvel App').toString();
+        (seo['defaultTitle'] ?? seo['title'] ?? 'Dartvel App').toString();
     final seoDesc =
-        (dv['webSeoDefaults']?['defaultDescription'] ?? '').toString();
-    final seoImage = (dv['webSeoDefaults']?['defaultImage'] ?? '').toString();
-    final seoTwitter =
-        (dv['webSeoDefaults']?['twitterHandle'] ?? '').toString();
+        (seo['defaultDescription'] ?? seo['description'] ?? '').toString();
+    final seoImage = (seo['defaultImage'] ?? seo['image'] ?? '').toString();
+    final seoTwitter = (seo['twitterHandle'] ?? '').toString();
     final defaultTransition =
         (dv['transitions']?['default'] ?? 'fade').toString();
     final durationMs = (dv['transitions']?['durationMs'] as int?) ?? 200;
@@ -68,7 +71,7 @@ class RouterBuilder implements Builder {
         .toString();
 
     // 2. Scan pages
-    final pageGlob = Glob('$pagesDir/**.page.dart');
+    final pageGlob = Glob('$pagesDir/**.dart');
     final pageAssets = await buildStep.findAssets(pageGlob).toList();
     // Sort by path for determinism
     pageAssets.sort((a, b) => a.path.compareTo(b.path));
@@ -104,13 +107,24 @@ class RouterBuilder implements Builder {
     for (var i = 0; i < pageAssets.length; i++) {
       final asset = pageAssets[i];
       final path = asset.path;
+      final basename = p.basename(path);
+      if (basename == '_layout.dart' || basename == '_guard.dart') continue;
+      if (basename.endsWith('.loading.dart') ||
+          basename.endsWith('.error.dart')) {
+        continue;
+      }
       final importPath = path.replaceFirst(
         RegExp(r'^lib/'),
         'package:$pkgName/',
       );
       final src = await buildStep.readAsString(asset);
+      final hasPageAnnotation = src.contains('@DVPage');
+      final isLegacyPageFile = path.endsWith('.page.dart');
+      if (!hasPageAnnotation && !isLegacyPageFile) {
+        continue;
+      }
       final m = RegExp(
-        r'class\s+([A-Za-z_][A-Za-z0-9_]*)\s+extends\s+(DartvelPage|DVClassWidget)',
+        r'(?:@DVPage\([^)]*\)\s*)?class\s+([A-Za-z_][A-Za-z0-9_]*)\s+extends\s+(DartvelPage|DVClassWidget)',
       ).firstMatch(src);
       String className;
       bool isFunctional = false;
@@ -140,7 +154,9 @@ class RouterBuilder implements Builder {
       final dir = p.dirname(path).replaceAll('\\', '/');
 
       // Check for loading/error siblings
-      final baseNoSuffix = path.replaceFirst(RegExp(r'\.page\.dart$'), '');
+      final baseNoSuffix = path
+          .replaceFirst(RegExp(r'\.page\.dart$'), '')
+          .replaceFirst(RegExp(r'\.dart$'), '');
       final loadingAsset = AssetId(asset.package, '$baseNoSuffix.loading.dart');
       final errorAsset = AssetId(asset.package, '$baseNoSuffix.error.dart');
 

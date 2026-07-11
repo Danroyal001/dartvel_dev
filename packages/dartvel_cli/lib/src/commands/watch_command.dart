@@ -12,7 +12,10 @@ class WatchCommand extends Command<void> {
 
   @override
   String get description =>
-      'Watch for file changes and regenerate routes/config.';
+      'Watch for file changes and regenerate routes/config.${aliases.isEmpty ? '' : ' (Aliases: ${aliases.join(', ')})'}';
+
+  @override
+  final List<String> aliases = ['hotreload'];
 
   @override
   Future<void> run() async {
