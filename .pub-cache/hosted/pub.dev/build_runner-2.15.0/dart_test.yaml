@@ -1,0 +1,9 @@
+tags:
+  integration1:
+    timeout: 4x
+  integration2:
+    timeout: 4x
+  integration3:
+    timeout: 4x
+  integration4:
+    timeout: 4x

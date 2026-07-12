@@ -1,0 +1,293 @@
+part of '../query_builder.dart';
+
+/// Defines methods that operate on a column storing [String] values.
+extension StringExpressionOperators on Expression<String> {
+  /// Whether this column matches the given expression.
+  ///
+  /// For details on which patterms are valid and how they are interpreted,
+  /// check out [this tutorial](http://www.sqlitetutorial.net/sqlite-like/) or
+  /// the [SQLite documentation](https://www.sqlite.org/lang_expr.html#the_like_glob_regexp_match_and_extract_operators).
+  Expression<bool> like(String regex, {String? escapeChar}) {
+    return _LikeOperator(
+      this,
+      Variable.withString(regex),
+      escape: switch (escapeChar) {
+        null => null,
+        final char => Constant<String>(char),
+      },
+    );
+  }
+
+  /// Whether this column matches the given expression.
+  ///
+  /// For details on which patterms are valid and how they are interpreted,
+  /// check out [this tutorial](http://www.sqlitetutorial.net/sqlite-like/) or
+  /// the [SQLite documentation](https://www.sqlite.org/lang_expr.html#the_like_glob_regexp_match_and_extract_operators).
+  Expression<bool> likeExp(Expression<String> regex,
+      {Expression<String>? escape}) {
+    return _LikeOperator(this, regex, escape: escape);
+  }
+
+  /// Matches this string against the regular expression in [regex].
+  ///
+  /// The [multiLine], [caseSensitive], [unicode] and [dotAll] parameters
+  /// correspond to the parameters on [RegExp].
+  ///
+  /// Note that this function is only available when using a `NativeDatabase`.
+  /// If you need to support the web or `moor_flutter`, consider using [like]
+  /// instead.
+  Expression<bool> regexp(
+    String regex, {
+    bool multiLine = false,
+    bool caseSensitive = true,
+    bool unicode = false,
+    bool dotAll = false,
+  }) {
+    // We have a special regexp sql function that takes a third parameter
+    // to encode flags. If the least significant bit is set, multiLine is
+    // enabled. The next three bits enable case INSENSITIVITY (it's sensitive
+    // by default), unicode and dotAll.
+    var flags = 0;
+
+    if (multiLine) {
+      flags |= 1;
+    }
+    if (!caseSensitive) {
+      flags |= 2;
+    }
+    if (unicode) {
+      flags |= 4;
+    }
+    if (dotAll) {
+      flags |= 8;
+    }
+
+    if (flags != 0) {
+      return FunctionCallExpression<bool>(
+        'regexp_moor_ffi',
+        [
+          Variable.withString(regex),
+          this,
+          Variable.withInt(flags),
+        ],
+      );
+    }
+
+    // No special flags enabled, use the regular REGEXP operator
+    return _LikeOperator(this, Variable.withString(regex), operator: 'REGEXP');
+  }
+
+  /// Whether this expression contains [substring].
+  ///
+  /// Note that this is case-insensitive for the English alphabet only.
+  ///
+  /// This is equivalent to calling [like] with `%<substring>%`.
+  Expression<bool> contains(String substring) {
+    return like('%$substring%');
+  }
+
+  /// Uses the given [collate] sequence when comparing this column to other
+  /// values.
+  Expression<String> collate(Collate collate) {
+    return _CollateOperator(this, collate);
+  }
+
+  /// Performs a string concatenation in sql by appending [other] to `this`.
+  Expression<String> operator +(Expression<String> other) {
+    return BaseInfixOperator(this, '||', other,
+        precedence: Precedence.stringConcatenation);
+  }
+
+  /// Calls the sqlite function `UPPER` on `this` string. Please note that, in
+  /// most sqlite installations, this only affects ascii chars.
+  ///
+  /// See also:
+  ///  - https://www.w3resource.com/sqlite/core-functions-upper.php
+  Expression<String> upper() {
+    return FunctionCallExpression('UPPER', [this]);
+  }
+
+  /// Calls the sqlite function `LOWER` on `this` string. Please note that, in
+  /// most sqlite installations, this only affects ascii chars.
+  ///
+  /// See also:
+  ///  - https://www.w3resource.com/sqlite/core-functions-lower.php
+  Expression<String> lower() {
+    return FunctionCallExpression('LOWER', [this]);
+  }
+
+  /// Calls the sqlite function `LENGTH` on `this` string, which counts the
+  /// number of characters in this string. Note that, in most sqlite
+  /// installations, [length] may not support all unicode rules.
+  ///
+  /// See also:
+  ///  - https://www.w3resource.com/sqlite/core-functions-length.php
+  Expression<int> get length {
+    return FunctionCallExpression('LENGTH', [this]);
+  }
+
+  /// Removes spaces from both ends of this string.
+  Expression<String> trim() {
+    return FunctionCallExpression('TRIM', [this]);
+  }
+
+  /// Removes spaces from the beginning of this string.
+  Expression<String> trimLeft() {
+    return FunctionCallExpression('LTRIM', [this]);
+  }
+
+  /// Removes spaces from the end of this string.
+  Expression<String> trimRight() {
+    return FunctionCallExpression('RTRIM', [this]);
+  }
+
+  /// Calls the [`substr`](https://sqlite.org/lang_corefunc.html#substr)
+  /// function on this string.
+  ///
+  /// Note that the function has different semantics than the [String.substring]
+  /// method for Dart strings - for instance, the [start] index starts at one
+  /// and [length] can be negative to return a section of the string before
+  /// [start].
+  Expression<String> substr(int start, [int? length]) {
+    return substrExpr(
+        Constant(start), length != null ? Constant(length) : null);
+  }
+
+  /// Calls the [`substr`](https://sqlite.org/lang_corefunc.html#substr)
+  /// function with arbitrary expressions as arguments.
+  ///
+  /// For instance, this call uses [substrExpr] to remove the last 5 characters
+  /// from a column. As this depends on its [StringExpressionOperators.length],
+  /// it needs to use expressions:
+  ///
+  /// ```dart
+  /// update(table).write(TableCompanion.custom(
+  ///   column: column.substrExpr(Variable(1), column.length - Variable(5))
+  /// ));
+  /// ```
+  ///
+  /// When both [start] and [length] are Dart values (e.g. [Variable]s or
+  /// [Constant]s), consider using [substr] instead.
+  Expression<String> substrExpr(Expression<int> start,
+      [Expression<int>? length]) {
+    return FunctionCallExpression('SUBSTR', [
+      this,
+      start,
+      if (length != null) length,
+    ]);
+  }
+}
+
+/// A `text LIKE pattern` expression that will be true if the first expression
+/// matches the pattern given by the second expression.
+class _LikeOperator extends Expression<bool> {
+  /// The target expression that will be tested
+  final Expression<String> target;
+
+  /// The regex-like expression to test the [target] against.
+  final Expression<String> regex;
+
+  /// The optinal `ESCAPE` clause of this `LIKE` operator.
+  final Expression<String>? escape;
+
+  /// The operator to use when matching. Defaults to `LIKE`.
+  final String operator;
+
+  @override
+  final Precedence precedence = Precedence.comparisonEq;
+
+  /// Perform a like operator with the target and the regex.
+  _LikeOperator(
+    this.target,
+    this.regex, {
+    this.operator = 'LIKE',
+    this.escape,
+  });
+
+  @override
+  void writeInto(GenerationContext context) {
+    writeInner(context, target);
+    context.writeWhitespace();
+    context.buffer.write(operator);
+    context.writeWhitespace();
+    writeInner(context, regex);
+
+    if (escape case final escape?) {
+      context.buffer.write(' ESCAPE ');
+      writeInner(context, escape);
+    }
+  }
+
+  @override
+  int get hashCode => Object.hash(target, regex, operator);
+
+  @override
+  bool operator ==(Object other) {
+    return other is _LikeOperator &&
+        other.target == target &&
+        other.regex == regex &&
+        other.operator == operator;
+  }
+}
+
+/// Collating functions used to compare texts in SQL.
+///
+/// See also:
+/// - https://www.sqlite.org/datatype3.html#collation
+@sealed
+class Collate {
+  /// The name of this collation in SQL.
+  final String name;
+
+  /// Create a collation from the [name] to use in sql.
+  const Collate(this.name);
+
+  /// Instruct sqlite to compare string data using memcmp(), regardless of text
+  /// encoding.
+  static const binary = Collate('BINARY');
+
+  /// The same as [Collate.binary], except the 26 upper case characters of ASCII
+  /// are folded to their lower case equivalents before the comparison is
+  /// performed. Note that only ASCII characters are case folded. SQLite does
+  /// not attempt to do full UTF case folding due to the size of the tables
+  /// required.
+  static const noCase = Collate('NOCASE');
+
+  /// The same as [Collate.binary], except that trailing space characters are
+  /// ignored.
+  static const rTrim = Collate('RTRIM');
+}
+
+/// A `text COLLATE collate` expression in sqlite.
+class _CollateOperator extends Expression<String> {
+  /// The expression on which the collate function will be run
+  final Expression inner;
+
+  /// The [Collate] to use.
+  final Collate collate;
+
+  @override
+  final Precedence precedence = Precedence.postfix;
+
+  /// Constructs a collate expression on the [inner] expression and the
+  /// [Collate].
+  _CollateOperator(this.inner, this.collate);
+
+  @override
+  void writeInto(GenerationContext context) {
+    writeInner(context, inner);
+    context.buffer
+      ..write(' COLLATE ')
+      ..write(collate.name);
+  }
+
+  @override
+  int get hashCode => Object.hash(inner, collate.name);
+
+  @override
+  bool operator ==(Object other) {
+    return other is _CollateOperator &&
+        other.inner == inner &&
+        other.collate.name == collate.name;
+  }
+}

@@ -1,0 +1,435 @@
+_Questions? Suggestions? Found a bug? Please 
+[file an issue](https://github.com/dart-lang/build/issues) or
+ [start a discussion](https://github.com/dart-lang/build/discussions)._
+
+Configuration file format for
+[build_runner](https://pub.dev/packages/build_runner)
+builds.
+
+- [See also: build_yaml_format.md](#see-also-build_yaml_formatmd)
+- [Dividing a package into build targets](#dividing-a-package-into-build-targets)
+- [Configuring builders applied to your package](#configuring-builders-applied-to-your-package)
+- [Configuring builders globally](#configuring-builders-globally)
+- [Defining builders to apply to depenents](#defining-builders-to-apply-to-dependents)
+- [Defining post process builders](#defining-post-process-builders)
+- [Adjusting builder ordering](#adjusting-builder-ordering)
+- [Triggers](#triggers)
+- [Publishing build.yaml files](#publishing-buildyaml-files)
+- [FAQ](#faq)
+   - [How do I avoid running builders on unnecessary inputs?](#how-do-i-avoid-running-builders-on-unnecessary-inputs)
+   - [How is the configuration for a builder resolved?](#how-is-the-configuration-for-a-builder-resolved)
+   - [How can I include additional sources in my build?](#how-can-i-include-additional-sources-in-my-build)
+
+## See also: build_yaml_format.md
+
+See also
+[docs/build_yaml_format.md](https://github.com/dart-lang/build/blob/master/docs/build_yaml_format.md)
+for a more technical description of the format.
+
+## Dividing a package into build targets
+
+When a `Builder` should be applied to a subset of files in a package the package
+can be broken up into multiple 'targets'. Targets are configured in the
+`targets` section of the `build.yaml`. The key for each target makes up the name
+for that target. Targets can be referred to in
+`'$definingPackageName:$targetname'`. When the target name matches the package
+name it can also be referred to as just the package name. One target in every
+package _must_ use the package name so that consumers will use it by default.
+In the `build.yaml` file this target can be defined with the key `$default` or
+with the name of the package.
+
+Each target may also contain the following keys:
+
+- **sources**: List of Strings or Map, Optional. The set of files within the
+  package which make up this target. Files are specified using glob syntax. If a
+  List of Strings is used they are considered the 'include' globs. If a Map is
+  used can only have the keys `include` and `exclude`. Any file which matches
+  any glob in `include` and no globs in `exclude` is considered a source of the
+  target. When `include` is omitted every file is considered a match.
+- **dependencies**: List of Strings, Optional. The targets that this target
+  depends on. Strings in the format `'$packageName:$targetName'` to depend on a
+  target within a package or `$packageName` to depend on a package's default
+  target. By default this is all of the package names this package depends on
+  (from the `pubspec.yaml`).
+- **builders**: Map, Optional. See "configuring builders" below.
+
+## Configuring builders applied to your package
+
+Each target can specify a `builders` key which configures the builders which are
+applied to that target. The value is a Map from builder to configuration for
+that builder. The key is in the format `'$packageName:$builderName'`. The
+configuration may have the following keys:
+
+- **enabled**: Boolean, Optional: Whether to apply the builder to this target.
+  Omit this key if you want the default behavior based on the builder's
+  `auto_apply` configuration. Builders which are manually applied
+  (`auto_apply: none`) are only ever used when there is a target specifying the
+  builder with `enabled: True`.
+- **generate_for**: List of String or Map, Optional:. The subset of files within
+  the target's `sources` which should have this Builder applied. See `sources`
+  configuration above for how to configure this.
+- **options**: Map, Optional: A free-form map which will be passed to the
+  `Builder` as a `BuilderOptions` when it is constructed. Usage varies depending
+  on the particular builder. Values in this map will override the default
+  provided by builder authors. Values may also be overridden based on the build
+  mode with `dev_options` or `release_options`.
+- **dev_options**: Map, Optional: A free-form map which will be passed to the
+  `Builder` as a `BuilderOptions` when it is constructed. Usage varies depending
+  on the particular builder. The values in this map override Builder defaults or
+  non mode-specific options per-key when the build is done in dev mode.
+- **release_options**: Map, Optional: A free-form map which will be passed to
+  the `Builder` as a `BuilderOptions` when it is constructed. Usage varies
+  depending on the particular builder. The values in this map override Builder
+  defaults or non mode-specific options when the build is done in release mode.
+
+## Configuring builders globally
+Target level builder options can be overridden globally across all packages with
+the `global_options` section. These options are applied _after_ all Builder
+defaults and target level configuration, and _before_ `--define` command line
+arguments.
+
+- **options**: Map, Optional: A free-form map which will be passed to the
+  `Builder` as a `BuilderOptions` when it is constructed. Usage varies depending
+  on the particular builder. Values in this map will override the default
+  provided by builder authors or at the target level. Values may also be
+  overridden based on the build mode with `dev_options` or `release_options`.
+- **dev_options**: Map, Optional: A free-form map which will be passed to the
+  `Builder` as a `BuilderOptions` when it is constructed. Usage varies depending
+  on the particular builder. The values in this map override all other values
+  per-key when the build is done in dev mode.
+- **release_options**: Map, Optional: A free-form map which will be passed to
+  the `Builder` as a `BuilderOptions` when it is constructed. Usage varies
+  depending on the particular builder. The values in this map override all other
+  values per-key when the build is done in release mode.
+
+## Defining builders to apply to dependents
+
+If users of your package need to apply some code generation to their package,
+then you can define `Builder`s and have those applied to packages with a
+dependency on yours.
+
+The key for a Builder will be normalized so that consumers of the builder can
+refer to it in `'$definingPackageName:$builderName'` format. If the builder name
+matches the package name it can also be referred to with just the package name.
+
+Exposed `Builder`s are configured in the `builders` section of the `build.yaml`.
+This is a map of builder names to configuration. Each builder config may contain
+the following keys:
+
+- **import**: Required. The import uri that should be used to import the library
+  containing the `Builder` class. This should always be a `package:` uri.
+- **builder_factories**: A `List<String>` which contains the names of the
+  top-level methods in the imported library which are a function fitting the
+  typedef `Builder factoryName(BuilderOptions options)`.
+- **build_extensions**: Required. A map from input extension to the list of
+  output extensions that may be created for that input. This must match the
+  merged `buildExtensions` maps from each `Builder` in `builder_factories`.
+- **auto_apply**: Optional. The packages which should have this builder
+  automatically to applied. Defaults to `'none'` The possibilities are:
+  - `"none"`: Never apply this Builder unless it is manually configured
+  - `"dependents"`: Apply this Builder to the package with a direct dependency
+    on the package exposing the builder.
+  - `"all_packages"`: Apply this Builder to all packages in the transitive
+    dependency graph.
+  - `"root_package"`: Apply this Builder only to the top-level package.
+- **required_inputs**: Optional, see [adjusting builder ordering][]
+- **runs_before**: Optional, see [adjusting builder ordering][]
+- **applies_builders**: Optional, list of Builder keys. Specifies that other
+  builders should be run on any target which will run this Builder.
+- **is_optional**: Optional, boolean. Specifies whether a Builder can be run
+  lazily, such that it won't execute until one of it's outputs is requested by a
+  later Builder. This option should be rare. Defaults to `False`.
+- **build_to**: Optional. The location that generated assets should be output
+  to. The possibilities are:
+  - `"source"`: Outputs go to the source tree next to their primary inputs.
+  - `"cache"`: Outputs go to a hidden build cache and won't be published.
+  The default is "cache". If a Builder specifies that it outputs to "source" it
+  will never run on any package other than the root - but does not necessarily
+  need to use the "root_package" value for "auto_apply". If it would otherwise
+  run on a non-root package it will be filtered out.
+- **defaults**: Optional: Default values to apply when a user does not specify
+  the corresponding key in their `builders` section. May contain the following
+  keys:
+  - **generate_for**: A list of globs that this Builder should run on as a
+    subset of the corresponding target, or a map with `include` and `exclude`
+    lists of globs.
+  - **options**: Arbitrary yaml map, provided as the `config` map in
+    `BuilderOptions` to the `BuilderFactory` for this builder. Individual keys
+    will be overridden by configuration provided in either `dev_options` or
+    `release_options` based on the build mode, and then overridden by any user
+    specified configuration.
+  - **dev_options**: Arbitrary yaml map. Values will replace the defaults from
+    `options` when the build is done in dev mode (the default mode).
+  - **release_options**: Arbitrary yaml map. Values will replace the defaults
+    from `options` when the build is done in release mode (with `--release`).
+
+Example `builders` config:
+
+```yaml
+builders:
+  my_builder:
+    import: "package:my_package/builder.dart"
+    builder_factories: ["myBuilder"]
+    build_extensions: {".dart": [".my_package.dart"]}
+    auto_apply: dependents
+    defaults:
+      release_options:
+        some_key: "Some value the users will want in release mode"
+```
+
+## Defining post process builders
+
+`PostProcessBuilder`s are configured similarly to normal `Builder`s, but they
+have some different/missing options.
+
+These builders can't be auto-applied. They are applied when explicitly
+applied to a target and when a `Builder` definition applies them using
+`apply_builders`.
+
+Exposed `PostProcessBuilder`s are configured in the `post_process_builders`
+section of the  `build.yaml`. This is a map of builder names to configuration.
+Each post process builder config may contain the following keys:
+
+- **import**: Required. The import uri that should be used to import the library
+  containing the `Builder` class. This should always be a `package:` uri.
+- **builder_factory**: A `String` which contains the name of the top-level
+  method in the imported library which is a function fitting the
+  typedef `PostProcessBuilder factoryName(BuilderOptions options)`.
+- **input_extensions**: Required. A list of input extensions that will be
+  processed. This must match the `inputExtensions` from the `PostProcessBuilder`
+  returned by the `builder_factory`.
+- **build_to**: Optional. The location that generated assets should be output
+  to. The possibilities are:
+  - `"source"`: Outputs go to the source tree next to their primary inputs.
+  - `"cache"`: Outputs go to a hidden build cache and won't be published.
+- **defaults**: Optional: Default values to apply when a user does not specify
+  the corresponding key in their `builders` section. May contain the following
+  keys:
+  - **generate_for**: A list of globs that this Builder should run on as a
+    subset of the corresponding target, or a map with `include` and `exclude`
+    lists of globs.
+
+Example config with a normal `builder` which auto-applies a
+`post_process_builder`:
+
+```yaml
+builders:
+  # The regular builder config, creates `.tar.gz` files.
+  regular_builder:
+    import: "package:my_package/builder.dart"
+    builder_factories: ["myBuilder"]
+    build_extensions: {".dart": [".tar.gz"]}
+    auto_apply: dependents
+    apply_builders: [":archive_extract_builder"]
+post_process_builders:
+  # The post process builder config, extracts `.tar.gz` files.
+  extract_archive_builder:
+    import: "package:my_package/extract_archive_builder.dart"
+    builder_factory: "myExtractArchiveBuilder"
+    input_extensions: [".tar.gz"]
+```
+
+[adjusting builder ordering]: #adjusting-builder-ordering
+
+## Adjusting builder ordering
+
+Both `required_inputs` and `runs_before` can be used to tweak the order that
+Builders run in on a given target. These work by indicating a given builder is a
+_dependency_ of another. The resulting dependency graph must not have cycles and
+these options should be used rarely.
+
+- **required_inputs**: Optional, list of extensions, defaults to empty list. If
+  a Builder must see every input with one or more file extensions they can be
+  specified here and it will be guaranteed to run after any Builder which might
+  produce an output of that type. For instance a compiler must run after any
+  Builder which can produce `.dart` outputs or those libraries can't be
+  compiled. A Builder may not specify that it requires an output that it also
+  produces since this would be a self-cycle.
+- **runs_before**: Optional, list of Builder keys. If a Builder is producing
+  outputs which are intended to be inputs to other Builders they may be
+  specified here. This guarantees that the specified Builders will be ordered
+  later than this one. This will not cause Builders to be applied if they would
+  not otherwise run, it only affects ordering. If a builder emits files that
+  should always be the input to another specific builder, use both `runs_before`
+  and `applies_builder` to configure both ordering and ensure that steps are not
+  skipped.
+
+## Triggers
+
+Triggers are a performance heuristic that allow builders to quickly decide
+_not_ to run.
+
+A builder runs only if triggered if the option `run_only_if_triggered` is
+`true`. This can be enabled for the builder:
+
+```yaml
+builders:
+  my_builder:
+    import: "package:my_package/builder.dart"
+    builder_factories: ["myBuilder"]
+    build_extensions: {".dart": [".my_package.dart"]}
+    defaults:
+      options:
+        run_only_if_triggered: true
+```
+
+Or, enabled/disabled in the `build.yaml` of the package applying the builder:
+
+```yaml
+targets:
+  $default:
+    builders:
+      my_package:my_builder:
+        options:
+          run_only_if_triggered: true # or `false`
+```
+
+Triggers are defined in a new top-level section called `triggers`:
+
+```yaml
+triggers:
+  my_package:my_builder:
+    - annotation MyAnnotation
+    - import my_package/my_builder_annotation.dart
+```
+
+An `annotation` trigger causes the builder to run if an annotation is used.
+So, `- annotation MyAnnotation` is a check for `@MyAnnotation` being used.
+A part file included from a library is also checked for the annotation.
+
+An `import` trigger says that the builder runs if there is a direct import
+of the specified library. This might be useful if a builder can run on code
+without annotations, for example on all classes that `implement` a particular
+type. Then, the import of the type used to trigger generation can be the
+trigger.
+
+Only one trigger has to match for the builder to run; adding more triggers
+can never prevent a builder from running. So, a builder usually only needs
+either an `import` trigger or an `annotation` trigger, not both.
+
+Triggers are collected from all packages in the codebase, not just packages
+defining or applying builders. This allows a package to provide new ways to
+trigger a builder from an unrelated package. For example, if
+`third_party_package` re-exports the annotation in
+`package:my_package/my_builder_annotation.dart` then it should also add a
+trigger:
+
+```yaml
+triggers:
+  my_package:my_builder:
+    - import third_party_package/annotations.dart
+```
+
+Or, if `third_party_package` defines a new constant `NewAnnotation` that can be
+used as an annotation for `my_builder`, it should add a trigger:
+
+```yaml
+triggers:
+  my_package:my_builder:
+    - annotation NewAnnotation
+```
+
+## Publishing `build.yaml` files
+
+`build.yaml` configuration should be published to pub with the package and
+checked in to source control. Whenever a package is published with a
+`build.yaml` it should mark a `dependency` on `build_config` to ensure that
+the package consuming the config has a compatible version. Breaking version
+changes which do not impact the configuration file format will be clearly marked
+in the changelog.
+
+## FAQ
+
+### How do I avoid running builders on unnecessary inputs?
+
+You can skip unnecessary inputs and so speed up your build using the
+`generate_for` option of the builder:
+
+```
+targets:
+  $default:
+    builders:
+      # Typically the builder key is just the package name, run
+      # `dart run build_runner doctor` to check your config.
+      <builder-key>:
+        generate_for:
+          # Example glob for only the Dart files under `lib/models`
+          - lib/models/*.dart
+```
+
+### How is the configuration for a builder resolved?
+
+Builders are constructed with a map of options which is resolved from the
+builder specified defaults and user overrides. The configuration is specific to
+a `target` and build mode. The configuration is "merged" one by one, where
+the higher precedence configuration overrides values by String key. The order
+of precedence from lowest to highest is:
+
+-   Builder defaults without a mode.
+-   Builder defaults by mode.
+-   Target configuration without a mode.
+-   Target configuration by mode.
+-   Global options without a mode.
+-   Global options by mode.
+-   Options specified on the command line.
+
+For example:
+
+```yaml
+builders:
+  some_builder:
+    # Some required fields omitted
+    defaults:
+      options:
+        some_option: "Priority 0"
+      release_options:
+        some_option: "Priority 1"
+      dev_options:
+        some_option: "Priority 1"
+targets:
+  $default:
+    builders:
+      some_package:some_builder:
+        options:
+          some_option: "Priority 2"
+        release_options:
+          some_option: "Priority 3"
+        dev_options:
+          some_option: "Priority 3"
+
+global_options:
+  some_package:some_builder:
+    options:
+      some_option: "Priority 4"
+    release_options:
+      some_option: "Priority 5"
+    dev_options:
+      some_option: "Priority 5"
+```
+
+And when running the build:
+
+```
+dart run build_runner build --define=some_package:some_builder=some_option="Priority 6"
+```
+
+### How can I include additional sources in my build?
+
+The `build_runner` package defaults the included source files to directories
+derived from the
+[package layout conventions](https://dart.dev/tools/pub/package-layout).
+
+If you have additional files which you would like to be included as part of the
+build, you can do that  with the `sources` field on the `$default` target:
+
+```yaml
+targets:
+  $default:
+    sources:
+      - my_custom_sources/**
+      - lib/**
+      - web/**
+      # Note that it is important to include these in the default target.
+      - pubspec.*
+      - $package$
+```

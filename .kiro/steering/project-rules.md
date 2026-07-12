@@ -26,16 +26,15 @@ Everything else is automatically compiled, generated, or served by the framework
 
 | Feature | Description | Status |
 |---|---|---|
-| **UI Primitives** | `DVBox`, `DVText`, fluent styling built on `Mix` | 🛠️ Implemented |
-| **Routing** | File-based pages router with strongly-typed navigation | 🛠️ Implemented |
-| **State Management** | Riverpod-powered signals (`context.signal`, reactive models, `DV.global`) | 🛠️ Implemented |
-| **Models & Forms** | `@DVModel` annotation + `DVForm<T>` automatic inputs | 🛠️ Implemented |
+| **UI Primitives** | `DVBox`, `DVText`, fluent styling built on `Mix` | ✅ Implemented |
+| **Routing** | File-based pages router with strongly-typed navigation | ✅ Implemented |
+| **State Management** | Riverpod-powered signals (`context.signal`, reactive models, `DV.global`) | ✅ Implemented |
+| **Models & Forms** | `@DVModel` annotation + `DVForm<T>` automatic inputs | ✅ Implemented |
 | **Backend Runtime** | Axum/Tokio Rust server calling Dart FFI, supporting SSE streams | ✅ Implemented |
-| **Platform APIs** | `DV.Platform` device APIs, camera, location, orientation | 🛠️ Implemented |
-| **Authentication** | `DV.Auth` with multiple provider wrappers | 🛠️ Implemented |
-| **Database & Cache** | Unified DB (Postgres, SQLite, Turso) & Cache (Memory, Redis) | 🛠️ Implemented |
-| **PWA & SEO** | Automatic PWA manifest/worker & runtime/global SEO injection | 🛠️ Implemented |
-| **AI Integration** | `DV.AI` Gemini/Claude chat and structured outputs | 🛠️ Implemented |
-
+| **Platform APIs** | `DV.Platform` device APIs, camera, location, orientation | ✅ Implemented |
+| **Authentication** | `DV.Auth` with multiple provider wrappers | ✅ Implemented |
+| **Database & Cache** | Unified DB (Postgres, SQLite, Turso) & Cache (Memory, Redis) | ✅ Implemented |
+| **PWA & SEO** | Automatic PWA manifest/worker & runtime/global SEO injection | ✅ Implemented |
+| **AI Integration** | `DV.AI` Gemini/Claude chat and structured outputs | ✅ Implemented |
 
 Reference ./NEW_SPEC.md for the full new spec.

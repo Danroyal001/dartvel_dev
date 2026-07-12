@@ -1,0 +1,7 @@
+#!/usr/bin/env sh
+# This file was created by pub v3.12.2.
+# Package: dartvel_cli
+# Version: 0.1.0
+# Executable: dartvel
+# Script: dartvel
+dart pub global run dartvel_cli:dartvel "$@"

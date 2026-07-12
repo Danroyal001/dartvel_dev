@@ -1,0 +1,115 @@
+// Copyright (c) 2016, the Dart project authors.  Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'dart:async';
+
+import 'package:build/build.dart';
+import 'package:stream_transform/stream_transform.dart';
+
+import '../../bootstrap/build_process_state.dart';
+import '../../build/build_result.dart';
+import '../../build/build_series.dart';
+import '../../build_plan/build_packages.dart';
+import '../../build_plan/build_plan.dart';
+import '../../logging/build_log.dart';
+import 'asset_change.dart';
+import 'build_package_watcher.dart';
+import 'build_packages_watcher.dart';
+import 'collect_changes.dart';
+
+class Watcher {
+  final BuildPlan _buildPlan;
+  final BuildSeries _buildSeries;
+
+  /// Pending expected delete events from the build.
+  final Set<AssetId> _expectedDeletes;
+
+  Watcher._(this._buildPlan, this._buildSeries, this._expectedDeletes);
+
+  BuildPackages get buildPackages => _buildPlan.buildPackages;
+
+  factory Watcher({required BuildPlan buildPlan, required Future<void> until}) {
+    final expectedDeletes = <AssetId>{};
+    buildPlan = buildPlan.copyWith(
+      readerWriter: buildPlan.readerWriter.copyWith(
+        onDelete: expectedDeletes.add,
+      ),
+    );
+    final buildSeries = BuildSeries(buildPlan);
+    final result = Watcher._(buildPlan, buildSeries, expectedDeletes);
+    result._run(until);
+    return result;
+  }
+
+  Stream<BuildResult> get buildResults => _buildSeries.buildResults;
+  Future<BuildResult> get currentBuildResult => _buildSeries.currentBuildResult;
+
+  /// Runs a build any time relevant files change.
+  ///
+  /// Only one build will run at a time, and changes are batched.
+  ///
+  /// File watchers are scheduled synchronously.
+  void _run(Future<void> until) async {
+    // If the BuildProcessLock is requested, finish the current build if there
+    // is one then exit.
+    final closeController = Completer<void>();
+    buildProcessState.setLockRequestCallback(() {
+      if (!closeController.isCompleted) {
+        closeController.complete();
+      }
+    });
+    final terminate = Future.any([until, closeController.future]);
+
+    // Start watching files immediately, before the first build is even started.
+    final graphWatcher = BuildPackagesWatcher(
+      _buildPlan.buildPackages,
+      watch:
+          (buildPackage) => BuildPackageWatcher(
+            buildPackage,
+            watch: _buildPlan.testingOverrides.directoryWatcherFactory,
+          ),
+    );
+    graphWatcher
+        .watch()
+        .asyncMap<AssetChange>((change) async {
+          // Delay any events until the current build is completed.
+          await currentBuildResult;
+          return change;
+        })
+        .debounceBuffer(
+          _buildPlan.testingOverrides.debounceDelay ??
+              const Duration(milliseconds: 250),
+        )
+        .asyncMap(
+          (changes) => _buildSeries.filterChanges(changes, _expectedDeletes),
+        )
+        .where((changes) => changes.isNotEmpty)
+        .takeUntil(terminate)
+        .asyncMapBuffer(_doBuild)
+        .drain<void>()
+        .then((_) async {
+          await currentBuildResult;
+          await _buildSeries.close();
+          if (buildProcessState.isLockRequested()) {
+            buildLog.flushAndPrint(
+              'Exiting as requested by another build_runner process.',
+            );
+          }
+        })
+        .ignore();
+
+    await graphWatcher.ready;
+    await _buildSeries.run({}, recentlyBootstrapped: true);
+  }
+
+  Future<BuildResult> _doBuild(List<List<AssetChange>> changes) async {
+    final mergedChanges = collectChanges(changes);
+    _expectedDeletes.clear();
+    final result = await _buildSeries.run(
+      mergedChanges,
+      recentlyBootstrapped: false,
+    );
+    return result;
+  }
+}

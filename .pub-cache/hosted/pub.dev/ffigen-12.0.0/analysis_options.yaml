@@ -1,0 +1,32 @@
+# Copyright (c) 2020, the Dart project authors. Please see the AUTHORS file
+# for details. All rights reserved. Use of this source code is governed by a
+# BSD-style license that can be found in the LICENSE file.
+
+include: package:lints/recommended.yaml
+
+analyzer:
+  errors:
+    todo: ignore
+  exclude:
+    - 'test/**_expected*'
+
+    # Exclude anything that uses package:objective_c, due to flutter dependency.
+    # https://github.com/dart-lang/native/issues/1068
+    - example/objective_c/**
+    - example/swift/**
+    - test_flutter/native_objc_test/**
+  language:
+    strict-casts: true
+    strict-inference: true
+
+linter:
+  rules:
+    # Enabled.
+    dangling_library_doc_comments: true
+    directives_ordering: true
+    prefer_final_locals: true
+    prefer_final_in_for_each: true
+    use_super_parameters: true
+
+    # Disabled.
+    constant_identifier_names: false

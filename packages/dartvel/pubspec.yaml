@@ -1,0 +1,17 @@
+name: dartvel
+publish_to: 'none'
+description: Umbrella package for the Dartvel full-stack Flutter platform.
+version: 0.1.0
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  dartvel_core:
+    path: ../dartvel_core
+  dartvel_flutter:
+    path: ../dartvel_flutter
+  dartvel_shelf:
+    path: ../dartvel_shelf
+  dartvel_cli:
+    path: ../dartvel_cli

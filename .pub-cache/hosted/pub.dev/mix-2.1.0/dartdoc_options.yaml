@@ -1,0 +1,4 @@
+dartdoc:
+  showStats: true
+  nodoc: ['lib/src/deprecations.dart']
+  

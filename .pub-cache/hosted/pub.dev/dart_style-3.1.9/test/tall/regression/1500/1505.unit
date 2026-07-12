@@ -1,0 +1,8 @@
+>>>
+extension type JSExportedDartFunction._(
+  JSExportedDartFunctionRepType _jsExportedDartFunction
+) implements JSFunction {}
+<<<
+extension type JSExportedDartFunction._(
+  JSExportedDartFunctionRepType _jsExportedDartFunction
+) implements JSFunction {}

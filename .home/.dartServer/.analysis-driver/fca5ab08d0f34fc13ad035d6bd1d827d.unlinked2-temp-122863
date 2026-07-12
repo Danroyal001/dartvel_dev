@@ -1,0 +1,1173 @@
+€½stateanimationStatusupdateShouldNotifybeginendcurvetransformInternaltoString
+controllerchildFocusNodestylealignmentOffset	layerLinkclipBehavioranchorTapClosesMenuconsumeOutsideTaponOpenonClosecrossAxisUnconstraineduseRootOverlayanimatedonAnimationStatusChangedmenuChildrenbuilderchildreservedPaddingcreateStatedebugDescribeChildrendebugFillProperties_orientation_menuController_internalMenuController_menuScopeNode_animationControllerheightAnimationopacityAnimation_menuChildren_cachedAnimations_parent	isSubmenuisClosingOrClosed	isClosing	initStatedidUpdateWidgetdispose_resolveAnimationController_resolveMenuItems_handleAnimationStatusChanged_handleMenuOpenRequest_handleMenuCloseRequestbuild_buildOverlay_root_focusButton_focusFirstMenuItem_focusLastMenuItem_maybeOf_maybeAnimationStatusOfchildren	onPressedonHoverrequestFocusOnHoveronFocusChange	focusNode	autofocusshortcutsemanticsLabelstatesControllerleadingIcontrailingIconcloseOnActivateoverflowAxisenableddefaultStyleOfthemeStyleOf	styleFrom_internalFocusNode
+_focusNode_anchor
+_isHovered_handleFocusChange_handlePointerExit_handlePointerHover_handleSelect _createInternalFocusNodeIfNeededvaluetristateisError	onChanged
+groupValue
+toggleable	menuStylesubmenuIconhoverOpenDelayactions_waitingToFocusMenu_isOpenOnFocusEnabled_anchorState
+_anchorKey_buttonFocusNode_enabled_animationStatus_hoverOpenTimerdidChangeDependencies_handleClose_handleOpen_computeMenuPadding_maybeOpenMenuOnHoverOrFocus_clearHoverOpenTimer_debugValidateHoverOpenDelaysubmenu_controller_buttoninvoke	_instance_shortcutGraphicEquivalents
+_modifiersinstance_cachedShortcutKeysgetShortcutLabel_getLocalizedName_getModifierLabelonInvoke
+hasSubmenumaybeOfoflabeldisplayLabelhasAcceleratordefaultLabelBuilderstripAcceleratorMarkers_displayLabel_acceleratorIndex_binding_shortcutRegistry_shortcutRegistryEntry_showAccelerators_altIsPressed_listenToKeyEvent_updateAcceleratorShortcut_updateDisplayLabelshowDecoration
+anchorRecttextDirection	alignmentmenuPositionmenuPaddingavoidBoundsorientationparentOrientationheightFactormediaQueryDatagetConstraintsForChildgetPositionForChild_positionChildshouldRelayout_closestScreenscrollController_intrinsicCrossSize_buildAnimatedHeightmenuScopeNodeanchorconsumeOutsideTapsfadeAnimationresolveCallbackresolvedebugDescription_defaultMenuBordercontext_colorsbackgroundColorshadowColorsurfaceTintColorpaddingvisualDensity
+_textTheme	elevationforegroundColor	iconColoriconSizemaximumSizeminimumSizemouseCursoroverlayColorshapesplashFactorytapTargetSize	textStyle_scaledPadding2_kDebugMenus_kDefaultSubmenuIconSize_kLabelItemDefaultSpacing_kLabelItemMinSpacing_kMenuTraversalShortcuts_kMenuVerticalMinPadding_kMenuViewPadding"_kTopLevelMenuHorizontalMinPadding_kMenuOpeningDuration_kMenuClosingDuration_kMenuPanelHeightForwardCurve_kMenuPanelHeightReverseCurve_kMenuPanelOpacityForwardCurve_kMenuPanelOpacityReverseCurve _kMenuItemRelativeFadeInDuration!_kMenuItemRelativeFadeOutDuration_kMenuItemRelativeFadeOutDelayMenuAnchorChildBuilder_MenuAnchorScope_TweenCurve
+MenuAnchor_MenuAnchorStateMenuBarMenuItemButton_MenuItemButtonStateCheckboxMenuButtonRadioMenuButtonSubmenuButton_SubmenuButtonState_SubmenuDirectionalFocusAction_LocalizedShortcutLabeler_MenuBarAnchor_MenuBarAnchorStateMenuAcceleratorCallbackBindingMenuAcceleratorChildBuilderMenuAcceleratorLabel_MenuAcceleratorLabelState_MenuItemLabel_MenuLayout
+_MenuPanel_MenuPanelState_Submenu_MouseCursor_debugMenuInfo_isCupertino_usesSymbolicModifiers_platformSupportsAccelerators_MenuBarDefaultsM3_MenuButtonDefaultsM3_MenuDefaultsM3‚—booldoubleMapShortcutActivatorIntentSingleActivatorLogicalKeyboardKeygameButtonAActivateIntentescapeDismissIntenttabNextFocusIntentshiftPreviousFocusIntent	arrowDownDirectionalFocusIntentTraversalDirectiondownarrowUpup	arrowLeftleft
+arrowRightrightDurationmillisecondswasCurveCubiccurveFlippedCurveEasingemphasizedAccelerateIntervalbuilderMenuControllerchildWidgetBuildContextInheritedWidgetAnimationStatusoverridestateanimationStatus	transform
+lerpDoubleString	MenuStylevisualDensityStatefulWidgetOffsetzeroCliphardEdge
+Deprecated	FocusNodeMenuThemeDatastyle	alignmentDirectionalitydyAlignmentDirectional	AlignmentdxTextDirectionrtl	LayerLinkcloseopenVoidCallbackUnconstrainedBoxDropdownMenu	completed	dismissedisOpenValueChangedListEdgeInsetsGeometryStateDiagnosticsNodemaptoDiagnosticsNodetoListvoidDiagnosticPropertiesBuilderdebugFillPropertiesaddFlagPropertyvalueifTrueDiagnosticsPropertyEnumPropertySingleTickerProviderStateMixinAxisverticalwidget
+controllerFocusScopeNodeAnimationControllervsyncCurvedAnimationparentreverseCurvecontextmaybeOfstatusreverseforward	initStateaddStatusListenerdidUpdateWidgetanimatedmenuChildrenclear	animationdisposestopdurationreverseDurationintlengthaddAllFadeTransitionopacityalwaysIncludeSemanticssetStateonAnimationStatusChangedcall	isClosingisForwardOrCompletedwhenCompleteRawMenuAnchoronOpenRequestedonCloseRequesteduseRootOverlayonOpenonCloseconsumeOutsideTapsconsumeOutsideTapchildFocusNodeoverlayBuilder	layerLinkCompositedTransformTargetlinkRawMenuOverlayInfoExcludeSemantics	excludingIgnorePointerignoringExcludeFocusfadeAnimationheightAnimationmenuScopeNode	menuStyleclipBehaviorcrossAxisUnconstrainedmenuPositionanchoralignmentOffsetreservedPadding
+EdgeInsetsall_parentrequestFocusmountedFocusTraversalPolicyFocusTraversalGroupReadingOrderTraversalPolicyfindFirstFocusignoreCurrentFocusfindLastFocusgetInheritedWidgetOfExactType"dependOnInheritedWidgetOfExactTypeDiagnosticLeveldebugdescribeIdentityCharacterActivatorshortcutShortcutRegistry
+WidgetsAppMaterialAppCupertinoAppPlatformMenuBarVoidCallbackIntentActions	ShortcutsCallbackShortcutsStatelessWidgetnonedebugCheckHasOverlayitemdefaultValue
+horizontalMenuSerializableShortcut	SemanticsWidgetStatePropertyButtonStyleMaterialStatesControllerTextMenuButtonThemeDataMenuButtonThemeofforegroundColorbackgroundColordisabledForegroundColordisabledBackgroundColorenabledMouseCursordisabledMouseCursormouseCursor	iconColordisabledIconColoriconSizeColor	TextStyleSizeMouseCursor
+BorderSideOutlinedBorderVisualDensityMaterialTapTargetSizeAlignmentGeometryInteractiveInkFeatureFactory
+TextButton	styleFromshadowColorsurfaceTintColor	textStyleoverlayColor	elevationpaddingminimumSize	fixedSizemaximumSizesideshapetapTargetSizeanimationDurationenableFeedbacksplashFactoryifFalse	focusNode_maybeOfaddListenerremoveListenerthemeStyleOfmergedefaultStyleOf	onPressedenabledonFocusChange	autofocusstatesControllerisSemanticButtonkIsWebleadingIconsemanticsLabeltrailingIcon
+hasSubmenuoverflowAxis_orientationonInvokeonHoverrequestFocusOnHoverMouseRegiononExitMergeSemanticshasPrimaryFocuscloseChildrenPointerExitEventPointerHoverEventinvalidateScopeData
+FocusScopecloseOnActivate_root_menuControllerSchedulerBindinginstanceaddPostFrameCallbackFocusManagerapplyFocusChangesIfNeeded
+debugLabelCheckboxCheckboxTheme	ThemeDatauseMaterial3keyConstrainedBoxconstraintsBoxConstraints	maxHeightwidthmaxWidthtristate	onChangedisErrorRadio
+RadioTheme
+groupValue
+toggleablePlatformMenuItem	MenuThemeWidgetStatedisabledhoveredfocusedsubmenuIconTypeActionsubmenucurrentState	GlobalKey
+isNotEmptyTimerdidChangeDependenciesltrtophasFocusresolveIconIconsarrow_rightsizeactionsexpandedshowDecoration_menuScopeNodehoverOpenDelaycancelFlutterError	fromPartsErrorSummaryErrorDescriptiondescribeElementDirectionalFocusAction_anchorState_buttonFocusNode	directionpreviousFocus	nextFocus_focusFirstMenuItem_focusLastMenuItem_focusButtonmaybeInvokeenterSetaltcontrolmetaaltLeftcontrolLeftmetaLeft	shiftLeftaltRightcontrolRight	metaRight
+shiftRight_MaterialLocalizationsdefaultTargetPlatformTargetPlatformmacOSiOSShortcutSerializationserializeForMenutriggerkeyIdcontainsKey	planeMaskfromCharCode	valueMasktoUpperCasekeyLabeljoin	characterUnimplementedErroraltGraphkeyboardKeyAltGraph	backspacekeyboardKeyBackspacecapsLockkeyboardKeyCapsLockchannelDownkeyboardKeyChannelDown	channelUpkeyboardKeyChannelUpdeletekeyboardKeyDeleteejectkeyboardKeyEjectendkeyboardKeyEndkeyboardKeyEscapefnkeyboardKeyFnhomekeyboardKeyHomeinsertkeyboardKeyInsertnumLockkeyboardKeyNumLocknumpad1keyboardKeyNumpad1numpad2keyboardKeyNumpad2numpad3keyboardKeyNumpad3numpad4keyboardKeyNumpad4numpad5keyboardKeyNumpad5numpad6keyboardKeyNumpad6numpad7keyboardKeyNumpad7numpad8keyboardKeyNumpad8numpad9keyboardKeyNumpad9numpad0keyboardKeyNumpad0	numpadAddkeyboardKeyNumpadAddnumpadCommakeyboardKeyNumpadCommanumpadDecimalkeyboardKeyNumpadDecimalnumpadDividekeyboardKeyNumpadDividenumpadEnterkeyboardKeyNumpadEnternumpadEqualkeyboardKeyNumpadEqualnumpadMultiplykeyboardKeyNumpadMultiplynumpadParenLeftkeyboardKeyNumpadParenLeftnumpadParenRightkeyboardKeyNumpadParenRightnumpadSubtractkeyboardKeyNumpadSubtractpageDownkeyboardKeyPageDownpageUpkeyboardKeyPageUppowerkeyboardKeyPowerpowerOffkeyboardKeyPowerOffprintScreenkeyboardKeyPrintScreen
+scrollLockkeyboardKeyScrollLockselectkeyboardKeySelectspacekeyboardKeySpacecontainsandroidfuchsialinuxkeyboardKeyMetawindowskeyboardKeyMetaWindowskeyboardKeyAltkeyboardKeyControlkeyboardKeyShiftArgumentErrorDismissMenuAction	shortcutsorientationchildren_animationControllerRawMenuAnchorGroupBuildermaybeIsOpenOfnodeskipTraversalcanRequestFocusdescendantsAreFocusablelabel
+CharactersdefaultLabelBuilderprimaryFocusRichTextTextSpanRegExphasMatchDefaultTextStyle
+characterstextgetRangetoStringcopyWith
+decorationTextDecoration	underlinesetIndexStringBuffericharacterAtwritetriminfoStringPropertyShortcutRegistryEntryHardwareKeyboard
+addHandlerremoveHandlerlogicalKeysPressedintersectionKeyEventtoLowerCasestripAcceleratorMarkersindexThememaxExpandedClipRectRowmainAxisSizeMainAxisSizeminPaddingEdgeInsetsDirectionalonlystartmainAxisAlignmentMainAxisAlignmentspaceBetweengetShortcutLabelexcludeSemanticsSingleChildLayoutDelegateRectMediaQueryDataloosebiggestdeflatedeflateRect
+viewInsetsheightcenterbottomlerp
+withinRecttopLeftIterableDisplayFeatureSubScreensubScreensInBounds
+anchorRecttextDirectionmenuPaddingparentOrientationheightFactor	setEqualsavoidBoundsfirstscreendistance	AnimationScrollControllerMenuBarTheme
+themeStyledefaultStylestandardbaseSizeAdjustment	symmetricclampinfinityeffectiveConstraintsminWidth	minHeight	constrainisFiniteIntrinsicWidth_maybeAnimationStatusOfScrollConfigurationbehavior
+scrollbars
+overscrollphysicsClampingScrollPhysicsPrimaryScrollController	ScrollbarthumbVisibilitySingleChildScrollViewscrollDirectionFlexcrossAxisAlignmentCrossAxisAlignmentAnimatedBuilderMaterialcolortypeMaterialTypetransparencycanvasconstrainedAxiscenterStartIntrinsicHeightAligntopStartwidthFactorWidgetStateMouseCursorstatesfromLTRB	TapRegiongroupIdtapRegionGroupIdonTapOutsidePointerDownEventcursorhitTestBehaviorHitTestBehaviordeferToChilddataoverlaySize
+MediaQueryCustomSingleChildLayoutdelegatetoSetpositionmediaQueryDataCompositedTransformFollowertargetAnchor
+bottomLeftuncontrolledWidgetPropertyResolver
+debugPrintdetailsdetailMaterialStatePropertyAllbottomStartRoundedRectangleBorderborderRadiusBorderRadiusRadiuscircularColorSchemecolorSchemesurfaceContainershadowColorstransparentkThemeChangeDuration	TextTheme	textThemeButtonStyleButton	allOrNullresolveWith	onSurfacewithOpacitypressedonSurfaceVariantinfiniteadaptiveClickablematerialTapTargetSize
+labelLargefontSizetextScalerOfscalescaledPaddingtopEndInheritedWidgetCurveStatefulWidgetStateSingleTickerProviderStateMixinStatelessWidgetDirectionalFocusAction
+MenuAnchor_MenuAnchorStateSingleChildLayoutDelegateWidgetStateMouseCursor	MenuStyleButtonStyleßYüØŸ¤£ltı¡ı    n   
+dart:async  ƒ   •˜math˜	dart:math  Ÿ   ¯²ui²dart:ui  ¸   package:flutter/foundation.dart  â   package:flutter/rendering.dart  ‚   package:flutter/scheduler.dart  ‚4   package:flutter/services.dart  ‚\   package:flutter/widgets.dart  ‚„   button_style.dart  ‚    button_style_button.dart  ‚Ã   checkbox.dart  ‚Û   color_scheme.dart  ‚÷   colors.dart  ƒ   constants.dart  ƒ&   
+icons.dart  ƒ;   ink_well.dart  ƒS   material.dart  ƒk   material_localizations.dart  ƒ‘   material_state.dart  ƒ¯   menu_bar_theme.dart  ƒÍ   menu_button_theme.dart  ƒî   menu_style.dart  „   menu_theme.dart  „"   motion.dart  „8   
+radio.dart  „M   scrollbar.dart  „f   text_button.dart  „   text_theme.dart  „›   
+theme.dart  „°   theme_data.dartÀ4Å ÀcÕª <€†€¤€¥€Ö€Ú€õ@clm‚¶·á‚
+‚3‚[‚‚‚ƒ‚Ÿ‚Â‚Ú‚öƒƒ%ƒ:ƒRƒjƒƒ®ƒÌƒí„„!„7„L„e„€„š„¯„É„Ê„â…… …G…m…‹…Ë…Ì††'†(†v†ˆ†´†µ‡ ‡'‡T‡U‡ ‡Ç‡ï‡ğˆ<ˆEˆ¢ˆç‰&‰d‰³ŠŠsŠÕ‹9‹<‹=‹v‹¡‹¢‹åŒ	Œ
+ŒRŒ‡ŒˆŒ½7{|ÉŞâ0Ì€ÍñI‰ŠÛê‘#‘+‘0‘d‘g‘h‘¹‘ı‘ş’O’ª’«’ú““>“?““œ“Ô“Õ””C”x”y”Ä”ğ”ô•8•<•Œ•Ÿ•£•ë–8–F–g–¼–½–î—	—"—E—_—e—f—†—¯—°—¼—ô˜J˜ƒ˜‡˜‰˜Š˜×˜Ú™'™v™Ç™î™ñšBš“š¡šÃ›› ›<›V›p›Œ››£›·›Ì›Í›Ùœ œœFœJœKœWœ“œ•œ–œá+X\¬åé3€¼ÀŸ#Ÿ‡Ÿç < @ T ¡ è¡6¡:¡‰¡™¡¡±¢ ¢M¢š¢æ¢ê£9£I£M£a£²£¾£Â¤¤!¤%¤p¤Á¤ë¥¥¥D¥Y¥h¥}¥–¥¦¥Î¥è¥ü¦#¦4¦\¦˜¦¦Ä¦è¦ù§§3§T§o§’§²§Ä§Ô§Ú§Û¨)¨>¨b¨c¨´¨ò¨ø©H©–©¨©®©÷ª3ªVªWª¡ª§ªñª÷«,«F«G«…«Ñ¬¬.¬4¬j¬p¬À¬Ì¬Ò­#­c­ ­¦­ô®A®®Ø¯¯¯;¯P¯q¯r¯»¯Ù¯ß°+°g°…°†°¼°Â°å± ±±F±L±œ±â²%²u²¿³³^³§³÷´E´´”´áµ2µµÎµÔµíµü¶"¶\¶`¶‚¶ƒ¶Î¶ö¶ü·K·›·ã·ó·ù¸¸2¸3¸r¸x¸¸®¸¯¸ğ¸ö¹¹-¹.¹„¹µ¹»º
+ºbº³ºØºÙ»»»4»Q»R»»¤»½»Ô»Õ¼"¼W¼]¼£¼â½½#½o½½¾¾U¾f¾l¾‚¾Ñ¿¿!¿/¿A¿Y¿–¿áÀ @À @À @rÀ @ÆÀ @ãÀ @ÿÀ A9À A]À AtÀ A—À A§À A¶À AåÀ AòÀ AıÀ BÀ BÀ B"À B(À B@À BÀ B‚À BÒÀ BşÀ CÀ C;À C^À C_À C’À C˜À CÚÀ D!À D'À DuÀ DÀ D“À DáÀ DïÀ EÀ EÀ EQÀ EWÀ E¡À EòÀ FBÀ FqÀ FˆÀ F‰À FÑÀ F×À FüÀ G)À G*À G6À GoÀ GpÀ G|À G®À HÀ HÀ HÀ H#À HhÀ H“À H§À IÀ IÀ I]À I¢À IèÀ J>À JBÀ JDÀ JEÀ JœÀ JÆÀ KÀ KHÀ K‚À KÜÀ LÀ L>À LhÀ L™À LÀ LßÀ MÀ M,À M^À McÀ MÀ MÏÀ NÀ NFÀ NÀ NÏÀ OÀ OÀ OVÀ O{À OÛÀ OàÀ OáÀ OíÀ PÀ PÀ P<À PUÀ P À P¡À PÆÀ PøÀ PşÀ QÀ QÀ QÀ Q>À QdÀ Q™À QÀÀ QôÀ RÀ R+À R3À R9À R:À RœÀ R·À R½À R¾À RïÀ SÀ SÀ SÀ SÀ S+À S>À SpÀ S‹À SÌÀ SçÀ SíÀ TÀ T/À TNÀ TnÀ TÀ T³À TÈÀ TÌÀ TÍÀ TôÀ UÀ ULÀ UÀ UÀ UÒÀ VÀ VÀ VÀ VÀ V6À VVÀ V—À V²À V¸À VåÀ VæÀ WÀ W6À WDÀ WJÀ WKÀ WgÀ W˜À W¦À W¬À W­À WıÀ X'À XwÀ XxÀ X˜À X¸À XÖÀ XõÀ YÀ Y_À YƒÀ YÃÀ ZÀ Z
+À ZÀ ZAÀ ZfÀ ZÀ Z»À ZÄÀ ZÅÀ ZêÀ [À [@À [IÀ [JÀ [sÀ [™À [¶À [ÚÀ [ãÀ [äÀ \À \%À \}À \†À \®À \×À \İÀ \áÀ \âÀ ]!À ]3À ]’À ]šÀ ]ÍÀ ]ÑÀ ]ÒÀ ^À ^oÀ ^¾À ^ÎÀ ^õÀ _À _	À _
+À _À _À _SÀ _aÀ _gÀ _hÀ _ŒÀ _À _‘À _ÌÀ `À `À `À `À `UÀ `YÀ `ZÀ `fÀ `À `¸À `ËÀ `ÿÀ aÀ aLÀ aÀ a®À aÍÀ aîÀ b$À bIÀ bxÀ bŸÀ bÀÀ bİÀ bæÀ bíÀ bîÀ cÀ c&À c,À c-À czÀ c~À cÀ cËÀ dÀ d_À dfÀ d³À eÀ eJÀ egÀ e‹À e§À eÌÀ eéÀ fÀ f,À fYÀ f‡À f°À fêÀ gÀ g:À giÀ g’À gÕÀ gùÀ hÀ hWÀ h·À hÄÀ hÏÀ hØÀ hßÀ hãÀ häÀ iÀ iÀ i?À i_À ieÀ ixÀ i|À i}À i•À i¾À iÌÀ iÒÀ jÀ jJÀ jNÀ jOÀ jnÀ j¡À j¯À jµÀ jİÀ k<À kŸÀ k½À kŞÀ käÀ kèÀ kéÀ lÀ l:À lHÀ lNÀ lvÀ lÕÀ m5À mSÀ mWÀ mXÀ m”À máÀ måÀ mæÀ n0À nŒÀ nÀ n‘À nÀ nåÀ oÀ oÀ oÀ oÀ oBÀ oFÀ o“À oãÀ p(À p,À p{À pÌÀ qÀ qjÀ qºÀ rÀ rÀ rÀ riÀ r¹À sÀ sAÀ s‹À sÄÀ sÈÀ t À tAÀ tÀ tİÀ u,À u}À u˜À uœÀ uêÀ v1À vÀ vĞÀ wÀ w[À w_À w­À w÷À xGÀ x’À x–À xâÀ xòÀ yÀ y	À yOÀ ySÀ yaÀ yeÀ y´À yÊÀ zÀ zUÀ z”À zãÀ {!À {mÀ {€À {ÒÀ |À |TÀ |oÀ |—À |¸À |¾À |éÀ |ûÀ }
+À }À }=À }RÀ }nÀ }tÀ }uÀ }¿À }ÅÀ ~À ~À ~JÀ ~dÀ ~eÀ ~›À ~¡À ~ÀÀ ~ÛÀ ~ÜÀ À 5À 6À …À ‹À ØÀ €)À €tÀ €“À €™À €ĞÀ €ïÀ €ğÀ €üÀ #À NÀ iÀ ‡À ©À ½À ÛÀ âÀ æÀ çÀ óÀ ‚%À ‚CÀ ‚–À ‚À ‚¡À ‚¢À ‚®À ‚óÀ ƒÀ ƒwÀ ƒØÀ ƒÜÀ ƒŞÀ ƒßÀ „/À „sÀ „wÀ „ÅÀ …À …3À …7À …lÀ …pÀ …~À …‚À …ÒÀ …ßÀ †.À †DÀ †”À †ãÀ ‡!À ‡mÀ ‡€À ‡ÒÀ ˆÀ ˆSÀ ˆnÀ ˆœÀ ˆÄÀ ˆÊÀ ˆóÀ ‰À ‰À ‰/À ‰AÀ ‰fÀ ‰~À ‰’À ‰®À ‰ÁÀ ‰ÚÀ ‰êÀ ŠÀ Š(À Š>À ŠUÀ ŠvÀ ŠŸÀ Š¯À ŠµÀ Š¶À ŠõÀ ŠûÀ ‹=À ‹CÀ ‹SÀ ‹YÀ ‹•À ‹¶À ‹·À ‹ıÀ ŒÀ ŒRÀ Œ€À Œ¥À Œ¦À ŒÕÀ ŒÛÀ ŒóÀ À À CÀ IÀ ™À ¦À ÑÀ ÒÀ À À  À OÀ gÀ hÀ ¨À ®À åÀ À À ]À cÀ ©À ğÀ /À `À fÀ ±À øÀ ‘AÀ ‘RÀ ‘XÀ ‘oÀ ‘À ‘À ‘»À ‘ÁÀ ’À ’aÀ ’¤À ’éÀ ’ïÀ “À “"À “#À “\À “À “‘À “ÇÀ “ÍÀ “ìÀ ”À ”À ”DÀ ”aÀ ”bÀ ”À ”»À ”¼À ”ûÀ •?À •QÀ •WÀ •oÀ •„À •¢À •£À •×À •İÀ –.À –NÀ –TÀ –¦À –êÀ —À —À —2À —MÀ —NÀ —‡À —À —ĞÀ —ÖÀ ˜À ˜À ˜À ˜PÀ ˜VÀ ˜¢À ˜ËÀ ˜ÌÀ ˜ØÀ ™À ™À ™IÀ ™OÀ ™ŒÀ ™’À ™ÑÀ šÀ š1À š5À š6À šsÀ š•À šÉÀ š÷À šûÀ šüÀ ›CÀ ›lÀ ›rÀ ›¾À œÀ œ_À œ§À œöÀ À 	À MÀ À •À ÖÀ À 6À <À ‹À ËÀ ÑÀ ŸÀ ŸLÀ ŸRÀ Ÿ”À ŸãÀ  /À  BÀ  HÀ  VÀ  lÀ  ™À  áÀ  ùÀ ¡
+À ¡À ¡@À ¡IÀ ¡SÀ ¡tÀ ¡À ¡¬À ¡ĞÀ ¡ôÀ ¢À ¢)À ¢?À ¢UÀ ¢sÀ ¢À ¢¦À ¢½À ¢ŞÀ ¢õÀ £
+À £!À £FÀ £lÀ £‚À £À £¿À £éÀ ¤
+À ¤$À ¤FÀ ¤wÀ ¤~À ¤ŸÀ ¤ÇÀ ¤ïÀ ¥'À ¥_À ¥À ¥©À ¥ÅÀ ¥ßÀ ¦À ¦'À ¦IÀ ¦eÀ ¦}À ¦À ¦¹À ¦ÙÀ §À §7À §IÀ §]À §À §¥À §ÑÀ §÷À ¨À ¨7À ¨>À ¨BÀ ¨CÀ ¨OÀ ¨”À ¨¿À ©À ©vÀ ©ŠÀ ©êÀ ©ñÀ ªRÀ ª±À ªÅÀ ªûÀ «À «1À «MÀ «VÀ «]À «aÀ «cÀ «dÀ «ŸÀ «ïÀ ¬À ¬WÀ ¬À ¬¹À ¬ºÀ ¬ÆÀ ¬ÛÀ ¬òÀ ­À ­JÀ ­NÀ ­OÀ ­[À ­nÀ ­¡À ­ÄÀ ­ãÀ ­øÀ ­üÀ ­ıÀ ®	À ®<À ®oÀ ®ÆÀ ®ìÀ ¯À ¯6À ¯>À ¯hÀ ¯šÀ ¯ À ¯ÆÀ ¯ÊÀ ¯ËÀ ¯×À ¯şÀ °JÀ °—À °çÀ ±À ±TÀ ±|À ±œÀ ±ÒÀ ±ØÀ ±ÙÀ ±øÀ ²0À ²sÀ ²À ²ªÀ ²ßÀ ³À ³9À ³gÀ ³„À ³­À ³ĞÀ ³ÿÀ ´*À ´EÀ ´‰À ´¦À ´¯À ´¶À ´·À ´òÀ µGÀ µMÀ µNÀ µÀ µñÀ µ÷À µøÀ ¶!À ¶%À ¶&À ¶DÀ ¶kÀ ¶¡À ¶ÙÀ ¶ßÀ ¶ãÀ ¶äÀ ·À ·.À ·QÀ ·kÀ ·qÀ ·uÀ ·vÀ ·ÇÀ ·İÀ ¸À ¸*À ¸CÀ ¸eÀ ¸À ¸ÜÀ ¸ÿÀ ¹ À ¹QÀ ¹|À ¹ÑÀ ¹ÙÀ ¹ßÀ ¹ãÀ ¹äÀ ¹ıÀ º:À º\À ºŠÀ ºÀ ºÙÀ »(À »9À »{À »´À »ÔÀ ¼ À ¼À ¼À ¼1À ¼UÀ ¼}À ¼À ¼ÜÀ ¼ñÀ ¼ıÀ ½À ½À ½	À ½
+À ½UÀ ½YÀ ½¥À ½³À ½·À ½ËÀ ¾À ¾5À ¾9À ¾‘À ¾¡À ¾¥À ¾³À ¾·À ¿À ¿PÀ ¿\À ¿À ¿»À ¿ÁÀ ÀÀ À#À À2À ÀKÀ ÀfÀ À€À ÀÀ À¯À ÀÇÀ ÀÛÀ ÀîÀ ÀşÀ ÁÀ Á<À ÁSÀ ÁtÀ ÁÀ Á“À Á”À Á¼À ÁÂÀ ÂÀ ÂNÀ ÂcÀ ÂdÀ Â¬À Â²À ÂõÀ ÂûÀ ÃKÀ ÃœÀ ÃíÀ ÄÀ Ä À ÄdÀ Ä{À Ä|À Ä¶À Ä¼À ÅÀ ÅdÀ ÅjÀ ÅƒÀ Å™À ÅšÀ ÅÕÀ ÅÛÀ Æ)À ÆwÀ Æ„À ÆŠÀ ÆÖÀ ÇÀ Ç
+À Ç[À Ç©À ÇõÀ ÈÀ ÈÀ ÈYÀ È¦À ÈÇÀ ÈÍÀ ÈÛÀ ÈõÀ ÉÀ É8À É^À ÉvÀ ÉÀ É¬À É·À É¿À ÉÉÀ ÉñÀ ÉòÀ Ê8À Ê>À ÊÀ Ê»À ÊàÀ ÊáÀ ËÀ ËÀ ËdÀ ËqÀ ËœÀ ËÀ ËÌÀ ËêÀ ËëÀ Ì+À Ì1À ÌhÀ Ì”À Ì•À ÌÀÀ ÌÆÀ ÍÀ Í`À Í¬À ÍçÀ Î0À Î6À ÎMÀ ÎiÀ ÎjÀ Î£À Î×À ÎØÀ ÏÀ ÏÀ Ï3À ÏNÀ ÏOÀ ÏŠÀ Ï¨À Ï©À ÏåÀ ĞÀ ĞÀ Ğ=À ĞCÀ Ğ†À ĞŒÀ Ğ½À ĞÔÀ ĞÕÀ ÑÀ ÑÀ ÑXÀ ÑÀ Ñ‚À ÑÀ ÑµÀ ÑĞÀ ÑàÀ ÒÀ ÒÀ Ò%À ÒDÀ Ò`À Ò„À ÒŸÀ ÒÖÀ ÒñÀ ÓÀ Ó&À Ó5À ÓMÀ ÓqÀ ÓÀ Ó¡À Ó»À ÓåÀ ÔÀ Ô$À ÔEÀ Ô©À ÔÆÀ ÔèÀ ÕÀ Õ(À ÕHÀ ÕWÀ ÕdÀ ÕoÀ ÕxÀ ÕšÀ Õ¼À ÕäÀ ÕøÀ ÕÿÀ ÖÀ ÖÀ ÖÀ ÖNÀ ÖRÀ ÖšÀ ÖµÀ Ö¹À ÖÍÀ ×À ×dÀ ×hÀ ×½À ×ÍÀ ×ÑÀ ×ßÀ ×ãÀ Ø.À Ø|À ØˆÀ Ø»À ØäÀ ØêÀ ÙÀ Ù-À Ù<À ÙUÀ ÙsÀ ÙÀ Ù­À Ù¿À Ù×À ÙëÀ ÙşÀ ÚÀ Ú)À ÚLÀ ÚcÀ Ú„À ÚÀ Ú£À Ú¤À ÚÖÀ ÚÜÀ Û&À Û:À ÛKÀ ÛLÀ ÛÀ Û“À ÛİÀ ÛñÀ ÜÀ Ü	À ÜPÀ ÜÀ Ü•À ÜàÀ ÜøÀ ÜşÀ İDÀ İ‹À İªÀ İ°À İüÀ ŞLÀ Ş˜À Ş´À ŞºÀ ŞÖÀ ŞïÀ ŞğÀ ß&À ß,À ß}À ßÎÀ ßüÀ àÀ àAÀ àGÀ à—À à§À à­À àşÀ áKÀ álÀ árÀ á€À á©À áÔÀ áôÀ â&À â>À âaÀ âoÀ âzÀ â¢À âªÀ â´À âÙÀ âÚÀ ã À ã&À ãuÀ ã£À ãÈÀ ãÉÀ ãöÀ ãüÀ äLÀ äYÀ ä„À ä…À ä´À äÒÀ äÓÀ åÀ åÀ åPÀ å|À å}À å¨À å®À åÿÀ æHÀ æ”À æÏÀ çÀ çÀ ç5À çQÀ çRÀ ç‹À ç¿À çÀÀ çöÀ çüÀ èÀ è6À è7À èrÀ èÀ è‘À èÍÀ èëÀ èìÀ é%À é+À énÀ étÀ é¥À é¼À é½À éîÀ éôÀ ê@À êiÀ êjÀ êvÀ êÀ ê¸À êÈÀ êëÀ êüÀ ëÀ ëDÀ ëmÀ ë}À ëÀ ë­À ëÅÀ ëéÀ ìÀ ìÀ ì3À ì]À ì~À ìœÀ ì½À í!À í>À íZÀ í€À í¤À íÊÀ íÙÀ íæÀ íñÀ íúÀ îÀ î>À îfÀ îzÀ îÀ î…À î‡À îˆÀ îºÀ î¾À ïÀ ïÀ ïQÀ ïÀ ïëÀ ïïÀ ğ=À ğ†À ğÓÀ ğåÀ ğéÀ ñ3À ñuÀ ñ‰À ñÀ ñ×À ñÛÀ ñéÀ ñíÀ ò=À òSÀ ò£À ò°À òÿÀ óÀ óbÀ óªÀ ó×À óşÀ ôÀ ôBÀ ôZÀ ôiÀ ô{À ô“À ô¤À ô¶À ôËÀ ôÛÀ ôïÀ õ	À õ0À õDÀ õ_À õuÀ õŒÀ õ¢À õÃÀ õìÀ öÀ ö*À öJÀ öcÀ öiÀ öjÀ ö°À ö¶À ÷À ÷?À ÷dÀ ÷eÀ ÷’À ÷˜À ÷éÀ ÷üÀ ø'À ø(À øbÀ ø€À øÀ ø»À øÚÀ øÛÀ ùÀ ù4À ù5À ù`À ùfÀ ù·À úÀ úIÀ úÀ ú”À ú«À úÇÀ úÈÀ ûÀ ûÀ û^À û|À û}À ûÉÀ ûÿÀ üÀ ü@À üFÀ ü•À üãÀ ı	À ı*À ı+À ıaÀ ıgÀ ıŠÀ ı¥À ı¦À ıÕÀ ıóÀ ıôÀ ş-À şaÀ şbÀ ş˜À şµÀ ş¶À ÿÀ ÿÀ ÿ3À ÿTÀ ÿtÀ ÿ”À ÿšÀ ÿèÀ 6À JÀ }À ~À ³À ÑÀ ÒÀÀÀ-ÀJÀKÀ˜ÀÍÀÓÀÀXÀ“À™ÀæÀ5À€ÀÇÀÍÀåÀ&À'ÀlÀrÀ¾ÀİÀãÀ0À@ÀcÀdÀ³À¹ÀÀQÀŸÀîÀ<ÀQÀWÀzÀ›ÀœÀÜÀâÀûÀÀÀTÀZÀÀ£ÀÔÀëÀìÀøÀ	7À	8À	gÀ	mÀ	ªÀ	°À	ïÀ
+$À
+OÀ
+SÀ
+TÀ
+£À
+³À
+çÀÀÀÀ`À‰ÀÀÛÀ,À|ÀÄÀÀ À&ÀjÀ¬À²ÀóÀ5ÀSÀYÀ¨ÀèÀîÀ5ÀiÀoÀ±ÀÿÀKÀ^ÀdÀrÀ‡À´ÀûÀ.ÀYÀbÀlÀÀ©ÀÅÀéÀÀ%ÀBÀXÀnÀŒÀ¦À¿ÀÖÀ÷ÀÀ#À:À_À…À›À¶ÀØÀÀ#À=À_ÀÀ—À¸ÀàÀÀ@ÀxÀ˜ÀÂÀŞÀ
+À$À@ÀbÀ~À–À¶ÀÒÀòÀ ÀPÀbÀvÀšÀ¾ÀêÀÀ,ÀPÀWÀ[À\ÀhÀšÀ¸ÀôÀÀ(À/À3À4À@À…À°ÀıÀ]À²ÀøÀüÀşÀÿÀ8ÀÀÌÀÑÀõÀÀEÀœÀãÀ$ÀEÀ•ÀâÀÀ4ÀtÀÀÀ›À°ÀÇÀëÀÀ%ÀqÀ†À’À˜À½ÀïÀõÀ +À /À 0À <À ]À €À ¬À °À ±À ½À ĞÀ ìÀ!%À!HÀ!gÀ!|À!€À!À!À!¿À!åÀ"À"DÀ"mÀ"­À"ÔÀ"÷À#À#GÀ#OÀ#uÀ#¡À#µÀ$À$À$(À$0À$hÀ$nÀ$£À$ıÀ%À%À%À%À%;À%À%ÂÀ&À&À&NÀ&—À&åÀ'1À'}À'ÆÀ(À(À(8À(cÀ(À(ÈÀ(ÏÀ(îÀ)À)[À)oÀ)»À)åÀ)ğÀ)ñÀ*À*À*6À*OÀ*À*µÀ*ßÀ+À+6À+UÀ+rÀ+“À+ÂÀ+åÀ,9À,‹À,ŞÀ-.À-AÀ-eÀ-ºÀ-èÀ.1À.2À.TÀ.pÀ.†À.”À.ÍÀ.ïÀ/À/%À/3À/?À/@À/{À/™À/ÄÀ/æÀ0À0À0&À0'À0jÀ0´À1À1À1WÀ1vÀ1—À1ÁÀ2À2kÀ2¼À3À3&À3„À3œÀ3¬À3­À3ãÀ4À4;À4RÀ4ƒÀ4“À4¡À4­À4®À4ĞÀ4îÀ59À5ZÀ5~À5«À5òÀ6/À6gÀ6À6ÁÀ6öÀ7À7yÀ7¥À7ÅÀ7ØÀ7éÀ7øÀ8À8À8!À8;À8GÀ8HÀ8­À8®À8İÀ9À98À9XÀ9tÀ9ƒÀ9À9À9¨À9³À9ŞÀ9ûÀ:À:À:À:À:OÀ:aÀ:‚À:ŠÀ:½À:ÁÀ:ÂÀ:ÚÀ;&À;tÀ;ÃÀ<À<@À<fÀ<‹À<×À=À=8À=oÀ=uÀ=‘À=•À=–À=­À=ÍÀ>À>À>JÀ>qÀ>{À>¥À>ÇÀ>ÍÀ>ßÀ?À? À?;À??À?@À?yÀ?µÀ?ÚÀ@
+À@5À@GÀ@’À@ÀÀ@ÄÀ@ÅÀ@ãÀ@ÿÀA,ÀA‰ÀAªÀA²ÀAÀÀAÆÀAÇÀAëÀAïÀAğÀBÀB:ÀBHÀBNÀBOÀBqÀBªÀBğÀC ÀCÀC	ÀC!ÀCzÀCÀCÀC¥ÀC¦ÀCÜÀD+ÀDcÀDsÀD{ÀDÀD‚ÀD´ÀDÒÀDàÀDæÀDçÀEÀEeÀEƒÀE‹ÀEÀEÀE°ÀEÏÀEëÀEïÀEğÀFÀFuÀF«ÀFÁÀG%ÀG0ÀGJÀHŒÀH—ÀHÙÀHãÀHéÀHúÀHşÀI ÀIÀIGÀI‚ÀIƒÀI¨ÀIÜÀJÀJWÀJXÀJÀJĞÀJÑÀK%ÀKgÀKœÀKÀK©ÀKØÀL/ÀL|ÀL¼ÀMÀMQÀM•ÀMìÀNÀNÀN0ÀNMÀN]ÀN¨ÀNòÀO2ÀO…ÀOÀO®ÀOÉÀOâÀOòÀP,ÀPEÀP•ÀPÇÀPöÀQÀQÀQJÀQcÀQ³ÀQÿÀR5ÀRcÀRuÀRÀRÇÀSÀSQÀSlÀS—ÀS·ÀSØÀSëÀT"ÀTaÀT®ÀTØÀTäÀTõÀUÀU<ÀU€ÀUÎÀUéÀUÿÀVÀV2ÀV`ÀVsÀVÄÀWÀW1ÀW=ÀWrÀW|ÀWŒÀWäÀX;ÀXoÀX‘ÀXÀÀXÑÀXïÀY?ÀYeÀY˜ÀY¦ÀY´ÀY¾ÀYÎÀYİÀYìÀYòÀYóÀZ%ÀZ)ÀZ+ÀZ,ÀZfÀZ¤ÀZ¾ÀZÂÀ[À[SÀ[WÀ[¦À[²À[¶À\À\RÀ\“À\µÀ\ÖÀ\×À]À]À]TÀ]xÀ]£À]ÏÀ]øÀ^#À^JÀ^SÀ^TÀ^À^ºÀ^ÚÀ^÷À_À_5À_YÀ_zÀ_œÀ_½À_âÀ`À`'À`,À`-À`[À`À`ÅÀ`ÉÀ`ÊÀaÀabÀa¼ÀaşÀaÿÀb@ÀbÀb‡ÀbÇÀcÀcfÀc ÀcïÀd6Àd<Àd†Àd—ÀdûÀeEÀedÀe†Àe³ÀeÍÀeÚÀeıÀfÀfÀfCÀfÀf£ÀfÔÀg'ÀgˆÀgáÀh>Àh™ÀhµÀhğÀiIÀiªÀjÀjbÀjmÀjvÀj•ÀjÃÀkÀkAÀkPÀkÀkÉÀlÀlkÀlºÀlÒÀmÀm<ÀmWÀmaÀmšÀmÈÀmĞÀmçÀmıÀnQÀnmÀnœÀn¾ÀnşÀo/Ào‚ÀoãÀp<Àp—Àp³ÀpîÀqGÀq¨ÀrÀrÀrÀrfÀrlÀrŠÀrĞÀs)ÀsYÀs`ÀsdÀseÀs²ÀsİÀt8ÀtƒÀtĞÀu Àu9Àu‚ÀuÈÀvÀvVÀv¢ÀvêÀw,ÀwlÀw¨ÀwêÀx$ÀxbÀx¤ÀxèÀy,ÀypÀy´ÀyøÀz<Àz€ÀzÄÀ{À{LÀ{À{ØÀ|$À|tÀ|ÂÀ}À}ZÀ}¬À~ À~VÀ~¨À~îÀ0ÀpÀ¶À€À€LÀ€À€ÎÀ€ÕÀ
+ÀÀÀnÀÇÀöÀ‚)À‚]À‚„À‚©À‚ÎÀ‚ñÀƒ!ÀƒFÀƒ}ÀƒÀƒÁÀƒ×ÀƒßÀƒåÀ„À„EÀ„xÀ„ŸÀ„ÄÀ„éÀ…À…1À…`À…À…¤À…ºÀ…ÂÀ…ÈÀ…úÀ†0À†gÀ†´À‡À‡NÀ‡ŸÀ‡ØÀ‡ÿÀˆ$ÀˆIÀˆlÀˆ‘ÀˆÄÀˆåÀ‰À‰À‰&À‰,À‰\À‰À‰ÅÀ‰ìÀŠÀŠ6ÀŠYÀŠ~ÀŠ¯ÀŠĞÀŠóÀ‹	À‹À‹À‹hÀ‹lÀ‹nÀ‹oÀ‹¾ÀŒÀŒ8ÀŒQÀŒrÀŒˆÀŒ ÀŒ±ÀŒ·ÀŒ¸ÀŒÄÀ ÀÀÀ8ÀÀÄÀÉÀÊÀÖÀÀÀÀ6ÀQÀiÀÀ®ÀÉÀìÀÀ>ÀgÀrÀ{À‚ÀŸÀ²ÀæÀÀ,ÀDÀpÀÀÀßÀ‘À‘)À‘PÀ‘}À‘ÂÀ‘ÑÀ‘ŞÀ‘éÀ‘òÀ‘ùÀ‘ıÀ‘ÿÀ’ À’PÀ’ŒÀ’À’ÖÀ“&À“bÀ“¡À“ØÀ“ŞÀ”À”0À”?À”RÀ”oÀ”‰À”À”À”ÙÀ•À•	À•FÀ•fÀ•gÀ•³À•¹À–À–XÀ–dÀ–}À–~À–ŠÀ–ĞÀ—!À—%À—&À—~À—ÍÀ—çÀ—íÀ˜2À˜8À˜HÀ˜NÀ˜¡À˜³À˜üÀ™UÀ™YÀ™ZÀ™®À™ùÀšÀšÀšrÀš Àš¦Àš¶Àš¼ÀšøÀ›+À›nÀ›³À›ÃÀ›ßÀ›ûÀœLÀœ‘ÀœäÀ4À€ÀÒÀöÀÀÀ!À4À>ÀRÀVÀXÀYÀ§ÀÔÀØÀŸ)ÀŸ[ÀŸ_ÀŸ—ÀŸèÀ 6À }À ÎÀ¡À¡gÀ¡±À¡úÀ¢FÀ¢À¢”À¢˜À¢¦À¢ªÀ¢øÀ£<À£bÀ£¦À£§À£ëÀ¤;À¤pÀ¤tÀ¤ÃÀ¥À¥\À¥ŸÀ¥ïÀ¦,À¦0À¦}À¦ÇÀ§À§BÀ§FÀ§—À§ŞÀ¨$À¨=À¨AÀ¨’À¨ãÀ©1À©SÀ©WÀ© À©éÀª7Àª…ÀªÖÀ«$À«]À«aÀ«»À«ËÀ«ŞÀ¬À¬@À¬FÀ¬oÀ¬ÊÀ¬ËÀ¬üÀ­À­JÀ­“À­™À­åÀ®6À®‚À®ÓÀ¯#À¯qÀ¯ÁÀ¯ıÀ°À°À°(À°.À°{À°ÆÀ±À±eÀ±¯À±ÔÀ±êÀ±ëÀ²+À²1À²zÀ²·À²¸À³À³1À³7À³€À³ÍÀ´À´dÀ´jÀ´ºÀ´ÀÀµÀµaÀµ¯ÀµãÀ¶À¶À¶KÀ¶QÀ¶šÀ¶âÀ¶ãÀ·-À·zÀ·ÉÀ¸À¸ À¸pÀ¸ÅÀ¸ÚÀ¸ôÀ¸úÀ¹AÀ¹uÀ¹ŠÀ¹ À¹¾À¹×Àº2ÀºFÀºŠÀºÚÀºçÀ»À»pÀ»{À»„À»‹À»À»À»ßÀ»ıÀ¼À¼SÀ¼À¼£À¼ìÀ½JÀ½hÀ½‘À½°À½şÀ¾À¾KÀ¾|À¾À¾ÓÀ¿$À¿QÀ¿À¿­À¿ÏÀ¿öÀÀÀÀÀÀ4ÀÀ[ÀÀmÀÀuÀÀÀÀÖÀÀåÀÀíÀÁÀÁYÀÁ}ÀÁ¬ÀÁëÀÂ8ÀÂRÀÂƒÀÂ‹ÀÂØÀÃ'ÀÃDÀÃJÀÃpÀÃ”ÀÃ˜ÀÃ™ÀÃ¥ÀÃòÀÃóÀÃÿÀÄFÀÄtÀÄxÀÄyÀÄ…ÀÄÊÀÄõÀÅ)ÀÅ-ÀÅ/ÀÅ0ÀÅwÀÅ”ÀÅ²ÀÅŞÀÆÀÆ(ÀÆYÀÆ{ÀÆ|ÀÆˆÀÆÀÆ´ÀÆİÀÇÀÇGÀÇMÀÇhÀÇlÀÇmÀÇyÀÇŒÀÇÙÀÇñÀÈÀÈCÀÈhÀÈˆÀÈ¦ÀÈèÀÈîÀÉÀÉÀÉÀÉÀÉ5ÀÉXÀÉ‚ÀÉÀÉ–ÀÉÖÀÊÀÊHÀÊjÀÊnÀÊoÀÊ{ÀÊ´ÀÊÚÀËÀË"ÀË(ÀË,ÀË-ÀËMÀË¨ÀËÊÀËíÀÌÀÌÀÌ"ÀÌ#ÀÌNÀÌyÀÌ‹ÀÌ¶ÀÌÚÀÌâÀÍÀÍ,ÀÍ0ÀÍ1ÀÍWÀÍ‚ÀÍ©ÀÍÌÀÎÀÎ+ÀÎ2ÀÎlÀÎÀÎâÀÏÀÏ[ÀÏ«ÀÏİÀÏúÀĞÀĞCÀĞÀĞçÀÑ=ÀÑÀÑ­ÀÑ¸ÀÑÂÀÑÈÀÑÌÀÑÍÀÑìÀÒ.ÀÒBÀÒ`ÀÒƒÀÒŒÀÒ“ÀÒ—ÀÒ˜ÀÒ¤ÀÒËÀÓÀÓGÀÓKÀÓMÀÓNÀÓ•ÀÓªÀÓ®ÀÔ ÀÔPÀÔÀÔÅÀÔôÀÕÀÕ"ÀÕ]ÀÕvÀÕ”ÀÕ´ÀÕÊÀÕáÀÕôÀÖÀÖ4ÀÖJÀÖZÀÖ`ÀÖaÀÖÀÖ•ÀÖÑÀÖêÀÖëÀ×:À×‡À×­À×ÊÀ×ËÀØÀØÀØ ÀØVÀØtÀØuÀØÄÀØØÀÙÀÙÀÙQÀÙpÀÙÀÙ‘ÀÙÅÀÙàÀÙáÀÚ;ÀÚXÀÚYÀÚ˜ÀÚ¯ÀÚ°ÀÚ¼ÀÚãÀÛ&ÀÛUÀÛrÀÛ¬ÀÛ³ÀÛÈÀÛñÀÜÀÜ%ÀÜ;ÀÜgÀÜ‡ÀÜ£ÀÜÄÀÜŞÀİÀİ%ÀİXÀİ©ÀİÖÀİúÀŞÀŞ&ÀŞ9ÀŞHÀŞUÀŞ`ÀŞiÀŞvÀŞŒÀŞ´ÀŞĞÀŞèÀßÀßÀßEÀßÀß³ÀßÏÀßŞÀßéÀßòÀßøÀßùÀàÀàRÀàlÀà~Àà Àà³ÀàşÀáÀá,Àá\ÀáoÀáºÀáÓÀâÀâ1ÀâdÀâuÀâ„Àâ‘Àâ»ÀâÎÀãÀã9ÀãFÀãOÀãVÀãxÀã™Àã¸ÀãØÀãöÀãÿÀäÀäÀä#Àä$Àä0ÀäuÀä Àä´ÀåÀåÀåcÀå´Àå¸ÀåºÀå»ÀæÀæÀæTÀæjÀæˆÀæ©ÀæÆÀæéÀç	Àç(ÀçGÀçfÀç‹Àç®ÀçÎÀçğÀçöÀç÷ÀèBÀè[Àè\Àè–Àè»Àè¼ÀéÀé)Àé*ÀéyÀé„Àé¤Àé¥ÀéÚÀéøÀéùÀêEÀêWÀêÀê€ÀêĞÀêïÀêğÀëÀë-Àë.ÀëZÀëzÀë{ÀëÀÀëìÀëíÀì(ÀìEÀìFÀì“ÀìÃÀìêÀìëÀì÷Àí=Àí‹Àí¥ÀíôÀíøÀíùÀîÀî?ÀîeÀî¯ÀîÎÀïÀïPÀïWÀï¹ÀğÀğVÀğªÀğ«ÀğËÀğçÀğíÀğîÀñ5ÀñŠÀñèÀñûÀò;ÀòyÀòÀò€ÀòÉÀóÀóÀóÀóZÀóhÀóvÀó–ÀóîÀôÀôCÀôxÀôÈÀôøÀõÀõÀõ?ÀõGÀõsÀõ‘Àõ¯ÀõÎÀõîÀöÀö.Àö?ÀöGÀöTÀöÀö½ÀöÜÀöâÀöãÀ÷5À÷HÀ÷[À÷bÀ÷®À÷æÀø2ÀødÀø¯ÀøûÀùNÀù™ÀùçÀùóÀú#ÀúkÀú‡Àú”Àú°ÀúÿÀû>ÀûnÀûÀûŸÀûäÀü	ÀüÀü2ÀüTÀü`ÀüjÀüÀü¾ÀüñÀıÀıXÀı|Àı’Àı¥ÀıÚÀıæÀığÀıøÀışÀş0ÀşfÀşÀşÀş¥ÀşÔÀşôÀÿÀÿÀÿ8ÀÿBÀÿcÀÿ¢Àÿ¿À À JÀ uÀ ˆÀ À ªÀ »À ğÀ úÀÀÀ!À%À&À2ÀcÀ–ÀÌÀúÀ4ÀhÀšÀÌÀ
+ÀDÀxÀ²À¶À·ÀõÀÀ;ÀÀ§À¯ÀµÀÉÀÍÀÏÀĞÀÀÀ_ÀÀ©À¾ÀÛÀşÀÀEÀ_À{ÀÀ‚ÀÈÀæÀçÀÀ#ÀBÀ]À^À½ÀÚÀàÀ7ÀˆÀ­À®ÀÚÀôÀõÀ	5À	aÀ	bÀ	£À	©À	ÙÀ	øÀ	ùÀ
+À
+=À
+?À
+@À
+rÀ
+¬À
+­À
+¹À
+ÌÀ
+ìÀÀÀÀÀ9À“ÀëÀ;ÀBÀwÀxÀ¾ÀÀ#À$ÀxÀ©ÀæÀğÀöÀ÷ÀYÀ³ÀÀsÀËÀÀwÀÍÀÀ2ÀOÀwÀÕÀüÀ[À¢ÀåÀ,ÀrÀ±ÀĞÀ	À@ÀsÀ±À²À ÀÀAÀnÀ§ÀâÀëÀòÀÀRÀsÀ±ÀÑÀñÀüÀÀ&ÀdÀ†À¨À³À»ÀÁÀÂÀÀ`ÀuÀ¢ÀÓÀ
+À7ÀJÀPÀQÀ°ÀÙÀúÀÀ>ÀSÀZÀ[À{À›À½ÀçÀúÀ\À„À¬ÀÈÀ÷À!ÀMÀ€À›ÀÙÀÀCÀsÀ—À¨À·ÀÄÀÏÀØÀßÀàÀ
+ÀYÀ–À¹ÀåÀÀ&À/À5À6À[ÀrÀÀ¦ÀÆÀèÀ À mÀ ˜À ²À »À ÂÀ ÃÀ ìÀ!À!=À!bÀ!—À!±À!ºÀ!ÀÀ!ÁÀ"À"À"À"NÀ"wÀ"¯À"äÀ"ëÀ"ïÀ"ğÀ#5À#GÀ#wÀ#ªÀ#ÀÀ#ÔÀ#ÛÀ#ßÀ#áÀ#âÀ$À$CÀ$VÀ$pÀ$À$ªÀ$ÊÀ$íÀ%À%3À%[À%{À%œÀ%½À%àÀ&À&	À&
+À&0À&YÀ&zÀ&˜À&¶À&×À&÷À'À'7À'ZÀ'ƒÀ'®À'ÚÀ'ÛÀ'çÀ(À(PÀ(”À(øÀ)XÀ)¨À)¯À)õÀ*RÀ*XÀ*YÀ*­À*ŞÀ+À+%À++À+,À+iÀ+ŒÀ+áÀ+èÀ+éÀ,À,WÀ,€À,áÀ-À-gÀ-®À-ñÀ.8À.~À.¬À.åÀ/À/LÀ/ŠÀ/‹À/¹À/ÒÀ0À0*À0UÀ0À0À0¢À0£À0ËÀ0ùÀ1[À1ŠÀ1²À1»À1ÕÀ1òÀ2)À2DÀ2kÀ2ŠÀ2¤À2ÑÀ3%À34À3RÀ3…À3ªÀ3ÒÀ4 À4#À4KÀ4yÀ4­À4ïÀ5#À5MÀ5`À5qÀ5€À5À5˜À5¡À5¨À5©À5ÊÀ6À6-À6rÀ6’À6¸À6óÀ79À7eÀ7ŠÀ7²À7àÀ86À8dÀ8ŠÀ8¼À8ñÀ9#À9wÀ9©À9ŞÀ:
+À:À:;À:JÀ:WÀ:bÀ:kÀ:rÀ:sÀ:À:¥À:«À:¬À:ÔÀ:ìÀ;À;+À;2À;6À;8À;9À;zÀ;©À;İÀ<	À<
+À<HÀ<IÀ<UÀ<‡À<ÂÀ<ÃÀ<ÏÀ=À=À=À=VÀ=^À=bÀ=‘À=•À=ÑÀ=ÕÀ>#À>-À>pÀ>~À>–À>ºÀ>íÀ?À?AÀ?KÀ?SÀ?YÀ?jÀ?rÀ?¶À?ÅÀ?ÇÀ?ÈÀ@À@'À@JÀ@gÀ@†À@™À@ºÀ@ÛÀ@úÀAÀA/ÀA3ÀA5ÀA6ÀAÀAƒÀAÑÀBÀBbÀB„ÀB›ÀBÀBÀBÇÀCÀCaÀC¬ÀC¼ÀCÔÀCÖÀC×ÀDÀDÀDFÀDŠÀD²ÀDåÀDæÀDùÀE&ÀEIÀEVÀE•ÀEæÀFÀF ÀF!ÀF\ÀF®ÀF¯ÀFÍÀFÎÀGÀGÀGÀGQÀG˜ÀGœÀGÀG©ÀGÚÀHÀHÀHÀH(ÀH^ÀH¥ÀH©ÀHªÀH¶ÀHğÀI/ÀIVÀIÀI–ÀIÀI¡ÀI¢ÀI®ÀIôÀIöÀI÷ÀJ)ÀJOÀJ\ÀJ‹ÀJ§ÀJÚÀJáÀJâÀK ÀKÀKCÀK„ÀK…ÀK‘ÀKÆÀL	ÀLÀLÀL+ÀL,ÀLOÀLPÀL\ÀL‹ÀLÀÀLÄÀLÅÀLÑÀMÀMMÀM€ÀM´ÀM¼ÀMîÀNÀNÀNJÀNlÀNtÀN¦ÀNÈÀNĞÀNğÀNøÀNüÀNıÀO	ÀO8ÀOÀO²ÀOæÀOîÀP ÀPIÀPQÀPƒÀP¬ÀP´ÀPæÀQÀQÀQ>ÀQFÀQJÀQKÀQeÀQfÀQrÀQ ÀQÙÀQİÀQŞÀQêÀRÀRVÀRZÀR[ÀRgÀR–ÀRÜÀRàÀRáÀRíÀSOÀSPÀS\ÀSÀSºÀSÜÀTÀTEÀTOÀTƒÀT¹ÀTÃÀT÷ÀU,ÀU6ÀUYÀUbÀUiÀUmÀUnÀUzÀU³ÀVÀVÀVÀV"ÀV#ÀV/ÀVbÀVºÀV¾ÀV¿ÀVËÀW!ÀW"ÀW.ÀW…ÀW†ÀW’ÀWÄÀXÀXNÀX–ÀXšÀX›ÀX§ÀXîÀXïÀY'ÀYcÀY¦ÀYğÀZLÀZ¡ÀZ÷À[;À[cÀ[ªÀ[°À[ÿÀ\MÀ\]À\³À]À]9À]jÀ]…À]ÎÀ]ØÀ^	À^$À^UÀ^_À^ À^µÀ^¼À^ÀÀ^ÂÀ^ÃÀ^íÀ_À_À_YÀ_ªÀ_ØÀ_ßÀ_àÀ`À`mÀ`nÀ`ŒÀ`À`ÏÀ`ĞÀ`ÜÀaÀaWÀa[Àa\ÀahÀaÀaåÀaéÀaêÀaöÀb'ÀbdÀbhÀbiÀbuÀb¯ÀbîÀc9Àc@ÀcDÀcEÀcQÀc—Àc™Àc«Àc¬ÀcÕ   €½/// @docImport 'package:flutter/cupertino.dart';
+///
+/// @docImport 'app.dart';
+/// @docImport 'checkbox_theme.dart';
+/// @docImport 'dropdown_menu.dart';
+/// @docImport 'radio_theme.dart';m  ‚˜ ² ·  á  ‚
+  ‚3  ‚[  ‚ƒ  ‚Ÿ  ‚Â  ‚Ú  ‚ö  ƒ  ƒ%  ƒ:  ƒR  ƒj  ƒ  ƒ®  ƒÌ  ƒí  „  „!  „7  „L  „e  „€  „š  „¯      –ö —    ———   —&—&—4   —I—I—X  –ğ–ğt    ——h—  ——ˆ%—      —Ö—Ö—ç —²—³—²—²€Ô—Ã  –½–½Ë–Ã   šË šÖ    š×š×
+šÜ   šãšãšè   šîšîšü ›
+››››››&›,›9›3›-›6›B›H›S›M›I›P›\›b›m›g›c›j›v›|›‰››}›„šÅšÅ€Æ    ›œ››œ  ›²›¥›²  ›Å›¹›Å      ›ô›ô›û ›Ï›Ğ›Ï›Ïz›â   œMœNœMœMEœ`  š¡š¡óš§   ¥L ¥V    ¥]¥]	¥c   ¥l¥l¥q   ¥¥¥†   ¥š¥š
+¥Ÿ   ¥ª¥ª"¥¯   ¥Ò¥Ò¥×   ¥ì¥ì¥ñ   ¦ ¦ !¦   ¦'¦'€›¦§   ¦È¦È¦Í   ¦ì¦ì¦ñ   ¦ı¦ı§   §§"§   §7§7§<   §X§X§]   §s§s§x   §–§–§¤   §¶§¶§»   §È§È
+§Í ¥Á¥Ç¥È¦¦¦¦'¦(¦2¦œ¦:¦b¦½¦á§-§M§h¤í¤í‚ì R/// Creates a const [MenuAnchor].
+///
+/// The [menuChildren] argument is required.  ¨V§İ€ƒ¨V^/// An optional controller that allows opening and closing of the menu from
+/// other widgets. ªF¨eïªF½/// The [childFocusNode] attribute is the optional [FocusNode] also associated
+/// to the [child] or [builder] widget that opens the menu.
+///
+/// The focus node should be attached to the widget that should receive focus
+/// if keyboard focus traversal moves the focus off of the submenu with the
+/// arrow keys.
+///
+/// If not supplied, then keyboard traversal from the menu back to the
+/// controlling button when the menu is open is disabled. «?ªY€ë«?€Ê/// The [MenuStyle] that defines the visual attributes of the menu bar.
+///
+/// Colors and sizing of the menus is controllable via the [MenuStyle].
+///
+/// Defaults to the ambient [MenuThemeData.style]. ¯`«I„&¯`ƒÜ/// {@template flutter.material.MenuAnchor.alignmentOffset}
+/// The offset of the menu relative to the alignment origin determined by
+/// [MenuStyle.alignment] on the [style] attribute and the ambient
+/// [Directionality].
+///
+/// Use this for adjustments of the menu placement.
+///
+/// Increasing [Offset.dy] values of [alignmentOffset] move the menu position
+/// down.
+///
+/// If the [MenuStyle.alignment] from [style] is not an [AlignmentDirectional]
+/// (e.g. [Alignment]), then increasing [Offset.dx] values of
+/// [alignmentOffset] move the menu position to the right.
+///
+/// If the [MenuStyle.alignment] from [style] is an [AlignmentDirectional],
+/// then in a [TextDirection.ltr] [Directionality], increasing [Offset.dx]
+/// values of [alignmentOffset] move the menu position to the right. In a
+/// [TextDirection.rtl] directionality, increasing [Offset.dx] values of
+/// [alignmentOffset] move the menu position to the left.
+///
+/// Defaults to [Offset.zero].
+/// {@endtemplate} °z¯t°z€ê/// An optional [LayerLink] to attach the menu to the widget that this
+/// [MenuAnchor] surrounds.
+///
+/// When provided, the menu will follow the widget that this [MenuAnchor]
+/// surrounds if it moves because of view insets changes. °ò°ˆv°òX/// {@macro flutter.material.Material.clipBehavior}
+///
+/// Defaults to [Clip.hardEdge].µïµğµú¶^¶ ¶&¶m±…}¶m„Ã/// Whether the menus will be closed if the anchor area is tapped.
+///
+/// For menus opened by buttons that toggle the menu, if the button is tapped
+/// when the menu is open, the button should close the menu. But if
+/// [anchorTapClosesMenu] is true, then the menu will close, and
+/// (surprisingly) immediately re-open. This is because tapping on the button
+/// closes the menu before the `onPressed` or `onTap` handler is called
+/// because of it being considered to be "outside" the menu system, and then
+/// the button (seeing that the menu is closed) immediately reopens the menu.
+/// The result is that the user thinks that tapping on the button does
+/// nothing. So, for button-initiated menus, this value is typically false so
+/// that the menu anchor area is considered "inside" of the menu system and
+/// doesn't cause it to close unless [MenuController.close] is called.
+///
+/// For menus that are positioned using [MenuController.open]'s `position`
+/// parameter, it is often desirable that clicking on the anchor always closes
+/// the menu since the anchor area isn't usually considered part of the menu
+/// system by the user. In this case [anchorTapClosesMenu] should be true.
+///
+/// Defaults to false. ¸¶…«¸|/// Whether or not a tap event that closes the menu will be permitted to
+/// continue on to the gesture arena.
+///
+/// If false, then tapping outside of a menu when the menu is open will both
+/// close the menu, and allow the tap to participate in the gesture arena. If
+/// true, then it will only close the menu, and the tap event will be
+/// consumed.
+///
+/// Defaults to false. ¸¦¸5w¸¦V/// A callback that is invoked when the menu begins opening.
+///
+/// Defaults to null. ¹$¸±z¹$X/// A callback that is invoked when the menu finishes closing.
+///
+/// Defaults to null. ºÀ¹0¦ºÀx/// Determine if the menu panel can be wrapped by a [UnconstrainedBox] which allows
+/// the panel to render at its "natural" size.
+///
+/// Defaults to true as it allows developers to render the menu panel at the
+/// size it should be. When it is set to false, it can be useful when the menu should
+/// be constrained in both main axis and cross axis, such as a [DropdownMenu]. »AºÛt»AT/// {@macro flutter.widgets.RawMenuAnchor.useRootOverlay}
+///
+/// Defaults to false. »Ê»T~»Êd/// Whether this widget should open or close a submenu with an animation.
+///
+/// Defaults to false. À Bg»×†¨À Bg†/// An optional callback that is invoked when the [AnimationStatus] of the
+/// menu changes during open and close animations.
+///
+/// If [animated] is false, this callback will only be invoked with
+/// [AnimationStatus.completed] when the menu is opened, and
+/// [AnimationStatus.dismissed] when the menu is closed.
+///
+/// This callback provides a way to determine when the menu is opening or
+/// closing. This is necessary because the [MenuController.isOpen] property
+/// remains true throughout the opening, opened, and closing phases, and
+/// therefore cannot be used on its own to determine the current animation
+/// direction.
+///
+/// {@tool snippet}
+/// This example shows how to use the [onAnimationStatusChanged] callback to
+/// create a [MenuAnchor] that will toggle between opening and closing.
+///
+/// ```dart
+/// MenuAnchor(
+///   animated: true,
+///   onAnimationStatusChanged: (AnimationStatus status) {
+///     // Typically, animationStatus would be stored in a State object.
+///     animationStatus = status;
+///   },
+///   menuChildren: <Widget>[MenuItemButton(onPressed: () {}, child: const Text('Menu Item'))],
+///   builder: (BuildContext context, MenuController controller, Widget? child) {
+///     return IconButton(
+///       onPressed: () {
+///         if (animationStatus.isForwardOrCompleted) {
+///           controller.close();
+///         } else {
+///           controller.open();
+///         }
+///       },
+///       icon: const Icon(Icons.more_vert),
+///     );
+///   },
+/// );
+/// ```
+/// {@end-tool}
+///
+/// Defaults to null. À CPÀ B„€ØÀ CP€°/// A list of children containing the menu items that are the contents of the
+/// menu surrounded by this [MenuAnchor].
+///
+/// {@macro flutter.material.MenuBar.shortcuts_note} À EÀ CaµÀ E{/// The widget that this [MenuAnchor] surrounds.
+///
+/// Typically this is a button used to open the menu by calling
+/// [MenuController.open] on the `controller` passed to the builder.
+///
+/// If not supplied, then the [MenuAnchor] will be the size that its parent
+/// allocates for it.
+///
+/// If provided, the builder will be called each time the menu is opened or
+/// closed. À FÀ EkÀ FK/// The optional child to be passed to the [builder].
+///
+/// Supply this child if there is a portion of the widget tree built in
+/// [builder] that doesn't depend on the `controller` or `context` supplied to
+/// the [builder]. It will be more efficient, since Flutter doesn't then need
+/// to rebuild this child when those change. À GÀ F‹€œÀ Gl/// The padding between the edge of the safe area and the menu panel.
+///
+/// Defaults to EdgeInsets.all(8).    À G,À G-À G,À G,BÀ GJ   À GrÀ GsÀ GrÀ Gr€£À G”    À H>À H>&À HZ À HÀ HÀ HÀ H‚(À H*  œ–œ–­­¤Çˆ*/// A widget used to mark the "anchor" for a set of submenus, defining the
+/// rectangle used to position the menu, which can be done either with an
+/// explicit location, or with an alignment.
+///
+/// When creating a menu with [MenuBar] or a [SubmenuButton], a [MenuAnchor] is
+/// not needed, since they provide their own internally.
+///
+/// The [MenuAnchor] is meant to be a slightly lower level interface than
+/// [MenuBar], used in situations where a [MenuBar] isn't appropriate, or to
+/// construct widgets or screen regions that have submenus.
+///
+/// To programmatically control a [MenuAnchor], like opening or closing it, or checking its state,
+/// you can get its associated [MenuController]. Use `MenuController.maybeOf(BuildContext context)`
+/// to retrieve the controller for the closest [MenuAnchor] ancestor of a given [BuildContext].
+/// More detailed usage of [MenuController] is available in its class documentation.
+///
+/// {@tool dartpad}
+/// This example shows how to use a [MenuAnchor] to wrap a button and open a
+/// cascading menu from the button. This example also shows how to use
+/// [onAnimationStatusChanged] to track animation status and toggle the menu.
+///
+/// ** See code in examples/api/lib/material/menu_anchor/menu_anchor.0.dart **
+/// {@end-tool}
+///
+/// {@tool dartpad}
+/// This example shows how to use a [MenuAnchor] to create a cascading context
+/// menu in a region of the view, positioned where the user clicks the mouse
+/// with Ctrl pressed. The [anchorTapClosesMenu] attribute is set to true so
+/// that clicks on the [MenuAnchor] area will cause the menus to be closed.
+///
+/// ** See code in examples/api/lib/material/menu_anchor/menu_anchor.1.dart **
+/// {@end-tool}
+///
+/// {@tool dartpad}
+/// This example demonstrates a simplified cascading menu using the [MenuAnchor]
+/// widget.
+///
+/// ** See code in examples/api/lib/material/menu_anchor/menu_anchor.3.dart **
+/// {@end-tool}
+///
+/// The [MenuStyle.visualDensity] setting only affects horizontal padding,
+/// and it will never make it negative. Vertical padding is not affected at all.   À K/À K'À K/ À KpÀ K~À KÀ K_À KJ6À K_ À KºÀ KÍÀ KÙÀ KÓÀ KÎÀ KÕÀ K£À K„VÀ K£ À LÀ LÀ L›À L&À L À L(À LGÀ LBÀ LIÀ LxÀ LlÀ LzÀ KùÀ KŞ€¾À Kù À LÎÀ LİÀ M`À LéÀ LãÀ LëÀ M
+À MÀ MÀ M<À M0À M>À L»À L €ÁÀ L» À MŠÀ M‹À M‚À M‰À MƒÀ MrÀ Me'À Mr À MËÀ MÌÀ MºÀ MÊÀ M»À M¦À M=À M¦    À JÀ J'À J§    À JÈÀ JÈTÀ JÛ    À MÑÀ MÑ3À Mç    À NÀ N>À N    À NHÀ NH€ÎÀ NQ    À OÀ O€ÆÀ O"    À hæÀ hæ€•À hû    À OãÀ OäÀ OãÀ OãÀ Oô    À Q&À Q&À Q1 À QÀ QÀ QÀ Q‚À Q   À S!À S"À S!À S!ªÀ S2    À TÏÀ TÏHÀ TÔ    À VÀ V†ÅÀ V     À ]À ]À ]  À \äÀ \ä€ìÀ \é    À ]ğÀ ]ğÀ ]ø   À ^À ^À ^  À ]ÔÀ ]Ô»À ]Ù    À _°À _°À _½  À _“À _“€ÅÀ _˜    À `uÀ `uÀ `‚ À `\À `]À `\À `\ƒ!À `o    À c–À c–À c£   À c¬À c¬À c¿  À cÀ c…aÀ cˆ    À iÀ i€ÎÀ i„    À jQÀ jQ–À jV    À këÀ këkÀ kğ    À m|À m|À m‰  À mZÀ mZ€ŠÀ ms    À nÀ nÀ n%  À mèÀ mè€§À n     À n°À n°0À nÀ À n“À n”À nËÀ nÚÀ nÛÀ n“À n“xÀ n¦  À JEÀ JE¤ÈÀ JK   À |ñ À |ø    À |ÿÀ |ÿ	À }   À }À }
+À }   À }À }À }#   À }AÀ }AÀ }F   À }VÀ }VÀ }d À }2À }6À }7À |™À |™€Ú K/// Creates a const [MenuBar].
+///
+/// The [children] argument is required.  À ~]À }w€ëÀ ~]€Ê/// The [MenuStyle] that defines the visual attributes of the menu bar.
+///
+/// Colors and sizing of the menus is controllable via the [MenuStyle].
+///
+/// Defaults to the ambient [MenuThemeData.style]. À ~ÍÀ ~grÀ ~ÍT/// {@macro flutter.material.Material.clipBehavior}
+///
+/// Defaults to [Clip.none]. À )À ~ŞUÀ )2/// The [MenuController] to use for this menu bar. À €åÀ 8µÀ €å‰/// The list of menu items that are the top level children of the [MenuBar].
+///
+/// A Widget in Flutter is immutable, so directly modifying the [children]
+/// with [List] APIs such as `someMenuBarWidget.menus.add(...)` will result in
+/// incorrect behaviors. Whenever the menus list is modified, a new list
+/// object must be provided.
+///
+/// {@macro flutter.material.MenuBar.shortcuts_note}     À À À  À €òÀ €óÀ €òÀ €ò€óÀ    À éÀ êÀ éÀ é€·À ‚    À ‚ÉÀ ‚É&À ‚å À ‚¤À ‚¥À ‚¤À ‚¤7À ‚µ  À oÀ o”ÎÀ |u_/// A menu bar that manages cascading child menus.
+///
+/// This is a Material Design menu bar that typically resides above the main
+/// body of an application (but can go anywhere) that defines a menu system for
+/// invoking callbacks in response to user selection of a menu item.
+///
+/// The menus can be opened with a click or tap. Once a menu is opened, it can
+/// be navigated by using the arrow and tab keys or via mouse hover. Selecting a
+/// menu item can be done by pressing enter, or by clicking or tapping on the
+/// menu item. Clicking or tapping on any part of the user interface that isn't
+/// part of the menu system controlled by the same controller will cause all of
+/// the menus controlled by that controller to close, as will pressing the
+/// escape key.
+///
+/// When a menu item with a submenu is clicked on, it toggles the visibility of
+/// the submenu. When the menu item is hovered over, the submenu will open, and
+/// hovering over other items will close the previous menu and open the newly
+/// hovered one. When those open/close transitions occur,
+/// [SubmenuButton.onOpen], and [SubmenuButton.onClose] are called on the
+/// corresponding [SubmenuButton] child of the menu bar.
+///
+/// {@template flutter.material.MenuBar.shortcuts_note}
+/// Menus using [MenuItemButton] can have a [SingleActivator] or
+/// [CharacterActivator] assigned to them as their [MenuItemButton.shortcut],
+/// which will display an appropriate shortcut hint. Even though the shortcut
+/// labels are displayed in the menu, shortcuts are not automatically handled.
+/// They must be available in whatever context they are appropriate, and handled
+/// via another mechanism.
+///
+/// If shortcuts should be generally enabled, but are not easily defined in a
+/// context surrounding the menu bar, consider registering them with a
+/// [ShortcutRegistry] (one is already included in the [WidgetsApp], and thus
+/// also [MaterialApp] and [CupertinoApp]), as shown in the example below. To be
+/// sure that selecting a menu item and triggering the shortcut do the same
+/// thing, it is recommended that they call the same callback.
+///
+/// {@tool dartpad} This example shows a [MenuBar] that contains a single top
+/// level menu, containing three items: "About", a checkbox menu item for
+/// showing a message, and "Quit". The items are identified with an enum value,
+/// and the shortcuts are registered globally with the [ShortcutRegistry].
+///
+/// ** See code in examples/api/lib/material/menu_anchor/menu_bar.0.dart **
+/// {@end-tool}
+/// {@endtemplate}
+///
+/// {@macro flutter.material.MenuAcceleratorLabel.accelerator_sample}
+///
+/// See also:
+///
+/// * [MenuAnchor], a widget that creates a region with a submenu and shows it
+///   when requested.
+/// * [SubmenuButton], a menu item which manages a submenu.
+/// * [MenuItemButton], a leaf menu item which displays the label, an optional
+///   shortcut label, and optional leading and trailing icons.
+/// * [PlatformMenuBar], which creates a menu bar that is rendered by the host
+///   platform instead of by Flutter (on macOS, for example).
+/// * [ShortcutRegistry], a registry of shortcuts that apply for the entire
+///   application.
+/// * [VoidCallbackIntent], to define intents that will call a [VoidCallback] and
+///   work with the [Actions] and [Shortcuts] system.
+/// * [CallbackShortcuts], to define shortcuts that call a callback without
+///   involving [Actions].  À ˆû À ‰	    À ‰À ‰	À ‰   À ‰À ‰À ‰$   À ‰3À ‰3À ‰8   À ‰EÀ ‰EÀ ‰J   À ‰jÀ ‰jÀ ‰o   À ‰‚À ‰‚À ‰‡   À ‰–À ‰–À ‰›   À ‰²À ‰²À ‰·   À ‰ÅÀ ‰ÅÀ ‰Ê   À ‰ŞÀ ‰Ş
+À ‰ã   À ‰îÀ ‰îÀ ‰ó   À Š	À Š	À Š   À Š,À Š,À Š1   À ŠBÀ ŠBÀ ŠG   À ŠYÀ ŠYÀ Š^   À ŠzÀ Šz#À Š   À Š£À Š£
+À Š¨ 	À ‰`À ‰§À ŠÀ Š!À Š"À ŠpÀ ŠÀ Š’À Š“À ˆÀ ˆ‚ P/// Creates a const [MenuItemButton].
+///
+/// The [child] attribute is required.  À ‹«À Š¸€üÀ ‹«€Ğ/// Called when the button is tapped or otherwise activated.
+///
+/// If this callback is null, then the button will be disabled.
+///
+/// See also:
+///
+///  * [enabled], which is true if the button is enabled. À ŒœÀ ‹¹€êÀ Œœ€À/// Called when a pointer enters or exits the button response area.
+///
+/// The value passed to the callback is true if a pointer has entered button
+/// area and false if a pointer has exited. À  À Œ¨kÀ  F/// Determine if hovering can request focus.
+///
+/// Defaults to true. À ÂÀ €·À Â€‡/// Handler called when the focus changes.
+///
+/// Called with true if this widget's node gains focus, and false if it loses
+/// focus. À À ÔIÀ ,/// {@macro flutter.widgets.Focus.focusNode} À \À "CÀ \,/// {@macro flutter.widgets.Focus.autofocus} À À j€¥À v/// The optional shortcut that selects this [MenuItemButton].
+///
+/// {@macro flutter.material.MenuBar.shortcuts_note} À ‘À ‚yÀ ‘‚B/// An optional Semantics label, applied to the entire [MenuItemButton].
+///
+/// A screen reader will default to reading the derived text on the
+/// [MenuItemButton] itself, which is not guaranteed to be readable.
+/// (For some shortcuts, such as comma, semicolon, and other
+/// punctuation, screen readers read silence).
+///
+/// Setting this label overwrites the semantics properties of the entire
+/// Widget, including its children. Consider wrapping this widget in
+/// [Semantics] if you want to customize other properties besides just
+/// the label.
+///
+/// Null by default. À “À ‘’À “e/// Customizes this button's appearance.
+///
+/// Non-null properties of this style override the corresponding properties in
+/// [themeStyleOf] and [defaultStyleOf]. [WidgetStateProperty]s that resolve
+/// to non-null values will similarly override the corresponding
+/// [WidgetStateProperty]s in [themeStyleOf] and [defaultStyleOf].
+///
+/// Null by default. À “~À “%iÀ “~6/// {@macro flutter.material.inkwell.statesController} À “ùÀ ““rÀ “ùT/// {@macro flutter.material.Material.clipBehavior}
+///
+/// Defaults to [Clip.none]. À ”TÀ ”
+UÀ ”T9/// An optional icon to display before the [child] label. À ”­À ”dUÀ ”­8/// An optional icon to display after the [child] label. À •‘À ”¾€âÀ •‘€»/// {@template flutter.material.menu_anchor.closeOnActivate}
+/// Determines if the menu will be closed when a [MenuItemButton]
+/// is pressed.
+///
+/// Defaults to true.
+/// {@endtemplate} À —?À •¥¦À —?z/// The direction in which the menu item expands.
+///
+/// If the menu item button is a descendent of [MenuAnchor] or [MenuBar], then
+/// this property is ignored.
+///
+/// If [overflowAxis] is [Axis.vertical], the menu will be expanded vertically.
+/// If [overflowAxis] is [Axis.horizontal], then the menu will be
+/// expanded horizontally.
+///
+/// Defaults to [Axis.horizontal]. À ˜À —P€ÌÀ ˜€®/// The widget displayed in the center of this button.
+///
+/// Typically this is the button's label, using a [Text] widget.
+///
+/// {@macro flutter.widgets.ProxyWidget.child}   À ˜!À ˜!€©À ˜­|/// Whether the button is enabled or disabled.
+///
+/// To enable a button, set its [onPressed] property to a non-null value.   À ˜ÎÀ ˜ÏÀ ˜ÎÀ ˜ÎJÀ ˜ğ    À ™îÀ ™îÀ ™û  À ™À ™À ™ß€¬/// Defines the button's default appearance.
+///
+/// {@macro flutter.material.text_button.default_style_of}
+///
+/// {@macro flutter.material.text_button.material3_defaults}   À š±À š±À š¾  À š8À š8€ÂÀ š¤Z/// Returns the [MenuButtonThemeData.style] of the closest
+/// [MenuButtonTheme] ancestor.   À ¡xÀ ¡xÀ ¡   À ¡”À ¡”À ¡›   À ¡°À ¡°À ¡·   À ¡ÔÀ ¡ÔÀ ¡Û   À ¡øÀ ¡øÀ ¡ÿ   À ¢À ¢À ¢   À ¢-À ¢-À ¢4   À ¢CÀ ¢CÀ ¢K   À ¢YÀ ¢YÀ ¢`   À ¢wÀ ¢wÀ ¢‚   À ¢‘À ¢‘À ¢˜   À ¢ªÀ ¢ªÀ ¢²   À ¢ÁÀ ¢ÁÀ ¢Õ   À ¢âÀ ¢âÀ ¢è   À ¢ùÀ ¢ùÀ ¢ÿ   À £À £À £   À £%À £%À £2   À £JÀ £J À £W   À £pÀ £pÀ £|   À £†À £†À £–   À £¡À £¡À £°   À £ÃÀ £Ã$À £Ú   À £íÀ £íÀ £÷   À ¤À ¤À ¤   À ¤(À ¤(À ¤;   À ¤JÀ ¤J+À ¤h  À šşÀ šşCÀ ¡h†
+/// A static convenience method that constructs a [MenuItemButton]'s
+/// [ButtonStyle] given simple values.
+///
+/// The [foregroundColor] color is used to create a [WidgetStateProperty]
+/// [ButtonStyle.foregroundColor] value. Specify a value for [foregroundColor]
+/// to specify the color of the button's icons. Use [backgroundColor] for the
+/// button's background fill color. Use [disabledForegroundColor] and
+/// [disabledBackgroundColor] to specify the button's disabled icon and fill
+/// color.
+///
+/// Similarly, the [enabledMouseCursor] and [disabledMouseCursor]
+/// parameters are used to construct [ButtonStyle.mouseCursor].
+///
+/// The [iconColor], [disabledIconColor] are used to construct
+/// [ButtonStyle.iconColor] and [iconSize] is used to construct
+/// [ButtonStyle.iconSize].
+///
+/// All of the other parameters are either used directly or used to create a
+/// [WidgetStateProperty] with a single value for all states.
+///
+/// All parameters default to null, by default this method returns a
+/// [ButtonStyle] that doesn't override anything.
+///
+/// For example, to override the default foreground color for a
+/// [MenuItemButton], as well as its overlay color, with all of the standard
+/// opacity adjustments for the pressed, focused, and hovered states, one
+/// could write:
+///
+/// ```dart
+/// MenuItemButton(
+///   leadingIcon: const Icon(Icons.pets),
+///   style: MenuItemButton.styleFrom(foregroundColor: Colors.green),
+///   onPressed: () {
+///     // ...
+///   },
+///   child: const Text('Button Label'),
+/// ),
+/// ```   À ¨jÀ ¨j&À ¨† À ¨EÀ ¨FÀ ¨EÀ ¨EƒÀ ¨V  À ƒßÀ ƒß§ƒÀ ˆt„/// A button for use in a [MenuBar], in a menu created with [MenuAnchor], or on
+/// its own, that can be activated by click or keyboard navigation.
+///
+/// This widget represents a leaf entry in a menu hierarchy that is typically
+/// part of a [MenuBar], but may be used independently, or as part of a menu
+/// created with a [MenuAnchor].
+///
+/// {@macro flutter.material.MenuBar.shortcuts_note}
+///
+/// See also:
+///
+/// * [MenuBar], a class that creates a top level menu bar in a Material Design
+///   style.
+/// * [MenuAnchor], a widget that creates a region with a submenu and shows it
+///   when requested.
+/// * [SubmenuButton], a menu item similar to this one which manages a submenu.
+/// * [PlatformMenuBar], which creates a menu bar that is rendered by the host
+///   platform instead of by Flutter (on macOS, for example).
+/// * [ShortcutRegistry], a registry of shortcuts that apply for the entire
+///   application.
+/// * [VoidCallbackIntent], to define intents that will call a [VoidCallback] and
+///   work with the [Actions] and [Shortcuts] system.
+/// * [CallbackShortcuts] to define shortcuts that call a callback without
+///   involving [Actions].   À «üÀ «ñÀ «ü À ¬²À ¬¥À ¬ À ¬¥    À ¬À ¬DÀ ¬     À ¬YÀ ¬YDÀ ¬o  	  À ¬¼À ¬½À ¬¼À ¬¼€‘À ¬Í   À ­QÀ ­RÀ ­QÀ ­Q€ªÀ ­b    À ® À ® À ®/ À ­ÿÀ ® À ­ÿÀ ­ÿÊÀ ®    À ¯æÀ ¯æÀ ¯ó À ¯ÍÀ ¯ÎÀ ¯ÍÀ ¯Í†WÀ ¯à    À ¶(À ¶(€ºÀ ¶-    À ¶şÀ ¶şÀ ·  À ¶æÀ ¶æ€À ¶ë    À ·øÀ ·øÀ ¸
+  À ·ßÀ ·ß‚À ·ä    À ¹æÀ ¹æ‚À ¹ë    À ¼À ¼€ÿÀ ¼  À «dÀ «d‘¤À «j   À À À À     À À'À À'	À À-   À À6À À6À ÀD   À ÀOÀ ÀOÀ ÀT   À ÀjÀ ÀjÀ Ào   À À„À À„À À’   À À¡À À¡À À¦   À À³À À³À À¸   À ÀËÀ ÀËÀ ÀĞ   À ÀßÀ ÀßÀ Àä   À ÀòÀ Àò
+À À÷   À ÁÀ ÁÀ Á   À ÁÀ ÁÀ Á"   À Á@À Á@À ÁE   À ÁWÀ ÁWÀ Á\   À ÁxÀ ÁxÀ Á† À À_À ÀyÀ Á1À Á5À Á6À ÁnÀ ¿‘À ¿‘‚ p/// Creates a const [CheckboxMenuButton].
+///
+/// The [child], [value], and [onChanged] attributes are required.  À Â\À Á–€ËÀ Â\€±/// Whether this checkbox is checked.
+///
+/// When [tristate] is true, a value of null corresponds to the mixed state.
+/// When [tristate] is false, this value must not be null. À ÄqÀ Âf‚À Äqë/// If true, then the checkbox's [value] can be true, false, or null.
+///
+/// [CheckboxMenuButton] displays a dash when its value is null.
+///
+/// When a tri-state checkbox ([tristate] is true) is tapped, its [onChanged]
+/// callback will be applied to true if the current value is false, to null if
+/// value is true, and to false if value is null (i.e. it cycles through false
+/// => true => null => false when tapped).
+///
+/// If tristate is false (the default), [value] must not be null. À ÅÀ Ä~À Å€ú/// True if this checkbox wants to show an error state.
+///
+/// The checkbox will have different default container color and check color when
+/// this is true. This is only used when [ThemeData.useMaterial3] is set to true.
+///
+/// Defaults to false. À ÉæÀ Åœ„SÀ Éæƒô/// Called when the value of the checkbox should change.
+///
+/// The checkbox passes the new value to the callback but does not actually
+/// change state until the parent widget rebuilds the checkbox with the new
+/// value.
+///
+/// If this callback is null, the menu item will be displayed as disabled
+/// and will not respond to input gestures.
+///
+/// When the checkbox is tapped, if [tristate] is false (the default) then the
+/// [onChanged] callback will be applied to `!value`. If [tristate] is true
+/// this callback cycle from false to true to null and then back to false
+/// again.
+///
+/// The callback provided to [onChanged] should update the state of the parent
+/// [StatefulWidget] using the [State.setState] method, so that the parent
+/// gets rebuilt; for example:
+///
+/// ```dart
+/// CheckboxMenuButton(
+///   value: _throwShotAway,
+///   child: const Text('THROW'),
+///   onChanged: (bool? newValue) {
+///     setState(() {
+///       _throwShotAway = newValue!;
+///     });
+///   },
+/// )
+/// ``` À Ê×À Éô€êÀ Ê×€À/// Called when a pointer enters or exits the button response area.
+///
+/// The value passed to the callback is true if a pointer has entered button
+/// area and false if a pointer has exited. À ËÀ Êã€·À Ë€‡/// Handler called when the focus changes.
+///
+/// Called with true if this widget's node gains focus, and false if it loses
+/// focus. À ËßÀ ËŸIÀ Ëß,/// {@macro flutter.widgets.Focus.focusNode} À ÌŠÀ Ëí€¥À ÌŠv/// The optional shortcut that selects this [MenuItemButton].
+///
+/// {@macro flutter.material.MenuBar.shortcuts_note} À ÎbÀ Ì—ĞÀ Îb¥/// Customizes this button's appearance.
+///
+/// Non-null properties of this style override the corresponding properties in
+/// [MenuItemButton.themeStyleOf] and [MenuItemButton.defaultStyleOf].
+/// [WidgetStateProperty]s that resolve to non-null values will similarly
+/// override the corresponding [WidgetStateProperty]s in
+/// [MenuItemButton.themeStyleOf] and [MenuItemButton.defaultStyleOf].
+///
+/// Null by default. À ÎÅÀ ÎliÀ ÎÅ6/// {@macro flutter.material.inkwell.statesController} À Ï@À ÎÚrÀ Ï@T/// {@macro flutter.material.Material.clipBehavior}
+///
+/// Defaults to [Clip.none]. À ÏšÀ ÏQUÀ Ïš8/// An optional icon to display after the [child] label. À ÏòÀ Ï«VÀ Ïò9/// {@macro flutter.material.menu_anchor.closeOnActivate} À ĞÍÀ Ğ€ÌÀ ĞÍ€®/// The widget displayed in the center of this button.
+///
+/// Typically this is the button's label, using a [Text] widget.
+///
+/// {@macro flutter.widgets.ProxyWidget.child}   À Ğ×À Ğ×€©À Ñc|/// Whether the button is enabled or disabled.
+///
+/// To enable a button, set its [onChanged] property to a non-null value.    À ÑÀ ÑÀ Ñª À Ñ„À Ñ…À Ñ„À Ñ„„~À Ñ—  À ½
+À ½
+˜úÀ ¿b‚Q/// A menu item that combines a [Checkbox] widget with a [MenuItemButton].
+///
+/// To style the checkbox separately from the button, add a [CheckboxTheme]
+/// ancestor.
+///
+/// {@tool dartpad}
+/// This example shows a menu with a checkbox that shows a message in the body
+/// of the app if checked.
+///
+/// ** See code in examples/api/lib/material/menu_anchor/checkbox_menu_button.0.dart **
+/// {@end-tool}
+///
+/// See also:
+///
+/// - [MenuBar], a widget that creates a menu bar of cascading menu items.
+/// - [MenuAnchor], a widget that defines a region which can host a cascading
+///   menu.  À Ù À Ù*    À Ù1À Ù1	À Ù7   À Ù@À Ù@À ÙN   À ÙYÀ ÙYÀ Ùg   À ÙwÀ ÙwÀ Ù…   À Ù”À Ù”À Ù™   À Ù±À Ù±À Ù¶   À ÙÃÀ ÙÃÀ ÙÈ   À ÙÛÀ ÙÛÀ Ùà   À ÙïÀ ÙïÀ Ùô   À ÚÀ Ú
+À Ú   À ÚÀ ÚÀ Ú   À Ú-À Ú-À Ú2   À ÚPÀ ÚPÀ ÚU   À ÚgÀ ÚgÀ Úl   À ÚˆÀ ÚˆÀ Ú– À Ù¦À ÚAÀ ÚEÀ ÚFÀ Ú~À Ø½À Ø½å Q/// Creates a const [RadioMenuButton].
+///
+/// The [child] attribute is required.À ØÀ ØÀ Ø  À ÛDÀ Ú¦€£À ÛD€/// The value represented by this radio button.
+///
+/// This radio button is considered selected if its [value] matches the
+/// [groupValue]. À ÛüÀ ÛN€¸À Ûü€œ/// The currently selected value for a group of radio buttons.
+///
+/// This radio button is considered selected if its [value] matches the
+/// [groupValue]. À ŞãÀ Ü‚âÀ Şã‚¬/// Set to true if this radio button is allowed to be returned to an
+/// indeterminate state by selecting it again when selected.
+///
+/// To indicate returning to an indeterminate state, [onChanged] will be
+/// called with null.
+///
+/// If true, [onChanged] is called with [value] when selected while
+/// [groupValue] != [value], and with null when selected again while
+/// [groupValue] == [value].
+///
+/// If false, [onChanged] will be called with [value] when it is selected
+/// while [groupValue] != [value], and only by selecting another radio button
+/// in the group (i.e. changing the value of [groupValue]) can this radio
+/// button be unselected.
+///
+/// The default is false. À âÎÀ ŞòƒåÀ âÎƒ/// Called when the user selects this radio button.
+///
+/// The radio button passes [value] as a parameter to this callback. The radio
+/// button does not actually change state until the parent widget rebuilds the
+/// radio button with the new [groupValue].
+///
+/// If null, the radio button will be displayed as disabled.
+///
+/// The provided callback will not be invoked if this radio button is already
+/// selected.
+///
+/// The callback provided to [onChanged] should update the state of the parent
+/// [StatefulWidget] using the [State.setState] method, so that the parent
+/// gets rebuilt; for example:
+///
+/// ```dart
+/// RadioMenuButton<SingingCharacter>(
+///   value: SingingCharacter.lafayette,
+///   groupValue: _character,
+///   onChanged: (SingingCharacter? newValue) {
+///     setState(() {
+///       _character = newValue;
+///     });
+///   },
+///   child: const Text('Lafayette'),
+/// )
+/// ``` À ã¿À âÜ€êÀ ã¿€À/// Called when a pointer enters or exits the button response area.
+///
+/// The value passed to the callback is true if a pointer has entered button
+/// area and false if a pointer has exited. À äuÀ ãË€·À äu€‡/// Handler called when the focus changes.
+///
+/// Called with true if this widget's node gains focus, and false if it loses
+/// focus. À äÇÀ ä‡IÀ äÇ,/// {@macro flutter.widgets.Focus.focusNode} À årÀ äÕ€¥À årv/// The optional shortcut that selects this [MenuItemButton].
+///
+/// {@macro flutter.material.MenuBar.shortcuts_note} À çJÀ åĞÀ çJ¥/// Customizes this button's appearance.
+///
+/// Non-null properties of this style override the corresponding properties in
+/// [MenuItemButton.themeStyleOf] and [MenuItemButton.defaultStyleOf].
+/// [WidgetStateProperty]s that resolve to non-null values will similarly
+/// override the corresponding [WidgetStateProperty]s in
+/// [MenuItemButton.themeStyleOf] and [MenuItemButton.defaultStyleOf].
+///
+/// Null by default. À ç­À çTiÀ ç­6/// {@macro flutter.material.inkwell.statesController} À è(À çÂrÀ è(T/// {@macro flutter.material.Material.clipBehavior}
+///
+/// Defaults to [Clip.none]. À è‚À è9UÀ è‚8/// An optional icon to display after the [child] label. À èÚÀ è“VÀ èÚ9/// {@macro flutter.material.menu_anchor.closeOnActivate} À éµÀ èî€ÌÀ éµ€®/// The widget displayed in the center of this button.
+///
+/// Typically this is the button's label, using a [Text] widget.
+///
+/// {@macro flutter.widgets.ProxyWidget.child}   À é¿À é¿€©À êK|/// Whether the button is enabled or disabled.
+///
+/// To enable a button, set its [onChanged] property to a non-null value.    À ê…À ê…À ê’ À êlÀ êmÀ êlÀ êl„À ê  À ÖÀ Ö˜€À Ø‚/// A menu item that combines a [Radio] widget with a [MenuItemButton].
+///
+/// To style the radio button separately from the overall button, add a
+/// [RadioTheme] ancestor.
+///
+/// {@tool dartpad}
+/// This example shows a menu with three radio buttons with shortcuts that
+/// changes the background color of the body when the buttons are selected.
+///
+/// ** See code in examples/api/lib/material/menu_anchor/radio_menu_button.0.dart **
+/// {@end-tool}
+///
+/// See also:
+///
+/// - [MenuBar], a widget that creates a menu bar of cascading menu items.
+/// - [MenuAnchor], a widget that defines a region which can host a cascading
+///   menu.  À ôJ À ôW    À ô^À ô^	À ôd   À ômÀ ômÀ ôr   À ôÀ ôÀ ô„   À ô—À ô—À ôœ   À ô¨À ô¨À ô­   À ôºÀ ôºÀ ô¿   À ôÏÀ ôÏ
+À ôÔ   À ôßÀ ôßÀ ôä   À ôóÀ ôóÀ ôø   À õÀ õ!À õ   À õ4À õ4À õ9   À õHÀ õHÀ õM   À õcÀ õcÀ õh   À õyÀ õyÀ õ~   À õÀ õÀ õ•   À õ¦À õ¦À õ«   À õÇÀ õÇ#À õÌ   À õğÀ õğÀ õõ   À öÀ öÀ ö   À ö.À ö.À ö<   À öNÀ öNÀ ö\ À õ!À õ%À õ&À õ¼À õİÀ õåÀ õæÀ ö À óÙÀ óÙ‚ d/// Creates a const [SubmenuButton].
+///
+/// The [child] and [menuChildren] attributes are required.  À ÷[À öl€öÀ ÷[€Ì/// Called when a pointer enters or exits the button response area.
+///
+/// The value passed to the callback is true if a pointer has entered this
+/// part of the button and false if a pointer has exited. À øÀ ÷g€¾À ø€/// Handler called when the focus changes.
+///
+/// Called with true if this widget's [focusNode] gains focus, and false if it
+/// loses focus. À øxÀ ø*TÀ øx7/// A callback that is invoked when the menu is opened. À øÑÀ øƒUÀ øÑ7/// A callback that is invoked when the menu is closed. À ù(À øİUÀ ù(2/// An optional [MenuController] for this submenu. À úÀÀ ù7À úÀe/// Customizes this button's appearance.
+///
+/// Non-null properties of this style override the corresponding properties in
+/// [themeStyleOf] and [defaultStyleOf]. [WidgetStateProperty]s that resolve
+/// to non-null values will similarly override the corresponding
+/// [WidgetStateProperty]s in [themeStyleOf] and [defaultStyleOf].
+///
+/// Null by default. À ûqÀ úÊ€°À ûq€/// The [MenuStyle] of the menu specified by [menuChildren].
+///
+/// Defaults to the value of [MenuThemeData.style] of the ambient [MenuTheme]. À ıÀ û©À ı{/// The offset of the menu relative to the alignment origin determined by
+/// [MenuStyle.alignment] on the [style] attribute.
+///
+/// Use this for fine adjustments of the menu placement.
+///
+/// Defaults to an offset that takes into account the padding of the menu so
+/// that the top starting corner of the first menu item is aligned with the
+/// top of the [MenuAnchor] region. À ı—À ı-vÀ ı—X/// {@macro flutter.material.Material.clipBehavior}
+///
+/// Defaults to [Clip.hardEdge]. À ıèÀ ı¨IÀ ıè,/// {@macro flutter.widgets.Focus.focusNode} À şOÀ ıöiÀ şO6/// {@macro flutter.material.inkwell.statesController} À ş¨À şdOÀ ş¨3/// An optional icon to display before the [child]. À pÀ ş¸ÃÀ p/// If provided, the widget replaces the default [SubmenuButton] arrow icon.
+///
+/// Resolves in the following states:
+///  * [WidgetState.disabled].
+///  * [WidgetState.hovered].
+///  * [WidgetState.focused].
+///
+/// If this is null, then the value of [MenuThemeData.submenuIcon] is used.
+/// If that is also null, then defaults to a right arrow icon with the size
+/// of 24 pixels. À ÃÀ €OÀ Ã2/// An optional icon to display after the [child]. À:À ÔtÀ:T/// {@macro flutter.widgets.RawMenuAnchor.useRootOverlay}
+///
+/// Defaults to false. ÀÀM‚×À‚/// An optional callback that is invoked when the [AnimationStatus] of the
+/// menu changes during open and close animations.
+///
+/// If [animated] is false, this callback will only be invoked with
+/// [AnimationStatus.completed] when the menu is opened, and
+/// [AnimationStatus.dismissed] when the menu is closed.
+///
+/// Because the [MenuController.isOpen] property is true while the menu is
+/// opening, opened, and closing, it cannot be used to determine whether the
+/// menu is in the process of closing or opening. As such, this callback
+/// provides a way to determine when the menu is opening or closing.
+///
+/// Defaults to null. ÀUÀ)8ÀU
+/// The list of widgets that appear in the menu when it is opened.
+///
+/// These can be any widget, but are typically either [MenuItemButton] or
+/// [SubmenuButton] widgets.
+///
+/// If [menuChildren] is empty, then the button for this menu item will be
+/// disabled. À‹Àf‚3À‹‚/// The duration to wait before opening the menu when the button is hovered.
+///
+/// Because [MenuBar] children can only be opened by hover if a sibling
+/// [SubmenuButton] is already open, providing a [hoverOpenDelay] to direct
+/// children of a [MenuBar] will throw an assertion error. This is to avoid
+/// the case where the [hoverOpenDelay] for a [SubmenuButton] is longer than
+/// the duration of a sibling's closing animation, which leads to that menu
+/// never opening.
+///
+/// Defaults to [Duration.zero]. ÀÀrÀX/// Whether the menu should open and close with an animation.
+///
+/// Defaults to false. ÀäÀ€ÔÀä€¶/// The widget displayed in the middle portion of this button.
+///
+/// Typically this is the button's label, using a [Text] widget.
+///
+/// {@macro flutter.widgets.ProxyWidget.child}    ÀîÀïÀîÀîHÀ	    À
+À
+À
+  À	:À	:À	ı€¬/// Defines the button's default appearance.
+///
+/// {@macro flutter.material.text_button.default_style_of}
+///
+/// {@macro flutter.material.text_button.material3_defaults}   À
+ÏÀ
+ÏÀ
+Ü  À
+VÀ
+V€ÂÀ
+ÂZ/// Returns the [MenuButtonThemeData.style] of the closest [MenuButtonTheme]
+/// ancestor.   À‘À‘À˜   À­À­À´   ÀÉÀÉÀĞ   ÀíÀíÀô   ÀÀÀ   À)À)À0   ÀFÀFÀM   À\À\Àd   ÀrÀrÀy   ÀÀÀ›   ÀªÀªÀ±   ÀÃÀÃÀË   ÀÚÀÚÀî   ÀûÀûÀ   ÀÀÀ   À'À'À-   À>À>ÀK   ÀcÀc Àp   À‰À‰À•   ÀŸÀŸÀ¯   ÀºÀºÀÉ   ÀÜÀÜ$Àó   ÀÀÀ   À'À'À-   ÀAÀAÀT   ÀcÀc+À  ÀÀ>À†	/// A static convenience method that constructs a [SubmenuButton]'s
+/// [ButtonStyle] given simple values.
+///
+/// The [foregroundColor] color is used to create a [WidgetStateProperty]
+/// [ButtonStyle.foregroundColor] value. Specify a value for [foregroundColor]
+/// to specify the color of the button's icons. Use [backgroundColor] for the
+/// button's background fill color. Use [disabledForegroundColor] and
+/// [disabledBackgroundColor] to specify the button's disabled icon and fill
+/// color.
+///
+/// Similarly, the [enabledMouseCursor] and [disabledMouseCursor]
+/// parameters are used to construct [ButtonStyle.mouseCursor].
+///
+/// The [iconColor], [disabledIconColor] are used to construct
+/// [ButtonStyle.iconColor] and [iconSize] is used to construct
+/// [ButtonStyle.iconSize].
+///
+/// All of the other parameters are either used directly or used to create a
+/// [WidgetStateProperty] with a single value for all states.
+///
+/// All parameters default to null, by default this method returns a
+/// [ButtonStyle] that doesn't override anything.
+///
+/// For example, to override the default foreground color for a
+/// [SubmenuButton], as well as its overlay color, with all of the standard
+/// opacity adjustments for the pressed, focused, and hovered states, one
+/// could write:
+///
+/// ```dart
+/// SubmenuButton(
+///   leadingIcon: const Icon(Icons.pets),
+///   style: SubmenuButton.styleFrom(foregroundColor: Colors.green),
+///   menuChildren: const <Widget>[ /* ... */ ],
+///   child: const Text('Button Label'),
+/// ),
+/// ```  À^À_À^À^€ÔÀ€    À[À[&Àw À6À7À6À6ÅÀG  À îˆÀ îˆ¬uÀ ó°…!/// A menu button that displays a cascading menu.
+///
+/// It can be used as part of a [MenuBar], or as a standalone widget.
+///
+/// This widget represents a menu item that has a submenu. Like the leaf
+/// [MenuItemButton], it shows a label with an optional leading or trailing
+/// icon, but additionally shows an arrow icon showing that it has a submenu.
+///
+/// By default the submenu will appear to the side of the controlling button.
+/// The alignment and offset of the submenu can be controlled by setting
+/// [MenuStyle.alignment] on the [style] and the [alignmentOffset] argument,
+/// respectively.
+///
+/// When activated (by being clicked, through keyboard navigation, or via
+/// hovering with a mouse), it will open a submenu containing the
+/// [menuChildren].
+///
+/// If [menuChildren] is empty, then this menu item will appear disabled.
+///
+/// See also:
+///
+/// * [MenuItemButton], a widget that represents a leaf menu item that does not
+///   host a submenu.
+/// * [MenuBar], a widget that renders menu items in a row in a Material Design
+///   style.
+/// * [MenuAnchor], a widget that creates a region with a submenu and shows it
+///   when requested.
+/// * [PlatformMenuBar], a widget that renders similar menu bar items from a
+///   [PlatformMenuItem] using platform-native APIs instead of Flutter.  	ÀÀÎÀiÀ~ÀjÀpÀvÀ}ÀwÀ›À…ÀÀ»ÀÉÀÃÀ¼ÀÅÀ_À:€•À_ ÀîÀØÀÓ ÀØ ÀÀüÀ÷!Àü  À,À'À,  À1À&À1 ÀvÀÀÀ€À‘À’ÀiÀGLÀi À-À ÀÀ  ÀYÀhÀiÀFÀ6<ÀF  À}ÀvÀ}    ÀGÀGTÀZ    ÀÀDÀ´    ÀåÀå>Àû    À—À—JÀ¥    ÀäÀä4Àí    À‘À’À‘À‘À¢   À 2À 3À 2À 2}À C   À ³À ´À ³À ³€ÌÀ Ä    À!¤À!¤À!² À!ƒÀ!„À!ƒÀ!ƒƒƒÀ!”    À%#À%#À%0 À%
+À%À%
+À%
+•À%    À:5À:5À:E  À:À:€®À:    À:ÄÀ:Ä‚ĞÀ:É    À=˜À=˜¦À=    À?aÀ?aÀ?n  À?BÀ?BÀ?M    À@ÇÀ@Ç'À@Ì    ÀAòÀAòƒœÀA÷    ÀE’ÀE’\ÀE—    ÀEòÀEòƒÀE÷  ÀÿÀÿ® À   ÀII ÀIg    ÀIiÀIiÀIw  ÀIIÀII8    ÀIŸÀI…!ÀIŸ    ÀIªÀIª1ÀIÀ    ÀIŞÀIŞ;ÀIô    ÀJÀJ:ÀJ/    ÀJZÀJZuÀJ©B/// The orientation of the menu that contains this submenu button.   ÀJÓÀJÓ€“ÀK0Q/// Whether the anchor that intercepted this DirectionalFocusAction is a submenu.   ÀKiÀKi2ÀKw     ÀK·ÀK·ÀKÎ ÀKŸÀK ÀKŸÀKŸ‰ÀK°  ÀIÀI‘)ÀI   À\·À\ĞÀ\Ò    À\·À\·À\Ñ   À\ûÀ\Ù+À\û À]vÀ^PÀ]ZÀ]uÀ][À]oÀ]œÀ]€À]’À]“À]À]ÈÀ]«À]½À]¾À]ÊÀ]ñÀ]×À]éÀ]êÀ]óÀ^À^ À^À^À^À^CÀ^+À^=À^>À^EÀ]6À]	HÀ]6 )À^œÀ`)À^ˆÀ^›À^‰À^¢À^´À^µÀ^¾À^ĞÀ^ÑÀ^ŞÀ^ğÀ^ñÀ^ûÀ_À_À_À_+À_,À_9À_KÀ_LÀ_]À_oÀ_pÀ_~À_À_‘À_ À_²À_³À_ÁÀ_ÓÀ_ÔÀ_æÀ_øÀ_ùÀ`À`À`À^{À^VÔÀ^{ 
+ÀaúÀaûÀaÂÀaùÀaÃÀaÚÀaİÀaøÀaŞÀaòÀa¦Àad€˜Àa¦    À`/À`/€™À`‚+/// Return the instance for this singleton.    Àd±Àd±!ÀdÊ   ÀdÔÀdÔ#Àdê  ÀbÀb‘bÀd ‚†/// Returns the label to be shown to the user in the UI when a
+/// [MenuSerializableShortcut] is used as a keyboard shortcut.
+///
+/// When [defaultTargetPlatform] is [TargetPlatform.macOS] or
+/// [TargetPlatform.iOS], this will return graphical key representations when
+/// it can. For instance, the default [LogicalKeyboardKey.shift] will return
+/// 'â‡§', and the arrow keys will return arrows. The key
+/// [LogicalKeyboardKey.meta] will show as 'âŒ˜', [LogicalKeyboardKey.control]
+/// will show as 'Ë„', and [LogicalKeyboardKey.alt] will show as 'âŒ¥'.
+///
+/// The keys are joined by spaces on macOS and iOS, and by "+" on other
+/// platforms.   ÀsùÀsùÀt   ÀtÀt#Àt'  ÀsßÀsß.Àsç    À*À*À=   ÀGÀG#À]  ÀÀŠZÀ  ÀZ,ÀZ,±AÀ\™‚h/// A helper class used to generate shortcut labels for a
+/// [MenuSerializableShortcut] (a subset of the subclasses of
+/// [ShortcutActivator]).
+///
+/// This helper class is typically used by the [MenuItemButton] and
+/// [SubmenuButton] classes to display a label for their assigned shortcuts.
+///
+/// Call [getShortcutLabel] with the [MenuSerializableShortcut] to get a label
+/// for it.
+///
+/// For instance, calling [getShortcutLabel] with `SingleActivator(trigger:
+/// LogicalKeyboardKey.keyA, control: true)` would return "âŒƒ A" on macOS, "Ctrl
+/// A" in an US English locale, and "Strg A" in a German locale.  ÀŒ@ ÀŒN    ÀŒUÀŒUÀŒd   ÀŒvÀŒvÀŒ|   ÀŒŒÀŒŒÀŒ’   ÀŒ¤ÀŒ¤ÀŒª  ÀŒ:ÀŒ:|        ÀŒºÀŒ»ÀŒºÀŒºEÀŒØ  À‹oÀ‹o’ÀŒ€/// MenuBar-specific private specialization of [MenuAnchor] so that it can act
+/// differently in regards to orientation, how open works, and what gets built.  ÀÀÆÀiÀ~ÀjÀpÀvÀ}ÀwÀ’À…À”À¥ÀÁÀ°À¦À²À_À:€À_   ÀÌÀÍÀÌÀÌ5Àá     ÀÀÀ+ ÀÀÀÀƒ÷À  ÀÀ„ûÀ	   À” À”-    À”4À”4	À”:   À”CÀ”CÀ”H   À”VÀ”VÀ”[   À”sÀ”sÀ”‚ À”hÀ“£À“£€ë _/// Create a const [MenuAcceleratorCallbackBinding].
+///
+/// The [child] parameter is required.  À•\À”’€ÒÀ•\€­/// The function that pressing the accelerator defined in a descendant
+/// [MenuAcceleratorLabel] will invoke.
+///
+/// If set to null, then the accelerator won't be enabled. À–qÀ•iÀ–q€ò/// Whether or not the associated label will host its own submenu or not.
+///
+/// This setting determines when accelerators are active, since accelerators
+/// for menu items that open submenus shouldn't be active when the submenu is
+/// open.     À–¤À–¤(À–Ã À–€À–À–€À–€€¤À–‘    À˜äÀ˜äÀ˜ñ  À—(À—(‚0À˜Üx/// Returns the active [MenuAcceleratorCallbackBinding] in the given context, if any,
+/// and creates a dependency relationship that will rebuild the context when
+/// [onInvoke] changes.
+///
+/// If no [MenuAcceleratorCallbackBinding] is found, returns null.
+///
+/// See also:
+///
+/// * [of], which is similar, but asserts if no [MenuAcceleratorCallbackBinding]
+///   is found.   À›VÀ›VÀ›c  À™\À™\„ùÀ›Sº/// Returns the active [MenuAcceleratorCallbackBinding] in the given context, and
+/// creates a dependency relationship that will rebuild the context when
+/// [onInvoke] changes.
+///
+/// If no [MenuAcceleratorCallbackBinding] is found, returns will assert in debug mode
+/// and throw an exception in release mode.
+///
+/// See also:
+///
+/// * [maybeOf], which is similar, but returns null if no
+///   [MenuAcceleratorCallbackBinding] is found. À’ À’ ŒWÀ“ha/// An [InheritedWidget] that provides a descendant [MenuAcceleratorLabel] with
+/// the function to invoke when the accelerator is pressed.
+///
+/// This is used when creating your own custom menu item for use with
+/// [MenuAnchor] or [MenuBar]. Provided menu items such as [MenuItemButton] and
+/// [SubmenuButton] already supply this wrapper internally.  À¬w À¬‹    À¬ŒÀ¬Œ
+À¬‘   À¬™À¬™	À¬Ÿ   À¬¤À¬¤"À¬© À¬³À¬À¬€µ V/// Creates a const [MenuAcceleratorLabel].
+///
+/// The [label] parameter is required.  À±ãÀ¬Í…À±ã„Ú/// The label string that should be displayed.
+///
+/// The label string provides the label text, as well as the possible
+/// characters which could be used as accelerators in the menu system.
+///
+/// {@template flutter.material.menu_anchor.menu_accelerator_label.label}
+/// To indicate which letters in the label are to be used as accelerators, add
+/// an "&" character before the character in the string. If more than one
+/// character has an "&" in front of it, then the characters appearing earlier
+/// in the string are preferred. To represent a literal "&", insert "&&" into
+/// the string. All other ampersands will be removed from the string before
+/// calling [MenuAcceleratorLabel.builder]. Bare ampersands at the end of the
+/// string or before whitespace are stripped and ignored.
+/// {@endtemplate}
+///
+/// See also:
+///
+/// * [displayLabel], which returns the [label] with all of the ampersands
+///   stripped out of it, and double ampersands converted to ampersands.
+/// * [stripAcceleratorMarkers], which returns the supplied string with all of
+///   the ampersands stripped out of it, and double ampersands converted to
+///   ampersands, and optionally calls a callback with the index of the
+///   accelerator character found. À¶À²ºƒTÀ¶ƒ/// The optional [MenuAcceleratorChildBuilder] which is used to build the
+/// widget that displays the label itself.
+///
+/// The [defaultLabelBuilder] function serves as the default value for
+/// [builder], rendering the label as a [RichText] widget with appropriate
+/// [TextSpan]s for rendering the label with an underscore under the selected
+/// accelerator for the label when accelerators have been activated.
+///
+/// {@macro flutter.material.menu_anchor.menu_accelerator_child_builder.args}
+///
+/// When writing the builder function, it's not necessary to take the current
+/// platform into account. On platforms which don't support accelerators (e.g.
+/// macOS and iOS), the passed accelerator index will always be -1, and the
+/// accelerator markers will already be stripped.   À±íÀ±í€ÉÀ²‡€ˆ/// Returns the [label] with any accelerator markers removed.
+///
+/// This getter just calls [stripAcceleratorMarkers] with the [label].   À¶À¶€ÎÀ¶¥€‚/// Whether [label] contains an accelerator definition.
+///
+/// {@macro flutter.material.menu_anchor.menu_accelerator_label.label}    À¸”À¸”À¸¡   À¸ªÀ¸ªÀ¸±   À¸¸À¸¸	À¸¼  À¶åÀ¶å„©À¸€€/// Serves as the default value for [builder], rendering the label as a
+/// [RichText] widget with appropriate [TextSpan]s for rendering the label
+/// with an underscore under the selected accelerator for the label when the
+/// [index] is non-negative, and a [Text] widget when the [index] is negative.
+///
+/// {@macro flutter.material.menu_anchor.menu_accelerator_child_builder.args}   À½À½À½   À½#À½#"À½=  À»’À»’ˆÀ¼üM/// Strips out any accelerator markers from the given [label], and unescapes
+/// any escaped ampersands.
+///
+/// If [setIndex] is supplied, it will be called before this function returns
+/// with the index in the returned string of the accelerator character.
+///
+/// {@macro flutter.material.menu_anchor.menu_accelerator_label.label}  ÀÃ›ÀÃœÀÃ›ÀÃ›VÀÃÃ    ÀÄÀÄ/ÀÄ" ÀÃõÀÃöÀÄ-ÀÄ<ÀÄ=ÀÃõÀÃõ€‚ÀÄ    ÀÄ ÀÄ &ÀÄ¼ ÀÄ{ÀÄ|ÀÄ{ÀÄ{€±ÀÄŒ  À£§À£§¡‡À«äˆ6/// A widget that draws the label text for a menu item (typically a
+/// [MenuItemButton] or [SubmenuButton]) and renders its child with information
+/// about the currently active keyboard accelerator.
+///
+/// On platforms other than macOS and iOS, this widget listens for the Alt key
+/// to be pressed, and when it is down, will update the label by calling the
+/// builder again with the position of the accelerator in the label string.
+/// While the Alt key is pressed, it registers a shortcut with the
+/// [ShortcutRegistry] mapped to a [VoidCallbackIntent] containing the callback
+/// defined by the nearest [MenuAcceleratorCallbackBinding].
+///
+/// Because the accelerators are registered with the [ShortcutRegistry], any
+/// other shortcuts in the widget tree between the [primaryFocus] and the
+/// [ShortcutRegistry] that define Alt-based shortcuts using the same keys will
+/// take precedence over the accelerators.
+///
+/// Because accelerators aren't used on macOS and iOS, the label ignores the Alt
+/// key on those platforms, and the [builder] is always given -1 as an
+/// accelerator index. Accelerator labels are still stripped of their
+/// accelerator markers.
+///
+/// The built-in menu items [MenuItemButton] and [SubmenuButton] already provide
+/// the appropriate [MenuAcceleratorCallbackBinding], so unless you are creating
+/// your own custom menu item type that takes a [MenuAcceleratorLabel], it is
+/// not necessary to provide one.
+///
+/// {@template flutter.material.MenuAcceleratorLabel.accelerator_sample}
+/// {@tool dartpad} This example shows a [MenuBar] that handles keyboard
+/// accelerators using [MenuAcceleratorLabel]. To use the accelerators, press
+/// the Alt key to see which letters are underlined in the menu bar, and then
+/// press the appropriate letter. Accelerators are not supported on macOS or iOS
+/// since those platforms don't support them natively, so this demo will only
+/// show a regular Material menu bar on those platforms.
+///
+/// ** See code in examples/api/lib/material/menu_anchor/menu_accelerator_label.0.dart **
+/// {@end-tool}
+/// {@endtemplate}   ÀÅ…ÀÅyÀÅ… ÀÅ®ÀÅ¯ÀÅšÀÅ–ÀÅš  ÀÅÔÀÅ´(ÀÅÔ  ÀÅğÀÅàÀÅğ  ÀÆÀÆ#ÀÆ  ÀÆAÀÆ*-ÀÆA ÀÆtÀÆ`ÀÆ[ÀÆ`   	  ÀÆ~ÀÆÀÆ~ÀÆ~€íÀÆ   ÀÇoÀÇpÀÇoÀÇo—ÀÇ€   ÀÉ
+ÀÉÀÉ
+ÀÉ
+cÀÉ    ÀÊ’ÀÊ’ÀÊ§ ÀÊqÀÊrÀÊqÀÊq€ºÀÊ‚    ÀË/ÀË/€òÀË;    ÀÌ<ÀÌ<ÀÌE  ÀÌ%ÀÌ%
+ÀÌ*    ÀÍ3ÀÍ3„˜ÀÍ8    ÀÑÏÀÑÏ€ÇÀÑÔ    ÀÒ³ÀÒ³ÀÒÀ ÀÒšÀÒ›ÀÒšÀÒš€°ÀÒ­  ÀÅ0ÀÅ0ÀÅ6   ÀÕe ÀÕs  	  ÀÕzÀÕzÀÕˆ   ÀÕ˜ÀÕ˜ÀÕ   ÀÕ¸ÀÕ¸ÀÕ½   ÀÕÎÀÕÎÀÕÓ   ÀÕåÀÕåÀÕê   ÀÕøÀÕøÀÕı   ÀÖÀÖ!ÀÖ   ÀÖ8ÀÖ8ÀÖ=   ÀÖNÀÖN
+ÀÖS ÀÕ®ÀÖ%ÀÖ)ÀÖ*ÀÔöÀÔöi b/// Creates a const [_MenuItemLabel].
+///
+/// The [child] and [hasSubmenu] arguments are required. 	 ÀÖŞÀÖc€…ÀÖŞi/// Whether or not this menu has a submenu.
+///
+/// Determines whether the submenu arrow is shown or not. À×ºÀÖí€ÛÀ×º€»/// Whether or not this item should show decorations like shortcut labels or
+/// submenu arrows. Items in a [MenuBar] don't show these decorations when
+/// they are laid out horizontally. ÀØÀ×ÍPÀØ4/// The optional icon that comes before the [child]. ÀØfÀØ"PÀØf3/// The optional icon that comes after the [child]. ÀØúÀØw€‹ÀØú^/// The shortcut for this label, so that it can generate a string describing
+/// the shortcut. ÀÙ€ÀÙ€‡ÀÙ€f/// An optional Semantics label, which replaces the generated string when
+/// read by a screen reader. ÀÙÒÀÙ“KÀÙÒ1/// The direction in which the menu item expands. ÀÚKÀÙãsÀÚKW/// The submenu icon that is displayed when [showDecoration] and [hasSubmenu] are true. ÀÚ¨ÀÚ[RÀÚ¨</// An optional child widget that is displayed in the label.     ÀÚËÀÚËÀÚØ ÀÚ²ÀÚ³ÀÚ²ÀÚ²‰pÀÚÅ    ÀäKÀäK&Àäg Àä&Àä'Àä&Àä&‘Àä7  ÀÓNÀÓN’kÀÔËv/// A label widget that is used as the label for a [MenuItemButton] or
+/// [SubmenuButton].
+///
+/// It not only shows the [SubmenuButton.child] or [MenuItemButton.child], but if
+/// there is a shortcut associated with the [MenuItemButton], it will display a
+/// mnemonic for the shortcut. For [SubmenuButton]s, it will display a visual
+/// indicator that there is a submenu.  Àæ\ Àæg    ÀænÀænÀæ|   ÀæŒÀæŒÀæš   Àæ­Àæ­Àæ»   ÀæÊÀæÊÀæØ   ÀæíÀæíÀæû   ÀçÀçÀç   Àç,Àç,Àç:   ÀçKÀçKÀçY   ÀçjÀçjÀçx   ÀçÀçÀç   Àç²Àç²ÀçÀ   ÀçÒÀçÒÀçà  ÀæVÀæVŸ    ÀèOÀèDÀèO  Àè¬Àè˜!Àè¬  ÀéÀé!Àé  Àé“Àé†Àé“  ÀéêÀéÜÀéê  ÀêrÀêY$Àêr  ÀêâÀêÒÀêâ  Àë ÀëÀë   ÀëgÀë\Àëg  ÀëÛÀëÂ(ÀëÛ  Àì7Àì*Àì7  ÀìÚÀìÅ#ÀìÚ      ÀíÀíÀí. ÀìíÀìîÀìíÀìí
+Àí    Àî"Àî"	Àî'   Àî-Àî-Àî2 ÀíûÀíüÀíûÀíû…Àî    Àó0Àó0Àó8   ÀóCÀóCÀóK  ÀóÀóÀó!    ÀHÀHÀT À(À)À(À(‚À9    ÀÍÀÍÀÜ   ÀåÀåÀì  À¹À¹À¾  ÀæÀæ°Àæ$   À± À»    ÀÂÀÂÀĞ   ÀßÀßÀä   ÀÀÀ   À!À!"À&   ÀIÀIÀN   ÀcÀcÀq ÀóÀ÷ÀøÀ?À«À«€Õ    ÀÛÀ„`ÀÛC/// The menu style that has all the attributes for this menu panel. ÀOÀérÀOT/// {@macro flutter.material.Material.clipBehavior}
+///
+/// Defaults to [Clip.none]. À•À`KÀ•/// Determine if a [UnconstrainedBox] can be applied to the menu panel to allow it to render
+/// at its "natural" size.
+///
+/// Defaults to true. When it is set to false, it can be useful when the menu should
+/// be constrained in both main-axis and cross-axis, such as a [DropdownMenu]. ÀçÀ°BÀç)/// The layout orientation of this panel. À	PÀ÷hÀ	P=/// The animation that controls the height of the menu panel. À	îÀ	d€’À	îp/// The list of widgets to use as children of this menu panel.
+///
+/// These are the top level [SubmenuButton]s.    À	ûÀ	üÀ	ûÀ	ûAÀ
+  ÀĞÀĞ…nÀ…€®/// A widget that manages a list of menu buttons in a menu.
+///
+/// It sizes itself to the widest/tallest item it contains, and then sizes all
+/// the other entries to match.  À
+˜À
+¨À
+©À
+…À
+t6À
+…     À
+¯À
+°À
+¯À
+¯UÀ
+À    À!À!À. ÀÀ	ÀÀ—À    À"4À"4À"D  À"À"€ÖÀ"    À#À#À#   À#$À#$À#,  À"òÀ"ò€ìÀ"ù  À
+@À
+@™ À
+F   À$K À$S    À$ZÀ$ZÀ$h   À$tÀ$tÀ$‚   À$‘À$‘À$Ÿ   À$®À$®À$¼   À$ÎÀ$ÎÀ$Ü   À$ñÀ$ñ À$ÿ   À%À%À%%   À%7À%7"À%<   À%_À%_À%m   À%À%À%   À% À% À%®   À%ÁÀ%ÁÀ%Ï   À%äÀ%äÀ%ò À%UÀ$EÀ$EÃ    À&!À&"À&!  À&KÀ&2%À&K  À&rÀ&[À&r  À&À&|À&  À&«À&šÀ&«  À&ÃÀ&¸À&Ã  À&æÀ&ÙÀ&æ  À'À&ùÀ'  À'À'!À'  À'LÀ'9À'L  À'tÀ'\%À't  À'À'…'À'  À'ÉÀ'°(À'É      À'öÀ'öÀ( À'İÀ'ŞÀ'İÀ'İ“XÀ'ğ  À$À$—À$    À;å À;ñ    À;òÀ;òÀ;÷  À;ßÀ;ß)    À<7À<:À<7   À<ÅÀ<ÆÀ<ÅÀ<Å>À<Ü     À<kÀ<kÀ<| À<KÀ<LÀ<KÀ<KvÀ<c  À;9À;9ÌÀ;¯o/// Wraps the [WidgetStateMouseCursor] so that it can default to
+/// [MouseCursor.uncontrolled] if none is set.  ÀE( ÀE:    ÀE;ÀE;ÀE@ ÀEOÀETÀFÀEeÀE\ÀEgÀEmÀE…ÀEÀE†ÀEŒÀEÀE’ÀEÀE ÀE›ÀE¢ÀE¨ÀEÀÀEÏÀEÁÀEĞÀEãÀEÑÀEõÀEìÀE÷ÀFÀFÀE(ÀE(€÷   ÀF`ÀFvÀF«ÀFƒÀFwÀF…ÀF‘ÀF’ÀF•ÀFªÀF–ÀFœÀFÀF¥ÀF©ÀF¦ÀFGÀF#€‰ÀFG  ÀFÄÀF±ÀFÄ ÀFñÀFöÀF÷ÀFùÀGÀFúÀGÀGÀFçÀFĞ>ÀFç   ÀGÀGÀGÀG€ˆÀG?   ÀGŸÀG ÀGŸÀGŸ{ÀGÌ   ÀHÀHÀHÀH€ŠÀHK   ÀH¬ÀH­ÀH¬ÀH¬€ôÀHæ   ÀI¤ÀI¥ÀI¤ÀI¤OÀIÂ    ÀDùÀDù„üÀDÿ   ÀJ+ ÀJ@    ÀJAÀJAÀJF ÀJUÀJZÀJŞÀJsÀJbÀJuÀJŸÀJ‘ÀJ¡ÀJ¶ÀJ­ÀJ¸ÀJÌÀJÍÀJ+ÀJ+€µ    ÀJ÷ÀJäÀJ÷ ÀK$ÀK)ÀK*ÀK,ÀK4ÀK-ÀK5ÀK6ÀKÀK>ÀK ÀKgÀKlÀKmÀKoÀKwÀKpÀKxÀKyÀKZÀKE=ÀKZ   ÀK‡ÀKˆÀK‡ÀK‡€…ÀK´   ÀLRÀLSÀLRÀLRqÀL   ÀLÇÀLÈÀLÇÀLÇ‚4ÀLô   ÀNÿÀO ÀNÿÀNÿ‚JÀO,   ÀQhÀQiÀQhÀQhtÀQ•   ÀQàÀQáÀQàÀQàyÀR   ÀR]ÀR^ÀR]ÀR]€‚ÀRˆ   ÀRãÀRäÀRãÀRãkÀS   ÀSRÀSSÀSRÀSR‚ÀS   ÀUpÀUqÀUpÀUp€›ÀU©   ÀV%ÀV&ÀV%ÀV%€˜ÀVZ   ÀVÁÀVÂÀVÁÀVÁ_ÀVï   ÀW$ÀW%ÀW$ÀW$`ÀWK   ÀWˆÀW‰ÀWˆÀWˆÀW¸   ÀXÀXÀXÀXPÀX¼     ÀYKÀYKÀYX  ÀY)ÀY)…–ÀY<  ÀI÷ÀI÷”ÊÀIı   À^ï À^ş    À^ÿÀ^ÿÀ_ À_À_À_ÜÀ_)À_ À_+À_1À_IÀ_QÀ_JÀ_PÀ_RÀ_VÀ_SÀ_dÀ__À_fÀ_lÀ_„À_“À_…À_”À_§À_•À_¹À_°À_»À_ÏÀ_ĞÀ^ïÀ^ï€ï   À`À`5À`jÀ`BÀ`6À`DÀ`PÀ`QÀ`TÀ`iÀ`UÀ`[À`\À`dÀ`hÀ`eÀ`À_â€‰À`  À`ƒÀ`pÀ`ƒ À`°À`µÀ`¶À`¸À`ÀÀ`¹À`ÁÀ`ÂÀ`¦À`>À`¦   À`ÒÀ`ÓÀ`ÒÀ`Ò€ˆÀ`ş   Àa^Àa_Àa^Àa^€ŠÀa‹   ÀaìÀaíÀaìÀaì{Àb   ÀbkÀblÀbkÀbk€ØÀb¥   ÀcGÀcHÀcGÀcGOÀce    À^ÃÀ^Ã„ÕÀ^É         À>AÀ>AÀ>H   À>RÀ>RÀ>d  À=À=‚¿À>2%/// A debug print function, which should only be called within an assert, like
+/// so:
+///
+///   assert(_debugMenuInfo('Debug Message'));
+///
+/// so that the call is entirely removed in release builds.
+///
+/// Enable debug printing by setting [_kDebugMenus] to true at the top of the
+/// file.   À?ÈÀ?ÈlÀ@F/// Whether [defaultTargetPlatform] is an Apple platform (Mac or iOS).   ÀA6ÀA6fÀBk+/// Whether [defaultTargetPlatform] is one that uses symbolic shortcuts.
+///
+/// Mac and iOS use special symbols for modifier keys instead of their names,
+/// render them in a particular order defined by Apple's human interface
+/// guidelines, and format them so that the modifier keys always align.   ÀBÀB7ÀB§  † ††† †°†•†ˆ*†• ‡P‡4‡'+‡4 ‡ì‡Ô‡Ç&‡Ô eˆ ‹9ˆ…ˆŸˆ†ˆ™ˆÓˆ¤ˆ³ˆÒˆ´ˆÆˆÇˆÕˆãˆä‰ˆéˆø‰ˆù‰‰‰‰"‰#‰O‰(‰7‰N‰8‰J‰K‰Q‰`‰a‰š‰f‰u‰™‰v‰ˆ‰‰‰“‰‰•‰œ‰¯‰°‰â‰µ‰Ä‰á‰Å‰×‰Ø‰ä‰úŠ‰ûŠŠŠBŠŠ&ŠAŠ'Š9Š:ŠDŠZŠpŠ[ŠmŠnŠ¢ŠuŠ„Š¡Š…Š—Š˜Š¤ŠºŠÒŠ»ŠÍŠÎ‹Š×Šæ‹ŠçŠùŠú‹‹‹6‹‹0‹1ˆjˆE‚õˆj ‹‹ƒ‹v)‹ƒ Œ‹ò‹å"‹ò Œ„Œ_ŒR3Œ_ ŒäŒìŒşŒùŒíŒûŒÌŒ½BŒÌ ^fxsguF7BF uz†{‚…U|ƒU‚Ì/// The default curve used to animate the height of the menu panel while the
+/// menu is opening.
+///
+/// **NOTE**: This animation curve follows the material web implementation of
+/// [Easing.emphasized](https://github.com/material-components/material-web/blob/516cbc02bf770b7c3c5c6b546f1e5d81939b9f23/internal/motion/animation.ts#L18)
+/// instead of the curve recommended by the Material 3 specification,
+/// [Curves.easeInOutCubicEmphasized](https://m3.material.io/styles/motion/easing-and-duration/tokens-specs).
+/// This change was made because the web curve [was more consistent with the
+/// timing of the menu item fade-in
+/// animations](https://github.com/flutter/flutter/pull/176494#discussion_r2545178254).‘‘!‘d‘%‘-‘7‘2‘9‘E‘a‘F‘L‘Möê{ö ‘æ‘î‘ú‘ï‘õ‘ò‘÷‘Å‘¹B‘Å ’|’ˆ’§’‰’‘’¦’–’’’˜’¡’’£’[’OY’[ “9“7“;““5“ “Ï“Í“Ñ“©“œ6“© ”s”q”u”P”C3”P   ”y”y‚B–NÌ/// The type of builder function used by [MenuAnchor.builder] to build the
+/// widget that the [MenuAnchor] surrounds.
+///
+/// The `context` is the context that the widget is being built in.
+///
+/// The `controller` is the [MenuController] that can be used to open and close
+/// the menu with.
+///
+/// The `child` is an optional child supplied as the [MenuAnchor.child]
+/// attribute. The child is intended to be incorporated in the result of the
+/// function.  ÀYÀY…LÀ£D„â/// The type of builder function used for building a [MenuAcceleratorLabel]'s
+/// [MenuAcceleratorLabel.builder] function.
+///
+/// {@template flutter.material.menu_anchor.menu_accelerator_child_builder.args}
+/// The arguments to the function are as follows:
+///
+/// * The `context` supplies the [BuildContext] to use.
+/// * The `label` is the [MenuAcceleratorLabel.label] attribute for the relevant
+///   [MenuAcceleratorLabel] with the accelerator markers stripped out of it.
+/// * The `index` is the index of the accelerator character within the
+///   `label.characters` that applies to this accelerator. If it is -1, then the
+///   accelerator should not be highlighted. Otherwise, the given character
+///   should be highlighted somehow in the rendered label (typically with an
+///   underscore). Importantly, `index` is not an index into the [String]
+///   `label`, it is an index into the [Characters] iterable returned by
+///   `label.characters`, so that it is in terms of user-visible characters
+///   (a.k.a. grapheme clusters), not Unicode code points.
+/// {@endtemplate}
+///
+/// See also:
+///
+/// * [MenuAcceleratorLabel.defaultLabelBuilder], which is the implementation
+///   used as the default value for [MenuAcceleratorLabel.builder].   €®  package:flutter/cupertino.dart  €ã  app.dart  €ş  checkbox_theme.dart  $  dropdown_menu.dart  I  radio_theme.dart ª <€†€¤€¥€Ö€Ú€õ@clm‚¶·á‚
+‚3‚[‚‚‚ƒ‚Ÿ‚Â‚Ú‚öƒƒ%ƒ:ƒRƒjƒƒ®ƒÌƒí„„!„7„L„e„€„š„¯„É„Ê„â…… …G…m…‹…Ë…Ì††'†(†v†ˆ†´†µ‡ ‡'‡T‡U‡ ‡Ç‡ï‡ğˆ<ˆEˆ¢ˆç‰&‰d‰³ŠŠsŠÕ‹9‹<‹=‹v‹¡‹¢‹åŒ	Œ
+ŒRŒ‡ŒˆŒ½7{|ÉŞâ0Ì€ÍñI‰ŠÛê‘#‘+‘0‘d‘g‘h‘¹‘ı‘ş’O’ª’«’ú““>“?““œ“Ô“Õ””C”x”y”Ä”ğ”ô•8•<•Œ•Ÿ•£•ë–8–F–g–¼–½–î—	—"—E—_—e—f—†—¯—°—¼—ô˜J˜ƒ˜‡˜‰˜Š˜×˜Ú™'™v™Ç™î™ñšBš“š¡šÃ›› ›<›V›p›Œ››£›·›Ì›Í›Ùœ œœFœJœKœWœ“œ•œ–œá+X\¬åé3€¼ÀŸ#Ÿ‡Ÿç < @ T ¡ è¡6¡:¡‰¡™¡¡±¢ ¢M¢š¢æ¢ê£9£I£M£a£²£¾£Â¤¤!¤%¤p¤Á¤ë¥¥¥D¥Y¥h¥}¥–¥¦¥Î¥è¥ü¦#¦4¦\¦˜¦¦Ä¦è¦ù§§3§T§o§’§²§Ä§Ô§Ú§Û¨)¨>¨b¨c¨´¨ò¨ø©H©–©¨©®©÷ª3ªVªWª¡ª§ªñª÷«,«F«G«…«Ñ¬¬.¬4¬j¬p¬À¬Ì¬Ò­#­c­ ­¦­ô®A®®Ø¯¯¯;¯P¯q¯r¯»¯Ù¯ß°+°g°…°†°¼°Â°å± ±±F±L±œ±â²%²u²¿³³^³§³÷´E´´”´áµ2µµÎµÔµíµü¶"¶\¶`¶‚¶ƒ¶Î¶ö¶ü·K·›·ã·ó·ù¸¸2¸3¸r¸x¸¸®¸¯¸ğ¸ö¹¹-¹.¹„¹µ¹»º
+ºbº³ºØºÙ»»»4»Q»R»»¤»½»Ô»Õ¼"¼W¼]¼£¼â½½#½o½½¾¾U¾f¾l¾‚¾Ñ¿¿!¿/¿A¿Y¿–¿áÀ @À @À @rÀ @ÆÀ @ãÀ @ÿÀ A9À A]À AtÀ A—À A§À A¶À AåÀ AòÀ AıÀ BÀ BÀ B"À B(À B@À BÀ B‚À BÒÀ BşÀ CÀ C;À C^À C_À C’À C˜À CÚÀ D!À D'À DuÀ DÀ D“À DáÀ DïÀ EÀ EÀ EQÀ EWÀ E¡À EòÀ FBÀ FqÀ FˆÀ F‰À FÑÀ F×À FüÀ G)À G*À G6À GoÀ GpÀ G|À G®À HÀ HÀ HÀ H#À HhÀ H“À H§À IÀ IÀ I]À I¢À IèÀ J>À JBÀ JDÀ JEÀ JœÀ JÆÀ KÀ KHÀ K‚À KÜÀ LÀ L>À LhÀ L™À LÀ LßÀ MÀ M,À M^À McÀ MÀ MÏÀ NÀ NFÀ NÀ NÏÀ OÀ OÀ OVÀ O{À OÛÀ OàÀ OáÀ OíÀ PÀ PÀ P<À PUÀ P À P¡À PÆÀ PøÀ PşÀ QÀ QÀ QÀ Q>À QdÀ Q™À QÀÀ QôÀ RÀ R+À R3À R9À R:À RœÀ R·À R½À R¾À RïÀ SÀ SÀ SÀ SÀ S+À S>À SpÀ S‹À SÌÀ SçÀ SíÀ TÀ T/À TNÀ TnÀ TÀ T³À TÈÀ TÌÀ TÍÀ TôÀ UÀ ULÀ UÀ UÀ UÒÀ VÀ VÀ VÀ VÀ V6À VVÀ V—À V²À V¸À VåÀ VæÀ WÀ W6À WDÀ WJÀ WKÀ WgÀ W˜À W¦À W¬À W­À WıÀ X'À XwÀ XxÀ X˜À X¸À XÖÀ XõÀ YÀ Y_À YƒÀ YÃÀ ZÀ Z
+À ZÀ ZAÀ ZfÀ ZÀ Z»À ZÄÀ ZÅÀ ZêÀ [À [@À [IÀ [JÀ [sÀ [™À [¶À [ÚÀ [ãÀ [äÀ \À \%À \}À \†À \®À \×À \İÀ \áÀ \âÀ ]!À ]3À ]’À ]šÀ ]ÍÀ ]ÑÀ ]ÒÀ ^À ^oÀ ^¾À ^ÎÀ ^õÀ _À _	À _
+À _À _À _SÀ _aÀ _gÀ _hÀ _ŒÀ _À _‘À _ÌÀ `À `À `À `À `UÀ `YÀ `ZÀ `fÀ `À `¸À `ËÀ `ÿÀ aÀ aLÀ aÀ a®À aÍÀ aîÀ b$À bIÀ bxÀ bŸÀ bÀÀ bİÀ bæÀ bíÀ bîÀ cÀ c&À c,À c-À czÀ c~À cÀ cËÀ dÀ d_À dfÀ d³À eÀ eJÀ egÀ e‹À e§À eÌÀ eéÀ fÀ f,À fYÀ f‡À f°À fêÀ gÀ g:À giÀ g’À gÕÀ gùÀ hÀ hWÀ h·À hÄÀ hÏÀ hØÀ hßÀ hãÀ häÀ iÀ iÀ i?À i_À ieÀ ixÀ i|À i}À i•À i¾À iÌÀ iÒÀ jÀ jJÀ jNÀ jOÀ jnÀ j¡À j¯À jµÀ jİÀ k<À kŸÀ k½À kŞÀ käÀ kèÀ kéÀ lÀ l:À lHÀ lNÀ lvÀ lÕÀ m5À mSÀ mWÀ mXÀ m”À máÀ måÀ mæÀ n0À nŒÀ nÀ n‘À nÀ nåÀ oÀ oÀ oÀ oÀ oBÀ oFÀ o“À oãÀ p(À p,À p{À pÌÀ qÀ qjÀ qºÀ rÀ rÀ rÀ riÀ r¹À sÀ sAÀ s‹À sÄÀ sÈÀ t À tAÀ tÀ tİÀ u,À u}À u˜À uœÀ uêÀ v1À vÀ vĞÀ wÀ w[À w_À w­À w÷À xGÀ x’À x–À xâÀ xòÀ yÀ y	À yOÀ ySÀ yaÀ yeÀ y´À yÊÀ zÀ zUÀ z”À zãÀ {!À {mÀ {€À {ÒÀ |À |TÀ |oÀ |—À |¸À |¾À |éÀ |ûÀ }
+À }À }=À }RÀ }nÀ }tÀ }uÀ }¿À }ÅÀ ~À ~À ~JÀ ~dÀ ~eÀ ~›À ~¡À ~ÀÀ ~ÛÀ ~ÜÀ À 5À 6À …À ‹À ØÀ €)À €tÀ €“À €™À €ĞÀ €ïÀ €ğÀ €üÀ #À NÀ iÀ ‡À ©À ½À ÛÀ âÀ æÀ çÀ óÀ ‚%À ‚CÀ ‚–À ‚À ‚¡À ‚¢À ‚®À ‚óÀ ƒÀ ƒwÀ ƒØÀ ƒÜÀ ƒŞÀ ƒßÀ „/À „sÀ „wÀ „ÅÀ …À …3À …7À …lÀ …pÀ …~À …‚À …ÒÀ …ßÀ †.À †DÀ †”À †ãÀ ‡!À ‡mÀ ‡€À ‡ÒÀ ˆÀ ˆSÀ ˆnÀ ˆœÀ ˆÄÀ ˆÊÀ ˆóÀ ‰À ‰À ‰/À ‰AÀ ‰fÀ ‰~À ‰’À ‰®À ‰ÁÀ ‰ÚÀ ‰êÀ ŠÀ Š(À Š>À ŠUÀ ŠvÀ ŠŸÀ Š¯À ŠµÀ Š¶À ŠõÀ ŠûÀ ‹=À ‹CÀ ‹SÀ ‹YÀ ‹•À ‹¶À ‹·À ‹ıÀ ŒÀ ŒRÀ Œ€À Œ¥À Œ¦À ŒÕÀ ŒÛÀ ŒóÀ À À CÀ IÀ ™À ¦À ÑÀ ÒÀ À À  À OÀ gÀ hÀ ¨À ®À åÀ À À ]À cÀ ©À ğÀ /À `À fÀ ±À øÀ ‘AÀ ‘RÀ ‘XÀ ‘oÀ ‘À ‘À ‘»À ‘ÁÀ ’À ’aÀ ’¤À ’éÀ ’ïÀ “À “"À “#À “\À “À “‘À “ÇÀ “ÍÀ “ìÀ ”À ”À ”DÀ ”aÀ ”bÀ ”À ”»À ”¼À ”ûÀ •?À •QÀ •WÀ •oÀ •„À •¢À •£À •×À •İÀ –.À –NÀ –TÀ –¦À –êÀ —À —À —2À —MÀ —NÀ —‡À —À —ĞÀ —ÖÀ ˜À ˜À ˜À ˜PÀ ˜VÀ ˜¢À ˜ËÀ ˜ÌÀ ˜ØÀ ™À ™À ™IÀ ™OÀ ™ŒÀ ™’À ™ÑÀ šÀ š1À š5À š6À šsÀ š•À šÉÀ š÷À šûÀ šüÀ ›CÀ ›lÀ ›rÀ ›¾À œÀ œ_À œ§À œöÀ À 	À MÀ À •À ÖÀ À 6À <À ‹À ËÀ ÑÀ ŸÀ ŸLÀ ŸRÀ Ÿ”À ŸãÀ  /À  BÀ  HÀ  VÀ  lÀ  ™À  áÀ  ùÀ ¡
+À ¡À ¡@À ¡IÀ ¡SÀ ¡tÀ ¡À ¡¬À ¡ĞÀ ¡ôÀ ¢À ¢)À ¢?À ¢UÀ ¢sÀ ¢À ¢¦À ¢½À ¢ŞÀ ¢õÀ £
+À £!À £FÀ £lÀ £‚À £À £¿À £éÀ ¤
+À ¤$À ¤FÀ ¤wÀ ¤~À ¤ŸÀ ¤ÇÀ ¤ïÀ ¥'À ¥_À ¥À ¥©À ¥ÅÀ ¥ßÀ ¦À ¦'À ¦IÀ ¦eÀ ¦}À ¦À ¦¹À ¦ÙÀ §À §7À §IÀ §]À §À §¥À §ÑÀ §÷À ¨À ¨7À ¨>À ¨BÀ ¨CÀ ¨OÀ ¨”À ¨¿À ©À ©vÀ ©ŠÀ ©êÀ ©ñÀ ªRÀ ª±À ªÅÀ ªûÀ «À «1À «MÀ «VÀ «]À «aÀ «cÀ «dÀ «ŸÀ «ïÀ ¬À ¬WÀ ¬À ¬¹À ¬ºÀ ¬ÆÀ ¬ÛÀ ¬òÀ ­À ­JÀ ­NÀ ­OÀ ­[À ­nÀ ­¡À ­ÄÀ ­ãÀ ­øÀ ­üÀ ­ıÀ ®	À ®<À ®oÀ ®ÆÀ ®ìÀ ¯À ¯6À ¯>À ¯hÀ ¯šÀ ¯ À ¯ÆÀ ¯ÊÀ ¯ËÀ ¯×À ¯şÀ °JÀ °—À °çÀ ±À ±TÀ ±|À ±œÀ ±ÒÀ ±ØÀ ±ÙÀ ±øÀ ²0À ²sÀ ²À ²ªÀ ²ßÀ ³À ³9À ³gÀ ³„À ³­À ³ĞÀ ³ÿÀ ´*À ´EÀ ´‰À ´¦À ´¯À ´¶À ´·À ´òÀ µGÀ µMÀ µNÀ µÀ µñÀ µ÷À µøÀ ¶!À ¶%À ¶&À ¶DÀ ¶kÀ ¶¡À ¶ÙÀ ¶ßÀ ¶ãÀ ¶äÀ ·À ·.À ·QÀ ·kÀ ·qÀ ·uÀ ·vÀ ·ÇÀ ·İÀ ¸À ¸*À ¸CÀ ¸eÀ ¸À ¸ÜÀ ¸ÿÀ ¹ À ¹QÀ ¹|À ¹ÑÀ ¹ÙÀ ¹ßÀ ¹ãÀ ¹äÀ ¹ıÀ º:À º\À ºŠÀ ºÀ ºÙÀ »(À »9À »{À »´À »ÔÀ ¼ À ¼À ¼À ¼1À ¼UÀ ¼}À ¼À ¼ÜÀ ¼ñÀ ¼ıÀ ½À ½À ½	À ½
+À ½UÀ ½YÀ ½¥À ½³À ½·À ½ËÀ ¾À ¾5À ¾9À ¾‘À ¾¡À ¾¥À ¾³À ¾·À ¿À ¿PÀ ¿\À ¿À ¿»À ¿ÁÀ ÀÀ À#À À2À ÀKÀ ÀfÀ À€À ÀÀ À¯À ÀÇÀ ÀÛÀ ÀîÀ ÀşÀ ÁÀ Á<À ÁSÀ ÁtÀ ÁÀ Á“À Á”À Á¼À ÁÂÀ ÂÀ ÂNÀ ÂcÀ ÂdÀ Â¬À Â²À ÂõÀ ÂûÀ ÃKÀ ÃœÀ ÃíÀ ÄÀ Ä À ÄdÀ Ä{À Ä|À Ä¶À Ä¼À ÅÀ ÅdÀ ÅjÀ ÅƒÀ Å™À ÅšÀ ÅÕÀ ÅÛÀ Æ)À ÆwÀ Æ„À ÆŠÀ ÆÖÀ ÇÀ Ç
+À Ç[À Ç©À ÇõÀ ÈÀ ÈÀ ÈYÀ È¦À ÈÇÀ ÈÍÀ ÈÛÀ ÈõÀ ÉÀ É8À É^À ÉvÀ ÉÀ É¬À É·À É¿À ÉÉÀ ÉñÀ ÉòÀ Ê8À Ê>À ÊÀ Ê»À ÊàÀ ÊáÀ ËÀ ËÀ ËdÀ ËqÀ ËœÀ ËÀ ËÌÀ ËêÀ ËëÀ Ì+À Ì1À ÌhÀ Ì”À Ì•À ÌÀÀ ÌÆÀ ÍÀ Í`À Í¬À ÍçÀ Î0À Î6À ÎMÀ ÎiÀ ÎjÀ Î£À Î×À ÎØÀ ÏÀ ÏÀ Ï3À ÏNÀ ÏOÀ ÏŠÀ Ï¨À Ï©À ÏåÀ ĞÀ ĞÀ Ğ=À ĞCÀ Ğ†À ĞŒÀ Ğ½À ĞÔÀ ĞÕÀ ÑÀ ÑÀ ÑXÀ ÑÀ Ñ‚À ÑÀ ÑµÀ ÑĞÀ ÑàÀ ÒÀ ÒÀ Ò%À ÒDÀ Ò`À Ò„À ÒŸÀ ÒÖÀ ÒñÀ ÓÀ Ó&À Ó5À ÓMÀ ÓqÀ ÓÀ Ó¡À Ó»À ÓåÀ ÔÀ Ô$À ÔEÀ Ô©À ÔÆÀ ÔèÀ ÕÀ Õ(À ÕHÀ ÕWÀ ÕdÀ ÕoÀ ÕxÀ ÕšÀ Õ¼À ÕäÀ ÕøÀ ÕÿÀ ÖÀ ÖÀ ÖÀ ÖNÀ ÖRÀ ÖšÀ ÖµÀ Ö¹À ÖÍÀ ×À ×dÀ ×hÀ ×½À ×ÍÀ ×ÑÀ ×ßÀ ×ãÀ Ø.À Ø|À ØˆÀ Ø»À ØäÀ ØêÀ ÙÀ Ù-À Ù<À ÙUÀ ÙsÀ ÙÀ Ù­À Ù¿À Ù×À ÙëÀ ÙşÀ ÚÀ Ú)À ÚLÀ ÚcÀ Ú„À ÚÀ Ú£À Ú¤À ÚÖÀ ÚÜÀ Û&À Û:À ÛKÀ ÛLÀ ÛÀ Û“À ÛİÀ ÛñÀ ÜÀ Ü	À ÜPÀ ÜÀ Ü•À ÜàÀ ÜøÀ ÜşÀ İDÀ İ‹À İªÀ İ°À İüÀ ŞLÀ Ş˜À Ş´À ŞºÀ ŞÖÀ ŞïÀ ŞğÀ ß&À ß,À ß}À ßÎÀ ßüÀ àÀ àAÀ àGÀ à—À à§À à­À àşÀ áKÀ álÀ árÀ á€À á©À áÔÀ áôÀ â&À â>À âaÀ âoÀ âzÀ â¢À âªÀ â´À âÙÀ âÚÀ ã À ã&À ãuÀ ã£À ãÈÀ ãÉÀ ãöÀ ãüÀ äLÀ äYÀ ä„À ä…À ä´À äÒÀ äÓÀ åÀ åÀ åPÀ å|À å}À å¨À å®À åÿÀ æHÀ æ”À æÏÀ çÀ çÀ ç5À çQÀ çRÀ ç‹À ç¿À çÀÀ çöÀ çüÀ èÀ è6À è7À èrÀ èÀ è‘À èÍÀ èëÀ èìÀ é%À é+À énÀ étÀ é¥À é¼À é½À éîÀ éôÀ ê@À êiÀ êjÀ êvÀ êÀ ê¸À êÈÀ êëÀ êüÀ ëÀ ëDÀ ëmÀ ë}À ëÀ ë­À ëÅÀ ëéÀ ìÀ ìÀ ì3À ì]À ì~À ìœÀ ì½À í!À í>À íZÀ í€À í¤À íÊÀ íÙÀ íæÀ íñÀ íúÀ îÀ î>À îfÀ îzÀ îÀ î…À î‡À îˆÀ îºÀ î¾À ïÀ ïÀ ïQÀ ïÀ ïëÀ ïïÀ ğ=À ğ†À ğÓÀ ğåÀ ğéÀ ñ3À ñuÀ ñ‰À ñÀ ñ×À ñÛÀ ñéÀ ñíÀ ò=À òSÀ ò£À ò°À òÿÀ óÀ óbÀ óªÀ ó×À óşÀ ôÀ ôBÀ ôZÀ ôiÀ ô{À ô“À ô¤À ô¶À ôËÀ ôÛÀ ôïÀ õ	À õ0À õDÀ õ_À õuÀ õŒÀ õ¢À õÃÀ õìÀ öÀ ö*À öJÀ öcÀ öiÀ öjÀ ö°À ö¶À ÷À ÷?À ÷dÀ ÷eÀ ÷’À ÷˜À ÷éÀ ÷üÀ ø'À ø(À øbÀ ø€À øÀ ø»À øÚÀ øÛÀ ùÀ ù4À ù5À ù`À ùfÀ ù·À úÀ úIÀ úÀ ú”À ú«À úÇÀ úÈÀ ûÀ ûÀ û^À û|À û}À ûÉÀ ûÿÀ üÀ ü@À üFÀ ü•À üãÀ ı	À ı*À ı+À ıaÀ ıgÀ ıŠÀ ı¥À ı¦À ıÕÀ ıóÀ ıôÀ ş-À şaÀ şbÀ ş˜À şµÀ ş¶À ÿÀ ÿÀ ÿ3À ÿTÀ ÿtÀ ÿ”À ÿšÀ ÿèÀ 6À JÀ }À ~À ³À ÑÀ ÒÀÀÀ-ÀJÀKÀ˜ÀÍÀÓÀÀXÀ“À™ÀæÀ5À€ÀÇÀÍÀåÀ&À'ÀlÀrÀ¾ÀİÀãÀ0À@ÀcÀdÀ³À¹ÀÀQÀŸÀîÀ<ÀQÀWÀzÀ›ÀœÀÜÀâÀûÀÀÀTÀZÀÀ£ÀÔÀëÀìÀøÀ	7À	8À	gÀ	mÀ	ªÀ	°À	ïÀ
+$À
+OÀ
+SÀ
+TÀ
+£À
+³À
+çÀÀÀÀ`À‰ÀÀÛÀ,À|ÀÄÀÀ À&ÀjÀ¬À²ÀóÀ5ÀSÀYÀ¨ÀèÀîÀ5ÀiÀoÀ±ÀÿÀKÀ^ÀdÀrÀ‡À´ÀûÀ.ÀYÀbÀlÀÀ©ÀÅÀéÀÀ%ÀBÀXÀnÀŒÀ¦À¿ÀÖÀ÷ÀÀ#À:À_À…À›À¶ÀØÀÀ#À=À_ÀÀ—À¸ÀàÀÀ@ÀxÀ˜ÀÂÀŞÀ
+À$À@ÀbÀ~À–À¶ÀÒÀòÀ ÀPÀbÀvÀšÀ¾ÀêÀÀ,ÀPÀWÀ[À\ÀhÀšÀ¸ÀôÀÀ(À/À3À4À@À…À°ÀıÀ]À²ÀøÀüÀşÀÿÀ8ÀÀÌÀÑÀõÀÀEÀœÀãÀ$ÀEÀ•ÀâÀÀ4ÀtÀÀÀ›À°ÀÇÀëÀÀ%ÀqÀ†À’À˜À½ÀïÀõÀ +À /À 0À <À ]À €À ¬À °À ±À ½À ĞÀ ìÀ!%À!HÀ!gÀ!|À!€À!À!À!¿À!åÀ"À"DÀ"mÀ"­À"ÔÀ"÷À#À#GÀ#OÀ#uÀ#¡À#µÀ$À$À$(À$0À$hÀ$nÀ$£À$ıÀ%À%À%À%À%;À%À%ÂÀ&À&À&NÀ&—À&åÀ'1À'}À'ÆÀ(À(À(8À(cÀ(À(ÈÀ(ÏÀ(îÀ)À)[À)oÀ)»À)åÀ)ğÀ)ñÀ*À*À*6À*OÀ*À*µÀ*ßÀ+À+6À+UÀ+rÀ+“À+ÂÀ+åÀ,9À,‹À,ŞÀ-.À-AÀ-eÀ-ºÀ-èÀ.1À.2À.TÀ.pÀ.†À.”À.ÍÀ.ïÀ/À/%À/3À/?À/@À/{À/™À/ÄÀ/æÀ0À0À0&À0'À0jÀ0´À1À1À1WÀ1vÀ1—À1ÁÀ2À2kÀ2¼À3À3&À3„À3œÀ3¬À3­À3ãÀ4À4;À4RÀ4ƒÀ4“À4¡À4­À4®À4ĞÀ4îÀ59À5ZÀ5~À5«À5òÀ6/À6gÀ6À6ÁÀ6öÀ7À7yÀ7¥À7ÅÀ7ØÀ7éÀ7øÀ8À8À8!À8;À8GÀ8HÀ8­À8®À8İÀ9À98À9XÀ9tÀ9ƒÀ9À9À9¨À9³À9ŞÀ9ûÀ:À:À:À:À:OÀ:aÀ:‚À:ŠÀ:½À:ÁÀ:ÂÀ:ÚÀ;&À;tÀ;ÃÀ<À<@À<fÀ<‹À<×À=À=8À=oÀ=uÀ=‘À=•À=–À=­À=ÍÀ>À>À>JÀ>qÀ>{À>¥À>ÇÀ>ÍÀ>ßÀ?À? À?;À??À?@À?yÀ?µÀ?ÚÀ@
+À@5À@GÀ@’À@ÀÀ@ÄÀ@ÅÀ@ãÀ@ÿÀA,ÀA‰ÀAªÀA²ÀAÀÀAÆÀAÇÀAëÀAïÀAğÀBÀB:ÀBHÀBNÀBOÀBqÀBªÀBğÀC ÀCÀC	ÀC!ÀCzÀCÀCÀC¥ÀC¦ÀCÜÀD+ÀDcÀDsÀD{ÀDÀD‚ÀD´ÀDÒÀDàÀDæÀDçÀEÀEeÀEƒÀE‹ÀEÀEÀE°ÀEÏÀEëÀEïÀEğÀFÀFuÀF«ÀFÁÀG%ÀG0ÀGJÀHŒÀH—ÀHÙÀHãÀHéÀHúÀHşÀI ÀIÀIGÀI‚ÀIƒÀI¨ÀIÜÀJÀJWÀJXÀJÀJĞÀJÑÀK%ÀKgÀKœÀKÀK©ÀKØÀL/ÀL|ÀL¼ÀMÀMQÀM•ÀMìÀNÀNÀN0ÀNMÀN]ÀN¨ÀNòÀO2ÀO…ÀOÀO®ÀOÉÀOâÀOòÀP,ÀPEÀP•ÀPÇÀPöÀQÀQÀQJÀQcÀQ³ÀQÿÀR5ÀRcÀRuÀRÀRÇÀSÀSQÀSlÀS—ÀS·ÀSØÀSëÀT"ÀTaÀT®ÀTØÀTäÀTõÀUÀU<ÀU€ÀUÎÀUéÀUÿÀVÀV2ÀV`ÀVsÀVÄÀWÀW1ÀW=ÀWrÀW|ÀWŒÀWäÀX;ÀXoÀX‘ÀXÀÀXÑÀXïÀY?ÀYeÀY˜ÀY¦ÀY´ÀY¾ÀYÎÀYİÀYìÀYòÀYóÀZ%ÀZ)ÀZ+ÀZ,ÀZfÀZ¤ÀZ¾ÀZÂÀ[À[SÀ[WÀ[¦À[²À[¶À\À\RÀ\“À\µÀ\ÖÀ\×À]À]À]TÀ]xÀ]£À]ÏÀ]øÀ^#À^JÀ^SÀ^TÀ^À^ºÀ^ÚÀ^÷À_À_5À_YÀ_zÀ_œÀ_½À_âÀ`À`'À`,À`-À`[À`À`ÅÀ`ÉÀ`ÊÀaÀabÀa¼ÀaşÀaÿÀb@ÀbÀb‡ÀbÇÀcÀcfÀc ÀcïÀd6Àd<Àd†Àd—ÀdûÀeEÀedÀe†Àe³ÀeÍÀeÚÀeıÀfÀfÀfCÀfÀf£ÀfÔÀg'ÀgˆÀgáÀh>Àh™ÀhµÀhğÀiIÀiªÀjÀjbÀjmÀjvÀj•ÀjÃÀkÀkAÀkPÀkÀkÉÀlÀlkÀlºÀlÒÀmÀm<ÀmWÀmaÀmšÀmÈÀmĞÀmçÀmıÀnQÀnmÀnœÀn¾ÀnşÀo/Ào‚ÀoãÀp<Àp—Àp³ÀpîÀqGÀq¨ÀrÀrÀrÀrfÀrlÀrŠÀrĞÀs)ÀsYÀs`ÀsdÀseÀs²ÀsİÀt8ÀtƒÀtĞÀu Àu9Àu‚ÀuÈÀvÀvVÀv¢ÀvêÀw,ÀwlÀw¨ÀwêÀx$ÀxbÀx¤ÀxèÀy,ÀypÀy´ÀyøÀz<Àz€ÀzÄÀ{À{LÀ{À{ØÀ|$À|tÀ|ÂÀ}À}ZÀ}¬À~ À~VÀ~¨À~îÀ0ÀpÀ¶À€À€LÀ€À€ÎÀ€ÕÀ
+ÀÀÀnÀÇÀöÀ‚)À‚]À‚„À‚©À‚ÎÀ‚ñÀƒ!ÀƒFÀƒ}ÀƒÀƒÁÀƒ×ÀƒßÀƒåÀ„À„EÀ„xÀ„ŸÀ„ÄÀ„éÀ…À…1À…`À…À…¤À…ºÀ…ÂÀ…ÈÀ…úÀ†0À†gÀ†´À‡À‡NÀ‡ŸÀ‡ØÀ‡ÿÀˆ$ÀˆIÀˆlÀˆ‘ÀˆÄÀˆåÀ‰À‰À‰&À‰,À‰\À‰À‰ÅÀ‰ìÀŠÀŠ6ÀŠYÀŠ~ÀŠ¯ÀŠĞÀŠóÀ‹	À‹À‹À‹hÀ‹lÀ‹nÀ‹oÀ‹¾ÀŒÀŒ8ÀŒQÀŒrÀŒˆÀŒ ÀŒ±ÀŒ·ÀŒ¸ÀŒÄÀ ÀÀÀ8ÀÀÄÀÉÀÊÀÖÀÀÀÀ6ÀQÀiÀÀ®ÀÉÀìÀÀ>ÀgÀrÀ{À‚ÀŸÀ²ÀæÀÀ,ÀDÀpÀÀÀßÀ‘À‘)À‘PÀ‘}À‘ÂÀ‘ÑÀ‘ŞÀ‘éÀ‘òÀ‘ùÀ‘ıÀ‘ÿÀ’ À’PÀ’ŒÀ’À’ÖÀ“&À“bÀ“¡À“ØÀ“ŞÀ”À”0À”?À”RÀ”oÀ”‰À”À”À”ÙÀ•À•	À•FÀ•fÀ•gÀ•³À•¹À–À–XÀ–dÀ–}À–~À–ŠÀ–ĞÀ—!À—%À—&À—~À—ÍÀ—çÀ—íÀ˜2À˜8À˜HÀ˜NÀ˜¡À˜³À˜üÀ™UÀ™YÀ™ZÀ™®À™ùÀšÀšÀšrÀš Àš¦Àš¶Àš¼ÀšøÀ›+À›nÀ›³À›ÃÀ›ßÀ›ûÀœLÀœ‘ÀœäÀ4À€ÀÒÀöÀÀÀ!À4À>ÀRÀVÀXÀYÀ§ÀÔÀØÀŸ)ÀŸ[ÀŸ_ÀŸ—ÀŸèÀ 6À }À ÎÀ¡À¡gÀ¡±À¡úÀ¢FÀ¢À¢”À¢˜À¢¦À¢ªÀ¢øÀ£<À£bÀ£¦À£§À£ëÀ¤;À¤pÀ¤tÀ¤ÃÀ¥À¥\À¥ŸÀ¥ïÀ¦,À¦0À¦}À¦ÇÀ§À§BÀ§FÀ§—À§ŞÀ¨$À¨=À¨AÀ¨’À¨ãÀ©1À©SÀ©WÀ© À©éÀª7Àª…ÀªÖÀ«$À«]À«aÀ«»À«ËÀ«ŞÀ¬À¬@À¬FÀ¬oÀ¬ÊÀ¬ËÀ¬üÀ­À­JÀ­“À­™À­åÀ®6À®‚À®ÓÀ¯#À¯qÀ¯ÁÀ¯ıÀ°À°À°(À°.À°{À°ÆÀ±À±eÀ±¯À±ÔÀ±êÀ±ëÀ²+À²1À²zÀ²·À²¸À³À³1À³7À³€À³ÍÀ´À´dÀ´jÀ´ºÀ´ÀÀµÀµaÀµ¯ÀµãÀ¶À¶À¶KÀ¶QÀ¶šÀ¶âÀ¶ãÀ·-À·zÀ·ÉÀ¸À¸ À¸pÀ¸ÅÀ¸ÚÀ¸ôÀ¸úÀ¹AÀ¹uÀ¹ŠÀ¹ À¹¾À¹×Àº2ÀºFÀºŠÀºÚÀºçÀ»À»pÀ»{À»„À»‹À»À»À»ßÀ»ıÀ¼À¼SÀ¼À¼£À¼ìÀ½JÀ½hÀ½‘À½°À½şÀ¾À¾KÀ¾|À¾À¾ÓÀ¿$À¿QÀ¿À¿­À¿ÏÀ¿öÀÀÀÀÀÀ4ÀÀ[ÀÀmÀÀuÀÀÀÀÖÀÀåÀÀíÀÁÀÁYÀÁ}ÀÁ¬ÀÁëÀÂ8ÀÂRÀÂƒÀÂ‹ÀÂØÀÃ'ÀÃDÀÃJÀÃpÀÃ”ÀÃ˜ÀÃ™ÀÃ¥ÀÃòÀÃóÀÃÿÀÄFÀÄtÀÄxÀÄyÀÄ…ÀÄÊÀÄõÀÅ)ÀÅ-ÀÅ/ÀÅ0ÀÅwÀÅ”ÀÅ²ÀÅŞÀÆÀÆ(ÀÆYÀÆ{ÀÆ|ÀÆˆÀÆÀÆ´ÀÆİÀÇÀÇGÀÇMÀÇhÀÇlÀÇmÀÇyÀÇŒÀÇÙÀÇñÀÈÀÈCÀÈhÀÈˆÀÈ¦ÀÈèÀÈîÀÉÀÉÀÉÀÉÀÉ5ÀÉXÀÉ‚ÀÉÀÉ–ÀÉÖÀÊÀÊHÀÊjÀÊnÀÊoÀÊ{ÀÊ´ÀÊÚÀËÀË"ÀË(ÀË,ÀË-ÀËMÀË¨ÀËÊÀËíÀÌÀÌÀÌ"ÀÌ#ÀÌNÀÌyÀÌ‹ÀÌ¶ÀÌÚÀÌâÀÍÀÍ,ÀÍ0ÀÍ1ÀÍWÀÍ‚ÀÍ©ÀÍÌÀÎÀÎ+ÀÎ2ÀÎlÀÎÀÎâÀÏÀÏ[ÀÏ«ÀÏİÀÏúÀĞÀĞCÀĞÀĞçÀÑ=ÀÑÀÑ­ÀÑ¸ÀÑÂÀÑÈÀÑÌÀÑÍÀÑìÀÒ.ÀÒBÀÒ`ÀÒƒÀÒŒÀÒ“ÀÒ—ÀÒ˜ÀÒ¤ÀÒËÀÓÀÓGÀÓKÀÓMÀÓNÀÓ•ÀÓªÀÓ®ÀÔ ÀÔPÀÔÀÔÅÀÔôÀÕÀÕ"ÀÕ]ÀÕvÀÕ”ÀÕ´ÀÕÊÀÕáÀÕôÀÖÀÖ4ÀÖJÀÖZÀÖ`ÀÖaÀÖÀÖ•ÀÖÑÀÖêÀÖëÀ×:À×‡À×­À×ÊÀ×ËÀØÀØÀØ ÀØVÀØtÀØuÀØÄÀØØÀÙÀÙÀÙQÀÙpÀÙÀÙ‘ÀÙÅÀÙàÀÙáÀÚ;ÀÚXÀÚYÀÚ˜ÀÚ¯ÀÚ°ÀÚ¼ÀÚãÀÛ&ÀÛUÀÛrÀÛ¬ÀÛ³ÀÛÈÀÛñÀÜÀÜ%ÀÜ;ÀÜgÀÜ‡ÀÜ£ÀÜÄÀÜŞÀİÀİ%ÀİXÀİ©ÀİÖÀİúÀŞÀŞ&ÀŞ9ÀŞHÀŞUÀŞ`ÀŞiÀŞvÀŞŒÀŞ´ÀŞĞÀŞèÀßÀßÀßEÀßÀß³ÀßÏÀßŞÀßéÀßòÀßøÀßùÀàÀàRÀàlÀà~Àà Àà³ÀàşÀáÀá,Àá\ÀáoÀáºÀáÓÀâÀâ1ÀâdÀâuÀâ„Àâ‘Àâ»ÀâÎÀãÀã9ÀãFÀãOÀãVÀãxÀã™Àã¸ÀãØÀãöÀãÿÀäÀäÀä#Àä$Àä0ÀäuÀä Àä´ÀåÀåÀåcÀå´Àå¸ÀåºÀå»ÀæÀæÀæTÀæjÀæˆÀæ©ÀæÆÀæéÀç	Àç(ÀçGÀçfÀç‹Àç®ÀçÎÀçğÀçöÀç÷ÀèBÀè[Àè\Àè–Àè»Àè¼ÀéÀé)Àé*ÀéyÀé„Àé¤Àé¥ÀéÚÀéøÀéùÀêEÀêWÀêÀê€ÀêĞÀêïÀêğÀëÀë-Àë.ÀëZÀëzÀë{ÀëÀÀëìÀëíÀì(ÀìEÀìFÀì“ÀìÃÀìêÀìëÀì÷Àí=Àí‹Àí¥ÀíôÀíøÀíùÀîÀî?ÀîeÀî¯ÀîÎÀïÀïPÀïWÀï¹ÀğÀğVÀğªÀğ«ÀğËÀğçÀğíÀğîÀñ5ÀñŠÀñèÀñûÀò;ÀòyÀòÀò€ÀòÉÀóÀóÀóÀóZÀóhÀóvÀó–ÀóîÀôÀôCÀôxÀôÈÀôøÀõÀõÀõ?ÀõGÀõsÀõ‘Àõ¯ÀõÎÀõîÀöÀö.Àö?ÀöGÀöTÀöÀö½ÀöÜÀöâÀöãÀ÷5À÷HÀ÷[À÷bÀ÷®À÷æÀø2ÀødÀø¯ÀøûÀùNÀù™ÀùçÀùóÀú#ÀúkÀú‡Àú”Àú°ÀúÿÀû>ÀûnÀûÀûŸÀûäÀü	ÀüÀü2ÀüTÀü`ÀüjÀüÀü¾ÀüñÀıÀıXÀı|Àı’Àı¥ÀıÚÀıæÀığÀıøÀışÀş0ÀşfÀşÀşÀş¥ÀşÔÀşôÀÿÀÿÀÿ8ÀÿBÀÿcÀÿ¢Àÿ¿À À JÀ uÀ ˆÀ À ªÀ »À ğÀ úÀÀÀ!À%À&À2ÀcÀ–ÀÌÀúÀ4ÀhÀšÀÌÀ
+ÀDÀxÀ²À¶À·ÀõÀÀ;ÀÀ§À¯ÀµÀÉÀÍÀÏÀĞÀÀÀ_ÀÀ©À¾ÀÛÀşÀÀEÀ_À{ÀÀ‚ÀÈÀæÀçÀÀ#ÀBÀ]À^À½ÀÚÀàÀ7ÀˆÀ­À®ÀÚÀôÀõÀ	5À	aÀ	bÀ	£À	©À	ÙÀ	øÀ	ùÀ
+À
+=À
+?À
+@À
+rÀ
+¬À
+­À
+¹À
+ÌÀ
+ìÀÀÀÀÀ9À“ÀëÀ;ÀBÀwÀxÀ¾ÀÀ#À$ÀxÀ©ÀæÀğÀöÀ÷ÀYÀ³ÀÀsÀËÀÀwÀÍÀÀ2ÀOÀwÀÕÀüÀ[À¢ÀåÀ,ÀrÀ±ÀĞÀ	À@ÀsÀ±À²À ÀÀAÀnÀ§ÀâÀëÀòÀÀRÀsÀ±ÀÑÀñÀüÀÀ&ÀdÀ†À¨À³À»ÀÁÀÂÀÀ`ÀuÀ¢ÀÓÀ
+À7ÀJÀPÀQÀ°ÀÙÀúÀÀ>ÀSÀZÀ[À{À›À½ÀçÀúÀ\À„À¬ÀÈÀ÷À!ÀMÀ€À›ÀÙÀÀCÀsÀ—À¨À·ÀÄÀÏÀØÀßÀàÀ
+ÀYÀ–À¹ÀåÀÀ&À/À5À6À[ÀrÀÀ¦ÀÆÀèÀ À mÀ ˜À ²À »À ÂÀ ÃÀ ìÀ!À!=À!bÀ!—À!±À!ºÀ!ÀÀ!ÁÀ"À"À"À"NÀ"wÀ"¯À"äÀ"ëÀ"ïÀ"ğÀ#5À#GÀ#wÀ#ªÀ#ÀÀ#ÔÀ#ÛÀ#ßÀ#áÀ#âÀ$À$CÀ$VÀ$pÀ$À$ªÀ$ÊÀ$íÀ%À%3À%[À%{À%œÀ%½À%àÀ&À&	À&
+À&0À&YÀ&zÀ&˜À&¶À&×À&÷À'À'7À'ZÀ'ƒÀ'®À'ÚÀ'ÛÀ'çÀ(À(PÀ(”À(øÀ)XÀ)¨À)¯À)õÀ*RÀ*XÀ*YÀ*­À*ŞÀ+À+%À++À+,À+iÀ+ŒÀ+áÀ+èÀ+éÀ,À,WÀ,€À,áÀ-À-gÀ-®À-ñÀ.8À.~À.¬À.åÀ/À/LÀ/ŠÀ/‹À/¹À/ÒÀ0À0*À0UÀ0À0À0¢À0£À0ËÀ0ùÀ1[À1ŠÀ1²À1»À1ÕÀ1òÀ2)À2DÀ2kÀ2ŠÀ2¤À2ÑÀ3%À34À3RÀ3…À3ªÀ3ÒÀ4 À4#À4KÀ4yÀ4­À4ïÀ5#À5MÀ5`À5qÀ5€À5À5˜À5¡À5¨À5©À5ÊÀ6À6-À6rÀ6’À6¸À6óÀ79À7eÀ7ŠÀ7²À7àÀ86À8dÀ8ŠÀ8¼À8ñÀ9#À9wÀ9©À9ŞÀ:
+À:À:;À:JÀ:WÀ:bÀ:kÀ:rÀ:sÀ:À:¥À:«À:¬À:ÔÀ:ìÀ;À;+À;2À;6À;8À;9À;zÀ;©À;İÀ<	À<
+À<HÀ<IÀ<UÀ<‡À<ÂÀ<ÃÀ<ÏÀ=À=À=À=VÀ=^À=bÀ=‘À=•À=ÑÀ=ÕÀ>#À>-À>pÀ>~À>–À>ºÀ>íÀ?À?AÀ?KÀ?SÀ?YÀ?jÀ?rÀ?¶À?ÅÀ?ÇÀ?ÈÀ@À@'À@JÀ@gÀ@†À@™À@ºÀ@ÛÀ@úÀAÀA/ÀA3ÀA5ÀA6ÀAÀAƒÀAÑÀBÀBbÀB„ÀB›ÀBÀBÀBÇÀCÀCaÀC¬ÀC¼ÀCÔÀCÖÀC×ÀDÀDÀDFÀDŠÀD²ÀDåÀDæÀDùÀE&ÀEIÀEVÀE•ÀEæÀFÀF ÀF!ÀF\ÀF®ÀF¯ÀFÍÀFÎÀGÀGÀGÀGQÀG˜ÀGœÀGÀG©ÀGÚÀHÀHÀHÀH(ÀH^ÀH¥ÀH©ÀHªÀH¶ÀHğÀI/ÀIVÀIÀI–ÀIÀI¡ÀI¢ÀI®ÀIôÀIöÀI÷ÀJ)ÀJOÀJ\ÀJ‹ÀJ§ÀJÚÀJáÀJâÀK ÀKÀKCÀK„ÀK…ÀK‘ÀKÆÀL	ÀLÀLÀL+ÀL,ÀLOÀLPÀL\ÀL‹ÀLÀÀLÄÀLÅÀLÑÀMÀMMÀM€ÀM´ÀM¼ÀMîÀNÀNÀNJÀNlÀNtÀN¦ÀNÈÀNĞÀNğÀNøÀNüÀNıÀO	ÀO8ÀOÀO²ÀOæÀOîÀP ÀPIÀPQÀPƒÀP¬ÀP´ÀPæÀQÀQÀQ>ÀQFÀQJÀQKÀQeÀQfÀQrÀQ ÀQÙÀQİÀQŞÀQêÀRÀRVÀRZÀR[ÀRgÀR–ÀRÜÀRàÀRáÀRíÀSOÀSPÀS\ÀSÀSºÀSÜÀTÀTEÀTOÀTƒÀT¹ÀTÃÀT÷ÀU,ÀU6ÀUYÀUbÀUiÀUmÀUnÀUzÀU³ÀVÀVÀVÀV"ÀV#ÀV/ÀVbÀVºÀV¾ÀV¿ÀVËÀW!ÀW"ÀW.ÀW…ÀW†ÀW’ÀWÄÀXÀXNÀX–ÀXšÀX›ÀX§ÀXîÀXïÀY'ÀYcÀY¦ÀYğÀZLÀZ¡ÀZ÷À[;À[cÀ[ªÀ[°À[ÿÀ\MÀ\]À\³À]À]9À]jÀ]…À]ÎÀ]ØÀ^	À^$À^UÀ^_À^ À^µÀ^¼À^ÀÀ^ÂÀ^ÃÀ^íÀ_À_À_YÀ_ªÀ_ØÀ_ßÀ_àÀ`À`mÀ`nÀ`ŒÀ`À`ÏÀ`ĞÀ`ÜÀaÀaWÀa[Àa\ÀahÀaÀaåÀaéÀaêÀaöÀb'ÀbdÀbhÀbiÀbuÀb¯ÀbîÀc9Àc@ÀcDÀcEÀcQÀc—Àc™Àc«Àc¬ÀcÕ   0_kDebugMenus_kDefaultSubmenuIconSize_kLabelItemDefaultSpacing_kLabelItemMinSpacing_kMenuTraversalShortcuts_kMenuVerticalMinPadding_kMenuViewPadding"_kTopLevelMenuHorizontalMinPadding_kMenuOpeningDuration_kMenuClosingDuration_kMenuPanelHeightForwardCurve_kMenuPanelHeightReverseCurve_kMenuPanelOpacityForwardCurve_kMenuPanelOpacityReverseCurve _kMenuItemRelativeFadeInDuration!_kMenuItemRelativeFadeOutDuration_kMenuItemRelativeFadeOutDelay_MenuAnchorScope_TweenCurve
+MenuAnchor_MenuAnchorStateMenuBarMenuItemButton_MenuItemButtonStateCheckboxMenuButtonRadioMenuButtonSubmenuButton_SubmenuButtonState_SubmenuDirectionalFocusAction_LocalizedShortcutLabeler_MenuBarAnchor_MenuBarAnchorStateMenuAcceleratorCallbackBindingMenuAcceleratorLabel_MenuAcceleratorLabelState_MenuItemLabel_MenuLayout
+_MenuPanel_MenuPanelState_Submenu_MouseCursor_debugMenuInfo_isCupertino_usesSymbolicModifiers_platformSupportsAccelerators_MenuBarDefaultsM3_MenuButtonDefaultsM3_MenuDefaultsM3+flutter.material.MenuAnchor.alignmentOffsetƒBThe offset of the menu relative to the alignment origin determined by
+[MenuStyle.alignment] on the [style] attribute and the ambient
+[Directionality].
+
+Use this for adjustments of the menu placement.
+
+Increasing [Offset.dy] values of [alignmentOffset] move the menu position
+down.
+
+If the [MenuStyle.alignment] from [style] is not an [AlignmentDirectional]
+(e.g. [Alignment]), then increasing [Offset.dx] values of
+[alignmentOffset] move the menu position to the right.
+
+If the [MenuStyle.alignment] from [style] is an [AlignmentDirectional],
+then in a [TextDirection.ltr] [Directionality], increasing [Offset.dx]
+values of [alignmentOffset] move the menu position to the right. In a
+[TextDirection.rtl] directionality, increasing [Offset.dx] values of
+[alignmentOffset] move the menu position to the left.
+
+Defaults to [Offset.zero].'flutter.material.MenuBar.shortcuts_note„ Menus using [MenuItemButton] can have a [SingleActivator] or
+[CharacterActivator] assigned to them as their [MenuItemButton.shortcut],
+which will display an appropriate shortcut hint. Even though the shortcut
+labels are displayed in the menu, shortcuts are not automatically handled.
+They must be available in whatever context they are appropriate, and handled
+via another mechanism.
+
+If shortcuts should be generally enabled, but are not easily defined in a
+context surrounding the menu bar, consider registering them with a
+[ShortcutRegistry] (one is already included in the [WidgetsApp], and thus
+also [MaterialApp] and [CupertinoApp]), as shown in the example below. To be
+sure that selecting a menu item and triggering the shortcut do the same
+thing, it is recommended that they call the same callback.
+
+{@tool dartpad} This example shows a [MenuBar] that contains a single top
+level menu, containing three items: "About", a checkbox menu item for
+showing a message, and "Quit". The items are identified with an enum value,
+and the shortcuts are registered globally with the [ShortcutRegistry].
+
+** See code in examples/api/lib/material/menu_anchor/menu_bar.0.dart **
+{@end-tool},flutter.material.menu_anchor.closeOnActivate\Determines if the menu will be closed when a [MenuItemButton]
+is pressed.
+
+Defaults to true.@flutter.material.menu_anchor.menu_accelerator_child_builder.argsƒ$The arguments to the function are as follows:
+
+* The `context` supplies the [BuildContext] to use.
+* The `label` is the [MenuAcceleratorLabel.label] attribute for the relevant
+  [MenuAcceleratorLabel] with the accelerator markers stripped out of it.
+* The `index` is the index of the accelerator character within the
+  `label.characters` that applies to this accelerator. If it is -1, then the
+  accelerator should not be highlighted. Otherwise, the given character
+  should be highlighted somehow in the rendered label (typically with an
+  underscore). Importantly, `index` is not an index into the [String]
+  `label`, it is an index into the [Characters] iterable returned by
+  `label.characters`, so that it is in terms of user-visible characters
+  (a.k.a. grapheme clusters), not Unicode code points.8flutter.material.MenuAcceleratorLabel.accelerator_sample‚{@tool dartpad} This example shows a [MenuBar] that handles keyboard
+accelerators using [MenuAcceleratorLabel]. To use the accelerators, press
+the Alt key to see which letters are underlined in the menu bar, and then
+press the appropriate letter. Accelerators are not supported on macOS or iOS
+since those platforms don't support them natively, so this demo will only
+show a regular Material menu bar on those platforms.
+
+** See code in examples/api/lib/material/menu_anchor/menu_accelerator_label.0.dart **
+{@end-tool}9flutter.material.menu_anchor.menu_accelerator_label.labelíTo indicate which letters in the label are to be used as accelerators, add
+an "&" character before the character in the string. If more than one
+character has an "&" in front of it, then the characters appearing earlier
+in the string are preferred. To represent a literal "&", insert "&&" into
+the string. All other ampersands will be removed from the string before
+calling [MenuAcceleratorLabel.builder]. Bare ampersands at the end of the
+string or before whitespace are stripped and ignored. ¸á
