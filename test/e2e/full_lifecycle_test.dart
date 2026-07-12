@@ -72,10 +72,6 @@ void main() {
         'dartvel_shelf:\n    path: ${p.join(packagesDir, 'dartvel_shelf')}',
       );
       content = content.replaceAll(
-        'dartvel_generator: ^1.0.0',
-        'dartvel_generator:\n    path: ${p.join(packagesDir, 'dartvel_generator')}',
-      );
-      content = content.replaceAll(
         'dartvel_cli: ^0.1.0',
         'dartvel_cli:\n    path: ${p.join(packagesDir, 'dartvel_cli')}',
       );
@@ -122,20 +118,19 @@ void main() {
         return;
       }
 
-      // Run build_runner first to generate router.g.dart
-      print('Running build_runner...');
-      final buildRunnerResult = await Process.run(
-        'flutter',
-        ['pub', 'run', 'build_runner', 'build', '--delete-conflicting-outputs'],
+      // Run dartvel routes to generate router.g.dart, functions.g.dart, e.t.c.
+      print('Running dartvel routes...');
+      final routesResult = await Process.run(
+        'dart',
+        [dartvelBin, 'routes'],
         workingDirectory: projectPath,
       );
 
-      if (buildRunnerResult.exitCode != 0) {
-        print('build_runner stdout: ${buildRunnerResult.stdout}');
-        print('build_runner stderr: ${buildRunnerResult.stderr}');
+      if (routesResult.exitCode != 0) {
+        print('routes stdout: ${routesResult.stdout}');
+        print('routes stderr: ${routesResult.stderr}');
       }
-      expect(buildRunnerResult.exitCode, 0,
-          reason: 'build_runner should succeed');
+      expect(routesResult.exitCode, 0, reason: 'dartvel routes should succeed');
 
       final result = await Process.run(
         'flutter',
