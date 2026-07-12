@@ -31,8 +31,6 @@ dev_dependencies:
     sdk: flutter
   lints: ^4.0.0
   dartvel_cli: ${localPackagesDir == null ? '^0.1.0' : '\n    path: ${localPackagesDir}/dartvel_cli'}
-  build_runner: ^2.4.8
-  dartvel_generator: ${localPackagesDir == null ? '^1.0.0' : '\n    path: ${localPackagesDir}/dartvel_generator'}
 
 
 flutter:

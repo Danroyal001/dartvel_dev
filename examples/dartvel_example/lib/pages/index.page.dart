@@ -5,6 +5,7 @@ import 'package:dartvel_example/dartvel_client/functions.g.dart';
 import 'package:dartvel_example/models/user.dart';
 import 'package:dartvel_example/dartvel_client/models.g.dart';
 import 'package:dartvel_core/dartvel.dart';
+import 'package:dartvel_example/dartvel_client/router.g.dart';
 
 StreamSubscription<String>? _subscription;
 
@@ -299,6 +300,141 @@ Widget indexPage(BuildContext context) {
                         }
                       },
                       child: const Text('POST /echo'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ).modifier(cardStyle),
+
+          // Card 8: Unified Services (Cache, Storage, DB)
+          DVBox(
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('8. Unified Services (Cache, Storage, Database)', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    ElevatedButton(
+                      onPressed: () async {
+                        await DV.Cache.set('last_run', DateTime.now().toString());
+                        final val = await DV.Cache.get('last_run');
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Cache value: $val')),
+                          );
+                        }
+                      },
+                      child: const Text('Test Unified Cache'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () async {
+                        await DV.Storage.upload('doc.txt', [104, 101, 108, 108, 111]);
+                        final bytes = await DV.Storage.download('doc.txt');
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Storage download bytes count: ${bytes?.length}')),
+                          );
+                        }
+                      },
+                      child: const Text('Test Unified Storage'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () async {
+                        final res = await DV.Database.query('SELECT 1');
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('DB Query result: $res')),
+                          );
+                        }
+                      },
+                      child: const Text('Test Unified Database'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ).modifier(cardStyle),
+
+          // Card 9: Clerk-style Auth Pages & Hardware APIs
+          DVBox(
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('9. Clerk Auth Pages & Native OS APIs', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    ElevatedButton(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (context) => DV.Auth.SignInWithEmailAndPasswordPage()),
+                      ),
+                      child: const Text('Auth Page'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (context) => DV.Auth.SignInWithProviderPage()),
+                      ),
+                      child: const Text('Auth Provider Page'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () async {
+                        await DV.Platform.camera.takePhoto();
+                        await DV.Platform.haptics.impact();
+                        await DV.Platform.biometrics.authenticate();
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Camera, Haptics & Biometrics executed successfully')),
+                          );
+                        }
+                      },
+                      child: const Text('Trigger Native Features'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ).modifier(cardStyle),
+
+          // Card 10: AI, Observability & Typed Navigation
+          DVBox(
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('10. AI, Observability & Typed Navigation', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    ElevatedButton(
+                      onPressed: () async {
+                        final answer = await DV.AI.chat('What is Dartvel?');
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('AI: $answer')),
+                          );
+                        }
+                      },
+                      child: const Text('Query AI'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () {
+                        DV.Observability.log('Showcase event logged');
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Event logged successfully')),
+                        );
+                      },
+                      child: const Text('Log Observability Event'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () => context.navigateToPage(DVRoutes.blog(id: '777')),
+                      child: const Text('Go to Blog (Typed Target)'),
                     ),
                   ],
                 ),
