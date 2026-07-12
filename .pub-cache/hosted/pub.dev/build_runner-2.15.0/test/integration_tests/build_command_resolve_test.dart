@@ -1,0 +1,146 @@
+// Copyright (c) 2025, the Dart project authors.  Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+@Tags(['integration4'])
+library;
+
+import 'package:test/test.dart';
+
+import '../common/common.dart';
+
+void main() async {
+  test('build with resolution', () async {
+    final pubspecs = await Pubspecs.load();
+    final tester = BuildRunnerTester(pubspecs);
+
+    tester.writePackage(
+      name: 'builder_pkg',
+      dependencies: ['build', 'build_runner'],
+      files: {
+        'build.yaml': '''
+builders:
+  test_builder:
+    import: 'package:builder_pkg/builder.dart'
+    builder_factories: ['testBuilderFactory']
+    build_extensions: {'.dart': ['.g.dart']}
+    auto_apply: root_package
+    build_to: source
+''',
+        'lib/builder.dart': '''
+import 'package:build/build.dart';
+
+Builder testBuilderFactory(BuilderOptions options) => TestBuilder();
+
+class TestBuilder implements Builder {
+  @override
+  Map<String, List<String>> get buildExtensions => {'.dart': ['.g.dart']};
+
+  @override
+  Future<void> build(BuildStep buildStep) async {
+    await buildStep.inputLibrary;
+  }
+}
+''',
+      },
+    );
+    tester.writePackage(
+      name: 'root_pkg',
+      dependencies: ['build_runner'],
+      pathDependencies: ['builder_pkg'],
+      files: {
+        'lib/a.dart': '''
+import 'missing_import.dart';
+syntax error
+''',
+      },
+    );
+
+    // Syntax error in default, AOT and JIT compile modes.
+    var output = await tester.run(
+      'root_pkg',
+      'dart run build_runner build',
+      expectExitCode: 1,
+    );
+    expect(output, contains("Expected to find ';'"));
+    output = await tester.run(
+      'root_pkg',
+      'dart run build_runner build --force-aot',
+      expectExitCode: 1,
+    );
+    expect(output, contains("Expected to find ';'"));
+    output = await tester.run(
+      'root_pkg',
+      'dart run build_runner build --force-jit',
+      expectExitCode: 1,
+    );
+    expect(output, contains("Expected to find ';'"));
+
+    // Unreadable inputs are allowed.
+    tester.write('root_pkg/lib/a.dart', '''
+import 'missing_import.dart';
+''');
+    output = await tester.run(
+      'root_pkg',
+      'dart run build_runner build --force-jit',
+    );
+
+    // Unreadable inputs in previous build do not break incremental build.
+    tester.update('root_pkg/lib/a.dart', (script) => '$script\n');
+    output = await tester.run(
+      'root_pkg',
+      'dart run build_runner build --force-jit',
+    );
+
+    // Check that it's possible for a builder to resolve source in strings using
+    // `build_test`.
+    // See // https://github.com/dart-lang/build/issues/4368.
+    tester.writePackage(
+      name: 'builder_pkg',
+      dependencies: ['build', 'build_runner', 'build_test'],
+      files: {
+        'build.yaml': '''
+builders:
+  test_builder:
+    import: 'package:builder_pkg/builder.dart'
+    builder_factories: ['testBuilderFactory']
+    build_extensions: {'.dart': ['.g.dart']}
+    auto_apply: root_package
+    build_to: source
+''',
+        'lib/builder.dart': r'''
+import 'package:build/build.dart';
+import 'package:build_test/build_test.dart';
+
+Builder testBuilderFactory(BuilderOptions options) => TestBuilder();
+
+class TestBuilder implements Builder {
+  @override
+  Map<String, List<String>> get buildExtensions => {'.dart': ['.g.dart']};
+
+  @override
+  Future<void> build(BuildStep buildStep) async {
+    final assetId = AssetId('a', 'lib/a.dart');
+    final unit = await resolveSources({'$assetId': 'library x;'}, (r) async {
+      return r.compilationUnitFor(assetId);  
+    });
+    buildStep.writeAsString(
+        buildStep.inputId.changeExtension('.g.dart'),
+        unit.toSource(),
+    );
+  }
+}
+''',
+      },
+    );
+    tester.writePackage(
+      name: 'root_pkg',
+      dependencies: ['build_runner', 'build_test'],
+      pathDependencies: ['builder_pkg'],
+      files: {'lib/a.dart': ''},
+    );
+
+    await tester.run('root_pkg', 'dart run build_runner build --force-jit');
+    expect(tester.read('root_pkg/lib/a.g.dart'), 'library x;');
+  });
+}

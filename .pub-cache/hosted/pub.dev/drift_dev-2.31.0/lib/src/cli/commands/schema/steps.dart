@@ -1,0 +1,86 @@
+import 'dart:io';
+
+import 'package:args/command_runner.dart';
+import 'package:collection/collection.dart';
+import 'package:dart_style/dart_style.dart';
+
+import '../../../writer/import_manager.dart';
+import '../../../writer/schema_version_writer.dart';
+import '../../../writer/writer.dart';
+import '../../cli.dart';
+import '../schema.dart';
+
+class WriteVersions extends Command {
+  final DriftDevCli cli;
+
+  WriteVersions(this.cli);
+
+  @override
+  String get name => 'steps';
+
+  @override
+  String get description =>
+      'Write a Dart file helping with incremental migrations between schema versions.';
+
+  @override
+  String get invocation {
+    return '${runner!.executableName} schema steps <schema directory> <output file>';
+  }
+
+  @override
+  Future<void> run() async {
+    final rest = argResults!.rest;
+    if (rest.length != 2) {
+      usageException('Expected input and output directories');
+    }
+
+    final inputDirectory = Directory(rest[0]);
+    final outputFile = File(rest[1]);
+    final outputDirectory = outputFile.parent;
+
+    if (!await inputDirectory.exists()) {
+      cli.exit('The provided input directory does not exist.');
+    }
+
+    if (!await outputDirectory.exists()) {
+      await outputDirectory.create();
+    }
+    final schemas = await parseSchema(inputDirectory);
+    await outputFile.writeAsString(
+        await StepsGenerationUtil.generateStepByStepMigration(cli, schemas));
+  }
+}
+
+class StepsGenerationUtil {
+  /// Generate dart code for incremental migrations between schema versions.
+  static Future<String> generateStepByStepMigration(
+      DriftDevCli cli, Map<int, ExportedSchema> schemas) async {
+    final imports = LibraryImportManager();
+    final writer = Writer(
+      cli.project.options,
+      generationOptions: GenerationOptions(imports: imports),
+    );
+    imports.linkToWriter(writer);
+
+    final byVersion = [
+      for (final MapEntry(key: version, value: schema) in schemas.entries)
+        SchemaVersion(
+          version,
+          schema.schema,
+          schema.options,
+        ),
+    ];
+    byVersion.sortBy<num>((s) => s.version);
+
+    writer.leaf().write("import 'package:drift/drift.dart';");
+    SchemaVersionWriter(byVersion, writer.child()).write();
+
+    var code = writer.writeGenerated();
+    try {
+      code = await cli.project.formatSource(code);
+    } on FormatterException {
+      // Ignore. Probably a bug in drift_dev, the user will notice.
+    }
+    return code;
+  }
+}

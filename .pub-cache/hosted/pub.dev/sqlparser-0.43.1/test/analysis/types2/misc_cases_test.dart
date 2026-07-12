@@ -1,0 +1,218 @@
+import 'package:sqlparser/sqlparser.dart';
+import 'package:test/test.dart';
+
+import '../data.dart';
+
+// Cases copied from the regular type inference algorithm test
+const Map<String, ResolvedType?> _types = {
+  'SELECT * FROM demo WHERE id = ?': ResolvedType(type: BasicType.int),
+  'SELECT * FROM demo WHERE content = ?': ResolvedType(type: BasicType.text),
+  'SELECT * FROM demo WHERE content == ?': ResolvedType(type: BasicType.text),
+  'SELECT * FROM demo LIMIT ?': ResolvedType(type: BasicType.int),
+  'SELECT 1 FROM demo GROUP BY id HAVING COUNT(*) = ?':
+      ResolvedType(type: BasicType.int),
+  'SELECT 1 FROM demo WHERE id BETWEEN 3 AND ?':
+      ResolvedType(type: BasicType.int),
+  'UPDATE demo SET content = ? WHERE id = 3':
+      ResolvedType(type: BasicType.text),
+  'SELECT * FROM demo WHERE content LIKE ?': ResolvedType(type: BasicType.text),
+  "SELECT * FROM demo WHERE content LIKE '%e' ESCAPE ?":
+      ResolvedType(type: BasicType.text),
+  'SELECT * FROM demo WHERE content IN ?':
+      ResolvedType(type: BasicType.text, isArray: true),
+  'SELECT * FROM demo WHERE content IN ? OR content = ?2':
+      ResolvedType(type: BasicType.text, isArray: true),
+  'SELECT * FROM demo WHERE content IN (?)':
+      ResolvedType(type: BasicType.text, isArray: false),
+  'SELECT * FROM demo JOIN tbl ON demo.id = tbl.id WHERE date = ?':
+      ResolvedType(type: BasicType.int, hints: [IsDateTime()]),
+  'SELECT row_number() OVER (RANGE ? PRECEDING)':
+      ResolvedType(type: BasicType.int),
+  'SELECT ?;': null,
+  'SELECT CAST(3 AS TEXT) = ?': ResolvedType(type: BasicType.text),
+  'SELECT (3 * 4) = ?': ResolvedType(type: BasicType.int),
+  'SELECT (3 / 4) = ?': ResolvedType(type: BasicType.int),
+  'SELECT (3 / 4.) = ?': ResolvedType(type: BasicType.real),
+  'SELECT NULLIF(3, 3) IS ?': ResolvedType(type: BasicType.int, nullable: true),
+  'SELECT CURRENT_TIMESTAMP = ?': ResolvedType(type: BasicType.text),
+  "SELECT COALESCE(NULL, 'foo') = ?": ResolvedType(type: BasicType.text),
+  'SELECT NULLIF(3, 4) = ?': ResolvedType(type: BasicType.int, nullable: true),
+  "SELECT 'foo' COLLATE NOCASE = ?": ResolvedType(type: BasicType.text),
+  'SELECT ? COLLATE BINARY': ResolvedType(type: BasicType.text),
+  "SELECT ('foo' + 'bar') = ?": ResolvedType(type: BasicType.int),
+  'INSERT INTO demo DEFAULT VALUES ON CONFLICT (id) WHERE ? DO NOTHING':
+      ResolvedType.bool(),
+  'INSERT INTO demo DEFAULT VALUES ON CONFLICT DO UPDATE SET id = id WHERE ?':
+      ResolvedType.bool(),
+  'SELECT GROUP_CONCAT(content) = ? FROM demo;':
+      ResolvedType(type: BasicType.text, nullable: true),
+  "SELECT '' -> '' = ?": ResolvedType(type: BasicType.text, nullable: true),
+  "SELECT '' ->> '' = ?": null,
+  "SELECT ? -> 'a' = 'b'": ResolvedType(type: BasicType.text, nullable: false),
+  "SELECT ? ->> 'a' = 'b'": ResolvedType(type: BasicType.text, nullable: false),
+  "SELECT 'a' -> ? = 'b'": ResolvedType(type: BasicType.text, nullable: false),
+  "SELECT 'a' ->> ? = 'b'": ResolvedType(type: BasicType.text, nullable: false),
+  'SELECT MAX(id, ?) FROM demo': ResolvedType(type: BasicType.int),
+  'SELECT SUM(id = 2) = ? FROM demo':
+      ResolvedType(type: BasicType.int, nullable: true),
+  "SELECT unixepoch('now') = ?":
+      ResolvedType(type: BasicType.int, nullable: true, hints: [IsDateTime()]),
+  "SELECT datetime('now') = ?":
+      ResolvedType(type: BasicType.text, nullable: true, hints: [IsDateTime()]),
+  'SELECT CAST(NULLIF(1, 2) AS INTEGER) = ?': ResolvedType(
+    type: BasicType.int,
+    nullable: true,
+  ),
+  "SELECT unhex('ab') = ?": ResolvedType(type: BasicType.blob, nullable: true),
+  'SELECT unhex(?)': ResolvedType(type: BasicType.text),
+  'SELECT 1 GROUP BY 1 HAVING ? ': ResolvedType.bool(),
+  "SELECT concat(1, NULL, 2) = ?":
+      ResolvedType(type: BasicType.text, nullable: false),
+  "SELECT concat_ws(',', 1, 2) = ?":
+      ResolvedType(type: BasicType.text, nullable: false),
+  "SELECT concat_ws(NULL, 1, 2) = ?":
+      ResolvedType(type: BasicType.text, nullable: true),
+  "SELECT \"if\"(1, 'hello') = ?":
+      ResolvedType(type: BasicType.text, nullable: true),
+};
+
+SqlEngine _spawnEngine() {
+  return SqlEngine()
+    ..registerTable(demoTable)
+    ..registerTable(anotherTable);
+}
+
+void main() {
+  group('miscellaneous type inference cases', () {
+    _types.forEach((sql, expected) {
+      test('for $sql', () {
+        final engine = _spawnEngine();
+        final content = engine.analyze(sql);
+
+        final variable = content.root.allDescendants
+            .firstWhere((node) => node is Variable) as Typeable;
+
+        expect(content.typeOf(variable).type, equals(expected));
+      });
+    });
+  });
+
+  test('resolves all expressions in CTE', () {
+    final engine = _spawnEngine();
+    final content = engine.analyze('''
+WITH RECURSIVE
+  cnt(x) AS (
+    SELECT 1
+      UNION ALL
+      SELECT x+1 FROM cnt
+      LIMIT 1000000
+  )
+  SELECT x FROM cnt;
+    ''');
+
+    final expressions = content.root.allDescendants.whereType<Expression>();
+    expect(
+      expressions.map((e) => content.typeOf(e).type),
+      everyElement(isNotNull),
+    );
+  });
+
+  test('concatenation is nullable when any part is', () {
+    // https://github.com/simolus3/drift/issues/1719
+
+    final engine = SqlEngine()
+      ..registerTableFromSql('CREATE TABLE foobar (foo TEXT, bar TEXT);');
+
+    final content =
+        engine.analyze("SELECT foo, bar, foo || ' ' || bar FROM foobar;");
+
+    final columns = (content.root as SelectStatement).resolvedColumns!;
+    expect(
+        columns.map(content.typeOf),
+        everyElement(isA<ResolveResult>()
+            .having((e) => e.type?.nullable, 'type.nullable', isTrue)));
+  });
+
+  test('can extract custom type', () {
+    final engine = SqlEngine();
+
+    final content = engine.analyze(
+      'SELECT CAST(1 AS MyCustomType)',
+      stmtOptions: AnalyzeStatementOptions(
+        resolveTypeFromText: expectAsync1(
+          (typeName) {
+            expect(typeName, 'MyCustomType');
+            return ResolvedType.bool();
+          },
+        ),
+      ),
+    );
+
+    final select = content.root as SelectStatement;
+    final column = select.resolvedColumns!.single;
+
+    expect(content.typeOf(column).type, ResolvedType.bool());
+  });
+
+  test('infers json_extract type from context', () {
+    final engine = SqlEngine(EngineOptions(version: SqliteVersion.v3_46))
+      ..registerTableFromSql('''
+      CREATE TABLE IF NOT EXISTS foo (
+        bar TEXT NOT NULL,
+        baz INTEGER NOT NULL
+      );
+    ''');
+
+    final ctx = engine.analyze(r'''
+      INSERT INTO foo(bar, baz)
+        SELECT json_extract(value, '$.bar'), json_extract(value, '$.baz')
+        FROM json_each(:foo_jsons);
+    ''');
+
+    final insert = ctx.root as InsertStatement;
+    final select = (insert.source as SelectInsertSource).stmt;
+    expect(ctx.errors, isEmpty);
+
+    expect(select.resolvedColumns!.map(ctx.types2.typeOf), [
+      ResolvedType(type: BasicType.text),
+      ResolvedType(type: BasicType.int),
+    ]);
+  });
+
+  test('keeps nullability information across unions', () {
+    // https://github.com/simolus3/drift/issues/3351
+    final engine = SqlEngine();
+    final ctx = engine.analyze('''
+      SELECT CAST(NULL AS INT) AS value
+      UNION
+      SELECT CAST(NULL AS INT);
+    ''');
+
+    final select = ctx.root as CompoundSelectStatement;
+    final column = select.resolvedColumns!.first;
+    expect(ctx.typeOf(column),
+        ResolveResult(ResolvedType(nullable: true, type: BasicType.int)));
+  });
+
+  test('lag is nullable', () {
+    // https://github.com/simolus3/drift/issues/3635
+    final engine = SqlEngine()
+      ..registerTableFromSql(
+          'CREATE table tab (id INTEGER PRIMARY KEY, timestamp INTEGER);');
+
+    final ctx = engine.analyze('''
+  WITH ranked_tabs AS (
+    SELECT id, timestamp,
+          LAG(id) OVER (ORDER BY timestamp) as prev_tab_id
+    FROM tab
+  )
+  SELECT prev_tab_id
+  FROM ranked_tabs 
+  WHERE id = :tab_id;
+    ''');
+
+    final root = ctx.root as SelectStatement;
+    expect(root.resolvedColumns!.map(ctx.typeOf),
+        [ResolveResult(ResolvedType(nullable: true, type: BasicType.int))]);
+  });
+}

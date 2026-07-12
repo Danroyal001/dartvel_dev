@@ -1,0 +1,33 @@
+sdk:
+- dev
+
+os:
+- linux
+
+stages:
+- analyze_and_format:
+  - format
+  - analyze: --fatal-infos .
+- test:
+  - test: -x integration1 -x integration2 -x integration3 -x integration4 --test-randomize-ordering-seed=random
+  - test: -t integration1 --test-randomize-ordering-seed=random
+    os:
+    - linux
+    - macos
+    - windows
+  - test: -t integration2 --test-randomize-ordering-seed=random
+    os:
+    - linux
+    - macos
+    - windows
+  - test: -t integration3 --test-randomize-ordering-seed=random
+    os:
+    - linux
+    - macos
+    - windows
+  - test: -t integration4 --test-randomize-ordering-seed=random
+    os:
+    - linux
+    - macos
+    - windows
+  - command: ../tool/leak_check.sh

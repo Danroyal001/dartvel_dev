@@ -1,0 +1,139 @@
+import '../../reader/tokenizer/token.dart';
+import '../ast.dart'; // todo: Remove this import
+
+/// A "CREATE TRIGGER" statement, see https://sqlite.org/lang_createtrigger.html
+class CreateTriggerStatement extends Statement implements CreatingStatement {
+  @override
+  final bool ifNotExists;
+  final String triggerName;
+  IdentifierToken? triggerNameToken;
+
+  final TriggerMode mode;
+  TriggerTarget target;
+
+  TableReference onTable;
+
+  Expression? when;
+  Block action;
+
+  CreateTriggerStatement(
+      {this.ifNotExists = false,
+      required this.triggerName,
+      required this.mode,
+      required this.target,
+      required this.onTable,
+      this.when,
+      required this.action});
+
+  @override
+  String get createdName => triggerName;
+
+  @override
+  R accept<A, R>(AstVisitor<A, R> visitor, A arg) {
+    return visitor.visitCreateTriggerStatement(this, arg);
+  }
+
+  @override
+  void transformChildren<A>(Transformer<A> transformer, A arg) {
+    onTable = transformer.transformChild(onTable, this, arg);
+    when = transformer.transformNullableChild(when, this, arg);
+    action = transformer.transformChild(action, this, arg);
+    target = transformer.transformChild(target, this, arg);
+  }
+
+  @override
+  Iterable<AstNode> get childNodes => [
+        target,
+        onTable,
+        if (when != null) when!,
+        action,
+      ];
+}
+
+enum TriggerMode {
+  before,
+  after,
+  insteadOf;
+
+  // https://www.sqlite.org/lang_createtrigger.html#instead_of_triggers
+  bool get isSupportedOnViews => this == insteadOf;
+  bool get isSupportedOnTables => this != insteadOf;
+}
+
+abstract class TriggerTarget extends AstNode {
+  @override
+  int get hashCode => runtimeType.hashCode;
+
+  @override
+  bool operator ==(Object other) => other.runtimeType == runtimeType;
+
+  @override
+  Iterable<AstNode> get childNodes => const Iterable.empty();
+
+  /// Whether this target introduces the "new" table reference in the sub-scope
+  /// of the create trigger statement.
+  bool get introducesNew;
+
+  /// Whether this target introduces the "old" table reference in the sub-scope
+  /// of the create trigger statement.
+  bool get introducesOld;
+}
+
+class DeleteTarget extends TriggerTarget {
+  Token? deleteToken;
+
+  @override
+  bool get introducesNew => false;
+  @override
+  bool get introducesOld => true;
+
+  @override
+  R accept<A, R>(AstVisitor<A, R> visitor, A arg) {
+    return visitor.visitDeleteTriggerTarget(this, arg);
+  }
+
+  @override
+  void transformChildren<A>(Transformer<A> transformer, A arg) {}
+}
+
+class InsertTarget extends TriggerTarget {
+  Token? insertToken;
+
+  @override
+  bool get introducesNew => true;
+  @override
+  bool get introducesOld => false;
+
+  @override
+  R accept<A, R>(AstVisitor<A, R> visitor, A arg) {
+    return visitor.visitInsertTriggerTarget(this, arg);
+  }
+
+  @override
+  void transformChildren<A>(Transformer<A> transformer, A arg) {}
+}
+
+class UpdateTarget extends TriggerTarget {
+  Token? updateToken;
+  List<Reference> columnNames;
+
+  UpdateTarget(this.columnNames);
+
+  @override
+  bool get introducesNew => true;
+  @override
+  bool get introducesOld => true;
+
+  @override
+  Iterable<AstNode> get childNodes => columnNames;
+
+  @override
+  R accept<A, R>(AstVisitor<A, R> visitor, A arg) {
+    return visitor.visitUpdateTriggerTarget(this, arg);
+  }
+
+  @override
+  void transformChildren<A>(Transformer<A> transformer, A arg) {
+    columnNames = transformer.transformChildren(columnNames, this, arg);
+  }
+}

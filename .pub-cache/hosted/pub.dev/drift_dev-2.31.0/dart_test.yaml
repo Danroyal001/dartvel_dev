@@ -1,0 +1,7 @@
+tags:
+  # Tests that spawn a Dart analyzer
+  analyzer:
+    timeout: 4x # the analyzer can be slow
+
+platforms:
+  - vm

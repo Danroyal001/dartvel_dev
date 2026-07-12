@@ -1,0 +1,143 @@
+import 'package:sqlparser/sqlparser.dart';
+
+class Json1Extension implements Extension {
+  const Json1Extension();
+
+  @override
+  void register(SqlEngine engine) {
+    final supportsJsonb = engine.options.version >= SqliteVersion.v3_45;
+
+    engine
+      ..registerFunctionHandler(_Json1Functions(supportsJsonb))
+      ..registerTableValuedFunctionHandler(
+          const _JsonTableValuedFunction('json_each'))
+      ..registerTableValuedFunctionHandler(
+          const _JsonTableValuedFunction('json_tree'));
+
+    if (engine.options.version >= SqliteVersion.v3_51) {
+      // These have been added in 3.51.
+      engine
+        ..registerTableValuedFunctionHandler(
+            const _JsonTableValuedFunction('jsonb_each'))
+        ..registerTableValuedFunctionHandler(
+            const _JsonTableValuedFunction('jsonb_tree'));
+    }
+  }
+}
+
+class _Json1Functions implements FunctionHandler {
+  final bool _supportBinaryJson;
+
+  const _Json1Functions(this._supportBinaryJson);
+
+  static const Set<String> _returnStrings = {
+    'json',
+    'json_array',
+    'json_insert',
+    'json_replace',
+    'json_set',
+    'json_object',
+    'json_patch',
+    'json_pretty',
+    'json_remove',
+    'json_quote',
+    'json_group_array',
+    'json_group_object',
+  };
+
+  static const Set<String> _returnBlobs = {
+    'jsonb',
+    'jsonb_array',
+    'jsonb_insert',
+    'jsonb_object',
+    'jsonb_patch',
+    'jsonb_remove',
+    'jsonb_replace',
+    'jsonb_set',
+    'jsonb_group_array',
+    'jsonb_group_object'
+  };
+
+  @override
+  Set<String> get functionNames => {
+        ..._returnStrings,
+        if (_supportBinaryJson) ..._returnBlobs,
+        'json_type',
+        'json_valid',
+        'json_extract',
+        if (_supportBinaryJson) 'jsonb_extract',
+        'json_array_length',
+      };
+
+  @override
+  ResolveResult inferArgumentType(
+      TypeInferenceSession session, SqlInvocation call, Expression argument) {
+    return const ResolveResult.unknown();
+  }
+
+  @override
+  ResolveResult inferReturnType(TypeInferenceSession session,
+      SqlInvocation call, List<Typeable> expandedArgs) {
+    final name = call.name.toLowerCase();
+
+    if (_returnStrings.contains(name)) {
+      return const ResolveResult(ResolvedType(type: BasicType.text));
+    } else if (_returnBlobs.contains(name)) {
+      return const ResolveResult(ResolvedType(type: BasicType.blob));
+    } else {
+      switch (name) {
+        case 'json_type':
+          return const ResolveResult(
+              ResolvedType(type: BasicType.text, nullable: true));
+        case 'json_valid':
+          return const ResolveResult(ResolvedType.bool());
+        case 'json_extract':
+        case 'jsonb_extract':
+          return const ResolveResult.needsContext();
+        case 'json_array_length':
+          return const ResolveResult(ResolvedType(type: BasicType.int));
+      }
+    }
+
+    throw AssertionError("Can't happen, unknown json1 function");
+  }
+
+  @override
+  void reportErrors(SqlInvocation call, AnalysisContext context) {
+    if (context.engineOptions.version < SqliteVersion.v3_46 &&
+        call.name.toLowerCase() == 'json_pretty') {
+      context.reportError(AnalysisError(
+        type: AnalysisErrorType.notSupportedInDesiredVersion,
+        message: 'json_pretty requires sqlite 3.46.0 or later.',
+        relevantNode: call.nameToken ?? call,
+      ));
+    }
+  }
+}
+
+final _jsonFunctionResultSet = CustomResultSet([
+  // https://www.sqlite.org/json1.html#the_json_each_and_json_tree_table_valued_functions
+  // we use string for any
+  TableColumn('key', const ResolvedType(type: BasicType.text)),
+  TableColumn('value', const ResolvedType(nullable: true)),
+  TableColumn('type', const ResolvedType(type: BasicType.text)),
+  TableColumn('atom', const ResolvedType(type: BasicType.text)),
+  TableColumn('type', const ResolvedType(type: BasicType.text)),
+  TableColumn('id', const ResolvedType(type: BasicType.int)),
+  TableColumn(
+      'parent', const ResolvedType(type: BasicType.int, nullable: true)),
+  TableColumn('fullkey', const ResolvedType(type: BasicType.text)),
+]);
+
+final class _JsonTableValuedFunction implements TableValuedFunctionHandler {
+  @override
+  final String functionName;
+
+  const _JsonTableValuedFunction(this.functionName);
+
+  @override
+  ResultSet resolveTableValued(
+      AnalysisContext context, TableValuedFunction call) {
+    return _jsonFunctionResultSet;
+  }
+}

@@ -1,0 +1,1251 @@
+// Copyright (c) 2019, the Dart project authors. Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'package:analyzer/dart/analysis/features.dart';
+import 'package:analyzer/dart/element/element2.dart';
+import 'package:analyzer/dart/element/nullability_suffix.dart';
+import 'package:analyzer/dart/element/type.dart';
+import 'package:analyzer/source/line_info.dart';
+import 'package:analyzer/src/dart/analysis/session.dart';
+import 'package:analyzer/src/dart/element/element.dart';
+import 'package:analyzer/src/dart/element/type.dart';
+import 'package:analyzer/src/generated/engine.dart' as engine;
+import 'package:analyzer/src/generated/utilities_dart.dart';
+import 'package:analyzer/src/summary2/reference.dart';
+import 'package:analyzer/src/utilities/extensions/string.dart';
+
+class MockSdkElements {
+  final LibraryElementImpl coreLibrary;
+  final LibraryElementImpl asyncLibrary;
+
+  factory MockSdkElements(
+    engine.AnalysisContext analysisContext,
+    AnalysisSessionImpl analysisSession,
+  ) {
+    var builder = _MockSdkElementsBuilder(analysisContext, analysisSession);
+    var coreLibrary = builder._buildCore();
+    var asyncLibrary = builder._buildAsync();
+    builder._populateCore();
+    builder._populateAsync();
+    return MockSdkElements._(coreLibrary, asyncLibrary);
+  }
+
+  MockSdkElements._(this.coreLibrary, this.asyncLibrary);
+}
+
+class _MockSdkElementsBuilder {
+  final engine.AnalysisContext analysisContext;
+  final AnalysisSessionImpl analysisSession;
+
+  ClassElementImpl? _boolElement;
+  ClassElementImpl? _comparableElement;
+  ClassElementImpl? _completerElement;
+  ClassElementImpl? _deprecatedElement;
+  ClassElementImpl? _doubleElement;
+  ClassElementImpl? _functionElement;
+  ClassElementImpl? _futureElement;
+  ClassElementImpl? _futureOrElement;
+  ClassElementImpl? _intElement;
+  ClassElementImpl? _iterableElement;
+  ClassElementImpl? _iteratorElement;
+  ClassElementImpl? _listElement;
+  ClassElementImpl? _mapElement;
+  ClassElementImpl? _nullElement;
+  ClassElementImpl? _numElement;
+  ClassElementImpl? _objectElement;
+  ClassElementImpl? _overrideElement;
+  ClassElementImpl? _recordElement;
+  ClassElementImpl? _setElement;
+  ClassElementImpl? _stackTraceElement;
+  ClassElementImpl? _streamElement;
+  ClassElementImpl? _streamSubscriptionElement;
+  ClassElementImpl? _stringElement;
+  ClassElementImpl? _symbolElement;
+  ClassElementImpl? _typeElement;
+
+  InterfaceTypeImpl? _boolType;
+  InterfaceTypeImpl? _doubleType;
+  InterfaceTypeImpl? _intType;
+  InterfaceTypeImpl? _numType;
+  InterfaceTypeImpl? _objectType;
+  InterfaceTypeImpl? _stringType;
+  InterfaceTypeImpl? _typeType;
+
+  late LibraryElementImpl _asyncLibrary;
+  late CompilationUnitElementImpl _asyncUnit;
+
+  late LibraryElementImpl _coreLibrary;
+  late CompilationUnitElementImpl _coreUnit;
+
+  _MockSdkElementsBuilder(
+    this.analysisContext,
+    this.analysisSession,
+  );
+
+  ClassElementImpl get boolElement {
+    var boolElement = _boolElement;
+    if (boolElement != null) return boolElement;
+
+    _boolElement = boolElement = _class(name: 'bool', unit: _coreUnit);
+    boolElement.supertype = objectType;
+
+    boolElement.constructors = [
+      _constructor(
+        name: 'fromEnvironment',
+        isConst: true,
+        isFactory: true,
+        parameters: [
+          _requiredParameter('name', stringType),
+          _namedParameter('defaultValue', boolType),
+        ],
+      ),
+    ];
+
+    _buildClassElement(boolElement);
+    return boolElement;
+  }
+
+  InterfaceTypeImpl get boolType {
+    return _boolType ??= _interfaceType(boolElement);
+  }
+
+  ClassElementImpl get comparableElement {
+    var comparableElement = _comparableElement;
+    if (comparableElement != null) return comparableElement;
+
+    var tElement = _typeParameter('T');
+    _comparableElement = comparableElement = _class(
+      name: 'Comparable',
+      isAbstract: true,
+      typeParameters: [tElement],
+      unit: _coreUnit,
+    );
+    comparableElement.supertype = objectType;
+
+    _buildClassElement(comparableElement);
+    return comparableElement;
+  }
+
+  ClassElementImpl get completerElement {
+    var completerElement = _completerElement;
+    if (completerElement != null) return completerElement;
+
+    var tElement = _typeParameter('T');
+    _completerElement = completerElement = _class(
+      name: 'Completer',
+      isAbstract: true,
+      typeParameters: [tElement],
+      unit: _asyncUnit,
+    );
+    completerElement.supertype = objectType;
+
+    _buildClassElement(completerElement);
+    return completerElement;
+  }
+
+  ClassElementImpl get deprecatedElement {
+    var deprecatedElement = _deprecatedElement;
+    if (deprecatedElement != null) return deprecatedElement;
+
+    _deprecatedElement =
+        deprecatedElement = _class(name: 'Deprecated', unit: _coreUnit);
+    deprecatedElement.supertype = objectType;
+
+    deprecatedElement.fields = [
+      _field('message', stringType, isFinal: true),
+    ];
+
+    deprecatedElement.accessors =
+        deprecatedElement.fields.map((f) => f.getter!).toList();
+
+    deprecatedElement.constructors = [
+      _constructor(
+        isConst: true,
+        parameters: [
+          _requiredParameter('message', stringType),
+        ],
+      ),
+    ];
+
+    _buildClassElement(deprecatedElement);
+    return deprecatedElement;
+  }
+
+  ClassElementImpl get doubleElement {
+    var doubleElement = _doubleElement;
+    if (doubleElement != null) return doubleElement;
+
+    _doubleElement = doubleElement = _class(
+      name: 'double',
+      isAbstract: true,
+      unit: _coreUnit,
+    );
+    doubleElement.supertype = numType;
+
+    FieldElementImpl staticConstDoubleField(String name) {
+      return _field(name, doubleType, isStatic: true, isConst: true);
+    }
+
+    doubleElement.fields = <FieldElementImpl>[
+      staticConstDoubleField('nan'),
+      staticConstDoubleField('infinity'),
+      staticConstDoubleField('negativeInfinity'),
+      staticConstDoubleField('minPositive'),
+      staticConstDoubleField('maxFinite'),
+    ];
+
+    doubleElement.accessors =
+        doubleElement.fields.map((field) => field.getter!).toList();
+
+    doubleElement.methods = [
+      _method('+', doubleType, parameters: [
+        _requiredParameter('other', numType),
+      ]),
+      _method('*', doubleType, parameters: [
+        _requiredParameter('other', numType),
+      ]),
+      _method('-', doubleType, parameters: [
+        _requiredParameter('other', numType),
+      ]),
+      _method('%', doubleType, parameters: [
+        _requiredParameter('other', numType),
+      ]),
+      _method('/', doubleType, parameters: [
+        _requiredParameter('other', numType),
+      ]),
+      _method('~/', intType, parameters: [
+        _requiredParameter('other', numType),
+      ]),
+      _method('-', doubleType, parameters: [
+        _requiredParameter('other', numType),
+      ]),
+      _method('abs', doubleType),
+      _method('ceil', doubleType),
+      _method('floor', doubleType),
+      _method('remainder', doubleType, parameters: [
+        _requiredParameter('other', numType),
+      ]),
+      _method('round', doubleType),
+      _method('toString', stringType),
+      _method('truncate', doubleType),
+    ];
+
+    _buildClassElement(doubleElement);
+    return doubleElement;
+  }
+
+  InterfaceTypeImpl get doubleType {
+    return _doubleType ??= _interfaceType(doubleElement);
+  }
+
+  DynamicTypeImpl get dynamicType => DynamicTypeImpl.instance;
+
+  ClassElementImpl get functionElement {
+    var functionElement = _functionElement;
+    if (functionElement != null) return functionElement;
+
+    _functionElement = functionElement = _class(
+      name: 'Function',
+      isAbstract: true,
+      unit: _coreUnit,
+    );
+    functionElement.supertype = objectType;
+
+    _buildClassElement(functionElement);
+    return functionElement;
+  }
+
+  InterfaceTypeImpl get functionType {
+    return _interfaceType(functionElement);
+  }
+
+  ClassElementImpl get futureElement {
+    var futureElement = _futureElement;
+    if (futureElement != null) return futureElement;
+
+    var tElement = _typeParameter('T');
+    var tType = _typeParameterType(tElement);
+
+    _futureElement = futureElement = _class(
+      name: 'Future',
+      isAbstract: true,
+      typeParameters: [tElement],
+      unit: _asyncUnit,
+    );
+    futureElement.supertype = objectType;
+
+    //   factory Future.value([FutureOr<T> value])
+    futureElement.constructors = [
+      _constructor(
+        isFactory: true,
+        parameters: [
+          _positionalParameter('value', futureOrType(tType)),
+        ],
+      ),
+    ];
+
+    //   Future<R> then<R>(FutureOr<R> onValue(T value), {Function onError})
+    var rElement = _typeParameter('R');
+    var rType = _typeParameterType(rElement);
+    futureElement.methods = [
+      _method(
+        'then',
+        futureType(rType),
+        parameters: [
+          _requiredParameter(
+            'onValue',
+            _functionType(
+              returnType: futureOrType(rType),
+              parameters: [
+                _requiredParameter('value', tType),
+              ],
+            ),
+          ),
+          _positionalParameter('onError', functionType),
+        ],
+      ),
+    ];
+
+    _buildClassElement(futureElement);
+    return futureElement;
+  }
+
+  ClassElementImpl get futureOrElement {
+    var futureOrElement = _futureOrElement;
+    if (futureOrElement != null) return futureOrElement;
+
+    var tElement = _typeParameter('T');
+    _futureOrElement = futureOrElement = _class(
+      name: 'FutureOr',
+      typeParameters: [tElement],
+      unit: _asyncUnit,
+    );
+    futureOrElement.supertype = objectType;
+
+    _buildClassElement(futureOrElement);
+    return futureOrElement;
+  }
+
+  ClassElementImpl get intElement {
+    var intElement = _intElement;
+    if (intElement != null) return intElement;
+
+    _intElement =
+        intElement = _class(name: 'int', isAbstract: true, unit: _coreUnit);
+    intElement.supertype = numType;
+
+    intElement.constructors = [
+      _constructor(
+        name: 'fromEnvironment',
+        isConst: true,
+        isFactory: true,
+        parameters: [
+          _requiredParameter('name', stringType),
+          _namedParameter('defaultValue', intType),
+        ],
+      ),
+    ];
+
+    intElement.methods = [
+      _method('&', intType, parameters: [
+        _requiredParameter('other', intType),
+      ]),
+      _method('|', intType, parameters: [
+        _requiredParameter('other', intType),
+      ]),
+      _method('^', intType, parameters: [
+        _requiredParameter('other', intType),
+      ]),
+      _method('~', intType),
+      _method('<<', intType, parameters: [
+        _requiredParameter('shiftAmount', intType),
+      ]),
+      _method('>>', intType, parameters: [
+        _requiredParameter('shiftAmount', intType),
+      ]),
+      _method('-', intType),
+      _method('abs', intType),
+      _method('round', intType),
+      _method('floor', intType),
+      _method('ceil', intType),
+      _method('truncate', intType),
+      _method('toString', stringType),
+    ];
+
+    _buildClassElement(intElement);
+    return intElement;
+  }
+
+  InterfaceTypeImpl get intType {
+    return _intType ??= _interfaceType(intElement);
+  }
+
+  ClassElementImpl get iterableElement {
+    var iterableElement = _iterableElement;
+    if (iterableElement != null) return iterableElement;
+
+    var eElement = _typeParameter('E');
+    var eType = _typeParameterType(eElement);
+
+    _iterableElement = iterableElement = _class(
+      name: 'Iterable',
+      isAbstract: true,
+      typeParameters: [eElement],
+      unit: _coreUnit,
+    );
+    iterableElement.supertype = objectType;
+
+    iterableElement.constructors = [
+      _constructor(isConst: true),
+    ];
+
+    _setAccessors(iterableElement, [
+      _getter('iterator', iteratorType(eType)),
+      _getter('last', eType),
+    ]);
+
+    _buildClassElement(iterableElement);
+    return iterableElement;
+  }
+
+  ClassElementImpl get iteratorElement {
+    var iteratorElement = _iteratorElement;
+    if (iteratorElement != null) return iteratorElement;
+
+    var eElement = _typeParameter('E');
+    var eType = _typeParameterType(eElement);
+
+    _iteratorElement = iteratorElement = _class(
+      name: 'Iterator',
+      isAbstract: true,
+      typeParameters: [eElement],
+      unit: _coreUnit,
+    );
+    iteratorElement.supertype = objectType;
+
+    _setAccessors(iterableElement, [
+      _getter('current', eType),
+    ]);
+
+    _buildClassElement(iteratorElement);
+    return iteratorElement;
+  }
+
+  ClassElementImpl get listElement {
+    var listElement = _listElement;
+    if (listElement != null) return listElement;
+
+    var eElement = _typeParameter('E');
+    var eType = _typeParameterType(eElement);
+
+    _listElement = listElement = _class(
+      name: 'List',
+      isAbstract: true,
+      typeParameters: [eElement],
+      unit: _coreUnit,
+    );
+    listElement.supertype = objectType;
+    listElement.interfaces = [
+      iterableType(eType),
+    ];
+
+    listElement.constructors = [
+      _constructor(isFactory: true, parameters: [
+        _positionalParameter('length', intType),
+      ]),
+    ];
+
+    _setAccessors(listElement, [
+      _getter('length', intType),
+    ]);
+
+    listElement.methods = [
+      _method('[]', eType, parameters: [
+        _requiredParameter('index', intType),
+      ]),
+      _method('[]=', voidType, parameters: [
+        _requiredParameter('index', intType),
+        _requiredParameter('value', eType),
+      ]),
+      _method('add', voidType, parameters: [
+        _requiredParameter('value', eType),
+      ]),
+    ];
+
+    _buildClassElement(listElement);
+    return listElement;
+  }
+
+  ClassElementImpl get mapElement {
+    var mapElement = _mapElement;
+    if (mapElement != null) return mapElement;
+
+    var kElement = _typeParameter('K');
+    var vElement = _typeParameter('V');
+    var kType = _typeParameterType(kElement);
+    var vType = _typeParameterType(vElement);
+
+    _mapElement = mapElement = _class(
+      name: 'Map',
+      isAbstract: true,
+      typeParameters: [kElement, vElement],
+      unit: _coreUnit,
+    );
+    mapElement.supertype = objectType;
+
+    _setAccessors(mapElement, [
+      _getter('length', intType),
+    ]);
+
+    mapElement.methods = [
+      _method('[]', vType, parameters: [
+        _requiredParameter('key', objectType),
+      ]),
+      _method('[]=', voidType, parameters: [
+        _requiredParameter('key', kType),
+        _requiredParameter('value', vType),
+      ]),
+    ];
+
+    _buildClassElement(mapElement);
+    return mapElement;
+  }
+
+  ClassElementImpl get nullElement {
+    var nullElement = _nullElement;
+    if (nullElement != null) return nullElement;
+
+    _nullElement = nullElement = _class(name: 'Null', unit: _coreUnit);
+    nullElement.supertype = objectType;
+
+    nullElement.constructors = [
+      _constructor(
+        name: '_uninstantiatable',
+        isFactory: true,
+      ),
+    ];
+
+    _buildClassElement(nullElement);
+    return nullElement;
+  }
+
+  ClassElementImpl get numElement {
+    var numElement = _numElement;
+    if (numElement != null) return numElement;
+
+    _numElement =
+        numElement = _class(name: 'num', isAbstract: true, unit: _coreUnit);
+    numElement.supertype = objectType;
+    numElement.interfaces = [
+      _interfaceType(
+        comparableElement,
+        typeArguments: [numType],
+      ),
+    ];
+
+    numElement.methods = [
+      _method('+', numType, parameters: [
+        _requiredParameter('other', numType),
+      ]),
+      _method('-', numType, parameters: [
+        _requiredParameter('other', numType),
+      ]),
+      _method('*', numType, parameters: [
+        _requiredParameter('other', numType),
+      ]),
+      _method('%', numType, parameters: [
+        _requiredParameter('other', numType),
+      ]),
+      _method('/', doubleType, parameters: [
+        _requiredParameter('other', numType),
+      ]),
+      _method('~/', intType, parameters: [
+        _requiredParameter('other', numType),
+      ]),
+      _method('-', numType, parameters: [
+        _requiredParameter('other', numType),
+      ]),
+      _method('remainder', numType, parameters: [
+        _requiredParameter('other', numType),
+      ]),
+      _method('<', boolType, parameters: [
+        _requiredParameter('other', numType),
+      ]),
+      _method('<=', boolType, parameters: [
+        _requiredParameter('other', numType),
+      ]),
+      _method('>', boolType, parameters: [
+        _requiredParameter('other', numType),
+      ]),
+      _method('>=', boolType, parameters: [
+        _requiredParameter('other', numType),
+      ]),
+      _method('==', boolType, parameters: [
+        _requiredParameter('other', objectType),
+      ]),
+      _method('abs', numType),
+      _method('floor', numType),
+      _method('ceil', numType),
+      _method('round', numType),
+      _method('truncate', numType),
+      _method('toInt', intType),
+      _method('toDouble', doubleType),
+      _method('toStringAsFixed', stringType, parameters: [
+        _requiredParameter('fractionDigits', intType),
+      ]),
+      _method('toStringAsExponential', stringType, parameters: [
+        _requiredParameter('fractionDigits', intType),
+      ]),
+      _method('toStringAsPrecision', stringType, parameters: [
+        _requiredParameter('precision', intType),
+      ]),
+    ];
+
+    _setAccessors(numElement, [
+      _getter('isInfinite', boolType),
+      _getter('isNaN', boolType),
+      _getter('isNegative', boolType),
+    ]);
+
+    _buildClassElement(numElement);
+    return numElement;
+  }
+
+  InterfaceTypeImpl get numType {
+    return _numType ??= _interfaceType(numElement);
+  }
+
+  ClassElementImpl get objectElement {
+    var objectElement = _objectElement;
+    if (objectElement != null) return objectElement;
+
+    _objectElement = objectElement = _class(name: 'Object', unit: _coreUnit);
+    _coreUnit.encloseElement(objectElement);
+    objectElement.interfaces = const <InterfaceType>[];
+    objectElement.mixins = const <InterfaceType>[];
+    objectElement.typeParameters = const <TypeParameterElementImpl>[];
+    objectElement.constructors = [
+      _constructor(isConst: true),
+    ];
+
+    objectElement.methods = [
+      _method('toString', stringType),
+      _method('==', boolType, parameters: [
+        _requiredParameter('other', objectType),
+      ]),
+      _method('noSuchMethod', dynamicType, parameters: [
+        _requiredParameter('other', dynamicType),
+      ]),
+    ];
+
+    _setAccessors(objectElement, [
+      _getter('hashCode', intType),
+      _getter('runtimeType', typeType),
+    ]);
+
+    _buildClassElement(objectElement);
+    return objectElement;
+  }
+
+  InterfaceTypeImpl get objectType {
+    return _objectType ??= _interfaceType(objectElement);
+  }
+
+  ClassElementImpl get overrideElement {
+    var overrideElement = _overrideElement;
+    if (overrideElement != null) return overrideElement;
+
+    _overrideElement =
+        overrideElement = _class(name: '_Override', unit: _coreUnit);
+    overrideElement.supertype = objectType;
+
+    overrideElement.constructors = [
+      _constructor(isConst: true),
+    ];
+
+    _buildClassElement(overrideElement);
+    return overrideElement;
+  }
+
+  ClassElementImpl get recordElement {
+    var recordElement = _recordElement;
+    if (recordElement != null) return recordElement;
+
+    _recordElement = recordElement = _class(
+      name: 'Record',
+      isAbstract: true,
+      unit: _coreUnit,
+    );
+    recordElement.supertype = objectType;
+
+    _buildClassElement(recordElement);
+    return recordElement;
+  }
+
+  InterfaceTypeImpl get recordType {
+    return _interfaceType(recordElement);
+  }
+
+  ClassElementImpl get setElement {
+    var setElement = _setElement;
+    if (setElement != null) return setElement;
+
+    var eElement = _typeParameter('E');
+    var eType = _typeParameterType(eElement);
+
+    _setElement = setElement = _class(
+      name: 'Set',
+      isAbstract: true,
+      typeParameters: [eElement],
+      unit: _coreUnit,
+    );
+    setElement.supertype = objectType;
+    setElement.interfaces = [
+      iterableType(eType),
+    ];
+
+    _buildClassElement(setElement);
+    return setElement;
+  }
+
+  ClassElementImpl get stackTraceElement {
+    var stackTraceElement = _stackTraceElement;
+    if (stackTraceElement != null) return stackTraceElement;
+
+    _stackTraceElement = stackTraceElement = _class(
+      name: 'StackTrace',
+      isAbstract: true,
+      unit: _coreUnit,
+    );
+    stackTraceElement.supertype = objectType;
+
+    _buildClassElement(stackTraceElement);
+    return stackTraceElement;
+  }
+
+  ClassElementImpl get streamElement {
+    var streamElement = _streamElement;
+    if (streamElement != null) return streamElement;
+
+    var tElement = _typeParameter('T');
+    var tType = _typeParameterType(tElement);
+
+    _streamElement = streamElement = _class(
+      name: 'Stream',
+      isAbstract: true,
+      typeParameters: [tElement],
+      unit: _asyncUnit,
+    );
+    streamElement.isAbstract = true;
+    streamElement.supertype = objectType;
+
+    //    StreamSubscription<T> listen(void onData(T event),
+    //        {Function onError, void onDone(), bool cancelOnError});
+    streamElement.methods = [
+      _method(
+        'listen',
+        streamSubscriptionType(tType),
+        parameters: [
+          _requiredParameter(
+            'onData',
+            _functionType(
+              returnType: voidType,
+              parameters: [
+                _requiredParameter('event', tType),
+              ],
+            ),
+          ),
+          _namedParameter('onError', functionType),
+          _namedParameter(
+            'onDone',
+            _functionType(returnType: voidType),
+          ),
+          _namedParameter('cancelOnError', boolType),
+        ],
+      ),
+    ];
+
+    _buildClassElement(streamElement);
+    return streamElement;
+  }
+
+  ClassElementImpl get streamSubscriptionElement {
+    var streamSubscriptionElement = _streamSubscriptionElement;
+    if (streamSubscriptionElement != null) return streamSubscriptionElement;
+
+    var tElement = _typeParameter('T');
+    _streamSubscriptionElement = streamSubscriptionElement = _class(
+      name: 'StreamSubscription',
+      isAbstract: true,
+      typeParameters: [tElement],
+      unit: _asyncUnit,
+    );
+    streamSubscriptionElement.supertype = objectType;
+
+    _buildClassElement(streamSubscriptionElement);
+    return streamSubscriptionElement;
+  }
+
+  ClassElementImpl get stringElement {
+    var stringElement = _stringElement;
+    if (stringElement != null) return stringElement;
+
+    _stringElement = stringElement = _class(
+      name: 'String',
+      isAbstract: true,
+      unit: _coreUnit,
+    );
+    stringElement.supertype = objectType;
+
+    stringElement.constructors = [
+      _constructor(
+        name: 'fromEnvironment',
+        isConst: true,
+        isFactory: true,
+        parameters: [
+          _requiredParameter('name', stringType),
+          _namedParameter('defaultValue', stringType),
+        ],
+      ),
+    ];
+
+    _setAccessors(stringElement, [
+      _getter('isEmpty', boolType),
+      _getter('length', intType),
+      _getter('codeUnits', listType(intType)),
+    ]);
+
+    stringElement.methods = [
+      _method('+', stringType, parameters: [
+        _requiredParameter('other', stringType),
+      ]),
+      _method('toLowerCase', stringType),
+      _method('toUpperCase', stringType),
+    ];
+
+    _buildClassElement(stringElement);
+    return stringElement;
+  }
+
+  InterfaceTypeImpl get stringType {
+    return _stringType ??= _interfaceType(stringElement);
+  }
+
+  ClassElementImpl get symbolElement {
+    var symbolElement = _symbolElement;
+    if (symbolElement != null) return symbolElement;
+
+    _symbolElement = symbolElement = _class(
+      name: 'Symbol',
+      isAbstract: true,
+      unit: _coreUnit,
+    );
+    symbolElement.supertype = objectType;
+
+    symbolElement.constructors = [
+      _constructor(
+        isConst: true,
+        isFactory: true,
+        parameters: [
+          _requiredParameter('name', stringType),
+        ],
+      ),
+    ];
+
+    _buildClassElement(symbolElement);
+    return symbolElement;
+  }
+
+  ClassElementImpl get typeElement {
+    var typeElement = _typeElement;
+    if (typeElement != null) return typeElement;
+
+    _typeElement = typeElement = _class(
+      name: 'Type',
+      isAbstract: true,
+      unit: _coreUnit,
+    );
+    typeElement.supertype = objectType;
+
+    _buildClassElement(typeElement);
+    return typeElement;
+  }
+
+  InterfaceTypeImpl get typeType {
+    return _typeType ??= _interfaceType(typeElement);
+  }
+
+  VoidTypeImpl get voidType => VoidTypeImpl.instance;
+
+  InterfaceTypeImpl futureOrType(TypeImpl elementType) {
+    return _interfaceType(
+      futureOrElement,
+      typeArguments: [elementType],
+    );
+  }
+
+  InterfaceTypeImpl futureType(TypeImpl elementType) {
+    return _interfaceType(
+      futureElement,
+      typeArguments: [elementType],
+    );
+  }
+
+  InterfaceTypeImpl iterableType(TypeImpl elementType) {
+    return _interfaceType(
+      iterableElement,
+      typeArguments: [elementType],
+    );
+  }
+
+  InterfaceTypeImpl iteratorType(TypeImpl elementType) {
+    return _interfaceType(
+      iteratorElement,
+      typeArguments: [elementType],
+    );
+  }
+
+  InterfaceTypeImpl listType(TypeImpl elementType) {
+    return _interfaceType(
+      listElement,
+      typeArguments: [elementType],
+    );
+  }
+
+  InterfaceTypeImpl streamSubscriptionType(TypeImpl valueType) {
+    return _interfaceType(
+      streamSubscriptionElement,
+      typeArguments: [valueType],
+    );
+  }
+
+  LibraryElementImpl _buildAsync() {
+    var asyncSource = analysisContext.sourceFactory.forUri('dart:async')!;
+    _asyncLibrary = LibraryElementImpl(
+      analysisContext,
+      analysisSession,
+      'dart.async',
+      0,
+      0,
+      FeatureSet.latestLanguageVersion(),
+    );
+
+    _asyncUnit = CompilationUnitElementImpl(
+      library: _asyncLibrary,
+      source: asyncSource,
+      lineInfo: LineInfo([0]),
+    );
+
+    _asyncLibrary.definingCompilationUnit = _asyncUnit;
+    return _asyncLibrary;
+  }
+
+  void _buildClassElement(ClassElementImpl fragment) {}
+
+  LibraryElementImpl _buildCore() {
+    var coreSource = analysisContext.sourceFactory.forUri('dart:core')!;
+    _coreLibrary = LibraryElementImpl(
+      analysisContext,
+      analysisSession,
+      'dart.core',
+      0,
+      0,
+      FeatureSet.latestLanguageVersion(),
+    );
+
+    _coreUnit = CompilationUnitElementImpl(
+      library: _coreLibrary,
+      source: coreSource,
+      lineInfo: LineInfo([0]),
+    );
+
+    _coreLibrary.definingCompilationUnit = _coreUnit;
+    return _coreLibrary;
+  }
+
+  ClassElementImpl _class({
+    required String name,
+    bool isAbstract = false,
+    List<TypeParameterElementImpl2> typeParameters = const [],
+    required CompilationUnitElementImpl unit,
+  }) {
+    var fragment = ClassElementImpl(name, 0);
+    ClassElementImpl2(Reference.root(), fragment);
+    fragment.typeParameters =
+        typeParameters.map((tp) => tp.firstFragment).toList();
+    fragment.constructors = <ConstructorElementImpl>[
+      _constructor(),
+    ];
+    unit.encloseElement(fragment);
+    return fragment;
+  }
+
+  ConstructorElementImpl _constructor({
+    String name = '',
+    bool isConst = false,
+    bool isFactory = false,
+    List<FormalParameterElement> parameters = const [],
+  }) {
+    var element = ConstructorElementImpl(name, 0);
+    element.name2 = name.ifNotEmptyOrElse('new');
+    element.isFactory = isFactory;
+    element.isConst = isConst;
+    element.parameters =
+        parameters.map((p) => p.firstFragment as ParameterElementImpl).toList();
+    return element;
+  }
+
+  FieldElementImpl _field(
+    String name,
+    TypeImpl type, {
+    bool isConst = false,
+    bool isFinal = false,
+    bool isStatic = false,
+  }) {
+    var fragment =
+        isConst ? ConstFieldElementImpl(name, 0) : FieldElementImpl(name, 0);
+    fragment.isConst = isConst;
+    fragment.isFinal = isFinal;
+    fragment.isStatic = isStatic;
+    fragment.type = type;
+    PropertyAccessorElementImpl_ImplicitGetter(fragment);
+    if (!isConst && !isFinal) {
+      PropertyAccessorElementImpl_ImplicitSetter(fragment);
+    }
+    return fragment;
+  }
+
+  TopLevelFunctionFragmentImpl _function(
+    String name,
+    DartType returnType, {
+    List<TypeParameterElementImpl> typeFormals = const [],
+    List<FormalParameterElement> parameters = const [],
+  }) {
+    var fragment = TopLevelFunctionFragmentImpl(name, 0)
+      ..parameters = parameters
+          .map((p) => p.firstFragment as ParameterElementImpl)
+          .toList()
+      ..returnType = returnType
+      ..typeParameters = typeFormals;
+    TopLevelFunctionElementImpl(Reference.root(), fragment);
+    return fragment;
+  }
+
+  FunctionTypeImpl _functionType({
+    required TypeImpl returnType,
+    List<TypeParameterElementImpl2> typeFormals = const [],
+    List<FormalParameterElement> parameters = const [],
+  }) {
+    return FunctionTypeImpl.v2(
+      typeParameters: typeFormals,
+      formalParameters: parameters.cast(),
+      returnType: returnType,
+      nullabilitySuffix: NullabilitySuffix.none,
+    );
+  }
+
+  PropertyAccessorElementImpl _getter(
+    String name,
+    TypeImpl type, {
+    bool isStatic = false,
+  }) {
+    var field = FieldElementImpl(name, -1);
+    field.isStatic = isStatic;
+    field.isSynthetic = true;
+    field.type = type;
+
+    var getter = GetterFragmentImpl(name, 0);
+    getter.isStatic = isStatic;
+    getter.isSynthetic = false;
+    getter.returnType = type;
+    getter.variable2 = field;
+
+    field.getter = getter;
+    return getter;
+  }
+
+  InterfaceTypeImpl _interfaceType(
+    InterfaceElementImpl element, {
+    List<TypeImpl> typeArguments = const [],
+  }) {
+    return InterfaceTypeImpl(
+      element: element.element,
+      typeArguments: typeArguments,
+      nullabilitySuffix: NullabilitySuffix.none,
+    );
+  }
+
+  MethodElementImpl _method(
+    String name,
+    DartType returnType, {
+    List<TypeParameterElementImpl> typeFormals = const [],
+    List<FormalParameterElement> parameters = const [],
+  }) {
+    var fragment = MethodElementImpl(name, 0)
+      ..parameters = parameters
+          .map((p) => p.firstFragment as ParameterElementImpl)
+          .toList()
+      ..returnType = returnType
+      ..typeParameters = typeFormals;
+    return fragment;
+  }
+
+  FormalParameterElement _namedParameter(String name, TypeImpl type,
+      {String? initializerCode}) {
+    var fragment = DefaultParameterElementImpl(
+      name: name,
+      nameOffset: 0,
+      name2: name,
+      nameOffset2: 0,
+      parameterKind: ParameterKind.NAMED,
+    );
+    fragment.type = type;
+    fragment.defaultValueCode = initializerCode;
+    return FormalParameterElementImpl(fragment);
+  }
+
+  void _populateAsync() {
+    _asyncUnit.classes = <ClassElementImpl>[
+      completerElement,
+      futureElement,
+      futureOrElement,
+      streamElement,
+      streamSubscriptionElement
+    ];
+
+    _fillLibraryFromFragment(_asyncLibrary, _asyncUnit);
+  }
+
+  void _populateCore() {
+    _coreUnit.classes = <ClassElementImpl>[
+      boolElement,
+      comparableElement,
+      deprecatedElement,
+      doubleElement,
+      functionElement,
+      intElement,
+      iterableElement,
+      iteratorElement,
+      listElement,
+      mapElement,
+      nullElement,
+      numElement,
+      objectElement,
+      overrideElement,
+      recordElement,
+      setElement,
+      stackTraceElement,
+      stringElement,
+      symbolElement,
+      typeElement,
+    ];
+
+    _coreUnit.functions = <TopLevelFunctionFragmentImpl>[
+      _function('identical', boolType, parameters: [
+        _requiredParameter('a', objectType),
+        _requiredParameter('b', objectType),
+      ]),
+      _function('print', voidType, parameters: [
+        _requiredParameter('object', objectType),
+      ]),
+    ];
+
+    var deprecatedVariable = _topLevelVariableConst(
+      'deprecated',
+      _interfaceType(deprecatedElement),
+    );
+
+    var overrideVariable = _topLevelVariableConst(
+      'override',
+      _interfaceType(overrideElement),
+    );
+
+    _coreUnit.accessors = <PropertyAccessorElementImpl>[
+      deprecatedVariable.getter!,
+      overrideVariable.getter!,
+    ];
+
+    _coreUnit.topLevelVariables = <TopLevelVariableElementImpl>[
+      deprecatedVariable,
+      overrideVariable,
+    ];
+
+    _fillLibraryFromFragment(_coreLibrary, _coreUnit);
+  }
+
+  FormalParameterElement _positionalParameter(String name, TypeImpl type) {
+    var fragment = ParameterElementImpl(
+      name: name,
+      nameOffset: 0,
+      name2: name,
+      nameOffset2: 0,
+      parameterKind: ParameterKind.POSITIONAL,
+    );
+    fragment.type = type;
+    return FormalParameterElementImpl(fragment);
+  }
+
+  FormalParameterElement _requiredParameter(String name, TypeImpl type) {
+    var fragment = ParameterElementImpl(
+      name: name,
+      nameOffset: 0,
+      name2: name,
+      nameOffset2: 0,
+      parameterKind: ParameterKind.REQUIRED,
+    );
+    fragment.type = type;
+    return FormalParameterElementImpl(fragment);
+  }
+
+  /// Set the [accessors] and the corresponding fields for the [classElement].
+  void _setAccessors(
+    ClassElementImpl classElement,
+    List<PropertyAccessorElementImpl> accessors,
+  ) {
+    classElement.accessors = accessors;
+    classElement.fields = accessors
+        .map((accessor) => accessor.variable2)
+        .cast<FieldElementImpl>()
+        .toList();
+  }
+
+  TopLevelVariableElementImpl _topLevelVariableConst(
+    String name,
+    TypeImpl type,
+  ) {
+    var fragment = ConstTopLevelVariableElementImpl(name, -1)
+      ..isConst = true
+      ..type = type;
+    TopLevelVariableElementImpl2(Reference.root(), fragment);
+    PropertyAccessorElementImpl_ImplicitGetter(fragment);
+    return fragment;
+  }
+
+  TypeParameterElementImpl2 _typeParameter(String name) {
+    return TypeParameterElementImpl2(
+      firstFragment: TypeParameterElementImpl(name, 0),
+      name3: name.nullIfEmpty,
+    );
+  }
+
+  TypeParameterTypeImpl _typeParameterType(TypeParameterElementImpl2 element) {
+    return TypeParameterTypeImpl(
+      element3: element,
+      nullabilitySuffix: NullabilitySuffix.none,
+    );
+  }
+
+  static void _fillLibraryFromFragment(
+    LibraryElementImpl library,
+    CompilationUnitElementImpl fragment,
+  ) {
+    library.classes = fragment.classes.map((f) => f.element).toList();
+
+    library.topLevelFunctions =
+        fragment.functions.map((f) => f.element).toList();
+
+    library.topLevelVariables =
+        fragment.topLevelVariables.map((f) => f.element).toList();
+  }
+}

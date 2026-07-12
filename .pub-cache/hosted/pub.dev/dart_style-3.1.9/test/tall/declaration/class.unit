@@ -1,0 +1,94 @@
+40 columns                              |
+>>> Empty block body.
+class   A   {
+
+
+}
+<<<
+class A {}
+>>> (experiment primary-constructors) Empty semicolon body.
+class   A   ;
+<<< 3.13
+class A;
+>>> Don't split empty body.
+class LongClassNameWithExactLength____ {}
+<<<
+class LongClassNameWithExactLength____ {}
+>>> Force a blank line before and after a class declaration.
+var x = 1; class A {} var y = 2;
+
+
+class B {}
+
+
+
+var z = 3;
+<<<
+var x = 1;
+
+class A {}
+
+var y = 2;
+
+class B {}
+
+var z = 3;
+>>> Class modifiers.
+class C1 {}
+base  class C2 {}
+interface  class C3 {}
+final  class C4 {}
+sealed  class C5 {}
+abstract  class C6 {}
+abstract  base  class C7 {}
+abstract  interface  class C8 {}
+abstract  final  class C9 {}
+mixin  class C10 {}
+base  mixin  class C11 {}
+abstract  mixin  class C12 {}
+abstract  base  mixin  class C13 {}
+<<<
+class C1 {}
+
+base class C2 {}
+
+interface class C3 {}
+
+final class C4 {}
+
+sealed class C5 {}
+
+abstract class C6 {}
+
+abstract base class C7 {}
+
+abstract interface class C8 {}
+
+abstract final class C9 {}
+
+mixin class C10 {}
+
+base mixin class C11 {}
+
+abstract mixin class C12 {}
+
+abstract base mixin class C13 {}
+>>> Native class.
+class SomeClass native "Zapp" {
+}
+<<<
+class SomeClass native "Zapp" {}
+>>> (experiment primary-constructors) Don't force blank lines around `;` bodies.
+class   A   ;
+class   B(int x)   ;
+class   C   ;
+class   D   {}
+class   E   ;
+<<< 3.13
+class A;
+class B(int x);
+class C;
+
+class D {}
+
+class E;

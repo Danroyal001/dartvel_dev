@@ -1,0 +1,589 @@
+// Copyright (c) 2025, the Dart project authors.  Please see the AUTHORS floadF
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'dart:isolate';
+import 'dart:typed_data';
+
+import 'package:async/async.dart';
+import 'package:build_runner/src/logging/build_log.dart';
+import 'package:io/io.dart';
+import 'package:package_config/package_config.dart';
+import 'package:path/path.dart' as p;
+import 'package:test/test.dart' as test;
+import 'package:test/test.dart';
+
+import 'fixture_packages.dart';
+
+/// End to end tester for `build_runner`.
+///
+/// Creates a workspace under system temp, fills it with Dart packages, and runs
+/// commands in it.
+class BuildRunnerTester {
+  final Pubspecs pubspecs;
+  final Directory tempDirectory;
+
+  BuildRunnerTester(Pubspecs pubspecs)
+    : this._(
+        pubspecs,
+        Directory.systemTemp.createTempSync('BuildRunnerTester-'),
+      );
+
+  BuildRunnerTester._(this.pubspecs, this.tempDirectory) {
+    addTearDown(() => tempDirectory.deleteSync(recursive: true));
+  }
+
+  /// Copies the entire workspace, returns a new `BuildRunnerTester` using
+  /// the copy.
+  BuildRunnerTester copyWorkspace() {
+    final newTemp = Directory.systemTemp.createTempSync(
+      'BuildRunnerTester-copy-',
+    );
+    copyPathSync(tempDirectory.path, newTemp.path);
+    return BuildRunnerTester._(pubspecs, newTemp);
+  }
+
+  /// Writes a Dart package to the workspace.
+  ///
+  /// The package is written to the directory `$workspace/$name`.
+  ///
+  /// A `pubspec.yaml` is also written, see [Pubspecs.pubspec].
+  void writePackage({
+    required String name,
+    String? path,
+    required Map<String, String> files,
+    List<String>? dependencies,
+    List<String>? pathDependencies,
+    List<String>? pathDevDependencies,
+    List<String>? workspaceDependencies,
+    bool inWorkspace = false,
+  }) {
+    _writeDirectory(
+      name: path ?? name,
+      files: {
+        'pubspec.yaml': pubspecs.pubspec(
+          name: name,
+          dependencies: dependencies,
+          pathDependencies: pathDependencies,
+          pathDevDependencies: pathDevDependencies,
+          workspaceDependencies: workspaceDependencies,
+          inWorkspace: inWorkspace,
+        ),
+        ...files,
+      },
+    );
+  }
+
+  void writeFixturePackage(FixturePackage fixturePackage) => writePackage(
+    name: fixturePackage.name,
+    files: fixturePackage.files,
+    dependencies: fixturePackage.dependencies,
+    pathDependencies: fixturePackage.pathDependencies,
+  );
+
+  void copyPackage(String package) {
+    final sourcePath = pubspecs.packageConfig[package]!.root.toFilePath();
+    final destinationPath = p.join(tempDirectory.path, package);
+    copyPathSync(sourcePath, destinationPath);
+  }
+
+  /// Writes a `pubspec.yaml` for the workspace root.
+  ///
+  /// This includes `dependency_overrides` for `build`, `build_runner`, and
+  /// `build_config` pointing to the local versions.
+  void writeWorkspacePubspec({
+    required List<String> packages,
+    String? sdkBound,
+  }) {
+    write(
+      'pubspec.yaml',
+      pubspecs.workspacePubspec(packages: packages, sdkBound: sdkBound),
+    );
+  }
+
+  /// Stats workspace-relative [path], or returns `null` if it does not exist.
+  FileStat stat(String path) {
+    final file = File(p.join(tempDirectory.path, path));
+    return file.statSync();
+  }
+
+  /// Reads workspace-relative [path], or returns `null` if it does not exist.
+  String? read(String path) {
+    final file = File(p.join(tempDirectory.path, path));
+    return file.existsSync() ? file.readAsStringSync() : null;
+  }
+
+  /// Reads workspace-relative [path], or returns `null` if it does not exist.
+  Uint8List? readBytes(String path) {
+    final file = File(p.join(tempDirectory.path, path));
+    return file.existsSync() ? file.readAsBytesSync() : null;
+  }
+
+  /// Writes [contents] to workspace-relative [path].
+  void write(String path, String contents) {
+    final file = File(p.join(tempDirectory.path, path));
+    file
+      ..createSync(recursive: true)
+      ..writeAsStringSync(contents);
+  }
+
+  /// Updates the file at workspace-relative [path], which must exist.
+  void update(String path, String Function(String) update) {
+    final file = File(p.join(tempDirectory.path, path));
+    final data = file.readAsStringSync();
+    file.writeAsStringSync(update(data));
+  }
+
+  /// Deletes the file or directory at workspace-relative [path].
+  void delete(String path) {
+    final absolutePath = p.join(tempDirectory.path, path);
+    final type = FileSystemEntity.typeSync(absolutePath);
+    if (type == FileSystemEntityType.file) {
+      File(absolutePath).deleteSync(recursive: true);
+    } else if (type == FileSystemEntityType.directory) {
+      Directory(absolutePath).deleteSync(recursive: true);
+    } else {
+      throw UnsupportedError('File type: $type');
+    }
+  }
+
+  /// Reads the tree of files at the workspace-relative [path].
+  ///
+  /// Returns a `Map` from relative paths under [path] to file contents.
+  ///
+  /// The file contents is a `String` if utf8 decoding succeeds or a `Uint8List`
+  /// if not.
+  Map<String, Object>? readFileTree(String path) {
+    final absolutePath = p.join(tempDirectory.path, path);
+    final directory = Directory(absolutePath);
+    if (!directory.existsSync()) return null;
+
+    final result = <String, Object>{};
+    for (final file in directory.listSync(recursive: true).whereType<File>()) {
+      final relativePath = file.path
+          .substring(absolutePath.length + 1)
+          .replaceAll(r'\', '/');
+      try {
+        result[relativePath] = file.readAsStringSync();
+      } catch (_) {
+        result[relativePath] = file.readAsBytesSync();
+      }
+    }
+
+    return result;
+  }
+
+  /// Writes a directory to the '$workspace/$name'.
+  ///
+  /// [files] is a map from relative path to file contents to write.
+  ///
+  void _writeDirectory({
+    required String name,
+    required Map<String, String> files,
+  }) {
+    final directory = Directory(p.join(tempDirectory.path, name));
+    for (final entry in files.entries) {
+      final file = File(p.join(directory.path, entry.key));
+      file.createSync(recursive: true);
+      file.writeAsStringSync(entry.value);
+    }
+  }
+
+  /// Runs [commandLine] in [directory].
+  ///
+  /// By default, expects exit code 0 and fails the test if any other exit code
+  /// is reported.
+  ///
+  /// Specify [expectExitCode] to expect a different exit code.
+  Future<String> run(
+    String directory,
+    String commandLine, {
+    int expectExitCode = 0,
+    Map<String, String>? environment,
+  }) async {
+    final args = commandLine.split(' ');
+    final command = args.removeAt(0);
+    final result = await Process.run(
+      command,
+      args,
+      workingDirectory: p.join(tempDirectory.path, directory),
+      environment: environment,
+    );
+    final output = '''
+=== $directory: $commandLine
+${result.stdout}${result.stderr}===
+''';
+    printOnFailure(output);
+    expect(result.exitCode, expectExitCode);
+    return output;
+  }
+
+  /// Starts [commandLine] in [directory].
+  ///
+  /// Returns a [BuildRunnerProcess] which can be used to interact with it.
+  Future<BuildRunnerProcess> start(String directory, String commandLine) async {
+    final args = commandLine.split(' ');
+    final command = args.removeAt(0);
+    final process = await Process.start(
+      command,
+      args,
+      workingDirectory: p.join(tempDirectory.path, directory),
+    );
+    final result = BuildRunnerProcess(process);
+    addTearDown(result.kill);
+    return result;
+  }
+}
+
+/// A running `build_runner` process.
+class BuildRunnerProcess {
+  final Process process;
+  final StreamQueue<String> _outputs;
+  late final HttpClient _client = HttpClient();
+  int? _port;
+  Future<void>? _killResult;
+
+  BuildRunnerProcess(this.process)
+    : _outputs = StreamQueue(
+        StreamGroup.merge([
+          process.stdout
+              .transform(utf8.decoder)
+              .transform(const LineSplitter()),
+          process.stderr
+              .transform(utf8.decoder)
+              .transform(const LineSplitter()),
+        ]),
+      );
+
+  /// Expects nothing new on stdout or stderr for [duration].
+  Future<void> expectNoOutput(Duration duration) async {
+    printOnFailure('--- $_testLine expects no output');
+    final output = <String>[];
+    final stopwatch = Stopwatch()..start();
+    while (stopwatch.elapsed < duration) {
+      try {
+        output.add(await _outputs.peek.timeout(duration - stopwatch.elapsed));
+        await _outputs.next;
+      } on TimeoutException catch (_) {
+        // Expected.
+      } catch (_) {
+        fail('While expecting no output, process exited.');
+      }
+    }
+
+    if (output.isNotEmpty) {
+      fail(
+        'While expecting no output, got:\n\n===\n${output.join('\n')}\n===\n',
+      );
+    }
+  }
+
+  /// Expects [pattern] to appear in the process's stdout or stderr.
+  ///
+  /// If [failOn] is encountered instead, the test fails immediately. It
+  /// defaults to [BuildLog.failurePattern] so that `expect` will stop if the
+  /// process reports a build failure.
+  ///
+  /// If the process exits instead, the test fails immediately.
+  ///
+  /// Otherwise, waits until [pattern] appears, then completes.
+  ///
+  /// Throws if the process appears to be stuck or done: if it outputs nothing
+  /// for 30s.
+  Future<void> expect(Pattern pattern, {Pattern? failOn}) async =>
+      expectAndGetLine(pattern, failOn: failOn);
+
+  /// Expects [pattern] to appear in the process's stdout or stderr.
+  ///
+  /// If [failOn] is encountered instead, the test fails immediately. It
+  /// defaults to [BuildLog.failurePattern] so that `expect` will stop if the
+  /// process reports a build failure.
+  ///
+  /// If the process exits instead, the test fails immediately.
+  ///
+  /// Otherwise, waits until [pattern] appears, returns the matching line.
+  ///
+  /// Throws if the process appears to be stuck or done: if it outputs nothing
+  /// for 30s.
+  Future<String> expectAndGetLine(Pattern pattern, {Pattern? failOn}) async {
+    printOnFailure(
+      '--- $_testLine expects `$pattern`'
+      '${failOn == null ? '' : ', failOn: `$failOn`'}',
+    );
+    failOn ??= BuildLog.failurePattern;
+    while (true) {
+      String? line;
+      try {
+        line = await _outputs.next.timeout(const Duration(seconds: 30));
+      } on TimeoutException catch (_) {
+        throw fail('While expecting `$pattern`, timed out after 30s.');
+      } catch (_) {
+        throw fail('While expecting `$pattern`, process exited.');
+      }
+      printOnFailure(line);
+      if (line.contains(pattern)) return line;
+      if (line.contains(failOn)) {
+        fail('While expecting `$pattern`, got `$failOn`.');
+      }
+    }
+  }
+
+  /// Expects [pattern] to appear in the process's stdout or stderr.
+  ///
+  /// If [failOn] is encountered instead, the test fails immediately. It
+  /// defaults to [BuildLog.failurePattern] so that `expect` will stop if the
+  /// process reports a build failure.
+  ///
+  /// If the process exits instead, the test fails immediately.
+  ///
+  /// Otherwise, waits until [pattern] appears, returns all text seen.
+  ///
+  /// Throws if the process appears to be stuck or done: if it outputs nothing
+  /// for 30s.
+  Future<String> expectAndGetBlock(Pattern pattern, {Pattern? failOn}) async {
+    printOnFailure(
+      '--- $_testLine expects `$pattern`'
+      '${failOn == null ? '' : ', failOn: `$failOn`'}',
+    );
+    failOn ??= BuildLog.failurePattern;
+    final lines = StringBuffer();
+    while (true) {
+      String? line;
+      try {
+        line = await _outputs.next.timeout(const Duration(seconds: 30));
+        lines.writeln(line);
+      } on TimeoutException catch (_) {
+        throw fail('While expecting `$pattern`, timed out after 30s.');
+      } catch (_) {
+        throw fail('While expecting `$pattern`, process exited.');
+      }
+      printOnFailure(line);
+      if (line.contains(pattern)) return lines.toString();
+      if (line.contains(failOn)) {
+        fail('While expecting `$pattern`, got `$failOn`.');
+      }
+    }
+  }
+
+  String get _testLine {
+    var result =
+        StackTrace.current
+            .toString()
+            .split('\n')
+            .where((l) => l.contains('_test.dart'))
+            .first;
+    result = result.substring(result.lastIndexOf('/') + 1);
+    result = result.substring(0, result.lastIndexOf(':'));
+    return result;
+  }
+
+  /// Kills the process.
+  Future<void> kill() {
+    return _killResult ??= _kill();
+  }
+
+  Future<void> _kill() async {
+    process.kill();
+    _outputs.rest.listen((line) => printOnFailure('Output after kill: $line'));
+    await process.exitCode;
+    // Wait a few seconds for child process cleanup.
+    await Future<void>.delayed(const Duration(seconds: 2));
+  }
+
+  Future<int> get exitCode => process.exitCode;
+
+  /// Expects the server to log that it is serving, records the port.
+  ///
+  /// Build success can be logged before or after serving, checks that the build
+  /// succeeded allowing either order.
+  Future<void> expectServingAndBuildSuccess() async {
+    final servingRegexp = RegExp('Serving `web` on http://localhost:([0-9]+)');
+
+    var seenServing = false;
+    var seenSuccess = false;
+
+    while (!(seenServing && seenSuccess)) {
+      final line = await expectAndGetLine(
+        RegExp('${servingRegexp.pattern}|${BuildLog.successPattern}'),
+      );
+      final servingMatch = servingRegexp.firstMatch(line);
+      if (servingMatch != null) {
+        seenServing = true;
+        final port = int.parse(servingMatch.group(1)!);
+        _port = port;
+      } else {
+        seenSuccess = true;
+      }
+    }
+  }
+
+  /// Requests [path] from the server and expects it returns
+  /// [expectResponseCode].
+  ///
+  /// Returns the response content.
+  Future<String> fetchContent(
+    String path, {
+    int expectResponseCode = 200,
+  }) async {
+    final response = await fetch(path, expectResponseCode: expectResponseCode);
+    return await utf8.decodeStream(response.cast<List<int>>());
+  }
+
+  /// Requests [path] from the server and expects it returns
+  /// [expectResponseCode].
+  ///
+  /// Optionally, pass [headers] to set on the request.
+  ///
+  /// Returns the full response.
+  Future<HttpClientResponse> fetch(
+    String path, {
+    Map<String, String>? headers,
+    int expectResponseCode = 200,
+  }) async {
+    if (_port == null) throw StateError('Call expectServing first.');
+    final request = await _client.get('localhost', _port!, path);
+    if (headers != null) {
+      for (final entry in headers.entries) {
+        request.headers.add(entry.key, entry.value);
+      }
+    }
+    final response = await request.close();
+    test.expect(response.statusCode, expectResponseCode);
+    return response;
+  }
+}
+
+/// Creates `pubspec.yaml` for tests.
+class Pubspecs {
+  final PackageConfig packageConfig;
+
+  Pubspecs(this.packageConfig);
+
+  /// Creates [Pubspecs] with package config from the current isolate.
+  static Future<Pubspecs> load() async =>
+      Pubspecs(await loadPackageConfigUri((await Isolate.packageConfig)!));
+
+  /// Returns `pubspec.yaml` content for the package called [name].
+  ///
+  /// The specified [dependencies] are included as path dependencies with
+  /// locations from the current isolate's package config. This is for real
+  /// packages that are being tested, such as `build_runner`.
+  ///
+  /// The specified [pathDependencies] are included as path dependencies onto
+  /// peer folders. This allows to add a dependency onto another package that
+  /// will be written using `writePackage`.
+  ///
+  /// [pathDevDependencies] are like [pathDependencies] except they are
+  /// `dev_dependencies`.
+  ///
+  /// The specified [workspaceDependencies] are included as "any" dependencies.
+  /// They should be in the workspace so they can be resolved from there.
+  ///
+  /// If [inWorkspace] then `resolution: workspace`.
+  String pubspec({
+    required String name,
+    List<String>? dependencies,
+    List<String>? pathDependencies,
+    List<String>? pathDevDependencies,
+    List<String>? workspaceDependencies,
+    bool inWorkspace = false,
+  }) {
+    dependencies ??= [];
+    pathDependencies ??= [];
+    pathDevDependencies ??= [];
+    workspaceDependencies ??= [];
+
+    final result = StringBuffer('''
+name: $name
+${inWorkspace ? 'resolution: workspace' : ''}
+environment:
+  sdk: '>=3.7.0 <4.0.0'
+dependencies:
+''');
+
+    for (final package in [...dependencies, ...workspaceDependencies]) {
+      result.writeln('  $package: any');
+    }
+    for (final package in pathDependencies) {
+      result.writeln('  $package:');
+      result.writeln('    path: ../$package');
+    }
+
+    if (pathDevDependencies.isNotEmpty) {
+      result.writeln('dev_dependencies:');
+      for (final package in pathDevDependencies) {
+        result.writeln('  $package:');
+        result.writeln('    path: ../$package');
+      }
+    }
+
+    // If `inWorkspace`, the overrides will be written in the workspace pubspec
+    // instead.
+    if (!inWorkspace) {
+      result.writeln(
+        _localDependencyOverrides(
+          pathDependencies: {...pathDependencies, ...pathDevDependencies},
+          workspaceDependencies: workspaceDependencies.toSet(),
+        ),
+      );
+    }
+    return result.toString();
+  }
+
+  /// Returns `pubspec.yaml` content for the workspace root.
+  ///
+  /// This includes `dependency_overrides` overriding packages to use the local
+  /// versions depended on by the test itself, except for packages in the
+  /// workspace.
+  String workspacePubspec({required List<String> packages, String? sdkBound}) {
+    sdkBound ??= '>=3.7.0 <4.0.0';
+    final result = StringBuffer('''
+name: workspace
+environment:
+  sdk: '$sdkBound'
+workspace: [${packages.join(', ')}]
+''');
+    result.writeln(
+      _localDependencyOverrides(
+        pathDependencies: {},
+        workspaceDependencies: packages.toSet(),
+      ),
+    );
+    return result.toString();
+  }
+
+  /// Returns `dependency_overrides` yaml that overrides packages to use the
+  /// local versions depended on by the test itself.
+  ///
+  /// Packages named in [pathDependencies] are instead overriden to the path in
+  /// the test sandox.
+  ///
+  /// Packages named in [workspaceDependencies] are not overriden.
+  String _localDependencyOverrides({
+    required Set<String> workspaceDependencies,
+    required Set<String> pathDependencies,
+  }) {
+    final result = StringBuffer();
+    result.writeln('dependency_overrides:');
+    for (final package in packageConfig.packages) {
+      final name = package.name;
+      if (workspaceDependencies.contains(name) ||
+          pathDependencies.contains(name)) {
+        continue;
+      }
+      final path = packageConfig[name]!.root.toFilePath();
+      result
+        ..writeln('  $name:')
+        ..writeln('    path: $path');
+    }
+    for (final package in pathDependencies) {
+      result
+        ..writeln('  $package:')
+        ..writeln('    path: ../$package');
+    }
+    return result.toString();
+  }
+}
