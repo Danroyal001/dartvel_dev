@@ -483,6 +483,8 @@ DV.Auth.signInWithRawOAuth()
 
 DV.Auth.signInWithPasskey() // Triggers the passkey flow for the OS or browser, with safe fallback
 
+DV.Auth.signInWithBiometrics() // Triggers the default biometric flow for the platform, safe fallbac or failure, can be configured. has specific alternatives like DV.Auth.signInWithFingerprint() or DV.Auth.signInWithFaceRecognition()
+
 DV.Auth.signInWithWeb3()
 
 DV.Auth.signOut()
@@ -490,7 +492,7 @@ DV.Auth.signOut()
 DV.Auth.signUp()
 
 // e.t.c
-// We'll also have prebuilt pages for each one. Just Make the first letter uppercase for the class name, and add `Page`, e.g `DV.Auth.SignInWithEmailAndPasswordPage()`
+// We'll also have prebuilt pages for each one. Just Make the first letter uppercase for the class name, and add `Page`, e.g `DV.Auth.SignInWithEmailAndPasswordPage(). Has inbuilt navigation slugs e.g `.navigateToPage(.signInWithEmailAndPasswordPage)` with the Page suffix too, can be overridden.
 ```
 
 Providers
@@ -887,6 +889,19 @@ Widget StepCounterWidget(
 ```
 
 Home widgets will act like DVPage, and support all supported properties. it will be possible to navigate launch and navigat to pages within the app, and vise versa (a page will be auto-generated with the widget as its centered content)
+
+---
+
+
+---
+
+# CSRF Protection
+In:
+- Backend functions
+- Forms
+- Model queries
+- DB queries
+- Realtime events
 
 ---
 

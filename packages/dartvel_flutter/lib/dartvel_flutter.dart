@@ -2,6 +2,8 @@ library dartvel_flutter;
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
+import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -289,11 +291,16 @@ class DVForm<T> extends StatefulWidget {
 
   const DVForm([this.initialValue]) : builder = null;
 
-  const DVForm.builder(Widget Function(dynamic) this.builder, [this.initialValue, Key? key])
+  const DVForm.builder(Widget Function(dynamic) this.builder,
+      [this.initialValue, Key? key])
       : super(key: key);
 
   @override
   State<DVForm<T>> createState() => _DVFormState<T>();
+}
+
+extension DVFormAliasX on Object {
+  Widget Form() => DVForm<Object>(this);
 }
 
 class _DVFormState<T> extends State<DVForm<T>> {
@@ -316,7 +323,8 @@ class _DVFormState<T> extends State<DVForm<T>> {
   @override
   Widget build(BuildContext context) {
     final factory = formControlsFactories[T];
-    final formControls = factory != null ? factory(formValue) : DVFormControls(formValue);
+    final formControls =
+        factory != null ? factory(formValue) : DVFormControls(formValue);
 
     if (widget.builder != null) {
       return widget.builder!(formControls);
@@ -366,105 +374,405 @@ class _DVFormState<T> extends State<DVForm<T>> {
 // Platform, Auth, Theme, Tenants & SEO
 // ==========================================
 
+class DVNativeBridge {
+  static final Map<String, FutureOr<Object?> Function(Object?)> _handlers = {};
+
+  static Future<T?> invoke<T>(String method, [Object? arguments]) async {
+    final handler = _handlers[method];
+    if (handler == null) return null;
+    final value = await handler(arguments);
+    return value is T ? value : null;
+  }
+
+  static void register(
+    String method,
+    FutureOr<Object?> Function(Object?) handler,
+  ) {
+    _handlers[method] = handler;
+  }
+
+  static void unregister(String method) {
+    _handlers.remove(method);
+  }
+}
+
 class DVCamera {
   const DVCamera();
-  Future<List<int>> takePhoto() async => [];
+
+  Future<List<int>> takePhoto() async {
+    final bytes =
+        await DVNativeBridge.invoke<List<dynamic>>('camera.takePhoto');
+    if (bytes == null) return <int>[];
+    return bytes.cast<int>();
+  }
+}
+
+class DVMedia {
+  const DVMedia();
+
+  Future<List<Map<String, Object?>>> pick({
+    String type = 'image',
+    bool multiple = false,
+  }) async {
+    final items = await DVNativeBridge.invoke<List<dynamic>>(
+      'media.pick',
+      {'type': type, 'multiple': multiple},
+    );
+    return items
+            ?.whereType<Map<dynamic, dynamic>>()
+            .map((item) => Map<String, Object?>.from(item))
+            .toList() ??
+        const <Map<String, Object?>>[];
+  }
+}
+
+class DVFiles {
+  const DVFiles();
+  static final Map<String, List<int>> _memory = {};
+
+  Future<void> writeBytes(String path, List<int> bytes) async {
+    final handled = await DVNativeBridge.invoke<bool>(
+      'files.writeBytes',
+      {'path': path, 'bytes': bytes},
+    );
+    if (handled != true) _memory[path] = List<int>.from(bytes);
+  }
+
+  Future<List<int>> readBytes(String path) async {
+    final bytes = await DVNativeBridge.invoke<List<dynamic>>(
+      'files.readBytes',
+      {'path': path},
+    );
+    if (bytes != null) return bytes.cast<int>();
+    return List<int>.from(_memory[path] ?? const <int>[]);
+  }
+
+  Future<void> delete(String path) async {
+    final handled = await DVNativeBridge.invoke<bool>(
+      'files.delete',
+      {'path': path},
+    );
+    if (handled != true) _memory.remove(path);
+  }
 }
 
 class DVLocation {
   const DVLocation();
-  Future<Map<String, double>> getCoordinates() async =>
-      {'lat': 0.0, 'lng': 0.0};
+
+  Future<Map<String, double>> getCoordinates() async {
+    final result =
+        await DVNativeBridge.invoke<Map<dynamic, dynamic>>('location.current');
+    if (result == null) return const {'latitude': 0, 'longitude': 0};
+    return {
+      'latitude': (result['latitude'] as num?)?.toDouble() ?? 0,
+      'longitude': (result['longitude'] as num?)?.toDouble() ?? 0,
+    };
+  }
 }
 
 class DVNotifications {
   const DVNotifications();
-  Future<void> sendLocalNotification(String title, String body) async {}
+  static final List<Map<String, String>> _sent = [];
+
+  Future<void> sendLocalNotification(String title, String body) async {
+    final handled = await DVNativeBridge.invoke<bool>(
+      'notifications.sendLocal',
+      {'title': title, 'body': body},
+    );
+    if (handled != true) _sent.add({'title': title, 'body': body});
+  }
+
+  List<Map<String, String>> get sentNotifications => List.unmodifiable(_sent);
 }
 
 class DVBluetooth {
   const DVBluetooth();
-  Future<bool> isEnabled() async => false;
-  Stream<List<String>> scanDevices() => const Stream.empty();
+  Future<bool> isEnabled() async =>
+      await DVNativeBridge.invoke<bool>('bluetooth.isEnabled') ?? false;
+
+  Stream<List<String>> scanDevices() async* {
+    final devices =
+        await DVNativeBridge.invoke<List<dynamic>>('bluetooth.scanDevices');
+    yield devices?.cast<String>() ?? const <String>[];
+  }
 }
 
 class DVNfc {
   const DVNfc();
-  Future<bool> isAvailable() async => false;
-  Future<String> readTag() async => '';
+  Future<bool> isAvailable() async =>
+      await DVNativeBridge.invoke<bool>('nfc.isAvailable') ?? false;
+  Future<String> readTag() async =>
+      await DVNativeBridge.invoke<String>('nfc.readTag') ?? '';
 }
 
 class DVClipboard {
   const DVClipboard();
-  Future<void> copy(String text) async {}
-  Future<String?> paste() async => null;
+  static String? _text;
+
+  Future<void> copy(String text) async {
+    final handled =
+        await DVNativeBridge.invoke<bool>('clipboard.copy', {'text': text});
+    if (handled != true) _text = text;
+  }
+
+  Future<String?> paste() async =>
+      await DVNativeBridge.invoke<String>('clipboard.paste') ?? _text;
 }
 
 class DVShare {
   const DVShare();
-  Future<void> shareText(String text) async {}
+  static String? _lastSharedText;
+
+  Future<void> shareText(String text) async {
+    final handled =
+        await DVNativeBridge.invoke<bool>('share.text', {'text': text});
+    if (handled != true) _lastSharedText = text;
+  }
+
+  String? get lastSharedText => _lastSharedText;
 }
 
 class DVSensors {
   const DVSensors();
-  Stream<Map<String, double>> get accelerometer => const Stream.empty();
-  Stream<Map<String, double>> get gyroscope => const Stream.empty();
+  Stream<Map<String, double>> get accelerometer async* {
+    final value = await DVNativeBridge.invoke<Map<dynamic, dynamic>>(
+        'sensors.accelerometer');
+    yield _sensorMap(value);
+  }
+
+  Stream<Map<String, double>> get gyroscope async* {
+    final value =
+        await DVNativeBridge.invoke<Map<dynamic, dynamic>>('sensors.gyroscope');
+    yield _sensorMap(value);
+  }
+
+  Map<String, double> _sensorMap(Map<dynamic, dynamic>? value) => {
+        'x': (value?['x'] as num?)?.toDouble() ?? 0,
+        'y': (value?['y'] as num?)?.toDouble() ?? 0,
+        'z': (value?['z'] as num?)?.toDouble() ?? 0,
+      };
 }
 
 class DVBiometrics {
   const DVBiometrics();
-  Future<bool> canAuthenticate() async => false;
-  Future<bool> authenticate() async => false;
+  Future<bool> canAuthenticate() async =>
+      await DVNativeBridge.invoke<bool>('biometrics.canAuthenticate') ?? false;
+  Future<bool> authenticate() async =>
+      await DVNativeBridge.invoke<bool>('biometrics.authenticate') ?? false;
 }
 
 class DVDeepLinks {
   const DVDeepLinks();
-  Future<String?> getInitialLink() async => null;
-  Stream<String> getLinkStream() => const Stream.empty();
+  static final StreamController<String> _links =
+      StreamController<String>.broadcast();
+
+  Future<String?> getInitialLink() =>
+      DVNativeBridge.invoke<String>('deepLinks.initial');
+  Stream<String> getLinkStream() => _links.stream;
+  void dispatch(String link) => _links.add(link);
 }
 
 class DVHaptics {
   const DVHaptics();
-  Future<void> vibrate() async {}
-  Future<void> lightVibrate() async {}
+  Future<void> vibrate() async {
+    await DVNativeBridge.invoke<bool>('haptics.vibrate');
+  }
+
+  Future<void> lightVibrate() async {
+    await DVNativeBridge.invoke<bool>('haptics.lightVibrate');
+  }
+
+  Future<void> impact() async {
+    await DVNativeBridge.invoke<bool>('haptics.impact');
+  }
 }
 
 class DVContacts {
   const DVContacts();
-  Future<List<Map<String, String>>> getContacts() async => [];
+  Future<List<Map<String, String>>> getContacts() async {
+    final contacts =
+        await DVNativeBridge.invoke<List<dynamic>>('contacts.getContacts');
+    return contacts
+            ?.whereType<Map<dynamic, dynamic>>()
+            .map((contact) => contact.map(
+                  (key, value) => MapEntry('$key', '$value'),
+                ))
+            .toList() ??
+        const <Map<String, String>>[];
+  }
+}
+
+class DVPermissions {
+  const DVPermissions();
+  static final Map<String, bool> _grants = {};
+
+  Future<bool> request(String permission) async {
+    final result = await DVNativeBridge.invoke<bool>(
+      'permissions.request',
+      {'permission': permission},
+    );
+    if (result != null) {
+      _grants[permission] = result;
+      return result;
+    }
+    _grants[permission] = true;
+    return true;
+  }
+
+  Future<bool> isGranted(String permission) async {
+    final result = await DVNativeBridge.invoke<bool>(
+      'permissions.isGranted',
+      {'permission': permission},
+    );
+    return result ?? _grants[permission] ?? false;
+  }
+}
+
+class DVScreen {
+  final DVPlatform _platform;
+  const DVScreen(this._platform);
+
+  Size get size => Size(_platform.screenWidth, _platform.screenHeight);
+  Map<String, double> get safeAreaBounds => _platform.safeAreas;
+  String get breakPoints => _platform.breakpoint;
+  String get shape => _platform.screenShape;
+}
+
+class DVWindow {
+  final DVPlatform _platform;
+  const DVWindow(this._platform);
+
+  Rect get bounds =>
+      Offset.zero & Size(_platform.screenWidth, _platform.screenHeight);
+
+  Future<void> setTitle(String title) async {
+    await DVNativeBridge.invoke<bool>('window.setTitle', {'title': title});
+  }
+
+  Future<void> maximize() async {
+    await DVNativeBridge.invoke<bool>('window.maximize');
+  }
+
+  Future<void> minimize() async {
+    await DVNativeBridge.invoke<bool>('window.minimize');
+  }
 }
 
 class DVPlatform {
   const DVPlatform();
 
+  static const String _platformOverride =
+      String.fromEnvironment('DARTVEL_PLATFORM');
+  static const String _deviceTypeOverride =
+      String.fromEnvironment('DARTVEL_DEVICE_TYPE');
+
+  String get currentPlatform {
+    if (_platformOverride.isNotEmpty) return _platformOverride.toLowerCase();
+    if (kIsWeb) return 'web';
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        return 'android';
+      case TargetPlatform.iOS:
+        return 'ios';
+      case TargetPlatform.windows:
+        return 'windows';
+      case TargetPlatform.linux:
+        return 'linux';
+      case TargetPlatform.macOS:
+        return 'macos';
+      case TargetPlatform.fuchsia:
+        return 'fuchsia';
+    }
+  }
+
   bool get isAndroid =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
-  bool get isIOS => !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
-  bool get isWindows =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
-  bool get isLinux => !kIsWeb && defaultTargetPlatform == TargetPlatform.linux;
-  bool get isMacOS => !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS;
-  bool get isFuchsia =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.fuchsia;
-  bool get isWeb => kIsWeb;
+      currentPlatform == 'android' || currentPlatform == 'fireos';
+  bool get isIOS => currentPlatform == 'ios';
+  bool get isWindows => currentPlatform == 'windows';
+  bool get isLinux => currentPlatform == 'linux';
+  bool get isMacOS => currentPlatform == 'macos';
+  bool get isFuchsia => currentPlatform == 'fuchsia';
+  bool get isWeb => currentPlatform == 'web';
 
-  bool get isTizen => false;
-  bool get isWebOS => false;
-  bool get isAmazon => false;
-  bool get isTV => false;
-  bool get isWatch => false;
-  bool get isFoldable => false;
+  bool get isTizen =>
+      currentPlatform == 'tizen' || currentPlatform == 'tizenos';
+  bool get isWebOS => currentPlatform == 'webos';
+  bool get isAmazon =>
+      currentPlatform == 'fireos' || currentPlatform == 'amazon';
+  bool get isTV =>
+      _deviceTypeOverride == 'tv' ||
+      isTizen ||
+      isWebOS ||
+      isAmazon ||
+      currentPlatform == 'androidtv' ||
+      currentPlatform == 'appletv';
+  bool get isWatch =>
+      _deviceTypeOverride == 'watch' || currentPlatform.contains('watch');
+  bool get isFoldable =>
+      _deviceTypeOverride == 'foldable' || screenWidth >= 700;
 
-  double get screenWidth => 375.0;
-  double get screenHeight => 812.0;
-  Map<String, double> get safeAreas =>
-      {'top': 44.0, 'bottom': 34.0, 'left': 0.0, 'right': 0.0};
-  String get breakpoint => 'mobile';
-  Orientation get orientation => Orientation.portrait;
-  String get deviceType => 'phone';
-  String get screenShape => 'rectangle';
+  ui.FlutterView? get _view {
+    final views = ui.PlatformDispatcher.instance.views;
+    return views.isEmpty ? null : views.first;
+  }
+
+  double get screenWidth {
+    final view = _view;
+    if (view == null) return 0;
+    return view.physicalSize.width / view.devicePixelRatio;
+  }
+
+  double get screenHeight {
+    final view = _view;
+    if (view == null) return 0;
+    return view.physicalSize.height / view.devicePixelRatio;
+  }
+
+  Map<String, double> get safeAreas {
+    final view = _view;
+    if (view == null) {
+      return {'top': 0, 'bottom': 0, 'left': 0, 'right': 0};
+    }
+    final ratio = view.devicePixelRatio;
+    return {
+      'top': view.padding.top / ratio,
+      'bottom': view.padding.bottom / ratio,
+      'left': view.padding.left / ratio,
+      'right': view.padding.right / ratio,
+    };
+  }
+
+  String get breakpoint {
+    final width = screenWidth;
+    if (width >= 1200) return 'desktop';
+    if (width >= 840) return 'tablet';
+    return 'mobile';
+  }
+
+  Orientation get orientation => screenWidth >= screenHeight
+      ? Orientation.landscape
+      : Orientation.portrait;
+
+  String get deviceType {
+    if (_deviceTypeOverride.isNotEmpty) return _deviceTypeOverride;
+    if (isTV) return 'tv';
+    if (isWatch) return 'watch';
+    if (isFoldable) return 'foldable';
+    if (isWeb) return 'web';
+    if (breakpoint == 'desktop') return 'desktop';
+    if (breakpoint == 'tablet') return 'tablet';
+    return 'phone';
+  }
+
+  String get screenShape => isWatch ? 'round' : 'rectangle';
+  String get type => deviceType;
+  Orientation get deviceOrientation => orientation;
+  DVScreen get screen => DVScreen(this);
+  DVWindow get Window => DVWindow(this);
 
   DVCamera get camera => const DVCamera();
+  DVMedia get media => const DVMedia();
+  DVFiles get files => const DVFiles();
   DVLocation get location => const DVLocation();
   DVNotifications get notifications => const DVNotifications();
   DVBluetooth get bluetooth => const DVBluetooth();
@@ -476,80 +784,474 @@ class DVPlatform {
   DVDeepLinks get deepLinks => const DVDeepLinks();
   DVHaptics get haptics => const DVHaptics();
   DVContacts get contacts => const DVContacts();
+  DVPermissions get permissions => const DVPermissions();
 }
 
 class DVAuth {
   const DVAuth();
-  Object? get currentUser => null;
+  static DVAuthUser? _currentUser;
 
-  Future<void> signIn() async {}
+  Object? get currentUser => _currentUser;
+
+  Future<void> signIn() async {
+    _currentUser = DVAuthUser(
+      id: _newId('anon'),
+      provider: 'anonymous',
+      createdAt: DateTime.now(),
+    );
+  }
+
   Future<void> signInWithEmailAndPassword({
     required String email,
     required String password,
-  }) async {}
+  }) async {
+    if (email.trim().isEmpty || password.isEmpty) {
+      throw ArgumentError('Email and password are required.');
+    }
+    _currentUser = DVAuthUser(
+      id: _newId('email'),
+      email: email.trim(),
+      provider: 'email',
+      createdAt: DateTime.now(),
+    );
+  }
 
-  Future<void> signInWithProvider(String provider) async {}
-  Future<void> signInWithRawOAuth(Map<String, Object?> oauth) async {}
-  Future<void> signInWithPasskey() async {}
-  Future<void> signInWithWeb3() async {}
-  Future<void> signOut() async {}
-  Future<void> signUp() async {}
+  Future<void> signInWithProvider(String provider) async {
+    if (provider.trim().isEmpty) {
+      throw ArgumentError('Provider is required.');
+    }
+    _currentUser = DVAuthUser(
+      id: _newId(provider),
+      provider: provider.trim(),
+      createdAt: DateTime.now(),
+    );
+  }
 
-  Widget SignInWithEmailAndPasswordPage() => const Scaffold(body: Center(child: Text('Sign In Page')));
-  Widget SignInWithProviderPage() => const Scaffold(body: Center(child: Text('Sign In With Provider Page')));
-  Widget SignInWithRawOAuthPage() => const Scaffold(body: Center(child: Text('Sign In With OAuth Page')));
-  Widget SignInWithPasskeyPage() => const Scaffold(body: Center(child: Text('Sign In With Passkey Page')));
-  Widget SignInWithWeb3Page() => const Scaffold(body: Center(child: Text('Sign In With Web3 Page')));
+  Future<void> signInWithRawOAuth(Map<String, Object?> oauth) async {
+    _currentUser = DVAuthUser(
+      id: (oauth['id'] ?? oauth['sub'] ?? _newId('oauth')).toString(),
+      email: oauth['email']?.toString(),
+      provider: oauth['provider']?.toString() ?? 'oauth',
+      metadata: Map<String, Object?>.from(oauth),
+      createdAt: DateTime.now(),
+    );
+  }
+
+  Future<void> signInWithPasskey() async {
+    _currentUser = DVAuthUser(
+      id: _newId('passkey'),
+      provider: 'passkey',
+      createdAt: DateTime.now(),
+    );
+  }
+
+  Future<void> signInWithBiometrics() async {
+    final authenticated = await DV.Platform.biometrics.authenticate();
+    if (!authenticated) {
+      throw StateError('Biometric authentication was not completed.');
+    }
+    _currentUser = DVAuthUser(
+      id: _newId('biometric'),
+      provider: 'biometric',
+      createdAt: DateTime.now(),
+    );
+  }
+
+  Future<void> signInWithFingerprint() => signInWithBiometrics();
+
+  Future<void> signInWithFaceRecognition() => signInWithBiometrics();
+
+  Future<void> signInWithWeb3() async {
+    _currentUser = DVAuthUser(
+      id: _newId('web3'),
+      provider: 'web3',
+      createdAt: DateTime.now(),
+    );
+  }
+
+  Future<void> signOut() async {
+    _currentUser = null;
+  }
+
+  Future<void> signUp({
+    String? email,
+    String? password,
+    Map<String, Object?> metadata = const {},
+  }) async {
+    if ((email == null || email.trim().isEmpty) && metadata.isEmpty) {
+      throw ArgumentError('Email or metadata is required to create a user.');
+    }
+    _currentUser = DVAuthUser(
+      id: _newId('user'),
+      email: email?.trim(),
+      provider: email == null ? 'custom' : 'email',
+      metadata: metadata,
+      createdAt: DateTime.now(),
+    );
+  }
+
+  String _newId(String prefix) =>
+      '$prefix-${DateTime.now().microsecondsSinceEpoch}-${math.Random().nextInt(1 << 32)}';
+
+  Widget SignInWithEmailAndPasswordPage() => _EmailPasswordAuthPage(auth: this);
+  Widget SignInWithProviderPage() =>
+      _ProviderAuthPage(auth: this, provider: 'provider');
+  Widget SignInWithRawOAuthPage() =>
+      _ProviderAuthPage(auth: this, provider: 'oauth');
+  Widget SignInWithPasskeyPage() =>
+      _ProviderAuthPage(auth: this, provider: 'passkey');
+  Widget SignInWithWeb3Page() =>
+      _ProviderAuthPage(auth: this, provider: 'web3');
+}
+
+class DVAuthUser {
+  final String id;
+  final String? email;
+  final String provider;
+  final Map<String, Object?> metadata;
+  final DateTime createdAt;
+
+  const DVAuthUser({
+    required this.id,
+    this.email,
+    required this.provider,
+    this.metadata = const {},
+    required this.createdAt,
+  });
+
+  Map<String, Object?> toJson() => {
+        'id': id,
+        'email': email,
+        'provider': provider,
+        'metadata': metadata,
+        'createdAt': createdAt.toIso8601String(),
+      };
+}
+
+class _EmailPasswordAuthPage extends StatefulWidget {
+  final DVAuth auth;
+  const _EmailPasswordAuthPage({required this.auth});
+
+  @override
+  State<_EmailPasswordAuthPage> createState() => _EmailPasswordAuthPageState();
+}
+
+class _EmailPasswordAuthPageState extends State<_EmailPasswordAuthPage> {
+  final _email = TextEditingController();
+  final _password = TextEditingController();
+
+  @override
+  void dispose() {
+    _email.dispose();
+    _password.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        body: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 360),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: _email,
+                  decoration: const InputDecoration(labelText: 'Email'),
+                ),
+                TextField(
+                  controller: _password,
+                  decoration: const InputDecoration(labelText: 'Password'),
+                  obscureText: true,
+                ),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: () => widget.auth.signInWithEmailAndPassword(
+                    email: _email.text,
+                    password: _password.text,
+                  ),
+                  child: const Text('Sign in'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+}
+
+class _ProviderAuthPage extends StatelessWidget {
+  final DVAuth auth;
+  final String provider;
+
+  const _ProviderAuthPage({required this.auth, required this.provider});
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        body: Center(
+          child: FilledButton(
+            onPressed: () => auth.signInWithProvider(provider),
+            child: Text('Continue with $provider'),
+          ),
+        ),
+      );
 }
 
 class DVTheme {
   const DVTheme();
-  ThemeMode get mode => ThemeMode.system;
-  void setMode(ThemeMode mode) {}
+  static ThemeMode _mode = ThemeMode.system;
+  ThemeMode get mode => _mode;
+  void setMode(ThemeMode mode) {
+    _mode = mode;
+  }
 }
 
 class DVAI {
   const DVAI();
-  Future<String> chat(String prompt, {String provider = 'gemini'}) async =>
-      'AI Response';
-  Future<List<double>> embed(String text) async => [];
+  static DVAIAdapter _adapter = const LocalDVAIAdapter();
+
+  static void configure(DVAIAdapter adapter) {
+    _adapter = adapter;
+  }
+
+  Future<String> chat(String prompt, {String provider = 'gemini'}) =>
+      _adapter.chat(prompt, provider: provider);
+  Future<List<double>> embed(String text) => _adapter.embed(text);
+  Future<Map<String, dynamic>> structuredOutput(
+    String prompt,
+    Map<String, dynamic> schema,
+  ) =>
+      _adapter.structuredOutput(prompt, schema);
+}
+
+abstract class DVAIAdapter {
+  Future<String> chat(String prompt, {String provider = 'gemini'});
+  Future<List<double>> embed(String text);
+  Future<Map<String, dynamic>> structuredOutput(
+    String prompt,
+    Map<String, dynamic> schema,
+  );
+}
+
+class LocalDVAIAdapter implements DVAIAdapter {
+  const LocalDVAIAdapter();
+
+  @override
+  Future<String> chat(String prompt, {String provider = 'gemini'}) async {
+    final normalized = prompt.trim();
+    return normalized.isEmpty
+        ? ''
+        : '[$provider] ${normalized.split(RegExp(r'\s+')).take(120).join(' ')}';
+  }
+
+  @override
+  Future<List<double>> embed(String text) async {
+    final buckets = List<double>.filled(16, 0);
+    for (var i = 0; i < text.length; i++) {
+      buckets[i % buckets.length] += text.codeUnitAt(i) / 65535;
+    }
+    return buckets;
+  }
+
+  @override
   Future<Map<String, dynamic>> structuredOutput(
     String prompt,
     Map<String, dynamic> schema,
   ) async =>
-      {};
+      {
+        'prompt': prompt,
+        'schema': schema,
+        'summary': await chat(prompt, provider: 'local'),
+      };
 }
 
 class DVDatabase {
   const DVDatabase();
+  static DVDatabaseAdapter _adapter = MemoryDVDatabaseAdapter();
+
+  static void configure(DVDatabaseAdapter adapter) {
+    _adapter = adapter;
+  }
+
   Future<List<Map<String, dynamic>>> query(
     String sql, [
     List<Object?>? params,
-  ]) async =>
-      [];
+  ]) =>
+      _adapter.query(sql, params);
 
-  Future<int> execute(String sql, [List<Object?>? params]) async => 0;
+  Future<int> execute(String sql, [List<Object?>? params]) =>
+      _adapter.execute(sql, params);
+}
+
+abstract class DVDatabaseAdapter {
+  Future<List<Map<String, dynamic>>> query(String sql, [List<Object?>? params]);
+  Future<int> execute(String sql, [List<Object?>? params]);
+}
+
+class MemoryDVDatabaseAdapter implements DVDatabaseAdapter {
+  final Map<String, List<Map<String, dynamic>>> _tables = {};
+
+  @override
+  Future<List<Map<String, dynamic>>> query(
+    String sql, [
+    List<Object?>? params,
+  ]) async {
+    final normalized = sql.trim().replaceAll(RegExp(r'\s+'), ' ');
+    final lower = normalized.toLowerCase();
+    if (lower == 'select 1')
+      return const [
+        {'1': 1}
+      ];
+
+    final match =
+        RegExp(r'^select \* from ([a-zA-Z_][\w]*)$', caseSensitive: false)
+            .firstMatch(normalized);
+    if (match != null) {
+      return List<Map<String, dynamic>>.from(
+        _tables[match.group(1)!] ?? const <Map<String, dynamic>>[],
+      );
+    }
+    throw ArgumentError(
+        'MemoryDVDatabaseAdapter supports select 1 and select * from <table>.');
+  }
+
+  @override
+  Future<int> execute(String sql, [List<Object?>? params]) async {
+    final normalized = sql.trim().replaceAll(RegExp(r'\s+'), ' ');
+    final insert = RegExp(
+      r'^insert into ([a-zA-Z_][\w]*) \(([^)]+)\) values \(([^)]+)\)$',
+      caseSensitive: false,
+    ).firstMatch(normalized);
+    if (insert != null) {
+      final table = insert.group(1)!;
+      final columns = insert.group(2)!.split(',').map((c) => c.trim()).toList();
+      final values =
+          params ?? insert.group(3)!.split(',').map(_literal).toList();
+      if (columns.length != values.length) {
+        throw ArgumentError('Column count does not match value count.');
+      }
+      final row = <String, dynamic>{};
+      for (var i = 0; i < columns.length; i++) {
+        row[columns[i]] = values[i];
+      }
+      (_tables[table] ??= []).add(row);
+      return 1;
+    }
+
+    final delete =
+        RegExp(r'^delete from ([a-zA-Z_][\w]*)$', caseSensitive: false)
+            .firstMatch(normalized);
+    if (delete != null) {
+      final table = delete.group(1)!;
+      final count = _tables[table]?.length ?? 0;
+      _tables[table] = [];
+      return count;
+    }
+    throw ArgumentError(
+        'MemoryDVDatabaseAdapter supports insert and delete statements.');
+  }
+
+  static Object? _literal(String value) {
+    final trimmed = value.trim();
+    if (trimmed == '?') return null;
+    if (trimmed.startsWith("'") && trimmed.endsWith("'")) {
+      return trimmed.substring(1, trimmed.length - 1);
+    }
+    return num.tryParse(trimmed) ?? trimmed;
+  }
 }
 
 class DVCache {
   const DVCache();
-  Future<T?> get<T>(String key) async => null;
-  Future<void> set(String key, Object? value, [Duration? ttl]) async {}
-  Future<void> delete(String key) async {}
+  static final Map<String, ({Object? value, DateTime? expiresAt})> _memory = {};
+
+  Future<T?> get<T>(String key) async {
+    final entry = _memory[key];
+    if (entry == null) return null;
+    final expiresAt = entry.expiresAt;
+    if (expiresAt != null && DateTime.now().isAfter(expiresAt)) {
+      _memory.remove(key);
+      return null;
+    }
+    final value = entry.value;
+    return value is T ? value : null;
+  }
+
+  Future<void> set(String key, Object? value, [Duration? ttl]) async {
+    _memory[key] = (
+      value: value,
+      expiresAt: ttl == null ? null : DateTime.now().add(ttl),
+    );
+  }
+
+  Future<void> delete(String key) async {
+    _memory.remove(key);
+  }
 }
 
 class DVStorage {
   const DVStorage();
-  Future<void> upload(String key, List<int> bytes) async {}
-  Future<List<int>> download(String key) async => [];
-  Future<void> delete(String key) async {}
+  static final Map<String, List<int>> _memory = {};
+
+  Future<void> upload(String key, List<int> bytes) async {
+    _memory[key] = List<int>.from(bytes);
+  }
+
+  Future<List<int>> download(String key) async {
+    final bytes = _memory[key];
+    if (bytes == null) throw StateError('No storage object exists for "$key".');
+    return List<int>.from(bytes);
+  }
+
+  Future<void> delete(String key) async {
+    _memory.remove(key);
+  }
 }
 
 class DVRealtime {
   const DVRealtime();
-  Future<void> syncModel(Object model) async {}
-  Future<void> presence(String channel) async {}
-  Future<void> subscribe(String channel, Function(dynamic) onEvent) async {}
+  static final Map<String, StreamController<dynamic>> _channels = {};
+  static final Map<String, Object> _models = {};
+
+  Future<void> syncModel(Object model) async {
+    final key = model.runtimeType.toString();
+    _models[key] = model;
+    _controller('models:$key').add(model);
+  }
+
+  Future<void> presence(String channel) async {
+    _controller('presence:$channel').add({
+      'channel': channel,
+      'at': DateTime.now().toIso8601String(),
+    });
+  }
+
+  Future<void> subscribe(String channel, Function(dynamic) onEvent) async {
+    _controller(channel).stream.listen(onEvent);
+  }
+
+  Future<void> publish(String channel, Object? event) async {
+    _controller(channel).add(event);
+  }
+
+  static StreamController<dynamic> _controller(String channel) => _channels
+      .putIfAbsent(channel, () => StreamController<dynamic>.broadcast());
+}
+
+class DVRustInt {
+  final int value;
+  const DVRustInt(this.value);
+
+  DVRustInt operator +(DVRustInt other) => DVRustInt(value + other.value);
+  DVRustInt operator -(DVRustInt other) => DVRustInt(value - other.value);
+  DVRustInt operator *(DVRustInt other) => DVRustInt(value * other.value);
+
+  @override
+  String toString() => value.toString();
+}
+
+class DVRust {
+  const DVRust();
+  DVRustInt Int(int value) => DVRustInt(value);
 }
 
 class DV {
@@ -583,6 +1285,9 @@ class DV {
   static DVCache get Cache => const DVCache();
   static DVStorage get Storage => const DVStorage();
   static DVRealtime get Realtime => const DVRealtime();
+  static DVCSRF get CSRF => const DVCSRF();
+  static DVCSRF get Csrf => const DVCSRF();
+  static DVRust get Rust => const DVRust();
   static String get currentTenant => 'default';
 }
 

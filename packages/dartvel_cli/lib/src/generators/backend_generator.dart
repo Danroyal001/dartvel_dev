@@ -180,6 +180,7 @@ const String dvGenBuildId = '$buildId';
 // GENERATED – do not edit.
 import 'dart:convert' as conv;
 import 'dart:typed_data';
+import 'package:dartvel_core/dartvel.dart' as core;
 import 'package:dartvel_shelf/dartvel_shelf.dart' as dv;
 import 'package:mime/mime.dart';
 import 'dartvel_backend.g.dart' as cfg;
@@ -217,6 +218,18 @@ Future<Map<String, dynamic>> _parseMultipart(
   return out;
 }
 
+bool _dvValidateCsrf(dv.Request req, Object? body) {
+  return const core.DVCSRF().validateRequest(
+    method: req.method,
+    headerToken: req.headers.get(core.DVCSRF.headerName),
+    bodyToken: body is Map ? body[core.DVCSRF.fieldName]?.toString() : null,
+  );
+}
+
+dv.Response _dvCsrfForbidden() => dv.Response(403,
+    headers: dv.Headers({'content-type': 'text/plain; charset=utf-8'}),
+    body: Stream<List<int>>.value(conv.utf8.encode('CSRF token missing')));
+
 dv.Router buildBackendRouter() {
   final router = dv.Router();
   bool _hasHealth = false;
@@ -241,8 +254,7 @@ ${backendEntries.map((e) {
         argList.add(tnamed ? ('$pn: $expr') : expr);
       }
       final callArgs = argList.join(', ');
-      final usesBody = callArgs.contains('body');
-      final bodyBlock = usesBody ? '''    Object? body;
+      final requestPrelude = '''    Object? body;
     try {
       if (req.method != 'GET' && req.method != 'HEAD') {
         final ct = req.headers.get('content-type') ?? '';
@@ -259,12 +271,13 @@ ${backendEntries.map((e) {
           }
         }
       }
-    } catch (e) { /* ignore body read errors */ }''' : '';
+    } catch (e) { /* ignore body read errors */ }
+    if (!_dvValidateCsrf(req, body)) return _dvCsrfForbidden();''';
 
       if (path == '/health' && method.toLowerCase() == 'get') {
         return "  _hasHealth = true;\n"
             '''  router.$method(cfg.apiBasePath + '$path', (dv.Request req) async {
-$bodyBlock
+$requestPrelude
     try {
       Object? result = await f$i.$typed($callArgs);
       if (result is dv.Response) return result;
@@ -293,7 +306,7 @@ $bodyBlock
   });''';
       }
       return '''  router.$method(cfg.apiBasePath + '$path', (dv.Request req) async {
-$bodyBlock
+$requestPrelude
     try {
       Object? result = await f$i.$typed($callArgs);
       if (result is dv.Response) return result;
@@ -346,18 +359,30 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
     sbClient.writeln('// BUILD: $buildId');
     sbClient.writeln('library dartvel_client_functions;');
     sbClient.writeln("import 'dart:convert';");
+    sbClient.writeln("import 'dart:math' as math;");
     sbClient.writeln("import 'package:dio/dio.dart';");
+    sbClient.writeln("import 'package:dartvel_core/dartvel.dart';");
     sbClient.writeln("import 'dartvel_runtime.dart';");
     sbClient.writeln(
         "import 'package:$pkgName/dartvel_client/dartvel_client.dart';");
     sbClient.writeln('final Dio _dvDio = Dio();');
     sbClient.writeln(
+        "final String _dvCsrfToken = (() { try { return const DVCSRF().token(); } catch (_) { final random = math.Random.secure(); const alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'; return String.fromCharCodes(List<int>.generate(32, (_) => alphabet.codeUnitAt(random.nextInt(alphabet.length)))); } })();");
+    sbClient.writeln(
+        "bool _dvRequiresCsrf(String method) => const DVCSRF().requiresValidation(method);");
+    sbClient.writeln(
+        "Map<String, String> _dvHeadersWithCsrf(String method, Map<String, String> headers) { if (!_dvRequiresCsrf(method)) return headers; return {...headers, DVCSRF.headerName: headers[DVCSRF.headerName] ?? _dvCsrfToken}; }");
+    sbClient.writeln(
+        "Object? _dvPayloadWithCsrf(String method, Object? payload) { if (!_dvRequiresCsrf(method)) return payload; if (payload is Map) { final copy = Map<String, dynamic>.from(payload); copy.putIfAbsent(DVCSRF.fieldName, () => _dvCsrfToken); return copy; } try { final fields = (payload as dynamic).fields; if (fields is List && !fields.any((e) => e.key == DVCSRF.fieldName)) { fields.add(MapEntry(DVCSRF.fieldName, _dvCsrfToken)); } } catch (_) {} return payload; }");
+    sbClient.writeln(
         'Future<Response<Object?>> _dvRequest(String method, Uri uri, {Object? data, Map<String, String>? headers}) async {');
     sbClient.writeln(
-        '  final hdrs = {...DartvelClient.defaultHeaders, ...(headers ?? {})};');
+        '  var hdrs = {...DartvelClient.defaultHeaders, ...(headers ?? {})};');
     sbClient.writeln('  final methodUpper = method.toUpperCase();');
     sbClient.writeln(
         "  var send = (data == null && methodUpper != 'GET' && methodUpper != 'HEAD') ? '' : data;");
+    sbClient.writeln('  hdrs = _dvHeadersWithCsrf(methodUpper, hdrs);');
+    sbClient.writeln('  send = _dvPayloadWithCsrf(methodUpper, send);');
     sbClient.writeln(
         "  final ct = (hdrs['content-type'] ?? hdrs['Content-Type'] ?? '').toLowerCase();");
     sbClient.writeln(
@@ -367,17 +392,23 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
     sbClient.writeln('}');
     sbClient.writeln(
         'Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson, {String method = "GET", Object? data, Map<String, String>? headers}) async* {');
-    sbClient.writeln('  final hdrs = {...DartvelClient.defaultHeaders, ...(headers ?? {})};');
+    sbClient.writeln('  final methodUpper = method.toUpperCase();');
+    sbClient.writeln(
+        '  var hdrs = {...DartvelClient.defaultHeaders, ...(headers ?? {})};');
+    sbClient.writeln('  hdrs = _dvHeadersWithCsrf(methodUpper, hdrs);');
+    sbClient
+        .writeln('  final reqPayload = _dvPayloadWithCsrf(methodUpper, data);');
     sbClient.writeln('  final response = await _dvDio.requestUri(');
     sbClient.writeln('    uri,');
-    sbClient.writeln('    data: data,');
+    sbClient.writeln('    data: reqPayload,');
     sbClient.writeln('    options: Options(');
-    sbClient.writeln('      method: method.toUpperCase(),');
+    sbClient.writeln('      method: methodUpper,');
     sbClient.writeln('      headers: hdrs,');
     sbClient.writeln('      responseType: ResponseType.stream,');
     sbClient.writeln('    ),');
     sbClient.writeln('  );');
-    sbClient.writeln('  final bodyStream = (response.data as ResponseBody).stream;');
+    sbClient.writeln(
+        '  final bodyStream = (response.data as ResponseBody).stream;');
     sbClient.writeln('  var buffer = "";');
     sbClient.writeln('  await for (final chunk in bodyStream) {');
     sbClient.writeln('    buffer += utf8.decode(chunk);');
@@ -520,9 +551,13 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
         }
         final qpAdd = qpLines.join('\n  ');
 
-        final hasDvBackendFn = (e['src'] ?? '').contains('@DVBackendFunction') || (e['src'] ?? '').contains('@dvBackendFunction');
-        final fnameApi = (hasDvBackendFn && e['typed']!.isNotEmpty) ? e['typed']! : '${fname}Api';
-        
+        final hasDvBackendFn =
+            (e['src'] ?? '').contains('@DVBackendFunction') ||
+                (e['src'] ?? '').contains('@dvBackendFunction');
+        final fnameApi = (hasDvBackendFn && e['typed']!.isNotEmpty)
+            ? e['typed']!
+            : '${fname}Api';
+
         final isStreamType = rtype.startsWith('Stream<');
 
         if (isStreamType) {
@@ -580,9 +615,12 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
           }
           sbClient.writeln(
               '  if (query != null) { query.forEach((k, v) { fb[k] = v; }); }');
-          final isGetOrHead = method.toUpperCase() == 'GET' || method.toUpperCase() == 'HEAD';
-          sbClient.writeln("  final uri = ${isGetOrHead ? 'base.replace(queryParameters: qq)' : 'base'};");
-          sbClient.writeln("  final reqHeaders = headers ?? const <String, String>{};");
+          final isGetOrHead =
+              method.toUpperCase() == 'GET' || method.toUpperCase() == 'HEAD';
+          sbClient.writeln(
+              "  final uri = ${isGetOrHead ? 'base.replace(queryParameters: qq)' : 'base'};");
+          sbClient.writeln(
+              "  final reqHeaders = headers ?? const <String, String>{};");
           if (isGetOrHead) {
             sbClient.writeln("  final reqPayload = body;");
           } else if (method == 'post') {
@@ -669,9 +707,12 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
           }
           sbClient.writeln(
               '  if (query != null) { query.forEach((k, v) { fb[k] = v; }); }');
-          final isGetOrHead = method.toUpperCase() == 'GET' || method.toUpperCase() == 'HEAD';
-          sbClient.writeln("  final uri = ${isGetOrHead ? 'base.replace(queryParameters: qq)' : 'base'};");
-          sbClient.writeln("  final reqHeaders = headers ?? const <String, String>{};");
+          final isGetOrHead =
+              method.toUpperCase() == 'GET' || method.toUpperCase() == 'HEAD';
+          sbClient.writeln(
+              "  final uri = ${isGetOrHead ? 'base.replace(queryParameters: qq)' : 'base'};");
+          sbClient.writeln(
+              "  final reqHeaders = headers ?? const <String, String>{};");
           if (isGetOrHead) {
             sbClient.writeln("  final reqPayload = body;");
           } else if (method == 'post') {
