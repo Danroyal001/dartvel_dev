@@ -28,11 +28,11 @@ Everything else is automatically compiled, generated, or served by the framework
 | **State Management** | Riverpod-powered signals (`context.signal`, reactive models, `DV.global`) | ✅ Implemented |
 | **Models & Forms** | `@DVModel` annotation + `DVForm<T>` automatic & manual controls | ✅ Implemented |
 | **Backend Runtime** | Axum/Tokio Rust server calling Dart FFI, supporting SSE streams | ✅ Implemented |
-| **Platform APIs** | `DV.Platform` device APIs (camera, location, haptics, e.t.c) | ✅ Implemented |
-| **Authentication** | `DV.Auth` Clerk-style providers and prebuilt pages | ✅ Implemented |
-| **Database & Cache** | Unified DB (Postgres, SQLite, Turso) & Cache (Memory, Redis) | ✅ Implemented |
+| **Platform APIs** | Runtime platform/screen detection; camera, location, haptics, etc. are scaffolded pending native plugins | ⚠️ Partial |
+| **Authentication** | API surface and prebuilt pages; provider integrations are not complete | ⚠️ Scaffold |
+| **Database & Cache** | API surface plus local primitives; external DB/Redis adapters are not complete | ⚠️ Partial |
 | **PWA & SEO** | Automatic PWA manifest/worker & runtime/global SEO injection | ✅ Implemented |
-| **AI Integration** | `DV.AI` Gemini/Claude chat and structured outputs | ✅ Implemented |
+| **AI Integration** | API surface and annotations; provider calls are not complete | ⚠️ Scaffold |
 
 ---
 

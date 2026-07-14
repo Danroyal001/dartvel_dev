@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 /// Annotation for a route
 class Route {
   final String path;
@@ -68,6 +70,62 @@ class DVBackendCron {
 class DVClientCron {
   final String cron;
   const DVClientCron(this.cron);
+}
+
+/// Annotation for supported home-screen and lock-screen widgets.
+class DVHomeWidget {
+  const DVHomeWidget();
+}
+
+/// Annotation for exposing a function as an AI-callable tool.
+class DVAITool {
+  final String? description;
+  const DVAITool({this.description});
+}
+
+/// CSRF helper surface used by generated backend, form, model, DB, and realtime flows.
+class DVCSRF {
+  const DVCSRF();
+
+  static const fieldName = '_dv_csrf';
+  static const headerName = 'x-dartvel-csrf-token';
+
+  String token() {
+    final random = math.Random.secure();
+    const alphabet =
+        'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    return String.fromCharCodes(
+      List<int>.generate(
+        32,
+        (_) => alphabet.codeUnitAt(random.nextInt(alphabet.length)),
+      ),
+    );
+  }
+
+  bool validate(String? token, {String? bodyToken}) {
+    if (token == null || !_isValidToken(token)) return false;
+    if (bodyToken != null && bodyToken != token) return false;
+    return true;
+  }
+
+  bool validateRequest({
+    required String method,
+    required String? headerToken,
+    String? bodyToken,
+  }) {
+    if (!requiresValidation(method)) return true;
+    return validate(headerToken, bodyToken: bodyToken);
+  }
+
+  bool requiresValidation(String method) {
+    final normalized = method.toUpperCase();
+    return normalized != 'GET' &&
+        normalized != 'HEAD' &&
+        normalized != 'OPTIONS';
+  }
+
+  bool _isValidToken(String token) =>
+      token.length >= 32 && RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(token);
 }
 
 class DVFormControls {

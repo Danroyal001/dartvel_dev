@@ -9,7 +9,7 @@ void main() {
       final res = Res.json(data);
       expect(res.status, 200);
       expect(res.headers.get('content-type'), contains('application/json'));
-      
+
       final body = await res.body!.text();
       expect(jsonDecode(body), data);
     });
@@ -34,6 +34,49 @@ void main() {
       expect(res.status, 404);
       final body = await res.body!.text();
       expect(body, 'Custom error');
+    });
+  });
+
+  group('DVCSRF', () {
+    test('generates non-empty random-looking tokens', () {
+      const csrf = DVCSRF();
+      final first = csrf.token();
+      final second = csrf.token();
+
+      expect(first, hasLength(greaterThanOrEqualTo(32)));
+      expect(second, hasLength(greaterThanOrEqualTo(32)));
+      expect(first, isNot(second));
+      expect(csrf.validate(first), isTrue);
+    });
+
+    test('validates unsafe requests with matching tokens', () {
+      const csrf = DVCSRF();
+      final token = csrf.token();
+
+      expect(
+        csrf.validateRequest(
+          method: 'POST',
+          headerToken: token,
+          bodyToken: token,
+        ),
+        isTrue,
+      );
+      expect(
+        csrf.validateRequest(method: 'POST', headerToken: null),
+        isFalse,
+      );
+      expect(
+        csrf.validateRequest(
+          method: 'POST',
+          headerToken: token,
+          bodyToken: '${token}x',
+        ),
+        isFalse,
+      );
+      expect(
+        csrf.validateRequest(method: 'GET', headerToken: null),
+        isTrue,
+      );
     });
   });
 }

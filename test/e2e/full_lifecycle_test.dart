@@ -24,7 +24,8 @@ void main() {
       print('E2E Test: Created temp directory at ${tempDir.path}');
       print('E2E Test: Using dartvel binary at $dartvelBin');
 
-      final flutterCheck = await Process.run('which', ['flutter']).catchError((_) => ProcessResult(-1, 1, '', ''));
+      final flutterCheck = await Process.run('which', ['flutter'])
+          .catchError((_) => ProcessResult(-1, 1, '', ''));
       hasFlutter = flutterCheck.exitCode == 0;
       print('E2E Test: Flutter SDK present: $hasFlutter');
     });
@@ -156,7 +157,8 @@ void main() {
 
     test('Start server and make request', () async {
       if (!hasFlutter) {
-        print('Skipping: Start server and make request (Flutter SDK not installed)');
+        print(
+            'Skipping: Start server and make request (Flutter SDK not installed)');
         return;
       }
 
@@ -167,17 +169,32 @@ void main() {
         workingDirectory: projectPath,
       );
 
-      serverProcess.stdout.transform(utf8.decoder).listen((data) => print('SERVER STDOUT: $data'));
-      serverProcess.stderr.transform(utf8.decoder).listen((data) => print('SERVER STDERR: $data'));
-
-      // Wait for server to start
-      await Future.delayed(Duration(seconds: 8));
+      serverProcess.stdout
+          .transform(utf8.decoder)
+          .listen((data) => print('SERVER STDOUT: $data'));
+      serverProcess.stderr
+          .transform(utf8.decoder)
+          .listen((data) => print('SERVER STDERR: $data'));
 
       try {
-        // Make HTTP request
-        final response = await http.get(Uri.parse('http://127.0.0.1:8889/'));
+        final uri = Uri.parse('http://127.0.0.1:8889/');
+        http.Response? response;
+        Object? lastError;
 
-        expect(response.statusCode, 200,
+        for (var attempt = 0; attempt < 30; attempt++) {
+          try {
+            response = await http.get(uri);
+            break;
+          } catch (e) {
+            lastError = e;
+            await Future.delayed(Duration(seconds: 1));
+          }
+        }
+
+        expect(response, isNotNull,
+            reason: 'Server should accept connections. Last error: $lastError');
+
+        expect(response!.statusCode, 200,
             reason: 'Server should respond with 200');
         expect(response.body.contains('test_app'), true,
             reason: 'Response should contain project name');
