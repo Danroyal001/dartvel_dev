@@ -48,5 +48,5 @@ Reference ./NEW_SPEC.md for the full new spec.
 ## Release & Tag Backup Rule
 
 - Every release or tag must also create and push a branch that points at the same commit.
-- Use a stable backup branch name such as `backup/<tag-name>` or `release-backups/<tag-name>`.
+- The backup branch name must exactly match the tag or release name. For example, publishing tag `1.5.0` must also push branch `1.5.0`.
 - Push the backup branch before or immediately after pushing the tag so a default-branch force push cannot erase the release state.
