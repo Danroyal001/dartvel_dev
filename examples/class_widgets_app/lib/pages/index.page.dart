@@ -1,7 +1,11 @@
 import 'package:class_widgets_app/dartvel_client/dartvel_client.dart';
 import 'package:flutter/material.dart';
 
-@DVPage()
+@DVPage(
+  title: 'Dartvel',
+  showAppBar: true,
+  centerTitle: true,
+)
 class IndexPage extends DVClassWidget {
   const IndexPage({super.key});
 

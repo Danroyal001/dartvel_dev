@@ -289,7 +289,7 @@ $requestPrelude
               'cache-control': 'no-cache',
               'connection': 'keep-alive',
             }),
-            body: result.map((e) => 'data: \${e.toString().replaceAll(\'\\n\', \'\\ndata: \')}\\n\\n').map(conv.utf8.encode),
+            body: result.map((e) => 'data: \${e.toString().replaceAll('\\n', '\\ndata: ')}\\n\\n').map(conv.utf8.encode),
             isStream: true);
       }
       if (result is String) return dv.Response.text(result);
@@ -318,7 +318,7 @@ $requestPrelude
               'cache-control': 'no-cache',
               'connection': 'keep-alive',
             }),
-            body: result.map((e) => 'data: \${e.toString().replaceAll(\'\\n\', \'\\ndata: \')}\\n\\n').map(conv.utf8.encode),
+            body: result.map((e) => 'data: \${e.toString().replaceAll('\\n', '\\ndata: ')}\\n\\n').map(conv.utf8.encode),
             isStream: true);
       }
       if (result is String) return dv.Response.text(result);
@@ -380,11 +380,11 @@ class DartvelClient {
     sbClient.writeln(
         "final String _dvCsrfToken = (() { try { return const DVCSRF().token(); } catch (_) { final random = math.Random.secure(); const alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'; return String.fromCharCodes(List<int>.generate(32, (_) => alphabet.codeUnitAt(random.nextInt(alphabet.length)))); } })();");
     sbClient.writeln(
-        "bool _dvRequiresCsrf(String method) => const DVCSRF().requiresValidation(method);");
+        'bool _dvRequiresCsrf(String method) => const DVCSRF().requiresValidation(method);');
     sbClient.writeln(
-        "Map<String, String> _dvHeadersWithCsrf(String method, Map<String, String> headers) { if (!_dvRequiresCsrf(method)) return headers; return {...headers, DVCSRF.headerName: headers[DVCSRF.headerName] ?? _dvCsrfToken}; }");
+        'Map<String, String> _dvHeadersWithCsrf(String method, Map<String, String> headers) { if (!_dvRequiresCsrf(method)) return headers; return {...headers, DVCSRF.headerName: headers[DVCSRF.headerName] ?? _dvCsrfToken}; }');
     sbClient.writeln(
-        "Object? _dvPayloadWithCsrf(String method, Object? payload) { if (!_dvRequiresCsrf(method)) return payload; if (payload is Map) { final copy = Map<String, dynamic>.from(payload); copy.putIfAbsent(DVCSRF.fieldName, () => _dvCsrfToken); return copy; } try { final fields = (payload as dynamic).fields; if (fields is List && !fields.any((e) => e.key == DVCSRF.fieldName)) { fields.add(MapEntry(DVCSRF.fieldName, _dvCsrfToken)); } } catch (_) {} return payload; }");
+        'Object? _dvPayloadWithCsrf(String method, Object? payload) { if (!_dvRequiresCsrf(method)) return payload; if (payload is Map) { final copy = Map<String, dynamic>.from(payload); copy.putIfAbsent(DVCSRF.fieldName, () => _dvCsrfToken); return copy; } try { final fields = (payload as dynamic).fields; if (fields is List && !fields.any((e) => e.key == DVCSRF.fieldName)) { fields.add(MapEntry(DVCSRF.fieldName, _dvCsrfToken)); } } catch (_) {} return payload; }');
     sbClient.writeln(
         'Future<dio.Response<Object?>> _dvRequest(String method, Uri uri, {Object? data, Map<String, String>? headers}) async {');
     sbClient.writeln(
@@ -631,15 +631,15 @@ class DartvelClient {
           sbClient.writeln(
               "  final uri = ${isGetOrHead ? 'base.replace(queryParameters: qq)' : 'base'};");
           sbClient.writeln(
-              "  final reqHeaders = headers ?? const <String, String>{};");
+              '  final reqHeaders = headers ?? const <String, String>{};');
           if (isGetOrHead) {
-            sbClient.writeln("  final reqPayload = body;");
+            sbClient.writeln('  final reqPayload = body;');
           } else if (method == 'post') {
             sbClient.writeln(
-                "  final reqPayload = (body is dio.FormData) ? body : (body == null ? dio.FormData.fromMap(fb) : (body is Map ? dio.FormData.fromMap(Map<String,dynamic>.from(body)) : body));");
+                '  final reqPayload = (body is dio.FormData) ? body : (body == null ? dio.FormData.fromMap(fb) : (body is Map ? dio.FormData.fromMap(Map<String,dynamic>.from(body)) : body));');
           } else {
             sbClient.writeln(
-                "  final reqPayload = (body is dio.FormData) ? body : (body ?? fb);");
+                '  final reqPayload = (body is dio.FormData) ? body : (body ?? fb);');
           }
           if (convExprStream.isEmpty) {
             sbClient.writeln(
@@ -723,15 +723,15 @@ class DartvelClient {
           sbClient.writeln(
               "  final uri = ${isGetOrHead ? 'base.replace(queryParameters: qq)' : 'base'};");
           sbClient.writeln(
-              "  final reqHeaders = headers ?? const <String, String>{};");
+              '  final reqHeaders = headers ?? const <String, String>{};');
           if (isGetOrHead) {
-            sbClient.writeln("  final reqPayload = body;");
+            sbClient.writeln('  final reqPayload = body;');
           } else if (method == 'post') {
             sbClient.writeln(
-                "  final reqPayload = (body is dio.FormData) ? body : (body == null ? dio.FormData.fromMap(fb) : (body is Map ? dio.FormData.fromMap(Map<String,dynamic>.from(body)) : body));");
+                '  final reqPayload = (body is dio.FormData) ? body : (body == null ? dio.FormData.fromMap(fb) : (body is Map ? dio.FormData.fromMap(Map<String,dynamic>.from(body)) : body));');
           } else {
             sbClient.writeln(
-                "  final reqPayload = (body is dio.FormData) ? body : (body ?? fb);");
+                '  final reqPayload = (body is dio.FormData) ? body : (body ?? fb);');
           }
           sbClient.writeln(
               "  final r = await _dvRequest('$method', uri, data: reqPayload, headers: reqHeaders);");

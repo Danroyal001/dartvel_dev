@@ -845,7 +845,11 @@ class DartvelConfig {
   static String _pageScaffoldSpec(String source) {
     final match =
         RegExp(r'@DVPage\(([^)]*)\)', dotAll: true).firstMatch(source);
-    if (match == null) return 'const DVPageScaffoldSpec()';
+    if (match == null) {
+      return _sourceBuildsScaffold(source)
+          ? 'const DVPageScaffoldSpec(scaffold: false)'
+          : 'const DVPageScaffoldSpec()';
+    }
 
     final args = match.group(1) ?? '';
     final fields = <String>[];
@@ -867,6 +871,10 @@ class DartvelConfig {
       final value = _namedBoolArg(args, name);
       if (value != null) fields.add('$name: $value');
     }
+    if (_sourceBuildsScaffold(source) &&
+        _namedBoolArg(args, 'scaffold') == null) {
+      fields.add('scaffold: false');
+    }
 
     for (final name in ['backgroundColor', 'appBarBackgroundColor']) {
       final value = _namedIntArg(args, name);
@@ -875,6 +883,11 @@ class DartvelConfig {
 
     if (fields.isEmpty) return 'const DVPageScaffoldSpec()';
     return 'const DVPageScaffoldSpec(${fields.join(', ')})';
+  }
+
+  static bool _sourceBuildsScaffold(String source) {
+    return RegExp(r'\b(?:Scaffold|CupertinoPageScaffold)\s*\(')
+        .hasMatch(source);
   }
 
   static String? _namedStringArg(String args, String name) {
