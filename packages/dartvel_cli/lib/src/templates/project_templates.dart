@@ -21,16 +21,16 @@ dependencies:
     sdk: flutter
   go_router: ^14.2.0
   dio: ^5.5.0
-  dartvel_core: ${localPackagesDir == null ? '^0.1.0' : '\n    path: $localPackagesDir/dartvel_core'}
-  dartvel_shelf: ${localPackagesDir == null ? '^0.1.0' : '\n    path: $localPackagesDir/dartvel_shelf'}
-  dartvel_flutter: ${localPackagesDir == null ? '^0.1.0' : '\n    path: $localPackagesDir/dartvel_flutter'}
+  dartvel_core: ${localPackagesDir == null ? '^0.1.1' : '\n    path: $localPackagesDir/dartvel_core'}
+  dartvel_shelf: ${localPackagesDir == null ? '^0.3.0' : '\n    path: $localPackagesDir/dartvel_shelf'}
+  dartvel_flutter: ${localPackagesDir == null ? '^0.1.1' : '\n    path: $localPackagesDir/dartvel_flutter'}
   ${web ? 'flutter_web_plugins:\n    sdk: flutter' : ''}
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   lints: ^4.0.0
-  dartvel_cli: ${localPackagesDir == null ? '^0.1.0' : '\n    path: $localPackagesDir/dartvel_cli'}
+  dartvel_cli: ${localPackagesDir == null ? '^0.1.1' : '\n    path: $localPackagesDir/dartvel_cli'}
 
 
 flutter:

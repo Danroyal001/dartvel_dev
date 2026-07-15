@@ -61,19 +61,19 @@ void main() {
       final packagesDir = p.join(Directory.current.path, 'packages');
 
       content = content.replaceAll(
-        'dartvel_core: ^0.1.0',
+        'dartvel_core: ^0.1.1',
         'dartvel_core:\n    path: ${p.join(packagesDir, 'dartvel_core')}',
       );
       content = content.replaceAll(
-        'dartvel_flutter: ^0.1.0',
+        'dartvel_flutter: ^0.1.1',
         'dartvel_flutter:\n    path: ${p.join(packagesDir, 'dartvel_flutter')}',
       );
       content = content.replaceAll(
-        'dartvel_shelf: ^0.1.0',
+        'dartvel_shelf: ^0.3.0',
         'dartvel_shelf:\n    path: ${p.join(packagesDir, 'dartvel_shelf')}',
       );
       content = content.replaceAll(
-        'dartvel_cli: ^0.1.0',
+        'dartvel_cli: ^0.1.1',
         'dartvel_cli:\n    path: ${p.join(packagesDir, 'dartvel_cli')}',
       );
 

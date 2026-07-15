@@ -50,3 +50,4 @@ Reference ./NEW_SPEC.md for the full new spec.
 - Every release or tag must also create and push a branch that points at the same commit.
 - The backup branch name must exactly match the tag or release name. For example, publishing tag `1.5.0` must also push branch `1.5.0`.
 - Push the backup branch before or immediately after pushing the tag so a default-branch force push cannot erase the release state.
+- Never force-update or reuse an existing release/tag name for a new release state. If the intended tag already exists locally or on GitHub, increment the SemVer patch version and create a new matching tag, GitHub release, and backup branch.
