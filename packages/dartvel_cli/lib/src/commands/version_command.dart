@@ -21,7 +21,7 @@ class VersionCommand extends Command<void> {
     // Actually, the best way is to have a constant generated or updated.
     // For now, I'll read it from the pubspec if available, or fallback.
 
-    String version = '0.1.0'; // Fallback
+    String version = '0.1.1'; // Fallback
 
     try {
       // Assuming we are running from source or the pubspec is nearby
