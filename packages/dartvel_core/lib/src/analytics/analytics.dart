@@ -1,6 +1,4 @@
 // Analytics integration - Firebase/Mixpanel/etc
-import 'dart:developer' as developer;
-
 abstract class AnalyticsProvider {
   Future<void> logEvent(String name, [Map<String, Object>? parameters]);
   Future<void> setUserId(String? userId);
@@ -67,26 +65,44 @@ class Analytics {
       });
 }
 
-/// Mock analytics provider for development
-class DebugAnalyticsProvider implements AnalyticsProvider {
+class AnalyticsEvent {
+  final String name;
+  final Map<String, Object> parameters;
+  final DateTime timestamp;
+
+  const AnalyticsEvent(this.name, this.parameters, this.timestamp);
+}
+
+/// In-memory analytics provider for local development and tests.
+class LocalAnalyticsProvider implements AnalyticsProvider {
+  final List<AnalyticsEvent> events = [];
+  final Map<String, String> userProperties = {};
+  String? userId;
+
   @override
   Future<void> logEvent(String name, [Map<String, Object>? parameters]) async {
-    developer.log('Analytics:logEvent: $name ${parameters ?? {}}',
-        name: 'dartvel');
+    events.add(AnalyticsEvent(
+        name, Map.unmodifiable(parameters ?? {}), DateTime.now()));
   }
 
   @override
   Future<void> setUserId(String? userId) async {
-    developer.log('Analytics:setUserId: $userId', name: 'dartvel');
+    this.userId = userId;
   }
 
   @override
   Future<void> setUserProperty(String name, String value) async {
-    developer.log('Analytics:setUserProperty: $name = $value', name: 'dartvel');
+    userProperties[name] = value;
   }
 
   @override
   Future<void> logScreenView(String screenName, {String? screenClass}) async {
-    developer.log('Analytics:logScreenView: $screenName', name: 'dartvel');
+    await logEvent('screen_view', {
+      'screen_name': screenName,
+      if (screenClass != null) 'screen_class': screenClass,
+    });
   }
 }
+
+@Deprecated('Use LocalAnalyticsProvider instead.')
+typedef DebugAnalyticsProvider = LocalAnalyticsProvider;

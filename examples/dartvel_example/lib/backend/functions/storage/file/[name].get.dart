@@ -8,5 +8,6 @@ Future<ResponseType> handler(RequestType req) async {
   final f = File(path);
   if (!f.existsSync()) return Res.notFound('no such file');
   final bytes = await f.readAsBytes();
-  return Res.bytes(bytes, headers: {'content-type': 'application/octet-stream'});
+  return Res.bytes(bytes,
+      headers: {'content-type': 'application/octet-stream'});
 }

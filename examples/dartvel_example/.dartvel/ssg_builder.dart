@@ -2,13 +2,9 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:dartvel_example/pages/about.page.dart' as p0;
-import 'package:dartvel_example/pages/blog/[id].page.dart' as p1;
-import 'package:dartvel_example/pages/blog/[id].loading.dart' as pl1;
-import 'package:dartvel_example/pages/blog/[id].error.dart' as pe1;
-import 'package:dartvel_example/pages/index.page.dart' as p2;
-import 'package:dartvel_example/pages/index.loading.dart' as pl2;
-import 'package:dartvel_example/pages/index.error.dart' as pe2;
+import 'package:dartvel_example/pages/about.page.dart' deferred as p0;
+import 'package:dartvel_example/pages/blog/[id].page.dart' deferred as p1;
+import 'package:dartvel_example/pages/index.page.dart' deferred as p2;
 void main() async {
   final outDir = Directory('build/web/_ssg');
   if (!outDir.existsSync()) outDir.createSync(recursive: true);

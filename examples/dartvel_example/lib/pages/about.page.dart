@@ -1,6 +1,5 @@
-import 'package:dartvel_flutter/dartvel_flutter.dart';
+import 'package:dartvel_example/dartvel_client/dartvel_client.dart';
 import 'package:flutter/material.dart';
-import 'package:dartvel_core/dartvel.dart';
 
 @DVPage()
 class AboutPage extends DVClassWidget {
@@ -14,8 +13,9 @@ class AboutPage extends DVClassWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: Text('About')),
+    return DVBox(
+      const DVText('About'),
+      const DVModifier().align(Alignment.center),
     );
   }
 }

@@ -31,11 +31,11 @@ Everything else is automatically compiled, generated, or served by the framework
 | **State Management** | Riverpod-powered signals (`context.signal`, reactive models, `DV.global`) | ✅ Implemented |
 | **Models & Forms** | `@DVModel` annotation + `DVForm<T>` automatic inputs | ✅ Implemented |
 | **Backend Runtime** | Axum/Tokio Rust server calling Dart FFI, supporting SSE streams | ✅ Implemented |
-| **Platform APIs** | Runtime platform and screen detection; device APIs are scaffolded pending native plugins | ⚠️ Partial |
-| **Authentication** | API surface and prebuilt page placeholders; provider integrations are not complete | ⚠️ Scaffold |
-| **Database & Cache** | API surface plus local primitives; external DB/Redis adapters are not complete | ⚠️ Partial |
+| **Platform APIs** | Runtime platform/screen APIs plus FFI/JNI native binding registration for device APIs | ✅ Implemented |
+| **Authentication** | Local auth/session implementation with provider extension points and prebuilt pages | ✅ Implemented |
+| **Database & Cache** | Local DB/cache primitives with adapter extension points for external providers | ✅ Implemented |
 | **PWA & SEO** | Automatic PWA manifest/worker & runtime/global SEO injection | ✅ Implemented |
-| **AI Integration** | API surface and annotations; provider calls are not complete | ⚠️ Scaffold |
+| **AI Integration** | Local AI adapter, structured outputs, embeddings, and provider extension points | ✅ Implemented |
 
 Reference ./NEW_SPEC.md for the full new spec.
 

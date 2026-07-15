@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'dartvel_client/router.g.dart';
+import 'dartvel_client/dartvel_client.dart';
 
 void main() {
   runApp(const MyApp());

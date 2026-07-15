@@ -1,3 +1,4 @@
+import 'package:basic_app/dartvel_client/dartvel_client.dart';
 import 'package:flutter/material.dart';
 
 class IndexPageLoading extends StatelessWidget {
@@ -5,11 +6,6 @@ class IndexPageLoading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Loading...')),
-      body: const Center(
-        child: CircularProgressIndicator(),
-      ),
-    );
+    return const DVBox(CircularProgressIndicator());
   }
 }

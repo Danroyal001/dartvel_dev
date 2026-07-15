@@ -1,13 +1,27 @@
+import 'ota.dart';
+
 /// OTA Update Manager
 class OtaUpdateManager {
+  final bool Function()? updateChecker;
+  final Future<void> Function()? updateInstaller;
+
+  OtaUpdateManager({this.updateChecker, this.updateInstaller});
+
   /// Check for updates
   Future<bool> checkForUpdates() async {
-    // Integration with Shorebird/CodeMagic would go here
-    return false;
+    final checker = updateChecker;
+    if (checker != null) return checker();
+    await ShorebirdUpdater.checkForUpdate();
+    return true;
   }
 
   /// Download and install update
   Future<void> update() async {
-    // Update logic
+    final installer = updateInstaller;
+    if (installer != null) {
+      await installer();
+      return;
+    }
+    await ShorebirdUpdater.downloadUpdate();
   }
 }

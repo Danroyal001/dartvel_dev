@@ -1,39 +1,24 @@
-<!-- 
-This README describes the package. If you publish this package to pub.dev,
-this README's contents appear on the landing page for your package.
+# dartvel_generator
 
-For information about how to write a good package README, see the guide for
-[writing package pages](https://dart.dev/tools/pub/writing-package-pages). 
+Compile-time generators for Dartvel applications.
 
-For general information about developing packages, see the Dart guide for
-[creating packages](https://dart.dev/guides/libraries/create-packages)
-and the Flutter guide for
-[developing packages and plugins](https://flutter.dev/to/develop-packages). 
--->
+This package discovers Dartvel pages, layouts, guards, models, and backend
+annotations, then emits readable Flutter/Dart glue code used by the Dartvel CLI
+and build pipeline.
 
-TODO: Put a short description of the package here that helps potential users
-know whether this package might be useful for them.
+## Generated Output
 
-## Features
+Generated files are intentionally formatted and named for developers:
 
-TODO: List what your package can do. Maybe include images, gifs, or videos.
+- stable helper names instead of opaque abbreviations
+- small route and redirect helpers
+- explicit imports for pages, layouts, and guards
+- `dart format` compatible output
 
-## Getting started
+## Development
 
-TODO: List prerequisites and provide or point to information on how to
-start using the package.
+Run package tests from this directory:
 
-## Usage
-
-TODO: Include short and useful examples for package users. Add longer examples
-to `/example` folder. 
-
-```dart
-const like = 'sample';
+```bash
+dart test
 ```
-
-## Additional information
-
-TODO: Tell users more about the package: where to find more information, how to 
-contribute to the package, how to file issues, what response they can expect 
-from the package authors, and more.

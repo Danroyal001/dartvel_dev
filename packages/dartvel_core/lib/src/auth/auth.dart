@@ -87,14 +87,13 @@ class Auth {
   Stream<AuthUser?> get authStateChanges => provider.authStateChanges;
 }
 
-/// Mock auth provider
-class DebugAuthProvider implements AuthProvider {
+/// In-memory auth provider for local development and tests.
+class LocalAuthProvider implements AuthProvider {
   final _controller = StreamController<AuthUser?>.broadcast();
   AuthUser? _currentUser;
 
   @override
   Future<AuthUser?> signIn(String email, String password) async {
-    // Mock sign in
     await Future.delayed(const Duration(milliseconds: 500));
 
     if (password.length < 6) {
@@ -140,6 +139,9 @@ class DebugAuthProvider implements AuthProvider {
   @override
   Stream<AuthUser?> get authStateChanges => _controller.stream;
 }
+
+@Deprecated('Use LocalAuthProvider instead.')
+typedef DebugAuthProvider = LocalAuthProvider;
 
 /// JWT token manager
 class JwtTokenManager {

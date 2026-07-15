@@ -6,12 +6,14 @@ import 'dart:convert';
 import 'package:dartvel_shelf/dartvel_shelf.dart' as dv;
 import 'package:http_parser/http_parser.dart';
 import 'package:mime/mime.dart';
-export 'src/annotations/annotations.dart';
-export 'src/platform_config.dart';
 
 // Re-export common types so backends can import only dartvel_core.
 export 'package:dartvel_shelf/dartvel_shelf.dart'
     show Request, Response, Headers;
+
+export 'src/analytics/analytics.dart';
+export 'src/annotations/annotations.dart';
+export 'src/platform_config.dart';
 
 typedef RequestType = dv.Request;
 typedef ResponseType = dv.Response;

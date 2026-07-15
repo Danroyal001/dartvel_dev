@@ -1,3 +1,4 @@
+import 'package:dartvel_example/dartvel_client/dartvel_client.dart';
 import 'package:flutter/material.dart';
 
 class IndexPageLoading extends StatelessWidget {
@@ -5,13 +6,11 @@ class IndexPageLoading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(
-        child: SizedBox(
-          width: 28,
-          height: 28,
-          child: CircularProgressIndicator(strokeWidth: 2),
-        ),
+    return const DVBox(
+      SizedBox(
+        width: 28,
+        height: 28,
+        child: CircularProgressIndicator(strokeWidth: 2),
       ),
     );
   }
@@ -22,18 +21,11 @@ class IndexPageError extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.error_outline, color: Colors.redAccent),
-            const SizedBox(height: 8),
-            Text('Failed to load page', style: Theme.of(context).textTheme.bodyMedium),
-          ],
-        ),
-      ),
+    return const DVBox.list([
+      Icon(Icons.error_outline, color: Colors.redAccent),
+      DVText('Failed to load page'),
+    ]).modifier(
+      const DVModifier().align(Alignment.center),
     );
   }
 }
-

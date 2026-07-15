@@ -1,3 +1,4 @@
+import 'package:basic_app/dartvel_client/dartvel_client.dart';
 import 'package:flutter/material.dart';
 
 class IndexPageError extends StatelessWidget {
@@ -5,23 +6,19 @@ class IndexPageError extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Error')),
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.error_outline, size: 48, color: Colors.red),
-            const SizedBox(height: 16),
-            const Text('Something went wrong'),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Go Back'),
-            ),
-          ],
-        ),
+    return DVBox.list([
+      const Icon(Icons.error_outline, size: 48, color: Colors.red),
+      const DVText('Something went wrong'),
+      const DVText('Go Back').modifier(
+        const DVModifier()
+            .padding(12)
+            .rounded(8)
+            .backgroundColor(Colors.black)
+            .color(Colors.white)
+            .onPressed(() => Navigator.of(context).pop()),
       ),
+    ]).modifier(
+      const DVModifier().align(Alignment.center),
     );
   }
 }

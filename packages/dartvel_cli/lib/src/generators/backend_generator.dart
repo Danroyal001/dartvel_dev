@@ -360,12 +360,23 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
     sbClient.writeln('library dartvel_client_functions;');
     sbClient.writeln("import 'dart:convert';");
     sbClient.writeln("import 'dart:math' as math;");
-    sbClient.writeln("import 'package:dio/dio.dart';");
+    sbClient.writeln("import 'package:dio/dio.dart' as dio;");
     sbClient.writeln("import 'package:dartvel_core/dartvel.dart';");
     sbClient.writeln("import 'dartvel_runtime.dart';");
-    sbClient.writeln(
-        "import 'package:$pkgName/dartvel_client/dartvel_client.dart';");
-    sbClient.writeln('final Dio _dvDio = Dio();');
+    sbClient.writeln('final dio.Dio _dvDio = dio.Dio();');
+    sbClient.writeln('''
+/// Shared generated client state for auth and custom request headers.
+class DartvelClient {
+  static Map<String, String> defaultHeaders = <String, String>{};
+
+  static void setAuthToken(String token, {String scheme = 'Bearer'}) {
+    defaultHeaders['Authorization'] = token.isEmpty ? '' : '\$scheme \$token';
+    if (defaultHeaders['Authorization']!.isEmpty) {
+      defaultHeaders.remove('Authorization');
+    }
+  }
+}
+''');
     sbClient.writeln(
         "final String _dvCsrfToken = (() { try { return const DVCSRF().token(); } catch (_) { final random = math.Random.secure(); const alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'; return String.fromCharCodes(List<int>.generate(32, (_) => alphabet.codeUnitAt(random.nextInt(alphabet.length)))); } })();");
     sbClient.writeln(
@@ -375,7 +386,7 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
     sbClient.writeln(
         "Object? _dvPayloadWithCsrf(String method, Object? payload) { if (!_dvRequiresCsrf(method)) return payload; if (payload is Map) { final copy = Map<String, dynamic>.from(payload); copy.putIfAbsent(DVCSRF.fieldName, () => _dvCsrfToken); return copy; } try { final fields = (payload as dynamic).fields; if (fields is List && !fields.any((e) => e.key == DVCSRF.fieldName)) { fields.add(MapEntry(DVCSRF.fieldName, _dvCsrfToken)); } } catch (_) {} return payload; }");
     sbClient.writeln(
-        'Future<Response<Object?>> _dvRequest(String method, Uri uri, {Object? data, Map<String, String>? headers}) async {');
+        'Future<dio.Response<Object?>> _dvRequest(String method, Uri uri, {Object? data, Map<String, String>? headers}) async {');
     sbClient.writeln(
         '  var hdrs = {...DartvelClient.defaultHeaders, ...(headers ?? {})};');
     sbClient.writeln('  final methodUpper = method.toUpperCase();');
@@ -388,7 +399,7 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
     sbClient.writeln(
         "  if (send is Map && ct.contains('application/x-www-form-urlencoded')) {\n    final q = <String,String>{};\n    send.forEach((k, v) { if (k == null) return; final kk = k.toString(); if (v == null) return; if (v is List) { q[kk] = v.map((e)=> e?.toString() ?? '').join(','); } else { q[kk] = v.toString(); } });\n    send = q.entries.map((e)=> '\${Uri.encodeQueryComponent(e.key)}=\${Uri.encodeQueryComponent(e.value)}').join('&');\n  }");
     sbClient.writeln(
-        '  return _dvDio.requestUri(uri, data: send, options: Options(method: methodUpper, headers: hdrs));');
+        '  return _dvDio.requestUri(uri, data: send, options: dio.Options(method: methodUpper, headers: hdrs));');
     sbClient.writeln('}');
     sbClient.writeln(
         'Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson, {String method = "GET", Object? data, Map<String, String>? headers}) async* {');
@@ -401,14 +412,14 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
     sbClient.writeln('  final response = await _dvDio.requestUri(');
     sbClient.writeln('    uri,');
     sbClient.writeln('    data: reqPayload,');
-    sbClient.writeln('    options: Options(');
+    sbClient.writeln('    options: dio.Options(');
     sbClient.writeln('      method: methodUpper,');
     sbClient.writeln('      headers: hdrs,');
-    sbClient.writeln('      responseType: ResponseType.stream,');
+    sbClient.writeln('      responseType: dio.ResponseType.stream,');
     sbClient.writeln('    ),');
     sbClient.writeln('  );');
     sbClient.writeln(
-        '  final bodyStream = (response.data as ResponseBody).stream;');
+        '  final bodyStream = (response.data as dio.ResponseBody).stream;');
     sbClient.writeln('  var buffer = "";');
     sbClient.writeln('  await for (final chunk in bodyStream) {');
     sbClient.writeln('    buffer += utf8.decode(chunk);');
@@ -453,7 +464,7 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
       final argsNamed =
           '${hasParams ? ('${names.map((n) => '$n: $n').join(', ')}, ') : ''}query: query, body: body, headers: headers';
 
-      sbClient.writeln('Future<Response<Object?>> $fname($sig) async {');
+      sbClient.writeln('Future<dio.Response<Object?>> $fname($sig) async {');
       sbClient.writeln("  var routePath = '${colon.replaceAll("'", "\\'")}';");
       sbClient.writeln('  final Map<String, Object?> pp = $paramMap;');
       sbClient.writeln(
@@ -476,11 +487,11 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
         if (method == 'post') {
           // Enforce multipart form-data for all generated POST endpoints
           sbClient.writeln(
-              '  final reqPayload = (body is FormData) ? body : (body == null ? FormData.fromMap(fb) : (body is Map ? FormData.fromMap(Map<String,dynamic>.from(body)) : body));');
+              '  final reqPayload = (body is dio.FormData) ? body : (body == null ? dio.FormData.fromMap(fb) : (body is Map ? dio.FormData.fromMap(Map<String,dynamic>.from(body)) : body));');
         } else {
           // Other non-GET methods: honor provided payload, fall back to simple map
           sbClient.writeln(
-              '  final reqPayload = (body is FormData) ? body : (body ?? fb);');
+              '  final reqPayload = (body is dio.FormData) ? body : (body ?? fb);');
         }
         sbClient.writeln(
             "  return _dvRequest('$method', uri, data: reqPayload, headers: reqHeaders);");
@@ -527,9 +538,9 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
             'Map<String, dynamic>? query, Object? body, Map<String, String>? headers }');
         final sigApi = bufSig.toString();
 
-        // determine which typed params are path placeholders
+        // Determine which typed params are dynamic path segments.
         final colonNames = names.toSet();
-        // build path pp from placeholders
+        // Build the path parameter map from dynamic path segments.
         final ppPairs = tparams
             .where((p) => colonNames.contains(p))
             .map((p) => "'$p': $p")
@@ -625,10 +636,10 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
             sbClient.writeln("  final reqPayload = body;");
           } else if (method == 'post') {
             sbClient.writeln(
-                "  final reqPayload = (body is FormData) ? body : (body == null ? FormData.fromMap(fb) : (body is Map ? FormData.fromMap(Map<String,dynamic>.from(body)) : body));");
+                "  final reqPayload = (body is dio.FormData) ? body : (body == null ? dio.FormData.fromMap(fb) : (body is Map ? dio.FormData.fromMap(Map<String,dynamic>.from(body)) : body));");
           } else {
             sbClient.writeln(
-                "  final reqPayload = (body is FormData) ? body : (body ?? fb);");
+                "  final reqPayload = (body is dio.FormData) ? body : (body ?? fb);");
           }
           if (convExprStream.isEmpty) {
             sbClient.writeln(
@@ -717,10 +728,10 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
             sbClient.writeln("  final reqPayload = body;");
           } else if (method == 'post') {
             sbClient.writeln(
-                "  final reqPayload = (body is FormData) ? body : (body == null ? FormData.fromMap(fb) : (body is Map ? FormData.fromMap(Map<String,dynamic>.from(body)) : body));");
+                "  final reqPayload = (body is dio.FormData) ? body : (body == null ? dio.FormData.fromMap(fb) : (body is Map ? dio.FormData.fromMap(Map<String,dynamic>.from(body)) : body));");
           } else {
             sbClient.writeln(
-                "  final reqPayload = (body is FormData) ? body : (body ?? fb);");
+                "  final reqPayload = (body is dio.FormData) ? body : (body ?? fb);");
           }
           sbClient.writeln(
               "  final r = await _dvRequest('$method', uri, data: reqPayload, headers: reqHeaders);");

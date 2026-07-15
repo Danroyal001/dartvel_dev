@@ -1,3 +1,4 @@
+import 'package:dartvel_example/dartvel_client/dartvel_client.dart';
 import 'package:flutter/material.dart';
 
 class BlogIdPageLoading extends StatelessWidget {
@@ -5,13 +6,11 @@ class BlogIdPageLoading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(
-        child: SizedBox(
-          width: 28,
-          height: 28,
-          child: CircularProgressIndicator(strokeWidth: 2),
-        ),
+    return const DVBox(
+      SizedBox(
+        width: 28,
+        height: 28,
+        child: CircularProgressIndicator(strokeWidth: 2),
       ),
     );
   }
@@ -22,19 +21,11 @@ class BlogIdPageError extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Blog')),
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.error_outline, color: Colors.redAccent),
-            const SizedBox(height: 8),
-            Text('Failed to load blog post', style: Theme.of(context).textTheme.bodyMedium),
-          ],
-        ),
-      ),
+    return const DVBox.list([
+      Icon(Icons.error_outline, color: Colors.redAccent),
+      DVText('Failed to load blog post'),
+    ]).modifier(
+      const DVModifier().align(Alignment.center),
     );
   }
 }
-

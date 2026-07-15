@@ -1,5 +1,8 @@
 // Advanced routing features: route groups, nested layouts, catch-all
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
+import '../../dartvel_flutter.dart';
 
 /// Route group configuration
 /// Note: RouteBase is from go_router package
@@ -65,18 +68,18 @@ typedef RouteGuard = Future<String?> Function(
 
 /// Common route guards
 class RouteGuards {
+  static FutureOr<bool> Function(BuildContext context)? isAuthenticated;
+  static FutureOr<List<String>> Function(BuildContext context)? currentRoles;
+
   /// Require authentication
   static RouteGuard requireAuth({String redirectTo = '/login'}) {
     return (context, path, params) async {
-      // Note: Check auth state
-      final isAuthenticated = false; // Placeholder
+      final authenticated = await _isAuthenticated(context);
 
-      if (!isAuthenticated) {
-        // ignore: dead_code
+      if (!authenticated) {
         return '$redirectTo?redirect=$path';
       }
 
-      // ignore: dead_code
       return null;
     };
   }
@@ -87,8 +90,7 @@ class RouteGuards {
     String redirectTo = '/unauthorized',
   }) {
     return (context, path, params) async {
-      // Note: Check user roles
-      final userRoles = <String>[]; // Placeholder
+      final userRoles = await _currentRoles(context);
 
       if (!roles.any((role) => userRoles.contains(role))) {
         return redirectTo;
@@ -101,17 +103,33 @@ class RouteGuards {
   /// Redirect if authenticated
   static RouteGuard redirectIfAuth({String redirectTo = '/'}) {
     return (context, path, params) async {
-      // Note: Check auth state
-      // ignore: unused_local_variable
-      final isAuthenticated = DateTime.now().year > 0; // Placeholder
+      final authenticated = await _isAuthenticated(context);
 
-      if (isAuthenticated) {
-        // ignore: dead_code
+      if (authenticated) {
         return redirectTo;
       }
 
       return null;
     };
+  }
+
+  static Future<bool> _isAuthenticated(BuildContext context) async {
+    final configured = isAuthenticated;
+    if (configured != null) return configured(context);
+    return DV.Auth.currentUser != null;
+  }
+
+  static Future<List<String>> _currentRoles(BuildContext context) async {
+    final configured = currentRoles;
+    if (configured != null) return configured(context);
+    final user = DV.Auth.currentUser;
+    if (user is DVAuthUser) {
+      final roles = user.metadata['roles'];
+      if (roles is List) return roles.map((role) => '$role').toList();
+      final role = user.metadata['role'];
+      if (role != null) return ['$role'];
+    }
+    return const <String>[];
   }
 }
 

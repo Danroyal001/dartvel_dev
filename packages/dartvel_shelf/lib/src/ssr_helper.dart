@@ -32,9 +32,7 @@ Future<Response> handleSsrFallback(Request req, String spaRoot) async {
       }
 
       if (content != null) {
-        // Inject into body, ideally replacing a placeholder or appending
-        // For now, let's inject before </body>
-        // Also wrap in a semantic div
+        // Inject semantic prerendered content before the Flutter bootstrap.
         final injection =
             '<div id="semantic-content" style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;">$content</div>';
         html = html.replaceFirst('</body>', '$injection</body>');
@@ -42,8 +40,8 @@ Future<Response> handleSsrFallback(Request req, String spaRoot) async {
 
       // Inject defer to main.dart.js if not present (optional, usually build handles it)
       // html = html.replaceFirst('src="main.dart.js"', 'src="main.dart.js" defer');
-    } catch (e) {
-      print('Error injecting SSR content: $e');
+    } catch (_) {
+      // Keep serving the original HTML if optional SSR content injection fails.
     }
   }
 

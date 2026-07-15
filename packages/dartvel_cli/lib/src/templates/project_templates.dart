@@ -82,9 +82,8 @@ PUBLIC_GREETING=Hello from Dartvel!
 ''';
 
   static const String indexPageTemplate =
-      '''import 'package:dartvel_core/dartvel.dart';
-import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+      '''import 'package:flutter/material.dart';
+import '../dartvel_client/dartvel_client.dart';
 
 @DVPage()
 class IndexPage extends DartvelPage {
@@ -93,60 +92,27 @@ class IndexPage extends DartvelPage {
   @override
   Future<Object?> loadData(
       Map<String, String> params, Map<String, String> query) async {
-    // Fetch data here - runs on page load
     await Future.delayed(const Duration(milliseconds: 500));
-    return {'timestamp': DateTime.now().toIso8601String()};
+    return <String, String>{'timestamp': DateTime.now().toIso8601String()};
   }
 
   @override
   Widget build(BuildContext context) {
-    final data = DvDataScope.of(context).data as Map?;
+    final data = DvDataScope.of(context).data as Map<String, String>?;
     
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Welcome to Dartvel'),
-        centerTitle: true,
+    return DVBox.list([
+      const DVText('Welcome to Dartvel'),
+      const Icon(Icons.rocket_launch, size: 64, color: Colors.blue),
+      const DVText('Your Dartvel app is ready!').modifier(
+        DVModifier().color(Color(0xFF111827)).padding(8),
       ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.rocket_launch, size: 64, color: Colors.blue),
-              const SizedBox(height: 24),
-              Text(
-                'Your Dartvel app is ready!',
-                style: Theme.of(context).textTheme.headlineSmall,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Loaded at: \${data?['timestamp'] ?? 'N/A'}',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 32),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                alignment: WrapAlignment.center,
-                children: [
-                  ElevatedButton.icon(
-                    onPressed: () {},
-                    icon: const Icon(Icons.book),
-                    label: const Text('Docs'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: () {},
-                    icon: const Icon(Icons.code),
-                    label: const Text('GitHub'),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
+      DVText('Loaded at: \${data?['timestamp'] ?? 'N/A'}'),
+      DVBox.wrap([
+        const DVText('Docs').modifier(DVModifier().padding(12).rounded(8)),
+        const DVText('GitHub').modifier(DVModifier().padding(12).rounded(8)),
+      ], spacing: 12),
+    ]).modifier(
+      const DVModifier().padding(24).align(Alignment.center),
     );
   }
 }
@@ -154,47 +120,40 @@ class IndexPage extends DartvelPage {
 
   static String loadingTemplate(String className) =>
       '''import 'package:flutter/material.dart';
+import '../dartvel_client/dartvel_client.dart';
 
 class $className extends StatelessWidget {
   const $className({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Loading...')),
-      body: const Center(
-        child: CircularProgressIndicator(),
-      ),
-    );
+    return const DVBox(CircularProgressIndicator());
   }
 }
 ''';
 
   static String errorTemplate(String className) =>
       '''import 'package:flutter/material.dart';
+import '../dartvel_client/dartvel_client.dart';
 
 class $className extends StatelessWidget {
   const $className({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Error')),
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.error_outline, size: 48, color: Colors.red),
-            const SizedBox(height: 16),
-            const Text('Something went wrong'),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Go Back'),
-            ),
-          ],
-        ),
+    return DVBox.list([
+      const Icon(Icons.error_outline, size: 48, color: Colors.red),
+      const DVText('Something went wrong'),
+      DVText('Go Back').modifier(
+        const DVModifier()
+            .padding(12)
+            .rounded(8)
+            .backgroundColor(Colors.black)
+            .color(Colors.white)
+            .onPressed(() => Navigator.of(context).pop()),
       ),
+    ]).modifier(
+      const DVModifier().align(Alignment.center),
     );
   }
 }
@@ -211,6 +170,7 @@ Map<String, dynamic> handler() {
 
   static const String contactFormTemplate =
       '''// POST /api/contact (filename without method = POST by default)
+import 'dart:io';
 import 'dart:convert';
 
 Future<Map<String, dynamic>> handler(
@@ -224,11 +184,16 @@ Future<Map<String, dynamic>> handler(
     throw Exception('Invalid email address');
   }
 
-  // TODO: Send email, save to database, etc.
-  print('Contact form submission:');
-  print('  Name: \$name');
-  print('  Email: \$email');
-  print('  Message: \$message');
+  final submission = {
+    'name': name,
+    'email': email,
+    'message': message,
+    'receivedAt': DateTime.now().toIso8601String(),
+  };
+  final inbox = File('storage/contact_submissions.jsonl');
+  inbox.parent.createSync(recursive: true);
+  inbox.writeAsStringSync('\${jsonEncode(submission)}\\n',
+      mode: FileMode.append, flush: true);
 
   return {
     'success': true,
@@ -356,16 +321,11 @@ import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/material.dart';
 
 @DVPage()
-class AboutPage extends DartvelPage {
-  const AboutPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('About')),
-      body: const Center(child: Text('About page')),
-    );
-  }
+Widget aboutPage(BuildContext context) {
+  return DVBox.list([
+    const DVText('About'),
+    const DVText('About page'),
+  ]).modifier(const DVModifier().padding(16));
 }
 ```
 

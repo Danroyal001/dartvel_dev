@@ -1,6 +1,5 @@
-import 'package:dartvel_flutter/dartvel_flutter.dart';
+import 'package:class_widgets_app/dartvel_client/dartvel_client.dart';
 import 'package:flutter/material.dart';
-import 'package:dartvel_core/dartvel.dart';
 
 @DVPage()
 class IndexPage extends DVClassWidget {
@@ -9,60 +8,32 @@ class IndexPage extends DVClassWidget {
   @override
   Future<Object?> loadData(
       Map<String, String> params, Map<String, String> query) async {
-    // Fetch data here - runs on page load
     await Future.delayed(const Duration(milliseconds: 500));
-    return {'timestamp': DateTime.now().toIso8601String()};
+    return <String, String>{'timestamp': DateTime.now().toIso8601String()};
   }
 
   @override
   Widget build(BuildContext context) {
-    final data = DvDataScope.of(context).data as Map?;
+    final data = DvDataScope.of(context).data as Map<String, String>?;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Welcome to Dartvel (Class Widgets)'),
-        centerTitle: true,
-      ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.rocket_launch, size: 64, color: Colors.blue),
-              const SizedBox(height: 24),
-              Text(
-                'Your Class-Based Dartvel app is ready!',
-                style: Theme.of(context).textTheme.headlineSmall,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Loaded at: ${data?['timestamp'] ?? 'N/A'}',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 32),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                alignment: WrapAlignment.center,
-                children: [
-                  ElevatedButton.icon(
-                    onPressed: () {},
-                    icon: const Icon(Icons.book),
-                    label: const Text('Docs'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: () {},
-                    icon: const Icon(Icons.code),
-                    label: const Text('GitHub'),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
+    return DVBox.list([
+      const DVText('Welcome to Dartvel (Class Widgets)'),
+      const Icon(Icons.rocket_launch, size: 64, color: Colors.blue),
+      const DVText('Your Class-Based Dartvel app is ready!')
+          .modifier(_titleStyle),
+      DVText('Loaded at: ${data?['timestamp'] ?? 'N/A'}'),
+      DVBox.wrap([
+        Button('Docs', () {}),
+        Button('GitHub', () {}),
+      ], spacing: 12),
+    ]).modifier(
+      const DVModifier().padding(24).align(Alignment.center),
     );
   }
 }
+
+final _titleStyle = const DVModifier()
+    .color(const Color(0xFF111827))
+    .padding(8)
+    .backgroundColor(const Color(0xFFEFF6FF))
+    .rounded(8);
