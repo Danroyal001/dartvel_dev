@@ -1,9 +1,11 @@
-// POST /api/contact (filename without method = POST by default)
 import 'dart:convert';
+import 'dart:io';
 
-Future<Map<String, dynamic>> handler(
-    {required String name, required String email, required String message}) async {
-  // Validate inputs
+Future<Map<String, String>> handler({
+  required String name,
+  required String email,
+  required String message,
+}) async {
   if (name.isEmpty || email.isEmpty || message.isEmpty) {
     throw Exception('All fields are required');
   }
@@ -12,14 +14,20 @@ Future<Map<String, dynamic>> handler(
     throw Exception('Invalid email address');
   }
 
-  // TODO: Send email, save to database, etc.
-  print('Contact form submission:');
-  print('  Name: $name');
-  print('  Email: $email');
-  print('  Message: $message');
+  final submissions = File('storage/contact_submissions.jsonl');
+  await submissions.parent.create(recursive: true);
+  await submissions.writeAsString(
+    '${jsonEncode({
+          'name': name,
+          'email': email,
+          'message': message,
+          'createdAt': DateTime.now().toIso8601String(),
+        })}\n',
+    mode: FileMode.append,
+  );
 
   return {
-    'success': true,
+    'success': 'true',
     'message': 'Thank you for contacting us!',
   };
 }

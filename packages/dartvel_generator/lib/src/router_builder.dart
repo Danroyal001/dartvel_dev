@@ -131,18 +131,19 @@ class RouterBuilder implements Builder {
       if (m != null) {
         className = m.group(1)!;
       } else {
-        final mf = RegExp(r'@DVFunctionalWidget\(\)\s+Widget\s+([A-Za-z_][A-Za-z0-9_]*)\(')
+        final mf = RegExp(
+                r'@DVPage\([^)]*\)\s*(?:@DVFunctionalWidget\(\)\s*)?Widget\s+([A-Za-z_][A-Za-z0-9_]*)\(')
             .firstMatch(src);
         if (mf == null) {
           log.warning(
-            'dartvel: could not find class extending DartvelPage/DVClassWidget or @DVFunctionalWidget in $path',
+            'dartvel: could not find class extending DartvelPage/DVClassWidget or @DVPage function in $path',
           );
           continue;
         }
         className = mf.group(1)!;
         isFunctional = true;
       }
-      pageImports.add("import '$importPath' as p$i;");
+      pageImports.add("import '$importPath' deferred as p$i;");
 
       String route;
       try {
@@ -163,7 +164,7 @@ class RouterBuilder implements Builder {
       String? loadingAlias;
       String? errorAlias;
 
-      if (await buildStep.canRead(loadingAsset)) {
+      if (!isFunctional && await buildStep.canRead(loadingAsset)) {
         final imp = loadingAsset.path.replaceFirst(
           RegExp(r'^lib/'),
           'package:$pkgName/',
@@ -171,7 +172,7 @@ class RouterBuilder implements Builder {
         loadingAlias = 'pl$i';
         pageImports.add("import '$imp' as $loadingAlias;");
       }
-      if (await buildStep.canRead(errorAsset)) {
+      if (!isFunctional && await buildStep.canRead(errorAsset)) {
         final imp = errorAsset.path.replaceFirst(
           RegExp(r'^lib/'),
           'package:$pkgName/',
@@ -183,6 +184,8 @@ class RouterBuilder implements Builder {
       pageEntries.add({
         'i': '$i',
         'class': className,
+        'generatedWidget': _generatedPageWidgetName(className),
+        'pageScaffold': _pageScaffoldSpec(src),
         'route': route,
         'dir': dir,
         'isFunctional': isFunctional,
@@ -307,8 +310,6 @@ class RouterBuilder implements Builder {
 
     // i18n
     final i18n = (dv['i18n'] as Map?) ?? {};
-    final defaultLocale = i18n['defaultLocale'] as String? ?? 'en';
-    final locales = <String>{defaultLocale};
     final i18nParam = (i18n['param'] ?? 'lang').toString();
     final i18nDefault = (i18n['defaultLocale'] ?? '').toString();
     final i18nLocales = <String>[];
@@ -327,9 +328,7 @@ class RouterBuilder implements Builder {
 ${guardRedirectFor(e['dir']!)}      pageBuilder: (context, state) {
         final params = Map<String, String>.from(state.pathParameters);
         final query  = Map<String, String>.from(state.uri.queryParameters);
-        ${e['isFunctional'] == true
-            ? 'final page = p${e['i']}.${e['class']}(context);'
-            : 'final page = const p${e['i']}.${e['class']}();'}
+        final page = const ${e['generatedWidget']}();
         final withState = DartvelRouteState(params: params, query: query, child: page);
 
         final i18nParam = '${esc(i18nParam)}';
@@ -341,43 +340,48 @@ ${guardRedirectFor(e['dir']!)}      pageBuilder: (context, state) {
             : (DvI18n.normalize(langRaw, i18nLocales, i18nDefault.isEmpty ? (langRaw ?? '') : i18nDefault));
         final withI18n = DvI18nScope(localeTag: langTag, child: withState);
 
-        ${e['isFunctional'] == true
-            ? 'final loaderWrapped = withI18n;'
-            : '''final loaderWrapped = DvDataLoader(
+        ${e['isFunctional'] == true ? 'final loaderWrapped = withI18n;' : '''final loaderWrapped = DvDataLoader(
           load: () => page.loadData(params, query),
           child: withI18n,
 ${(() {
-            final la = e['loadingAlias'];
-            final ea = e['errorAlias'];
-            final lc = e['class'] != null ? '${e['class']!}Loading' : 'Loading';
-            final ec = e['class'] != null ? '${e['class']!}Error' : 'Error';
-            final b = StringBuffer();
-            if (la != null && la.isNotEmpty) {
-              b.writeln("          loading: $la.$lc(),");
-            } else {
-              b.writeln("          loading: const DvDefaultLoading(),");
-            }
-            if (ea != null && ea.isNotEmpty) {
-              b.writeln("          error: $ea.$ec(),");
-            } else {
-              b.writeln("          error: const DvDefaultError(),");
-            }
-            return b.toString();
-          })()}        );'''}
+                      final la = e['loadingAlias'];
+                      final ea = e['errorAlias'];
+                      final lc = e['class'] != null
+                          ? '${e['class']!}Loading'
+                          : 'Loading';
+                      final ec =
+                          e['class'] != null ? '${e['class']!}Error' : 'Error';
+                      final b = StringBuffer();
+                      if (la != null && la.isNotEmpty) {
+                        b.writeln("          loading: $la.$lc(),");
+                      } else {
+                        b.writeln(
+                            "          loading: const DvDefaultLoading(),");
+                      }
+                      if (ea != null && ea.isNotEmpty) {
+                        b.writeln("          error: $ea.$ec(),");
+                      } else {
+                        b.writeln("          error: const DvDefaultError(),");
+                      }
+                      return b.toString();
+                    })()}        );'''}
 
         final seoWrapped = DartvelSeo(
-          props: ${e['isFunctional'] == true ? 'SeoProps.empty' : 'page.buildWebSeo(params, query)'},
+          props: page.buildWebSeo(params, query),
           defaults: _defaultSeo,
           child: loaderWrapped,
         );
-        final spec = ${e['isFunctional'] == true
-            ? '_projectDefaultTransition'
-            : '''page.transition == const PageTransitionSpec()
+        final spec = ${e['isFunctional'] == true ? '_projectDefaultTransition' : '''page.transition == const PageTransitionSpec()
             ? _projectDefaultTransition
             : page.transition'''};
+        final layoutWrapped = ${wrapWithLayouts(e['dir']!, 'seoWrapped')};
+        final pageShellWrapped = DVPageShell(
+          spec: page.pageScaffold,
+          child: layoutWrapped,
+        );
         return dvTransitionPage(
           key: state.pageKey,
-          child: ${wrapWithLayouts(e['dir']!, 'seoWrapped')},
+          child: pageShellWrapped,
           spec: spec,
         );
       },
@@ -385,6 +389,62 @@ ${(() {
   ''',
         )
         .join(',\n');
+
+    final generatedPageWidgets = pageEntries
+        .map(
+          (e) => '''
+/// Deferred generated widget wrapper for [p${e['i']}.${e['class']}].
+class ${e['generatedWidget']} extends DartvelPage {
+  const ${e['generatedWidget']}({super.key});
+
+  static Future<void>? _libraryFuture;
+
+  static Future<void> loadLibrary() {
+    return _libraryFuture ??= p${e['i']}.loadLibrary();
+  }
+
+  @override
+  DVPageScaffoldSpec get pageScaffold => ${e['pageScaffold']};
+
+${e['isFunctional'] == true ? '''  @override
+  Future<Object?> loadData(
+    Map<String, String> params,
+    Map<String, String> query,
+  ) async {
+    await loadLibrary();
+    return null;
+  }
+''' : '''  @override
+  Future<Object?> loadData(
+    Map<String, String> params,
+    Map<String, String> query,
+  ) async {
+    await loadLibrary();
+    return p${e['i']}.${e['class']}().loadData(params, query);
+  }
+
+  @override
+  PageTransitionSpec get transition => const PageTransitionSpec();
+'''}
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<void>(
+      future: loadLibrary(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return const DvDefaultError();
+        }
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const DvDefaultLoading();
+        }
+        return ${e['isFunctional'] == true ? 'p${e['i']}.${e['class']}(context)' : 'p${e['i']}.${e['class']}()'};
+      },
+    );
+  }
+}
+''',
+        )
+        .join('\n');
 
     // Global redirect
     final sbRedirect = StringBuffer();
@@ -434,6 +494,8 @@ const _projectDefaultTransition = PageTransitionSpec(
 );
 
 ${sbRedirect.toString()}
+
+$generatedPageWidgets
 
 /// Creates the GoRouter instance for Dartvel routing.
 GoRouter createDartvelRouter() => GoRouter(
@@ -589,6 +651,78 @@ class DartvelRuntime {
       ),
       runtimeDart,
     );
+  }
+
+  static String _generatedPageWidgetName(String functionName) {
+    final words = RegExp(r'[A-Za-z0-9]+')
+        .allMatches(functionName)
+        .map((match) => match.group(0)!)
+        .where((word) => word.isNotEmpty)
+        .toList();
+    final pascalName =
+        words.map((word) => word[0].toUpperCase() + word.substring(1)).join();
+    final baseName = pascalName.isEmpty ? 'Generated' : pascalName;
+    return '${baseName}GeneratedPage';
+  }
+
+  static String _pageScaffoldSpec(String source) {
+    final match =
+        RegExp(r'@DVPage\(([^)]*)\)', dotAll: true).firstMatch(source);
+    if (match == null) return 'const DVPageScaffoldSpec()';
+
+    final args = match.group(1) ?? '';
+    final fields = <String>[];
+
+    final title = _namedStringArg(args, 'title');
+    if (title != null) fields.add('title: $title');
+
+    final shell = _namedEnumArg(args, 'shell', 'DVPageShellMode');
+    if (shell != null) fields.add('shell: $shell');
+
+    for (final name in [
+      'scaffold',
+      'showAppBar',
+      'safeArea',
+      'centerTitle',
+      'extendBody',
+      'resizeToAvoidBottomInset',
+    ]) {
+      final value = _namedBoolArg(args, name);
+      if (value != null) fields.add('$name: $value');
+    }
+
+    for (final name in ['backgroundColor', 'appBarBackgroundColor']) {
+      final value = _namedIntArg(args, name);
+      if (value != null) fields.add('$name: $value');
+    }
+
+    if (fields.isEmpty) return 'const DVPageScaffoldSpec()';
+    return 'const DVPageScaffoldSpec(${fields.join(', ')})';
+  }
+
+  static String? _namedStringArg(String args, String name) {
+    final match = RegExp(
+      '$name\\s*:\\s*((?:r)?(?:\'[^\']*\'|"[^"]*"))',
+      dotAll: true,
+    ).firstMatch(args);
+    return match?.group(1);
+  }
+
+  static String? _namedEnumArg(String args, String name, String enumName) {
+    final match = RegExp('$name\\s*:\\s*($enumName\\.[A-Za-z_][A-Za-z0-9_]*)')
+        .firstMatch(args);
+    return match?.group(1);
+  }
+
+  static String? _namedBoolArg(String args, String name) {
+    final match = RegExp('$name\\s*:\\s*(true|false)').firstMatch(args);
+    return match?.group(1);
+  }
+
+  static String? _namedIntArg(String args, String name) {
+    final match =
+        RegExp('$name\\s*:\\s*(0x[0-9A-Fa-f]+|[0-9]+)').firstMatch(args);
+    return match?.group(1);
   }
 }
 

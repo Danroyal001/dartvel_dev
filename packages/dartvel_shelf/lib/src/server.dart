@@ -124,13 +124,17 @@ Future<ServerHandle> serve(
   if (spaRoot != null) {
     effectiveHandler = (Request req) async {
       // 1. Try serving static file from spaRoot
-      final pathPart = req.url.path.startsWith('/') ? req.url.path.substring(1) : req.url.path;
+      final pathPart = req.url.path.startsWith('/')
+          ? req.url.path.substring(1)
+          : req.url.path;
       if (pathPart.isNotEmpty && !pathPart.contains('..')) {
         final file = File(p.join(spaRoot, pathPart));
         if (await file.exists() && (await FileSystemEntity.isFile(file.path))) {
           final bytes = await file.readAsBytes();
           final mime = getMimeType(file.path);
-          return Response(200, headers: Headers()..set('content-type', mime), body: Stream.value(bytes));
+          return Response(200,
+              headers: Headers()..set('content-type', mime),
+              body: Stream.value(bytes));
         }
       }
 
@@ -179,7 +183,9 @@ Future<ServerHandle> serve(
         out.ref.hdrs = hdrsNative.cast();
         out.ref.hdrs_len = hdrsFlat.length;
 
-        final isSse = resp.headers.get('content-type')?.contains('text/event-stream') == true;
+        final isSse =
+            resp.headers.get('content-type')?.contains('text/event-stream') ==
+                true;
         final isStream = resp.isStream || isSse;
 
         if (isStream && resp.body != null) {
@@ -250,15 +256,16 @@ Future<ServerHandle> serve(
       ffi.NativeCallable<_NativeCb>.listener(handleRequest);
   api.aw_register_handler(dartRequestHandler.nativeFunction);
 
-  final dartCancelHandler = ffi.NativeCallable<_NativeCancelCb>.listener((int reqId) {
+  final dartCancelHandler =
+      ffi.NativeCallable<_NativeCancelCb>.listener((int reqId) {
     final subscription = activeSubscriptions.remove(reqId);
     subscription?.cancel();
   });
   try {
     api.aw_register_cancel_handler(dartCancelHandler.nativeFunction);
-  } catch (e) {
-    // Gracefully handle case where pre-compiled binary lacks stream cancellation symbol
-    print('Warning: stream cancel handler registration skipped (not supported by native library).');
+  } on ArgumentError {
+    // Older bundled binaries may not expose this FFI symbol. Rust source and
+    // generated bindings include it; rebuilding the native asset enables it.
   }
 
   _configureCors(api, cors);
@@ -313,7 +320,8 @@ Future<ServerHandle> serve(
     throw StateError('aw_start failed ($serverId)');
   }
 
-  return ServerHandle(host, port, serverId, api, dartRequestHandler, dartCancelHandler);
+  return ServerHandle(
+      host, port, serverId, api, dartRequestHandler, dartCancelHandler);
 }
 
 void _configureCors(gen.DartvelShelfBindings api, CorsOptions? cors) {
@@ -412,16 +420,26 @@ void _configureCompression(gen.DartvelShelfBindings api, bool enabled) {
 String getMimeType(String path) {
   final ext = p.extension(path).toLowerCase();
   switch (ext) {
-    case '.html': return 'text/html';
-    case '.css': return 'text/css';
-    case '.js': return 'application/javascript';
-    case '.png': return 'image/png';
+    case '.html':
+      return 'text/html';
+    case '.css':
+      return 'text/css';
+    case '.js':
+      return 'application/javascript';
+    case '.png':
+      return 'image/png';
     case '.jpg':
-    case '.jpeg': return 'image/jpeg';
-    case '.gif': return 'image/gif';
-    case '.svg': return 'image/svg+xml';
-    case '.json': return 'application/json';
-    case '.wasm': return 'application/wasm';
-    default: return 'application/octet-stream';
+    case '.jpeg':
+      return 'image/jpeg';
+    case '.gif':
+      return 'image/gif';
+    case '.svg':
+      return 'image/svg+xml';
+    case '.json':
+      return 'application/json';
+    case '.wasm':
+      return 'application/wasm';
+    default:
+      return 'application/octet-stream';
   }
 }

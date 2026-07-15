@@ -6,7 +6,8 @@ class GenerateCommand extends Command<void> {
   @override
   final String name = 'generate';
   @override
-  final String description = 'Generate Dartvel template files for pages, models, forms, and backend functions.';
+  final String description =
+      'Generate Dartvel template files for pages, models, forms, and backend functions.';
 
   GenerateCommand() {
     addSubcommand(GeneratePageSubcommand());
@@ -39,17 +40,16 @@ class GeneratePageSubcommand extends Command<void> {
       return;
     }
     final capitalized = pageName[0].toUpperCase() + pageName.substring(1);
-    file.writeAsStringSync('''import 'package:flutter/material.dart';
-import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:dartvel_core/dartvel.dart';
+    file.writeAsStringSync(
+        '''import 'package:dartvel_flutter/dartvel_flutter.dart';
+import 'package:flutter/material.dart';
 
 @DVPage()
 @DVFunctionalWidget()
 Widget ${pageName.toLowerCase()}Page(BuildContext context) {
-  return const Scaffold(
-    body: Center(
-      child: Text('$capitalized Page'),
-    ),
+  return DVBox(
+    const DVText('$capitalized Page'),
+    const DVModifier().align(Alignment.center),
   );
 }
 ''');
@@ -70,11 +70,13 @@ class GenerateModelSubcommand extends Command<void> {
       return;
     }
     final modelName = argResults!.rest.first;
-    final modelsDir = Directory(p.join(Directory.current.path, 'lib', 'models'));
+    final modelsDir =
+        Directory(p.join(Directory.current.path, 'lib', 'models'));
     if (!modelsDir.existsSync()) {
       modelsDir.createSync(recursive: true);
     }
-    final file = File(p.join(modelsDir.path, '${modelName.toLowerCase()}.dart'));
+    final file =
+        File(p.join(modelsDir.path, '${modelName.toLowerCase()}.dart'));
     if (file.existsSync()) {
       print('Model file already exists: ${file.path}');
       return;
@@ -107,11 +109,13 @@ class GenerateBackendSubcommand extends Command<void> {
       return;
     }
     final funcName = argResults!.rest.first;
-    final backendDir = Directory(p.join(Directory.current.path, 'lib', 'backend', 'functions'));
+    final backendDir = Directory(
+        p.join(Directory.current.path, 'lib', 'backend', 'functions'));
     if (!backendDir.existsSync()) {
       backendDir.createSync(recursive: true);
     }
-    final file = File(p.join(backendDir.path, '${funcName.toLowerCase()}.dart'));
+    final file =
+        File(p.join(backendDir.path, '${funcName.toLowerCase()}.dart'));
     if (file.existsSync()) {
       print('Backend function file already exists: ${file.path}');
       return;

@@ -50,6 +50,7 @@ class TaskManager {
       try {
         await task.execute(data);
       } catch (e) {
+        // ignore: avoid_print
         print('Task $name failed: $e');
       }
     }

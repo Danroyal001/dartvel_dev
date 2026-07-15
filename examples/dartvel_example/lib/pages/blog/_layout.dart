@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:dartvel_flutter/dartvel_flutter.dart';
+import 'package:dartvel_example/dartvel_client/dartvel_client.dart';
 
 class BlogLayout extends DartvelLayout {
   const BlogLayout({super.key, required super.child});

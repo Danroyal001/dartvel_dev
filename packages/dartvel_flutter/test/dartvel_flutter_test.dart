@@ -1,8 +1,7 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mix/mix.dart';
 import 'package:dartvel_flutter/dartvel_flutter.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   testWidgets('DVBox and DVText render correctly with style modifiers',
@@ -15,9 +14,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: DVBox(
-            const DVText('Save'),
-          ).modifier(style),
+          body: const DVBox(DVText('Save')).modifier(style),
         ),
       ),
     );
@@ -35,17 +32,14 @@ void main() {
             body: Consumer(
               builder: (context, ref, child) {
                 final counter = context.signal(0);
-                return Column(
-                  children: [
-                    Text('Count: ${counter.value}'),
-                    ElevatedButton(
-                      onPressed: () {
-                        counter.value = counter.value + 1;
-                      },
-                      child: const Text('Increment'),
-                    ),
-                  ],
-                );
+                return DVBox.list([
+                  DVText('Count: ${counter.value}'),
+                  const DVText('Increment').modifier(
+                    const DVModifier().onPressed(() {
+                      counter.value = counter.value + 1;
+                    }),
+                  ),
+                ]);
               },
             ),
           ),
@@ -55,10 +49,42 @@ void main() {
 
     expect(find.text('Count: 0'), findsOneWidget);
 
-    await tester.tap(find.byType(ElevatedButton));
+    await tester.tap(find.text('Increment'));
     await tester.pumpAndSettle();
 
     expect(find.text('Count: 1'), findsOneWidget);
+  });
+
+  testWidgets('DVBox supports static and builder collection layouts',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: DVBox.wrap([
+            DVText('One'),
+            DVText('Two'),
+            DVText('Three'),
+          ]),
+        ),
+      ),
+    );
+
+    expect(find.text('One'), findsOneWidget);
+    expect(find.byType(Wrap), findsOneWidget);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: DVBox.builder<int>(
+            [1, 2, 3],
+            (item) => DVText('Item $item'),
+          ).grid(columns: 2),
+        ),
+      ),
+    );
+
+    expect(find.byType(GridView), findsOneWidget);
+    expect(find.text('Item 1'), findsOneWidget);
   });
 
   testWidgets('DVPlatform reports runtime screen and platform data',
@@ -82,6 +108,21 @@ void main() {
   });
 
   test('integration APIs provide concrete local behavior', () async {
+    DVNativeBridge.register('camera.takePhoto', (_) => <int>[1, 2, 3]);
+    DVNativeBridge.register(
+        'location.current',
+        (_) => {
+              'latitude': 6.5244,
+              'longitude': 3.3792,
+            });
+    DVNativeBridge.register(
+        'media.pick',
+        (_) => <Map<String, Object?>>[
+              {'path': 'image.jpg', 'type': 'image'}
+            ]);
+    DVNativeBridge.register('permissions.request', (_) => true);
+    DVNativeBridge.register('permissions.isGranted', (_) => true);
+
     await DV.Auth.signIn();
     expect(DV.Auth.currentUser, isA<DVAuthUser>());
 
@@ -92,12 +133,14 @@ void main() {
     final user = DV.Auth.currentUser as DVAuthUser;
     expect(user.email, 'dev@example.com');
 
-    expect(await DV.Platform.camera.takePhoto(), isEmpty);
+    expect(await DV.Platform.camera.takePhoto(), [1, 2, 3]);
     expect(
       await DV.Platform.location.getCoordinates(),
-      {'latitude': 0, 'longitude': 0},
+      {'latitude': 6.5244, 'longitude': 3.3792},
     );
-    expect(await DV.Platform.media.pick(), isEmpty);
+    expect(await DV.Platform.media.pick(), [
+      {'path': 'image.jpg', 'type': 'image'}
+    ]);
 
     await DV.Platform.files.writeBytes('local.bin', [7, 8, 9]);
     expect(await DV.Platform.files.readBytes('local.bin'), [7, 8, 9]);

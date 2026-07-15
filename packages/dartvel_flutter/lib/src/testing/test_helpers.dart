@@ -17,11 +17,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
-/// Mock HTTP client for testing
-class MockHttpClient extends http.BaseClient {
+/// Fake HTTP client for testing
+class FakeHttpClient extends http.BaseClient {
   final Map<String, dynamic> responses;
   
-  MockHttpClient(this.responses);
+  FakeHttpClient(this.responses);
   
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
@@ -87,8 +87,8 @@ class TestHelpers {
   }
 }
 
-/// Mock navigator observer for testing navigation
-class MockNavigatorObserver extends NavigatorObserver {
+/// Fake navigator observer for testing navigation
+class FakeNavigatorObserver extends NavigatorObserver {
   final List<Route<dynamic>> pushedRoutes = [];
   final List<Route<dynamic>> poppedRoutes = [];
   
@@ -107,9 +107,9 @@ class MockNavigatorObserver extends NavigatorObserver {
 
 /// API testing helpers
 class ApiTestHelpers {
-  /// Create a mock HTTP client with predefined responses
-  static MockHttpClient createMockClient(Map<String, dynamic> responses) {
-    return MockHttpClient(responses);
+  /// Create a fake HTTP client with predefined responses
+  static FakeHttpClient createFakeClient(Map<String, dynamic> responses) {
+    return FakeHttpClient(responses);
   }
   
   /// Verify API response structure
@@ -140,12 +140,12 @@ void main() {
     expect(find.text('Hello'), findsOneWidget);
   });
   
-  test('API mock test', () {
-    final mockClient = ApiTestHelpers.createMockClient({
+  test('API fake test', () {
+    final fakeClient = ApiTestHelpers.createFakeClient({
       'https://api.example.com/users': {'users': []},
     });
     
-    // Use mockClient in your tests
+    // Use fakeClient in your tests
   });
 }
 */

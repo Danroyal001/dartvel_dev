@@ -79,8 +79,8 @@ class PushNotifications {
   }
 }
 
-/// Mock push provider for development
-class DebugPushNotificationProvider implements PushNotificationProvider {
+/// In-memory push provider for local development and tests.
+class LocalPushNotificationProvider implements PushNotificationProvider {
   final _messageController = StreamController<PushNotification>.broadcast();
   final _openedController = StreamController<PushNotification>.broadcast();
 
@@ -92,7 +92,7 @@ class DebugPushNotificationProvider implements PushNotificationProvider {
 
   @override
   Future<String?> getToken() async {
-    return 'debug_token_123';
+    return 'local-${DateTime.now().microsecondsSinceEpoch}';
   }
 
   @override
@@ -122,3 +122,6 @@ class DebugPushNotificationProvider implements PushNotificationProvider {
     _messageController.add(notification);
   }
 }
+
+@Deprecated('Use LocalPushNotificationProvider instead.')
+typedef DebugPushNotificationProvider = LocalPushNotificationProvider;

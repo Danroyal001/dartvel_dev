@@ -150,7 +150,41 @@ class DoctorCommand extends Command<void> {
   }
 
   Future<void> _checkProjectConfig() async {
-    print('    Dartvel project checks not yet fully implemented');
-    print('    Project detection and validation coming soon');
+    final cwd = Directory.current.path;
+    final pubspec = File(p.join(cwd, 'pubspec.yaml'));
+    final content = await pubspec.readAsString();
+    final hasDartvelConfig =
+        RegExp(r'^dartvel:\s*$', multiLine: true).hasMatch(content);
+    final hasFlutterDependency =
+        content.contains('flutter:') || content.contains('sdk: flutter');
+
+    if (hasDartvelConfig) {
+      print('[+] dartvel: configuration section found');
+    } else {
+      print('[!] dartvel: missing pubspec.yaml dartvel: section');
+    }
+
+    if (hasFlutterDependency) {
+      print('[+] Flutter dependency configured');
+    } else {
+      print('[!] Flutter dependency not found in pubspec.yaml');
+    }
+
+    final expectedDirs = [
+      'lib/pages',
+      'lib/backend/functions',
+      'lib/models',
+    ];
+    for (final dir in expectedDirs) {
+      final exists = Directory(p.join(cwd, dir)).existsSync();
+      print('${exists ? '[+]' : '[!]'} $dir ${exists ? 'exists' : 'missing'}');
+    }
+
+    final env = File(p.join(cwd, '.env'));
+    if (env.existsSync()) {
+      print('[+] .env present');
+    } else {
+      print('[-] .env not present; runtime configuration will use defaults');
+    }
   }
 }

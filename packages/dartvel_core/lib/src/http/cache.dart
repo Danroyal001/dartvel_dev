@@ -1,6 +1,7 @@
 // HTTP caching layer
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 /// Cache entry
 class CacheEntry<T> {
@@ -153,15 +154,33 @@ class CachedHttpClient {
     Map<String, String>? headers,
     T Function(dynamic)? decoder,
   }) async {
-    // Note: Actual HTTP request (mock implementation)
-    // This is a placeholder
-    await Future.delayed(const Duration(milliseconds: 100));
+    final client = HttpClient();
+    try {
+      final request = await client.getUrl(Uri.parse(url));
+      headers?.forEach(request.headers.set);
+      final response = await request.close();
+      final body = await response.transform(utf8.decoder).join();
 
-    if (decoder != null) {
-      return decoder({});
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw HttpException(
+          'GET $url failed with HTTP ${response.statusCode}',
+          uri: Uri.parse(url),
+        );
+      }
+
+      final contentType = response.headers.contentType?.mimeType ?? '';
+      final Object decoded =
+          contentType == 'application/json' || body.trimLeft().startsWith('{')
+              ? jsonDecode(body)
+              : body;
+
+      if (decoder != null) {
+        return decoder(decoded);
+      }
+      return decoded as T;
+    } finally {
+      client.close(force: true);
     }
-
-    return {} as T;
   }
 
   String _getCacheKey(String method, String url, Map<String, String>? headers) {

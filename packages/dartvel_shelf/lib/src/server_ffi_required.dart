@@ -1,23 +1,30 @@
 import 'wintercg.dart';
 
-/// Stub class for ServerHandle on unsupported platforms (like web).
+/// Server handle for builds where the native FFI server is not linked.
 class ServerHandle {
   /// Server host.
   final String host;
+
   /// Server port.
   final int port;
+  bool _stopped = false;
 
   /// Default constructor.
   ServerHandle(this.host, this.port);
 
   /// Stops the server.
-  Future<void> stop() async {}
+  Future<void> stop() async {
+    _stopped = true;
+  }
+
+  bool get isStopped => _stopped;
 }
 
-/// Stub class for TlsConfig on unsupported platforms.
+/// TLS configuration.
 class TlsConfig {
   /// Certificate PEM string.
   final String certPem;
+
   /// Key PEM string.
   final String keyPem;
 
@@ -25,16 +32,20 @@ class TlsConfig {
   const TlsConfig({required this.certPem, required this.keyPem});
 }
 
-/// Stub class for CorsOptions on unsupported platforms.
+/// CORS options.
 class CorsOptions {
   /// Allowed origins.
   final List<String> allowedOrigins;
+
   /// Allowed methods.
   final List<String> allowedMethods;
+
   /// Allowed headers.
   final List<String> allowedHeaders;
+
   /// Allow credentials flag.
   final bool allowCredentials;
+
   /// Max age cache in seconds.
   final int? maxAge;
 
@@ -60,5 +71,7 @@ Future<ServerHandle> serve(
   String? spaRoot,
   bool compression = true,
 }) async {
-  throw UnsupportedError('Server is not supported on this platform.');
+  throw StateError(
+    'Dartvel Shelf server requires the FFI native backend. Build with dart.library.ffi and the ffigen-generated server bindings.',
+  );
 }

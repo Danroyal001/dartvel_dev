@@ -23,13 +23,18 @@ class PlatformDetector {
   }
 
   static bool get isAndroidTV {
-    // Proper detection to be implemented
-    return Platform.isAndroid; // Placeholder
+    if (!Platform.isAndroid) return false;
+    final type = Platform.environment['DARTVEL_DEVICE_TYPE']?.toLowerCase();
+    final features = Platform.environment['DARTVEL_ANDROID_FEATURES'] ?? '';
+    return type == 'tv' ||
+        features.contains('android.software.leanback') ||
+        features.contains('android.hardware.type.television');
   }
 
   static bool get isAppleTV {
-    // Requires tvOS support
-    return false;
+    final type = Platform.environment['DARTVEL_DEVICE_TYPE']?.toLowerCase();
+    final platform = Platform.environment['DARTVEL_PLATFORM']?.toLowerCase();
+    return type == 'tv' && (platform == 'tvos' || platform == 'appletv');
   }
 
   static String get platformName {
@@ -71,27 +76,57 @@ class TVInputHandler {
   }
 }
 
-/// Embedded Linux GPIO access (placeholder)
+/// Embedded Linux GPIO access through Linux sysfs GPIO.
 class GpioController {
   final int pin;
+  final Directory gpioRoot;
 
-  GpioController(this.pin);
+  GpioController(this.pin, {Directory? gpioRoot})
+      : gpioRoot = gpioRoot ?? Directory('/sys/class/gpio');
+
+  Directory get _pinDir => Directory('${gpioRoot.path}/gpio$pin');
+  File get _export => File('${gpioRoot.path}/export');
+  File get _direction => File('${_pinDir.path}/direction');
+  File get _value => File('${_pinDir.path}/value');
 
   Future<void> setOutput() async {
-    // GPIO setup via sysfs or libgpiod
+    await _ensureExported();
+    await _direction.writeAsString('out');
   }
 
   Future<void> setInput() async {
-    // GPIO setup
+    await _ensureExported();
+    await _direction.writeAsString('in');
   }
 
   Future<void> write(bool value) async {
-    // Write to GPIO
+    await _ensureExported();
+    if (!_direction.existsSync() ||
+        !_direction.readAsStringSync().trim().startsWith('out')) {
+      await setOutput();
+    }
+    await _value.writeAsString(value ? '1' : '0');
   }
 
   Future<bool> read() async {
-    // Read from GPIO
-    return false;
+    await _ensureExported();
+    return (await _value.readAsString()).trim() == '1';
+  }
+
+  Future<void> _ensureExported() async {
+    if (!Platform.isLinux) {
+      throw StateError('GPIO sysfs access is only available on Linux.');
+    }
+    if (_pinDir.existsSync()) return;
+    if (!_export.existsSync()) {
+      throw FileSystemException('GPIO export path not available', _export.path);
+    }
+    await _export.writeAsString('$pin');
+    for (var i = 0; i < 20; i++) {
+      if (_pinDir.existsSync()) return;
+      await Future<void>.delayed(const Duration(milliseconds: 25));
+    }
+    throw FileSystemException('GPIO pin was not exported', _pinDir.path);
   }
 }
 

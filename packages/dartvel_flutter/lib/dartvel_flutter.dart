@@ -1,20 +1,20 @@
 library dartvel_flutter;
 
 import 'dart:async';
-import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
+import 'package:dartvel_core/dartvel.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-export 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
-// conditional SEO impl (web does real work; others no-op)
-import 'src/seo_platform_stub.dart'
+// conditional SEO implementation
+import 'src/seo_platform_memory.dart'
     if (dart.library.html) 'src/seo_platform_web.dart' as seo_platform;
 
-import 'package:dartvel_core/dartvel.dart';
+export 'package:go_router/go_router.dart';
 
 // ==========================================
 // UI & Styling Primitives (NEW_SPEC.md)
@@ -28,6 +28,7 @@ class DVModifier {
   final Color? boxColor;
   final double? widthValue;
   final double? heightValue;
+  final AlignmentGeometry? alignmentValue;
   final List<BoxShadow>? shadows;
   final VoidCallback? onTapCallback;
   final DecorationImage? bgImage;
@@ -40,6 +41,7 @@ class DVModifier {
     this.boxColor,
     this.widthValue,
     this.heightValue,
+    this.alignmentValue,
     this.shadows,
     this.onTapCallback,
     this.bgImage,
@@ -53,6 +55,7 @@ class DVModifier {
         boxColor = null,
         widthValue = null,
         heightValue = null,
+        alignmentValue = null,
         shadows = null,
         onTapCallback = null,
         bgImage = null;
@@ -65,6 +68,7 @@ class DVModifier {
     Color? boxColor,
     double? widthValue,
     double? heightValue,
+    AlignmentGeometry? alignmentValue,
     List<BoxShadow>? shadows,
     VoidCallback? onTapCallback,
     DecorationImage? bgImage,
@@ -77,6 +81,7 @@ class DVModifier {
       boxColor: boxColor ?? this.boxColor,
       widthValue: widthValue ?? this.widthValue,
       heightValue: heightValue ?? this.heightValue,
+      alignmentValue: alignmentValue ?? this.alignmentValue,
       shadows: shadows ?? this.shadows,
       onTapCallback: onTapCallback ?? this.onTapCallback,
       bgImage: bgImage ?? this.bgImage,
@@ -100,6 +105,8 @@ class DVModifier {
 
   DVModifier height(double value) => _copyWith(heightValue: value);
 
+  DVModifier align(AlignmentGeometry value) => _copyWith(alignmentValue: value);
+
   DVModifier shadow(List<BoxShadow> shadows) => _copyWith(shadows: shadows);
 
   DVModifier card() => _copyWith(
@@ -118,20 +125,207 @@ class DVModifier {
 
 typedef DVStyleModifier = DVModifier;
 
-class DVBox extends StatelessWidget {
-  final Widget? child;
+enum _DVBoxLayout {
+  vertical,
+  row,
+  grid,
+  wrap,
+  stack,
+  horizontal,
+  masonry,
+}
+
+typedef DVWidgetBuilder<T> = Widget Function(T item);
+
+class DVBox<T> extends StatelessWidget {
+  final Widget? _child;
+  final List<Widget>? _children;
   final DVModifier? _modifier;
+  final _DVBoxLayout _layout;
+  final int _columns;
+  final double _spacing;
+  final bool _scrollable;
+  final List<T>? _items;
+  final Widget Function(BuildContext, T)? _itemBuilder;
 
-  const DVBox([this.child, DVModifier? modifier]) : _modifier = modifier;
+  const DVBox([Widget? child, DVModifier? modifier])
+      : _child = child,
+        _children = null,
+        _modifier = modifier,
+        _layout = _DVBoxLayout.vertical,
+        _columns = 1,
+        _spacing = 8,
+        _scrollable = false,
+        _items = null,
+        _itemBuilder = null;
 
-  DVBox modifier(DVModifier mod) => DVBox(child, mod);
-  DVBox styleModifier(DVModifier mod) => DVBox(child, mod);
+  const DVBox.list(List<Widget> children, {DVModifier? modifier})
+      : _child = null,
+        _children = children,
+        _modifier = modifier,
+        _layout = _DVBoxLayout.vertical,
+        _columns = 1,
+        _spacing = 8,
+        _scrollable = false,
+        _items = null,
+        _itemBuilder = null;
+
+  const DVBox.row(
+    List<Widget> children, {
+    DVModifier? modifier,
+    double spacing = 8,
+  })  : _child = null,
+        _children = children,
+        _modifier = modifier,
+        _layout = _DVBoxLayout.row,
+        _columns = 1,
+        _spacing = spacing,
+        _scrollable = false,
+        _items = null,
+        _itemBuilder = null;
+
+  const DVBox.wrap(
+    List<Widget> children, {
+    DVModifier? modifier,
+    double spacing = 8,
+  })  : _child = null,
+        _children = children,
+        _modifier = modifier,
+        _layout = _DVBoxLayout.wrap,
+        _columns = 1,
+        _spacing = spacing,
+        _scrollable = false,
+        _items = null,
+        _itemBuilder = null;
+
+  const DVBox.stack(List<Widget> children, {DVModifier? modifier})
+      : _child = null,
+        _children = children,
+        _modifier = modifier,
+        _layout = _DVBoxLayout.stack,
+        _columns = 1,
+        _spacing = 8,
+        _scrollable = false,
+        _items = null,
+        _itemBuilder = null;
+
+  const DVBox.grid(
+    List<Widget> children, {
+    DVModifier? modifier,
+    int columns = 2,
+    double spacing = 8,
+  })  : _child = null,
+        _children = children,
+        _modifier = modifier,
+        _layout = _DVBoxLayout.grid,
+        _columns = columns,
+        _spacing = spacing,
+        _scrollable = false,
+        _items = null,
+        _itemBuilder = null;
+
+  const DVBox.masonry(
+    List<Widget> children, {
+    DVModifier? modifier,
+    int columns = 2,
+    double spacing = 8,
+  })  : _child = null,
+        _children = children,
+        _modifier = modifier,
+        _layout = _DVBoxLayout.masonry,
+        _columns = columns,
+        _spacing = spacing,
+        _scrollable = false,
+        _items = null,
+        _itemBuilder = null;
+
+  const DVBox._({
+    Widget? child,
+    List<Widget>? children,
+    DVModifier? modifier,
+    _DVBoxLayout layout = _DVBoxLayout.vertical,
+    int columns = 1,
+    double spacing = 8,
+    bool scrollable = false,
+    List<T>? items,
+    Widget Function(BuildContext, T)? itemBuilder,
+  })  : _child = child,
+        _children = children,
+        _modifier = modifier,
+        _layout = layout,
+        _columns = columns,
+        _spacing = spacing,
+        _scrollable = scrollable,
+        _items = items,
+        _itemBuilder = itemBuilder;
+
+  static DVBox<T> builder<T>(
+    Iterable<T> items,
+    DVWidgetBuilder<T> builder, [
+    DVModifier? modifier,
+  ]) {
+    return DVBox<T>._(
+      modifier: modifier,
+      items: List<T>.from(items),
+      itemBuilder: (context, item) => builder(item),
+    );
+  }
+
+  DVBox<T> modifier(DVModifier mod) => _copyWith(modifier: mod);
+  DVBox<T> styleModifier(DVModifier mod) => modifier(mod);
+
+  DVBox<T> row({double spacing = 8}) =>
+      _copyWith(layout: _DVBoxLayout.row, spacing: spacing);
+
+  DVBox<T> grid({int columns = 2, double spacing = 8}) => _copyWith(
+        layout: _DVBoxLayout.grid,
+        columns: columns,
+        spacing: spacing,
+      );
+
+  DVBox<T> wrap({double spacing = 8}) =>
+      _copyWith(layout: _DVBoxLayout.wrap, spacing: spacing);
+
+  DVBox<T> stack() => _copyWith(layout: _DVBoxLayout.stack);
+
+  DVBox<T> horizontal({double spacing = 8}) =>
+      _copyWith(layout: _DVBoxLayout.horizontal, spacing: spacing);
+
+  DVBox<T> masonry({int columns = 2, double spacing = 8}) => _copyWith(
+        layout: _DVBoxLayout.masonry,
+        columns: columns,
+        spacing: spacing,
+      );
+
+  DVBox<T> scrollable() => _copyWith(scrollable: true);
+
+  DVBox<T> _copyWith({
+    DVModifier? modifier,
+    _DVBoxLayout? layout,
+    int? columns,
+    double? spacing,
+    bool? scrollable,
+  }) {
+    return DVBox<T>._(
+      child: _child,
+      children: _children,
+      modifier: modifier ?? _modifier,
+      layout: layout ?? _layout,
+      columns: columns ?? _columns,
+      spacing: spacing ?? _spacing,
+      scrollable: scrollable ?? _scrollable,
+      items: _items,
+      itemBuilder: _itemBuilder,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final content = _buildContent(context);
     Widget result = Container(
       width: _modifier?.widthValue,
       height: _modifier?.heightValue,
+      alignment: _modifier?.alignmentValue,
       margin: _modifier?.marginValue,
       padding: _modifier?.paddingValue,
       decoration: BoxDecoration(
@@ -140,7 +334,7 @@ class DVBox extends StatelessWidget {
         boxShadow: _modifier?.shadows,
         image: _modifier?.bgImage,
       ),
-      child: child,
+      child: content,
     );
 
     if (_modifier?.onTapCallback != null) {
@@ -152,6 +346,168 @@ class DVBox extends StatelessWidget {
 
     return result;
   }
+
+  Widget? _buildContent(BuildContext context) {
+    final builder = _itemBuilder;
+    final items = _items;
+    if (builder != null && items != null) {
+      return _buildDynamicCollection(context, items, builder);
+    }
+
+    final child = _child;
+    if (child != null) return _maybeScrollable(child);
+    final children = _children;
+    if (children != null) return _buildStaticCollection(children);
+    return null;
+  }
+
+  Widget _buildStaticCollection(List<Widget> children) {
+    final spaced = _spaced(children);
+    final Widget result;
+    switch (_layout) {
+      case _DVBoxLayout.vertical:
+        result = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: spaced,
+        );
+        break;
+      case _DVBoxLayout.row:
+        result = Row(
+          mainAxisSize: MainAxisSize.min,
+          children: spaced,
+        );
+        break;
+      case _DVBoxLayout.grid:
+        result = GridView.count(
+          crossAxisCount: _safeColumns,
+          mainAxisSpacing: _spacing,
+          crossAxisSpacing: _spacing,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          children: children,
+        );
+        break;
+      case _DVBoxLayout.wrap:
+        result =
+            Wrap(spacing: _spacing, runSpacing: _spacing, children: children);
+        break;
+      case _DVBoxLayout.stack:
+        result = Stack(children: children);
+        break;
+      case _DVBoxLayout.horizontal:
+        result = SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(children: spaced),
+        );
+        break;
+      case _DVBoxLayout.masonry:
+        result = _buildMasonry(children);
+        break;
+    }
+    return _maybeScrollable(result);
+  }
+
+  Widget _buildDynamicCollection(
+    BuildContext context,
+    List<T> items,
+    Widget Function(BuildContext, T) builder,
+  ) {
+    switch (_layout) {
+      case _DVBoxLayout.grid:
+        return GridView.builder(
+          itemCount: items.length,
+          shrinkWrap: !_scrollable,
+          physics: _scrollable ? null : const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: _safeColumns,
+            mainAxisSpacing: _spacing,
+            crossAxisSpacing: _spacing,
+          ),
+          itemBuilder: (context, index) => builder(context, items[index]),
+        );
+      case _DVBoxLayout.horizontal:
+        return SizedBox(
+          height: _modifier?.heightValue ?? 180,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: items.length,
+            itemBuilder: (context, index) => builder(context, items[index]),
+            separatorBuilder: (_, __) => SizedBox(width: _spacing),
+          ),
+        );
+      case _DVBoxLayout.wrap:
+        return Wrap(
+          spacing: _spacing,
+          runSpacing: _spacing,
+          children: [for (final item in items) builder(context, item)],
+        );
+      case _DVBoxLayout.stack:
+        return Stack(
+          children: [for (final item in items) builder(context, item)],
+        );
+      case _DVBoxLayout.row:
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children:
+                _spaced([for (final item in items) builder(context, item)]),
+          ),
+        );
+      case _DVBoxLayout.masonry:
+        return _buildMasonry(
+            [for (final item in items) builder(context, item)]);
+      case _DVBoxLayout.vertical:
+        return ListView.separated(
+          itemCount: items.length,
+          shrinkWrap: !_scrollable,
+          physics: _scrollable ? null : const NeverScrollableScrollPhysics(),
+          itemBuilder: (context, index) => builder(context, items[index]),
+          separatorBuilder: (_, __) => SizedBox(height: _spacing),
+        );
+    }
+  }
+
+  Widget _buildMasonry(List<Widget> children) {
+    final columns = List.generate(_safeColumns, (_) => <Widget>[]);
+    for (int i = 0; i < children.length; i++) {
+      columns[i % _safeColumns].add(children[i]);
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (int i = 0; i < columns.length; i++)
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: _spaced(columns[i]),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _maybeScrollable(Widget child) {
+    if (!_scrollable || _layout == _DVBoxLayout.horizontal) return child;
+    return SingleChildScrollView(child: child);
+  }
+
+  List<Widget> _spaced(List<Widget> children) {
+    if (children.length < 2 || _spacing <= 0) return children;
+    final result = <Widget>[];
+    for (int i = 0; i < children.length; i++) {
+      result.add(children[i]);
+      if (i != children.length - 1) {
+        result.add(
+            _layout == _DVBoxLayout.row || _layout == _DVBoxLayout.horizontal
+                ? SizedBox(width: _spacing)
+                : SizedBox(height: _spacing));
+      }
+    }
+    return result;
+  }
+
+  int get _safeColumns => _columns < 1 ? 1 : _columns;
 }
 
 class DVText extends StatelessWidget {
@@ -346,18 +702,18 @@ class _DVFormState<T> extends State<DVForm<T>> {
                   border: const OutlineInputBorder(),
                 ),
                 onChanged: (val) {
-                  // Best-effort update or stub
+                  // Generated form controls update concrete generated models.
                 },
               ),
             ),
           );
         });
       } catch (_) {
-        fields.add(const Text(
+        fields.add(const DVText(
             'No form controls generated. Model must support toJson().'));
       }
     } else {
-      fields.add(Text('Empty form for type $T'));
+      fields.add(DVText('Empty form for type $T'));
     }
 
     return Form(
@@ -384,6 +740,22 @@ class DVNativeBridge {
     return value is T ? value : null;
   }
 
+  static Future<T> require<T>(String method, [Object? arguments]) async {
+    final handler = _handlers[method];
+    if (handler == null) {
+      throw StateError(
+        'Native binding "$method" is not registered. Generate and register an FFI/ffigen or JNI/jnigen binding before calling this API.',
+      );
+    }
+    final value = await handler(arguments);
+    if (value is! T) {
+      throw StateError(
+        'Native binding "$method" returned ${value.runtimeType}, expected $T.',
+      );
+    }
+    return value;
+  }
+
   static void register(
     String method,
     FutureOr<Object?> Function(Object?) handler,
@@ -401,8 +773,7 @@ class DVCamera {
 
   Future<List<int>> takePhoto() async {
     final bytes =
-        await DVNativeBridge.invoke<List<dynamic>>('camera.takePhoto');
-    if (bytes == null) return <int>[];
+        await DVNativeBridge.require<List<dynamic>>('camera.takePhoto');
     return bytes.cast<int>();
   }
 }
@@ -418,11 +789,15 @@ class DVMedia {
       'media.pick',
       {'type': type, 'multiple': multiple},
     );
+    if (items == null) {
+      throw StateError(
+        'Native binding "media.pick" is not registered. Generate and register an FFI/ffigen or JNI/jnigen binding before calling this API.',
+      );
+    }
     return items
-            ?.whereType<Map<dynamic, dynamic>>()
-            .map((item) => Map<String, Object?>.from(item))
-            .toList() ??
-        const <Map<String, Object?>>[];
+        .whereType<Map<dynamic, dynamic>>()
+        .map((item) => Map<String, Object?>.from(item))
+        .toList();
   }
 }
 
@@ -461,8 +836,7 @@ class DVLocation {
 
   Future<Map<String, double>> getCoordinates() async {
     final result =
-        await DVNativeBridge.invoke<Map<dynamic, dynamic>>('location.current');
-    if (result == null) return const {'latitude': 0, 'longitude': 0};
+        await DVNativeBridge.require<Map<dynamic, dynamic>>('location.current');
     return {
       'latitude': (result['latitude'] as num?)?.toDouble() ?? 0,
       'longitude': (result['longitude'] as num?)?.toDouble() ?? 0,
@@ -475,11 +849,14 @@ class DVNotifications {
   static final List<Map<String, String>> _sent = [];
 
   Future<void> sendLocalNotification(String title, String body) async {
-    final handled = await DVNativeBridge.invoke<bool>(
+    final handled = await DVNativeBridge.require<bool>(
       'notifications.sendLocal',
       {'title': title, 'body': body},
     );
-    if (handled != true) _sent.add({'title': title, 'body': body});
+    if (!handled) {
+      throw StateError('Native notification binding rejected the request.');
+    }
+    _sent.add({'title': title, 'body': body});
   }
 
   List<Map<String, String>> get sentNotifications => List.unmodifiable(_sent);
@@ -488,21 +865,21 @@ class DVNotifications {
 class DVBluetooth {
   const DVBluetooth();
   Future<bool> isEnabled() async =>
-      await DVNativeBridge.invoke<bool>('bluetooth.isEnabled') ?? false;
+      DVNativeBridge.require<bool>('bluetooth.isEnabled');
 
   Stream<List<String>> scanDevices() async* {
     final devices =
-        await DVNativeBridge.invoke<List<dynamic>>('bluetooth.scanDevices');
-    yield devices?.cast<String>() ?? const <String>[];
+        await DVNativeBridge.require<List<dynamic>>('bluetooth.scanDevices');
+    yield devices.cast<String>();
   }
 }
 
 class DVNfc {
   const DVNfc();
   Future<bool> isAvailable() async =>
-      await DVNativeBridge.invoke<bool>('nfc.isAvailable') ?? false;
+      DVNativeBridge.require<bool>('nfc.isAvailable');
   Future<String> readTag() async =>
-      await DVNativeBridge.invoke<String>('nfc.readTag') ?? '';
+      DVNativeBridge.require<String>('nfc.readTag');
 }
 
 class DVClipboard {
@@ -525,8 +902,11 @@ class DVShare {
 
   Future<void> shareText(String text) async {
     final handled =
-        await DVNativeBridge.invoke<bool>('share.text', {'text': text});
-    if (handled != true) _lastSharedText = text;
+        await DVNativeBridge.require<bool>('share.text', {'text': text});
+    if (!handled) {
+      throw StateError('Native share binding rejected the request.');
+    }
+    _lastSharedText = text;
   }
 
   String? get lastSharedText => _lastSharedText;
@@ -535,14 +915,14 @@ class DVShare {
 class DVSensors {
   const DVSensors();
   Stream<Map<String, double>> get accelerometer async* {
-    final value = await DVNativeBridge.invoke<Map<dynamic, dynamic>>(
+    final value = await DVNativeBridge.require<Map<dynamic, dynamic>>(
         'sensors.accelerometer');
     yield _sensorMap(value);
   }
 
   Stream<Map<String, double>> get gyroscope async* {
-    final value =
-        await DVNativeBridge.invoke<Map<dynamic, dynamic>>('sensors.gyroscope');
+    final value = await DVNativeBridge.require<Map<dynamic, dynamic>>(
+        'sensors.gyroscope');
     yield _sensorMap(value);
   }
 
@@ -556,9 +936,9 @@ class DVSensors {
 class DVBiometrics {
   const DVBiometrics();
   Future<bool> canAuthenticate() async =>
-      await DVNativeBridge.invoke<bool>('biometrics.canAuthenticate') ?? false;
+      DVNativeBridge.require<bool>('biometrics.canAuthenticate');
   Future<bool> authenticate() async =>
-      await DVNativeBridge.invoke<bool>('biometrics.authenticate') ?? false;
+      DVNativeBridge.require<bool>('biometrics.authenticate');
 }
 
 class DVDeepLinks {
@@ -567,7 +947,7 @@ class DVDeepLinks {
       StreamController<String>.broadcast();
 
   Future<String?> getInitialLink() =>
-      DVNativeBridge.invoke<String>('deepLinks.initial');
+      DVNativeBridge.require<String?>('deepLinks.initial');
   Stream<String> getLinkStream() => _links.stream;
   void dispatch(String link) => _links.add(link);
 }
@@ -575,15 +955,15 @@ class DVDeepLinks {
 class DVHaptics {
   const DVHaptics();
   Future<void> vibrate() async {
-    await DVNativeBridge.invoke<bool>('haptics.vibrate');
+    await DVNativeBridge.require<bool>('haptics.vibrate');
   }
 
   Future<void> lightVibrate() async {
-    await DVNativeBridge.invoke<bool>('haptics.lightVibrate');
+    await DVNativeBridge.require<bool>('haptics.lightVibrate');
   }
 
   Future<void> impact() async {
-    await DVNativeBridge.invoke<bool>('haptics.impact');
+    await DVNativeBridge.require<bool>('haptics.impact');
   }
 }
 
@@ -591,14 +971,13 @@ class DVContacts {
   const DVContacts();
   Future<List<Map<String, String>>> getContacts() async {
     final contacts =
-        await DVNativeBridge.invoke<List<dynamic>>('contacts.getContacts');
+        await DVNativeBridge.require<List<dynamic>>('contacts.getContacts');
     return contacts
-            ?.whereType<Map<dynamic, dynamic>>()
-            .map((contact) => contact.map(
-                  (key, value) => MapEntry('$key', '$value'),
-                ))
-            .toList() ??
-        const <Map<String, String>>[];
+        .whereType<Map<dynamic, dynamic>>()
+        .map((contact) => contact.map(
+              (key, value) => MapEntry('$key', '$value'),
+            ))
+        .toList();
   }
 }
 
@@ -611,12 +990,13 @@ class DVPermissions {
       'permissions.request',
       {'permission': permission},
     );
-    if (result != null) {
-      _grants[permission] = result;
-      return result;
+    if (result == null) {
+      throw StateError(
+        'Native binding "permissions.request" is not registered. Generate and register an FFI/ffigen or JNI/jnigen binding before calling this API.',
+      );
     }
-    _grants[permission] = true;
-    return true;
+    _grants[permission] = result;
+    return result;
   }
 
   Future<bool> isGranted(String permission) async {
@@ -624,7 +1004,12 @@ class DVPermissions {
       'permissions.isGranted',
       {'permission': permission},
     );
-    return result ?? _grants[permission] ?? false;
+    if (result != null) return result;
+    final cached = _grants[permission];
+    if (cached != null) return cached;
+    throw StateError(
+      'Native binding "permissions.isGranted" is not registered. Generate and register an FFI/ffigen or JNI/jnigen binding before calling this API.',
+    );
   }
 }
 
@@ -646,15 +1031,15 @@ class DVWindow {
       Offset.zero & Size(_platform.screenWidth, _platform.screenHeight);
 
   Future<void> setTitle(String title) async {
-    await DVNativeBridge.invoke<bool>('window.setTitle', {'title': title});
+    await DVNativeBridge.require<bool>('window.setTitle', {'title': title});
   }
 
   Future<void> maximize() async {
-    await DVNativeBridge.invoke<bool>('window.maximize');
+    await DVNativeBridge.require<bool>('window.maximize');
   }
 
   Future<void> minimize() async {
-    await DVNativeBridge.invoke<bool>('window.minimize');
+    await DVNativeBridge.require<bool>('window.minimize');
   }
 }
 
@@ -970,7 +1355,7 @@ class _EmailPasswordAuthPageState extends State<_EmailPasswordAuthPage> {
                     email: _email.text,
                     password: _password.text,
                   ),
-                  child: const Text('Sign in'),
+                  child: const DVText('Sign in'),
                 ),
               ],
             ),
@@ -990,7 +1375,7 @@ class _ProviderAuthPage extends StatelessWidget {
         body: Center(
           child: FilledButton(
             onPressed: () => auth.signInWithProvider(provider),
-            child: Text('Continue with $provider'),
+            child: DVText('Continue with $provider'),
           ),
         ),
       );
@@ -1097,10 +1482,11 @@ class MemoryDVDatabaseAdapter implements DVDatabaseAdapter {
   ]) async {
     final normalized = sql.trim().replaceAll(RegExp(r'\s+'), ' ');
     final lower = normalized.toLowerCase();
-    if (lower == 'select 1')
+    if (lower == 'select 1') {
       return const [
         {'1': 1}
       ];
+    }
 
     final match =
         RegExp(r'^select \* from ([a-zA-Z_][\w]*)$', caseSensitive: false)
@@ -1254,6 +1640,34 @@ class DVRust {
   DVRustInt Int(int value) => DVRustInt(value);
 }
 
+class DVObservabilityAndLogging {
+  const DVObservabilityAndLogging();
+
+  Future<void> log(
+    String message, {
+    Map<String, Object>? context,
+    Object? error,
+    StackTrace? stackTrace,
+  }) async {
+    final payload = <String, Object>{
+      'message': message,
+      if (context != null) 'context': context,
+      if (error != null) 'error': error.toString(),
+      if (stackTrace != null) 'stackTrace': stackTrace.toString(),
+    };
+    debugPrint('[dartvel] $message');
+    await Analytics.logEvent('log', payload);
+  }
+
+  Future<void> event(String name, [Map<String, Object>? parameters]) {
+    return Analytics.logEvent(name, parameters);
+  }
+
+  Future<void> screen(String name, {String? screenClass}) {
+    return Analytics.logScreenView(name, screenClass: screenClass);
+  }
+}
+
 class DV {
   static final _globals = <Type, Object>{};
   static ProviderContainer? container;
@@ -1287,8 +1701,24 @@ class DV {
   static DVRealtime get Realtime => const DVRealtime();
   static DVCSRF get CSRF => const DVCSRF();
   static DVCSRF get Csrf => const DVCSRF();
+  static DVObservabilityAndLogging get ObservabilityAndLogging =>
+      const DVObservabilityAndLogging();
   static DVRust get Rust => const DVRust();
   static String get currentTenant => 'default';
+
+  static Future<void> log(
+    String message, {
+    Map<String, Object>? context,
+    Object? error,
+    StackTrace? stackTrace,
+  }) {
+    return ObservabilityAndLogging.log(
+      message,
+      context: context,
+      error: error,
+      stackTrace: stackTrace,
+    );
+  }
 }
 
 // ==========================================
@@ -1384,6 +1814,8 @@ class PageTransitionSpec {
 abstract class DartvelPage extends StatelessWidget {
   const DartvelPage({super.key});
 
+  DVPageScaffoldSpec get pageScaffold => const DVPageScaffoldSpec();
+
   SeoProps buildWebSeo(Map<String, String> params, Map<String, String> query) =>
       SeoProps.empty;
 
@@ -1405,6 +1837,93 @@ abstract class DVClassWidget extends DartvelPage {
 abstract class DartvelLayout extends StatelessWidget {
   final Widget child;
   const DartvelLayout({super.key, required this.child});
+}
+
+class DVPageScaffoldSpec {
+  final String? title;
+  final DVPageShellMode shell;
+  final bool scaffold;
+  final bool showAppBar;
+  final bool safeArea;
+  final bool centerTitle;
+  final bool extendBody;
+  final bool resizeToAvoidBottomInset;
+  final int? backgroundColor;
+  final int? appBarBackgroundColor;
+
+  const DVPageScaffoldSpec({
+    this.title,
+    this.shell = DVPageShellMode.adaptive,
+    this.scaffold = true,
+    this.showAppBar = false,
+    this.safeArea = true,
+    this.centerTitle = false,
+    this.extendBody = false,
+    this.resizeToAvoidBottomInset = true,
+    this.backgroundColor,
+    this.appBarBackgroundColor,
+  });
+}
+
+class DVPageShell extends StatelessWidget {
+  final DVPageScaffoldSpec spec;
+  final Widget child;
+
+  const DVPageShell({
+    super.key,
+    required this.spec,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (!spec.scaffold || spec.shell == DVPageShellMode.none) {
+      return _body(child);
+    }
+
+    final mode = spec.shell == DVPageShellMode.adaptive
+        ? _adaptiveShellMode(context)
+        : spec.shell;
+    if (mode == DVPageShellMode.cupertino) {
+      return CupertinoPageScaffold(
+        backgroundColor: _color(spec.backgroundColor),
+        navigationBar: spec.showAppBar || spec.title != null
+            ? CupertinoNavigationBar(
+                middle: spec.title == null ? null : DVText(spec.title!),
+                backgroundColor: _color(spec.appBarBackgroundColor),
+              )
+            : null,
+        child: _body(child),
+      );
+    }
+
+    return Scaffold(
+      appBar: spec.showAppBar || spec.title != null
+          ? AppBar(
+              title: spec.title == null ? null : DVText(spec.title!),
+              centerTitle: spec.centerTitle,
+              backgroundColor: _color(spec.appBarBackgroundColor),
+            )
+          : null,
+      body: _body(child),
+      backgroundColor: _color(spec.backgroundColor),
+      extendBody: spec.extendBody,
+      resizeToAvoidBottomInset: spec.resizeToAvoidBottomInset,
+    );
+  }
+
+  Widget _body(Widget body) {
+    return spec.safeArea ? SafeArea(child: body) : body;
+  }
+
+  static DVPageShellMode _adaptiveShellMode(BuildContext context) {
+    final platform = Theme.of(context).platform;
+    return platform == TargetPlatform.iOS || platform == TargetPlatform.macOS
+        ? DVPageShellMode.cupertino
+        : DVPageShellMode.material;
+  }
+
+  static Color? _color(int? value) => value == null ? null : Color(value);
 }
 
 class DvDataScope extends InheritedWidget {
@@ -1537,13 +2056,11 @@ class DvDefaultLoading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(
-        child: SizedBox(
-          width: 24,
-          height: 24,
-          child: CircularProgressIndicator(strokeWidth: 2),
-        ),
+    return const DVBox(
+      SizedBox(
+        width: 24,
+        height: 24,
+        child: CircularProgressIndicator(strokeWidth: 2),
       ),
     );
   }
@@ -1556,18 +2073,11 @@ class DvDefaultError extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = message ?? 'Something went wrong';
-    return Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.error_outline, color: Colors.redAccent),
-            const SizedBox(height: 8),
-            Text(text, style: TextStyle(fontSize: 14)),
-          ],
-        ),
-      ),
-    );
+    return DVBox.list([
+      const Icon(Icons.error_outline, color: Colors.redAccent),
+      const SizedBox(height: 8),
+      DVText(text),
+    ]);
   }
 }
 

@@ -17,12 +17,19 @@ class PrerenderCommand extends Command<void> {
         abbr: 'p', defaultsTo: '8080', help: 'Port the app is serving on');
     argParser.addOption('output',
         abbr: 'o', defaultsTo: 'build/web', help: 'Output directory');
+    argParser.addOption('base-url',
+        defaultsTo: 'http://localhost:8080',
+        help: 'Canonical base URL for sitemap.xml and robots.txt');
   }
 
   @override
   Future<void> run() async {
     final port = int.parse(argResults?['port'] as String);
     final outputDir = argResults?['output'] as String;
+    final baseUrl = (argResults?['base-url'] as String).replaceAll(
+      RegExp(r'/$'),
+      '',
+    );
     final root = Directory.current.path;
     final buildDir = Directory(p.join(root, outputDir));
 
@@ -55,8 +62,8 @@ class PrerenderCommand extends Command<void> {
           await _prerenderRoute(browser, port, route, buildDir);
         }
 
-        await _generateSitemap(routes, buildDir);
-        await _generateRobotsTxt(buildDir);
+        await _generateSitemap(routes, buildDir, baseUrl);
+        await _generateRobotsTxt(buildDir, baseUrl);
 
         Logger.log('✅ Prerendering complete!');
       } finally {
@@ -183,7 +190,11 @@ class PrerenderCommand extends Command<void> {
     await page.close();
   }
 
-  Future<void> _generateSitemap(List<String> routes, Directory outDir) async {
+  Future<void> _generateSitemap(
+    List<String> routes,
+    Directory outDir,
+    String baseUrl,
+  ) async {
     final buffer = StringBuffer();
     buffer.writeln('<?xml version="1.0" encoding="UTF-8"?>');
     buffer.writeln(
@@ -191,8 +202,7 @@ class PrerenderCommand extends Command<void> {
 
     for (final route in routes) {
       buffer.writeln('  <url>');
-      buffer.writeln(
-          '    <loc>https://example.com$route</loc>'); // TODO: Configurable host
+      buffer.writeln('    <loc>$baseUrl$route</loc>');
       buffer.writeln('    <changefreq>weekly</changefreq>');
       buffer.writeln('  </url>');
     }
@@ -202,11 +212,11 @@ class PrerenderCommand extends Command<void> {
         .writeAsStringSync(buffer.toString());
   }
 
-  Future<void> _generateRobotsTxt(Directory outDir) async {
+  Future<void> _generateRobotsTxt(Directory outDir, String baseUrl) async {
     final content = '''
 User-agent: *
 Allow: /
-Sitemap: https://example.com/sitemap.xml
+Sitemap: $baseUrl/sitemap.xml
 ''';
     File(p.join(outDir.path, 'robots.txt')).writeAsStringSync(content);
   }

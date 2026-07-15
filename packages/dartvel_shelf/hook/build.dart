@@ -8,9 +8,11 @@ Future<void> main(List<String> args) async {
     final pkgRoot = Directory.fromUri(input.packageRoot);
     final rustDir = Directory('${pkgRoot.path}/rust');
 
-    final cargoCheck = await Process.run('cargo', ['--version']).catchError((_) => ProcessResult(-1, 127, '', ''));
+    final cargoCheck = await Process.run('cargo', ['--version'])
+        .catchError((_) => ProcessResult(-1, 127, '', ''));
     if (cargoCheck.exitCode != 0) {
-      stdout.writeln('dartvel_shelf hook: cargo not found on system, skipping Rust compilation.');
+      stdout.writeln(
+          'dartvel_shelf hook: cargo not found on system, skipping Rust compilation.');
       return;
     }
 
@@ -30,8 +32,8 @@ Future<void> main(List<String> args) async {
 
     final tripleInfo = _resolveTarget();
     if (tripleInfo == null) {
-      stdout
-          .writeln('dartvel_shelf hook: unsupported host platform, skipping.');
+      stdout.writeln(
+          'dartvel_shelf hook: no native artifact target configured for this host.');
       return;
     }
     final (triple, libName, subdir) = tripleInfo;

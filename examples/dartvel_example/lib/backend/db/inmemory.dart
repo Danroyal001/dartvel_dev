@@ -8,7 +8,10 @@ class InMemoryDB {
   final List<Map<String, dynamic>> todos = <Map<String, dynamic>>[];
 
   Map<String, dynamic> addTodo(String title) {
-    final item = <String, dynamic>{'id': (++_todoId).toString(), 'title': title};
+    final item = <String, dynamic>{
+      'id': (++_todoId).toString(),
+      'title': title
+    };
     todos.add(item);
     return item;
   }

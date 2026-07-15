@@ -1,448 +1,181 @@
 import 'dart:async';
+
+import 'package:dartvel_example/dartvel_client/dartvel_client.dart';
 import 'package:flutter/material.dart';
-import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:dartvel_example/dartvel_client/functions.g.dart';
-import 'package:dartvel_example/models/user.dart';
-import 'package:dartvel_example/dartvel_client/models.g.dart';
-import 'package:dartvel_core/dartvel.dart';
-import 'package:dartvel_example/dartvel_client/router.g.dart';
 
 StreamSubscription<String>? _subscription;
 
-/// The main dashboard page for showcasing the Dartvel platform.
 @DVPage()
 @DVFunctionalWidget()
 Widget indexPage(BuildContext context) {
-  // 1. Signals & State Management
   final counter = context.signal(0);
   final isStreaming = context.signal(false);
   final ticks = context.signal(<String>[]);
 
-  // 2. Styling Modifier primitives
-  final titleStyle = const DVStyleModifier()
-      .color(const Color(0xFF6200EE))
-      .padding(8);
-      
-  final cardStyle = const DVStyleModifier()
-      .card()
-      .margin(8)
-      .backgroundColor(const Color(0xFFF5F5F5));
-
   final currentLangScope = DvI18nScope.of(context).localeTag;
   final currentLang = currentLangScope.isEmpty ? 'system' : currentLangScope;
 
-  return Scaffold(
-    appBar: AppBar(
-      title: const Text('Dartvel Platform Showcase'),
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.palette),
-          onPressed: () {
-            // Showcase Theme switching
-            final themeMode = DV.Theme.mode;
-            DV.Theme.setMode(themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Theme mode set to ${DV.Theme.mode}')),
-            );
-          },
-        ),
-      ],
-    ),
-    body: SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Header with Primitives
-          DVBox(
-            const DVText('Welcome to Dartvel full-stack app platform!'),
-          ).modifier(titleStyle),
-          const SizedBox(height: 16),
+  return DVBox.list([
+    const DVText('Dartvel Platform Showcase'),
+    ShowcaseButton('Toggle Theme', () {
+      final next =
+          DV.Theme.mode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+      DV.Theme.setMode(next);
+      _showMessage(context, 'Theme mode set to ${DV.Theme.mode}');
+    }),
+    const DVText('Welcome to Dartvel full-stack app platform!')
+        .modifier(_titleStyle),
+    ShowcaseSection('1. Signals State Management', [
+      DVText('Local counter signal value: ${counter.value}'),
+      ShowcaseButton('Increment Counter Signal', () {
+        counter.value = counter.value + 1;
+      }),
+    ]),
+    ShowcaseSection('2. Platform Info', [
+      DVBox.grid([
+        ShowcaseMetric('Platform', DV.Platform.currentPlatform),
+        ShowcaseMetric('Device type', DV.Platform.deviceType),
+        ShowcaseMetric('Breakpoint', DV.Platform.breakpoint),
+        ShowcaseMetric('Orientation', DV.Platform.orientation.name),
+      ], columns: 2),
+    ]),
+    ShowcaseSection('3. Authentication & Multi-Tenancy', [
+      DVText('Current Tenant: ${DV.currentTenant}'),
+      DVText('User status: ${DV.Auth.currentUser ?? "Not signed in"}'),
+      DVBox.wrap([
+        ShowcaseButton('Sign In', () async {
+          await DV.Auth.signIn();
+          if (context.mounted) _showMessage(context, 'Signed in successfully');
+        }),
+        ShowcaseButton('Sign Out', () async {
+          await DV.Auth.signOut();
+          if (context.mounted) _showMessage(context, 'Signed out successfully');
+        }),
+      ]),
+    ]),
+    ShowcaseSection('4. Model Form', [
+      const DVForm<User>(User(name: 'John Doe', email: 'john@example.com')),
+    ]),
+    ShowcaseSection('5. Streaming Functions', [
+      ShowcaseButton(isStreaming.value ? 'Stop SSE Stream' : 'Start SSE Stream',
+          () {
+        if (isStreaming.value) {
+          _subscription?.cancel();
+          isStreaming.value = false;
+        } else {
+          ticks.value = [];
+          isStreaming.value = true;
+          _subscription = getTicks().listen(
+            (tick) => ticks.value = [...ticks.value, tick],
+            onDone: () => isStreaming.value = false,
+          );
+        }
+      }),
+      if (ticks.value.isNotEmpty)
+        DVBox.builder<String>(
+          ticks.value,
+          (tick) => DVText(tick).modifier(_pillStyle),
+        ).scrollable().modifier(const DVModifier().height(120)),
+    ]),
+    ShowcaseSection('6. i18n & Typed Router Actions', [
+      DVText('Current Language Locale: $currentLang'),
+      DVBox.wrap([
+        ShowcaseButton('Set Locale: EN-US', () {
+          DvI18n.updateLang(context, 'lang', 'en-US');
+        }),
+        ShowcaseButton('Set Locale: FR-FR', () {
+          DvI18n.updateLang(context, 'lang', 'fr-FR');
+        }),
+        ShowcaseButton('Dynamic Route', () {
+          context.push('/blog/101');
+        }),
+        ShowcaseButton('Typed Blog Route', () {
+          context.navigateToPage(DVRoutes.blog(id: '777'));
+        }),
+      ]),
+    ]),
+    ShowcaseSection('7. Direct Typed API Calls', [
+      DVBox.row([
+        ShowcaseButton('GET /hello', () async {
+          final data = await getHelloApi(name: 'Tester');
+          if (context.mounted) _showMessage(context, 'API: $data');
+        }),
+        ShowcaseButton('POST /echo', () async {
+          final data = await postEchoApi(msg: 'System OK');
+          if (context.mounted) _showMessage(context, 'Echo: $data');
+        }),
+      ]),
+    ]),
+    ShowcaseSection('8. Unified Services', [
+      DVBox.wrap([
+        ShowcaseButton('Cache', () async {
+          await DV.Cache.set('last_run', DateTime.now().toIso8601String());
+          final value = await DV.Cache.get<String>('last_run');
+          if (context.mounted) _showMessage(context, 'Cache value: $value');
+        }),
+        ShowcaseButton('Storage', () async {
+          await DV.Storage.upload('doc.txt', [104, 101, 108, 108, 111]);
+          final bytes = await DV.Storage.download('doc.txt');
+          if (context.mounted) {
+            _showMessage(context, 'Storage bytes: ${bytes.length}');
+          }
+        }),
+        ShowcaseButton('Database', () async {
+          final result = await DV.Database.query('select 1');
+          if (context.mounted) _showMessage(context, 'DB Query: $result');
+        }),
+      ]),
+    ]),
+    ShowcaseSection('9. Collection Layouts', [
+      DVBox.grid([
+        FeatureCard('Vertical', 'Default list layout'),
+        FeatureCard('Row', 'Inline collection mode'),
+        FeatureCard('Wrap', 'Chip and tag layouts'),
+        FeatureCard('Grid', 'Responsive cards'),
+      ], columns: 2),
+      DVBox.builder<String>(
+        ['Flutter', 'Dart', 'Rust', 'FFI', 'JNI', 'Shorebird'],
+        (tag) => DVText(tag).modifier(_pillStyle),
+      ).wrap(),
+      DVBox.builder<int>(
+        [1, 2, 3, 4],
+        (item) => FeatureCard('Story $item', 'Horizontal builder item'),
+      ).horizontal().modifier(const DVModifier().height(120)),
+      DVBox.masonry([
+        FeatureCard('Masonry A', 'Short'),
+        FeatureCard('Masonry B', 'Taller generated-card style content'),
+        FeatureCard('Masonry C', 'Medium content'),
+      ], columns: 2),
+    ]),
+    ShowcaseSection('10. AI & Observability', [
+      DVBox.wrap([
+        ShowcaseButton('Query AI', () async {
+          final answer = await DV.AI.chat('What is Dartvel?');
+          if (context.mounted) _showMessage(context, 'AI: $answer');
+        }),
+        ShowcaseButton('Log Event', () {
+          unawaited(DV.log('Showcase event logged'));
+          _showMessage(context, 'Event logged successfully');
+        }),
+      ]),
+    ]),
+  ]).scrollable().modifier(const DVModifier().padding(16));
+}
 
-          // Card 1: State Management (Signals)
-          DVBox(
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('1. Signals State Management', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                Text('Local counter signal value: ${counter.value}'),
-                const SizedBox(height: 8),
-                ElevatedButton(
-                  onPressed: () => counter.value = counter.value + 1,
-                  child: const Text('Increment Counter Signal'),
-                ),
-              ],
-            ),
-          ).modifier(cardStyle),
+final _titleStyle = const DVModifier()
+    .color(const Color(0xFF6200EE))
+    .padding(8)
+    .backgroundColor(const Color(0xFFEDE7F6))
+    .rounded(8);
 
-          // Card 2: Platform Detection & APIs
-          DVBox(
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('2. Platform Info & Expo-style APIs', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                Text('Is Web: ${DV.Platform.isWeb}'),
-                Text('Is Android: ${DV.Platform.isAndroid}'),
-                Text('Is iOS: ${DV.Platform.isIOS}'),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    ElevatedButton(
-                      onPressed: () async {
-                        final coords = await DV.Platform.location.getCoordinates();
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Location coords: $coords')),
-                          );
-                        }
-                      },
-                      child: const Text('Get Coordinates'),
-                    ),
-                    ElevatedButton(
-                      onPressed: () async {
-                        await DV.Platform.notifications.sendLocalNotification(
-                          'Dartvel Alert',
-                          'This is a local device notification!',
-                        );
-                      },
-                      child: const Text('Send Notification'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ).modifier(cardStyle),
+final _pillStyle = const DVModifier()
+    .padding(8)
+    .rounded(999)
+    .backgroundColor(const Color(0xFFE0F2FE))
+    .color(const Color(0xFF075985));
 
-          // Card 3: Auth & Tenants
-          DVBox(
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('3. Authentication & Multi-Tenancy', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                Text('Current Tenant: ${DV.currentTenant}'),
-                Text('User status: ${DV.Auth.currentUser ?? "Not Logged In"}'),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    ElevatedButton(
-                      onPressed: () async {
-                        await DV.Auth.signIn();
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Signed in successfully')),
-                          );
-                        }
-                      },
-                      child: const Text('Sign In'),
-                    ),
-                    ElevatedButton(
-                      onPressed: () async {
-                        await DV.Auth.signOut();
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Signed out successfully')),
-                          );
-                        }
-                      },
-                      child: const Text('Sign Out'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ).modifier(cardStyle),
-
-          // Card 4: Model Forms
-          DVBox(
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('4. Model Form (DVForm<User>)', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                DVForm<User>.builder(
-                  (formControls) {
-                    final userControls = formControls as UserFormControls;
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Editing model: User(${userControls.name}, ${userControls.email})'),
-                        const SizedBox(height: 8),
-                        TextFormField(
-                          initialValue: userControls.name,
-                          decoration: const InputDecoration(labelText: 'Name'),
-                        ),
-                        TextFormField(
-                          initialValue: userControls.email,
-                          decoration: const InputDecoration(labelText: 'Email'),
-                        ),
-                      ],
-                    );
-                  },
-                  const User(name: 'John Doe', email: 'john@example.com'),
-                ),
-              ],
-            ),
-          ).modifier(cardStyle),
-
-          // Card 5: Streaming Functions (SSE client stream)
-          DVBox(
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('5. SSE Backend Stream (ticks.get.dart)', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                ElevatedButton(
-                  onPressed: () {
-                    if (isStreaming.value) {
-                      _subscription?.cancel();
-                      isStreaming.value = false;
-                    } else {
-                      ticks.value = [];
-                      isStreaming.value = true;
-                      _subscription = getTicks().listen(
-                        (tick) {
-                          ticks.value = [...ticks.value, tick];
-                        },
-                        onDone: () {
-                          isStreaming.value = false;
-                        },
-                      );
-                    }
-                  },
-                  child: Text(isStreaming.value ? 'Stop SSE Stream' : 'Start SSE Stream'),
-                ),
-                if (ticks.value.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Container(
-                    height: 100,
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: ListView.builder(
-                      itemCount: ticks.value.length,
-                      itemBuilder: (context, idx) => Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        child: Text(ticks.value[idx]),
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ).modifier(cardStyle),
-
-          // Card 6: Multi-language (i18n) & Router Actions
-          DVBox(
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('6. i18n & Router Actions', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                Text('Current Language Locale: $currentLang'),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    ElevatedButton(
-                      onPressed: () => DvI18n.updateLang(context, 'lang', 'en-US'),
-                      child: const Text('Set Locale: EN-US'),
-                    ),
-                    ElevatedButton(
-                      onPressed: () => DvI18n.updateLang(context, 'lang', 'fr-FR'),
-                      child: const Text('Set Locale: FR-FR'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                ElevatedButton(
-                  onPressed: () => context.push('/blog/101'),
-                  child: const Text('Navigate to Dynamic Route (/blog/101)'),
-                ),
-              ],
-            ),
-          ).modifier(cardStyle),
-
-          // Card 7: Direct API actions
-          DVBox(
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('7. Direct Typed API Call Actions', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    ElevatedButton(
-                      onPressed: () async {
-                        final data = await getHelloApi(name: 'Tester');
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('API: $data')),
-                          );
-                        }
-                      },
-                      child: const Text('GET /hello?name=Tester'),
-                    ),
-                    ElevatedButton(
-                      onPressed: () async {
-                        final data = await postEchoApi(msg: 'System OK');
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Echo: $data')),
-                          );
-                        }
-                      },
-                      child: const Text('POST /echo'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ).modifier(cardStyle),
-
-          // Card 8: Unified Services (Cache, Storage, DB)
-          DVBox(
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('8. Unified Services (Cache, Storage, Database)', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    ElevatedButton(
-                      onPressed: () async {
-                        await DV.Cache.set('last_run', DateTime.now().toString());
-                        final val = await DV.Cache.get('last_run');
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Cache value: $val')),
-                          );
-                        }
-                      },
-                      child: const Text('Test Unified Cache'),
-                    ),
-                    ElevatedButton(
-                      onPressed: () async {
-                        await DV.Storage.upload('doc.txt', [104, 101, 108, 108, 111]);
-                        final bytes = await DV.Storage.download('doc.txt');
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Storage download bytes count: ${bytes?.length}')),
-                          );
-                        }
-                      },
-                      child: const Text('Test Unified Storage'),
-                    ),
-                    ElevatedButton(
-                      onPressed: () async {
-                        final res = await DV.Database.query('SELECT 1');
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('DB Query result: $res')),
-                          );
-                        }
-                      },
-                      child: const Text('Test Unified Database'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ).modifier(cardStyle),
-
-          // Card 9: Clerk-style Auth Pages & Hardware APIs
-          DVBox(
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('9. Clerk Auth Pages & Native OS APIs', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    ElevatedButton(
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (context) => DV.Auth.SignInWithEmailAndPasswordPage()),
-                      ),
-                      child: const Text('Auth Page'),
-                    ),
-                    ElevatedButton(
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (context) => DV.Auth.SignInWithProviderPage()),
-                      ),
-                      child: const Text('Auth Provider Page'),
-                    ),
-                    ElevatedButton(
-                      onPressed: () async {
-                        await DV.Platform.camera.takePhoto();
-                        await DV.Platform.haptics.impact();
-                        await DV.Platform.biometrics.authenticate();
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Camera, Haptics & Biometrics executed successfully')),
-                          );
-                        }
-                      },
-                      child: const Text('Trigger Native Features'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ).modifier(cardStyle),
-
-          // Card 10: AI, Observability & Typed Navigation
-          DVBox(
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('10. AI, Observability & Typed Navigation', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    ElevatedButton(
-                      onPressed: () async {
-                        final answer = await DV.AI.chat('What is Dartvel?');
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('AI: $answer')),
-                          );
-                        }
-                      },
-                      child: const Text('Query AI'),
-                    ),
-                    ElevatedButton(
-                      onPressed: () {
-                        DV.Observability.log('Showcase event logged');
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Event logged successfully')),
-                        );
-                      },
-                      child: const Text('Log Observability Event'),
-                    ),
-                    ElevatedButton(
-                      onPressed: () => context.navigateToPage(DVRoutes.blog(id: '777')),
-                      child: const Text('Go to Blog (Typed Target)'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ).modifier(cardStyle),
-        ],
-      ),
-    ),
+void _showMessage(BuildContext context, String message) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: DVText(message)),
   );
 }

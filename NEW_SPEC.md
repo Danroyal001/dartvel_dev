@@ -105,6 +105,7 @@ Two primitives.
 
 ```dart
 DVBox(...)
+DVBox.list(...)
 DVText(...)
 ```
 
@@ -132,6 +133,108 @@ Lists
 Grids
 
 Navigation
+
+---
+
+# Collection Layouts
+
+Dartvel keeps the primitive surface area small:
+
+```dart
+DVBox(...)
+DVText(...)
+```
+
+Collection layouts are modes on `DVBox`, not separate widgets.
+
+## Static Layouts
+
+Static content is passed as an exact `List<Widget>` to `DVBox.list`. The default
+layout is vertical and maps to Flutter's `Column`.
+
+```dart
+DVBox.list([
+  DVText("One"),
+  DVText("Two"),
+  DVText("Three"),
+])
+```
+
+Single-child boxes use `DVBox(widget)` so the public API stays strongly typed
+without `dynamic`, `Object`, or `var`.
+
+```dart
+DVBox(DVText("Profile"))
+```
+
+Rows, grids, wraps, stacks, horizontal lists, and scrollable regions are layout
+constructors for static children:
+
+```dart
+DVBox.row([Avatar(user), DVText(user.name)])
+
+DVBox.grid([PhotoCard(a), PhotoCard(b), PhotoCard(c)], columns: 3)
+
+DVBox.wrap([Tag("Flutter"), Tag("Dart"), Tag("Rust")])
+
+DVBox.stack([Background(), Avatar(), Badge()])
+
+DVBox.list([...]).scrollable()
+```
+
+Explicit `.wrap()` is a layout mode for collections. It is not the removed
+automatic wrapper behavior for arbitrary widget composition.
+
+## Dynamic Collections
+
+Runtime collections use `DVBox.builder`. The default is vertical, lazy, and
+virtualized where the target platform supports it.
+
+```dart
+DVBox.builder(
+  posts,
+  (post) => PostCard(post),
+)
+```
+
+Builder collections support the same layout modes:
+
+```dart
+DVBox.builder(posts, (post) => PostCard(post)).grid(columns: 2)
+
+DVBox.builder(tags, (tag) => TagChip(tag)).wrap()
+
+DVBox.builder(photos, (photo) => PhotoCard(photo)).masonry()
+
+DVBox.builder(stories, (story) => StoryCard(story)).horizontal()
+```
+
+## Generated Model Components
+
+Generated model components are application components, not layout primitives.
+They compose `DVBox`, `DVText`, and generated controls internally.
+
+```dart
+User.Form()
+User.List()
+User.Table()
+User.Page()
+```
+
+Tables remain model-generated because they include sorting, filtering,
+pagination, resizing, keyboard navigation, virtualization, accessibility, and
+column management.
+
+```dart
+User.List().builder((context, user) => UserCard(user))
+
+User.Table().builder((context, user) => UserRow(user))
+```
+
+This intentionally avoids `DVRow`, `DVColumn`, `DVGrid`, `DVList`,
+`DVMasonry`, and `DVWrap`. `DVBox` is the universal layout primitive, `DVText`
+is the universal text primitive, and higher-level CRUD experiences are generated
+from models.
 
 ---
 
@@ -200,13 +303,43 @@ Functional
 
 ```dart
 @DVPage()
-@DVFunctionalWidget()
 Widget usersPage(
     BuildContext context
 ) {}
 ```
 
-DVPage handles routing, transitions, scaffolding, e.t.c
+`@DVPage()` alone is enough for page functions. Using both `@DVPage()` and
+`@DVFunctionalWidget()` remains valid; Dartvel treats them the same for pages
+and performs the generated wrapping internally.
+
+`@DVPage` handles routing, transitions, and the unified Material/Cupertino page
+scaffold. Page bodies return Dartvel content directly, usually `DVBox`,
+`DVBox.list`, or `DVText`; application page code should not create `Scaffold`
+or `CupertinoPageScaffold` manually.
+
+Page shell options are configured on the annotation with const values:
+
+```dart
+@DVPage(
+    title: 'Settings',
+    shell: DVPageShellMode.adaptive,
+    showAppBar: true,
+    safeArea: true,
+    centerTitle: true,
+    backgroundColor: 0xFFFFFFFF,
+    appBarBackgroundColor: 0xFFF8FAFC,
+)
+Widget settingsPage(BuildContext context) {
+    return DVBox.list([
+        DVText('Settings'),
+    ]);
+}
+```
+
+`DVPageShellMode` supports `adaptive`, `material`, `cupertino`, and `none`.
+`adaptive` renders Cupertino page chrome on iOS/macOS and Material page chrome
+elsewhere. `scaffold: false` or `shell: DVPageShellMode.none` disables the
+generated shell for advanced embedding.
 
 ---
 
@@ -217,6 +350,23 @@ Pages Router.
 ```
 pages/index.dart
 ```
+
+Generated route clients must import each `DVPage` with Dart deferred imports.
+The generated `dartvel_client/dartvel_client.dart` barrel exposes generated page
+wrappers, and route tables instantiate those wrappers instead of importing page
+source files eagerly. On web this allows large applications to load each page
+bundle when the route is first visited rather than loading every page in the
+initial bundle.
+
+Application code should import one generated entrypoint:
+
+```dart
+import 'package:my_app/dartvel_client/dartvel_client.dart';
+```
+
+That barrel exports Dartvel core, Dartvel Flutter primitives, generated
+functions, routes, configuration, environment access, and generated model
+helpers.
 
 ↓
 
@@ -539,7 +689,7 @@ Provides:
 - Safe areas (DV.Platform.screen.safeAreaBounds)
 - Breakpoints (DV.Platform.screen.breakPoints)
 - Orientation (DV.Platform.deviceOrientation)
-- Window (DV.Platform.Window) - Window bounds, properties and functionalities for the app/site. Supports almost everything in the window object on web, no-op on other platforms.
+- Window (DV.Platform.Window) - Window bounds, properties and functionalities for the app/site. Web uses browser APIs; native platforms use generated FFI/JNI bindings where supported.
 - Device type (DV.Platform.type (enum, e.g mobile, desktop, laptop, desktopOrLaptop, tablet, embeddedDisplay, watch, circularWatch, squareWatch, embeddedWithoutDisplay))
 - Screen shape (DV.Platform.screen.shape (enum e.g square, rectangle, verticalRectangle, horizontalRectangle, custom))
 
@@ -671,21 +821,8 @@ dartvel:
   seo:
 ```
 
-Per page
-
-```dart
-DVSeo(...)
-```
-
-Passed to @DVPage
-
-```dart
-@DVPage(seo: DVSeo(...))
-@DVFunctionalWidget()
-Widget usersPage(
-    BuildContext context
-) {}
-```
+Per-page SEO is provided by generated/class page metadata and applied by the
+generated router through `DartvelSeo`.
 
 Supports:
 - OpenGraph
@@ -751,6 +888,21 @@ Built in:
 - Error reporting
 - Structured diagnostics
 - Structured, AI-readable logs
+
+Application logging uses the discoverable `DV.ObservabilityAndLogging` service
+and the shorter autocomplete-friendly `DV.log` shortcut:
+
+```dart
+await DV.log(
+  "Checkout completed",
+  context: {"orderId": order.id},
+);
+
+await DV.ObservabilityAndLogging.event(
+  "checkout_completed",
+  {"orderId": order.id},
+);
+```
 
 ---
 
@@ -860,7 +1012,7 @@ package:dartvel/dartvel_observability.dart
 package:dartvel/dartvel_rust_bindings.dart
 ```
 
-All dartvel code is valid on all platforms. It just no-op and raise a warning by default, but this can be tailored.
+All Dartvel code is valid on all platforms. Native integrations must use FFI/ffigen or JNI/jnigen bindings; unsupported platform targets fail during validation or are excluded from the generated artifact rather than silently ignoring work.
 
 Dartvel also supports rust bindings for writing rust code in dart using constructs
 e.g
@@ -878,7 +1030,7 @@ Automatically handles FFI on native native platforms and WASM on web
 
 # Home Widgets
 
-Allows building home-screen and lock screen widgets on supported platforms (e.g Jetpack glance or remote compose on android, e.t.c), using the @DVHomeWidget annotation on any widget, whether flutter-native, DVClassWidget or DVFunctionalWIdget.These widgets just becomes no-op and/or gets excluded from the compiled binary/artifact when unsupported (can be configured).
+Allows building home-screen and lock screen widgets on supported platforms (e.g Jetpack glance or remote compose on android, e.t.c), using the @DVHomeWidget annotation on any widget, whether flutter-native, DVClassWidget or DVFunctionalWIdget. Unsupported targets are excluded from the compiled binary/artifact or fail validation based on project configuration.
 
 ```dart
 @DVHomeWidget()

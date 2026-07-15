@@ -48,6 +48,7 @@ class OtaUpdater {
   String? _updateServerUrl;
   String? _currentVersion;
   String? _platform;
+  File? _lastDownloadedUpdate;
 
   void configure({
     required String updateServerUrl,
@@ -96,25 +97,51 @@ class OtaUpdater {
 
   Stream<UpdateProgress> downloadUpdate(String url) async* {
     final client = HttpClient();
-    final request = await client.getUrl(Uri.parse(url));
-    final response = await request.close();
+    final file = await _createDownloadFile(url);
+    final sink = file.openWrite();
 
-    final totalBytes = response.contentLength;
-    var bytesDownloaded = 0;
+    try {
+      final request = await client.getUrl(Uri.parse(url));
+      final response = await request.close();
 
-    await for (final chunk in response) {
-      bytesDownloaded += chunk.length;
-      yield UpdateProgress(bytesDownloaded, totalBytes);
-      // Note: Write to temporary file (future implementation)
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw HttpException(
+          'Download failed with HTTP ${response.statusCode}',
+          uri: Uri.parse(url),
+        );
+      }
+
+      final totalBytes = response.contentLength;
+      var bytesDownloaded = 0;
+
+      await for (final chunk in response) {
+        bytesDownloaded += chunk.length;
+        sink.add(chunk);
+        yield UpdateProgress(bytesDownloaded, totalBytes);
+      }
+      await sink.flush();
+      _lastDownloadedUpdate = file;
+    } finally {
+      await sink.close();
+      client.close(force: true);
     }
-
-    client.close();
   }
 
   Future<void> installUpdate(String updatePath) async {
-    // Note: Platform-specific installation (future implementation)
-    // For now, just a placeholder
-    developer.log('Installing update from: $updatePath', name: 'dartvel');
+    final update = File(updatePath);
+    if (!update.existsSync()) {
+      throw FileSystemException('Update artifact does not exist', updatePath);
+    }
+    final manifest = File('$updatePath.install.json');
+    await manifest.writeAsString(jsonEncode({
+      'updatePath': update.absolute.path,
+      'version': _currentVersion,
+      'platform': _platform,
+      'installedAt': DateTime.now().toIso8601String(),
+      'size': await update.length(),
+    }));
+    developer.log('Staged OTA update manifest: ${manifest.path}',
+        name: 'dartvel');
   }
 
   Future<void> checkAndUpdate({
@@ -134,10 +161,20 @@ class OtaUpdater {
 
         // Auto-install if silent
         if (silent) {
-          // await installUpdate(downloadPath);
+          final update = _lastDownloadedUpdate;
+          if (update != null) await installUpdate(update.path);
         }
       }
     }
+  }
+
+  Future<File> _createDownloadFile(String url) async {
+    final dir = await Directory.systemTemp.createTemp('dartvel_ota_');
+    final uri = Uri.parse(url);
+    final name = uri.pathSegments.isEmpty || uri.pathSegments.last.isEmpty
+        ? 'update.bin'
+        : uri.pathSegments.last;
+    return File('${dir.path}${Platform.pathSeparator}$name');
   }
 }
 
@@ -149,15 +186,28 @@ class ShorebirdUpdater {
   }
 
   static Future<void> checkForUpdate() async {
-    if (!isSupported) return;
-
-    // Note: Integrate with shorebird_code_push package (future implementation)
-    // This is a placeholder for now
-    developer.log('Checking for Shorebird updates...', name: 'dartvel');
+    if (!isSupported) {
+      throw StateError('Shorebird updates require Android or iOS.');
+    }
+    await _runShorebird(['patch', 'list']);
   }
 
   static Future<void> downloadUpdate() async {
-    if (!isSupported) return;
-    developer.log('Downloading Shorebird update...', name: 'dartvel');
+    if (!isSupported) {
+      throw StateError('Shorebird updates require Android or iOS.');
+    }
+    await _runShorebird(['patch', 'download']);
+  }
+
+  static Future<void> _runShorebird(List<String> args) async {
+    final result = await Process.run('shorebird', args, runInShell: true);
+    if (result.exitCode != 0) {
+      throw ProcessException(
+        'shorebird',
+        args,
+        result.stderr.toString(),
+        result.exitCode,
+      );
+    }
   }
 }

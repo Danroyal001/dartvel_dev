@@ -38,10 +38,41 @@ class Patch {
   const Patch([this.path = '/']);
 }
 
-/// Annotation for a Dartvel Page
+/// Platform shell used by [DVPage].
+enum DVPageShellMode {
+  adaptive,
+  material,
+  cupertino,
+  none,
+}
+
+/// Annotation for a Dartvel Page.
 class DVPage {
   final String? path;
-  const DVPage([this.path]);
+  final String? title;
+  final DVPageShellMode shell;
+  final bool scaffold;
+  final bool showAppBar;
+  final bool safeArea;
+  final bool centerTitle;
+  final bool extendBody;
+  final bool resizeToAvoidBottomInset;
+  final int? backgroundColor;
+  final int? appBarBackgroundColor;
+
+  const DVPage({
+    this.path,
+    this.title,
+    this.shell = DVPageShellMode.adaptive,
+    this.scaffold = true,
+    this.showAppBar = false,
+    this.safeArea = true,
+    this.centerTitle = false,
+    this.extendBody = false,
+    this.resizeToAvoidBottomInset = true,
+    this.backgroundColor,
+    this.appBarBackgroundColor,
+  });
 }
 
 /// Annotation for a functional widget Page

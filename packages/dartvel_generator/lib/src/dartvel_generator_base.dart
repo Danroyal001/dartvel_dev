@@ -1,6 +1,6 @@
-// TODO: Put public facing types in this file.
+/// Public entry point for shared dartvel_generator utilities.
+class DartvelGenerator {
+  const DartvelGenerator();
 
-/// Checks if you are awesome. Spoiler: you are.
-class Awesome {
-  bool get isAwesome => true;
+  String get packageName => 'dartvel_generator';
 }

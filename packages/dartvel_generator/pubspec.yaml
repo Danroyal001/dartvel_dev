@@ -1,6 +1,7 @@
 name: dartvel_generator
-description: A starting point for Dart libraries or applications.
+description: Compile-time generators for readable Dartvel routing and model glue.
 version: 1.0.0
+publish_to: none
 
 
 environment:
