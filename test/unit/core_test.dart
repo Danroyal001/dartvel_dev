@@ -1,7 +1,6 @@
-import 'package:test/test.dart';
-import 'package:dartvel_core/dartvel.dart';
 import 'package:dartvel_core/src/cache/cache.dart';
 import 'package:dartvel_core/src/tasks/background_tasks.dart';
+import 'package:test/test.dart';
 
 void main() {
   group('Cache Tests', () {

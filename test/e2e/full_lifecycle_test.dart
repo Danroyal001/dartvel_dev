@@ -89,7 +89,7 @@ void main() {
       } else {
         print('Skipping: flutter pub get (Flutter SDK not installed)');
       }
-    }, timeout: Timeout(Duration(minutes: 2)));
+    }, timeout: const Timeout(Duration(minutes: 2)));
 
     test('Project has correct structure', () async {
       final pubspecFile = File(p.join(projectPath, 'pubspec.yaml'));
@@ -111,7 +111,7 @@ void main() {
       print('Doctor stderr: ${result.stderr}');
 
       expect(result.exitCode, 0, reason: 'dartvel doctor should pass');
-    }, timeout: Timeout(Duration(seconds: 30)));
+    }, timeout: const Timeout(Duration(seconds: 30)));
 
     test('Build web app', () async {
       if (!hasFlutter) {
@@ -153,7 +153,7 @@ void main() {
       final buildDir = Directory(p.join(projectPath, 'build', 'web'));
       expect(await buildDir.exists(), true,
           reason: 'build/web directory should exist');
-    }, timeout: Timeout(Duration(minutes: 5)));
+    }, timeout: const Timeout(Duration(minutes: 5)));
 
     test('Start server and make request', () async {
       if (!hasFlutter) {
@@ -187,7 +187,7 @@ void main() {
             break;
           } catch (e) {
             lastError = e;
-            await Future.delayed(Duration(seconds: 1));
+            await Future.delayed(const Duration(seconds: 1));
           }
         }
 
@@ -202,6 +202,6 @@ void main() {
         // Clean up
         serverProcess.kill();
       }
-    }, timeout: Timeout(Duration(minutes: 1)));
+    }, timeout: const Timeout(Duration(minutes: 1)));
   });
 }

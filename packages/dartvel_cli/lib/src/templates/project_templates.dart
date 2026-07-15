@@ -21,16 +21,16 @@ dependencies:
     sdk: flutter
   go_router: ^14.2.0
   dio: ^5.5.0
-  dartvel_core: ${localPackagesDir == null ? '^0.1.0' : '\n    path: ${localPackagesDir}/dartvel_core'}
-  dartvel_shelf: ${localPackagesDir == null ? '^0.1.0' : '\n    path: ${localPackagesDir}/dartvel_shelf'}
-  dartvel_flutter: ${localPackagesDir == null ? '^0.1.0' : '\n    path: ${localPackagesDir}/dartvel_flutter'}
+  dartvel_core: ${localPackagesDir == null ? '^0.1.0' : '\n    path: $localPackagesDir/dartvel_core'}
+  dartvel_shelf: ${localPackagesDir == null ? '^0.1.0' : '\n    path: $localPackagesDir/dartvel_shelf'}
+  dartvel_flutter: ${localPackagesDir == null ? '^0.1.0' : '\n    path: $localPackagesDir/dartvel_flutter'}
   ${web ? 'flutter_web_plugins:\n    sdk: flutter' : ''}
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   lints: ^4.0.0
-  dartvel_cli: ${localPackagesDir == null ? '^0.1.0' : '\n    path: ${localPackagesDir}/dartvel_cli'}
+  dartvel_cli: ${localPackagesDir == null ? '^0.1.0' : '\n    path: $localPackagesDir/dartvel_cli'}
 
 
 flutter:
@@ -85,7 +85,11 @@ PUBLIC_GREETING=Hello from Dartvel!
       '''import 'package:flutter/material.dart';
 import '../dartvel_client/dartvel_client.dart';
 
-@DVPage()
+@DVPage(
+  title: 'Dartvel',
+  showAppBar: true,
+  centerTitle: true,
+)
 class IndexPage extends DartvelPage {
   const IndexPage({super.key});
 
@@ -320,7 +324,10 @@ import 'package:dartvel_core/dartvel.dart';
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/material.dart';
 
-@DVPage()
+@DVPage(
+  title: 'About',
+  showAppBar: true,
+)
 Widget aboutPage(BuildContext context) {
   return DVBox.list([
     const DVText('About'),

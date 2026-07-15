@@ -1,7 +1,11 @@
 import 'package:basic_app/dartvel_client/dartvel_client.dart';
 import 'package:flutter/material.dart';
 
-@DVPage()
+@DVPage(
+  title: 'Dartvel',
+  showAppBar: true,
+  centerTitle: true,
+)
 @DVFunctionalWidget()
 Widget indexPage(BuildContext context) {
   final data = DvDataScope.of(context).data as Map<String, String>?;

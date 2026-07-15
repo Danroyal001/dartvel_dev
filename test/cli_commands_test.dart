@@ -3,8 +3,9 @@
 library;
 
 import 'dart:io';
-import 'package:test/test.dart';
+
 import 'package:path/path.dart' as p;
+import 'package:test/test.dart';
 
 void main() {
   final tempDir = Directory.systemTemp.createTempSync('dartvel_cli_test');

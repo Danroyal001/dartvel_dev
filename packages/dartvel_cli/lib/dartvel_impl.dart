@@ -1,22 +1,23 @@
 import 'dart:io';
+
 import 'package:args/command_runner.dart';
 
+import 'src/commands/ai_command.dart';
 import 'src/commands/build_command.dart';
+import 'src/commands/db_command.dart';
 import 'src/commands/deploy_command.dart';
 import 'src/commands/dev_command.dart';
 import 'src/commands/doctor_command.dart';
+import 'src/commands/generate_command.dart';
 import 'src/commands/init_command.dart';
+import 'src/commands/observability_commands.dart';
 import 'src/commands/plugin_command.dart';
+import 'src/commands/prerender_command.dart';
 import 'src/commands/preview_command.dart';
 import 'src/commands/routes_command.dart';
 import 'src/commands/updates_command.dart';
 import 'src/commands/version_command.dart';
 import 'src/commands/watch_command.dart';
-import 'src/commands/prerender_command.dart';
-import 'src/commands/db_command.dart';
-import 'src/commands/generate_command.dart';
-import 'src/commands/observability_commands.dart';
-import 'src/commands/ai_command.dart';
 
 Future<void> main(List<String> args) async {
   // Handle --version flag

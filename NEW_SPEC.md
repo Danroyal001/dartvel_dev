@@ -341,6 +341,12 @@ Widget settingsPage(BuildContext context) {
 elsewhere. `scaffold: false` or `shell: DVPageShellMode.none` disables the
 generated shell for advanced embedding.
 
+If a page source explicitly returns a `Scaffold` or `CupertinoPageScaffold`,
+the generator does not wrap that page with the default `DVPage` shell unless
+`@DVPage(scaffold: true)` is set explicitly. This keeps legacy/manual shell
+pages working, while Dartvel-authored pages should move scaffold properties to
+`@DVPage(...)` and return content only.
+
 ---
 
 # Routing

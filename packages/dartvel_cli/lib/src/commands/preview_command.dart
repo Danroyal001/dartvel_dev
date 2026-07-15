@@ -1,7 +1,9 @@
 import 'dart:io';
+
 import 'package:args/command_runner.dart';
-import 'package:path/path.dart' as p;
 import 'package:dartvel_shelf/dartvel_shelf.dart';
+import 'package:path/path.dart' as p;
+
 import '../utils/logger.dart';
 
 class PreviewCommand extends Command<void> {

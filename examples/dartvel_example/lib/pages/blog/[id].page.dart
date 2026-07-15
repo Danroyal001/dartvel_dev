@@ -1,7 +1,10 @@
 import 'package:dartvel_example/dartvel_client/dartvel_client.dart';
 import 'package:flutter/material.dart';
 
-@DVPage()
+@DVPage(
+  title: 'Blog',
+  showAppBar: true,
+)
 @DVFunctionalWidget()
 Widget blogIdPage(BuildContext context) {
   final id = context.dvParams['id'] ?? 'unknown';

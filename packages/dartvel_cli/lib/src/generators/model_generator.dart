@@ -87,18 +87,18 @@ class ModelGenerator {
         sb.writeln('    return $className(');
         for (final field in fields) {
           final name = field['name']!;
-          sb.writeln("      $name: $name ?? this.$name,");
+          sb.writeln('      $name: $name ?? this.$name,');
         }
         sb.writeln('    );');
         sb.writeln('  }');
 
         // Database metadata
-        final tableName = className.toLowerCase() + 's';
+        final tableName = '${className.toLowerCase()}s';
         sb.writeln();
-        sb.writeln("  /// Database table name for [$className].");
+        sb.writeln('  /// Database table name for [$className].');
         sb.writeln("  String get tableName => '$tableName';");
         sb.writeln();
-        sb.writeln("  /// SQL statement to create the [$className] table.");
+        sb.writeln('  /// SQL statement to create the [$className] table.');
         final cols = fields.map((f) => "${f['name']} TEXT").join(', ');
         sb.writeln(
             "  String get createTableSql => 'CREATE TABLE IF NOT EXISTS $tableName ($cols)';");
@@ -133,9 +133,9 @@ class ModelGenerator {
           final name = field['name']!;
           final type = field['type']!;
           var defaultVal = 'null';
-          if (type == 'String')
+          if (type == 'String') {
             defaultVal = "''";
-          else if (type == 'int')
+          } else if (type == 'int')
             defaultVal = '0';
           else if (type == 'double')
             defaultVal = '0.0';
@@ -153,7 +153,7 @@ class ModelGenerator {
         }
         sb.writeln('}');
         sb.writeln();
-        sb.writeln('final bool _registered_${className} = () {');
+        sb.writeln('final bool _registered_$className = () {');
         sb.writeln(
             '  registerFormControlsFactory<$className>((model) => ${className}FormControls(model as $className?));');
         sb.writeln('  return true;');

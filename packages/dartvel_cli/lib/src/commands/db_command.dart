@@ -37,7 +37,7 @@ class DbMigrateSubcommand extends Command<void> {
         final matches = RegExp(r'@DVModel\(\)\s*class\s+([A-Za-z0-9_]+)').allMatches(content);
         for (final m in matches) {
           final className = m.group(1)!;
-          final tableName = className.toLowerCase() + 's';
+          final tableName = '${className.toLowerCase()}s';
           print('  [+] Migrated table: $tableName');
           count++;
         }
