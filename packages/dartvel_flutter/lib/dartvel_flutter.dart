@@ -38,6 +38,9 @@ class DVModifier {
   final EdgeInsetsGeometry? marginValue;
   final BorderRadiusGeometry? borderRadius;
   final Color? textColor;
+  final double? fontSizeValue;
+  final FontWeight? fontWeightValue;
+  final double? letterSpacingValue;
   final Color? boxColor;
   final double? widthValue;
   final double? heightValue;
@@ -51,6 +54,9 @@ class DVModifier {
     this.marginValue,
     this.borderRadius,
     this.textColor,
+    this.fontSizeValue,
+    this.fontWeightValue,
+    this.letterSpacingValue,
     this.boxColor,
     this.widthValue,
     this.heightValue,
@@ -65,6 +71,9 @@ class DVModifier {
         marginValue = null,
         borderRadius = null,
         textColor = null,
+        fontSizeValue = null,
+        fontWeightValue = null,
+        letterSpacingValue = null,
         boxColor = null,
         widthValue = null,
         heightValue = null,
@@ -78,6 +87,9 @@ class DVModifier {
     EdgeInsetsGeometry? marginValue,
     BorderRadiusGeometry? borderRadius,
     Color? textColor,
+    double? fontSizeValue,
+    FontWeight? fontWeightValue,
+    double? letterSpacingValue,
     Color? boxColor,
     double? widthValue,
     double? heightValue,
@@ -91,6 +103,9 @@ class DVModifier {
       marginValue: marginValue ?? this.marginValue,
       borderRadius: borderRadius ?? this.borderRadius,
       textColor: textColor ?? this.textColor,
+      fontSizeValue: fontSizeValue ?? this.fontSizeValue,
+      fontWeightValue: fontWeightValue ?? this.fontWeightValue,
+      letterSpacingValue: letterSpacingValue ?? this.letterSpacingValue,
       boxColor: boxColor ?? this.boxColor,
       widthValue: widthValue ?? this.widthValue,
       heightValue: heightValue ?? this.heightValue,
@@ -111,6 +126,13 @@ class DVModifier {
       _copyWith(borderRadius: BorderRadius.circular(value));
 
   DVModifier color(Color value) => _copyWith(textColor: value);
+
+  DVModifier fontSize(double value) => _copyWith(fontSizeValue: value);
+
+  DVModifier fontWeight(FontWeight value) => _copyWith(fontWeightValue: value);
+
+  DVModifier letterSpacing(double value) =>
+      _copyWith(letterSpacingValue: value);
 
   DVModifier backgroundColor(Color value) => _copyWith(boxColor: value);
 
@@ -549,7 +571,12 @@ class DVText extends StatelessWidget {
   Widget build(BuildContext context) {
     Widget result = Text(
       text,
-      style: TextStyle(color: _modifier?.textColor),
+      style: TextStyle(
+        color: _modifier?.textColor,
+        fontSize: _modifier?.fontSizeValue,
+        fontWeight: _modifier?.fontWeightValue,
+        letterSpacing: _modifier?.letterSpacingValue,
+      ),
     );
 
     if (_modifier?.onTapCallback != null) {
@@ -1257,8 +1284,7 @@ class DVPlatform {
       currentPlatform == 'appletv';
   bool get isWatch =>
       _deviceTypeOverride == 'watch' || currentPlatform.contains('watch');
-  bool get isFoldable =>
-      _deviceTypeOverride == 'foldable' || screenWidth >= 700;
+  bool get isFoldable => _deviceTypeOverride == 'foldable';
 
   ui.FlutterView? get _view {
     final views = ui.PlatformDispatcher.instance.views;
