@@ -119,6 +119,13 @@ void main() {
     expect(platform.screen.size.width, platform.screenWidth);
     expect(platform.screen.safeAreaBounds, platform.safeAreas);
     expect(platform.Window.bounds.width, platform.screenWidth);
+    expect(platform.isChromiumExtension, isFalse);
+    expect(platform.isFirefoxExtension, isFalse);
+    expect(platform.browserExtension.isAvailable, isFalse);
+    expect(
+      () => platform.browserExtension.getManifest(),
+      throwsA(isA<StateError>()),
+    );
   });
 
   test('integration APIs provide concrete local behavior', () async {

@@ -11,6 +11,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 // conditional SEO implementation
+import 'src/browser_extension_platform_memory.dart'
+    if (dart.library.html) 'src/browser_extension_platform_web.dart'
+    as browser_extension_platform;
 import 'src/seo_platform_memory.dart'
     if (dart.library.html) 'src/seo_platform_web.dart' as seo_platform;
 
@@ -1080,6 +1083,38 @@ class DVWindow {
   }
 }
 
+class DVBrowserExtension {
+  const DVBrowserExtension();
+
+  bool get isAvailable => isChromium || isFirefox;
+  bool get isChromium => browser_extension_platform.isChromiumExtension();
+  bool get isFirefox => browser_extension_platform.isFirefoxExtension();
+
+  Map<String, Object?> getManifest() {
+    return browser_extension_platform.getManifest();
+  }
+
+  Future<Object?> sendMessage(Object? message) {
+    return browser_extension_platform.sendMessage(message);
+  }
+
+  Future<Map<String, Object?>> storageLocalGet([List<String>? keys]) {
+    return browser_extension_platform.storageLocalGet(keys);
+  }
+
+  Future<void> storageLocalSet(Map<String, Object?> values) {
+    return browser_extension_platform.storageLocalSet(values);
+  }
+
+  Future<void> storageLocalRemove(List<String> keys) {
+    return browser_extension_platform.storageLocalRemove(keys);
+  }
+
+  Future<void> tabsCreate(String url, {bool active = true}) {
+    return browser_extension_platform.tabsCreate(url, active: active);
+  }
+}
+
 class DVPlatform {
   const DVPlatform();
 
@@ -1115,6 +1150,10 @@ class DVPlatform {
   bool get isMacOS => currentPlatform == 'macos';
   bool get isFuchsia => currentPlatform == 'fuchsia';
   bool get isWeb => currentPlatform == 'web';
+  bool get isChromiumExtension =>
+      browser_extension_platform.isChromiumExtension();
+  bool get isFirefoxExtension =>
+      browser_extension_platform.isFirefoxExtension();
 
   bool get isTizen =>
       currentPlatform == 'tizen' || currentPlatform == 'tizenos';
@@ -1207,6 +1246,7 @@ class DVPlatform {
   DVHaptics get haptics => const DVHaptics();
   DVContacts get contacts => const DVContacts();
   DVPermissions get permissions => const DVPermissions();
+  DVBrowserExtension get browserExtension => const DVBrowserExtension();
 }
 
 class DVAuth {
