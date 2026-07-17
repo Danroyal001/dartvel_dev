@@ -1370,32 +1370,37 @@ class _EmailPasswordAuthPageState extends State<_EmailPasswordAuthPage> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-        body: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 360),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: _email,
-                  decoration: const InputDecoration(labelText: 'Email'),
-                ),
-                TextField(
-                  controller: _password,
-                  decoration: const InputDecoration(labelText: 'Password'),
-                  obscureText: true,
-                ),
-                const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: () => widget.auth.signInWithEmailAndPassword(
-                    email: _email.text,
-                    password: _password.text,
-                  ),
-                  child: const DVText('Sign in'),
-                ),
-              ],
-            ),
+  Widget build(BuildContext context) => Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 360),
+          child: Material(
+            type: MaterialType.transparency,
+            child: DVBox.list([
+              TextField(
+                controller: _email,
+                decoration: const InputDecoration(labelText: 'Email'),
+              ),
+              TextField(
+                controller: _password,
+                decoration: const InputDecoration(labelText: 'Password'),
+                obscureText: true,
+              ),
+              const DVText('Sign in').modifier(
+                const DVModifier()
+                    .padding(12)
+                    .rounded(8)
+                    .backgroundColor(const Color(0xFF111827))
+                    .color(Colors.white)
+                    .onPressed(() {
+                  unawaited(
+                    widget.auth.signInWithEmailAndPassword(
+                      email: _email.text,
+                      password: _password.text,
+                    ),
+                  );
+                }),
+              ),
+            ]),
           ),
         ),
       );
@@ -1408,12 +1413,16 @@ class _ProviderAuthPage extends StatelessWidget {
   const _ProviderAuthPage({required this.auth, required this.provider});
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-        body: Center(
-          child: FilledButton(
-            onPressed: () => auth.signInWithProvider(provider),
-            child: DVText('Continue with $provider'),
-          ),
+  Widget build(BuildContext context) => Center(
+        child: DVText('Continue with $provider').modifier(
+          const DVModifier()
+              .padding(12)
+              .rounded(8)
+              .backgroundColor(const Color(0xFF111827))
+              .color(Colors.white)
+              .onPressed(() {
+            unawaited(auth.signInWithProvider(provider));
+          }),
         ),
       );
 }
