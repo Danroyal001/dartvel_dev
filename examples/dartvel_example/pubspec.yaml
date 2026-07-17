@@ -16,6 +16,7 @@ dependencies:
   shelf: ^1.4.1
   flutter_web_plugins:
     sdk: flutter
+  flutter_riverpod: ^2.6.1
   dartvel_core:
     path: ../../packages/dartvel_core
   dartvel_shelf:
