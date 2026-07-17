@@ -19,22 +19,37 @@ Widget indexPage(BuildContext context) {
   final currentLang = currentLangScope.isEmpty ? 'system' : currentLangScope;
 
   return DVBox.list([
-    const DVText('Dartvel Platform Showcase'),
-    ShowcaseButton('Toggle Theme', () {
-      final next =
-          DV.Theme.mode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
-      DV.Theme.setMode(next);
-      _showMessage(context, 'Theme mode set to ${DV.Theme.mode}');
-    }),
-    const DVText('Welcome to Dartvel full-stack app platform!')
-        .modifier(_titleStyle),
-    ShowcaseSection('1. Signals State Management', [
+    ShowcaseHero(
+      DV.Platform.currentPlatform,
+      DV.Platform.deviceType,
+      DartvelRuntime.baseUrl,
+    ),
+    DVBox.wrap([
+      ShowcaseButton('Toggle Theme', () {
+        final next =
+            DV.Theme.mode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+        DV.Theme.setMode(next);
+        _showMessage(context, 'Theme mode set to ${DV.Theme.mode}');
+      }),
+      ShowcaseButton('Typed Blog Route', () {
+        context.navigateToPage(DVRoutes.blog(id: '777'));
+      }),
+      ShowcaseButton('Start SSE Stream', () {
+        ticks.value = [];
+        isStreaming.value = true;
+        _subscription = getTicks().listen(
+          (tick) => ticks.value = [...ticks.value, tick],
+          onDone: () => isStreaming.value = false,
+        );
+      }),
+    ]).modifier(_quickActionsStyle),
+    ShowcaseSection('State & Signals', [
       DVText('Local counter signal value: ${counter.value}'),
       ShowcaseButton('Increment Counter Signal', () {
         counter.value = counter.value + 1;
       }),
     ]),
-    ShowcaseSection('2. Platform Info', [
+    ShowcaseSection('Runtime Platform', [
       DVBox.grid([
         ShowcaseMetric('Platform', DV.Platform.currentPlatform),
         ShowcaseMetric('Device type', DV.Platform.deviceType),
@@ -72,7 +87,7 @@ Widget indexPage(BuildContext context) {
         }),
       ]),
     ]),
-    ShowcaseSection('3. Generated Config, Env, PWA & SEO', [
+    ShowcaseSection('Generated Config, Env, PWA & SEO', [
       DVBox.grid([
         ShowcaseMetric('Database', DartvelConfig.databaseProvider),
         ShowcaseMetric('Storage', DartvelConfig.storageProvider),
@@ -85,7 +100,7 @@ Widget indexPage(BuildContext context) {
       const DVText(
           'SEO defaults are generated into the deferred router wrapper.'),
     ]),
-    ShowcaseSection('4. Authentication & Multi-Tenancy', [
+    ShowcaseSection('Authentication & Tenancy', [
       DVText('Current Tenant: ${DV.currentTenant}'),
       DVText('User status: ${DV.Auth.currentUser ?? "Not signed in"}'),
       DVBox.wrap([
@@ -99,13 +114,13 @@ Widget indexPage(BuildContext context) {
         }),
       ]),
     ]),
-    ShowcaseSection('5. Models, Forms & Generated Model Helpers', [
+    ShowcaseSection('Models, Forms & Generated Model Helpers', [
       const DVForm<User>(User(name: 'John Doe', email: 'john@example.com')),
       DVText(
         'Generated model SQL: ${const User(name: 'Ada', email: 'ada@example.com').createTableSql}',
       ),
     ]),
-    ShowcaseSection('6. Streaming Functions', [
+    ShowcaseSection('Streaming Functions', [
       ShowcaseButton(isStreaming.value ? 'Stop SSE Stream' : 'Start SSE Stream',
           () {
         if (isStreaming.value) {
@@ -126,7 +141,7 @@ Widget indexPage(BuildContext context) {
           (tick) => DVText(tick).modifier(_pillStyle),
         ).scrollable().modifier(const DVModifier().height(120)),
     ]),
-    ShowcaseSection('7. i18n, Deferred Pages & Typed Router Actions', [
+    ShowcaseSection('i18n, Deferred Pages & Typed Router Actions', [
       DVText('Current Language Locale: $currentLang'),
       DVBox.wrap([
         ShowcaseButton('Set Locale: EN-US', () {
@@ -143,7 +158,7 @@ Widget indexPage(BuildContext context) {
         }),
       ]),
     ]),
-    ShowcaseSection('8. Direct Typed API Calls', [
+    ShowcaseSection('Typed API Client', [
       DVBox.wrap([
         ShowcaseButton('GET /hello', () async {
           final data = await getHelloApi(name: 'Tester');
@@ -167,7 +182,7 @@ Widget indexPage(BuildContext context) {
         }),
       ]),
     ]),
-    ShowcaseSection('9. CRUD, Files & CSRF', [
+    ShowcaseSection('CRUD, Files & CSRF', [
       DVBox.wrap([
         ShowcaseButton('Create Todo', () async {
           final data = await postDbTodosApi(title: 'Ship Dartvel demo');
@@ -195,7 +210,7 @@ Widget indexPage(BuildContext context) {
         }),
       ]),
     ]),
-    ShowcaseSection('10. Unified Local Services', [
+    ShowcaseSection('Unified Local Services', [
       DVBox.wrap([
         ShowcaseButton('Cache', () async {
           await DV.Cache.set('last_run', DateTime.now().toIso8601String());
@@ -229,7 +244,10 @@ Widget indexPage(BuildContext context) {
         }),
       ]),
     ]),
-    ShowcaseSection('11. Native Platform APIs via Generated Bindings', [
+    ShowcaseSection('Native APIs via Generated Bindings', [
+      const DVText(
+        'Browser demo bindings below are simulated generated FFI/JNI-style handlers so the Dartvel API surface can be exercised without Flutter platform channels.',
+      ).modifier(_supportingTextStyle),
       DVBox.wrap([
         ShowcaseButton('Camera', () async {
           final bytes = await DV.Platform.camera.takePhoto();
@@ -293,7 +311,7 @@ Widget indexPage(BuildContext context) {
         }),
       ]),
     ]),
-    ShowcaseSection('12. Collection Layouts', [
+    ShowcaseSection('Collection Layouts', [
       DVBox.grid([
         FeatureCard('Vertical', 'Default list layout'),
         FeatureCard('Row', 'Inline collection mode'),
@@ -329,7 +347,7 @@ Widget indexPage(BuildContext context) {
         FeatureCard('Masonry C', 'Medium content'),
       ], columns: 2),
     ]),
-    ShowcaseSection('13. AI, Observability & Logging', [
+    ShowcaseSection('AI, Observability & Logging', [
       DVBox.wrap([
         ShowcaseButton('Query AI', () async {
           final answer = await DV.AI.chat('What is Dartvel?');
@@ -365,7 +383,7 @@ Widget indexPage(BuildContext context) {
         }),
       ]),
     ]),
-  ]).scrollable().modifier(const DVModifier().padding(16));
+  ]).scrollable().modifier(_pageStyle);
 }
 
 void _registerDemoNativeBindings() {
@@ -420,30 +438,43 @@ void _registerDemoNativeBindings() {
   );
 }
 
-final _titleStyle = const DVModifier()
-    .color(const Color(0xFF6200EE))
-    .padding(8)
-    .backgroundColor(const Color(0xFFEDE7F6))
-    .rounded(8);
+final _pageStyle =
+    const DVModifier().padding(18).backgroundColor(const Color(0xFFFFFBFE));
+
+final _quickActionsStyle = const DVModifier()
+    .padding(16)
+    .rounded(24)
+    .backgroundColor(const Color(0xFFFFD8E4));
+
+final _supportingTextStyle = const DVModifier()
+    .color(const Color(0xFF49454F))
+    .fontSize(14)
+    .fontWeight(FontWeight.w600)
+    .padding(8);
 
 final _pillStyle = const DVModifier()
     .padding(8)
     .rounded(999)
-    .backgroundColor(const Color(0xFFE0F2FE))
-    .color(const Color(0xFF075985));
+    .backgroundColor(const Color(0xFFCCE5FF))
+    .color(const Color(0xFF001D36))
+    .fontWeight(FontWeight.w700);
 
 final _rowDemoStyle = const DVModifier()
     .width(140)
     .padding(12)
     .rounded(8)
-    .backgroundColor(const Color(0xFFFFF7ED));
+    .backgroundColor(const Color(0xFFFFD8E4))
+    .color(const Color(0xFF31111D))
+    .fontWeight(FontWeight.w700);
 
 final _storyStyle = const DVModifier()
     .width(160)
     .height(88)
     .padding(12)
     .rounded(8)
-    .backgroundColor(const Color(0xFFEFF6FF));
+    .backgroundColor(const Color(0xFFD0BCFF))
+    .color(const Color(0xFF21005D))
+    .fontWeight(FontWeight.w800);
 
 void _showMessage(BuildContext context, String message) {
   ScaffoldMessenger.of(context).showSnackBar(
