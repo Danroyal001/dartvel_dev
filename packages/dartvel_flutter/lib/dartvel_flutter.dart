@@ -131,7 +131,7 @@ enum _DVBoxLayout {
   grid,
   wrap,
   stack,
-  horizontal,
+  horizontalScrollable,
   masonry,
 }
 
@@ -224,6 +224,20 @@ class DVBox<T> extends StatelessWidget {
         _items = null,
         _itemBuilder = null;
 
+  const DVBox.horizontalScrollable(
+    List<Widget> children, {
+    DVModifier? modifier,
+    double spacing = 8,
+  })  : _child = null,
+        _children = children,
+        _modifier = modifier,
+        _layout = _DVBoxLayout.horizontalScrollable,
+        _columns = 1,
+        _spacing = spacing,
+        _scrollable = false,
+        _items = null,
+        _itemBuilder = null;
+
   const DVBox.masonry(
     List<Widget> children, {
     DVModifier? modifier,
@@ -288,8 +302,8 @@ class DVBox<T> extends StatelessWidget {
 
   DVBox<T> stack() => _copyWith(layout: _DVBoxLayout.stack);
 
-  DVBox<T> horizontal({double spacing = 8}) =>
-      _copyWith(layout: _DVBoxLayout.horizontal, spacing: spacing);
+  DVBox<T> horizontalScrollable({double spacing = 8}) =>
+      _copyWith(layout: _DVBoxLayout.horizontalScrollable, spacing: spacing);
 
   DVBox<T> masonry({int columns = 2, double spacing = 8}) => _copyWith(
         layout: _DVBoxLayout.masonry,
@@ -395,7 +409,7 @@ class DVBox<T> extends StatelessWidget {
       case _DVBoxLayout.stack:
         result = Stack(children: children);
         break;
-      case _DVBoxLayout.horizontal:
+      case _DVBoxLayout.horizontalScrollable:
         result = SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(children: spaced),
@@ -426,7 +440,7 @@ class DVBox<T> extends StatelessWidget {
           ),
           itemBuilder: (context, index) => builder(context, items[index]),
         );
-      case _DVBoxLayout.horizontal:
+      case _DVBoxLayout.horizontalScrollable:
         return SizedBox(
           height: _modifier?.heightValue ?? 180,
           child: ListView.separated(
@@ -447,12 +461,9 @@ class DVBox<T> extends StatelessWidget {
           children: [for (final item in items) builder(context, item)],
         );
       case _DVBoxLayout.row:
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children:
-                _spaced([for (final item in items) builder(context, item)]),
-          ),
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: _spaced([for (final item in items) builder(context, item)]),
         );
       case _DVBoxLayout.masonry:
         return _buildMasonry(
@@ -488,7 +499,9 @@ class DVBox<T> extends StatelessWidget {
   }
 
   Widget _maybeScrollable(Widget child) {
-    if (!_scrollable || _layout == _DVBoxLayout.horizontal) return child;
+    if (!_scrollable || _layout == _DVBoxLayout.horizontalScrollable) {
+      return child;
+    }
     return SingleChildScrollView(child: child);
   }
 
@@ -498,10 +511,10 @@ class DVBox<T> extends StatelessWidget {
     for (int i = 0; i < children.length; i++) {
       result.add(children[i]);
       if (i != children.length - 1) {
-        result.add(
-            _layout == _DVBoxLayout.row || _layout == _DVBoxLayout.horizontal
-                ? SizedBox(width: _spacing)
-                : SizedBox(height: _spacing));
+        result.add(_layout == _DVBoxLayout.row ||
+                _layout == _DVBoxLayout.horizontalScrollable
+            ? SizedBox(width: _spacing)
+            : SizedBox(height: _spacing));
       }
     }
     return result;
