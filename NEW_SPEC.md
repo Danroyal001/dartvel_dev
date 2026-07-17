@@ -1083,7 +1083,7 @@ Allows building home-screen and lock screen widgets on supported platforms (e.g 
 @DVFunctionalWidget()
 Widget StepCounterWidget(
     BuildContext context
-) {}
+) {...}
 ```
 
 Home widgets will act like DVPage, and support all supported properties. it will be possible to navigate launch and navigat to pages within the app, and vise versa (a page will be auto-generated with the widget as its centered content)
