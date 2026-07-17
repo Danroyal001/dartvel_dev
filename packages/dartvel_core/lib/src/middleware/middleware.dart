@@ -1,9 +1,12 @@
 // Middleware system - Next.js inspired
 import 'dart:async';
+import 'dart:convert';
+
+import 'package:dartvel_shelf/dartvel_shelf.dart' as dv;
 
 /// Request context for middleware
 class MiddlewareContext {
-  final Map<String, dynamic> data = {};
+  final Map<String, Object?> data = {};
   bool _shouldContinue = true;
 
   void abort() {
@@ -15,9 +18,11 @@ class MiddlewareContext {
 
 /// Middleware function type
 typedef Middleware = FutureOr<void> Function(
-  dynamic request,
+  Object? request,
   MiddlewareContext context,
 );
+
+typedef ClientIdentifier = String Function(Object? request);
 
 /// Middleware chain executor
 class MiddlewareChain {
@@ -65,7 +70,7 @@ class CommonMiddleware {
 
   /// Authentication middleware
   static Middleware auth({
-    required Future<String?> Function(dynamic request) getUserId,
+    required Future<String?> Function(Object? request) getUserId,
   }) {
     return (request, context) async {
       final userId = await getUserId(request);
@@ -82,12 +87,13 @@ class CommonMiddleware {
   static Middleware rateLimit({
     int maxRequests = 100,
     Duration window = const Duration(minutes: 1),
+    ClientIdentifier? clientIdentifier,
   }) {
     final Map<String, List<DateTime>> requestsMap = {};
 
     return (request, context) {
-      // Note: Get client IP
-      final clientId = 'client'; // Placeholder
+      final clientId =
+          clientIdentifier?.call(request) ?? _clientIdentifier(request);
 
       final now = DateTime.now();
       final requests = requestsMap[clientId] ?? [];
@@ -108,8 +114,8 @@ class CommonMiddleware {
   /// Logging middleware
   static Middleware logger() {
     return (request, context) {
-      final method = 'GET'; // Note: Extract from request
-      final path = '/'; // Note: Extract from request
+      final method = _requestMethod(request);
+      final path = _requestPath(request);
       // ignore: avoid_print
       print('[${DateTime.now()}] $method $path');
     };
@@ -125,8 +131,7 @@ class CommonMiddleware {
   /// Body parser middleware
   static Middleware bodyParser() {
     return (request, context) async {
-      // Note: Parse request body based on content-type
-      context.data['parsedBody'] = {};
+      context.data['parsedBody'] = await _parseBody(request);
     };
   }
 
@@ -148,6 +153,118 @@ class CommonMiddleware {
       context.data['enableCompression'] = true;
     };
   }
+}
+
+String _clientIdentifier(Object? request) {
+  final headers = _requestHeaders(request);
+  final forwardedFor = headers['x-forwarded-for'];
+  if (forwardedFor != null && forwardedFor.trim().isNotEmpty) {
+    return forwardedFor.split(',').first.trim();
+  }
+
+  for (final name in const [
+    'cf-connecting-ip',
+    'x-real-ip',
+    'fastly-client-ip',
+    'true-client-ip',
+  ]) {
+    final value = headers[name];
+    if (value != null && value.trim().isNotEmpty) return value.trim();
+  }
+
+  final forwarded = headers['forwarded'];
+  if (forwarded != null) {
+    final match = RegExp(r'for="?([^;,"]+)"?').firstMatch(forwarded);
+    final value = match?.group(1);
+    if (value != null && value.trim().isNotEmpty) {
+      return value.trim();
+    }
+  }
+
+  if (request is Map<String, Object?>) {
+    for (final key in const ['clientId', 'client_id', 'remoteAddress', 'ip']) {
+      final value = request[key];
+      if (value is String && value.trim().isNotEmpty) return value.trim();
+    }
+  }
+
+  final method = _requestMethod(request);
+  final path = _requestPath(request);
+  return '$method $path';
+}
+
+String _requestMethod(Object? request) {
+  if (request is dv.Request) return request.method.toUpperCase();
+  if (request is Map<String, Object?>) {
+    final value = request['method'];
+    if (value is String && value.trim().isNotEmpty) {
+      return value.trim().toUpperCase();
+    }
+  }
+  return 'GET';
+}
+
+String _requestPath(Object? request) {
+  if (request is dv.Request) {
+    return request.url.path.isEmpty ? '/' : request.url.path;
+  }
+  if (request is Uri) {
+    return request.path.isEmpty ? '/' : request.path;
+  }
+  if (request is Map<String, Object?>) {
+    final path = request['path'];
+    if (path is String && path.trim().isNotEmpty) {
+      return path.trim();
+    }
+    final url = request['url'];
+    if (url is Uri) {
+      return url.path.isEmpty ? '/' : url.path;
+    }
+    if (url is String && url.trim().isNotEmpty) {
+      final parsed = Uri.tryParse(url);
+      return parsed?.path.isNotEmpty == true ? parsed!.path : url.trim();
+    }
+  }
+  return '/';
+}
+
+Map<String, String> _requestHeaders(Object? request) {
+  if (request is dv.Request) return request.headers.singleValueMap;
+  if (request is Map<String, Object?>) {
+    final headers = request['headers'];
+    if (headers is Map<String, String>) {
+      return {
+        for (final entry in headers.entries)
+          entry.key.toLowerCase(): entry.value,
+      };
+    }
+    if (headers is Map<String, Object?>) {
+      return {
+        for (final entry in headers.entries)
+          if (entry.value != null) entry.key.toLowerCase(): '${entry.value}',
+      };
+    }
+  }
+  return const <String, String>{};
+}
+
+Future<Object?> _parseBody(Object? request) async {
+  if (request is! dv.Request) return const <String, Object?>{};
+
+  final contentType = request.headers.get('content-type') ?? '';
+  if (contentType.startsWith('application/json')) {
+    final text = await request.body.text();
+    if (text.trim().isEmpty) return const <String, Object?>{};
+    final value = jsonDecode(text);
+    return value is Object ? value : const <String, Object?>{};
+  }
+
+  if (contentType.startsWith('application/x-www-form-urlencoded')) {
+    final text = await request.body.text();
+    return Uri.splitQueryString(text);
+  }
+
+  return const <String, Object?>{};
 }
 
 /// Route-specific middleware configuration
