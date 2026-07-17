@@ -200,4 +200,22 @@ void main() {
     DV.Theme.setMode(ThemeMode.dark);
     expect(DV.Theme.mode, ThemeMode.dark);
   });
+
+  test('form controls execute submit and reset callbacks', () {
+    var submitted = false;
+    var reset = false;
+
+    final controls = DVFormControls(
+      'model',
+      onSubmit: () => submitted = true,
+      onReset: () => reset = true,
+    );
+
+    controls.submit();
+    controls.reset();
+
+    expect(controls.model, 'model');
+    expect(submitted, isTrue);
+    expect(reset, isTrue);
+  });
 }

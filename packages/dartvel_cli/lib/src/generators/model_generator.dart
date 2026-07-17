@@ -4,8 +4,6 @@ import 'package:file/local.dart';
 import 'package:glob/glob.dart';
 import 'package:path/path.dart' as p;
 
-import '../utils/helpers.dart';
-
 class ModelGenerator {
   static Future<void> generate({
     required String root,
@@ -126,8 +124,11 @@ class ModelGenerator {
         sb.writeln('/// Generated form controls for [$className]');
         sb.writeln('class ${className}FormControls extends DVFormControls {');
         sb.writeln('  final $className? ${className.toLowerCase()};');
-        sb.writeln(
-            '  ${className}FormControls([this.${className.toLowerCase()}]) : super(${className.toLowerCase()});');
+        sb.writeln('  ${className}FormControls({');
+        sb.writeln('    this.${className.toLowerCase()},');
+        sb.writeln('    super.onSubmit,');
+        sb.writeln('    super.onReset,');
+        sb.writeln('  }) : super(${className.toLowerCase()});');
 
         for (final field in fields) {
           final name = field['name']!;
@@ -135,11 +136,13 @@ class ModelGenerator {
           var defaultVal = 'null';
           if (type == 'String') {
             defaultVal = "''";
-          } else if (type == 'int')
+          } else if (type == 'int') {
             defaultVal = '0';
-          else if (type == 'double')
+          } else if (type == 'double') {
             defaultVal = '0.0';
-          else if (type == 'bool') defaultVal = 'false';
+          } else if (type == 'bool') {
+            defaultVal = 'false';
+          }
 
           sb.writeln();
           sb.writeln(
@@ -155,7 +158,13 @@ class ModelGenerator {
         sb.writeln();
         sb.writeln('final bool _registered_$className = () {');
         sb.writeln(
-            '  registerFormControlsFactory<$className>((model) => ${className}FormControls(model as $className?));');
+            '  registerFormControlsFactory<$className>((model, {onSubmit, onReset}) {');
+        sb.writeln('    return ${className}FormControls(');
+        sb.writeln('      ${className.toLowerCase()}: model as $className?,');
+        sb.writeln('      onSubmit: onSubmit,');
+        sb.writeln('      onReset: onReset,');
+        sb.writeln('    );');
+        sb.writeln('  });');
         sb.writeln('  return true;');
         sb.writeln('}();');
       }
