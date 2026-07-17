@@ -6,12 +6,13 @@ Map<String, Object?> getManifest() => _unavailable();
 
 Future<Object?> sendMessage(Object? message) => _unavailable();
 
-Future<Map<String, Object?>> storageLocalGet([List<String>? keys]) =>
-    _unavailable();
+bool supportsFileStorage() => false;
 
-Future<void> storageLocalSet(Map<String, Object?> values) => _unavailable();
+Future<void> fileStoragePut(String key, List<int> bytes) => _unavailable();
 
-Future<void> storageLocalRemove(List<String> keys) => _unavailable();
+Future<List<int>> fileStorageGet(String key) => _unavailable();
+
+Future<void> fileStorageDelete(String key) => _unavailable();
 
 Future<void> tabsCreate(String url, {bool active = true}) => _unavailable();
 
