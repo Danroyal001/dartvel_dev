@@ -14,6 +14,12 @@ import 'package:go_router/go_router.dart';
 import 'src/seo_platform_memory.dart'
     if (dart.library.html) 'src/seo_platform_web.dart' as seo_platform;
 
+export 'package:dartvel_core/dartvel.dart'
+    show
+        DVFormControls,
+        DVFormControlsFactory,
+        formControlsFactories,
+        registerFormControlsFactory;
 export 'package:go_router/go_router.dart';
 
 // ==========================================
@@ -656,11 +662,11 @@ DVSignal<T> signal<T>(BuildContext context, T value) =>
 
 class DVForm<T> extends StatefulWidget {
   final T? initialValue;
-  final Widget Function(dynamic)? builder;
+  final Widget Function(DVFormControls)? builder;
 
   const DVForm([this.initialValue]) : builder = null;
 
-  const DVForm.builder(Widget Function(dynamic) this.builder,
+  const DVForm.builder(Widget Function(DVFormControls) this.builder,
       [this.initialValue, Key? key])
       : super(key: key);
 
@@ -674,11 +680,13 @@ extension DVFormAliasX on Object {
 
 class _DVFormState<T> extends State<DVForm<T>> {
   late T formValue;
+  late T _initialValue;
 
   @override
   void initState() {
     super.initState();
     formValue = widget.initialValue ?? _instantiateDefault();
+    _initialValue = formValue;
   }
 
   T _instantiateDefault() {
@@ -692,14 +700,22 @@ class _DVFormState<T> extends State<DVForm<T>> {
   @override
   Widget build(BuildContext context) {
     final factory = formControlsFactories[T];
-    final formControls =
-        factory != null ? factory(formValue) : DVFormControls(formValue);
+    final formControls = factory != null
+        ? factory(
+            formValue,
+            onSubmit: _submit,
+            onReset: _reset,
+          )
+        : DVFormControls(
+            formValue,
+            onSubmit: _submit,
+            onReset: _reset,
+          );
 
     if (widget.builder != null) {
       return widget.builder!(formControls);
     }
 
-    // Automatic Form Generation from Model JSON Map
     final fields = <Widget>[];
     if (formValue != null) {
       try {
@@ -730,12 +746,20 @@ class _DVFormState<T> extends State<DVForm<T>> {
     }
 
     return Form(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: fields,
-      ),
+      child: DVBox.list(fields),
     );
+  }
+
+  void _submit() {
+    setState(() {
+      _initialValue = formValue;
+    });
+  }
+
+  void _reset() {
+    setState(() {
+      formValue = _initialValue;
+    });
   }
 }
 

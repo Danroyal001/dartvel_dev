@@ -160,13 +160,31 @@ class DVCSRF {
 }
 
 class DVFormControls {
-  final dynamic model;
-  const DVFormControls([this.model]);
-  void submit() {}
-  void reset() {}
+  final Object? model;
+  final void Function()? _onSubmit;
+  final void Function()? _onReset;
+
+  const DVFormControls(
+    this.model, {
+    void Function()? onSubmit,
+    void Function()? onReset,
+  })  : _onSubmit = onSubmit,
+        _onReset = onReset;
+
+  void submit() {
+    _onSubmit?.call();
+  }
+
+  void reset() {
+    _onReset?.call();
+  }
 }
 
-typedef DVFormControlsFactory = DVFormControls Function(Object? model);
+typedef DVFormControlsFactory = DVFormControls Function(
+  Object? model, {
+  void Function()? onSubmit,
+  void Function()? onReset,
+});
 final Map<Type, DVFormControlsFactory> formControlsFactories = {};
 
 void registerFormControlsFactory<T>(DVFormControlsFactory factory) {
