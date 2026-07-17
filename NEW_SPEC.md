@@ -167,8 +167,10 @@ without `dynamic`, `Object`, or `var`.
 DVBox(DVText("Profile"))
 ```
 
-Rows, grids, wraps, stacks, horizontal lists, and scrollable regions are layout
-constructors for static children:
+Rows, grids, wraps, stacks, horizontally scrollable lists, and scrollable
+regions are layout constructors for static children. `DVBox.row` is an inline,
+non-scrollable row. Use `DVBox.horizontalScrollable` when the collection should
+overflow horizontally:
 
 ```dart
 DVBox.row([Avatar(user), DVText(user.name)])
@@ -178,6 +180,8 @@ DVBox.grid([PhotoCard(a), PhotoCard(b), PhotoCard(c)], columns: 3)
 DVBox.wrap([Tag("Flutter"), Tag("Dart"), Tag("Rust")])
 
 DVBox.stack([Background(), Avatar(), Badge()])
+
+DVBox.horizontalScrollable([StoryCard(a), StoryCard(b), StoryCard(c)])
 
 DVBox.list([...]).scrollable()
 ```
@@ -206,7 +210,7 @@ DVBox.builder(tags, (tag) => TagChip(tag)).wrap()
 
 DVBox.builder(photos, (photo) => PhotoCard(photo)).masonry()
 
-DVBox.builder(stories, (story) => StoryCard(story)).horizontal()
+DVBox.builder(stories, (story) => StoryCard(story)).horizontalScrollable()
 ```
 
 ## Generated Model Components

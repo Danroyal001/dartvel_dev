@@ -85,6 +85,20 @@ void main() {
 
     expect(find.byType(GridView), findsOneWidget);
     expect(find.text('Item 1'), findsOneWidget);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: DVBox.horizontalScrollable([
+            DVText('Story 1'),
+            DVText('Story 2'),
+          ]),
+        ),
+      ),
+    );
+
+    expect(find.byType(SingleChildScrollView), findsOneWidget);
+    expect(find.text('Story 1'), findsOneWidget);
   });
 
   testWidgets('DVPlatform reports runtime screen and platform data',

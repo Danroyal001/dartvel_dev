@@ -137,10 +137,11 @@ Widget indexPage(BuildContext context) {
         ['Flutter', 'Dart', 'Rust', 'FFI', 'JNI', 'Shorebird'],
         (tag) => DVText(tag).modifier(_pillStyle),
       ).wrap(),
-      DVBox.builder<int>(
-        [1, 2, 3, 4],
-        (item) => FeatureCard('Story $item', 'Horizontal builder item'),
-      ).horizontal().modifier(const DVModifier().height(120)),
+      DVBox.horizontalScrollable([
+        FeatureCard('Story 1', 'Static horizontal item'),
+        FeatureCard('Story 2', 'Static horizontal item'),
+        FeatureCard('Story 3', 'Static horizontal item'),
+      ]).modifier(const DVModifier().height(120)),
       DVBox.masonry([
         FeatureCard('Masonry A', 'Short'),
         FeatureCard('Masonry B', 'Taller generated-card style content'),
