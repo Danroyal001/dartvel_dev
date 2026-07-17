@@ -19,8 +19,12 @@ import 'src/seo_platform_memory.dart'
 
 export 'package:dartvel_core/dartvel.dart'
     show
+        Analytics,
+        AnalyticsEvent,
+        AnalyticsProvider,
         DVFormControls,
         DVFormControlsFactory,
+        LocalAnalyticsProvider,
         formControlsFactories,
         registerFormControlsFactory;
 export 'package:go_router/go_router.dart';
@@ -1083,6 +1087,102 @@ class DVWindow {
   }
 }
 
+class DVFullscreenOptions {
+  final bool hideSystemUi;
+  final bool lockOrientation;
+
+  const DVFullscreenOptions({
+    this.hideSystemUi = true,
+    this.lockOrientation = false,
+  });
+
+  Map<String, Object> toMap() => <String, Object>{
+        'hideSystemUi': hideSystemUi,
+        'lockOrientation': lockOrientation,
+      };
+}
+
+class DVKioskOptions {
+  final bool fullscreen;
+  final bool disableBackGesture;
+  final bool keepScreenAwake;
+  final List<String> allowedExitKeys;
+
+  const DVKioskOptions({
+    this.fullscreen = true,
+    this.disableBackGesture = true,
+    this.keepScreenAwake = true,
+    this.allowedExitKeys = const <String>[],
+  });
+
+  Map<String, Object> toMap() => <String, Object>{
+        'fullscreen': fullscreen,
+        'disableBackGesture': disableBackGesture,
+        'keepScreenAwake': keepScreenAwake,
+        'allowedExitKeys': allowedExitKeys,
+      };
+}
+
+class DVDisplayState {
+  final bool isFullscreen;
+  final bool isKiosk;
+
+  const DVDisplayState({
+    required this.isFullscreen,
+    required this.isKiosk,
+  });
+}
+
+class DVDisplayControls {
+  const DVDisplayControls();
+
+  static bool _isFullscreen = false;
+  static bool _isKiosk = false;
+
+  bool get isFullscreen => _isFullscreen;
+  bool get isKiosk => _isKiosk;
+  DVDisplayState get currentState => DVDisplayState(
+        isFullscreen: _isFullscreen,
+        isKiosk: _isKiosk,
+      );
+
+  Future<void> enterFullscreen([
+    DVFullscreenOptions options = const DVFullscreenOptions(),
+  ]) async {
+    await _requireDisplayBinding('display.enterFullscreen', options.toMap());
+    _isFullscreen = true;
+  }
+
+  Future<void> exitFullscreen() async {
+    await _requireDisplayBinding('display.exitFullscreen');
+    _isFullscreen = false;
+  }
+
+  Future<void> enableKiosk([
+    DVKioskOptions options = const DVKioskOptions(),
+  ]) async {
+    await _requireDisplayBinding('display.enableKiosk', options.toMap());
+    _isKiosk = true;
+    if (options.fullscreen) _isFullscreen = true;
+  }
+
+  Future<void> disableKiosk() async {
+    await _requireDisplayBinding('display.disableKiosk');
+    _isKiosk = false;
+  }
+
+  Future<void> _requireDisplayBinding(
+    String method, [
+    Map<String, Object>? arguments,
+  ]) async {
+    final handled = await DVNativeBridge.require<bool>(method, arguments);
+    if (!handled) {
+      throw StateError(
+          'Native display binding "$method" rejected the request.');
+    }
+  }
+}
+
 class DVBrowserExtension {
   const DVBrowserExtension();
 
@@ -1235,6 +1335,7 @@ class DVPlatform {
   DVContacts get contacts => const DVContacts();
   DVPermissions get permissions => const DVPermissions();
   DVBrowserExtension get browserExtension => const DVBrowserExtension();
+  DVDisplayControls get display => const DVDisplayControls();
 }
 
 class DVAuth {
@@ -1730,12 +1831,14 @@ class DVObservabilityAndLogging {
 
   Future<void> log(
     String message, {
+    String level = 'info',
     Map<String, Object>? context,
     Object? error,
     StackTrace? stackTrace,
   }) async {
     final payload = <String, Object>{
       'message': message,
+      'level': level,
       if (context != null) 'context': context,
       if (error != null) 'error': error.toString(),
       if (stackTrace != null) 'stackTrace': stackTrace.toString(),
@@ -1750,6 +1853,79 @@ class DVObservabilityAndLogging {
 
   Future<void> screen(String name, {String? screenClass}) {
     return Analytics.logScreenView(name, screenClass: screenClass);
+  }
+
+  Future<void> metric(
+    String name,
+    num value, {
+    Map<String, Object>? tags,
+  }) {
+    return Analytics.logEvent('metric', <String, Object>{
+      'name': name,
+      'value': value,
+      if (tags != null) 'tags': tags,
+    });
+  }
+
+  Future<T> trace<T>(
+    String name,
+    FutureOr<T> Function() callback, {
+    Map<String, Object>? context,
+  }) async {
+    final stopwatch = Stopwatch()..start();
+    try {
+      final result = await callback();
+      stopwatch.stop();
+      await Analytics.logEvent('trace', <String, Object>{
+        'name': name,
+        'durationMicroseconds': stopwatch.elapsedMicroseconds,
+        'status': 'ok',
+        if (context != null) 'context': context,
+      });
+      return result;
+    } catch (error, stackTrace) {
+      stopwatch.stop();
+      await this.error(
+        error,
+        stackTrace: stackTrace,
+        context: <String, Object>{
+          'trace': name,
+          'durationMicroseconds': stopwatch.elapsedMicroseconds,
+          if (context != null) 'context': context,
+        },
+      );
+      rethrow;
+    }
+  }
+
+  Future<T> profile<T>(
+    String name,
+    FutureOr<T> Function() callback, {
+    Map<String, Object>? context,
+  }) {
+    return trace<T>('profile:$name', callback, context: context);
+  }
+
+  Future<void> error(
+    Object error, {
+    StackTrace? stackTrace,
+    Map<String, Object>? context,
+  }) {
+    return Analytics.logEvent('error', <String, Object>{
+      'error': error.toString(),
+      if (stackTrace != null) 'stackTrace': stackTrace.toString(),
+      if (context != null) 'context': context,
+    });
+  }
+
+  Future<void> diagnostic(
+    String name,
+    Map<String, Object> data,
+  ) {
+    return Analytics.logEvent('diagnostic', <String, Object>{
+      'name': name,
+      'data': data,
+    });
   }
 }
 
@@ -1795,12 +1971,14 @@ class DV {
 
   static Future<void> log(
     String message, {
+    String level = 'info',
     Map<String, Object>? context,
     Object? error,
     StackTrace? stackTrace,
   }) {
     return ObservabilityAndLogging.log(
       message,
+      level: level,
       context: context,
       error: error,
       stackTrace: stackTrace,

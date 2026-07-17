@@ -702,6 +702,17 @@ Provides:
 - Window (DV.Platform.Window) - Window bounds, properties and functionalities for the app/site. Web uses browser APIs; native platforms use generated FFI/JNI bindings where supported.
 - Device type (DV.Platform.type (enum, e.g mobile, desktop, laptop, desktopOrLaptop, tablet, embeddedDisplay, watch, circularWatch, squareWatch, embeddedWithoutDisplay))
 - Screen shape (DV.Platform.screen.shape (enum e.g square, rectangle, verticalRectangle, horizontalRectangle, custom))
+- Full-screen and kiosk display control:
+  - `DV.Platform.display.enterFullscreen()`
+  - `DV.Platform.display.exitFullscreen()`
+  - `DV.Platform.display.enableKiosk()`
+  - `DV.Platform.display.disableKiosk()`
+  - `DV.Platform.display.isFullscreen`
+  - `DV.Platform.display.isKiosk`
+  - Native implementations must be generated through FFI/ffigen or JNI/jnigen
+    bindings named `display.enterFullscreen`, `display.exitFullscreen`,
+    `display.enableKiosk`, and `display.disableKiosk`. Dartvel must not use
+    Flutter platform channels for these APIs.
 
 Native APIs, including:
 - Android (DV.Platform.*)
