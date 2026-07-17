@@ -119,6 +119,8 @@ void main() {
     expect(platform.screen.size.width, platform.screenWidth);
     expect(platform.screen.safeAreaBounds, platform.safeAreas);
     expect(platform.Window.bounds.width, platform.screenWidth);
+    expect(platform.display.isFullscreen, isFalse);
+    expect(platform.display.isKiosk, isFalse);
     expect(platform.isChromiumExtension, isFalse);
     expect(platform.isFirefoxExtension, isFalse);
     expect(platform.browserExtension.isAvailable, isFalse);
@@ -143,6 +145,16 @@ void main() {
             ]);
     DVNativeBridge.register('permissions.request', (_) => true);
     DVNativeBridge.register('permissions.isGranted', (_) => true);
+    DVNativeBridge.register('display.enterFullscreen', (arguments) {
+      expect(arguments, isA<Map<String, Object>>());
+      return true;
+    });
+    DVNativeBridge.register('display.exitFullscreen', (_) => true);
+    DVNativeBridge.register('display.enableKiosk', (arguments) {
+      expect(arguments, isA<Map<String, Object>>());
+      return true;
+    });
+    DVNativeBridge.register('display.disableKiosk', (_) => true);
 
     await DV.Auth.signIn();
     expect(DV.Auth.currentUser, isA<DVAuthUser>());
@@ -170,6 +182,20 @@ void main() {
 
     expect(await DV.Platform.permissions.request('camera'), isTrue);
     expect(await DV.Platform.permissions.isGranted('camera'), isTrue);
+
+    await DV.Platform.display.enterFullscreen(
+      const DVFullscreenOptions(lockOrientation: true),
+    );
+    expect(DV.Platform.display.isFullscreen, isTrue);
+    await DV.Platform.display.enableKiosk(
+      const DVKioskOptions(allowedExitKeys: <String>['Escape']),
+    );
+    expect(DV.Platform.display.currentState.isKiosk, isTrue);
+    expect(DV.Platform.display.currentState.isFullscreen, isTrue);
+    await DV.Platform.display.disableKiosk();
+    expect(DV.Platform.display.isKiosk, isFalse);
+    await DV.Platform.display.exitFullscreen();
+    expect(DV.Platform.display.isFullscreen, isFalse);
 
     expect(await DV.AI.chat('hello'), contains('hello'));
     expect(await DV.AI.embed('hello'), hasLength(16));
@@ -208,6 +234,56 @@ void main() {
 
     DV.Theme.setMode(ThemeMode.dark);
     expect(DV.Theme.mode, ThemeMode.dark);
+  });
+
+  test('observability emits structured logs, metrics, and traces', () async {
+    final provider = LocalAnalyticsProvider();
+    Analytics.register(provider);
+
+    await DV.log(
+      'checkout completed',
+      level: 'info',
+      context: <String, Object>{'orderId': 'order-1'},
+    );
+    await DV.ObservabilityAndLogging.metric(
+      'checkout_total',
+      12.5,
+      tags: <String, Object>{'currency': 'USD'},
+    );
+    final result = await DV.ObservabilityAndLogging.trace<int>(
+      'calculate_total',
+      () => 42,
+      context: <String, Object>{'cartId': 'cart-1'},
+    );
+    await DV.ObservabilityAndLogging.profile<void>(
+      'render_cart',
+      () async {},
+    );
+    await DV.ObservabilityAndLogging.error(
+      StateError('failed'),
+      context: <String, Object>{'component': 'cart'},
+    );
+    await DV.ObservabilityAndLogging.diagnostic(
+      'runtime',
+      <String, Object>{'healthy': true},
+    );
+
+    expect(result, 42);
+    expect(
+      provider.events.map((event) => event.name),
+      containsAll(<String>[
+        'log',
+        'metric',
+        'trace',
+        'error',
+        'diagnostic',
+      ]),
+    );
+    expect(provider.events.where((event) => event.name == 'trace').length, 2);
+    expect(
+      provider.events.first.parameters,
+      containsPair('message', 'checkout completed'),
+    );
   });
 
   test('form controls execute submit and reset callbacks', () {

@@ -15,4 +15,8 @@ export 'package:dartvel_flutter/dartvel_flutter.dart'
         DVBiometrics,
         DVDeepLinks,
         DVHaptics,
-        DVContacts;
+        DVContacts,
+        DVDisplayControls,
+        DVDisplayState,
+        DVFullscreenOptions,
+        DVKioskOptions;
