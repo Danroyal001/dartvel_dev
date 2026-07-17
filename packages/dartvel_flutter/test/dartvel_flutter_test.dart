@@ -218,4 +218,44 @@ void main() {
     expect(submitted, isTrue);
     expect(reset, isTrue);
   });
+
+  testWidgets('prebuilt auth pages use Dartvel primitives without scaffolds',
+      (WidgetTester tester) async {
+    await DV.Auth.signOut();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DV.Auth.SignInWithEmailAndPasswordPage(),
+      ),
+    );
+
+    expect(find.byType(Scaffold), findsNothing);
+    expect(find.byType(FilledButton), findsNothing);
+    expect(find.byType(DVBox), findsOneWidget);
+    expect(find.text('Sign in'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField).first, 'dev@example.com');
+    await tester.enterText(find.byType(TextField).last, 'secret');
+    await tester.tap(find.text('Sign in'));
+    await tester.pump();
+
+    final user = DV.Auth.currentUser as DVAuthUser;
+    expect(user.email, 'dev@example.com');
+
+    await DV.Auth.signOut();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DV.Auth.SignInWithProviderPage(),
+      ),
+    );
+
+    expect(find.byType(Scaffold), findsNothing);
+    expect(find.byType(FilledButton), findsNothing);
+    expect(find.text('Continue with provider'), findsOneWidget);
+
+    await tester.tap(find.text('Continue with provider'));
+    await tester.pump();
+
+    expect((DV.Auth.currentUser as DVAuthUser).provider, 'provider');
+  });
 }
