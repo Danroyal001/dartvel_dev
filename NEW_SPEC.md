@@ -733,9 +733,20 @@ Native APIs, including:
 - Deep Links (DV.Platform.*)
 - Haptics (DV.Platform.*)
 - Contacts (DV.Platform.*)
+- Browser extension detection:
+  - `DV.Platform.isChromiumExtension`
+  - `DV.Platform.isFirefoxExtension`
+- Browser extension APIs:
+  - `DV.Platform.browserExtension.getManifest()`
+  - `DV.Platform.browserExtension.sendMessage(...)`
+  - `DV.Platform.browserExtension.tabsCreate(...)`
 - Permissions, managed centrally through `pubspec.yaml`. (DV.Platform.*)
 
 All under DV.Platform.*
+
+Browser extension storage is not exposed through `DV.Platform.browserExtension`
+to avoid duplicating storage APIs. Use `DV.FileStorage.*` for Chromium and
+Firefox extension local storage behavior, with `DV.BlobStorage.*` as an alias.
 
 ---
 
@@ -783,7 +794,7 @@ No manual endpoint creation, but available if needed.
 
 ---
 
-# Storage
+# File Storage
 
 Unified API, supports:
 
@@ -794,7 +805,21 @@ Unified API, supports:
 - Local
 - In-memory blobs (zram if supported, or raw blobs)
 
+`DV.FileStorage.*`
+
+```dart
+await DV.FileStorage.put("avatar.png", bytes);
+final bytes = await DV.FileStorage.get("avatar.png");
+await DV.FileStorage.delete("avatar.png");
+```
+
+Alias:
+`DV.BlobStorage.*`
+Just proxies to DV.FileStorage
+
+
 ---
+
 
 # Cache
 
@@ -1054,9 +1079,6 @@ Home widgets will act like DVPage, and support all supported properties. it will
 
 ---
 
-
----
-
 # CSRF Protection
 In:
 - Backend functions
@@ -1064,6 +1086,7 @@ In:
 - Model queries
 - DB queries
 - Realtime events
+
 
 ---
 

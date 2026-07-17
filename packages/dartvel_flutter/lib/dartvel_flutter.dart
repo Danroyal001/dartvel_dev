@@ -1098,18 +1098,6 @@ class DVBrowserExtension {
     return browser_extension_platform.sendMessage(message);
   }
 
-  Future<Map<String, Object?>> storageLocalGet([List<String>? keys]) {
-    return browser_extension_platform.storageLocalGet(keys);
-  }
-
-  Future<void> storageLocalSet(Map<String, Object?> values) {
-    return browser_extension_platform.storageLocalSet(values);
-  }
-
-  Future<void> storageLocalRemove(List<String> keys) {
-    return browser_extension_platform.storageLocalRemove(keys);
-  }
-
   Future<void> tabsCreate(String url, {bool active = true}) {
     return browser_extension_platform.tabsCreate(url, active: active);
   }
@@ -1664,17 +1652,28 @@ class DVStorage {
   const DVStorage();
   static final Map<String, List<int>> _memory = {};
 
-  Future<void> upload(String key, List<int> bytes) async {
+  Future<void> put(String key, List<int> bytes) async {
+    if (browser_extension_platform.supportsFileStorage()) {
+      await browser_extension_platform.fileStoragePut(key, bytes);
+      return;
+    }
     _memory[key] = List<int>.from(bytes);
   }
 
-  Future<List<int>> download(String key) async {
+  Future<List<int>> get(String key) async {
+    if (browser_extension_platform.supportsFileStorage()) {
+      return browser_extension_platform.fileStorageGet(key);
+    }
     final bytes = _memory[key];
     if (bytes == null) throw StateError('No storage object exists for "$key".');
     return List<int>.from(bytes);
   }
 
   Future<void> delete(String key) async {
+    if (browser_extension_platform.supportsFileStorage()) {
+      await browser_extension_platform.fileStorageDelete(key);
+      return;
+    }
     _memory.remove(key);
   }
 }
@@ -1784,6 +1783,8 @@ class DV {
   static DVDatabase get Database => const DVDatabase();
   static DVCache get Cache => const DVCache();
   static DVStorage get Storage => const DVStorage();
+  static DVStorage get FileStorage => const DVStorage();
+  static DVStorage get BlobStorage => const DVStorage();
   static DVRealtime get Realtime => const DVRealtime();
   static DVCSRF get CSRF => const DVCSRF();
   static DVCSRF get Csrf => const DVCSRF();

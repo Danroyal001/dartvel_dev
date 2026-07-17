@@ -114,8 +114,8 @@ Widget indexPage(BuildContext context) {
           if (context.mounted) _showMessage(context, 'Cache value: $value');
         }),
         ShowcaseButton('Storage', () async {
-          await DV.Storage.upload('doc.txt', [104, 101, 108, 108, 111]);
-          final bytes = await DV.Storage.download('doc.txt');
+          await DV.FileStorage.put('doc.txt', [104, 101, 108, 108, 111]);
+          final bytes = await DV.FileStorage.get('doc.txt');
           if (context.mounted) {
             _showMessage(context, 'Storage bytes: ${bytes.length}');
           }

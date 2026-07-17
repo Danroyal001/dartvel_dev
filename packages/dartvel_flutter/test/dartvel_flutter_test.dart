@@ -185,8 +185,10 @@ void main() {
       {'id': 1, 'name': 'Ada'}
     ]);
 
-    await DV.Storage.upload('avatar', [1, 2, 3]);
-    expect(await DV.Storage.download('avatar'), [1, 2, 3]);
+    await DV.Storage.put('avatar', [1, 2, 3]);
+    expect(await DV.Storage.get('avatar'), [1, 2, 3]);
+    await DV.FileStorage.put('file-avatar', [4, 5, 6]);
+    expect(await DV.BlobStorage.get('file-avatar'), [4, 5, 6]);
 
     final events = <dynamic>[];
     await DV.Realtime.subscribe('room', events.add);
