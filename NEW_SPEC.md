@@ -1416,6 +1416,29 @@ final results = await User.Search.query('ada');
 Search integrates with queues, model lifecycle signals, tenant scoping, and
 authorization policies.
 
+Generated behavior:
+- `@DVSearchable()` on a model generates typed index documents.
+- model lifecycle signals enqueue index, update, and delete jobs.
+- search results preserve model types and policy filters.
+- tenant, locale, and soft-delete filters are applied automatically.
+- ranking, facets, highlighting, typo tolerance, and synonyms are configured in
+  `pubspec.yaml`.
+
+```dart
+@DVModel()
+@DVSearchable(fields: ['name', 'email'])
+class User {}
+
+final page = await User.Search.query(
+  'ada',
+  facets: User.SearchFacets(role: ['admin']),
+);
+```
+
+No provider may return rows the current user cannot access. If the provider
+cannot enforce policy filters directly, Dartvel post-filters and records the
+extra cost in observability metrics.
+
 ---
 
 # Billing
@@ -1435,6 +1458,26 @@ Features:
 - entitlements
 - trials
 - webhooks as typed backend functions
+
+Generated behavior:
+- billing customers link to authenticated users and tenants
+- plans, prices, entitlements, and usage meters are typed config
+- checkout/session creation is a typed backend function
+- webhooks are generated backend functions with signature validation
+- entitlement checks integrate with policies and generated UI guards
+- app-store and Play Billing purchases use generated native bindings through
+  FFI/ffigen or JNI/jnigen where native glue is required
+
+```dart
+await DV.Billing.checkout(
+  plan: BillingPlan.pro,
+  customer: user,
+);
+
+if (await DV.Billing.hasEntitlement(user, Entitlement.analytics)) {
+  return AnalyticsDashboard();
+}
+```
 
 ---
 
