@@ -1149,6 +1149,27 @@ Supports:
 - stampede protection
 - generated invalidation from model writes
 
+Rules:
+- Cache keys are strongly typed where generated from models/functions.
+- Model writes emit invalidation signals for affected model, relation, tenant,
+  and custom tags.
+- Backend functions can opt into caching with annotations or generated config.
+- Page data cache must respect auth, tenant, locale, and policy context.
+- Stale-while-revalidate returns stale data only when the policy/auth/tenant
+  scope still matches.
+- Cache locks prevent stampedes around expensive model queries and backend
+  functions.
+- Distributed providers must implement atomic compare-and-set or explicit
+  lock APIs before Dartvel enables stampede protection.
+
+CLI:
+
+```bash
+dartvel cache clear
+dartvel cache revalidate users
+dartvel cache inspect users:list
+```
+
 ---
 
 # Multi-tenancy
@@ -1236,9 +1257,24 @@ Supports:
 - release notes
 - environment targeting
 - CI integration
+- patch provenance metadata
+- crash/health rollback gates
+- tenant or cohort targeting where allowed by the store/runtime
+- offline update state reporting
+- generated update UI primitives built from `DVBox` and `DVText`
 
 Server-side code is versioned separately from client OTA patches. A release/tag
 must still create a matching backup branch.
+
+Release safety:
+- `dartvel updates patch` refuses to run from a dirty worktree unless
+  `--allow-dirty` is passed.
+- every OTA patch records the Git commit SHA, Dartvel version, Flutter version,
+  Shorebird version, and target channel
+- release/tag publishing must create the matching backup branch before or
+  immediately after the tag/release is pushed
+- if the intended tag already exists, Dartvel increments the patch version and
+  creates a new tag/release/backup branch instead of reusing the old name
 
 ---
 
