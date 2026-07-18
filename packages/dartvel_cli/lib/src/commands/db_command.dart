@@ -1,14 +1,17 @@
 import 'dart:io';
+
 import 'package:args/command_runner.dart';
-import 'package:path/path.dart' as p;
-import 'package:glob/glob.dart';
 import 'package:file/local.dart';
+import 'package:glob/glob.dart';
+
+import '../utils/logger.dart';
 
 class DbCommand extends Command<void> {
   @override
   final String name = 'db';
   @override
-  final String description = 'Manage the Dartvel database schemas, migrations, and seeding.';
+  final String description =
+      'Manage the Dartvel database schemas, migrations, and seeding.';
 
   DbCommand() {
     addSubcommand(DbMigrateSubcommand());
@@ -26,24 +29,26 @@ class DbMigrateSubcommand extends Command<void> {
 
   @override
   Future<void> run() async {
-    print('Running database migrations...');
+    Logger.log('Running database migrations...');
     final root = Directory.current.path;
     final glob = Glob('lib/models/**.dart');
     final fs = const LocalFileSystem();
     var count = 0;
-    for (final entity in glob.listFileSystemSync(fs, root: root, followLinks: false)) {
+    for (final entity
+        in glob.listFileSystemSync(fs, root: root, followLinks: false)) {
       if (entity is File) {
         final content = await (entity as File).readAsString();
-        final matches = RegExp(r'@DVModel\(\)\s*class\s+([A-Za-z0-9_]+)').allMatches(content);
+        final matches = RegExp(r'@DVModel\(\)\s*class\s+([A-Za-z0-9_]+)')
+            .allMatches(content);
         for (final m in matches) {
           final className = m.group(1)!;
           final tableName = '${className.toLowerCase()}s';
-          print('  [+] Migrated table: $tableName');
+          Logger.log('  [+] Migrated table: $tableName');
           count++;
         }
       }
     }
-    print('Migration complete. $count tables synced successfully.');
+    Logger.log('Migration complete. $count tables synced successfully.');
   }
 }
 
@@ -51,12 +56,13 @@ class DbPushSubcommand extends Command<void> {
   @override
   final String name = 'push';
   @override
-  final String description = 'Push local schema changes directly to the database.';
+  final String description =
+      'Push local schema changes directly to the database.';
 
   @override
   Future<void> run() async {
-    print('Pushing local schemas to database...');
-    print('Database schema is up-to-date.');
+    Logger.log('Pushing local schemas to database...');
+    Logger.log('Database schema is up-to-date.');
   }
 }
 
@@ -68,8 +74,8 @@ class DbPullSubcommand extends Command<void> {
 
   @override
   Future<void> run() async {
-    print('Pulling remote schema...');
-    print('No remote updates found.');
+    Logger.log('Pulling remote schema...');
+    Logger.log('No remote updates found.');
   }
 }
 
@@ -81,7 +87,7 @@ class DbSeedSubcommand extends Command<void> {
 
   @override
   Future<void> run() async {
-    print('Seeding database with default records...');
-    print('Database seeded successfully.');
+    Logger.log('Seeding database with default records...');
+    Logger.log('Database seeded successfully.');
   }
 }

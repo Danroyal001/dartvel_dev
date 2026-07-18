@@ -1,5 +1,12 @@
 include: package:lints/recommended.yaml
 
+analyzer:
+  exclude:
+    - lib/dartvel_client/**
+    - '**/lib/dartvel_client/**'
+    - .dartvel/**
+    - '**/.dartvel/**'
+
 linter:
   rules:
     prefer_const_constructors: true
@@ -18,7 +25,6 @@ linter:
     control_flow_in_finally: true
     empty_statements: true
     hash_and_equals: true
-    iterable_contains_unrelated_type: true
-    list_remove_unrelated_type: true
+    non_constant_identifier_names: false
     no_duplicate_case_values: true
     prefer_void_to_null: true

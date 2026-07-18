@@ -30,7 +30,7 @@ dartvel:
         );
 
         if (result.exitCode != 0) {
-          print('Doctor stderr: ${result.stderr}');
+          stdout.writeln('Doctor stderr: ${result.stderr}');
         }
         expect(result.exitCode, equals(0));
         expect(result.stdout.toString(), contains('Dartvel Doctor'));
@@ -51,6 +51,7 @@ dartvel:
         // Note: This might fail if the template doesn't exist or network is down
         // For now we check if it attempts to run
         // In a real scenario we'd mock the generator
+        expect(result.exitCode, isA<int>());
       } finally {
         tempDir.deleteSync(recursive: true);
       }

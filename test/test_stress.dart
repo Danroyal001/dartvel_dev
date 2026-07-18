@@ -1,9 +1,8 @@
-// ignore_for_file: avoid_print
 import 'dart:async';
 import 'dart:io';
 
 void main() async {
-  print('Starting stress test...');
+  stdout.writeln('Starting stress test...');
   final client = HttpClient();
   final futures = <Future>[];
   final count = 100;
@@ -15,15 +14,16 @@ void main() async {
             await client.getUrl(Uri.parse('http://127.0.0.1:3000/api/health'));
         final resp = await req.close();
         if (resp.statusCode != 200) {
-          print('Request $i failed: ${resp.statusCode}');
+          stdout.writeln('Request $i failed: ${resp.statusCode}');
         }
       } catch (e) {
-        print('Request $i error: $e');
+        stdout.writeln('Request $i error: $e');
       }
     }));
   }
 
   await Future.wait(futures);
-  print('Stress test complete. If backend is still running, test passed.');
+  stdout.writeln(
+      'Stress test complete. If backend is still running, test passed.');
   client.close();
 }

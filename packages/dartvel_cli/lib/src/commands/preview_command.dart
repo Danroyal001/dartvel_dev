@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
@@ -56,7 +57,7 @@ class PreviewCommand extends Command<void> {
       await ProcessSignal.sigint.watch().first;
 
       Logger.log('\n🛑 Shutting down server...');
-      server.stop();
+      unawaited(server.stop());
     } catch (e) {
       Logger.log('❌ Failed to start server: $e');
       exit(1);

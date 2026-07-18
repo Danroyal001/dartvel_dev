@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -99,7 +100,7 @@ class PrerenderCommand extends Command<void> {
           await index.openRead().pipe(response);
         } else {
           response.statusCode = HttpStatus.notFound;
-          response.close();
+          unawaited(response.close());
         }
       }
     });

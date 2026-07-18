@@ -1,4 +1,3 @@
-// ignore_for_file: avoid_print
 import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
@@ -32,7 +31,8 @@ void main() {
       expect(content.split('\n').length, greaterThan(100),
           reason: 'Should be substantial (100+ lines)');
 
-      print('✅ Router file validated: ${content.split('\n').length} lines');
+      stdout.writeln(
+          '✅ Router file validated: ${content.split('\n').length} lines');
     });
 
     test('generated functions file exists and has API client', () {
@@ -56,7 +56,7 @@ void main() {
       expect(lineCount, greaterThan(500),
           reason: 'Should be comprehensive (500+ lines)');
 
-      print('✅ Functions file validated: $lineCount lines');
+      stdout.writeln('✅ Functions file validated: $lineCount lines');
     });
 
     test('generated env file has obfuscated variables', () {
@@ -79,7 +79,7 @@ void main() {
       final hasXorPattern = RegExp(r'x \^ k').hasMatch(content);
       expect(hasXorPattern, isTrue, reason: 'Should use XOR obfuscation');
 
-      print('✅ Env file validated with XOR obfuscation');
+      stdout.writeln('✅ Env file validated with XOR obfuscation');
     });
 
     test('backend routes file exists and is valid', () {
@@ -101,7 +101,7 @@ void main() {
       expect(lineCount, greaterThan(700),
           reason: 'Should be substantial (700+ lines)');
 
-      print('✅ Backend file validated: $lineCount lines');
+      stdout.writeln('✅ Backend file validated: $lineCount lines');
     });
 
     test('all generated files pass dart analyzer', () async {
@@ -130,7 +130,8 @@ void main() {
               !line.contains('undefined_function') &&
               !line.contains('creation_with_non_type') &&
               !line.contains('extends_non_class') &&
-              !line.contains('super_formal_parameter_without_associated_named') &&
+              !line.contains(
+                  'super_formal_parameter_without_associated_named') &&
               !line.contains('type_test_with_undefined_name') &&
               !line.contains('non_type_as_type_argument') &&
               !line.contains('const_initialized_with_non_constant_value') &&
@@ -141,7 +142,7 @@ void main() {
         expect(hasRealErrors, isFalse,
             reason: '$filePath should have no syntax errors:\n$stdoutStr');
 
-        print('✅ Analyzed: ${p.basename(filePath)} - PASSED');
+        stdout.writeln('✅ Analyzed: ${p.basename(filePath)} - PASSED');
       }
     }, timeout: const Timeout(Duration(seconds: 30)));
 
@@ -158,7 +159,7 @@ void main() {
             reason: '$dir should exist');
       }
 
-      print('✅ Project structure validated');
+      stdout.writeln('✅ Project structure validated');
     });
 
     test('pubspec.yaml has dartvel configuration', () {
@@ -181,7 +182,7 @@ void main() {
             reason: 'Should have $key in config');
       }
 
-      print('✅ Config validated');
+      stdout.writeln('✅ Config validated');
     });
 
     test('environment variables are properly excluded', () {
@@ -199,7 +200,7 @@ void main() {
       expect(content.contains('DATABASE_'), isFalse,
           reason: 'DATABASE_ vars should not be exposed to client');
 
-      print('✅ Environment security validated');
+      stdout.writeln('✅ Environment security validated');
     });
 
     test('generated code has no hardcoded secrets', () {
@@ -220,7 +221,7 @@ void main() {
             reason: 'Should not contain hardcoded secrets');
       }
 
-      print('✅ Security scan passed - no hardcoded secrets');
+      stdout.writeln('✅ Security scan passed - no hardcoded secrets');
     });
   });
 
@@ -237,7 +238,7 @@ void main() {
       expect(content.contains(RegExp(r'as p\d+')), isTrue,
           reason: 'Should import page classes');
 
-      print('\u2705 Naming conventions validated');
+      stdout.writeln('\u2705 Naming conventions validated');
     });
 
     test('generated code has proper imports', () {
@@ -254,7 +255,7 @@ void main() {
               "import 'package:dartvel_flutter/dartvel_flutter.dart';"),
           isTrue);
 
-      print('✅ Imports validated');
+      stdout.writeln('✅ Imports validated');
     });
 
     test('total lines of generated code is reasonable', () async {
@@ -268,7 +269,7 @@ void main() {
       );
 
       final output = result.stdout.toString().trim();
-      print('Generated code total: $output');
+      stdout.writeln('Generated code total: $output');
 
       // Parse total from last line
       final parts = output.trim().split(RegExp(r'\s+'));
@@ -278,7 +279,7 @@ void main() {
           reason: 'Should generate substantial code');
       expect(total, lessThan(5000), reason: 'Should not be excessively large');
 
-      print('✅ Code size is reasonable: $total lines total');
+      stdout.writeln('✅ Code size is reasonable: $total lines total');
     });
   });
 }

@@ -12,7 +12,7 @@ void main() {
   final testProjectDir = Directory(p.join(tempDir.path, 'test_project'));
 
   setUpAll(() {
-    print('📦 Test directory: ${tempDir.path}');
+    stdout.writeln('📦 Test directory: ${tempDir.path}');
   });
 
   tearDownAll(() {
@@ -74,7 +74,7 @@ void main() {
           Directory(p.join(testProjectDir.path, 'lib', 'backend')).existsSync(),
           true);
 
-      print('✅ Project structure created successfully');
+      stdout.writeln('✅ Project structure created successfully');
     }, timeout: const Timeout(Duration(minutes: 2)));
 
     test('dartvel create is alias for init', () async {
@@ -96,7 +96,7 @@ void main() {
 
       expect(result.exitCode, 0);
       expect(createDir.existsSync(), true);
-      print('✅ Create alias works correctly');
+      stdout.writeln('✅ Create alias works correctly');
     }, timeout: const Timeout(Duration(minutes: 2)));
 
     test('dartvel doctor checks dependencies', () async {
@@ -110,7 +110,7 @@ void main() {
       expect(result.exitCode, anyOf(0, 1)); // May fail if dependencies missing
       final output = result.stdout.toString();
       expect(output, contains('Dartvel Doctor'));
-      print('✅ Doctor command executed');
+      stdout.writeln('✅ Doctor command executed');
     });
 
     test('dartvel routes generates route files', () async {
@@ -127,7 +127,7 @@ void main() {
                   'router.g.dart'))
               .existsSync(),
           true);
-      print('✅ Routes generated successfully');
+      stdout.writeln('✅ Routes generated successfully');
     }, timeout: const Timeout(Duration(minutes: 1)));
 
     test('dartvel watch command exists', () async {
@@ -139,7 +139,7 @@ void main() {
 
       expect(result.exitCode, 0);
       expect(result.stdout.toString(), contains('watch'));
-      print('✅ Watch command available');
+      stdout.writeln('✅ Watch command available');
     });
 
     test('dartvel build --help shows build options', () async {
@@ -153,7 +153,7 @@ void main() {
       final output = result.stdout.toString();
       expect(output, contains('platform'));
       expect(output, contains('release'));
-      print('✅ Build command help displayed');
+      stdout.writeln('✅ Build command help displayed');
     });
 
     test('dartvel deploy --help shows deploy options', () async {
@@ -166,10 +166,11 @@ void main() {
       expect(result.exitCode, 0);
       final output = result.stdout.toString();
       expect(output, contains('deploy'));
-      print('✅ Deploy command help displayed');
+      stdout.writeln('✅ Deploy command help displayed');
     });
 
-    test('dartvel new CLI commands (db, generate, observability, ai) exist', () async {
+    test('dartvel new CLI commands (db, generate, observability, ai) exist',
+        () async {
       // 1. db command
       final dbRes = await Process.run(
         Platform.resolvedExecutable,
@@ -186,7 +187,8 @@ void main() {
         runInShell: true,
       );
       expect(genRes.exitCode, 0);
-      expect(genRes.stdout.toString(), contains('Generate Dartvel template files'));
+      expect(genRes.stdout.toString(),
+          contains('Generate Dartvel template files'));
 
       // 3. observability commands
       final logsRes = await Process.run(
@@ -203,9 +205,10 @@ void main() {
         runInShell: true,
       );
       expect(aiRes.exitCode, 0);
-      expect(aiRes.stdout.toString(), contains('Leverage Dartvel AI integration'));
+      expect(
+          aiRes.stdout.toString(), contains('Leverage Dartvel AI integration'));
 
-      print('✅ All new CLI commands verified');
+      stdout.writeln('✅ All new CLI commands verified');
     });
 
     test('dartvel plugin list shows available plugins', () async {
@@ -217,7 +220,7 @@ void main() {
       );
 
       expect(result.exitCode, 0);
-      print('✅ Plugin list command works');
+      stdout.writeln('✅ Plugin list command works');
     });
 
     test('dartvel version command works', () async {
@@ -229,7 +232,7 @@ void main() {
 
       expect(result.exitCode, 0);
       expect(result.stdout.toString(), isNotEmpty);
-      print('✅ Version command works');
+      stdout.writeln('✅ Version command works');
     });
 
     test('dartvel dev aliases (run, start) exist', () async {
@@ -243,15 +246,17 @@ void main() {
         );
 
         expect(result.exitCode, 0);
-        print('✅ Alias "$alias" works');
+        stdout.writeln('✅ Alias "$alias" works');
       }
     });
 
     test('generated files have no analyzer errors', () async {
       // Check if flutter is available in the environment to resolve Material widgets
-      final flutterCheck = await Process.run('which', ['flutter']).catchError((_) => ProcessResult(-1, 1, '', ''));
+      final flutterCheck = await Process.run('which', ['flutter'])
+          .catchError((_) => ProcessResult(-1, 1, '', ''));
       if (flutterCheck.exitCode != 0) {
-        print('Skipping: Flutter SDK is not installed on this host, cannot run full project analysis.');
+        stdout.writeln(
+            'Skipping: Flutter SDK is not installed on this host, cannot run full project analysis.');
         return;
       }
 
@@ -269,11 +274,12 @@ void main() {
           !line.contains('package:flutter'));
 
       if (hasRealErrors) {
-        print('⚠️  Analyzer output:\n$output');
+        stdout.writeln('⚠️  Analyzer output:\n$output');
       }
 
-      expect(hasRealErrors, false, reason: 'Generated files should have no real syntax errors');
-      print('✅ All generated files are error-free');
+      expect(hasRealErrors, false,
+          reason: 'Generated files should have no real syntax errors');
+      stdout.writeln('✅ All generated files are error-free');
     }, timeout: const Timeout(Duration(minutes: 1)));
   });
 
@@ -299,13 +305,13 @@ void main() {
         expect(result.stdout.toString(), contains(platform));
       }
 
-      print('✅ All platforms supported: ${platforms.join(', ')}');
+      stdout.writeln('✅ All platforms supported: ${platforms.join(', ')}');
     });
 
     test('platform utils detect correctly', () async {
       // This is tested in the main codebase
       expect(Platform.isLinux || Platform.isMacOS || Platform.isWindows, true);
-      print('✅ Platform detection works');
+      stdout.writeln('✅ Platform detection works');
     });
   });
 }
