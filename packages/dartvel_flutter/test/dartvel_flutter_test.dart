@@ -367,8 +367,8 @@ void main() {
       isTrue,
     );
 
-    DV.CacheInvalidation.tag('users:list', <String>['users']);
-    expect(DV.CacheInvalidation.revalidateTag('users'), contains('users:list'));
+    DV.Cache.tag('users:list', <String>['users']);
+    expect(DV.Cache.revalidateTag('users'), contains('users:list'));
   });
 
   testWidgets('prebuilt auth pages use Dartvel primitives without scaffolds',

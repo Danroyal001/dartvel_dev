@@ -1136,8 +1136,8 @@ Cache invalidation and revalidation are first-class:
 
 ```dart
 await DV.Cache.set('users:list', users, const Duration(minutes: 5));
-DV.CacheInvalidation.tag('users:list', ['users']);
-DV.CacheInvalidation.revalidateTag('users');
+DV.Cache.tag('users:list', ['users']);
+DV.Cache.revalidateTag('users');
 ```
 
 Supports:

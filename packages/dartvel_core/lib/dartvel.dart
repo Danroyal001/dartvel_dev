@@ -560,10 +560,10 @@ class DVAuthorization {
   }
 }
 
-class DVCacheInvalidation {
+class DVCacheTags {
   static final Map<String, Set<String>> _tags = {};
 
-  const DVCacheInvalidation();
+  const DVCacheTags();
 
   void tag(String key, Iterable<String> tags) {
     for (final tag in tags) {
@@ -594,5 +594,9 @@ class DVTestHarness {
 
   void resetPolicies() {
     DVAuthorization._policies.clear();
+  }
+
+  void resetCacheTags() {
+    DVCacheTags._tags.clear();
   }
 }
