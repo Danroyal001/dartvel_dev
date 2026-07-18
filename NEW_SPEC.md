@@ -699,12 +699,12 @@ final userSignal = user.signal(context);
 final cart = context.global<Cart>();
 ```
 
-For background work, signals are just typed job payloads or realtime model
-events:
+For background work and cross-client delivery, signals are just typed job
+payloads or model sync events:
 
 ```dart
 await DV.Jobs.dispatch(UserCreated(user.id), queue: 'signals');
-await DV.Realtime.publish('users', user);
+await user.sync();
 ```
 
 Signal guarantees:
@@ -712,10 +712,10 @@ Signal guarantees:
 - UI state uses `context.signal` / `signal(context, value)`.
 - Model state uses generated reactive model signals.
 - Background signal delivery uses `DV.Jobs`.
-- Realtime signal delivery uses `DV.Realtime`.
+- Cross-client delivery uses generated model sync.
 - Model lifecycle signals are generated for create, update, delete, restore,
   attach, detach, and sync events.
-- Realtime broadcasts apply auth, tenant filters, and policy checks before
+- Model sync applies auth, tenant filters, and policy checks before
   delivery.
 - Signals can bridge to native platform events through generated FFI/ffigen or
   JNI/jnigen bindings only. No Flutter platform channels.
@@ -753,7 +753,7 @@ Policies apply to:
 - generated forms
 - generated tables/lists
 - storage objects
-- realtime channels
+- model sync channels
 - tenant boundaries
 
 Usage:
@@ -975,6 +975,17 @@ Automatic migrations.
 Automatic CRUD.
 Automatic relationships.
 
+Local development database:
+- SQLite is built in as the default zero-config local database
+- WAL mode is enabled where supported
+- generated migrations work the same locally and in production
+- tests can use in-memory SQLite
+- local queues/cache/session storage can share SQLite when configured
+
+This is inspired by Bun's built-in SQLite approach: the local database should be
+fast, available by default, and require no separate service for common
+development and test workflows.
+
 ---
 
 # APIs
@@ -990,15 +1001,32 @@ No manual endpoint creation, but available if needed.
 
 ---
 
-# Realtime
+# Model Sync and Presence
 
-- Built in
-- Model sync
-- Collections
-- Presence
-- Subscriptions
-- Collaborative editing
-- Reactive models
+Dartvel does not expose a separate `DV.Realtime` namespace. Realtime behavior is
+part of models, signals, and queues.
+
+- model sync
+- collection sync
+- generated model subscriptions
+- presence generated from authenticated model/session state
+- collaborative editing through generated model operations
+- reactive models
+- WebSockets/SSE transport under the generated layer
+- pub/sub rooms and topics as implementation details
+- heartbeat and reconnect policies
+- backpressure-aware streams
+- horizontal fanout through Redis/Valkey, NATS, Kafka, or provider adapters
+
+```dart
+final user = await User.find(id);
+final userSignal = user.signal(context);
+
+await user.sync();
+await User.watch((users) {
+  context.signal(users);
+});
+```
 
 ---
 
@@ -1049,7 +1077,7 @@ Channels:
 - push
 - web push fallback
 - SMS
-- realtime
+- model sync
 
 Push providers:
 - Firebase Cloud Messaging for Android and supported Flutter targets
@@ -1066,7 +1094,7 @@ Runtime behavior:
   notification defaults, and provider availability.
 - Push delivery falls back to Web Push when a browser/web target cannot use a
   native push provider.
-- In-app notifications are realtime signals plus durable inbox records.
+- In-app notifications are model sync signals plus durable inbox records.
 - Notification delivery is queued and retryable.
 - Provider failures emit observability events and can fall back to secondary
   providers.
@@ -1398,6 +1426,14 @@ CI:
   targets
 - `dartvel test accessibility` runs generated semantics checks
 - `dartvel test release` runs the pre-release gate used before tags/releases
+- `dartvel test --watch` reruns affected tests on file changes
+- test sharding and per-file isolation are available in CI
+- snapshots and golden tests are first-class
+
+Like Bun's built-in test runner, Dartvel testing should be fast, integrated,
+watchable, and require minimal extra setup. Unlike Bun, Dartvel must cover
+Flutter widgets, generated backend functions, native bindings, and full-stack
+app flows.
 
 ---
 
@@ -1594,7 +1630,7 @@ Qt-style meta-object capabilities:
 - runtime discovery for tools/devtools
 - typed dynamic property maps for generated admin/devtools views
 - signal/slot-like typed connection surfaces through `context.signal`,
-  generated model signals, jobs, and realtime
+  generated model signals, jobs, and model sync
 
 Generated metadata powers:
 - devtools inspectors
@@ -1630,7 +1666,7 @@ Generated admin/devtools include:
 - policy and permission explorer
 - route/page explorer
 - cache/tag explorer
-- realtime channel inspector
+- model sync channel inspector
 - search index status
 - billing/customer/entitlement views
 - logs/metrics/traces views
@@ -1681,6 +1717,10 @@ Targets:
 ---
 
 # CLI
+
+Dartvel should feel like a single fast toolkit, not a bag of unrelated tools.
+Bun is a useful benchmark here: runtime, package/task runner, shell, test
+runner, and bundler are discoverable through one executable.
 
 Project
 
@@ -1747,6 +1787,49 @@ dartvel ai doctor
 dartvel ai generate
 ```
 
+## Shell and Task Runner
+
+Dartvel should provide a cross-platform shell/task surface inspired by Bun's
+`Bun.$`, but typed for Dart and safe by default.
+
+```dart
+final result = await DV.$('git status --short');
+final files = await DV.$('ls **/*.dart').text();
+```
+
+```bash
+dartvel task clean
+dartvel task build:web
+dartvel sh "flutter doctor"
+```
+
+Requirements:
+- cross-platform on Windows, Linux, and macOS
+- safe argument escaping by default
+- typed stdout/stderr/exit-code result
+- glob support
+- environment variable helpers
+- pipes and redirection
+- script files such as `.dartvel.sh` or `.dartvel.dart`
+- no shell injection when interpolating values
+- works in CI and generated release scripts
+
+## Build and Bundle Tooling
+
+Dartvel should own the full build orchestration:
+- route/client generation
+- backend generation
+- Flutter build
+- Rust runtime build
+- native binding generation
+- web assets and PWA generation
+- single-command production bundles where target platforms allow it
+- build graph caching
+- affected-file incremental rebuilds
+
+`dartvel build` should include `dartvel routes` automatically. Users should not
+need to remember separate generation commands for normal workflows.
+
 ---
 
 # Package Structure
@@ -1805,7 +1888,7 @@ In:
 - Forms
 - Model queries
 - DB queries
-- Realtime events
+- Model sync events
 
 
 ---
@@ -1828,7 +1911,7 @@ Dartvel automatically provides:
 * Forms
 * Authentication
 * APIs
-* Realtime
+* Model sync
 * Database access
 * Storage
 * Native device APIs

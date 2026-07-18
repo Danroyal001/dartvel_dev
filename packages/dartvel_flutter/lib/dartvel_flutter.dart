@@ -1925,36 +1925,6 @@ class DVStorage {
   }
 }
 
-class DVRealtime {
-  const DVRealtime();
-  static final Map<String, StreamController<dynamic>> _channels = {};
-  static final Map<String, Object> _models = {};
-
-  Future<void> syncModel(Object model) async {
-    final key = model.runtimeType.toString();
-    _models[key] = model;
-    _controller('models:$key').add(model);
-  }
-
-  Future<void> presence(String channel) async {
-    _controller('presence:$channel').add({
-      'channel': channel,
-      'at': DateTime.now().toIso8601String(),
-    });
-  }
-
-  Future<void> subscribe(String channel, Function(dynamic) onEvent) async {
-    _controller(channel).stream.listen(onEvent);
-  }
-
-  Future<void> publish(String channel, Object? event) async {
-    _controller(channel).add(event);
-  }
-
-  static StreamController<dynamic> _controller(String channel) => _channels
-      .putIfAbsent(channel, () => StreamController<dynamic>.broadcast());
-}
-
 class DVRustInt {
   final int value;
   const DVRustInt(this.value);
@@ -2107,7 +2077,6 @@ class DV {
   static DVStorage get Storage => const DVStorage();
   static DVStorage get FileStorage => const DVStorage();
   static DVStorage get BlobStorage => const DVStorage();
-  static DVRealtime get Realtime => const DVRealtime();
   static DVQueues get Queues => const DVQueues();
   static DVQueues get Jobs => const DVQueues();
   static DVNotificationsService get Notifications =>
