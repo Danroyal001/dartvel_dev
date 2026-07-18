@@ -32,6 +32,9 @@ class DevCommand extends Command<void> {
           help: 'Pass dart-define-from-file to Flutter')
       ..addOption('web-renderer',
           help: 'Select web renderer (auto, html, canvaskit)')
+      ..addOption('web-hostname',
+          help: 'Hostname for the Flutter web-server device')
+      ..addOption('web-port', help: 'Port for the Flutter web-server device')
       ..addFlag('verbose',
           abbr: 'v', defaultsTo: false, help: 'Verbose output');
   }
@@ -88,8 +91,9 @@ Future<void> main() async {
 
     // Build flutter args
     final flutterArgs = <String>['run'];
-    String? deviceOpt = (argResults?['device'] as String?) ??
+    final explicitDevice = (argResults?['device'] as String?) ??
         Platform.environment['DARTVEL_DEVICE'];
+    String? deviceOpt = explicitDevice;
 
     if (deviceOpt == null || deviceOpt.isEmpty) {
       try {
@@ -131,6 +135,12 @@ Future<void> main() async {
         }
       } catch (_) {}
     }
+    if ((explicitDevice == null || explicitDevice.isEmpty) &&
+        _shouldUseWebServerByDefault(deviceOpt)) {
+      deviceOpt = 'web-server';
+      Logger.log(
+          'Headless Linux detected; defaulting to Flutter web-server. Pass -d linux to run the desktop target.');
+    }
     if (deviceOpt != null && deviceOpt.isNotEmpty) {
       flutterArgs.addAll(['-d', deviceOpt]);
     }
@@ -148,6 +158,21 @@ Future<void> main() async {
     final webRenderer = argResults?['web-renderer'] as String?;
     if (webRenderer != null && webRenderer.isNotEmpty) {
       flutterArgs.addAll(['--web-renderer', webRenderer]);
+    }
+    final webTarget = _isWebServerDevice(deviceOpt);
+    final webHostname = (argResults?['web-hostname'] as String?) ??
+        Platform.environment['DARTVEL_WEB_HOST'] ??
+        (webTarget ? '0.0.0.0' : null);
+    final webPortInput = (argResults?['web-port'] as String?) ??
+        Platform.environment['DARTVEL_WEB_PORT'];
+    int? webPort;
+    if (webTarget) {
+      webPort = await _resolveWebPort(webPortInput);
+      if (webHostname != null && webHostname.isNotEmpty) {
+        flutterArgs.addAll(['--web-hostname', webHostname]);
+      }
+      flutterArgs.addAll(['--web-port', webPort.toString()]);
+      Logger.log('Dartvel web app will run at http://localhost:$webPort');
     }
     if (argResults?['verbose'] == true) flutterArgs.add('-v');
 
@@ -256,5 +281,44 @@ Future<void> main() async {
       stdout.writeln('[$tag] exited with code $code');
     }));
     return p;
+  }
+
+  bool _isWebServerDevice(String? deviceId) {
+    final normalized = deviceId?.trim().toLowerCase();
+    return normalized == 'web-server' || normalized == 'web_server';
+  }
+
+  bool _shouldUseWebServerByDefault(String? deviceId) {
+    final normalized = deviceId?.trim().toLowerCase();
+    final onlyLinuxDevice = normalized == 'linux';
+    final hasDisplay = (Platform.environment['DISPLAY'] ?? '').isNotEmpty ||
+        (Platform.environment['WAYLAND_DISPLAY'] ?? '').isNotEmpty;
+    return Platform.isLinux && onlyLinuxDevice && !hasDisplay;
+  }
+
+  Future<int> _resolveWebPort(String? requestedPort) async {
+    final parsed = int.tryParse(requestedPort ?? '');
+    if (parsed != null && parsed > 0 && parsed <= 65535) {
+      return parsed;
+    }
+    const firstPort = 8080;
+    for (var port = firstPort; port < firstPort + 50; port++) {
+      if (await _isPortAvailable(port)) {
+        return port;
+      }
+    }
+    return 0;
+  }
+
+  Future<bool> _isPortAvailable(int port) async {
+    ServerSocket? socket;
+    try {
+      socket = await ServerSocket.bind(InternetAddress.loopbackIPv4, port);
+      return true;
+    } catch (_) {
+      return false;
+    } finally {
+      await socket?.close();
+    }
   }
 }

@@ -46,3 +46,4 @@ app.*.map.json
 /lib/dartvel_client/
 /.dart_tool/dartvel_backend.g.dart
 /.dart_tool/dartvel_backend_routes.g.dart
+/.dartvel/
