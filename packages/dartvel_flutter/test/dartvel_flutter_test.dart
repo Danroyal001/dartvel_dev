@@ -317,8 +317,8 @@ void main() {
     expect(processed, ['sync-user']);
 
     final mailProvider = DVMemoryMailProvider();
-    DV.Mail.useProvider(mailProvider);
-    await DV.Mail.send(
+    DV.Notifications.mail.useProvider(mailProvider);
+    await DV.Notifications.mail.send(
       const DVMailMessage(
         from: DVMailAddress('system@example.com'),
         to: <DVMailAddress>[DVMailAddress('dev@example.com')],

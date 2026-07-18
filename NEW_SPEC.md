@@ -1008,7 +1008,7 @@ Dartvel provides an application notification layer, not just low-level device
 notification APIs.
 
 ```dart
-await DV.Mail.send(
+await DV.Notifications.mail.send(
   DVMailMessage(
     from: DVMailAddress('support@example.com'),
     to: [DVMailAddress(user.email)],
