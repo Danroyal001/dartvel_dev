@@ -1496,6 +1496,25 @@ Features:
 - notification/mail template localization
 - SEO alternate locale tags
 
+Generated API:
+
+```dart
+DVText(DV.I18n.t(AppText.settingsTitle));
+
+context.locale.set(LocaleTag.enUS);
+```
+
+Rules:
+- all generated strings use typed keys
+- missing translations fail build in strict mode
+- page routes can use path, query, subdomain, or header locale strategies
+- forms and validation messages localize automatically
+- generated mail/notification templates localize with the same key system
+- right-to-left layout flips spacing, alignment, icons, and navigation affordances
+  where appropriate
+- numbers, dates, currencies, and relative times are locale-aware
+- SEO generates canonical and alternate locale metadata
+
 ---
 
 # Accessibility
@@ -1511,6 +1530,18 @@ Dartvel-generated UI must preserve Flutter semantics and add generated checks fo
 - table/list accessibility
 
 Generated forms, tables, pages, and auth screens must be accessible by default.
+
+Runtime and tooling:
+- `dartvel test accessibility` checks generated pages, forms, tables, and common
+  components
+- generated controls expose labels, hints, roles, states, and validation errors
+- generated tables support keyboard navigation, focus restoration, row/column
+  announcements, and screen-reader summaries
+- motion modifiers respect platform reduced-motion settings
+- color modifiers can be checked for contrast in CI
+- kiosk/embedded targets support switch control and hardware-key navigation
+- accessibility regressions fail the release gate unless explicitly waived with
+  a documented reason
 
 ---
 
