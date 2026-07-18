@@ -118,22 +118,6 @@ class DVJob {
   });
 }
 
-/// Annotation for a typed domain signal/event.
-class DVSignalEvent {
-  final String? name;
-  final bool broadcast;
-
-  const DVSignalEvent({this.name, this.broadcast = false});
-}
-
-/// Annotation for a typed signal listener.
-class DVSignalListener {
-  final Type signal;
-  final String? queue;
-
-  const DVSignalListener(this.signal, {this.queue});
-}
-
 /// Annotation for backend function/page middleware.
 class DVMiddleware {
   final List<String> names;
