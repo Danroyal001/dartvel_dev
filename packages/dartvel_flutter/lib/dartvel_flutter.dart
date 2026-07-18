@@ -1475,6 +1475,7 @@ class DVAuth {
   static DVAuthUser? _currentUser;
 
   Object? get currentUser => _currentUser;
+  DVAuthorization get authorization => const DVAuthorization();
 
   Future<void> signIn() async {
     _currentUser = DVAuthUser(
@@ -2101,7 +2102,6 @@ class DV {
   static DVNotificationsService get Notifications =>
       const DVNotificationsService();
   static DVUpdates get Updates => const DVUpdates();
-  static DVAuthorization get Authorization => const DVAuthorization();
   static DVCacheInvalidation get CacheInvalidation =>
       const DVCacheInvalidation();
   static DVTestHarness get Test => const DVTestHarness();

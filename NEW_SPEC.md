@@ -729,8 +729,8 @@ class PostPolicy {
   bool update(User user, Post post) => post.authorId == user.id;
 }
 
-await DV.Authorization.authorize(user, 'update', post);
-final allowed = await DV.Authorization.can(user, 'delete', post);
+await DV.Auth.authorization.authorize(user, 'update', post);
+final allowed = await DV.Auth.authorization.can(user, 'delete', post);
 ```
 
 Policy generation:
@@ -1384,7 +1384,7 @@ Generated helpers:
 ```dart
 final user = User.Factory().admin().create();
 await DV.Test.asUser(user, () async {
-  await DV.Authorization.authorize(user, 'view', dashboard);
+  await DV.Auth.authorization.authorize(user, 'view', dashboard);
 });
 ```
 

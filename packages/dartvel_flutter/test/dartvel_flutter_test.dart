@@ -359,12 +359,12 @@ void main() {
     await DV.Updates.apply();
     await DV.Updates.rollback();
 
-    DV.Authorization.register<String, String>(
+    DV.Auth.authorization.register<String, String>(
       'deploy',
       (user, resource) => user == 'admin' && resource == 'production',
     );
     expect(
-      await DV.Authorization.can<String, String>(
+      await DV.Auth.authorization.can<String, String>(
         'admin',
         'deploy',
         'production',
