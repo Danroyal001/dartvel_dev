@@ -103,6 +103,51 @@ class DVClientCron {
   const DVClientCron(this.cron);
 }
 
+/// Annotation for a durable background job.
+class DVJob {
+  final String? queue;
+  final int priority;
+  final int maxAttempts;
+  final int backoffSeconds;
+
+  const DVJob({
+    this.queue,
+    this.priority = 0,
+    this.maxAttempts = 3,
+    this.backoffSeconds = 30,
+  });
+}
+
+/// Annotation for a typed domain signal/event.
+class DVSignalEvent {
+  final String? name;
+  final bool broadcast;
+
+  const DVSignalEvent({this.name, this.broadcast = false});
+}
+
+/// Annotation for a typed signal listener.
+class DVSignalListener {
+  final Type signal;
+  final String? queue;
+
+  const DVSignalListener(this.signal, {this.queue});
+}
+
+/// Annotation for backend function/page middleware.
+class DVMiddleware {
+  final List<String> names;
+
+  const DVMiddleware(this.names);
+}
+
+/// Annotation for model/resource authorization policies.
+class DVPolicy {
+  final Type resource;
+
+  const DVPolicy(this.resource);
+}
+
 /// Annotation for supported home-screen and lock-screen widgets.
 class DVHomeWidget {
   const DVHomeWidget();
