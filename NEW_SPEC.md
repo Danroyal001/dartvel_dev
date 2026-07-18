@@ -630,7 +630,7 @@ Client
 
 Dartvel has a durable background work layer inspired by Laravel queues and a
 typed signal model inspired by Qt signals/slots, Dart streams, Riverpod, and
-realtime events.
+generated model sync delivery.
 
 ## Jobs
 
@@ -687,7 +687,7 @@ Runtime guarantees:
 ## Signals
 
 Signals are already part of Dartvel through `context.signal(...)`,
-`signal(context, ...)`, reactive models, `DV.global`, and realtime model sync.
+`signal(context, ...)`, reactive models, `DV.global`, and generated model sync.
 Dartvel should not introduce separate signal/event annotations for the common
 case.
 
@@ -1003,8 +1003,9 @@ No manual endpoint creation, but available if needed.
 
 # Model Sync and Presence
 
-Dartvel does not expose a separate `DV.Realtime` namespace. Realtime behavior is
-part of models, signals, and queues.
+Dartvel does not expose a separate `DV.Realtime` namespace. Do not add one.
+Model sync and presence are generated capabilities built from models, signals,
+and queues, not a separate realtime facade.
 
 - model sync
 - collection sync
@@ -1017,6 +1018,8 @@ part of models, signals, and queues.
 - heartbeat and reconnect policies
 - backpressure-aware streams
 - horizontal fanout through Redis/Valkey, NATS, Kafka, or provider adapters
+- no public `DV.Realtime`, `DVRealtime`, `@DVRealtime`, or realtime-specific
+  namespace; generated clients expose model-aware APIs instead
 
 ```dart
 final user = await User.find(id);

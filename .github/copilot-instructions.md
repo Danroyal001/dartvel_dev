@@ -35,6 +35,7 @@ Everything else is automatically compiled, generated, or served by the framework
 | **Authentication** | Local auth/session implementation with provider extension points and prebuilt pages | ✅ Implemented |
 | **Database & Cache** | Local DB/cache primitives with adapter extension points for external providers | ✅ Implemented |
 | **Queues, Jobs & Signals** | `DV.Jobs`/`DV.Queues` for durable work; signals remain `context.signal`, `signal(context, value)`, reactive models, and `DV.global` | ✅ Implemented |
+| **Model Sync & Presence** | Generated model sync, presence, subscriptions, and fanout built on models, signals, and queues; no `DV.Realtime` namespace | ✅ Implemented |
 | **Notifications** | `DV.Notifications` covers email, in-app, push, web push fallback, and local/test providers; mail is `DV.Notifications.mail` | ✅ Implemented |
 | **PWA & SEO** | Automatic PWA manifest/worker & runtime/global SEO injection | ✅ Implemented |
 | **AI Integration** | Local AI adapter, structured outputs, embeddings, and provider extension points | ✅ Implemented |
@@ -45,7 +46,7 @@ Reference ./NEW_SPEC.md for the full new spec.
 
 - Authorization belongs under `DV.Auth.authorization`; do not add or use a top-level `DV.Authorization`.
 - Signals are `context.signal(...)`, `signal(context, value)`, reactive models, and `DV.global`; do not add `@DVSignalEvent`, `@DVSignalListener`, or a standalone `DV.Signals`.
-- Realtime behavior belongs to generated models, model sync, signals, and queues; do not add or use `DV.Realtime`.
+- Model sync and presence belong to generated models, signals, and queues; never add or use `DV.Realtime`, `DVRealtime`, or realtime-specific annotations.
 - Cache invalidation belongs on `DV.Cache` through methods such as `DV.Cache.tag(...)` and `DV.Cache.revalidateTag(...)`; do not add `DV.CacheInvalidation`.
 - Notifications include email. Use `DV.Notifications.mail.send(...)`; do not add or use `DV.Mail`.
 - Collection children use `DVBox.list([...])`, `DVBox.row([...])`, `DVBox.grid([...])`, etc. `DVBox(widget)` is only for a single child.
