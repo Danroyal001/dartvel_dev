@@ -24,6 +24,36 @@ export 'package:dartvel_core/dartvel.dart'
         AnalyticsProvider,
         DVFormControls,
         DVFormControlsFactory,
+        DVAuthorization,
+        DVJob,
+        DVSignalEvent,
+        DVSignalListener,
+        DVMiddleware,
+        DVPolicy,
+        DVCacheInvalidation,
+        DVInMemoryQueueAdapter,
+        DVJobEnvelope,
+        DVJobHandler,
+        DVJobState,
+        DVMail,
+        DVMailAddress,
+        DVMailMessage,
+        DVMailPriority,
+        DVMailProvider,
+        DVMemoryMailProvider,
+        DVMemoryNotificationProvider,
+        DVNotificationChannel,
+        DVNotificationMessage,
+        DVNotificationProvider,
+        DVNotificationProviderKind,
+        DVNotificationsService,
+        DVPolicyCheck,
+        DVQueueAdapter,
+        DVQueues,
+        DVSentNotification,
+        DVSignalHandler,
+        DVSignals,
+        DVTestHarness,
         LocalAnalyticsProvider,
         formControlsFactories,
         registerFormControlsFactory;
@@ -931,6 +961,82 @@ class DVNotifications {
   }
 
   List<Map<String, String>> get sentNotifications => List.unmodifiable(_sent);
+}
+
+enum DVUpdateChannel {
+  production,
+  beta,
+  staging,
+  development,
+}
+
+class DVUpdateInfo {
+  final bool available;
+  final String? version;
+  final String? patchId;
+  final bool required;
+  final Map<String, String> metadata;
+
+  const DVUpdateInfo({
+    required this.available,
+    this.version,
+    this.patchId,
+    this.required = false,
+    this.metadata = const <String, String>{},
+  });
+
+  factory DVUpdateInfo.fromMap(Map<dynamic, dynamic> map) {
+    final rawMetadata = map['metadata'];
+    return DVUpdateInfo(
+      available: map['available'] == true,
+      version: map['version']?.toString(),
+      patchId: map['patchId']?.toString(),
+      required: map['required'] == true,
+      metadata: rawMetadata is Map
+          ? rawMetadata.map(
+              (key, value) => MapEntry(key.toString(), value.toString()),
+            )
+          : const <String, String>{},
+    );
+  }
+}
+
+class DVUpdates {
+  const DVUpdates();
+
+  Future<DVUpdateInfo> check({
+    DVUpdateChannel channel = DVUpdateChannel.production,
+  }) async {
+    final result = await DVNativeBridge.require<Map<dynamic, dynamic>>(
+      'updates.check',
+      {'channel': channel.name},
+    );
+    return DVUpdateInfo.fromMap(result);
+  }
+
+  Future<void> apply({
+    DVUpdateChannel channel = DVUpdateChannel.production,
+  }) async {
+    final handled = await DVNativeBridge.require<bool>(
+      'updates.apply',
+      {'channel': channel.name},
+    );
+    if (!handled) {
+      throw StateError('Native update binding rejected the update request.');
+    }
+  }
+
+  Future<void> rollback({
+    DVUpdateChannel channel = DVUpdateChannel.production,
+  }) async {
+    final handled = await DVNativeBridge.require<bool>(
+      'updates.rollback',
+      {'channel': channel.name},
+    );
+    if (!handled) {
+      throw StateError('Native update binding rejected the rollback request.');
+    }
+  }
 }
 
 class DVBluetooth {
@@ -1988,6 +2094,17 @@ class DV {
   static DVStorage get FileStorage => const DVStorage();
   static DVStorage get BlobStorage => const DVStorage();
   static DVRealtime get Realtime => const DVRealtime();
+  static DVQueues get Queues => const DVQueues();
+  static DVQueues get Jobs => const DVQueues();
+  static DVSignals get Signals => const DVSignals();
+  static DVMail get Mail => const DVMail();
+  static DVNotificationsService get Notifications =>
+      const DVNotificationsService();
+  static DVUpdates get Updates => const DVUpdates();
+  static DVAuthorization get Authorization => const DVAuthorization();
+  static DVCacheInvalidation get CacheInvalidation =>
+      const DVCacheInvalidation();
+  static DVTestHarness get Test => const DVTestHarness();
   static DVCSRF get CSRF => const DVCSRF();
   static DVCSRF get Csrf => const DVCSRF();
   static DVObservabilityAndLogging get ObservabilityAndLogging =>

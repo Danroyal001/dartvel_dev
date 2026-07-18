@@ -79,4 +79,81 @@ void main() {
       );
     });
   });
+
+  group('Queues, signals, messaging, and policies', () {
+    test('queues dispatch and run typed jobs', () async {
+      const harness = DVTestHarness();
+      harness.resetQueues();
+      final processed = <String>[];
+
+      const queues = DVQueues();
+      queues.register<String>((payload) {
+        processed.add(payload);
+      });
+
+      final envelope = await queues.dispatch<String>('welcome-email');
+      expect(envelope.queue, 'default');
+
+      expect(await queues.work(), 1);
+      expect(processed, ['welcome-email']);
+      expect(await queues.pending(), isEmpty);
+    });
+
+    test('signals emit to listeners and streams', () async {
+      const harness = DVTestHarness();
+      harness.resetSignals();
+
+      const signals = DVSignals();
+      final delivered = <int>[];
+      signals.listen<int>(delivered.add);
+
+      final streamValue = signals.stream<int>().first;
+      await signals.emit<int>(42);
+
+      expect(delivered, [42]);
+      expect(await streamValue, 42);
+    });
+
+    test('mail and notifications use concrete local providers', () async {
+      final mailProvider = DVMemoryMailProvider();
+      const mail = DVMail();
+      mail.useProvider(mailProvider);
+
+      await mail.send(
+        const DVMailMessage(
+          from: DVMailAddress('system@example.com'),
+          to: <DVMailAddress>[DVMailAddress('user@example.com')],
+          subject: 'Welcome',
+          text: 'Hello',
+        ),
+      );
+      expect(mailProvider.sent.single.subject, 'Welcome');
+
+      final notificationProvider = DVMemoryNotificationProvider();
+      const notifications = DVNotificationsService();
+      notifications.register(notificationProvider);
+
+      await notifications.send(
+        'user-1',
+        const DVNotificationMessage(title: 'Hi', body: 'Body'),
+      );
+      expect(notificationProvider.sent.single.recipient, 'user-1');
+    });
+
+    test('authorization and cache invalidation are typed', () async {
+      const authz = DVAuthorization();
+      authz.register<String, int>('view', (user, resource) {
+        return user == 'admin' && resource == 7;
+      });
+
+      expect(await authz.can<String, int>('admin', 'view', 7), isTrue);
+      expect(await authz.can<String, int>('guest', 'view', 7), isFalse);
+
+      const invalidation = DVCacheInvalidation();
+      invalidation.tag('users:7', <String>['users', 'users:7']);
+      expect(invalidation.keysForTag('users'), contains('users:7'));
+      expect(invalidation.revalidateTag('users'), contains('users:7'));
+      expect(invalidation.keysForTag('users'), isEmpty);
+    });
+  });
 }

@@ -626,6 +626,114 @@ Client
 
 ---
 
+# Queues, Jobs, and Signals
+
+Dartvel has a durable background work layer inspired by Laravel queues and a
+typed signal layer inspired by Qt signals/slots, Dart streams, and realtime
+events.
+
+Jobs are ordinary typed Dart payloads with generated handlers:
+
+```dart
+@DVJob(queue: 'mail', maxAttempts: 5, backoffSeconds: 60)
+class SendWelcomeEmail {
+  final String userId;
+  const SendWelcomeEmail(this.userId);
+}
+
+await DV.Jobs.dispatch(SendWelcomeEmail(user.id), queue: 'mail');
+```
+
+Queues support:
+- named queues
+- priorities
+- retries
+- backoff
+- delayed jobs
+- dead-letter queues
+- worker scaling
+- job uniqueness and idempotency keys
+- scheduled jobs
+- queued signal listeners
+- providers for in-memory, database, Redis/Valkey, SQS, Pub/Sub, RabbitMQ,
+  Kafka, and platform-native task schedulers where available
+
+Signals are typed domain events. They power app events, model lifecycle events,
+realtime broadcasts, queued listeners, and local in-process communication.
+
+```dart
+@DVSignalEvent(broadcast: true)
+class UserCreated {
+  final User user;
+  const UserCreated(this.user);
+}
+
+await DV.Signals.emit(UserCreated(user));
+
+@DVSignalListener(UserCreated, queue: 'mail')
+Future<void> sendWelcome(UserCreated signal) async {}
+```
+
+Signals are not a replacement for UI state signals (`context.signal`). They are
+the application event bus and realtime/domain-event layer. Qt's signal/slot
+model is a useful reference: signals decouple producers from listeners while the
+generated Dartvel layer preserves strong types.
+
+---
+
+# Authorization
+
+Authentication identifies users. Authorization decides what they can do.
+
+```dart
+@DVPolicy(Post)
+class PostPolicy {
+  bool update(User user, Post post) => post.authorId == user.id;
+}
+
+await DV.Authorization.authorize(user, 'update', post);
+final allowed = await DV.Authorization.can(user, 'delete', post);
+```
+
+Policies apply to:
+- pages
+- backend functions
+- model queries
+- generated forms
+- generated tables/lists
+- storage objects
+- realtime channels
+- tenant boundaries
+
+Generated UI can hide disabled actions, but backend enforcement is mandatory.
+
+---
+
+# Middleware
+
+Dartvel supports middleware for both pages and backend functions.
+
+```dart
+@DVMiddleware(['auth', 'tenant', 'rateLimit:checkout'])
+@DVPage()
+Widget checkoutPage(BuildContext context) {}
+
+@DVMiddleware(['auth', 'csrf', 'idempotency'])
+@DVBackendFunction()
+Future<Order> createOrder(CreateOrderInput input) async {}
+```
+
+Middleware can be global, route/page scoped, backend-function scoped, or model
+scoped. Built-ins include auth, tenant resolution, CORS, CSRF, rate limiting,
+request logging, tracing context, security headers, body limits, compression,
+locale detection, idempotency, cache tags, and feature flags.
+
+Middleware must be typed and generated. Backend middleware runs in the Rust
+runtime around generated Dart function calls. Page middleware runs before route
+activation and supports redirects, deferred loading, and generated guards.
+
+---
+
 # Authentication
 
 Like firebase and Clerk.
@@ -805,6 +913,72 @@ No manual endpoint creation, but available if needed.
 
 ---
 
+# Mail and Notifications
+
+Dartvel provides an application notification layer, not just low-level device
+notification APIs.
+
+```dart
+await DV.Mail.send(
+  DVMailMessage(
+    from: DVMailAddress('support@example.com'),
+    to: [DVMailAddress(user.email)],
+    subject: 'Welcome',
+    text: 'Thanks for joining',
+  ),
+);
+
+await DV.Notifications.send(
+  user.id,
+  DVNotificationMessage(
+    title: 'Order shipped',
+    body: 'Your order is on the way',
+    channels: [
+      DVNotificationChannel.email,
+      DVNotificationChannel.push,
+      DVNotificationChannel.inApp,
+    ],
+  ),
+);
+```
+
+Channels:
+- email
+- in-app
+- database notifications
+- push
+- web push fallback
+- SMS
+- realtime
+
+Push providers:
+- Firebase Cloud Messaging for Android and supported Flutter targets
+- APNS for Apple platforms
+- Web Push for browsers and browser extensions
+- Windows notification platform
+- macOS notification platform
+- Linux desktop notification portals where available
+- Tizen/webOS notification capabilities where available
+- local/test provider
+
+Native push registration and delivery adapters must use generated FFI/ffigen or
+JNI/jnigen bindings where native code is required. Dartvel must not use Flutter
+platform channels for these APIs.
+
+Notification features:
+- user notification preferences
+- quiet hours
+- templates
+- localization
+- delivery receipts
+- retries
+- queued delivery
+- provider fallback
+- unsubscribe management
+- notification inboxes
+
+---
+
 # File Storage
 
 Unified API, supports:
@@ -840,6 +1014,26 @@ Unified cache layer.
 - Memcache
 - Redis (Or Valkey)
 - Distributed cache
+
+Cache invalidation and revalidation are first-class:
+
+```dart
+await DV.Cache.set('users:list', users, const Duration(minutes: 5));
+DV.CacheInvalidation.tag('users:list', ['users']);
+DV.CacheInvalidation.revalidateTag('users');
+```
+
+Supports:
+- model query cache
+- backend function cache
+- page/data cache
+- route cache
+- cache tags
+- stale-while-revalidate
+- tenant-aware cache keys
+- cache locks
+- stampede protection
+- generated invalidation from model writes
 
 ---
 
@@ -890,6 +1084,47 @@ Automatic:
 * Icons
 * Background sync
 * Permission handling
+
+---
+
+# OTA Updates
+
+Dartvel uses Shorebird for Flutter OTA updates.
+
+```bash
+dartvel updates release
+dartvel updates patch
+dartvel updates rollback
+```
+
+Runtime surface:
+
+```dart
+final update = await DV.Updates.check();
+if (update.available) {
+  await DV.Updates.apply();
+}
+```
+
+Runtime update checks/apply/rollback use generated bindings named
+`updates.check`, `updates.apply`, and `updates.rollback`. Native update
+integration must use Shorebird-compatible generated bindings through
+FFI/ffigen or JNI/jnigen where native glue is needed. Dartvel must not use
+Flutter platform channels for OTA APIs.
+
+Supports:
+- channels
+- staged rollouts
+- forced update prompts
+- minimum supported app versions
+- rollback
+- update health checks
+- release notes
+- environment targeting
+- CI integration
+
+Server-side code is versioned separately from client OTA patches. A release/tag
+must still create a matching backup branch.
 
 ---
 
@@ -949,6 +1184,154 @@ await DV.ObservabilityAndLogging.event(
   {"orderId": order.id},
 );
 ```
+
+---
+
+# Testing
+
+Dartvel has a first-class testing layer.
+
+```bash
+dartvel test
+dartvel test e2e
+dartvel test golden
+```
+
+Built-ins:
+- generated model factories
+- database refresh/migrations for tests
+- fake auth users
+- fake queues/jobs
+- fake mail and notifications
+- fake storage/cache
+- fake AI providers
+- backend function tests
+- page tests
+- golden UI tests
+- browser/device E2E tests
+- accessibility assertions
+- generated test fixtures for models, forms, and policies
+
+```dart
+DV.Test.resetQueues();
+DV.Test.resetSignals();
+DV.Test.resetPolicies();
+```
+
+No test should pass because a platform feature is silently ignored. Unsupported
+targets either use explicit fakes or fail validation.
+
+---
+
+# Search
+
+Dartvel should provide a generated search abstraction for models and content.
+
+Providers:
+- PostgreSQL full-text
+- SQLite FTS
+- Meilisearch
+- Algolia
+- OpenSearch/Elasticsearch
+
+```dart
+final results = await User.Search.query('ada');
+```
+
+Search integrates with queues, model lifecycle signals, tenant scoping, and
+authorization policies.
+
+---
+
+# Billing
+
+Dartvel should include an optional billing layer for SaaS/mobile apps.
+
+Providers:
+- Stripe
+- Paddle
+- app-store purchases where supported
+- Play Billing where supported
+
+Features:
+- subscriptions
+- invoices
+- usage-based billing
+- entitlements
+- trials
+- webhooks as typed backend functions
+
+---
+
+# Internationalization and Localization
+
+Qt treats internationalization as a core app concern; Dartvel should too.
+
+Features:
+- typed translation keys
+- generated locale files
+- route locale negotiation
+- pluralization
+- date/number/currency formatting
+- right-to-left layout support
+- per-tenant locale defaults
+- notification/mail template localization
+- SEO alternate locale tags
+
+---
+
+# Accessibility
+
+Dartvel-generated UI must preserve Flutter semantics and add generated checks for:
+- semantic labels
+- keyboard navigation
+- focus order
+- screen-reader landmarks
+- high contrast
+- reduced motion
+- minimum tap targets
+- table/list accessibility
+
+Generated forms, tables, pages, and auth screens must be accessible by default.
+
+---
+
+# Desktop, Embedded, and Qt-Critical Capabilities
+
+Qt is strong on desktop, embedded, and device-creation workflows. Dartvel should
+cover the same categories while keeping Flutter as the renderer.
+
+Desktop:
+- native menus
+- tray/status icons
+- global shortcuts
+- multi-window apps
+- window state persistence
+- file associations
+- drag and drop
+- clipboard and selection integration
+- printing
+- system dialogs
+
+Embedded/device creation:
+- kiosk mode
+- fullscreen mode
+- boot-to-app packaging
+- hardware capability manifests
+- watchdog/health restart hooks
+- offline-first local storage
+- serial/USB/Bluetooth/NFC device APIs
+- deterministic startup profiling
+
+Qt-style meta-object capabilities:
+- generated metadata for pages, models, backend functions, jobs, signals, and
+  policies
+- runtime discovery for tools/devtools
+- typed dynamic property maps for generated admin/devtools views
+- signal/slot-like typed connection surfaces through `DV.Signals`
+
+Native implementations still follow the Dartvel rule: generated FFI/ffigen or
+JNI/jnigen only, no Flutter platform channels.
 
 ---
 

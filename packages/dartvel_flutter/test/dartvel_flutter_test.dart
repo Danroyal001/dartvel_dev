@@ -304,6 +304,78 @@ void main() {
     expect(reset, isTrue);
   });
 
+  test('DV facade exposes queues, signals, mail, notifications, and policies',
+      () async {
+    DV.Test.resetQueues();
+    DV.Test.resetSignals();
+    DV.Test.resetPolicies();
+
+    final processed = <String>[];
+    DV.Queues.register<String>(processed.add);
+    await DV.Jobs.dispatch<String>('sync-user');
+    expect(await DV.Queues.work(), 1);
+    expect(processed, ['sync-user']);
+
+    final signalValues = <String>[];
+    DV.Signals.listen<String>(signalValues.add);
+    await DV.Signals.emit<String>('user.created');
+    expect(signalValues, ['user.created']);
+
+    final mailProvider = DVMemoryMailProvider();
+    DV.Mail.useProvider(mailProvider);
+    await DV.Mail.send(
+      const DVMailMessage(
+        from: DVMailAddress('system@example.com'),
+        to: <DVMailAddress>[DVMailAddress('dev@example.com')],
+        subject: 'Queued',
+        text: 'Done',
+      ),
+    );
+    expect(mailProvider.sent.single.subject, 'Queued');
+
+    final notificationProvider = DVMemoryNotificationProvider();
+    DV.Notifications.register(notificationProvider);
+    await DV.Notifications.send(
+      'dev@example.com',
+      const DVNotificationMessage(title: 'Build', body: 'Passed'),
+    );
+    expect(notificationProvider.sent.single.message.title, 'Build');
+
+    DVNativeBridge.register('updates.check', (arguments) {
+      expect(arguments, {'channel': 'production'});
+      return <String, Object?>{
+        'available': true,
+        'version': '1.0.1',
+        'patchId': 'patch-1',
+        'required': false,
+        'metadata': <String, String>{'provider': 'shorebird'},
+      };
+    });
+    DVNativeBridge.register('updates.apply', (_) => true);
+    DVNativeBridge.register('updates.rollback', (_) => true);
+    final update = await DV.Updates.check();
+    expect(update.available, isTrue);
+    expect(update.metadata['provider'], 'shorebird');
+    await DV.Updates.apply();
+    await DV.Updates.rollback();
+
+    DV.Authorization.register<String, String>(
+      'deploy',
+      (user, resource) => user == 'admin' && resource == 'production',
+    );
+    expect(
+      await DV.Authorization.can<String, String>(
+        'admin',
+        'deploy',
+        'production',
+      ),
+      isTrue,
+    );
+
+    DV.CacheInvalidation.tag('users:list', <String>['users']);
+    expect(DV.CacheInvalidation.revalidateTag('users'), contains('users:list'));
+  });
+
   testWidgets('prebuilt auth pages use Dartvel primitives without scaffolds',
       (WidgetTester tester) async {
     await DV.Auth.signOut();

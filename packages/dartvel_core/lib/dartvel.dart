@@ -158,3 +158,479 @@ class _CorsMw {
 }
 
 Object cors() => _CorsMw();
+
+enum DVJobState {
+  queued,
+  running,
+  completed,
+  failed,
+  deadLettered,
+}
+
+typedef DVJobHandler<TPayload> = FutureOr<void> Function(TPayload payload);
+typedef DVSignalHandler<TSignal> = FutureOr<void> Function(TSignal signal);
+typedef DVPolicyCheck<TUser, TResource> = FutureOr<bool> Function(
+  TUser user,
+  TResource resource,
+);
+
+class DVJobEnvelope<TPayload> {
+  final String id;
+  final String queue;
+  final TPayload payload;
+  final int priority;
+  final int maxAttempts;
+  final Duration backoff;
+  final DateTime createdAt;
+  final int attempts;
+  final DVJobState state;
+  final Object? lastError;
+
+  const DVJobEnvelope({
+    required this.id,
+    required this.queue,
+    required this.payload,
+    required this.priority,
+    required this.maxAttempts,
+    required this.backoff,
+    required this.createdAt,
+    required this.attempts,
+    required this.state,
+    this.lastError,
+  });
+
+  DVJobEnvelope<TPayload> copyWith({
+    int? attempts,
+    DVJobState? state,
+    Object? lastError,
+  }) {
+    return DVJobEnvelope<TPayload>(
+      id: id,
+      queue: queue,
+      payload: payload,
+      priority: priority,
+      maxAttempts: maxAttempts,
+      backoff: backoff,
+      createdAt: createdAt,
+      attempts: attempts ?? this.attempts,
+      state: state ?? this.state,
+      lastError: lastError ?? this.lastError,
+    );
+  }
+}
+
+abstract class DVQueueAdapter {
+  Future<DVJobEnvelope<TPayload>> enqueue<TPayload>(
+    String queue,
+    TPayload payload, {
+    int priority,
+    int maxAttempts,
+    Duration backoff,
+  });
+
+  Future<DVJobEnvelope<Object?>?> reserve(String queue);
+  Future<void> complete(String id);
+  Future<void> fail(String id, Object error, StackTrace stackTrace);
+  Future<List<DVJobEnvelope<Object?>>> pending(String queue);
+  Future<List<DVJobEnvelope<Object?>>> deadLetters(String queue);
+}
+
+class DVInMemoryQueueAdapter implements DVQueueAdapter {
+  final Map<String, List<DVJobEnvelope<Object?>>> _pending = {};
+  final Map<String, DVJobEnvelope<Object?>> _reserved = {};
+  final Map<String, List<DVJobEnvelope<Object?>>> _deadLetters = {};
+  int _sequence = 0;
+
+  @override
+  Future<DVJobEnvelope<TPayload>> enqueue<TPayload>(
+    String queue,
+    TPayload payload, {
+    int priority = 0,
+    int maxAttempts = 3,
+    Duration backoff = const Duration(seconds: 30),
+  }) async {
+    final envelope = DVJobEnvelope<TPayload>(
+      id: 'job-${DateTime.now().microsecondsSinceEpoch}-${_sequence++}',
+      queue: queue,
+      payload: payload,
+      priority: priority,
+      maxAttempts: maxAttempts,
+      backoff: backoff,
+      createdAt: DateTime.now(),
+      attempts: 0,
+      state: DVJobState.queued,
+    );
+    (_pending[queue] ??= []).add(envelope as DVJobEnvelope<Object?>);
+    _pending[queue]!.sort((a, b) => b.priority.compareTo(a.priority));
+    return envelope;
+  }
+
+  @override
+  Future<DVJobEnvelope<Object?>?> reserve(String queue) async {
+    final list = _pending[queue];
+    if (list == null || list.isEmpty) return null;
+    final next = list.removeAt(0).copyWith(state: DVJobState.running);
+    _reserved[next.id] = next;
+    return next;
+  }
+
+  @override
+  Future<void> complete(String id) async {
+    _reserved.remove(id);
+  }
+
+  @override
+  Future<void> fail(String id, Object error, StackTrace stackTrace) async {
+    final current = _reserved.remove(id);
+    if (current == null) return;
+    final failed = current.copyWith(
+      attempts: current.attempts + 1,
+      state: current.attempts + 1 >= current.maxAttempts
+          ? DVJobState.deadLettered
+          : DVJobState.failed,
+      lastError: error,
+    );
+    if (failed.state == DVJobState.deadLettered) {
+      (_deadLetters[failed.queue] ??= []).add(failed);
+    } else {
+      (_pending[failed.queue] ??= []).add(failed.copyWith(
+        state: DVJobState.queued,
+      ));
+    }
+  }
+
+  @override
+  Future<List<DVJobEnvelope<Object?>>> pending(String queue) async {
+    return List<DVJobEnvelope<Object?>>.unmodifiable(
+      _pending[queue] ?? const <DVJobEnvelope<Object?>>[],
+    );
+  }
+
+  @override
+  Future<List<DVJobEnvelope<Object?>>> deadLetters(String queue) async {
+    return List<DVJobEnvelope<Object?>>.unmodifiable(
+      _deadLetters[queue] ?? const <DVJobEnvelope<Object?>>[],
+    );
+  }
+}
+
+class DVQueues {
+  static DVQueueAdapter _adapter = DVInMemoryQueueAdapter();
+  static final Map<Type, DVJobHandler<Object?>> _handlers = {};
+
+  const DVQueues();
+
+  void useAdapter(DVQueueAdapter adapter) {
+    _adapter = adapter;
+  }
+
+  void register<TPayload>(DVJobHandler<TPayload> handler) {
+    _handlers[TPayload] = (payload) => handler(payload as TPayload);
+  }
+
+  Future<DVJobEnvelope<TPayload>> dispatch<TPayload>(
+    TPayload payload, {
+    String queue = 'default',
+    int priority = 0,
+    int maxAttempts = 3,
+    Duration backoff = const Duration(seconds: 30),
+  }) {
+    return _adapter.enqueue<TPayload>(
+      queue,
+      payload,
+      priority: priority,
+      maxAttempts: maxAttempts,
+      backoff: backoff,
+    );
+  }
+
+  Future<int> work({
+    String queue = 'default',
+    int maxJobs = 1,
+  }) async {
+    var completed = 0;
+    for (var i = 0; i < maxJobs; i++) {
+      final envelope = await _adapter.reserve(queue);
+      if (envelope == null) break;
+      final handler = _handlers[envelope.payload.runtimeType];
+      if (handler == null) {
+        await _adapter.fail(
+          envelope.id,
+          StateError(
+              'No DV job handler registered for ${envelope.payload.runtimeType}.'),
+          StackTrace.current,
+        );
+        continue;
+      }
+      try {
+        await handler(envelope.payload);
+        await _adapter.complete(envelope.id);
+        completed++;
+      } catch (error, stackTrace) {
+        await _adapter.fail(envelope.id, error, stackTrace);
+      }
+    }
+    return completed;
+  }
+
+  Future<List<DVJobEnvelope<Object?>>> pending([String queue = 'default']) {
+    return _adapter.pending(queue);
+  }
+
+  Future<List<DVJobEnvelope<Object?>>> deadLetters([
+    String queue = 'default',
+  ]) {
+    return _adapter.deadLetters(queue);
+  }
+}
+
+class DVSignals {
+  static final Map<Type, List<DVSignalHandler<Object?>>> _listeners = {};
+  static final Map<Type, StreamController<Object?>> _controllers = {};
+
+  const DVSignals();
+
+  void listen<TSignal>(DVSignalHandler<TSignal> handler) {
+    (_listeners[TSignal] ??= []).add((signal) => handler(signal as TSignal));
+  }
+
+  Stream<TSignal> stream<TSignal>() {
+    final controller =
+        _controllers[TSignal] ??= StreamController<Object?>.broadcast();
+    return controller.stream.cast<TSignal>();
+  }
+
+  Future<void> emit<TSignal>(TSignal signal) async {
+    final controller = _controllers[TSignal];
+    controller?.add(signal);
+    final listeners = _listeners[TSignal] ?? const <DVSignalHandler<Object?>>[];
+    for (final listener in listeners) {
+      await listener(signal);
+    }
+  }
+
+  Future<DVJobEnvelope<TSignal>> queue<TSignal>(
+    TSignal signal, {
+    String queue = 'signals',
+  }) {
+    return const DVQueues().dispatch<TSignal>(signal, queue: queue);
+  }
+}
+
+enum DVMailPriority { low, normal, high }
+
+class DVMailAddress {
+  final String email;
+  final String? name;
+
+  const DVMailAddress(this.email, {this.name});
+}
+
+class DVMailMessage {
+  final DVMailAddress from;
+  final List<DVMailAddress> to;
+  final String subject;
+  final String text;
+  final String? html;
+  final DVMailPriority priority;
+  final Map<String, String> headers;
+
+  const DVMailMessage({
+    required this.from,
+    required this.to,
+    required this.subject,
+    required this.text,
+    this.html,
+    this.priority = DVMailPriority.normal,
+    this.headers = const <String, String>{},
+  });
+}
+
+abstract class DVMailProvider {
+  Future<void> send(DVMailMessage message);
+}
+
+class DVMemoryMailProvider implements DVMailProvider {
+  final List<DVMailMessage> sent = <DVMailMessage>[];
+
+  @override
+  Future<void> send(DVMailMessage message) async {
+    sent.add(message);
+  }
+}
+
+class DVMail {
+  static DVMailProvider _provider = DVMemoryMailProvider();
+
+  const DVMail();
+
+  void useProvider(DVMailProvider provider) {
+    _provider = provider;
+  }
+
+  Future<void> send(DVMailMessage message) {
+    return _provider.send(message);
+  }
+}
+
+enum DVNotificationChannel {
+  inApp,
+  email,
+  push,
+  sms,
+  webPush,
+}
+
+enum DVNotificationProviderKind {
+  firebase,
+  apns,
+  webPush,
+  windows,
+  macos,
+  linux,
+  tizen,
+  webos,
+  local,
+}
+
+class DVNotificationMessage {
+  final String title;
+  final String body;
+  final Map<String, String> data;
+  final List<DVNotificationChannel> channels;
+
+  const DVNotificationMessage({
+    required this.title,
+    required this.body,
+    this.data = const <String, String>{},
+    this.channels = const <DVNotificationChannel>[DVNotificationChannel.inApp],
+  });
+}
+
+abstract class DVNotificationProvider {
+  DVNotificationProviderKind get kind;
+  Future<void> send(String recipient, DVNotificationMessage message);
+}
+
+class DVSentNotification {
+  final String recipient;
+  final DVNotificationMessage message;
+
+  const DVSentNotification({
+    required this.recipient,
+    required this.message,
+  });
+}
+
+class DVMemoryNotificationProvider implements DVNotificationProvider {
+  final List<DVSentNotification> sent = <DVSentNotification>[];
+
+  @override
+  DVNotificationProviderKind get kind => DVNotificationProviderKind.local;
+
+  @override
+  Future<void> send(String recipient, DVNotificationMessage message) async {
+    sent.add(DVSentNotification(recipient: recipient, message: message));
+  }
+}
+
+class DVNotificationsService {
+  static final Map<DVNotificationProviderKind, DVNotificationProvider>
+      _providers = {
+    DVNotificationProviderKind.local: DVMemoryNotificationProvider(),
+  };
+
+  const DVNotificationsService();
+
+  void register(DVNotificationProvider provider) {
+    _providers[provider.kind] = provider;
+  }
+
+  Future<void> send(
+    String recipient,
+    DVNotificationMessage message, {
+    DVNotificationProviderKind provider = DVNotificationProviderKind.local,
+  }) {
+    final selected = _providers[provider];
+    if (selected == null) {
+      throw StateError('No notification provider registered for $provider.');
+    }
+    return selected.send(recipient, message);
+  }
+}
+
+class DVAuthorization {
+  static final Map<String, FutureOr<bool> Function(Object?, Object?)>
+      _policies = {};
+
+  const DVAuthorization();
+
+  void register<TUser, TResource>(
+    String action,
+    DVPolicyCheck<TUser, TResource> check,
+  ) {
+    _policies['$action:${TResource.toString()}'] =
+        (user, resource) => check(user as TUser, resource as TResource);
+  }
+
+  Future<bool> can<TUser, TResource>(
+    TUser user,
+    String action,
+    TResource resource,
+  ) async {
+    final check = _policies['$action:${TResource.toString()}'];
+    if (check == null) return false;
+    return check(user, resource);
+  }
+
+  Future<void> authorize<TUser, TResource>(
+    TUser user,
+    String action,
+    TResource resource,
+  ) async {
+    if (!await can<TUser, TResource>(user, action, resource)) {
+      throw StateError('Action "$action" is not authorized for $TResource.');
+    }
+  }
+}
+
+class DVCacheInvalidation {
+  static final Map<String, Set<String>> _tags = {};
+
+  const DVCacheInvalidation();
+
+  void tag(String key, Iterable<String> tags) {
+    for (final tag in tags) {
+      (_tags[tag] ??= <String>{}).add(key);
+    }
+  }
+
+  Set<String> keysForTag(String tag) {
+    return Set<String>.unmodifiable(_tags[tag] ?? const <String>{});
+  }
+
+  Set<String> revalidateTag(String tag) {
+    final keys = _tags.remove(tag) ?? const <String>{};
+    return Set<String>.unmodifiable(keys);
+  }
+}
+
+class DVTestHarness {
+  const DVTestHarness();
+
+  void resetQueues() {
+    const DVQueues().useAdapter(DVInMemoryQueueAdapter());
+  }
+
+  void resetSignals() {
+    DVSignals._listeners.clear();
+    for (final controller in DVSignals._controllers.values) {
+      controller.close();
+    }
+    DVSignals._controllers.clear();
+  }
+
+  void resetPolicies() {
+    DVAuthorization._policies.clear();
+  }
+}
