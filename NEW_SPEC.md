@@ -1028,6 +1028,17 @@ await DV.Notifications.send(
 );
 ```
 
+Mail:
+- typed `DVMailMessage`, `DVMailAddress`, attachments, headers, tags, and
+  priority
+- templates for text, HTML, and Markdown
+- localized templates
+- queued sending by default
+- provider adapters for SMTP, SES, SendGrid, Mailgun, Postmark, Resend, and
+  local/test
+- delivery receipts and bounce/complaint webhooks as typed backend functions
+- per-tenant sender identities and DKIM/SPF validation checks
+
 Channels:
 - email
 - in-app
@@ -1047,9 +1058,21 @@ Push providers:
 - Tizen/webOS notification capabilities where available
 - local/test provider
 
+Runtime behavior:
+- `DV.Notifications.send(...)` chooses channels from user preferences,
+  notification defaults, and provider availability.
+- Push delivery falls back to Web Push when a browser/web target cannot use a
+  native push provider.
+- In-app notifications are realtime signals plus durable inbox records.
+- Notification delivery is queued and retryable.
+- Provider failures emit observability events and can fall back to secondary
+  providers.
+- Notification permissions are declared in `pubspec.yaml` and validated at
+  build time.
+
 Native push registration and delivery adapters must use generated FFI/ffigen or
-JNI/jnigen bindings where native code is required. Dartvel must not use Flutter
-platform channels for these APIs.
+JNI/jnigen bindings where native code is required. Browser push uses generated
+web bindings. Dartvel must not use Flutter platform channels for these APIs.
 
 Notification features:
 - user notification preferences
@@ -1062,6 +1085,11 @@ Notification features:
 - provider fallback
 - unsubscribe management
 - notification inboxes
+- topic subscriptions
+- device token registration
+- token rotation and revocation
+- per-channel rate limits
+- tenant-aware branding
 
 ---
 
