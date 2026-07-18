@@ -99,19 +99,18 @@ void main() {
       expect(await queues.pending(), isEmpty);
     });
 
-    test('signals emit to listeners and streams', () async {
+    test('signal payloads use queues for background delivery', () async {
       const harness = DVTestHarness();
       harness.resetSignals();
 
-      const signals = DVSignals();
+      const queues = DVQueues();
       final delivered = <int>[];
-      signals.listen<int>(delivered.add);
+      queues.register<int>(delivered.add);
 
-      final streamValue = signals.stream<int>().first;
-      await signals.emit<int>(42);
+      await queues.dispatch<int>(42, queue: 'signals');
+      expect(await queues.work(queue: 'signals'), 1);
 
       expect(delivered, [42]);
-      expect(await streamValue, 42);
     });
 
     test('mail and notifications use concrete local providers', () async {

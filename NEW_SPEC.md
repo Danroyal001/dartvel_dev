@@ -629,8 +629,8 @@ Client
 # Queues, Jobs, and Signals
 
 Dartvel has a durable background work layer inspired by Laravel queues and a
-typed signal layer inspired by Qt signals/slots, Dart streams, and realtime
-events.
+typed signal model inspired by Qt signals/slots, Dart streams, Riverpod, and
+realtime events.
 
 ## Jobs
 
@@ -648,7 +648,7 @@ class SendWelcomeEmail {
 
 @DVJobHandler()
 Future<void> handleSendWelcomeEmail(SendWelcomeEmail job) async {
-  await DV.Mail.send(...);
+  await DV.Notifications.send(...);
 }
 
 await DV.Jobs.dispatch(SendWelcomeEmail(user.id));
@@ -662,7 +662,7 @@ Queues support:
 - worker scaling, concurrency limits, pause/resume, and graceful shutdown
 - job uniqueness and idempotency keys
 - scheduled jobs and cron-triggered jobs
-- queued signal listeners
+- queued signal payloads
 - typed progress events and cancellation tokens
 - provider adapters for in-memory, database, Redis/Valkey, SQS, Pub/Sub,
   RabbitMQ, Kafka, and platform-native task schedulers where available
@@ -686,30 +686,33 @@ Runtime guarantees:
 
 ## Signals
 
-Signals are typed domain events. They power app events, model lifecycle events,
-realtime broadcasts, queued listeners, and local in-process communication.
+Signals are already part of Dartvel through `context.signal(...)`,
+`signal(context, ...)`, reactive models, `DV.global`, and realtime model sync.
+Dartvel should not introduce separate signal/event annotations for the common
+case.
 
 ```dart
-@DVSignalEvent(broadcast: true)
-class UserCreated {
-  final User user;
-  const UserCreated(this.user);
-}
+final counter = context.signal(0);
+counter.value++;
 
-await DV.Signals.emit(UserCreated(user));
-
-@DVSignalListener(UserCreated, queue: 'mail')
-Future<void> sendWelcome(UserCreated signal) async {}
+final userSignal = user.signal(context);
+final cart = context.global<Cart>();
 ```
 
-Signals are not a replacement for UI state signals (`context.signal`). They are
-the application event bus and realtime/domain-event layer. Qt's signal/slot
-model is a useful reference: signals decouple producers from listeners while the
-generated Dartvel layer preserves strong types.
+For background work, signals are just typed job payloads or realtime model
+events:
+
+```dart
+await DV.Jobs.dispatch(UserCreated(user.id), queue: 'signals');
+await DV.Realtime.publish('users', user);
+```
 
 Signal guarantees:
-- Signal payloads are exact typed classes.
-- Signal listeners can run inline, queued, or as realtime broadcasts.
+- Signal values are exact typed Dart values.
+- UI state uses `context.signal` / `signal(context, value)`.
+- Model state uses generated reactive model signals.
+- Background signal delivery uses `DV.Jobs`.
+- Realtime signal delivery uses `DV.Realtime`.
 - Model lifecycle signals are generated for create, update, delete, restore,
   attach, detach, and sync events.
 - Realtime broadcasts apply auth, tenant filters, and policy checks before
@@ -1590,7 +1593,8 @@ Qt-style meta-object capabilities:
   policies
 - runtime discovery for tools/devtools
 - typed dynamic property maps for generated admin/devtools views
-- signal/slot-like typed connection surfaces through `DV.Signals`
+- signal/slot-like typed connection surfaces through `context.signal`,
+  generated model signals, jobs, and realtime
 
 Generated metadata powers:
 - devtools inspectors

@@ -316,11 +316,6 @@ void main() {
     expect(await DV.Queues.work(), 1);
     expect(processed, ['sync-user']);
 
-    final signalValues = <String>[];
-    DV.Signals.listen<String>(signalValues.add);
-    await DV.Signals.emit<String>('user.created');
-    expect(signalValues, ['user.created']);
-
     final mailProvider = DVMemoryMailProvider();
     DV.Mail.useProvider(mailProvider);
     await DV.Mail.send(

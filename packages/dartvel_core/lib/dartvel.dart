@@ -168,7 +168,6 @@ enum DVJobState {
 }
 
 typedef DVJobHandler<TPayload> = FutureOr<void> Function(TPayload payload);
-typedef DVSignalHandler<TSignal> = FutureOr<void> Function(TSignal signal);
 typedef DVPolicyCheck<TUser, TResource> = FutureOr<bool> Function(
   TUser user,
   TResource resource,
@@ -384,39 +383,6 @@ class DVQueues {
   }
 }
 
-class DVSignals {
-  static final Map<Type, List<DVSignalHandler<Object?>>> _listeners = {};
-  static final Map<Type, StreamController<Object?>> _controllers = {};
-
-  const DVSignals();
-
-  void listen<TSignal>(DVSignalHandler<TSignal> handler) {
-    (_listeners[TSignal] ??= []).add((signal) => handler(signal as TSignal));
-  }
-
-  Stream<TSignal> stream<TSignal>() {
-    final controller =
-        _controllers[TSignal] ??= StreamController<Object?>.broadcast();
-    return controller.stream.cast<TSignal>();
-  }
-
-  Future<void> emit<TSignal>(TSignal signal) async {
-    final controller = _controllers[TSignal];
-    controller?.add(signal);
-    final listeners = _listeners[TSignal] ?? const <DVSignalHandler<Object?>>[];
-    for (final listener in listeners) {
-      await listener(signal);
-    }
-  }
-
-  Future<DVJobEnvelope<TSignal>> queue<TSignal>(
-    TSignal signal, {
-    String queue = 'signals',
-  }) {
-    return const DVQueues().dispatch<TSignal>(signal, queue: queue);
-  }
-}
-
 enum DVMailPriority { low, normal, high }
 
 class DVMailAddress {
@@ -623,11 +589,7 @@ class DVTestHarness {
   }
 
   void resetSignals() {
-    DVSignals._listeners.clear();
-    for (final controller in DVSignals._controllers.values) {
-      controller.close();
-    }
-    DVSignals._controllers.clear();
+    resetQueues();
   }
 
   void resetPolicies() {

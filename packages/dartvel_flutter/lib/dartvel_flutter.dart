@@ -26,8 +26,6 @@ export 'package:dartvel_core/dartvel.dart'
         DVFormControlsFactory,
         DVAuthorization,
         DVJob,
-        DVSignalEvent,
-        DVSignalListener,
         DVMiddleware,
         DVPolicy,
         DVCacheInvalidation,
@@ -51,8 +49,6 @@ export 'package:dartvel_core/dartvel.dart'
         DVQueueAdapter,
         DVQueues,
         DVSentNotification,
-        DVSignalHandler,
-        DVSignals,
         DVTestHarness,
         LocalAnalyticsProvider,
         formControlsFactories,
@@ -2097,7 +2093,6 @@ class DV {
   static DVRealtime get Realtime => const DVRealtime();
   static DVQueues get Queues => const DVQueues();
   static DVQueues get Jobs => const DVQueues();
-  static DVSignals get Signals => const DVSignals();
   static DVMail get Mail => const DVMail();
   static DVNotificationsService get Notifications =>
       const DVNotificationsService();
