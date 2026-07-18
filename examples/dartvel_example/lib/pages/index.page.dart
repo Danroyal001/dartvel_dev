@@ -228,12 +228,12 @@ Widget indexPage(BuildContext context) {
           final result = await DV.Database.query('select 1');
           if (context.mounted) _showMessage(context, 'DB Query: $result');
         }),
-        ShowcaseButton('Realtime', () async {
-          final events = <Object?>[];
-          await DV.Realtime.subscribe('showcase', events.add);
-          await DV.Realtime.publish('showcase', {'message': 'hello realtime'});
-          await Future<void>.delayed(Duration.zero);
-          if (context.mounted) _showMessage(context, 'Realtime: $events');
+        ShowcaseButton('Queue Signal', () async {
+          final events = <String>[];
+          DV.Queues.register<String>(events.add);
+          await DV.Jobs.dispatch<String>('hello signal', queue: 'signals');
+          await DV.Queues.work(queue: 'signals');
+          if (context.mounted) _showMessage(context, 'Queue signal: $events');
         }),
         ShowcaseButton('Theme Dark/Light', () {
           final next = DV.Theme.mode == ThemeMode.dark

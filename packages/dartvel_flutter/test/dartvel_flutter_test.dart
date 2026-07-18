@@ -216,13 +216,11 @@ void main() {
     await DV.FileStorage.put('file-avatar', [4, 5, 6]);
     expect(await DV.BlobStorage.get('file-avatar'), [4, 5, 6]);
 
-    final events = <dynamic>[];
-    await DV.Realtime.subscribe('room', events.add);
-    await DV.Realtime.publish('room', {'message': 'hi'});
-    await Future<void>.delayed(Duration.zero);
-    expect(events, [
-      {'message': 'hi'}
-    ]);
+    final queued = <String>[];
+    DV.Queues.register<String>(queued.add);
+    await DV.Jobs.dispatch<String>('model-sync');
+    expect(await DV.Queues.work(), 1);
+    expect(queued, ['model-sync']);
   });
 
   test('local cache and theme APIs have concrete behavior', () async {
