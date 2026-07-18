@@ -115,7 +115,7 @@ void main() {
 
     test('mail and notifications use concrete local providers', () async {
       final mailProvider = DVMemoryMailProvider();
-      const mail = DVMail();
+      const mail = DVNotificationMail();
       mail.useProvider(mailProvider);
 
       await mail.send(

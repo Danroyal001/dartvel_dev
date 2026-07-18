@@ -33,11 +33,11 @@ export 'package:dartvel_core/dartvel.dart'
         DVJobEnvelope,
         DVJobHandler,
         DVJobState,
-        DVMail,
         DVMailAddress,
         DVMailMessage,
         DVMailPriority,
         DVMailProvider,
+        DVNotificationMail,
         DVMemoryMailProvider,
         DVMemoryNotificationProvider,
         DVNotificationChannel,
@@ -2110,7 +2110,6 @@ class DV {
   static DVRealtime get Realtime => const DVRealtime();
   static DVQueues get Queues => const DVQueues();
   static DVQueues get Jobs => const DVQueues();
-  static DVMail get Mail => const DVMail();
   static DVNotificationsService get Notifications =>
       const DVNotificationsService();
   static DVUpdates get Updates => const DVUpdates();

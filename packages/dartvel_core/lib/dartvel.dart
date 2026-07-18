@@ -425,10 +425,10 @@ class DVMemoryMailProvider implements DVMailProvider {
   }
 }
 
-class DVMail {
+class DVNotificationMail {
   static DVMailProvider _provider = DVMemoryMailProvider();
 
-  const DVMail();
+  const DVNotificationMail();
 
   void useProvider(DVMailProvider provider) {
     _provider = provider;
@@ -507,6 +507,8 @@ class DVNotificationsService {
   };
 
   const DVNotificationsService();
+
+  DVNotificationMail get mail => const DVNotificationMail();
 
   void register(DVNotificationProvider provider) {
     _providers[provider.kind] = provider;
