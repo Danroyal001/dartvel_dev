@@ -733,6 +733,16 @@ await DV.Authorization.authorize(user, 'update', post);
 final allowed = await DV.Authorization.can(user, 'delete', post);
 ```
 
+Policy generation:
+- `@DVPolicy(ModelType)` classes generate typed policy registries.
+- Conventional policy methods include `viewAny`, `view`, `create`, `update`,
+  `delete`, `restore`, `forceDelete`, `export`, and `impersonate`.
+- Generated model components call policies automatically before rendering
+  actions.
+- Backend functions and model queries enforce policies even if UI guards are
+  bypassed.
+- Tenant scoping is part of policy evaluation, not a separate optional filter.
+
 Policies apply to:
 - pages
 - backend functions
@@ -743,7 +753,19 @@ Policies apply to:
 - realtime channels
 - tenant boundaries
 
+Usage:
+
+```dart
+@DVPage(policy: 'viewAdmin')
+Widget adminPage(BuildContext context) => AdminDashboard();
+
+@DVBackendFunction(policy: 'refund')
+Future<Refund> refundOrder(Order order) async {}
+```
+
 Generated UI can hide disabled actions, but backend enforcement is mandatory.
+Unauthorized access returns typed errors with consistent HTTP status mapping and
+structured observability events.
 
 ---
 
@@ -761,14 +783,40 @@ Widget checkoutPage(BuildContext context) {}
 Future<Order> createOrder(CreateOrderInput input) async {}
 ```
 
-Middleware can be global, route/page scoped, backend-function scoped, or model
-scoped. Built-ins include auth, tenant resolution, CORS, CSRF, rate limiting,
-request logging, tracing context, security headers, body limits, compression,
-locale detection, idempotency, cache tags, and feature flags.
+Middleware can be global, route/page scoped, layout scoped,
+backend-function scoped, model scoped, or storage scoped. Middleware order is
+deterministic and generated at build time.
 
-Middleware must be typed and generated. Backend middleware runs in the Rust
-runtime around generated Dart function calls. Page middleware runs before route
-activation and supports redirects, deferred loading, and generated guards.
+Built-ins:
+- auth and policy enforcement
+- tenant resolution
+- CORS and preflight handling
+- CSRF validation
+- rate limiting and throttling
+- request logging and tracing context
+- security headers and CSP
+- body limits and upload limits
+- compression
+- locale detection
+- idempotency keys
+- cache tags and revalidation hints
+- feature flags and experiments
+- maintenance mode
+
+Page middleware:
+- runs before route activation
+- can redirect, block, preload data, set SEO context, or defer route bundles
+- supports generated loading/error states
+- must not force eager imports of deferred `DVPage`s
+
+Backend middleware:
+- runs in the Rust runtime around generated Dart function calls
+- receives typed request metadata and typed function metadata
+- can short-circuit with typed responses
+- must propagate trace IDs, tenant IDs, auth IDs, and idempotency IDs
+
+Middleware must be typed and generated. Unsupported middleware configuration
+fails validation during `dartvel build`.
 
 ---
 
