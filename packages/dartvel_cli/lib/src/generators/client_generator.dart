@@ -775,7 +775,7 @@ class DartvelConfig {
     sb.writeln("  final outDir = Directory('build/web/_ssg');");
     sb.writeln(
         '  if (!outDir.existsSync()) outDir.createSync(recursive: true);');
-    sb.writeln("  print('Generating SSG data...');");
+    sb.writeln("  stdout.writeln('Generating SSG data...');");
 
     for (final e in entries) {
       final i = e['i']!;
@@ -817,10 +817,10 @@ class DartvelConfig {
         sb.writeln('    }');
       }
       sb.writeln('  } catch (e) {');
-      // sb.writeln("    print('Error generating SSG for $routePath: \$e');");
+      // Keep SSG page errors non-fatal; page-specific diagnostics can be added here.
       sb.writeln('  }');
     }
-    sb.writeln("  print('SSG generation complete.');");
+    sb.writeln("  stdout.writeln('SSG generation complete.');");
     sb.writeln('}');
 
     final ssgFile = File(p.join(root, '.dartvel', 'ssg_builder.dart'));

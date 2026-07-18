@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
+import '../utils/logger.dart';
+
 class GenerateCommand extends Command<void> {
   @override
   final String name = 'generate';
@@ -26,7 +28,7 @@ class GeneratePageSubcommand extends Command<void> {
   @override
   Future<void> run() async {
     if (argResults?.rest.isEmpty ?? true) {
-      print('Usage: dartvel generate page <page_name>');
+      Logger.log('Usage: dartvel generate page <page_name>');
       return;
     }
     final pageName = argResults!.rest.first;
@@ -36,7 +38,7 @@ class GeneratePageSubcommand extends Command<void> {
     }
     final file = File(p.join(pagesDir.path, '${pageName.toLowerCase()}.dart'));
     if (file.existsSync()) {
-      print('Page file already exists: ${file.path}');
+      Logger.log('Page file already exists: ${file.path}');
       return;
     }
     final capitalized = pageName[0].toUpperCase() + pageName.substring(1);
@@ -53,7 +55,7 @@ Widget ${pageName.toLowerCase()}Page(BuildContext context) {
   );
 }
 ''');
-    print('Generated page: ${file.path}');
+    Logger.log('Generated page: ${file.path}');
   }
 }
 
@@ -66,7 +68,7 @@ class GenerateModelSubcommand extends Command<void> {
   @override
   Future<void> run() async {
     if (argResults?.rest.isEmpty ?? true) {
-      print('Usage: dartvel generate model <model_name>');
+      Logger.log('Usage: dartvel generate model <model_name>');
       return;
     }
     final modelName = argResults!.rest.first;
@@ -78,7 +80,7 @@ class GenerateModelSubcommand extends Command<void> {
     final file =
         File(p.join(modelsDir.path, '${modelName.toLowerCase()}.dart'));
     if (file.existsSync()) {
-      print('Model file already exists: ${file.path}');
+      Logger.log('Model file already exists: ${file.path}');
       return;
     }
     final capitalized = modelName[0].toUpperCase() + modelName.substring(1);
@@ -92,7 +94,7 @@ class $capitalized {
   const $capitalized({required this.id, required this.name});
 }
 ''');
-    print('Generated model: ${file.path}');
+    Logger.log('Generated model: ${file.path}');
   }
 }
 
@@ -105,7 +107,7 @@ class GenerateBackendSubcommand extends Command<void> {
   @override
   Future<void> run() async {
     if (argResults?.rest.isEmpty ?? true) {
-      print('Usage: dartvel generate backend-function <function_name>');
+      Logger.log('Usage: dartvel generate backend-function <function_name>');
       return;
     }
     final funcName = argResults!.rest.first;
@@ -117,7 +119,7 @@ class GenerateBackendSubcommand extends Command<void> {
     final file =
         File(p.join(backendDir.path, '${funcName.toLowerCase()}.dart'));
     if (file.existsSync()) {
-      print('Backend function file already exists: ${file.path}');
+      Logger.log('Backend function file already exists: ${file.path}');
       return;
     }
     final capitalized = funcName[0].toUpperCase() + funcName.substring(1);
@@ -128,7 +130,7 @@ Future<String> get$capitalized(String input) async {
   return 'Echo: \$input';
 }
 ''');
-    print('Generated backend function: ${file.path}');
+    Logger.log('Generated backend function: ${file.path}');
   }
 }
 
@@ -140,7 +142,7 @@ class GenerateFormSubcommand extends Command<void> {
 
   @override
   Future<void> run() async {
-    print('Generating form components...');
-    print('Form layout scaffolding generated.');
+    Logger.log('Generating form components...');
+    Logger.log('Form layout scaffolding generated.');
   }
 }

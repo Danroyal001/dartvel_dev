@@ -179,6 +179,7 @@ const String dvGenBuildId = '$buildId';
     final backendRoutes = '''
 // GENERATED – do not edit.
 import 'dart:convert' as conv;
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:dartvel_core/dartvel.dart' as core;
 import 'package:dartvel_shelf/dartvel_shelf.dart' as dv;
@@ -297,10 +298,8 @@ $requestPrelude
           headers: dv.Headers({'content-type': 'application/json; charset=utf-8'}),
           body: Stream<List<int>>.value(conv.utf8.encode(conv.jsonEncode(result))));
     } catch (e, st) {
-      // ignore: avoid_print
-      print('[dartvel backend] ERROR in ${method.toUpperCase()} $path: \${e.toString()}');
-      // ignore: avoid_print
-      print(st);
+      stderr.writeln('[dartvel backend] ERROR in ${method.toUpperCase()} $path: \${e.toString()}');
+      stderr.writeln(st);
       return dv.Response(500, body: Stream<List<int>>.value(conv.utf8.encode('Internal Server Error')));
     }
   });''';
@@ -326,11 +325,8 @@ $requestPrelude
           headers: dv.Headers({'content-type': 'application/json; charset=utf-8'}),
           body: Stream<List<int>>.value(conv.utf8.encode(conv.jsonEncode(result))));
     } catch (e, st) {
-      // Print a visible error for non-GET methods to aid debugging
-      // ignore: avoid_print
-      print('[dartvel backend] ERROR in ${method.toUpperCase()} $path: \${e.toString()}');
-      // ignore: avoid_print
-      print(st);
+      stderr.writeln('[dartvel backend] ERROR in ${method.toUpperCase()} $path: \${e.toString()}');
+      stderr.writeln(st);
       return dv.Response(500, body: Stream<List<int>>.value(conv.utf8.encode('Internal Server Error')));
     }
   });''';

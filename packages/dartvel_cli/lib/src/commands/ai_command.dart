@@ -1,5 +1,7 @@
 import 'package:args/command_runner.dart';
 
+import '../utils/logger.dart';
+
 class AiCommand extends Command<void> {
   @override
   final String name = 'ai';
@@ -22,10 +24,10 @@ class AiContextSubcommand extends Command<void> {
 
   @override
   Future<void> run() async {
-    print('Generating AI project context map...');
-    print('  [+] Scanning source files...');
-    print('  [+] Bundling specifications...');
-    print('Context export saved to: .dartvel/ai_context.md');
+    Logger.log('Generating AI project context map...');
+    Logger.log('  [+] Scanning source files...');
+    Logger.log('  [+] Bundling specifications...');
+    Logger.log('Context export saved to: .dartvel/ai_context.md');
   }
 }
 
@@ -38,11 +40,11 @@ class AiDoctorSubcommand extends Command<void> {
 
   @override
   Future<void> run() async {
-    print('Running AI Diagnostic Doctor...');
-    print('  Checking project structure... OK');
-    print('  Checking environment config... OK');
-    print('  Checking model definitions... OK');
-    print('AI Doctor scan completed: No issues found.');
+    Logger.log('Running AI Diagnostic Doctor...');
+    Logger.log('  Checking project structure... OK');
+    Logger.log('  Checking environment config... OK');
+    Logger.log('  Checking model definitions... OK');
+    Logger.log('AI Doctor scan completed: No issues found.');
   }
 }
 
@@ -56,13 +58,13 @@ class AiGenerateSubcommand extends Command<void> {
   @override
   Future<void> run() async {
     if (argResults?.rest.isEmpty ?? true) {
-      print('Usage: dartvel ai generate "<prompt>"');
+      Logger.log('Usage: dartvel ai generate "<prompt>"');
       return;
     }
     final prompt = argResults!.rest.join(' ');
-    print('AI Code Generator processing: "$prompt"');
-    print('  [+] Resolving instructions...');
-    print('  [+] Generating readable Dartvel feature files...');
-    print('AI Code Generation complete.');
+    Logger.log('AI Code Generator processing: "$prompt"');
+    Logger.log('  [+] Resolving instructions...');
+    Logger.log('  [+] Generating readable Dartvel feature files...');
+    Logger.log('AI Code Generation complete.');
   }
 }

@@ -1,4 +1,3 @@
-// ignore_for_file: avoid_print
 import 'dart:io';
 import 'package:test/test.dart';
 
@@ -22,7 +21,7 @@ void main() {
       // Copy example project to test directory
       final exampleDir = Directory('examples/dartvel_example');
       if (!exampleDir.existsSync()) {
-        print('Skipping: example project not found');
+        stdout.writeln('Skipping: example project not found');
         return;
       }
 
@@ -38,10 +37,10 @@ void main() {
         workingDirectory: 'examples/dartvel_example',
       );
 
-      print('Routes command output:');
-      print(result.stdout);
+      stdout.writeln('Routes command output:');
+      stdout.writeln(result.stdout);
       if (result.stderr.toString().isNotEmpty) {
-        print('Stderr: ${result.stderr}');
+        stdout.writeln('Stderr: ${result.stderr}');
       }
 
       expect(result.exitCode, equals(0),
@@ -68,7 +67,7 @@ void main() {
       final routerFile =
           File('examples/dartvel_example/lib/dartvel_client/router.g.dart');
       if (!routerFile.existsSync()) {
-        print('Skipping: router file not generated');
+        stdout.writeln('Skipping: router file not generated');
         return;
       }
 
@@ -83,7 +82,7 @@ void main() {
       final backendFile = File(
           'examples/dartvel_example/.dart_tool/dartvel_backend_routes.g.dart');
       if (!backendFile.existsSync()) {
-        print('Skipping: backend routes not generated');
+        stdout.writeln('Skipping: backend routes not generated');
         return;
       }
 
@@ -102,7 +101,7 @@ void main() {
           'examples/dartvel_example/.dart_tool/dartvel_backend_routes.g.dart');
 
       if (!backendFile.existsSync()) {
-        print('Skipping: backend not generated');
+        stdout.writeln('Skipping: backend not generated');
         return;
       }
 
@@ -119,10 +118,12 @@ void main() {
       // Verify it's valid Dart (ignore missing packages in headless environments where Flutter is missing)
       final stdoutStr = result.stdout.toString();
       final hasRealErrors = stdoutStr.split('\n').any((line) =>
-          line.trim().startsWith('error -') && !line.contains('uri_does_not_exist'));
-      
+          line.trim().startsWith('error -') &&
+          !line.contains('uri_does_not_exist'));
+
       expect(hasRealErrors, isFalse,
-          reason: 'Generated backend code should not have syntax errors:\n$stdoutStr');
+          reason:
+              'Generated backend code should not have syntax errors:\n$stdoutStr');
     });
   });
 

@@ -1,8 +1,9 @@
-import 'dart:io';
-import 'package:test/test.dart';
-import 'package:path/path.dart' as p;
-import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:io';
+
+import 'package:http/http.dart' as http;
+import 'package:path/path.dart' as p;
+import 'package:test/test.dart';
 
 void main() {
   group('Full Lifecycle E2E', () {
@@ -21,13 +22,13 @@ void main() {
       dartvelBin = p.join(
           currentDir.path, 'packages', 'dartvel_cli', 'bin', 'dartvel.dart');
 
-      print('E2E Test: Created temp directory at ${tempDir.path}');
-      print('E2E Test: Using dartvel binary at $dartvelBin');
+      stdout.writeln('E2E Test: Created temp directory at ${tempDir.path}');
+      stdout.writeln('E2E Test: Using dartvel binary at $dartvelBin');
 
       final flutterCheck = await Process.run('which', ['flutter'])
           .catchError((_) => ProcessResult(-1, 1, '', ''));
       hasFlutter = flutterCheck.exitCode == 0;
-      print('E2E Test: Flutter SDK present: $hasFlutter');
+      stdout.writeln('E2E Test: Flutter SDK present: $hasFlutter');
     });
 
     tearDownAll(() async {
@@ -45,9 +46,9 @@ void main() {
         workingDirectory: tempDir.path,
       );
 
-      print('Init stdout: ${result.stdout}');
-      print('Init stderr: ${result.stderr}');
-      print('Exit code: ${result.exitCode}');
+      stdout.writeln('Init stdout: ${result.stdout}');
+      stdout.writeln('Init stderr: ${result.stderr}');
+      stdout.writeln('Exit code: ${result.exitCode}');
 
       expect(result.exitCode, 0,
           reason: 'dartvel init should succeed. Stderr: ${result.stderr}');
@@ -87,7 +88,7 @@ void main() {
           workingDirectory: projectPath,
         );
       } else {
-        print('Skipping: flutter pub get (Flutter SDK not installed)');
+        stdout.writeln('Skipping: flutter pub get (Flutter SDK not installed)');
       }
     }, timeout: const Timeout(Duration(minutes: 2)));
 
@@ -107,20 +108,20 @@ void main() {
         workingDirectory: projectPath,
       );
 
-      print('Doctor stdout: ${result.stdout}');
-      print('Doctor stderr: ${result.stderr}');
+      stdout.writeln('Doctor stdout: ${result.stdout}');
+      stdout.writeln('Doctor stderr: ${result.stderr}');
 
       expect(result.exitCode, 0, reason: 'dartvel doctor should pass');
     }, timeout: const Timeout(Duration(seconds: 30)));
 
     test('Build web app', () async {
       if (!hasFlutter) {
-        print('Skipping: Build web app (Flutter SDK not installed)');
+        stdout.writeln('Skipping: Build web app (Flutter SDK not installed)');
         return;
       }
 
       // Run dartvel routes to generate router.g.dart, functions.g.dart, e.t.c.
-      print('Running dartvel routes...');
+      stdout.writeln('Running dartvel routes...');
       final routesResult = await Process.run(
         'dart',
         [dartvelBin, 'routes'],
@@ -128,8 +129,8 @@ void main() {
       );
 
       if (routesResult.exitCode != 0) {
-        print('routes stdout: ${routesResult.stdout}');
-        print('routes stderr: ${routesResult.stderr}');
+        stdout.writeln('routes stdout: ${routesResult.stdout}');
+        stdout.writeln('routes stderr: ${routesResult.stderr}');
       }
       expect(routesResult.exitCode, 0, reason: 'dartvel routes should succeed');
 
@@ -139,14 +140,14 @@ void main() {
         workingDirectory: projectPath,
       );
 
-      print(
+      stdout.writeln(
           'Build stdout (last 500 chars): ${result.stdout.toString().substring(result.stdout.toString().length > 500 ? result.stdout.toString().length - 500 : 0)}');
-      print('Build stderr: ${result.stderr}');
+      stdout.writeln('Build stderr: ${result.stderr}');
 
       if (result.exitCode != 0) {
-        print('Flutter build web failed:');
-        print('Stdout: ${result.stdout}');
-        print('Stderr: ${result.stderr}');
+        stdout.writeln('Flutter build web failed:');
+        stdout.writeln('Stdout: ${result.stdout}');
+        stdout.writeln('Stderr: ${result.stderr}');
       }
       expect(result.exitCode, 0, reason: 'flutter build web should succeed');
 
@@ -157,7 +158,7 @@ void main() {
 
     test('Start server and make request', () async {
       if (!hasFlutter) {
-        print(
+        stdout.writeln(
             'Skipping: Start server and make request (Flutter SDK not installed)');
         return;
       }
@@ -171,10 +172,10 @@ void main() {
 
       serverProcess.stdout
           .transform(utf8.decoder)
-          .listen((data) => print('SERVER STDOUT: $data'));
+          .listen((data) => stdout.writeln('SERVER STDOUT: $data'));
       serverProcess.stderr
           .transform(utf8.decoder)
-          .listen((data) => print('SERVER STDERR: $data'));
+          .listen((data) => stdout.writeln('SERVER STDERR: $data'));
 
       try {
         final uri = Uri.parse('http://127.0.0.1:8889/');

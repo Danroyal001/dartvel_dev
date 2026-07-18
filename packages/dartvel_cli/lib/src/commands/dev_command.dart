@@ -51,13 +51,13 @@ class DevCommand extends Command<void> {
     // Always rewrite to ensure latest runtime (switch from shelf to dartvel_shelf)
     devServer.writeAsStringSync('''
 import 'dart:async';
+import 'dart:io';
 import 'package:dartvel_shelf/dartvel_shelf.dart' as dv;
 import 'dartvel_backend.g.dart' as cfg;
 import 'dartvel_backend_routes.g.dart' as gen;
 
 Future<void> main() async {
-  // ignore: avoid_print
-  print('dartvel backend build: ' + (cfg.dvGenBuildId));
+  stdout.writeln('dartvel backend build: ' + (cfg.dvGenBuildId));
   final handle = await gen.startBackend(
     host: '0.0.0.0', 
     port: cfg.backendPort,
@@ -67,8 +67,7 @@ Future<void> main() async {
       allowAnyHeader: true,
     ),
   );
-  // ignore: avoid_print
-  print('dartvel backend listening on http://' + handle.host + ':' + handle.port.toString() + cfg.apiBasePath);
+  stdout.writeln('dartvel backend listening on http://' + handle.host + ':' + handle.port.toString() + cfg.apiBasePath);
   await Completer<void>().future;
 }
 ''');

@@ -1,4 +1,3 @@
-// ignore_for_file: avoid_print
 import 'dart:io';
 
 import 'package:dartvel_cli/src/generators/route_utils.dart';
@@ -38,7 +37,7 @@ void main() {
           Directory('examples/dartvel_example/lib/backend/functions');
 
       if (!functionsDir.existsSync()) {
-        print('Skipping: functions directory not found');
+        stdout.writeln('Skipping: functions directory not found');
         return;
       }
 
@@ -48,13 +47,13 @@ void main() {
           .where((f) => f.path.endsWith('.dart'))
           .toList();
 
-      print('Found ${files.length} backend function files');
+      stdout.writeln('Found ${files.length} backend function files');
       expect(files.isNotEmpty, isTrue);
 
       // Verify file naming convention
       for (final file in files) {
         final name = file.path.split('/').last;
-        print('  - $name');
+        stdout.writeln('  - $name');
       }
     });
   });
@@ -82,7 +81,7 @@ void main() {
   group('Multipart Form Parsing Test', () {
     test('mime package integration works', () {
       // Verify mime package is available
-      print('Mime package integration validated');
+      stdout.writeln('Mime package integration validated');
       expect(true, isTrue);
     });
   });
