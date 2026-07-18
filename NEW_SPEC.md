@@ -1368,8 +1368,33 @@ DV.Test.resetSignals();
 DV.Test.resetPolicies();
 ```
 
-No test should pass because a platform feature is silently ignored. Unsupported
-targets either use explicit fakes or fail validation.
+Test conventions:
+- unit tests live next to Dart source or under `test/`
+- page/widget tests use generated page wrappers, not annotated functions
+  directly
+- backend function tests call typed generated clients and direct handlers
+- generated model factories use exact model types
+- fake providers must be explicit: fake auth, fake queue, fake mail, fake push,
+  fake storage, fake AI, fake native bindings
+- no test should pass because a platform feature is silently ignored
+- unsupported targets either use explicit fakes or fail validation
+
+Generated helpers:
+
+```dart
+final user = User.Factory().admin().create();
+await DV.Test.asUser(user, () async {
+  await DV.Authorization.authorize(user, 'view', dashboard);
+});
+```
+
+CI:
+- `dartvel test` runs fast unit/framework tests
+- `dartvel test e2e` runs browser/device tests
+- `dartvel test native` validates generated FFI/JNI bindings for selected
+  targets
+- `dartvel test accessibility` runs generated semantics checks
+- `dartvel test release` runs the pre-release gate used before tags/releases
 
 ---
 
