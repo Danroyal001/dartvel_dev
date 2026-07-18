@@ -29,6 +29,7 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  build_runner: ^2.5.4
   lints: ^4.0.0
   dartvel_cli: ${localPackagesDir == null ? '^0.1.1' : '\n    path: $localPackagesDir/dartvel_cli'}
 

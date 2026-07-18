@@ -753,6 +753,7 @@ class DartvelClient {
     final gitignore = File(p.join(root, '.gitignore'));
     final desired = <String>{
       '/lib/dartvel_client/',
+      '/.dartvel/',
       '/.dart_tool/dartvel_backend.g.dart',
       '/.dart_tool/dartvel_backend_routes.g.dart',
     };
