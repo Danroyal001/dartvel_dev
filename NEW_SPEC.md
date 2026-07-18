@@ -1562,6 +1562,14 @@ Desktop:
 - printing
 - system dialogs
 
+Desktop APIs live under `DV.Platform.*` and generated app services:
+
+```dart
+await DV.Platform.Window.setTitle('Dartvel Admin');
+await DV.Platform.tray.show(icon: 'assets/tray.png');
+await DV.Platform.menus.setApplicationMenu(AppMenu.main());
+```
+
 Embedded/device creation:
 - kiosk mode
 - fullscreen mode
@@ -1571,6 +1579,11 @@ Embedded/device creation:
 - offline-first local storage
 - serial/USB/Bluetooth/NFC device APIs
 - deterministic startup profiling
+- startup watchdogs
+- crash-safe local queues
+- device fleet provisioning
+- remote diagnostics
+- update channels for kiosk/device fleets
 
 Qt-style meta-object capabilities:
 - generated metadata for pages, models, backend functions, jobs, signals, and
@@ -1579,8 +1592,68 @@ Qt-style meta-object capabilities:
 - typed dynamic property maps for generated admin/devtools views
 - signal/slot-like typed connection surfaces through `DV.Signals`
 
+Generated metadata powers:
+- devtools inspectors
+- AI project context
+- generated docs
+- admin dashboards
+- route explorers
+- schema browsers
+- permission audits
+- native capability manifests
+
 Native implementations still follow the Dartvel rule: generated FFI/ffigen or
 JNI/jnigen only, no Flutter platform channels.
+
+---
+
+# Admin, Devtools, and Scaffolding
+
+Other batteries-included frameworks provide strong admin and tooling surfaces.
+Dartvel should generate them from the same metadata used by models, pages,
+jobs, signals, policies, and middleware.
+
+```bash
+dartvel devtools
+dartvel admin generate
+```
+
+Generated admin/devtools include:
+- model CRUD admin
+- queue/job dashboard
+- failed job retry/discard controls
+- mail/notification outbox
+- policy and permission explorer
+- route/page explorer
+- cache/tag explorer
+- realtime channel inspector
+- search index status
+- billing/customer/entitlement views
+- logs/metrics/traces views
+
+Admin UI must use `DVBox`, `DVText`, generated model components, and Dartvel
+modifiers. It must not introduce new primitive widgets.
+
+---
+
+# Data Import, Export, and Reporting
+
+Dartvel should include typed bulk data workflows:
+- CSV, JSON, NDJSON, and Excel import/export
+- generated import validation
+- row-level error reports
+- resumable imports through queues
+- tenant-aware exports
+- policy-filtered exports
+- scheduled reports
+- streamed large exports
+
+```dart
+await User.Import.csv(file);
+final report = await Order.Report.monthly(...);
+```
+
+Exports use storage providers and queued jobs for large datasets.
 
 ---
 
