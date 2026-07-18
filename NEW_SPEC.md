@@ -632,7 +632,12 @@ Dartvel has a durable background work layer inspired by Laravel queues and a
 typed signal layer inspired by Qt signals/slots, Dart streams, and realtime
 events.
 
-Jobs are ordinary typed Dart payloads with generated handlers:
+## Jobs
+
+Jobs are ordinary typed Dart payloads. The generator discovers `@DVJob`
+classes, generates readable dispatch helpers, and registers strongly typed
+handlers. No job payload uses `dynamic`, `Object`, or untyped maps in public
+APIs.
 
 ```dart
 @DVJob(queue: 'mail', maxAttempts: 5, backoffSeconds: 60)
@@ -641,22 +646,45 @@ class SendWelcomeEmail {
   const SendWelcomeEmail(this.userId);
 }
 
-await DV.Jobs.dispatch(SendWelcomeEmail(user.id), queue: 'mail');
+@DVJobHandler()
+Future<void> handleSendWelcomeEmail(SendWelcomeEmail job) async {
+  await DV.Mail.send(...);
+}
+
+await DV.Jobs.dispatch(SendWelcomeEmail(user.id));
 ```
 
 Queues support:
-- named queues
-- priorities
-- retries
-- backoff
-- delayed jobs
-- dead-letter queues
-- worker scaling
+- named queues and generated queue constants
+- priorities and delayed execution
+- retries, exponential backoff, retry-until timestamps, and max attempts
+- dead-letter queues with inspect, retry, discard, and replay commands
+- worker scaling, concurrency limits, pause/resume, and graceful shutdown
 - job uniqueness and idempotency keys
-- scheduled jobs
+- scheduled jobs and cron-triggered jobs
 - queued signal listeners
-- providers for in-memory, database, Redis/Valkey, SQS, Pub/Sub, RabbitMQ,
-  Kafka, and platform-native task schedulers where available
+- typed progress events and cancellation tokens
+- provider adapters for in-memory, database, Redis/Valkey, SQS, Pub/Sub,
+  RabbitMQ, Kafka, and platform-native task schedulers where available
+
+CLI:
+
+```bash
+dartvel queue work
+dartvel queue failed
+dartvel queue retry <job-id>
+dartvel queue flush --queue mail
+```
+
+Runtime guarantees:
+- Jobs are persisted before `dispatch` returns unless the configured provider is
+  explicitly in-memory/test.
+- Failed jobs are never silently dropped.
+- Retried jobs preserve the original payload and append attempt metadata.
+- Job handlers run with observability trace context and tenant context.
+- Unsupported providers fail validation during `dartvel build`.
+
+## Signals
 
 Signals are typed domain events. They power app events, model lifecycle events,
 realtime broadcasts, queued listeners, and local in-process communication.
@@ -678,6 +706,16 @@ Signals are not a replacement for UI state signals (`context.signal`). They are
 the application event bus and realtime/domain-event layer. Qt's signal/slot
 model is a useful reference: signals decouple producers from listeners while the
 generated Dartvel layer preserves strong types.
+
+Signal guarantees:
+- Signal payloads are exact typed classes.
+- Signal listeners can run inline, queued, or as realtime broadcasts.
+- Model lifecycle signals are generated for create, update, delete, restore,
+  attach, detach, and sync events.
+- Realtime broadcasts apply auth, tenant filters, and policy checks before
+  delivery.
+- Signals can bridge to native platform events through generated FFI/ffigen or
+  JNI/jnigen bindings only. No Flutter platform channels.
 
 ---
 
