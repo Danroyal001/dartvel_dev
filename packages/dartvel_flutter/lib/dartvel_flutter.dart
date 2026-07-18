@@ -28,7 +28,7 @@ export 'package:dartvel_core/dartvel.dart'
         DVJob,
         DVMiddleware,
         DVPolicy,
-        DVCacheInvalidation,
+        DVCacheTags,
         DVInMemoryQueueAdapter,
         DVJobEnvelope,
         DVJobHandler,
@@ -1853,6 +1853,7 @@ class MemoryDVDatabaseAdapter implements DVDatabaseAdapter {
 class DVCache {
   const DVCache();
   static final Map<String, ({Object? value, DateTime? expiresAt})> _memory = {};
+  static const DVCacheTags _tags = DVCacheTags();
 
   Future<T?> get<T>(String key) async {
     final entry = _memory[key];
@@ -1875,6 +1876,22 @@ class DVCache {
 
   Future<void> delete(String key) async {
     _memory.remove(key);
+  }
+
+  void tag(String key, Iterable<String> tags) {
+    _tags.tag(key, tags);
+  }
+
+  Set<String> keysForTag(String tag) {
+    return _tags.keysForTag(tag);
+  }
+
+  Set<String> revalidateTag(String tag) {
+    final keys = _tags.revalidateTag(tag);
+    for (final key in keys) {
+      _memory.remove(key);
+    }
+    return keys;
   }
 }
 
@@ -2097,8 +2114,6 @@ class DV {
   static DVNotificationsService get Notifications =>
       const DVNotificationsService();
   static DVUpdates get Updates => const DVUpdates();
-  static DVCacheInvalidation get CacheInvalidation =>
-      const DVCacheInvalidation();
   static DVTestHarness get Test => const DVTestHarness();
   static DVCSRF get CSRF => const DVCSRF();
   static DVCSRF get Csrf => const DVCSRF();

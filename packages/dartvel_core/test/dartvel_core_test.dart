@@ -148,7 +148,7 @@ void main() {
       expect(await authz.can<String, int>('admin', 'view', 7), isTrue);
       expect(await authz.can<String, int>('guest', 'view', 7), isFalse);
 
-      const invalidation = DVCacheInvalidation();
+      const invalidation = DVCacheTags();
       invalidation.tag('users:7', <String>['users', 'users:7']);
       expect(invalidation.keysForTag('users'), contains('users:7'));
       expect(invalidation.revalidateTag('users'), contains('users:7'));
