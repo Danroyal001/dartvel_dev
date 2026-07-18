@@ -34,10 +34,29 @@ Everything else is automatically compiled, generated, or served by the framework
 | **Platform APIs** | Runtime platform/screen APIs plus FFI/JNI native binding registration for device APIs | ✅ Implemented |
 | **Authentication** | Local auth/session implementation with provider extension points and prebuilt pages | ✅ Implemented |
 | **Database & Cache** | Local DB/cache primitives with adapter extension points for external providers | ✅ Implemented |
+| **Queues, Jobs & Signals** | `DV.Jobs`/`DV.Queues` for durable work; signals remain `context.signal`, `signal(context, value)`, reactive models, and `DV.global` | ✅ Implemented |
+| **Notifications** | `DV.Notifications` covers email, in-app, push, web push fallback, and local/test providers; mail is `DV.Notifications.mail` | ✅ Implemented |
 | **PWA & SEO** | Automatic PWA manifest/worker & runtime/global SEO injection | ✅ Implemented |
 | **AI Integration** | Local AI adapter, structured outputs, embeddings, and provider extension points | ✅ Implemented |
 
 Reference ./NEW_SPEC.md for the full new spec.
+
+## Public API Shape Rules
+
+- Authorization belongs under `DV.Auth.authorization`; do not add or use a top-level `DV.Authorization`.
+- Signals are `context.signal(...)`, `signal(context, value)`, reactive models, and `DV.global`; do not add `@DVSignalEvent`, `@DVSignalListener`, or a standalone `DV.Signals`.
+- Realtime behavior belongs to generated models, model sync, signals, and queues; do not add or use `DV.Realtime`.
+- Cache invalidation belongs on `DV.Cache` through methods such as `DV.Cache.tag(...)` and `DV.Cache.revalidateTag(...)`; do not add `DV.CacheInvalidation`.
+- Notifications include email. Use `DV.Notifications.mail.send(...)`; do not add or use `DV.Mail`.
+- Collection children use `DVBox.list([...])`, `DVBox.row([...])`, `DVBox.grid([...])`, etc. `DVBox(widget)` is only for a single child.
+- Application code should import the generated `dartvel_client/dartvel_client.dart` barrel rather than generated sibling files directly.
+
+## Bun-Inspired Tooling Direction
+
+- Dartvel should feel like one fast toolkit: runtime, generator, build, test, shell/task runner, and deploy commands should be discoverable through `dartvel`.
+- Add a typed, safe, cross-platform shell/task surface inspired by Bun's `Bun.$`, exposed as `DV.$(...)`, `dartvel task ...`, and `dartvel sh ...`.
+- `dartvel build` must run route/client/backend generation automatically; normal users should not need to run `dartvel routes` separately.
+- Local development should be zero-config where possible, including SQLite for local DB/test workflows and fast watch/test loops.
 
 ## Native Integration Rules
 
