@@ -81,6 +81,34 @@ void main() {
     });
   });
 
+  group('AuthUser', () {
+    test('serializes metadata with exact object map types', () {
+      final user = AuthUser.fromJson(<String, Object?>{
+        'id': 'user-1',
+        'email': 'user@example.com',
+        'name': 'User One',
+        'metadata': <Object?, Object?>{
+          'role': 'admin',
+          'loginCount': 3,
+        },
+      });
+
+      expect(user.metadata, <String, Object?>{
+        'role': 'admin',
+        'loginCount': 3,
+      });
+      expect(user.toJson(), <String, Object?>{
+        'id': 'user-1',
+        'email': 'user@example.com',
+        'name': 'User One',
+        'metadata': <String, Object?>{
+          'role': 'admin',
+          'loginCount': 3,
+        },
+      });
+    });
+  });
+
   group('Queues, signals, messaging, and policies', () {
     test('queues dispatch and run typed jobs', () async {
       const harness = DVTestHarness();
