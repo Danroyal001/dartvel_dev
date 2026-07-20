@@ -8,8 +8,7 @@ import '../../dartvel_flutter.dart';
 /// Note: RouteBase is from go_router package
 class RouteGroup {
   final String prefix;
-  final List<dynamic>
-      routes; // Using dynamic to avoid go_router dependency here
+  final List<RouteBase> routes;
   final List<NavigatorObserver>? observers;
   final String? redirect;
   final Widget Function(BuildContext, Widget)? wrapper;
@@ -26,7 +25,7 @@ class RouteGroup {
 /// Route metadata
 class RouteMeta {
   final String name;
-  final Map<String, dynamic> data;
+  final Map<String, Object?> data;
   final List<String> roles;
   final bool requiresAuth;
 
