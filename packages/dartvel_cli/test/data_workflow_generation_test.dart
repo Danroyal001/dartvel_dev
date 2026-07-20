@@ -40,8 +40,17 @@ class Order {
       final content = models.readAsStringSync();
       expect(content, contains('class OrderImport'));
       expect(content, contains('static DVImportResult<Order> csv'));
+      expect(
+          content,
+          contains(
+              'static Future<List<DVJobEnvelope<DVImportChunk>>> resumableCsv'));
       expect(content, contains('static DVImportResult<Order> ndjson'));
+      expect(
+          content,
+          contains(
+              'static Future<List<DVJobEnvelope<DVImportChunk>>> resumableNdjson'));
       expect(content, contains('static DVImportResult<Order> excel'));
+      expect(content, contains('const DVQueues().dispatch<DVImportChunk>'));
       expect(content, contains('class OrderExport'));
       expect(content, contains('static DVExportResult csv'));
       expect(content, contains('static DVExportResult json'));

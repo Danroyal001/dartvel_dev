@@ -48,6 +48,7 @@ export 'package:dartvel_core/dartvel.dart'
         DVCacheTags,
         DVEmptySearchProvider,
         DVImportResult,
+        DVImportChunk,
         DVImportRowError,
         DVJsonBool,
         DVJsonList,

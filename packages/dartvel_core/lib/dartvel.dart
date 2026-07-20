@@ -464,6 +464,20 @@ class DVImportResult<TModel> {
   bool get hasErrors => errors.isNotEmpty;
 }
 
+class DVImportChunk {
+  final String model;
+  final String format;
+  final int startRow;
+  final List<String> rows;
+
+  const DVImportChunk({
+    required this.model,
+    required this.format,
+    required this.startRow,
+    required this.rows,
+  });
+}
+
 class DVExportResult {
   final String fileName;
   final String contentType;
