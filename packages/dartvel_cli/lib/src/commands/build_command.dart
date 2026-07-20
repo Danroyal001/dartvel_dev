@@ -151,58 +151,16 @@ class BuildCommand extends Command<void> {
     Logger.log('');
     Logger.log('🔨 Building for $platform...');
 
-    final args = ['build', platform, buildMode];
-
-    if (target != null) {
-      args.addAll(['--target', target]);
-    }
-
-    if (buildNumber != null) {
-      args.addAll(['--build-number', buildNumber]);
-    }
-
-    if (buildName != null) {
-      args.addAll(['--build-name', buildName]);
-    }
-
-    if (obfuscate) {
-      args.add('--obfuscate');
-      args.addAll(['--split-debug-info', 'build/debug-info']);
-    }
-
-    if (treeShakeIcons) {
-      args.add('--tree-shake-icons');
-    }
-
-    // Platform-specific flags
-    switch (platform) {
-      case 'android':
-        if (splitPerAbi) {
-          args.add('--split-per-abi');
-        }
-        break;
-      case 'web':
-        args.addAll(['--web-renderer', 'canvaskit']);
-        break;
-      case 'webos':
-        // webOS builds are web builds targetting webOS packaging
-        args[1] = 'web';
-        args.addAll(['--web-renderer', 'canvaskit']);
-        break;
-      case 'tvos':
-        // tvOS is built as an iOS configuration flavor or custom target
-        args[1] = 'ios';
-        args.add('--no-codesign');
-        break;
-      case 'fireos':
-        // FireOS is Android based
-        args[1] = 'apk';
-        break;
-      case 'ios':
-        // IPA export
-        args.add('--no-codesign'); // For CI/CD
-        break;
-    }
+    final args = resolveFlutterBuildArguments(
+      platform: platform,
+      buildMode: buildMode,
+      target: target,
+      splitPerAbi: splitPerAbi,
+      buildNumber: buildNumber,
+      buildName: buildName,
+      obfuscate: obfuscate,
+      treeShakeIcons: treeShakeIcons,
+    );
 
     // Check if platform is available
     if (!await _isPlatformAvailable(platform)) {
@@ -254,3 +212,52 @@ class BuildCommand extends Command<void> {
 }
 
 enum _PlatformBuildResult { succeeded, failed, skipped }
+
+List<String> resolveFlutterBuildArguments({
+  required String platform,
+  required String buildMode,
+  String? target,
+  bool splitPerAbi = false,
+  String? buildNumber,
+  String? buildName,
+  bool obfuscate = false,
+  bool treeShakeIcons = false,
+}) {
+  final command = switch (platform) {
+    'android' || 'fireos' => 'apk',
+    'webos' => 'web',
+    'tvos' => 'ios',
+    _ => platform,
+  };
+  final args = <String>['build', command, buildMode];
+
+  if (target != null) {
+    args.addAll(<String>['--target', target]);
+  }
+
+  if (buildNumber != null) {
+    args.addAll(<String>['--build-number', buildNumber]);
+  }
+
+  if (buildName != null) {
+    args.addAll(<String>['--build-name', buildName]);
+  }
+
+  if (obfuscate && command != 'web') {
+    args.add('--obfuscate');
+    args.addAll(<String>['--split-debug-info', 'build/debug-info']);
+  }
+
+  if (treeShakeIcons) {
+    args.add('--tree-shake-icons');
+  }
+
+  if (platform == 'android' && splitPerAbi) {
+    args.add('--split-per-abi');
+  }
+  if (platform == 'ios' || platform == 'tvos') {
+    args.add('--no-codesign');
+  }
+
+  return List<String>.unmodifiable(args);
+}
