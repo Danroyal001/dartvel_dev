@@ -62,6 +62,7 @@ export 'package:dartvel_core/dartvel.dart'
         DVInMemoryQueueAdapter,
         DVJobEnvelope,
         DVJobHandler,
+        DVJobPayload,
         DVJobState,
         DVMailAddress,
         DVMailMessage,

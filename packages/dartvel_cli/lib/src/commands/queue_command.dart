@@ -68,7 +68,7 @@ class _QueueFailedCommand extends Command<void> {
     }
     for (final job in jobs) {
       stdout.writeln(
-        '${job.id}\t${job.payload.runtimeType}\tattempts=${job.attempts}\terror=${job.lastError}',
+        '${job.id}\t${job.payloadType}\tattempts=${job.attempts}\terror=${job.lastError}',
       );
     }
   }
