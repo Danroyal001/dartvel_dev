@@ -249,6 +249,40 @@ class ModelGenerator {
         sb.writeln(
             '    return DVImportResult<$className>(items: items, errors: errors);');
         sb.writeln('  }');
+        sb.writeln();
+        sb.writeln(
+            '  static DVImportResult<$className> excel(String content) {');
+        sb.writeln('    final lines = const convert.LineSplitter()');
+        sb.writeln('        .convert(content)');
+        sb.writeln('        .where((line) => line.trim().isNotEmpty)');
+        sb.writeln('        .toList(growable: false);');
+        sb.writeln('    if (lines.isEmpty) {');
+        sb.writeln(
+            '      return const DVImportResult<$className>(items: <$className>[]);');
+        sb.writeln('    }');
+        sb.writeln("    final headers = lines.first.split('\\t');");
+        sb.writeln('    final items = <$className>[];');
+        sb.writeln('    final errors = <DVImportRowError>[];');
+        sb.writeln(
+            '    for (var index = 1; index < lines.length; index += 1) {');
+        sb.writeln("      final values = lines[index].split('\\t');");
+        sb.writeln('      final row = <String, dynamic>{};');
+        sb.writeln('      for (var i = 0; i < headers.length; i += 1) {');
+        sb.writeln(
+            "        row[headers[i]] = i < values.length ? values[i] : '';");
+        sb.writeln('      }');
+        sb.writeln('      try {');
+        sb.writeln('        items.add(${className}Parser.fromJson(row));');
+        sb.writeln('      } on Object catch (error) {');
+        sb.writeln('        errors.add(DVImportRowError(');
+        sb.writeln('          row: index + 1,');
+        sb.writeln('          message: error.toString(),');
+        sb.writeln('        ));');
+        sb.writeln('      }');
+        sb.writeln('    }');
+        sb.writeln(
+            '    return DVImportResult<$className>(items: items, errors: errors);');
+        sb.writeln('  }');
         sb.writeln('}');
         sb.writeln();
         sb.writeln('/// Generated export helpers for [$className].');
@@ -292,6 +326,43 @@ class ModelGenerator {
         sb.writeln('    return DVExportResult(');
         sb.writeln('      fileName: fileName,');
         sb.writeln("      contentType: 'application/x-ndjson; charset=utf-8',");
+        sb.writeln('      bytes: convert.utf8.encode(buffer.toString()),');
+        sb.writeln('    );');
+        sb.writeln('  }');
+        sb.writeln();
+        sb.writeln(
+            '  static DVExportResult excel(Iterable<$className> items, {String fileName = \'${className.toLowerCase()}s.xls\'}) {');
+        sb.writeln('    final buffer = StringBuffer();');
+        sb.writeln("    buffer.writeln('<?xml version=\"1.0\"?>');");
+        sb.writeln(
+            "    buffer.writeln('<?mso-application progid=\"Excel.Sheet\"?>');");
+        sb.writeln(
+            "    buffer.writeln('<Workbook xmlns=\"urn:schemas-microsoft-com:office:spreadsheet\" xmlns:ss=\"urn:schemas-microsoft-com:office:spreadsheet\">');");
+        sb.writeln("    buffer.writeln('<Worksheet ss:Name=\"$className\">');");
+        sb.writeln("    buffer.writeln('<Table>');");
+        sb.writeln("    buffer.writeln('<Row>');");
+        for (final field in fields) {
+          final name = field['name']!;
+          sb.writeln(
+              "    buffer.writeln('<Cell><Data ss:Type=\"String\">$name</Data></Cell>');");
+        }
+        sb.writeln("    buffer.writeln('</Row>');");
+        sb.writeln('    for (final item in items) {');
+        sb.writeln("      buffer.writeln('<Row>');");
+        for (final field in fields) {
+          final name = field['name']!;
+          sb.writeln(
+              "      buffer.writeln('<Cell><Data ss:Type=\"String\">\${_escapeExcelCell(item.$name)}</Data></Cell>');");
+        }
+        sb.writeln("      buffer.writeln('</Row>');");
+        sb.writeln('    }');
+        sb.writeln("    buffer.writeln('</Table>');");
+        sb.writeln("    buffer.writeln('</Worksheet>');");
+        sb.writeln("    buffer.writeln('</Workbook>');");
+        sb.writeln('    return DVExportResult(');
+        sb.writeln('      fileName: fileName,');
+        sb.writeln(
+            "      contentType: 'application/vnd.ms-excel; charset=utf-8',");
         sb.writeln('      bytes: convert.utf8.encode(buffer.toString()),');
         sb.writeln('    );');
         sb.writeln('  }');
@@ -382,6 +453,16 @@ class ModelGenerator {
       sb.writeln(r'''    return '"${text.replaceAll('"', '""')}"';''');
       sb.writeln('  }');
       sb.writeln('  return text;');
+      sb.writeln('}');
+      sb.writeln();
+      sb.writeln('String _escapeExcelCell(Object? value) {');
+      sb.writeln("  final text = value?.toString() ?? '';");
+      sb.writeln('  return text');
+      sb.writeln("      .replaceAll('&', '&amp;')");
+      sb.writeln("      .replaceAll('<', '&lt;')");
+      sb.writeln("      .replaceAll('>', '&gt;')");
+      sb.writeln("      .replaceAll('\"', '&quot;')");
+      sb.writeln("      .replaceAll(\"'\", '&apos;');");
       sb.writeln('}');
     }
 

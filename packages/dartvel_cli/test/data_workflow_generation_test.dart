@@ -41,11 +41,14 @@ class Order {
       expect(content, contains('class OrderImport'));
       expect(content, contains('static DVImportResult<Order> csv'));
       expect(content, contains('static DVImportResult<Order> ndjson'));
+      expect(content, contains('static DVImportResult<Order> excel'));
       expect(content, contains('class OrderExport'));
       expect(content, contains('static DVExportResult csv'));
       expect(content, contains('static DVExportResult json'));
       expect(content, contains('static DVExportResult ndjson'));
+      expect(content, contains('static DVExportResult excel'));
       expect(content, contains('application/x-ndjson; charset=utf-8'));
+      expect(content, contains('application/vnd.ms-excel; charset=utf-8'));
       expect(content, contains('class OrderReport'));
       expect(content, contains('static DVReportResult monthly'));
       expect(content, contains('const convert.LineSplitter()'));
