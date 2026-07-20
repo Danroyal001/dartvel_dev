@@ -114,7 +114,7 @@ class PrerenderCommand extends Command<void> {
     await page.goto('http://localhost:$port/', wait: Until.networkIdle);
 
     // Extract links
-    final links = await page.evaluate<List<dynamic>>('''() => {
+    final links = await page.evaluate<List<Object?>>('''() => {
       return Array.from(document.querySelectorAll('a'))
         .map(a => a.getAttribute('href'))
         .filter(href => href && href.startsWith('/'));
