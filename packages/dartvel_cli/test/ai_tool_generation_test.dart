@@ -59,4 +59,55 @@ Future<String> describeLedger() async => 'ledger';
       }
     }
   });
+
+  test('backend generator can expose backend functions with opt-out', () async {
+    final root =
+        await Directory.systemTemp.createTemp('dartvel_ai_backend_tool_test_');
+    try {
+      File(p.join(root.path, 'pubspec.yaml')).writeAsStringSync('''
+name: ai_backend_tool_app
+dartvel:
+  ai:
+    exposeBackendFunctionsAsTools: true
+''');
+      Directory(p.join(root.path, '.dart_tool')).createSync();
+      Directory(p.join(root.path, 'lib', 'dartvel_client'))
+          .createSync(recursive: true);
+      final functionsDir =
+          Directory(p.join(root.path, 'lib', 'backend', 'functions'))
+            ..createSync(recursive: true);
+
+      File(p.join(functionsDir.path, 'ledger.dart')).writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVBackendFunction(method: 'post', path: '/ledger/reconcile')
+Future<String> reconcileLedger() async => 'ok';
+
+@DVAIHidden()
+@DVBackendFunction(method: 'post', path: '/ledger/secret')
+Future<String> rotateLedgerSecret() async => 'hidden';
+''');
+
+      await BackendGenerator.generate(
+        root: root.path,
+        backendDir: 'lib/backend',
+        pkgName: 'ai_backend_tool_app',
+        buildId: 'test-build',
+        backendHost: '127.0.0.1',
+        backendPort: 3000,
+        apiBasePath: '/api',
+      );
+
+      final content = File(
+        p.join(root.path, 'lib', 'dartvel_client', 'ai_tools.g.dart'),
+      ).readAsStringSync();
+      expect(content, contains('reconcileLedger'));
+      expect(content, contains('Backend function reconcileLedger'));
+      expect(content, isNot(contains('rotateLedgerSecret')));
+    } finally {
+      if (root.existsSync()) {
+        root.deleteSync(recursive: true);
+      }
+    }
+  });
 }

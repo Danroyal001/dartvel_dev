@@ -219,6 +219,11 @@ class DVAITool {
   const DVAITool({this.description});
 }
 
+/// Annotation for excluding a backend function from AI tool auto-exposure.
+class DVAIHidden {
+  const DVAIHidden();
+}
+
 /// CSRF helper surface used by generated backend, form, model, DB, and realtime flows.
 class DVCSRF {
   const DVCSRF();

@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:file/local.dart';
 import 'package:glob/glob.dart';
 import 'package:path/path.dart' as p;
+import 'package:yaml/yaml.dart';
 
 import '../utils/helpers.dart';
 import '../utils/logger.dart';
@@ -754,6 +755,7 @@ class DartvelClient {
         .writeAsStringSync(await _generateAITools(
       root: root,
       pkgName: pkgName,
+      backendDir: backendDir,
     ));
 
     // Update .gitignore to exclude generated files (idempotent)
@@ -858,6 +860,7 @@ class DartvelClient {
   static Future<String> _generateAITools({
     required String root,
     required String pkgName,
+    required String backendDir,
   }) async {
     final fs = const LocalFileSystem();
     final files = <File>[];
@@ -870,7 +873,8 @@ class DartvelClient {
     }
     files.sort((a, b) => a.path.compareTo(b.path));
 
-    final entries = <_AIToolEntry>[];
+    final exposeBackendFunctions = _shouldExposeBackendFunctionsAsAITools(root);
+    final entriesByName = <String, _AIToolEntry>{};
     for (final file in files) {
       final source = await file.readAsString();
       final relativePath =
@@ -881,9 +885,19 @@ class DartvelClient {
         source: source,
         relativePath: relativePath,
         importUri: importUri,
-        entries: entries,
+        entriesByName: entriesByName,
       );
+      if (exposeBackendFunctions && relativePath.startsWith('$backendDir/')) {
+        _collectBackendFunctionAIToolEntries(
+          source: source,
+          relativePath: relativePath,
+          importUri: importUri,
+          entriesByName: entriesByName,
+        );
+      }
     }
+    final entries = entriesByName.values.toList(growable: false)
+      ..sort((a, b) => a.name.compareTo(b.name));
 
     final sb = StringBuffer()
       ..writeln('// GENERATED – do not edit.')
@@ -993,7 +1007,7 @@ class DartvelClient {
     required String source,
     required String relativePath,
     required String importUri,
-    required List<_AIToolEntry> entries,
+    required Map<String, _AIToolEntry> entriesByName,
   }) {
     final pattern = RegExp(
       r"""@DVAITool\s*\(\s*(?:description\s*:\s*(['"])(.*?)\1\s*)?\)\s*"""
@@ -1003,13 +1017,56 @@ class DartvelClient {
       dotAll: true,
     );
     for (final match in pattern.allMatches(source)) {
-      entries.add(_AIToolEntry(
+      final name = match.group(3)!;
+      entriesByName[name] = _AIToolEntry(
         name: match.group(3)!,
         description: match.group(2) ?? '',
         importUri: importUri,
         relativePath: relativePath,
-      ));
+      );
     }
+  }
+
+  static void _collectBackendFunctionAIToolEntries({
+    required String source,
+    required String relativePath,
+    required String importUri,
+    required Map<String, _AIToolEntry> entriesByName,
+  }) {
+    final pattern = RegExp(
+      r'(?:@[A-Za-z_][A-Za-z0-9_]*(?:\([^)]*\))?\s*)*'
+      r'@DVBackendFunction(?:\([^)]*\))?\s*'
+      r'(?:@[A-Za-z_][A-Za-z0-9_]*(?:\([^)]*\))?\s*)*'
+      r'(?:Future<[^>]+>|Future|Stream<[^>]+>|[A-Za-z_][A-Za-z0-9_<>, ?]*)\s+'
+      r'([A-Za-z_][A-Za-z0-9_]*)\s*\(',
+      dotAll: true,
+    );
+    for (final match in pattern.allMatches(source)) {
+      final declaration = match.group(0) ?? '';
+      final name = match.group(1)!;
+      if (declaration.contains('@DVAIHidden') ||
+          entriesByName.containsKey(name)) {
+        continue;
+      }
+      entriesByName[name] = _AIToolEntry(
+        name: name,
+        description: 'Backend function $name',
+        importUri: importUri,
+        relativePath: relativePath,
+      );
+    }
+  }
+
+  static bool _shouldExposeBackendFunctionsAsAITools(String root) {
+    final pubspec = File(p.join(root, 'pubspec.yaml'));
+    if (!pubspec.existsSync()) return false;
+    final parsed = loadYaml(pubspec.readAsStringSync());
+    if (parsed is! YamlMap) return false;
+    final dartvel = parsed['dartvel'];
+    if (dartvel is! YamlMap) return false;
+    final ai = dartvel['ai'];
+    if (ai is! YamlMap) return false;
+    return ai['exposeBackendFunctionsAsTools'] == true;
   }
 }
 
