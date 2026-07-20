@@ -14,6 +14,9 @@ import 'package:go_router/go_router.dart';
 import 'src/browser_extension_platform_memory.dart'
     if (dart.library.html) 'src/browser_extension_platform_web.dart'
     as browser_extension_platform;
+import 'src/display_platform.dart'
+    if (dart.library.js_interop) 'src/display_platform_web.dart'
+    as display_platform;
 import 'src/seo_platform_memory.dart'
     if (dart.library.html) 'src/seo_platform_web.dart' as seo_platform;
 
@@ -1795,12 +1798,21 @@ class DVDisplayControls {
   Future<void> enterFullscreen([
     DVFullscreenOptions options = const DVFullscreenOptions(),
   ]) async {
-    await _requireDisplayBinding('display.enterFullscreen', options.toMap());
+    final browserHandled = await display_platform.enterFullscreen();
+    if (!browserHandled) {
+      await _requireDisplayBinding(
+        'display.enterFullscreen',
+        options.toMap(),
+      );
+    }
     _isFullscreen = true;
   }
 
   Future<void> exitFullscreen() async {
-    await _requireDisplayBinding('display.exitFullscreen');
+    final browserHandled = await display_platform.exitFullscreen();
+    if (!browserHandled) {
+      await _requireDisplayBinding('display.exitFullscreen');
+    }
     _isFullscreen = false;
   }
 
