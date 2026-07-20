@@ -116,6 +116,44 @@ class DVAIToolRegistry {
   }
 }
 
+class DVAITranscript {
+  final String text;
+  final String language;
+  final Duration duration;
+  final DVJsonObject metadata;
+
+  const DVAITranscript({
+    required this.text,
+    this.language = 'und',
+    this.duration = Duration.zero,
+    this.metadata = const <String, DVJsonValue>{},
+  });
+}
+
+class DVAIAgentRequest {
+  final String goal;
+  final DVJsonObject context;
+  final List<String> tools;
+
+  const DVAIAgentRequest({
+    required this.goal,
+    this.context = const <String, DVJsonValue>{},
+    this.tools = const <String>[],
+  });
+}
+
+class DVAIAgentResult {
+  final String output;
+  final DVJsonObject data;
+  final List<String> usedTools;
+
+  const DVAIAgentResult({
+    required this.output,
+    this.data = const <String, DVJsonValue>{},
+    this.usedTools = const <String>[],
+  });
+}
+
 // Simple HeaderValue parser to avoid dart:io dependency
 class _HeaderValue {
   final String value;
