@@ -109,6 +109,26 @@ void main() {
     });
   });
 
+  group('UpdateCheckResult', () {
+    test('parses metadata with exact object map types', () {
+      final result = UpdateCheckResult.fromJson(<String, Object?>{
+        'updateAvailable': true,
+        'version': '1.2.3',
+        'downloadUrl': 'https://updates.example.test/app.patch',
+        'metadata': <Object?, Object?>{
+          'provider': 'shorebird',
+          'build': 7,
+        },
+      });
+
+      expect(result.updateAvailable, isTrue);
+      expect(result.metadata, <String, Object?>{
+        'provider': 'shorebird',
+        'build': 7,
+      });
+    });
+  });
+
   group('Queues, signals, messaging, and policies', () {
     test('queues dispatch and run typed jobs', () async {
       const harness = DVTestHarness();

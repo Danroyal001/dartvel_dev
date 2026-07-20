@@ -9,7 +9,7 @@ class UpdateCheckResult {
   final bool updateAvailable;
   final String? version;
   final String? downloadUrl;
-  final Map<String, dynamic>? metadata;
+  final Map<String, Object?>? metadata;
 
   const UpdateCheckResult({
     required this.updateAvailable,
@@ -18,12 +18,15 @@ class UpdateCheckResult {
     this.metadata,
   });
 
-  factory UpdateCheckResult.fromJson(Map<String, dynamic> json) {
+  factory UpdateCheckResult.fromJson(Map<String, Object?> json) {
+    final metadata = json['metadata'];
     return UpdateCheckResult(
       updateAvailable: json['updateAvailable'] as bool,
       version: json['version'] as String?,
       downloadUrl: json['downloadUrl'] as String?,
-      metadata: json['metadata'] as Map<String, dynamic>?,
+      metadata: metadata is Map<Object?, Object?>
+          ? Map<String, Object?>.from(metadata)
+          : null,
     );
   }
 }
@@ -84,7 +87,11 @@ class OtaUpdater {
 
       final response = await request.close();
       final body = await response.transform(utf8.decoder).join();
-      final json = jsonDecode(body) as Map<String, dynamic>;
+      final decoded = jsonDecode(body);
+      if (decoded is! Map<Object?, Object?>) {
+        throw const FormatException('Update response must be a JSON object.');
+      }
+      final json = Map<String, Object?>.from(decoded);
 
       client.close();
 
