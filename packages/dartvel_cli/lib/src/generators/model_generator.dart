@@ -61,7 +61,7 @@ class ModelGenerator {
         // Parse fields
         // We find all fields of format: final Type name;
         final fieldRegex =
-            RegExp(r'final\s+([A-Za-z0-9_<>?]+)\s+([A-Za-z0-9_]+)\b');
+            RegExp(r'final\s+(.+?)\s+([A-Za-z0-9_]+)\s*;', dotAll: true);
         final fields = <Map<String, String>>[];
         for (final m in fieldRegex.allMatches(content)) {
           fields.add({
@@ -71,7 +71,8 @@ class ModelGenerator {
         }
         final searchableFields = <Map<String, String>>[];
         final searchableFieldRegex = RegExp(
-          r'@DVSearchable\s*\(\s*\)\s*final\s+([A-Za-z0-9_<>?]+)\s+([A-Za-z0-9_]+)\b',
+          r'@DVSearchable\s*\(\s*\)\s*final\s+(.+?)\s+([A-Za-z0-9_]+)\s*;',
+          dotAll: true,
         );
         for (final m in searchableFieldRegex.allMatches(content)) {
           searchableFields.add({
@@ -189,8 +190,12 @@ class ModelGenerator {
         for (final field in fields) {
           final type = field['type']!;
           final name = field['name']!;
-          sb.writeln(
-              '      $name: $name ?? ${_factoryDefaultValue(type, name)},');
+          final defaultValue = _factoryDefaultValue(
+            type: type,
+            name: name,
+            className: className,
+          );
+          sb.writeln('      $name: $name ?? $defaultValue,');
         }
         sb.writeln('    );');
         sb.writeln('  }');
@@ -692,7 +697,11 @@ class ModelGenerator {
     File(p.join(clientDir.path, 'models.g.dart')).writeAsStringSync(content);
   }
 
-  static String _factoryDefaultValue(String type, String name) {
+  static String _factoryDefaultValue({
+    required String type,
+    required String name,
+    required String className,
+  }) {
     final baseType = type.replaceAll('?', '');
     final lowerName = name.toLowerCase();
     if (type.endsWith('?')) return 'null';
@@ -713,10 +722,26 @@ class ModelGenerator {
     }
     if (baseType == 'List<String>') return "const <String>['test']";
     if (baseType == 'List<int>') return 'const <int>[1]';
+    if (baseType == 'List<double>') return 'const <double>[1.0]';
+    if (baseType == 'List<num>') return 'const <num>[1]';
+    if (baseType == 'List<bool>') return 'const <bool>[true]';
     if (baseType == 'Map<String,String>' || baseType == 'Map<String, String>') {
       return "const <String, String>{'test': 'value'}";
     }
-    return 'throw UnsupportedError(\'No generated factory default for $type $name. Pass $name explicitly with copyWith().\')';
+    if (baseType == 'Map<String,int>' || baseType == 'Map<String, int>') {
+      return "const <String, int>{'test': 1}";
+    }
+    if (baseType == 'Map<String,double>' || baseType == 'Map<String, double>') {
+      return "const <String, double>{'test': 1.0}";
+    }
+    if (baseType == 'Map<String,bool>' || baseType == 'Map<String, bool>') {
+      return "const <String, bool>{'test': true}";
+    }
+    throw StateError(
+      'Cannot generate ${className}Factory default for required field '
+      '$className.$name of type $type. Make the field nullable or add an '
+      'explicit value with ${className}Factory($name: ...).',
+    );
   }
 
   static String? _factoryAdminValue(String type, String name) {
