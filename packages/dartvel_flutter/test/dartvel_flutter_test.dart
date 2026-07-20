@@ -646,6 +646,12 @@ void main() {
       await DV.Billing.hasEntitlement(customer, Entitlement.analytics),
       isFalse,
     );
+    DV.Test.resetBillingProvider();
+    expect(
+      () => DV.Billing.checkout(plan: BillingPlan.pro, customer: customer),
+      throwsStateError,
+    );
+    DV.Billing.useProvider(DVLocalBillingProvider());
     DV.Billing.grantLocalEntitlement(customer, Entitlement.analytics);
     expect(
       await DV.Billing.hasEntitlement(customer, Entitlement.analytics),
