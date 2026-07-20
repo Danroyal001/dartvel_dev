@@ -43,6 +43,7 @@ Future<Map<String, Object?>> handler(String title, int priority) async {
               .readAsStringSync();
       expect(content, contains('Map<String, Object?>? query'));
       expect(content, contains('final fb = <String, Object?>{};'));
+      expect(content, contains('const <String, Object?>{}'));
       expect(content, contains('String routePath = '));
       expect(content, contains('Map<String, String> hdrs = '));
       expect(content, contains('Object? send = '));
@@ -50,6 +51,7 @@ Future<Map<String, Object?>> handler(String title, int priority) async {
       expect(content, contains('Map<String, Object?>.from'));
       expect(content, isNot(contains('Map<String, dynamic>')));
       expect(content, isNot(contains('<String, dynamic>')));
+      expect(content, isNot(contains('<String,Object?>')));
       expect(content, isNot(contains('payload as dynamic')));
       expect(content, isNot(contains('var routePath')));
       expect(content, isNot(contains('var hdrs')));

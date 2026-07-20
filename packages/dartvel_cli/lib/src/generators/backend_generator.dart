@@ -546,7 +546,7 @@ class DartvelClient {
             .map((p) => "'$p': $p")
             .join(', ');
         final ppExpr =
-            (ppPairs.isEmpty) ? 'const <String,Object?>{}' : '{ $ppPairs }';
+            (ppPairs.isEmpty) ? 'const <String, Object?>{}' : '{ $ppPairs }';
         // build form body map merging provided query + typed params not in path (for non-GET)
         final qpLines = <String>[];
         for (var j = 0; j < tparams.length; j++) {
