@@ -1844,6 +1844,34 @@ Embedded/device creation:
 - remote diagnostics
 - update channels for kiosk/device fleets
 
+Runtime API:
+```dart
+final manifest = await DV.Platform.device.capabilityManifest();
+final health = await DV.Platform.device.health();
+
+await DV.Platform.device.armWatchdog(
+  timeout: const Duration(seconds: 10),
+  reason: 'startup',
+);
+await DV.Platform.device.heartbeat();
+
+final provisioning = await DV.Platform.device.provision(
+  const DVFleetProvisioningRequest(
+    deviceId: 'kiosk-1',
+    fleetId: 'storefront',
+    labels: <String, String>{'zone': 'front'},
+  ),
+);
+
+final diagnostics = await DV.Platform.device.collectDiagnostics();
+```
+
+Embedded APIs use generated native bindings registered under
+`device.capabilityManifest`, `device.health`, `device.watchdog.*`,
+`device.fleet.*`, and `device.diagnostics.*`. They return typed Dartvel models
+such as `DVHardwareCapabilityManifest`, `DVDeviceHealth`,
+`DVDeviceProvisioningResult`, and `DVDeviceDiagnosticsBundle`.
+
 Qt-style meta-object capabilities:
 - generated metadata for pages, models, backend functions, jobs, signals, and
   policies
