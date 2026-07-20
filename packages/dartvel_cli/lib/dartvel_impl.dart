@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
+import 'src/commands/admin_command.dart';
 import 'src/commands/ai_command.dart';
 import 'src/commands/build_command.dart';
 import 'src/commands/cache_command.dart';
@@ -51,6 +52,8 @@ Future<void> main(List<String> args) async {
     ..addCommand(TracesCommand())
     ..addCommand(MetricsCommand())
     ..addCommand(AiCommand())
+    ..addCommand(AdminCommand())
+    ..addCommand(DevtoolsCommand())
     ..addCommand(ShCommand())
     ..addCommand(TaskCommand())
     ..addCommand(TestCommand())
