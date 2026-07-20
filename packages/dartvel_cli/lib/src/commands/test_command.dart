@@ -45,6 +45,11 @@ class TestCommand extends Command<void> {
         help:
             'Run tests with per-file isolation by forcing single concurrency.',
       )
+      ..addFlag(
+        'update-goldens',
+        defaultsTo: false,
+        help: 'Update golden snapshot files for golden UI tests.',
+      )
       ..addOption(
         'reporter',
         help: 'Pass a reporter to the selected test runner.',
@@ -78,6 +83,7 @@ class TestCommand extends Command<void> {
       totalShards: _optionalPositiveInt('total-shards'),
       shardIndex: _optionalNonNegativeInt('shard-index'),
       isolate: argResults?['isolate'] == true,
+      updateGoldens: argResults?['update-goldens'] == true,
       forwardedArgs: forwarded,
       root: Directory.current,
     );
@@ -139,6 +145,7 @@ class DartvelTestInvocation {
     required int? totalShards,
     required int? shardIndex,
     required bool isolate,
+    required bool updateGoldens,
     required List<String> forwardedArgs,
     required Directory root,
   }) {
@@ -174,6 +181,9 @@ class DartvelTestInvocation {
     }
     if (isolate) {
       args.addAll(<String>['--concurrency', '1']);
+    }
+    if (updateGoldens) {
+      args.add('--update-goldens');
     }
     args.addAll(forwardedArgs);
     return DartvelTestInvocation(
