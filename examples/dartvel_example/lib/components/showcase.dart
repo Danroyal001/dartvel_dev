@@ -111,10 +111,19 @@ Widget showcaseHero(String platform, String deviceType, String backend) {
           .fontWeight(FontWeight.w600)
           .padding(4),
     ),
-    DVBox.wrapLine([
-      showcaseMetric('Platform', platform),
-      showcaseMetric('Device', deviceType),
-      showcaseMetric('Backend', backend),
+    DVBox.wrap([
+      DVBox.list([
+        const DVText('Platform').modifier(showcaseMetricLabelStyle),
+        DVText(platform).modifier(showcaseMetricValueStyle),
+      ]).modifier(showcaseMetricStyle),
+      DVBox.list([
+        const DVText('Device').modifier(showcaseMetricLabelStyle),
+        DVText(deviceType).modifier(showcaseMetricValueStyle),
+      ]).modifier(showcaseMetricStyle),
+      DVBox.list([
+        const DVText('Backend').modifier(showcaseMetricLabelStyle),
+        DVText(backend).modifier(showcaseMetricValueStyle),
+      ]).modifier(showcaseMetricStyle),
     ]),
   ]).modifier(
     const DVModifier()
