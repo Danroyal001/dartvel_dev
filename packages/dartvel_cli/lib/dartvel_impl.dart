@@ -18,6 +18,7 @@ import 'src/commands/preview_command.dart';
 import 'src/commands/queue_command.dart';
 import 'src/commands/routes_command.dart';
 import 'src/commands/shell_command.dart';
+import 'src/commands/test_command.dart';
 import 'src/commands/updates_command.dart';
 import 'src/commands/version_command.dart';
 import 'src/commands/watch_command.dart';
@@ -52,6 +53,7 @@ Future<void> main(List<String> args) async {
     ..addCommand(AiCommand())
     ..addCommand(ShCommand())
     ..addCommand(TaskCommand())
+    ..addCommand(TestCommand())
     ..addCommand(VersionCommand());
 
   try {
