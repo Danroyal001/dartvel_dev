@@ -247,20 +247,6 @@ class DVBox<T> extends StatelessWidget {
         _items = null,
         _itemBuilder = null;
 
-  const DVBox.wrap(
-    List<Widget> children, {
-    DVModifier? modifier,
-    double spacing = 8,
-  })  : _child = null,
-        _children = children,
-        _modifier = modifier,
-        _layout = _DVBoxLayout.wrap,
-        _columns = 1,
-        _spacing = spacing,
-        _scrollable = false,
-        _items = null,
-        _itemBuilder = null;
-
   const DVBox.wrapLine(
     List<Widget> children, {
     DVModifier? modifier,
@@ -373,9 +359,6 @@ class DVBox<T> extends StatelessWidget {
         columns: columns,
         spacing: spacing,
       );
-
-  DVBox<T> wrap({double spacing = 8}) =>
-      _copyWith(layout: _DVBoxLayout.wrap, spacing: spacing);
 
   DVBox<T> wrapLine({double spacing = 8}) =>
       _copyWith(layout: _DVBoxLayout.wrap, spacing: spacing);
