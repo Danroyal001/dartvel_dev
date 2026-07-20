@@ -695,8 +695,6 @@ ${(() {
       for (final p in (authMap['providers'] as YamlList)) {
         if (p != null) authProviders.add("'$p'");
       }
-    } else {
-      authProviders.add("'email'");
     }
 
     final aiMap = dv['ai'] is YamlMap ? dv['ai'] as YamlMap : YamlMap.wrap({});
