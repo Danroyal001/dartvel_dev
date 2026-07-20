@@ -773,6 +773,22 @@ void main() {
     expect(DV.Platform.camera.takePhoto(), throwsStateError);
   });
 
+  test('DV.Test refreshes the in-memory database for isolation', () async {
+    DV.Test.fakeDatabase();
+    await DV.Database.execute(
+      'insert into users (id, name) values (?, ?)',
+      <Object?>['1', 'Ada'],
+    );
+    expect(await DV.Database.query('select * from users'), hasLength(1));
+
+    DV.Test.refreshDatabase();
+
+    expect(await DV.Database.query('select * from users'), isEmpty);
+    expect(await DV.Database.query('select 1'), const <Map<String, dynamic>>[
+      <String, dynamic>{'1': 1}
+    ]);
+  });
+
   testWidgets('prebuilt auth pages use Dartvel primitives without scaffolds',
       (WidgetTester tester) async {
     await DV.Auth.signOut();
