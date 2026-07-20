@@ -1956,6 +1956,11 @@ await for (final chunk in User.Export.streamNdjson(users)) {
   await DV.Storage.put(chunk.fileName, chunk.bytes);
 }
 final report = await Order.Report.monthly(...);
+final scheduled = Order.Report.scheduleMonthly(cron: '0 8 1 * *');
+await Order.Report.dispatchMonthly(
+  cron: '0 8 1 * *',
+  queue: 'reports',
+);
 ```
 
 Exports use storage providers and queued jobs for large datasets.
@@ -1963,6 +1968,9 @@ Resumable imports dispatch typed `DVImportChunk` payloads through `DVQueues`, so
 workers can process large files without holding the entire import in one request.
 Tenant-aware and policy-filtered exports use `DVExportOptions<T>`, attach export
 metadata to `DVExportResult`, and can stream CSV/NDJSON chunks for large files.
+Scheduled reports generate typed `DVScheduledReport` payloads and dispatch them
+through `DVQueues`, so cron workers can execute report generation with durable
+retry, queue selection, priority, and report-period metadata.
 
 ---
 
