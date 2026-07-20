@@ -85,7 +85,7 @@ enum Platform {
 /// Platform configuration for Dartvel
 class PlatformConfig {
   final Set<Platform> enabledPlatforms;
-  final Map<Platform, Map<String, dynamic>> platformSettings;
+  final Map<Platform, Map<String, Object?>> platformSettings;
 
   const PlatformConfig({
     this.enabledPlatforms = const {
@@ -105,7 +105,7 @@ class PlatformConfig {
   }
 
   /// Get settings for a platform
-  Map<String, dynamic>? getSettingsFor(Platform platform) {
+  Map<String, Object?>? getSettingsFor(Platform platform) {
     return platformSettings[platform];
   }
 
