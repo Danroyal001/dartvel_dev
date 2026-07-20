@@ -125,6 +125,44 @@ class DVMiddleware {
   const DVMiddleware(this.names);
 }
 
+class DVMiddlewareKey {
+  final String name;
+
+  const DVMiddlewareKey(this.name);
+
+  @override
+  String toString() => name;
+}
+
+/// Typed annotation for page, layout, model, storage, and backend middleware.
+class DVUseMiddleware {
+  final List<DVMiddlewareKey> middleware;
+
+  const DVUseMiddleware(this.middleware);
+}
+
+class DVMiddlewares {
+  static const auth = DVMiddlewareKey('auth');
+  static const policy = DVMiddlewareKey('policy');
+  static const tenant = DVMiddlewareKey('tenant');
+  static const cors = DVMiddlewareKey('cors');
+  static const csrf = DVMiddlewareKey('csrf');
+  static const rateLimit = DVMiddlewareKey('rateLimit');
+  static const rateLimitCheckout = DVMiddlewareKey('rateLimitCheckout');
+  static const requestLogging = DVMiddlewareKey('requestLogging');
+  static const tracing = DVMiddlewareKey('tracing');
+  static const securityHeaders = DVMiddlewareKey('securityHeaders');
+  static const csp = DVMiddlewareKey('csp');
+  static const bodyLimit = DVMiddlewareKey('bodyLimit');
+  static const uploadLimit = DVMiddlewareKey('uploadLimit');
+  static const compression = DVMiddlewareKey('compression');
+  static const locale = DVMiddlewareKey('locale');
+  static const idempotency = DVMiddlewareKey('idempotency');
+  static const cacheTags = DVMiddlewareKey('cacheTags');
+  static const featureFlags = DVMiddlewareKey('featureFlags');
+  static const maintenance = DVMiddlewareKey('maintenance');
+}
+
 /// Annotation for model/resource authorization policies.
 class DVPolicy {
   final Type resource;
