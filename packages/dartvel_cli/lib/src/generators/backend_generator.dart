@@ -382,14 +382,14 @@ class DartvelClient {
     sbClient.writeln(
         'Map<String, String> _dvHeadersWithCsrf(String method, Map<String, String> headers) { if (!_dvRequiresCsrf(method)) return headers; return {...headers, DVCSRF.headerName: headers[DVCSRF.headerName] ?? _dvCsrfToken}; }');
     sbClient.writeln(
-        'Object? _dvPayloadWithCsrf(String method, Object? payload) { if (!_dvRequiresCsrf(method)) return payload; if (payload is Map) { final copy = Map<String, dynamic>.from(payload); copy.putIfAbsent(DVCSRF.fieldName, () => _dvCsrfToken); return copy; } try { final fields = (payload as dynamic).fields; if (fields is List && !fields.any((e) => e.key == DVCSRF.fieldName)) { fields.add(MapEntry(DVCSRF.fieldName, _dvCsrfToken)); } } catch (_) {} return payload; }');
+        'Object? _dvPayloadWithCsrf(String method, Object? payload) { if (!_dvRequiresCsrf(method)) return payload; if (payload is dio.FormData) { if (!payload.fields.any((field) => field.key == DVCSRF.fieldName)) { payload.fields.add(MapEntry<String, String>(DVCSRF.fieldName, _dvCsrfToken)); } return payload; } if (payload is Map<Object?, Object?>) { final copy = Map<String, Object?>.from(payload); copy.putIfAbsent(DVCSRF.fieldName, () => _dvCsrfToken); return copy; } return payload; }');
     sbClient.writeln(
         'Future<dio.Response<Object?>> _dvRequest(String method, Uri uri, {Object? data, Map<String, String>? headers}) async {');
     sbClient.writeln(
-        '  var hdrs = {...DartvelClient.defaultHeaders, ...(headers ?? {})};');
+        '  Map<String, String> hdrs = <String, String>{...DartvelClient.defaultHeaders, ...(headers ?? const <String, String>{})};');
     sbClient.writeln('  final methodUpper = method.toUpperCase();');
     sbClient.writeln(
-        "  var send = (data == null && methodUpper != 'GET' && methodUpper != 'HEAD') ? '' : data;");
+        "  Object? send = (data == null && methodUpper != 'GET' && methodUpper != 'HEAD') ? '' : data;");
     sbClient.writeln('  hdrs = _dvHeadersWithCsrf(methodUpper, hdrs);');
     sbClient.writeln('  send = _dvPayloadWithCsrf(methodUpper, send);');
     sbClient.writeln(
@@ -403,7 +403,7 @@ class DartvelClient {
         'Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson, {String method = "GET", Object? data, Map<String, String>? headers}) async* {');
     sbClient.writeln('  final methodUpper = method.toUpperCase();');
     sbClient.writeln(
-        '  var hdrs = {...DartvelClient.defaultHeaders, ...(headers ?? {})};');
+        '  Map<String, String> hdrs = <String, String>{...DartvelClient.defaultHeaders, ...(headers ?? const <String, String>{})};');
     sbClient.writeln('  hdrs = _dvHeadersWithCsrf(methodUpper, hdrs);');
     sbClient
         .writeln('  final reqPayload = _dvPayloadWithCsrf(methodUpper, data);');
@@ -418,7 +418,7 @@ class DartvelClient {
     sbClient.writeln('  );');
     sbClient.writeln(
         '  final bodyStream = (response.data as dio.ResponseBody).stream;');
-    sbClient.writeln('  var buffer = "";');
+    sbClient.writeln("  String buffer = '';");
     sbClient.writeln('  await for (final chunk in bodyStream) {');
     sbClient.writeln('    buffer += utf8.decode(chunk);');
     sbClient.writeln('    while (true) {');
@@ -451,7 +451,7 @@ class DartvelClient {
       final paramSig = RouteUtils.paramsListFor(colon);
       final hasParams = paramSig.isNotEmpty;
       final sig =
-          '{ ${hasParams ? ('$paramSig, ') : ''}Map<String, dynamic>? query, Object? body, Map<String, String>? headers }';
+          '{ ${hasParams ? ('$paramSig, ') : ''}Map<String, Object?>? query, Object? body, Map<String, String>? headers }';
       final names = RegExp(r':([a-zA-Z0-9_]+)')
           .allMatches(colon)
           .map((m) => m.group(1)!)
@@ -463,7 +463,8 @@ class DartvelClient {
           '${hasParams ? ('${names.map((n) => '$n: $n').join(', ')}, ') : ''}query: query, body: body, headers: headers';
 
       sbClient.writeln('Future<dio.Response<Object?>> $fname($sig) async {');
-      sbClient.writeln("  var routePath = '${colon.replaceAll("'", "\\'")}';");
+      sbClient
+          .writeln("  String routePath = '${colon.replaceAll("'", "\\'")}';");
       sbClient.writeln('  final Map<String, Object?> pp = $paramMap;');
       sbClient.writeln(
           "  pp.forEach((k, v) { final rep = (v is List) ? v.map((e)=>e.toString()).join('/') : ((v?.toString()) ?? ''); routePath = routePath.replaceAll(':\$k', Uri.encodeComponent(rep)); });");
@@ -476,7 +477,7 @@ class DartvelClient {
         sbClient.writeln(
             "  return _dvRequest('$method', uri, data: body, headers: headers);");
       } else {
-        sbClient.writeln('  final fb = <String, dynamic>{};');
+        sbClient.writeln('  final fb = <String, Object?>{};');
         sbClient.writeln(
             '  if (query != null) { query.forEach((k, v) { fb[k] = v; }); }');
         sbClient.writeln('  final uri = base;');
@@ -485,7 +486,7 @@ class DartvelClient {
         if (method == 'post') {
           // Enforce multipart form-data for all generated POST endpoints
           sbClient.writeln(
-              '  final reqPayload = (body is dio.FormData) ? body : (body == null ? dio.FormData.fromMap(fb) : (body is Map ? dio.FormData.fromMap(Map<String,dynamic>.from(body)) : body));');
+              '  final reqPayload = (body is dio.FormData) ? body : (body == null ? dio.FormData.fromMap(fb) : (body is Map<Object?, Object?> ? dio.FormData.fromMap(Map<String, Object?>.from(body)) : body));');
         } else {
           // Other non-GET methods: honor provided payload, fall back to simple map
           sbClient.writeln(
@@ -533,7 +534,7 @@ class DartvelClient {
         }
         if (tparams.isNotEmpty) bufSig.write(', ');
         bufSig.write(
-            'Map<String, dynamic>? query, Object? body, Map<String, String>? headers }');
+            'Map<String, Object?>? query, Object? body, Map<String, String>? headers }');
         final sigApi = bufSig.toString();
 
         // Determine which typed params are dynamic path segments.
@@ -570,7 +571,7 @@ class DartvelClient {
         final isStreamType = rtype.startsWith('Stream<');
 
         if (isStreamType) {
-          String innerType = 'dynamic';
+          String innerType = 'Object?';
           final match = RegExp(r'^Stream<(.+)>$').firstMatch(rtype);
           if (match != null) {
             innerType = match.group(1)!.trim();
@@ -603,8 +604,8 @@ class DartvelClient {
             sbClient.writeln('Stream<$innerType> $fnameApi($sigApi) {');
           }
 
-          sbClient
-              .writeln("  var routePath = '${colon.replaceAll("'", "\\'")}';");
+          sbClient.writeln(
+              "  String routePath = '${colon.replaceAll("'", "\\'")}';");
           sbClient.writeln('  final Map<String, Object?> pp = $ppExpr;');
           sbClient.writeln(
               "  pp.forEach((k, v) { final rep = (v is List) ? v.map((e)=>e.toString()).join('/') : ((v?.toString()) ?? ''); routePath = routePath.replaceAll(':\$k', Uri.encodeComponent(rep)); });");
@@ -615,7 +616,7 @@ class DartvelClient {
               "  if (query != null) { query.forEach((k, v) { qq[k] = v?.toString() ?? ''; }); }");
           if (qpAdd.isNotEmpty) qp.writeln('  $qpAdd');
           sbClient.writeln(qp.toString());
-          sbClient.writeln('  final fb = <String, dynamic>{};');
+          sbClient.writeln('  final fb = <String, Object?>{};');
           for (var j = 0; j < tparams.length; j++) {
             final pName = tparams[j];
             if (!names.contains(pName)) {
@@ -634,7 +635,7 @@ class DartvelClient {
             sbClient.writeln('  final reqPayload = body;');
           } else if (method == 'post') {
             sbClient.writeln(
-                '  final reqPayload = (body is dio.FormData) ? body : (body == null ? dio.FormData.fromMap(fb) : (body is Map ? dio.FormData.fromMap(Map<String,dynamic>.from(body)) : body));');
+                '  final reqPayload = (body is dio.FormData) ? body : (body == null ? dio.FormData.fromMap(fb) : (body is Map<Object?, Object?> ? dio.FormData.fromMap(Map<String, Object?>.from(body)) : body));');
           } else {
             sbClient.writeln(
                 '  final reqPayload = (body is dio.FormData) ? body : (body ?? fb);');
@@ -677,9 +678,8 @@ class DartvelClient {
             if (tt.startsWith('List<bool')) {
               return "(r.data as List).map((e)=> (e is bool) ? e : ((e?.toString().toLowerCase() ?? '') == 'true')).toList() as $t";
             }
-            if (tt.startsWith('Map<String,dynamic') ||
-                tt.startsWith('Map<String,Object')) {
-              return 'Map<String, dynamic>.from(r.data as Map)';
+            if (tt.startsWith('Map<String,Object')) {
+              return 'Map<String, Object?>.from(r.data as Map<Object?, Object?>)';
             }
             // Fallback: require a mapper
             return '';
@@ -694,8 +694,8 @@ class DartvelClient {
           } else {
             sbClient.writeln('Future<$rtype> $fnameApi($sigApi) async {');
           }
-          sbClient
-              .writeln("  var routePath = '${colon.replaceAll("'", "\\'")}';");
+          sbClient.writeln(
+              "  String routePath = '${colon.replaceAll("'", "\\'")}';");
           sbClient.writeln('  final Map<String, Object?> pp = $ppExpr;');
           sbClient.writeln(
               "  pp.forEach((k, v) { final rep = (v is List) ? v.map((e)=>e.toString()).join('/') : ((v?.toString()) ?? ''); routePath = routePath.replaceAll(':\$k', Uri.encodeComponent(rep)); });");
@@ -707,7 +707,7 @@ class DartvelClient {
               "  if (query != null) { query.forEach((k, v) { qq[k] = v?.toString() ?? ''; }); }");
           if (qpAdd.isNotEmpty) qp.writeln('  $qpAdd');
           sbClient.writeln(qp.toString());
-          sbClient.writeln('  final fb = <String, dynamic>{};');
+          sbClient.writeln('  final fb = <String, Object?>{};');
           for (var j = 0; j < tparams.length; j++) {
             final pName = tparams[j];
             if (!names.contains(pName)) {
@@ -726,7 +726,7 @@ class DartvelClient {
             sbClient.writeln('  final reqPayload = body;');
           } else if (method == 'post') {
             sbClient.writeln(
-                '  final reqPayload = (body is dio.FormData) ? body : (body == null ? dio.FormData.fromMap(fb) : (body is Map ? dio.FormData.fromMap(Map<String,dynamic>.from(body)) : body));');
+                '  final reqPayload = (body is dio.FormData) ? body : (body == null ? dio.FormData.fromMap(fb) : (body is Map<Object?, Object?> ? dio.FormData.fromMap(Map<String, Object?>.from(body)) : body));');
           } else {
             sbClient.writeln(
                 '  final reqPayload = (body is dio.FormData) ? body : (body ?? fb);');
