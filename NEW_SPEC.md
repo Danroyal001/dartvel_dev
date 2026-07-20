@@ -1688,7 +1688,27 @@ Features:
 Generated API:
 
 ```dart
+class AppText {
+  static const settingsTitle = DVTranslationKey('settings.title');
+  static const inboxCount = DVTranslationKey('inbox.count');
+}
+
+DV.I18n.load(const DVTranslationCatalog(
+  locale: LocaleTag.enUS,
+  messages: <DVTranslationKey, String>{
+    AppText.settingsTitle: 'Settings',
+  },
+  plurals: <DVTranslationKey, DVPluralForms>{
+    AppText.inboxCount: DVPluralForms(
+      one: '{count} message',
+      other: '{count} messages',
+    ),
+  },
+));
+
 DVText(DV.I18n.t(AppText.settingsTitle)); // or `DVText(DV.I18n.translate(AppText.settingsTitle));` full alias
+DVText(DV.I18n.plural(AppText.inboxCount, 3));
+DV.I18n.formatCurrency(12.5, code: 'USD');
 
 context.locale.set(LocaleTag.enUS);
 ```
