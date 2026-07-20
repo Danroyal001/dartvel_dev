@@ -253,6 +253,7 @@ export 'config.g.dart';
 export 'dartvel_config.g.dart';
 export 'dartvel_runtime.dart';
 export 'env.g.dart';
+export 'ai_tools.g.dart';
 export 'functions.g.dart';
 export 'models.g.dart';
 export 'router.g.dart';

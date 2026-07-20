@@ -750,6 +750,11 @@ class DartvelClient {
       root: root,
       pkgName: pkgName,
     ));
+    File(p.join(libClientDir.path, 'ai_tools.g.dart'))
+        .writeAsStringSync(await _generateAITools(
+      root: root,
+      pkgName: pkgName,
+    ));
 
     // Update .gitignore to exclude generated files (idempotent)
     final gitignore = File(p.join(root, '.gitignore'));
@@ -850,6 +855,56 @@ class DartvelClient {
     return sb.toString();
   }
 
+  static Future<String> _generateAITools({
+    required String root,
+    required String pkgName,
+  }) async {
+    final fs = const LocalFileSystem();
+    final files = <File>[];
+    for (final entity in Glob('lib/**.dart')
+        .listFileSystemSync(fs, root: root, followLinks: false)) {
+      if (entity is! File) continue;
+      final normalized = entity.path.replaceAll('\\', '/');
+      if (normalized.contains('/lib/dartvel_client/')) continue;
+      files.add(File(entity.path));
+    }
+    files.sort((a, b) => a.path.compareTo(b.path));
+
+    final entries = <_AIToolEntry>[];
+    for (final file in files) {
+      final source = await file.readAsString();
+      final relativePath =
+          p.relative(file.path, from: root).replaceAll('\\', '/');
+      final importUri =
+          relativePath.replaceFirst(RegExp(r'^lib/'), 'package:$pkgName/');
+      _collectAIToolEntries(
+        source: source,
+        relativePath: relativePath,
+        importUri: importUri,
+        entries: entries,
+      );
+    }
+
+    final sb = StringBuffer()
+      ..writeln('// GENERATED – do not edit.')
+      ..writeln('library dartvel_client_ai_tools;')
+      ..writeln()
+      ..writeln("import 'package:dartvel_core/dartvel.dart';")
+      ..writeln()
+      ..writeln('const List<DVAIToolEntry> dartvelAITools = <DVAIToolEntry>[');
+    for (final entry in entries) {
+      sb
+        ..writeln('  DVAIToolEntry(')
+        ..writeln("    name: '${esc(entry.name)}',")
+        ..writeln("    description: '${esc(entry.description)}',")
+        ..writeln("    importUri: '${esc(entry.importUri)}',")
+        ..writeln("    filePath: '${esc(entry.relativePath)}',")
+        ..writeln('  ),');
+    }
+    sb.writeln('];');
+    return sb.toString();
+  }
+
   static Future<void> _validateMiddlewareAnnotations(String root) async {
     const supported = <String>{
       'auth',
@@ -933,6 +988,29 @@ class DartvelClient {
       ));
     }
   }
+
+  static void _collectAIToolEntries({
+    required String source,
+    required String relativePath,
+    required String importUri,
+    required List<_AIToolEntry> entries,
+  }) {
+    final pattern = RegExp(
+      r"""@DVAITool\s*\(\s*(?:description\s*:\s*(['"])(.*?)\1\s*)?\)\s*"""
+      r'(?:@[A-Za-z_][A-Za-z0-9_]*(?:\([^)]*\))?\s*)*'
+      r'(?:Future<[^>]+>|Future|Stream<[^>]+>|[A-Za-z_][A-Za-z0-9_<>, ?]*)\s+'
+      r'([A-Za-z_][A-Za-z0-9_]*)\s*\(',
+      dotAll: true,
+    );
+    for (final match in pattern.allMatches(source)) {
+      entries.add(_AIToolEntry(
+        name: match.group(3)!,
+        description: match.group(2) ?? '',
+        importUri: importUri,
+        relativePath: relativePath,
+      ));
+    }
+  }
 }
 
 class _CronEntry {
@@ -946,6 +1024,20 @@ class _CronEntry {
     required this.name,
     required this.cron,
     required this.target,
+    required this.importUri,
+    required this.relativePath,
+  });
+}
+
+class _AIToolEntry {
+  final String name;
+  final String description;
+  final String importUri;
+  final String relativePath;
+
+  const _AIToolEntry({
+    required this.name,
+    required this.description,
     required this.importUri,
     required this.relativePath,
   });

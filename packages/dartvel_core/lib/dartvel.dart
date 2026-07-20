@@ -37,6 +37,20 @@ class DVCronEntry {
   });
 }
 
+class DVAIToolEntry {
+  final String name;
+  final String description;
+  final String importUri;
+  final String filePath;
+
+  const DVAIToolEntry({
+    required this.name,
+    required this.description,
+    required this.importUri,
+    required this.filePath,
+  });
+}
+
 // Simple HeaderValue parser to avoid dart:io dependency
 class _HeaderValue {
   final String value;
