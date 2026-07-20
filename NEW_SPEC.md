@@ -2078,6 +2078,7 @@ final files = await DV.$('ls **/*.dart').text();
 dartvel task clean
 dartvel task build:web
 dartvel sh "flutter doctor"
+dartvel sh "dart list.dart *.dart | dart filter.dart > report.txt 2> errors.txt"
 ```
 
 Tasks can live in `pubspec.yaml`, `.dartvel.sh`, or `.dartvel.dart`.
