@@ -8,7 +8,7 @@ import 'package:dartvel_example/pages/index.page.dart' deferred as p2;
 void main() async {
   final outDir = Directory('build/web/_ssg');
   if (!outDir.existsSync()) outDir.createSync(recursive: true);
-  print('Generating SSG data...');
+  stdout.writeln('Generating SSG data...');
   // /about
   try {
     final page = const p0.AboutPage();
@@ -25,5 +25,5 @@ void main() async {
   // Skipped functional widget page: /blog/:id
   // /
   // Skipped functional widget page: /
-  print('SSG generation complete.');
+  stdout.writeln('SSG generation complete.');
 }

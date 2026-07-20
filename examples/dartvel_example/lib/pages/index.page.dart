@@ -119,6 +119,32 @@ Widget indexPage(BuildContext context) {
       DVText(
         'Generated model SQL: ${const User(name: 'Ada', email: 'ada@example.com').createTableSql}',
       ),
+      DVBox.wrap([
+        ShowcaseButton('Monthly Report', () {
+          final report = UserReport.monthly(const <User>[
+            User(name: 'Ada Lovelace', email: 'ada@example.com'),
+            User(name: 'Grace Hopper', email: 'grace@example.com'),
+          ]);
+          _showMessage(context, 'Report count: ${report.metrics['count']}');
+        }),
+        ShowcaseButton('Schedule Report', () {
+          final scheduled = UserReport.scheduleMonthly(
+            cron: '0 8 1 * *',
+            metadata: const <String, String>{'tenant': 'demo'},
+          );
+          _showMessage(
+              context, 'Scheduled ${scheduled.name}: ${scheduled.cron}');
+        }),
+        ShowcaseButton('Dispatch Report Job', () async {
+          final job = await UserReport.dispatchMonthly(
+            queue: 'reports',
+            metadata: const <String, String>{'source': 'showcase'},
+          );
+          if (context.mounted) {
+            _showMessage(context, 'Report job queued: ${job.queue}');
+          }
+        }),
+      ]),
     ]),
     ShowcaseSection('Streaming Functions', [
       ShowcaseButton(isStreaming.value ? 'Stop SSE Stream' : 'Start SSE Stream',
@@ -241,6 +267,14 @@ Widget indexPage(BuildContext context) {
               : ThemeMode.dark;
           DV.Theme.setMode(next);
           _showMessage(context, 'Theme: ${DV.Theme.mode.name}');
+        }),
+        ShowcaseButton('Typed Shell', () async {
+          final result = await const DVShell().runCommand(
+            const DVShellCommand('dart').arg('--version').env('CI', 'true'),
+          );
+          if (context.mounted) {
+            _showMessage(context, 'Shell exit code: ${result.exitCode}');
+          }
         }),
       ]),
     ]),
