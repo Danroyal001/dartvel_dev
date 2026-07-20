@@ -32,6 +32,9 @@ void main() {
         forceDart: false,
         watch: false,
         reporter: 'compact',
+        totalShards: null,
+        shardIndex: null,
+        isolate: false,
         forwardedArgs: const <String>[],
         root: temp,
       );
@@ -53,6 +56,9 @@ void main() {
         forceDart: false,
         watch: false,
         reporter: null,
+        totalShards: null,
+        shardIndex: null,
+        isolate: false,
         forwardedArgs: const <String>['--plain-name', 'smoke'],
         root: temp,
       );
@@ -84,6 +90,9 @@ void main() {
         forceDart: true,
         watch: false,
         reporter: null,
+        totalShards: null,
+        shardIndex: null,
+        isolate: false,
         forwardedArgs: const <String>[],
         root: temp,
       );
@@ -101,6 +110,9 @@ void main() {
         forceDart: false,
         watch: false,
         reporter: null,
+        totalShards: null,
+        shardIndex: null,
+        isolate: false,
         forwardedArgs: const <String>[],
         root: temp,
       );
@@ -121,11 +133,59 @@ void main() {
         forceDart: false,
         watch: false,
         reporter: null,
+        totalShards: null,
+        shardIndex: null,
+        isolate: false,
         forwardedArgs: const <String>[],
         root: temp,
       );
 
       expect(invocation.arguments, <String>['test', 'test/release_test.dart']);
+    });
+
+    test('resolves shard and isolation flags for CI', () {
+      Directory(p.join(temp.path, 'test')).createSync();
+      final invocation = DartvelTestInvocation.resolve(
+        mode: 'unit',
+        forceFlutter: false,
+        forceDart: true,
+        watch: false,
+        reporter: null,
+        totalShards: 4,
+        shardIndex: 2,
+        isolate: true,
+        forwardedArgs: const <String>[],
+        root: temp,
+      );
+
+      expect(invocation.arguments, <String>[
+        'test',
+        'test',
+        '--total-shards',
+        '4',
+        '--shard-index',
+        '2',
+        '--concurrency',
+        '1',
+      ]);
+    });
+
+    test('rejects incomplete shard options', () {
+      expect(
+        () => DartvelTestInvocation.resolve(
+          mode: 'unit',
+          forceFlutter: false,
+          forceDart: true,
+          watch: false,
+          reporter: null,
+          totalShards: 2,
+          shardIndex: null,
+          isolate: false,
+          forwardedArgs: const <String>[],
+          root: temp,
+        ),
+        throwsArgumentError,
+      );
     });
 
     test('dry-run command accepts accessibility mode', () async {
