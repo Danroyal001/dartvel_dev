@@ -198,13 +198,13 @@ class DvMultipartFile {
   DvMultipartFile(this.name, this.filename, this.contentType, this.bytes);
 }
 
-Future<Map<String, dynamic>> _parseMultipart(
+Future<Map<String, Object?>> _parseMultipart(
     Stream<List<int>> stream, String contentType) async {
   final boundary = RegExp(r'boundary=([^;]+)').firstMatch(contentType)?.group(1)?.replaceAll('"', '') ?? '';
   if (boundary.isEmpty) return {};
   final transformer = MimeMultipartTransformer(boundary);
   final parts = stream.transform(transformer);
-  final out = <String, dynamic>{};
+  final out = <String, Object?>{};
   await for (final part in parts) {
     final headers = part.headers;
     final cd = headers['content-disposition'] ?? '';
