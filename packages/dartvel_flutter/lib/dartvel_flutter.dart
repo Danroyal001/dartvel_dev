@@ -2330,7 +2330,7 @@ extension DVFlutterTestHarness on DVTestHarness {
 
   MemoryDVDatabaseAdapter fakeDatabase() {
     final adapter = MemoryDVDatabaseAdapter();
-    DVDatabase.configure(adapter);
+    DV.Database.configure(adapter);
     return adapter;
   }
 
@@ -2358,6 +2358,10 @@ extension DVFlutterTestHarness on DVTestHarness {
 
   void refreshDatabase() {
     fakeDatabase();
+  }
+
+  void resetDatabaseProvider() {
+    DVDatabase._adapter = null;
   }
 
   void resetAI() {
@@ -2649,9 +2653,9 @@ class LocalDVAIAdapter implements DVAIAdapter {
 
 class DVDatabase {
   const DVDatabase();
-  static DVDatabaseAdapter _adapter = MemoryDVDatabaseAdapter();
+  static DVDatabaseAdapter? _adapter;
 
-  static void configure(DVDatabaseAdapter adapter) {
+  void configure(DVDatabaseAdapter adapter) {
     _adapter = adapter;
   }
 
@@ -2659,10 +2663,20 @@ class DVDatabase {
     String sql, [
     List<Object?>? params,
   ]) =>
-      _adapter.query(sql, params);
+      _configuredAdapter.query(sql, params);
 
   Future<int> execute(String sql, [List<Object?>? params]) =>
-      _adapter.execute(sql, params);
+      _configuredAdapter.execute(sql, params);
+
+  static DVDatabaseAdapter get _configuredAdapter {
+    final adapter = _adapter;
+    if (adapter == null) {
+      throw StateError(
+        'DV.Database has no configured adapter. Configure SQLite or another database adapter before use.',
+      );
+    }
+    return adapter;
+  }
 }
 
 abstract class DVDatabaseAdapter {

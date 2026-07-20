@@ -11,6 +11,7 @@ void main() {
   setUp(() {
     DV.Auth.configure(DVLocalAuthProvider());
     DV.AI.configure(const LocalDVAIAdapter());
+    DV.Test.fakeDatabase();
   });
 
   testWidgets('DVBox and DVText render correctly with style modifiers',
@@ -556,6 +557,11 @@ void main() {
   test('DV.AI rejects requests without a configured adapter', () {
     DV.Test.resetAIProvider();
     expect(() => DV.AI.chat('missing adapter'), throwsStateError);
+  });
+
+  test('DV.Database rejects queries without a configured adapter', () {
+    DV.Test.resetDatabaseProvider();
+    expect(() => DV.Database.query('select 1'), throwsStateError);
   });
 
   testWidgets('DV accessibility modifiers expose semantics and tap targets',
