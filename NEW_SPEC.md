@@ -1443,6 +1443,35 @@ than loose dynamic maps. The same metadata can map to platform equivalents such
 as Android App Functions while remaining available to Dartvel-native AI and
 WebMCP.
 
+Structured outputs, transcription, and agents use the same typed JSON model:
+```dart
+final structured = await DV.AI.structuredOutput(
+  'Summarize this ledger',
+  const <String, DVJsonValue>{'summary': DVJsonString('string')},
+);
+
+final transcript = await DV.AI.transcribe(
+  audioBytes,
+  mimeType: 'audio/mpeg',
+  language: 'en',
+);
+
+final agentResult = await DV.AI.runAgent(
+  const DVAIAgentRequest(
+    goal: 'Reconcile the ledger',
+    context: <String, DVJsonValue>{
+      'left': DVJsonNumber(4),
+      'right': DVJsonNumber(6),
+    },
+    tools: <String>['sumLedger'],
+  ),
+);
+```
+
+`DVAIAdapter` providers implement chat, embeddings, typed structured output,
+transcription, and agent execution. The local adapter provides deterministic
+testable behavior so tests do not pass through ignored or empty AI paths.
+
 ---
 
 # Monitoring and Observability
