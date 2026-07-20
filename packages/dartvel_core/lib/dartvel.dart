@@ -998,9 +998,27 @@ class DVCacheTags {
 class DVTestHarness {
   const DVTestHarness();
 
-  void resetQueues() {
-    const DVQueues().useAdapter(DVInMemoryQueueAdapter());
+  DVInMemoryQueueAdapter fakeQueue() {
+    final adapter = DVInMemoryQueueAdapter();
+    const DVQueues().useAdapter(adapter);
     DVQueues._handlers.clear();
+    return adapter;
+  }
+
+  DVMemoryMailProvider fakeMail() {
+    final provider = DVMemoryMailProvider();
+    const DVNotificationMail().useProvider(provider);
+    return provider;
+  }
+
+  DVMemoryNotificationProvider fakeNotifications() {
+    final provider = DVMemoryNotificationProvider();
+    const DVNotificationsService().register(provider);
+    return provider;
+  }
+
+  void resetQueues() {
+    fakeQueue();
   }
 
   void resetSignals() {
@@ -1017,5 +1035,15 @@ class DVTestHarness {
 
   void resetAITools() {
     const DVAIToolRegistry().clear();
+  }
+
+  void resetMail() {
+    const DVNotificationMail().useProvider(DVMemoryMailProvider());
+  }
+
+  void resetNotifications() {
+    DVNotificationsService._providers
+      ..clear()
+      ..[DVNotificationProviderKind.local] = DVMemoryNotificationProvider();
   }
 }
