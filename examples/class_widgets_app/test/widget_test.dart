@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   testWidgets('class widget app renders generated Dartvel route',
       (WidgetTester tester) async {
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(createDartvelApp());
     await tester.pumpAndSettle();
 
     expect(

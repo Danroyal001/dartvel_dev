@@ -6,7 +6,7 @@ import 'package:dartvel_example/main.dart';
 void main() {
   testWidgets('Dartvel showcase renders generated app shell',
       (WidgetTester tester) async {
-    await tester.pumpWidget(const DartvelExampleApp());
+    await tester.pumpWidget(createDartvelExampleApp());
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
     await tester.pump(const Duration(seconds: 1));

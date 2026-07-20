@@ -208,26 +208,21 @@ Future<Map<String, dynamic>> handler(
 ''';
 
   static const String mainTemplate = '''import 'package:flutter/material.dart';
-import 'dartvel_client/router.g.dart';
+import 'dartvel_client/dartvel_client.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(createDartvelApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp.router(
-      title: 'Dartvel App',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-        useMaterial3: true,
-      ),
-      routerConfig: createDartvelRouter(),
-    );
-  }
+Widget createDartvelApp() {
+  return MaterialApp.router(
+    title: 'Dartvel App',
+    theme: ThemeData(
+      colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+      useMaterial3: true,
+    ),
+    routerConfig: createDartvelRouter(),
+  );
 }
 ''';
 
