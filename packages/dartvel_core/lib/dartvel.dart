@@ -305,6 +305,23 @@ enum DVJobState {
   deadLettered,
 }
 
+/// Type-erased queue storage marker. User job payloads remain strongly typed
+/// at dispatch and handler registration boundaries.
+abstract class DVJobPayload {
+  const DVJobPayload();
+
+  Type get payloadType;
+}
+
+class _DVStoredJobPayload<TPayload> extends DVJobPayload {
+  final TPayload value;
+
+  const _DVStoredJobPayload(this.value);
+
+  @override
+  Type get payloadType => TPayload;
+}
+
 typedef DVJobHandler<TPayload> = FutureOr<void> Function(TPayload payload);
 typedef DVPolicyCheck<TUser, TResource> = FutureOr<bool> Function(
   TUser user,
@@ -612,6 +629,7 @@ class DVScheduledReport {
 class DVJobEnvelope<TPayload> {
   final String id;
   final String queue;
+  final Type payloadType;
   final TPayload payload;
   final int priority;
   final int maxAttempts;
@@ -619,11 +637,12 @@ class DVJobEnvelope<TPayload> {
   final DateTime createdAt;
   final int attempts;
   final DVJobState state;
-  final Object? lastError;
+  final String? lastError;
 
   const DVJobEnvelope({
     required this.id,
     required this.queue,
+    required this.payloadType,
     required this.payload,
     required this.priority,
     required this.maxAttempts,
@@ -637,11 +656,12 @@ class DVJobEnvelope<TPayload> {
   DVJobEnvelope<TPayload> copyWith({
     int? attempts,
     DVJobState? state,
-    Object? lastError,
+    String? lastError,
   }) {
     return DVJobEnvelope<TPayload>(
       id: id,
       queue: queue,
+      payloadType: payloadType,
       payload: payload,
       priority: priority,
       maxAttempts: maxAttempts,
@@ -663,19 +683,19 @@ abstract class DVQueueAdapter {
     Duration backoff,
   });
 
-  Future<DVJobEnvelope<Object?>?> reserve(String queue);
+  Future<DVJobEnvelope<DVJobPayload>?> reserve(String queue);
   Future<void> complete(String id);
-  Future<void> fail(String id, Object error, StackTrace stackTrace);
-  Future<List<DVJobEnvelope<Object?>>> pending(String queue);
-  Future<List<DVJobEnvelope<Object?>>> deadLetters(String queue);
+  Future<void> fail(String id, String error, StackTrace stackTrace);
+  Future<List<DVJobEnvelope<DVJobPayload>>> pending(String queue);
+  Future<List<DVJobEnvelope<DVJobPayload>>> deadLetters(String queue);
   Future<bool> retry(String id);
   Future<int> flush(String queue);
 }
 
 class DVInMemoryQueueAdapter implements DVQueueAdapter {
-  final Map<String, List<DVJobEnvelope<Object?>>> _pending = {};
-  final Map<String, DVJobEnvelope<Object?>> _reserved = {};
-  final Map<String, List<DVJobEnvelope<Object?>>> _deadLetters = {};
+  final Map<String, List<DVJobEnvelope<DVJobPayload>>> _pending = {};
+  final Map<String, DVJobEnvelope<DVJobPayload>> _reserved = {};
+  final Map<String, List<DVJobEnvelope<DVJobPayload>>> _deadLetters = {};
   int _sequence = 0;
 
   @override
@@ -689,6 +709,7 @@ class DVInMemoryQueueAdapter implements DVQueueAdapter {
     final envelope = DVJobEnvelope<TPayload>(
       id: 'job-${DateTime.now().microsecondsSinceEpoch}-${_sequence++}',
       queue: queue,
+      payloadType: TPayload,
       payload: payload,
       priority: priority,
       maxAttempts: maxAttempts,
@@ -697,13 +718,25 @@ class DVInMemoryQueueAdapter implements DVQueueAdapter {
       attempts: 0,
       state: DVJobState.queued,
     );
-    (_pending[queue] ??= []).add(envelope as DVJobEnvelope<Object?>);
+    final stored = DVJobEnvelope<DVJobPayload>(
+      id: envelope.id,
+      queue: envelope.queue,
+      payloadType: envelope.payloadType,
+      payload: _DVStoredJobPayload<TPayload>(payload),
+      priority: envelope.priority,
+      maxAttempts: envelope.maxAttempts,
+      backoff: envelope.backoff,
+      createdAt: envelope.createdAt,
+      attempts: envelope.attempts,
+      state: envelope.state,
+    );
+    (_pending[queue] ??= []).add(stored);
     _pending[queue]!.sort((a, b) => b.priority.compareTo(a.priority));
     return envelope;
   }
 
   @override
-  Future<DVJobEnvelope<Object?>?> reserve(String queue) async {
+  Future<DVJobEnvelope<DVJobPayload>?> reserve(String queue) async {
     final list = _pending[queue];
     if (list == null || list.isEmpty) return null;
     final next = list.removeAt(0).copyWith(state: DVJobState.running);
@@ -717,7 +750,7 @@ class DVInMemoryQueueAdapter implements DVQueueAdapter {
   }
 
   @override
-  Future<void> fail(String id, Object error, StackTrace stackTrace) async {
+  Future<void> fail(String id, String error, StackTrace stackTrace) async {
     final current = _reserved.remove(id);
     if (current == null) return;
     final failed = current.copyWith(
@@ -737,16 +770,16 @@ class DVInMemoryQueueAdapter implements DVQueueAdapter {
   }
 
   @override
-  Future<List<DVJobEnvelope<Object?>>> pending(String queue) async {
-    return List<DVJobEnvelope<Object?>>.unmodifiable(
-      _pending[queue] ?? const <DVJobEnvelope<Object?>>[],
+  Future<List<DVJobEnvelope<DVJobPayload>>> pending(String queue) async {
+    return List<DVJobEnvelope<DVJobPayload>>.unmodifiable(
+      _pending[queue] ?? const <DVJobEnvelope<DVJobPayload>>[],
     );
   }
 
   @override
-  Future<List<DVJobEnvelope<Object?>>> deadLetters(String queue) async {
-    return List<DVJobEnvelope<Object?>>.unmodifiable(
-      _deadLetters[queue] ?? const <DVJobEnvelope<Object?>>[],
+  Future<List<DVJobEnvelope<DVJobPayload>>> deadLetters(String queue) async {
+    return List<DVJobEnvelope<DVJobPayload>>.unmodifiable(
+      _deadLetters[queue] ?? const <DVJobEnvelope<DVJobPayload>>[],
     );
   }
 
@@ -774,9 +807,26 @@ class DVInMemoryQueueAdapter implements DVQueueAdapter {
   }
 }
 
+abstract class _DVRegisteredJobHandler {
+  Future<void> invoke(DVJobPayload payload);
+}
+
+class _DVTypedRegisteredJobHandler<TPayload>
+    implements _DVRegisteredJobHandler {
+  final DVJobHandler<TPayload> handler;
+
+  const _DVTypedRegisteredJobHandler(this.handler);
+
+  @override
+  Future<void> invoke(DVJobPayload payload) async {
+    final stored = payload as _DVStoredJobPayload<TPayload>;
+    await handler(stored.value);
+  }
+}
+
 class DVQueues {
   static DVQueueAdapter _adapter = DVInMemoryQueueAdapter();
-  static final Map<Type, DVJobHandler<Object?>> _handlers = {};
+  static final Map<Type, _DVRegisteredJobHandler> _handlers = {};
 
   const DVQueues();
 
@@ -785,7 +835,7 @@ class DVQueues {
   }
 
   void register<TPayload>(DVJobHandler<TPayload> handler) {
-    _handlers[TPayload] = (payload) => handler(payload as TPayload);
+    _handlers[TPayload] = _DVTypedRegisteredJobHandler<TPayload>(handler);
   }
 
   Future<DVJobEnvelope<TPayload>> dispatch<TPayload>(
@@ -812,32 +862,33 @@ class DVQueues {
     for (var i = 0; i < maxJobs; i++) {
       final envelope = await _adapter.reserve(queue);
       if (envelope == null) break;
-      final handler = _handlers[envelope.payload.runtimeType];
+      final handler = _handlers[envelope.payloadType];
       if (handler == null) {
         await _adapter.fail(
           envelope.id,
-          StateError(
-              'No DV job handler registered for ${envelope.payload.runtimeType}.'),
+          'No DV job handler registered for ${envelope.payloadType}.',
           StackTrace.current,
         );
         continue;
       }
       try {
-        await handler(envelope.payload);
+        await handler.invoke(envelope.payload);
         await _adapter.complete(envelope.id);
         completed++;
       } catch (error, stackTrace) {
-        await _adapter.fail(envelope.id, error, stackTrace);
+        await _adapter.fail(envelope.id, error.toString(), stackTrace);
       }
     }
     return completed;
   }
 
-  Future<List<DVJobEnvelope<Object?>>> pending([String queue = 'default']) {
+  Future<List<DVJobEnvelope<DVJobPayload>>> pending([
+    String queue = 'default',
+  ]) {
     return _adapter.pending(queue);
   }
 
-  Future<List<DVJobEnvelope<Object?>>> deadLetters([
+  Future<List<DVJobEnvelope<DVJobPayload>>> deadLetters([
     String queue = 'default',
   ]) {
     return _adapter.deadLetters(queue);
