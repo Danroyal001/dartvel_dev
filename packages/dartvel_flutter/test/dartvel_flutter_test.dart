@@ -63,7 +63,7 @@ void main() {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(
-          body: DVBox.wrapLine([
+          body: DVBox.wrap([
             DVText('One'),
             DVText('Two'),
             DVText('Three'),
@@ -81,7 +81,7 @@ void main() {
           body: DVBox.builder<int>(
             [1, 2, 3],
             (item) => DVText('Chip $item'),
-          ).wrapLine(),
+          ).wrap(),
         ),
       ),
     );
