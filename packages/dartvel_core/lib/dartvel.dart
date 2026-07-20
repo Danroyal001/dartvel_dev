@@ -561,11 +561,11 @@ class DVNotificationsService {
   }
 }
 
-class DVAuthorization {
+class DVAuthAuthorization {
   static final Map<String, FutureOr<bool> Function(Object?, Object?)>
       _policies = {};
 
-  const DVAuthorization();
+  const DVAuthAuthorization();
 
   void register<TUser, TResource>(
     String action,
@@ -630,7 +630,7 @@ class DVTestHarness {
   }
 
   void resetPolicies() {
-    DVAuthorization._policies.clear();
+    DVAuthAuthorization._policies.clear();
   }
 
   void resetCacheTags() {

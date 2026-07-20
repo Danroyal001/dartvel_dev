@@ -24,7 +24,7 @@ export 'package:dartvel_core/dartvel.dart'
         AnalyticsProvider,
         DVFormControls,
         DVFormControlsFactory,
-        DVAuthorization,
+        DVAuthAuthorization,
         DVJob,
         DVMiddleware,
         DVPolicy,
@@ -1473,7 +1473,7 @@ class DVAuth {
   static DVAuthUser? _currentUser;
 
   Object? get currentUser => _currentUser;
-  DVAuthorization get authorization => const DVAuthorization();
+  DVAuthAuthorization get authorization => const DVAuthAuthorization();
 
   Future<void> signIn() async {
     _currentUser = DVAuthUser(
