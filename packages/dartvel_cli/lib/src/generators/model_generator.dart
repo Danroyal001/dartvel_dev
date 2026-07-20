@@ -30,6 +30,7 @@ class ModelGenerator {
     sb.writeln('// Build ID: $buildId');
     sb.writeln();
     sb.writeln("import 'dart:convert' as convert;");
+    sb.writeln("import 'dart:math' as math;");
     sb.writeln();
     sb.writeln("import 'package:dartvel_core/dartvel.dart';");
 
@@ -223,6 +224,30 @@ class ModelGenerator {
         sb.writeln('  }');
         sb.writeln();
         sb.writeln(
+            '  static Future<List<DVJobEnvelope<DVImportChunk>>> resumableCsv(');
+        sb.writeln('    String content, {');
+        sb.writeln("    String queue = 'imports',");
+        sb.writeln('    int chunkSize = 500,');
+        sb.writeln('  }) async {');
+        sb.writeln(
+            '    final chunks = _chunkImportRows(content, chunkSize: chunkSize);');
+        sb.writeln('    final jobs = <DVJobEnvelope<DVImportChunk>>[];');
+        sb.writeln('    for (final chunk in chunks) {');
+        sb.writeln(
+            '      jobs.add(await const DVQueues().dispatch<DVImportChunk>(');
+        sb.writeln('        DVImportChunk(');
+        sb.writeln("          model: '$className',");
+        sb.writeln("          format: 'csv',");
+        sb.writeln("          startRow: chunk['startRow'] as int,");
+        sb.writeln("          rows: chunk['rows'] as List<String>,");
+        sb.writeln('        ),');
+        sb.writeln('        queue: queue,');
+        sb.writeln('      ));');
+        sb.writeln('    }');
+        sb.writeln('    return jobs;');
+        sb.writeln('  }');
+        sb.writeln();
+        sb.writeln(
             '  static DVImportResult<$className> ndjson(String content) {');
         sb.writeln('    final lines = const convert.LineSplitter()');
         sb.writeln('        .convert(content)');
@@ -248,6 +273,30 @@ class ModelGenerator {
         sb.writeln('    }');
         sb.writeln(
             '    return DVImportResult<$className>(items: items, errors: errors);');
+        sb.writeln('  }');
+        sb.writeln();
+        sb.writeln(
+            '  static Future<List<DVJobEnvelope<DVImportChunk>>> resumableNdjson(');
+        sb.writeln('    String content, {');
+        sb.writeln("    String queue = 'imports',");
+        sb.writeln('    int chunkSize = 500,');
+        sb.writeln('  }) async {');
+        sb.writeln(
+            '    final chunks = _chunkImportRows(content, chunkSize: chunkSize);');
+        sb.writeln('    final jobs = <DVJobEnvelope<DVImportChunk>>[];');
+        sb.writeln('    for (final chunk in chunks) {');
+        sb.writeln(
+            '      jobs.add(await const DVQueues().dispatch<DVImportChunk>(');
+        sb.writeln('        DVImportChunk(');
+        sb.writeln("          model: '$className',");
+        sb.writeln("          format: 'ndjson',");
+        sb.writeln("          startRow: chunk['startRow'] as int,");
+        sb.writeln("          rows: chunk['rows'] as List<String>,");
+        sb.writeln('        ),');
+        sb.writeln('        queue: queue,');
+        sb.writeln('      ));');
+        sb.writeln('    }');
+        sb.writeln('    return jobs;');
         sb.writeln('  }');
         sb.writeln();
         sb.writeln(
@@ -463,6 +512,28 @@ class ModelGenerator {
       sb.writeln("      .replaceAll('>', '&gt;')");
       sb.writeln("      .replaceAll('\"', '&quot;')");
       sb.writeln("      .replaceAll(\"'\", '&apos;');");
+      sb.writeln('}');
+      sb.writeln();
+      sb.writeln(
+          'List<Map<String, Object>> _chunkImportRows(String content, {required int chunkSize}) {');
+      sb.writeln('  if (chunkSize < 1) {');
+      sb.writeln(
+          "    throw ArgumentError.value(chunkSize, 'chunkSize', 'chunkSize must be positive.');");
+      sb.writeln('  }');
+      sb.writeln('  final lines = const convert.LineSplitter()');
+      sb.writeln('      .convert(content)');
+      sb.writeln('      .where((line) => line.trim().isNotEmpty)');
+      sb.writeln('      .toList(growable: false);');
+      sb.writeln('  final chunks = <Map<String, Object>>[];');
+      sb.writeln(
+          '  for (var index = 0; index < lines.length; index += chunkSize) {');
+      sb.writeln('    final end = math.min(index + chunkSize, lines.length);');
+      sb.writeln('    chunks.add(<String, Object>{');
+      sb.writeln("      'startRow': index + 1,");
+      sb.writeln("      'rows': lines.sublist(index, end),");
+      sb.writeln('    });');
+      sb.writeln('  }');
+      sb.writeln('  return chunks;');
       sb.writeln('}');
     }
 
