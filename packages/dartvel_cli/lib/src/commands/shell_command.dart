@@ -320,23 +320,80 @@ class DartvelTaskFile {
   String? commandFor(String name) => _tasks[name];
 
   static DartvelTaskFile load(Directory root) {
-    final pubspec = File(p.join(root.path, 'pubspec.yaml'));
-    if (!pubspec.existsSync()) return const DartvelTaskFile(<String, String>{});
-    final parsed = loadYaml(pubspec.readAsStringSync());
-    if (parsed is! YamlMap) return const DartvelTaskFile(<String, String>{});
-    final dartvel = parsed['dartvel'];
-    if (dartvel is! YamlMap) return const DartvelTaskFile(<String, String>{});
-    final rawTasks = dartvel['tasks'];
-    if (rawTasks is! YamlMap) return const DartvelTaskFile(<String, String>{});
     final tasks = <String, String>{};
-    for (final entry in rawTasks.entries) {
+    tasks.addAll(_loadPubspecTasks(root));
+    tasks.addAll(_loadShellScriptTasks(root));
+    tasks.addAll(_loadDartScriptTasks(root));
+    return DartvelTaskFile(Map<String, String>.unmodifiable(tasks));
+  }
+
+  static Map<String, String> _loadPubspecTasks(Directory root) {
+    final pubspec = File(p.join(root.path, 'pubspec.yaml'));
+    if (!pubspec.existsSync()) return const <String, String>{};
+    final parsed = loadYaml(pubspec.readAsStringSync());
+    if (parsed is! YamlMap) return const <String, String>{};
+    final dartvel = parsed['dartvel'];
+    if (dartvel is! YamlMap) return const <String, String>{};
+    final rawTasks = dartvel['tasks'];
+    if (rawTasks is! YamlMap) return const <String, String>{};
+    return _tasksFromEntries(rawTasks.entries.map((entry) {
       final key = entry.key;
       final value = entry.value;
-      if (key is String && value is String && key.trim().isNotEmpty) {
-        tasks[key.trim()] = value.trim();
+      if (key is String && value is String) {
+        return MapEntry<String, String>(key, value);
       }
+      return const MapEntry<String, String>('', '');
+    }));
+  }
+
+  static Map<String, String> _loadShellScriptTasks(Directory root) {
+    final script = File(p.join(root.path, '.dartvel.sh'));
+    if (!script.existsSync()) return const <String, String>{};
+    return _tasksFromLines(script.readAsLinesSync());
+  }
+
+  static Map<String, String> _loadDartScriptTasks(Directory root) {
+    final script = File(p.join(root.path, '.dartvel.dart'));
+    if (!script.existsSync()) return const <String, String>{};
+    final declared = _tasksFromLines(script.readAsLinesSync());
+    if (declared.isNotEmpty) return declared;
+    return <String, String>{
+      'dartvel': '${Platform.resolvedExecutable} ${script.path}',
+    };
+  }
+
+  static Map<String, String> _tasksFromLines(List<String> lines) {
+    final entries = <MapEntry<String, String>>[];
+    for (final line in lines) {
+      final trimmed = line.trim();
+      if (trimmed.isEmpty || trimmed.startsWith('#')) continue;
+      final withoutComment =
+          trimmed.startsWith('//') ? trimmed.substring(2).trimLeft() : trimmed;
+      final declaration = withoutComment.startsWith('task ')
+          ? withoutComment.substring(5).trimLeft()
+          : withoutComment;
+      final spacedSeparator = declaration.indexOf(': ');
+      final separator =
+          spacedSeparator == -1 ? declaration.indexOf(':') : spacedSeparator;
+      if (separator <= 0) continue;
+      entries.add(MapEntry<String, String>(
+        declaration.substring(0, separator),
+        declaration.substring(separator + 1),
+      ));
     }
-    return DartvelTaskFile(Map<String, String>.unmodifiable(tasks));
+    return _tasksFromEntries(entries);
+  }
+
+  static Map<String, String> _tasksFromEntries(
+    Iterable<MapEntry<String, String>> entries,
+  ) {
+    final tasks = <String, String>{};
+    for (final entry in entries) {
+      final name = entry.key.trim();
+      final command = entry.value.trim();
+      if (name.isNotEmpty && command.isNotEmpty) tasks[name] = command;
+    }
+    return tasks;
   }
 }
 
