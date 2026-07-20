@@ -56,6 +56,19 @@ services/
 main.dart
 ```
 
+These paths are the defaults. Projects may override them under the `dartvel:`
+key in `pubspec.yaml`, including glob patterns for file groups, directories, and
+subdirectories. The `dartvel:` key may also point to a Dart config file:
+
+```yaml
+dartvel: dartvel_config.dart
+```
+
+That file must expose a public class extending `DartvelConfig`. The class name
+must start with an uppercase letter and must not start with `_`, so the CLI can
+import it. YAML config is internally normalized into the same strongly typed
+config shape.
+
 
 No controllers.
 
@@ -63,7 +76,7 @@ No repositories.
 
 No DTOs.
 
-No route maps.
+No manual route maps. Generated route maps are supported out of the box.
 
 No signal folders.
 
@@ -102,13 +115,14 @@ Including
 # UI
 
 Two primitives.
+Dartvel keeps the primitive surface area small:
 
 ```dart
 DVBox(...)
 DVBox.list(...)
+
 DVText(...)
 ```
-
 
 Everything else is built from them.
 
@@ -116,41 +130,34 @@ Images ( .backgroundImage() modifier on DVBox )
 
 Cards ( .card() modifier on DVBox )
 
-Rows
+Text inputs ( .input() modifier on DVText )
 
-Columns
+Rows (`DVBox.row(children)`)
+
+Columns (`DVBox.list(children)`)
 
 Buttons ( .onTap() or .onPressed() alias modifier on DVBox or DVText )
 
-Containers
-
-Layouts
-
 Forms ( DVForm does exist )
 
-Lists
+Lists (`DVBox.list(children)`)
 
-Grids
+Grids (`DVBox.grid(children)`)
+
+Masonry (`DVBox.masonry(children)`)
 
 Navigation
 
+Containers and Layouts
+
 ---
-
-# Collection Layouts
-
-Dartvel keeps the primitive surface area small:
-
-```dart
-DVBox(...)
-DVText(...)
-```
 
 Collection layouts are modes on `DVBox`, not separate widgets.
 
 ## Static Layouts
 
 Static content is passed as an exact `List<Widget>` to `DVBox.list`. The default
-layout is vertical and maps to Flutter's `Column`.
+layout is vertical and maps to Flutter's `Column` for static content.
 
 ```dart
 DVBox.list([
@@ -177,7 +184,7 @@ DVBox.row([Avatar(user), DVText(user.name)])
 
 DVBox.grid([PhotoCard(a), PhotoCard(b), PhotoCard(c)], columns: 3)
 
-DVBox.wrap([Tag("Flutter"), Tag("Dart"), Tag("Rust")])
+DVBox.wrapLine([Tag("Flutter"), Tag("Dart"), Tag("Rust")])
 
 DVBox.stack([Background(), Avatar(), Badge()])
 
@@ -186,7 +193,7 @@ DVBox.horizontalScrollable([StoryCard(a), StoryCard(b), StoryCard(c)])
 DVBox.list([...]).scrollable()
 ```
 
-Explicit `.wrap()` is a layout mode for collections. It is not the removed
+Explicit `.wrapLine()` is a layout mode for collections. It is not the removed
 automatic wrapper behavior for arbitrary widget composition.
 
 ## Dynamic Collections
@@ -201,12 +208,16 @@ DVBox.builder(
 )
 ```
 
+`DVBox.builder(...)` returns `DVBoxBuilder`, which is not itself a widget. A
+layout method such as `.list()`, `.grid(...)`, `.wrapLine(...)`, `.masonry()`,
+or `.horizontalScrollable()` must be called.
+
 Builder collections support the same layout modes:
 
 ```dart
 DVBox.builder(posts, (post) => PostCard(post)).grid(columns: 2)
 
-DVBox.builder(tags, (tag) => TagChip(tag)).wrap()
+DVBox.builder(tags, (tag) => TagChip(tag)).wrapLine()
 
 DVBox.builder(photos, (photo) => PhotoCard(photo)).masonry()
 
@@ -221,13 +232,16 @@ They compose `DVBox`, `DVText`, and generated controls internally.
 ```dart
 User.Form()
 User.List()
+User.Grid()
+User.Masonry()
 User.Table()
-User.Page()
+User.Page() // generated default page with a title and User.List()
 ```
 
 Tables remain model-generated because they include sorting, filtering,
 pagination, resizing, keyboard navigation, virtualization, accessibility, and
-column management.
+column management. Tables use the platform-styled table/list design with a
+Material data table fallback.
 
 ```dart
 User.List().builder((context, user) => UserCard(user))
@@ -284,9 +298,7 @@ Fluent modifiers
 .rounded()
 ```
 
-No `.wrap()`.
-
-Wrapping is automatically handled by dartvel where necessary.
+No manual Mix `.wrap()`. Dartvel handles wrapping where necessary.
 
 ---
 
@@ -332,6 +344,9 @@ Page shell options are configured on the annotation with const values:
     centerTitle: true,
     backgroundColor: 0xFFFFFFFF,
     appBarBackgroundColor: 0xFFF8FAFC,
+    appBarActions: const [],
+    appBarLeading: null,
+    // all Material and Cupertino scaffold features are unified here
 )
 Widget settingsPage(BuildContext context) {
     return DVBox.list([
@@ -361,7 +376,7 @@ Pages Router.
 pages/index.dart
 ```
 
-Generated route clients must import each `DVPage` with Dart deferred imports.
+Generated route clients must import each `DVPage` with Dart deferred imports under the hood.
 The generated `dartvel_client/dartvel_client.dart` barrel exposes generated page
 wrappers, and route tables instantiate those wrappers instead of importing page
 source files eagerly. On web this allows large applications to load each page
@@ -415,6 +430,16 @@ Navigation is strongly typed.
 )
 ```
 
+Example:
+
+```dart
+DVBox(DVText("Navigate to users")).onPressed(DV.Navigation.to(DVPages.users));
+
+// For routes with parameters
+DVBox(DVText("Navigate to user 1"))
+    .onPressed(DV.Navigation.to(DVPages.user(id: 1)));
+```
+
 ---
 
 
@@ -433,18 +458,36 @@ or
 signal(context, 0);
 ```
 
+The `DV.signal()` helper can also work without a Flutter `BuildContext` in pure
+Dart apps. `DVContext` is a universal context object for Flutter, server, CLI,
+and web environments.
+
+```dart
+DVContext.builder((DVContext context) {
+  final count = signal(context, 0);
+  return DVText(count.value.toString());
+});
+```
+
+`DVContext` mirrors useful `BuildContext` capabilities in Flutter apps and
+exposes Dartvel-specific context for non-Flutter platforms. Unsupported
+Flutter-only context operations fail clearly outside Flutter instead of silently
+pretending to work.
+
+---
+
 Global
 
 Register
 
 ```dart
-DV.global<Cart>(Cart());
+DV.globalSignal<Cart>(Cart());
 ```
 
 Retrieve
 
 ```dart
-DV.global<Cart>();
+DV.globalSignal<Cart>(); // To retrieve, don't pass a value, just the type.
 ```
 
 Reactive
@@ -472,7 +515,10 @@ counter.read();
 user.read();
 ```
 
-Internally powered by Riverpod, so in works in flutter and in pure dart.
+Internally powered by Riverpod, so it works in Flutter and pure Dart.
+Normal `signal()` tracks by parent widget or context. `globalSignal` tracks by
+data type, so each type must be unique. Setting the same type replaces the
+previous value for that type.
 
 ---
 
@@ -486,16 +532,16 @@ class User(
 );
 ```
 
-Automatically generates
-
+Using the new native Dart data-class syntax. Automatically generates:
 * Database schema
 * CRUD
 * Validation
 * Serialization
-* Equality
-* Forms
+* Equality, .copyWith, .merge, and .hashCode
+* Forms, Pages, Lists, Tables, and generated components (`.Form`, `.Page`)
 * APIs
 * Queries
+* Model sync and presence
 
 ---
 
@@ -521,6 +567,7 @@ Editing
 ```dart
 // Accepts the model as a positional Arg. The Arg type is DVModel, base class for all the models
 DVForm<User>(user)
+// An instance of the base class
 ```
 
 Or alias
@@ -533,7 +580,7 @@ user.Form()
 Manual
 
 ```dart
-DVForm<User>.builder((formControls) {})
+DVForm<User>.builder((formControls) { return someComposedWidget; })
 ```
 
 Editing
@@ -543,9 +590,10 @@ Editing
 DVForm<User>.builder((formControls) {}, user)
 ```
 
-Generated controls ( formControls.email, e.t.c ).
+Generated controls, such as `formControls.email`. These render with
+`DVText.input()`.
 
-Generated validation ( formControls.emailIsValid, e.t.c ).
+Generated validation, such as `formControls.emailIsValid`.
 
 Generated submit ( formControls.submit(), .reset() ).
 
@@ -602,7 +650,7 @@ Example
 Stream<Message> messages()
 ```
 
-Automatically translated to efficient streaming endpoints (such as Server-Sent Events or websockets with automatic fallback to polling) while preserving Dart's native `Stream<T>` API.
+Automatically translated to efficient streaming endpoints (such as Server-Sent Events or websockets with automatic fallback to polling, can be configured) while preserving Dart's native `Stream<T>` API.
 
 ---
 
@@ -641,10 +689,7 @@ APIs.
 
 ```dart
 @DVJob(queue: 'mail', maxAttempts: 5, backoffSeconds: 60)
-class SendWelcomeEmail {
-  final String userId;
-  const SendWelcomeEmail(this.userId);
-}
+class SendWelcomeEmail(String userId)
 
 @DVJobHandler()
 Future<void> handleSendWelcomeEmail(SendWelcomeEmail job) async {
@@ -687,7 +732,8 @@ Runtime guarantees:
 ## Signals
 
 Signals are already part of Dartvel through `context.signal(...)`,
-`signal(context, ...)`, reactive models, `DV.global`, and generated model sync.
+`signal(context, ...)`, reactive models, `DV.globalSignal`, and generated model
+sync.
 Dartvel should not introduce separate signal/event annotations for the common
 case.
 
@@ -696,15 +742,28 @@ final counter = context.signal(0);
 counter.value++;
 
 final userSignal = user.signal(context);
-final cart = context.global<Cart>();
+final cart = context.globalSignal<Cart>();
 ```
+
+Computed values too
+```dart
+final a = context.signal(1);
+final b = context.signal(2);
+final c = context.computed(() => a.value + b.value);
+```
+
+Computed values remain reactive to changes from their source signals.
+
+---
 
 For background work and cross-client delivery, signals are just typed job
 payloads or model sync events:
 
 ```dart
-await DV.Jobs.dispatch(UserCreated(user.id), queue: 'signals');
-await user.sync();
+await DV.Jobs.dispatch(
+  UserCreated(user.id),
+  queue: DVQueues.signals,
+);
 ```
 
 Signal guarantees:
@@ -732,8 +791,8 @@ class PostPolicy {
   bool update(User user, Post post) => post.authorId == user.id;
 }
 
-await DV.Auth.authorization.authorize(user, 'update', post);
-final allowed = await DV.Auth.authorization.can(user, 'delete', post);
+await DV.Auth.authorize(user, DVPolicyAction.update, post);
+final allowed = await DV.Auth.can(user, DVPolicyAction.delete, post);
 ```
 
 Policy generation:
@@ -759,10 +818,10 @@ Policies apply to:
 Usage:
 
 ```dart
-@DVPage(policy: 'viewAdmin')
+@DVPage(policy: DVPolicies.viewAdmin)
 Widget adminPage(BuildContext context) => AdminDashboard();
 
-@DVBackendFunction(policy: 'refund')
+@DVBackendFunction(policy: DVPolicies.refund)
 Future<Refund> refundOrder(Order order) async {}
 ```
 
@@ -777,11 +836,11 @@ structured observability events.
 Dartvel supports middleware for both pages and backend functions.
 
 ```dart
-@DVMiddleware(['auth', 'tenant', 'rateLimit:checkout'])
+@DVUseMiddleware([DVMiddlewares.auth, DVMiddlewares.tenant, DVMiddlewares.rateLimitCheckout])
 @DVPage()
 Widget checkoutPage(BuildContext context) {}
 
-@DVMiddleware(['auth', 'csrf', 'idempotency'])
+@DVUseMiddleware([DVMiddlewares.auth, DVMiddlewares.csrf, DVMiddlewares.idempotency])
 @DVBackendFunction()
 Future<Order> createOrder(CreateOrderInput input) async {}
 ```
@@ -825,16 +884,16 @@ fails validation during `dartvel build`.
 
 # Authentication
 
-Like firebase and Clerk.
+Like Firebase, WorkOS and Clerk.
 
 ```dart
-DV.Auth.currentUser
+DV.Auth.currentUser // Nullable, of type DVUser?
 ```
 
 ```dart
 DV.Auth.signInWithEmailAndPassword()
 
-DV.Auth.signInWithProvider() // google, facebook, e.t.c
+DV.Auth.signInWithProvider() // Google, Facebook, Apple, etc.
 
 DV.Auth.signInWithRawOAuth()
 
@@ -848,7 +907,7 @@ DV.Auth.signOut()
 
 DV.Auth.signUp()
 
-// e.t.c
+// etc.
 // We'll also have prebuilt pages for each one. Just Make the first letter uppercase for the class name, and add `Page`, e.g `DV.Auth.SignInWithEmailAndPasswordPage(). Has inbuilt navigation slugs e.g `.navigateToPage(.signInWithEmailAndPasswordPage)` with the Page suffix too, can be overridden.
 ```
 
@@ -887,7 +946,7 @@ Dynamic (default) or manual switching
 # Platform
 
 ```dart
-DV.Platform
+DV.Platform.*
 ```
 
 Provides:
@@ -900,47 +959,46 @@ Provides:
 - Device type (DV.Platform.type (enum, e.g mobile, desktop, laptop, desktopOrLaptop, tablet, embeddedDisplay, watch, circularWatch, squareWatch, embeddedWithoutDisplay))
 - Screen shape (DV.Platform.screen.shape (enum e.g square, rectangle, verticalRectangle, horizontalRectangle, custom))
 - Full-screen and kiosk display control:
-  - `DV.Platform.display.enterFullscreen()`
+  - `DV.Platform.display.enterFullscreen()` // Where the platform supports it.
   - `DV.Platform.display.exitFullscreen()`
-  - `DV.Platform.display.enableKiosk()`
+  - `DV.Platform.display.enableKiosk()` // enters fullscreen and enables kiosk-specific controls and configurable exit protection
   - `DV.Platform.display.disableKiosk()`
   - `DV.Platform.display.isFullscreen`
-  - `DV.Platform.display.isKiosk`
+  - `DV.Platform.display.isKiosk` // .isFullscreen() will still return true so .isKiosk() checks if we're specifically in kiosk mode
   - Native implementations must be generated through FFI/ffigen or JNI/jnigen
     bindings named `display.enterFullscreen`, `display.exitFullscreen`,
     `display.enableKiosk`, and `display.disableKiosk`. Dartvel must not use
     Flutter platform channels for these APIs.
 
 Native APIs, including:
-- Android (DV.Platform.*)
-- iOS (DV.Platform.*)
-- Windows (DV.Platform.*)
-- Linux (DV.Platform.*)
-- macOS (DV.Platform.*)
-- Web (DV.Platform.*)
-- Fuchsia (DV.Platform.*)
-- Tizen (DV.Platform.*)
-- webOS (DV.Platform.*)
-- Amazon (DV.Platform.*)
-- TVs (DV.Platform.*)
-- Watches (DV.Platform.*)
-- Foldables (DV.Platform.*)
-- Native APIs: (DV.Platform.*)
-- Expo-style. (DV.Platform.*)
-- Camera (DV.Platform.*)
-- Media (DV.Platform.*)
-- Files (DV.Platform.*)
-- Location (DV.Platform.*)
-- Bluetooth (DV.Platform.*)
-- NFC (DV.Platform.*)
-- Clipboard (DV.Platform.*)
-- Share (DV.Platform.*)
-- Notifications (DV.Platform.*)
-- Sensors (DV.Platform.*)
-- Biometrics (DV.Platform.*)
-- Deep Links (DV.Platform.*)
-- Haptics (DV.Platform.*)
-- Contacts (DV.Platform.*)
+- Android (DV.Platform.isAndroid)
+- iOS (DV.Platform.isIOS)
+- Windows (DV.Platform.isWindows)
+- Linux (DV.Platform.isLinux)
+- SONY E-Linux (DV.Platform.isSonyELinux)
+- macOS (DV.Platform.isMacOS)
+- Web (DV.Platform.isWeb)
+- Fuchsia (DV.Platform.isFuchsia)
+- Tizen (DV.Platform.isTizen)
+- webOS (DV.Platform.isWebOS)
+- Amazon (DV.Platform.isAmazon)
+- TVs (DV.Platform.isTV, DV.Platform.isAndroidTV, DV.Platform.isAppleTV)
+- Watches (DV.Platform.isWatch)
+- Foldables (DV.Platform.isFoldable, DV.Platform.isDualFold, DV.Platform.isTriFold)
+- Native APIs, Expo-style. (DV.Platform.*)
+- Camera (DV.Platform.Camera)
+- Media and Files (DV.Platform.FileStorage, proxy to DV.FileStorage)
+- Location (DV.Platform.Location and DV.Location proxy)
+- Bluetooth (DV.Platform.Bluetooth and DV.Bluetooth proxy)
+- NFC (DV.Platform.NFC and DV.NFC proxy)
+- Clipboard (DV.Platform.Clipboard, and DV.Clipboard proxy)
+- Share (DV.Platform.Share or DV.Share proxy)
+- Notifications (DV.Platform.Notifications and DV.Notifications proxy)
+- Sensors (DV.Platform.Sensors and DV.Sensors proxy)
+- Biometrics (DV.Platform.Biometrics and DV.Biometrics proxy)
+- Deep Links (DV.Platform.DeepLinking and DV.DeepLinking proxy)
+- Haptics (DV.Platform.Haptics and DV.Haptics proxy)
+- Contacts (DV.Platform.Contacts and DV.Contacts proxy)
 - Browser extension detection:
   - `DV.Platform.isChromiumExtension`
   - `DV.Platform.isFirefoxExtension`
@@ -974,6 +1032,7 @@ Supports
 Automatic migrations.
 Automatic CRUD.
 Automatic relationships.
+Automatic model sync.
 
 Local development database:
 - SQLite is built in as the default zero-config local database
@@ -995,7 +1054,7 @@ Generated automatically.
 - RPC
 - REST
 - GraphQL
-- OpenAPI
+- OpenAPI and Swagger documentation
 
 No manual endpoint creation, but available if needed.
 
@@ -1089,12 +1148,13 @@ Push providers:
 - Windows notification platform
 - macOS notification platform
 - Linux desktop notification portals where available
-- Tizen/webOS notification capabilities where available
+- Amazon/Tizen/webOS notification capabilities where available
 - local/test provider
 
 Runtime behavior:
 - `DV.Notifications.send(...)` chooses channels from user preferences,
-  notification defaults, and provider availability.
+  notification defaults, and provider availability. Push is preferred where
+  available.
 - Push delivery falls back to Web Push when a browser/web target cannot use a
   native push provider.
 - In-app notifications are model sync signals plus durable inbox records.
@@ -1103,6 +1163,7 @@ Runtime behavior:
   providers.
 - Notification permissions are declared in `pubspec.yaml` and validated at
   build time.
+- The `Notification` class exists as a DVModel.
 
 Native push registration and delivery adapters must use generated FFI/ffigen or
 JNI/jnigen bindings where native code is required. Browser push uses generated
@@ -1146,6 +1207,12 @@ final bytes = await DV.FileStorage.get("avatar.png");
 await DV.FileStorage.delete("avatar.png");
 ```
 
+Streams:
+```dart
+await DV.FileStorage.putStream("avatar.png", bytesStream);
+final bytesStream = await DV.FileStorage.getStream("avatar.png");
+```
+
 Alias:
 `DV.BlobStorage.*`
 Just proxies to DV.FileStorage
@@ -1170,6 +1237,11 @@ await DV.Cache.set('users:list', users, const Duration(minutes: 5));
 DV.Cache.tag('users:list', ['users']);
 DV.Cache.revalidateTag('users');
 ```
+
+Caches are per client by default and automatically prefixed by Dartvel.
+Permissioned global helpers such as `DV.Cache.globalSet`,
+`DV.Cache.globalGet`, `DV.Cache.globalTag`, and
+`DV.Cache.globalRevalidateTag` use the backend/global cache when configured.
 
 Supports:
 - model query cache
@@ -1209,14 +1281,12 @@ dartvel cache inspect users:list
 # Multi-tenancy
 
 - Enabled by default
-- Shared database or
-- Schema per tenant or
-- Database per tenant or
+- Shared database or Schema per tenant or Database per tenant
 - Automatic tenant resolution
 - Automatic filtering
 
 ```dart
-DV.currentTenant
+DV.currentTenant // alias for DV.Tenants.currentTenant
 ```
 
 ---
@@ -1236,7 +1306,7 @@ generated router through `DartvelSeo`.
 Supports:
 - OpenGraph
 - Twitter
-- Structured Data (Content schema, e.t.c)
+- Structured data and content schema
 - Meta tags
 
 ---
@@ -1253,6 +1323,7 @@ Automatic:
 * Icons
 * Background sync
 * Permission handling
+* Web capabilities where supported, exposed through `DV.Platform`
 
 ---
 
@@ -1273,6 +1344,8 @@ final update = await DV.Updates.check();
 if (update.available) {
   await DV.Updates.apply();
 }
+
+// also: DV.Updates.lockVersion(), DV.Updates.skipImmediateNextVersion(), DV.Updates.rollback()
 ```
 
 Runtime update checks/apply/rollback use generated bindings named
@@ -1321,7 +1394,7 @@ Providers:
 - Claude
 - Gemini
 - OpenRouter
-- Ollama
+- Llama/Ollama
 
 Features
 - Chat
@@ -1332,11 +1405,15 @@ Features
 - Structured outputs
 - AI-native diagnostics
 - AI project context
-- Function and tool calling (@DVAITool(description: 'Optional, used as the KDoc for android appfunctions, or the equivilent for the platform. Also used in context for dartvel-native ai') annotation can be used on functions e.g can be translated to @AppFunction in android, e.t.c based on platform equivilent while remaining exposed to the built-in ai in dartvel even if the platform doesn't have the concept natively, also gets exposed as WebMCP functions)
+- Function and tool calling with `@DVAITool(description: ...)`. The annotation
+  can map to platform equivalents such as Android App Functions while remaining
+  available to Dartvel-native AI and WebMCP. A `dartvel:` config option can
+  expose all `@DVBackendFunction` functions as tools by default, with explicit
+  exclusions where needed.
 
 ---
 
-# Observability
+# Monitoring and Observability
 
 Inspired by:
 - Laravel Nightwatch
@@ -1351,7 +1428,7 @@ Built in:
 - Profiling
 - Performance analysis
 - Error reporting
-- Structured diagnostics
+- Structured diagnostics and fix-recommendations
 - Structured, AI-readable logs
 
 Application logging uses the discoverable `DV.ObservabilityAndLogging` service
@@ -1360,7 +1437,7 @@ and the shorter autocomplete-friendly `DV.log` shortcut:
 ```dart
 await DV.log(
   "Checkout completed",
-  context: {"orderId": order.id},
+  {"orderId": order.id},
 );
 
 await DV.ObservabilityAndLogging.event(
@@ -1418,7 +1495,7 @@ Generated helpers:
 ```dart
 final user = User.Factory().admin().create();
 await DV.Test.asUser(user, () async {
-  await DV.Auth.authorization.authorize(user, 'view', dashboard);
+  await DV.Auth.authorize(user, DVPolicyAction.view, dashboard);
 });
 ```
 
@@ -1459,7 +1536,7 @@ Search integrates with queues, model lifecycle signals, tenant scoping, and
 authorization policies.
 
 Generated behavior:
-- `@DVSearchable()` on a model generates typed index documents.
+- `@DVSearchable()` on model properties generates typed index documents.
 - model lifecycle signals enqueue index, update, and delete jobs.
 - search results preserve model types and policy filters.
 - tenant, locale, and soft-delete filters are applied automatically.
@@ -1467,9 +1544,8 @@ Generated behavior:
   `pubspec.yaml`.
 
 ```dart
-@DVModel()
-@DVSearchable(fields: ['name', 'email'])
-class User {}
+@DVModel(searchable: true)
+class User (@DVSearchable String name);
 
 final page = await User.Search.query(
   'ada',
@@ -1521,6 +1597,16 @@ if (await DV.Billing.hasEntitlement(user, Entitlement.analytics)) {
 }
 ```
 
+Certain models can be recorded as billable:
+```dart
+@DVModel(billable: true, nativePrice: 100)
+Book(@DVSearchable String title);
+```
+
+Native prices use the `nativeCurrency` setting under the `dartvel:` pubspec
+key. Localization can auto-convert prices, and conversion rates can be
+overridden.
+
 ---
 
 # Internationalization and Localization
@@ -1541,7 +1627,7 @@ Features:
 Generated API:
 
 ```dart
-DVText(DV.I18n.t(AppText.settingsTitle));
+DVText(DV.I18n.t(AppText.settingsTitle)); // or `DVText(DV.I18n.translate(AppText.settingsTitle));` full alias
 
 context.locale.set(LocaleTag.enUS);
 ```
@@ -1608,8 +1694,8 @@ Desktop APIs live under `DV.Platform.*` and generated app services:
 
 ```dart
 await DV.Platform.Window.setTitle('Dartvel Admin');
-await DV.Platform.tray.show(icon: 'assets/tray.png');
-await DV.Platform.menus.setApplicationMenu(AppMenu.main());
+await DV.Platform.Tray.show(icon: 'assets/tray.png');
+await DV.Platform.Menus.setApplicationMenu(AppMenu.main());
 ```
 
 Embedded/device creation:
@@ -1731,7 +1817,7 @@ Project
 dartvel new
 dartvel init
 dartvel doctor
-# e.t.c
+# etc.
 ```
 
 Development
@@ -1871,7 +1957,11 @@ Automatically handles FFI on native native platforms and WASM on web
 
 # Home Widgets
 
-Allows building home-screen and lock screen widgets on supported platforms (e.g Jetpack glance or remote compose on android, e.t.c), using the @DVHomeWidget annotation on any widget, whether flutter-native, DVClassWidget or DVFunctionalWIdget. Unsupported targets are excluded from the compiled binary/artifact or fail validation based on project configuration.
+Allows building home-screen and lock-screen widgets on supported platforms,
+such as Jetpack Glance or Remote Compose on Android, using `@DVHomeWidget` on
+any widget, whether Flutter-native, `DVClassWidget`, or `DVFunctionalWidget`.
+Unsupported targets are excluded from the compiled binary/artifact or fail
+validation based on project configuration.
 
 ```dart
 @DVHomeWidget()
@@ -1881,7 +1971,11 @@ Widget StepCounterWidget(
 ) {...}
 ```
 
-Home widgets will act like DVPage, and support all supported properties. it will be possible to navigate launch and navigat to pages within the app, and vise versa (a page will be auto-generated with the widget as its centered content)
+Home widgets act like `DVPage` and support the same shell properties. They can
+launch and navigate to pages within the app, and a page can navigate back to the
+widget. Dartvel generates a page that centers the widget content.
+
+Shares widget tree and state with the parent app
 
 ---
 
@@ -1929,3 +2023,13 @@ Dartvel automatically provides:
 * Native rust bindings
 
 while Flutter remains the rendering engine and Dart remains the only language developers write.
+
+# App store publishing
+
+Automatically handles publishing and distribution for all platforms, similar in
+scope to EAS Deploy and Firebase App Distribution.
+
+# Takeaway
+
+- user says I want to build an app for X
+- Dartvel already has it covered
