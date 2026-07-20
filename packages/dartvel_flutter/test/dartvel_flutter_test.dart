@@ -10,6 +10,7 @@ void main() {
 
   setUp(() {
     DV.Auth.configure(DVLocalAuthProvider());
+    DV.AI.configure(const LocalDVAIAdapter());
   });
 
   testWidgets('DVBox and DVText render correctly with style modifiers',
@@ -550,6 +551,11 @@ void main() {
   test('DV.Auth rejects sign-in without a configured provider', () {
     DV.Test.resetAuthProvider();
     expect(DV.Auth.signIn(), throwsStateError);
+  });
+
+  test('DV.AI rejects requests without a configured adapter', () {
+    DV.Test.resetAIProvider();
+    expect(() => DV.AI.chat('missing adapter'), throwsStateError);
   });
 
   testWidgets('DV accessibility modifiers expose semantics and tap targets',
