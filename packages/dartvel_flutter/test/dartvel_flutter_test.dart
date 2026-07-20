@@ -166,6 +166,9 @@ void main() {
     expect(platform.display.isKiosk, isFalse);
     expect(platform.isChromiumExtension, isFalse);
     expect(platform.isFirefoxExtension, isFalse);
+    expect(platform.isFoldable, isFalse);
+    expect(platform.isDualFold, isFalse);
+    expect(platform.isTriFold, isFalse);
     expect(platform.browserExtension.isAvailable, isFalse);
     expect(
       () => platform.browserExtension.getManifest(),
