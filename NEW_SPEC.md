@@ -2072,6 +2072,12 @@ Dartvel should provide a cross-platform shell/task surface inspired by Bun's
 ```dart
 final result = await DV.$('git status --short');
 final files = await DV.$('ls **/*.dart').text();
+final safe = await const DVShell().runCommand(
+  DVShellCommand('git')
+      .arg('status')
+      .arg('--short')
+      .env('CI', 'true'),
+);
 ```
 
 ```bash
