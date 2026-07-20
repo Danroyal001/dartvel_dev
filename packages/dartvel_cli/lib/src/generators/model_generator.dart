@@ -266,10 +266,10 @@ class ModelGenerator {
         sb.writeln('    final items = <$className>[];');
         sb.writeln('    final errors = <DVImportRowError>[];');
         sb.writeln(
-            '    for (var index = 1; index < lines.length; index += 1) {');
+            '    for (int index = 1; index < lines.length; index += 1) {');
         sb.writeln('      final values = _splitCsvLine(lines[index]);');
         sb.writeln('      final row = <String, Object?>{};');
-        sb.writeln('      for (var i = 0; i < headers.length; i += 1) {');
+        sb.writeln('      for (int i = 0; i < headers.length; i += 1) {');
         sb.writeln(
             "        row[headers[i]] = i < values.length ? values[i] : '';");
         sb.writeln('      }');
@@ -319,7 +319,7 @@ class ModelGenerator {
         sb.writeln('    final items = <$className>[];');
         sb.writeln('    final errors = <DVImportRowError>[];');
         sb.writeln(
-            '    for (var index = 0; index < lines.length; index += 1) {');
+            '    for (int index = 0; index < lines.length; index += 1) {');
         sb.writeln('      try {');
         sb.writeln('        final decoded = convert.jsonDecode(lines[index]);');
         sb.writeln('        if (decoded is! Map<Object?, Object?>) {');
@@ -377,10 +377,10 @@ class ModelGenerator {
         sb.writeln('    final items = <$className>[];');
         sb.writeln('    final errors = <DVImportRowError>[];');
         sb.writeln(
-            '    for (var index = 1; index < lines.length; index += 1) {');
+            '    for (int index = 1; index < lines.length; index += 1) {');
         sb.writeln("      final values = lines[index].split('\\t');");
         sb.writeln('      final row = <String, Object?>{};');
-        sb.writeln('      for (var i = 0; i < headers.length; i += 1) {');
+        sb.writeln('      for (int i = 0; i < headers.length; i += 1) {');
         sb.writeln(
             "        row[headers[i]] = i < values.length ? values[i] : '';");
         sb.writeln('      }');
@@ -457,7 +457,7 @@ class ModelGenerator {
             "      throw ArgumentError.value(options.chunkSize, 'chunkSize', 'chunkSize must be positive.');");
         sb.writeln('    }');
         sb.writeln(
-            '    for (var index = 0; index < exportItems.length; index += options.chunkSize) {');
+            '    for (int index = 0; index < exportItems.length; index += options.chunkSize) {');
         sb.writeln(
             '      final end = math.min(index + options.chunkSize, exportItems.length);');
         sb.writeln('      yield csv(');
@@ -478,7 +478,7 @@ class ModelGenerator {
             "      throw ArgumentError.value(options.chunkSize, 'chunkSize', 'chunkSize must be positive.');");
         sb.writeln('    }');
         sb.writeln(
-            '    for (var index = 0; index < exportItems.length; index += options.chunkSize) {');
+            '    for (int index = 0; index < exportItems.length; index += options.chunkSize) {');
         sb.writeln(
             '      final end = math.min(index + options.chunkSize, exportItems.length);');
         sb.writeln('      yield ndjson(');
@@ -672,7 +672,7 @@ class ModelGenerator {
       sb.writeln('      .toList(growable: false);');
       sb.writeln('  final chunks = <Map<String, Object>>[];');
       sb.writeln(
-          '  for (var index = 0; index < lines.length; index += chunkSize) {');
+          '  for (int index = 0; index < lines.length; index += chunkSize) {');
       sb.writeln('    final end = math.min(index + chunkSize, lines.length);');
       sb.writeln('    chunks.add(<String, Object>{');
       sb.writeln("      'startRow': index + 1,");
