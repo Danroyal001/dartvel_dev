@@ -41,6 +41,21 @@ void main() {
     expect(legacyMessage.data, <String, Object?>{'attempt': 1});
   });
 
+  test('platform settings use exact object map types', () {
+    const config = PlatformConfig(
+      enabledPlatforms: <Platform>{Platform.web},
+      platformSettings: <Platform, Map<String, Object?>>{
+        Platform.web: <String, Object?>{'renderer': 'canvaskit', 'debug': true},
+      },
+    );
+
+    expect(config.getSettingsFor(Platform.web), <String, Object?>{
+      'renderer': 'canvaskit',
+      'debug': true,
+    });
+    expect(config.isPlatformEnabled(Platform.android), isFalse);
+  });
+
   group('Res', () {
     test('json creates correct response', () async {
       final data = {'message': 'hello'};
