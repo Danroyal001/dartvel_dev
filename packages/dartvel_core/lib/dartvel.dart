@@ -19,6 +19,24 @@ export 'src/shell/shell.dart';
 typedef RequestType = dv.Request;
 typedef ResponseType = dv.Response;
 
+enum DVCronTarget { backend, client }
+
+class DVCronEntry {
+  final String name;
+  final String cron;
+  final DVCronTarget target;
+  final String importUri;
+  final String filePath;
+
+  const DVCronEntry({
+    required this.name,
+    required this.cron,
+    required this.target,
+    required this.importUri,
+    required this.filePath,
+  });
+}
+
 // Simple HeaderValue parser to avoid dart:io dependency
 class _HeaderValue {
   final String value;

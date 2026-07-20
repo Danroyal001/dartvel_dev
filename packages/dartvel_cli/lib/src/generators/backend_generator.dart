@@ -744,6 +744,11 @@ class DartvelClient {
 
     File(p.join(libClientDir.path, 'functions.g.dart'))
         .writeAsStringSync(sbClient.toString());
+    File(p.join(libClientDir.path, 'schedules.g.dart'))
+        .writeAsStringSync(await _generateSchedules(
+      root: root,
+      pkgName: pkgName,
+    ));
 
     // Update .gitignore to exclude generated files (idempotent)
     final gitignore = File(p.join(root, '.gitignore'));
@@ -769,4 +774,119 @@ class DartvelClient {
 
     log('dartvel: generated lib/dartvel_client/* and .dart_tool/dartvel_backend*.g.dart (build $buildId)');
   }
+
+  static Future<String> _generateSchedules({
+    required String root,
+    required String pkgName,
+  }) async {
+    final fs = const LocalFileSystem();
+    final files = <File>[];
+    for (final entity in Glob('lib/**.dart')
+        .listFileSystemSync(fs, root: root, followLinks: false)) {
+      if (entity is! File) continue;
+      final normalized = entity.path.replaceAll('\\', '/');
+      if (normalized.contains('/lib/dartvel_client/')) continue;
+      files.add(File(entity.path));
+    }
+    files.sort((a, b) => a.path.compareTo(b.path));
+
+    final entries = <_CronEntry>[];
+    for (final file in files) {
+      final source = await file.readAsString();
+      final relativePath =
+          p.relative(file.path, from: root).replaceAll('\\', '/');
+      final importUri =
+          relativePath.replaceFirst(RegExp(r'^lib/'), 'package:$pkgName/');
+      _collectCronEntries(
+        source: source,
+        relativePath: relativePath,
+        importUri: importUri,
+        annotationName: 'DVBackendCron',
+        target: 'DVCronTarget.backend',
+        entries: entries,
+      );
+      _collectCronEntries(
+        source: source,
+        relativePath: relativePath,
+        importUri: importUri,
+        annotationName: 'DVClientCron',
+        target: 'DVCronTarget.client',
+        entries: entries,
+      );
+    }
+
+    final sb = StringBuffer()
+      ..writeln('// GENERATED – do not edit.')
+      ..writeln('library dartvel_client_schedules;')
+      ..writeln()
+      ..writeln("import 'package:dartvel_core/dartvel.dart';")
+      ..writeln()
+      ..writeln('const List<DVCronEntry> dartvelCronEntries = <DVCronEntry>[');
+    for (final entry in entries) {
+      sb
+        ..writeln('  DVCronEntry(')
+        ..writeln("    name: '${esc(entry.name)}',")
+        ..writeln("    cron: '${esc(entry.cron)}',")
+        ..writeln('    target: ${entry.target},')
+        ..writeln("    importUri: '${esc(entry.importUri)}',")
+        ..writeln("    filePath: '${esc(entry.relativePath)}',")
+        ..writeln('  ),');
+    }
+    sb
+      ..writeln('];')
+      ..writeln()
+      ..writeln(
+          'final List<DVCronEntry> dartvelBackendCronEntries = List<DVCronEntry>.unmodifiable(')
+      ..writeln(
+          '  dartvelCronEntries.where((entry) => entry.target == DVCronTarget.backend),')
+      ..writeln(');')
+      ..writeln()
+      ..writeln(
+          'final List<DVCronEntry> dartvelClientCronEntries = List<DVCronEntry>.unmodifiable(')
+      ..writeln(
+          '  dartvelCronEntries.where((entry) => entry.target == DVCronTarget.client),')
+      ..writeln(');');
+    return sb.toString();
+  }
+
+  static void _collectCronEntries({
+    required String source,
+    required String relativePath,
+    required String importUri,
+    required String annotationName,
+    required String target,
+    required List<_CronEntry> entries,
+  }) {
+    final pattern = RegExp(
+      "@$annotationName\\(\\s*(['\"])(.*?)\\1\\s*\\)\\s*"
+      r'(?:Future<[^>]+>|Future|Stream<[^>]+>|[A-Za-z_][A-Za-z0-9_<>, ?]*)\s+'
+      r'([A-Za-z_][A-Za-z0-9_]*)\s*\(',
+      dotAll: true,
+    );
+    for (final match in pattern.allMatches(source)) {
+      entries.add(_CronEntry(
+        name: match.group(3)!,
+        cron: match.group(2)!,
+        target: target,
+        importUri: importUri,
+        relativePath: relativePath,
+      ));
+    }
+  }
+}
+
+class _CronEntry {
+  final String name;
+  final String cron;
+  final String target;
+  final String importUri;
+  final String relativePath;
+
+  const _CronEntry({
+    required this.name,
+    required this.cron,
+    required this.target,
+    required this.importUri,
+    required this.relativePath,
+  });
 }

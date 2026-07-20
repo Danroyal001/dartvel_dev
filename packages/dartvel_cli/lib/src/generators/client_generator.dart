@@ -256,6 +256,7 @@ export 'env.g.dart';
 export 'functions.g.dart';
 export 'models.g.dart';
 export 'router.g.dart';
+export 'schedules.g.dart';
 export 'widgets.g.dart';
 ''');
 
