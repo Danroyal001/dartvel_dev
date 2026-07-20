@@ -528,6 +528,30 @@ class DVReportResult {
   });
 }
 
+class DVScheduledReport {
+  final String name;
+  final String model;
+  final String report;
+  final String cron;
+  final String queue;
+  final DateTime scheduledAt;
+  final DateTime? periodStart;
+  final DateTime? periodEnd;
+  final Map<String, String> metadata;
+
+  const DVScheduledReport({
+    required this.name,
+    required this.model,
+    required this.report,
+    required this.cron,
+    required this.queue,
+    required this.scheduledAt,
+    this.periodStart,
+    this.periodEnd,
+    this.metadata = const <String, String>{},
+  });
+}
+
 class DVJobEnvelope<TPayload> {
   final String id;
   final String queue;

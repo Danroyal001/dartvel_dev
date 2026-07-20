@@ -65,6 +65,12 @@ class Order {
       expect(content, contains('application/vnd.ms-excel; charset=utf-8'));
       expect(content, contains('class OrderReport'));
       expect(content, contains('static DVReportResult monthly'));
+      expect(content, contains('static DVScheduledReport scheduleMonthly'));
+      expect(
+          content,
+          contains(
+              'static Future<DVJobEnvelope<DVScheduledReport>> dispatchMonthly'));
+      expect(content, contains('const DVQueues().dispatch<DVScheduledReport>'));
       expect(content, contains('const convert.LineSplitter()'));
     } finally {
       root.deleteSync(recursive: true);
