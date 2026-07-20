@@ -985,7 +985,7 @@ class DVCamera {
 
   Future<List<int>> takePhoto() async {
     final bytes =
-        await DVNativeBridge.require<List<dynamic>>('camera.takePhoto');
+        await DVNativeBridge.require<List<Object?>>('camera.takePhoto');
     return bytes.cast<int>();
   }
 }
@@ -997,7 +997,7 @@ class DVMedia {
     String type = 'image',
     bool multiple = false,
   }) async {
-    final items = await DVNativeBridge.invoke<List<dynamic>>(
+    final items = await DVNativeBridge.invoke<List<Object?>>(
       'media.pick',
       {'type': type, 'multiple': multiple},
     );
@@ -1007,7 +1007,7 @@ class DVMedia {
       );
     }
     return items
-        .whereType<Map<dynamic, dynamic>>()
+        .whereType<Map<Object?, Object?>>()
         .map((item) => Map<String, Object?>.from(item))
         .toList();
   }
@@ -1026,7 +1026,7 @@ class DVFiles {
   }
 
   Future<List<int>> readBytes(String path) async {
-    final bytes = await DVNativeBridge.invoke<List<dynamic>>(
+    final bytes = await DVNativeBridge.invoke<List<Object?>>(
       'files.readBytes',
       {'path': path},
     );
@@ -1048,7 +1048,7 @@ class DVLocation {
 
   Future<Map<String, double>> getCoordinates() async {
     final result =
-        await DVNativeBridge.require<Map<dynamic, dynamic>>('location.current');
+        await DVNativeBridge.require<Map<Object?, Object?>>('location.current');
     return {
       'latitude': (result['latitude'] as num?)?.toDouble() ?? 0,
       'longitude': (result['longitude'] as num?)?.toDouble() ?? 0,
@@ -1096,7 +1096,7 @@ class DVUpdateInfo {
     this.metadata = const <String, String>{},
   });
 
-  factory DVUpdateInfo.fromMap(Map<dynamic, dynamic> map) {
+  factory DVUpdateInfo.fromMap(Map<Object?, Object?> map) {
     final rawMetadata = map['metadata'];
     return DVUpdateInfo(
       available: map['available'] == true,
@@ -1118,7 +1118,7 @@ class DVUpdates {
   Future<DVUpdateInfo> check({
     DVUpdateChannel channel = DVUpdateChannel.production,
   }) async {
-    final result = await DVNativeBridge.require<Map<dynamic, dynamic>>(
+    final result = await DVNativeBridge.require<Map<Object?, Object?>>(
       'updates.check',
       {'channel': channel.name},
     );
@@ -1157,7 +1157,7 @@ class DVBluetooth {
 
   Stream<List<String>> scanDevices() async* {
     final devices =
-        await DVNativeBridge.require<List<dynamic>>('bluetooth.scanDevices');
+        await DVNativeBridge.require<List<Object?>>('bluetooth.scanDevices');
     yield devices.cast<String>();
   }
 }
@@ -1183,7 +1183,7 @@ class DVHardwareCapability {
     this.metadata = const <String, String>{},
   });
 
-  factory DVHardwareCapability.fromMap(Map<dynamic, dynamic> map) {
+  factory DVHardwareCapability.fromMap(Map<Object?, Object?> map) {
     final rawMetadata = map['metadata'];
     return DVHardwareCapability(
       id: map['id']?.toString() ?? '',
@@ -1214,13 +1214,13 @@ class DVHardwareCapabilityManifest {
     required this.capabilities,
   });
 
-  factory DVHardwareCapabilityManifest.fromMap(Map<dynamic, dynamic> map) {
+  factory DVHardwareCapabilityManifest.fromMap(Map<Object?, Object?> map) {
     final rawCapabilities = map['capabilities'];
     return DVHardwareCapabilityManifest(
       deviceId: map['deviceId']?.toString() ?? '',
       capabilities: rawCapabilities is List
           ? rawCapabilities
-              .whereType<Map<dynamic, dynamic>>()
+              .whereType<Map<Object?, Object?>>()
               .map(DVHardwareCapability.fromMap)
               .toList(growable: false)
           : const <DVHardwareCapability>[],
@@ -1239,7 +1239,7 @@ class DVDeviceHealth {
     this.diagnostics = const <String, String>{},
   });
 
-  factory DVDeviceHealth.fromMap(Map<dynamic, dynamic> map) {
+  factory DVDeviceHealth.fromMap(Map<Object?, Object?> map) {
     final rawDiagnostics = map['diagnostics'];
     return DVDeviceHealth(
       healthy: map['healthy'] == true,
@@ -1283,7 +1283,7 @@ class DVDeviceProvisioningResult {
     required this.provisioned,
   });
 
-  factory DVDeviceProvisioningResult.fromMap(Map<dynamic, dynamic> map) {
+  factory DVDeviceProvisioningResult.fromMap(Map<Object?, Object?> map) {
     return DVDeviceProvisioningResult(
       deviceId: map['deviceId']?.toString() ?? '',
       fleetId: map['fleetId']?.toString() ?? '',
@@ -1303,7 +1303,7 @@ class DVDeviceDiagnosticsBundle {
     this.metrics = const <String, String>{},
   });
 
-  factory DVDeviceDiagnosticsBundle.fromMap(Map<dynamic, dynamic> map) {
+  factory DVDeviceDiagnosticsBundle.fromMap(Map<Object?, Object?> map) {
     Map<String, String> stringMap(Object? value) {
       if (value is! Map) return const <String, String>{};
       return value.map((key, item) => MapEntry('$key', '$item'));
@@ -1321,7 +1321,7 @@ class DVDeviceControls {
   const DVDeviceControls();
 
   Future<DVHardwareCapabilityManifest> capabilityManifest() async {
-    final result = await DVNativeBridge.require<Map<dynamic, dynamic>>(
+    final result = await DVNativeBridge.require<Map<Object?, Object?>>(
       'device.capabilityManifest',
     );
     return DVHardwareCapabilityManifest.fromMap(result);
@@ -1329,7 +1329,7 @@ class DVDeviceControls {
 
   Future<DVDeviceHealth> health() async {
     final result =
-        await DVNativeBridge.require<Map<dynamic, dynamic>>('device.health');
+        await DVNativeBridge.require<Map<Object?, Object?>>('device.health');
     return DVDeviceHealth.fromMap(result);
   }
 
@@ -1359,7 +1359,7 @@ class DVDeviceControls {
   Future<DVDeviceProvisioningResult> provision(
     DVFleetProvisioningRequest request,
   ) async {
-    final result = await DVNativeBridge.require<Map<dynamic, dynamic>>(
+    final result = await DVNativeBridge.require<Map<Object?, Object?>>(
       'device.fleet.provision',
       request.toMap(),
     );
@@ -1367,7 +1367,7 @@ class DVDeviceControls {
   }
 
   Future<DVDeviceDiagnosticsBundle> collectDiagnostics() async {
-    final result = await DVNativeBridge.require<Map<dynamic, dynamic>>(
+    final result = await DVNativeBridge.require<Map<Object?, Object?>>(
       'device.diagnostics.collect',
     );
     return DVDeviceDiagnosticsBundle.fromMap(result);
@@ -1407,18 +1407,18 @@ class DVShare {
 class DVSensors {
   const DVSensors();
   Stream<Map<String, double>> get accelerometer async* {
-    final value = await DVNativeBridge.require<Map<dynamic, dynamic>>(
+    final value = await DVNativeBridge.require<Map<Object?, Object?>>(
         'sensors.accelerometer');
     yield _sensorMap(value);
   }
 
   Stream<Map<String, double>> get gyroscope async* {
-    final value = await DVNativeBridge.require<Map<dynamic, dynamic>>(
+    final value = await DVNativeBridge.require<Map<Object?, Object?>>(
         'sensors.gyroscope');
     yield _sensorMap(value);
   }
 
-  Map<String, double> _sensorMap(Map<dynamic, dynamic>? value) => {
+  Map<String, double> _sensorMap(Map<Object?, Object?>? value) => {
         'x': (value?['x'] as num?)?.toDouble() ?? 0,
         'y': (value?['y'] as num?)?.toDouble() ?? 0,
         'z': (value?['z'] as num?)?.toDouble() ?? 0,
@@ -1463,9 +1463,9 @@ class DVContacts {
   const DVContacts();
   Future<List<Map<String, String>>> getContacts() async {
     final contacts =
-        await DVNativeBridge.require<List<dynamic>>('contacts.getContacts');
+        await DVNativeBridge.require<List<Object?>>('contacts.getContacts');
     return contacts
-        .whereType<Map<dynamic, dynamic>>()
+        .whereType<Map<Object?, Object?>>()
         .map((contact) => contact.map(
               (key, value) => MapEntry('$key', '$value'),
             ))
@@ -2436,7 +2436,7 @@ class DVDatabase {
     _adapter = adapter;
   }
 
-  Future<List<Map<String, dynamic>>> query(
+  Future<List<Map<String, Object?>>> query(
     String sql, [
     List<Object?>? params,
   ]) =>
@@ -2447,15 +2447,15 @@ class DVDatabase {
 }
 
 abstract class DVDatabaseAdapter {
-  Future<List<Map<String, dynamic>>> query(String sql, [List<Object?>? params]);
+  Future<List<Map<String, Object?>>> query(String sql, [List<Object?>? params]);
   Future<int> execute(String sql, [List<Object?>? params]);
 }
 
 class MemoryDVDatabaseAdapter implements DVDatabaseAdapter {
-  final Map<String, List<Map<String, dynamic>>> _tables = {};
+  final Map<String, List<Map<String, Object?>>> _tables = {};
 
   @override
-  Future<List<Map<String, dynamic>>> query(
+  Future<List<Map<String, Object?>>> query(
     String sql, [
     List<Object?>? params,
   ]) async {
@@ -2471,8 +2471,8 @@ class MemoryDVDatabaseAdapter implements DVDatabaseAdapter {
         RegExp(r'^select \* from ([a-zA-Z_][\w]*)$', caseSensitive: false)
             .firstMatch(normalized);
     if (match != null) {
-      return List<Map<String, dynamic>>.from(
-        _tables[match.group(1)!] ?? const <Map<String, dynamic>>[],
+      return List<Map<String, Object?>>.from(
+        _tables[match.group(1)!] ?? const <Map<String, Object?>>[],
       );
     }
     throw ArgumentError(
@@ -2494,7 +2494,7 @@ class MemoryDVDatabaseAdapter implements DVDatabaseAdapter {
       if (columns.length != values.length) {
         throw ArgumentError('Column count does not match value count.');
       }
-      final row = <String, dynamic>{};
+      final row = <String, Object?>{};
       for (var i = 0; i < columns.length; i++) {
         row[columns[i]] = values[i];
       }
