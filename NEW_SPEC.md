@@ -239,6 +239,18 @@ User.Table()
 User.Page() // generated default page with a title and User.List()
 ```
 
+Because Dart does not support static members on a type name in expression
+position, the generated, importable Dart identifiers are `UserForm`,
+`UserList`, `UserTable`, and `UserPage`. They provide the same model-aware
+components without invalid Dart syntax:
+
+```dart
+UserForm(user);
+UserList(users, builder: (user) => UserCard(user));
+UserTable(users, columns: 3);
+UserPage(users);
+```
+
 Tables remain model-generated because they include sorting, filtering,
 pagination, resizing, keyboard navigation, virtualization, accessibility, and
 column management. Tables use the platform-styled table/list design with a
