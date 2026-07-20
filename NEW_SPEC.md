@@ -1752,6 +1752,30 @@ Runtime and tooling:
 - accessibility regressions fail the release gate unless explicitly waived with
   a documented reason
 
+Runtime API:
+```dart
+DVBox(DVText('Submit')).modifier(
+  const DVModifier()
+      .semanticLabel('Submit order')
+      .semanticHint('Sends the order for processing')
+      .semanticButton()
+      .minimumTapTarget(),
+);
+
+final contrast = DV.Accessibility.contrast(
+  foreground: Colors.black,
+  background: Colors.white,
+);
+
+final target = DV.Accessibility.tapTarget(size: const Size(44, 48));
+final report = DV.Accessibility.report([contrast, target]);
+DV.Accessibility.useReducedMotion(true);
+```
+
+`DV.Accessibility` returns typed checks (`DVContrastCheck`,
+`DVTappableTargetCheck`, `DVAccessibilityReport`) so CI and release gates can
+fail on exact accessibility regressions instead of relying on ignored warnings.
+
 ---
 
 # Desktop, Embedded, and Qt-Critical Capabilities
