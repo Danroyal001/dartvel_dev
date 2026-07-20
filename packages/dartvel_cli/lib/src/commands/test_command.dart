@@ -32,6 +32,20 @@ class TestCommand extends Command<void> {
         help: 'Print the resolved test command without executing it.',
       )
       ..addOption(
+        'total-shards',
+        help: 'Total number of CI shards running this test suite.',
+      )
+      ..addOption(
+        'shard-index',
+        help: 'Zero-based index of this CI shard.',
+      )
+      ..addFlag(
+        'isolate',
+        defaultsTo: false,
+        help:
+            'Run tests with per-file isolation by forcing single concurrency.',
+      )
+      ..addOption(
         'reporter',
         help: 'Pass a reporter to the selected test runner.',
       );
@@ -61,6 +75,9 @@ class TestCommand extends Command<void> {
       forceDart: argResults?['dart'] == true,
       watch: argResults?['watch'] == true,
       reporter: argResults?['reporter'] as String?,
+      totalShards: _optionalPositiveInt('total-shards'),
+      shardIndex: _optionalNonNegativeInt('shard-index'),
+      isolate: argResults?['isolate'] == true,
       forwardedArgs: forwarded,
       root: Directory.current,
     );
@@ -79,6 +96,26 @@ class TestCommand extends Command<void> {
     if (code != 0) {
       exitCode = code;
     }
+  }
+
+  int? _optionalPositiveInt(String name) {
+    final raw = argResults?[name] as String?;
+    if (raw == null || raw.trim().isEmpty) return null;
+    final value = int.tryParse(raw);
+    if (value == null || value < 1) {
+      throw UsageException('$name must be a positive integer.', usage);
+    }
+    return value;
+  }
+
+  int? _optionalNonNegativeInt(String name) {
+    final raw = argResults?[name] as String?;
+    if (raw == null || raw.trim().isEmpty) return null;
+    final value = int.tryParse(raw);
+    if (value == null || value < 0) {
+      throw UsageException('$name must be zero or greater.', usage);
+    }
+    return value;
   }
 }
 
@@ -99,6 +136,9 @@ class DartvelTestInvocation {
     required bool forceDart,
     required bool watch,
     required String? reporter,
+    required int? totalShards,
+    required int? shardIndex,
+    required bool isolate,
     required List<String> forwardedArgs,
     required Directory root,
   }) {
@@ -117,6 +157,23 @@ class DartvelTestInvocation {
     }
     if (reporter != null && reporter.trim().isNotEmpty) {
       args.addAll(<String>['--reporter', reporter.trim()]);
+    }
+    if (totalShards != null || shardIndex != null) {
+      if (totalShards == null || shardIndex == null) {
+        throw ArgumentError('Use --total-shards and --shard-index together.');
+      }
+      if (shardIndex >= totalShards) {
+        throw ArgumentError('shard-index must be less than total-shards.');
+      }
+      args.addAll(<String>[
+        '--total-shards',
+        '$totalShards',
+        '--shard-index',
+        '$shardIndex',
+      ]);
+    }
+    if (isolate) {
+      args.addAll(<String>['--concurrency', '1']);
     }
     args.addAll(forwardedArgs);
     return DartvelTestInvocation(
