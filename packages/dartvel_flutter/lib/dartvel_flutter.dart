@@ -914,6 +914,7 @@ extension DVFormAliasX<T> on T {
 class _DVFormState<T> extends State<DVForm<T>> {
   late T formValue;
   late T _initialValue;
+  final Map<String, String> _fieldValues = <String, String>{};
 
   @override
   void initState() {
@@ -956,17 +957,13 @@ class _DVFormState<T> extends State<DVForm<T>> {
     final jsonMap = serializeDVModel<T>(formValue);
     if (jsonMap != null) {
       jsonMap.forEach((key, value) {
+        final initialText = _fieldValues[key] ?? value?.toString() ?? '';
         fields.add(
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0),
-            child: TextFormField(
-              initialValue: value?.toString() ?? '',
-              decoration: InputDecoration(
-                labelText: key.toUpperCase(),
-                border: const OutlineInputBorder(),
-              ),
-              onChanged: (val) {
-                // Generated form controls update concrete generated models.
+          DVText(initialText).modifier(
+            const DVModifier().input(
+              label: key.toUpperCase(),
+              onChanged: (nextValue) {
+                setState(() => _fieldValues[key] = nextValue);
               },
             ),
           ),
@@ -992,6 +989,7 @@ class _DVFormState<T> extends State<DVForm<T>> {
   void _reset() {
     setState(() {
       formValue = _initialValue;
+      _fieldValues.clear();
     });
   }
 }
