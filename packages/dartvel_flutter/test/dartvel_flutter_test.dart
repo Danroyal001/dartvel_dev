@@ -279,7 +279,7 @@ void main() {
       email: 'dev@example.com',
       password: 'secret',
     );
-    final user = DV.Auth.currentUser as DVAuthUser;
+    final user = DV.Auth.currentUser!;
     expect(user.email, 'dev@example.com');
 
     expect(await DV.Platform.camera.takePhoto(), [1, 2, 3]);
@@ -835,7 +835,7 @@ void main() {
     await tester.tap(find.text('Sign in'));
     await tester.pump();
 
-    final user = DV.Auth.currentUser as DVAuthUser;
+    final user = DV.Auth.currentUser!;
     expect(user.email, 'dev@example.com');
 
     await DV.Auth.signOut();
@@ -852,6 +852,6 @@ void main() {
     await tester.tap(find.text('Continue with provider'));
     await tester.pump();
 
-    expect((DV.Auth.currentUser as DVAuthUser).provider, 'provider');
+    expect(DV.Auth.currentUser!.provider, 'provider');
   });
 }
