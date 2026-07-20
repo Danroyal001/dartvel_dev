@@ -2094,6 +2094,41 @@ class DVAuthUser {
       };
 }
 
+extension DVFlutterTestHarness on DVTestHarness {
+  DVAuthUser fakeAuthUser({
+    String id = 'test-user',
+    String? email = 'test@example.com',
+    String provider = 'fake',
+    Map<String, Object?> metadata = const <String, Object?>{},
+    DateTime? createdAt,
+  }) {
+    return DVAuthUser(
+      id: id,
+      email: email,
+      provider: provider,
+      metadata: metadata,
+      createdAt: createdAt ?? DateTime.fromMillisecondsSinceEpoch(0),
+    );
+  }
+
+  Future<T> asUser<T>(
+    DVAuthUser user,
+    FutureOr<T> Function() callback,
+  ) async {
+    final previous = DVAuth._currentUser;
+    DVAuth._currentUser = user;
+    try {
+      return await Future<T>.sync(callback);
+    } finally {
+      DVAuth._currentUser = previous;
+    }
+  }
+
+  void resetAuth() {
+    DVAuth._currentUser = null;
+  }
+}
+
 class _EmailPasswordAuthPage extends StatefulWidget {
   final DVAuth auth;
   const _EmailPasswordAuthPage({required this.auth});
