@@ -865,11 +865,14 @@ class _DVFormState<T> extends State<DVForm<T>> {
   }
 
   T _instantiateDefault() {
-    try {
-      return (T as dynamic).call();
-    } catch (_) {
-      return null as T;
+    final model = createDVModel<T>();
+    if (model == null) {
+      throw StateError(
+        'No generated model factory registered for $T. '
+        'Run dartvel build after annotating the model with @DVModel().',
+      );
     }
+    return model;
   }
 
   @override
@@ -892,32 +895,29 @@ class _DVFormState<T> extends State<DVForm<T>> {
     }
 
     final fields = <Widget>[];
-    if (formValue != null) {
-      try {
-        final jsonMap = (formValue as dynamic).toJson() as Map<String, dynamic>;
-        jsonMap.forEach((key, value) {
-          fields.add(
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8.0),
-              child: TextFormField(
-                initialValue: value?.toString() ?? '',
-                decoration: InputDecoration(
-                  labelText: key.toUpperCase(),
-                  border: const OutlineInputBorder(),
-                ),
-                onChanged: (val) {
-                  // Generated form controls update concrete generated models.
-                },
+    final jsonMap = serializeDVModel<T>(formValue);
+    if (jsonMap != null) {
+      jsonMap.forEach((key, value) {
+        fields.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: TextFormField(
+              initialValue: value?.toString() ?? '',
+              decoration: InputDecoration(
+                labelText: key.toUpperCase(),
+                border: const OutlineInputBorder(),
               ),
+              onChanged: (val) {
+                // Generated form controls update concrete generated models.
+              },
             ),
-          );
-        });
-      } catch (_) {
-        fields.add(const DVText(
-            'No form controls generated. Model must support toJson().'));
-      }
+          ),
+        );
+      });
     } else {
-      fields.add(DVText('Empty form for type $T'));
+      fields.add(DVText(
+        'No generated form controls registered for $T.',
+      ));
     }
 
     return Form(
