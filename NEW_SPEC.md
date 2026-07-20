@@ -2080,6 +2080,26 @@ dartvel task build:web
 dartvel sh "flutter doctor"
 ```
 
+Tasks can live in `pubspec.yaml`, `.dartvel.sh`, or `.dartvel.dart`.
+
+```yaml
+dartvel:
+  tasks:
+    build:web: flutter build web
+```
+
+```bash
+# .dartvel.sh
+task clean: dart run build_runner clean
+build:web: flutter build web
+```
+
+```dart
+// .dartvel.dart
+// task check: dart test
+void main(List<String> args) {}
+```
+
 Requirements:
 - cross-platform on Windows, Linux, and macOS
 - safe argument escaping by default
