@@ -87,11 +87,23 @@ class BuildCommand extends Command<void> {
         isProfile ? '--profile' : (isRelease ? '--release' : '--debug');
 
     final platforms = platform == 'all'
-        ? ['android', 'ios', 'web', 'windows', 'macos', 'linux', 'webos', 'tvos', 'fireos']
+        ? [
+            'android',
+            'ios',
+            'web',
+            'windows',
+            'macos',
+            'linux',
+            'webos',
+            'tvos',
+            'fireos'
+          ]
         : [platform];
 
+    var failures = 0;
+    var skipped = 0;
     for (final p in platforms) {
-      await _buildPlatform(
+      final result = await _buildPlatform(
         p,
         buildMode,
         target: target,
@@ -101,13 +113,32 @@ class BuildCommand extends Command<void> {
         obfuscate: obfuscate && isRelease,
         treeShakeIcons: treeShakeIcons,
       );
+      switch (result) {
+        case _PlatformBuildResult.succeeded:
+          break;
+        case _PlatformBuildResult.skipped:
+          skipped += 1;
+        case _PlatformBuildResult.failed:
+          failures += 1;
+      }
     }
 
     Logger.log('');
+    if (failures > 0) {
+      Logger.log(
+        '❌ Build completed with $failures failed target(s) and $skipped skipped target(s).',
+      );
+      exitCode = 1;
+      return;
+    }
+    if (skipped > 0) {
+      Logger.log('✅ Build complete with $skipped skipped target(s).');
+      return;
+    }
     Logger.log('✅ Build complete!');
   }
 
-  Future<void> _buildPlatform(
+  Future<_PlatformBuildResult> _buildPlatform(
     String platform,
     String buildMode, {
     String? target,
@@ -177,7 +208,7 @@ class BuildCommand extends Command<void> {
     if (!await _isPlatformAvailable(platform)) {
       Logger.log(
           '⚠️  Platform $platform not available on this system. Skipping...');
-      return;
+      return _PlatformBuildResult.skipped;
     }
 
     final proc = await Process.start(
@@ -193,8 +224,10 @@ class BuildCommand extends Command<void> {
 
     if (exitCode == 0) {
       Logger.log('✅ $platform build successful');
+      return _PlatformBuildResult.succeeded;
     } else {
       Logger.log('❌ $platform build failed');
+      return _PlatformBuildResult.failed;
     }
   }
 
@@ -219,3 +252,5 @@ class BuildCommand extends Command<void> {
     }
   }
 }
+
+enum _PlatformBuildResult { succeeded, failed, skipped }
