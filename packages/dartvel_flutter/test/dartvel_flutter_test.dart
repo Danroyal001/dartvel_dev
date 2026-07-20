@@ -1,3 +1,4 @@
+import 'package:dartvel_core/dartvel.dart';
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -50,6 +51,21 @@ void main() {
     expect(find.byType(TextField), findsOneWidget);
     await tester.enterText(find.byType(TextField), 'ada@example.com');
     expect(changedValue, 'ada@example.com');
+  });
+
+  testWidgets('DVForm renders generated fields through DVText input',
+      (WidgetTester tester) async {
+    registerDVModelSerializer<String>((value) => {'name': value});
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Material(child: DVForm<String>('Ada')),
+      ),
+    );
+
+    expect(find.byType(TextField), findsOneWidget);
+    expect(find.byType(TextFormField), findsNothing);
+    expect(find.text('NAME'), findsOneWidget);
   });
 
   testWidgets('DVSignal reacts to state updates within ProviderScope',
