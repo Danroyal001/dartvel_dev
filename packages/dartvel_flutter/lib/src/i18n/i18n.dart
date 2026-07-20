@@ -10,7 +10,7 @@ class I18n {
     _translations[locale.languageCode] = translations;
   }
 
-  static String tr(String key, [Map<String, dynamic>? args]) {
+  static String tr(String key, [Map<String, Object?>? args]) {
     final lang = _locale?.languageCode ?? 'en';
     var text = _translations[lang]?[key] ?? key;
 
@@ -24,5 +24,5 @@ class I18n {
 }
 
 extension StringI18n on String {
-  String tr([Map<String, dynamic>? args]) => I18n.tr(this, args);
+  String tr([Map<String, Object?>? args]) => I18n.tr(this, args);
 }
