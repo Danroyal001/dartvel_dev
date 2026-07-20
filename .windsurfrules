@@ -71,6 +71,7 @@ Reference ./NEW_SPEC.md for the full new spec.
 - Keep commits atomic: do not mix unrelated implementation, tests, generated artifacts, cache files, or documentation changes.
 - Push each atomic commit to GitHub before starting the next unrelated step. For multi-step requests, treat each independently testable sub-feature as its own step and sync it immediately.
 - Do not batch multiple unrelated changes locally. Finish one step, verify it, commit it, push it, then continue with the next step.
+- This applies to every step of the way, including documentation-only updates, generated client changes, tests, examples, release/tag backup branches, and small follow-up fixes.
 
 ## Release & Tag Backup Rule
 
