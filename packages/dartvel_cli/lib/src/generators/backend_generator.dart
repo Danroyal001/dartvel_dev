@@ -518,6 +518,7 @@ class DartvelClient {
           (e['tparams'] ?? '').split(',').where((s) => s.isNotEmpty).toList();
       final ttypes = (e['ttypes'] ?? '').split(',');
       final rtype = (e['rtype'] ?? '').trim();
+      final clientReturnType = _clientReturnType(rtype);
       if (rtype.isNotEmpty &&
           rtype.toLowerCase() != 'responsetype' &&
           rtype.toLowerCase() != 'response') {
@@ -568,11 +569,11 @@ class DartvelClient {
             ? e['typed']!
             : '${fname}Api';
 
-        final isStreamType = rtype.startsWith('Stream<');
+        final isStreamType = clientReturnType.startsWith('Stream<');
 
         if (isStreamType) {
           String innerType = 'Object?';
-          final match = RegExp(r'^Stream<(.+)>$').firstMatch(rtype);
+          final match = RegExp(r'^Stream<(.+)>$').firstMatch(clientReturnType);
           if (match != null) {
             innerType = match.group(1)!.trim();
           }
@@ -678,7 +679,12 @@ class DartvelClient {
             if (tt.startsWith('List<bool')) {
               return "(r.data as List).map((e)=> (e is bool) ? e : ((e?.toString().toLowerCase() ?? '') == 'true')).toList() as $t";
             }
-            if (tt.startsWith('Map<String,Object')) {
+            if (tt.startsWith('List<Map<String,dynamic') ||
+                tt.startsWith('List<Map<String,Object')) {
+              return '(r.data as List).map((entry) => Map<String, Object?>.from(entry as Map<Object?, Object?>)).toList(growable: false)';
+            }
+            if (tt.startsWith('Map<String,dynamic') ||
+                tt.startsWith('Map<String,Object')) {
               return 'Map<String, Object?>.from(r.data as Map<Object?, Object?>)';
             }
             // Fallback: require a mapper
@@ -688,11 +694,13 @@ class DartvelClient {
           final convExpr = conv(rtype);
           if (convExpr.isEmpty) {
             // Custom type – require a mapper
-            final sigApiMapper = sigApi.replaceFirst(
-                ' }', ', required $rtype Function(Object?) fromJson }');
-            sbClient.writeln('Future<$rtype> $fnameApi($sigApiMapper) async {');
+            final sigApiMapper = sigApi.replaceFirst(' }',
+                ', required $clientReturnType Function(Object?) fromJson }');
+            sbClient.writeln(
+                'Future<$clientReturnType> $fnameApi($sigApiMapper) async {');
           } else {
-            sbClient.writeln('Future<$rtype> $fnameApi($sigApi) async {');
+            sbClient.writeln(
+                'Future<$clientReturnType> $fnameApi($sigApi) async {');
           }
           sbClient.writeln(
               "  String routePath = '${colon.replaceAll("'", "\\'")}';");
@@ -1067,6 +1075,28 @@ class DartvelClient {
     final ai = dartvel['ai'];
     if (ai is! YamlMap) return false;
     return ai['exposeBackendFunctionsAsTools'] == true;
+  }
+
+  static String _clientReturnType(String type) {
+    final trimmed = type.trim();
+    if (trimmed.isEmpty) return trimmed;
+    final compact = trimmed.replaceAll(' ', '');
+    if (compact == 'Map<String,dynamic>' || compact == 'Map<String,Object?>') {
+      return 'Map<String, Object?>';
+    }
+    if (compact == 'List<Map<String,dynamic>>' ||
+        compact == 'List<Map<String,Object?>>') {
+      return 'List<Map<String, Object?>>';
+    }
+    final streamMatch = RegExp(r'^Stream<(.+)>$').firstMatch(trimmed);
+    if (streamMatch != null) {
+      return 'Stream<${_clientReturnType(streamMatch.group(1)!)}>';
+    }
+    final futureMatch = RegExp(r'^Future<(.+)>$').firstMatch(trimmed);
+    if (futureMatch != null) {
+      return 'Future<${_clientReturnType(futureMatch.group(1)!)}>';
+    }
+    return trimmed;
   }
 }
 
