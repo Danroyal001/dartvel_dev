@@ -115,7 +115,18 @@ Widget indexPage(BuildContext context) {
       ]),
     ]),
     ShowcaseSection('Models, Forms & Generated Model Helpers', [
-      const DVForm<User>(User(name: 'John Doe', email: 'john@example.com')),
+      UserForm(const User(name: 'John Doe', email: 'john@example.com')),
+      UserList(const <User>[
+        User(name: 'Ada Lovelace', email: 'ada@example.com'),
+        User(name: 'Grace Hopper', email: 'grace@example.com'),
+      ]),
+      UserTable(
+        const <User>[
+          User(name: 'Linus Torvalds', email: 'linus@example.com'),
+          User(name: 'Margaret Hamilton', email: 'margaret@example.com'),
+        ],
+        columns: 2,
+      ),
       DVText(
         'Generated model SQL: ${const User(name: 'Ada', email: 'ada@example.com').createTableSql}',
       ),

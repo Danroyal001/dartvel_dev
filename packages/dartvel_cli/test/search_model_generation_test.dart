@@ -45,6 +45,10 @@ class User {
       expect(content, contains('final List<String>? name;'));
       expect(content, contains('class UserSearch'));
       expect(content, contains('DVUnconfiguredSearchProvider<User'));
+      expect(content, contains('Widget UserForm(User model)'));
+      expect(content, contains('Widget UserList('));
+      expect(content, contains('Widget UserTable('));
+      expect(content, contains('Widget UserPage('));
       expect(
           content, contains('static Future<DVSearchResultPage<User>> query'));
       expect(content, contains('static void useProvider'));
