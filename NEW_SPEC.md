@@ -924,6 +924,12 @@ DV.Auth.signUp()
 // We'll also have prebuilt pages for each one. Just Make the first letter uppercase for the class name, and add `Page`, e.g `DV.Auth.SignInWithEmailAndPasswordPage(). Has inbuilt navigation slugs e.g `.navigateToPage(.signInWithEmailAndPasswordPage)` with the Page suffix too, can be overridden.
 ```
 
+Authentication is provider-backed. Applications configure a typed
+`DVAuthProvider` implementation for their identity service; calling an auth
+method without a configured provider fails with a clear configuration error.
+`DVLocalAuthProvider` is available only as an explicit development/test
+adapter and must not be mistaken for production authentication.
+
 Providers
 
 * Email

@@ -8,6 +8,10 @@ void main() {
   const settingsTitle = DVTranslationKey('settings.title');
   const inboxCount = DVTranslationKey('inbox.count');
 
+  setUp(() {
+    DV.Auth.configure(DVLocalAuthProvider());
+  });
+
   testWidgets('DVBox and DVText render correctly with style modifiers',
       (WidgetTester tester) async {
     final style = const DVStyleModifier()
@@ -525,6 +529,11 @@ void main() {
       ),
     );
     expect(find.text('Settings'), findsOneWidget);
+  });
+
+  test('DV.Auth rejects sign-in without a configured provider', () {
+    DV.Test.resetAuthProvider();
+    expect(DV.Auth.signIn(), throwsStateError);
   });
 
   testWidgets('DV accessibility modifiers expose semantics and tap targets',
