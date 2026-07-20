@@ -4,6 +4,7 @@ import 'package:dartvel_core/dartvel.dart';
 import 'package:dartvel_core/src/notifications/push.dart' as push;
 import 'package:dartvel_core/src/notifications/push_notifications.dart'
     as legacy_push;
+import 'package:dartvel_core/src/websocket/ws.dart' as websocket;
 import 'package:dartvel_shelf/dartvel_shelf.dart' as shelf;
 import 'package:test/test.dart';
 
@@ -54,6 +55,20 @@ void main() {
       'debug': true,
     });
     expect(config.isPlatformEnabled(Platform.android), isFalse);
+  });
+
+  test('websocket messages round-trip typed JSON payloads', () {
+    final original = websocket.WsMessage(
+      type: 'status',
+      data: <String, Object?>{'ready': true, 'count': 2},
+      id: 'message-1',
+    );
+    final decoded = websocket.WsMessage.fromJson(original.toJson());
+
+    expect(decoded.type, 'status');
+    expect(decoded.id, 'message-1');
+    expect(decoded.data, <String, Object?>{'ready': true, 'count': 2});
+    expect(original.toJsonString(), contains('"type":"status"'));
   });
 
   group('Res', () {

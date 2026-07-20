@@ -5,12 +5,12 @@ import 'dart:convert';
 /// WebSocket message
 class WsMessage {
   final String type;
-  final dynamic data;
+  final Object? data;
   final String? id;
 
   WsMessage({required this.type, this.data, this.id});
 
-  factory WsMessage.fromJson(Map<String, dynamic> json) {
+  factory WsMessage.fromJson(Map<String, Object?> json) {
     return WsMessage(
       type: json['type'] as String,
       data: json['data'],
@@ -18,7 +18,7 @@ class WsMessage {
     );
   }
 
-  Map<String, dynamic> toJson() {
+  Map<String, Object?> toJson() {
     return {
       'type': type,
       if (data != null) 'data': data,
@@ -153,9 +153,22 @@ class WsHandlers {
 
   static Future<void> broadcastToRoom(
       WsConnection connection, WsMessage message) async {
-    final data = message.data as Map<String, dynamic>?;
-    final roomName = data?['room'] as String?;
-    final payload = data?['message'];
+    final rawData = message.data;
+    if (rawData is! Map<Object?, Object?>) {
+      return;
+    }
+
+    final data = <String, Object?>{};
+    for (final entry in rawData.entries) {
+      final key = entry.key;
+      if (key is! String) {
+        return;
+      }
+      data[key] = entry.value;
+    }
+
+    final roomName = data['room'] as String?;
+    final payload = data['message'];
 
     if (roomName != null) {
       final room = WsManager.instance.getOrCreateRoom(roomName);
