@@ -334,9 +334,27 @@ abstract class DVSearchProvider<TModel, TFacets> {
   });
 }
 
-class DVEmptySearchProvider<TModel, TFacets>
+typedef DVSearchDocument<TModel> = String Function(TModel model);
+typedef DVSearchFacetMatcher<TModel, TFacets> = bool Function(
+  TModel model,
+  TFacets? facets,
+);
+
+/// A concrete local search provider for development, tests, and small apps.
+///
+/// Applications should replace this provider with a database or hosted search
+/// adapter when their dataset does not fit in memory.
+class DVInMemorySearchProvider<TModel, TFacets>
     implements DVSearchProvider<TModel, TFacets> {
-  const DVEmptySearchProvider();
+  final List<TModel> records;
+  final DVSearchDocument<TModel> document;
+  final DVSearchFacetMatcher<TModel, TFacets>? facetMatcher;
+
+  DVInMemorySearchProvider({
+    required List<TModel> records,
+    required this.document,
+    this.facetMatcher,
+  }) : records = List<TModel>.unmodifiable(records);
 
   @override
   Future<DVSearchResultPage<TModel>> query(
@@ -345,11 +363,48 @@ class DVEmptySearchProvider<TModel, TFacets>
     int page = 1,
     int perPage = 20,
   }) async {
+    if (page < 1) throw ArgumentError.value(page, 'page', 'must be positive');
+    if (perPage < 1) {
+      throw ArgumentError.value(perPage, 'perPage', 'must be positive');
+    }
+
+    final needle = query.trim().toLowerCase();
+    final matches = records.where((record) {
+      final textMatches =
+          needle.isEmpty || document(record).toLowerCase().contains(needle);
+      final facetsMatch = facetMatcher?.call(record, facets) ?? true;
+      return textMatches && facetsMatch;
+    }).toList(growable: false);
+    final start = (page - 1) * perPage;
+    final end =
+        start + perPage > matches.length ? matches.length : start + perPage;
+    final pageItems =
+        start >= matches.length ? <TModel>[] : matches.sublist(start, end);
+
     return DVSearchResultPage<TModel>(
-      items: <TModel>[],
-      total: 0,
+      items: List<TModel>.unmodifiable(pageItems),
+      total: matches.length,
       page: page,
       perPage: perPage,
+    );
+  }
+}
+
+/// Fails loudly when a searchable model has no configured provider.
+class DVUnconfiguredSearchProvider<TModel, TFacets>
+    implements DVSearchProvider<TModel, TFacets> {
+  const DVUnconfiguredSearchProvider();
+
+  @override
+  Future<DVSearchResultPage<TModel>> query(
+    String query, {
+    TFacets? facets,
+    int page = 1,
+    int perPage = 20,
+  }) {
+    throw StateError(
+      'No search provider is configured. Call Model.Search.useProvider(...) '
+      'before querying a searchable model.',
     );
   }
 }

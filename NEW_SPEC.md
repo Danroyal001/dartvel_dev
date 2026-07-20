@@ -1617,6 +1617,22 @@ final page = await User.Search.query(
 );
 ```
 
+Search providers are explicit and typed. Small applications and tests can use
+the concrete local provider; production applications should configure a
+database or hosted search adapter. An unconfigured generated search facade
+throws a `StateError` instead of silently returning an empty result:
+
+```dart
+User.Search.useProvider(
+  DVInMemorySearchProvider<User, UserSearchFacets>(
+    records: users,
+    document: (user) => '${user.name} ${user.role}',
+    facetMatcher: (user, facets) =>
+        facets == null || facets.role == null || facets.role!.contains(user.role),
+  ),
+);
+```
+
 No provider may return rows the current user cannot access. If the provider
 cannot enforce policy filters directly, Dartvel post-filters and records the
 extra cost in observability metrics.

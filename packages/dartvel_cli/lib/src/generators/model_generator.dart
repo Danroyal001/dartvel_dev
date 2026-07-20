@@ -623,7 +623,7 @@ class ModelGenerator {
           sb.writeln('/// Generated typed search facade for [$className].');
           sb.writeln('class ${className}Search {');
           sb.writeln(
-              '  static DVSearchProvider<$className, ${className}SearchFacets> _provider = const DVEmptySearchProvider<$className, ${className}SearchFacets>();');
+              '  static DVSearchProvider<$className, ${className}SearchFacets> _provider = const DVUnconfiguredSearchProvider<$className, ${className}SearchFacets>();');
           sb.writeln();
           sb.writeln(
               '  static void useProvider(DVSearchProvider<$className, ${className}SearchFacets> provider) {');
