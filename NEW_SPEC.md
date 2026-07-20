@@ -184,7 +184,7 @@ DVBox.row([Avatar(user), DVText(user.name)])
 
 DVBox.grid([PhotoCard(a), PhotoCard(b), PhotoCard(c)], columns: 3)
 
-DVBox.wrapLine([Tag("Flutter"), Tag("Dart"), Tag("Rust")])
+DVBox.wrap([Tag("Flutter"), Tag("Dart"), Tag("Rust")])
 
 DVBox.stack([Background(), Avatar(), Badge()])
 
@@ -193,8 +193,9 @@ DVBox.horizontalScrollable([StoryCard(a), StoryCard(b), StoryCard(c)])
 DVBox.list([...]).scrollable()
 ```
 
-Explicit `.wrapLine()` is a layout mode for collections. It is not the removed
-automatic wrapper behavior for arbitrary widget composition.
+Explicit `DVBox.wrap([...])` or `.wrap()` is a layout mode for collections. It
+is not the removed automatic wrapper behavior for arbitrary widget composition.
+`wrapLine` remains a compatibility alias, but new code should use `wrap`.
 
 ## Dynamic Collections
 
@@ -209,7 +210,7 @@ DVBox.builder(
 ```
 
 `DVBox.builder(...)` returns `DVBoxBuilder`, which is not itself a widget. A
-layout method such as `.list()`, `.grid(...)`, `.wrapLine(...)`, `.masonry()`,
+layout method such as `.list()`, `.grid(...)`, `.wrap()`, `.masonry()`,
 or `.horizontalScrollable()` must be called.
 
 Builder collections support the same layout modes:
