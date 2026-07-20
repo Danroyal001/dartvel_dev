@@ -118,6 +118,11 @@ class DVModifier {
   final String? semanticHintValue;
   final bool? semanticButtonValue;
   final Size? minimumTapTargetValue;
+  final bool inputValue;
+  final String? inputLabelValue;
+  final String? inputHintValue;
+  final bool inputObscureText;
+  final ValueChanged<String>? inputChanged;
 
   const DVModifier({
     this.paddingValue,
@@ -138,6 +143,11 @@ class DVModifier {
     this.semanticHintValue,
     this.semanticButtonValue,
     this.minimumTapTargetValue,
+    this.inputValue = false,
+    this.inputLabelValue,
+    this.inputHintValue,
+    this.inputObscureText = false,
+    this.inputChanged,
   });
 
   const DVModifier.fromStyle()
@@ -158,7 +168,12 @@ class DVModifier {
         semanticLabelValue = null,
         semanticHintValue = null,
         semanticButtonValue = null,
-        minimumTapTargetValue = null;
+        minimumTapTargetValue = null,
+        inputValue = false,
+        inputLabelValue = null,
+        inputHintValue = null,
+        inputObscureText = false,
+        inputChanged = null;
 
   DVModifier _copyWith({
     EdgeInsetsGeometry? paddingValue,
@@ -179,6 +194,11 @@ class DVModifier {
     String? semanticHintValue,
     bool? semanticButtonValue,
     Size? minimumTapTargetValue,
+    bool? inputValue,
+    String? inputLabelValue,
+    String? inputHintValue,
+    bool? inputObscureText,
+    ValueChanged<String>? inputChanged,
   }) {
     return DVModifier(
       paddingValue: paddingValue ?? this.paddingValue,
@@ -200,6 +220,11 @@ class DVModifier {
       semanticButtonValue: semanticButtonValue ?? this.semanticButtonValue,
       minimumTapTargetValue:
           minimumTapTargetValue ?? this.minimumTapTargetValue,
+      inputValue: inputValue ?? this.inputValue,
+      inputLabelValue: inputLabelValue ?? this.inputLabelValue,
+      inputHintValue: inputHintValue ?? this.inputHintValue,
+      inputObscureText: inputObscureText ?? this.inputObscureText,
+      inputChanged: inputChanged ?? this.inputChanged,
     );
   }
 
@@ -240,6 +265,20 @@ class DVModifier {
   DVModifier onTap(VoidCallback callback) => _copyWith(onTapCallback: callback);
   DVModifier onPressed(VoidCallback callback) =>
       _copyWith(onTapCallback: callback);
+
+  DVModifier input({
+    String? label,
+    String? hint,
+    bool obscureText = false,
+    ValueChanged<String>? onChanged,
+  }) =>
+      _copyWith(
+        inputValue: true,
+        inputLabelValue: label,
+        inputHintValue: hint,
+        inputObscureText: obscureText,
+        inputChanged: onChanged,
+      );
 
   DVModifier backgroundImage(DecorationImage image) =>
       _copyWith(bgImage: image);
@@ -710,19 +749,34 @@ class DVText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget result = Text(
-      text,
-      style: TextStyle(
-        color: _modifier?.textColor,
-        fontSize: _modifier?.fontSizeValue,
-        fontWeight: _modifier?.fontWeightValue,
-        letterSpacing: _modifier?.letterSpacingValue,
-      ),
-    );
+    final modifier = _modifier;
+    Widget result;
+    if (modifier?.inputValue == true) {
+      result = TextField(
+        obscureText: modifier!.inputObscureText,
+        decoration: InputDecoration(
+          labelText: modifier.inputLabelValue,
+          hintText: modifier.inputHintValue ?? text,
+        ),
+        onChanged: modifier.inputChanged,
+      );
+    } else {
+      result = Text(
+        text,
+        style: TextStyle(
+          color: modifier?.textColor,
+          fontSize: modifier?.fontSizeValue,
+          fontWeight: modifier?.fontWeightValue,
+          letterSpacing: modifier?.letterSpacingValue,
+        ),
+      );
+    }
 
-    if (_modifier?.onTapCallback != null) {
+    if (modifier != null &&
+        modifier.onTapCallback != null &&
+        modifier.inputValue == false) {
       result = GestureDetector(
-        onTap: _modifier!.onTapCallback,
+        onTap: modifier.onTapCallback,
         child: result,
       );
     }
