@@ -41,9 +41,16 @@ class TestCommand extends Command<void> {
   Future<void> run() async {
     final rest = argResults?.rest ?? const <String>[];
     final mode = rest.isEmpty ? 'unit' : rest.first;
-    if (!const <String>{'unit', 'e2e', 'golden'}.contains(mode)) {
+    if (!const <String>{
+      'unit',
+      'e2e',
+      'golden',
+      'native',
+      'accessibility',
+      'release',
+    }.contains(mode)) {
       throw UsageException(
-        'Unknown test mode "$mode". Use unit, e2e, or golden.',
+        'Unknown test mode "$mode". Use unit, e2e, golden, native, accessibility, or release.',
         usage,
       );
     }
@@ -137,6 +144,26 @@ class DartvelTestInvocation {
           'test/golden',
           'test/goldens',
           'test/golden_test.dart',
+        ],
+      'native' => const <String>[
+          'test/native',
+          'test/native_test.dart',
+          'test/ffi',
+          'test/jni',
+        ],
+      'accessibility' => const <String>[
+          'test/accessibility',
+          'test/a11y',
+          'test/accessibility_test.dart',
+          'test/a11y_test.dart',
+        ],
+      'release' => const <String>[
+          'test/release',
+          'test/release_test.dart',
+          'test/e2e',
+          'test/e2e_test.dart',
+          'integration_test',
+          'test',
         ],
       _ => const <String>['test'],
     };
