@@ -40,6 +40,13 @@ class Order {
       final content = models.readAsStringSync();
       expect(content, contains('class OrderImport'));
       expect(content, contains('class OrderFactory'));
+      expect(content, contains('Map<String, Object?> toJson()'));
+      expect(
+        content,
+        contains('static Order fromJson(Map<String, Object?> json)'),
+      );
+      expect(content, contains('final row = <String, Object?>{};'));
+      expect(content, isNot(contains('dynamic')));
       expect(content, contains('final String? id;'));
       expect(content, contains('final String? status;'));
       expect(content, contains('OrderFactory admin()'));
