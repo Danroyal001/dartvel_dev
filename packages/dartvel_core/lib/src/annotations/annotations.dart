@@ -84,8 +84,22 @@ class DVFunctionalWidget {
 
 /// Annotation and base class for a Dartvel Data Model
 class DVModel {
-  const DVModel();
+  final bool searchable;
+  final bool billable;
+  final int? nativePrice;
+
+  const DVModel({
+    this.searchable = false,
+    this.billable = false,
+    this.nativePrice,
+  });
+
   Map<String, dynamic> toJson() => const {};
+}
+
+/// Marks a model property for generated search indexing.
+class DVSearchable {
+  const DVSearchable();
 }
 
 /// Annotation for a Dartvel Backend Function
