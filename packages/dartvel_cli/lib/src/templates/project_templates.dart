@@ -165,7 +165,7 @@ class $className extends StatelessWidget {
 ''';
 
   static const String healthFunctionTemplate = '''// GET /api/health
-Map<String, dynamic> handler() {
+Map<String, Object?> handler() {
   return {
     'status': 'ok',
     'timestamp': DateTime.now().toIso8601String(),
@@ -178,7 +178,7 @@ Map<String, dynamic> handler() {
 import 'dart:io';
 import 'dart:convert';
 
-Future<Map<String, dynamic>> handler(
+Future<Map<String, Object?>> handler(
     {required String name, required String email, required String message}) async {
   // Validate inputs
   if (name.isEmpty || email.isEmpty || message.isEmpty) {
@@ -340,7 +340,7 @@ Create a new file in `lib/backend/functions/`:
 
 ```dart
 // lib/backend/functions/hello.get.dart
-Map<String, dynamic> handler() {
+Map<String, Object?> handler() {
   return {'message': 'Hello World!'};
 }
 ```
