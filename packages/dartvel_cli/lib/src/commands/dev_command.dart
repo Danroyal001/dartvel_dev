@@ -5,6 +5,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../generators/routes_generator.dart';
+import '../utils/build_runner.dart';
 import '../utils/linux_utils.dart';
 import '../utils/logger.dart';
 
@@ -77,15 +78,19 @@ Future<void> main() async {
     Process? backP;
     Process? flutterP;
 
-    // Start build_runner watch first
-    Logger.log('📦 Starting build_runner watch...');
-    try {
-      buildRunnerP = await _spawn(
-          'dart',
-          ['run', 'build_runner', 'watch', '--delete-conflicting-outputs'],
-          'build_runner');
-    } catch (_) {
-      Logger.log('⚠️  build_runner not available (skipping)');
+    // Run optional user-configured builders after Dartvel's own generation.
+    if (hasBuildRunnerDependency(root)) {
+      Logger.log('📦 Starting build_runner watch...');
+      try {
+        buildRunnerP = await _spawn(
+            'dart',
+            ['run', 'build_runner', 'watch', '--delete-conflicting-outputs'],
+            'build_runner');
+      } catch (_) {
+        Logger.log('⚠️  build_runner could not start');
+      }
+    } else {
+      Logger.log('📦 No build_runner dependency declared; skipping watch.');
     }
 
     // Build flutter args
