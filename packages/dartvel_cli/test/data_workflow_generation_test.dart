@@ -45,6 +45,7 @@ class Order {
       expect(content, contains('OrderFactory admin()'));
       expect(content, contains('Order create()'));
       expect(content, contains("status: status ?? 'active'"));
+      expect(content, isNot(contains('UnsupportedError')));
       expect(content, contains('static DVImportResult<Order> csv'));
       expect(
           content,
@@ -94,6 +95,101 @@ class Order {
           contains(
               'static Future<DVJobEnvelope<DVScheduledReport>> dispatchMonthly'));
       expect(content, contains('const convert.LineSplitter()'));
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
+  test('model factory generation supports typed collection defaults', () async {
+    final root =
+        await Directory.systemTemp.createTemp('dartvel_factory_defaults_test_');
+    try {
+      Directory(p.join(root.path, 'lib', 'models')).createSync(recursive: true);
+      Directory(p.join(root.path, 'lib', 'dartvel_client'))
+          .createSync(recursive: true);
+      File(p.join(root.path, 'lib', 'models', 'metric.dart'))
+          .writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVModel()
+class Metric {
+  final List<double> scores;
+  final Map<String, int> counts;
+  final Map<String, bool> flags;
+
+  const Metric({
+    required this.scores,
+    required this.counts,
+    required this.flags,
+  });
+}
+''');
+
+      await ModelGenerator.generate(
+        root: root.path,
+        pkgName: 'workflow_app',
+        buildId: 'test-build',
+      );
+
+      final content = File(
+        p.join(root.path, 'lib', 'dartvel_client', 'models.g.dart'),
+      ).readAsStringSync();
+      expect(content, contains('scores: scores ?? const <double>[1.0]'));
+      expect(content,
+          contains("counts: counts ?? const <String, int>{'test': 1}"));
+      expect(
+        content,
+        contains("flags: flags ?? const <String, bool>{'test': true}"),
+      );
+      expect(content, isNot(contains('UnsupportedError')));
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
+  test('model factory generation rejects unsupported required defaults',
+      () async {
+    final root =
+        await Directory.systemTemp.createTemp('dartvel_factory_error_test_');
+    try {
+      Directory(p.join(root.path, 'lib', 'models')).createSync(recursive: true);
+      Directory(p.join(root.path, 'lib', 'dartvel_client'))
+          .createSync(recursive: true);
+      File(p.join(root.path, 'lib', 'models', 'account.dart'))
+          .writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+class Profile {
+  const Profile();
+}
+
+@DVModel()
+class Account {
+  final Profile profile;
+
+  const Account({
+    required this.profile,
+  });
+}
+''');
+
+      expect(
+        () => ModelGenerator.generate(
+          root: root.path,
+          pkgName: 'workflow_app',
+          buildId: 'test-build',
+        ),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            contains(
+              'Cannot generate AccountFactory default for required field '
+              'Account.profile of type Profile',
+            ),
+          ),
+        ),
+      );
     } finally {
       root.deleteSync(recursive: true);
     }
