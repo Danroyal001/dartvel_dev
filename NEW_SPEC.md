@@ -218,7 +218,7 @@ Builder collections support the same layout modes:
 ```dart
 DVBox.builder(posts, (post) => PostCard(post)).grid(columns: 2)
 
-DVBox.builder(tags, (tag) => TagChip(tag)).wrapLine()
+DVBox.builder(tags, (tag) => TagChip(tag)).wrap()
 
 DVBox.builder(photos, (photo) => PhotoCard(photo)).masonry()
 
