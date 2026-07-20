@@ -138,6 +138,64 @@ class ModelGenerator {
         sb.writeln('  }');
         sb.writeln('}');
 
+        sb.writeln();
+        sb.writeln('/// Generated typed test factory for [$className].');
+        sb.writeln('class ${className}Factory {');
+        for (final field in fields) {
+          final type = field['type']!;
+          final name = field['name']!;
+          final nullableType = type.endsWith('?') ? type : '$type?';
+          sb.writeln('  final $nullableType $name;');
+        }
+        sb.writeln();
+        sb.writeln('  const ${className}Factory({');
+        for (final field in fields) {
+          final name = field['name']!;
+          sb.writeln('    this.$name,');
+        }
+        sb.writeln('  });');
+        sb.writeln();
+        sb.writeln('  ${className}Factory copyWith({');
+        for (final field in fields) {
+          final type = field['type']!;
+          final name = field['name']!;
+          final nullableType = type.endsWith('?') ? type : '$type?';
+          sb.writeln('    $nullableType $name,');
+        }
+        sb.writeln('  }) {');
+        sb.writeln('    return ${className}Factory(');
+        for (final field in fields) {
+          final name = field['name']!;
+          sb.writeln('      $name: $name ?? this.$name,');
+        }
+        sb.writeln('    );');
+        sb.writeln('  }');
+        sb.writeln();
+        sb.writeln('  ${className}Factory admin() {');
+        sb.writeln('    return copyWith(');
+        for (final field in fields) {
+          final type = field['type']!;
+          final name = field['name']!;
+          final value = _factoryAdminValue(type, name);
+          if (value != null) {
+            sb.writeln('      $name: $value,');
+          }
+        }
+        sb.writeln('    );');
+        sb.writeln('  }');
+        sb.writeln();
+        sb.writeln('  $className create() {');
+        sb.writeln('    return $className(');
+        for (final field in fields) {
+          final type = field['type']!;
+          final name = field['name']!;
+          sb.writeln(
+              '      $name: $name ?? ${_factoryDefaultValue(type, name)},');
+        }
+        sb.writeln('    );');
+        sb.writeln('  }');
+        sb.writeln('}');
+
         // Generated form controls helper
         sb.writeln();
         sb.writeln('/// Generated form controls for [$className]');
@@ -632,5 +690,48 @@ class ModelGenerator {
         ? '${generatedHeader}library dartvel_client_models;\n'
         : '$generatedHeader$sourceExports\n${modelImports.join('\n')}\n\n${sb.toString()}';
     File(p.join(clientDir.path, 'models.g.dart')).writeAsStringSync(content);
+  }
+
+  static String _factoryDefaultValue(String type, String name) {
+    final baseType = type.replaceAll('?', '');
+    final lowerName = name.toLowerCase();
+    if (type.endsWith('?')) return 'null';
+    if (baseType == 'String') {
+      if (lowerName == 'id' || lowerName.endsWith('id')) return "'${name}_1'";
+      if (lowerName.contains('email')) return "'user@example.com'";
+      if (lowerName.contains('name')) return "'Test User'";
+      if (lowerName.contains('status')) return "'active'";
+      if (lowerName.contains('role')) return "'user'";
+      return "'test_$name'";
+    }
+    if (baseType == 'int') return '1';
+    if (baseType == 'double') return '1.0';
+    if (baseType == 'num') return '1';
+    if (baseType == 'bool') return 'true';
+    if (baseType == 'DateTime') {
+      return 'DateTime.fromMillisecondsSinceEpoch(0, isUtc: true)';
+    }
+    if (baseType == 'List<String>') return "const <String>['test']";
+    if (baseType == 'List<int>') return 'const <int>[1]';
+    if (baseType == 'Map<String,String>' || baseType == 'Map<String, String>') {
+      return "const <String, String>{'test': 'value'}";
+    }
+    return 'throw UnsupportedError(\'No generated factory default for $type $name. Pass $name explicitly with copyWith().\')';
+  }
+
+  static String? _factoryAdminValue(String type, String name) {
+    final baseType = type.replaceAll('?', '');
+    final lowerName = name.toLowerCase();
+    if (baseType == 'String') {
+      if (lowerName.contains('email')) return "'admin@example.com'";
+      if (lowerName.contains('name')) return "'Admin User'";
+      if (lowerName.contains('role')) return "'admin'";
+      if (lowerName.contains('status')) return "'active'";
+    }
+    if (baseType == 'bool' &&
+        (lowerName.contains('admin') || lowerName.contains('active'))) {
+      return 'true';
+    }
+    return null;
   }
 }
