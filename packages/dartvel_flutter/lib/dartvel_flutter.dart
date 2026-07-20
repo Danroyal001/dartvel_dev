@@ -49,6 +49,8 @@ export 'package:dartvel_core/dartvel.dart'
         DVQueueAdapter,
         DVQueues,
         DVSentNotification,
+        DVShell,
+        DVShellResult,
         DVTestHarness,
         LocalAnalyticsProvider,
         formControlsFactories,
@@ -2089,6 +2091,18 @@ class DV {
       const DVObservabilityAndLogging();
   static DVRust get Rust => const DVRust();
   static String get currentTenant => 'default';
+
+  static Future<DVShellResult> $(
+    String command, {
+    Map<String, String> environment = const <String, String>{},
+    String? workingDirectory,
+  }) {
+    return const DVShell().run(
+      command,
+      environment: environment,
+      workingDirectory: workingDirectory,
+    );
+  }
 
   static Future<void> log(
     String message, {

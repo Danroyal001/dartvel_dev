@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io' as io;
 import 'package:dartvel_core/dartvel.dart';
 import 'package:test/test.dart';
 
@@ -153,6 +154,26 @@ void main() {
       expect(invalidation.keysForTag('users'), contains('users:7'));
       expect(invalidation.revalidateTag('users'), contains('users:7'));
       expect(invalidation.keysForTag('users'), isEmpty);
+    });
+  });
+
+  group('DVShell', () {
+    test('runs a command and returns typed output', () async {
+      final temp = io.Directory.systemTemp.createTempSync('dartvel_core_shell');
+      try {
+        final script = io.File('${temp.path}/message.dart')
+          ..writeAsStringSync("void main() => print('core-shell');");
+
+        final result = await const DVShell().run(
+          '${io.Platform.resolvedExecutable} ${script.path}',
+        );
+
+        expect(result.succeeded, isTrue);
+        expect(result.exitCode, 0);
+        expect(result.stdoutText, contains('core-shell'));
+      } finally {
+        temp.deleteSync(recursive: true);
+      }
     });
   });
 }

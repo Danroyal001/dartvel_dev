@@ -234,6 +234,15 @@ void main() {
     expect(DV.Theme.mode, ThemeMode.dark);
   });
 
+  test('DV facade exposes typed shell runner', () async {
+    final result = await DV.$('dart --version');
+
+    expect(result.succeeded, isTrue);
+    expect(result.exitCode, 0);
+    expect(result.stdoutText, isA<String>());
+    expect(result.stderrText, isA<String>());
+  });
+
   test('observability emits structured logs, metrics, and traces', () async {
     final provider = LocalAnalyticsProvider();
     Analytics.register(provider);
