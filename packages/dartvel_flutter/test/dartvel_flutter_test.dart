@@ -4,6 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  const settingsTitle = DVTranslationKey('settings.title');
+  const inboxCount = DVTranslationKey('inbox.count');
+
   testWidgets('DVBox and DVText render correctly with style modifiers',
       (WidgetTester tester) async {
     final style = const DVStyleModifier()
@@ -277,6 +280,65 @@ void main() {
     await DV.Jobs.dispatch<String>('model-sync');
     expect(await DV.Queues.work(), 1);
     expect(queued, ['model-sync']);
+  });
+
+  testWidgets('DV.I18n translates typed keys and formats locale values',
+      (WidgetTester tester) async {
+    DV.I18n.reset();
+    DV.I18n.loadAll(<DVTranslationCatalog>[
+      DVTranslationCatalog(
+        locale: LocaleTag.enUS,
+        messages: <DVTranslationKey, String>{
+          settingsTitle: 'Settings',
+        },
+        plurals: <DVTranslationKey, DVPluralForms>{
+          inboxCount: const DVPluralForms(
+            one: '{count} message',
+            other: '{count} messages',
+          ),
+        },
+      ),
+      DVTranslationCatalog(
+        locale: LocaleTag.frFR,
+        messages: <DVTranslationKey, String>{
+          settingsTitle: 'Parametres',
+        },
+        plurals: <DVTranslationKey, DVPluralForms>{
+          inboxCount: const DVPluralForms(
+            one: '{count} message',
+            other: '{count} messages',
+          ),
+        },
+      ),
+    ]);
+
+    expect(DV.I18n.t(settingsTitle), 'Settings');
+    expect(DV.I18n.plural(inboxCount, 1), '1 message');
+    expect(DV.I18n.plural(inboxCount, 2), '2 messages');
+    expect(DV.I18n.formatNumber(1200), '1,200');
+    expect(DV.I18n.formatCurrency(12.5, code: 'USD'), 'USD 12.50');
+    expect(DV.I18n.formatDate(DateTime(2026, 7, 20)), '07/20/2026');
+
+    DV.I18n.useLocale(LocaleTag.frFR);
+    expect(DV.I18n.translate(settingsTitle), 'Parametres');
+    expect(DV.I18n.formatNumber(1200), '1 200');
+    expect(DV.I18n.formatCurrency(12.5, code: 'EUR'), '12,50 EUR');
+    expect(DV.I18n.formatDate(DateTime(2026, 7, 20)), '20/07/2026');
+
+    DV.I18n.useLocale(const LocaleTag('ar'));
+    expect(DV.I18n.textDirection, TextDirection.rtl);
+    expect(
+      () => DV.I18n.t(const DVTranslationKey('missing'), strict: true),
+      throwsA(isA<StateError>()),
+    );
+
+    DV.I18n.useLocale(LocaleTag.enUS);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DVBox(DVText(DV.I18n.t(settingsTitle))),
+      ),
+    );
+    expect(find.text('Settings'), findsOneWidget);
   });
 
   test('local cache and theme APIs have concrete behavior', () async {
