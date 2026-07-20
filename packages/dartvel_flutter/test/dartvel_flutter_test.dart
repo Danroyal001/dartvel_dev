@@ -750,6 +750,29 @@ void main() {
     DV.Test.resetAuth();
   });
 
+  test('DV.Test provides explicit fake storage AI and native bindings',
+      () async {
+    final storage = DV.Test.fakeStorage();
+    await DV.Storage.put('test.bin', <int>[1, 2, 3]);
+    expect(storage['test.bin'], <int>[1, 2, 3]);
+    DV.Test.resetStorage();
+    expect(DV.Storage.get('test.bin'), throwsStateError);
+
+    DV.Test.fakeAI();
+    DV.AI.registerTool('testTool', (_) => const DVJsonString('ok'));
+    expect(DV.AI.hasTool('testTool'), isTrue);
+    DV.Test.resetAI();
+    expect(DV.AI.hasTool('testTool'), isFalse);
+    expect(await DV.AI.chat('fake provider'), contains('fake provider'));
+
+    DV.Test.resetNativeBindings();
+    expect(DV.Platform.camera.takePhoto(), throwsStateError);
+    DV.Test.fakeNativeBinding('camera.takePhoto', (_) => <int>[9, 8, 7]);
+    expect(await DV.Platform.camera.takePhoto(), <int>[9, 8, 7]);
+    DV.Test.resetNativeBindings();
+    expect(DV.Platform.camera.takePhoto(), throwsStateError);
+  });
+
   testWidgets('prebuilt auth pages use Dartvel primitives without scaffolds',
       (WidgetTester tester) async {
     await DV.Auth.signOut();
