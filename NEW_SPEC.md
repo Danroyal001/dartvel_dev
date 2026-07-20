@@ -1555,7 +1555,7 @@ Test conventions:
 Generated helpers:
 
 ```dart
-final user = User.Factory().admin().create();
+final user = UserFactory().admin().create();
 await DV.Test.asUser(user, () async {
   await DV.Auth.authorize(user, DVPolicyAction.view, dashboard);
 });
