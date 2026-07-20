@@ -155,6 +155,28 @@ void main() {
       expect(invalidation.revalidateTag('users'), contains('users:7'));
       expect(invalidation.keysForTag('users'), isEmpty);
     });
+
+    test('dead-lettered jobs can be retried and flushed', () async {
+      const harness = DVTestHarness();
+      harness.resetQueues();
+      const queues = DVQueues();
+
+      await queues.dispatch<String>(
+        'unhandled',
+        queue: 'mail',
+        maxAttempts: 1,
+      );
+      expect(await queues.work(queue: 'mail'), 0);
+
+      final failed = await queues.deadLetters('mail');
+      expect(failed, hasLength(1));
+      expect(await queues.retry(failed.single.id), isTrue);
+      expect(await queues.deadLetters('mail'), isEmpty);
+      expect(await queues.pending('mail'), hasLength(1));
+
+      expect(await queues.flush(queue: 'mail'), 1);
+      expect(await queues.pending('mail'), isEmpty);
+    });
   });
 
   group('DVShell', () {
