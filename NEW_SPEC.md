@@ -1518,6 +1518,7 @@ Dartvel has a first-class testing layer.
 dartvel test
 dartvel test e2e
 dartvel test golden
+dartvel test golden --update-goldens
 ```
 
 Built-ins:
@@ -1569,6 +1570,7 @@ CI:
 - `dartvel test accessibility` runs generated semantics checks
 - `dartvel test release` runs the pre-release gate used before tags/releases
 - `dartvel test --watch` reruns affected tests on file changes
+- `dartvel test golden --update-goldens` refreshes approved golden snapshots
 - test sharding and per-file isolation are available in CI
 - snapshots and golden tests are first-class
 
