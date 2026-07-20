@@ -89,6 +89,17 @@ void main() {
     expect(serializeDVModel<int>(42), <String, Object?>{'value': 42});
   });
 
+  test('analytics fails clearly without an explicit provider', () async {
+    Analytics.clear();
+    expect(Analytics.logEvent('missing_provider'), throwsStateError);
+
+    final provider = LocalAnalyticsProvider();
+    Analytics.register(provider);
+    await Analytics.logEvent('configured', <String, Object>{'ok': true});
+    expect(provider.events.single.name, 'configured');
+    Analytics.clear();
+  });
+
   test('in-memory search provider filters, facets, and paginates typed models',
       () async {
     final provider = DVInMemorySearchProvider<int, Set<int>>(
