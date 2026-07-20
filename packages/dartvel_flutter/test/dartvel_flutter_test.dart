@@ -26,6 +26,32 @@ void main() {
     expect(find.text('Save'), findsOneWidget);
   });
 
+  testWidgets('DVText input modifier renders a typed input control',
+      (WidgetTester tester) async {
+    String? changedValue;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Material(
+          // The modifier carries a runtime callback, so this fixture cannot
+          // use a const widget subtree.
+          // ignore: prefer_const_constructors
+          child: DVText('Email').modifier(
+            // ignore: prefer_const_constructors
+            DVModifier().input(
+              label: 'Email address',
+              onChanged: (value) => changedValue = value,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byType(TextField), findsOneWidget);
+    await tester.enterText(find.byType(TextField), 'ada@example.com');
+    expect(changedValue, 'ada@example.com');
+  });
+
   testWidgets('DVSignal reacts to state updates within ProviderScope',
       (WidgetTester tester) async {
     await tester.pumpWidget(
