@@ -57,6 +57,12 @@ Future<Map<String, Object?>> handler(String title, int priority) async {
       expect(content, isNot(contains('var hdrs')));
       expect(content, isNot(contains('var send')));
       expect(content, isNot(contains('var buffer')));
+
+      final routes = File(
+        p.join(root.path, '.dart_tool', 'dartvel_backend_routes.g.dart'),
+      ).readAsStringSync();
+      expect(routes, isNot(contains('Map<String, dynamic>')));
+      expect(routes, isNot(contains('<String, dynamic>')));
     } finally {
       root.deleteSync(recursive: true);
     }
