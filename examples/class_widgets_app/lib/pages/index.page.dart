@@ -26,7 +26,7 @@ class IndexPage extends DVClassWidget {
       const DVText('Your Class-Based Dartvel app is ready!')
           .modifier(_titleStyle),
       DVText('Loaded at: ${data?['timestamp'] ?? 'N/A'}'),
-      DVBox.wrap([
+      DVBox.wrapLine([
         Button('Docs', () {}),
         Button('GitHub', () {}),
       ], spacing: 12),
