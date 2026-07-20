@@ -725,6 +725,31 @@ void main() {
     expect(DV.Cache.revalidateTag('users'), contains('users:list'));
   });
 
+  test('DV.Test provides explicit fake auth users and scoped login', () async {
+    DV.Test.resetAuth();
+    expect(DV.Auth.currentUser, isNull);
+
+    final user = DV.Test.fakeAuthUser(
+      id: 'tester',
+      email: 'tester@example.com',
+    );
+    final value = await DV.Test.asUser<int>(user, () async {
+      expect(DV.Auth.currentUser, same(user));
+      return 42;
+    });
+
+    expect(value, 42);
+    expect(DV.Auth.currentUser, isNull);
+
+    await DV.Auth.signInWithProvider('existing');
+    final previous = DV.Auth.currentUser;
+    await DV.Test.asUser<void>(user, () {
+      expect(DV.Auth.currentUser, same(user));
+    });
+    expect(DV.Auth.currentUser, same(previous));
+    DV.Test.resetAuth();
+  });
+
   testWidgets('prebuilt auth pages use Dartvel primitives without scaffolds',
       (WidgetTester tester) async {
     await DV.Auth.signOut();
