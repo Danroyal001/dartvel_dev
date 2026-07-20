@@ -316,6 +316,34 @@ void main() {
       expect(notificationProvider.sent.single.recipient, 'user-1');
     });
 
+    test('mail and notifications fail without explicit providers', () async {
+      const harness = DVTestHarness();
+      harness.clearMailProvider();
+      harness.clearNotificationProviders();
+
+      expect(
+        () => const DVNotificationMail().send(
+          const DVMailMessage(
+            from: DVMailAddress('system@example.com'),
+            to: <DVMailAddress>[DVMailAddress('user@example.com')],
+            subject: 'Missing provider',
+            text: 'This must fail clearly.',
+          ),
+        ),
+        throwsStateError,
+      );
+      expect(
+        () => const DVNotificationsService().send(
+          'user-1',
+          const DVNotificationMessage(title: 'Missing', body: 'Provider'),
+        ),
+        throwsStateError,
+      );
+
+      harness.fakeMail();
+      harness.fakeNotifications();
+    });
+
     test('test harness installs explicit fake queue provider', () async {
       const harness = DVTestHarness();
       final adapter = harness.fakeQueue();
