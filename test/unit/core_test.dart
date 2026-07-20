@@ -13,14 +13,14 @@ void main() {
 
     test('set and get value', () async {
       await cache.set('key', 'value');
-      expect(await cache.get('key'), equals('value'));
+      expect(await cache.get<String>('key'), equals('value'));
     });
 
     test('ttl expiration', () async {
       await cache.set('key', 'value', ttl: const Duration(milliseconds: 100));
-      expect(await cache.get('key'), equals('value'));
+      expect(await cache.get<String>('key'), equals('value'));
       await Future.delayed(const Duration(milliseconds: 150));
-      expect(await cache.get('key'), isNull);
+      expect(await cache.get<String>('key'), isNull);
     });
   });
 
