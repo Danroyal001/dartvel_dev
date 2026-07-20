@@ -841,6 +841,7 @@ void main() {
     DV.Test.resetNativeBindings();
     expect(DV.Platform.camera.takePhoto(), throwsStateError);
     expect(DV.Platform.files.readBytes('missing.bin'), throwsStateError);
+    expect(DV.Platform.clipboard.paste(), throwsStateError);
     DV.Test.fakeNativeBinding('camera.takePhoto', (_) => <int>[9, 8, 7]);
     expect(await DV.Platform.camera.takePhoto(), <int>[9, 8, 7]);
     DV.Test.resetNativeBindings();

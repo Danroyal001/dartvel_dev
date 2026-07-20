@@ -1434,16 +1434,16 @@ class DVDeviceControls {
 
 class DVClipboard {
   const DVClipboard();
-  static String? _text;
 
   Future<void> copy(String text) async {
     final handled =
-        await DVNativeBridge.invoke<bool>('clipboard.copy', {'text': text});
-    if (handled != true) _text = text;
+        await DVNativeBridge.require<bool>('clipboard.copy', {'text': text});
+    if (!handled) {
+      throw StateError('Native clipboard binding rejected copy.');
+    }
   }
 
-  Future<String?> paste() async =>
-      await DVNativeBridge.invoke<String>('clipboard.paste') ?? _text;
+  Future<String?> paste() => DVNativeBridge.require<String?>('clipboard.paste');
 }
 
 class DVShare {
