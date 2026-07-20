@@ -1991,7 +1991,7 @@ class DVAuth {
   const DVAuth();
   static DVAuthUser? _currentUser;
 
-  Object? get currentUser => _currentUser;
+  DVAuthUser? get currentUser => _currentUser;
   DVAuthAuthorization get authorization => const DVAuthAuthorization();
 
   void registerPolicy<TUser, TResource>(
