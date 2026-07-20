@@ -32,7 +32,7 @@ class MiddlewareChain {
     _middleware.add(middleware);
   }
 
-  Future<MiddlewareContext> execute(dynamic request) async {
+  Future<MiddlewareContext> execute(Object? request) async {
     final context = MiddlewareContext();
 
     for (final middleware in _middleware) {
@@ -298,7 +298,7 @@ class MiddlewareManager {
     _routeMiddleware.add(RouteMiddleware(path, [middleware]));
   }
 
-  Future<MiddlewareContext> execute(dynamic request, String path) async {
+  Future<MiddlewareContext> execute(Object? request, String path) async {
     // Execute global middleware
     final context = await _globalChain.execute(request);
 
