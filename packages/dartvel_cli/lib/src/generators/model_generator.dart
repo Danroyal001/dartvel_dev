@@ -247,6 +247,20 @@ class ModelGenerator {
         sb.writeln('      onReset: onReset,');
         sb.writeln('    );');
         sb.writeln('  });');
+        sb.writeln('  registerDVModelFactory<$className>(() => $className(');
+        for (final field in fields) {
+          final name = field['name']!;
+          final type = field['type']!;
+          final defaultValue = _factoryDefaultValue(
+            type: type,
+            name: name,
+            className: className,
+          );
+          sb.writeln('    $name: $defaultValue,');
+        }
+        sb.writeln('  ));');
+        sb.writeln(
+            '  registerDVModelSerializer<$className>((model) => model.toJson());');
         sb.writeln('  return true;');
         sb.writeln('}();');
 

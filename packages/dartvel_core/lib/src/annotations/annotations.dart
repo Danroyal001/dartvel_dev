@@ -298,6 +298,32 @@ typedef DVFormControlsFactory = DVFormControls Function(
 });
 final Map<Type, DVFormControlsFactory> formControlsFactories = {};
 
+typedef DVModelFactory<T> = T Function();
+typedef DVModelSerializer<T> = Map<String, Object?> Function(T model);
+
+final Map<Type, Object? Function()> dvModelFactories = {};
+final Map<Type, Map<String, Object?> Function(Object?)> dvModelSerializers = {};
+
 void registerFormControlsFactory<T>(DVFormControlsFactory factory) {
   formControlsFactories[T] = factory;
+}
+
+void registerDVModelFactory<T>(DVModelFactory<T> factory) {
+  dvModelFactories[T] = () => factory();
+}
+
+T? createDVModel<T>() {
+  final factory = dvModelFactories[T];
+  if (factory == null) return null;
+  return factory() as T;
+}
+
+void registerDVModelSerializer<T>(DVModelSerializer<T> serializer) {
+  dvModelSerializers[T] = (Object? model) => serializer(model as T);
+}
+
+Map<String, Object?>? serializeDVModel<T>(T model) {
+  final serializer = dvModelSerializers[T];
+  if (serializer == null) return null;
+  return serializer(model);
 }

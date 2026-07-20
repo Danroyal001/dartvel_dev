@@ -94,6 +94,8 @@ class Order {
       expect(formStart, isNonNegative);
       expect(reportStart, isNonNegative);
       expect(facetsStart, isNonNegative);
+      expect(content, contains('registerDVModelFactory<Order>'));
+      expect(content, contains('registerDVModelSerializer<Order>'));
       final parserBlock = content.substring(parserStart, formStart);
       final reportBlock = content.substring(reportStart, facetsStart);
       expect(parserBlock, isNot(contains('scheduleMonthly')));

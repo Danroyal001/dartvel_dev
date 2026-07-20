@@ -79,6 +79,16 @@ void main() {
     expect(model.nativePrice, 100);
   });
 
+  test('generated model factory and serializer registries are typed', () {
+    registerDVModelFactory<int>(() => 42);
+    registerDVModelSerializer<int>((value) => <String, Object?>{
+          'value': value,
+        });
+
+    expect(createDVModel<int>(), 42);
+    expect(serializeDVModel<int>(42), <String, Object?>{'value': 42});
+  });
+
   group('Res', () {
     test('json creates correct response', () async {
       final data = {'message': 'hello'};
