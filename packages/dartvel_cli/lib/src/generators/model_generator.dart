@@ -29,6 +29,8 @@ class ModelGenerator {
         '// ignore_for_file: directives_ordering, non_constant_identifier_names, unused_element, use_super_parameters');
     sb.writeln('// Build ID: $buildId');
     sb.writeln();
+    sb.writeln("import 'dart:convert' as convert;");
+    sb.writeln();
     sb.writeln("import 'package:dartvel_core/dartvel.dart';");
 
     final modelImports = <String>[];
@@ -184,6 +186,93 @@ class ModelGenerator {
         sb.writeln('  return true;');
         sb.writeln('}();');
 
+        sb.writeln();
+        sb.writeln('/// Generated bulk import helpers for [$className].');
+        sb.writeln('class ${className}Import {');
+        sb.writeln('  static DVImportResult<$className> csv(String content) {');
+        sb.writeln('    final lines = const convert.LineSplitter()');
+        sb.writeln('        .convert(content)');
+        sb.writeln('        .where((line) => line.trim().isNotEmpty)');
+        sb.writeln('        .toList(growable: false);');
+        sb.writeln('    if (lines.isEmpty) {');
+        sb.writeln(
+            '      return const DVImportResult<$className>(items: <$className>[]);');
+        sb.writeln('    }');
+        sb.writeln('    final headers = _splitCsvLine(lines.first);');
+        sb.writeln('    final items = <$className>[];');
+        sb.writeln('    final errors = <DVImportRowError>[];');
+        sb.writeln(
+            '    for (var index = 1; index < lines.length; index += 1) {');
+        sb.writeln('      final values = _splitCsvLine(lines[index]);');
+        sb.writeln('      final row = <String, dynamic>{};');
+        sb.writeln('      for (var i = 0; i < headers.length; i += 1) {');
+        sb.writeln(
+            "        row[headers[i]] = i < values.length ? values[i] : '';");
+        sb.writeln('      }');
+        sb.writeln('      try {');
+        sb.writeln('        items.add(${className}Parser.fromJson(row));');
+        sb.writeln('      } on Object catch (error) {');
+        sb.writeln('        errors.add(DVImportRowError(');
+        sb.writeln('          row: index + 1,');
+        sb.writeln('          message: error.toString(),');
+        sb.writeln('        ));');
+        sb.writeln('      }');
+        sb.writeln('    }');
+        sb.writeln(
+            '    return DVImportResult<$className>(items: items, errors: errors);');
+        sb.writeln('  }');
+        sb.writeln('}');
+        sb.writeln();
+        sb.writeln('/// Generated export helpers for [$className].');
+        sb.writeln('class ${className}Export {');
+        sb.writeln(
+            '  static DVExportResult csv(Iterable<$className> items, {String fileName = \'${className.toLowerCase()}s.csv\'}) {');
+        sb.writeln('    final buffer = StringBuffer();');
+        sb.writeln(
+            "    buffer.writeln('${fields.map((f) => f['name']!).join(',')}');");
+        sb.writeln('    for (final item in items) {');
+        sb.writeln('      buffer.writeln([');
+        for (final field in fields) {
+          final name = field['name']!;
+          sb.writeln('        _escapeCsvValue(item.$name),');
+        }
+        sb.writeln("      ].join(','));");
+        sb.writeln('    }');
+        sb.writeln('    return DVExportResult(');
+        sb.writeln('      fileName: fileName,');
+        sb.writeln("      contentType: 'text/csv; charset=utf-8',");
+        sb.writeln('      bytes: convert.utf8.encode(buffer.toString()),');
+        sb.writeln('    );');
+        sb.writeln('  }');
+        sb.writeln();
+        sb.writeln(
+            '  static DVExportResult json(Iterable<$className> items, {String fileName = \'${className.toLowerCase()}s.json\'}) {');
+        sb.writeln('    return DVExportResult(');
+        sb.writeln('      fileName: fileName,');
+        sb.writeln("      contentType: 'application/json; charset=utf-8',");
+        sb.writeln(
+            '      bytes: convert.utf8.encode(convert.jsonEncode(items.map((item) => item.toJson()).toList(growable: false))),');
+        sb.writeln('    );');
+        sb.writeln('  }');
+        sb.writeln('}');
+        sb.writeln();
+        sb.writeln('/// Generated reporting helpers for [$className].');
+        sb.writeln('class ${className}Report {');
+        sb.writeln(
+            '  static DVReportResult monthly(Iterable<$className> items, {DateTime? month}) {');
+        sb.writeln('    final selectedMonth = month ?? DateTime.now();');
+        sb.writeln('    return DVReportResult(');
+        sb.writeln("      name: '${className.toLowerCase()}.monthly',");
+        sb.writeln('      generatedAt: DateTime.now().toUtc(),');
+        sb.writeln('      metrics: <String, Object?>{');
+        sb.writeln("        'month': selectedMonth.month,");
+        sb.writeln("        'year': selectedMonth.year,");
+        sb.writeln("        'count': items.length,");
+        sb.writeln('      },');
+        sb.writeln('    );');
+        sb.writeln('  }');
+        sb.writeln('}');
+
         if (isSearchableModel || searchableFields.isNotEmpty) {
           final effectiveSearchableFields =
               searchableFields.isEmpty ? fields : searchableFields;
@@ -230,6 +319,29 @@ class ModelGenerator {
           sb.writeln('}');
         }
       }
+    }
+
+    if (classesGenerated.isNotEmpty) {
+      sb.writeln();
+      sb.writeln('List<String> _splitCsvLine(String line) {');
+      sb.writeln("  return line.split(',').map((value) {");
+      sb.writeln('    final trimmed = value.trim();');
+      sb.writeln(
+          "    if (trimmed.length >= 2 && trimmed.startsWith('\"') && trimmed.endsWith('\"')) {");
+      sb.writeln('      return trimmed.substring(1, trimmed.length - 1);');
+      sb.writeln('    }');
+      sb.writeln('    return trimmed;');
+      sb.writeln('  }).toList(growable: false);');
+      sb.writeln('}');
+      sb.writeln();
+      sb.writeln('String _escapeCsvValue(Object? value) {');
+      sb.writeln("  final text = value?.toString() ?? '';");
+      sb.writeln(
+          "  if (text.contains(',') || text.contains('\"') || text.contains('\\n')) {");
+      sb.writeln(r'''    return '"${text.replaceAll('"', '""')}"';''');
+      sb.writeln('  }');
+      sb.writeln('  return text;');
+      sb.writeln('}');
     }
 
     final clientDir = Directory(p.join(root, 'lib', 'dartvel_client'));

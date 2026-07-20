@@ -325,6 +325,52 @@ class DVLocalBillingProvider implements DVBillingProvider {
   }
 }
 
+class DVImportRowError {
+  final int row;
+  final String message;
+
+  const DVImportRowError({
+    required this.row,
+    required this.message,
+  });
+}
+
+class DVImportResult<TModel> {
+  final List<TModel> items;
+  final List<DVImportRowError> errors;
+
+  const DVImportResult({
+    required this.items,
+    this.errors = const <DVImportRowError>[],
+  });
+
+  bool get hasErrors => errors.isNotEmpty;
+}
+
+class DVExportResult {
+  final String fileName;
+  final String contentType;
+  final List<int> bytes;
+
+  const DVExportResult({
+    required this.fileName,
+    required this.contentType,
+    required this.bytes,
+  });
+}
+
+class DVReportResult {
+  final String name;
+  final DateTime generatedAt;
+  final Map<String, Object?> metrics;
+
+  const DVReportResult({
+    required this.name,
+    required this.generatedAt,
+    required this.metrics,
+  });
+}
+
 class DVJobEnvelope<TPayload> {
   final String id;
   final String queue;
