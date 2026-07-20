@@ -42,11 +42,17 @@ class ModelGenerator {
       modelImports.add("import '$importPath';");
 
       final content = await file.readAsString();
-      // Scan for @DVModel() classes
-      final classMatches = RegExp(r'@DVModel\(\)\s*class\s+([A-Za-z0-9_]+)\b')
-          .allMatches(content);
+      // Scan for @DVModel(...) classes.
+      final classMatches = RegExp(
+        r'@DVModel\s*\(([^)]*)\)\s*class\s+([A-Za-z0-9_]+)\b',
+        dotAll: true,
+      ).allMatches(content);
       for (final match in classMatches) {
-        final className = match.group(1)!;
+        final modelArgs = match.group(1) ?? '';
+        final className = match.group(2)!;
+        final isSearchableModel = modelArgs.contains(
+          RegExp(r'\bsearchable\s*:\s*true\b'),
+        );
         classesGenerated.add(className);
 
         // Parse fields
@@ -56,6 +62,16 @@ class ModelGenerator {
         final fields = <Map<String, String>>[];
         for (final m in fieldRegex.allMatches(content)) {
           fields.add({
+            'type': m.group(1)!,
+            'name': m.group(2)!,
+          });
+        }
+        final searchableFields = <Map<String, String>>[];
+        final searchableFieldRegex = RegExp(
+          r'@DVSearchable\s*\(\s*\)\s*final\s+([A-Za-z0-9_<>?]+)\s+([A-Za-z0-9_]+)\b',
+        );
+        for (final m in searchableFieldRegex.allMatches(content)) {
+          searchableFields.add({
             'type': m.group(1)!,
             'name': m.group(2)!,
           });
@@ -167,6 +183,52 @@ class ModelGenerator {
         sb.writeln('  });');
         sb.writeln('  return true;');
         sb.writeln('}();');
+
+        if (isSearchableModel || searchableFields.isNotEmpty) {
+          final effectiveSearchableFields =
+              searchableFields.isEmpty ? fields : searchableFields;
+          sb.writeln();
+          sb.writeln('/// Generated search facets for [$className].');
+          sb.writeln('class ${className}SearchFacets {');
+          for (final field in effectiveSearchableFields) {
+            final type = field['type']!;
+            final name = field['name']!;
+            sb.writeln('  final List<$type>? $name;');
+          }
+          sb.writeln();
+          sb.writeln('  const ${className}SearchFacets({');
+          for (final field in effectiveSearchableFields) {
+            final name = field['name']!;
+            sb.writeln('    this.$name,');
+          }
+          sb.writeln('  });');
+          sb.writeln('}');
+          sb.writeln();
+          sb.writeln('/// Generated typed search facade for [$className].');
+          sb.writeln('class ${className}Search {');
+          sb.writeln(
+              '  static DVSearchProvider<$className, ${className}SearchFacets> _provider = const DVEmptySearchProvider<$className, ${className}SearchFacets>();');
+          sb.writeln();
+          sb.writeln(
+              '  static void useProvider(DVSearchProvider<$className, ${className}SearchFacets> provider) {');
+          sb.writeln('    _provider = provider;');
+          sb.writeln('  }');
+          sb.writeln();
+          sb.writeln('  static Future<DVSearchResultPage<$className>> query(');
+          sb.writeln('    String value, {');
+          sb.writeln('    ${className}SearchFacets? facets,');
+          sb.writeln('    int page = 1,');
+          sb.writeln('    int perPage = 20,');
+          sb.writeln('  }) {');
+          sb.writeln('    return _provider.query(');
+          sb.writeln('      value,');
+          sb.writeln('      facets: facets,');
+          sb.writeln('      page: page,');
+          sb.writeln('      perPage: perPage,');
+          sb.writeln('    );');
+          sb.writeln('  }');
+          sb.writeln('}');
+        }
       }
     }
 

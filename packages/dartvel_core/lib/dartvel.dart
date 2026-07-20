@@ -192,6 +192,49 @@ typedef DVPolicyCheck<TUser, TResource> = FutureOr<bool> Function(
   TResource resource,
 );
 
+class DVSearchResultPage<TModel> {
+  final List<TModel> items;
+  final int total;
+  final int page;
+  final int perPage;
+
+  const DVSearchResultPage({
+    required this.items,
+    required this.total,
+    required this.page,
+    required this.perPage,
+  });
+}
+
+abstract class DVSearchProvider<TModel, TFacets> {
+  Future<DVSearchResultPage<TModel>> query(
+    String query, {
+    TFacets? facets,
+    int page = 1,
+    int perPage = 20,
+  });
+}
+
+class DVEmptySearchProvider<TModel, TFacets>
+    implements DVSearchProvider<TModel, TFacets> {
+  const DVEmptySearchProvider();
+
+  @override
+  Future<DVSearchResultPage<TModel>> query(
+    String query, {
+    TFacets? facets,
+    int page = 1,
+    int perPage = 20,
+  }) async {
+    return DVSearchResultPage<TModel>(
+      items: <TModel>[],
+      total: 0,
+      page: page,
+      perPage: perPage,
+    );
+  }
+}
+
 class DVJobEnvelope<TPayload> {
   final String id;
   final String queue;
