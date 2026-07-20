@@ -109,6 +109,10 @@ class DVModifier {
   final List<BoxShadow>? shadows;
   final VoidCallback? onTapCallback;
   final DecorationImage? bgImage;
+  final String? semanticLabelValue;
+  final String? semanticHintValue;
+  final bool? semanticButtonValue;
+  final Size? minimumTapTargetValue;
 
   const DVModifier({
     this.paddingValue,
@@ -125,6 +129,10 @@ class DVModifier {
     this.shadows,
     this.onTapCallback,
     this.bgImage,
+    this.semanticLabelValue,
+    this.semanticHintValue,
+    this.semanticButtonValue,
+    this.minimumTapTargetValue,
   });
 
   const DVModifier.fromStyle()
@@ -141,7 +149,11 @@ class DVModifier {
         alignmentValue = null,
         shadows = null,
         onTapCallback = null,
-        bgImage = null;
+        bgImage = null,
+        semanticLabelValue = null,
+        semanticHintValue = null,
+        semanticButtonValue = null,
+        minimumTapTargetValue = null;
 
   DVModifier _copyWith({
     EdgeInsetsGeometry? paddingValue,
@@ -158,6 +170,10 @@ class DVModifier {
     List<BoxShadow>? shadows,
     VoidCallback? onTapCallback,
     DecorationImage? bgImage,
+    String? semanticLabelValue,
+    String? semanticHintValue,
+    bool? semanticButtonValue,
+    Size? minimumTapTargetValue,
   }) {
     return DVModifier(
       paddingValue: paddingValue ?? this.paddingValue,
@@ -174,6 +190,11 @@ class DVModifier {
       shadows: shadows ?? this.shadows,
       onTapCallback: onTapCallback ?? this.onTapCallback,
       bgImage: bgImage ?? this.bgImage,
+      semanticLabelValue: semanticLabelValue ?? this.semanticLabelValue,
+      semanticHintValue: semanticHintValue ?? this.semanticHintValue,
+      semanticButtonValue: semanticButtonValue ?? this.semanticButtonValue,
+      minimumTapTargetValue:
+          minimumTapTargetValue ?? this.minimumTapTargetValue,
     );
   }
 
@@ -217,6 +238,20 @@ class DVModifier {
 
   DVModifier backgroundImage(DecorationImage image) =>
       _copyWith(bgImage: image);
+
+  DVModifier semanticLabel(String value) =>
+      _copyWith(semanticLabelValue: value);
+
+  DVModifier semanticHint(String value) => _copyWith(semanticHintValue: value);
+
+  DVModifier semanticButton([bool value = true]) =>
+      _copyWith(semanticButtonValue: value);
+
+  DVModifier minimumTapTarget({
+    double width = 48,
+    double height = 48,
+  }) =>
+      _copyWith(minimumTapTargetValue: Size(width, height));
 }
 
 typedef DVStyleModifier = DVModifier;
@@ -450,6 +485,29 @@ class DVBox<T> extends StatelessWidget {
     if (_modifier?.onTapCallback != null) {
       result = GestureDetector(
         onTap: _modifier!.onTapCallback,
+        child: result,
+      );
+    }
+
+    final minimumTapTarget = _modifier?.minimumTapTargetValue;
+    if (minimumTapTarget != null) {
+      result = ConstrainedBox(
+        constraints: BoxConstraints(
+          minWidth: minimumTapTarget.width,
+          minHeight: minimumTapTarget.height,
+        ),
+        child: result,
+      );
+    }
+
+    if (_modifier?.semanticLabelValue != null ||
+        _modifier?.semanticHintValue != null ||
+        _modifier?.semanticButtonValue != null) {
+      result = Semantics(
+        label: _modifier?.semanticLabelValue,
+        hint: _modifier?.semanticHintValue,
+        button: _modifier?.semanticButtonValue,
+        excludeSemantics: _modifier?.semanticLabelValue != null,
         child: result,
       );
     }
@@ -2257,6 +2315,7 @@ class DV {
   static DVCSRF get CSRF => const DVCSRF();
   static DVCSRF get Csrf => const DVCSRF();
   static DVI18n get I18n => const DVI18n();
+  static DVAccessibility get Accessibility => const DVAccessibility();
   static DVObservabilityAndLogging get ObservabilityAndLogging =>
       const DVObservabilityAndLogging();
   static DVRust get Rust => const DVRust();
@@ -2880,6 +2939,121 @@ class DVI18n {
       result = result.replaceAll('{${entry.key}}', entry.value);
     }
     return result;
+  }
+}
+
+class DVAccessibilityCheck {
+  final String name;
+  final bool passed;
+  final String message;
+
+  const DVAccessibilityCheck({
+    required this.name,
+    required this.passed,
+    required this.message,
+  });
+}
+
+class DVContrastCheck extends DVAccessibilityCheck {
+  final double ratio;
+  final double requiredRatio;
+
+  const DVContrastCheck({
+    required super.name,
+    required super.passed,
+    required super.message,
+    required this.ratio,
+    required this.requiredRatio,
+  });
+}
+
+class DVTappableTargetCheck extends DVAccessibilityCheck {
+  final Size size;
+  final Size minimumSize;
+
+  const DVTappableTargetCheck({
+    required super.name,
+    required super.passed,
+    required super.message,
+    required this.size,
+    required this.minimumSize,
+  });
+}
+
+class DVAccessibilityReport {
+  final List<DVAccessibilityCheck> checks;
+
+  const DVAccessibilityReport(this.checks);
+
+  bool get passed => checks.every((check) => check.passed);
+
+  List<DVAccessibilityCheck> get failures =>
+      List<DVAccessibilityCheck>.unmodifiable(
+          checks.where((check) => !check.passed));
+}
+
+class DVAccessibility {
+  static bool _reducedMotion = false;
+
+  const DVAccessibility();
+
+  bool get reducedMotion => _reducedMotion;
+
+  void useReducedMotion(bool value) {
+    _reducedMotion = value;
+  }
+
+  DVContrastCheck contrast({
+    required Color foreground,
+    required Color background,
+    double requiredRatio = 4.5,
+    String name = 'contrast',
+  }) {
+    final ratio = _contrastRatio(foreground, background);
+    final passed = ratio >= requiredRatio;
+    return DVContrastCheck(
+      name: name,
+      passed: passed,
+      message: passed
+          ? 'Contrast ratio ${ratio.toStringAsFixed(2)} passes.'
+          : 'Contrast ratio ${ratio.toStringAsFixed(2)} is below '
+              '${requiredRatio.toStringAsFixed(2)}.',
+      ratio: ratio,
+      requiredRatio: requiredRatio,
+    );
+  }
+
+  DVTappableTargetCheck tapTarget({
+    required Size size,
+    Size minimumSize = const Size(48, 48),
+    String name = 'tapTarget',
+  }) {
+    final passed =
+        size.width >= minimumSize.width && size.height >= minimumSize.height;
+    return DVTappableTargetCheck(
+      name: name,
+      passed: passed,
+      message: passed
+          ? 'Tap target ${size.width}x${size.height} passes.'
+          : 'Tap target ${size.width}x${size.height} is smaller than '
+              '${minimumSize.width}x${minimumSize.height}.',
+      size: size,
+      minimumSize: minimumSize,
+    );
+  }
+
+  DVAccessibilityReport report(Iterable<DVAccessibilityCheck> checks) {
+    return DVAccessibilityReport(List<DVAccessibilityCheck>.unmodifiable(
+      checks,
+    ));
+  }
+
+  double _contrastRatio(Color a, Color b) {
+    final first = a.computeLuminance();
+    final second = b.computeLuminance();
+    final lighter = math.max(first, second);
+    final darker = math.min(first, second);
+    return (lighter + 0.05) / (darker + 0.05);
   }
 }
 

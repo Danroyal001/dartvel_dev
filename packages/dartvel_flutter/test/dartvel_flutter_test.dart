@@ -341,6 +341,64 @@ void main() {
     expect(find.text('Settings'), findsOneWidget);
   });
 
+  testWidgets('DV accessibility modifiers expose semantics and tap targets',
+      (WidgetTester tester) async {
+    final modifier = const DVModifier()
+        .semanticLabel('Submit order')
+        .semanticHint('Sends the order for processing')
+        .semanticButton()
+        .minimumTapTarget();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        // ignore: prefer_const_constructors
+        home: DVBox(const DVText('Submit')).modifier(modifier),
+      ),
+    );
+
+    expect(
+      tester.getSemantics(find.text('Submit')),
+      matchesSemantics(
+        label: 'Submit order',
+        hint: 'Sends the order for processing',
+        isButton: true,
+      ),
+    );
+    final targetBox = find.ancestor(
+      of: find.text('Submit'),
+      matching: find.byType(ConstrainedBox),
+    );
+    final targetSize = tester.getSize(targetBox.first);
+    expect(targetSize.width, greaterThanOrEqualTo(48));
+    expect(targetSize.height, greaterThanOrEqualTo(48));
+
+    final passingContrast = DV.Accessibility.contrast(
+      foreground: Colors.black,
+      background: Colors.white,
+    );
+    final failingContrast = DV.Accessibility.contrast(
+      foreground: Colors.grey,
+      background: Colors.white,
+      requiredRatio: 7,
+    );
+    final tapTarget = DV.Accessibility.tapTarget(size: const Size(40, 48));
+    final report = DV.Accessibility.report(<DVAccessibilityCheck>[
+      passingContrast,
+      failingContrast,
+      tapTarget,
+    ]);
+
+    expect(passingContrast.passed, isTrue);
+    expect(failingContrast.passed, isFalse);
+    expect(tapTarget.passed, isFalse);
+    expect(report.passed, isFalse);
+    expect(report.failures, hasLength(2));
+
+    DV.Accessibility.useReducedMotion(true);
+    expect(DV.Accessibility.reducedMotion, isTrue);
+    DV.Accessibility.useReducedMotion(false);
+  });
+
   test('local cache and theme APIs have concrete behavior', () async {
     await DV.Cache.set('answer', 42);
     expect(await DV.Cache.get<int>('answer'), 42);
