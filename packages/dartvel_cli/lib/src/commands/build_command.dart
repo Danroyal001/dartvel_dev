@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:args/command_runner.dart';
+import '../utils/build_runner.dart';
 import '../utils/logger.dart';
 
 class BuildCommand extends Command<void> {
@@ -55,18 +56,21 @@ class BuildCommand extends Command<void> {
     Logger.log('🔨 Building Dartvel project...');
     Logger.log('');
 
-    // Run build_runner first
-    Logger.log('📦 Running build_runner...');
-    final buildRunnerResult = await Process.run(
-      'dart',
-      ['run', 'build_runner', 'build', '--delete-conflicting-outputs'],
-      workingDirectory: root,
-      runInShell: true,
-    );
+    // Run optional user-configured builders after Dartvel's own generation.
+    if (hasBuildRunnerDependency(root)) {
+      Logger.log('📦 Running build_runner...');
+      final buildRunnerResult = await Process.run(
+        'dart',
+        ['run', 'build_runner', 'build', '--delete-conflicting-outputs'],
+        workingDirectory: root,
+        runInShell: true,
+      );
 
-    if (buildRunnerResult.exitCode != 0) {
-      Logger.log(
-          '⚠️  build_runner failed or not configured (continuing anyway)');
+      if (buildRunnerResult.exitCode != 0) {
+        Logger.log('⚠️  build_runner failed');
+      }
+    } else {
+      Logger.log('📦 No build_runner dependency declared; skipping build.');
     }
 
     // Generate routes
