@@ -25,20 +25,20 @@ class Observable<T> extends ChangeNotifier implements ValueListenable<T> {
 
 /// Store base class
 abstract class Store extends ChangeNotifier {
-  void dispatch(dynamic action);
+  void dispatch(Object? action);
 }
 
 /// Simple store implementation
 class SimpleStore<TState> extends Store {
   TState _state;
-  final TState Function(TState, dynamic) _reducer;
+  final TState Function(TState, Object?) _reducer;
 
   SimpleStore(TState initialState, this._reducer) : _state = initialState;
 
   TState get state => _state;
 
   @override
-  void dispatch(dynamic action) {
+  void dispatch(Object? action) {
     final newState = _reducer(_state, action);
     if (newState != _state) {
       _state = newState;
@@ -71,10 +71,10 @@ class GlobalState {
 }
 
 /// Middleware support
-typedef Middleware<TState> = dynamic Function(
+typedef Middleware<TState> = Object? Function(
   TState state,
-  dynamic action,
-  void Function(dynamic) dispatch,
+  Object? action,
+  void Function(Object?) dispatch,
 );
 
 class StoreWithMiddleware<TState> extends SimpleStore<TState> {
@@ -87,8 +87,8 @@ class StoreWithMiddleware<TState> extends SimpleStore<TState> {
   );
 
   @override
-  void dispatch(dynamic action) {
-    var currentAction = action;
+  void dispatch(Object? action) {
+    Object? currentAction = action;
 
     for (final middleware in _middleware) {
       final result = middleware(_state, currentAction, dispatch);
