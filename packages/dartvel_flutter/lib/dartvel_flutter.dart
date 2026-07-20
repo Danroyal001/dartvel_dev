@@ -22,6 +22,9 @@ export 'package:dartvel_core/dartvel.dart'
         Analytics,
         AnalyticsEvent,
         AnalyticsProvider,
+        DVAIAgentRequest,
+        DVAIAgentResult,
+        DVAITranscript,
         DVAIToolEntry,
         DVAIToolHandler,
         DVAIToolRegistry,
@@ -1816,20 +1819,38 @@ class DVAI {
   Future<String> chat(String prompt, {String provider = 'gemini'}) =>
       _adapter.chat(prompt, provider: provider);
   Future<List<double>> embed(String text) => _adapter.embed(text);
-  Future<Map<String, dynamic>> structuredOutput(
+  Future<DVJsonObject> structuredOutput(
     String prompt,
-    Map<String, dynamic> schema,
+    DVJsonObject schema,
   ) =>
       _adapter.structuredOutput(prompt, schema);
+  Future<DVAITranscript> transcribe(
+    List<int> audioBytes, {
+    String mimeType = 'audio/wav',
+    String language = 'und',
+  }) =>
+      _adapter.transcribe(
+        audioBytes,
+        mimeType: mimeType,
+        language: language,
+      );
+  Future<DVAIAgentResult> runAgent(DVAIAgentRequest request) =>
+      _adapter.runAgent(request);
 }
 
 abstract class DVAIAdapter {
   Future<String> chat(String prompt, {String provider = 'gemini'});
   Future<List<double>> embed(String text);
-  Future<Map<String, dynamic>> structuredOutput(
+  Future<DVJsonObject> structuredOutput(
     String prompt,
-    Map<String, dynamic> schema,
+    DVJsonObject schema,
   );
+  Future<DVAITranscript> transcribe(
+    List<int> audioBytes, {
+    String mimeType = 'audio/wav',
+    String language = 'und',
+  });
+  Future<DVAIAgentResult> runAgent(DVAIAgentRequest request);
 }
 
 class LocalDVAIAdapter implements DVAIAdapter {
@@ -1853,15 +1874,53 @@ class LocalDVAIAdapter implements DVAIAdapter {
   }
 
   @override
-  Future<Map<String, dynamic>> structuredOutput(
+  Future<DVJsonObject> structuredOutput(
     String prompt,
-    Map<String, dynamic> schema,
+    DVJsonObject schema,
   ) async =>
       {
-        'prompt': prompt,
-        'schema': schema,
-        'summary': await chat(prompt, provider: 'local'),
+        'prompt': DVJsonString(prompt),
+        'schema': DVJsonMap(schema),
+        'summary': DVJsonString(await chat(prompt, provider: 'local')),
       };
+
+  @override
+  Future<DVAITranscript> transcribe(
+    List<int> audioBytes, {
+    String mimeType = 'audio/wav',
+    String language = 'und',
+  }) async {
+    final checksum = audioBytes.fold<int>(0, (sum, byte) => sum + byte);
+    return DVAITranscript(
+      text: 'local transcript ${audioBytes.length} bytes checksum $checksum',
+      language: language,
+      metadata: <String, DVJsonValue>{
+        'mimeType': DVJsonString(mimeType),
+        'byteLength': DVJsonNumber(audioBytes.length),
+        'checksum': DVJsonNumber(checksum),
+      },
+    );
+  }
+
+  @override
+  Future<DVAIAgentResult> runAgent(DVAIAgentRequest request) async {
+    final usedTools = <String>[];
+    final data = <String, DVJsonValue>{};
+    for (final toolName in request.tools) {
+      if (!const DVAIToolRegistry().contains(toolName)) continue;
+      usedTools.add(toolName);
+      data[toolName] = await const DVAIToolRegistry().call(
+        toolName,
+        request.context,
+      );
+    }
+    final summary = await chat(request.goal, provider: 'local-agent');
+    return DVAIAgentResult(
+      output: summary,
+      data: Map<String, DVJsonValue>.unmodifiable(data),
+      usedTools: List<String>.unmodifiable(usedTools),
+    );
+  }
 }
 
 class DVDatabase {

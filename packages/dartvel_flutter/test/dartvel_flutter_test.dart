@@ -213,6 +213,18 @@ void main() {
 
     expect(await DV.AI.chat('hello'), contains('hello'));
     expect(await DV.AI.embed('hello'), hasLength(16));
+    final structured = await DV.AI.structuredOutput(
+      'summarize ledger',
+      const <String, DVJsonValue>{'summary': DVJsonString('string')},
+    );
+    expect(structured['prompt'], isA<DVJsonString>());
+    final transcript = await DV.AI.transcribe(
+      const <int>[1, 2, 3],
+      mimeType: 'audio/mpeg',
+      language: 'en',
+    );
+    expect(transcript.text, contains('3 bytes'));
+    expect(transcript.language, 'en');
     DV.Test.resetAITools();
     DV.AI.registerTool('sumLedger', (input) {
       final left = input['left'];
@@ -230,6 +242,19 @@ void main() {
     });
     expect(aiToolResult, isA<DVJsonNumber>());
     expect((aiToolResult as DVJsonNumber).value, 5);
+    final agentResult = await DV.AI.runAgent(
+      const DVAIAgentRequest(
+        goal: 'sum the ledger',
+        context: <String, DVJsonValue>{
+          'left': DVJsonNumber(4),
+          'right': DVJsonNumber(6),
+        },
+        tools: <String>['sumLedger'],
+      ),
+    );
+    expect(agentResult.output, contains('sum the ledger'));
+    expect(agentResult.usedTools, <String>['sumLedger']);
+    expect(agentResult.data['sumLedger'], isA<DVJsonNumber>());
     expect(await DV.DB.query('select 1'), [
       {'1': 1}
     ]);
