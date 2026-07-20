@@ -16,6 +16,7 @@ export 'src/annotations/annotations.dart';
 export 'src/auth/auth.dart';
 export 'src/platform_config.dart';
 export 'src/shell/shell.dart';
+export 'src/updates/ota.dart';
 
 typedef RequestType = dv.Request;
 typedef ResponseType = dv.Response;
