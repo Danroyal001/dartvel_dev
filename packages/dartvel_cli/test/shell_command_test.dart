@@ -49,6 +49,65 @@ void main() {
         temp.deleteSync(recursive: true);
       }
     });
+
+    test('pipes stdout between commands without a platform shell', () async {
+      final temp = Directory.systemTemp.createTempSync('dartvel_shell_pipe');
+      try {
+        final emit = File(p.join(temp.path, 'emit.dart'))
+          ..writeAsStringSync("void main() => print('dartvel-pipe');");
+        final upper = File(p.join(temp.path, 'upper.dart'))
+          ..writeAsStringSync('''
+import 'dart:io';
+
+Future<void> main() async {
+  final input = await stdin.transform(systemEncoding.decoder).join();
+  stdout.write(input.toUpperCase());
+}
+''');
+
+        final result = await DartvelShell.run(
+          '${Platform.resolvedExecutable} ${emit.path} | ${Platform.resolvedExecutable} ${upper.path}',
+          streamOutput: false,
+        );
+
+        expect(result.exitCode, 0);
+        expect(result.stdoutText, contains('DARTVEL-PIPE'));
+      } finally {
+        temp.deleteSync(recursive: true);
+      }
+    });
+
+    test('redirects stdout and stderr to files', () async {
+      final temp =
+          Directory.systemTemp.createTempSync('dartvel_shell_redirect');
+      try {
+        final script = File(p.join(temp.path, 'emit.dart'))
+          ..writeAsStringSync('''
+import 'dart:io';
+
+void main() {
+  stdout.write('out-file');
+  stderr.write('err-file');
+}
+''');
+
+        final result = await DartvelShell.run(
+          '${Platform.resolvedExecutable} ${script.path} > out.txt 2> err.txt',
+          workingDirectory: temp,
+          streamOutput: false,
+        );
+
+        expect(result.exitCode, 0);
+        expect(result.stdoutText, isEmpty);
+        expect(result.stderrText, isEmpty);
+        expect(
+            File(p.join(temp.path, 'out.txt')).readAsStringSync(), 'out-file');
+        expect(
+            File(p.join(temp.path, 'err.txt')).readAsStringSync(), 'err-file');
+      } finally {
+        temp.deleteSync(recursive: true);
+      }
+    });
   });
 
   group('TaskCommand', () {

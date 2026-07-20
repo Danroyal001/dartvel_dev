@@ -124,11 +124,52 @@ class DartvelShell {
     bool streamOutput = true,
     Directory? workingDirectory,
   }) async {
-    final invocation =
-        await DartvelShellInvocation.parse(command, workingDirectory);
+    final plan = await DartvelShellPlan.parse(command, workingDirectory);
     if (printCommand) {
-      stdout.writeln(invocation.printable);
+      stdout.writeln(plan.printable);
     }
+    var input = '';
+    var stderrText = '';
+    var exitCode = 0;
+    for (final invocation in plan.invocations) {
+      final result = await _runInvocation(
+        invocation,
+        environment: environment,
+        streamOutput: streamOutput && invocation == plan.invocations.last,
+        workingDirectory: workingDirectory,
+        stdinText: input,
+      );
+      input = result.stdoutText;
+      stderrText = '$stderrText${result.stderrText}';
+      exitCode = result.exitCode;
+      if (exitCode != 0) break;
+    }
+    if (plan.stdoutPath != null) {
+      _redirectFile(plan.stdoutPath!, workingDirectory).writeAsStringSync(
+        input,
+        mode: plan.appendStdout ? FileMode.append : FileMode.write,
+      );
+    }
+    if (plan.stderrPath != null) {
+      _redirectFile(plan.stderrPath!, workingDirectory).writeAsStringSync(
+        stderrText,
+        mode: plan.appendStderr ? FileMode.append : FileMode.write,
+      );
+    }
+    return DartvelShellResult(
+      exitCode: exitCode,
+      stdoutText: plan.stdoutPath == null ? input : '',
+      stderrText: plan.stderrPath == null ? stderrText : '',
+    );
+  }
+
+  static Future<DartvelShellResult> _runInvocation(
+    DartvelShellInvocation invocation, {
+    required Map<String, String> environment,
+    required bool streamOutput,
+    required Directory? workingDirectory,
+    required String stdinText,
+  }) async {
     final process = await Process.start(
       invocation.executable,
       invocation.arguments,
@@ -137,6 +178,10 @@ class DartvelShell {
       includeParentEnvironment: true,
       runInShell: false,
     );
+    if (stdinText.isNotEmpty) {
+      process.stdin.write(stdinText);
+    }
+    await process.stdin.close();
     final out = StringBuffer();
     final err = StringBuffer();
     final outSub = process.stdout.transform(systemEncoding.decoder).listen(
@@ -157,6 +202,103 @@ class DartvelShell {
       exitCode: code,
       stdoutText: out.toString(),
       stderrText: err.toString(),
+    );
+  }
+
+  static File _redirectFile(String path, Directory? workingDirectory) {
+    final file = p.isAbsolute(path)
+        ? File(path)
+        : File(p.join(workingDirectory?.path ?? Directory.current.path, path));
+    file.parent.createSync(recursive: true);
+    return file;
+  }
+}
+
+class DartvelShellPlan {
+  final List<DartvelShellInvocation> invocations;
+  final String? stdoutPath;
+  final String? stderrPath;
+  final bool appendStdout;
+  final bool appendStderr;
+
+  const DartvelShellPlan({
+    required this.invocations,
+    required this.stdoutPath,
+    required this.stderrPath,
+    required this.appendStdout,
+    required this.appendStderr,
+  });
+
+  String get printable {
+    final pipeline =
+        invocations.map((invocation) => invocation.printable).join(' | ');
+    return <String>[
+      pipeline,
+      if (stdoutPath != null) '${appendStdout ? '>>' : '>'} $stdoutPath',
+      if (stderrPath != null) '${appendStderr ? '2>>' : '2>'} $stderrPath',
+    ].join(' ');
+  }
+
+  static Future<DartvelShellPlan> parse(
+    String command, [
+    Directory? workingDirectory,
+  ]) async {
+    final tokens = DartvelShellInvocation._tokenize(command);
+    if (tokens.isEmpty) {
+      throw const FormatException('Command is empty.');
+    }
+    final stages = <List<String>>[<String>[]];
+    String? stdoutPath;
+    String? stderrPath;
+    var appendStdout = false;
+    var appendStderr = false;
+    for (var i = 0; i < tokens.length; i++) {
+      final token = tokens[i];
+      if (token == '|') {
+        if (stages.last.isEmpty) {
+          throw const FormatException('Pipeline stage is empty.');
+        }
+        stages.add(<String>[]);
+        continue;
+      }
+      if (token == '>' || token == '>>' || token == '2>' || token == '2>>') {
+        if (i + 1 >= tokens.length) {
+          throw FormatException('Missing path after "$token".');
+        }
+        final target = tokens[++i];
+        if (token == '>' || token == '>>') {
+          stdoutPath = target;
+          appendStdout = token == '>>';
+        } else {
+          stderrPath = target;
+          appendStderr = token == '2>>';
+        }
+        continue;
+      }
+      stages.last.add(token);
+    }
+    if (stages.last.isEmpty) {
+      throw const FormatException('Pipeline stage is empty.');
+    }
+    final invocations = <DartvelShellInvocation>[];
+    for (final stage in stages) {
+      final expanded = <String>[];
+      for (final token in stage) {
+        expanded.addAll(
+          await DartvelShellInvocation._expandToken(token, workingDirectory),
+        );
+      }
+      invocations.add(DartvelShellInvocation(
+        executable: expanded.first,
+        arguments: expanded.skip(1).toList(growable: false),
+      ));
+    }
+    return DartvelShellPlan(
+      invocations: invocations,
+      stdoutPath: stdoutPath,
+      stderrPath: stderrPath,
+      appendStdout: appendStdout,
+      appendStderr: appendStderr,
     );
   }
 }
@@ -218,6 +360,18 @@ class DartvelShellInvocation {
         inDouble = !inDouble;
         continue;
       }
+      if (!inSingle && !inDouble) {
+        final operator = _operatorAt(input, i);
+        if (operator != null) {
+          if (current.isNotEmpty) {
+            tokens.add(_expandEnvironment(current.toString()));
+            current.clear();
+          }
+          tokens.add(operator);
+          i += operator.length - 1;
+          continue;
+        }
+      }
       if (!inSingle && !inDouble && char.trim().isEmpty) {
         if (current.isNotEmpty) {
           tokens.add(_expandEnvironment(current.toString()));
@@ -235,6 +389,14 @@ class DartvelShellInvocation {
       tokens.add(_expandEnvironment(current.toString()));
     }
     return tokens;
+  }
+
+  static String? _operatorAt(String input, int index) {
+    if (input.startsWith('2>>', index)) return '2>>';
+    if (input.startsWith('2>', index)) return '2>';
+    if (input.startsWith('>>', index)) return '>>';
+    final char = input[index];
+    return char == '|' || char == '>' ? char : null;
   }
 
   static Future<List<String>> _expandToken(
