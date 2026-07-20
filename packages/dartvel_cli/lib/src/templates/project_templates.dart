@@ -112,7 +112,7 @@ class IndexPage extends DartvelPage {
         DVModifier().color(Color(0xFF111827)).padding(8),
       ),
       DVText('Loaded at: \${data?['timestamp'] ?? 'N/A'}'),
-      DVBox.wrapLine([
+      DVBox.wrap([
         const DVText('Docs').modifier(DVModifier().padding(12).rounded(8)),
         const DVText('GitHub').modifier(DVModifier().padding(12).rounded(8)),
       ], spacing: 12),
