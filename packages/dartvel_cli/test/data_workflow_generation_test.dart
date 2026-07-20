@@ -47,6 +47,7 @@ class Order {
       );
       expect(content, contains('final row = <String, Object?>{};'));
       expect(content, isNot(contains('dynamic')));
+      expect(content, isNot(contains('var ')));
       expect(content, contains('final String? id;'));
       expect(content, contains('final String? status;'));
       expect(content, contains('OrderFactory admin()'));
