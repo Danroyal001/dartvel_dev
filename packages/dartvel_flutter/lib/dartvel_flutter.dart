@@ -22,6 +22,7 @@ export 'package:dartvel_core/dartvel.dart'
         Analytics,
         AnalyticsEvent,
         AnalyticsProvider,
+        DVAIToolEntry,
         BillingPlan,
         DVCronEntry,
         DVCronTarget,
