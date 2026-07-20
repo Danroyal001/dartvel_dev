@@ -23,6 +23,8 @@ export 'package:dartvel_core/dartvel.dart'
         AnalyticsEvent,
         AnalyticsProvider,
         DVAIToolEntry,
+        DVAIToolHandler,
+        DVAIToolRegistry,
         BillingPlan,
         DVCronEntry,
         DVCronTarget,
@@ -44,6 +46,14 @@ export 'package:dartvel_core/dartvel.dart'
         DVEmptySearchProvider,
         DVImportResult,
         DVImportRowError,
+        DVJsonBool,
+        DVJsonList,
+        DVJsonMap,
+        DVJsonNull,
+        DVJsonNumber,
+        DVJsonObject,
+        DVJsonString,
+        DVJsonValue,
         DVInMemoryQueueAdapter,
         DVJobEnvelope,
         DVJobHandler,
@@ -1782,9 +1792,25 @@ class DVBilling {
 class DVAI {
   const DVAI();
   static DVAIAdapter _adapter = const LocalDVAIAdapter();
+  static const DVAIToolRegistry _tools = DVAIToolRegistry();
 
   static void configure(DVAIAdapter adapter) {
     _adapter = adapter;
+  }
+
+  void registerTool(String name, DVAIToolHandler handler) {
+    _tools.register(name, handler);
+  }
+
+  bool hasTool(String name) => _tools.contains(name);
+
+  List<String> get toolNames => _tools.names;
+
+  Future<DVJsonValue> callTool(
+    String name, [
+    DVJsonObject input = const <String, DVJsonValue>{},
+  ]) {
+    return _tools.call(name, input);
   }
 
   Future<String> chat(String prompt, {String provider = 'gemini'}) =>
