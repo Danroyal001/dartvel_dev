@@ -221,6 +221,34 @@ class ModelGenerator {
         sb.writeln(
             '    return DVImportResult<$className>(items: items, errors: errors);');
         sb.writeln('  }');
+        sb.writeln();
+        sb.writeln(
+            '  static DVImportResult<$className> ndjson(String content) {');
+        sb.writeln('    final lines = const convert.LineSplitter()');
+        sb.writeln('        .convert(content)');
+        sb.writeln('        .where((line) => line.trim().isNotEmpty)');
+        sb.writeln('        .toList(growable: false);');
+        sb.writeln('    final items = <$className>[];');
+        sb.writeln('    final errors = <DVImportRowError>[];');
+        sb.writeln(
+            '    for (var index = 0; index < lines.length; index += 1) {');
+        sb.writeln('      try {');
+        sb.writeln('        final decoded = convert.jsonDecode(lines[index]);');
+        sb.writeln('        if (decoded is! Map<String, dynamic>) {');
+        sb.writeln(
+            "          throw const FormatException('NDJSON row must be a JSON object.');");
+        sb.writeln('        }');
+        sb.writeln('        items.add(${className}Parser.fromJson(decoded));');
+        sb.writeln('      } on Object catch (error) {');
+        sb.writeln('        errors.add(DVImportRowError(');
+        sb.writeln('          row: index + 1,');
+        sb.writeln('          message: error.toString(),');
+        sb.writeln('        ));');
+        sb.writeln('      }');
+        sb.writeln('    }');
+        sb.writeln(
+            '    return DVImportResult<$className>(items: items, errors: errors);');
+        sb.writeln('  }');
         sb.writeln('}');
         sb.writeln();
         sb.writeln('/// Generated export helpers for [$className].');
@@ -252,6 +280,19 @@ class ModelGenerator {
         sb.writeln("      contentType: 'application/json; charset=utf-8',");
         sb.writeln(
             '      bytes: convert.utf8.encode(convert.jsonEncode(items.map((item) => item.toJson()).toList(growable: false))),');
+        sb.writeln('    );');
+        sb.writeln('  }');
+        sb.writeln();
+        sb.writeln(
+            '  static DVExportResult ndjson(Iterable<$className> items, {String fileName = \'${className.toLowerCase()}s.ndjson\'}) {');
+        sb.writeln('    final buffer = StringBuffer();');
+        sb.writeln('    for (final item in items) {');
+        sb.writeln('      buffer.writeln(convert.jsonEncode(item.toJson()));');
+        sb.writeln('    }');
+        sb.writeln('    return DVExportResult(');
+        sb.writeln('      fileName: fileName,');
+        sb.writeln("      contentType: 'application/x-ndjson; charset=utf-8',");
+        sb.writeln('      bytes: convert.utf8.encode(buffer.toString()),');
         sb.writeln('    );');
         sb.writeln('  }');
         sb.writeln('}');
