@@ -42,9 +42,16 @@ Widget indexPage(BuildContext context) {
     ]).modifier(_quickActionsStyle),
     ShowcaseSection('State & Signals', [
       DVText('Local counter signal value: ${counter.value}'),
-      ShowcaseButton('Increment Counter Signal', () {
-        counter.value = counter.value + 1;
-      }),
+      DVText('Global app signal value: ${DV.global<String>()}'),
+      DVBox.wrap([
+        ShowcaseButton('Increment Counter Signal', () {
+          counter.value = counter.value + 1;
+        }),
+        ShowcaseButton('Update Global Signal', () {
+          DV.global<String>('showcase-updated-${counter.value}');
+          _showMessage(context, 'Global signal updated');
+        }),
+      ]),
     ]),
     ShowcaseSection('Runtime Platform', [
       DVBox.grid([
@@ -264,7 +271,7 @@ Widget indexPage(BuildContext context) {
         }),
       ]),
     ]),
-    ShowcaseSection('Unified Local Services', [
+    ShowcaseSection('Storage, Cache, Database & Shell', [
       DVBox.wrap([
         ShowcaseButton('Cache', () async {
           await DV.Cache.set('last_run', DateTime.now().toIso8601String());
@@ -282,13 +289,6 @@ Widget indexPage(BuildContext context) {
           final result = await DV.Database.query('select 1');
           if (context.mounted) _showMessage(context, 'DB Query: $result');
         }),
-        ShowcaseButton('Queue Signal', () async {
-          final events = <String>[];
-          DV.Queues.register<String>(events.add);
-          await DV.Jobs.dispatch<String>('hello signal', queue: 'signals');
-          await DV.Queues.work(queue: 'signals');
-          if (context.mounted) _showMessage(context, 'Queue signal: $events');
-        }),
         ShowcaseButton('Theme Dark/Light', () {
           final next = DV.Theme.mode == ThemeMode.dark
               ? ThemeMode.light
@@ -296,13 +296,66 @@ Widget indexPage(BuildContext context) {
           DV.Theme.setMode(next);
           _showMessage(context, 'Theme: ${DV.Theme.mode.name}');
         }),
-        ShowcaseButton('Typed Shell', () async {
-          final result = await const DVShell().runCommand(
-            const DVShellCommand('dart').arg('--version').env('CI', 'true'),
+        ShowcaseButton('DV Shell', () async {
+          final result = await DV.$(
+            'dart --version',
+            environment: const <String, String>{'CI': 'true'},
           );
           if (context.mounted) {
             _showMessage(context, 'Shell exit code: ${result.exitCode}');
           }
+        }),
+      ]),
+    ]),
+    ShowcaseSection('Queues, Jobs & Notifications', [
+      const DVText(
+        'Signals stay in context and models; durable work is dispatched through queues and jobs.',
+      ).modifier(_supportingTextStyle),
+      DVBox.wrap([
+        ShowcaseButton('Dispatch Queue Job', () async {
+          final events = <String>[];
+          DV.Queues.register<String>((value) {
+            events.add('processed:$value');
+          });
+          await DV.Jobs.dispatch<String>('report-ready', queue: 'signals');
+          final completed = await DV.Queues.work(queue: 'signals');
+          if (context.mounted) {
+            _showMessage(context, 'Jobs completed: $completed, $events');
+          }
+        }),
+        ShowcaseButton('Pending Jobs', () async {
+          final pending = await DV.Queues.pending('signals');
+          if (context.mounted) {
+            _showMessage(context, 'Pending jobs: ${pending.length}');
+          }
+        }),
+        ShowcaseButton('Send Notification', () async {
+          await DV.Notifications.send(
+            'demo-user',
+            const DVNotificationMessage(
+              title: 'Dartvel',
+              body: 'Unified notification provider is configured.',
+              channels: <DVNotificationChannel>[
+                DVNotificationChannel.inApp,
+                DVNotificationChannel.push,
+                DVNotificationChannel.webPush,
+              ],
+            ),
+          );
+          if (context.mounted) _showMessage(context, 'Notification sent');
+        }),
+        ShowcaseButton('Send Mail', () async {
+          await DV.Notifications.mail.send(
+            const DVMailMessage(
+              from: DVMailAddress('hello@dartvel.dev', name: 'Dartvel'),
+              to: <DVMailAddress>[
+                DVMailAddress('developer@example.com', name: 'Developer'),
+              ],
+              subject: 'Dartvel showcase mail',
+              text: 'Mail is sent through DV.Notifications.mail.',
+            ),
+          );
+          if (context.mounted) _showMessage(context, 'Mail sent');
         }),
       ]),
     ]),
