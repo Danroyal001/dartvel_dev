@@ -74,5 +74,67 @@ void main() {
         '--dry-run',
       ]);
     });
+
+    test('resolves native tests to generated native binding checks', () {
+      Directory(p.join(temp.path, 'test', 'native'))
+          .createSync(recursive: true);
+      final invocation = DartvelTestInvocation.resolve(
+        mode: 'native',
+        forceFlutter: false,
+        forceDart: true,
+        watch: false,
+        reporter: null,
+        forwardedArgs: const <String>[],
+        root: temp,
+      );
+
+      expect(invocation.executable, 'dart');
+      expect(invocation.arguments, <String>['test', 'test/native']);
+    });
+
+    test('resolves accessibility tests to semantics checks', () {
+      File(p.join(temp.path, 'test', 'accessibility_test.dart'))
+          .createSync(recursive: true);
+      final invocation = DartvelTestInvocation.resolve(
+        mode: 'accessibility',
+        forceFlutter: true,
+        forceDart: false,
+        watch: false,
+        reporter: null,
+        forwardedArgs: const <String>[],
+        root: temp,
+      );
+
+      expect(invocation.executable, 'flutter');
+      expect(
+        invocation.arguments,
+        <String>['test', 'test/accessibility_test.dart'],
+      );
+    });
+
+    test('release mode prefers release gate tests', () {
+      File(p.join(temp.path, 'test', 'release_test.dart'))
+          .createSync(recursive: true);
+      final invocation = DartvelTestInvocation.resolve(
+        mode: 'release',
+        forceFlutter: false,
+        forceDart: false,
+        watch: false,
+        reporter: null,
+        forwardedArgs: const <String>[],
+        root: temp,
+      );
+
+      expect(invocation.arguments, <String>['test', 'test/release_test.dart']);
+    });
+
+    test('dry-run command accepts accessibility mode', () async {
+      await runner.run(<String>[
+        'test',
+        'accessibility',
+        '--flutter',
+        '--dry-run',
+      ]);
+    });
   });
 }
