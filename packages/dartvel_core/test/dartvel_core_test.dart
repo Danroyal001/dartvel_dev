@@ -243,5 +243,33 @@ void main() {
         temp.deleteSync(recursive: true);
       }
     });
+
+    test('runs typed commands with env helpers and safe arguments', () async {
+      final temp =
+          io.Directory.systemTemp.createTempSync('dartvel_core_shell_parts');
+      try {
+        final script = io.File('${temp.path}/print_env_args.dart')
+          ..writeAsStringSync('''
+import 'dart:io';
+
+void main(List<String> args) {
+  print(Platform.environment['DARTVEL_TEST_ENV']);
+  print(args);
+}
+''');
+
+        final command = DVShellCommand(io.Platform.resolvedExecutable)
+            .arg(script.path)
+            .arg('hello;not-a-second-command')
+            .env('DARTVEL_TEST_ENV', 'typed-env');
+        final result = await const DVShell().runCommand(command);
+
+        expect(result.exitCode, 0);
+        expect(result.stdoutText, contains('typed-env'));
+        expect(result.stdoutText, contains('hello;not-a-second-command'));
+      } finally {
+        temp.deleteSync(recursive: true);
+      }
+    });
   });
 }

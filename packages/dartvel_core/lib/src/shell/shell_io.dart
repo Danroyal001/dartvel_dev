@@ -12,8 +12,22 @@ Future<DVShellResult> runShellCommand(
   final arguments = await invocation.expandArguments(
     workingDirectory: workingDirectory,
   );
-  final process = await Process.start(
+  return runShellCommandParts(
     invocation.executable,
+    arguments,
+    environment: environment,
+    workingDirectory: workingDirectory,
+  );
+}
+
+Future<DVShellResult> runShellCommandParts(
+  String executable,
+  List<String> arguments, {
+  Map<String, String> environment = const <String, String>{},
+  String? workingDirectory,
+}) async {
+  final process = await Process.start(
+    executable,
     arguments,
     workingDirectory: workingDirectory,
     environment: environment.isEmpty ? null : environment,
