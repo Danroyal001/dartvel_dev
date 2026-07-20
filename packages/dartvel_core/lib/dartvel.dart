@@ -184,7 +184,7 @@ class _HeaderValue {
 }
 
 extension RequestFormData on dv.Request {
-  Future<Map<String, dynamic>> formData() async {
+  Future<Map<String, Object?>> formData() async {
     final contentType = headers.get('content-type');
     if (contentType == null) return {};
 
@@ -201,7 +201,7 @@ extension RequestFormData on dv.Request {
       final transformer = MimeMultipartTransformer(boundary);
       final parts = body.stream.transform(transformer);
 
-      final data = <String, dynamic>{};
+      final data = <String, Object?>{};
 
       await for (final part in parts) {
         final contentDisposition = part.headers['content-disposition'];

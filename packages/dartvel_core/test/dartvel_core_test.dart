@@ -1,9 +1,28 @@
 import 'dart:convert';
 import 'dart:io' as io;
 import 'package:dartvel_core/dartvel.dart';
+import 'package:dartvel_shelf/dartvel_shelf.dart' as shelf;
 import 'package:test/test.dart';
 
 void main() {
+  test('Request.formData returns strongly typed form values', () async {
+    final request = shelf.Request(
+      method: 'POST',
+      url: Uri.parse('https://example.test/forms'),
+      headers: shelf.Headers(<String, String>{
+        'content-type': 'application/x-www-form-urlencoded',
+      }),
+      bodyStream: Stream<List<int>>.value(
+        utf8.encode('name=Ada&role=admin'),
+      ),
+    );
+
+    expect(await request.formData(), <String, Object?>{
+      'name': 'Ada',
+      'role': 'admin',
+    });
+  });
+
   group('Res', () {
     test('json creates correct response', () async {
       final data = {'message': 'hello'};
