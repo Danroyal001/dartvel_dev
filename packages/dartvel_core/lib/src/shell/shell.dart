@@ -15,6 +15,65 @@ class DVShellResult {
   bool get succeeded => exitCode == 0;
 }
 
+class DVShellCommand {
+  final String executable;
+  final List<String> arguments;
+  final Map<String, String> environment;
+  final String? workingDirectory;
+
+  const DVShellCommand(
+    this.executable, {
+    this.arguments = const <String>[],
+    this.environment = const <String, String>{},
+    this.workingDirectory,
+  });
+
+  DVShellCommand arg(String value) {
+    return DVShellCommand(
+      executable,
+      arguments: <String>[...arguments, value],
+      environment: environment,
+      workingDirectory: workingDirectory,
+    );
+  }
+
+  DVShellCommand args(Iterable<String> values) {
+    return DVShellCommand(
+      executable,
+      arguments: <String>[...arguments, ...values],
+      environment: environment,
+      workingDirectory: workingDirectory,
+    );
+  }
+
+  DVShellCommand env(String key, String value) {
+    return DVShellCommand(
+      executable,
+      arguments: arguments,
+      environment: <String, String>{...environment, key: value},
+      workingDirectory: workingDirectory,
+    );
+  }
+
+  DVShellCommand envAll(Map<String, String> values) {
+    return DVShellCommand(
+      executable,
+      arguments: arguments,
+      environment: <String, String>{...environment, ...values},
+      workingDirectory: workingDirectory,
+    );
+  }
+
+  DVShellCommand cwd(String path) {
+    return DVShellCommand(
+      executable,
+      arguments: arguments,
+      environment: environment,
+      workingDirectory: path,
+    );
+  }
+}
+
 extension DVShellResultFuture on Future<DVShellResult> {
   Future<String> text() async => (await this).stdoutText;
 
@@ -47,6 +106,15 @@ class DVShell {
       command,
       environment: environment,
       workingDirectory: workingDirectory,
+    );
+  }
+
+  Future<DVShellResult> runCommand(DVShellCommand command) {
+    return shell_impl.runShellCommandParts(
+      command.executable,
+      command.arguments,
+      environment: command.environment,
+      workingDirectory: command.workingDirectory,
     );
   }
 }
