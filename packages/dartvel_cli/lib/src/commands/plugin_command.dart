@@ -176,7 +176,7 @@ import 'dart:convert';
 final Map<String, Map<String, Object?>> _usersByEmail = {};
 final Map<String, Map<String, Object?>> _sessionsByToken = {};
 
-Future<Map<String, dynamic>> handler({
+Future<Map<String, Object?>> handler({
   required String email,
   required String password,
 }) async {
@@ -212,7 +212,7 @@ Future<Map<String, dynamic>> handler({
   static const String _authLogoutEndpointTemplate = '''// POST /api/auth/logout
 final Set<String> _revokedTokens = {};
 
-Map<String, dynamic> handler({String? token}) {
+Map<String, Object?> handler({String? token}) {
   if (token != null && token.isNotEmpty) {
     _revokedTokens.add(token);
   }
@@ -226,13 +226,13 @@ Map<String, dynamic> handler({String? token}) {
   static const String _authMeEndpointTemplate = '''// GET /api/auth/me
 import 'dart:convert';
 
-Map<String, dynamic> handler({required String token}) {
+Map<String, Object?> handler({required String token}) {
   if (token.isEmpty) {
     throw Exception('Authentication token required');
   }
   final normalized = base64.normalize(token);
   final decoded = jsonDecode(utf8.decode(base64Url.decode(normalized)))
-      as Map<String, dynamic>;
+      as Map<String, Object?>;
   return {
     'id': decoded['userId'],
     'email': decoded['email'],

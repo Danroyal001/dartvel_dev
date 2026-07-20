@@ -38,6 +38,12 @@ void main() {
 
       expect(loginPage.readAsStringSync(), contains('class LoginPage'));
       expect(authLogin.readAsStringSync(), contains('handler'));
+      expect(authLogin.readAsStringSync(),
+          isNot(contains('Map<String, dynamic>')));
+      expect(authLogout.readAsStringSync(),
+          isNot(contains('Map<String, dynamic>')));
+      expect(
+          authMe.readAsStringSync(), isNot(contains('Map<String, dynamic>')));
     });
 
     test('unknown plugin fails', () async {
