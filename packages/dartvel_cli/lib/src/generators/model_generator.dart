@@ -136,39 +136,6 @@ class ModelGenerator {
         }
         sb.writeln('    );');
         sb.writeln('  }');
-        sb.writeln();
-        sb.writeln(
-            "  static DVScheduledReport scheduleMonthly({String cron = '0 0 1 * *', String queue = 'reports', DateTime? scheduledAt, DateTime? periodStart, DateTime? periodEnd, Map<String, String> metadata = const <String, String>{}}) {");
-        sb.writeln('    return DVScheduledReport(');
-        sb.writeln("      name: '${className.toLowerCase()}.monthly',");
-        sb.writeln("      model: '$className',");
-        sb.writeln("      report: 'monthly',");
-        sb.writeln('      cron: cron,');
-        sb.writeln('      queue: queue,');
-        sb.writeln('      scheduledAt: scheduledAt ?? DateTime.now().toUtc(),');
-        sb.writeln('      periodStart: periodStart,');
-        sb.writeln('      periodEnd: periodEnd,');
-        sb.writeln('      metadata: metadata,');
-        sb.writeln('    );');
-        sb.writeln('  }');
-        sb.writeln();
-        sb.writeln(
-            "  static Future<DVJobEnvelope<DVScheduledReport>> dispatchMonthly({String cron = '0 0 1 * *', String queue = 'reports', int priority = 0, int maxAttempts = 3, Duration backoff = const Duration(seconds: 30), DateTime? scheduledAt, DateTime? periodStart, DateTime? periodEnd, Map<String, String> metadata = const <String, String>{}}) {");
-        sb.writeln('    return const DVQueues().dispatch<DVScheduledReport>(');
-        sb.writeln('      scheduleMonthly(');
-        sb.writeln('        cron: cron,');
-        sb.writeln('        queue: queue,');
-        sb.writeln('        scheduledAt: scheduledAt,');
-        sb.writeln('        periodStart: periodStart,');
-        sb.writeln('        periodEnd: periodEnd,');
-        sb.writeln('        metadata: metadata,');
-        sb.writeln('      ),');
-        sb.writeln('      queue: queue,');
-        sb.writeln('      priority: priority,');
-        sb.writeln('      maxAttempts: maxAttempts,');
-        sb.writeln('      backoff: backoff,');
-        sb.writeln('    );');
-        sb.writeln('  }');
         sb.writeln('}');
 
         // Generated form controls helper
@@ -512,6 +479,39 @@ class ModelGenerator {
         sb.writeln("        'year': selectedMonth.year,");
         sb.writeln("        'count': items.length,");
         sb.writeln('      },');
+        sb.writeln('    );');
+        sb.writeln('  }');
+        sb.writeln();
+        sb.writeln(
+            "  static DVScheduledReport scheduleMonthly({String cron = '0 0 1 * *', String queue = 'reports', DateTime? scheduledAt, DateTime? periodStart, DateTime? periodEnd, Map<String, String> metadata = const <String, String>{}}) {");
+        sb.writeln('    return DVScheduledReport(');
+        sb.writeln("      name: '${className.toLowerCase()}.monthly',");
+        sb.writeln("      model: '$className',");
+        sb.writeln("      report: 'monthly',");
+        sb.writeln('      cron: cron,');
+        sb.writeln('      queue: queue,');
+        sb.writeln('      scheduledAt: scheduledAt ?? DateTime.now().toUtc(),');
+        sb.writeln('      periodStart: periodStart,');
+        sb.writeln('      periodEnd: periodEnd,');
+        sb.writeln('      metadata: metadata,');
+        sb.writeln('    );');
+        sb.writeln('  }');
+        sb.writeln();
+        sb.writeln(
+            "  static Future<DVJobEnvelope<DVScheduledReport>> dispatchMonthly({String cron = '0 0 1 * *', String queue = 'reports', int priority = 0, int maxAttempts = 3, Duration backoff = const Duration(seconds: 30), DateTime? scheduledAt, DateTime? periodStart, DateTime? periodEnd, Map<String, String> metadata = const <String, String>{}}) {");
+        sb.writeln('    return const DVQueues().dispatch<DVScheduledReport>(');
+        sb.writeln('      scheduleMonthly(');
+        sb.writeln('        cron: cron,');
+        sb.writeln('        queue: queue,');
+        sb.writeln('        scheduledAt: scheduledAt,');
+        sb.writeln('        periodStart: periodStart,');
+        sb.writeln('        periodEnd: periodEnd,');
+        sb.writeln('        metadata: metadata,');
+        sb.writeln('      ),');
+        sb.writeln('      queue: queue,');
+        sb.writeln('      priority: priority,');
+        sb.writeln('      maxAttempts: maxAttempts,');
+        sb.writeln('      backoff: backoff,');
         sb.writeln('    );');
         sb.writeln('  }');
         sb.writeln('}');

@@ -71,6 +71,22 @@ class Order {
           contains(
               'static Future<DVJobEnvelope<DVScheduledReport>> dispatchMonthly'));
       expect(content, contains('const DVQueues().dispatch<DVScheduledReport>'));
+      final parserStart = content.indexOf('class OrderParser');
+      final formStart = content.indexOf('class OrderFormControls');
+      final reportStart = content.indexOf('class OrderReport');
+      final facetsStart = content.indexOf('List<String> _splitCsvLine');
+      expect(parserStart, isNonNegative);
+      expect(formStart, isNonNegative);
+      expect(reportStart, isNonNegative);
+      expect(facetsStart, isNonNegative);
+      final parserBlock = content.substring(parserStart, formStart);
+      final reportBlock = content.substring(reportStart, facetsStart);
+      expect(parserBlock, isNot(contains('scheduleMonthly')));
+      expect(reportBlock, contains('static DVScheduledReport scheduleMonthly'));
+      expect(
+          reportBlock,
+          contains(
+              'static Future<DVJobEnvelope<DVScheduledReport>> dispatchMonthly'));
       expect(content, contains('const convert.LineSplitter()'));
     } finally {
       root.deleteSync(recursive: true);
