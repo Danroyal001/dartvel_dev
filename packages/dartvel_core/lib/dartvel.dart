@@ -482,12 +482,38 @@ class DVExportResult {
   final String fileName;
   final String contentType;
   final List<int> bytes;
+  final Map<String, String> metadata;
 
   const DVExportResult({
     required this.fileName,
     required this.contentType,
     required this.bytes,
+    this.metadata = const <String, String>{},
   });
+}
+
+class DVExportOptions<TModel> {
+  final String? tenantId;
+  final bool Function(TModel item)? policyFilter;
+  final int chunkSize;
+  final Map<String, String> metadata;
+
+  const DVExportOptions({
+    this.tenantId,
+    this.policyFilter,
+    this.chunkSize = 1000,
+    this.metadata = const <String, String>{},
+  });
+
+  Iterable<TModel> apply(Iterable<TModel> items) {
+    final filter = policyFilter;
+    return filter == null ? items : items.where(filter);
+  }
+
+  Map<String, String> exportMetadata() => <String, String>{
+        if (tenantId != null) 'tenantId': tenantId!,
+        ...metadata,
+      };
 }
 
 class DVReportResult {

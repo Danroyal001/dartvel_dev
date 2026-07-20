@@ -337,11 +337,12 @@ class ModelGenerator {
         sb.writeln('/// Generated export helpers for [$className].');
         sb.writeln('class ${className}Export {');
         sb.writeln(
-            '  static DVExportResult csv(Iterable<$className> items, {String fileName = \'${className.toLowerCase()}s.csv\'}) {');
+            '  static DVExportResult csv(Iterable<$className> items, {String fileName = \'${className.toLowerCase()}s.csv\', DVExportOptions<$className> options = const DVExportOptions<$className>()}) {');
+        sb.writeln('    final exportItems = options.apply(items);');
         sb.writeln('    final buffer = StringBuffer();');
         sb.writeln(
             "    buffer.writeln('${fields.map((f) => f['name']!).join(',')}');");
-        sb.writeln('    for (final item in items) {');
+        sb.writeln('    for (final item in exportItems) {');
         sb.writeln('      buffer.writeln([');
         for (final field in fields) {
           final name = field['name']!;
@@ -353,34 +354,81 @@ class ModelGenerator {
         sb.writeln('      fileName: fileName,');
         sb.writeln("      contentType: 'text/csv; charset=utf-8',");
         sb.writeln('      bytes: convert.utf8.encode(buffer.toString()),');
+        sb.writeln('      metadata: options.exportMetadata(),');
         sb.writeln('    );');
         sb.writeln('  }');
         sb.writeln();
         sb.writeln(
-            '  static DVExportResult json(Iterable<$className> items, {String fileName = \'${className.toLowerCase()}s.json\'}) {');
+            '  static DVExportResult json(Iterable<$className> items, {String fileName = \'${className.toLowerCase()}s.json\', DVExportOptions<$className> options = const DVExportOptions<$className>()}) {');
         sb.writeln('    return DVExportResult(');
         sb.writeln('      fileName: fileName,');
         sb.writeln("      contentType: 'application/json; charset=utf-8',");
         sb.writeln(
-            '      bytes: convert.utf8.encode(convert.jsonEncode(items.map((item) => item.toJson()).toList(growable: false))),');
+            '      bytes: convert.utf8.encode(convert.jsonEncode(options.apply(items).map((item) => item.toJson()).toList(growable: false))),');
+        sb.writeln('      metadata: options.exportMetadata(),');
         sb.writeln('    );');
         sb.writeln('  }');
         sb.writeln();
         sb.writeln(
-            '  static DVExportResult ndjson(Iterable<$className> items, {String fileName = \'${className.toLowerCase()}s.ndjson\'}) {');
+            '  static DVExportResult ndjson(Iterable<$className> items, {String fileName = \'${className.toLowerCase()}s.ndjson\', DVExportOptions<$className> options = const DVExportOptions<$className>()}) {');
+        sb.writeln('    final exportItems = options.apply(items);');
         sb.writeln('    final buffer = StringBuffer();');
-        sb.writeln('    for (final item in items) {');
+        sb.writeln('    for (final item in exportItems) {');
         sb.writeln('      buffer.writeln(convert.jsonEncode(item.toJson()));');
         sb.writeln('    }');
         sb.writeln('    return DVExportResult(');
         sb.writeln('      fileName: fileName,');
         sb.writeln("      contentType: 'application/x-ndjson; charset=utf-8',");
         sb.writeln('      bytes: convert.utf8.encode(buffer.toString()),');
+        sb.writeln('      metadata: options.exportMetadata(),');
         sb.writeln('    );');
         sb.writeln('  }');
         sb.writeln();
         sb.writeln(
-            '  static DVExportResult excel(Iterable<$className> items, {String fileName = \'${className.toLowerCase()}s.xls\'}) {');
+            '  static Stream<DVExportResult> streamCsv(Iterable<$className> items, {String fileName = \'${className.toLowerCase()}s.csv\', DVExportOptions<$className> options = const DVExportOptions<$className>()}) async* {');
+        sb.writeln(
+            '    final exportItems = options.apply(items).toList(growable: false);');
+        sb.writeln('    if (options.chunkSize < 1) {');
+        sb.writeln(
+            "      throw ArgumentError.value(options.chunkSize, 'chunkSize', 'chunkSize must be positive.');");
+        sb.writeln('    }');
+        sb.writeln(
+            '    for (var index = 0; index < exportItems.length; index += options.chunkSize) {');
+        sb.writeln(
+            '      final end = math.min(index + options.chunkSize, exportItems.length);');
+        sb.writeln('      yield csv(');
+        sb.writeln('        exportItems.sublist(index, end),');
+        sb.writeln(
+            "        fileName: fileName.replaceFirst('.csv', '.part\${(index ~/ options.chunkSize) + 1}.csv'),");
+        sb.writeln('        options: options,');
+        sb.writeln('      );');
+        sb.writeln('    }');
+        sb.writeln('  }');
+        sb.writeln();
+        sb.writeln(
+            '  static Stream<DVExportResult> streamNdjson(Iterable<$className> items, {String fileName = \'${className.toLowerCase()}s.ndjson\', DVExportOptions<$className> options = const DVExportOptions<$className>()}) async* {');
+        sb.writeln(
+            '    final exportItems = options.apply(items).toList(growable: false);');
+        sb.writeln('    if (options.chunkSize < 1) {');
+        sb.writeln(
+            "      throw ArgumentError.value(options.chunkSize, 'chunkSize', 'chunkSize must be positive.');");
+        sb.writeln('    }');
+        sb.writeln(
+            '    for (var index = 0; index < exportItems.length; index += options.chunkSize) {');
+        sb.writeln(
+            '      final end = math.min(index + options.chunkSize, exportItems.length);');
+        sb.writeln('      yield ndjson(');
+        sb.writeln('        exportItems.sublist(index, end),');
+        sb.writeln(
+            "        fileName: fileName.replaceFirst('.ndjson', '.part\${(index ~/ options.chunkSize) + 1}.ndjson'),");
+        sb.writeln('        options: options,');
+        sb.writeln('      );');
+        sb.writeln('    }');
+        sb.writeln('  }');
+        sb.writeln();
+        sb.writeln(
+            '  static DVExportResult excel(Iterable<$className> items, {String fileName = \'${className.toLowerCase()}s.xls\', DVExportOptions<$className> options = const DVExportOptions<$className>()}) {');
+        sb.writeln('    final exportItems = options.apply(items);');
         sb.writeln('    final buffer = StringBuffer();');
         sb.writeln("    buffer.writeln('<?xml version=\"1.0\"?>');");
         sb.writeln(
@@ -396,7 +444,7 @@ class ModelGenerator {
               "    buffer.writeln('<Cell><Data ss:Type=\"String\">$name</Data></Cell>');");
         }
         sb.writeln("    buffer.writeln('</Row>');");
-        sb.writeln('    for (final item in items) {');
+        sb.writeln('    for (final item in exportItems) {');
         sb.writeln("      buffer.writeln('<Row>');");
         for (final field in fields) {
           final name = field['name']!;
@@ -413,6 +461,7 @@ class ModelGenerator {
         sb.writeln(
             "      contentType: 'application/vnd.ms-excel; charset=utf-8',");
         sb.writeln('      bytes: convert.utf8.encode(buffer.toString()),');
+        sb.writeln('      metadata: options.exportMetadata(),');
         sb.writeln('    );');
         sb.writeln('  }');
         sb.writeln('}');
