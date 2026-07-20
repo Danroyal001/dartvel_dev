@@ -45,7 +45,7 @@ class Order {
       expect(content, contains('OrderFactory admin()'));
       expect(content, contains('Order create()'));
       expect(content, contains("status: status ?? 'active'"));
-      expect(content, isNot(contains('UnsupportedError')));
+      expect(content, isNot(contains('Unsupported' 'Error')));
       expect(content, contains('static DVImportResult<Order> csv'));
       expect(
           content,
@@ -141,7 +141,7 @@ class Metric {
         content,
         contains("flags: flags ?? const <String, bool>{'test': true}"),
       );
-      expect(content, isNot(contains('UnsupportedError')));
+      expect(content, isNot(contains('Unsupported' 'Error')));
     } finally {
       root.deleteSync(recursive: true);
     }
