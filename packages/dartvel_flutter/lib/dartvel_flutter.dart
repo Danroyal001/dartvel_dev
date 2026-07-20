@@ -2319,6 +2319,10 @@ extension DVFlutterTestHarness on DVTestHarness {
     DVAuth._provider = null;
   }
 
+  void resetBillingProvider() {
+    DVBilling._provider = null;
+  }
+
   Map<String, List<int>> fakeStorage() {
     DVStorage._memory.clear();
     return DVStorage._memory;
@@ -2450,7 +2454,7 @@ class DVTheme {
 
 class DVBilling {
   const DVBilling();
-  static DVBillingProvider _provider = DVLocalBillingProvider();
+  static DVBillingProvider? _provider;
 
   void useProvider(DVBillingProvider provider) {
     _provider = provider;
@@ -2460,15 +2464,15 @@ class DVBilling {
     required BillingPlan plan,
     required Object customer,
   }) {
-    return _provider.checkout(plan: plan, customer: customer);
+    return _configuredProvider.checkout(plan: plan, customer: customer);
   }
 
   Future<bool> hasEntitlement(Object customer, Entitlement entitlement) {
-    return _provider.hasEntitlement(customer, entitlement);
+    return _configuredProvider.hasEntitlement(customer, entitlement);
   }
 
   void grantLocalEntitlement(Object customer, Entitlement entitlement) {
-    final provider = _provider;
+    final provider = _configuredProvider;
     if (provider is! DVLocalBillingProvider) {
       throw StateError(
         'Local entitlements require DVLocalBillingProvider.',
@@ -2478,13 +2482,23 @@ class DVBilling {
   }
 
   void revokeLocalEntitlement(Object customer, Entitlement entitlement) {
-    final provider = _provider;
+    final provider = _configuredProvider;
     if (provider is! DVLocalBillingProvider) {
       throw StateError(
         'Local entitlements require DVLocalBillingProvider.',
       );
     }
     provider.revoke(customer, entitlement);
+  }
+
+  DVBillingProvider get _configuredProvider {
+    final provider = _provider;
+    if (provider == null) {
+      throw StateError(
+        'DV.Billing has no configured provider. Configure Stripe, Paddle, or a store billing adapter before use.',
+      );
+    }
+    return provider;
   }
 }
 
