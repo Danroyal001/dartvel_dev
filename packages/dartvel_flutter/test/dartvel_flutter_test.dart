@@ -213,6 +213,23 @@ void main() {
 
     expect(await DV.AI.chat('hello'), contains('hello'));
     expect(await DV.AI.embed('hello'), hasLength(16));
+    DV.Test.resetAITools();
+    DV.AI.registerTool('sumLedger', (input) {
+      final left = input['left'];
+      final right = input['right'];
+      if (left is! DVJsonNumber || right is! DVJsonNumber) {
+        throw ArgumentError('sumLedger requires numeric left and right.');
+      }
+      return DVJsonNumber(left.value + right.value);
+    });
+    expect(DV.AI.hasTool('sumLedger'), isTrue);
+    expect(DV.AI.toolNames, contains('sumLedger'));
+    final aiToolResult = await DV.AI.callTool('sumLedger', const {
+      'left': DVJsonNumber(2),
+      'right': DVJsonNumber(3),
+    });
+    expect(aiToolResult, isA<DVJsonNumber>());
+    expect((aiToolResult as DVJsonNumber).value, 5);
     expect(await DV.DB.query('select 1'), [
       {'1': 1}
     ]);

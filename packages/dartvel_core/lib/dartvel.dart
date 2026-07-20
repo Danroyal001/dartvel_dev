@@ -51,6 +51,71 @@ class DVAIToolEntry {
   });
 }
 
+typedef DVJsonObject = Map<String, DVJsonValue>;
+typedef DVAIToolHandler = FutureOr<DVJsonValue> Function(DVJsonObject input);
+
+sealed class DVJsonValue {
+  const DVJsonValue();
+}
+
+class DVJsonNull extends DVJsonValue {
+  const DVJsonNull();
+}
+
+class DVJsonString extends DVJsonValue {
+  final String value;
+  const DVJsonString(this.value);
+}
+
+class DVJsonNumber extends DVJsonValue {
+  final num value;
+  const DVJsonNumber(this.value);
+}
+
+class DVJsonBool extends DVJsonValue {
+  final bool value;
+  const DVJsonBool(this.value);
+}
+
+class DVJsonList extends DVJsonValue {
+  final List<DVJsonValue> value;
+  const DVJsonList(this.value);
+}
+
+class DVJsonMap extends DVJsonValue {
+  final DVJsonObject value;
+  const DVJsonMap(this.value);
+}
+
+class DVAIToolRegistry {
+  static final Map<String, DVAIToolHandler> _handlers = {};
+
+  const DVAIToolRegistry();
+
+  void register(String name, DVAIToolHandler handler) {
+    if (name.trim().isEmpty) {
+      throw ArgumentError.value(name, 'name', 'AI tool names cannot be empty.');
+    }
+    _handlers[name] = handler;
+  }
+
+  bool contains(String name) => _handlers.containsKey(name);
+
+  List<String> get names => List<String>.unmodifiable(_handlers.keys);
+
+  Future<DVJsonValue> call(String name, [DVJsonObject input = const {}]) async {
+    final handler = _handlers[name];
+    if (handler == null) {
+      throw StateError('No AI tool registered for "$name".');
+    }
+    return handler(input);
+  }
+
+  void clear() {
+    _handlers.clear();
+  }
+}
+
 // Simple HeaderValue parser to avoid dart:io dependency
 class _HeaderValue {
   final String value;
@@ -846,5 +911,9 @@ class DVTestHarness {
 
   void resetCacheTags() {
     DVCacheTags._tags.clear();
+  }
+
+  void resetAITools() {
+    const DVAIToolRegistry().clear();
   }
 }
