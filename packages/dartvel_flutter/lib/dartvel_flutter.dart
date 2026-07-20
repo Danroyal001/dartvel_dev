@@ -880,9 +880,9 @@ extension DVSignalContextX on BuildContext {
 
 final _globalProviders = <Type, StateProvider<Object?>>{};
 
-extension DVModelSignalX on Object {
-  DVSignal<T> signal<T>(BuildContext context) {
-    return context.signal<T>(this as T);
+extension DVModelSignalX<T> on T {
+  DVSignal<T> signal(BuildContext context) {
+    return context.signal<T>(this);
   }
 }
 
@@ -907,8 +907,8 @@ class DVForm<T> extends StatefulWidget {
   State<DVForm<T>> createState() => _DVFormState<T>();
 }
 
-extension DVFormAliasX on Object {
-  Widget Form() => DVForm<Object>(this);
+extension DVFormAliasX<T> on T {
+  Widget Form() => DVForm<T>(this);
 }
 
 class _DVFormState<T> extends State<DVForm<T>> {
