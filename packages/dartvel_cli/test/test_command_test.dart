@@ -35,6 +35,7 @@ void main() {
         totalShards: null,
         shardIndex: null,
         isolate: false,
+        updateGoldens: false,
         forwardedArgs: const <String>[],
         root: temp,
       );
@@ -59,6 +60,7 @@ void main() {
         totalShards: null,
         shardIndex: null,
         isolate: false,
+        updateGoldens: false,
         forwardedArgs: const <String>['--plain-name', 'smoke'],
         root: temp,
       );
@@ -81,6 +83,30 @@ void main() {
       ]);
     });
 
+    test('resolves golden update flag for snapshot refreshes', () {
+      File(p.join(temp.path, 'test', 'golden_test.dart'))
+          .createSync(recursive: true);
+      final invocation = DartvelTestInvocation.resolve(
+        mode: 'golden',
+        forceFlutter: true,
+        forceDart: false,
+        watch: false,
+        reporter: null,
+        totalShards: null,
+        shardIndex: null,
+        isolate: false,
+        updateGoldens: true,
+        forwardedArgs: const <String>[],
+        root: temp,
+      );
+
+      expect(invocation.arguments, <String>[
+        'test',
+        'test/golden_test.dart',
+        '--update-goldens',
+      ]);
+    });
+
     test('resolves native tests to generated native binding checks', () {
       Directory(p.join(temp.path, 'test', 'native'))
           .createSync(recursive: true);
@@ -93,6 +119,7 @@ void main() {
         totalShards: null,
         shardIndex: null,
         isolate: false,
+        updateGoldens: false,
         forwardedArgs: const <String>[],
         root: temp,
       );
@@ -113,6 +140,7 @@ void main() {
         totalShards: null,
         shardIndex: null,
         isolate: false,
+        updateGoldens: false,
         forwardedArgs: const <String>[],
         root: temp,
       );
@@ -136,6 +164,7 @@ void main() {
         totalShards: null,
         shardIndex: null,
         isolate: false,
+        updateGoldens: false,
         forwardedArgs: const <String>[],
         root: temp,
       );
@@ -154,6 +183,7 @@ void main() {
         totalShards: 4,
         shardIndex: 2,
         isolate: true,
+        updateGoldens: false,
         forwardedArgs: const <String>[],
         root: temp,
       );
@@ -181,6 +211,7 @@ void main() {
           totalShards: 2,
           shardIndex: null,
           isolate: false,
+          updateGoldens: false,
           forwardedArgs: const <String>[],
           root: temp,
         ),
