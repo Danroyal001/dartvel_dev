@@ -13,6 +13,7 @@ export 'package:dartvel_shelf/dartvel_shelf.dart'
 
 export 'src/analytics/analytics.dart';
 export 'src/annotations/annotations.dart';
+export 'src/auth/auth.dart';
 export 'src/platform_config.dart';
 export 'src/shell/shell.dart';
 

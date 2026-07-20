@@ -6,7 +6,7 @@ class AuthUser {
   final String id;
   final String email;
   final String? name;
-  final Map<String, dynamic>? metadata;
+  final Map<String, Object?>? metadata;
 
   const AuthUser({
     required this.id,
@@ -15,17 +15,20 @@ class AuthUser {
     this.metadata,
   });
 
-  factory AuthUser.fromJson(Map<String, dynamic> json) {
+  factory AuthUser.fromJson(Map<String, Object?> json) {
+    final metadata = json['metadata'];
     return AuthUser(
       id: json['id'] as String,
       email: json['email'] as String,
       name: json['name'] as String?,
-      metadata: json['metadata'] as Map<String, dynamic>?,
+      metadata: metadata is Map<Object?, Object?>
+          ? Map<String, Object?>.from(metadata)
+          : null,
     );
   }
 
-  Map<String, dynamic> toJson() {
-    return {
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
       'id': id,
       'email': email,
       if (name != null) 'name': name,
