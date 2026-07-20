@@ -2256,6 +2256,7 @@ class DV {
   static DVTestHarness get Test => const DVTestHarness();
   static DVCSRF get CSRF => const DVCSRF();
   static DVCSRF get Csrf => const DVCSRF();
+  static DVI18n get I18n => const DVI18n();
   static DVObservabilityAndLogging get ObservabilityAndLogging =>
       const DVObservabilityAndLogging();
   static DVRust get Rust => const DVRust();
@@ -2672,6 +2673,214 @@ class DvI18nScope extends InheritedWidget {
   @override
   bool updateShouldNotify(DvI18nScope oldWidget) =>
       localeTag != oldWidget.localeTag;
+}
+
+class LocaleTag {
+  static const enUS = LocaleTag('en-US');
+  static const frFR = LocaleTag('fr-FR');
+
+  final String value;
+
+  const LocaleTag(this.value);
+
+  Locale get locale => DvI18n.parseLocale(value);
+
+  bool get isRightToLeft {
+    final language = value.split(RegExp('[-_]')).first.toLowerCase();
+    return const <String>{
+      'ar',
+      'fa',
+      'he',
+      'ps',
+      'ur',
+      'yi',
+    }.contains(language);
+  }
+
+  @override
+  String toString() => value;
+}
+
+class DVTranslationKey {
+  final String value;
+
+  const DVTranslationKey(this.value);
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DVTranslationKey && other.value == value;
+
+  @override
+  int get hashCode => value.hashCode;
+
+  @override
+  String toString() => value;
+}
+
+class DVTranslationCatalog {
+  final LocaleTag locale;
+  final Map<DVTranslationKey, String> messages;
+  final Map<DVTranslationKey, DVPluralForms> plurals;
+
+  const DVTranslationCatalog({
+    required this.locale,
+    this.messages = const <DVTranslationKey, String>{},
+    this.plurals = const <DVTranslationKey, DVPluralForms>{},
+  });
+}
+
+class DVPluralForms {
+  final String zero;
+  final String one;
+  final String other;
+
+  const DVPluralForms({
+    required this.other,
+    this.zero = '',
+    this.one = '',
+  });
+
+  String select(num count) {
+    if (count == 0 && zero.isNotEmpty) return zero;
+    if (count == 1 && one.isNotEmpty) return one;
+    return other;
+  }
+}
+
+class DVI18n {
+  static LocaleTag _currentLocale = LocaleTag.enUS;
+  static final Map<String, DVTranslationCatalog> _catalogs =
+      <String, DVTranslationCatalog>{};
+
+  const DVI18n();
+
+  LocaleTag get currentLocale => _currentLocale;
+
+  TextDirection get textDirection =>
+      _currentLocale.isRightToLeft ? TextDirection.rtl : TextDirection.ltr;
+
+  void useLocale(LocaleTag locale) {
+    _currentLocale = locale;
+  }
+
+  void load(DVTranslationCatalog catalog) {
+    _catalogs[catalog.locale.value] = catalog;
+  }
+
+  void loadAll(Iterable<DVTranslationCatalog> catalogs) {
+    for (final catalog in catalogs) {
+      load(catalog);
+    }
+  }
+
+  String t(
+    DVTranslationKey key, {
+    Map<String, String> args = const <String, String>{},
+    LocaleTag? locale,
+    bool strict = false,
+  }) {
+    final selected = locale ?? _currentLocale;
+    final catalog = _catalogs[selected.value];
+    final template = catalog?.messages[key];
+    if (template == null) {
+      if (strict) {
+        throw StateError(
+          'Missing Dartvel translation "${key.value}" for ${selected.value}.',
+        );
+      }
+      return key.value;
+    }
+    return _interpolate(template, args);
+  }
+
+  String translate(
+    DVTranslationKey key, {
+    Map<String, String> args = const <String, String>{},
+    LocaleTag? locale,
+    bool strict = false,
+  }) {
+    return t(key, args: args, locale: locale, strict: strict);
+  }
+
+  String plural(
+    DVTranslationKey key,
+    num count, {
+    Map<String, String> args = const <String, String>{},
+    LocaleTag? locale,
+    bool strict = false,
+  }) {
+    final selected = locale ?? _currentLocale;
+    final catalog = _catalogs[selected.value];
+    final forms = catalog?.plurals[key];
+    if (forms == null) {
+      if (strict) {
+        throw StateError(
+          'Missing Dartvel plural "${key.value}" for ${selected.value}.',
+        );
+      }
+      return key.value;
+    }
+    final pluralArgs = <String, String>{
+      ...args,
+      'count': formatNumber(count, locale: selected),
+    };
+    return _interpolate(forms.select(count), pluralArgs);
+  }
+
+  String formatNumber(num value, {LocaleTag? locale}) {
+    final selected = locale ?? _currentLocale;
+    final raw = value is int ? value.toString() : value.toStringAsFixed(2);
+    final parts = raw.split('.');
+    final separator = selected.value.startsWith('fr') ? ' ' : ',';
+    final whole = parts.first;
+    final buffer = StringBuffer();
+    for (var i = 0; i < whole.length; i++) {
+      final remaining = whole.length - i;
+      buffer.write(whole[i]);
+      if (remaining > 1 && remaining % 3 == 1) {
+        buffer.write(separator);
+      }
+    }
+    if (parts.length > 1) {
+      buffer.write(selected.value.startsWith('fr') ? ',' : '.');
+      buffer.write(parts[1]);
+    }
+    return buffer.toString();
+  }
+
+  String formatCurrency(
+    num value, {
+    String code = 'USD',
+    LocaleTag? locale,
+  }) {
+    final selected = locale ?? _currentLocale;
+    final formatted = formatNumber(value, locale: selected);
+    if (selected.value.startsWith('fr')) return '$formatted $code';
+    return '$code $formatted';
+  }
+
+  String formatDate(DateTime value, {LocaleTag? locale}) {
+    final selected = locale ?? _currentLocale;
+    final month = value.month.toString().padLeft(2, '0');
+    final day = value.day.toString().padLeft(2, '0');
+    final year = value.year.toString().padLeft(4, '0');
+    if (selected.value.startsWith('fr')) return '$day/$month/$year';
+    return '$month/$day/$year';
+  }
+
+  void reset() {
+    _currentLocale = LocaleTag.enUS;
+    _catalogs.clear();
+  }
+
+  String _interpolate(String template, Map<String, String> args) {
+    var result = template;
+    for (final entry in args.entries) {
+      result = result.replaceAll('{${entry.key}}', entry.value);
+    }
+    return result;
+  }
 }
 
 class DvI18n {
