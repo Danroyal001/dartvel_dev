@@ -1903,7 +1903,23 @@ class DVPlatform {
       currentPlatform == 'appletv';
   bool get isWatch =>
       _deviceTypeOverride == 'watch' || currentPlatform.contains('watch');
-  bool get isFoldable => _deviceTypeOverride == 'foldable';
+
+  List<ui.DisplayFeature> get _foldFeatures {
+    final view = _view;
+    if (view == null) return const <ui.DisplayFeature>[];
+    return view.displayFeatures
+        .where(
+          (feature) =>
+              feature.type == ui.DisplayFeatureType.fold ||
+              feature.type == ui.DisplayFeatureType.hinge,
+        )
+        .toList(growable: false);
+  }
+
+  bool get isFoldable =>
+      _deviceTypeOverride == 'foldable' || _foldFeatures.isNotEmpty;
+  bool get isDualFold => isFoldable && _foldFeatures.length == 1;
+  bool get isTriFold => isFoldable && _foldFeatures.length >= 2;
 
   ui.FlutterView? get _view {
     final views = ui.PlatformDispatcher.instance.views;
