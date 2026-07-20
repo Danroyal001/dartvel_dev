@@ -2127,6 +2127,38 @@ extension DVFlutterTestHarness on DVTestHarness {
   void resetAuth() {
     DVAuth._currentUser = null;
   }
+
+  Map<String, List<int>> fakeStorage() {
+    DVStorage._memory.clear();
+    return DVStorage._memory;
+  }
+
+  LocalDVAIAdapter fakeAI() {
+    const adapter = LocalDVAIAdapter();
+    DVAI.configure(adapter);
+    const DVAIToolRegistry().clear();
+    return adapter;
+  }
+
+  void fakeNativeBinding(
+    String method,
+    FutureOr<Object?> Function(Object?) handler,
+  ) {
+    DVNativeBridge.register(method, handler);
+  }
+
+  void resetNativeBindings() {
+    DVNativeBridge._handlers.clear();
+  }
+
+  void resetStorage() {
+    DVStorage._memory.clear();
+  }
+
+  void resetAI() {
+    DVAI.configure(const LocalDVAIAdapter());
+    const DVAIToolRegistry().clear();
+  }
 }
 
 class _EmailPasswordAuthPage extends StatefulWidget {
