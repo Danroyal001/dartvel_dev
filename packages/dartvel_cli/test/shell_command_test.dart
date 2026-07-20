@@ -87,5 +87,45 @@ dartvel:
 
       await runner.run(<String>['task', 'sdk', '--quiet']);
     });
+
+    test('loads task declarations from .dartvel.sh', () {
+      File(p.join(temp.path, '.dartvel.sh')).writeAsStringSync('''
+# Dartvel local tasks
+task clean: ${Platform.resolvedExecutable} --version
+build:web: ${Platform.resolvedExecutable} --version
+''');
+
+      final tasks = DartvelTaskFile.load(temp);
+
+      expect(tasks.names, <String>['build:web', 'clean', 'sdk']);
+      expect(tasks.commandFor('clean'),
+          '${Platform.resolvedExecutable} --version');
+    });
+
+    test('loads task declarations from .dartvel.dart', () {
+      File(p.join(temp.path, '.dartvel.dart')).writeAsStringSync('''
+// task check: ${Platform.resolvedExecutable} --version
+void main() {}
+''');
+
+      final tasks = DartvelTaskFile.load(temp);
+
+      expect(tasks.names, <String>['check', 'sdk']);
+      expect(tasks.commandFor('check'),
+          '${Platform.resolvedExecutable} --version');
+    });
+
+    test('exposes .dartvel.dart as a default dartvel task', () {
+      File(p.join(temp.path, '.dartvel.dart')).writeAsStringSync('''
+void main() {
+  print('default task');
+}
+''');
+
+      final tasks = DartvelTaskFile.load(temp);
+
+      expect(tasks.names, <String>['dartvel', 'sdk']);
+      expect(tasks.commandFor('dartvel'), contains('.dartvel.dart'));
+    });
   });
 }
