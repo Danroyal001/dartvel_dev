@@ -50,6 +50,7 @@ enum DVPageShellMode {
 class DVPage {
   final String? path;
   final String? title;
+  final String? policy;
   final DVPageShellMode shell;
   final bool scaffold;
   final bool showAppBar;
@@ -63,6 +64,7 @@ class DVPage {
   const DVPage({
     this.path,
     this.title,
+    this.policy,
     this.shell = DVPageShellMode.adaptive,
     this.scaffold = true,
     this.showAppBar = false,
@@ -88,7 +90,9 @@ class DVModel {
 
 /// Annotation for a Dartvel Backend Function
 class DVBackendFunction {
-  const DVBackendFunction();
+  final String? policy;
+
+  const DVBackendFunction({this.policy});
 }
 
 /// Annotation for a Backend Cron Job
@@ -168,6 +172,26 @@ class DVPolicy {
   final Type resource;
 
   const DVPolicy(this.resource);
+}
+
+class DVPolicyAction {
+  static const viewAny = 'viewAny';
+  static const view = 'view';
+  static const create = 'create';
+  static const update = 'update';
+  static const delete = 'delete';
+  static const restore = 'restore';
+  static const forceDelete = 'forceDelete';
+  static const export = 'export';
+  static const impersonate = 'impersonate';
+}
+
+class DVPolicies {
+  static const viewAdmin = 'viewAdmin';
+  static const refund = 'refund';
+  static const manageBilling = 'manageBilling';
+  static const exportData = 'exportData';
+  static const impersonate = 'impersonate';
 }
 
 /// Annotation for supported home-screen and lock-screen widgets.
