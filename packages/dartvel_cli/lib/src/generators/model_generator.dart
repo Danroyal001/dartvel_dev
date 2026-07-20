@@ -53,6 +53,11 @@ class ModelGenerator {
       for (final match in classMatches) {
         final modelArgs = match.group(1) ?? '';
         final className = match.group(2)!;
+        final constructorPrefix = RegExp(
+          '\\bconst\\s+${RegExp.escape(className)}\\s*\\(',
+        ).hasMatch(content)
+            ? 'const '
+            : '';
         final isSearchableModel = modelArgs.contains(
           RegExp(r'\bsearchable\s*:\s*true\b'),
         );
@@ -247,7 +252,8 @@ class ModelGenerator {
         sb.writeln('      onReset: onReset,');
         sb.writeln('    );');
         sb.writeln('  });');
-        sb.writeln('  registerDVModelFactory<$className>(() => $className(');
+        sb.writeln(
+            '  registerDVModelFactory<$className>(() => $constructorPrefix$className(');
         for (final field in fields) {
           final name = field['name']!;
           final type = field['type']!;
