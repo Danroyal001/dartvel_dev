@@ -39,7 +39,9 @@ analysis_benchmark.json
 **/generated_plugin_registrant.dart
 .packages
 .pub-preload-cache/
+.pub-cache/
 .pub/
+.home/
 build/
 flutter_*.png
 linked_*.ds
