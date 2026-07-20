@@ -60,7 +60,7 @@ void main() {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(
-          body: DVBox.wrap([
+          body: DVBox.wrapLine([
             DVText('One'),
             DVText('Two'),
             DVText('Three'),
@@ -71,6 +71,20 @@ void main() {
 
     expect(find.text('One'), findsOneWidget);
     expect(find.byType(Wrap), findsOneWidget);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: DVBox.builder<int>(
+            [1, 2, 3],
+            (item) => DVText('Chip $item'),
+          ).wrapLine(),
+        ),
+      ),
+    );
+
+    expect(find.byType(Wrap), findsOneWidget);
+    expect(find.text('Chip 1'), findsOneWidget);
 
     await tester.pumpWidget(
       MaterialApp(

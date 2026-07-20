@@ -24,7 +24,7 @@ Widget indexPage(BuildContext context) {
       DV.Platform.deviceType,
       DartvelRuntime.baseUrl,
     ),
-    DVBox.wrap([
+    DVBox.wrapLine([
       ShowcaseButton('Toggle Theme', () {
         final next =
             DV.Theme.mode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
@@ -60,7 +60,7 @@ Widget indexPage(BuildContext context) {
         ShowcaseMetric(
             'Firefox extension', DV.Platform.isFirefoxExtension ? 'yes' : 'no'),
       ], columns: 2),
-      DVBox.wrap([
+      DVBox.wrapLine([
         ShowcaseButton('Window Title', () async {
           await DV.Platform.Window.setTitle('Dartvel Showcase');
           if (context.mounted) _showMessage(context, 'Window title requested');
@@ -103,7 +103,7 @@ Widget indexPage(BuildContext context) {
     ShowcaseSection('Authentication & Tenancy', [
       DVText('Current Tenant: ${DV.currentTenant}'),
       DVText('User status: ${DV.Auth.currentUser ?? "Not signed in"}'),
-      DVBox.wrap([
+      DVBox.wrapLine([
         ShowcaseButton('Sign In', () async {
           await DV.Auth.signIn();
           if (context.mounted) _showMessage(context, 'Signed in successfully');
@@ -143,7 +143,7 @@ Widget indexPage(BuildContext context) {
     ]),
     ShowcaseSection('i18n, Deferred Pages & Typed Router Actions', [
       DVText('Current Language Locale: $currentLang'),
-      DVBox.wrap([
+      DVBox.wrapLine([
         ShowcaseButton('Set Locale: EN-US', () {
           DvI18n.updateLang(context, 'lang', 'en-US');
         }),
@@ -159,7 +159,7 @@ Widget indexPage(BuildContext context) {
       ]),
     ]),
     ShowcaseSection('Typed API Client', [
-      DVBox.wrap([
+      DVBox.wrapLine([
         ShowcaseButton('GET /hello', () async {
           final data = await getHelloApi(name: 'Tester');
           if (context.mounted) _showMessage(context, 'API: $data');
@@ -183,7 +183,7 @@ Widget indexPage(BuildContext context) {
       ]),
     ]),
     ShowcaseSection('CRUD, Files & CSRF', [
-      DVBox.wrap([
+      DVBox.wrapLine([
         ShowcaseButton('Create Todo', () async {
           final data = await postDbTodosApi(title: 'Ship Dartvel demo');
           if (context.mounted) _showMessage(context, 'Created: $data');
@@ -211,7 +211,7 @@ Widget indexPage(BuildContext context) {
       ]),
     ]),
     ShowcaseSection('Unified Local Services', [
-      DVBox.wrap([
+      DVBox.wrapLine([
         ShowcaseButton('Cache', () async {
           await DV.Cache.set('last_run', DateTime.now().toIso8601String());
           final value = await DV.Cache.get<String>('last_run');
@@ -248,7 +248,7 @@ Widget indexPage(BuildContext context) {
       const DVText(
         'Browser demo bindings below are simulated generated FFI/JNI-style handlers so the Dartvel API surface can be exercised without Flutter platform channels.',
       ).modifier(_supportingTextStyle),
-      DVBox.wrap([
+      DVBox.wrapLine([
         ShowcaseButton('Camera', () async {
           final bytes = await DV.Platform.camera.takePhoto();
           if (context.mounted) _showMessage(context, 'Photo bytes: $bytes');
@@ -336,7 +336,7 @@ Widget indexPage(BuildContext context) {
       DVBox.builder<String>(
         ['Flutter', 'Dart', 'Rust', 'FFI', 'JNI', 'Shorebird'],
         (tag) => DVText(tag).modifier(_pillStyle),
-      ).wrap(),
+      ).wrapLine(),
       DVBox.builder<String>(
         ['Story 1', 'Story 2', 'Story 3'],
         (story) => DVBox(DVText(story)).modifier(_storyStyle),
@@ -348,7 +348,7 @@ Widget indexPage(BuildContext context) {
       ], columns: 2),
     ]),
     ShowcaseSection('AI, Observability & Logging', [
-      DVBox.wrap([
+      DVBox.wrapLine([
         ShowcaseButton('Query AI', () async {
           final answer = await DV.AI.chat('What is Dartvel?');
           if (context.mounted) _showMessage(context, 'AI: $answer');
