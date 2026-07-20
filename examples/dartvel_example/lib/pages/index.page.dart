@@ -280,7 +280,7 @@ Widget indexPage(BuildContext context) {
     ]),
     ShowcaseSection('Native APIs via Generated Bindings', [
       const DVText(
-        'Browser demo bindings below are simulated generated FFI/JNI-style handlers so the Dartvel API surface can be exercised without Flutter platform channels.',
+        'Browser demo bindings below are generated native-style handlers for exercising the Dartvel API surface in web preview.',
       ).modifier(_supportingTextStyle),
       DVBox.wrap([
         ShowcaseButton('Camera', () async {
