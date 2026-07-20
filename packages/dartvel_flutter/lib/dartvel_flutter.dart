@@ -1307,6 +1307,146 @@ class DVWindow {
   Future<void> minimize() async {
     await DVNativeBridge.require<bool>('window.minimize');
   }
+
+  Future<void> restore() async {
+    await DVNativeBridge.require<bool>('window.restore');
+  }
+
+  Future<void> persistState(String key) async {
+    await DVNativeBridge.require<bool>('window.persistState', {'key': key});
+  }
+
+  Future<void> restoreState(String key) async {
+    await DVNativeBridge.require<bool>('window.restoreState', {'key': key});
+  }
+}
+
+class DVTrayMenuItem {
+  final String id;
+  final String label;
+  final bool enabled;
+
+  const DVTrayMenuItem({
+    required this.id,
+    required this.label,
+    this.enabled = true,
+  });
+
+  Map<String, Object> toMap() => <String, Object>{
+        'id': id,
+        'label': label,
+        'enabled': enabled,
+      };
+}
+
+class DVTray {
+  const DVTray();
+
+  Future<void> show({
+    required String icon,
+    String? tooltip,
+    List<DVTrayMenuItem> menu = const <DVTrayMenuItem>[],
+  }) async {
+    final handled = await DVNativeBridge.require<bool>('tray.show', {
+      'icon': icon,
+      if (tooltip != null) 'tooltip': tooltip,
+      'menu': menu.map((item) => item.toMap()).toList(growable: false),
+    });
+    if (!handled) throw StateError('Native tray binding rejected show.');
+  }
+
+  Future<void> hide() async {
+    final handled = await DVNativeBridge.require<bool>('tray.hide');
+    if (!handled) throw StateError('Native tray binding rejected hide.');
+  }
+}
+
+class DVMenuItem {
+  final String id;
+  final String label;
+  final String? shortcut;
+  final List<DVMenuItem> children;
+  final bool enabled;
+
+  const DVMenuItem({
+    required this.id,
+    required this.label,
+    this.shortcut,
+    this.children = const <DVMenuItem>[],
+    this.enabled = true,
+  });
+
+  Map<String, Object> toMap() => <String, Object>{
+        'id': id,
+        'label': label,
+        if (shortcut != null) 'shortcut': shortcut!,
+        'enabled': enabled,
+        'children':
+            children.map((item) => item.toMap()).toList(growable: false),
+      };
+}
+
+class DVApplicationMenu {
+  final List<DVMenuItem> items;
+
+  const DVApplicationMenu(this.items);
+
+  Map<String, Object> toMap() => <String, Object>{
+        'items': items.map((item) => item.toMap()).toList(growable: false),
+      };
+}
+
+class DVMenus {
+  const DVMenus();
+
+  Future<void> setApplicationMenu(DVApplicationMenu menu) async {
+    final handled = await DVNativeBridge.require<bool>(
+      'menus.setApplicationMenu',
+      menu.toMap(),
+    );
+    if (!handled) {
+      throw StateError('Native menus binding rejected setApplicationMenu.');
+    }
+  }
+}
+
+class DVGlobalShortcut {
+  final String id;
+  final String accelerator;
+
+  const DVGlobalShortcut({
+    required this.id,
+    required this.accelerator,
+  });
+
+  Map<String, Object> toMap() => <String, Object>{
+        'id': id,
+        'accelerator': accelerator,
+      };
+}
+
+class DVShortcuts {
+  const DVShortcuts();
+
+  Future<void> register(DVGlobalShortcut shortcut) async {
+    final handled = await DVNativeBridge.require<bool>(
+      'shortcuts.register',
+      shortcut.toMap(),
+    );
+    if (!handled) {
+      throw StateError('Native shortcuts binding rejected register.');
+    }
+  }
+
+  Future<void> unregister(String id) async {
+    final handled = await DVNativeBridge.require<bool>(
+      'shortcuts.unregister',
+      {'id': id},
+    );
+    if (!handled) {
+      throw StateError('Native shortcuts binding rejected unregister.');
+    }
+  }
 }
 
 class DVFullscreenOptions {
@@ -1539,6 +1679,9 @@ class DVPlatform {
   Orientation get deviceOrientation => orientation;
   DVScreen get screen => DVScreen(this);
   DVWindow get Window => DVWindow(this);
+  DVTray get Tray => const DVTray();
+  DVMenus get Menus => const DVMenus();
+  DVShortcuts get Shortcuts => const DVShortcuts();
 
   DVCamera get camera => const DVCamera();
   DVMedia get media => const DVMedia();
