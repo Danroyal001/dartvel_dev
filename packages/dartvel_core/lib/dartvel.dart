@@ -946,7 +946,7 @@ class DVMemoryMailProvider implements DVMailProvider {
 }
 
 class DVNotificationMail {
-  static DVMailProvider _provider = DVMemoryMailProvider();
+  static DVMailProvider? _provider;
 
   const DVNotificationMail();
 
@@ -955,7 +955,13 @@ class DVNotificationMail {
   }
 
   Future<void> send(DVMailMessage message) {
-    return _provider.send(message);
+    final provider = _provider;
+    if (provider == null) {
+      throw StateError(
+        'No mail provider registered. Configure SMTP, a hosted mail provider, or an explicit local/test provider.',
+      );
+    }
+    return provider.send(message);
   }
 }
 
@@ -1022,9 +1028,7 @@ class DVMemoryNotificationProvider implements DVNotificationProvider {
 
 class DVNotificationsService {
   static final Map<DVNotificationProviderKind, DVNotificationProvider>
-      _providers = {
-    DVNotificationProviderKind.local: DVMemoryNotificationProvider(),
-  };
+      _providers = {};
 
   const DVNotificationsService();
 
@@ -1149,9 +1153,17 @@ class DVTestHarness {
     const DVNotificationMail().useProvider(DVMemoryMailProvider());
   }
 
+  void clearMailProvider() {
+    DVNotificationMail._provider = null;
+  }
+
   void resetNotifications() {
     DVNotificationsService._providers
       ..clear()
       ..[DVNotificationProviderKind.local] = DVMemoryNotificationProvider();
+  }
+
+  void clearNotificationProviders() {
+    DVNotificationsService._providers.clear();
   }
 }
