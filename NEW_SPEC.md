@@ -1944,12 +1944,25 @@ await User.Import.resumableNdjson(lines, queue: 'imports', chunkSize: 500);
 await User.Import.excel(tabSeparatedRows);
 final export = User.Export.ndjson(users);
 final spreadsheet = User.Export.excel(users);
+final tenantExport = User.Export.csv(
+  users,
+  options: DVExportOptions<User>(
+    tenantId: 'tenant_123',
+    policyFilter: (user) => user.active,
+    chunkSize: 1000,
+  ),
+);
+await for (final chunk in User.Export.streamNdjson(users)) {
+  await DV.Storage.put(chunk.fileName, chunk.bytes);
+}
 final report = await Order.Report.monthly(...);
 ```
 
 Exports use storage providers and queued jobs for large datasets.
 Resumable imports dispatch typed `DVImportChunk` payloads through `DVQueues`, so
 workers can process large files without holding the entire import in one request.
+Tenant-aware and policy-filtered exports use `DVExportOptions<T>`, attach export
+metadata to `DVExportResult`, and can stream CSV/NDJSON chunks for large files.
 
 ---
 
