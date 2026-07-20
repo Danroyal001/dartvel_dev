@@ -2336,7 +2336,7 @@ extension DVFlutterTestHarness on DVTestHarness {
 
   LocalDVAIAdapter fakeAI() {
     const adapter = LocalDVAIAdapter();
-    DVAI.configure(adapter);
+    DV.AI.configure(adapter);
     const DVAIToolRegistry().clear();
     return adapter;
   }
@@ -2361,8 +2361,12 @@ extension DVFlutterTestHarness on DVTestHarness {
   }
 
   void resetAI() {
-    DVAI.configure(const LocalDVAIAdapter());
+    DV.AI.configure(const LocalDVAIAdapter());
     const DVAIToolRegistry().clear();
+  }
+
+  void resetAIProvider() {
+    DVAI._adapter = null;
   }
 }
 
@@ -2504,10 +2508,10 @@ class DVBilling {
 
 class DVAI {
   const DVAI();
-  static DVAIAdapter _adapter = const LocalDVAIAdapter();
+  static DVAIAdapter? _adapter;
   static const DVAIToolRegistry _tools = DVAIToolRegistry();
 
-  static void configure(DVAIAdapter adapter) {
+  void configure(DVAIAdapter adapter) {
     _adapter = adapter;
   }
 
@@ -2527,25 +2531,35 @@ class DVAI {
   }
 
   Future<String> chat(String prompt, {String provider = 'gemini'}) =>
-      _adapter.chat(prompt, provider: provider);
-  Future<List<double>> embed(String text) => _adapter.embed(text);
+      _configuredAdapter.chat(prompt, provider: provider);
+  Future<List<double>> embed(String text) => _configuredAdapter.embed(text);
   Future<DVJsonObject> structuredOutput(
     String prompt,
     DVJsonObject schema,
   ) =>
-      _adapter.structuredOutput(prompt, schema);
+      _configuredAdapter.structuredOutput(prompt, schema);
   Future<DVAITranscript> transcribe(
     List<int> audioBytes, {
     String mimeType = 'audio/wav',
     String language = 'und',
   }) =>
-      _adapter.transcribe(
+      _configuredAdapter.transcribe(
         audioBytes,
         mimeType: mimeType,
         language: language,
       );
   Future<DVAIAgentResult> runAgent(DVAIAgentRequest request) =>
-      _adapter.runAgent(request);
+      _configuredAdapter.runAgent(request);
+
+  static DVAIAdapter get _configuredAdapter {
+    final adapter = _adapter;
+    if (adapter == null) {
+      throw StateError(
+        'DV.AI has no configured adapter. Configure an AI provider before use.',
+      );
+    }
+    return adapter;
+  }
 }
 
 abstract class DVAIAdapter {
