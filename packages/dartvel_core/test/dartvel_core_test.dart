@@ -89,6 +89,37 @@ void main() {
     expect(serializeDVModel<int>(42), <String, Object?>{'value': 42});
   });
 
+  test('in-memory search provider filters, facets, and paginates typed models',
+      () async {
+    final provider = DVInMemorySearchProvider<int, Set<int>>(
+      records: <int>[1, 2, 3, 4],
+      document: (value) => 'record $value',
+      facetMatcher: (value, facets) => facets == null || facets.contains(value),
+    );
+
+    final result = await provider.query(
+      'record',
+      facets: <int>{2, 3, 4},
+      page: 2,
+      perPage: 2,
+    );
+
+    expect(result.items, <int>[4]);
+    expect(result.total, 3);
+    expect(result.page, 2);
+    expect(result.perPage, 2);
+  });
+
+  test('unconfigured search provider fails instead of returning a false result',
+      () async {
+    const provider = DVUnconfiguredSearchProvider<int, void>();
+
+    expect(
+      () => provider.query('record'),
+      throwsA(isA<StateError>()),
+    );
+  });
+
   group('Res', () {
     test('json creates correct response', () async {
       final data = {'message': 'hello'};
