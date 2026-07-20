@@ -1416,6 +1416,9 @@ Tool generation:
   barrel exports `dartvelAITools`.
 - `dartvelAITools` is a typed `List<DVAIToolEntry>` containing the tool name,
   description, source import URI, and file path.
+- Projects may set `dartvel.ai.exposeBackendFunctionsAsTools: true` in
+  `pubspec.yaml` to expose backend functions as tools. Add `@DVAIHidden()` to
+  a backend function that must remain private under that mode.
 
 Tool calls:
 ```dart
