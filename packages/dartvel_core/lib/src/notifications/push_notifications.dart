@@ -4,7 +4,7 @@ import 'dart:async';
 class NotificationMessage {
   final String title;
   final String body;
-  final Map<String, dynamic>? data;
+  final Map<String, Object?>? data;
   final String? imageUrl;
 
   const NotificationMessage({
