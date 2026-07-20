@@ -141,7 +141,7 @@ void main() {
     });
 
     test('authorization and cache invalidation are typed', () async {
-      const authz = DVAuthorization();
+      const authz = DVAuthAuthorization();
       authz.register<String, int>('view', (user, resource) {
         return user == 'admin' && resource == 7;
       });
