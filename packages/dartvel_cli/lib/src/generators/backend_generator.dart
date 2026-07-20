@@ -19,6 +19,7 @@ class BackendGenerator {
   }) async {
     final backendOut = Directory(p.join(root, '.dart_tool'));
     final libClientDir = Directory(p.join(root, 'lib', 'dartvel_client'));
+    await _validateMiddlewareAnnotations(root);
 
     // Backend bind config
     File(p.join(backendOut.path, 'dartvel_backend.g.dart'))
@@ -847,6 +848,65 @@ class DartvelClient {
           '  dartvelCronEntries.where((entry) => entry.target == DVCronTarget.client),')
       ..writeln(');');
     return sb.toString();
+  }
+
+  static Future<void> _validateMiddlewareAnnotations(String root) async {
+    const supported = <String>{
+      'auth',
+      'policy',
+      'tenant',
+      'cors',
+      'csrf',
+      'rateLimit',
+      'rateLimitCheckout',
+      'requestLogging',
+      'tracing',
+      'securityHeaders',
+      'csp',
+      'bodyLimit',
+      'uploadLimit',
+      'compression',
+      'locale',
+      'idempotency',
+      'cacheTags',
+      'featureFlags',
+      'maintenance',
+    };
+    final fs = const LocalFileSystem();
+    for (final entity in Glob('lib/**.dart')
+        .listFileSystemSync(fs, root: root, followLinks: false)) {
+      if (entity is! File) continue;
+      final path = entity.path.replaceAll('\\', '/');
+      if (path.contains('/lib/dartvel_client/')) continue;
+      final source = await File(entity.path).readAsString();
+      final relativePath =
+          p.relative(entity.path, from: root).replaceAll('\\', '/');
+      final annotations = RegExp(
+        r'@DVUseMiddleware\s*\(\s*\[(.*?)\]\s*\)',
+        dotAll: true,
+      ).allMatches(source);
+      for (final annotation in annotations) {
+        final body = annotation.group(1) ?? '';
+        final constants = RegExp(r'DVMiddlewares\.([A-Za-z_][A-Za-z0-9_]*)')
+            .allMatches(body)
+            .map((match) => match.group(1)!)
+            .toList();
+        if (constants.isEmpty && body.trim().isNotEmpty) {
+          throw StateError(
+            'dartvel: unsupported middleware annotation in $relativePath. '
+            'Use typed DVMiddlewares constants.',
+          );
+        }
+        for (final name in constants) {
+          if (!supported.contains(name)) {
+            throw StateError(
+              'dartvel: unsupported middleware "DVMiddlewares.$name" in '
+              '$relativePath. Supported middleware: ${supported.join(', ')}.',
+            );
+          }
+        }
+      }
+    }
   }
 
   static void _collectCronEntries({
