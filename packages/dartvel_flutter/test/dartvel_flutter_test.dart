@@ -375,17 +375,22 @@ void main() {
     await DV.Updates.apply();
     await DV.Updates.rollback();
 
-    DV.Auth.authorization.register<String, String>(
-      'deploy',
+    DV.Auth.registerPolicy<String, String>(
+      DVPolicies.viewAdmin,
       (user, resource) => user == 'admin' && resource == 'production',
     );
     expect(
-      await DV.Auth.authorization.can<String, String>(
+      await DV.Auth.can<String, String>(
         'admin',
-        'deploy',
+        DVPolicies.viewAdmin,
         'production',
       ),
       isTrue,
+    );
+    await DV.Auth.authorize<String, String>(
+      'admin',
+      DVPolicies.viewAdmin,
+      'production',
     );
 
     DV.Cache.tag('users:list', <String>['users']);

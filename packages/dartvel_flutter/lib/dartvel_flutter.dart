@@ -29,7 +29,12 @@ export 'package:dartvel_core/dartvel.dart'
         DVAuthAuthorization,
         DVJob,
         DVMiddleware,
+        DVMiddlewareKey,
+        DVMiddlewares,
         DVPolicy,
+        DVPolicies,
+        DVPolicyAction,
+        DVUseMiddleware,
         DVCacheTags,
         DVInMemoryQueueAdapter,
         DVJobEnvelope,
@@ -1476,6 +1481,29 @@ class DVAuth {
 
   Object? get currentUser => _currentUser;
   DVAuthAuthorization get authorization => const DVAuthAuthorization();
+
+  void registerPolicy<TUser, TResource>(
+    String action,
+    DVPolicyCheck<TUser, TResource> check,
+  ) {
+    authorization.register<TUser, TResource>(action, check);
+  }
+
+  Future<bool> can<TUser, TResource>(
+    TUser user,
+    String action,
+    TResource resource,
+  ) {
+    return authorization.can<TUser, TResource>(user, action, resource);
+  }
+
+  Future<void> authorize<TUser, TResource>(
+    TUser user,
+    String action,
+    TResource resource,
+  ) {
+    return authorization.authorize<TUser, TResource>(user, action, resource);
+  }
 
   Future<void> signIn() async {
     _currentUser = DVAuthUser(

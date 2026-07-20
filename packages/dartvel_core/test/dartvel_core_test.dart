@@ -142,12 +142,19 @@ void main() {
 
     test('authorization and cache invalidation are typed', () async {
       const authz = DVAuthAuthorization();
-      authz.register<String, int>('view', (user, resource) {
+      authz.register<String, int>(DVPolicyAction.view, (user, resource) {
         return user == 'admin' && resource == 7;
       });
 
-      expect(await authz.can<String, int>('admin', 'view', 7), isTrue);
-      expect(await authz.can<String, int>('guest', 'view', 7), isFalse);
+      expect(
+        await authz.can<String, int>('admin', DVPolicyAction.view, 7),
+        isTrue,
+      );
+      expect(
+        await authz.can<String, int>('guest', DVPolicyAction.view, 7),
+        isFalse,
+      );
+      expect(DVPolicies.refund, 'refund');
 
       const invalidation = DVCacheTags();
       invalidation.tag('users:7', <String>['users', 'users:7']);
