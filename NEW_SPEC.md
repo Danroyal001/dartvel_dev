@@ -1939,7 +1939,9 @@ Dartvel should include typed bulk data workflows:
 ```dart
 await User.Import.csv(file);
 await User.Import.ndjson(lines);
+await User.Import.excel(tabSeparatedRows);
 final export = User.Export.ndjson(users);
+final spreadsheet = User.Export.excel(users);
 final report = await Order.Report.monthly(...);
 ```
 
