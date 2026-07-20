@@ -115,11 +115,10 @@ void main() {
     });
 
     test('mail and notifications use concrete local providers', () async {
-      final mailProvider = DVMemoryMailProvider();
-      const mail = DVNotificationMail();
-      mail.useProvider(mailProvider);
+      const harness = DVTestHarness();
+      final mailProvider = harness.fakeMail();
 
-      await mail.send(
+      await const DVNotificationMail().send(
         const DVMailMessage(
           from: DVMailAddress('system@example.com'),
           to: <DVMailAddress>[DVMailAddress('user@example.com')],
@@ -129,15 +128,23 @@ void main() {
       );
       expect(mailProvider.sent.single.subject, 'Welcome');
 
-      final notificationProvider = DVMemoryNotificationProvider();
-      const notifications = DVNotificationsService();
-      notifications.register(notificationProvider);
+      final notificationProvider = harness.fakeNotifications();
 
-      await notifications.send(
+      await const DVNotificationsService().send(
         'user-1',
         const DVNotificationMessage(title: 'Hi', body: 'Body'),
       );
       expect(notificationProvider.sent.single.recipient, 'user-1');
+    });
+
+    test('test harness installs explicit fake queue provider', () async {
+      const harness = DVTestHarness();
+      final adapter = harness.fakeQueue();
+      const queues = DVQueues();
+
+      await queues.dispatch<String>('queued', queue: 'tests');
+
+      expect(await adapter.pending('tests'), hasLength(1));
     });
 
     test('authorization and cache invalidation are typed', () async {
