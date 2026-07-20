@@ -2133,6 +2133,12 @@ extension DVFlutterTestHarness on DVTestHarness {
     return DVStorage._memory;
   }
 
+  MemoryDVDatabaseAdapter fakeDatabase() {
+    final adapter = MemoryDVDatabaseAdapter();
+    DVDatabase.configure(adapter);
+    return adapter;
+  }
+
   LocalDVAIAdapter fakeAI() {
     const adapter = LocalDVAIAdapter();
     DVAI.configure(adapter);
@@ -2153,6 +2159,10 @@ extension DVFlutterTestHarness on DVTestHarness {
 
   void resetStorage() {
     DVStorage._memory.clear();
+  }
+
+  void refreshDatabase() {
+    fakeDatabase();
   }
 
   void resetAI() {
