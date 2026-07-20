@@ -236,11 +236,11 @@ class ModelGenerator {
           sb.writeln();
           sb.writeln(
               '  $type get $name => ${className.toLowerCase()}?.$name ?? $defaultVal;');
-          if (name.toLowerCase().contains('email')) {
-            sb.writeln(
-                "  bool get ${name}IsValid => $name.isNotEmpty && $name.contains('@');");
-          } else {
-            sb.writeln('  bool get ${name}IsValid => true;');
+          if (type.replaceAll('?', '') == 'String') {
+            final validation = name.toLowerCase().contains('email')
+                ? '$name.isNotEmpty && $name.contains(\'@\')'
+                : '$name.trim().isNotEmpty';
+            sb.writeln('  bool get ${name}IsValid => $validation;');
           }
         }
         sb.writeln('}');

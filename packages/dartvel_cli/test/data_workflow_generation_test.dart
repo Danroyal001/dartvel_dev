@@ -50,6 +50,9 @@ class Order {
       expect(content, isNot(contains('var ')));
       expect(content, contains('final String? id;'));
       expect(content, contains('final String? status;'));
+      expect(content,
+          contains('bool get statusIsValid => status.trim().isNotEmpty;'));
+      expect(content, isNot(contains('statusIsValid => true')));
       expect(content, contains('OrderFactory admin()'));
       expect(content, contains('Order create()'));
       expect(content, contains("status: status ?? 'active'"));
