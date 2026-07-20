@@ -14,28 +14,41 @@ class Analytics {
     _providers.add(provider);
   }
 
+  static void clear() {
+    _providers.clear();
+  }
+
+  static List<AnalyticsProvider> _configuredProviders() {
+    if (_providers.isEmpty) {
+      throw StateError(
+        'No analytics provider registered. Configure an analytics adapter before emitting telemetry.',
+      );
+    }
+    return List<AnalyticsProvider>.unmodifiable(_providers);
+  }
+
   static Future<void> logEvent(String name,
       [Map<String, Object>? parameters]) async {
-    for (final provider in _providers) {
+    for (final provider in _configuredProviders()) {
       await provider.logEvent(name, parameters);
     }
   }
 
   static Future<void> setUserId(String? userId) async {
-    for (final provider in _providers) {
+    for (final provider in _configuredProviders()) {
       await provider.setUserId(userId);
     }
   }
 
   static Future<void> setUserProperty(String name, String value) async {
-    for (final provider in _providers) {
+    for (final provider in _configuredProviders()) {
       await provider.setUserProperty(name, value);
     }
   }
 
   static Future<void> logScreenView(String screenName,
       {String? screenClass}) async {
-    for (final provider in _providers) {
+    for (final provider in _configuredProviders()) {
       await provider.logScreenView(screenName, screenClass: screenClass);
     }
   }
