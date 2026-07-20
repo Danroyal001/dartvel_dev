@@ -205,4 +205,43 @@ void main() {
       }
     });
   });
+
+  group('DVShell', () {
+    test('future extension returns stdout text', () async {
+      final temp = io.Directory.systemTemp.createTempSync('dartvel_core_shell');
+      try {
+        final script = io.File('${temp.path}/print_message.dart')
+          ..writeAsStringSync("void main() => print('dartvel-shell');");
+
+        final text = await const DVShell()
+            .run('${io.Platform.resolvedExecutable} ${script.path}')
+            .text();
+
+        expect(text, contains('dartvel-shell'));
+      } finally {
+        temp.deleteSync(recursive: true);
+      }
+    });
+
+    test('expands glob arguments relative to the working directory', () async {
+      final temp = io.Directory.systemTemp.createTempSync('dartvel_core_glob');
+      try {
+        final script = io.File('${temp.path}/print_args.dart')
+          ..writeAsStringSync('void main(List<String> args) => print(args);');
+        io.File('${temp.path}/a.dart').writeAsStringSync('');
+        io.File('${temp.path}/b.dart').writeAsStringSync('');
+
+        final result = await const DVShell().run(
+          '${io.Platform.resolvedExecutable} ${script.path} *.dart',
+          workingDirectory: temp.path,
+        );
+
+        expect(result.exitCode, 0);
+        expect(result.stdoutText, contains('a.dart'));
+        expect(result.stdoutText, contains('b.dart'));
+      } finally {
+        temp.deleteSync(recursive: true);
+      }
+    });
+  });
 }

@@ -9,9 +9,12 @@ Future<DVShellResult> runShellCommand(
   String? workingDirectory,
 }) async {
   final invocation = DVShellInvocation.parse(command);
+  final arguments = await invocation.expandArguments(
+    workingDirectory: workingDirectory,
+  );
   final process = await Process.start(
     invocation.executable,
-    invocation.arguments,
+    arguments,
     workingDirectory: workingDirectory,
     environment: environment.isEmpty ? null : environment,
     includeParentEnvironment: true,
@@ -52,6 +55,76 @@ class DVShellInvocation {
       executable: tokens.first,
       arguments: tokens.skip(1).toList(growable: false),
     );
+  }
+
+  Future<List<String>> expandArguments({String? workingDirectory}) async {
+    final expanded = <String>[];
+    for (final argument in arguments) {
+      expanded.addAll(await _expandGlob(argument, workingDirectory));
+    }
+    return expanded;
+  }
+
+  static Future<List<String>> _expandGlob(
+    String token,
+    String? workingDirectory,
+  ) async {
+    if (!_hasGlob(token)) return <String>[token];
+    final root = Directory(workingDirectory ?? Directory.current.path);
+    if (!root.existsSync()) return <String>[token];
+    final recursive = token.contains('**');
+    final matcher = RegExp('^${_globToRegex(token)}\$');
+    final matches = <String>[];
+    await for (final entity in root.list(recursive: recursive)) {
+      if (entity is! File) continue;
+      final relative = _relativePath(entity.path, root.path);
+      if (matcher.hasMatch(relative)) matches.add(relative);
+    }
+    matches.sort();
+    return matches.isEmpty ? <String>[token] : matches;
+  }
+
+  static bool _hasGlob(String token) =>
+      token.contains('*') || token.contains('?') || token.contains('[');
+
+  static String _relativePath(String path, String root) {
+    final normalizedRoot = root.endsWith(Platform.pathSeparator)
+        ? root
+        : '$root${Platform.pathSeparator}';
+    final relative = path.startsWith(normalizedRoot)
+        ? path.substring(normalizedRoot.length)
+        : path;
+    return relative.replaceAll(Platform.pathSeparator, '/');
+  }
+
+  static String _globToRegex(String pattern) {
+    final buffer = StringBuffer();
+    for (var i = 0; i < pattern.length; i++) {
+      final char = pattern[i];
+      if (char == '*') {
+        if (i + 1 < pattern.length && pattern[i + 1] == '*') {
+          buffer.write('.*');
+          i++;
+        } else {
+          buffer.write('[^/]*');
+        }
+        continue;
+      }
+      if (char == '?') {
+        buffer.write('[^/]');
+        continue;
+      }
+      if (char == '[') {
+        final end = pattern.indexOf(']', i + 1);
+        if (end != -1) {
+          buffer.write(pattern.substring(i, end + 1));
+          i = end;
+          continue;
+        }
+      }
+      buffer.write(RegExp.escape(char));
+    }
+    return buffer.toString();
   }
 
   static List<String> _tokenize(String input) {

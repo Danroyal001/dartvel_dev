@@ -15,6 +15,14 @@ class DVShellResult {
   bool get succeeded => exitCode == 0;
 }
 
+extension DVShellResultFuture on Future<DVShellResult> {
+  Future<String> text() async => (await this).stdoutText;
+
+  Future<String> stderr() async => (await this).stderrText;
+
+  Future<int> code() async => (await this).exitCode;
+}
+
 class DVShell {
   const DVShell();
 
