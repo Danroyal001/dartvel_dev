@@ -2,8 +2,8 @@ import 'dart:async';
 
 /// Cache interface
 abstract class Cache {
-  Future<void> set(String key, dynamic value, {Duration? ttl});
-  Future<dynamic> get(String key);
+  Future<void> set<T>(String key, T value, {Duration? ttl});
+  Future<T?> get<T>(String key);
   Future<bool> has(String key);
   Future<void> delete(String key);
   Future<void> clear();
@@ -14,13 +14,13 @@ class InMemoryCache implements Cache {
   final Map<String, _CacheEntry> _store = {};
 
   @override
-  Future<void> set(String key, dynamic value, {Duration? ttl}) async {
+  Future<void> set<T>(String key, T value, {Duration? ttl}) async {
     final expiry = ttl != null ? DateTime.now().add(ttl) : null;
     _store[key] = _CacheEntry(value, expiry);
   }
 
   @override
-  Future<dynamic> get(String key) async {
+  Future<T?> get<T>(String key) async {
     final entry = _store[key];
     if (entry == null) return null;
 
@@ -29,7 +29,7 @@ class InMemoryCache implements Cache {
       return null;
     }
 
-    return entry.value;
+    return entry.value as T?;
   }
 
   @override
@@ -55,7 +55,7 @@ class InMemoryCache implements Cache {
 }
 
 class _CacheEntry {
-  final dynamic value;
+  final Object? value;
   final DateTime? expiry;
 
   _CacheEntry(this.value, this.expiry);
