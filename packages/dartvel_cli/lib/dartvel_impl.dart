@@ -15,6 +15,7 @@ import 'src/commands/plugin_command.dart';
 import 'src/commands/prerender_command.dart';
 import 'src/commands/preview_command.dart';
 import 'src/commands/routes_command.dart';
+import 'src/commands/shell_command.dart';
 import 'src/commands/updates_command.dart';
 import 'src/commands/version_command.dart';
 import 'src/commands/watch_command.dart';
@@ -45,6 +46,8 @@ Future<void> main(List<String> args) async {
     ..addCommand(TracesCommand())
     ..addCommand(MetricsCommand())
     ..addCommand(AiCommand())
+    ..addCommand(ShCommand())
+    ..addCommand(TaskCommand())
     ..addCommand(VersionCommand());
 
   try {
