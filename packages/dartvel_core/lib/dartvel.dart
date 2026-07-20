@@ -233,6 +233,8 @@ abstract class DVQueueAdapter {
   Future<void> fail(String id, Object error, StackTrace stackTrace);
   Future<List<DVJobEnvelope<Object?>>> pending(String queue);
   Future<List<DVJobEnvelope<Object?>>> deadLetters(String queue);
+  Future<bool> retry(String id);
+  Future<int> flush(String queue);
 }
 
 class DVInMemoryQueueAdapter implements DVQueueAdapter {
@@ -312,6 +314,29 @@ class DVInMemoryQueueAdapter implements DVQueueAdapter {
       _deadLetters[queue] ?? const <DVJobEnvelope<Object?>>[],
     );
   }
+
+  @override
+  Future<bool> retry(String id) async {
+    for (final entry in _deadLetters.entries) {
+      final index = entry.value.indexWhere((job) => job.id == id);
+      if (index == -1) continue;
+      final job = entry.value.removeAt(index);
+      (_pending[job.queue] ??= []).add(job.copyWith(
+        attempts: 0,
+        state: DVJobState.queued,
+      ));
+      _pending[job.queue]!.sort((a, b) => b.priority.compareTo(a.priority));
+      return true;
+    }
+    return false;
+  }
+
+  @override
+  Future<int> flush(String queue) async {
+    final pending = _pending.remove(queue)?.length ?? 0;
+    final deadLetters = _deadLetters.remove(queue)?.length ?? 0;
+    return pending + deadLetters;
+  }
 }
 
 class DVQueues {
@@ -381,6 +406,14 @@ class DVQueues {
     String queue = 'default',
   ]) {
     return _adapter.deadLetters(queue);
+  }
+
+  Future<bool> retry(String id) {
+    return _adapter.retry(id);
+  }
+
+  Future<int> flush({String queue = 'default'}) {
+    return _adapter.flush(queue);
   }
 }
 
@@ -589,6 +622,7 @@ class DVTestHarness {
 
   void resetQueues() {
     const DVQueues().useAdapter(DVInMemoryQueueAdapter());
+    DVQueues._handlers.clear();
   }
 
   void resetSignals() {

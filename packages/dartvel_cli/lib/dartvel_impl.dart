@@ -14,6 +14,7 @@ import 'src/commands/observability_commands.dart';
 import 'src/commands/plugin_command.dart';
 import 'src/commands/prerender_command.dart';
 import 'src/commands/preview_command.dart';
+import 'src/commands/queue_command.dart';
 import 'src/commands/routes_command.dart';
 import 'src/commands/shell_command.dart';
 import 'src/commands/updates_command.dart';
@@ -40,6 +41,7 @@ Future<void> main(List<String> args) async {
     ..addCommand(WatchCommand())
     ..addCommand(PluginCommand())
     ..addCommand(UpdatesCommand())
+    ..addCommand(QueueCommand())
     ..addCommand(DbCommand())
     ..addCommand(GenerateCommand())
     ..addCommand(LogsCommand())

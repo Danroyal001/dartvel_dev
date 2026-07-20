@@ -15,6 +15,8 @@ dependencies:
   watcher: ^1.1.0
   build: ^2.4.1
   puppeteer: ^3.0.0
+  dartvel_core:
+    path: ../dartvel_core
   dartvel_shelf:
     path: ../dartvel_shelf
 dev_dependencies:
