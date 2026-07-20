@@ -169,6 +169,9 @@ void main() {
     expect(platform.isFoldable, isFalse);
     expect(platform.isDualFold, isFalse);
     expect(platform.isTriFold, isFalse);
+    expect(platform.isSonyELinux, isFalse);
+    expect(platform.isAndroidTV, isFalse);
+    expect(platform.isAppleTV, isFalse);
     expect(platform.browserExtension.isAvailable, isFalse);
     expect(
       () => platform.browserExtension.getManifest(),
