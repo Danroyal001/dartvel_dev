@@ -7,7 +7,7 @@ class PushNotification {
   final String id;
   final String? title;
   final String? body;
-  final Map<String, dynamic>? data;
+  final Map<String, Object?>? data;
   final DateTime receivedAt;
 
   PushNotification({

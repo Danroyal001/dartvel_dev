@@ -1,6 +1,9 @@
 import 'dart:convert';
 import 'dart:io' as io;
 import 'package:dartvel_core/dartvel.dart';
+import 'package:dartvel_core/src/notifications/push.dart' as push;
+import 'package:dartvel_core/src/notifications/push_notifications.dart'
+    as legacy_push;
 import 'package:dartvel_shelf/dartvel_shelf.dart' as shelf;
 import 'package:test/test.dart';
 
@@ -21,6 +24,21 @@ void main() {
       'name': 'Ada',
       'role': 'admin',
     });
+  });
+
+  test('push notification payloads use exact object map types', () {
+    final notification = push.PushNotification(
+      id: 'message-1',
+      data: <String, Object?>{'attempt': 1, 'urgent': true},
+    );
+    const legacyMessage = legacy_push.NotificationMessage(
+      title: 'Update',
+      body: 'Completed',
+      data: <String, Object?>{'attempt': 1},
+    );
+
+    expect(notification.data, <String, Object?>{'attempt': 1, 'urgent': true});
+    expect(legacyMessage.data, <String, Object?>{'attempt': 1});
   });
 
   group('Res', () {
