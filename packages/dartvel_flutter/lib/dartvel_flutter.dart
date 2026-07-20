@@ -22,6 +22,8 @@ export 'package:dartvel_core/dartvel.dart'
         Analytics,
         AnalyticsEvent,
         AnalyticsProvider,
+        DVCronEntry,
+        DVCronTarget,
         DVFormControls,
         DVFormControlsFactory,
         DVAuthAuthorization,
