@@ -1405,11 +1405,40 @@ Features
 - Structured outputs
 - AI-native diagnostics
 - AI project context
-- Function and tool calling with `@DVAITool(description: ...)`. The annotation
-  can map to platform equivalents such as Android App Functions while remaining
-  available to Dartvel-native AI and WebMCP. A `dartvel:` config option can
-  expose all `@DVBackendFunction` functions as tools by default, with explicit
-  exclusions where needed.
+- Function and tool calling with `@DVAITool(description: ...)`. Tools are
+  explicit opt-in by default; ordinary `@DVBackendFunction` functions are not
+  exposed as AI tools unless a project-level config enables that behavior.
+
+Tool generation:
+- `dartvel build` and `dartvel routes` generate
+  `lib/dartvel_client/ai_tools.g.dart`.
+- Apps import only `package:dartvel_client/dartvel_client.dart`; the generated
+  barrel exports `dartvelAITools`.
+- `dartvelAITools` is a typed `List<DVAIToolEntry>` containing the tool name,
+  description, source import URI, and file path.
+
+Tool calls:
+```dart
+DV.AI.registerTool('sumLedger', (input) {
+  final left = input['left'];
+  final right = input['right'];
+  if (left is! DVJsonNumber || right is! DVJsonNumber) {
+    throw ArgumentError('sumLedger requires numeric left and right.');
+  }
+  return DVJsonNumber(left.value + right.value);
+});
+
+final result = await DV.AI.callTool('sumLedger', const {
+  'left': DVJsonNumber(2),
+  'right': DVJsonNumber(3),
+});
+```
+
+Tool handlers use `DVJsonObject` and `DVJsonValue` (`DVJsonString`,
+`DVJsonNumber`, `DVJsonBool`, `DVJsonList`, `DVJsonMap`, `DVJsonNull`) rather
+than loose dynamic maps. The same metadata can map to platform equivalents such
+as Android App Functions while remaining available to Dartvel-native AI and
+WebMCP.
 
 ---
 
