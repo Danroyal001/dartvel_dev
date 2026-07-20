@@ -172,6 +172,39 @@ void main() {
       return true;
     });
     DVNativeBridge.register('display.disableKiosk', (_) => true);
+    final nativeCalls = <String, Object?>{};
+    DVNativeBridge.register('window.restore', (arguments) {
+      nativeCalls['window.restore'] = arguments;
+      return true;
+    });
+    DVNativeBridge.register('window.persistState', (arguments) {
+      nativeCalls['window.persistState'] = arguments;
+      return true;
+    });
+    DVNativeBridge.register('window.restoreState', (arguments) {
+      nativeCalls['window.restoreState'] = arguments;
+      return true;
+    });
+    DVNativeBridge.register('tray.show', (arguments) {
+      nativeCalls['tray.show'] = arguments;
+      return true;
+    });
+    DVNativeBridge.register('tray.hide', (arguments) {
+      nativeCalls['tray.hide'] = arguments;
+      return true;
+    });
+    DVNativeBridge.register('menus.setApplicationMenu', (arguments) {
+      nativeCalls['menus.setApplicationMenu'] = arguments;
+      return true;
+    });
+    DVNativeBridge.register('shortcuts.register', (arguments) {
+      nativeCalls['shortcuts.register'] = arguments;
+      return true;
+    });
+    DVNativeBridge.register('shortcuts.unregister', (arguments) {
+      nativeCalls['shortcuts.unregister'] = arguments;
+      return true;
+    });
 
     await DV.Auth.signIn();
     expect(DV.Auth.currentUser, isA<DVAuthUser>());
@@ -213,6 +246,43 @@ void main() {
     expect(DV.Platform.display.isKiosk, isFalse);
     await DV.Platform.display.exitFullscreen();
     expect(DV.Platform.display.isFullscreen, isFalse);
+
+    await DV.Platform.Window.restore();
+    await DV.Platform.Window.persistState('main');
+    await DV.Platform.Window.restoreState('main');
+    await DV.Platform.Tray.show(
+      icon: 'assets/tray.png',
+      tooltip: 'Dartvel',
+      menu: const <DVTrayMenuItem>[
+        DVTrayMenuItem(id: 'open', label: 'Open'),
+      ],
+    );
+    await DV.Platform.Tray.hide();
+    await DV.Platform.Menus.setApplicationMenu(
+      const DVApplicationMenu(<DVMenuItem>[
+        DVMenuItem(
+          id: 'file',
+          label: 'File',
+          children: <DVMenuItem>[
+            DVMenuItem(id: 'quit', label: 'Quit', shortcut: 'Ctrl+Q'),
+          ],
+        ),
+      ]),
+    );
+    await DV.Platform.Shortcuts.register(
+      const DVGlobalShortcut(id: 'quick-open', accelerator: 'Ctrl+K'),
+    );
+    await DV.Platform.Shortcuts.unregister('quick-open');
+    expect(
+      nativeCalls['window.persistState'],
+      <String, String>{'key': 'main'},
+    );
+    expect(nativeCalls['tray.show'], isA<Map<String, Object>>());
+    expect(nativeCalls['menus.setApplicationMenu'], isA<Map<String, Object>>());
+    expect(
+      nativeCalls['shortcuts.unregister'],
+      <String, String>{'id': 'quick-open'},
+    );
 
     expect(await DV.AI.chat('hello'), contains('hello'));
     expect(await DV.AI.embed('hello'), hasLength(16));
