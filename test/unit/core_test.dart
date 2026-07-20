@@ -45,7 +45,7 @@ void main() {
 
 class _TestTask extends Task {
   final String _name;
-  final Function _callback;
+  final void Function() _callback;
 
   _TestTask(this._name, this._callback);
 
@@ -56,7 +56,7 @@ class _TestTask extends Task {
   String get name => _name;
 
   @override
-  Future<void> execute(Map<String, dynamic> data) async {
+  Future<void> execute(Map<String, Object?> data) async {
     _callback();
   }
 }
