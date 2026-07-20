@@ -56,6 +56,11 @@ class Order {
       expect(content, contains('static DVExportResult json'));
       expect(content, contains('static DVExportResult ndjson'));
       expect(content, contains('static DVExportResult excel'));
+      expect(content, contains('DVExportOptions<Order> options'));
+      expect(content, contains('static Stream<DVExportResult> streamCsv'));
+      expect(content, contains('static Stream<DVExportResult> streamNdjson'));
+      expect(content, contains('options.apply(items)'));
+      expect(content, contains('metadata: options.exportMetadata()'));
       expect(content, contains('application/x-ndjson; charset=utf-8'));
       expect(content, contains('application/vnd.ms-excel; charset=utf-8'));
       expect(content, contains('class OrderReport'));

@@ -38,6 +38,7 @@ export 'package:dartvel_core/dartvel.dart'
         DVAuthAuthorization,
         DVJob,
         DVExportResult,
+        DVExportOptions,
         DVMiddleware,
         DVMiddlewareKey,
         DVMiddlewares,
