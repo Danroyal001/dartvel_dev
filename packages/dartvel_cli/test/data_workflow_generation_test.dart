@@ -39,6 +39,12 @@ class Order {
       );
       final content = models.readAsStringSync();
       expect(content, contains('class OrderImport'));
+      expect(content, contains('class OrderFactory'));
+      expect(content, contains('final String? id;'));
+      expect(content, contains('final String? status;'));
+      expect(content, contains('OrderFactory admin()'));
+      expect(content, contains('Order create()'));
+      expect(content, contains("status: status ?? 'active'"));
       expect(content, contains('static DVImportResult<Order> csv'));
       expect(
           content,
