@@ -65,6 +65,12 @@ Reference ./NEW_SPEC.md for the full new spec.
 - Native integrations must be generated or bound through FFI/ffigen for C/Rust/native libraries and JNI/jnigen for Android/JVM APIs.
 - Flutter-facing APIs should remain stable under `DV.Platform.*`; generated native bindings adapt behind that surface.
 
+## Atomic Sync Rule
+
+- Commit and push after every coherent sub-feature, bug fix, or documentation sync so progress is preserved even if the workspace is reclaimed.
+- Keep commits atomic: do not mix unrelated implementation, tests, generated artifacts, cache files, or documentation changes.
+- Push each atomic commit to GitHub before starting the next unrelated step.
+
 ## Release & Tag Backup Rule
 
 - Every release or tag must also create and push a branch that points at the same commit.
