@@ -90,6 +90,10 @@ Future<Map<String, bool>> handler() async => <String, bool>{'ok': true};
             .existsSync(),
         isTrue,
       );
+      final config = File(
+        p.join(root.path, 'lib', 'dartvel_client', 'config.g.dart'),
+      ).readAsStringSync();
+      expect(config, contains('static const authProviders = <String>[];'));
       final ssg = File(p.join(root.path, '.dartvel', 'ssg_builder.dart'))
           .readAsStringSync();
       expect(ssg, contains('String key = "/blog/:id";'));
