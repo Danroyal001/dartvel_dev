@@ -1881,6 +1881,7 @@ class DVPlatform {
   bool get isIOS => currentPlatform == 'ios';
   bool get isWindows => currentPlatform == 'windows';
   bool get isLinux => currentPlatform == 'linux';
+  bool get isSonyELinux => currentPlatform == 'sony-elinux';
   bool get isMacOS => currentPlatform == 'macos';
   bool get isFuchsia => currentPlatform == 'fuchsia';
   bool get isWeb => currentPlatform == 'web';
@@ -1894,13 +1895,15 @@ class DVPlatform {
   bool get isWebOS => currentPlatform == 'webos';
   bool get isAmazon =>
       currentPlatform == 'fireos' || currentPlatform == 'amazon';
+  bool get isAndroidTV => currentPlatform == 'androidtv';
+  bool get isAppleTV => currentPlatform == 'appletv';
   bool get isTV =>
       _deviceTypeOverride == 'tv' ||
       isTizen ||
       isWebOS ||
       isAmazon ||
-      currentPlatform == 'androidtv' ||
-      currentPlatform == 'appletv';
+      isAndroidTV ||
+      isAppleTV;
   bool get isWatch =>
       _deviceTypeOverride == 'watch' || currentPlatform.contains('watch');
 
