@@ -4,13 +4,10 @@ import 'package:dartvel_example/dartvel_client/dartvel_client.dart';
 import 'package:flutter/material.dart';
 
 StreamSubscription<String>? _subscription;
-bool _demoNativeBindingsRegistered = false;
 
 @DVPage()
 @DVFunctionalWidget()
 Widget indexPage(BuildContext context) {
-  _registerDemoNativeBindings();
-
   final counter = context.signal(0);
   final isStreaming = context.signal(false);
   final ticks = context.signal(<String>[]);
@@ -61,30 +58,50 @@ Widget indexPage(BuildContext context) {
             'Firefox extension', DV.Platform.isFirefoxExtension ? 'yes' : 'no'),
       ], columns: 2),
       DVBox.wrap([
-        ShowcaseButton('Window Title', () async {
-          await DV.Platform.Window.setTitle('Dartvel Showcase');
-          if (context.mounted) _showMessage(context, 'Window title requested');
-        }),
-        ShowcaseButton('Fullscreen', () async {
-          await DV.Platform.display.enterFullscreen(
-            const DVFullscreenOptions(lockOrientation: true),
-          );
-          if (context.mounted) _showMessage(context, 'Fullscreen requested');
-        }),
-        ShowcaseButton('Exit Fullscreen', () async {
-          await DV.Platform.display.exitFullscreen();
-          if (context.mounted) _showMessage(context, 'Fullscreen exited');
-        }),
-        ShowcaseButton('Kiosk Mode', () async {
-          await DV.Platform.display.enableKiosk(
-            const DVKioskOptions(allowedExitKeys: <String>['Escape']),
-          );
-          if (context.mounted) _showMessage(context, 'Kiosk mode requested');
-        }),
-        ShowcaseButton('Exit Kiosk', () async {
-          await DV.Platform.display.disableKiosk();
-          if (context.mounted) _showMessage(context, 'Kiosk mode exited');
-        }),
+        ShowcaseButton(
+            'Window Title',
+            () => _runNativeAction(context, () async {
+                  await DV.Platform.Window.setTitle('Dartvel Showcase');
+                  if (context.mounted) {
+                    _showMessage(context, 'Window title requested');
+                  }
+                })),
+        ShowcaseButton(
+            'Fullscreen',
+            () => _runNativeAction(context, () async {
+                  await DV.Platform.display.enterFullscreen(
+                    const DVFullscreenOptions(lockOrientation: true),
+                  );
+                  if (context.mounted) {
+                    _showMessage(context, 'Fullscreen requested');
+                  }
+                })),
+        ShowcaseButton(
+            'Exit Fullscreen',
+            () => _runNativeAction(context, () async {
+                  await DV.Platform.display.exitFullscreen();
+                  if (context.mounted) {
+                    _showMessage(context, 'Fullscreen exited');
+                  }
+                })),
+        ShowcaseButton(
+            'Kiosk Mode',
+            () => _runNativeAction(context, () async {
+                  await DV.Platform.display.enableKiosk(
+                    const DVKioskOptions(allowedExitKeys: <String>['Escape']),
+                  );
+                  if (context.mounted) {
+                    _showMessage(context, 'Kiosk mode requested');
+                  }
+                })),
+        ShowcaseButton(
+            'Exit Kiosk',
+            () => _runNativeAction(context, () async {
+                  await DV.Platform.display.disableKiosk();
+                  if (context.mounted) {
+                    _showMessage(context, 'Kiosk mode exited');
+                  }
+                })),
       ]),
     ]),
     ShowcaseSection('Generated Config, Env, PWA & SEO', [
@@ -291,69 +308,114 @@ Widget indexPage(BuildContext context) {
     ]),
     ShowcaseSection('Native APIs via Generated Bindings', [
       const DVText(
-        'Browser demo bindings below are generated native-style handlers for exercising the Dartvel API surface in web preview.',
+        'These controls call generated FFI/ffigen or JNI/jnigen bindings. Web preview reports a missing binding instead of simulating device success.',
       ).modifier(_supportingTextStyle),
       DVBox.wrap([
-        ShowcaseButton('Camera', () async {
-          final bytes = await DV.Platform.camera.takePhoto();
-          if (context.mounted) _showMessage(context, 'Photo bytes: $bytes');
-        }),
-        ShowcaseButton('Location', () async {
-          final data = await DV.Platform.location.getCoordinates();
-          if (context.mounted) _showMessage(context, 'Location: $data');
-        }),
-        ShowcaseButton('Media Picker', () async {
-          final data = await DV.Platform.media.pick(multiple: true);
-          if (context.mounted) _showMessage(context, 'Media: $data');
-        }),
-        ShowcaseButton('Permissions', () async {
-          final granted = await DV.Platform.permissions.request('camera');
-          if (context.mounted) {
-            _showMessage(context, 'Camera permission: $granted');
-          }
-        }),
-        ShowcaseButton('Clipboard', () async {
-          await DV.Platform.clipboard.copy('Copied from Dartvel');
-          final text = await DV.Platform.clipboard.paste();
-          if (context.mounted) _showMessage(context, 'Clipboard: $text');
-        }),
-        ShowcaseButton('Share', () async {
-          await DV.Platform.share.shareText('Dartvel showcase');
-          if (context.mounted) _showMessage(context, 'Share requested');
-        }),
-        ShowcaseButton('Notify', () async {
-          await DV.Platform.notifications
-              .sendLocalNotification('Dartvel', 'Local notification');
-          if (context.mounted) _showMessage(context, 'Notification sent');
-        }),
-        ShowcaseButton('Bluetooth', () async {
-          final enabled = await DV.Platform.bluetooth.isEnabled();
-          if (context.mounted) _showMessage(context, 'Bluetooth: $enabled');
-        }),
-        ShowcaseButton('NFC', () async {
-          final tag = await DV.Platform.nfc.readTag();
-          if (context.mounted) _showMessage(context, 'NFC: $tag');
-        }),
-        ShowcaseButton('Sensors', () async {
-          final value = await DV.Platform.sensors.accelerometer.first;
-          if (context.mounted) _showMessage(context, 'Accelerometer: $value');
-        }),
-        ShowcaseButton('Biometrics', () async {
-          final ok = await DV.Platform.biometrics.authenticate();
-          if (context.mounted) _showMessage(context, 'Biometrics: $ok');
-        }),
-        ShowcaseButton('Haptics', () async {
-          await DV.Platform.haptics.impact();
-          if (context.mounted) _showMessage(context, 'Haptic impact requested');
-        }),
-        ShowcaseButton('Contacts', () async {
-          final contacts = await DV.Platform.contacts.getContacts();
-          if (context.mounted) _showMessage(context, 'Contacts: $contacts');
-        }),
-        ShowcaseButton('Deep Link', () async {
-          final link = await DV.Platform.deepLinks.getInitialLink();
-          if (context.mounted) _showMessage(context, 'Initial link: $link');
-        }),
+        ShowcaseButton(
+            'Camera',
+            () => _runNativeAction(context, () async {
+                  final bytes = await DV.Platform.camera.takePhoto();
+                  if (context.mounted) {
+                    _showMessage(context, 'Photo bytes: $bytes');
+                  }
+                })),
+        ShowcaseButton(
+            'Location',
+            () => _runNativeAction(context, () async {
+                  final data = await DV.Platform.location.getCoordinates();
+                  if (context.mounted) _showMessage(context, 'Location: $data');
+                })),
+        ShowcaseButton(
+            'Media Picker',
+            () => _runNativeAction(context, () async {
+                  final data = await DV.Platform.media.pick(multiple: true);
+                  if (context.mounted) _showMessage(context, 'Media: $data');
+                })),
+        ShowcaseButton(
+            'Permissions',
+            () => _runNativeAction(context, () async {
+                  final granted =
+                      await DV.Platform.permissions.request('camera');
+                  if (context.mounted) {
+                    _showMessage(context, 'Camera permission: $granted');
+                  }
+                })),
+        ShowcaseButton(
+            'Clipboard',
+            () => _runNativeAction(context, () async {
+                  await DV.Platform.clipboard.copy('Copied from Dartvel');
+                  final text = await DV.Platform.clipboard.paste();
+                  if (context.mounted) {
+                    _showMessage(context, 'Clipboard: $text');
+                  }
+                })),
+        ShowcaseButton(
+            'Share',
+            () => _runNativeAction(context, () async {
+                  await DV.Platform.share.shareText('Dartvel showcase');
+                  if (context.mounted) _showMessage(context, 'Share requested');
+                })),
+        ShowcaseButton(
+            'Notify',
+            () => _runNativeAction(context, () async {
+                  await DV.Platform.notifications
+                      .sendLocalNotification('Dartvel', 'Local notification');
+                  if (context.mounted) {
+                    _showMessage(context, 'Notification sent');
+                  }
+                })),
+        ShowcaseButton(
+            'Bluetooth',
+            () => _runNativeAction(context, () async {
+                  final enabled = await DV.Platform.bluetooth.isEnabled();
+                  if (context.mounted) {
+                    _showMessage(context, 'Bluetooth: $enabled');
+                  }
+                })),
+        ShowcaseButton(
+            'NFC',
+            () => _runNativeAction(context, () async {
+                  final tag = await DV.Platform.nfc.readTag();
+                  if (context.mounted) _showMessage(context, 'NFC: $tag');
+                })),
+        ShowcaseButton(
+            'Sensors',
+            () => _runNativeAction(context, () async {
+                  final value = await DV.Platform.sensors.accelerometer.first;
+                  if (context.mounted) {
+                    _showMessage(context, 'Accelerometer: $value');
+                  }
+                })),
+        ShowcaseButton(
+            'Biometrics',
+            () => _runNativeAction(context, () async {
+                  final ok = await DV.Platform.biometrics.authenticate();
+                  if (context.mounted) _showMessage(context, 'Biometrics: $ok');
+                })),
+        ShowcaseButton(
+            'Haptics',
+            () => _runNativeAction(context, () async {
+                  await DV.Platform.haptics.impact();
+                  if (context.mounted) {
+                    _showMessage(context, 'Haptic impact requested');
+                  }
+                })),
+        ShowcaseButton(
+            'Contacts',
+            () => _runNativeAction(context, () async {
+                  final contacts = await DV.Platform.contacts.getContacts();
+                  if (context.mounted) {
+                    _showMessage(context, 'Contacts: $contacts');
+                  }
+                })),
+        ShowcaseButton(
+            'Deep Link',
+            () => _runNativeAction(context, () async {
+                  final link = await DV.Platform.deepLinks.getInitialLink();
+                  if (context.mounted) {
+                    _showMessage(context, 'Initial link: $link');
+                  }
+                })),
       ]),
     ]),
     ShowcaseSection('Collection Layouts', [
@@ -431,58 +493,6 @@ Widget indexPage(BuildContext context) {
   ]).scrollable().modifier(_pageStyle);
 }
 
-void _registerDemoNativeBindings() {
-  if (_demoNativeBindingsRegistered) return;
-  _demoNativeBindingsRegistered = true;
-
-  DVNativeBridge.register('window.setTitle', (_) => true);
-  DVNativeBridge.register('window.maximize', (_) => true);
-  DVNativeBridge.register('window.minimize', (_) => true);
-  DVNativeBridge.register('display.enterFullscreen', (_) => true);
-  DVNativeBridge.register('display.exitFullscreen', (_) => true);
-  DVNativeBridge.register('display.enableKiosk', (_) => true);
-  DVNativeBridge.register('display.disableKiosk', (_) => true);
-  DVNativeBridge.register('camera.takePhoto', (_) => <int>[1, 2, 3, 4]);
-  DVNativeBridge.register(
-    'location.current',
-    (_) => <String, double>{'latitude': 6.5244, 'longitude': 3.3792},
-  );
-  DVNativeBridge.register(
-    'media.pick',
-    (_) => <Map<String, Object?>>[
-      <String, Object?>{'path': 'showcase.png', 'type': 'image'},
-    ],
-  );
-  DVNativeBridge.register('permissions.request', (_) => true);
-  DVNativeBridge.register('permissions.isGranted', (_) => true);
-  DVNativeBridge.register('share.text', (_) => true);
-  DVNativeBridge.register('notifications.sendLocal', (_) => true);
-  DVNativeBridge.register('bluetooth.isEnabled', (_) => true);
-  DVNativeBridge.register('bluetooth.scanDevices', (_) => <String>['Beacon A']);
-  DVNativeBridge.register('nfc.isAvailable', (_) => true);
-  DVNativeBridge.register('nfc.readTag', (_) => 'tag-123');
-  DVNativeBridge.register(
-    'sensors.accelerometer',
-    (_) => <String, double>{'x': 0.1, 'y': 0.0, 'z': 9.8},
-  );
-  DVNativeBridge.register(
-    'sensors.gyroscope',
-    (_) => <String, double>{'x': 0.0, 'y': 0.2, 'z': 0.0},
-  );
-  DVNativeBridge.register('biometrics.canAuthenticate', (_) => true);
-  DVNativeBridge.register('biometrics.authenticate', (_) => true);
-  DVNativeBridge.register('deepLinks.initial', (_) => 'dartvel://showcase');
-  DVNativeBridge.register('haptics.vibrate', (_) => true);
-  DVNativeBridge.register('haptics.lightVibrate', (_) => true);
-  DVNativeBridge.register('haptics.impact', (_) => true);
-  DVNativeBridge.register(
-    'contacts.getContacts',
-    (_) => <Map<String, String>>[
-      <String, String>{'name': 'Ada Lovelace', 'email': 'ada@example.com'},
-    ],
-  );
-}
-
 final _pageStyle =
     const DVModifier().padding(18).backgroundColor(const Color(0xFFFFFBFE));
 
@@ -525,4 +535,21 @@ void _showMessage(BuildContext context, String message) {
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(content: DVText(message)),
   );
+}
+
+Future<void> _runNativeAction(
+  BuildContext context,
+  Future<void> Function() action,
+) async {
+  try {
+    await action();
+  } on StateError catch (error) {
+    if (context.mounted) {
+      _showMessage(context, error.toString());
+    }
+  } on Exception catch (error) {
+    if (context.mounted) {
+      _showMessage(context, 'Native action failed: $error');
+    }
+  }
 }
