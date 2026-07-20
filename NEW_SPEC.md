@@ -1799,9 +1799,35 @@ Desktop APIs live under `DV.Platform.*` and generated app services:
 
 ```dart
 await DV.Platform.Window.setTitle('Dartvel Admin');
+await DV.Platform.Window.persistState('main');
+await DV.Platform.Window.restoreState('main');
 await DV.Platform.Tray.show(icon: 'assets/tray.png');
-await DV.Platform.Menus.setApplicationMenu(AppMenu.main());
+await DV.Platform.Tray.show(
+  icon: 'assets/tray.png',
+  tooltip: 'Dartvel',
+  menu: const <DVTrayMenuItem>[
+    DVTrayMenuItem(id: 'open', label: 'Open'),
+  ],
+);
+await DV.Platform.Menus.setApplicationMenu(
+  const DVApplicationMenu(<DVMenuItem>[
+    DVMenuItem(
+      id: 'file',
+      label: 'File',
+      children: <DVMenuItem>[
+        DVMenuItem(id: 'quit', label: 'Quit', shortcut: 'Ctrl+Q'),
+      ],
+    ),
+  ]),
+);
+await DV.Platform.Shortcuts.register(
+  const DVGlobalShortcut(id: 'quick-open', accelerator: 'Ctrl+K'),
+);
 ```
+
+Desktop APIs are backed by generated native bindings registered under
+`window.*`, `tray.*`, `menus.*`, and `shortcuts.*`; they must fail if the
+binding is missing or rejects the request.
 
 Embedded/device creation:
 - kiosk mode
