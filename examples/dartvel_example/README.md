@@ -46,7 +46,7 @@ Notes:
   - `PUT /api/db/todos/:id?title=New%20title`
   - `DELETE /api/db/todos/:id`
 - Remote file storage (local demo):
-  - `POST /api/storage/upload?name=foo.bin` with raw body
+  - `PUT /api/storage/file/foo.bin` with raw body
   - `GET /api/storage/file/foo.bin`
 
 Buttons in the home page trigger many of these endpoints for quick testing.
