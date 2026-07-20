@@ -82,7 +82,10 @@ class DVFunctionalWidget {
   const DVFunctionalWidget();
 }
 
-/// Annotation and base class for a Dartvel Data Model
+/// Annotation metadata for a Dartvel data model.
+///
+/// The generator adds serialization and model behavior to the annotated class;
+/// this annotation intentionally does not provide a fake runtime model.
 class DVModel {
   final bool searchable;
   final bool billable;
@@ -93,8 +96,6 @@ class DVModel {
     this.billable = false,
     this.nativePrice,
   });
-
-  Map<String, dynamic> toJson() => const {};
 }
 
 /// Marks a model property for generated search indexing.

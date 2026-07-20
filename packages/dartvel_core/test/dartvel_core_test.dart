@@ -71,6 +71,14 @@ void main() {
     expect(original.toJsonString(), contains('"type":"status"'));
   });
 
+  test('DVModel contains only generation metadata', () {
+    const model = DVModel(searchable: true, billable: true, nativePrice: 100);
+
+    expect(model.searchable, isTrue);
+    expect(model.billable, isTrue);
+    expect(model.nativePrice, 100);
+  });
+
   group('Res', () {
     test('json creates correct response', () async {
       final data = {'message': 'hello'};
