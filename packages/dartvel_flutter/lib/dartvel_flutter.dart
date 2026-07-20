@@ -2004,12 +2004,152 @@ class DVPlatform {
   DVDisplayControls get display => const DVDisplayControls();
 }
 
+abstract class DVAuthProvider {
+  Future<DVAuthUser> signInAnonymously();
+
+  Future<DVAuthUser> signInWithEmailAndPassword({
+    required String email,
+    required String password,
+  });
+
+  Future<DVAuthUser> signInWithProvider(String provider);
+
+  Future<DVAuthUser> signInWithRawOAuth(Map<String, Object?> oauth);
+
+  Future<DVAuthUser> signInWithPasskey();
+
+  Future<DVAuthUser> signInWithBiometrics();
+
+  Future<DVAuthUser> signInWithWeb3();
+
+  Future<void> signOut();
+
+  Future<DVAuthUser> signUp({
+    String? email,
+    String? password,
+    Map<String, Object?> metadata,
+  });
+}
+
+/// Explicit local provider for development and tests.
+///
+/// Production applications must configure a provider backed by their auth
+/// service before calling [DV.Auth].
+class DVLocalAuthProvider implements DVAuthProvider {
+  bool _signedIn = false;
+
+  @override
+  Future<DVAuthUser> signInAnonymously() async {
+    return _setUser(provider: 'anonymous');
+  }
+
+  @override
+  Future<DVAuthUser> signInWithEmailAndPassword({
+    required String email,
+    required String password,
+  }) async {
+    final normalizedEmail = email.trim();
+    if (normalizedEmail.isEmpty || password.isEmpty) {
+      throw ArgumentError('Email and password are required.');
+    }
+    return _setUser(email: normalizedEmail, provider: 'email');
+  }
+
+  @override
+  Future<DVAuthUser> signInWithProvider(String provider) async {
+    final normalizedProvider = provider.trim();
+    if (normalizedProvider.isEmpty) {
+      throw ArgumentError('Provider is required.');
+    }
+    return _setUser(provider: normalizedProvider);
+  }
+
+  @override
+  Future<DVAuthUser> signInWithRawOAuth(Map<String, Object?> oauth) async {
+    return _setUser(
+      id: (oauth['id'] ?? oauth['sub'] ?? _newId('oauth')).toString(),
+      email: oauth['email']?.toString(),
+      provider: oauth['provider']?.toString() ?? 'oauth',
+      metadata: Map<String, Object?>.from(oauth),
+    );
+  }
+
+  @override
+  Future<DVAuthUser> signInWithPasskey() async {
+    return _setUser(provider: 'passkey');
+  }
+
+  @override
+  Future<DVAuthUser> signInWithBiometrics() async {
+    final authenticated = await DV.Platform.biometrics.authenticate();
+    if (!authenticated) {
+      throw StateError('Biometric authentication was not completed.');
+    }
+    return _setUser(provider: 'biometric');
+  }
+
+  @override
+  Future<DVAuthUser> signInWithWeb3() async {
+    return _setUser(provider: 'web3');
+  }
+
+  @override
+  Future<void> signOut() async {
+    if (!_signedIn) return;
+    _signedIn = false;
+  }
+
+  @override
+  Future<DVAuthUser> signUp({
+    String? email,
+    String? password,
+    Map<String, Object?> metadata = const <String, Object?>{},
+  }) async {
+    final normalizedEmail = email?.trim();
+    if ((normalizedEmail == null || normalizedEmail.isEmpty) &&
+        metadata.isEmpty) {
+      throw ArgumentError('Email or metadata is required to create a user.');
+    }
+    return _setUser(
+      email: normalizedEmail,
+      provider: normalizedEmail == null ? 'custom' : 'email',
+      metadata: metadata,
+    );
+  }
+
+  DVAuthUser _setUser({
+    String? id,
+    String? email,
+    required String provider,
+    Map<String, Object?> metadata = const <String, Object?>{},
+  }) {
+    final user = DVAuthUser(
+      id: id ?? _newId(provider),
+      email: email,
+      provider: provider,
+      metadata: metadata,
+      createdAt: DateTime.now(),
+    );
+    _signedIn = true;
+    return user;
+  }
+
+  String _newId(String prefix) =>
+      '$prefix-${DateTime.now().microsecondsSinceEpoch}-${math.Random().nextInt(1 << 32)}';
+}
+
 class DVAuth {
   const DVAuth();
+  static DVAuthProvider? _provider;
   static DVAuthUser? _currentUser;
 
   DVAuthUser? get currentUser => _currentUser;
   DVAuthAuthorization get authorization => const DVAuthAuthorization();
+
+  void configure(DVAuthProvider provider) {
+    _provider = provider;
+    _currentUser = null;
+  }
 
   void registerPolicy<TUser, TResource>(
     String action,
@@ -2035,67 +2175,33 @@ class DVAuth {
   }
 
   Future<void> signIn() async {
-    _currentUser = DVAuthUser(
-      id: _newId('anon'),
-      provider: 'anonymous',
-      createdAt: DateTime.now(),
-    );
+    await _setCurrentUser(_configuredProvider.signInAnonymously());
   }
 
   Future<void> signInWithEmailAndPassword({
     required String email,
     required String password,
   }) async {
-    if (email.trim().isEmpty || password.isEmpty) {
-      throw ArgumentError('Email and password are required.');
-    }
-    _currentUser = DVAuthUser(
-      id: _newId('email'),
-      email: email.trim(),
-      provider: 'email',
-      createdAt: DateTime.now(),
-    );
+    await _setCurrentUser(_configuredProvider.signInWithEmailAndPassword(
+      email: email,
+      password: password,
+    ));
   }
 
   Future<void> signInWithProvider(String provider) async {
-    if (provider.trim().isEmpty) {
-      throw ArgumentError('Provider is required.');
-    }
-    _currentUser = DVAuthUser(
-      id: _newId(provider),
-      provider: provider.trim(),
-      createdAt: DateTime.now(),
-    );
+    await _setCurrentUser(_configuredProvider.signInWithProvider(provider));
   }
 
   Future<void> signInWithRawOAuth(Map<String, Object?> oauth) async {
-    _currentUser = DVAuthUser(
-      id: (oauth['id'] ?? oauth['sub'] ?? _newId('oauth')).toString(),
-      email: oauth['email']?.toString(),
-      provider: oauth['provider']?.toString() ?? 'oauth',
-      metadata: Map<String, Object?>.from(oauth),
-      createdAt: DateTime.now(),
-    );
+    await _setCurrentUser(_configuredProvider.signInWithRawOAuth(oauth));
   }
 
   Future<void> signInWithPasskey() async {
-    _currentUser = DVAuthUser(
-      id: _newId('passkey'),
-      provider: 'passkey',
-      createdAt: DateTime.now(),
-    );
+    await _setCurrentUser(_configuredProvider.signInWithPasskey());
   }
 
   Future<void> signInWithBiometrics() async {
-    final authenticated = await DV.Platform.biometrics.authenticate();
-    if (!authenticated) {
-      throw StateError('Biometric authentication was not completed.');
-    }
-    _currentUser = DVAuthUser(
-      id: _newId('biometric'),
-      provider: 'biometric',
-      createdAt: DateTime.now(),
-    );
+    await _setCurrentUser(_configuredProvider.signInWithBiometrics());
   }
 
   Future<void> signInWithFingerprint() => signInWithBiometrics();
@@ -2103,36 +2209,39 @@ class DVAuth {
   Future<void> signInWithFaceRecognition() => signInWithBiometrics();
 
   Future<void> signInWithWeb3() async {
-    _currentUser = DVAuthUser(
-      id: _newId('web3'),
-      provider: 'web3',
-      createdAt: DateTime.now(),
-    );
+    await _setCurrentUser(_configuredProvider.signInWithWeb3());
   }
 
   Future<void> signOut() async {
+    await _configuredProvider.signOut();
     _currentUser = null;
   }
 
   Future<void> signUp({
     String? email,
     String? password,
-    Map<String, Object?> metadata = const {},
+    Map<String, Object?> metadata = const <String, Object?>{},
   }) async {
-    if ((email == null || email.trim().isEmpty) && metadata.isEmpty) {
-      throw ArgumentError('Email or metadata is required to create a user.');
-    }
-    _currentUser = DVAuthUser(
-      id: _newId('user'),
-      email: email?.trim(),
-      provider: email == null ? 'custom' : 'email',
+    await _setCurrentUser(_configuredProvider.signUp(
+      email: email,
+      password: password,
       metadata: metadata,
-      createdAt: DateTime.now(),
-    );
+    ));
   }
 
-  String _newId(String prefix) =>
-      '$prefix-${DateTime.now().microsecondsSinceEpoch}-${math.Random().nextInt(1 << 32)}';
+  DVAuthProvider get _configuredProvider {
+    final provider = _provider;
+    if (provider == null) {
+      throw StateError(
+        'DV.Auth has no configured provider. Configure an auth adapter before signing in.',
+      );
+    }
+    return provider;
+  }
+
+  Future<void> _setCurrentUser(Future<DVAuthUser> operation) async {
+    _currentUser = await operation;
+  }
 
   Widget SignInWithEmailAndPasswordPage() => _EmailPasswordAuthPage(auth: this);
   Widget SignInWithProviderPage() =>
@@ -2201,6 +2310,11 @@ extension DVFlutterTestHarness on DVTestHarness {
 
   void resetAuth() {
     DVAuth._currentUser = null;
+  }
+
+  void resetAuthProvider() {
+    DVAuth._currentUser = null;
+    DVAuth._provider = null;
   }
 
   Map<String, List<int>> fakeStorage() {
