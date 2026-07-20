@@ -56,15 +56,17 @@ class Storage {
   }
 
   /// Write JSON
-  Future<void> setJson(String key, Map<String, dynamic> value) =>
+  Future<void> setJson(String key, Map<String, Object?> value) =>
       provider.write(key, jsonEncode(value));
 
   /// Read JSON
-  Future<Map<String, dynamic>?> getJson(String key) async {
+  Future<Map<String, Object?>?> getJson(String key) async {
     final value = await provider.read(key);
     if (value == null) return null;
     try {
-      return jsonDecode(value) as Map<String, dynamic>;
+      final decoded = jsonDecode(value);
+      if (decoded is! Map<Object?, Object?>) return null;
+      return Map<String, Object?>.from(decoded);
     } catch (e) {
       return null;
     }

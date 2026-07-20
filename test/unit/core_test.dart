@@ -1,4 +1,5 @@
 import 'package:dartvel_core/src/cache/cache.dart';
+import 'package:dartvel_core/src/storage/storage.dart';
 import 'package:dartvel_core/src/tasks/background_tasks.dart';
 import 'package:test/test.dart';
 
@@ -20,6 +21,24 @@ void main() {
       expect(await cache.get('key'), equals('value'));
       await Future.delayed(const Duration(milliseconds: 150));
       expect(await cache.get('key'), isNull);
+    });
+  });
+
+  group('Storage Tests', () {
+    test('json values use exact object maps', () async {
+      final storage = Storage(InMemoryStorageProvider());
+
+      await storage.setJson('profile', <String, Object?>{
+        'name': 'Ada',
+        'admin': true,
+        'visits': 3,
+      });
+
+      expect(await storage.getJson('profile'), <String, Object?>{
+        'name': 'Ada',
+        'admin': true,
+        'visits': 3,
+      });
     });
   });
 
