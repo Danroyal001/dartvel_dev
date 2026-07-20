@@ -13,14 +13,14 @@ abstract class Task {
   String get id;
   String get name;
   TaskPriority get priority => TaskPriority.normal;
-  Future<void> execute(Map<String, dynamic> data);
+  Future<void> execute(Map<String, Object?> data);
 }
 
 /// Task manager
 class TaskManager {
   static final TaskManager _instance = TaskManager._();
   final Map<String, Task> _tasks = {};
-  final _queue = StreamController<Map<String, dynamic>>();
+  final _queue = StreamController<Map<String, Object?>>();
 
   TaskManager._() {
     _queue.stream.listen(_processTask);
@@ -32,18 +32,21 @@ class TaskManager {
     _tasks[task.name] = task;
   }
 
-  Future<void> schedule(String taskName, Map<String, dynamic> data,
+  Future<void> schedule(String taskName, Map<String, Object?> data,
       {Duration? delay}) async {
     if (delay != null) {
-      Timer(delay, () => _queue.add({'name': taskName, 'data': data}));
+      Timer(
+        delay,
+        () => _queue.add(<String, Object?>{'name': taskName, 'data': data}),
+      );
     } else {
-      _queue.add({'name': taskName, 'data': data});
+      _queue.add(<String, Object?>{'name': taskName, 'data': data});
     }
   }
 
-  Future<void> _processTask(Map<String, dynamic> payload) async {
+  Future<void> _processTask(Map<String, Object?> payload) async {
     final name = payload['name'] as String;
-    final data = payload['data'] as Map<String, dynamic>;
+    final data = payload['data'] as Map<String, Object?>;
     final task = _tasks[name];
 
     if (task != null) {
