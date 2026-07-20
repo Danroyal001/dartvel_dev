@@ -470,30 +470,28 @@ ${guardRedirectFor(e['dir']!)}      pageBuilder: (context, state) {
             : (DvI18n.normalize(langRaw, i18nLocales, i18nDefault.isEmpty ? (langRaw ?? '') : i18nDefault));
         final withI18n = DvI18nScope(localeTag: langTag, child: withState);
 
-        ${e['isFunctional'] == true ? 'final loaderWrapped = withI18n;' : '''final loaderWrapped = DvDataLoader(
+        final loaderWrapped = DvDataLoader(
           load: () => page.loadData(params, query),
           child: withI18n,
 ${(() {
-                    final la = e['loadingAlias'];
-                    final ea = e['errorAlias'];
-                    final lc = e['class'] != null
-                        ? '${e['class']!}Loading'
-                        : 'Loading';
-                    final ec =
-                        e['class'] != null ? '${e['class']!}Error' : 'Error';
-                    final b = StringBuffer();
-                    if (la != null && la.isNotEmpty) {
-                      b.writeln("          loading: $la.$lc(),");
-                    } else {
-                      b.writeln("          loading: const DvDefaultLoading(),");
-                    }
-                    if (ea != null && ea.isNotEmpty) {
-                      b.writeln("          error: $ea.$ec(),");
-                    } else {
-                      b.writeln("          error: const DvDefaultError(),");
-                    }
-                    return b.toString();
-                  })()}        );'''}
+              final la = e['loadingAlias'];
+              final ea = e['errorAlias'];
+              final lc =
+                  e['class'] != null ? '${e['class']!}Loading' : 'Loading';
+              final ec = e['class'] != null ? '${e['class']!}Error' : 'Error';
+              final b = StringBuffer();
+              if (la != null && la.isNotEmpty) {
+                b.writeln("          loading: $la.$lc(),");
+              } else {
+                b.writeln("          loading: const DvDefaultLoading(),");
+              }
+              if (ea != null && ea.isNotEmpty) {
+                b.writeln("          error: $ea.$ec(),");
+              } else {
+                b.writeln("          error: const DvDefaultError(),");
+              }
+              return b.toString();
+            })()}        );
 
         final seoWrapped = DartvelSeo(
           props: page.buildWebSeo(params, query),

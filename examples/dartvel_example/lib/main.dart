@@ -7,22 +7,18 @@ void main() {
   GoRouter.optionURLReflectsImperativeAPIs = true;
   // Use path-based URLs on web (no hash)
   usePathUrlStrategy();
-  runApp(const DartvelExampleApp());
+  runApp(createDartvelExampleApp());
 }
 
-class DartvelExampleApp extends StatelessWidget {
-  const DartvelExampleApp({super.key});
-  @override
-  Widget build(BuildContext context) {
-    return ProviderScope(
-      child: MaterialApp.router(
-        title: 'Dartvel Example',
-        routerConfig: createDartvelRouter(),
-        theme: ThemeData(
-          useMaterial3: true,
-          colorSchemeSeed: const Color(0xFF6750A4),
-        ),
+Widget createDartvelExampleApp() {
+  return ProviderScope(
+    child: MaterialApp.router(
+      title: 'Dartvel Example',
+      routerConfig: createDartvelRouter(),
+      theme: ThemeData(
+        useMaterial3: true,
+        colorSchemeSeed: const Color(0xFF6750A4),
       ),
-    );
-  }
+    ),
+  );
 }
