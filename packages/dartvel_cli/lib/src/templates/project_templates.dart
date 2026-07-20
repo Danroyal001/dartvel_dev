@@ -107,7 +107,9 @@ class IndexPage extends DartvelPage {
     
     return DVBox.list([
       const DVText('Welcome to Dartvel'),
-      const Icon(Icons.rocket_launch, size: 64, color: Colors.blue),
+      const DVText('DARTVEL').modifier(
+        DVModifier().fontSize(28).fontWeight(FontWeight.w800),
+      ),
       const DVText('Your Dartvel app is ready!').modifier(
         DVModifier().color(Color(0xFF111827)).padding(8),
       ),
@@ -132,7 +134,7 @@ class $className extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const DVBox(CircularProgressIndicator());
+    return const DVBox(DVText('Loading...'));
   }
 }
 ''';
@@ -147,7 +149,9 @@ class $className extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DVBox.list([
-      const Icon(Icons.error_outline, size: 48, color: Colors.red),
+      const DVText('ERROR').modifier(
+        DVModifier().fontSize(24).fontWeight(FontWeight.w800).color(Colors.red),
+      ),
       const DVText('Something went wrong'),
       DVText('Go Back').modifier(
         const DVModifier()
@@ -223,6 +227,19 @@ Widget createDartvelApp() {
     ),
     routerConfig: createDartvelRouter(),
   );
+}
+''';
+
+  static String widgetTestTemplate(String projectName) =>
+      '''import 'package:flutter/widgets.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:$projectName/main.dart';
+
+void main() {
+  testWidgets('Dartvel application starts', (WidgetTester tester) async {
+    await tester.pumpWidget(createDartvelApp());
+    expect(find.byType(WidgetsApp), findsOneWidget);
+  });
 }
 ''';
 

@@ -156,6 +156,10 @@ class InitCommand extends Command<void> {
     File(p.join(root, 'lib/main.dart'))
         .writeAsStringSync(ProjectTemplates.mainTemplate);
 
+    // Replace Flutter's stock test, which refers to the removed MyApp class.
+    File(p.join(root, 'test/widget_test.dart'))
+        .writeAsStringSync(ProjectTemplates.widgetTestTemplate(projectName));
+
     // Create .gitignore
     File(p.join(root, '.gitignore'))
         .writeAsStringSync(ProjectTemplates.gitignoreTemplate);
