@@ -1938,7 +1938,9 @@ Dartvel should include typed bulk data workflows:
 
 ```dart
 await User.Import.csv(file);
+await User.Import.resumableCsv(file, queue: 'imports', chunkSize: 500);
 await User.Import.ndjson(lines);
+await User.Import.resumableNdjson(lines, queue: 'imports', chunkSize: 500);
 await User.Import.excel(tabSeparatedRows);
 final export = User.Export.ndjson(users);
 final spreadsheet = User.Export.excel(users);
@@ -1946,6 +1948,8 @@ final report = await Order.Report.monthly(...);
 ```
 
 Exports use storage providers and queued jobs for large datasets.
+Resumable imports dispatch typed `DVImportChunk` payloads through `DVQueues`, so
+workers can process large files without holding the entire import in one request.
 
 ---
 
