@@ -94,7 +94,7 @@ class CachedHttpClient {
   Future<T> get<T>(
     String url, {
     Map<String, String>? headers,
-    T Function(dynamic)? decoder,
+    T Function(Object?)? decoder,
     CacheStrategy strategy = CacheStrategy.cacheFirst,
     Duration? ttl,
   }) async {
@@ -152,7 +152,7 @@ class CachedHttpClient {
   Future<T> _fetch<T>(
     String url, {
     Map<String, String>? headers,
-    T Function(dynamic)? decoder,
+    T Function(Object?)? decoder,
   }) async {
     final client = HttpClient();
     try {
