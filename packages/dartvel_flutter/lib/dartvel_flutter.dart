@@ -1071,31 +1071,33 @@ class DVMedia {
 
 class DVFiles {
   const DVFiles();
-  static final Map<String, List<int>> _memory = {};
 
   Future<void> writeBytes(String path, List<int> bytes) async {
-    final handled = await DVNativeBridge.invoke<bool>(
+    final handled = await DVNativeBridge.require<bool>(
       'files.writeBytes',
       {'path': path, 'bytes': bytes},
     );
-    if (handled != true) _memory[path] = List<int>.from(bytes);
+    if (!handled) {
+      throw StateError('Native file binding rejected writeBytes.');
+    }
   }
 
   Future<List<int>> readBytes(String path) async {
-    final bytes = await DVNativeBridge.invoke<List<Object?>>(
+    final bytes = await DVNativeBridge.require<List<Object?>>(
       'files.readBytes',
       {'path': path},
     );
-    if (bytes != null) return bytes.cast<int>();
-    return List<int>.from(_memory[path] ?? const <int>[]);
+    return bytes.cast<int>();
   }
 
   Future<void> delete(String path) async {
-    final handled = await DVNativeBridge.invoke<bool>(
+    final handled = await DVNativeBridge.require<bool>(
       'files.delete',
       {'path': path},
     );
-    if (handled != true) _memory.remove(path);
+    if (!handled) {
+      throw StateError('Native file binding rejected delete.');
+    }
   }
 }
 

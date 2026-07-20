@@ -212,6 +212,22 @@ void main() {
         (_) => <Map<String, Object?>>[
               {'path': 'image.jpg', 'type': 'image'}
             ]);
+    final files = <String, List<int>>{};
+    DVNativeBridge.register('files.writeBytes', (arguments) {
+      final values = arguments! as Map<String, Object?>;
+      files[values['path']! as String] =
+          List<int>.from(values['bytes']! as List<int>);
+      return true;
+    });
+    DVNativeBridge.register('files.readBytes', (arguments) {
+      final values = arguments! as Map<String, Object?>;
+      return files[values['path']! as String] ?? const <int>[];
+    });
+    DVNativeBridge.register('files.delete', (arguments) {
+      final values = arguments! as Map<String, Object?>;
+      files.remove(values['path']! as String);
+      return true;
+    });
     DVNativeBridge.register('permissions.request', (_) => true);
     DVNativeBridge.register('permissions.isGranted', (_) => true);
     DVNativeBridge.register('display.enterFullscreen', (arguments) {
@@ -824,6 +840,7 @@ void main() {
 
     DV.Test.resetNativeBindings();
     expect(DV.Platform.camera.takePhoto(), throwsStateError);
+    expect(DV.Platform.files.readBytes('missing.bin'), throwsStateError);
     DV.Test.fakeNativeBinding('camera.takePhoto', (_) => <int>[9, 8, 7]);
     expect(await DV.Platform.camera.takePhoto(), <int>[9, 8, 7]);
     DV.Test.resetNativeBindings();
