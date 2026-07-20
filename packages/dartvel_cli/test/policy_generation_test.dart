@@ -25,6 +25,17 @@ import 'package:flutter/widgets.dart';
 @DVPage(policy: DVPolicies.viewAdmin)
 Widget adminPage(BuildContext context) => const SizedBox.shrink();
 ''');
+      Directory(p.join(root.path, 'lib', 'pages', 'blog'))
+          .createSync(recursive: true);
+      File(p.join(root.path, 'lib', 'pages', 'blog', '[id].dart'))
+          .writeAsStringSync('''
+import 'package:dartvel_flutter/dartvel_flutter.dart';
+
+@DVPage()
+class BlogPage extends DartvelPage {
+  const BlogPage({super.key});
+}
+''');
       File(p.join(root.path, 'lib', 'backend', 'functions', 'refund.post.dart'))
           .writeAsStringSync('''
 import 'package:dartvel_core/dartvel.dart';
@@ -79,6 +90,10 @@ Future<Map<String, bool>> handler() async => <String, bool>{'ok': true};
             .existsSync(),
         isTrue,
       );
+      final ssg = File(p.join(root.path, '.dartvel', 'ssg_builder.dart'))
+          .readAsStringSync();
+      expect(ssg, contains('String key = "/blog/:id";'));
+      expect(ssg, isNot(contains('var key')));
     } finally {
       root.deleteSync(recursive: true);
     }

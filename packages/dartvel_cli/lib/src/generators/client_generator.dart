@@ -797,7 +797,7 @@ class DartvelConfig {
         sb.writeln('    for (final params in paths) {');
         sb.writeln('      final data = await page.loadData(params, {});');
         sb.writeln('      if (data != null) {');
-        sb.writeln('        var key = "$routePath";');
+        sb.writeln('        String key = "$routePath";');
         sb.writeln(
             '        params.forEach((k, v) => key = key.replaceAll(":\$k", v));');
         sb.writeln('        final bytes = utf8.encode(key);');
