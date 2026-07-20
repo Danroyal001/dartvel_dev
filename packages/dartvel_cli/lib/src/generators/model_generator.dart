@@ -88,7 +88,7 @@ class ModelGenerator {
 
         // toJson
         sb.writeln('  /// Serializes [$className] to a JSON map.');
-        sb.writeln('  Map<String, dynamic> toJson() => {');
+        sb.writeln('  Map<String, Object?> toJson() => {');
         for (final field in fields) {
           final name = field['name']!;
           sb.writeln("    '$name': $name,");
@@ -128,7 +128,7 @@ class ModelGenerator {
         sb.writeln('/// Helper class for parsing [$className] from JSON.');
         sb.writeln('class ${className}Parser {');
         sb.writeln('  /// Parses [$className] from a JSON map.');
-        sb.writeln('  static $className fromJson(Map<String, dynamic> json) {');
+        sb.writeln('  static $className fromJson(Map<String, Object?> json) {');
         sb.writeln('    return $className(');
         for (final field in fields) {
           final name = field['name']!;
@@ -268,7 +268,7 @@ class ModelGenerator {
         sb.writeln(
             '    for (var index = 1; index < lines.length; index += 1) {');
         sb.writeln('      final values = _splitCsvLine(lines[index]);');
-        sb.writeln('      final row = <String, dynamic>{};');
+        sb.writeln('      final row = <String, Object?>{};');
         sb.writeln('      for (var i = 0; i < headers.length; i += 1) {');
         sb.writeln(
             "        row[headers[i]] = i < values.length ? values[i] : '';");
@@ -322,11 +322,12 @@ class ModelGenerator {
             '    for (var index = 0; index < lines.length; index += 1) {');
         sb.writeln('      try {');
         sb.writeln('        final decoded = convert.jsonDecode(lines[index]);');
-        sb.writeln('        if (decoded is! Map<String, dynamic>) {');
+        sb.writeln('        if (decoded is! Map<Object?, Object?>) {');
         sb.writeln(
             "          throw const FormatException('NDJSON row must be a JSON object.');");
         sb.writeln('        }');
-        sb.writeln('        items.add(${className}Parser.fromJson(decoded));');
+        sb.writeln(
+            '        items.add(${className}Parser.fromJson(Map<String, Object?>.from(decoded)));');
         sb.writeln('      } on Object catch (error) {');
         sb.writeln('        errors.add(DVImportRowError(');
         sb.writeln('          row: index + 1,');
@@ -378,7 +379,7 @@ class ModelGenerator {
         sb.writeln(
             '    for (var index = 1; index < lines.length; index += 1) {');
         sb.writeln("      final values = lines[index].split('\\t');");
-        sb.writeln('      final row = <String, dynamic>{};');
+        sb.writeln('      final row = <String, Object?>{};');
         sb.writeln('      for (var i = 0; i < headers.length; i += 1) {');
         sb.writeln(
             "        row[headers[i]] = i < values.length ? values[i] : '';");
