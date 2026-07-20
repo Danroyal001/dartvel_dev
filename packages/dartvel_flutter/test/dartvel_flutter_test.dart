@@ -205,6 +205,46 @@ void main() {
       nativeCalls['shortcuts.unregister'] = arguments;
       return true;
     });
+    DVNativeBridge.register('device.capabilityManifest', (_) {
+      return <String, Object>{
+        'deviceId': 'kiosk-1',
+        'capabilities': <Map<String, Object>>[
+          <String, Object>{
+            'id': 'nfc',
+            'label': 'NFC',
+            'available': true,
+            'metadata': <String, String>{'driver': 'ffi'},
+          },
+        ],
+      };
+    });
+    DVNativeBridge.register('device.health', (_) {
+      return <String, Object>{
+        'healthy': true,
+        'checkedAt': '2026-07-20T00:00:00.000Z',
+        'diagnostics': <String, String>{'queue': 'ok'},
+      };
+    });
+    DVNativeBridge.register('device.watchdog.arm', (arguments) {
+      nativeCalls['device.watchdog.arm'] = arguments;
+      return true;
+    });
+    DVNativeBridge.register('device.watchdog.heartbeat', (_) => true);
+    DVNativeBridge.register('device.fleet.provision', (arguments) {
+      nativeCalls['device.fleet.provision'] = arguments;
+      return <String, Object>{
+        'deviceId': 'kiosk-1',
+        'fleetId': 'storefront',
+        'provisioned': true,
+      };
+    });
+    DVNativeBridge.register('device.diagnostics.collect', (_) {
+      return <String, Object>{
+        'deviceId': 'kiosk-1',
+        'logs': <String, String>{'runtime': 'ok'},
+        'metrics': <String, String>{'startupMs': '42'},
+      };
+    });
 
     await DV.Auth.signIn();
     expect(DV.Auth.currentUser, isA<DVAuthUser>());
@@ -283,6 +323,34 @@ void main() {
       nativeCalls['shortcuts.unregister'],
       <String, String>{'id': 'quick-open'},
     );
+
+    final manifest = await DV.Platform.device.capabilityManifest();
+    expect(manifest.deviceId, 'kiosk-1');
+    expect(manifest.capabilities.single.id, 'nfc');
+    expect(manifest.capabilities.single.metadata['driver'], 'ffi');
+    final health = await DV.Platform.device.health();
+    expect(health.healthy, isTrue);
+    expect(health.diagnostics['queue'], 'ok');
+    await DV.Platform.device.armWatchdog(
+      timeout: const Duration(seconds: 10),
+      reason: 'startup',
+    );
+    await DV.Platform.device.heartbeat();
+    final provisioned = await DV.Platform.device.provision(
+      const DVFleetProvisioningRequest(
+        deviceId: 'kiosk-1',
+        fleetId: 'storefront',
+        labels: <String, String>{'zone': 'front'},
+      ),
+    );
+    final diagnostics = await DV.Platform.device.collectDiagnostics();
+    expect(provisioned.provisioned, isTrue);
+    expect(diagnostics.metrics['startupMs'], '42');
+    expect(
+      nativeCalls['device.watchdog.arm'],
+      <String, Object>{'timeoutMs': 10000, 'reason': 'startup'},
+    );
+    expect(nativeCalls['device.fleet.provision'], isA<Map<String, Object>>());
 
     expect(await DV.AI.chat('hello'), contains('hello'));
     expect(await DV.AI.embed('hello'), hasLength(16));

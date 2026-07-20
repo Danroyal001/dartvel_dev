@@ -1148,6 +1148,210 @@ class DVNfc {
       DVNativeBridge.require<String>('nfc.readTag');
 }
 
+class DVHardwareCapability {
+  final String id;
+  final String label;
+  final bool available;
+  final Map<String, String> metadata;
+
+  const DVHardwareCapability({
+    required this.id,
+    required this.label,
+    required this.available,
+    this.metadata = const <String, String>{},
+  });
+
+  factory DVHardwareCapability.fromMap(Map<dynamic, dynamic> map) {
+    final rawMetadata = map['metadata'];
+    return DVHardwareCapability(
+      id: map['id']?.toString() ?? '',
+      label: map['label']?.toString() ?? '',
+      available: map['available'] == true,
+      metadata: rawMetadata is Map
+          ? rawMetadata.map(
+              (key, value) => MapEntry(key.toString(), value.toString()),
+            )
+          : const <String, String>{},
+    );
+  }
+
+  Map<String, Object> toMap() => <String, Object>{
+        'id': id,
+        'label': label,
+        'available': available,
+        'metadata': metadata,
+      };
+}
+
+class DVHardwareCapabilityManifest {
+  final String deviceId;
+  final List<DVHardwareCapability> capabilities;
+
+  const DVHardwareCapabilityManifest({
+    required this.deviceId,
+    required this.capabilities,
+  });
+
+  factory DVHardwareCapabilityManifest.fromMap(Map<dynamic, dynamic> map) {
+    final rawCapabilities = map['capabilities'];
+    return DVHardwareCapabilityManifest(
+      deviceId: map['deviceId']?.toString() ?? '',
+      capabilities: rawCapabilities is List
+          ? rawCapabilities
+              .whereType<Map<dynamic, dynamic>>()
+              .map(DVHardwareCapability.fromMap)
+              .toList(growable: false)
+          : const <DVHardwareCapability>[],
+    );
+  }
+}
+
+class DVDeviceHealth {
+  final bool healthy;
+  final DateTime checkedAt;
+  final Map<String, String> diagnostics;
+
+  const DVDeviceHealth({
+    required this.healthy,
+    required this.checkedAt,
+    this.diagnostics = const <String, String>{},
+  });
+
+  factory DVDeviceHealth.fromMap(Map<dynamic, dynamic> map) {
+    final rawDiagnostics = map['diagnostics'];
+    return DVDeviceHealth(
+      healthy: map['healthy'] == true,
+      checkedAt: DateTime.tryParse(map['checkedAt']?.toString() ?? '') ??
+          DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+      diagnostics: rawDiagnostics is Map
+          ? rawDiagnostics.map(
+              (key, value) => MapEntry(key.toString(), value.toString()),
+            )
+          : const <String, String>{},
+    );
+  }
+}
+
+class DVFleetProvisioningRequest {
+  final String deviceId;
+  final String fleetId;
+  final Map<String, String> labels;
+
+  const DVFleetProvisioningRequest({
+    required this.deviceId,
+    required this.fleetId,
+    this.labels = const <String, String>{},
+  });
+
+  Map<String, Object> toMap() => <String, Object>{
+        'deviceId': deviceId,
+        'fleetId': fleetId,
+        'labels': labels,
+      };
+}
+
+class DVDeviceProvisioningResult {
+  final String deviceId;
+  final String fleetId;
+  final bool provisioned;
+
+  const DVDeviceProvisioningResult({
+    required this.deviceId,
+    required this.fleetId,
+    required this.provisioned,
+  });
+
+  factory DVDeviceProvisioningResult.fromMap(Map<dynamic, dynamic> map) {
+    return DVDeviceProvisioningResult(
+      deviceId: map['deviceId']?.toString() ?? '',
+      fleetId: map['fleetId']?.toString() ?? '',
+      provisioned: map['provisioned'] == true,
+    );
+  }
+}
+
+class DVDeviceDiagnosticsBundle {
+  final String deviceId;
+  final Map<String, String> logs;
+  final Map<String, String> metrics;
+
+  const DVDeviceDiagnosticsBundle({
+    required this.deviceId,
+    this.logs = const <String, String>{},
+    this.metrics = const <String, String>{},
+  });
+
+  factory DVDeviceDiagnosticsBundle.fromMap(Map<dynamic, dynamic> map) {
+    Map<String, String> stringMap(Object? value) {
+      if (value is! Map) return const <String, String>{};
+      return value.map((key, item) => MapEntry('$key', '$item'));
+    }
+
+    return DVDeviceDiagnosticsBundle(
+      deviceId: map['deviceId']?.toString() ?? '',
+      logs: stringMap(map['logs']),
+      metrics: stringMap(map['metrics']),
+    );
+  }
+}
+
+class DVDeviceControls {
+  const DVDeviceControls();
+
+  Future<DVHardwareCapabilityManifest> capabilityManifest() async {
+    final result = await DVNativeBridge.require<Map<dynamic, dynamic>>(
+      'device.capabilityManifest',
+    );
+    return DVHardwareCapabilityManifest.fromMap(result);
+  }
+
+  Future<DVDeviceHealth> health() async {
+    final result =
+        await DVNativeBridge.require<Map<dynamic, dynamic>>('device.health');
+    return DVDeviceHealth.fromMap(result);
+  }
+
+  Future<void> armWatchdog({
+    required Duration timeout,
+    String reason = 'runtime',
+  }) async {
+    final handled = await DVNativeBridge.require<bool>(
+      'device.watchdog.arm',
+      <String, Object>{
+        'timeoutMs': timeout.inMilliseconds,
+        'reason': reason,
+      },
+    );
+    if (!handled) throw StateError('Native watchdog binding rejected arm.');
+  }
+
+  Future<void> heartbeat() async {
+    final handled = await DVNativeBridge.require<bool>(
+      'device.watchdog.heartbeat',
+    );
+    if (!handled) {
+      throw StateError('Native watchdog binding rejected heartbeat.');
+    }
+  }
+
+  Future<DVDeviceProvisioningResult> provision(
+    DVFleetProvisioningRequest request,
+  ) async {
+    final result = await DVNativeBridge.require<Map<dynamic, dynamic>>(
+      'device.fleet.provision',
+      request.toMap(),
+    );
+    return DVDeviceProvisioningResult.fromMap(result);
+  }
+
+  Future<DVDeviceDiagnosticsBundle> collectDiagnostics() async {
+    final result = await DVNativeBridge.require<Map<dynamic, dynamic>>(
+      'device.diagnostics.collect',
+    );
+    return DVDeviceDiagnosticsBundle.fromMap(result);
+  }
+}
+
 class DVClipboard {
   const DVClipboard();
   static String? _text;
@@ -1690,6 +1894,7 @@ class DVPlatform {
   DVNotifications get notifications => const DVNotifications();
   DVBluetooth get bluetooth => const DVBluetooth();
   DVNfc get nfc => const DVNfc();
+  DVDeviceControls get device => const DVDeviceControls();
   DVClipboard get clipboard => const DVClipboard();
   DVShare get share => const DVShare();
   DVSensors get sensors => const DVSensors();
