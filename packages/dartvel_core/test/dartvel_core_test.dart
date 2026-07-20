@@ -120,6 +120,21 @@ void main() {
     );
   });
 
+  test('Shorebird availability parsing does not report false positives', () {
+    expect(ShorebirdUpdater.parseAvailability('{"available":true}'), isTrue);
+    expect(
+      ShorebirdUpdater.parseAvailability('{"updateAvailable":false}'),
+      isFalse,
+    );
+    expect(
+        ShorebirdUpdater.parseAvailability('No patches available.'), isFalse);
+    expect(
+      ShorebirdUpdater.parseAvailability('Patch available for production'),
+      isTrue,
+    );
+    expect(ShorebirdUpdater.parseAvailability(''), isFalse);
+  });
+
   group('Res', () {
     test('json creates correct response', () async {
       final data = {'message': 'hello'};

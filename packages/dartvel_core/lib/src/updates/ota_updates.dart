@@ -11,8 +11,7 @@ class OtaUpdateManager {
   Future<bool> checkForUpdates() async {
     final checker = updateChecker;
     if (checker != null) return checker();
-    await ShorebirdUpdater.checkForUpdate();
-    return true;
+    return ShorebirdUpdater.checkForUpdate();
   }
 
   /// Download and install update

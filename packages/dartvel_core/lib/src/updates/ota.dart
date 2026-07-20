@@ -192,11 +192,12 @@ class ShorebirdUpdater {
     return Platform.isAndroid || Platform.isIOS;
   }
 
-  static Future<void> checkForUpdate() async {
+  static Future<bool> checkForUpdate() async {
     if (!isSupported) {
       throw StateError('Shorebird updates require Android or iOS.');
     }
-    await _runShorebird(['patch', 'list']);
+    final result = await _runShorebird(['patch', 'list']);
+    return parseAvailability(result.stdout.toString());
   }
 
   static Future<void> downloadUpdate() async {
@@ -206,7 +207,33 @@ class ShorebirdUpdater {
     await _runShorebird(['patch', 'download']);
   }
 
-  static Future<void> _runShorebird(List<String> args) async {
+  /// Parses the machine-readable availability value when Shorebird emits it,
+  /// and otherwise conservatively reports no available patch.
+  static bool parseAvailability(String output) {
+    final trimmed = output.trim();
+    if (trimmed.isEmpty) return false;
+    try {
+      final decoded = jsonDecode(trimmed);
+      if (decoded is Map<Object?, Object?>) {
+        final available = decoded['available'];
+        if (available is bool) return available;
+        final updateAvailable = decoded['updateAvailable'];
+        if (updateAvailable is bool) return updateAvailable;
+      }
+    } on FormatException {
+      // Human-readable Shorebird output is handled conservatively below.
+    }
+    final normalized = trimmed.toLowerCase();
+    if (normalized.contains('no update') ||
+        normalized.contains('no patch') ||
+        normalized.contains('up to date')) {
+      return false;
+    }
+    return normalized.contains('update available') ||
+        normalized.contains('patch available');
+  }
+
+  static Future<ProcessResult> _runShorebird(List<String> args) async {
     final result = await Process.run('shorebird', args, runInShell: true);
     if (result.exitCode != 0) {
       throw ProcessException(
@@ -216,5 +243,6 @@ class ShorebirdUpdater {
         result.exitCode,
       );
     }
+    return result;
   }
 }
