@@ -22,8 +22,11 @@ export 'package:dartvel_core/dartvel.dart'
         Analytics,
         AnalyticsEvent,
         AnalyticsProvider,
+        BillingPlan,
         DVCronEntry,
         DVCronTarget,
+        DVBillingCheckoutSession,
+        DVBillingProvider,
         DVFormControls,
         DVFormControlsFactory,
         DVAuthAuthorization,
@@ -62,6 +65,8 @@ export 'package:dartvel_core/dartvel.dart'
         DVShell,
         DVShellResult,
         DVTestHarness,
+        DVLocalBillingProvider,
+        Entitlement,
         LocalAnalyticsProvider,
         formControlsFactories,
         registerFormControlsFactory;
@@ -1729,6 +1734,46 @@ class DVTheme {
   }
 }
 
+class DVBilling {
+  const DVBilling();
+  static DVBillingProvider _provider = DVLocalBillingProvider();
+
+  void useProvider(DVBillingProvider provider) {
+    _provider = provider;
+  }
+
+  Future<DVBillingCheckoutSession> checkout({
+    required BillingPlan plan,
+    required Object customer,
+  }) {
+    return _provider.checkout(plan: plan, customer: customer);
+  }
+
+  Future<bool> hasEntitlement(Object customer, Entitlement entitlement) {
+    return _provider.hasEntitlement(customer, entitlement);
+  }
+
+  void grantLocalEntitlement(Object customer, Entitlement entitlement) {
+    final provider = _provider;
+    if (provider is! DVLocalBillingProvider) {
+      throw StateError(
+        'Local entitlements require DVLocalBillingProvider.',
+      );
+    }
+    provider.grant(customer, entitlement);
+  }
+
+  void revokeLocalEntitlement(Object customer, Entitlement entitlement) {
+    final provider = _provider;
+    if (provider is! DVLocalBillingProvider) {
+      throw StateError(
+        'Local entitlements require DVLocalBillingProvider.',
+      );
+    }
+    provider.revoke(customer, entitlement);
+  }
+}
+
 class DVAI {
   const DVAI();
   static DVAIAdapter _adapter = const LocalDVAIAdapter();
@@ -2106,6 +2151,7 @@ class DV {
   static DVAuth get Auth => const DVAuth();
   static DVTheme get Theme => const DVTheme();
   static DVAI get AI => const DVAI();
+  static DVBilling get Billing => const DVBilling();
   static DVDatabase get DB => const DVDatabase();
   static DVDatabase get Database => const DVDatabase();
   static DVCache get Cache => const DVCache();

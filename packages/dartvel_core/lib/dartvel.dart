@@ -235,6 +235,96 @@ class DVEmptySearchProvider<TModel, TFacets>
   }
 }
 
+class BillingPlan {
+  final String id;
+  final String displayName;
+  final int priceMinorUnits;
+  final String currency;
+
+  const BillingPlan({
+    required this.id,
+    required this.displayName,
+    required this.priceMinorUnits,
+    required this.currency,
+  });
+
+  static const pro = BillingPlan(
+    id: 'pro',
+    displayName: 'Pro',
+    priceMinorUnits: 0,
+    currency: 'USD',
+  );
+}
+
+class Entitlement {
+  final String id;
+
+  const Entitlement(this.id);
+
+  static const analytics = Entitlement('analytics');
+}
+
+class DVBillingCheckoutSession {
+  final String id;
+  final BillingPlan plan;
+  final Object customer;
+  final Uri? checkoutUrl;
+  final DateTime createdAt;
+
+  const DVBillingCheckoutSession({
+    required this.id,
+    required this.plan,
+    required this.customer,
+    required this.createdAt,
+    this.checkoutUrl,
+  });
+}
+
+abstract class DVBillingProvider {
+  Future<DVBillingCheckoutSession> checkout({
+    required BillingPlan plan,
+    required Object customer,
+  });
+
+  Future<bool> hasEntitlement(Object customer, Entitlement entitlement);
+}
+
+class DVLocalBillingProvider implements DVBillingProvider {
+  final Set<String> _grants = <String>{};
+  var _nextSession = 0;
+
+  void grant(Object customer, Entitlement entitlement) {
+    _grants.add(_key(customer, entitlement));
+  }
+
+  void revoke(Object customer, Entitlement entitlement) {
+    _grants.remove(_key(customer, entitlement));
+  }
+
+  @override
+  Future<DVBillingCheckoutSession> checkout({
+    required BillingPlan plan,
+    required Object customer,
+  }) async {
+    _nextSession += 1;
+    return DVBillingCheckoutSession(
+      id: 'local_checkout_$_nextSession',
+      plan: plan,
+      customer: customer,
+      createdAt: DateTime.now().toUtc(),
+    );
+  }
+
+  @override
+  Future<bool> hasEntitlement(Object customer, Entitlement entitlement) async {
+    return _grants.contains(_key(customer, entitlement));
+  }
+
+  String _key(Object customer, Entitlement entitlement) {
+    return '${customer.hashCode}:${entitlement.id}';
+  }
+}
+
 class DVJobEnvelope<TPayload> {
   final String id;
   final String queue;

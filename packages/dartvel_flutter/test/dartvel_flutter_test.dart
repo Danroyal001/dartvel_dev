@@ -257,6 +257,34 @@ void main() {
     expect(result.stderrText, isA<String>());
   });
 
+  test('billing checkout and entitlements use concrete local provider',
+      () async {
+    const customer = 'user-1';
+    DV.Billing.useProvider(DVLocalBillingProvider());
+
+    final session = await DV.Billing.checkout(
+      plan: BillingPlan.pro,
+      customer: customer,
+    );
+    expect(session.plan.id, 'pro');
+    expect(session.customer, customer);
+
+    expect(
+      await DV.Billing.hasEntitlement(customer, Entitlement.analytics),
+      isFalse,
+    );
+    DV.Billing.grantLocalEntitlement(customer, Entitlement.analytics);
+    expect(
+      await DV.Billing.hasEntitlement(customer, Entitlement.analytics),
+      isTrue,
+    );
+    DV.Billing.revokeLocalEntitlement(customer, Entitlement.analytics);
+    expect(
+      await DV.Billing.hasEntitlement(customer, Entitlement.analytics),
+      isFalse,
+    );
+  });
+
   test('observability emits structured logs, metrics, and traces', () async {
     final provider = LocalAnalyticsProvider();
     Analytics.register(provider);
