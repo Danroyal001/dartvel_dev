@@ -21,6 +21,8 @@ class BackendGenerator {
     final backendOut = Directory(p.join(root, '.dart_tool'));
     final libClientDir = Directory(p.join(root, 'lib', 'dartvel_client'));
     await _validateMiddlewareAnnotations(root);
+    backendOut.createSync(recursive: true);
+    libClientDir.createSync(recursive: true);
 
     // Backend bind config
     File(p.join(backendOut.path, 'dartvel_backend.g.dart'))
@@ -34,13 +36,15 @@ const String dvGenBuildId = '$buildId';
 ''');
 
     // Backend routes (functions)
-    final fnGlob = Glob(p.join(backendDir, 'functions/**.dart'));
-    final fs2 = const LocalFileSystem();
-    final fnFiles = <File>[];
-    for (final e
-        in fnGlob.listFileSystemSync(fs2, root: root, followLinks: false)) {
-      if (e is File) fnFiles.add(File(e.path));
-    }
+    final functionsDir = Directory(p.join(root, backendDir, 'functions'));
+    final fnFiles = functionsDir.existsSync()
+        ? functionsDir
+            .listSync(recursive: true, followLinks: false)
+            .whereType<File>()
+            .where((file) => file.path.endsWith('.dart'))
+            .toList()
+        : <File>[]
+      ..sort((a, b) => a.path.compareTo(b.path));
 
     final methodSet = {
       'get',
@@ -73,6 +77,7 @@ const String dvGenBuildId = '$buildId';
       final urlPath = RouteUtils.routeFromRel(pathRel, backendDir);
       // Detect typed function name from file (based on sanitized base name)
       final src = await File(abs).readAsString();
+      _validatePublicBackendFunctionInputs(src, rel);
       // Prefer explicit handler(RequestType/Request) for compatibility
       final regHandler = RegExp(
           r'^\s*(?:[A-Za-z_][\w<>, ?]*\s+)?handler\s*\(([^)]*)\)\s*(?:=>|\{)',
@@ -927,6 +932,48 @@ class DartvelClient {
     return sb.toString();
   }
 
+  static void _validatePublicBackendFunctionInputs(String source, String rel) {
+    final lines = source.split('\n');
+    for (var index = 0; index < lines.length; index += 1) {
+      if (!lines[index].contains('@DVBackendFunction')) continue;
+      for (var probe = index + 1;
+          probe < lines.length && probe <= index + 6;
+          probe += 1) {
+        final line = lines[probe].trim();
+        if (line.isEmpty || line.startsWith('@')) continue;
+        final match = RegExp(
+          r'^(?:Future<[^>]+>|Future|Stream<[^>]+>|[A-Za-z_][A-Za-z0-9_<>, ?]*)\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(',
+        ).firstMatch(line);
+        if (match == null) continue;
+        final name = match.group(1)!;
+        if (name.startsWith('_')) {
+          throw StateError(
+            'Dartvel backend function inputs must be public source '
+            'declarations. Rename $name to ${name.substring(1)} so generated '
+            'backend routes and dartvel_client APIs can wrap it without '
+            'source-adjacent part files. File: $rel',
+          );
+        }
+        break;
+      }
+    }
+  }
+
+  static String _argumentList(String parameters) {
+    if (parameters.trim().isEmpty) return '';
+    return parameters
+        .split(',')
+        .map((parameter) => parameter
+            .replaceAll('required ', '')
+            .replaceAll(RegExp(r'=.*$'), '')
+            .trim())
+        .where((parameter) => parameter.isNotEmpty)
+        .map((parameter) {
+      final match = RegExp(r'([A-Za-z_][A-Za-z0-9_]*)$').firstMatch(parameter);
+      return match?.group(1) ?? parameter;
+    }).join(', ');
+  }
+
   static Future<void> _validateMiddlewareAnnotations(String root) async {
     const supported = <String>{
       'auth',
@@ -1026,8 +1073,15 @@ class DartvelClient {
     );
     for (final match in pattern.allMatches(source)) {
       final name = match.group(3)!;
+      if (name.startsWith('_')) {
+        throw StateError(
+          'Dartvel AI tool inputs must be public source declarations. Rename '
+          '$name to ${name.substring(1)} so generated tool metadata can point '
+          'at the source without source-adjacent part files.',
+        );
+      }
       entriesByName[name] = _AIToolEntry(
-        name: match.group(3)!,
+        name: name,
         description: match.group(2) ?? '',
         importUri: importUri,
         relativePath: relativePath,
@@ -1052,6 +1106,14 @@ class DartvelClient {
     for (final match in pattern.allMatches(source)) {
       final declaration = match.group(0) ?? '';
       final name = match.group(1)!;
+      if (name.startsWith('_')) {
+        throw StateError(
+          'Dartvel backend function inputs must be public source declarations. '
+          'Rename $name to ${name.substring(1)} so generated backend and AI '
+          'tool metadata can point at the source without source-adjacent part '
+          'files.',
+        );
+      }
       if (declaration.contains('@DVAIHidden') ||
           entriesByName.containsKey(name)) {
         continue;

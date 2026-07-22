@@ -63,6 +63,51 @@ Future<Map<String, Object?>> handler(String title, int priority) async {
       ).readAsStringSync();
       expect(routes, isNot(contains('Map<String, dynamic>')));
       expect(routes, isNot(contains('<String, dynamic>')));
+      expect(routes, contains('f0.handler('));
+      expect(routes, isNot(contains('f0._handler(')));
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
+  test('backend generation rejects private annotated backend functions',
+      () async {
+    final root =
+        await Directory.systemTemp.createTemp('dartvel_backend_public_test_');
+    try {
+      Directory(p.join(root.path, '.dart_tool')).createSync();
+      Directory(p.join(root.path, 'lib', 'dartvel_client'))
+          .createSync(recursive: true);
+      Directory(p.join(root.path, 'lib', 'backend', 'functions'))
+          .createSync(recursive: true);
+
+      File(p.join(root.path, 'lib', 'backend', 'functions', 'task.post.dart'))
+          .writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVBackendFunction()
+Future<String> _handler() async => 'ok';
+''');
+
+      await expectLater(
+        BackendGenerator.generate(
+          root: root.path,
+          backendDir: 'lib/backend',
+          pkgName: 'backend_client_app',
+          buildId: 'test-build',
+          backendHost: '127.0.0.1',
+          backendPort: 3000,
+          apiBasePath: '/api',
+        ),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            contains(
+                'backend function inputs must be public source declarations'),
+          ),
+        ),
+      );
     } finally {
       root.deleteSync(recursive: true);
     }

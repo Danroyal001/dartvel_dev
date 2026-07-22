@@ -96,7 +96,15 @@ class ClientGenerator {
       bool isFunctional = false;
       if (m != null) {
         className = m.group(1)!;
-        publicName = _publicGeneratedSymbolName(className);
+        if (className.startsWith('_')) {
+          throw StateError(
+            'Dartvel page inputs must be public source declarations. Rename '
+            '$className to ${className.substring(1)} so the generated '
+            'dartvel_client entrypoint can wrap it without source-adjacent '
+            'part files.',
+          );
+        }
+        publicName = className;
       } else {
         final mf = RegExp(
                 r'@DVPage\([^)]*\)\s*(?:@DVFunctionalWidget\(\)\s*)?Widget\s+([A-Za-z_][A-Za-z0-9_]*)\(')
@@ -107,19 +115,16 @@ class ClientGenerator {
           continue;
         }
         className = mf.group(1)!;
-        publicName = className.startsWith('_')
-            ? _generatedWidgetName(className)
-            : className;
+        if (className.startsWith('_')) {
+          throw StateError(
+            'Dartvel page inputs must be public source declarations. Rename '
+            '$className to ${className.substring(1)} so the generated '
+            'dartvel_client entrypoint can wrap it without source-adjacent '
+            'part files.',
+          );
+        }
+        publicName = className;
         isFunctional = true;
-      }
-      if (className.startsWith('_')) {
-        _writePagePartWrapper(
-          root: root,
-          rel: rel,
-          sourceName: className,
-          publicName: publicName,
-          isFunctional: isFunctional,
-        );
       }
 
       pageImports.add("import '$importPath' deferred as p$i;");
@@ -850,47 +855,6 @@ class DartvelConfig {
     return '${baseName}GeneratedPage';
   }
 
-  static String _publicGeneratedSymbolName(String sourceName) {
-    return sourceName.startsWith('_') ? sourceName.substring(1) : sourceName;
-  }
-
-  static void _writePagePartWrapper({
-    required String root,
-    required String rel,
-    required String sourceName,
-    required String publicName,
-    required bool isFunctional,
-  }) {
-    final sourceFile = File(p.join(root, rel));
-    final partName = '${p.basenameWithoutExtension(rel)}.dartvel.g.dart';
-    final source = sourceFile.readAsStringSync();
-    if (!source.contains("part '$partName';") &&
-        !source.contains('part "$partName";')) {
-      throw StateError(
-        'Private annotated page input $sourceName in $rel requires '
-        "part '$partName'; so Dartvel can generate the public $publicName API.",
-      );
-    }
-    final target = File(p.join(p.dirname(sourceFile.path), partName));
-    final buffer = StringBuffer()
-      ..writeln('// GENERATED CODE - DO NOT MODIFY BY HAND')
-      ..writeln('// ignore_for_file: non_constant_identifier_names')
-      ..writeln("part of '${p.basename(rel)}';")
-      ..writeln();
-    if (isFunctional) {
-      buffer
-        ..writeln('Widget $publicName(BuildContext context) {')
-        ..writeln('  return $sourceName(context);')
-        ..writeln('}');
-    } else {
-      buffer
-        ..writeln('class $publicName extends $sourceName {')
-        ..writeln('  const $publicName({super.key});')
-        ..writeln('}');
-    }
-    target.writeAsStringSync(buffer.toString());
-  }
-
   static String _pageScaffoldSpec(String source) {
     final match =
         RegExp(r'@DVPage\(([^)]*)\)', dotAll: true).firstMatch(source);
@@ -992,7 +956,6 @@ class DartvelConfig {
     }
 
     _validateFunctionalWidgetNames(entries);
-    _writeFunctionalWidgetPartWrappers(root: root, entries: entries);
 
     final imports = <String>[
       "import 'dart:async';",
@@ -1022,12 +985,10 @@ class DartvelConfig {
       ..writeln();
 
     for (final entry in entries) {
-      final callName = entry.sourceName.startsWith('_')
-          ? entry.generatedName
-          : entry.sourceName;
       buffer
         ..writeln('Widget ${entry.generatedName}(${entry.parameters}) {')
-        ..writeln('  return ${entry.alias}.$callName(${entry.argumentList});')
+        ..writeln(
+            '  return ${entry.alias}.${entry.sourceName}(${entry.argumentList});')
         ..writeln('}')
         ..writeln();
     }
@@ -1060,6 +1021,14 @@ class DartvelConfig {
         continue;
       }
       final sourceName = nameMatch.group(1)!;
+      if (sourceName.startsWith('_')) {
+        throw StateError(
+          'Dartvel functional widget inputs must be public source declarations. '
+          'Rename $sourceName to ${sourceName.substring(1)} so the generated '
+          'dartvel_client entrypoint can wrap it without source-adjacent part '
+          'files.',
+        );
+      }
       final openParen = widgetToken + nameMatch.end - 1;
       final closeParen = _matchingParen(source, openParen);
       if (closeParen == -1) {
@@ -1079,47 +1048,6 @@ class DartvelConfig {
       cursor = closeParen + 1;
     }
     return entries;
-  }
-
-  static void _writeFunctionalWidgetPartWrappers({
-    required String root,
-    required List<_FunctionalWidgetEntry> entries,
-  }) {
-    final bySource = <String, List<_FunctionalWidgetEntry>>{};
-    for (final entry
-        in entries.where((entry) => entry.sourceName.startsWith('_'))) {
-      bySource
-          .putIfAbsent(entry.sourcePath, () => <_FunctionalWidgetEntry>[])
-          .add(entry);
-    }
-
-    for (final item in bySource.entries) {
-      final sourceFile = File(p.join(root, item.key));
-      final partName = '${p.basenameWithoutExtension(item.key)}.dartvel.g.dart';
-      final source = sourceFile.readAsStringSync();
-      if (!source.contains("part '$partName';") &&
-          !source.contains('part "$partName";')) {
-        final names = item.value.map((entry) => entry.sourceName).join(', ');
-        throw StateError(
-          'Private @DVFunctionalWidget input(s) $names in ${item.key} require '
-          "part '$partName'; so Dartvel can generate public widget APIs.",
-        );
-      }
-      final target = File(p.join(p.dirname(sourceFile.path), partName));
-      final buffer = StringBuffer()
-        ..writeln('// GENERATED CODE - DO NOT MODIFY BY HAND')
-        ..writeln('// ignore_for_file: non_constant_identifier_names')
-        ..writeln("part of '${p.basename(item.key)}';")
-        ..writeln();
-      for (final entry in item.value) {
-        buffer
-          ..writeln('Widget ${entry.generatedName}(${entry.parameters}) {')
-          ..writeln('  return ${entry.sourceName}(${entry.argumentList});')
-          ..writeln('}')
-          ..writeln();
-      }
-      target.writeAsStringSync(buffer.toString());
-    }
   }
 
   static void _validateFunctionalWidgetNames(

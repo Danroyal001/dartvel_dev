@@ -87,11 +87,11 @@ class GenerateModelSubcommand extends Command<void> {
     file.writeAsStringSync('''import 'package:dartvel_core/dartvel.dart';
 
 @DVModel()
-class $capitalized {
+class _$capitalized {
   final String id;
   final String name;
 
-  const $capitalized({required this.id, required this.name});
+  const _$capitalized({required this.id, required this.name});
 }
 ''');
     Logger.log('Generated model: ${file.path}');
