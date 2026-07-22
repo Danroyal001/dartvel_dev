@@ -82,11 +82,11 @@ Annotated models automatically generate DB schemas, validation, forms, and seria
 import 'package:dartvel_core/dartvel.dart';
 
 @DVModel()
-class User extends DVModel {
+class _User {
   final String name;
   final String email;
 
-  const User({required this.name, required this.email});
+  const _User({required this.name, required this.email});
 }
 ```
 

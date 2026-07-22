@@ -550,15 +550,18 @@ class _User(
 );
 ```
 
-Annotated generation inputs are private by convention and by validation.
-Models, pages, backend functions, and functional widgets marked with Dartvel
-annotations must start with `_` unless Dartvel explicitly documents that the
-annotated declaration is public runtime API. Application source imports and
-references the generated public API, not the annotated input. For models,
-`@DVModel() class _User ...` generates the public `User` type, so generated
-static members such as `User.Form(...)`, `User.List(...)`, `User.Table(...)`,
-and `User.Page(...)` belong to the real public class instead of being attached
-to the private source input.
+Annotated models are private schema inputs by validation: `@DVModel() class
+_User ...` generates the public `User` type. Generated static members such as
+`User.Form(...)`, `User.List(...)`, `User.Table(...)`, and `User.Page(...)`
+belong to that generated public class.
+
+Pages, functional widgets, backend functions, and AI tools are public source
+declarations so Dartvel can wrap them from the generated
+`dartvel_client/dartvel_client.dart` entrypoint without source-adjacent
+`*.dartvel.g.dart` part files. This is a hard generator rule:
+`@DVModel() class User` must fail and page/widget/backend declarations such as
+`Widget _usersPage(...)`, `Widget _button(...)`, and
+`Future<User> _getUser(...)` must fail with clear rename messages.
 
 Using the new native Dart data-class syntax. Automatically generates:
 * Database schema
@@ -1642,7 +1645,7 @@ Generated behavior:
 
 ```dart
 @DVModel(searchable: true)
-class User (@DVSearchable String name);
+class _User (@DVSearchable String name);
 
 final page = await User.Search.query(
   'ada',
@@ -1713,7 +1716,7 @@ if (await DV.Billing.hasEntitlement(user, Entitlement.analytics)) {
 Certain models can be recorded as billable:
 ```dart
 @DVModel(billable: true, nativePrice: 100)
-Book(@DVSearchable String title);
+class _Book(@DVSearchable String title);
 ```
 
 Native prices use the `nativeCurrency` setting under the `dartvel:` pubspec
@@ -2233,7 +2236,7 @@ validation based on project configuration.
 ```dart
 @DVHomeWidget()
 @DVFunctionalWidget()
-Widget StepCounterWidget(
+Widget stepCounterWidget(
     BuildContext context
 ) {...}
 ```
