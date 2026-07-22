@@ -4,6 +4,8 @@ import 'package:dartvel_core/dartvel.dart';
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/material.dart';
 
+part 'showcase.dartvel.g.dart';
+
 final showcaseCardStyle = const DVModifier()
     .card()
     .margin(10)
@@ -49,7 +51,7 @@ final showcaseBodyStyle = const DVModifier()
     .fontWeight(FontWeight.w500);
 
 @DVFunctionalWidget()
-Widget showcaseSection(String title, List<Widget> children) {
+Widget _showcaseSection(String title, List<Widget> children) {
   return DVBox.list([
     DVText(title).modifier(showcaseTitleStyle),
     ...children,
@@ -57,7 +59,7 @@ Widget showcaseSection(String title, List<Widget> children) {
 }
 
 @DVFunctionalWidget()
-Widget showcaseButton(String label, FutureOr<void> Function() onPressed) {
+Widget _showcaseButton(String label, FutureOr<void> Function() onPressed) {
   return DVText(label).modifier(
     showcaseButtonStyle.onPressed(() {
       unawaited(Future<void>.sync(onPressed));
@@ -66,7 +68,7 @@ Widget showcaseButton(String label, FutureOr<void> Function() onPressed) {
 }
 
 @DVFunctionalWidget()
-Widget showcaseMetric(String label, String value) {
+Widget _showcaseMetric(String label, String value) {
   return DVBox.list([
     DVText(label).modifier(showcaseMetricLabelStyle),
     DVText(value).modifier(showcaseMetricValueStyle),
@@ -74,7 +76,7 @@ Widget showcaseMetric(String label, String value) {
 }
 
 @DVFunctionalWidget()
-Widget featureCard(String title, String body) {
+Widget _featureCard(String title, String body) {
   return DVBox.list([
     DVText(title).modifier(
       const DVModifier()
@@ -93,7 +95,7 @@ Widget featureCard(String title, String body) {
 }
 
 @DVFunctionalWidget()
-Widget showcaseHero(String platform, String deviceType, String backend) {
+Widget _showcaseHero(String platform, String deviceType, String backend) {
   return DVBox.list([
     const DVText('Dartvel Platform Showcase').modifier(
       const DVModifier()

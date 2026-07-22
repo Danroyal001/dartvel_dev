@@ -3,11 +3,13 @@ import 'dart:async';
 import 'package:dartvel_example/dartvel_client/dartvel_client.dart';
 import 'package:flutter/material.dart';
 
+part 'index.page.dartvel.g.dart';
+
 StreamSubscription<String>? _subscription;
 
 @DVPage()
 @DVFunctionalWidget()
-Widget indexPage(BuildContext context) {
+Widget _indexPage(BuildContext context) {
   final counter = context.signal(0);
   final isStreaming = context.signal(false);
   final ticks = context.signal(<String>[]);
