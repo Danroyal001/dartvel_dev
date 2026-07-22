@@ -141,12 +141,12 @@ Widget _indexPage(BuildContext context) {
       ]),
     ]),
     ShowcaseSection('Models, Forms & Generated Model Helpers', [
-      UserForm(const User(name: 'John Doe', email: 'john@example.com')),
-      UserList(const <User>[
+      User.Form(const User(name: 'John Doe', email: 'john@example.com')),
+      User.List(const <User>[
         User(name: 'Ada Lovelace', email: 'ada@example.com'),
         User(name: 'Grace Hopper', email: 'grace@example.com'),
       ]),
-      UserTable(
+      User.Table(
         const <User>[
           User(name: 'Linus Torvalds', email: 'linus@example.com'),
           User(name: 'Margaret Hamilton', email: 'margaret@example.com'),

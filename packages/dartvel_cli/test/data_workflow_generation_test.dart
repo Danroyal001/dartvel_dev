@@ -46,6 +46,11 @@ class _Order {
       expect(content, contains('static Widget List('));
       expect(content, contains('static Widget Table('));
       expect(content, contains('static Widget Page('));
+      expect(content, contains('static Widget Card(Order model)'));
+      expect(content, isNot(contains('Widget OrderForm(Order model)')));
+      expect(content, isNot(contains('Widget OrderList(')));
+      expect(content, isNot(contains('Widget OrderTable(')));
+      expect(content, isNot(contains('Widget OrderPage(')));
       expect(content, contains('class OrderImport'));
       expect(content, contains('class OrderFactory'));
       expect(content, contains('Map<String, Object?> toJson()'));

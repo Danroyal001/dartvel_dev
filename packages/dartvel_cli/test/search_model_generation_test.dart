@@ -49,14 +49,15 @@ class _User {
       expect(content, contains('static Widget List('));
       expect(content, contains('static Widget Table('));
       expect(content, contains('static Widget Page('));
+      expect(content, contains('static Widget Card(User model)'));
+      expect(content, isNot(contains('Widget UserForm(User model)')));
+      expect(content, isNot(contains('Widget UserList(')));
+      expect(content, isNot(contains('Widget UserTable(')));
+      expect(content, isNot(contains('Widget UserPage(')));
       expect(content, contains('class UserSearchFacets'));
       expect(content, contains('final List<String>? name;'));
       expect(content, contains('class UserSearch'));
       expect(content, contains('DVUnconfiguredSearchProvider<User'));
-      expect(content, contains('Widget UserForm(User model)'));
-      expect(content, contains('Widget UserList('));
-      expect(content, contains('Widget UserTable('));
-      expect(content, contains('Widget UserPage('));
       expect(
           content, contains('static Future<DVSearchResultPage<User>> query'));
       expect(content, contains('static void useProvider'));
