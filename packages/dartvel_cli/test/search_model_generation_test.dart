@@ -17,13 +17,13 @@ void main() {
 import 'package:dartvel_core/dartvel.dart';
 
 @DVModel(searchable: true)
-class User {
+class _User {
   final String id;
   @DVSearchable()
   final String name;
   final String role;
 
-  const User({
+  const _User({
     required this.id,
     required this.name,
     required this.role,
@@ -41,6 +41,14 @@ class User {
         p.join(root.path, 'lib', 'dartvel_client', 'models.g.dart'),
       );
       final content = models.readAsStringSync();
+      expect(content,
+          isNot(contains("export 'package:search_app/models/user.dart'")));
+      expect(content, contains('class User {'));
+      expect(content, contains('const User({'));
+      expect(content, contains('static Widget Form(User model)'));
+      expect(content, contains('static Widget List('));
+      expect(content, contains('static Widget Table('));
+      expect(content, contains('static Widget Page('));
       expect(content, contains('class UserSearchFacets'));
       expect(content, contains('final List<String>? name;'));
       expect(content, contains('class UserSearch'));
