@@ -92,9 +92,11 @@ class ClientGenerator {
               r'(?:@DVPage\([^)]*\)\s*)?class\s+([A-Za-z_][A-Za-z0-9_]*)\s+extends\s+(DartvelPage|DVClassWidget)')
           .firstMatch(src);
       String className;
+      String publicName;
       bool isFunctional = false;
       if (m != null) {
         className = m.group(1)!;
+        publicName = _publicGeneratedSymbolName(className);
       } else {
         final mf = RegExp(
                 r'@DVPage\([^)]*\)\s*(?:@DVFunctionalWidget\(\)\s*)?Widget\s+([A-Za-z_][A-Za-z0-9_]*)\(')
@@ -105,7 +107,19 @@ class ClientGenerator {
           continue;
         }
         className = mf.group(1)!;
+        publicName = className.startsWith('_')
+            ? _generatedWidgetName(className)
+            : className;
         isFunctional = true;
+      }
+      if (className.startsWith('_')) {
+        _writePagePartWrapper(
+          root: root,
+          rel: rel,
+          sourceName: className,
+          publicName: publicName,
+          isFunctional: isFunctional,
+        );
       }
 
       pageImports.add("import '$importPath' deferred as p$i;");
@@ -142,6 +156,7 @@ class ClientGenerator {
       pageEntries.add(_PageEntry(
         importIndex: '$i',
         className: className,
+        publicName: publicName,
         generatedWidget: _generatedPageWidgetName(className),
         pageScaffold: _pageScaffoldSpec(src),
         route: route,
@@ -515,7 +530,7 @@ ${(() {
 
     final generatedPageWidgets = pageEntries
         .map((e) => '''
-/// Deferred generated widget wrapper for [p${e.importIndex}.${e.className}].
+/// Deferred generated widget wrapper for [p${e.importIndex}.${e.publicName}].
 class ${e.generatedWidget} extends DartvelPage {
   const ${e.generatedWidget}({super.key});
 
@@ -542,7 +557,7 @@ ${e.isFunctional ? '''  @override
     Map<String, String> query,
   ) async {
     await loadLibrary();
-    return p${e.importIndex}.${e.className}().loadData(params, query);
+    return p${e.importIndex}.${e.publicName}().loadData(params, query);
   }
 
   @override
@@ -559,7 +574,7 @@ ${e.isFunctional ? '''  @override
         if (snapshot.connectionState != ConnectionState.done) {
           return const DvDefaultLoading();
         }
-        return ${e.isFunctional ? 'p${e.importIndex}.${e.className}(context)' : 'p${e.importIndex}.${e.className}()'};
+        return ${e.isFunctional ? 'p${e.importIndex}.${e.publicName}(context)' : 'p${e.importIndex}.${e.publicName}()'};
       },
     );
   }
@@ -772,7 +787,7 @@ class DartvelConfig {
 
     for (final e in entries) {
       final i = e.importIndex;
-      final className = e.className;
+      final className = e.publicName;
       final routePath = e.route;
       final prefix = 'p$i';
       final isDynamic = routePath.contains(':');
@@ -833,6 +848,47 @@ class DartvelConfig {
         words.map((word) => word[0].toUpperCase() + word.substring(1)).join();
     final baseName = pascalName.isEmpty ? 'Generated' : pascalName;
     return '${baseName}GeneratedPage';
+  }
+
+  static String _publicGeneratedSymbolName(String sourceName) {
+    return sourceName.startsWith('_') ? sourceName.substring(1) : sourceName;
+  }
+
+  static void _writePagePartWrapper({
+    required String root,
+    required String rel,
+    required String sourceName,
+    required String publicName,
+    required bool isFunctional,
+  }) {
+    final sourceFile = File(p.join(root, rel));
+    final partName = '${p.basenameWithoutExtension(rel)}.dartvel.g.dart';
+    final source = sourceFile.readAsStringSync();
+    if (!source.contains("part '$partName';") &&
+        !source.contains('part "$partName";')) {
+      throw StateError(
+        'Private annotated page input $sourceName in $rel requires '
+        "part '$partName'; so Dartvel can generate the public $publicName API.",
+      );
+    }
+    final target = File(p.join(p.dirname(sourceFile.path), partName));
+    final buffer = StringBuffer()
+      ..writeln('// GENERATED CODE - DO NOT MODIFY BY HAND')
+      ..writeln('// ignore_for_file: non_constant_identifier_names')
+      ..writeln("part of '${p.basename(rel)}';")
+      ..writeln();
+    if (isFunctional) {
+      buffer
+        ..writeln('Widget $publicName(BuildContext context) {')
+        ..writeln('  return $sourceName(context);')
+        ..writeln('}');
+    } else {
+      buffer
+        ..writeln('class $publicName extends $sourceName {')
+        ..writeln('  const $publicName({super.key});')
+        ..writeln('}');
+    }
+    target.writeAsStringSync(buffer.toString());
   }
 
   static String _pageScaffoldSpec(String source) {
@@ -928,7 +984,6 @@ class DartvelConfig {
       for (final file in files) {
         final source = file.readAsStringSync();
         if (!source.contains('@DVFunctionalWidget()')) continue;
-        if (source.contains('@DVPage()')) continue;
         final rel = p.relative(file.path, from: root).replaceAll('\\', '/');
         final importPath =
             rel.replaceFirst(RegExp(r'^lib/'), 'package:$pkgName/');
@@ -937,6 +992,7 @@ class DartvelConfig {
     }
 
     _validateFunctionalWidgetNames(entries);
+    _writeFunctionalWidgetPartWrappers(root: root, entries: entries);
 
     final imports = <String>[
       "import 'dart:async';",
@@ -966,10 +1022,12 @@ class DartvelConfig {
       ..writeln();
 
     for (final entry in entries) {
+      final callName = entry.sourceName.startsWith('_')
+          ? entry.generatedName
+          : entry.sourceName;
       buffer
         ..writeln('Widget ${entry.generatedName}(${entry.parameters}) {')
-        ..writeln(
-            '  return ${entry.alias}.${entry.sourceName}(${entry.argumentList});')
+        ..writeln('  return ${entry.alias}.$callName(${entry.argumentList});')
         ..writeln('}')
         ..writeln();
     }
@@ -989,6 +1047,12 @@ class DartvelConfig {
       if (annotation == -1) break;
       final widgetToken = source.indexOf('Widget', annotation);
       if (widgetToken == -1) break;
+      final annotationStart = annotation < 240 ? 0 : annotation - 240;
+      final annotationBlock = source.substring(annotationStart, widgetToken);
+      if (annotationBlock.contains('@DVPage')) {
+        cursor = widgetToken + 'Widget'.length;
+        continue;
+      }
       final nameMatch = RegExp(r'Widget\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(')
           .firstMatch(source.substring(widgetToken));
       if (nameMatch == null) {
@@ -996,10 +1060,6 @@ class DartvelConfig {
         continue;
       }
       final sourceName = nameMatch.group(1)!;
-      if (sourceName.startsWith('_')) {
-        cursor = widgetToken + nameMatch.end;
-        continue;
-      }
       final openParen = widgetToken + nameMatch.end - 1;
       final closeParen = _matchingParen(source, openParen);
       if (closeParen == -1) {
@@ -1019,6 +1079,47 @@ class DartvelConfig {
       cursor = closeParen + 1;
     }
     return entries;
+  }
+
+  static void _writeFunctionalWidgetPartWrappers({
+    required String root,
+    required List<_FunctionalWidgetEntry> entries,
+  }) {
+    final bySource = <String, List<_FunctionalWidgetEntry>>{};
+    for (final entry
+        in entries.where((entry) => entry.sourceName.startsWith('_'))) {
+      bySource
+          .putIfAbsent(entry.sourcePath, () => <_FunctionalWidgetEntry>[])
+          .add(entry);
+    }
+
+    for (final item in bySource.entries) {
+      final sourceFile = File(p.join(root, item.key));
+      final partName = '${p.basenameWithoutExtension(item.key)}.dartvel.g.dart';
+      final source = sourceFile.readAsStringSync();
+      if (!source.contains("part '$partName';") &&
+          !source.contains('part "$partName";')) {
+        final names = item.value.map((entry) => entry.sourceName).join(', ');
+        throw StateError(
+          'Private @DVFunctionalWidget input(s) $names in ${item.key} require '
+          "part '$partName'; so Dartvel can generate public widget APIs.",
+        );
+      }
+      final target = File(p.join(p.dirname(sourceFile.path), partName));
+      final buffer = StringBuffer()
+        ..writeln('// GENERATED CODE - DO NOT MODIFY BY HAND')
+        ..writeln('// ignore_for_file: non_constant_identifier_names')
+        ..writeln("part of '${p.basename(item.key)}';")
+        ..writeln();
+      for (final entry in item.value) {
+        buffer
+          ..writeln('Widget ${entry.generatedName}(${entry.parameters}) {')
+          ..writeln('  return ${entry.sourceName}(${entry.argumentList});')
+          ..writeln('}')
+          ..writeln();
+      }
+      target.writeAsStringSync(buffer.toString());
+    }
   }
 
   static void _validateFunctionalWidgetNames(
@@ -1121,6 +1222,7 @@ class DartvelConfig {
 class _PageEntry {
   final String importIndex;
   final String className;
+  final String publicName;
   final String generatedWidget;
   final String pageScaffold;
   final String route;
@@ -1132,6 +1234,7 @@ class _PageEntry {
   const _PageEntry({
     required this.importIndex,
     required this.className,
+    required this.publicName,
     required this.generatedWidget,
     required this.pageScaffold,
     required this.route,

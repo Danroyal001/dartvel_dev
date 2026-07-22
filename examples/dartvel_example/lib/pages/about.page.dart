@@ -1,12 +1,14 @@
 import 'package:dartvel_example/dartvel_client/dartvel_client.dart';
 import 'package:flutter/material.dart';
 
+part 'about.page.dartvel.g.dart';
+
 @DVPage(
   title: 'About',
   showAppBar: true,
 )
-class AboutPage extends DVClassWidget {
-  const AboutPage({super.key});
+class _AboutPage extends DVClassWidget {
+  const _AboutPage({super.key});
 
   @override
   Future<Object?> loadData(
