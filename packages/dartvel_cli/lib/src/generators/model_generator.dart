@@ -105,15 +105,18 @@ class ModelGenerator {
         sb.writeln('  });');
         sb.writeln();
         sb.writeln('  /// Generated form component for [$className].');
-        sb.writeln(
-            '  static Widget Form($className model) => ${className}Form(model);');
+        sb.writeln('  static Widget Form($className model) {');
+        sb.writeln('    return DVForm<$className>(model);');
+        sb.writeln('  }');
         sb.writeln();
         sb.writeln('  /// Generated lazy list component for [$className].');
         sb.writeln('  static Widget List(');
         sb.writeln('    Iterable<$className> models, {');
         sb.writeln('    Widget Function($className)? builder,');
         sb.writeln('  }) {');
-        sb.writeln('    return ${className}List(models, builder: builder);');
+        sb.writeln('    final itemBuilder = builder ?? Card;');
+        sb.writeln(
+            '    return DVBox.builder<$className>(models, itemBuilder);');
         sb.writeln('  }');
         sb.writeln();
         sb.writeln('  /// Generated grid table component for [$className].');
@@ -122,8 +125,9 @@ class ModelGenerator {
         sb.writeln('    int columns = 2,');
         sb.writeln('    Widget Function($className)? builder,');
         sb.writeln('  }) {');
+        sb.writeln('    final itemBuilder = builder ?? Card;');
         sb.writeln(
-            '    return ${className}Table(models, columns: columns, builder: builder);');
+            '    return DVBox.builder<$className>(models, itemBuilder).grid(columns: columns);');
         sb.writeln('  }');
         sb.writeln();
         sb.writeln('  /// Generated page body for [$className].');
@@ -131,7 +135,20 @@ class ModelGenerator {
         sb.writeln('    Iterable<$className> models, {');
         sb.writeln('    Widget Function($className)? builder,');
         sb.writeln('  }) {');
-        sb.writeln('    return ${className}Page(models, builder: builder);');
+        sb.writeln('    return DVBox.list([');
+        sb.writeln("      const DVText('$className'),");
+        sb.writeln('      List(models, builder: builder),');
+        sb.writeln('    ]);');
+        sb.writeln('  }');
+        sb.writeln();
+        sb.writeln('  /// Generated card component for [$className].');
+        sb.writeln('  static Widget Card($className model) {');
+        sb.writeln('    return DVBox.list([');
+        for (final field in fields) {
+          final name = field['name']!;
+          sb.writeln('      DVText(model.$name.toString()),');
+        }
+        sb.writeln('    ]).modifier(const DVModifier().card());');
         sb.writeln('  }');
         sb.writeln('}');
 
@@ -318,54 +335,6 @@ class ModelGenerator {
             '  registerDVModelSerializer<$className>((model) => model.toJson());');
         sb.writeln('  return true;');
         sb.writeln('}();');
-
-        // Generated model-aware components keep application composition on
-        // DVBox, DVText, and DVForm instead of requiring widget subclasses.
-        sb.writeln();
-        sb.writeln('/// Generated form component for [$className].');
-        sb.writeln(
-            'Widget ${className}Form($className model) => DVForm<$className>(model);');
-        sb.writeln();
-        sb.writeln('/// Generated card component for [$className].');
-        sb.writeln('Widget ${className}Card($className model) {');
-        sb.writeln('  return DVBox.list([');
-        for (final field in fields) {
-          final name = field['name']!;
-          sb.writeln('    DVText(model.$name.toString()),');
-        }
-        sb.writeln('  ]).modifier(const DVModifier().card());');
-        sb.writeln('}');
-        sb.writeln();
-        sb.writeln('/// Generated lazy list component for [$className].');
-        sb.writeln('Widget ${className}List(');
-        sb.writeln('  Iterable<$className> models, {');
-        sb.writeln('  Widget Function($className)? builder,');
-        sb.writeln('}) {');
-        sb.writeln('  final itemBuilder = builder ?? ${className}Card;');
-        sb.writeln('  return DVBox.builder<$className>(models, itemBuilder);');
-        sb.writeln('}');
-        sb.writeln();
-        sb.writeln('/// Generated grid table component for [$className].');
-        sb.writeln('Widget ${className}Table(');
-        sb.writeln('  Iterable<$className> models, {');
-        sb.writeln('  int columns = 2,');
-        sb.writeln('  Widget Function($className)? builder,');
-        sb.writeln('}) {');
-        sb.writeln('  final itemBuilder = builder ?? ${className}Card;');
-        sb.writeln(
-            '  return DVBox.builder<$className>(models, itemBuilder).grid(columns: columns);');
-        sb.writeln('}');
-        sb.writeln();
-        sb.writeln('/// Generated page body for [$className].');
-        sb.writeln('Widget ${className}Page(');
-        sb.writeln('  Iterable<$className> models, {');
-        sb.writeln('  Widget Function($className)? builder,');
-        sb.writeln('}) {');
-        sb.writeln('  return DVBox.list([');
-        sb.writeln("    const DVText('$className'),");
-        sb.writeln('    ${className}List(models, builder: builder),');
-        sb.writeln('  ]);');
-        sb.writeln('}');
 
         sb.writeln();
         sb.writeln('/// Generated bulk import helpers for [$className].');
