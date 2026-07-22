@@ -51,6 +51,7 @@ Reference ./NEW_SPEC.md for the full new spec.
 - Notifications include email. Use `DV.Notifications.mail.send(...)`; do not add or use `DV.Mail`.
 - Collection children use `DVBox.list([...])`, `DVBox.row([...])`, `DVBox.grid([...])`, etc. `DVBox(widget)` is only for a single child.
 - Application code should import the generated `dartvel_client/dartvel_client.dart` barrel rather than generated sibling files directly.
+- Dartvel-annotated generation inputs must be private and begin with `_` (for example `@DVModel() class _User`). Application code must reference the generated public API (`User`, `User.Form(...)`, generated widgets, generated routes), not the annotated input declaration.
 
 ## Bun-Inspired Tooling Direction
 
