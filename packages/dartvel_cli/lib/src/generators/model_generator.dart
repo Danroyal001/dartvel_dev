@@ -24,11 +24,6 @@ class ModelGenerator {
     }
 
     final sb = StringBuffer();
-    sb.writeln('// GENERATED CODE - DO NOT MODIFY BY HAND');
-    sb.writeln(
-        '// ignore_for_file: directives_ordering, non_constant_identifier_names, unused_element, use_super_parameters');
-    sb.writeln('// Build ID: $buildId');
-    sb.writeln();
     sb.writeln("import 'dart:convert' as convert;");
     sb.writeln("import 'dart:math' as math;");
     sb.writeln();
@@ -36,15 +31,10 @@ class ModelGenerator {
     sb.writeln("import 'package:dartvel_core/dartvel.dart';");
     sb.writeln("import 'package:dartvel_flutter/dartvel_flutter.dart';");
 
-    final modelImports = <String>[];
     final classesGenerated = <String>[];
 
     for (final file in files) {
       final abs = file.path;
-      final rel = p.relative(abs, from: root).replaceAll('\\', '/');
-      final importPath =
-          rel.replaceFirst(RegExp(r'^lib/'), 'package:$pkgName/');
-      modelImports.add("import '$importPath';");
 
       final content = await file.readAsString();
       // Scan for @DVModel(...) classes.
@@ -54,9 +44,17 @@ class ModelGenerator {
       ).allMatches(content);
       for (final match in classMatches) {
         final modelArgs = match.group(1) ?? '';
-        final className = match.group(2)!;
+        final sourceClassName = match.group(2)!;
+        if (!sourceClassName.startsWith('_')) {
+          throw StateError(
+            'Dartvel model generation inputs must be private. Rename '
+            '$sourceClassName to _$sourceClassName and reference the generated '
+            '$sourceClassName type from dartvel_client/dartvel_client.dart.',
+          );
+        }
+        final className = sourceClassName.substring(1);
         final constructorPrefix = RegExp(
-          '\\bconst\\s+${RegExp.escape(className)}\\s*\\(',
+          '\\bconst\\s+${RegExp.escape(sourceClassName)}\\s*\\(',
         ).hasMatch(content)
             ? 'const '
             : '';
@@ -87,6 +85,55 @@ class ModelGenerator {
             'name': m.group(2)!,
           });
         }
+
+        // Generate the public runtime model. The annotated source class is a
+        // private schema input; application code uses this generated class.
+        sb.writeln();
+        sb.writeln('/// Generated public model for [$sourceClassName].');
+        sb.writeln('class $className {');
+        for (final field in fields) {
+          final type = field['type']!;
+          final name = field['name']!;
+          sb.writeln('  final $type $name;');
+        }
+        sb.writeln();
+        sb.writeln('  ${constructorPrefix}$className({');
+        for (final field in fields) {
+          final name = field['name']!;
+          sb.writeln('    required this.$name,');
+        }
+        sb.writeln('  });');
+        sb.writeln();
+        sb.writeln('  /// Generated form component for [$className].');
+        sb.writeln(
+            '  static Widget Form($className model) => ${className}Form(model);');
+        sb.writeln();
+        sb.writeln('  /// Generated lazy list component for [$className].');
+        sb.writeln('  static Widget List(');
+        sb.writeln('    Iterable<$className> models, {');
+        sb.writeln('    Widget Function($className)? builder,');
+        sb.writeln('  }) {');
+        sb.writeln('    return ${className}List(models, builder: builder);');
+        sb.writeln('  }');
+        sb.writeln();
+        sb.writeln('  /// Generated grid table component for [$className].');
+        sb.writeln('  static Widget Table(');
+        sb.writeln('    Iterable<$className> models, {');
+        sb.writeln('    int columns = 2,');
+        sb.writeln('    Widget Function($className)? builder,');
+        sb.writeln('  }) {');
+        sb.writeln(
+            '    return ${className}Table(models, columns: columns, builder: builder);');
+        sb.writeln('  }');
+        sb.writeln();
+        sb.writeln('  /// Generated page body for [$className].');
+        sb.writeln('  static Widget Page(');
+        sb.writeln('    Iterable<$className> models, {');
+        sb.writeln('    Widget Function($className)? builder,');
+        sb.writeln('  }) {');
+        sb.writeln('    return ${className}Page(models, builder: builder);');
+        sb.writeln('  }');
+        sb.writeln('}');
 
         // Generate extension
         sb.writeln();
@@ -757,14 +804,11 @@ class ModelGenerator {
     if (!clientDir.existsSync()) {
       clientDir.createSync(recursive: true);
     }
-    final sourceExports = modelImports
-        .map((importLine) => importLine.replaceFirst('import ', 'export '))
-        .join('\n');
     final generatedHeader =
         '// GENERATED CODE - DO NOT MODIFY BY HAND\n// ignore_for_file: directives_ordering, non_constant_identifier_names, unused_element, use_super_parameters\n// Build ID: $buildId\n';
     final content = classesGenerated.isEmpty
         ? '${generatedHeader}library dartvel_client_models;\n'
-        : '$generatedHeader$sourceExports\n${modelImports.join('\n')}\n\n${sb.toString()}';
+        : '$generatedHeader\n${sb.toString()}';
     File(p.join(clientDir.path, 'models.g.dart')).writeAsStringSync(content);
   }
 

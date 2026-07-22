@@ -17,11 +17,11 @@ void main() {
 import 'package:dartvel_core/dartvel.dart';
 
 @DVModel()
-class Order {
+class _Order {
   final String id;
   final String status;
 
-  const Order({
+  const _Order({
     required this.id,
     required this.status,
   });
@@ -38,6 +38,14 @@ class Order {
         p.join(root.path, 'lib', 'dartvel_client', 'models.g.dart'),
       );
       final content = models.readAsStringSync();
+      expect(content,
+          isNot(contains("export 'package:workflow_app/models/order.dart'")));
+      expect(content, contains('class Order {'));
+      expect(content, contains('const Order({'));
+      expect(content, contains('static Widget Form(Order model)'));
+      expect(content, contains('static Widget List('));
+      expect(content, contains('static Widget Table('));
+      expect(content, contains('static Widget Page('));
       expect(content, contains('class OrderImport'));
       expect(content, contains('class OrderFactory'));
       expect(content, contains('Map<String, Object?> toJson()'));
@@ -125,12 +133,12 @@ class Order {
 import 'package:dartvel_core/dartvel.dart';
 
 @DVModel()
-class Metric {
+class _Metric {
   final List<double> scores;
   final Map<String, int> counts;
   final Map<String, bool> flags;
 
-  const Metric({
+  const _Metric({
     required this.scores,
     required this.counts,
     required this.flags,
@@ -177,10 +185,10 @@ class Profile {
 }
 
 @DVModel()
-class Account {
+class _Account {
   final Profile profile;
 
-  const Account({
+  const _Account({
     required this.profile,
   });
 }
@@ -200,6 +208,44 @@ class Account {
               'Cannot generate AccountFactory default for required field '
               'Account.profile of type Profile',
             ),
+          ),
+        ),
+      );
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
+  test('model generation rejects public annotated model inputs', () async {
+    final root =
+        await Directory.systemTemp.createTemp('dartvel_public_model_test_');
+    try {
+      Directory(p.join(root.path, 'lib', 'models')).createSync(recursive: true);
+      Directory(p.join(root.path, 'lib', 'dartvel_client'))
+          .createSync(recursive: true);
+      File(p.join(root.path, 'lib', 'models', 'user.dart'))
+          .writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVModel()
+class User {
+  final String id;
+
+  const User({required this.id});
+}
+''');
+
+      expect(
+        () => ModelGenerator.generate(
+          root: root.path,
+          pkgName: 'workflow_app',
+          buildId: 'test-build',
+        ),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            contains('Dartvel model generation inputs must be private'),
           ),
         ),
       );
