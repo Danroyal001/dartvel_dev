@@ -547,11 +547,21 @@ previous value for that type.
 
 ```dart
 @DVModel()
-class User(
+class _User(
     String name,
     String email,
 );
 ```
+
+Annotated generation inputs are private by convention and by validation.
+Models, pages, backend functions, and functional widgets marked with Dartvel
+annotations must start with `_` unless Dartvel explicitly documents that the
+annotated declaration is public runtime API. Application source imports and
+references the generated public API, not the annotated input. For models,
+`@DVModel() class _User ...` generates the public `User` type, so generated
+static members such as `User.Form(...)`, `User.List(...)`, `User.Table(...)`,
+and `User.Page(...)` belong to the real public class instead of being attached
+to the private source input.
 
 Using the new native Dart data-class syntax. Automatically generates:
 * Database schema
