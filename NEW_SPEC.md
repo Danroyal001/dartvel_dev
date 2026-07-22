@@ -239,25 +239,22 @@ User.Table()
 User.Page() // generated default page with a title and User.List()
 ```
 
-`User.Form()` is the preferred Dartvel authoring API. Dart supports static
-methods, but a generator cannot attach new static members to a user-owned class
-from a separate generated library unless the model opts into generated
-augmentation or the generator owns the model declaration. Until Dartvel's model
-generator emits that participating model shape, it must also export stable
-top-level compatibility identifiers:
+Annotated models are private generation inputs. `@DVModel() class _User ...`
+generates the public `User` class in `dartvel_client`, and application code
+imports that generated public class from `dartvel_client/dartvel_client.dart`.
+The generated public class owns the ergonomic static model-aware API:
 
 ```dart
-UserForm(user);
-UserList(users, builder: (user) => UserCard(user));
-UserTable(users, columns: 3);
-UserPage(users);
+User.Form(user);
+User.List(users, builder: (user) => UserCard(user));
+User.Table(users, columns: 3);
+User.Page(users);
 ```
 
-The compatibility identifiers are not the long-term ergonomic target. Generated
-models should move toward a valid strongly typed static API such as
-`User.Form(user)`, `User.List(users)`, `User.Table(users)`, and
-`User.Page(users)` without requiring application code to call annotated source
-functions directly.
+The annotated `_User` class is not exported and should not be referenced by
+application code. Top-level compatibility wrappers such as `UserForm(...)` may
+exist temporarily for migration, but generated public model methods are the
+canonical API.
 
 Tables remain model-generated because they include sorting, filtering,
 pagination, resizing, keyboard navigation, virtualization, accessibility, and
