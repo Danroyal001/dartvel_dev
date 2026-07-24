@@ -52,6 +52,14 @@ Reference ./NEW_SPEC.md for the full new spec.
 - Collection children use `DVBox.list([...])`, `DVBox.row([...])`, `DVBox.grid([...])`, etc. `DVBox(widget)` is only for a single child.
 - Application code should import the generated `dartvel_client/dartvel_client.dart` barrel rather than generated sibling files directly.
 - Dartvel-annotated generation inputs must be private and begin with `_` (for example `@DVModel() class _User`). Application code must reference the generated public API (`User`, `User.Form(...)`, generated widgets, generated routes), not the annotated input declaration.
+- `DV.global<T>(...)` is the reactive/global object registry (module-scopable via `namespace:`); do not add a separate `DVService` lifecycle or dependency-injection/service-container primitive.
+- Lifecycle state is generated read-only enum signals (`DV.lifecycle.app`, `DV.lifecycle.build`, `context.lifecycle.page`/`.request`/`.transaction`, `DV.Modules.<id>.lifecycle`); application code observes them, it does not assign lifecycle states.
+- Reversible operations use `DV.transaction((DVContext context) async { ... })` with `context.afterCommit(...)` and `context.compensate(...)`; do not add a separate saga/unit-of-work primitive.
+- Raw HTTP exposure stays on `@DVBackendFunction` via `rawPath`/`rawPathSuffix` (mutually exclusive); do not add `@DVRawRoute`. When a backend function's first parameter is `DVContext`, it is injected and is not a client-supplied argument.
+- Background/durable work stays on `@DVJob`/`DV.Jobs`/`DVQueues`; `@DVBackendFunction(background: true, durable: true)` is sugar that compiles onto that layer, not a new primitive.
+- Sensitive model fields use `@DVSensitiveModelField()`; they are excluded from logs, AI context, traces, analytics, public serialization, search, model pages, tables, and admin by default and require explicit policy authorization before reaching clients.
+- Generated model pages are `Model.Page(...)` static members (`.async`, `.signal`, `.fromId`); do not add top-level `ModelPage(...)` wrappers. SSG/static paths use `@DVStaticPaths()` or `@DVModel(generatePublicPages: true)`.
+- A Dartvel module is a full Dartvel application boundary configured under `dartvel.module`/`dartvel.modules` in `pubspec.yaml`; parents access it via generated `DV.Modules.<id>`. Module code must not hard-code its mount point.
 
 ## Bun-Inspired Tooling Direction
 
