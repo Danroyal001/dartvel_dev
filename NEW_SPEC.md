@@ -2261,6 +2261,1033 @@ In:
 ---
 
 
+# The Golden Path
+
+Dartvel provides one clearly recommended path from project creation to
+production. Advanced customization is always available, but the default
+experience is:
+
+```text
+Create
+→ Model
+→ Page
+→ Function
+→ Generate
+→ Run
+→ Test
+→ Build
+→ Deploy
+→ Observe
+→ Upgrade
+```
+
+## Create the project
+
+```bash
+dartvel new my_app
+cd my_app
+dartvel dev
+```
+
+`dartvel new` scaffolds the default project structure (`lib/pages`,
+`lib/models`, `lib/backend`, `lib/components`, `lib/styles`, `lib/services`,
+`main.dart`, `pubspec.yaml`).
+
+`dartvel dev` starts the complete local Dartvel environment: the Flutter
+application, the Dartvel backend, the code generator, analyzer integration, the
+zero-config SQLite database, the model sync runtime, the cron scheduler, the
+storage emulator, notification preview, Dartvel Studio, and the observability
+collector.
+
+```text
+Dartvel is ready
+
+App:        http://localhost:3000
+Backend:    http://localhost:3001
+Studio:     http://localhost:3002
+Database:   Connected
+Model sync: Running
+Cron:       Running
+Generator:  Watching
+```
+
+There is no `DV.Realtime` runtime; model sync is generated from models,
+signals, and queues.
+
+## Define a model
+
+Annotated models are private generation inputs (`_`-prefixed) and generate the
+public class.
+
+```dart
+@DVModel()
+class _User(
+  final String name,
+  final String email,
+  final DVImage? avatar,
+  final String? biography,
+);
+```
+
+Dartvel generates the schema, migration, CRUD, validation, serialization,
+queries, forms, list, table, page, REST/RPC/GraphQL/OpenAPI surfaces, model
+sync support, and admin representation for the public `User` type.
+
+## Create a page
+
+```dart
+@DVPage()
+Widget usersPage(BuildContext context) {
+  return User.List();
+}
+```
+
+File location determines the route (`lib/pages/users.dart` → `/users`).
+
+## Add backend behavior
+
+```dart
+@DVBackendFunction()
+Future<User> createUser(String name, String email) async {
+  return User.create(name: name, email: email);
+}
+```
+
+The function is called identically from frontend or backend code:
+
+```dart
+final user = await createUser(name, email);
+```
+
+## Generate, migrate, test, build, deploy, observe, upgrade
+
+```bash
+dartvel generate
+dartvel db migrate
+dartvel test          # or: unit | widget | backend | integration | migration | platform
+dartvel build android # see Build targets
+dartvel deploy        # or: cloud-run | lambda | container | fly | railway
+dartvel logs          # dartvel metrics | dartvel traces | dartvel studio
+dartvel upgrade --plan && dartvel compatibility-check && dartvel upgrade
+```
+
+During development, generation happens incrementally through `dartvel dev`.
+
+The golden path is the recommended path, not the only path. Every layer retains
+escape hatches (see Pluggability).
+
+---
+
+# Lifecycle Signals
+
+Dartvel does not introduce a `DVService` lifecycle abstraction. Lifecycle state
+is modelled as generated, read-only **enum signals** — the same signal system
+described under State. Their conceptual type is `DVSignal<TEnum>`: a read-only
+reactive value that can be read directly, observed, exposed through `DV.global`,
+consumed by modules and generated diagnostics, and displayed in Dartvel Studio.
+The generator owns the transitions; application code observes rather than
+assigns.
+
+## Application lifecycle
+
+```dart
+enum DVAppLifecycle {
+  uninitialized, initializing, booting, ready, backgrounded,
+  suspended, resuming, shuttingDown, stopped, failed,
+}
+```
+
+```dart
+DV.lifecycle.app.listen((state) async {
+  if (state == DVAppLifecycle.booting) {
+    DV.global<PaymentGateway>(
+      PaystackGateway(secret: DV.Secrets.get('PAYSTACK_SECRET')),
+    );
+  }
+});
+```
+
+## Page lifecycle
+
+```dart
+enum DVPageLifecycle {
+  created, resolving, loading, ready, entering, active,
+  inactive, leaving, disposing, disposed, failed,
+}
+
+context.lifecycle.page.listen((state) {
+  if (state == DVPageLifecycle.active) {
+    DV.log('page_view');
+  }
+});
+```
+
+## Module, request, transaction, and build lifecycles
+
+```dart
+enum DVModuleLifecycle {
+  discovered, resolving, validating, loading, loaded, mounting,
+  mounted, active, suspended, unmounting, unloaded, failed,
+}
+
+enum DVRequestLifecycle {
+  received, contextCreated, decoding, tenantResolving, tenantResolved,
+  authenticating, authenticated, securityChecking, rateLimitChecking,
+  validating, authorized, transactionStarting, executing, preparingResponse,
+  committing, encoding, completed, cancelled, rollingBack, failed,
+}
+
+enum DVTransactionLifecycle {
+  created, active, preparing, committing, committed, rollingBack,
+  rolledBack, compensating, compensated, cancelled, failed,
+}
+
+enum DVBuildLifecycle {
+  idle, scanning, analyzing, generating, validating, compiling,
+  bundling, completed, failed,
+}
+```
+
+Access points:
+
+```dart
+DV.lifecycle.app
+DV.lifecycle.build
+DV.Modules.store.lifecycle
+context.lifecycle.page          // in a page
+context.lifecycle.request       // in a backend function
+context.lifecycle.transaction   // in a transaction
+```
+
+The CLI, Studio, analyzer, and external tools observe the same canonical state.
+
+---
+
+# Backend Function Request Lifecycle
+
+Every `@DVBackendFunction` runs through a generated request lifecycle. When the
+first parameter is a `DVContext`, it is injected automatically and is never
+treated as a client-supplied argument.
+
+```dart
+@DVBackendFunction()
+Future<User> getUser(DVContext context, String id) async {
+  return User.find(id);
+}
+```
+
+Generated stages (each updates `context.lifecycle.request`):
+
+```text
+1. Request received
+2. Trace and correlation identifiers created
+3. Transport envelope decoded (form-data + binary flat-buffers)
+4. DVContext created
+5. Environment resolved
+6. Tenant resolved
+7. Authentication resolved
+8. Origin, CORS, and CSRF rules evaluated
+9. Rate and quota limits evaluated
+10. Parameters decoded
+11. Parameters validated
+12. Authorization policies evaluated
+13. Transaction opened where required
+14. Function executed
+15. Reversible operations recorded
+16. Deferred operations prepared
+17. Transaction committed
+18. After-commit operations dispatched
+19. Response encoded
+20. Metrics, logs, and traces finalized
+21. Response returned
+```
+
+Most functions never observe the lifecycle manually; it primarily supports
+plugins, observability, security, debugging, Studio, and advanced behavior.
+
+## Function configuration
+
+```dart
+@DVBackendFunction(
+  transaction: DVTransactionMode.auto,
+  authentication: DVAuthentication.required,
+  rateLimit: '100/hour',
+)
+Future<Order> createOrder(DVContext context, OrderInput input) async {}
+```
+
+## Raw HTTP paths
+
+Raw HTTP exposure stays part of `@DVBackendFunction`; there is no separate
+`@DVRawRoute` primitive.
+
+```dart
+@DVBackendFunction(rawPath: '/payments/webhook')
+Future<void> paymentWebhook(DVContext context) async {}
+
+@DVBackendFunction(rawPathSuffix: '/public')
+Future<Product> getProduct(String id) async {}
+```
+
+`rawPath` exposes an exact custom path. `rawPathSuffix` keeps the generated path
+and appends a suffix (`/dartvel/functions/products/getProduct/public`). The two
+are mutually exclusive.
+
+---
+
+# Modules
+
+A Dartvel module is a **complete, composable Dartvel application boundary**. A
+module may contain pages, models, backend functions, components, styles, assets,
+cron functions, configuration, storage namespaces, database migrations,
+permissions, SEO/PWA configuration, AI tools, observability, and other modules.
+
+A module can be run, built, and deployed independently; embedded into another
+Dartvel application; mounted as a micro-site or micro-app; used as a
+backend-only capability; distributed as a Dart package; or maintained inside a
+monorepo. A module is itself a valid Dartvel project:
+
+```bash
+cd modules/store
+dartvel dev            # runs the store standalone
+```
+
+## Module declaration
+
+In the module's `pubspec.yaml`:
+
+```yaml
+dartvel:
+  module:
+    id: store
+    name: Store
+    version: 1.0.0
+    routes:
+      base: /
+    exports:
+      pages: true
+      functions: true
+      models: [Product, Cart, Order]
+    auth:
+      mode: inherited
+    theme:
+      mode: inherited
+```
+
+## Parent mounting
+
+In the parent application's `pubspec.yaml`:
+
+```yaml
+dartvel:
+  modules:
+    store:
+      source:
+        path: modules/store
+      mount: /store
+      deployment: embedded   # embedded | split-backend | federated | backend-only
+      auth: inherit
+      theme: inherit
+      globals: scoped
+```
+
+Route bases are rewritten automatically: the standalone `/products/:id` becomes
+`/store/products/:id`. The parent receives generated, typed access:
+
+```dart
+DV.Modules.store                 // namespace
+DV.Modules.store.lifecycle       // DVSignal<DVModuleLifecycle>
+DV.Modules.store.config
+DV.Modules.store.manifest
+DV.Modules.store.assets.logo     // asset paths rewritten on mount
+
+.navigateToPage(.store.home)
+.navigateToPage(.store.product(product.id))
+```
+
+## Deployment modes
+
+- **embedded** — compiled into the parent artifact while keeping its namespace.
+  Best for feature modules, large monoliths, monorepos, and closely coupled
+  product areas.
+- **split-backend** — UI ships in the parent; module backend functions deploy as
+  a separate service, and generated clients call it automatically. Best for
+  independently scaled domains and gradual service migration.
+- **federated** — built and deployed as an independent Dartvel application,
+  mounted into the parent's route/navigation system. The module publishes a
+  signed manifest (identifier, version, routes, capabilities, assets, auth/theme
+  modes, public functions, public signals, compatibility requirements,
+  deployment location, integrity signature); the parent verifies it before
+  integration. Best for micro-sites, micro-frontends, partner and white-label
+  sections.
+- **backend-only** — contributes models, backend functions, cron functions, AI
+  tools, storage behavior, and migrations, but no pages.
+
+A standalone module runs as its own application but may still export typed
+contracts to other Dartvel applications.
+
+## Modules as micro-sites and micro-apps
+
+A micro-site or micro-app is just a module with its own route tree, page index,
+SEO defaults, sitemap entries, theme, assets, models, backend, deployment
+policy, and PWA configuration:
+
+```yaml
+dartvel:
+  modules:
+    documentation:
+      source: { path: modules/documentation }
+      mount: /docs
+      deployment: federated
+      theme: override
+      auth: public
+      sitemap: include
+```
+
+The same module responds at `/products` standalone and `/store/products`
+mounted; generated navigation always uses the correct route base, so module code
+must not hard-code its mount point.
+
+Per-module modes:
+
+- **shell**: `inherit` | `extend` | `override` | `none`
+- **auth**: `inherit` (uses the parent's `DV.Auth`) | `independent` |
+  `federated` (securely exchanged identity) | `public`
+- **theme**: `inherit` | `extend` | `override` | `isolated`
+- **data**: `shared` | `schema-isolated` | `database-isolated` | `remote`
+
+A parent cannot mount a module on a target that cannot satisfy the module's
+required capabilities unless a configured fallback exists (see Platform
+Compatibility).
+
+## Module globals
+
+Modules receive scoped `DV.global` registries — Dartvel does not add a separate
+DI/service-container primitive. Globals are isolated by default between
+independently deployed modules; sharing is deliberate.
+
+```dart
+DV.global<Cart>(Cart(), namespace: 'store');
+final cart = DV.global<Cart>(namespace: 'store');
+final same = DV.Modules.store.global<Cart>();  // generated convenience
+```
+
+Inside the module the namespace is inferred, so `DV.global<Cart>()` resolves to
+the module registry. Exported and inherited globals are declared explicitly:
+
+```yaml
+dartvel:
+  module:
+    globals:
+      export: [cart, checkoutState]
+
+dartvel:
+  modules:
+    store:
+      globals:
+        inherit: [auth, theme, currentTenant]
+```
+
+---
+
+# Generated Model Pages
+
+Every model generates a semantic page for one record: `User.Page()`,
+`Post.Page()`, `Product.Page()`. Default composition inspects the model's public
+fields in this order:
+
+```text
+1. Featured image  2. Title  3. Main text content  4. Remaining text
+5. Remaining media  6. Structured fields  7. Relationships  8. Generated actions
+```
+
+- **Featured image** — the first public image/media field, else the page begins
+  with the title or primary text.
+- **Web favicon** — a resized, compressed, content-hashed derivative of the
+  featured image, cached, included in SSG output, and generated on demand for
+  web-server rendering. Fallbacks: configured model favicon → module favicon →
+  application favicon.
+- **Main content** — the largest text block, chosen from long-text metadata,
+  declaration order, schema type, display priority, and actual non-empty length.
+- Sensitive and hidden fields are excluded (see Sensitive Model Fields).
+
+Explicit overrides:
+
+```dart
+@DVFeaturedImage() final DVImage cover;
+@DVPageTitle()     final String title;
+@DVMainContent()   final String body;
+@DVPageOrder(3)    final String author;
+@DVHideFromPage()  final String internalReference;
+```
+
+## Page data modes
+
+```dart
+enum DVModelPageDataMode {
+  auto, sync, async, reactive, cached, staleWhileRevalidate,
+}
+```
+
+`auto` (default) picks rendering from the input: an existing model renders
+synchronously; an id/route parameter triggers an async query; a signal renders
+reactively; a stream renders streaming; a cached record renders immediately then
+refreshes.
+
+```dart
+User.Page(user)
+User.Page.async(getUser(id))
+User.Page.signal(user.signal(context))
+User.Page.fromId(id)
+User.Page.fromId(id, dataMode: DVModelPageDataMode.async)   // per-page override
+```
+
+```dart
+@DVModel(pageDataMode: DVModelPageDataMode.staleWhileRevalidate)
+class _User(...)
+```
+
+Model-page SEO derives from model data (title → page title, summary/first
+excerpt → meta description, featured image → OG image, type/relationships →
+structured data, canonical route → canonical URL); all values can be overridden.
+
+---
+
+# Reversible Transactions
+
+The canonical transaction API is:
+
+```dart
+final order = await DV.transaction((DVContext context) async {
+  final order = await Order.create(customer: customer, total: cart.total);
+  await Inventory.reserve(cart.items);
+  await DV.FileStorage.put('orders/${order.id}/receipt.json', receiptBytes);
+  return order;
+});
+```
+
+Operations executed through Dartvel primitives participate automatically in the
+active transaction. Dartvel can reverse model create/update/delete, relationship
+changes, database writes, file creation/replacement, cache changes,
+tenant-scoped mutations, and generated model-sync mutations by recording the
+previous state or inverse operation.
+
+- **Database-local** — one transactional database uses its native
+  begin/execute/commit, rollback on failure.
+- **Distributed** — spanning systems uses a compensation log: execute → record
+  inverse → continue; on failure reverse completed operations and run
+  compensation functions.
+
+`context.lifecycle.transaction` exposes a `DVSignal<DVTransactionLifecycle>`.
+Nested `DV.transaction` calls join the active transaction by default; an
+isolated transaction can be requested where supported.
+
+## Irreversible and external effects
+
+Truly irreversible effects (email, SMS, webhooks, settled payments, external API
+mutations) run after commit; external effects with an inverse register
+compensation:
+
+```dart
+await DV.transaction((context) async {
+  final order = await Order.create(...);
+  context.afterCommit(() async {
+    await DV.Notifications.send(customer.id, OrderConfirmed(order));
+  });
+});
+
+await DV.transaction((context) async {
+  final payment = await gateway.charge(amount);
+  context.compensate(() async => gateway.refund(payment.id));
+  await Order.create(paymentId: payment.id);
+});
+```
+
+---
+
+# Background and Durable Work
+
+Signals and cron functions remain the primary reactive and scheduled
+primitives, and `@DVJob`/`DV.Jobs`/`DVQueues` (see Queues, Jobs, and Signals)
+remain the durable background-work layer. To keep common cases ergonomic, a
+backend function can opt into background/durable execution, which the generator
+compiles down onto the existing jobs/queues system — it does not introduce a
+parallel primitive:
+
+```dart
+@DVBackendFunction(background: true, durable: true, retries: 5)
+Future<void> generateReport(String reportId) async {}
+```
+
+Workflows are ordinary backend functions composed from other typed backend
+functions inside a transaction; durable state is stored in generated models and
+resumed by backend cron or durable function execution:
+
+```dart
+@DVBackendFunction(durable: true)
+Future<Order> fulfilOrder(Order order) async {
+  return DV.transaction((context) async {
+    await chargeCustomer(order);
+    await reserveInventory(order);
+    await arrangeDelivery(order);
+    return order;
+  });
+}
+```
+
+This keeps the primitive set small: signals, backend functions, transactions,
+cron functions, and models.
+
+---
+
+# Sensitive Model Fields
+
+`@DVSensitiveModelField()` marks a model field as sensitive. By default such a
+field is redacted from logs; excluded from AI context, traces, analytics, public
+serialization, search indexing, and Open Graph/structured data; hidden from
+generated model pages, tables, and admin views; protected from accidental debug
+printing; subject to stricter authorization; and audited when accessed.
+
+```dart
+@DVModel()
+class _User(
+  final String name,
+  @DVSensitiveModelField() final String nationalId,
+  @DVSensitiveModelField(encrypted: true) final String recoveryToken,
+  @DVSensitiveModelField(showInForms: true, showInAdmin: false)
+  final String recoveryEmail,
+);
+```
+
+Explicit policy authorization is required before sensitive fields are sent to
+clients. This extends the existing security scope (authentication,
+authorization, CSRF, CORS, origin validation, XSS/injection/SSRF protection,
+secure file handling, rate limiting, secrets, encryption, audit logging,
+dependency validation, tenant isolation, security headers, CSP, webhook
+verification, sensitive-data redaction). CSRF applies to state-changing browser
+requests using automatically attached credentials, not to database queries
+themselves.
+
+---
+
+# Static Web Generation
+
+`dartvel build web` does not ship a single shared `index.html`. Dartvel
+generates a route-specific HTML document for every known static page:
+
+```text
+build/web/
+  index.html
+  users/index.html
+  about/index.html
+  products/index.html
+  products/product-1/index.html
+  sitemap.xml
+  robots.txt
+  assets/
+  flutter/
+```
+
+Every generated page contains a route-specific title, meta description,
+canonical URL, Open Graph/social metadata, structured data, a route-specific
+favicon, the Flutter bootstrap/loader, preload hints, and a raw-text fallback:
+
+```html
+<noscript>Raw semantic text representation of the page.</noscript>
+```
+
+The raw text is generated from `DVText`, model-page fields, SEO descriptions,
+static page content, and accessible semantic labels. When scripting is enabled
+and Flutter is supported, the Flutter application takes over.
+
+## Dynamic routes during SSG
+
+Static routes are always generated. Parameterized routes require a known list of
+values:
+
+```dart
+@DVStaticPaths()
+Future<List<String>> productPaths() async {
+  return Product.public().select((product) => product.slug);
+}
+```
+
+A model can supply these automatically:
+
+```dart
+@DVModel(generatePublicPages: true)
+class _Product(...)
+```
+
+For routes without generated static instances, Dartvel produces a configured
+fallback document, a client-rendered fallback, a 404, or a redirect to the
+web-server deployment.
+
+## Sitemap
+
+Dartvel has a complete generated route index, so it emits `sitemap.xml`
+automatically (static pages, generated model pages, module pages, exported
+federated micro-site pages, canonical URLs, last-modified, priorities, change
+frequencies, alternate locale URLs). Sensitive, private, and authenticated
+routes are excluded by default.
+
+```yaml
+dartvel:
+  seo:
+    sitemap:
+      enabled: true
+      exclude: [/admin/**, /account/**]
+      defaults: { priority: 0.5, changeFrequency: weekly }
+```
+
+```dart
+@DVPage(
+  sitemap: DVPageSitemap(
+    priority: 0.8,
+    changeFrequency: DVSitemapChangeFrequency.daily,
+  ),
+)
+Widget productsPage(BuildContext context) {}
+```
+
+---
+
+# Web Server Rendering
+
+`dartvel build web-server` creates a Dartvel web server that generates
+route-specific HTML on demand:
+
+```text
+Request received → Route resolved → Page data resolved →
+Auth and visibility checked → SEO + structured data generated →
+Favicon selected → Raw semantic text generated → Flutter bootstrap embedded →
+HTML response returned
+```
+
+`GET /products/123` returns HTML containing the SEO, featured image, favicon,
+and text content for product `123`; the Flutter client then activates when
+supported. Async page data may be awaited, cached, streamed, rendered
+stale-while-revalidate, or deferred to the client.
+
+```yaml
+dartvel:
+  web:
+    server:
+      pageDataMode: stale-while-revalidate
+      cache: redis
+      streaming: true
+```
+
+Mounted modules contribute their routes to static generation, server rendering,
+sitemap/SEO generation, and asset generation. A federated micro-site may serve
+its own HTML while still appearing in the parent route index and sitemap.
+
+---
+
+# Embedded and Television Build Targets
+
+Beyond mobile, web, and desktop, Dartvel supports dedicated builds for webOS,
+Tizen, and Sony's Flutter Embedded Linux ecosystem.
+
+```bash
+dartvel build webos
+dartvel build tizen
+dartvel build sony-elinux
+dartvel build sony-elinux-iso
+dartvel build sony-elinux-img
+```
+
+## webOS
+
+`dartvel build webos` packages the application for a configured webOS target
+(webOS OSE, compatible webOS televisions, and embedded webOS devices), covering
+remote-control navigation, television-safe areas, lifecycle integration, media
+controls, and fullscreen/kiosk modes.
+
+```yaml
+dartvel:
+  targets:
+    webos:
+      profile: television
+      architecture: arm64
+      fullscreen: true
+      input: { remoteControl: true, keyboard: true }
+      permissions: [media, network, storage]
+```
+
+```text
+build/webos/release/
+  application.ipk
+  manifest.json
+  checksums.json
+```
+
+## Tizen
+
+`dartvel build tizen` packages the application for the configured Tizen profile
+(`television`, `mobile`, `wearable`, `embedded`). Dartvel generates Tizen
+manifests, privilege declarations, application identifiers, signing
+configuration, remote-control mappings, lifecycle bindings, and native or web
+runtime packaging.
+
+```yaml
+dartvel:
+  targets:
+    tizen:
+      profile: television
+      architecture: arm64
+      certificate: environment:TIZEN_CERTIFICATE
+      input: { remoteControl: true }
+      permissions: [internet, media, filesystem]
+```
+
+Output is `build/tizen/release/application.wgt` or `.tpk` depending on the
+selected runtime profile.
+
+## Sony Embedded Linux
+
+Sony's Flutter Embedded Linux tooling builds application bundles for embedded
+Linux architectures. Dartvel provides three related targets.
+
+**Application bundle** — `dartvel build sony-elinux` builds the app and the Sony
+eLinux runner without building an OS image.
+
+```yaml
+dartvel:
+  targets:
+    sony-elinux:
+      architecture: arm64        # arm | arm64 | x64
+      releaseMode: release
+      renderer: egl
+      displayBackend: drm
+      fullscreen: true
+      kiosk: true
+      autostart: true
+```
+
+```text
+build/sony-elinux/arm64/release/bundle/
+  dartvel_app  lib/  data/  assets/  manifest.json
+```
+
+**Bootable ISO** — `dartvel build sony-elinux-iso` assembles a bootable ISO
+(minimal Linux OS, bootloader, kernel, system libraries, Flutter eLinux engine,
+Dartvel app, native bindings, device/network configuration, autostart, recovery
+and diagnostics) for VMs, development hardware, installation media, and
+read-only kiosk installs.
+
+```text
+build/sony-elinux/arm64/release/
+  dartvel-app.iso  dartvel-app.iso.sha256  build-manifest.json
+```
+
+**Flashable disk image** — `dartvel build sony-elinux-img` builds a raw disk
+image for SD cards, eMMC, USB drives, and development boards.
+
+```yaml
+dartvel:
+  targets:
+    sony-elinux:
+      architecture: arm64
+      board: generic-arm64
+      image:
+        size: 8GB
+        filesystem: ext4
+        compression: xz
+        partitions: { boot: 512MB, root: 3GB, data: remaining }
+      application: { autostart: true, restartOnFailure: true, kiosk: true }
+```
+
+```text
+build/sony-elinux/arm64/release/
+  dartvel-app.img  dartvel-app.img.xz  dartvel-app.img.sha256
+  partitions.json  build-manifest.json
+```
+
+## Build-format relationship
+
+The dedicated commands are equivalent to selecting a format explicitly; the
+named commands remain first-class because they are easier to discover and
+automate.
+
+```bash
+dartvel build sony-elinux            # == dartvel build sony-elinux --format bundle
+dartvel build sony-elinux-iso        # == dartvel build sony-elinux --format iso
+dartvel build sony-elinux-img        # == dartvel build sony-elinux --format img
+```
+
+## Device profiles
+
+Reusable embedded-device profiles capture architecture, board, toolchain,
+kernel, display backend, GPU renderer, resolution, orientation, touch/remote
+support, network defaults, filesystem, partitions, native capabilities, update
+behavior, and startup behavior.
+
+```yaml
+dartvel:
+  deviceProfiles:
+    lobby-display:
+      platform: sony-elinux
+      architecture: arm64
+      display: { width: 1920, height: 1080, orientation: landscape }
+      kiosk: true
+      input: { touch: true, keyboard: false }
+```
+
+```bash
+dartvel build sony-elinux-img --device-profile lobby-display
+```
+
+## Build validation
+
+Before building, Dartvel validates toolchain availability, architecture and
+engine compatibility, platform permissions, native bindings, required system
+libraries, signing credentials, device-profile compatibility, and disk-image and
+bootloader configuration. Failures are typed and explained:
+
+```text
+DV-ELINUX-004
+The selected application requires Bluetooth, but the sony-elinux device profile
+does not provide a Bluetooth adapter or fallback implementation.
+```
+
+Validation is also available through `dartvel doctor --target webos|tizen|sony-elinux`.
+
+## Updated build target list
+
+```bash
+# Mobile
+dartvel build android
+dartvel build ios
+# Web
+dartvel build web
+dartvel build web-server
+# Desktop
+dartvel build windows
+dartvel build linux
+dartvel build macos
+# Television and embedded platforms
+dartvel build webos
+dartvel build tizen
+dartvel build sony-elinux
+# Complete Sony Embedded Linux system images
+dartvel build sony-elinux-iso
+dartvel build sony-elinux-img
+```
+
+---
+
+# Unified Development, Transparency, and Contracts
+
+## Unified development
+
+`dartvel dev` owns the complete development loop, watching pages, models, backend
+functions, modules, configuration, native bindings, assets, routes, migrations,
+AI tools, and home widgets. Change behavior: UI change → Flutter hot reload;
+route change → route regeneration and deferred-bundle refresh; backend-function
+change → backend reload; model change → schema diff and migration preview;
+module change → affected-module rebuild; configuration change → subsystem
+reload; Rust/native change → native binding rebuild. Studio and the DevTools
+extension expose the same runtime signals the framework uses.
+
+## Generated-code transparency
+
+Generated behavior is always inspectable. Dartvel may hide generated output
+during normal development but never obscures how an application works; generated
+code carries source mappings back to models, pages, functions, annotations,
+configuration entries, and module manifests.
+
+```bash
+dartvel inspect routes
+dartvel inspect model User
+dartvel inspect function createOrder
+dartvel inspect module store
+dartvel inspect transaction
+dartvel inspect schema
+dartvel inspect generated
+dartvel explain DV001
+```
+
+## Platform compatibility
+
+Every capability carries generated support metadata: `Supported`,
+`Supported with limitations`, `Experimental`, `Community supported`,
+`Unsupported`. Modules declare required capabilities; a parent cannot mount a
+module on a target that cannot satisfy them without a configured fallback.
+
+```bash
+dartvel doctor --targets android,ios,web
+```
+
+## Upgrade and compatibility
+
+Dartvel upgrades preserve source, generated-code, protocol, database, module,
+plugin, and deployment compatibility. Automated code migrations handle changes
+such as `DVStyleModifier → DVModifier`, `.styleModifier() → .modifier()`, and
+`DV.BlobStorage → DV.FileStorage`. Module manifests declare compatible Dartvel
+versions, validated before compiling or mounting.
+
+```bash
+dartvel upgrade --plan
+dartvel compatibility-check
+dartvel migrate-code
+dartvel upgrade
+```
+
+## Performance contracts
+
+Dartvel measures application/page startup, web and route bundle size, backend
+cold start and request overhead, serialization overhead, signal rebuild counts,
+database query counts, model sync latency, memory usage, generated-code size,
+module loading, SSG build duration, and server-render duration. Generated
+diagnostics include N+1 queries, unbounded collections, excessive signal
+rebuilds, route bundles over budget, blocking work in backend functions, module
+dependency cycles, uncompressed large model images, and non-deterministic SSG
+queries.
+
+```bash
+dartvel analyze performance
+dartvel build --report
+dartvel benchmark
+```
+
+## Pluggability and escape hatches
+
+Dartvel is opinionated but every major subsystem is pluggable: any Flutter
+widget (`DVBox(ExistingFlutterWidget())`), any Dart package, raw SQL, existing
+state-management libraries, custom HTTP behavior, native FFI/JNI/Rust, external
+services, custom build hooks, platform-specific projects, custom
+serializers/databases/deployment adapters, and custom UI systems. A plugin may
+contribute pages, models, backend functions, cron functions, signals, modules,
+native bindings, providers, storage/database/auth/deployment adapters, Studio
+panels, analyzer rules, and build hooks. Raw HTTP behavior stays on
+`@DVBackendFunction`, so no separate raw-route abstraction is required.
+
+---
+
+# Mental Model
+
+```text
+Pages define application entry points.
+Models define data and generate pages, forms, lists, tables, APIs, storage.
+Backend functions define server operations, raw HTTP, background and durable work.
+Signals define local, global, model, lifecycle, and cross-module reactivity.
+DV.global exposes globally available reactive objects.
+Cron functions define scheduled behavior.
+DV.transaction coordinates reversible operations.
+Modules compose complete apps, micro-sites, micro-apps, and backend domains.
+DVBox defines layout, collections, and surfaces; DVText defines text.
+Modifiers define styling, interaction, accessibility, and behavior.
+The generated route index powers navigation, SSG, server rendering, SEO, sitemaps.
+Flutter remains the renderer. Dart remains the language. Dartvel is the platform.
+```
+
+The rule for scope: design the contracts for the full vision from the beginning,
+then implement them progressively without shrinking the platform's intended
+destination.
+
+---
+
 # The Vision
 
 Developers write only:
