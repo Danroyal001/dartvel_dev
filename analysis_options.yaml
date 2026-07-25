@@ -28,3 +28,11 @@ linter:
     non_constant_identifier_names: false
     no_duplicate_case_values: true
     prefer_void_to_null: true
+    cancel_subscriptions: true
+    close_sinks: true
+    discarded_futures: true
+    secure_pubspec_urls: true
+    throw_in_finally: true
+    unnecessary_statements: true
+    valid_regexps: true
+    avoid_web_libraries_in_flutter: true
