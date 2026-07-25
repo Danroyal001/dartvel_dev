@@ -292,7 +292,18 @@ const String dvApiBasePath      = '${esc(apiBasePath)}';
     // Client runtime helper
     final runtimeDart = """
 import 'package:flutter/foundation.dart' show kReleaseMode, kIsWeb, defaultTargetPlatform, TargetPlatform, debugPrint;
+import 'package:dartvel_flutter/dartvel_flutter.dart' show DV;
 import 'dartvel_config.g.dart' as cfg;
+
+/// Wires the generated runtime into the short `DV.baseUrl` / `DV.api(...)` API.
+/// Called automatically during app/router initialization.
+void configureDartvelRuntime() {
+  DV.registerRuntime(
+    baseUrl: () => DartvelRuntime.baseUrl,
+    apiBasePath: () => DartvelRuntime.apiBasePath,
+    api: DartvelRuntime.api,
+  );
+}
 
 class DartvelRuntime {
   static const String _override = String.fromEnvironment('DARTVEL_BACKEND_URL', defaultValue: '');
@@ -392,6 +403,7 @@ class DartvelRuntime {
       "import 'package:flutter/material.dart';",
       "import 'package:go_router/go_router.dart';",
       "import 'package:dartvel_flutter/dartvel_flutter.dart';",
+      "import 'dartvel_runtime.dart';",
       ...pageImports,
       ...layoutImports,
       ...guardImports
@@ -647,12 +659,15 @@ ${sbRedirect.toString()}
 $generatedPageWidgets
 
 /// Creates the GoRouter instance for Dartvel routing.
-GoRouter createDartvelRouter() => GoRouter(
-  routes: [
+GoRouter createDartvelRouter() {
+  configureDartvelRuntime();
+  return GoRouter(
+    routes: [
 $routesSrc
-  ],
-  redirect: _globalRedirect,
-);
+    ],
+    redirect: _globalRedirect,
+  );
+}
 
 ${(() {
       final sbRoutes = StringBuffer();
