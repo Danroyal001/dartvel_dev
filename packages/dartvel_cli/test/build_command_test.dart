@@ -49,16 +49,7 @@ void main() {
       );
     });
 
-    test('maps TV and webOS platforms to supported Flutter build commands', () {
-      expect(
-        resolveFlutterBuildArguments(
-          platform: 'webos',
-          buildMode: '--release',
-          obfuscate: true,
-        ),
-        <String>['build', 'web', '--release'],
-      );
-
+    test('maps TV platforms to supported Flutter build commands', () {
       expect(
         resolveFlutterBuildArguments(
           platform: 'tvos',
@@ -131,6 +122,25 @@ void main() {
       ]);
     });
 
+    test('builds webOS through flutter-webos (LG embedder)', () {
+      final plan = resolveEmbeddedBuildPlan(
+        platform: 'webos',
+        buildMode: '--release',
+        arch: 'arm64',
+        deviceProfile: 'lg-tv',
+      );
+
+      expect(plan, isNotNull);
+      expect(plan!.executable, 'flutter-webos');
+      expect(plan.arguments, <String>[
+        'build',
+        'webos',
+        '--release',
+        '--device-profile',
+        'lg-tv',
+      ]);
+    });
+
     test('returns null for non-embedded platforms', () {
       expect(
         resolveEmbeddedBuildPlan(
@@ -144,11 +154,18 @@ void main() {
   });
 
   group('allBuildPlatforms', () {
-    test('includes tizen and sony-elinux but not distribution images', () {
+    test('includes embedded/TV embedders but not distribution images', () {
       expect(allBuildPlatforms, contains('tizen'));
       expect(allBuildPlatforms, contains('sony-elinux'));
+      expect(allBuildPlatforms, contains('webos'));
       expect(allBuildPlatforms, isNot(contains('sony-elinux-iso')));
       expect(allBuildPlatforms, isNot(contains('sony-elinux-img')));
+    });
+
+    test('routes webOS through the embedded embedder, not flutter build web',
+        () {
+      expect(flutterBuildPlatforms, isNot(contains('webos')));
+      expect(embeddedBuildPlatforms, contains('webos'));
     });
   });
 }

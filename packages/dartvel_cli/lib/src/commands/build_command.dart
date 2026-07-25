@@ -11,15 +11,17 @@ const flutterBuildPlatforms = <String>[
   'windows',
   'macos',
   'linux',
-  'webos',
   'tvos',
   'fireos',
 ];
 
-/// Embedded/television platforms built through dedicated Flutter embedders.
+/// Embedded/television platforms built through dedicated Flutter embedders:
+/// `flutter-tizen` (Samsung), `flutter-elinux` (Sony), and `flutter-webos`
+/// (LG).
 const embeddedBuildPlatforms = <String>[
   'tizen',
   'sony-elinux',
+  'webos',
 ];
 
 /// The set built by `--platform all`. Distribution-image formats
@@ -310,7 +312,6 @@ class BuildCommand extends Command<void> {
       case 'linux':
         return Platform.isLinux || Platform.isMacOS;
       case 'web':
-      case 'webos':
         return true;
       default:
         return false;
@@ -376,6 +377,14 @@ EmbeddedBuildPlan? resolveEmbeddedBuildPlan({
       }
       return EmbeddedBuildPlan(
           'flutter-elinux', List<String>.unmodifiable(args));
+    case 'webos':
+      final args = <String>['build', 'webos', buildMode];
+      if (target != null) args.addAll(<String>['--target', target]);
+      if (deviceProfile != null) {
+        args.addAll(<String>['--device-profile', deviceProfile]);
+      }
+      return EmbeddedBuildPlan(
+          'flutter-webos', List<String>.unmodifiable(args));
     default:
       return null;
   }
@@ -393,7 +402,6 @@ List<String> resolveFlutterBuildArguments({
 }) {
   final command = switch (platform) {
     'android' || 'fireos' => 'apk',
-    'webos' => 'web',
     'tvos' => 'ios',
     _ => platform,
   };
