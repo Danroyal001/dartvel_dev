@@ -3013,6 +3013,44 @@ class DV {
   static DVRust get Rust => const DVRust();
   static String get currentTenant => 'default';
 
+  // --- Runtime backend URL ---------------------------------------------------
+  // The generated `dartvel_client` wires the app's backend config into these
+  // resolvers via [registerRuntime], so application code uses the short
+  // `DV.baseUrl` / `DV.api(...)` API instead of the generated `DartvelRuntime`.
+  static String Function()? _baseUrlResolver;
+  static String Function()? _apiBasePathResolver;
+  static Uri Function(String path)? _apiResolver;
+
+  /// Wires the generated runtime into `DV`. Called automatically by the
+  /// generated router/app bootstrap; application code does not call this.
+  static void registerRuntime({
+    required String Function() baseUrl,
+    required String Function() apiBasePath,
+    required Uri Function(String path) api,
+  }) {
+    _baseUrlResolver = baseUrl;
+    _apiBasePathResolver = apiBasePath;
+    _apiResolver = api;
+  }
+
+  static Never _runtimeNotConfigured() => throw StateError(
+        'Dartvel runtime is not configured. Ensure the generated '
+        'dartvel_client is imported and the app is initialized before '
+        'accessing DV.baseUrl / DV.api(...).',
+      );
+
+  /// The resolved backend base URL for the current build/target.
+  static String get baseUrl =>
+      (_baseUrlResolver ?? _runtimeNotConfigured())();
+
+  /// The API base path segment (e.g. `/api`).
+  static String get apiBasePath =>
+      (_apiBasePathResolver ?? _runtimeNotConfigured())();
+
+  /// Builds a full backend API [Uri] for [path].
+  static Uri api(String path) =>
+      (_apiResolver ?? _runtimeNotConfigured())(path);
+
   static Future<DVShellResult> $(
     String command, {
     Map<String, String> environment = const <String, String>{},

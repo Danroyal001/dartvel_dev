@@ -18,7 +18,7 @@ Widget indexPage(BuildContext context) {
     ShowcaseHero(
       DV.Platform.currentPlatform,
       DV.Platform.deviceType,
-      DartvelRuntime.baseUrl,
+      DV.baseUrl,
     ),
     DVBox.wrap([
       ShowcaseButton('Toggle Theme', () {
@@ -119,7 +119,7 @@ Widget indexPage(BuildContext context) {
         ShowcaseMetric('PWA', DartvelConfig.pwaEnabled ? 'enabled' : 'off'),
         ShowcaseMetric('Public env', Env.PUBLIC_GREETING),
       ], columns: 2),
-      DVText('Runtime backend: ${DartvelRuntime.baseUrl}'),
+      DVText('Runtime backend: ${DV.baseUrl}'),
       const DVText(
           'SEO defaults are generated into the deferred router wrapper.'),
     ]),
