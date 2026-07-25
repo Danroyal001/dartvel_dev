@@ -96,10 +96,11 @@ class DoctorCommand extends Command<void> {
     Logger.log('Dartvel Doctor — target: $target');
     Logger.log('==================================================\n');
 
-    // Executable each target's build path invokes; webOS builds via `flutter`.
+    // Executable each target's build path invokes.
     final executable = switch (target) {
       'tizen' => 'flutter-tizen',
       'sony-elinux' => 'flutter-elinux',
+      'webos' => 'flutter-webos',
       _ => 'flutter',
     };
 
