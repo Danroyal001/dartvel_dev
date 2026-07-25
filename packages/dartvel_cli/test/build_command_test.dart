@@ -82,6 +82,13 @@ void main() {
         (platform: 'all', format: null),
       );
     });
+
+    test('aliases tpk to the tizen target', () {
+      expect(
+        normalizeBuildTarget('tpk'),
+        (platform: 'tizen', format: null),
+      );
+    });
   });
 
   group('resolveEmbeddedBuildPlan', () {

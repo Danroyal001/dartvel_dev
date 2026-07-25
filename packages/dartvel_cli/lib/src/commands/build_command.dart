@@ -46,6 +46,7 @@ class BuildCommand extends Command<void> {
           allowed: [
             ...flutterBuildPlatforms,
             ...embeddedBuildPlatforms,
+            'tpk',
             'sony-elinux-iso',
             'sony-elinux-img',
             'all',
@@ -338,6 +339,8 @@ enum _PlatformBuildResult { succeeded, failed, skipped }
   return switch (target) {
     'sony-elinux-iso' => (platform: 'sony-elinux', format: 'iso'),
     'sony-elinux-img' => (platform: 'sony-elinux', format: 'img'),
+    // `tpk` is Tizen's native package format; alias it to the tizen target.
+    'tpk' => (platform: 'tizen', format: null),
     _ => (platform: target, format: null),
   };
 }
