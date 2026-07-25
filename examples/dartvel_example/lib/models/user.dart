@@ -6,6 +6,12 @@ import 'package:dartvel_core/dartvel.dart';
 class _User {
   final String name;
   final String email;
+  @DVSensitiveModelField()
+  final String recoveryToken;
 
-  const _User({required this.name, required this.email});
+  const _User({
+    required this.name,
+    required this.email,
+    required this.recoveryToken,
+  });
 }

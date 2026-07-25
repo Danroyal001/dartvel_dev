@@ -138,26 +138,39 @@ Widget indexPage(BuildContext context) {
       ]),
     ]),
     ShowcaseSection('Models, Forms & Generated Model Helpers', [
-      User.Form(const User(name: 'John Doe', email: 'john@example.com')),
+      User.Form(const User(
+          name: 'John Doe', email: 'john@example.com', recoveryToken: 'tok')),
       User.List(const <User>[
-        User(name: 'Ada Lovelace', email: 'ada@example.com'),
-        User(name: 'Grace Hopper', email: 'grace@example.com'),
+        User(name: 'Ada Lovelace', email: 'ada@example.com', recoveryToken: 't1'),
+        User(name: 'Grace Hopper', email: 'grace@example.com', recoveryToken: 't2'),
       ]),
       User.Table(
         const <User>[
-          User(name: 'Linus Torvalds', email: 'linus@example.com'),
-          User(name: 'Margaret Hamilton', email: 'margaret@example.com'),
+          User(
+              name: 'Linus Torvalds',
+              email: 'linus@example.com',
+              recoveryToken: 't3'),
+          User(
+              name: 'Margaret Hamilton',
+              email: 'margaret@example.com',
+              recoveryToken: 't4'),
         ],
         columns: 2,
       ),
       DVText(
-        'Generated model SQL: ${const User(name: 'Ada', email: 'ada@example.com').createTableSql}',
+        'Generated model SQL: ${const User(name: 'Ada', email: 'ada@example.com', recoveryToken: 'secret').createTableSql}',
       ),
       DVBox.wrap([
         ShowcaseButton('Monthly Report', () {
           final report = UserReport.monthly(const <User>[
-            User(name: 'Ada Lovelace', email: 'ada@example.com'),
-            User(name: 'Grace Hopper', email: 'grace@example.com'),
+            User(
+                name: 'Ada Lovelace',
+                email: 'ada@example.com',
+                recoveryToken: 'tok-ada'),
+            User(
+                name: 'Grace Hopper',
+                email: 'grace@example.com',
+                recoveryToken: 'tok-grace'),
           ]);
           _showMessage(context, 'Report count: ${report.metrics['count']}');
         }),
