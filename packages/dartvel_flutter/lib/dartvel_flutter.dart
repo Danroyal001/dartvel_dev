@@ -3012,8 +3012,23 @@ class DV {
   static DVAccessibility get Accessibility => const DVAccessibility();
   static DVObservabilityAndLogging get ObservabilityAndLogging =>
       const DVObservabilityAndLogging();
-  static DVRust get Rust => const DVRust();
-  static String get currentTenant => 'default';
+  static String _activeTenant = 'default';
+  static String get currentTenant => _activeTenant;
+  static set currentTenant(String tenant) {
+    final trimmed = tenant.trim();
+    _activeTenant = trimmed.isEmpty ? 'default' : trimmed;
+  }
+
+  /// Runs [callback] within the dynamic multi-tenant context of [tenant].
+  static R withTenant<R>(String tenant, R Function() callback) {
+    final previous = _activeTenant;
+    currentTenant = tenant;
+    try {
+      return callback();
+    } finally {
+      _activeTenant = previous;
+    }
+  }
 
   // --- Runtime backend URL ---------------------------------------------------
   // The generated `dartvel_client` wires the app's backend config into these
