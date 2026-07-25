@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 StreamSubscription<String>? _subscription;
 
 @DVPage()
-@DVFunctionalWidget()
 Widget indexPage(BuildContext context) {
   final counter = context.signal(0);
   final isStreaming = context.signal(false);
