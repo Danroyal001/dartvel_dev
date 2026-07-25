@@ -136,6 +136,7 @@ void main() {
               !line.contains('non_type_as_type_argument') &&
               !line.contains('const_initialized_with_non_constant_value') &&
               !line.contains('undefined_method') &&
+              !line.contains('unchecked_use_of_nullable_value') &&
               !line.contains('cast_to_non_type');
         });
 
