@@ -458,6 +458,28 @@ DVBox(DVText("Navigate to user 1"))
     .onPressed(DV.Navigation.to(DVPages.user(id: 1)));
 ```
 
+## Routing engine
+
+The generated router targets **`go_router`** as its runtime engine. This is a
+deliberate, load-bearing choice, not an incidental dependency:
+
+- Type safety and code generation are Dartvel's responsibility, not the
+  router's. Dartvel emits the strongly typed `DVPages`/`DVRoutes` surface, so
+  `go_router`'s own (stringly-typed by default) API is never exposed to
+  application code, and a second code generator such as `auto_route`'s
+  `build_runner` pass is intentionally avoided — it would compete with Dartvel's
+  generator over the same concern.
+- Dartvel is URL-first. Static web generation, web-server rendering, and
+  `sitemap.xml` all require that every route map to exactly one canonical URL.
+  `go_router`'s URL-as-source-of-truth model is the correct foundation for that;
+  deep links resolve to paths directly with no separate mapping layer.
+
+`go_router` is an implementation detail behind the generated navigation surface.
+Application code must use `DV.Navigation`, `DVPages`, and `.navigateToPage(...)`
+rather than importing or calling `go_router` directly, so the engine can evolve
+(for example, generating onto `StatefulShellRoute` for nested-stack navigation)
+without breaking application code.
+
 ---
 
 
