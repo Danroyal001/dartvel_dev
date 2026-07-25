@@ -3020,6 +3020,18 @@ dartvel build sony-elinux-iso
 dartvel build sony-elinux-img
 ```
 
+Each target is driven by the platform's dedicated Flutter embedder rather than
+plain `flutter build`:
+
+- **webOS** → `flutter-webos` (LG)
+- **Tizen** → `flutter-tizen` (Samsung)
+- **Sony eLinux** → `flutter-elinux` (Sony)
+
+Dartvel shells out to these embedders, adapting their invocation behind the
+stable `dartvel build` surface. When an embedder is not installed, the target is
+skipped with a clear message instead of failing the whole build, and
+`dartvel doctor --target <t>` validates that the embedder is present.
+
 ## webOS
 
 `dartvel build webos` packages the application for a configured webOS target
