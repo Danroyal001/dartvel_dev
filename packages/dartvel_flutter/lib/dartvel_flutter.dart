@@ -366,6 +366,7 @@ class DVBox<T> extends StatelessWidget {
         _items = null,
         _itemBuilder = null;
 
+  /// Canonical wrap layout for a static collection of [children].
   const DVBox.wrapLine(
     List<Widget> children, {
     DVModifier? modifier,
@@ -380,6 +381,7 @@ class DVBox<T> extends StatelessWidget {
         _items = null,
         _itemBuilder = null;
 
+  /// Compatibility alias for [DVBox.wrapLine]; prefer `wrapLine` in new code.
   const DVBox.wrap(
     List<Widget> children, {
     DVModifier? modifier,

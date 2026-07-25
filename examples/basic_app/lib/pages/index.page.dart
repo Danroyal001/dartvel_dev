@@ -15,7 +15,7 @@ Widget indexPage(BuildContext context) {
     const Icon(Icons.rocket_launch, size: 64, color: Colors.blue),
     const DVText('Your Dartvel app is ready!').modifier(_titleStyle),
     DVText('Loaded at: ${data?['timestamp'] ?? 'N/A'}'),
-    DVBox.wrap([
+    DVBox.wrapLine([
       Button('Docs', () {}),
       Button('GitHub', () {}),
     ], spacing: 12),
