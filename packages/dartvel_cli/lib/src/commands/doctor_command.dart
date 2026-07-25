@@ -12,8 +12,22 @@ class DoctorCommand extends Command<void> {
   final String description =
       'Check your environment and project for common issues.';
 
+  DoctorCommand() {
+    argParser.addOption(
+      'target',
+      allowed: ['webos', 'tizen', 'sony-elinux'],
+      help: 'Validate the toolchain for a specific embedded/TV build target',
+    );
+  }
+
   @override
   Future<void> run() async {
+    final target = argResults?['target'] as String?;
+    if (target != null) {
+      await _checkTargetToolchain(target);
+      return;
+    }
+
     Logger.log('Dartvel Doctor');
     Logger.log('==================================================\n');
 
@@ -74,6 +88,49 @@ class DoctorCommand extends Command<void> {
       await flutterDoctorProcess.exitCode;
     } catch (_) {
       Logger.log('[!] Could not run flutter doctor');
+    }
+  }
+
+  /// Validates the embedder toolchain required for an embedded/TV build target.
+  Future<void> _checkTargetToolchain(String target) async {
+    Logger.log('Dartvel Doctor — target: $target');
+    Logger.log('==================================================\n');
+
+    // Executable each target's build path invokes; webOS builds via `flutter`.
+    final executable = switch (target) {
+      'tizen' => 'flutter-tizen',
+      'sony-elinux' => 'flutter-elinux',
+      _ => 'flutter',
+    };
+
+    final available = await _isExecutableAvailable(executable);
+    if (available) {
+      Logger.log('[+] $target embedder: $executable found');
+      Logger.log('\n[+] Target $target looks ready to build.');
+    } else {
+      Logger.log('[!] $target embedder: $executable not found on PATH');
+      Logger.log(
+        '    Install the $target Flutter embedder before running '
+        '`dartvel build $target`.',
+      );
+    }
+
+    if (target == 'sony-elinux') {
+      Logger.log(
+        '\n[-] Note: `sony-elinux-iso` and `sony-elinux-img` also require the '
+        'configured Sony eLinux image toolchain for image assembly.',
+      );
+    }
+  }
+
+  Future<bool> _isExecutableAvailable(String executable) async {
+    try {
+      final locator = Platform.isWindows ? 'where' : 'which';
+      final result =
+          await Process.run(locator, [executable], runInShell: true);
+      return result.exitCode == 0;
+    } catch (_) {
+      return false;
     }
   }
 

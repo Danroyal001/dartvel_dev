@@ -68,4 +68,87 @@ void main() {
       );
     });
   });
+
+  group('normalizeBuildTarget', () {
+    test('splits Sony eLinux distribution targets into platform + format', () {
+      expect(
+        normalizeBuildTarget('sony-elinux-iso'),
+        (platform: 'sony-elinux', format: 'iso'),
+      );
+      expect(
+        normalizeBuildTarget('sony-elinux-img'),
+        (platform: 'sony-elinux', format: 'img'),
+      );
+    });
+
+    test('passes non-distribution targets through with a null format', () {
+      expect(
+        normalizeBuildTarget('sony-elinux'),
+        (platform: 'sony-elinux', format: null),
+      );
+      expect(
+        normalizeBuildTarget('all'),
+        (platform: 'all', format: null),
+      );
+    });
+  });
+
+  group('resolveEmbeddedBuildPlan', () {
+    test('builds Tizen through flutter-tizen', () {
+      final plan = resolveEmbeddedBuildPlan(
+        platform: 'tizen',
+        buildMode: '--release',
+        arch: 'arm64',
+        deviceProfile: 'lobby-display',
+      );
+
+      expect(plan, isNotNull);
+      expect(plan!.executable, 'flutter-tizen');
+      expect(plan.arguments, <String>[
+        'build',
+        'tpk',
+        '--release',
+        '--device-profile',
+        'lobby-display',
+      ]);
+    });
+
+    test('builds Sony eLinux through flutter-elinux with target arch', () {
+      final plan = resolveEmbeddedBuildPlan(
+        platform: 'sony-elinux',
+        buildMode: '--release',
+        arch: 'arm64',
+      );
+
+      expect(plan, isNotNull);
+      expect(plan!.executable, 'flutter-elinux');
+      expect(plan.arguments, <String>[
+        'build',
+        'elinux',
+        '--release',
+        '--target-arch',
+        'arm64',
+      ]);
+    });
+
+    test('returns null for non-embedded platforms', () {
+      expect(
+        resolveEmbeddedBuildPlan(
+          platform: 'android',
+          buildMode: '--release',
+          arch: 'arm64',
+        ),
+        isNull,
+      );
+    });
+  });
+
+  group('allBuildPlatforms', () {
+    test('includes tizen and sony-elinux but not distribution images', () {
+      expect(allBuildPlatforms, contains('tizen'));
+      expect(allBuildPlatforms, contains('sony-elinux'));
+      expect(allBuildPlatforms, isNot(contains('sony-elinux-iso')));
+      expect(allBuildPlatforms, isNot(contains('sony-elinux-img')));
+    });
+  });
 }
