@@ -103,6 +103,26 @@ class DVSearchable {
   const DVSearchable();
 }
 
+/// Marks a model field as sensitive.
+///
+/// By default a sensitive field is excluded from public serialization
+/// (`toPublicJson`), generated model pages/tables/cards, search indexing,
+/// analytics, traces, and logs, and requires explicit policy authorization
+/// before it can be sent to clients. Set [encrypted] to request at-rest
+/// encryption, and use [showInForms]/[showInAdmin] to opt specific generated
+/// UI surfaces back in.
+class DVSensitiveModelField {
+  final bool encrypted;
+  final bool showInForms;
+  final bool showInAdmin;
+
+  const DVSensitiveModelField({
+    this.encrypted = false,
+    this.showInForms = false,
+    this.showInAdmin = false,
+  });
+}
+
 /// Annotation for a Dartvel Backend Function
 class DVBackendFunction {
   final String? policy;

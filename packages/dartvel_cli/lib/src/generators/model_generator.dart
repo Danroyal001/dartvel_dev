@@ -85,6 +85,16 @@ class ModelGenerator {
             'name': m.group(2)!,
           });
         }
+        // Fields marked @DVSensitiveModelField(...): excluded from public
+        // serialization and generated display by default.
+        final sensitiveFieldNames = <String>{};
+        final sensitiveFieldRegex = RegExp(
+          r'@DVSensitiveModelField\s*\([^)]*\)\s*final\s+.+?\s+([A-Za-z0-9_]+)\s*;',
+          dotAll: true,
+        );
+        for (final m in sensitiveFieldRegex.allMatches(content)) {
+          sensitiveFieldNames.add(m.group(1)!);
+        }
 
         // Generate the public runtime model. The annotated source class is a
         // private schema input; application code uses this generated class.
@@ -103,6 +113,12 @@ class ModelGenerator {
           sb.writeln('    required this.$name,');
         }
         sb.writeln('  });');
+        sb.writeln();
+        sb.writeln(
+            '  /// Field names marked @DVSensitiveModelField, excluded from');
+        sb.writeln('  /// public serialization and generated display.');
+        sb.writeln(
+            '  static const Set<String> sensitiveFields = <String>{${sensitiveFieldNames.map((n) => "'$n'").join(', ')}};');
         sb.writeln();
         sb.writeln('  /// Generated form component for [$className].');
         sb.writeln('  static Widget Form($className model) {');
@@ -146,6 +162,7 @@ class ModelGenerator {
         sb.writeln('    return DVBox.list([');
         for (final field in fields) {
           final name = field['name']!;
+          if (sensitiveFieldNames.contains(name)) continue;
           sb.writeln('      DVText(model.$name.toString()),');
         }
         sb.writeln('    ]).modifier(const DVModifier().card());');
@@ -162,6 +179,19 @@ class ModelGenerator {
         sb.writeln('  Map<String, Object?> toJson() => {');
         for (final field in fields) {
           final name = field['name']!;
+          sb.writeln("    '$name': $name,");
+        }
+        sb.writeln('  };');
+
+        // toPublicJson (excludes @DVSensitiveModelField fields)
+        sb.writeln();
+        sb.writeln(
+            '  /// Serializes [$className] for client/public output, omitting');
+        sb.writeln('  /// @DVSensitiveModelField fields.');
+        sb.writeln('  Map<String, Object?> toPublicJson() => {');
+        for (final field in fields) {
+          final name = field['name']!;
+          if (sensitiveFieldNames.contains(name)) continue;
           sb.writeln("    '$name': $name,");
         }
         sb.writeln('  };');
