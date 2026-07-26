@@ -175,4 +175,53 @@ void main() {
       expect(embeddedBuildPlatforms, contains('webos'));
     });
   });
+
+  group('resolveRequestedPlatform', () {
+    String resolve(List<String> positional,
+            {String option = 'all', bool wasParsed = false}) =>
+        resolveRequestedPlatform(
+          positional: positional,
+          optionValue: option,
+          optionWasParsed: wasParsed,
+        );
+
+    test('honours the documented positional form', () {
+      // Regression: `dartvel build web` used to ignore the argument entirely
+      // and build every platform.
+      expect(resolve(['web']), 'web');
+      expect(resolve(['tizen']), 'tizen');
+      expect(resolve(['webos']), 'webos');
+      expect(resolve(['sony-elinux']), 'sony-elinux');
+    });
+
+    test('accepts alias and distribution target names positionally', () {
+      expect(resolve(['tpk']), 'tpk');
+      expect(resolve(['sony-elinux-iso']), 'sony-elinux-iso');
+      expect(resolve(['sony-elinux-img']), 'sony-elinux-img');
+    });
+
+    test('falls back to the option when nothing is positional', () {
+      expect(resolve([]), 'all');
+      expect(resolve([], option: 'android', wasParsed: true), 'android');
+    });
+
+    test('allows the positional and option forms to agree', () {
+      expect(resolve(['web'], option: 'web', wasParsed: true), 'web');
+    });
+
+    test('rejects an unknown platform instead of building everything', () {
+      expect(() => resolve(['wbe']), throwsFormatException);
+    });
+
+    test('rejects conflicting positional and option platforms', () {
+      expect(
+        () => resolve(['web'], option: 'android', wasParsed: true),
+        throwsFormatException,
+      );
+    });
+
+    test('rejects more than one positional platform', () {
+      expect(() => resolve(['web', 'android']), throwsFormatException);
+    });
+  });
 }

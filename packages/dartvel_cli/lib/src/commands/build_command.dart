@@ -32,27 +32,77 @@ const allBuildPlatforms = <String>[
   ...embeddedBuildPlatforms,
 ];
 
+/// Everything `dartvel build <platform>` accepts, positionally or via
+/// `--platform`. Includes the distribution-image and alias target names, which
+/// [normalizeBuildTarget] resolves to a base platform.
+const buildPlatformArguments = <String>[
+  ...allBuildPlatforms,
+  'tpk',
+  'sony-elinux-iso',
+  'sony-elinux-img',
+  'all',
+];
+
+/// Resolves which platform to build from the positional argument and the
+/// `--platform` option.
+///
+/// The documented surface is positional (`dartvel build web`,
+/// `dartvel build tizen`), so a positional argument wins. `--platform` remains
+/// supported, and giving both is an error rather than a silent preference —
+/// picking one would build something the user did not ask for.
+///
+/// Throws [FormatException] on an unknown or ambiguous request.
+String resolveRequestedPlatform({
+  required List<String> positional,
+  required String optionValue,
+  required bool optionWasParsed,
+}) {
+  if (positional.length > 1) {
+    throw FormatException(
+      'Expected at most one platform, got: ${positional.join(', ')}. '
+      'Build one platform at a time, or use "all".',
+    );
+  }
+
+  if (positional.isEmpty) return optionValue;
+
+  final requested = positional.first;
+  if (!buildPlatformArguments.contains(requested)) {
+    throw FormatException(
+      '"$requested" is not a known build platform. '
+      'Allowed: ${buildPlatformArguments.join(', ')}.',
+    );
+  }
+
+  if (optionWasParsed && optionValue != requested) {
+    throw FormatException(
+      'Conflicting platforms: "$requested" and --platform=$optionValue. '
+      'Pass only one.',
+    );
+  }
+
+  return requested;
+}
+
 class BuildCommand extends Command<void> {
   @override
   final String name = 'build';
 
   @override
-  String get description => 'Build for production (all platforms).';
+  String get description =>
+      'Build for production. Pass a platform (dartvel build web) or omit it to '
+      'build every available platform.';
+
+  @override
+  String get invocation => 'dartvel build [platform]';
 
   BuildCommand() {
     argParser
       ..addOption('platform',
           abbr: 'p',
-          allowed: [
-            ...flutterBuildPlatforms,
-            ...embeddedBuildPlatforms,
-            'tpk',
-            'sony-elinux-iso',
-            'sony-elinux-img',
-            'all',
-          ],
+          allowed: buildPlatformArguments,
           defaultsTo: 'all',
-          help: 'Target platform')
+          help: 'Target platform (or pass it positionally)')
       ..addFlag('release', defaultsTo: true, help: 'Build in release mode')
       ..addFlag('profile', defaultsTo: false, help: 'Build in profile mode')
       ..addOption('target', abbr: 't', help: 'Target entry point')
@@ -77,7 +127,19 @@ class BuildCommand extends Command<void> {
   @override
   Future<void> run() async {
     final root = Directory.current.path;
-    final rawPlatform = argResults?['platform'] as String;
+
+    final String rawPlatform;
+    try {
+      rawPlatform = resolveRequestedPlatform(
+        positional: argResults?.rest ?? const <String>[],
+        optionValue: argResults?['platform'] as String,
+        optionWasParsed: argResults?.wasParsed('platform') ?? false,
+      );
+    } on FormatException catch (error) {
+      Logger.log('❌ ${error.message}');
+      exit(64); // EX_USAGE
+    }
+
     final isRelease = argResults?['release'] as bool;
     final isProfile = argResults?['profile'] as bool;
     final target = argResults?['target'] as String?;
