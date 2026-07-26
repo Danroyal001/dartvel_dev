@@ -1,0 +1,354 @@
+import 'dart:io';
+
+import 'logger.dart';
+
+/// How a missing build tool can be obtained.
+enum InstallMethod {
+  /// Dartvel can fetch and install it unattended.
+  automatic,
+
+  /// A vendor installer, licence acceptance, or platform SDK that Dartvel must
+  /// not install on the user's behalf. Dartvel explains, the user decides.
+  manual,
+}
+
+/// A single tool a platform needs before `dartvel build <platform>` can work.
+class ToolRequirement {
+  const ToolRequirement({
+    required this.executable,
+    required this.name,
+    required this.installHint,
+    this.installCommand,
+    this.pathHint,
+  });
+
+  /// The executable that must resolve on PATH for this requirement to be met.
+  final String executable;
+
+  /// Human-readable name used in messages.
+  final String name;
+
+  /// What the user should do if Dartvel cannot install this itself.
+  final String installHint;
+
+  /// The command Dartvel runs to install this, or null when it cannot.
+  final List<String>? installCommand;
+
+  /// Directory to add to PATH after an automatic install, when the tool does
+  /// not land somewhere already on PATH.
+  final String? pathHint;
+
+  InstallMethod get method =>
+      installCommand == null ? InstallMethod.manual : InstallMethod.automatic;
+}
+
+/// Where Dartvel installs toolchains it manages itself.
+String dartvelToolchainRoot(String home) => '$home/.dartvel/toolchains';
+
+/// The tools [platform] needs, beyond a working Flutter SDK.
+///
+/// Host support is a separate question answered by `isPlatformAvailableOn`;
+/// this describes what must be *installed*, assuming the host can build the
+/// target at all.
+List<ToolRequirement> toolRequirementsFor(String platform, {String home = ''}) {
+  final root = dartvelToolchainRoot(home);
+
+  switch (platform) {
+    case 'web':
+      // Flutter's own web toolchain; nothing extra to install.
+      return const <ToolRequirement>[];
+
+    case 'android':
+    case 'fireos':
+      return const <ToolRequirement>[
+        ToolRequirement(
+          executable: 'sdkmanager',
+          name: 'Android SDK',
+          installHint:
+              'Install the Android SDK (Android Studio, or the command-line '
+              'tools) and set ANDROID_HOME. See '
+              'https://developer.android.com/studio',
+        ),
+      ];
+
+    case 'linux':
+      return const <ToolRequirement>[
+        ToolRequirement(
+          executable: 'clang',
+          name: 'Clang',
+          installHint: 'sudo apt-get install clang',
+          installCommand: <String>['sudo', 'apt-get', 'install', '-y', 'clang'],
+        ),
+        ToolRequirement(
+          executable: 'cmake',
+          name: 'CMake',
+          installHint: 'sudo apt-get install cmake',
+          installCommand: <String>['sudo', 'apt-get', 'install', '-y', 'cmake'],
+        ),
+        ToolRequirement(
+          executable: 'ninja',
+          name: 'Ninja',
+          installHint: 'sudo apt-get install ninja-build',
+          installCommand: <String>[
+            'sudo', 'apt-get', 'install', '-y', 'ninja-build',
+          ],
+        ),
+        ToolRequirement(
+          executable: 'pkg-config',
+          name: 'pkg-config and GTK 3 headers',
+          installHint: 'sudo apt-get install pkg-config libgtk-3-dev',
+          installCommand: <String>[
+            'sudo', 'apt-get', 'install', '-y', 'pkg-config', 'libgtk-3-dev',
+          ],
+        ),
+      ];
+
+    case 'windows':
+      return const <ToolRequirement>[
+        ToolRequirement(
+          executable: 'cl',
+          name: 'Visual Studio C++ build tools',
+          installHint:
+              'Install Visual Studio with the "Desktop development with C++" '
+              'workload. See https://visualstudio.microsoft.com/downloads/',
+        ),
+      ];
+
+    case 'macos':
+    case 'ios':
+    case 'tvos':
+      return const <ToolRequirement>[
+        ToolRequirement(
+          executable: 'xcodebuild',
+          name: 'Xcode',
+          installHint:
+              'Install Xcode from the App Store, then run '
+              '`sudo xcode-select --install`.',
+        ),
+      ];
+
+    case 'tizen':
+      return <ToolRequirement>[
+        ToolRequirement(
+          executable: 'flutter-tizen',
+          name: 'flutter-tizen embedder',
+          installHint:
+              'git clone https://github.com/Danroyal001/flutter-tizen.git '
+              'and add its bin/ to PATH.',
+          installCommand: <String>[
+            'git', 'clone', '--depth', '1',
+            'https://github.com/Danroyal001/flutter-tizen.git',
+            '$root/flutter-tizen',
+          ],
+          pathHint: '$root/flutter-tizen/bin',
+        ),
+        const ToolRequirement(
+          executable: 'tizen',
+          name: 'Tizen Studio SDK',
+          installHint:
+              'Install the Tizen SDK (native CLI, the tizen-core "tz" tool, a '
+              'GCC cross-toolchain, and a device rootstrap), then add '
+              '<tizen-studio>/tools and <tizen-studio>/tools/ide/bin to PATH. '
+              'A signing certificate is also required: '
+              '`tizen certificate` followed by `tizen security-profiles add`.',
+        ),
+      ];
+
+    case 'sony-elinux':
+      return <ToolRequirement>[
+        ToolRequirement(
+          executable: 'flutter-elinux',
+          name: 'flutter-elinux embedder',
+          installHint:
+              'git clone https://github.com/Danroyal001/flutter-elinux.git '
+              'and add its bin/ to PATH.',
+          installCommand: <String>[
+            'git', 'clone', '--depth', '1',
+            'https://github.com/Danroyal001/flutter-elinux.git',
+            '$root/flutter-elinux',
+          ],
+          pathHint: '$root/flutter-elinux/bin',
+        ),
+      ];
+
+    case 'webos':
+      return <ToolRequirement>[
+        ToolRequirement(
+          executable: 'flutter-webos',
+          name: 'flutter-webos embedder',
+          installHint:
+              'git clone https://github.com/Danroyal001/flutter-webos.git '
+              'and add its bin/ to PATH.',
+          installCommand: <String>[
+            'git', 'clone', '--depth', '1',
+            'https://github.com/Danroyal001/flutter-webos.git',
+            '$root/flutter-webos',
+          ],
+          pathHint: '$root/flutter-webos/bin',
+        ),
+        const ToolRequirement(
+          executable: 'ares',
+          name: 'webOS CLI (ares)',
+          installHint: 'npm install -g @webos-tools/cli',
+          installCommand: <String>[
+            'npm', 'install', '-g', '@webos-tools/cli',
+          ],
+        ),
+      ];
+
+    default:
+      return const <ToolRequirement>[];
+  }
+}
+
+/// The subset of [toolRequirementsFor] that is not currently installed.
+///
+/// [isInstalled] is injected so the decision is testable without touching the
+/// host's real PATH.
+List<ToolRequirement> missingRequirements(
+  String platform, {
+  required bool Function(String executable) isInstalled,
+  String home = '',
+}) {
+  return toolRequirementsFor(platform, home: home)
+      .where((requirement) => !isInstalled(requirement.executable))
+      .toList(growable: false);
+}
+
+/// Whether Dartvel is running unattended and must not wait on a prompt.
+///
+/// Honours the `CI` convention that every major CI provider sets, plus the
+/// provider-specific variables for the ones that historically did not.
+bool isCiEnvironment(Map<String, String> environment) {
+  const truthy = <String>{'true', '1', 'yes'};
+  if (truthy.contains((environment['CI'] ?? '').toLowerCase())) {
+    return true;
+  }
+  const providerVariables = <String>[
+    'GITHUB_ACTIONS',
+    'GITLAB_CI',
+    'BUILDKITE',
+    'CIRCLECI',
+    'TF_BUILD',
+  ];
+  return providerVariables.any((name) => environment.containsKey(name));
+}
+
+/// What to do about missing tools, before any prompting happens.
+enum AutoInstallDecision {
+  /// Nothing is missing.
+  nothingToDo,
+
+  /// Install without asking (CI, or an explicit --yes/--auto-install).
+  installWithoutPrompting,
+
+  /// Ask the user first.
+  prompt,
+
+  /// The user opted out; report and skip.
+  declined,
+}
+
+/// Decides how to handle missing tools.
+///
+/// In CI, prompting would hang the job forever, so an unattended run installs
+/// what it can. An explicit `--no-auto-install` always wins, including in CI,
+/// so a pipeline can demand a pre-provisioned image.
+AutoInstallDecision decideAutoInstall({
+  required bool hasMissing,
+  required bool isCi,
+  bool? autoInstallFlag,
+}) {
+  if (!hasMissing) return AutoInstallDecision.nothingToDo;
+  if (autoInstallFlag == false) return AutoInstallDecision.declined;
+  if (autoInstallFlag == true || isCi) {
+    return AutoInstallDecision.installWithoutPrompting;
+  }
+  return AutoInstallDecision.prompt;
+}
+
+/// Whether [executable] resolves on the current PATH.
+bool isExecutableOnPath(String executable) {
+  try {
+    final locator = Platform.isWindows ? 'where' : 'which';
+    final result = Process.runSync(locator, <String>[executable],
+        runInShell: true);
+    return result.exitCode == 0;
+  } catch (_) {
+    return false;
+  }
+}
+
+/// Asks the user whether to install [missing]. Returns false when stdin cannot
+/// be read, so a non-interactive shell never blocks.
+bool promptForInstall(List<ToolRequirement> missing) {
+  final installable =
+      missing.where((r) => r.method == InstallMethod.automatic).toList();
+  if (installable.isEmpty) return false;
+
+  Logger.log('');
+  Logger.log('Dartvel can install ${installable.length} of these for you:');
+  for (final requirement in installable) {
+    Logger.log('   • ${requirement.name}');
+  }
+  stdout.write('Install now? [Y/n] ');
+
+  try {
+    final answer = stdin.readLineSync()?.trim().toLowerCase() ?? '';
+    return answer.isEmpty || answer == 'y' || answer == 'yes';
+  } on StdinException {
+    // No terminal attached; treat as declined rather than hanging.
+    return false;
+  } catch (_) {
+    return false;
+  }
+}
+
+/// Installs what it can and returns the requirements still missing afterwards.
+Future<List<ToolRequirement>> installRequirements(
+  List<ToolRequirement> missing,
+) async {
+  final stillMissing = <ToolRequirement>[];
+
+  for (final requirement in missing) {
+    final command = requirement.installCommand;
+    if (command == null) {
+      stillMissing.add(requirement);
+      continue;
+    }
+
+    Logger.log('📥 Installing ${requirement.name}...');
+    final result = await Process.run(
+      command.first,
+      command.sublist(1),
+      runInShell: true,
+    );
+
+    if (result.exitCode != 0) {
+      Logger.log('⚠️  Failed to install ${requirement.name}.');
+      final stderrText = (result.stderr as Object?)?.toString().trim() ?? '';
+      if (stderrText.isNotEmpty) {
+        Logger.log('   ${stderrText.split('\n').first}');
+      }
+      stillMissing.add(requirement);
+      continue;
+    }
+
+    Logger.log('✅ Installed ${requirement.name}.');
+    if (requirement.pathHint != null) {
+      Logger.log('   Add to PATH: ${requirement.pathHint}');
+    }
+  }
+
+  return stillMissing;
+}
+
+/// Prints what the user must do for anything Dartvel could not install.
+void reportUnresolved(String platform, List<ToolRequirement> unresolved) {
+  Logger.log('');
+  Logger.log('⚠️  $platform needs tools Dartvel cannot install for you:');
+  for (final requirement in unresolved) {
+    Logger.log('   • ${requirement.name}');
+    Logger.log('     ${requirement.installHint}');
+  }
+}
