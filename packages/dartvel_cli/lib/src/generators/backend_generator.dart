@@ -959,20 +959,6 @@ class DartvelClient {
     }
   }
 
-  static String _argumentList(String parameters) {
-    if (parameters.trim().isEmpty) return '';
-    return parameters
-        .split(',')
-        .map((parameter) => parameter
-            .replaceAll('required ', '')
-            .replaceAll(RegExp(r'=.*$'), '')
-            .trim())
-        .where((parameter) => parameter.isNotEmpty)
-        .map((parameter) {
-      final match = RegExp(r'([A-Za-z_][A-Za-z0-9_]*)$').firstMatch(parameter);
-      return match?.group(1) ?? parameter;
-    }).join(', ');
-  }
 
   static Future<void> _validateMiddlewareAnnotations(String root) async {
     const supported = <String>{

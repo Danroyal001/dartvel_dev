@@ -203,8 +203,3 @@ Future<List<String>> blogPaths() async => <String>['hello'];
     });
   });
 }
-
-extension _CountMatches on String {
-  Iterable<Match> allMatches(String input) => RegExp(RegExp.escape(this))
-      .allMatches(input);
-}
