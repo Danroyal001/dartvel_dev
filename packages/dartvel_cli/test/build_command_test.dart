@@ -224,4 +224,45 @@ void main() {
       expect(() => resolve(['web', 'android']), throwsFormatException);
     });
   });
+
+  group('isPlatformAvailableOn', () {
+    test('does not claim desktop targets cross-compile', () {
+      // Regression: `windows` claimed availability on Linux, so
+      // `dartvel build windows` hard-failed there instead of skipping.
+      expect(isPlatformAvailableOn('windows', 'linux'), isFalse);
+      expect(isPlatformAvailableOn('windows', 'macos'), isFalse);
+      expect(isPlatformAvailableOn('linux', 'macos'), isFalse);
+      expect(isPlatformAvailableOn('linux', 'windows'), isFalse);
+    });
+
+    test('builds each desktop target on its own host', () {
+      expect(isPlatformAvailableOn('windows', 'windows'), isTrue);
+      expect(isPlatformAvailableOn('linux', 'linux'), isTrue);
+      expect(isPlatformAvailableOn('macos', 'macos'), isTrue);
+    });
+
+    test('gates the Apple targets on macOS', () {
+      for (final platform in ['ios', 'macos', 'tvos']) {
+        expect(isPlatformAvailableOn(platform, 'macos'), isTrue);
+        expect(isPlatformAvailableOn(platform, 'linux'), isFalse);
+        expect(isPlatformAvailableOn(platform, 'windows'), isFalse);
+      }
+    });
+
+    test('treats web and the Android family as host-independent', () {
+      for (final host in ['linux', 'macos', 'windows']) {
+        expect(isPlatformAvailableOn('web', host), isTrue);
+        expect(isPlatformAvailableOn('android', host), isTrue);
+        expect(isPlatformAvailableOn('fireos', host), isTrue);
+      }
+    });
+
+    test('reports embedder targets as unavailable to the Flutter path', () {
+      // Embedded targets route through _buildEmbedded, which checks for the
+      // embedder executable instead.
+      for (final platform in embeddedBuildPlatforms) {
+        expect(isPlatformAvailableOn(platform, 'linux'), isFalse);
+      }
+    });
+  });
 }

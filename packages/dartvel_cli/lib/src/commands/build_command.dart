@@ -84,6 +84,37 @@ String resolveRequestedPlatform({
   return requested;
 }
 
+/// Whether [platform] can be built from a [hostOs] (a `Platform.operatingSystem`
+/// value such as `linux`, `macos`, or `windows`).
+///
+/// Flutter has no cross-compilation for desktop targets: a Windows desktop
+/// build needs Windows and Visual Studio, a Linux desktop build needs Linux
+/// with clang and GTK, and the Apple targets need macOS. Claiming otherwise
+/// does not enable a build — it turns an unbuildable target into a hard
+/// failure instead of a clean skip.
+///
+/// Web is host-independent. Android and its `fireos` variant are treated as
+/// available everywhere because they depend on the Android SDK rather than the
+/// host OS; a missing SDK surfaces as Flutter's own diagnostic.
+bool isPlatformAvailableOn(String platform, String hostOs) {
+  switch (platform) {
+    case 'web':
+    case 'android':
+    case 'fireos':
+      return true;
+    case 'ios':
+    case 'macos':
+    case 'tvos':
+      return hostOs == 'macos';
+    case 'windows':
+      return hostOs == 'windows';
+    case 'linux':
+      return hostOs == 'linux';
+    default:
+      return false;
+  }
+}
+
 class BuildCommand extends Command<void> {
   @override
   final String name = 'build';
@@ -361,25 +392,8 @@ class BuildCommand extends Command<void> {
     return _PlatformBuildResult.succeeded;
   }
 
-  Future<bool> _isPlatformAvailable(String platform) async {
-    switch (platform) {
-      case 'android':
-      case 'fireos':
-        return true; // Usually available
-      case 'ios':
-      case 'macos':
-      case 'tvos':
-        return Platform.isMacOS;
-      case 'windows':
-        return Platform.isWindows || Platform.isLinux; // Cross-compile possible
-      case 'linux':
-        return Platform.isLinux || Platform.isMacOS;
-      case 'web':
-        return true;
-      default:
-        return false;
-    }
-  }
+  Future<bool> _isPlatformAvailable(String platform) async =>
+      isPlatformAvailableOn(platform, Platform.operatingSystem);
 
   Future<bool> _isExecutableAvailable(String executable) async {
     try {
