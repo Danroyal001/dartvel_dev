@@ -6,6 +6,7 @@ import '../utils/logger.dart';
 import 'backend_generator.dart';
 import 'client_generator.dart';
 import 'model_generator.dart';
+import 'static_paths_generator.dart';
 
 Future<void> generate({bool validateProd = false}) async {
   final root = Directory.current.path;
@@ -84,6 +85,15 @@ Future<void> generate({bool validateProd = false}) async {
 
   // Generate Models
   await ModelGenerator.generate(
+    root: root,
+    pkgName: pkgName,
+    buildId: buildId,
+  );
+
+  // Generate static paths for parameterized routes. Static generation cannot
+  // enumerate a parameterized route on its own, so @DVStaticPaths() providers
+  // are collected into a manifest here.
+  await StaticPathsGenerator.generate(
     root: root,
     pkgName: pkgName,
     buildId: buildId,
