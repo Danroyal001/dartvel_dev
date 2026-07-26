@@ -6,7 +6,7 @@ import 'package:dartvel_core/dartvel.dart';
 class _User {
   final String name;
   final String email;
-  @DVSensitiveModelField()
+  @DVModel.sensitiveField()
   final String recoveryToken;
 
   const _User({

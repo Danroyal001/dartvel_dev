@@ -5,7 +5,7 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 void main() {
-  test('model generator excludes @DVSensitiveModelField from public surfaces',
+  test('model generator excludes @DVModel.sensitiveField from public surfaces',
       () async {
     final root =
         await Directory.systemTemp.createTemp('dartvel_sensitive_test_');
@@ -21,7 +21,7 @@ import 'package:dartvel_core/dartvel.dart';
 class _User {
   final String id;
   final String name;
-  @DVSensitiveModelField()
+  @DVModel.sensitiveField()
   final String nationalId;
 
   const _User({
@@ -62,6 +62,50 @@ class _User {
       // Generated Card display omits the sensitive field but keeps others.
       expect(content, isNot(contains('DVText(model.nationalId.toString())')));
       expect(content, contains('DVText(model.name.toString())'));
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
+  test('the deprecated @DVSensitiveModelField spelling still generates',
+      () async {
+    // The annotation moved under DVModel, but the old spelling is only
+    // deprecated, not removed. It must keep working until it is dropped.
+    final root =
+        await Directory.systemTemp.createTemp('dartvel_sensitive_legacy_');
+    try {
+      Directory(p.join(root.path, 'lib', 'models')).createSync(recursive: true);
+      Directory(p.join(root.path, 'lib', 'dartvel_client'))
+          .createSync(recursive: true);
+      File(p.join(root.path, 'lib', 'models', 'user.dart'))
+          .writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVModel()
+class _User {
+  final String id;
+  @DVSensitiveModelField()
+  final String nationalId;
+
+  const _User({required this.id, required this.nationalId});
+}
+''');
+
+      await ModelGenerator.generate(
+        root: root.path,
+        pkgName: 'legacy_app',
+        buildId: 'test-build',
+      );
+
+      final content = File(
+        p.join(root.path, 'lib', 'dartvel_client', 'models.g.dart'),
+      ).readAsStringSync();
+
+      expect(
+        content,
+        contains(
+            "static const Set<String> sensitiveFields = <String>{'nationalId'};"),
+      );
     } finally {
       root.deleteSync(recursive: true);
     }
