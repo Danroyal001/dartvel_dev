@@ -1,5 +1,18 @@
 # New Spec v2
 
+> ## ⚠️ This is a design specification, not release notes
+>
+> This document describes Dartvel's intended design. It is **not** a
+> description of what ships today, and several surfaces below have no
+> implementation yet — notably `DV.lifecycle.*`, `DV.Modules.<id>`,
+> `DV.transaction(...)` with `context.afterCommit`/`context.compensate`,
+> `@DVStaticPaths()`, and the `Model.Page` data modes.
+>
+> Where this spec and the code disagree, **the code wins**. For what is
+> actually implemented today, see the *Alpha status* section of
+> [README.md](README.md); for per-target build status backed by evidence, see
+> [docs/build-targets.md](docs/build-targets.md).
+
 # Dartvel — The Complete Vision
 
 > **Flutter's Laravel, Flutter's Expo, Flutter's Next.js, Flutter's Hasura.**
@@ -1659,7 +1672,7 @@ Search integrates with queues, model lifecycle signals, tenant scoping, and
 authorization policies.
 
 Generated behavior:
-- `@DVSearchable()` on model properties generates typed index documents.
+- `@DVModel.searchableField()` on model properties generates typed index documents.
 - model lifecycle signals enqueue index, update, and delete jobs.
 - search results preserve model types and policy filters.
 - tenant, locale, and soft-delete filters are applied automatically.
@@ -1668,7 +1681,7 @@ Generated behavior:
 
 ```dart
 @DVModel(searchable: true)
-class _User (@DVSearchable String name);
+class _User (@DVModel.searchableField() String name);
 
 final page = await User.Search.query(
   'ada',
@@ -1739,7 +1752,7 @@ if (await DV.Billing.hasEntitlement(user, Entitlement.analytics)) {
 Certain models can be recorded as billable:
 ```dart
 @DVModel(billable: true, nativePrice: 100)
-class _Book(@DVSearchable String title);
+class _Book(@DVModel.searchableField() String title);
 ```
 
 Native prices use the `nativeCurrency` setting under the `dartvel:` pubspec
@@ -2865,7 +2878,7 @@ cron functions, and models.
 
 # Sensitive Model Fields
 
-`@DVSensitiveModelField()` marks a model field as sensitive. By default such a
+`@DVModel.sensitiveField()` marks a model field as sensitive. By default such a
 field is redacted from logs; excluded from AI context, traces, analytics, public
 serialization, search indexing, and Open Graph/structured data; hidden from
 generated model pages, tables, and admin views; protected from accidental debug
@@ -2875,9 +2888,9 @@ printing; subject to stricter authorization; and audited when accessed.
 @DVModel()
 class _User(
   final String name,
-  @DVSensitiveModelField() final String nationalId,
-  @DVSensitiveModelField(encrypted: true) final String recoveryToken,
-  @DVSensitiveModelField(showInForms: true, showInAdmin: false)
+  @DVModel.sensitiveField() final String nationalId,
+  @DVModel.sensitiveField(encrypted: true) final String recoveryToken,
+  @DVModel.sensitiveField(showInForms: true, showInAdmin: false)
   final String recoveryEmail,
 );
 ```

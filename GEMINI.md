@@ -42,6 +42,14 @@ Everything else is automatically compiled, generated, or served by the framework
 
 Reference ./NEW_SPEC.md for the full new spec.
 
+**The table above states intended design, not verified shipping status.** As of
+this writing `DV.lifecycle.*`, `DV.Modules.<id>`, `DV.transaction(...)` with
+`context.afterCommit`/`context.compensate`, and `@DVStaticPaths()` are
+specified but have **no implementation**. Do not describe them to users as
+working, and do not mark anything "✅ Implemented" in user-facing docs without
+checking the code. Per-target build status lives in `docs/build-targets.md`,
+where "verified" means the command was run and the artifact inspected.
+
 ## Public API Shape Rules
 
 - Authorization belongs under `DV.Auth.authorization`; do not add or use a top-level `DV.Authorization`.
@@ -57,7 +65,7 @@ Reference ./NEW_SPEC.md for the full new spec.
 - Reversible operations use `DV.transaction((DVContext context) async { ... })` with `context.afterCommit(...)` and `context.compensate(...)`; do not add a separate saga/unit-of-work primitive.
 - Raw HTTP exposure stays on `@DVBackendFunction` via `rawPath`/`rawPathSuffix` (mutually exclusive); do not add `@DVRawRoute`. When a backend function's first parameter is `DVContext`, it is injected and is not a client-supplied argument.
 - Background/durable work stays on `@DVJob`/`DV.Jobs`/`DVQueues`; `@DVBackendFunction(background: true, durable: true)` is sugar that compiles onto that layer, not a new primitive.
-- Sensitive model fields use `@DVSensitiveModelField()`; they are excluded from logs, AI context, traces, analytics, public serialization, search, model pages, tables, and admin by default and require explicit policy authorization before reaching clients.
+- Sensitive model fields use `@DVModel.sensitiveField()`; they are excluded from logs, AI context, traces, analytics, public serialization, search, model pages, tables, and admin by default and require explicit policy authorization before reaching clients.
 - Generated model pages are `Model.Page(...)` static members (`.async`, `.signal`, `.fromId`); do not add top-level `ModelPage(...)` wrappers. SSG/static paths use `@DVStaticPaths()` or `@DVModel(generatePublicPages: true)`.
 - A Dartvel module is a full Dartvel application boundary configured under `dartvel.module`/`dartvel.modules` in `pubspec.yaml`; parents access it via generated `DV.Modules.<id>`. Module code must not hard-code its mount point.
 

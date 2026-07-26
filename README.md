@@ -6,6 +6,40 @@
 
 ---
 
+## ⚠️ Alpha status — read this first
+
+Dartvel is an **alpha**. It is usable and much of it is real, but it is not
+finished, and this section exists so you can tell the difference without
+reading the source.
+
+**[NEW_SPEC.md](NEW_SPEC.md) is a design specification, not a description of
+what ships today.** Where the spec and this README disagree with the code, the
+code wins.
+
+**Specified but not implemented.** These appear in the spec and have no
+implementation yet — do not build against them:
+
+| Surface | Status |
+| :--- | :--- |
+| `DV.lifecycle.*` (lifecycle enum signals) | Not implemented |
+| `DV.Modules.<id>` (module system) | Not implemented |
+| `DV.transaction(...)`, `context.afterCommit`, `context.compensate` | Not implemented (database transactions exist separately) |
+| `@DVStaticPaths()`, `Model.Page.async/.signal/.fromId` | Not implemented |
+
+**Implemented, but not equally mature.** The feature table below marks each
+area. Anything flagged ⚠️ Scaffold has an API surface and prebuilt pieces, but
+provider integrations are incomplete — expect to fill gaps yourself.
+
+**Build targets** are individually verified with evidence in
+[docs/build-targets.md](docs/build-targets.md); four of them can only be built
+on hosts this project does not develop on, and two TV targets do not yet
+produce a runnable app.
+
+If you hit something that claims to work and does not, that is a bug in these
+docs as much as in the code — please report it.
+
+---
+
 ## 📖 The Complete Vision
 
 Dartvel simplifies developer workflows. Instead of writing controllers, repositories, DTOs, route maps, or boilerplate state folders, you primarily write:
@@ -33,7 +67,7 @@ Everything else is automatically compiled, generated, or served by the framework
 | **Database & Cache** | API surface plus local primitives; external DB/Redis adapters are not complete | ⚠️ Partial |
 | **PWA & SEO** | Automatic PWA manifest/worker & runtime/global SEO injection | ✅ Implemented |
 | **AI Integration** | API surface and annotations; provider calls are not complete | ⚠️ Scaffold |
-| **Sensitive Fields** | `@DVSensitiveModelField()` redacts fields from public serialization, cards, logs, and AI context | ✅ Implemented |
+| **Sensitive Fields** | `@DVModel.sensitiveField()` redacts fields from public serialization, cards, logs, and AI context | ✅ Implemented |
 | **Build Targets** | Mobile, web, desktop, plus TV/embedded via vendor embedders, with toolchain preflight and auto-install | ⚠️ Partial — see [table](#-build-targets) |
 
 ---
