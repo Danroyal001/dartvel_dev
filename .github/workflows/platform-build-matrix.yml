@@ -1,0 +1,106 @@
+name: Platform build matrix
+
+# Verifies `dartvel build <platform>` on the hosts this repository's development
+# machines cannot provide. Windows desktop needs Windows, and the Apple targets
+# need macOS — Flutter has no desktop cross-compilation, so these are the only
+# places these targets can genuinely be proven.
+#
+# Manually triggered on purpose. This is a private repository, so runner minutes
+# are billed against the account quota with a 2x multiplier on Windows and a 10x
+# multiplier on macOS. Running this on every push would be expensive and rarely
+# more informative than running it deliberately.
+
+on:
+  workflow_dispatch:
+    inputs:
+      targets:
+        description: Which targets to build
+        type: choice
+        default: all
+        options: [all, windows, apple]
+
+env:
+  FLUTTER_VERSION: 3.44.5
+
+jobs:
+  build:
+    name: dartvel build ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    if: always()
+    # One failing target should not hide the results of the others.
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, platform: windows, group: windows }
+          - { os: macos-latest, platform: macos, group: apple }
+          - { os: macos-latest, platform: ios, group: apple }
+          - { os: macos-latest, platform: tvos, group: apple }
+
+    steps:
+      - name: Skip target not selected
+        id: gate
+        shell: bash
+        run: |
+          selected='${{ inputs.targets }}'
+          if [ "$selected" = "all" ] || [ "$selected" = "${{ matrix.group }}" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::skipping ${{ matrix.platform }} (selected: $selected)"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.run == 'true'
+
+      - uses: subosito/flutter-action@v2
+        if: steps.gate.outputs.run == 'true'
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      # dartvel_shelf's build hook compiles the Rust runtime and then runs
+      # cbindgen over it. Runners ship cargo but not cbindgen, and the hook
+      # treats a missing cbindgen as a hard error (unlike a missing cargo,
+      # which it skips), so it has to be installed explicitly.
+      - name: Install cbindgen
+        if: steps.gate.outputs.run == 'true'
+        run: cargo install cbindgen --locked
+
+      - name: Resolve dependencies
+        if: steps.gate.outputs.run == 'true'
+        working-directory: examples/dartvel_example
+        run: flutter pub get
+
+      - name: Build
+        if: steps.gate.outputs.run == 'true'
+        working-directory: examples/dartvel_example
+        run: dart run dartvel_cli:dartvel build ${{ matrix.platform }}
+
+      # Proves an artifact exists rather than trusting the command's exit code.
+      - name: Verify artifact
+        if: steps.gate.outputs.run == 'true'
+        shell: bash
+        working-directory: examples/dartvel_example
+        run: |
+          case "${{ matrix.platform }}" in
+            windows) path=build/windows/x64/runner/Release ;;
+            macos)   path=build/macos/Build/Products/Release ;;
+            ios|tvos) path=build/ios/iphoneos ;;
+          esac
+          if [ ! -d "$path" ] || [ -z "$(ls -A "$path")" ]; then
+            echo "::error::no artifact at $path"
+            exit 1
+          fi
+          echo "artifact at $path:"
+          ls -la "$path"
+
+      - uses: actions/upload-artifact@v4
+        if: steps.gate.outputs.run == 'true'
+        with:
+          name: dartvel-${{ matrix.platform }}
+          path: examples/dartvel_example/build/
+          retention-days: 7
+          if-no-files-found: warn
