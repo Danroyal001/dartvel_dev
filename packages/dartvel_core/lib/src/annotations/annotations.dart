@@ -82,6 +82,51 @@ class DVFunctionalWidget {
   const DVFunctionalWidget();
 }
 
+/// How a generated `Model.Page(...)` resolves the data it renders.
+enum DVModelPageDataMode {
+  /// Picks the mode from the input: an existing model renders synchronously,
+  /// an id or route parameter triggers an async query, a signal renders
+  /// reactively, and a cached record renders immediately then refreshes.
+  auto,
+
+  /// Renders an already-loaded model with no fetch.
+  sync,
+
+  /// Awaits a future before rendering.
+  async,
+
+  /// Rebuilds from a signal as it changes.
+  reactive,
+
+  /// Serves the cached record; does not refresh on its own.
+  cached,
+
+  /// Serves the cached record immediately, then refreshes in the background.
+  staleWhileRevalidate,
+}
+
+/// Supplies the concrete parameter values a parameterized route needs during
+/// static generation.
+///
+/// Static routes are always generated. A parameterized route cannot be, unless
+/// something enumerates the values to generate:
+///
+/// ```dart
+/// @DVStaticPaths()
+/// Future<List<String>> productPaths() async =>
+///     Product.public().select((product) => product.slug);
+/// ```
+///
+/// `@DVModel(generatePublicPages: true)` supplies these automatically for a
+/// model's published records.
+class DVStaticPaths {
+  /// The route these paths belong to. Defaults to inferring it from the
+  /// annotated function's name and location.
+  final String? route;
+
+  const DVStaticPaths({this.route});
+}
+
 /// Annotation metadata for a Dartvel data model.
 ///
 /// The generator adds serialization and model behavior to the annotated class;
@@ -90,6 +135,13 @@ class DVModel {
   final bool searchable;
   final bool billable;
   final int? nativePrice;
+
+  /// How generated `Model.Page(...)` resolves its data by default.
+  final DVModelPageDataMode pageDataMode;
+
+  /// Whether the generator emits public pages, and static paths for them
+  /// during static generation, from this model's published records.
+  final bool generatePublicPages;
 
   /// Field-scoped metadata, set only by the named field constructors below.
   final bool encrypted;
@@ -100,6 +152,8 @@ class DVModel {
     this.searchable = false,
     this.billable = false,
     this.nativePrice,
+    this.pageDataMode = DVModelPageDataMode.auto,
+    this.generatePublicPages = false,
   })  : encrypted = false,
         showInForms = false,
         showInAdmin = false;
@@ -118,7 +172,9 @@ class DVModel {
     this.showInAdmin = false,
   })  : searchable = false,
         billable = false,
-        nativePrice = null;
+        nativePrice = null,
+        pageDataMode = DVModelPageDataMode.auto,
+        generatePublicPages = false;
 
   /// Marks a model field for generated search indexing:
   /// `@DVModel.searchableField()`.
@@ -126,6 +182,8 @@ class DVModel {
       : searchable = true,
         billable = false,
         nativePrice = null,
+        pageDataMode = DVModelPageDataMode.auto,
+        generatePublicPages = false,
         encrypted = false,
         showInForms = false,
         showInAdmin = false;

@@ -39,6 +39,28 @@ export 'package:dartvel_core/dartvel.dart'
         DVFormControls,
         DVFormControlsFactory,
         DVAuthAuthorization,
+        // Lifecycle
+        DVAppLifecycle,
+        DVPageLifecycle,
+        DVModuleLifecycle,
+        DVRequestLifecycle,
+        DVTransactionLifecycle,
+        DVBuildLifecycle,
+        DVLifecycleSignal,
+        DVMutableLifecycleSignal,
+        DVLifecycleRegistry,
+        // Modules
+        DVModule,
+        DVModuleRegistry,
+        DVUnknownModuleException,
+        // Transactions
+        DVContext,
+        DVContextLifecycle,
+        DVCompensationException,
+        DVTransactionRunner,
+        // Model pages and static generation
+        DVModelPageDataMode,
+        DVStaticPaths,
         DVJob,
         DVExportResult,
         DVExportOptions,
@@ -2988,6 +3010,30 @@ class DV {
     }
     return inst as T;
   }
+
+  /// Read-only lifecycle signals: `DV.lifecycle.app`, `DV.lifecycle.build`.
+  ///
+  /// The framework owns the transitions; application code observes them.
+  static final DVLifecycleRegistry lifecycle = DVLifecycleRegistry();
+
+  /// Mounted Dartvel modules. The generator emits typed `DV.Modules.<id>`
+  /// accessors on top of this registry.
+  static final DVModuleRegistry Modules = DVModuleRegistry();
+
+  static final DVTransactionRunner _transactionRunner = DVTransactionRunner();
+
+  /// Runs [body] as a reversible unit of work.
+  ///
+  /// Use `context.afterCommit(...)` for irreversible effects that must not
+  /// happen unless the transaction commits, and `context.compensate(...)` to
+  /// register the inverse of an external effect Dartvel cannot reverse itself.
+  ///
+  /// Nested calls join the active transaction unless [isolated] is set.
+  static Future<T> transaction<T>(
+    FutureOr<T> Function(DVContext context) body, {
+    bool isolated = false,
+  }) =>
+      _transactionRunner.call<T>(body, isolated: isolated);
 
   static DVPlatform get Platform => const DVPlatform();
   static DVAuth get Auth => const DVAuth();
