@@ -23,7 +23,7 @@ Verified on Linux x64 (Ubuntu 24.04), Flutter 3.44.5 / Dart 3.12.2, against
 | `macos` | ⏭️ Not on Linux | Requires macOS |
 | `ios` | ⏭️ Not on Linux | Requires macOS |
 | `tvos` | ⏭️ Not on Linux | Requires macOS |
-| `tizen` / `tpk` | ⚠️ Packages, incomplete | Signed TPK produced; see [Tizen](#tizen-samsung) |
+| `tizen` / `tpk` | ✅ Builds | Signed 9.3MB TPK with engine + assets; see [Tizen](#tizen-samsung) |
 | `sony-elinux` | ❌ Blocked | Dart version floor; see [Sony eLinux](#sony-elinux) |
 | `webos` | ⚠️ Unproven | Embedder installs; build not yet demonstrated |
 
@@ -93,18 +93,25 @@ embedder against the Flutter version Dartvel ships.
 
 **Verified Flutter: 3.44.4 / Dart 3.12.2** — clears Dartvel's dependency floor.
 
-A signed TPK was produced end to end:
+A complete, signed TPK is produced end to end:
 
 ```
-✓ Built build/tizen/tpk/com.example.dartvel_example-1.0.0.tpk
+✓ Built build/tizen/tpk/com.example.dartvel_example-1.0.0.tpk (9.3MB)
 ```
 
-**But that TPK is incomplete.** It is 15 KB and contains only `bin/runner`
-(the compiled ARM native runner), the manifest, and an icon. `lib/` and `res/`
-are empty — the Flutter engine and `flutter_assets` were not packaged, even
-though they exist at `tizen/flutter/ephemeral/res/flutter_assets`. The package
-is therefore **not a runnable Flutter app yet**. This is the open item on this
-target.
+It contains `lib/libapp.so`, `lib/libflutter_engine.so`,
+`lib/libflutter_tizen_tv.so`, `res/icudtl.dat` and `res/flutter_assets/` — a
+runnable Flutter application.
+
+> **This required a fix in the Dartvel fork.** A native build first produced a
+> 15KB TPK holding only the compiled runner, an icon and the manifest, with
+> `lib/` and `res/` empty: a package that installs and does nothing. The
+> payload was staged correctly in `tizen/flutter/ephemeral/{lib,res}`, and
+> `tizen package -e <ephemeralDir>` is meant to inject it — but on current
+> Tizen SDK CLI versions (10.x) that call reports success while producing a
+> TPK without it. The fork now copies the payload into the app root before
+> building, so it is part of the build rather than a post-hoc injection.
+> This is exactly the class of problem the forks exist to absorb.
 
 Getting that far required, beyond the embedder:
 

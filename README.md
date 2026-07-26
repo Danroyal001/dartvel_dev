@@ -37,8 +37,8 @@ annotation surface accepts both; the generator does not yet act on them.
 
 **Build targets** are individually verified with evidence in
 [docs/build-targets.md](docs/build-targets.md); four of them can only be built
-on hosts this project does not develop on, and two TV targets do not yet
-produce a runnable app.
+on hosts this project does not develop on, one TV target is blocked upstream,
+and one is not yet demonstrated.
 
 If you hit something that claims to work and does not, that is a bug in these
 docs as much as in the code — please report it.
@@ -131,7 +131,7 @@ Verified on Linux x64 against `examples/dartvel_example`. "Verified" means the c
 | :--- | :--- |
 | `web`, `linux`, `android`, `fireos` | ✅ Build, artifacts verified |
 | `windows`, `macos`, `ios`, `tvos` | ⏭️ Need their own host — [run in CI](.github/workflows/platform-build-matrix.yml) |
-| `tizen` / `tpk` | ⚠️ Produces a signed TPK, but the engine and assets are not yet packaged |
+| `tizen` / `tpk` | ✅ Signed 9.3MB TPK containing the engine and assets |
 | `sony-elinux` | ❌ Blocked — the embedder's newest Flutter ships Dart 3.7.2, below Dartvel's ≥3.9 floor |
 | `webos` | ⚠️ Embedder installs; a real build is not yet demonstrated |
 
