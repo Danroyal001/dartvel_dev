@@ -91,26 +91,58 @@ class DVModel {
   final bool billable;
   final int? nativePrice;
 
+  /// Field-scoped metadata, set only by the named field constructors below.
+  final bool encrypted;
+  final bool showInForms;
+  final bool showInAdmin;
+
   const DVModel({
     this.searchable = false,
     this.billable = false,
     this.nativePrice,
-  });
+  })  : encrypted = false,
+        showInForms = false,
+        showInAdmin = false;
+
+  /// Marks a model field as sensitive: `@DVModel.sensitiveField()`.
+  ///
+  /// By default a sensitive field is excluded from public serialization
+  /// (`toPublicJson`), generated model pages/tables/cards, search indexing,
+  /// analytics, traces, and logs, and requires explicit policy authorization
+  /// before it can be sent to clients. Set [encrypted] to request at-rest
+  /// encryption, and use [showInForms]/[showInAdmin] to opt specific generated
+  /// UI surfaces back in.
+  const DVModel.sensitiveField({
+    this.encrypted = false,
+    this.showInForms = false,
+    this.showInAdmin = false,
+  })  : searchable = false,
+        billable = false,
+        nativePrice = null;
+
+  /// Marks a model field for generated search indexing:
+  /// `@DVModel.searchableField()`.
+  const DVModel.searchableField()
+      : searchable = true,
+        billable = false,
+        nativePrice = null,
+        encrypted = false,
+        showInForms = false,
+        showInAdmin = false;
 }
 
 /// Marks a model property for generated search indexing.
+@Deprecated('Use @DVModel.searchableField() instead. '
+    'Model-scoped annotations live under the DVModel parent.')
 class DVSearchable {
   const DVSearchable();
 }
 
 /// Marks a model field as sensitive.
 ///
-/// By default a sensitive field is excluded from public serialization
-/// (`toPublicJson`), generated model pages/tables/cards, search indexing,
-/// analytics, traces, and logs, and requires explicit policy authorization
-/// before it can be sent to clients. Set [encrypted] to request at-rest
-/// encryption, and use [showInForms]/[showInAdmin] to opt specific generated
-/// UI surfaces back in.
+/// See [DVModel.sensitiveField] for the canonical form and full behaviour.
+@Deprecated('Use @DVModel.sensitiveField() instead. '
+    'Model-scoped annotations live under the DVModel parent.')
 class DVSensitiveModelField {
   final bool encrypted;
   final bool showInForms;

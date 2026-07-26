@@ -75,8 +75,11 @@ class ModelGenerator {
           });
         }
         final searchableFields = <Map<String, String>>[];
+        // Canonical form is @DVModel.searchableField(); the bare @DVSearchable
+        // spelling is still accepted while it remains deprecated.
         final searchableFieldRegex = RegExp(
-          r'@DVSearchable\s*\(\s*\)\s*final\s+(.+?)\s+([A-Za-z0-9_]+)\s*;',
+          r'@(?:DVModel\.searchableField|DVSearchable)\s*\(\s*\)\s*'
+          r'final\s+(.+?)\s+([A-Za-z0-9_]+)\s*;',
           dotAll: true,
         );
         for (final m in searchableFieldRegex.allMatches(content)) {
@@ -85,11 +88,13 @@ class ModelGenerator {
             'name': m.group(2)!,
           });
         }
-        // Fields marked @DVSensitiveModelField(...): excluded from public
-        // serialization and generated display by default.
+        // Fields marked @DVModel.sensitiveField(...): excluded from public
+        // serialization and generated display by default. The deprecated
+        // @DVSensitiveModelField spelling is still accepted.
         final sensitiveFieldNames = <String>{};
         final sensitiveFieldRegex = RegExp(
-          r'@DVSensitiveModelField\s*\([^)]*\)\s*final\s+.+?\s+([A-Za-z0-9_]+)\s*;',
+          r'@(?:DVModel\.sensitiveField|DVSensitiveModelField)\s*\([^)]*\)\s*'
+          r'final\s+.+?\s+([A-Za-z0-9_]+)\s*;',
           dotAll: true,
         );
         for (final m in sensitiveFieldRegex.allMatches(content)) {
