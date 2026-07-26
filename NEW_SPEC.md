@@ -3,10 +3,14 @@
 > ## ⚠️ This is a design specification, not release notes
 >
 > This document describes Dartvel's intended design. It is **not** a
-> description of what ships today, and several surfaces below have no
-> implementation yet — notably `DV.lifecycle.*`, `DV.Modules.<id>`,
-> `DV.transaction(...)` with `context.afterCommit`/`context.compensate`,
-> `@DVStaticPaths()`, and the `Model.Page` data modes.
+> description of what ships today: some surfaces below are implemented, others
+> are not.
+>
+> `DV.lifecycle.*`, `DV.Modules.<id>`, `DV.transaction(...)` with
+> `context.afterCommit`/`context.compensate`, and `@DVStaticPaths()` are
+> implemented. `Model.Page` data-mode rendering and
+> `@DVModel(generatePublicPages: true)` are **not** — the annotations accept
+> them, but the generator does not yet act on them.
 >
 > Where this spec and the code disagree, **the code wins**. For what is
 > actually implemented today, see the *Alpha status* section of

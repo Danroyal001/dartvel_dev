@@ -16,19 +16,24 @@ reading the source.
 what ships today.** Where the spec and this README disagree with the code, the
 code wins.
 
-**Specified but not implemented.** These appear in the spec and have no
-implementation yet — do not build against them:
+**Recently implemented.** These were specified with no code behind them and
+now have runtime implementations and tests:
 
 | Surface | Status |
 | :--- | :--- |
-| `DV.lifecycle.*` (lifecycle enum signals) | Not implemented |
-| `DV.Modules.<id>` (module system) | Not implemented |
-| `DV.transaction(...)`, `context.afterCommit`, `context.compensate` | Not implemented (database transactions exist separately) |
-| `@DVStaticPaths()`, `Model.Page.async/.signal/.fromId` | Not implemented |
+| `DV.lifecycle.app` / `.build`, `context.lifecycle.*` | ✅ Read-only enum signals |
+| `DV.Modules.<id>` | ✅ Registry, per-module lifecycle, mount-point independence |
+| `DV.transaction(...)`, `context.afterCommit`, `context.compensate` | ✅ Reverse-order compensation, nesting, isolation |
+| `@DVStaticPaths()` | ✅ Discovered during generation into `static_paths.g.dart` |
+| `DVModelPageDataMode` | ⚠️ Enum and `@DVModel(pageDataMode:)` exist; `Model.Page` data-mode rendering is not wired |
 
 **Implemented, but not equally mature.** The feature table below marks each
 area. Anything flagged ⚠️ Scaffold has an API surface and prebuilt pieces, but
 provider integrations are incomplete — expect to fill gaps yourself.
+
+**Still not implemented:** `Model.Page.async/.signal/.fromId` rendering, and
+`@DVModel(generatePublicPages: true)` emitting pages automatically. The
+annotation surface accepts both; the generator does not yet act on them.
 
 **Build targets** are individually verified with evidence in
 [docs/build-targets.md](docs/build-targets.md); four of them can only be built
@@ -68,6 +73,9 @@ Everything else is automatically compiled, generated, or served by the framework
 | **PWA & SEO** | Automatic PWA manifest/worker & runtime/global SEO injection | ✅ Implemented |
 | **AI Integration** | API surface and annotations; provider calls are not complete | ⚠️ Scaffold |
 | **Sensitive Fields** | `@DVModel.sensitiveField()` redacts fields from public serialization, cards, logs, and AI context | ✅ Implemented |
+| **Lifecycle Signals** | Read-only enum signals: `DV.lifecycle.app`/`.build`, `context.lifecycle.page`/`.request`/`.transaction` | ✅ Implemented |
+| **Modules** | `DV.Modules.<id>` registry with per-module lifecycle and mount-point independence | ✅ Implemented |
+| **Reversible Transactions** | `DV.transaction(...)` with `context.afterCommit(...)` and `context.compensate(...)` | ✅ Implemented |
 | **Build Targets** | Mobile, web, desktop, plus TV/embedded via vendor embedders, with toolchain preflight and auto-install | ⚠️ Partial — see [table](#-build-targets) |
 
 ---
@@ -255,6 +263,57 @@ DV.Auth.SignInWithEmailAndPasswordPage();
 DV.Auth.SignInWithProviderPage();
 DV.Auth.SignInWithPasskeyPage();
 ```
+
+---
+
+## 🔄 Reversible Transactions
+
+Wrap work that must succeed or unwind together. Irreversible effects go in
+`afterCommit` so they never fire for work that rolled back; external effects
+Dartvel cannot reverse itself register a `compensate` inverse:
+
+```dart
+final order = await DV.transaction((context) async {
+  final payment = await gateway.charge(cart.total);
+  context.compensate(() => gateway.refund(payment.id));   // undo on failure
+
+  final order = await Order.create(paymentId: payment.id);
+
+  context.afterCommit(() async {                          // only if committed
+    await DV.Notifications.send(customer.id, OrderConfirmed(order));
+  });
+
+  return order;
+});
+```
+
+Compensations run in **reverse registration order**, so each unwinds while what
+it depended on still stands. Nested `DV.transaction` calls join the active
+transaction (pass `isolated: true` to opt out), and a failing compensation
+doesn't stop the others — `DVCompensationException` carries the original cause
+alongside the rollback failures.
+
+---
+
+## 🔁 Lifecycle Signals
+
+Lifecycle is exposed as **read-only** enum signals. The framework owns the
+transitions; your code observes them:
+
+```dart
+DV.lifecycle.app.listen((state) {
+  if (state == DVAppLifecycle.booting) {
+    DV.global<PaymentGateway>(PaystackGateway(secret: ...));
+  }
+});
+
+DV.lifecycle.app.value;   // DVAppLifecycle.ready
+DV.lifecycle.build.value; // DVBuildLifecycle.idle
+```
+
+Also available: `context.lifecycle.page`, `.request`, and `.transaction`, plus
+`DV.Modules.<id>.lifecycle`. There is no setter on the public signal type — a
+failing observer can't break a transition for anyone else.
 
 ---
 
