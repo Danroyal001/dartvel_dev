@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:dartvel_cli/src/generators/model_generator.dart';
 import 'package:dartvel_cli/src/generators/static_paths_generator.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
@@ -197,6 +198,89 @@ Future<List<String>> blogPaths() async => <String>['hello'];
         );
         expect(output.existsSync(), isTrue);
         expect(output.readAsStringSync(), contains('productPaths'));
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    });
+  });
+
+  group('page options metadata', () {
+    test('declared pageDataMode and generatePublicPages reach the model',
+        () async {
+      // These annotation parameters compile but no renderer consumes them yet.
+      // Emitting them keeps the declared intent observable instead of
+      // silently discarding it.
+      final root = await Directory.systemTemp.createTemp('dartvel_page_opts_');
+      try {
+        Directory(p.join(root.path, 'lib', 'models'))
+            .createSync(recursive: true);
+        Directory(p.join(root.path, 'lib', 'dartvel_client'))
+            .createSync(recursive: true);
+        File(p.join(root.path, 'lib', 'models', 'product.dart'))
+            .writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVModel(
+  pageDataMode: DVModelPageDataMode.staleWhileRevalidate,
+  generatePublicPages: true,
+)
+class _Product {
+  final String slug;
+  const _Product({required this.slug});
+}
+''');
+
+        await ModelGenerator.generate(
+          root: root.path,
+          pkgName: 'shop',
+          buildId: 'test-build',
+        );
+
+        final content = File(
+          p.join(root.path, 'lib', 'dartvel_client', 'models.g.dart'),
+        ).readAsStringSync();
+
+        expect(
+          content,
+          contains('pageDataMode = '
+              'DVModelPageDataMode.staleWhileRevalidate;'),
+        );
+        expect(content, contains('generatePublicPages = true;'));
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    });
+
+    test('defaults to auto and no public pages when unspecified', () async {
+      final root = await Directory.systemTemp.createTemp('dartvel_page_def_');
+      try {
+        Directory(p.join(root.path, 'lib', 'models'))
+            .createSync(recursive: true);
+        Directory(p.join(root.path, 'lib', 'dartvel_client'))
+            .createSync(recursive: true);
+        File(p.join(root.path, 'lib', 'models', 'note.dart'))
+            .writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVModel()
+class _Note {
+  final String body;
+  const _Note({required this.body});
+}
+''');
+
+        await ModelGenerator.generate(
+          root: root.path,
+          pkgName: 'notes',
+          buildId: 'test-build',
+        );
+
+        final content = File(
+          p.join(root.path, 'lib', 'dartvel_client', 'models.g.dart'),
+        ).readAsStringSync();
+
+        expect(content, contains('pageDataMode = DVModelPageDataMode.auto;'));
+        expect(content, contains('generatePublicPages = false;'));
       } finally {
         root.deleteSync(recursive: true);
       }

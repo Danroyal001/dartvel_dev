@@ -59,6 +59,16 @@ class ModelGenerator {
         final isSearchableModel = modelArgs.contains(
           RegExp(r'\bsearchable\s*:\s*true\b'),
         );
+        // Page-generation options. These are surfaced as generated metadata so
+        // the declared intent is observable rather than silently discarded;
+        // the renderer that consumes them is not built yet.
+        final pageDataModeMatch = RegExp(
+          r'\bpageDataMode\s*:\s*DVModelPageDataMode\.([A-Za-z0-9_]+)',
+        ).firstMatch(modelArgs);
+        final pageDataMode = pageDataModeMatch?.group(1) ?? 'auto';
+        final generatesPublicPages = modelArgs.contains(
+          RegExp(r'\bgeneratePublicPages\s*:\s*true\b'),
+        );
         classesGenerated.add(className);
 
         // Parse fields
@@ -116,6 +126,18 @@ class ModelGenerator {
           sb.writeln('    required this.$name,');
         }
         sb.writeln('  });');
+        sb.writeln();
+        sb.writeln(
+            '  /// How generated pages for this model resolve their data, as');
+        sb.writeln('  /// declared by @DVModel(pageDataMode:).');
+        sb.writeln(
+            '  static const DVModelPageDataMode pageDataMode = DVModelPageDataMode.$pageDataMode;');
+        sb.writeln();
+        sb.writeln(
+            '  /// Whether @DVModel(generatePublicPages:) requested public');
+        sb.writeln('  /// pages and static paths for this model.');
+        sb.writeln(
+            '  static const bool generatePublicPages = $generatesPublicPages;');
         sb.writeln();
         sb.writeln(
             '  /// Field names marked @DVModel.sensitiveField(), excluded from');
@@ -186,7 +208,7 @@ class ModelGenerator {
         }
         sb.writeln('  };');
 
-        // toPublicJson (excludes @DVSensitiveModelField fields)
+        // toPublicJson (excludes @DVModel.sensitiveField() fields)
         sb.writeln();
         sb.writeln(
             '  /// Serializes [$className] for client/public output, omitting');
