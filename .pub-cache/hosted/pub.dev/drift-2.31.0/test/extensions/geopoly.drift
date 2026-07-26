@@ -1,3 +1,0 @@
-CREATE VIRTUAL TABLE geopoly_test USING geopoly(a);
-
-area: SELECT geopoly_area(_shape) FROM geopoly_test WHERE rowid = ?;
