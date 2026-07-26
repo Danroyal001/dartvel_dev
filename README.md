@@ -24,7 +24,7 @@ Everything else is automatically compiled, generated, or served by the framework
 | Feature | Description | Status |
 | :--- | :--- | :--- |
 | **UI Primitives** | `DVBox`, `DVText`, and fluent styling built on `Mix` | ✅ Implemented |
-| **Routing** | File-based pages router with strongly-typed navigation targets | ✅ Implemented |
+| **Routing** | File-based pages router with strongly-typed navigation targets, generated onto `go_router` | ✅ Implemented |
 | **State Management** | Riverpod-powered signals (`context.signal`, reactive models, `DV.global`) | ✅ Implemented |
 | **Models & Forms** | `@DVModel` annotation + `DVForm<T>` automatic & manual controls | ✅ Implemented |
 | **Backend Runtime** | Axum/Tokio Rust server calling Dart FFI, supporting SSE streams | ✅ Implemented |
@@ -33,6 +33,8 @@ Everything else is automatically compiled, generated, or served by the framework
 | **Database & Cache** | API surface plus local primitives; external DB/Redis adapters are not complete | ⚠️ Partial |
 | **PWA & SEO** | Automatic PWA manifest/worker & runtime/global SEO injection | ✅ Implemented |
 | **AI Integration** | API surface and annotations; provider calls are not complete | ⚠️ Scaffold |
+| **Sensitive Fields** | `@DVSensitiveModelField()` redacts fields from public serialization, cards, logs, and AI context | ✅ Implemented |
+| **Build Targets** | Mobile, web, desktop, plus TV/embedded via vendor embedders, with toolchain preflight and auto-install | ⚠️ Partial — see [table](#-build-targets) |
 
 ---
 
@@ -45,11 +47,16 @@ Manage the full-stack lifecycle directly with the Dartvel CLI:
 dartvel new [name]
 dartvel init
 dartvel doctor
+dartvel doctor --target tizen      # check one target's toolchain
 
 # Development
 dartvel dev
 dartvel watch
 hotreload
+
+# Production builds (see Build Targets below)
+dartvel build [platform]
+dartvel build web --no-auto-install
 
 # Database management
 dartvel db migrate
@@ -66,21 +73,48 @@ dartvel generate form
 
 ---
 
-## 📺 Embedded & Television Targets
-
-Dartvel treats televisions, kiosks, and embedded devices as first-class build targets:
+## 🎯 Build Targets
 
 ```bash
-dartvel build tizen          # alias: dartvel build tpk
+dartvel build              # every target this host can build
+dartvel build web
+dartvel build tizen        # alias: dartvel build tpk
+dartvel build sony-elinux  # also: sony-elinux-iso, sony-elinux-img
 dartvel build webos
-dartvel build sony-elinux
-dartvel build sony-elinux-iso
-dartvel build sony-elinux-img
-
-dartvel doctor --target tizen   # verifies the embedder is installed
 ```
 
-Each target is driven by the platform vendor's dedicated Flutter embedder rather than plain `flutter build`. Dartvel maintains a public fork of each embedder so it can be pinned, patched, and tracked against the Flutter version Dartvel ships with:
+Verified on Linux x64 against `examples/dartvel_example`. "Verified" means the command was run and the artifact inspected:
+
+| Target | Status |
+| :--- | :--- |
+| `web`, `linux`, `android`, `fireos` | ✅ Build, artifacts verified |
+| `windows`, `macos`, `ios`, `tvos` | ⏭️ Need their own host — [run in CI](.github/workflows/platform-build-matrix.yml) |
+| `tizen` / `tpk` | ⚠️ Produces a signed TPK, but the engine and assets are not yet packaged |
+| `sony-elinux` | ❌ Blocked — the embedder's newest Flutter ships Dart 3.7.2, below Dartvel's ≥3.9 floor |
+| `webos` | ⚠️ Embedder installs; a real build is not yet demonstrated |
+
+Flutter has **no desktop cross-compilation** — Windows needs Windows, the Apple targets need macOS. `dartvel build` skips what the host cannot build instead of failing the whole run.
+
+**→ Full detail, evidence, and per-target setup: [docs/build-targets.md](docs/build-targets.md)**
+
+### Toolchain preflight
+
+Before building, Dartvel checks that the host supports the target and that the required tools are installed. Missing tools are named, and Dartvel offers to install what it safely can:
+
+```bash
+dartvel build tizen                      # asks before installing
+dartvel build tizen --auto-install       # installs without asking
+dartvel build tizen --no-auto-install    # never installs; fail instead
+dartvel doctor --target tizen            # just check
+```
+
+Under CI (`CI=true`, `GITHUB_ACTIONS`, and friends) it installs unattended, so a pipeline never hangs on a prompt. Anything installed mid-run is added to `PATH` immediately, so the build that installed a toolchain can use it.
+
+Dartvel auto-installs the embedders (from its forks), the webOS `ares` CLI, and Linux desktop dependencies. It deliberately does **not** auto-install licence-gated or multi-gigabyte vendor SDKs — Xcode, Visual Studio, the Android SDK, Tizen Studio — and prints instructions for those instead.
+
+### Embedder forks
+
+Embedded/TV targets run through the vendor's dedicated Flutter embedder, never plain `flutter build`. Dartvel forks each one so it can be pinned and patched against the Flutter version Dartvel ships:
 
 | Target | Embedder fork | Upstream | Vendor |
 | :--- | :--- | :--- | :--- |
@@ -88,9 +122,7 @@ Each target is driven by the platform vendor's dedicated Flutter embedder rather
 | `sony-elinux` | [Danroyal001/flutter-elinux](https://github.com/Danroyal001/flutter-elinux) | [sony/flutter-elinux](https://github.com/sony/flutter-elinux) | Sony |
 | `webos` | [Danroyal001/flutter-webos](https://github.com/Danroyal001/flutter-webos) | [lg-flutter-webos/flutter-webos](https://github.com/lg-flutter-webos/flutter-webos) | LG |
 
-**Why forks?** So the embedder invocation stays stable behind `dartvel build`, and so Dartvel can pin and patch each embedder rather than depend on whatever the vendor's default branch happens to be. Each fork's README explains the effort and records the Flutter version it verifiably pins.
-
-**Caveat, honestly stated:** these embedders download a *prebuilt* Flutter engine per version, published by the vendor. Where Dartvel's Flutter version is ahead of the newest engine a vendor has shipped, that target lags until the vendor publishes — a version-pin bump alone cannot fix it. The verified evidence for each is in the corresponding fork's README. When an embedder is not installed, `dartvel build` skips that target with a clear message instead of failing the whole build.
+These embedders download a *vendor-built* Flutter engine per version, so a target can lag behind Dartvel's Flutter — and a version-pin bump alone cannot fix that. For Sony eLinux the binding constraint is the opposite direction and worth stating precisely: the embedder's Flutter is too **old** for Dartvel's own dependency floor. Details and evidence are in [docs/build-targets.md](docs/build-targets.md).
 
 ---
 
