@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import '../utils/build_runner.dart';
 import '../utils/logger.dart';
+import '../utils/toolchain.dart';
 
 /// Platforms built with the standard `flutter build` executable.
 const flutterBuildPlatforms = <String>[
@@ -152,7 +153,12 @@ class BuildCommand extends Command<void> {
       ..addOption('build-name', help: 'Build name/version')
       ..addFlag('obfuscate',
           defaultsTo: true, help: 'Obfuscate code (release only)')
-      ..addFlag('tree-shake-icons', defaultsTo: true, help: 'Tree shake icons');
+      ..addFlag('tree-shake-icons', defaultsTo: true, help: 'Tree shake icons')
+      ..addFlag('auto-install',
+          defaultsTo: null,
+          help: 'Install missing build tools without prompting. Defaults to '
+              'prompting when interactive, and to installing in CI. Use '
+              '--no-auto-install to require a pre-provisioned toolchain.');
   }
 
   @override
@@ -182,6 +188,7 @@ class BuildCommand extends Command<void> {
     final buildName = argResults?['build-name'] as String?;
     final obfuscate = argResults?['obfuscate'] as bool;
     final treeShakeIcons = argResults?['tree-shake-icons'] as bool;
+    final autoInstall = argResults?['auto-install'] as bool?;
 
     Logger.log('🔨 Building Dartvel project...');
     Logger.log('');
@@ -230,6 +237,13 @@ class BuildCommand extends Command<void> {
     var failures = 0;
     var skipped = 0;
     for (final p in platforms) {
+      // Preflight: refuse to start a build that cannot possibly finish, and
+      // offer to fix what is fixable, before spending time on generation.
+      if (!await _preflight(p, autoInstall: autoInstall)) {
+        skipped += 1;
+        continue;
+      }
+
       final result = embeddedBuildPlatforms.contains(p)
           ? await _buildEmbedded(
               p,
@@ -309,6 +323,7 @@ class BuildCommand extends Command<void> {
       'flutter',
       args,
       runInShell: true,
+      environment: _buildEnvironment,
     );
 
     proc.stdout.listen((data) => stdout.add(data));
@@ -367,6 +382,7 @@ class BuildCommand extends Command<void> {
       plan.executable,
       plan.arguments,
       runInShell: true,
+      environment: _buildEnvironment,
     );
     proc.stdout.listen((data) => stdout.add(data));
     proc.stderr.listen((data) => stderr.add(data));
@@ -395,11 +411,106 @@ class BuildCommand extends Command<void> {
   Future<bool> _isPlatformAvailable(String platform) async =>
       isPlatformAvailableOn(platform, Platform.operatingSystem);
 
+  /// Directories added to PATH by an auto-install during this run.
+  ///
+  /// A tool installed a moment ago is not on the PATH this process inherited,
+  /// so without this the build would install a toolchain and then immediately
+  /// report it as missing.
+  final _installedToolPaths = <String>[];
+
+  /// The environment child processes should see, including anything installed
+  /// during this run. Null when nothing was installed, so the child simply
+  /// inherits.
+  Map<String, String>? get _buildEnvironment {
+    if (_installedToolPaths.isEmpty) return null;
+    final separator = Platform.isWindows ? ';' : ':';
+    final existing = Platform.environment['PATH'] ?? '';
+    return <String, String>{
+      ...Platform.environment,
+      'PATH': <String>[..._installedToolPaths, existing].join(separator),
+    };
+  }
+
+  /// Checks that this host can build [platform] and that its toolchain is
+  /// present, installing what it can.
+  ///
+  /// Returns false when the target should be skipped. Ordering matters: host
+  /// support is checked first, because offering to install Xcode on Linux
+  /// would be nonsense.
+  Future<bool> _preflight(String platform, {bool? autoInstall}) async {
+    if (!isPlatformAvailableOn(platform, Platform.operatingSystem) &&
+        !embeddedBuildPlatforms.contains(platform)) {
+      Logger.log('');
+      Logger.log('🔨 Checking $platform...');
+      Logger.log(
+        '⚠️  ${Platform.operatingSystem} cannot build $platform. Skipping...',
+      );
+      return false;
+    }
+
+    final home = Platform.environment['HOME'] ??
+        Platform.environment['USERPROFILE'] ??
+        '';
+    var missing = missingRequirements(
+      platform,
+      isInstalled: isExecutableOnPath,
+      home: home,
+    );
+    if (missing.isEmpty) return true;
+
+    Logger.log('');
+    Logger.log('🔎 $platform is missing ${missing.length} required tool(s):');
+    for (final requirement in missing) {
+      Logger.log('   • ${requirement.name} (${requirement.executable})');
+    }
+
+    final isCi = isCiEnvironment(Platform.environment);
+    final decision = decideAutoInstall(
+      hasMissing: true,
+      isCi: isCi,
+      autoInstallFlag: autoInstall,
+    );
+
+    var shouldInstall = false;
+    switch (decision) {
+      case AutoInstallDecision.nothingToDo:
+        return true;
+      case AutoInstallDecision.installWithoutPrompting:
+        if (isCi && autoInstall == null) {
+          Logger.log('🤖 CI detected; installing without prompting.');
+        }
+        shouldInstall = true;
+      case AutoInstallDecision.prompt:
+        shouldInstall = promptForInstall(missing);
+      case AutoInstallDecision.declined:
+        shouldInstall = false;
+    }
+
+    if (shouldInstall) {
+      final installed = missing.toList();
+      missing = await installRequirements(missing);
+      // Make anything installed usable immediately, without a shell restart.
+      for (final requirement in installed) {
+        if (!missing.contains(requirement) && requirement.pathHint != null) {
+          _installedToolPaths.add(requirement.pathHint!);
+        }
+      }
+      if (missing.isEmpty) {
+        Logger.log('✅ $platform toolchain ready.');
+        return true;
+      }
+    }
+
+    reportUnresolved(platform, missing);
+    Logger.log('⚠️  Skipping $platform.');
+    return false;
+  }
+
   Future<bool> _isExecutableAvailable(String executable) async {
     try {
       final locator = Platform.isWindows ? 'where' : 'which';
-      final result =
-          await Process.run(locator, [executable], runInShell: true);
+      final result = await Process.run(locator, [executable],
+          runInShell: true, environment: _buildEnvironment);
       return result.exitCode == 0;
     } catch (_) {
       return false;
