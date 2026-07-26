@@ -34,8 +34,6 @@ class ModelGenerator {
     final classesGenerated = <String>[];
 
     for (final file in files) {
-      final abs = file.path;
-
       final content = await file.readAsString();
       // Scan for @DVModel(...) classes.
       final classMatches = RegExp(
@@ -120,7 +118,7 @@ class ModelGenerator {
         sb.writeln('  });');
         sb.writeln();
         sb.writeln(
-            '  /// Field names marked @DVSensitiveModelField, excluded from');
+            '  /// Field names marked @DVModel.sensitiveField(), excluded from');
         sb.writeln('  /// public serialization and generated display.');
         sb.writeln(
             '  static const Set<String> sensitiveFields = <String>{${sensitiveFieldNames.map((n) => "'$n'").join(', ')}};');
@@ -192,7 +190,7 @@ class ModelGenerator {
         sb.writeln();
         sb.writeln(
             '  /// Serializes [$className] for client/public output, omitting');
-        sb.writeln('  /// @DVSensitiveModelField fields.');
+        sb.writeln('  /// @DVModel.sensitiveField() fields.');
         sb.writeln('  Map<String, Object?> toPublicJson() => {');
         for (final field in fields) {
           final name = field['name']!;
