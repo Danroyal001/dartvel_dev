@@ -66,6 +66,34 @@ dartvel generate form
 
 ---
 
+## 📺 Embedded & Television Targets
+
+Dartvel treats televisions, kiosks, and embedded devices as first-class build targets:
+
+```bash
+dartvel build tizen          # alias: dartvel build tpk
+dartvel build webos
+dartvel build sony-elinux
+dartvel build sony-elinux-iso
+dartvel build sony-elinux-img
+
+dartvel doctor --target tizen   # verifies the embedder is installed
+```
+
+Each target is driven by the platform vendor's dedicated Flutter embedder rather than plain `flutter build`. Dartvel maintains a public fork of each embedder so it can be pinned, patched, and tracked against the Flutter version Dartvel ships with:
+
+| Target | Embedder fork | Upstream | Vendor |
+| :--- | :--- | :--- | :--- |
+| `tizen` | [Danroyal001/flutter-tizen](https://github.com/Danroyal001/flutter-tizen) | [flutter-tizen/flutter-tizen](https://github.com/flutter-tizen/flutter-tizen) | Samsung |
+| `sony-elinux` | [Danroyal001/flutter-elinux](https://github.com/Danroyal001/flutter-elinux) | [sony/flutter-elinux](https://github.com/sony/flutter-elinux) | Sony |
+| `webos` | [Danroyal001/flutter-webos](https://github.com/Danroyal001/flutter-webos) | [lg-flutter-webos/flutter-webos](https://github.com/lg-flutter-webos/flutter-webos) | LG |
+
+**Why forks?** So the embedder invocation stays stable behind `dartvel build`, and so Dartvel can pin and patch each embedder rather than depend on whatever the vendor's default branch happens to be. Each fork's README explains the effort and records the Flutter version it verifiably pins.
+
+**Caveat, honestly stated:** these embedders download a *prebuilt* Flutter engine per version, published by the vendor. Where Dartvel's Flutter version is ahead of the newest engine a vendor has shipped, that target lags until the vendor publishes — a version-pin bump alone cannot fix it. The verified evidence for each is in the corresponding fork's README. When an embedder is not installed, `dartvel build` skips that target with a clear message instead of failing the whole build.
+
+---
+
 ## 📦 Getting Started
 
 ### 1. Project Initialization

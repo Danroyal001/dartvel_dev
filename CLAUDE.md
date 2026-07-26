@@ -74,6 +74,20 @@ Reference ./NEW_SPEC.md for the full new spec.
 - Native integrations must be generated or bound through FFI/ffigen for C/Rust/native libraries and JNI/jnigen for Android/JVM APIs.
 - Flutter-facing APIs should remain stable under `DV.Platform.*`; generated native bindings adapt behind that surface.
 
+## Embedder Fork Rule
+
+- Embedded/TV targets are driven by the platform vendor's dedicated Flutter embedder, never by plain `flutter build`. Dartvel maintains a fork of each so the embedder can be pinned, patched, and tracked against the Flutter version Dartvel ships with.
+
+| Target | Fork | Upstream | Vendor |
+|---|---|---|---|
+| `dartvel build tizen` (alias `tpk`) | https://github.com/Danroyal001/flutter-tizen | `flutter-tizen/flutter-tizen` | Samsung |
+| `dartvel build sony-elinux` (+ `-iso`, `-img`) | https://github.com/Danroyal001/flutter-elinux | `sony/flutter-elinux` | Sony |
+| `dartvel build webos` | https://github.com/Danroyal001/flutter-webos | `lg-flutter-webos/flutter-webos` | LG |
+
+- Each fork's README carries a Dartvel banner stating why the fork exists and the verified Flutter version the embedder pins. Keep that banner accurate when pins change; leave upstream docs and license untouched below it.
+- Vendor embedders download a **prebuilt** Flutter engine per version. When Dartvel's Flutter version is ahead of the newest engine the vendor has published, a version-pin bump alone cannot work — the fix is a vendor (or from-source) engine build, not a patch in the fork. Record the verified engine/version evidence in the fork README rather than pinning to something that 404s.
+- `dartvel build <target>` must skip cleanly with a clear message when the embedder is absent, and `dartvel doctor --target <target>` must report whether it is on PATH.
+
 ## Atomic Sync Rule
 
 - Commit and push after every coherent sub-feature, bug fix, or documentation sync so progress is preserved even if the workspace is reclaimed.
