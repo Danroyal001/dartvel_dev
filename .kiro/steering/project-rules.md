@@ -86,7 +86,18 @@ Reference ./NEW_SPEC.md for the full new spec.
 
 - Each fork's README carries a Dartvel banner stating why the fork exists and the verified Flutter version the embedder pins. Keep that banner accurate when pins change; leave upstream docs and license untouched below it.
 - Vendor embedders download a **prebuilt** Flutter engine per version. When Dartvel's Flutter version is ahead of the newest engine the vendor has published, a version-pin bump alone cannot work — the fix is a vendor (or from-source) engine build, not a patch in the fork. Record the verified engine/version evidence in the fork README rather than pinning to something that 404s.
+- An embedder's Flutter can also be too **old**: `dartvel_shelf`'s native-asset build hook requires `code_assets` and therefore Dart >= 3.9, so any embedder pinned below that cannot build a Dartvel app at all. State which wall a target actually hits — floor or ceiling — rather than assuming it is the engine.
 - `dartvel build <target>` must skip cleanly with a clear message when the embedder is absent, and `dartvel doctor --target <target>` must report whether it is on PATH.
+
+## Build Toolchain Rule
+
+- `dartvel build <target>` must check host support first, then required tooling, before doing any generation work. Never start a build that cannot finish.
+- Dartvel may auto-install tools it can fetch unattended (the embedder forks, the webOS `ares` CLI, Linux desktop dependencies). It must never auto-install licence-gated or multi-gigabyte vendor SDKs — Xcode, Visual Studio, the Android SDK, Tizen Studio — and should print instructions for those instead.
+- Prompt an interactive developer before installing; install unattended when CI is detected so a pipeline cannot hang on a prompt. `--auto-install` and `--no-auto-install` override both, and `--no-auto-install` wins even in CI.
+- Tools installed during a run must be added to the PATH handed to child processes, so the build that installed a toolchain can use it without a shell restart.
+- Dartvel-managed toolchains install under `~/.dartvel/toolchains/`.
+- Targets whose host is unavailable locally (Windows, macOS, iOS, tvOS) are verified through the GitHub Actions matrix workflow, which stays manually triggered because this repository is private and macOS runners bill at 10x.
+- Record verified build status and evidence in `docs/build-targets.md`. "Verified" means the command was run and the artifact inspected — never infer a target works because a sibling target does.
 
 ## Atomic Sync Rule
 
