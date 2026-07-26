@@ -130,6 +130,7 @@ examples/*/linux/
 examples/*/macos/
 examples/*/windows/
 examples/*/web/icons/
+examples/*/tizen/
 
 # Local-only working directory for unrelated projects that share this
 # workspace. Everything inside is excluded, so nothing beyond Dartvel can be
