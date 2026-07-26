@@ -1,1 +1,0 @@
-APIs for using SQLite in web contexts, accessing SQLite through a WebAssembly module.

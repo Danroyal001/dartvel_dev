@@ -144,3 +144,8 @@ examples/*/web/icons/
 /.dartvel/
 /.dart_tool/dartvel_backend.g.dart
 /.dart_tool/dartvel_backend_routes.g.dart
+
+# Accidentally committed caches: a pub package cache and an analyzer/home
+# directory. Neither is source; both bloated clones by ~535MB.
+/.pub-cache/
+/.home/

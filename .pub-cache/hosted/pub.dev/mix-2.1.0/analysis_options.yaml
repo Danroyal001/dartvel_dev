@@ -1,5 +1,0 @@
-include: ../../lints_with_dcm.yaml
-
-analyzer:
-  errors:
-    prefer_const_constructors: ignore

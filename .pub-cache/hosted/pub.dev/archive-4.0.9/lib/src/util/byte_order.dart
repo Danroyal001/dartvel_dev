@@ -1,1 +1,0 @@
-enum ByteOrder { littleEndian, bigEndian }
