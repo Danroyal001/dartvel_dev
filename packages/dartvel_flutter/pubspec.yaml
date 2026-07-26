@@ -1,6 +1,6 @@
 name: dartvel_flutter
 description: Flutter helpers for dartvel pages (SEO + transitions + route state)
-version: 0.1.1
+version: 0.2.0
 publish_to: none
 environment:
   sdk: ">=3.4.0 <4.0.0"
