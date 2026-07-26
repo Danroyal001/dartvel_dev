@@ -130,6 +130,16 @@ examples/*/linux/
 examples/*/macos/
 examples/*/windows/
 examples/*/web/icons/
+
+# Local-only working directory for unrelated projects that share this
+# workspace. Everything inside is excluded, so nothing beyond Dartvel can be
+# published by a stray `git add -A`, a fresh clone, or a different machine —
+# and the ignore rule itself does not disclose what is in there.
+/.private/
+
+# AI working artifacts: context dumps and repo-packing output, not source.
+/chat.combined.md
+/repomix/
 /lib/dartvel_client/
 /.dartvel/
 /.dart_tool/dartvel_backend.g.dart
