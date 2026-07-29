@@ -73,11 +73,13 @@ const String dvGenBuildId = '$buildId';
       }
       final importPath =
           rel.replaceFirst(RegExp(r'^lib/'), 'package:$pkgName/');
-      backendImports.add("import '$importPath' as f$i;");
       final urlPath = RouteUtils.routeFromRel(pathRel, backendDir);
       // Detect typed function name from file (based on sanitized base name)
       final src = await File(abs).readAsString();
-      _validatePublicBackendFunctionInputs(src, rel);
+      final privateExpression = _privateBackendExpression(src, rel);
+      if (privateExpression == null) {
+        backendImports.add("import '$importPath' as f$i;");
+      }
       // Prefer explicit handler(RequestType/Request) for compatibility
       final regHandler = RegExp(
           r'^\s*(?:[A-Za-z_][\w<>, ?]*\s+)?handler\s*\(([^)]*)\)\s*(?:=>|\{)',
@@ -94,30 +96,14 @@ const String dvGenBuildId = '$buildId';
       String typedTypes = '';
       String tnamed = '0';
       String rtype = '';
+      String invocation = '';
+      String helper = '';
 
-      // 1) Try to find a function whose name matches the sanitized filename
-      final regCandidate = RegExp(
-          r'^\s*(?:[A-Za-z_][\w<>, ?]*\s+)?' +
-              RegExp.escape(funcCandidate) +
-              r'\s*\(([^)]*)\)\s*(?:=>|\{)',
-          multiLine: true);
-      final RegExpMatch? mm = regCandidate.firstMatch(src);
-      // Try also to capture return type for typed API generation
-      try {
-        final regCandidateTyped = RegExp(
-            r'^\s*([A-Za-z_][\w<>, ?]*)\s+' +
-                RegExp.escape(funcCandidate) +
-                r'\s*\(([^)]*)\)',
-            multiLine: true);
-        final mt = regCandidateTyped.firstMatch(src);
-        if (mt != null) {
-          rtype = (mt.group(1) ?? '').trim();
-        }
-      } catch (_) {}
-
-      if (mm != null) {
-        typedName = funcCandidate;
-        RouteUtils.extractParams(mm.group(1) ?? '', (n, t) {
+      if (privateExpression != null) {
+        typedName = privateExpression.publicName;
+        rtype = privateExpression.returnType;
+        invocation = '_dvBackendFn$i';
+        RouteUtils.extractParams(privateExpression.parameters, (n, t) {
           if (typedParams.isNotEmpty) {
             typedParams += ',';
             typedTypes += ',';
@@ -125,33 +111,32 @@ const String dvGenBuildId = '$buildId';
           typedParams += n;
           typedTypes += t;
         }, onNamed: (v) => tnamed = v);
-      } else if (hasHandler) {
-        // Defer to `handler(...)` style; leave untyped so router uses fN.handler
-        typedName = '';
+        helper =
+            '${privateExpression.returnType} _dvBackendFn$i(${privateExpression.parameters}) => ${privateExpression.expression};';
       } else {
-        // 2) Fallback: detect the first top-level function declaration in the file (skip keywords)
-        final regAnyFn = RegExp(
-            r'^\s*(?:[A-Za-z_][\w<>, ?]*\s+)?([A-Za-z_]\w*)\s*\(([^)]*)\)\s*(?:=>|\{)',
+        // 1) Try to find a function whose name matches the sanitized filename
+        final regCandidate = RegExp(
+            r'^\s*(?:[A-Za-z_][\w<>, ?]*\s+)?' +
+                RegExp.escape(funcCandidate) +
+                r'\s*\(([^)]*)\)\s*(?:=>|\{)',
             multiLine: true);
-        const reserved = {
-          'if',
-          'for',
-          'while',
-          'switch',
-          'case',
-          'default',
-          'return',
-          'try',
-          'catch',
-          'on',
-          'do',
-          'else'
-        };
-        for (final m2 in regAnyFn.allMatches(src)) {
-          final name = (m2.group(1) ?? '').trim();
-          if (name.isEmpty || reserved.contains(name)) continue;
-          typedName = name;
-          RouteUtils.extractParams(m2.group(2) ?? '', (n, t) {
+        final RegExpMatch? mm = regCandidate.firstMatch(src);
+        // Try also to capture return type for typed API generation
+        try {
+          final regCandidateTyped = RegExp(
+              r'^\s*([A-Za-z_][\w<>, ?]*)\s+' +
+                  RegExp.escape(funcCandidate) +
+                  r'\s*\(([^)]*)\)',
+              multiLine: true);
+          final mt = regCandidateTyped.firstMatch(src);
+          if (mt != null) {
+            rtype = (mt.group(1) ?? '').trim();
+          }
+        } catch (_) {}
+
+        if (mm != null) {
+          typedName = funcCandidate;
+          RouteUtils.extractParams(mm.group(1) ?? '', (n, t) {
             if (typedParams.isNotEmpty) {
               typedParams += ',';
               typedTypes += ',';
@@ -159,15 +144,53 @@ const String dvGenBuildId = '$buildId';
             typedParams += n;
             typedTypes += t;
           }, onNamed: (v) => tnamed = v);
-          break;
-        }
-        // Fallback return type, if not captured yet
-        if (rtype.isEmpty) {
-          final regAnyTyped = RegExp(
-              r'^\s*([A-Za-z_][\w<>, ?]*)?\s+([A-Za-z_]\w*)\s*\(([^)]*)\)\s*(?:=>|\{)',
+        } else if (hasHandler) {
+          // Defer to `handler(...)` style; leave untyped so router uses fN.handler
+          typedName = '';
+        } else {
+          // 2) Fallback: detect the first top-level function declaration in the file (skip keywords)
+          final regAnyFn = RegExp(
+              r'^\s*(?:[A-Za-z_][\w<>, ?]*\s+)?([A-Za-z_]\w*)\s*\(([^)]*)\)\s*(?:=>|\{)',
               multiLine: true);
-          final m = regAnyTyped.firstMatch(src);
-          if (m != null) rtype = (m.group(1) ?? 'dynamic').trim();
+          const reserved = {
+            'if',
+            'for',
+            'while',
+            'switch',
+            'case',
+            'default',
+            'return',
+            'try',
+            'catch',
+            'on',
+            'do',
+            'else'
+          };
+          for (final m2 in regAnyFn.allMatches(src)) {
+            final name = (m2.group(1) ?? '').trim();
+            if (name.isEmpty || reserved.contains(name)) continue;
+            typedName = name;
+            RouteUtils.extractParams(m2.group(2) ?? '', (n, t) {
+              if (typedParams.isNotEmpty) {
+                typedParams += ',';
+                typedTypes += ',';
+              }
+              typedParams += n;
+              typedTypes += t;
+            }, onNamed: (v) => tnamed = v);
+            break;
+          }
+          // Fallback return type, if not captured yet
+          if (rtype.isEmpty) {
+            final regAnyTyped = RegExp(
+                r'^\s*([A-Za-z_][\w<>, ?]*)?\s+([A-Za-z_]\w*)\s*\(([^)]*)\)\s*(?:=>|\{)',
+                multiLine: true);
+            final m = regAnyTyped.firstMatch(src);
+            if (m != null) rtype = (m.group(1) ?? 'dynamic').trim();
+          }
+        }
+        if (typedName.isNotEmpty) {
+          invocation = 'f$i.$typedName';
         }
       }
       backendEntries.add({
@@ -180,6 +203,8 @@ const String dvGenBuildId = '$buildId';
         'tnamed': tnamed,
         'rtype': rtype,
         'src': src,
+        'invocation': invocation,
+        'helper': helper,
       });
     }
 
@@ -193,6 +218,8 @@ import 'package:dartvel_shelf/dartvel_shelf.dart' as dv;
 import 'package:mime/mime.dart';
 import 'dartvel_backend.g.dart' as cfg;
 ${backendImports.join('\n')}
+
+${backendEntries.map((e) => e['helper'] ?? '').where((helper) => helper.isNotEmpty).join('\n')}
 
 // Multipart structures and parser (bytes): collects text fields and files
 class DvMultipartFile {
@@ -246,6 +273,7 @@ ${backendEntries.map((e) {
       final method = e['method']!;
       final i = e['i']!;
       final typed = e['typed'] ?? '';
+      final invocation = e['invocation'] ?? 'f$i.$typed';
       if (typed.isEmpty) {
         return "  router.$method(cfg.apiBasePath + '$path', (dv.Request req) => Future.value(f$i.handler(req)));";
       }
@@ -287,7 +315,7 @@ ${backendEntries.map((e) {
             '''  router.$method(cfg.apiBasePath + '$path', (dv.Request req) async {
 $requestPrelude
     try {
-      Object? result = await f$i.$typed($callArgs);
+      Object? result = await $invocation($callArgs);
       if (result is dv.Response) return result;
       if (result is Stream<List<int>>) return dv.Response(200, body: result);
       if (result is Stream) {
@@ -314,7 +342,7 @@ $requestPrelude
       return '''  router.$method(cfg.apiBasePath + '$path', (dv.Request req) async {
 $requestPrelude
     try {
-      Object? result = await f$i.$typed($callArgs);
+      Object? result = await $invocation($callArgs);
       if (result is dv.Response) return result;
       if (result is Stream<List<int>>) return dv.Response(200, body: result);
       if (result is Stream) {
@@ -932,8 +960,40 @@ class DartvelClient {
     return sb.toString();
   }
 
-  static void _validatePublicBackendFunctionInputs(String source, String rel) {
+  static ({
+    String sourceName,
+    String publicName,
+    String returnType,
+    String parameters,
+    String expression,
+  })? _privateBackendExpression(String source, String rel) {
     final lines = source.split('\n');
+    for (var index = 0; index < lines.length; index += 1) {
+      if (!lines[index].contains('@DVBackendFunction')) continue;
+      for (var probe = index + 1;
+          probe < lines.length && probe <= index + 6;
+          probe += 1) {
+        final line = lines[probe].trim();
+        if (line.isEmpty || line.startsWith('@')) continue;
+        final match = RegExp(
+          r'^((?:Future<[^>]+>|Future|Stream<[^>]+>|[A-Za-z_][A-Za-z0-9_<>, ?]*))\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*(?:async\s*)?=>\s*(.*);\s*$',
+        ).firstMatch(line);
+        if (match == null) continue;
+        final returnType = match.group(1)!.trim();
+        final name = match.group(2)!;
+        final parameters = match.group(3)!.trim();
+        final expression = match.group(4)!.trim();
+        if (!name.startsWith('_')) return null;
+        return (
+          sourceName: name,
+          publicName: name.substring(1),
+          returnType: returnType,
+          parameters: parameters,
+          expression: expression,
+        );
+      }
+    }
+
     for (var index = 0; index < lines.length; index += 1) {
       if (!lines[index].contains('@DVBackendFunction')) continue;
       for (var probe = index + 1;
@@ -948,19 +1008,18 @@ class DartvelClient {
         final name = match.group(1)!;
         if (name.startsWith('_')) {
           throw StateError(
-            'Dartvel backend function inputs are private in the spec, but '
-            'this generator still needs public function source while private '
-            'wrappers are being implemented. Rename $name to '
-            '${name.substring(1)} for this build, and reference only the '
-            'generated backend API from dartvel_client/dartvel_client.dart. '
-            'File: $rel',
+            'Dartvel private backend function input $name in $rel must use an '
+            'expression body for this generator pass, for example '
+            'Future<String> $name(String input) async => input. '
+            'Block-bodied private backend functions require generated body '
+            'lowering before they can be emitted without per-source part files.',
           );
         }
         break;
       }
     }
+    return null;
   }
-
 
   static Future<void> _validateMiddlewareAnnotations(String root) async {
     const supported = <String>{
@@ -1096,21 +1155,13 @@ class DartvelClient {
     for (final match in pattern.allMatches(source)) {
       final declaration = match.group(0) ?? '';
       final name = match.group(1)!;
-      if (name.startsWith('_')) {
-        throw StateError(
-          'Dartvel backend function inputs are private in the spec, but this '
-          'generator still needs public function source while private wrappers '
-          'are being implemented. Rename $name to ${name.substring(1)} for '
-          'this build, and reference only generated backend and AI APIs from '
-          'dartvel_client/dartvel_client.dart.',
-        );
-      }
+      final publicName = name.startsWith('_') ? name.substring(1) : name;
       if (declaration.contains('@DVAIHidden') ||
-          entriesByName.containsKey(name)) {
+          entriesByName.containsKey(publicName)) {
         continue;
       }
-      entriesByName[name] = _AIToolEntry(
-        name: name,
+      entriesByName[publicName] = _AIToolEntry(
+        name: publicName,
         description: 'Backend function $name',
         importUri: importUri,
         relativePath: relativePath,
@@ -1147,7 +1198,7 @@ class DartvelClient {
     }
     final futureMatch = RegExp(r'^Future<(.+)>$').firstMatch(trimmed);
     if (futureMatch != null) {
-      return 'Future<${_clientReturnType(futureMatch.group(1)!)}>';
+      return _clientReturnType(futureMatch.group(1)!);
     }
     return trimmed;
   }

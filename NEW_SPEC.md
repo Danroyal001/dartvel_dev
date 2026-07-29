@@ -620,6 +620,17 @@ Widget _featureCard(String title) => DVBox(DVText(title));
 Block-bodied private functional widgets fail with a message explaining how to
 convert them. Public annotated functional widget inputs always fail.
 
+Private `@DVBackendFunction` inputs are supported for expression-bodied
+functions, and generated scaffolds use that shape:
+
+```dart
+@DVBackendFunction()
+Future<String> _getEcho(String input) async => 'Echo: $input';
+```
+
+Block-bodied private backend functions fail until full body lowering is
+implemented.
+
 Using the new native Dart data-class syntax. Automatically generates:
 * Database schema
 * CRUD
