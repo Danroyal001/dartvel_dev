@@ -3092,12 +3092,14 @@ Dartvel fork of `flutter_vscode`. This target is not a raw `flutter build web`.
 It follows the extension-host flow:
 
 1. Generate Dartvel routes/client/backend artifacts.
-2. Run `dart run flutter_vscode:generate_vscode_extension` so the VS Code
+2. Run `dart run build_runner build --delete-conflicting-outputs` so annotated
+   VS Code controller APIs produce current bindings.
+3. Run `dart run flutter_vscode:generate_vscode_extension` so the VS Code
    extension scaffold, webview helper wiring, and typed controller bindings are
    present.
-3. Run `flutter pub get`.
-4. Run `npm install`.
-5. Run `npm run compile` to build the TypeScript extension host package.
+4. Run `flutter pub get`.
+5. Run `npm install`.
+6. Run `npm run compile` to build the TypeScript extension host package.
 
 Application code uses annotated Dart controller APIs for VS Code commands and
 messages, initializes `VSCodeWebViewHelper` in the Flutter webview entry point,
@@ -3106,10 +3108,12 @@ barrel. Dartvel keeps the fork at
 `https://github.com/Danroyal001/flutter-vscode` and tracks upstream
 `SlowGen/flutter_vscode`.
 
-The VS Code target requires Node.js/npm and a project dependency on
-`flutter_vscode`. `dartvel build vscode` validates that dependency before
-running the scaffold generator, and `dartvel doctor --target vscode` reports
-whether npm is on PATH. After `npm run compile`, Dartvel validates that a
+The VS Code target requires Node.js/npm, a project dependency on
+`flutter_vscode`, and `build_runner` in `dev_dependencies` so controller
+bindings are generated before the extension scaffold compiles. `dartvel build
+vscode` validates those dependencies before running the scaffold generator, and
+`dartvel doctor --target vscode` reports whether npm is on PATH. After
+`npm run compile`, Dartvel validates that a
 compiled extension-host JavaScript file exists under `out/` or `dist/`, that
 `build/web/flutter_bootstrap.js` exists, and that `build/web/assets/` exists.
 Those artifacts must be fresh from the current build invocation, so stale

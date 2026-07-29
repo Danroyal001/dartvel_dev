@@ -104,17 +104,19 @@ instead of using plain `flutter build web`.
 `dartvel build vscode` follows the `flutter_vscode` flow:
 
 1. Generate Dartvel routes/client/backend artifacts.
-2. Run `dart run flutter_vscode:generate_vscode_extension` to create/update
+2. Run `dart run build_runner build --delete-conflicting-outputs` so annotated
+   VS Code controller APIs emit current bindings.
+3. Run `dart run flutter_vscode:generate_vscode_extension` to create/update
    the VS Code extension scaffold, typed controller bindings, and webview
    helper wiring.
-3. Run `flutter pub get`.
-4. Run `npm install`.
-5. Run `npm run compile`.
+4. Run `flutter pub get`.
+5. Run `npm install`.
+6. Run `npm run compile`.
 
-The target requires Node.js/npm plus a project dependency on `flutter_vscode`.
-`dartvel build vscode` validates the pubspec dependency before running the
-scaffold generator. `dartvel doctor --target vscode` reports whether npm is
-available.
+The target requires Node.js/npm, a project dependency on `flutter_vscode`, and
+`build_runner` in `dev_dependencies`. `dartvel build vscode` validates the
+pubspec dependencies before running the scaffold generator. `dartvel doctor
+--target vscode` reports whether npm is available.
 
 After the compile step, Dartvel validates the artifact shape and freshness so a
 zero exit code without current-build output cannot be reported as success.

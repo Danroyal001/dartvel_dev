@@ -441,7 +441,7 @@ void main() {
           }
           return ProcessResult(0, 0, '', '');
         },
-        hasBuildRunner: (String root) => false,
+        hasBuildRunner: (String root) => true,
       );
       final runner = CommandRunner<void>('dartvel', 'test')
         ..addCommand(command);
@@ -453,6 +453,8 @@ void main() {
 name: vscode_app
 dependencies:
   flutter_vscode: ^0.0.1
+dev_dependencies:
+  build_runner: ^2.5.4
 ''');
         await runner.run(<String>['build', 'vscode']);
         observedExitCode = exitCode;
@@ -465,6 +467,7 @@ dependencies:
       expect(observedExitCode, oldExitCode);
       expect(processInvocations, <String>[
         'dart run dartvel_cli:dartvel routes',
+        'dart run build_runner build --delete-conflicting-outputs',
         'dart run flutter_vscode:generate_vscode_extension',
         'flutter pub get',
         'npm install',
@@ -472,7 +475,8 @@ dependencies:
       ]);
     });
 
-    test('vscode build fails when compile exits without artifacts', () async {
+    test('vscode build fails before scaffold commands without build_runner',
+        () async {
       final temp = Directory.systemTemp.createTempSync('dartvel_build_test_');
       final oldCurrent = Directory.current;
       final oldExitCode = exitCode;
@@ -510,6 +514,50 @@ dependencies:
 
       expect(processInvocations, <String>[
         'dart run dartvel_cli:dartvel routes',
+      ]);
+    });
+
+    test('vscode build fails when compile exits without artifacts', () async {
+      final temp = Directory.systemTemp.createTempSync('dartvel_build_test_');
+      final oldCurrent = Directory.current;
+      final oldExitCode = exitCode;
+      final processInvocations = <String>[];
+      final command = BuildCommand(
+        preflight: (String platform, {bool? autoInstall}) async => true,
+        processRun: (
+          String executable,
+          List<String> arguments, {
+          String? workingDirectory,
+          bool runInShell = false,
+        }) async {
+          processInvocations.add(<String>[executable, ...arguments].join(' '));
+          return ProcessResult(0, 0, '', '');
+        },
+        hasBuildRunner: (String root) => true,
+      );
+      final runner = CommandRunner<void>('dartvel', 'test')
+        ..addCommand(command);
+
+      try {
+        Directory.current = temp;
+        File('pubspec.yaml').writeAsStringSync('''
+name: vscode_app
+dependencies:
+  flutter_vscode: ^0.0.1
+dev_dependencies:
+  build_runner: ^2.5.4
+''');
+        await runner.run(<String>['build', 'vscode']);
+        expect(exitCode, 1);
+      } finally {
+        Directory.current = oldCurrent;
+        temp.deleteSync(recursive: true);
+        exitCode = oldExitCode;
+      }
+
+      expect(processInvocations, <String>[
+        'dart run dartvel_cli:dartvel routes',
+        'dart run build_runner build --delete-conflicting-outputs',
         'dart run flutter_vscode:generate_vscode_extension',
         'flutter pub get',
         'npm install',

@@ -479,6 +479,16 @@ class BuildCommand extends Command<void> {
       return _PlatformBuildResult.failed;
     }
 
+    if (!_hasBuildRunner(root)) {
+      Logger.log(
+        '❌ vscode build requires build_runner to generate controller bindings.',
+      );
+      Logger.log(
+        '   Add build_runner to dev_dependencies, then run `dartvel build vscode` again.',
+      );
+      return _PlatformBuildResult.failed;
+    }
+
     final commands = <({String executable, List<String> arguments})>[
       (
         executable: 'dart',
