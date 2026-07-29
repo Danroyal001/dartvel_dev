@@ -4,6 +4,20 @@ import '../utils/build_runner.dart';
 import '../utils/logger.dart';
 import '../utils/toolchain.dart';
 
+typedef BuildPreflight = Future<bool> Function(
+  String platform, {
+  bool? autoInstall,
+});
+
+typedef BuildProcessRun = Future<ProcessResult> Function(
+  String executable,
+  List<String> arguments, {
+  String? workingDirectory,
+  bool runInShell,
+});
+
+typedef BuildRunnerDependencyCheck = bool Function(String root);
+
 /// Platforms built with the standard `flutter build` executable.
 const flutterBuildPlatforms = <String>[
   'android',
@@ -128,7 +142,13 @@ class BuildCommand extends Command<void> {
   @override
   String get invocation => 'dartvel build [platform]';
 
-  BuildCommand() {
+  BuildCommand({
+    BuildPreflight? preflight,
+    BuildProcessRun? processRun,
+    BuildRunnerDependencyCheck? hasBuildRunner,
+  })  : _preflightOverride = preflight,
+        _processRun = processRun ?? _defaultProcessRun,
+        _hasBuildRunner = hasBuildRunner ?? hasBuildRunnerDependency {
     argParser
       ..addOption('platform',
           abbr: 'p',
@@ -159,6 +179,24 @@ class BuildCommand extends Command<void> {
           help: 'Install missing build tools without prompting. Defaults to '
               'prompting when interactive, and to installing in CI. Use '
               '--no-auto-install to require a pre-provisioned toolchain.');
+  }
+
+  final BuildPreflight? _preflightOverride;
+  final BuildProcessRun _processRun;
+  final BuildRunnerDependencyCheck _hasBuildRunner;
+
+  static Future<ProcessResult> _defaultProcessRun(
+    String executable,
+    List<String> arguments, {
+    String? workingDirectory,
+    bool runInShell = false,
+  }) {
+    return Process.run(
+      executable,
+      arguments,
+      workingDirectory: workingDirectory,
+      runInShell: runInShell,
+    );
   }
 
   @override
@@ -202,8 +240,9 @@ class BuildCommand extends Command<void> {
 
     var skipped = 0;
     final buildablePlatforms = <String>[];
+    final preflight = _preflightOverride ?? _preflight;
     for (final platform in platforms) {
-      if (await _preflight(platform, autoInstall: autoInstall)) {
+      if (await preflight(platform, autoInstall: autoInstall)) {
         buildablePlatforms.add(platform);
       } else {
         skipped += 1;
@@ -217,9 +256,9 @@ class BuildCommand extends Command<void> {
     }
 
     // Run optional user-configured builders after Dartvel's own generation.
-    if (hasBuildRunnerDependency(root)) {
+    if (_hasBuildRunner(root)) {
       Logger.log('📦 Running build_runner...');
-      final buildRunnerResult = await Process.run(
+      final buildRunnerResult = await _processRun(
         'dart',
         ['run', 'build_runner', 'build', '--delete-conflicting-outputs'],
         workingDirectory: root,
@@ -235,7 +274,7 @@ class BuildCommand extends Command<void> {
 
     // Generate routes
     Logger.log('📝 Generating routes...');
-    final routesResult = await Process.run(
+    final routesResult = await _processRun(
       'dart',
       ['run', 'dartvel_cli:dartvel', 'routes'],
       workingDirectory: root,

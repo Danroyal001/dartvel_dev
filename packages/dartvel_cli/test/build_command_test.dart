@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:args/command_runner.dart';
 import 'package:dartvel_cli/src/commands/build_command.dart';
 import 'package:test/test.dart';
 
@@ -263,6 +266,45 @@ void main() {
       for (final platform in embeddedBuildPlatforms) {
         expect(isPlatformAvailableOn(platform, 'linux'), isFalse);
       }
+    });
+  });
+
+  group('BuildCommand', () {
+    test('skips generation when target preflight skips every platform',
+        () async {
+      final temp = Directory.systemTemp.createTempSync('dartvel_build_test_');
+      final oldCurrent = Directory.current;
+      final processInvocations = <String>[];
+      final preflightPlatforms = <String>[];
+      final command = BuildCommand(
+        preflight: (String platform, {bool? autoInstall}) async {
+          preflightPlatforms.add(platform);
+          return false;
+        },
+        processRun: (
+          String executable,
+          List<String> arguments, {
+          String? workingDirectory,
+          bool runInShell = false,
+        }) async {
+          processInvocations.add(<String>[executable, ...arguments].join(' '));
+          return ProcessResult(0, 0, '', '');
+        },
+        hasBuildRunner: (String root) => true,
+      );
+      final runner = CommandRunner<void>('dartvel', 'test')
+        ..addCommand(command);
+
+      try {
+        Directory.current = temp;
+        await runner.run(<String>['build', 'windows']);
+      } finally {
+        Directory.current = oldCurrent;
+        temp.deleteSync(recursive: true);
+      }
+
+      expect(preflightPlatforms, <String>['windows']);
+      expect(processInvocations, isEmpty);
     });
   });
 }
