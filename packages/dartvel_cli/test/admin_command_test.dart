@@ -35,9 +35,13 @@ void main() {
       );
       expect(index.existsSync(), isTrue);
       expect(queues.existsSync(), isTrue);
-      expect(index.readAsStringSync(), contains('@DVPage'));
-      expect(index.readAsStringSync(), contains('DVBox.list'));
-      expect(index.readAsStringSync(), contains('DVText'));
+      final indexSource = index.readAsStringSync();
+      expect(indexSource, contains('@DVPage'));
+      expect(indexSource, contains('Widget _dartvelAdminIndexPage('));
+      expect(indexSource, contains('buildDartvelAdminIndexPage(context)'));
+      expect(indexSource, isNot(contains('Widget dartvelAdminIndexPage(')));
+      expect(indexSource, contains('DVBox.list'));
+      expect(indexSource, contains('DVText'));
     });
 
     test('admin generate preserves existing files unless forced', () async {

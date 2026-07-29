@@ -128,8 +128,10 @@ import '../../dartvel_client/dartvel_client.dart';
 import 'package:flutter/widgets.dart';
 
 @DVPage(title: 'Dartvel Admin', path: '/_dartvel_admin')
-Widget dartvelAdminIndexPage(BuildContext context) {
-  return DVBox.list([
+@pragma('vm:entry-point')
+Widget _dartvelAdminIndexPage(BuildContext context) => buildDartvelAdminIndexPage(context);
+
+Widget buildDartvelAdminIndexPage(BuildContext context) => DVBox.list([
     const DVText('Dartvel Admin').modifier(
       const DVModifier().fontSize(28).bold(),
     ),
@@ -143,7 +145,6 @@ Widget dartvelAdminIndexPage(BuildContext context) {
       const DVBox(DVText('Model Sync')).modifier(const DVModifier().card().padding(16)),
     ], columns: 2),
   ]).modifier(const DVModifier().padding(24));
-}
 ''';
 
   static const String _queuesPage = '''
@@ -151,8 +152,10 @@ import '../../dartvel_client/dartvel_client.dart';
 import 'package:flutter/widgets.dart';
 
 @DVPage(title: 'Dartvel Queues', path: '/_dartvel_admin/queues')
-Widget dartvelAdminQueuesPage(BuildContext context) {
-  return DVBox.list([
+@pragma('vm:entry-point')
+Widget _dartvelAdminQueuesPage(BuildContext context) => buildDartvelAdminQueuesPage(context);
+
+Widget buildDartvelAdminQueuesPage(BuildContext context) => DVBox.list([
     const DVText('Queues and Jobs').modifier(
       const DVModifier().fontSize(24).bold(),
     ),
@@ -163,7 +166,6 @@ Widget dartvelAdminQueuesPage(BuildContext context) {
       const DVBox(DVText('Workers')).modifier(const DVModifier().card().padding(16)),
     ]),
   ]).modifier(const DVModifier().padding(24));
-}
 ''';
 
   static const String _cachePage = '''
@@ -171,8 +173,10 @@ import '../../dartvel_client/dartvel_client.dart';
 import 'package:flutter/widgets.dart';
 
 @DVPage(title: 'Dartvel Cache', path: '/_dartvel_admin/cache')
-Widget dartvelAdminCachePage(BuildContext context) {
-  return DVBox.list([
+@pragma('vm:entry-point')
+Widget _dartvelAdminCachePage(BuildContext context) => buildDartvelAdminCachePage(context);
+
+Widget buildDartvelAdminCachePage(BuildContext context) => DVBox.list([
     const DVText('Cache Tags').modifier(
       const DVModifier().fontSize(24).bold(),
     ),
@@ -183,7 +187,6 @@ Widget dartvelAdminCachePage(BuildContext context) {
       const DVBox(DVText('Locks')).modifier(const DVModifier().card().padding(16)),
     ]),
   ]).modifier(const DVModifier().padding(24));
-}
 ''';
 
   static const String _routesPage = '''
@@ -191,8 +194,10 @@ import '../../dartvel_client/dartvel_client.dart';
 import 'package:flutter/widgets.dart';
 
 @DVPage(title: 'Dartvel Routes', path: '/_dartvel_admin/routes')
-Widget dartvelAdminRoutesPage(BuildContext context) {
-  return DVBox.list([
+@pragma('vm:entry-point')
+Widget _dartvelAdminRoutesPage(BuildContext context) => buildDartvelAdminRoutesPage(context);
+
+Widget buildDartvelAdminRoutesPage(BuildContext context) => DVBox.list([
     const DVText('Routes and Pages').modifier(
       const DVModifier().fontSize(24).bold(),
     ),
@@ -203,6 +208,5 @@ Widget dartvelAdminRoutesPage(BuildContext context) {
       const DVBox(DVText('Policies')).modifier(const DVModifier().card().padding(16)),
     ]),
   ]).modifier(const DVModifier().padding(24));
-}
 ''';
 }
