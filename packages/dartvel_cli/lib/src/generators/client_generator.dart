@@ -451,10 +451,16 @@ class DartvelRuntime {
 
     // Router
     final imports = ([
+      "import 'dart:async';",
       "import 'package:flutter/material.dart';",
       "import 'package:go_router/go_router.dart';",
       "import 'package:dartvel_flutter/dartvel_flutter.dart';",
+      "import 'config.g.dart';",
+      "import 'dartvel_config.g.dart';",
       "import 'dartvel_runtime.dart';",
+      "import 'env.g.dart';",
+      "import 'functions.g.dart';",
+      "import 'models.g.dart';",
       "import 'widgets.g.dart';",
       ...pageImports,
       ...layoutImports,
@@ -1211,6 +1217,13 @@ class DartvelConfig {
       multiLine: true,
     );
     for (final match in declarations.allMatches(source)) {
+      symbols.add(match.group(1)!);
+    }
+    final typedVariables = RegExp(
+      r'^(?:[A-Za-z_][A-Za-z0-9_<>, ?]*\s+)+([A-Za-z][A-Za-z0-9_]*)\s*(?:=|;)',
+      multiLine: true,
+    );
+    for (final match in typedVariables.allMatches(source)) {
       symbols.add(match.group(1)!);
     }
     final functions = RegExp(
