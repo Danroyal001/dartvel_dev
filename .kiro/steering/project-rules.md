@@ -54,11 +54,9 @@ Implemented as of this writing: `DV.lifecycle.*` and `context.lifecycle.*`
 `static_paths_generator.dart` into `dartvel_client/static_paths.g.dart`),
 generated `Model.Page(...)` data-mode APIs (`.async`, `.signal`, `.fromId`) in
 `model_generator.dart`, and `@DVModel(generatePublicPages: true)` static-path
-manifest generation backed by `Model.usePublicStaticPathsResolver(...)`.
-
-Still **not** implemented: automatic published-record enumeration without a
-registered public static-path resolver. Generated public model paths must fail
-clearly instead of inventing fake paths when no resolver is configured.
+manifest generation. Generated public model paths default to `DV.Database`
+table enumeration with `published`/`isPublished` filtering when present, and can
+be overridden with `Model.usePublicStaticPathsResolver(...)`.
 
 ## Public API Shape Rules
 
