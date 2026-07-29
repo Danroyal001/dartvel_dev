@@ -3029,10 +3029,10 @@ its own HTML while still appearing in the parent route index and sitemap.
 
 ---
 
-# Embedded and Television Build Targets
+# Embedded, Television, and Extension Build Targets
 
 Beyond mobile, web, and desktop, Dartvel supports dedicated builds for webOS,
-Tizen, and Sony's Flutter Embedded Linux ecosystem.
+Tizen, Sony's Flutter Embedded Linux ecosystem, and VS Code extensions.
 
 ```bash
 dartvel build webos
@@ -3040,19 +3040,48 @@ dartvel build tizen
 dartvel build sony-elinux
 dartvel build sony-elinux-iso
 dartvel build sony-elinux-img
+dartvel build vscode
 ```
 
-Each target is driven by the platform's dedicated Flutter embedder rather than
-plain `flutter build`:
+Each target is driven by the platform's dedicated Flutter embedder or host
+extension generator rather than plain `flutter build`:
 
 - **webOS** → `flutter-webos` (LG)
 - **Tizen** → `flutter-tizen` (Samsung)
 - **Sony eLinux** → `flutter-elinux` (Sony)
+- **VS Code** → `flutter_vscode` extension generator and webview helper
 
 Dartvel shells out to these embedders, adapting their invocation behind the
 stable `dartvel build` surface. When an embedder is not installed, the target is
 skipped with a clear message instead of failing the whole build, and
 `dartvel doctor --target <t>` validates that the embedder is present.
+
+## VS Code Extension
+
+`dartvel build vscode` packages a Dartvel app as a VS Code extension using the
+Dartvel fork of `flutter_vscode`. This target is not a raw `flutter build web`.
+It follows the extension-host flow:
+
+1. Generate Dartvel routes/client/backend artifacts.
+2. Run `dart run flutter_vscode:generate_vscode_extension` so the VS Code
+   extension scaffold, webview helper wiring, and typed controller bindings are
+   present.
+3. Run `flutter pub get`.
+4. Run `npm install`.
+5. Run `npm run compile` to build the TypeScript extension host package.
+
+Application code uses annotated Dart controller APIs for VS Code commands and
+messages, initializes `VSCodeWebViewHelper` in the Flutter webview entry point,
+and imports Dartvel through the generated `dartvel_client/dartvel_client.dart`
+barrel. Dartvel keeps the fork at
+`https://github.com/Danroyal001/flutter-vscode` and tracks upstream
+`SlowGen/flutter_vscode`.
+
+The VS Code target requires Node.js/npm and a project dependency on
+`flutter_vscode`. `dartvel doctor --target vscode` reports whether npm is on
+PATH. The generated extension output is verified only when the TypeScript
+extension host compiles and the Flutter webview bundle exists; do not mark it
+verified from command wiring alone.
 
 ## webOS
 
@@ -3208,7 +3237,8 @@ The selected application requires Bluetooth, but the sony-elinux device profile
 does not provide a Bluetooth adapter or fallback implementation.
 ```
 
-Validation is also available through `dartvel doctor --target webos|tizen|sony-elinux`.
+Validation is also available through
+`dartvel doctor --target webos|tizen|sony-elinux|vscode`.
 
 ## Updated build target list
 
@@ -3223,10 +3253,11 @@ dartvel build web-server
 dartvel build windows
 dartvel build linux
 dartvel build macos
-# Television and embedded platforms
+# Television, embedded, and extension platforms
 dartvel build webos
 dartvel build tizen
 dartvel build sony-elinux
+dartvel build vscode
 # Complete Sony Embedded Linux system images
 dartvel build sony-elinux-iso
 dartvel build sony-elinux-img
@@ -3273,7 +3304,7 @@ Every capability carries generated support metadata: `Supported`,
 module on a target that cannot satisfy them without a configured fallback.
 
 ```bash
-dartvel doctor --targets android,ios,web
+dartvel doctor --targets android,ios,web,vscode
 ```
 
 ## Upgrade and compatibility

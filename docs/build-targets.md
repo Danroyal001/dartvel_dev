@@ -26,6 +26,7 @@ Verified on Linux x64 (Ubuntu 24.04), Flutter 3.44.5 / Dart 3.12.2, against
 | `tizen` / `tpk` | ✅ Builds | Signed 9.3MB TPK with engine + assets; see [Tizen](#tizen-samsung) |
 | `sony-elinux` | ❌ Blocked | Dart version floor; see [Sony eLinux](#sony-elinux) |
 | `webos` | ⚠️ Unproven | Embedder installs; build not yet demonstrated |
+| `vscode` | ⚠️ Unproven | CLI target is wired; extension scaffold, TypeScript compile, and Flutter webview bundle not yet inspected |
 
 Flutter has **no desktop cross-compilation**. A Windows desktop build requires
 Windows, a Linux desktop build requires Linux, and the Apple targets require
@@ -66,6 +67,7 @@ Dartvel installs the things it can fetch unattended:
 | `flutter-elinux` | `git clone` of the Dartvel fork |
 | `flutter-webos` | `git clone` of the Dartvel fork |
 | `ares` (webOS CLI) | `npm install -g @webos-tools/cli` |
+| `npm` (VS Code extension host) | Manual Node.js/npm install |
 | Linux desktop deps (`clang`, `cmake`, `ninja`, `pkg-config`, GTK 3) | `apt-get` |
 
 It deliberately will **not** install licence-gated or multi-gigabyte vendor
@@ -88,6 +90,35 @@ embedder against the Flutter version Dartvel ships.
 | `tizen` | [Danroyal001/flutter-tizen](https://github.com/Danroyal001/flutter-tizen) | `flutter-tizen/flutter-tizen` | Samsung |
 | `sony-elinux` | [Danroyal001/flutter-elinux](https://github.com/Danroyal001/flutter-elinux) | `sony/flutter-elinux` | Sony |
 | `webos` | [Danroyal001/flutter-webos](https://github.com/Danroyal001/flutter-webos) | `lg-flutter-webos/flutter-webos` | LG |
+| `vscode` | [Danroyal001/flutter-vscode](https://github.com/Danroyal001/flutter-vscode) | `SlowGen/flutter_vscode` | VS Code |
+
+## Extension-host targets
+
+Extension-host targets compile Flutter into the host's webview/runtime shape
+instead of using plain `flutter build web`.
+
+### VS Code
+
+`dartvel build vscode` follows the `flutter_vscode` flow:
+
+1. Generate Dartvel routes/client/backend artifacts.
+2. Run `dart run flutter_vscode:generate_vscode_extension` to create/update
+   the VS Code extension scaffold, typed controller bindings, and webview
+   helper wiring.
+3. Run `flutter pub get`.
+4. Run `npm install`.
+5. Run `npm run compile`.
+
+The target requires Node.js/npm plus a project dependency on `flutter_vscode`.
+`dartvel doctor --target vscode` reports whether npm is available.
+
+Do **not** mark this target verified until a real project build has been run
+and these artifacts have been inspected:
+
+- VS Code extension host output from the TypeScript compile step.
+- Flutter webview bundle output.
+- Generated extension metadata (`package.json`, activation commands, and
+  webview assets) produced by the Dartvel fork.
 
 ### Tizen (Samsung)
 

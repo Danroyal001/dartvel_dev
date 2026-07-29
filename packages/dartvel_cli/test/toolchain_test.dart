@@ -7,6 +7,12 @@ void main() {
       expect(toolRequirementsFor('web'), isEmpty);
     });
 
+    test('vscode requires npm for extension host compilation', () {
+      final executables =
+          toolRequirementsFor('vscode').map((r) => r.executable).toList();
+      expect(executables, <String>['npm']);
+    });
+
     test('each embedded target requires its vendor embedder', () {
       expect(
         toolRequirementsFor('tizen').map((r) => r.executable),
@@ -96,8 +102,8 @@ void main() {
     });
 
     test('a plain developer shell is not CI', () {
-      expect(isCiEnvironment({'HOME': '/home/dev', 'PATH': '/usr/bin'}),
-          isFalse);
+      expect(
+          isCiEnvironment({'HOME': '/home/dev', 'PATH': '/usr/bin'}), isFalse);
     });
   });
 

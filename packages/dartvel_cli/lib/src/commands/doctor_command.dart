@@ -15,8 +15,9 @@ class DoctorCommand extends Command<void> {
   DoctorCommand() {
     argParser.addOption(
       'target',
-      allowed: ['webos', 'tizen', 'sony-elinux'],
-      help: 'Validate the toolchain for a specific embedded/TV build target',
+      allowed: ['webos', 'tizen', 'sony-elinux', 'vscode'],
+      help:
+          'Validate the toolchain for a specific embedded/TV/extension build target',
     );
   }
 
@@ -101,18 +102,22 @@ class DoctorCommand extends Command<void> {
       'tizen' => 'flutter-tizen',
       'sony-elinux' => 'flutter-elinux',
       'webos' => 'flutter-webos',
+      'vscode' => 'npm',
       _ => 'flutter',
     };
+    final label = target == 'vscode' ? 'toolchain' : 'embedder';
 
     final available = await _isExecutableAvailable(executable);
     if (available) {
-      Logger.log('[+] $target embedder: $executable found');
+      Logger.log('[+] $target $label: $executable found');
       Logger.log('\n[+] Target $target looks ready to build.');
     } else {
-      Logger.log('[!] $target embedder: $executable not found on PATH');
+      Logger.log('[!] $target $label: $executable not found on PATH');
       Logger.log(
-        '    Install the $target Flutter embedder before running '
-        '`dartvel build $target`.',
+        target == 'vscode'
+            ? '    Install Node.js/npm before running `dartvel build vscode`.'
+            : '    Install the $target Flutter embedder before running '
+                '`dartvel build $target`.',
       );
     }
 
@@ -127,8 +132,7 @@ class DoctorCommand extends Command<void> {
   Future<bool> _isExecutableAvailable(String executable) async {
     try {
       final locator = Platform.isWindows ? 'where' : 'which';
-      final result =
-          await Process.run(locator, [executable], runInShell: true);
+      final result = await Process.run(locator, [executable], runInShell: true);
       return result.exitCode == 0;
     } catch (_) {
       return false;

@@ -39,12 +39,18 @@ const embeddedBuildPlatforms = <String>[
   'webos',
 ];
 
+/// Extension-host platforms built through host-specific Flutter embedders.
+const extensionBuildPlatforms = <String>[
+  'vscode',
+];
+
 /// The set built by `--platform all`. Distribution-image formats
 /// (`sony-elinux-iso`/`sony-elinux-img`) are intentionally excluded; they are
 /// explicit packaging targets, not part of a general build.
 const allBuildPlatforms = <String>[
   ...flutterBuildPlatforms,
   ...embeddedBuildPlatforms,
+  ...extensionBuildPlatforms,
 ];
 
 /// Everything `dartvel build <platform>` accepts, positionally or via
@@ -231,8 +237,9 @@ class BuildCommand extends Command<void> {
     // A distribution-target name (`sony-elinux-iso`) resolves to a base
     // platform plus a format; an explicit `--format` overrides the default.
     final normalized = normalizeBuildTarget(rawPlatform);
-    final platforms =
-        normalized.platform == 'all' ? allBuildPlatforms : [normalized.platform];
+    final platforms = normalized.platform == 'all'
+        ? allBuildPlatforms
+        : [normalized.platform];
     final format = formatFlag ?? normalized.format;
 
     Logger.log('🔨 Building Dartvel project...');
@@ -300,16 +307,18 @@ class BuildCommand extends Command<void> {
               arch: arch,
               target: target,
             )
-          : await _buildPlatform(
-              p,
-              buildMode,
-              target: target,
-              splitPerAbi: splitPerAbi,
-              buildNumber: buildNumber,
-              buildName: buildName,
-              obfuscate: obfuscate && isRelease,
-              treeShakeIcons: treeShakeIcons,
-            );
+          : extensionBuildPlatforms.contains(p)
+              ? await _buildVSCodeExtension(root)
+              : await _buildPlatform(
+                  p,
+                  buildMode,
+                  target: target,
+                  splitPerAbi: splitPerAbi,
+                  buildNumber: buildNumber,
+                  buildName: buildName,
+                  obfuscate: obfuscate && isRelease,
+                  treeShakeIcons: treeShakeIcons,
+                );
       switch (result) {
         case _PlatformBuildResult.succeeded:
           break;
@@ -399,9 +408,8 @@ class BuildCommand extends Command<void> {
     required String arch,
     String? target,
   }) async {
-    final label = format == null || format == 'bundle'
-        ? platform
-        : '$platform ($format)';
+    final label =
+        format == null || format == 'bundle' ? platform : '$platform ($format)';
     Logger.log('');
     Logger.log('🔨 Building for $label...');
 
@@ -455,6 +463,42 @@ class BuildCommand extends Command<void> {
     return _PlatformBuildResult.succeeded;
   }
 
+  Future<_PlatformBuildResult> _buildVSCodeExtension(String root) async {
+    Logger.log('');
+    Logger.log('🔨 Building for vscode...');
+
+    final commands = <({String executable, List<String> arguments})>[
+      (
+        executable: 'dart',
+        arguments: <String>['run', 'flutter_vscode:generate_vscode_extension'],
+      ),
+      (executable: 'flutter', arguments: <String>['pub', 'get']),
+      (executable: 'npm', arguments: <String>['install']),
+      (executable: 'npm', arguments: <String>['run', 'compile']),
+    ];
+
+    for (final command in commands) {
+      Logger.log(
+        '   ${command.executable} ${command.arguments.join(' ')}',
+      );
+      final result = await _processRun(
+        command.executable,
+        command.arguments,
+        workingDirectory: root,
+        runInShell: true,
+      );
+      if (result.exitCode != 0) {
+        Logger.log('❌ vscode build failed');
+        stdout.write(result.stdout);
+        stderr.write(result.stderr);
+        return _PlatformBuildResult.failed;
+      }
+    }
+
+    Logger.log('✅ vscode extension build successful');
+    return _PlatformBuildResult.succeeded;
+  }
+
   Future<bool> _isPlatformAvailable(String platform) async =>
       isPlatformAvailableOn(platform, Platform.operatingSystem);
 
@@ -486,7 +530,8 @@ class BuildCommand extends Command<void> {
   /// would be nonsense.
   Future<bool> _preflight(String platform, {bool? autoInstall}) async {
     if (!isPlatformAvailableOn(platform, Platform.operatingSystem) &&
-        !embeddedBuildPlatforms.contains(platform)) {
+        !embeddedBuildPlatforms.contains(platform) &&
+        !extensionBuildPlatforms.contains(platform)) {
       Logger.log('');
       Logger.log('🔨 Checking $platform...');
       Logger.log(
@@ -605,9 +650,16 @@ EmbeddedBuildPlan? resolveEmbeddedBuildPlan({
       if (deviceProfile != null) {
         args.addAll(<String>['--device-profile', deviceProfile]);
       }
-      return EmbeddedBuildPlan('flutter-tizen', List<String>.unmodifiable(args));
+      return EmbeddedBuildPlan(
+          'flutter-tizen', List<String>.unmodifiable(args));
     case 'sony-elinux':
-      final args = <String>['build', 'elinux', buildMode, '--target-arch', arch];
+      final args = <String>[
+        'build',
+        'elinux',
+        buildMode,
+        '--target-arch',
+        arch
+      ];
       if (target != null) args.addAll(<String>['--target', target]);
       if (deviceProfile != null) {
         args.addAll(<String>['--device-profile', deviceProfile]);
