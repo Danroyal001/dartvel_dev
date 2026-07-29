@@ -600,10 +600,11 @@ belong to that generated public class.
 
 Pages, functional widgets, backend functions, jobs, AI tools, and models are
 private generation inputs. This is a hard generator rule:
-`@DVModel() class User`, `Widget usersPage(...)`, `Widget button(...)`, and
-`Future<User> getUser(...)` must fail with clear rename messages that instruct
-the developer to rename them to `_User`, `_usersPage`, `_button`, and
-`_getUser`. Application
+`@DVModel() class User`, `@DVPage() Widget usersPage(...)`,
+`@DVFunctionalWidget() Widget button(...)`, and
+`@DVBackendFunction() Future<User> getUser(...)` must fail with clear rename
+messages that instruct the developer to rename them to `_User`, `_usersPage`,
+`_button`, and `_getUser`. Application
 code references only the generated public API from
 `dartvel_client/dartvel_client.dart`, such as `UsersPage`, `Button`,
 `getUser`, and `User`.
@@ -2952,7 +2953,7 @@ values:
 
 ```dart
 @DVStaticPaths()
-Future<List<String>> productPaths() async {
+Future<List<String>> _productPaths() async {
   return Product.public().select((product) => product.slug);
 }
 ```
