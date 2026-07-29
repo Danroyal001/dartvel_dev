@@ -271,6 +271,36 @@ void main() {
     });
   });
 
+  group('validateVSCodeArtifacts', () {
+    test('requires extension JavaScript and Flutter webview assets', () {
+      final temp = Directory.systemTemp.createTempSync('dartvel_vscode_test_');
+      try {
+        var validation = validateVSCodeArtifacts(temp.path);
+        expect(validation.isValid, isFalse);
+        expect(
+          validation.missing,
+          containsAll(<String>[
+            'compiled extension host JavaScript under out/ or dist/',
+            'build/web/flutter_bootstrap.js',
+            'build/web/assets/',
+          ]),
+        );
+
+        Directory('${temp.path}/out').createSync();
+        File('${temp.path}/out/extension.js').writeAsStringSync('compiled');
+        Directory('${temp.path}/build/web/assets').createSync(recursive: true);
+        File('${temp.path}/build/web/flutter_bootstrap.js')
+            .writeAsStringSync('boot');
+
+        validation = validateVSCodeArtifacts(temp.path);
+        expect(validation.isValid, isTrue);
+        expect(validation.missing, isEmpty);
+      } finally {
+        temp.deleteSync(recursive: true);
+      }
+    });
+  });
+
   group('BuildCommand', () {
     test('skips generation when target preflight skips every platform',
         () async {
@@ -346,6 +376,65 @@ void main() {
     test('builds vscode extension after dartvel generation', () async {
       final temp = Directory.systemTemp.createTempSync('dartvel_build_test_');
       final oldCurrent = Directory.current;
+      final oldExitCode = exitCode;
+      final processInvocations = <String>[];
+      final command = BuildCommand(
+        preflight: (String platform, {bool? autoInstall}) async => true,
+        processRun: (
+          String executable,
+          List<String> arguments, {
+          String? workingDirectory,
+          bool runInShell = false,
+        }) async {
+          processInvocations.add(<String>[executable, ...arguments].join(' '));
+          if (executable == 'npm' &&
+              arguments.length == 2 &&
+              arguments[0] == 'run' &&
+              arguments[1] == 'compile') {
+            final root = workingDirectory ?? Directory.current.path;
+            Directory('$root/out').createSync(recursive: true);
+            File('$root/out/extension.js').writeAsStringSync('compiled');
+            Directory('$root/build/web/assets').createSync(recursive: true);
+            File('$root/build/web/flutter_bootstrap.js')
+                .writeAsStringSync('boot');
+          }
+          return ProcessResult(0, 0, '', '');
+        },
+        hasBuildRunner: (String root) => false,
+      );
+      final runner = CommandRunner<void>('dartvel', 'test')
+        ..addCommand(command);
+      int? observedExitCode;
+
+      try {
+        Directory.current = temp;
+        File('pubspec.yaml').writeAsStringSync('''
+name: vscode_app
+dependencies:
+  flutter_vscode: ^0.0.1
+''');
+        await runner.run(<String>['build', 'vscode']);
+        observedExitCode = exitCode;
+      } finally {
+        Directory.current = oldCurrent;
+        temp.deleteSync(recursive: true);
+        exitCode = oldExitCode;
+      }
+
+      expect(observedExitCode, oldExitCode);
+      expect(processInvocations, <String>[
+        'dart run dartvel_cli:dartvel routes',
+        'dart run flutter_vscode:generate_vscode_extension',
+        'flutter pub get',
+        'npm install',
+        'npm run compile',
+      ]);
+    });
+
+    test('vscode build fails when compile exits without artifacts', () async {
+      final temp = Directory.systemTemp.createTempSync('dartvel_build_test_');
+      final oldCurrent = Directory.current;
+      final oldExitCode = exitCode;
       final processInvocations = <String>[];
       final command = BuildCommand(
         preflight: (String platform, {bool? autoInstall}) async => true,
@@ -371,9 +460,11 @@ dependencies:
   flutter_vscode: ^0.0.1
 ''');
         await runner.run(<String>['build', 'vscode']);
+        expect(exitCode, 1);
       } finally {
         Directory.current = oldCurrent;
         temp.deleteSync(recursive: true);
+        exitCode = oldExitCode;
       }
 
       expect(processInvocations, <String>[
