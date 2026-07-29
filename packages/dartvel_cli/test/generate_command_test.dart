@@ -36,7 +36,7 @@ void main() {
     }
   });
 
-  test('backend function template remains executable by current generator',
+  test('backend function template emits a private expression-bodied input',
       () async {
     final root =
         await Directory.systemTemp.createTemp('dartvel_generate_backend_');
@@ -49,8 +49,11 @@ void main() {
       ).readAsStringSync();
 
       expect(source, contains('@DVBackendFunction()'));
-      expect(source, contains('Future<String> getEcho(String input) async'));
-      expect(source, isNot(contains('Future<String> _getEcho(')));
+      expect(
+          source,
+          contains(
+              "Future<String> _getEcho(String input) async => 'Echo: \$input';"));
+      expect(source, isNot(contains('Future<String> getEcho(')));
     } finally {
       root.deleteSync(recursive: true);
     }

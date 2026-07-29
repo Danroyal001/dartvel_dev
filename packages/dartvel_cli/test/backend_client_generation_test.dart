@@ -70,10 +70,10 @@ Future<Map<String, Object?>> handler(String title, int priority) async {
     }
   });
 
-  test('backend generation rejects private annotated backend functions',
+  test('private expression-bodied backend functions generate route helpers',
       () async {
     final root =
-        await Directory.systemTemp.createTemp('dartvel_backend_public_test_');
+        await Directory.systemTemp.createTemp('dartvel_backend_private_test_');
     try {
       Directory(p.join(root.path, '.dart_tool')).createSync();
       Directory(p.join(root.path, 'lib', 'dartvel_client'))
@@ -86,7 +86,55 @@ Future<Map<String, Object?>> handler(String title, int priority) async {
 import 'package:dartvel_core/dartvel.dart';
 
 @DVBackendFunction()
-Future<String> _handler() async => 'ok';
+Future<String> _handler(String input) async => 'ok \$input';
+''');
+
+      await BackendGenerator.generate(
+        root: root.path,
+        backendDir: 'lib/backend',
+        pkgName: 'backend_client_app',
+        buildId: 'test-build',
+        backendHost: '127.0.0.1',
+        backendPort: 3000,
+        apiBasePath: '/api',
+      );
+
+      final routes = File(
+        p.join(root.path, '.dart_tool', 'dartvel_backend_routes.g.dart'),
+      ).readAsStringSync();
+      final functions = File(
+        p.join(root.path, 'lib', 'dartvel_client', 'functions.g.dart'),
+      ).readAsStringSync();
+
+      expect(routes, contains("_dvBackendFn0(String input) => 'ok \$input';"));
+      expect(routes, contains('Object? result = await _dvBackendFn0('));
+      expect(routes, isNot(contains('f0._handler(')));
+      expect(functions, contains('Future<String> handler('));
+      expect(functions, isNot(contains('_handler(')));
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
+  test('private block-bodied backend functions require body lowering',
+      () async {
+    final root =
+        await Directory.systemTemp.createTemp('dartvel_backend_private_test_');
+    try {
+      Directory(p.join(root.path, '.dart_tool')).createSync();
+      Directory(p.join(root.path, 'lib', 'dartvel_client'))
+          .createSync(recursive: true);
+      Directory(p.join(root.path, 'lib', 'backend', 'functions'))
+          .createSync(recursive: true);
+
+      File(p.join(root.path, 'lib', 'backend', 'functions', 'task.post.dart'))
+          .writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVBackendFunction()
+Future<String> _handler(String input) async {
+  return 'ok \$input';
+}
 ''');
 
       await expectLater(
@@ -103,7 +151,7 @@ Future<String> _handler() async => 'ok';
           isA<StateError>().having(
             (error) => error.message,
             'message',
-            contains('backend function inputs are private in the spec'),
+            contains('must use an expression body'),
           ),
         ),
       );

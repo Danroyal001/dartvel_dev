@@ -124,9 +124,7 @@ class GenerateBackendSubcommand extends Command<void> {
     file.writeAsStringSync('''import 'package:dartvel_core/dartvel.dart';
 
 @DVBackendFunction()
-Future<String> get$capitalized(String input) async {
-  return 'Echo: \$input';
-}
+Future<String> _get$capitalized(String input) async => 'Echo: \$input';
 ''');
     Logger.log('Generated backend function: ${file.path}');
   }
