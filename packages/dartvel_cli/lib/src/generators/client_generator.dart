@@ -98,10 +98,11 @@ class ClientGenerator {
         className = m.group(1)!;
         if (className.startsWith('_')) {
           throw StateError(
-            'Dartvel page inputs must be public source declarations. Rename '
-            '$className to ${className.substring(1)} so the generated '
-            'dartvel_client entrypoint can wrap it without source-adjacent '
-            'part files.',
+            'Dartvel page inputs are private in the spec, but this generator '
+            'still needs public page source while private wrappers are being '
+            'implemented. Rename $className to ${className.substring(1)} for '
+            'this build, and reference only the generated page API from '
+            'dartvel_client/dartvel_client.dart in application code.',
           );
         }
         publicName = className;
@@ -117,10 +118,11 @@ class ClientGenerator {
         className = mf.group(1)!;
         if (className.startsWith('_')) {
           throw StateError(
-            'Dartvel page inputs must be public source declarations. Rename '
-            '$className to ${className.substring(1)} so the generated '
-            'dartvel_client entrypoint can wrap it without source-adjacent '
-            'part files.',
+            'Dartvel page inputs are private in the spec, but this generator '
+            'still needs public page source while private wrappers are being '
+            'implemented. Rename $className to ${className.substring(1)} for '
+            'this build, and reference only the generated page API from '
+            'dartvel_client/dartvel_client.dart in application code.',
           );
         }
         publicName = className;
@@ -1038,10 +1040,12 @@ class DartvelConfig {
       final sourceName = nameMatch.group(1)!;
       if (sourceName.startsWith('_')) {
         throw StateError(
-          'Dartvel functional widget inputs must be public source declarations. '
-          'Rename $sourceName to ${sourceName.substring(1)} so the generated '
-          'dartvel_client entrypoint can wrap it without source-adjacent part '
-          'files.',
+          'Dartvel functional widget inputs are private in the spec, but this '
+          'generator still needs public widget source while private wrappers '
+          'are being implemented. Rename $sourceName to '
+          '${sourceName.substring(1)} for this build, and reference only the '
+          'generated widget from dartvel_client/dartvel_client.dart in '
+          'application code.',
         );
       }
       final openParen = widgetToken + nameMatch.end - 1;

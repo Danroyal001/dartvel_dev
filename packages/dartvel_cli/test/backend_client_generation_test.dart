@@ -103,8 +103,7 @@ Future<String> _handler() async => 'ok';
           isA<StateError>().having(
             (error) => error.message,
             'message',
-            contains(
-                'backend function inputs must be public source declarations'),
+            contains('backend function inputs are private in the spec'),
           ),
         ),
       );
