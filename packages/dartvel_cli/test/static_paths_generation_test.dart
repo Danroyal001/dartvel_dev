@@ -366,7 +366,7 @@ class _Product {
         );
         expect(
             content,
-            contains('static Future<List<String>> '
+            contains('static Future<core.List<String>> '
                 'publicStaticPaths() async {'));
         expect(
           content,

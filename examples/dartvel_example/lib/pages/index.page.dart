@@ -139,37 +139,67 @@ Widget indexPage(BuildContext context) {
     ]),
     ShowcaseSection('Models, Forms & Generated Model Helpers', [
       User.Form(const User(
-          name: 'John Doe', email: 'john@example.com', recoveryToken: 'tok')),
+        slug: 'john-doe',
+        name: 'John Doe',
+        email: 'john@example.com',
+        published: true,
+        recoveryToken: 'tok',
+      )),
       User.List(const <User>[
-        User(name: 'Ada Lovelace', email: 'ada@example.com', recoveryToken: 't1'),
-        User(name: 'Grace Hopper', email: 'grace@example.com', recoveryToken: 't2'),
+        User(
+            slug: 'ada-lovelace',
+            name: 'Ada Lovelace',
+            email: 'ada@example.com',
+            published: true,
+            recoveryToken: 't1'),
+        User(
+            slug: 'grace-hopper',
+            name: 'Grace Hopper',
+            email: 'grace@example.com',
+            published: true,
+            recoveryToken: 't2'),
       ]),
       User.Table(
         const <User>[
           User(
+              slug: 'linus-torvalds',
               name: 'Linus Torvalds',
               email: 'linus@example.com',
+              published: true,
               recoveryToken: 't3'),
           User(
+              slug: 'margaret-hamilton',
               name: 'Margaret Hamilton',
               email: 'margaret@example.com',
+              published: false,
               recoveryToken: 't4'),
         ],
         columns: 2,
       ),
       DVText(
-        'Generated model SQL: ${const User(name: 'Ada', email: 'ada@example.com', recoveryToken: 'secret').createTableSql}',
+        'Generated model SQL: ${const User(slug: 'ada', name: 'Ada', email: 'ada@example.com', published: true, recoveryToken: 'secret').createTableSql}',
       ),
+      const DVText('Generated public page route: ${User.publicPageRoute}'),
       DVBox.wrapLine([
+        ShowcaseButton('Public User Paths', () async {
+          final paths = await _seedAndResolveUserPublicPaths();
+          if (context.mounted) {
+            _showMessage(context, 'Public paths: ${paths.join(', ')}');
+          }
+        }),
         ShowcaseButton('Monthly Report', () {
           final report = UserReport.monthly(const <User>[
             User(
+                slug: 'ada-lovelace',
                 name: 'Ada Lovelace',
                 email: 'ada@example.com',
+                published: true,
                 recoveryToken: 'tok-ada'),
             User(
+                slug: 'grace-hopper',
                 name: 'Grace Hopper',
                 email: 'grace@example.com',
+                published: true,
                 recoveryToken: 'tok-grace'),
           ]);
           _showMessage(context, 'Report count: ${report.metrics['count']}');
@@ -600,6 +630,31 @@ void _showMessage(BuildContext context, String message) {
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(content: DVText(message)),
   );
+}
+
+Future<List<String>> _seedAndResolveUserPublicPaths() async {
+  await DV.Database.execute('delete from users');
+  await DV.Database.execute(
+    'insert into users (slug, name, email, published, recoveryToken) values (?, ?, ?, ?, ?)',
+    <Object?>[
+      'ada-lovelace',
+      'Ada Lovelace',
+      'ada@example.com',
+      true,
+      'hidden-ada',
+    ],
+  );
+  await DV.Database.execute(
+    'insert into users (slug, name, email, published, recoveryToken) values (?, ?, ?, ?, ?)',
+    <Object?>[
+      'private-draft',
+      'Private Draft',
+      'draft@example.com',
+      false,
+      'hidden-draft',
+    ],
+  );
+  return User.publicStaticPaths();
 }
 
 Future<void> _runNativeAction(
