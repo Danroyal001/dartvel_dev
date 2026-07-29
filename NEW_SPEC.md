@@ -708,7 +708,7 @@ Backend code is ordinary Dart.
 
 ```dart
 @DVBackendFunction()
-Future<User> _getUser(...) {}
+Future<User> _getUser(String id) async => User.find(id);
 ```
 
 Parameters are automatically validated by type, with automatic valudation messages generated. The messages can be customized if needed. Automatic request and response conversion.
@@ -750,7 +750,7 @@ Example
 
 ```dart
 @DVBackendFunction()
-Stream<Message> _messages()
+Stream<Message> _messages() => Message.stream();
 ```
 
 Automatically translated to efficient streaming endpoints (such as Server-Sent Events or websockets with automatic fallback to polling, can be configured) while preserving Dart's native `Stream<T>` API.
@@ -925,7 +925,7 @@ Usage:
 Widget _adminPage(BuildContext context) => AdminDashboard();
 
 @DVBackendFunction(policy: DVPolicies.refund)
-Future<Refund> _refundOrder(Order order) async {}
+Future<Refund> _refundOrder(Order order) async => Refund.create(order);
 ```
 
 Generated UI can hide disabled actions, but backend enforcement is mandatory.
@@ -941,11 +941,11 @@ Dartvel supports middleware for both pages and backend functions.
 ```dart
 @DVUseMiddleware([DVMiddlewares.auth, DVMiddlewares.tenant, DVMiddlewares.rateLimitCheckout])
 @DVPage()
-Widget _checkoutPage(BuildContext context) {}
+Widget _checkoutPage(BuildContext context) => Checkout.Page();
 
 @DVUseMiddleware([DVMiddlewares.auth, DVMiddlewares.csrf, DVMiddlewares.idempotency])
 @DVBackendFunction()
-Future<Order> _createOrder(CreateOrderInput input) async {}
+Future<Order> _createOrder(CreateOrderInput input) async => Order.create(input);
 ```
 
 Middleware can be global, route/page scoped, layout scoped,
@@ -2410,9 +2410,7 @@ sync support, and admin representation for the public `User` type.
 
 ```dart
 @DVPage()
-Widget _usersPage(BuildContext context) {
-  return User.List();
-}
+Widget _usersPage(BuildContext context) => User.List();
 ```
 
 File location determines the route (`lib/pages/users.dart` → `/users`).
@@ -2421,9 +2419,8 @@ File location determines the route (`lib/pages/users.dart` → `/users`).
 
 ```dart
 @DVBackendFunction()
-Future<User> _createUser(String name, String email) async {
-  return User.create(name: name, email: email);
-}
+Future<User> _createUser(String name, String email) async =>
+    User.create(name: name, email: email);
 ```
 
 The function is called identically from frontend or backend code:
@@ -2544,9 +2541,7 @@ treated as a client-supplied argument.
 
 ```dart
 @DVBackendFunction()
-Future<User> _getUser(DVContext context, String id) async {
-  return User.find(id);
-}
+Future<User> _getUser(DVContext context, String id) async => User.find(id);
 ```
 
 Generated stages (each updates `context.lifecycle.request`):
@@ -2586,7 +2581,8 @@ plugins, observability, security, debugging, Studio, and advanced behavior.
   authentication: DVAuthentication.required,
   rateLimit: '100/hour',
 )
-Future<Order> _createOrder(DVContext context, OrderInput input) async {}
+Future<Order> _createOrder(DVContext context, OrderInput input) async =>
+    Order.create(input);
 ```
 
 ## Raw HTTP paths
@@ -2596,10 +2592,11 @@ Raw HTTP exposure stays part of `@DVBackendFunction`; there is no separate
 
 ```dart
 @DVBackendFunction(rawPath: '/payments/webhook')
-Future<void> _paymentWebhook(DVContext context) async {}
+Future<void> _paymentWebhook(DVContext context) async =>
+    Payments.acceptWebhook(context);
 
 @DVBackendFunction(rawPathSuffix: '/public')
-Future<Product> _getProduct(String id) async {}
+Future<Product> _getProduct(String id) async => Product.find(id);
 ```
 
 `rawPath` exposes an exact custom path. `rawPathSuffix` keeps the generated path
@@ -2889,7 +2886,8 @@ parallel primitive:
 
 ```dart
 @DVBackendFunction(background: true, durable: true, retries: 5)
-Future<void> _generateReport(String reportId) async {}
+Future<void> _generateReport(String reportId) async =>
+    Reports.generate(reportId);
 ```
 
 Workflows are ordinary backend functions composed from other typed backend
@@ -2898,14 +2896,15 @@ resumed by backend cron or durable function execution:
 
 ```dart
 @DVBackendFunction(durable: true)
-Future<Order> _fulfilOrder(Order order) async {
-  return DV.transaction((context) async {
-    await chargeCustomer(order);
-    await reserveInventory(order);
-    await arrangeDelivery(order);
-    return order;
-  });
-}
+Future<Order> _fulfilOrder(Order order) async => fulfilOrderWorkflow(order);
+
+Future<Order> fulfilOrderWorkflow(Order order) async =>
+    DV.transaction((context) async {
+      await chargeCustomer(order);
+      await reserveInventory(order);
+      await arrangeDelivery(order);
+      return order;
+    });
 ```
 
 This keeps the primitive set small: signals, backend functions, transactions,
@@ -3020,7 +3019,7 @@ dartvel:
     changeFrequency: DVSitemapChangeFrequency.daily,
   ),
 )
-Widget _productsPage(BuildContext context) {}
+Widget _productsPage(BuildContext context) => Product.List();
 ```
 
 ---
