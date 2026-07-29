@@ -1519,10 +1519,11 @@ Features
   exposed as AI tools unless a project-level config enables that behavior.
 
 Tool generation:
-- `dartvel build` and `dartvel routes` generate
-  `lib/dartvel_client/ai_tools.g.dart`.
+- `dartvel build` and `dartvel routes` generate typed AI tool metadata inside
+  the Dartvel client output.
 - Apps import only `package:dartvel_client/dartvel_client.dart`; the generated
-  barrel exports `dartvelAITools`.
+  barrel exports `dartvelAITools`. Do not import generated sibling files
+  directly from application code.
 - `dartvelAITools` is a typed `List<DVAIToolEntry>` containing the tool name,
   description, source import URI, and file path.
 - Projects may set `dartvel.ai.exposeBackendFunctionsAsTools: true` in
