@@ -2,7 +2,10 @@ import 'dart:async';
 import 'package:dartvel_core/dartvel.dart';
 
 @DVBackendFunction()
-Stream<String> getTicks() {
+@pragma('vm:entry-point')
+Stream<String> _getTicks() => createTicksStream();
+
+Stream<String> createTicksStream() {
   final controller = StreamController<String>();
   int i = 0;
   Timer.periodic(const Duration(seconds: 1), (t) {

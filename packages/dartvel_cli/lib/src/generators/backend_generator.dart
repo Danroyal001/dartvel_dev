@@ -77,7 +77,16 @@ const String dvGenBuildId = '$buildId';
       // Detect typed function name from file (based on sanitized base name)
       final src = await File(abs).readAsString();
       final privateExpression = _privateBackendExpression(src, rel);
-      if (privateExpression == null) {
+      final sourceSymbols = _topLevelPublicSourceSymbols(src);
+      final qualifiedPrivateExpression = privateExpression == null
+          ? ''
+          : _qualifySourceSymbols(
+              privateExpression.expression,
+              'f$i',
+              sourceSymbols,
+            );
+      if (privateExpression == null ||
+          qualifiedPrivateExpression != privateExpression.expression) {
         backendImports.add("import '$importPath' as f$i;");
       }
       // Prefer explicit handler(RequestType/Request) for compatibility
@@ -112,7 +121,7 @@ const String dvGenBuildId = '$buildId';
           typedTypes += t;
         }, onNamed: (v) => tnamed = v);
         helper =
-            '${privateExpression.returnType} _dvBackendFn$i(${privateExpression.parameters}) => ${privateExpression.expression};';
+            '${privateExpression.returnType} _dvBackendFn$i(${privateExpression.parameters}) => $qualifiedPrivateExpression;';
       } else {
         // 1) Try to find a function whose name matches the sanitized filename
         final regCandidate = RegExp(
@@ -1019,6 +1028,43 @@ class DartvelClient {
       }
     }
     return null;
+  }
+
+  static Set<String> _topLevelPublicSourceSymbols(String source) {
+    final symbols = <String>{};
+    final declarations = RegExp(
+      r'^(?:final|const|var)\s+(?:(?:[A-Za-z_][A-Za-z0-9_<>, ?]*)\s+)?([A-Za-z][A-Za-z0-9_]*)\s*=',
+      multiLine: true,
+    );
+    for (final match in declarations.allMatches(source)) {
+      symbols.add(match.group(1)!);
+    }
+    final functions = RegExp(
+      r'^(?:[A-Za-z_][A-Za-z0-9_<>, ?]*\s+)+([A-Za-z][A-Za-z0-9_]*)\s*\(',
+      multiLine: true,
+    );
+    for (final match in functions.allMatches(source)) {
+      symbols.add(match.group(1)!);
+    }
+    return symbols;
+  }
+
+  static String _qualifySourceSymbols(
+    String expression,
+    String alias,
+    Set<String> symbols,
+  ) {
+    var qualified = expression;
+    final ordered = symbols.toList()..sort((a, b) => b.length - a.length);
+    for (final symbol in ordered) {
+      qualified = qualified.replaceAllMapped(
+        RegExp(
+          '(?<![A-Za-z0-9_\\.])${RegExp.escape(symbol)}(?![A-Za-z0-9_])',
+        ),
+        (_) => '$alias.$symbol',
+      );
+    }
+    return qualified;
   }
 
   static Future<void> _validateMiddlewareAnnotations(String root) async {
