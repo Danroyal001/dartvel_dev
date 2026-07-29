@@ -103,25 +103,15 @@ Future<Map<String, bool>> handler() async => <String, bool>{'ok': true};
     }
   });
 
-  test('public annotated pages and widgets generate client wrappers', () async {
+  test('public functional widget inputs are rejected', () async {
     final root =
         await Directory.systemTemp.createTemp('dartvel_private_client_test_');
     try {
       Directory(p.join(root.path, 'lib', 'dartvel_client'))
           .createSync(recursive: true);
-      Directory(p.join(root.path, 'lib', 'pages')).createSync(recursive: true);
       Directory(p.join(root.path, 'lib', 'components'))
           .createSync(recursive: true);
 
-      File(p.join(root.path, 'lib', 'pages', 'index.dart'))
-          .writeAsStringSync('''
-import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/widgets.dart';
-
-@DVPage()
-@DVFunctionalWidget()
-Widget indexPage(BuildContext context) => const SizedBox.shrink();
-''');
       File(p.join(root.path, 'lib', 'components', 'cards.dart'))
           .writeAsStringSync('''
 import 'package:dartvel_flutter/dartvel_flutter.dart';
@@ -131,55 +121,41 @@ import 'package:flutter/widgets.dart';
 Widget featureCard(String title) => DVText(title);
 ''');
 
-      await ClientGenerator.generate(
-        root: root.path,
-        pagesDir: 'lib/pages',
-        pkgName: 'private_client_app',
-        buildId: 'test-build',
-        backendHost: '127.0.0.1',
-        backendPort: 3000,
-        devBackendHost: 'http://localhost:3000',
-        prodBackendHost: 'https://api.example.test',
-        apiBasePath: '/api',
-        envFiles: const <String>[],
-        seoSiteName: 'Private App',
-        seoTitle: 'Private App',
-        seoDesc: 'Private App',
-        seoImage: '',
-        seoTwitter: '',
-        defaultTransition: 'fade',
-        durationMs: 200,
-        curve: 'easeInOut',
-        normalizeTrailing: true,
-        notFoundRedirect: '',
-        plugins: const <String>[],
-        webPrerender: false,
-        ota: false,
-        dv: YamlMap.wrap(<String, Object?>{}),
+      await expectLater(
+        ClientGenerator.generate(
+          root: root.path,
+          pagesDir: 'lib/pages',
+          pkgName: 'private_client_app',
+          buildId: 'test-build',
+          backendHost: '127.0.0.1',
+          backendPort: 3000,
+          devBackendHost: 'http://localhost:3000',
+          prodBackendHost: 'https://api.example.test',
+          apiBasePath: '/api',
+          envFiles: const <String>[],
+          seoSiteName: 'Private App',
+          seoTitle: 'Private App',
+          seoDesc: 'Private App',
+          seoImage: '',
+          seoTwitter: '',
+          defaultTransition: 'fade',
+          durationMs: 200,
+          curve: 'easeInOut',
+          normalizeTrailing: true,
+          notFoundRedirect: '',
+          plugins: const <String>[],
+          webPrerender: false,
+          ota: false,
+          dv: YamlMap.wrap(<String, Object?>{}),
+        ),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            contains('functional widget generation inputs must be private'),
+          ),
+        ),
       );
-
-      final router = File(
-        p.join(root.path, 'lib', 'dartvel_client', 'router.g.dart'),
-      ).readAsStringSync();
-      final widgets = File(
-        p.join(root.path, 'lib', 'dartvel_client', 'widgets.g.dart'),
-      ).readAsStringSync();
-      expect(
-        File(p.join(root.path, 'lib', 'pages', 'index.dartvel.g.dart'))
-            .existsSync(),
-        isFalse,
-      );
-      expect(
-        File(p.join(root.path, 'lib', 'components', 'cards.dartvel.g.dart'))
-            .existsSync(),
-        isFalse,
-      );
-
-      expect(router, contains('p0.indexPage(context)'));
-      expect(router, isNot(contains('p0._indexPage')));
-      expect(widgets, contains('Widget FeatureCard(String title)'));
-      expect(widgets, contains('return w0.featureCard(title);'));
-      expect(widgets, isNot(contains('w0._featureCard')));
     } finally {
       root.deleteSync(recursive: true);
     }
@@ -238,6 +214,68 @@ Widget _featureCard(String title) => DVText(title);
       expect(widgets, contains('Widget FeatureCard(String title)'));
       expect(widgets, contains('return DVText(title);'));
       expect(widgets, isNot(contains('w0._featureCard')));
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
+  test('private functional widget wrappers qualify source helper symbols',
+      () async {
+    final root =
+        await Directory.systemTemp.createTemp('dartvel_private_widget_test_');
+    try {
+      Directory(p.join(root.path, 'lib', 'dartvel_client'))
+          .createSync(recursive: true);
+      Directory(p.join(root.path, 'lib', 'components'))
+          .createSync(recursive: true);
+
+      File(p.join(root.path, 'lib', 'components', 'cards.dart'))
+          .writeAsStringSync('''
+import 'package:dartvel_flutter/dartvel_flutter.dart';
+
+final cardStyle = const DVModifier().padding(8);
+
+@DVFunctionalWidget()
+Widget _featureCard(String title) => DVText(title).modifier(cardStyle);
+''');
+
+      await ClientGenerator.generate(
+        root: root.path,
+        pagesDir: 'lib/pages',
+        pkgName: 'private_client_app',
+        buildId: 'test-build',
+        backendHost: '127.0.0.1',
+        backendPort: 3000,
+        devBackendHost: 'http://localhost:3000',
+        prodBackendHost: 'https://api.example.test',
+        apiBasePath: '/api',
+        envFiles: const <String>[],
+        seoSiteName: 'Private App',
+        seoTitle: 'Private App',
+        seoDesc: 'Private App',
+        seoImage: '',
+        seoTwitter: '',
+        defaultTransition: 'fade',
+        durationMs: 200,
+        curve: 'easeInOut',
+        normalizeTrailing: true,
+        notFoundRedirect: '',
+        plugins: const <String>[],
+        webPrerender: false,
+        ota: false,
+        dv: YamlMap.wrap(<String, Object?>{}),
+      );
+
+      final widgets = File(
+        p.join(root.path, 'lib', 'dartvel_client', 'widgets.g.dart'),
+      ).readAsStringSync();
+
+      expect(
+          widgets,
+          contains(
+              "import 'package:private_client_app/components/cards.dart' as w0;"));
+      expect(widgets, contains('modifier(w0.cardStyle)'));
+      expect(widgets, isNot(contains('modifier(cardStyle)')));
     } finally {
       root.deleteSync(recursive: true);
     }

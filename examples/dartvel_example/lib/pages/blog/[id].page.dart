@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
   title: 'Blog',
   showAppBar: true,
 )
-@DVFunctionalWidget()
 Widget blogIdPage(BuildContext context) {
   final id = context.dvParams['id'] ?? 'unknown';
   return DVBox.list([

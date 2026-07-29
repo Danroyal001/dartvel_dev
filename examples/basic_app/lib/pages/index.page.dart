@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
   showAppBar: true,
   centerTitle: true,
 )
-@DVFunctionalWidget()
 Widget indexPage(BuildContext context) {
   final data = DvDataScope.of(context).data as Map<String, String>?;
 

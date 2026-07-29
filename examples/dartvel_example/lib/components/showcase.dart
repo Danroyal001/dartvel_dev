@@ -1,3 +1,5 @@
+// ignore_for_file: unused_element
+
 import 'dart:async';
 
 import 'package:dartvel_core/dartvel.dart';
@@ -49,87 +51,79 @@ final showcaseBodyStyle = const DVModifier()
     .fontWeight(FontWeight.w500);
 
 @DVFunctionalWidget()
-Widget showcaseSection(String title, List<Widget> children) {
-  return DVBox.list([
-    DVText(title).modifier(showcaseTitleStyle),
-    ...children,
-  ]).modifier(showcaseCardStyle);
-}
+Widget _showcaseSection(String title, List<Widget> children) => DVBox.list([
+      DVText(title).modifier(showcaseTitleStyle),
+      ...children,
+    ]).modifier(showcaseCardStyle);
 
 @DVFunctionalWidget()
-Widget showcaseButton(String label, FutureOr<void> Function() onPressed) {
-  return DVText(label).modifier(
-    showcaseButtonStyle.onPressed(() {
-      unawaited(Future<void>.sync(onPressed));
-    }),
-  );
-}
+Widget _showcaseButton(String label, FutureOr<void> Function() onPressed) =>
+    DVText(label).modifier(
+      showcaseButtonStyle.onPressed(() {
+        unawaited(Future<void>.sync(onPressed));
+      }),
+    );
 
 @DVFunctionalWidget()
-Widget showcaseMetric(String label, String value) {
-  return DVBox.list([
-    DVText(label).modifier(showcaseMetricLabelStyle),
-    DVText(value).modifier(showcaseMetricValueStyle),
-  ]).modifier(showcaseMetricStyle);
-}
+Widget _showcaseMetric(String label, String value) => DVBox.list([
+      DVText(label).modifier(showcaseMetricLabelStyle),
+      DVText(value).modifier(showcaseMetricValueStyle),
+    ]).modifier(showcaseMetricStyle);
 
 @DVFunctionalWidget()
-Widget featureCard(String title, String body) {
-  return DVBox.list([
-    DVText(title).modifier(
+Widget _featureCard(String title, String body) => DVBox.list([
+      DVText(title).modifier(
+        const DVModifier()
+            .color(const Color(0xFF1D1B20))
+            .fontSize(15)
+            .fontWeight(FontWeight.w800),
+      ),
+      DVText(body).modifier(showcaseBodyStyle),
+    ]).modifier(
       const DVModifier()
-          .color(const Color(0xFF1D1B20))
-          .fontSize(15)
-          .fontWeight(FontWeight.w800),
-    ),
-    DVText(body).modifier(showcaseBodyStyle),
-  ]).modifier(
-    const DVModifier()
-        .card()
-        .rounded(20)
-        .backgroundColor(const Color(0xFFFFFFFF))
-        .shadow([const BoxShadow(color: Color(0x12000000), blurRadius: 14)]),
-  );
-}
+          .card()
+          .rounded(20)
+          .backgroundColor(const Color(0xFFFFFFFF))
+          .shadow([const BoxShadow(color: Color(0x12000000), blurRadius: 14)]),
+    );
 
 @DVFunctionalWidget()
-Widget showcaseHero(String platform, String deviceType, String backend) {
-  return DVBox.list([
-    const DVText('Dartvel Platform Showcase').modifier(
+Widget _showcaseHero(String platform, String deviceType, String backend) =>
+    DVBox.list([
+      const DVText('Dartvel Platform Showcase').modifier(
+        const DVModifier()
+            .color(const Color(0xFFFFFFFF))
+            .fontSize(30)
+            .fontWeight(FontWeight.w900)
+            .padding(4),
+      ),
+      const DVText(
+        'A generated full-stack Flutter app exercising routing, API clients, native bindings, services, AI, and observability.',
+      ).modifier(
+        const DVModifier()
+            .color(const Color(0xFFF6EDFF))
+            .fontSize(15)
+            .fontWeight(FontWeight.w600)
+            .padding(4),
+      ),
+      DVBox.wrapLine([
+        DVBox.list([
+          const DVText('Platform').modifier(showcaseMetricLabelStyle),
+          DVText(platform).modifier(showcaseMetricValueStyle),
+        ]).modifier(showcaseMetricStyle),
+        DVBox.list([
+          const DVText('Device').modifier(showcaseMetricLabelStyle),
+          DVText(deviceType).modifier(showcaseMetricValueStyle),
+        ]).modifier(showcaseMetricStyle),
+        DVBox.list([
+          const DVText('Backend').modifier(showcaseMetricLabelStyle),
+          DVText(backend).modifier(showcaseMetricValueStyle),
+        ]).modifier(showcaseMetricStyle),
+      ]),
+    ]).modifier(
       const DVModifier()
-          .color(const Color(0xFFFFFFFF))
-          .fontSize(30)
-          .fontWeight(FontWeight.w900)
-          .padding(4),
-    ),
-    const DVText(
-      'A generated full-stack Flutter app exercising routing, API clients, native bindings, services, AI, and observability.',
-    ).modifier(
-      const DVModifier()
-          .color(const Color(0xFFF6EDFF))
-          .fontSize(15)
-          .fontWeight(FontWeight.w600)
-          .padding(4),
-    ),
-    DVBox.wrapLine([
-      DVBox.list([
-        const DVText('Platform').modifier(showcaseMetricLabelStyle),
-        DVText(platform).modifier(showcaseMetricValueStyle),
-      ]).modifier(showcaseMetricStyle),
-      DVBox.list([
-        const DVText('Device').modifier(showcaseMetricLabelStyle),
-        DVText(deviceType).modifier(showcaseMetricValueStyle),
-      ]).modifier(showcaseMetricStyle),
-      DVBox.list([
-        const DVText('Backend').modifier(showcaseMetricLabelStyle),
-        DVText(backend).modifier(showcaseMetricValueStyle),
-      ]).modifier(showcaseMetricStyle),
-    ]),
-  ]).modifier(
-    const DVModifier()
-        .padding(26)
-        .rounded(30)
-        .backgroundColor(const Color(0xFF4F378B))
-        .shadow([const BoxShadow(color: Color(0x334F378B), blurRadius: 28)]),
-  );
-}
+          .padding(26)
+          .rounded(30)
+          .backgroundColor(const Color(0xFF4F378B))
+          .shadow([const BoxShadow(color: Color(0x334F378B), blurRadius: 28)]),
+    );
