@@ -19,15 +19,9 @@ workflows:
         script: |
           flutter pub get
           cd packages/dartvel_cli && dart pub get && cd ../..
-      - name: Generate routes
+      - name: Build Android
         script: |
-          dart run dartvel_cli:dartvel routes
-      - name: Build APK
-        script: |
-          flutter build apk --release
-      - name: Build App Bundle
-        script: |
-          flutter build appbundle --release
+          dart run dartvel_cli:dartvel build android
     artifacts:
       - build/**/outputs/**/*.apk
       - build/**/outputs/**/*.aab
@@ -58,12 +52,9 @@ workflows:
         script: |
           flutter pub get
           cd packages/dartvel_cli && dart pub get && cd ../..
-      - name: Generate routes
-        script: |
-          dart run dartvel_cli:dartvel routes
       - name: Build IPA
         script: |
-          flutter build ipa --release --export-options-plist=/Users/builder/export_options.plist
+          dart run dartvel_cli:dartvel build ios
     artifacts:
       - build/ios/ipa/*.ipa
     publishing:
@@ -86,12 +77,9 @@ workflows:
         script: |
           flutter pub get
           cd packages/dartvel_cli && dart pub get && cd ../..
-      - name: Generate routes
-        script: |
-          dart run dartvel_cli:dartvel routes
       - name: Build Web
         script: |
-          flutter build web --release --web-renderer canvaskit
+          dart run dartvel_cli:dartvel build web
     artifacts:
       - build/web/**
     publishing:
@@ -109,18 +97,15 @@ workflows:
       - name: Get dependencies
         script: |
           flutter pub get
-      - name: Generate routes
-        script: |
-          dart run dartvel_cli:dartvel routes
       - name: Build macOS
         script: |
-          flutter build macos --release
+          dart run dartvel_cli:dartvel build macos
       - name: Build Linux
         script: |
-          flutter build linux --release
+          dart run dartvel_cli:dartvel build linux
       - name: Build Windows
         script: |
-          flutter build windows --release
+          dart run dartvel_cli:dartvel build windows
     artifacts:
       - build/macos/**/*.app
       - build/linux/**/*
@@ -136,12 +121,9 @@ workflows:
       - name: Get dependencies
         script: |
           flutter pub get
-      - name: Generate routes
-        script: |
-          dart run dartvel_cli:dartvel routes
       - name: Build for Android TV
         script: |
-          flutter build apk --release --target-platform android-arm64
+          dart run dartvel_cli:dartvel build android
       - name: Build for Apple TV (via tvOS)
         script: |
           # Note: Requires Flutter tvOS support
