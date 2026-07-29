@@ -32,14 +32,15 @@ class _PluginAddCommand extends Command<void> {
   @override
   Future<void> run() async {
     final pluginName = argResults?['name'] as String?;
-    final restArgs = argResults?.rest ?? [];
+    final restArgs = argResults?.rest ?? const <String>[];
 
     final plugin = pluginName ?? (restArgs.isNotEmpty ? restArgs.first : null);
 
     if (plugin == null) {
       Logger.log('❌ Please specify a plugin name');
       Logger.log('   Example: dartvel plugin add auth');
-      exit(1);
+      exitCode = 64;
+      return;
     }
 
     final root = Directory.current.path;
@@ -56,7 +57,8 @@ class _PluginAddCommand extends Command<void> {
       default:
         Logger.log('❌ Unknown plugin: $plugin');
         Logger.log('   Available: auth, analytics');
-        exit(1);
+        exitCode = 64;
+        return;
     }
 
     Logger.log('✅ Plugin added successfully!');
@@ -102,81 +104,24 @@ class _PluginAddCommand extends Command<void> {
   }
 
   static const String _authLoginPageTemplate =
-      '''import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+      '''import '../dartvel_client/dartvel_client.dart';
+import 'package:flutter/widgets.dart';
 
-class LoginPage extends DartvelPage {
-  const LoginPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final formKey = GlobalKey<FormState>();
-    final emailController = TextEditingController();
-    final passwordController = TextEditingController();
-
-    return Scaffold(
-      appBar: AppBar(title: const DVText('Login')),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 400),
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Form(
-              key: formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextFormField(
-                    controller: emailController,
-                    decoration: const InputDecoration(
-                      labelText: 'Email',
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: (v) => v?.isEmpty ?? true ? 'Required' : null,
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: passwordController,
-                    decoration: const InputDecoration(
-                      labelText: 'Password',
-                      border: OutlineInputBorder(),
-                    ),
-                    obscureText: true,
-                    validator: (v) => v?.isEmpty ?? true ? 'Required' : null,
-                  ),
-                  const SizedBox(height: 24),
-                  ElevatedButton(
-                    onPressed: () async {
-                      if (formKey.currentState?.validate() ?? false) {
-                        await DV.Auth.signInWithEmailAndPassword(
-                          email: emailController.text.trim(),
-                          password: passwordController.text,
-                        );
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: DVText('Signed in')),
-                        );
-                      }
-                    },
-                    child: const DVText('Login'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
+@DVPage(title: 'Login')
+@pragma('vm:entry-point')
+Widget _loginPage(BuildContext context) => DV.Auth.SignInWithEmailAndPasswordPage();
 ''';
 
-  static const String _authLoginEndpointTemplate = '''// POST /api/auth/login
+  static const String _authLoginEndpointTemplate =
+      '''import 'package:dartvel_core/dartvel.dart';
 import 'dart:convert';
 
 final Map<String, Map<String, Object?>> _usersByEmail = {};
 final Map<String, Map<String, Object?>> _sessionsByToken = {};
 
-Future<Map<String, Object?>> handler({
+@DVBackendFunction(rawPath: '/auth/login')
+@pragma('vm:entry-point')
+Future<Map<String, Object?>> _login({
   required String email,
   required String password,
 }) async {
@@ -209,10 +154,14 @@ Future<Map<String, Object?>> handler({
 }
 ''';
 
-  static const String _authLogoutEndpointTemplate = '''// POST /api/auth/logout
+  static const String _authLogoutEndpointTemplate =
+      '''import 'package:dartvel_core/dartvel.dart';
+
 final Set<String> _revokedTokens = {};
 
-Map<String, Object?> handler({String? token}) {
+@DVBackendFunction(rawPath: '/auth/logout')
+@pragma('vm:entry-point')
+Map<String, Object?> _logout({String? token}) {
   if (token != null && token.isNotEmpty) {
     _revokedTokens.add(token);
   }
@@ -223,10 +172,13 @@ Map<String, Object?> handler({String? token}) {
 }
 ''';
 
-  static const String _authMeEndpointTemplate = '''// GET /api/auth/me
+  static const String _authMeEndpointTemplate =
+      '''import 'package:dartvel_core/dartvel.dart';
 import 'dart:convert';
 
-Map<String, Object?> handler({required String token}) {
+@DVBackendFunction(rawPath: '/auth/me')
+@pragma('vm:entry-point')
+Map<String, Object?> _me({required String token}) {
   if (token.isEmpty) {
     throw Exception('Authentication token required');
   }
