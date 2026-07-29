@@ -45,7 +45,11 @@ class _Order {
       expect(content, contains('static Widget Form(Order model)'));
       expect(content, contains('static Widget List('));
       expect(content, contains('static Widget Table('));
-      expect(content, contains('static Widget Page('));
+      expect(
+        content,
+        contains('static const OrderPageComponent Page = OrderPageComponent._();'),
+      );
+      expect(content, contains('class OrderPageComponent'));
       expect(content, contains('static Widget Card(Order model)'));
       expect(content, isNot(contains('Widget OrderForm(Order model)')));
       expect(content, isNot(contains('Widget OrderList(')));
