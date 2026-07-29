@@ -5,13 +5,11 @@ import 'package:flutter/material.dart';
   title: 'Blog',
   showAppBar: true,
 )
-Widget blogIdPage(BuildContext context) {
-  final id = context.dvParams['id'] ?? 'unknown';
-  return DVBox.list([
-    DVText('Blog $id'),
-    DVBox(
-      DVText('Viewing blog post $id'),
-      const DVModifier().align(Alignment.center),
-    ),
-  ]);
-}
+@pragma('vm:entry-point')
+Widget _blogIdPage(BuildContext context) => DVBox.list([
+      DVText('Blog ${context.dvParams['id'] ?? 'unknown'}'),
+      DVBox(
+        DVText('Viewing blog post ${context.dvParams['id'] ?? 'unknown'}'),
+        const DVModifier().align(Alignment.center),
+      ),
+    ]);

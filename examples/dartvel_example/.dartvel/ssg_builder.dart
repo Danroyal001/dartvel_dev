@@ -10,17 +10,7 @@ void main() async {
   if (!outDir.existsSync()) outDir.createSync(recursive: true);
   stdout.writeln('Generating SSG data...');
   // /about
-  try {
-    final page = const p0.AboutPage();
-    final data = await page.loadData({}, {});
-    if (data != null) {
-      final key = "/about";
-      final bytes = utf8.encode(key);
-      final filename = base64Url.encode(bytes);
-      File("${outDir.path}/$filename.json").writeAsStringSync(jsonEncode(data));
-    }
-  } catch (e) {
-  }
+  // Skipped functional widget page: /about
   // /blog/:id
   // Skipped functional widget page: /blog/:id
   // /

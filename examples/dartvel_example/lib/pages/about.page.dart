@@ -5,20 +5,8 @@ import 'package:flutter/material.dart';
   title: 'About',
   showAppBar: true,
 )
-class AboutPage extends DVClassWidget {
-  const AboutPage({super.key});
-
-  @override
-  Future<Object?> loadData(
-      Map<String, String> params, Map<String, String> query) async {
-    return 'About Page Data';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return DVBox(
+@pragma('vm:entry-point')
+Widget _aboutPage(BuildContext context) => DVBox(
       const DVText('About'),
       const DVModifier().align(Alignment.center),
     );
-  }
-}
