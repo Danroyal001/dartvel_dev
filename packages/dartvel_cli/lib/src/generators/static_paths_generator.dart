@@ -133,7 +133,7 @@ class StaticPathsGenerator {
           providers.add(
             StaticPathsProvider(
               functionName: '${className}PublicStaticPaths',
-              importPath: 'package:$pkgName/dartvel_client/models.g.dart',
+              importPath: 'package:$pkgName/dartvel_client/dartvel_client.dart',
               resolveExpression: '$className.publicStaticPaths',
               route: '/${_pluralRouteSegment(className)}/:$publicPathField',
             ),
