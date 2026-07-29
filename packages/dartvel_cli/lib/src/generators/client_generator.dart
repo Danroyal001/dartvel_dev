@@ -1005,7 +1005,11 @@ class DartvelConfig {
       if (entry.expressionBody != null) {
         buffer
           ..writeln('Widget ${entry.generatedName}(${entry.parameters}) {')
-          ..writeln(_indentGeneratedReturn(entry.expressionBody!))
+          ..writeln(_indentGeneratedReturn(_qualifySourceSymbols(
+            entry.expressionBody!,
+            entry.alias,
+            entry.sourceSymbols,
+          )))
           ..writeln('}')
           ..writeln();
       } else {
@@ -1046,6 +1050,14 @@ class DartvelConfig {
         continue;
       }
       final sourceName = nameMatch.group(1)!;
+      if (!sourceName.startsWith('_')) {
+        throw StateError(
+          'Dartvel functional widget generation inputs must be private. Rename '
+          '$sourceName to _$sourceName and use the generated '
+          '${_generatedWidgetName('_$sourceName')} widget from '
+          'dartvel_client/dartvel_client.dart. File: $sourcePath',
+        );
+      }
       final openParen = widgetToken + nameMatch.end - 1;
       final closeParen = _matchingParen(source, openParen);
       if (closeParen == -1) {
@@ -1063,7 +1075,7 @@ class DartvelConfig {
           expressionBody = source.substring(bodyStart + 2, semicolon).trim();
         }
       }
-      if (sourceName.startsWith('_') && expressionBody == null) {
+      if (expressionBody == null) {
         throw StateError(
           'Dartvel private functional widget input $sourceName in $sourcePath '
           'must use an expression body for this generator pass, for example '
@@ -1080,11 +1092,42 @@ class DartvelConfig {
         generatedName: _generatedWidgetName(sourceName),
         parameters: parameters,
         argumentList: _argumentList(parameters),
-        expressionBody: sourceName.startsWith('_') ? expressionBody : null,
+        expressionBody: expressionBody,
+        sourceSymbols: _topLevelSourceSymbols(source),
       ));
       cursor = closeParen + 1;
     }
     return entries;
+  }
+
+  static Set<String> _topLevelSourceSymbols(String source) {
+    final symbols = <String>{};
+    final declarations = RegExp(
+      r'^(?:final|const|var)\s+(?:(?:[A-Za-z_][A-Za-z0-9_<>, ?]*)\s+)?([A-Za-z][A-Za-z0-9_]*)\s*=',
+      multiLine: true,
+    );
+    for (final match in declarations.allMatches(source)) {
+      symbols.add(match.group(1)!);
+    }
+    return symbols;
+  }
+
+  static String _qualifySourceSymbols(
+    String expression,
+    String alias,
+    Set<String> symbols,
+  ) {
+    var qualified = expression;
+    final ordered = symbols.toList()..sort((a, b) => b.length - a.length);
+    for (final symbol in ordered) {
+      qualified = qualified.replaceAllMapped(
+        RegExp(
+          '(?<![A-Za-z0-9_\\.])${RegExp.escape(symbol)}(?![A-Za-z0-9_])',
+        ),
+        (_) => '$alias.$symbol',
+      );
+    }
+    return qualified;
   }
 
   static void _validateFunctionalWidgetNames(
@@ -1286,6 +1329,7 @@ class _FunctionalWidgetEntry {
   final String parameters;
   final String argumentList;
   final String? expressionBody;
+  final Set<String> sourceSymbols;
 
   const _FunctionalWidgetEntry({
     required this.importPath,
@@ -1296,6 +1340,7 @@ class _FunctionalWidgetEntry {
     required this.parameters,
     required this.argumentList,
     this.expressionBody,
+    this.sourceSymbols = const <String>{},
   });
 
   _FunctionalWidgetEntry copyWith({required String alias}) {
@@ -1308,6 +1353,7 @@ class _FunctionalWidgetEntry {
       parameters: parameters,
       argumentList: argumentList,
       expressionBody: expressionBody,
+      sourceSymbols: sourceSymbols,
     );
   }
 }

@@ -608,6 +608,18 @@ code references only the generated public API from
 `dartvel_client/dartvel_client.dart`, such as `UsersPage`, `Button`,
 `getUser`, and `User`.
 
+Until full body lowering is implemented, private `@DVFunctionalWidget` inputs
+must use expression bodies so Dartvel can emit the readable generated public
+widget without source-local `part` files:
+
+```dart
+@DVFunctionalWidget()
+Widget _featureCard(String title) => DVBox(DVText(title));
+```
+
+Block-bodied private functional widgets fail with a message explaining how to
+convert them. Public annotated functional widget inputs always fail.
+
 Using the new native Dart data-class syntax. Automatically generates:
 * Database schema
 * CRUD
