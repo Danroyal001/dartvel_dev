@@ -342,18 +342,8 @@ No manual Mix `.wrap()`. Dartvel handles wrapping where necessary.
 
 # Pages
 
-Class
-
-```dart
-@DVPage()
-class _UsersPage extends DVClassWidget {
-    Widget build(
-        BuildContext context
-    ) {}
-}
-```
-
-Functional
+Pages are private generation inputs. The currently supported page input shape
+is a private expression-bodied function:
 
 ```dart
 @DVPage()
@@ -362,6 +352,21 @@ Widget _usersPage(
 ) => DVBox.list([
     DVText('Users'),
 ]);
+```
+
+If a page needs a larger body while full body lowering is still in progress,
+wrap that body in a public helper and keep the annotated input expression-bodied:
+
+```dart
+@DVPage()
+@pragma('vm:entry-point')
+Widget _usersPage(BuildContext context) => buildUsersPage(context);
+
+Widget buildUsersPage(BuildContext context) {
+    return DVBox.list([
+        DVText('Users'),
+    ]);
+}
 ```
 
 `@DVPage()` alone is enough for page functions. Using both `@DVPage()` and
