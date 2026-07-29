@@ -98,7 +98,7 @@ class RouterBuilder implements Builder {
 
     // 5. Process Pages
     final pageImports = <String>[];
-    final pageEntries = <Map<String, dynamic>>[];
+    final pageEntries = <_PageEntry>[];
     final layoutImports = <String>[];
     final layoutMapByDir = <String, Map<String, String>>{};
     final guardImports = <String>[];
@@ -217,20 +217,22 @@ class RouterBuilder implements Builder {
         pageImports.add("import '$imp' as $errorAlias;");
       }
 
-      pageEntries.add({
-        'i': '$i',
-        'class': className,
-        'publicName': publicName,
-        'generatedWidget': _generatedPageWidgetName(className),
-        'pageScaffold': _pageScaffoldSpec(src),
-        'route': route,
-        'dir': dir,
-        'isFunctional': isFunctional,
-        if (pageExpressionBody != null) 'expressionBody': pageExpressionBody,
-        if (pageSourceSymbols.isNotEmpty) 'sourceSymbols': pageSourceSymbols,
-        if (loadingAlias != null) 'loadingAlias': loadingAlias,
-        if (errorAlias != null) 'errorAlias': errorAlias,
-      });
+      pageEntries.add(
+        _PageEntry(
+          importIndex: '$i',
+          className: className,
+          publicName: publicName,
+          generatedWidget: _generatedPageWidgetName(className),
+          pageScaffold: _pageScaffoldSpec(src),
+          route: route,
+          directory: dir,
+          isFunctional: isFunctional,
+          expressionBody: pageExpressionBody,
+          sourceSymbols: pageSourceSymbols,
+          loadingAlias: loadingAlias,
+          errorAlias: errorAlias,
+        ),
+      );
     }
 
     // 6. Process Layouts
@@ -363,11 +365,11 @@ class RouterBuilder implements Builder {
         .map(
           (e) => '''
     GoRoute(
-      path: '${esc(e['route']!)}',
-${guardRedirectFor(e['dir']!)}      pageBuilder: (context, state) {
+      path: '${esc(e.route)}',
+${guardRedirectFor(e.directory)}      pageBuilder: (context, state) {
         final params = Map<String, String>.from(state.pathParameters);
         final query  = Map<String, String>.from(state.uri.queryParameters);
-        final page = const ${e['generatedWidget']}();
+        final page = const ${e.generatedWidget}();
         final withState = DartvelRouteState(params: params, query: query, child: page);
 
         final i18nParam = '${esc(i18nParam)}';
@@ -379,17 +381,14 @@ ${guardRedirectFor(e['dir']!)}      pageBuilder: (context, state) {
             : (DvI18n.normalize(langRaw, i18nLocales, i18nDefault.isEmpty ? (langRaw ?? '') : i18nDefault));
         final withI18n = DvI18nScope(localeTag: langTag, child: withState);
 
-        ${e['isFunctional'] == true ? 'final loaderWrapped = withI18n;' : '''final loaderWrapped = DvDataLoader(
+        ${e.isFunctional ? 'final loaderWrapped = withI18n;' : '''final loaderWrapped = DvDataLoader(
           load: () => page.loadData(params, query),
           child: withI18n,
 ${(() {
-                      final la = e['loadingAlias'];
-                      final ea = e['errorAlias'];
-                      final lc = e['class'] != null
-                          ? '${e['class']!}Loading'
-                          : 'Loading';
-                      final ec =
-                          e['class'] != null ? '${e['class']!}Error' : 'Error';
+                      final la = e.loadingAlias;
+                      final ea = e.errorAlias;
+                      final lc = '${e.className}Loading';
+                      final ec = '${e.className}Error';
                       final b = StringBuffer();
                       if (la != null && la.isNotEmpty) {
                         b.writeln("          loading: $la.$lc(),");
@@ -410,10 +409,10 @@ ${(() {
           defaults: _defaultSeo,
           child: loaderWrapped,
         );
-        final spec = ${e['isFunctional'] == true ? '_projectDefaultTransition' : '''page.transition == const PageTransitionSpec()
+        final spec = ${e.isFunctional ? '_projectDefaultTransition' : '''page.transition == const PageTransitionSpec()
             ? _projectDefaultTransition
             : page.transition'''};
-        final layoutWrapped = ${wrapWithLayouts(e['dir']!, 'seoWrapped')};
+        final layoutWrapped = ${wrapWithLayouts(e.directory, 'seoWrapped')};
         final pageShellWrapped = DVPageShell(
           spec: page.pageScaffold,
           child: layoutWrapped,
@@ -431,36 +430,35 @@ ${(() {
 
     final generatedPageWidgets = pageEntries.map(
       (e) {
-        final expressionBody = e['expressionBody'] as String?;
-        final sourceSymbols =
-            (e['sourceSymbols'] as Set<String>?) ?? const <String>{};
+        final expressionBody = e.expressionBody;
+        final sourceSymbols = e.sourceSymbols;
         final buildReturn = expressionBody == null
-            ? '  return ${e['isFunctional'] == true ? 'p${e['i']}.${e['publicName']}(context)' : 'p${e['i']}.${e['publicName']}()'};'
+            ? '  return ${e.isFunctional ? 'p${e.importIndex}.${e.publicName}(context)' : 'p${e.importIndex}.${e.publicName}()'};'
             : _indentGeneratedReturn(
                 _qualifySourceSymbols(
                   expressionBody,
-                  'p${e['i']}',
+                  'p${e.importIndex}',
                   sourceSymbols,
                 ),
               );
         final sourceDoc = expressionBody == null
-            ? '/// Deferred generated widget wrapper for [p${e['i']}.${e['publicName']}].'
+            ? '/// Deferred generated widget wrapper for [p${e.importIndex}.${e.publicName}].'
             : '/// Deferred generated widget wrapper for a private @DVPage input.';
         return '''
 $sourceDoc
-class ${e['generatedWidget']} extends DartvelPage {
-  const ${e['generatedWidget']}({super.key});
+class ${e.generatedWidget} extends DartvelPage {
+  const ${e.generatedWidget}({super.key});
 
   static Future<void>? _libraryFuture;
 
   static Future<void> loadLibrary() {
-    return _libraryFuture ??= p${e['i']}.loadLibrary();
+    return _libraryFuture ??= p${e.importIndex}.loadLibrary();
   }
 
   @override
-  DVPageScaffoldSpec get pageScaffold => ${e['pageScaffold']};
+  DVPageScaffoldSpec get pageScaffold => ${e.pageScaffold};
 
-${e['isFunctional'] == true ? '''  @override
+${e.isFunctional ? '''  @override
   Future<Object?> loadData(
     Map<String, String> params,
     Map<String, String> query,
@@ -474,7 +472,7 @@ ${e['isFunctional'] == true ? '''  @override
     Map<String, String> query,
   ) async {
     await loadLibrary();
-    return p${e['i']}.${e['publicName']}().loadData(params, query);
+    return p${e.importIndex}.${e.publicName}().loadData(params, query);
   }
 
   @override
@@ -922,6 +920,36 @@ class DartvelRuntime {
         RegExp('$name\\s*:\\s*(0x[0-9A-Fa-f]+|[0-9]+)').firstMatch(args);
     return match?.group(1);
   }
+}
+
+class _PageEntry {
+  final String importIndex;
+  final String className;
+  final String publicName;
+  final String generatedWidget;
+  final String pageScaffold;
+  final String route;
+  final String directory;
+  final bool isFunctional;
+  final String? expressionBody;
+  final Set<String> sourceSymbols;
+  final String? loadingAlias;
+  final String? errorAlias;
+
+  const _PageEntry({
+    required this.importIndex,
+    required this.className,
+    required this.publicName,
+    required this.generatedWidget,
+    required this.pageScaffold,
+    required this.route,
+    required this.directory,
+    required this.isFunctional,
+    this.expressionBody,
+    this.sourceSymbols = const <String>{},
+    this.loadingAlias,
+    this.errorAlias,
+  });
 }
 
 Builder routerBuilder(BuilderOptions options) => RouterBuilder(options);
