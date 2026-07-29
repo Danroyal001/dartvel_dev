@@ -25,15 +25,16 @@ now have runtime implementations and tests:
 | `DV.Modules.<id>` | ✅ Registry, per-module lifecycle, mount-point independence |
 | `DV.transaction(...)`, `context.afterCommit`, `context.compensate` | ✅ Reverse-order compensation, nesting, isolation |
 | `@DVStaticPaths()` | ✅ Discovered during generation into `static_paths.g.dart` |
-| `DVModelPageDataMode` | ⚠️ Enum and `@DVModel(pageDataMode:)` exist; `Model.Page` data-mode rendering is not wired |
+| `DVModelPageDataMode` | ✅ Drives generated `Model.Page.async/.signal/.fromId` renderers |
+| `@DVModel(generatePublicPages: true)` | ✅ Emits static-path manifest entries and DB-backed `Model.publicStaticPaths()` resolvers |
 
 **Implemented, but not equally mature.** The feature table below marks each
 area. Anything flagged ⚠️ Scaffold has an API surface and prebuilt pieces, but
 provider integrations are incomplete — expect to fill gaps yourself.
 
-**Still not implemented:** `Model.Page.async/.signal/.fromId` rendering, and
-`@DVModel(generatePublicPages: true)` emitting pages automatically. The
-annotation surface accepts both; the generator does not yet act on them.
+**Still maturing:** generated public model pages and static paths now exist,
+but every target must still be verified through `docs/build-targets.md` before
+claiming production readiness for that target.
 
 **Build targets** are individually verified with evidence in
 [docs/build-targets.md](docs/build-targets.md); four of them can only be built
