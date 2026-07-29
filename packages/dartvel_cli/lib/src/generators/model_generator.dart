@@ -43,7 +43,7 @@ class ModelGenerator {
       final content = await file.readAsString();
       // Scan for @DVModel(...) classes.
       final classMatches = RegExp(
-        r'@DVModel\s*\(([^)]*)\)\s*class\s+([A-Za-z0-9_]+)\b',
+        r'@DVModel\s*\(([^)]*)\)\s*(?:@pragma\([^)]*\)\s*)*class\s+([A-Za-z0-9_]+)\b',
         dotAll: true,
       ).allMatches(content);
       for (final match in classMatches) {

@@ -17,6 +17,7 @@ void main() {
 import 'package:dartvel_core/dartvel.dart';
 
 @DVModel()
+@pragma('vm:entry-point')
 class _Order {
   final String id;
   final String status;

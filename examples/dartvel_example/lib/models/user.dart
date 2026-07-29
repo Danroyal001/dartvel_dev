@@ -1,8 +1,7 @@
-// ignore_for_file: unused_element
-
 import 'package:dartvel_core/dartvel.dart';
 
 @DVModel(generatePublicPages: true)
+@pragma('vm:entry-point')
 class _User {
   final String slug;
   final String name;

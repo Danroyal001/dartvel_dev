@@ -2979,7 +2979,9 @@ values:
 
 ```dart
 @DVStaticPaths()
-Future<List<String>> _productPaths() async {
+Future<List<String>> _productPaths() async => productPaths();
+
+Future<List<String>> productPaths() async {
   return Product.public().select((product) => product.slug);
 }
 ```

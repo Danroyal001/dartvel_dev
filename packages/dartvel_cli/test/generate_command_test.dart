@@ -55,8 +55,9 @@ void main() {
           p.join(root.path, 'lib', 'models', 'account.dart'),
         ).readAsStringSync();
 
-        expect(source, contains('// ignore_for_file: unused_element'));
+        expect(source, isNot(contains('// ignore_for_file: unused_element')));
         expect(source, contains('@DVModel()'));
+        expect(source, contains("@pragma('vm:entry-point')"));
         expect(source, contains('class _Account'));
         expect(source, isNot(contains('class Account')));
       } finally {
