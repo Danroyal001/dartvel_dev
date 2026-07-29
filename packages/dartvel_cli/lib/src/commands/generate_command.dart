@@ -46,6 +46,7 @@ class GeneratePageSubcommand extends Command<void> {
 import 'package:flutter/material.dart';
 
 @DVPage()
+@pragma('vm:entry-point')
 Widget _${pageName.toLowerCase()}Page(BuildContext context) => DVBox(
       const DVText('$capitalized Page'),
       const DVModifier().align(Alignment.center),
@@ -82,7 +83,9 @@ class GenerateModelSubcommand extends Command<void> {
       return;
     }
     final capitalized = modelName[0].toUpperCase() + modelName.substring(1);
-    file.writeAsStringSync('''import 'package:dartvel_core/dartvel.dart';
+    file.writeAsStringSync('''// ignore_for_file: unused_element
+
+import 'package:dartvel_core/dartvel.dart';
 
 @DVModel()
 class _$capitalized {
@@ -126,6 +129,7 @@ class GenerateBackendSubcommand extends Command<void> {
     file.writeAsStringSync('''import 'package:dartvel_core/dartvel.dart';
 
 @DVBackendFunction()
+@pragma('vm:entry-point')
 Future<String> _get$capitalized(String input) async => 'Echo: \$input';
 ''');
     Logger.log('Generated backend function: ${file.path}');
