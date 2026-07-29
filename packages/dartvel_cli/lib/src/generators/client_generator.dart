@@ -1002,12 +1002,20 @@ class DartvelConfig {
       ..writeln();
 
     for (final entry in entries) {
-      buffer
-        ..writeln('Widget ${entry.generatedName}(${entry.parameters}) {')
-        ..writeln(
-            '  return ${entry.alias}.${entry.sourceName}(${entry.argumentList});')
-        ..writeln('}')
-        ..writeln();
+      if (entry.expressionBody != null) {
+        buffer
+          ..writeln('Widget ${entry.generatedName}(${entry.parameters}) {')
+          ..writeln(_indentGeneratedReturn(entry.expressionBody!))
+          ..writeln('}')
+          ..writeln();
+      } else {
+        buffer
+          ..writeln('Widget ${entry.generatedName}(${entry.parameters}) {')
+          ..writeln(
+              '  return ${entry.alias}.${entry.sourceName}(${entry.argumentList});')
+          ..writeln('}')
+          ..writeln();
+      }
     }
 
     outputFile.writeAsStringSync(buffer.toString());
@@ -1038,16 +1046,6 @@ class DartvelConfig {
         continue;
       }
       final sourceName = nameMatch.group(1)!;
-      if (sourceName.startsWith('_')) {
-        throw StateError(
-          'Dartvel functional widget inputs are private in the spec, but this '
-          'generator still needs public widget source while private wrappers '
-          'are being implemented. Rename $sourceName to '
-          '${sourceName.substring(1)} for this build, and reference only the '
-          'generated widget from dartvel_client/dartvel_client.dart in '
-          'application code.',
-        );
-      }
       final openParen = widgetToken + nameMatch.end - 1;
       final closeParen = _matchingParen(source, openParen);
       if (closeParen == -1) {
@@ -1055,6 +1053,25 @@ class DartvelConfig {
         continue;
       }
       final parameters = source.substring(openParen + 1, closeParen).trim();
+      final bodyStart = _skipWhitespace(source, closeParen + 1);
+      String? expressionBody;
+      if (bodyStart + 1 < source.length &&
+          source[bodyStart] == '=' &&
+          source[bodyStart + 1] == '>') {
+        final semicolon = _findStatementEnd(source, bodyStart + 2);
+        if (semicolon != -1) {
+          expressionBody = source.substring(bodyStart + 2, semicolon).trim();
+        }
+      }
+      if (sourceName.startsWith('_') && expressionBody == null) {
+        throw StateError(
+          'Dartvel private functional widget input $sourceName in $sourcePath '
+          'must use an expression body for this generator pass, for example '
+          'Widget $sourceName(...) => DVText(...). Block-bodied private '
+          'widgets require generated body lowering before they can be emitted '
+          'without per-source part files.',
+        );
+      }
       entries.add(_FunctionalWidgetEntry(
         importPath: importPath,
         sourcePath: sourcePath,
@@ -1063,6 +1080,7 @@ class DartvelConfig {
         generatedName: _generatedWidgetName(sourceName),
         parameters: parameters,
         argumentList: _argumentList(parameters),
+        expressionBody: sourceName.startsWith('_') ? expressionBody : null,
       ));
       cursor = closeParen + 1;
     }
@@ -1114,9 +1132,76 @@ class DartvelConfig {
     return -1;
   }
 
+  static int _skipWhitespace(String source, int start) {
+    int index = start;
+    while (index < source.length && source[index].trim().isEmpty) {
+      index += 1;
+    }
+    return index;
+  }
+
+  static int _findStatementEnd(String source, int start) {
+    int angleDepth = 0;
+    int parenDepth = 0;
+    int bracketDepth = 0;
+    int braceDepth = 0;
+    String? quote;
+    var escaped = false;
+    for (int index = start; index < source.length; index++) {
+      final char = source[index];
+      if (quote != null) {
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (char == r'\') {
+          escaped = true;
+          continue;
+        }
+        if (char == quote) quote = null;
+        continue;
+      }
+      if (char == "'" || char == '"') {
+        quote = char;
+        continue;
+      }
+      if (char == '<') angleDepth += 1;
+      if (char == '>' && angleDepth > 0) angleDepth -= 1;
+      if (char == '(') parenDepth += 1;
+      if (char == ')' && parenDepth > 0) parenDepth -= 1;
+      if (char == '[') bracketDepth += 1;
+      if (char == ']' && bracketDepth > 0) bracketDepth -= 1;
+      if (char == '{') braceDepth += 1;
+      if (char == '}' && braceDepth > 0) braceDepth -= 1;
+      if (char == ';' &&
+          angleDepth == 0 &&
+          parenDepth == 0 &&
+          bracketDepth == 0 &&
+          braceDepth == 0) {
+        return index;
+      }
+    }
+    return -1;
+  }
+
   static String _argumentList(String parameters) {
     if (parameters.trim().isEmpty) return '';
     return _splitTopLevel(parameters).map(_parameterName).join(', ');
+  }
+
+  static String _indentGeneratedReturn(String expression) {
+    final normalized = expression.trim();
+    if (!normalized.contains('\n')) return '  return $normalized;';
+    final lines = normalized.split('\n');
+    final buffer = StringBuffer('  return ${lines.first.trimRight()}\n');
+    for (int index = 1; index < lines.length; index += 1) {
+      final suffix = index == lines.length - 1 ? ';' : '';
+      buffer.writeln('  ${lines[index].trimRight()}$suffix');
+    }
+    final generated = buffer.toString();
+    return generated.endsWith('\n')
+        ? generated.substring(0, generated.length - 1)
+        : generated;
   }
 
   static List<String> _splitTopLevel(String value) {
@@ -1200,6 +1285,7 @@ class _FunctionalWidgetEntry {
   final String generatedName;
   final String parameters;
   final String argumentList;
+  final String? expressionBody;
 
   const _FunctionalWidgetEntry({
     required this.importPath,
@@ -1209,6 +1295,7 @@ class _FunctionalWidgetEntry {
     required this.generatedName,
     required this.parameters,
     required this.argumentList,
+    this.expressionBody,
   });
 
   _FunctionalWidgetEntry copyWith({required String alias}) {
@@ -1220,6 +1307,7 @@ class _FunctionalWidgetEntry {
       generatedName: generatedName,
       parameters: parameters,
       argumentList: argumentList,
+      expressionBody: expressionBody,
     );
   }
 }
