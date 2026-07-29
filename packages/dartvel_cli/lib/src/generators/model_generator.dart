@@ -73,6 +73,7 @@ class ModelGenerator {
         final generatesPublicPages = modelArgs.contains(
           RegExp(r'\bgeneratePublicPages\s*:\s*true\b'),
         );
+        final tableName = '${className.toLowerCase()}s';
         classesGenerated.add(className);
 
         // Parse fields
@@ -186,6 +187,7 @@ class ModelGenerator {
         );
         if (generatesPublicPages) {
           final publicPathField = _publicPathField(fields);
+          final publishedField = _publishedField(fields);
           sb.writeln();
           sb.writeln(
             '  static FutureOr<Iterable<String>> Function()? _publicStaticPathsResolver;',
@@ -212,24 +214,23 @@ class ModelGenerator {
           sb.writeln(
               '  static Future<List<String>> publicStaticPaths() async {');
           sb.writeln('    final resolver = _publicStaticPathsResolver;');
-          sb.writeln('    if (resolver == null) {');
-          sb.writeln('      throw StateError(');
-          sb.writeln(
-            "        'No public static paths resolver registered for $className. '",
-          );
-          sb.writeln(
-            "        'Call $className.usePublicStaticPathsResolver(...) before '",
-          );
-          sb.writeln(
-            "        'prerendering or disable @DVModel(generatePublicPages: true).',",
-          );
-          sb.writeln('      );');
-          sb.writeln('    }');
+          sb.writeln('    if (resolver != null) {');
           sb.writeln(
               '    final values = await Future<Iterable<String>>.value(');
           sb.writeln('      resolver(),');
           sb.writeln('    );');
           sb.writeln('    return values.toList(growable: false);');
+          sb.writeln('    }');
+          sb.writeln(
+            "    final rows = await DV.Database.query('select * from $tableName');",
+          );
+          sb.writeln('    return rows');
+          sb.writeln('        .map(${className}Parser.fromJson)');
+          if (publishedField != null) {
+            sb.writeln('        .where((model) => model.$publishedField)');
+          }
+          sb.writeln('        .map((model) => model.$publicPathField)');
+          sb.writeln('        .toList(growable: false);');
           sb.writeln('  }');
           sb.writeln();
           sb.writeln(
@@ -397,7 +398,6 @@ class ModelGenerator {
         sb.writeln('  }');
 
         // Database metadata
-        final tableName = '${className.toLowerCase()}s';
         sb.writeln();
         sb.writeln('  /// Database table name for [$className].');
         sb.writeln("  String get tableName => '$tableName';");
@@ -1130,6 +1130,16 @@ class ModelGenerator {
       'other String field so Dartvel can generate a parameterized public '
       'page route.',
     );
+  }
+
+  static String? _publishedField(List<Map<String, String>> fields) {
+    final boolFields = fields
+        .where((field) => field['type'] == 'bool')
+        .map((field) => field['name']!)
+        .toList(growable: false);
+    if (boolFields.contains('published')) return 'published';
+    if (boolFields.contains('isPublished')) return 'isPublished';
+    return null;
   }
 
   static String _pluralRouteSegment(String className) {

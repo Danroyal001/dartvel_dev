@@ -320,7 +320,8 @@ import 'package:dartvel_core/dartvel.dart';
 )
 class _Product {
   final String slug;
-  const _Product({required this.slug});
+  final bool published;
+  const _Product({required this.slug, required this.published});
 }
 ''');
 
@@ -367,6 +368,12 @@ class _Product {
             content,
             contains('static Future<List<String>> '
                 'publicStaticPaths() async {'));
+        expect(
+          content,
+          contains("DV.Database.query('select * from products')"),
+        );
+        expect(content, contains('.where((model) => model.published)'));
+        expect(content, contains('.map((model) => model.slug)'));
         expect(
           content,
           contains("static const String publicPageRoute = '/products/:slug';"),
