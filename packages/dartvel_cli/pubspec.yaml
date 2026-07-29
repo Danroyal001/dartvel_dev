@@ -2,7 +2,7 @@
 name: dartvel_cli
 publish_to: 'none'
 description: CLI for dartvel v0.1 (routes + web client + backend configs)
-version: 0.2.0
+version: 0.2.1
 environment:
   sdk: ">=3.4.0 <4.0.0"
 dependencies:
