@@ -1,4 +1,5 @@
 import '../../../db/inmemory.dart';
 
-Map<String, dynamic> update(String id, String title) =>
-    InMemoryDB().updateTodo(id, title) ?? {'error': 'not_found'};
+Map<String, Object?> update(String id, String title) =>
+    InMemoryDB().updateTodo(id, title) ??
+    <String, Object?>{'error': 'not_found'};

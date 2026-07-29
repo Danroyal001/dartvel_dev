@@ -1,4 +1,4 @@
-Map<String, dynamic> search(String q, List<String> tags) => {
+Map<String, Object?> search(String q, List<String> tags) => <String, Object?>{
       'q': q,
       'tags': tags,
     };

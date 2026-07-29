@@ -1,3 +1,3 @@
 import '../../db/inmemory.dart';
 
-Map<String, dynamic> addTodo(String title) => InMemoryDB().addTodo(title);
+Map<String, Object?> addTodo(String title) => InMemoryDB().addTodo(title);
