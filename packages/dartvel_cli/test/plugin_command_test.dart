@@ -16,11 +16,13 @@ void main() {
       runner = CommandRunner<void>('dartvel', 'Test runner')
         ..addCommand(PluginCommand());
       Directory.current = tempDir;
+      exitCode = 0;
     });
 
     tearDown(() {
       Directory.current = previousDirectory;
       tempDir.deleteSync(recursive: true);
+      exitCode = 0;
     });
 
     test('add auth plugin creates files', () async {
@@ -39,8 +41,16 @@ void main() {
       expect(authLogout.existsSync(), isTrue);
       expect(authMe.existsSync(), isTrue);
 
-      expect(loginPage.readAsStringSync(), contains('class LoginPage'));
-      expect(authLogin.readAsStringSync(), contains('handler'));
+      final loginSource = loginPage.readAsStringSync();
+      expect(loginSource, contains('@DVPage(title: \'Login\')'));
+      expect(
+          loginSource, contains('Widget _loginPage(BuildContext context) =>'));
+      expect(loginSource, contains('DV.Auth.SignInWithEmailAndPasswordPage()'));
+      expect(loginSource, isNot(contains('Scaffold(')));
+      expect(loginSource, isNot(contains('class LoginPage')));
+
+      expect(authLogin.readAsStringSync(), contains('@DVBackendFunction'));
+      expect(authLogin.readAsStringSync(), contains('_login('));
       expect(authLogin.readAsStringSync(),
           isNot(contains('Map<String, dynamic>')));
       expect(authLogout.readAsStringSync(),
@@ -50,11 +60,15 @@ void main() {
     });
 
     test('unknown plugin fails', () async {
-      // CommandRunner doesn't throw on exit(1), it just exits the test process if we are not careful.
-      // But our command calls exit(1).
-      // We can't easily test exit(1) without spawning a process.
-      // The command exits for invalid input, so this assertion is covered by integration tests.
-      // For now, just verify the positive case.
+      await runner.run(<String>['plugin', 'add', 'unknown']);
+
+      expect(exitCode, 64);
+    });
+
+    test('missing plugin name fails with usage code', () async {
+      await runner.run(<String>['plugin', 'add']);
+
+      expect(exitCode, 64);
     });
   });
 }
