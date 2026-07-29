@@ -124,7 +124,7 @@ class DartvelAdminGenerator {
   }
 
   static const String _indexPage = '''
-import 'package:dartvel_flutter/dartvel_flutter.dart';
+import '../../dartvel_client/dartvel_client.dart';
 import 'package:flutter/widgets.dart';
 
 @DVPage(title: 'Dartvel Admin', path: '/_dartvel_admin')
@@ -139,7 +139,7 @@ Widget dartvelAdminIndexPage(BuildContext context) {
       const DVBox(DVText('Cache Tags')).modifier(const DVModifier().card().padding(16)),
       const DVBox(DVText('Routes and Pages')).modifier(const DVModifier().card().padding(16)),
       const DVBox(DVText('Policies and Permissions')).modifier(const DVModifier().card().padding(16)),
-      const DVBox(DVText('Mail and Notifications')).modifier(const DVModifier().card().padding(16)),
+      const DVBox(DVText('Notifications')).modifier(const DVModifier().card().padding(16)),
       const DVBox(DVText('Model Sync')).modifier(const DVModifier().card().padding(16)),
     ], columns: 2),
   ]).modifier(const DVModifier().padding(24));
@@ -147,7 +147,7 @@ Widget dartvelAdminIndexPage(BuildContext context) {
 ''';
 
   static const String _queuesPage = '''
-import 'package:dartvel_flutter/dartvel_flutter.dart';
+import '../../dartvel_client/dartvel_client.dart';
 import 'package:flutter/widgets.dart';
 
 @DVPage(title: 'Dartvel Queues', path: '/_dartvel_admin/queues')
@@ -167,7 +167,7 @@ Widget dartvelAdminQueuesPage(BuildContext context) {
 ''';
 
   static const String _cachePage = '''
-import 'package:dartvel_flutter/dartvel_flutter.dart';
+import '../../dartvel_client/dartvel_client.dart';
 import 'package:flutter/widgets.dart';
 
 @DVPage(title: 'Dartvel Cache', path: '/_dartvel_admin/cache')
@@ -187,7 +187,7 @@ Widget dartvelAdminCachePage(BuildContext context) {
 ''';
 
   static const String _routesPage = '''
-import 'package:dartvel_flutter/dartvel_flutter.dart';
+import '../../dartvel_client/dartvel_client.dart';
 import 'package:flutter/widgets.dart';
 
 @DVPage(title: 'Dartvel Routes', path: '/_dartvel_admin/routes')
