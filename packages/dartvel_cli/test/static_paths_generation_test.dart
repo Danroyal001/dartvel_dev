@@ -24,6 +24,9 @@ void main() {
 import 'package:dartvel_core/dartvel.dart';
 
 @DVStaticPaths()
+@pragma('vm:entry-point')
+Future<List<String>> _productPaths() async => productPaths();
+
 Future<List<String>> productPaths() async => <String>['a', 'b'];
 ''',
       });
@@ -48,6 +51,9 @@ Future<List<String>> productPaths() async => <String>['a', 'b'];
       final root = await _project({
         'paths/blog.dart': '''
 @DVStaticPaths(route: '/blog/:slug')
+@pragma('vm:entry-point')
+Future<List<String>> _blogPaths() async => blogPaths();
+
 Future<List<String>> blogPaths() async => <String>['hello'];
 ''',
       });
@@ -66,9 +72,15 @@ Future<List<String>> blogPaths() async => <String>['hello'];
       // Generated output must be stable, or every regenerate churns the diff.
       final root = await _project({
         'paths/b_paths.dart':
-            '@DVStaticPaths()\nFuture<List<String>> bPaths() async => [];\n',
+            '@DVStaticPaths()\n'
+            "@pragma('vm:entry-point')\n"
+            'Future<List<String>> _bPaths() async => bPaths();\n'
+            'Future<List<String>> bPaths() async => [];\n',
         'paths/a_paths.dart':
-            '@DVStaticPaths()\nFuture<List<String>> aPaths() async => [];\n',
+            '@DVStaticPaths()\n'
+            "@pragma('vm:entry-point')\n"
+            'Future<List<String>> _aPaths() async => aPaths();\n'
+            'Future<List<String>> aPaths() async => [];\n',
       });
       try {
         final found = StaticPathsGenerator.discover(
@@ -84,7 +96,10 @@ Future<List<String>> blogPaths() async => <String>['hello'];
     test('accepts a non-Future return type', () async {
       final root = await _project({
         'paths/sync_paths.dart':
-            '@DVStaticPaths()\nList<String> syncPaths() => <String>[\'x\'];\n',
+            '@DVStaticPaths()\n'
+            "@pragma('vm:entry-point')\n"
+            'List<String> _syncPaths() => syncPaths();\n'
+            'List<String> syncPaths() => <String>[\'x\'];\n',
       });
       try {
         final found = StaticPathsGenerator.discover(
@@ -92,6 +107,28 @@ Future<List<String>> blogPaths() async => <String>['hello'];
           pkgName: 'site',
         );
         expect(found.single.functionName, 'syncPaths');
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    });
+
+    test('rejects public annotated providers', () async {
+      final root = await _project({
+        'paths/public_paths.dart':
+            '@DVStaticPaths()\n'
+            'Future<List<String>> productPaths() async => <String>[];\n',
+      });
+      try {
+        expect(
+          () => StaticPathsGenerator.discover(root: root.path, pkgName: 'site'),
+          throwsA(
+            isA<StateError>().having(
+              (error) => error.message,
+              'message',
+              contains('static-path generation inputs must be private'),
+            ),
+          ),
+        );
       } finally {
         root.deleteSync(recursive: true);
       }
@@ -278,7 +315,10 @@ class Product {
     test('writes the manifest into the generated client directory', () async {
       final root = await _project({
         'paths/product_paths.dart':
-            '@DVStaticPaths()\nFuture<List<String>> productPaths() async => [];\n',
+            '@DVStaticPaths()\n'
+            "@pragma('vm:entry-point')\n"
+            'Future<List<String>> _productPaths() async => productPaths();\n'
+            'Future<List<String>> productPaths() async => [];\n',
       });
       try {
         final providers = await StaticPathsGenerator.generate(
@@ -318,6 +358,7 @@ import 'package:dartvel_core/dartvel.dart';
   pageDataMode: DVModelPageDataMode.staleWhileRevalidate,
   generatePublicPages: true,
 )
+@pragma('vm:entry-point')
 class _Product {
   final String slug;
   final bool published;

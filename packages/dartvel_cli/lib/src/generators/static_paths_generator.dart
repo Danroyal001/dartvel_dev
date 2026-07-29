@@ -40,6 +40,7 @@ class StaticPathsGenerator {
   /// is what marks the provider.
   static final _providerRegex = RegExp(
     r'@DVStaticPaths\s*\(([^)]*)\)\s*'
+    r'(?:@pragma\([^)]*\)\s*)*'
     r'(?:Future\s*<[^>]*>|[A-Za-z0-9_<>, ]+?)\s+'
     r'([A-Za-z0-9_]+)\s*\(',
     dotAll: true,
@@ -50,7 +51,7 @@ class StaticPathsGenerator {
   );
 
   static final _modelRegex = RegExp(
-    r'@DVModel\s*\(([^)]*)\)\s*class\s+([A-Za-z0-9_]+)\b',
+    r'@DVModel\s*\(([^)]*)\)\s*(?:@pragma\([^)]*\)\s*)*class\s+([A-Za-z0-9_]+)\b',
     dotAll: true,
   );
 
@@ -91,9 +92,17 @@ class StaticPathsGenerator {
         for (final match in _providerRegex.allMatches(content)) {
           final args = match.group(1) ?? '';
           final routeMatch = _routeArgRegex.firstMatch(args);
+          final sourceFunctionName = match.group(2)!;
+          if (!sourceFunctionName.startsWith('_')) {
+            throw StateError(
+              'Dartvel static-path generation inputs must be private. Rename '
+              '$sourceFunctionName to _$sourceFunctionName and reference '
+              'static paths through dartvel_client/dartvel_client.dart.',
+            );
+          }
           providers.add(
             StaticPathsProvider(
-              functionName: match.group(2)!,
+              functionName: sourceFunctionName.substring(1),
               importPath: importPath,
               route: routeMatch?.group(1),
             ),

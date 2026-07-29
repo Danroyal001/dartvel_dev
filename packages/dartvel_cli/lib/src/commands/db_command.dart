@@ -38,7 +38,9 @@ class DbMigrateSubcommand extends Command<void> {
         in glob.listFileSystemSync(fs, root: root, followLinks: false)) {
       if (entity is File) {
         final content = await (entity as File).readAsString();
-        final matches = RegExp(r'@DVModel\(\)\s*class\s+([A-Za-z0-9_]+)')
+        final matches = RegExp(
+          r'@DVModel\(\)\s*(?:@pragma\([^)]*\)\s*)*class\s+([A-Za-z0-9_]+)',
+        )
             .allMatches(content);
         for (final m in matches) {
           final className = m.group(1)!;

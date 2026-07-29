@@ -83,11 +83,10 @@ class GenerateModelSubcommand extends Command<void> {
       return;
     }
     final capitalized = modelName[0].toUpperCase() + modelName.substring(1);
-    file.writeAsStringSync('''// ignore_for_file: unused_element
-
-import 'package:dartvel_core/dartvel.dart';
+    file.writeAsStringSync('''import 'package:dartvel_core/dartvel.dart';
 
 @DVModel()
+@pragma('vm:entry-point')
 class _$capitalized {
   final String id;
   final String name;
