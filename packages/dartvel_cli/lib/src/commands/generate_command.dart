@@ -139,11 +139,36 @@ class GenerateFormSubcommand extends Command<void> {
   @override
   final String name = 'form';
   @override
-  final String description = 'Generate form layout files.';
+  final String description = 'Generate a form functional widget for a model.';
 
   @override
   Future<void> run() async {
-    Logger.log('Generating form components...');
-    Logger.log('Form layout scaffolding generated.');
+    if (argResults?.rest.isEmpty ?? true) {
+      Logger.log('Usage: dartvel generate form <model_name>');
+      exitCode = 64;
+      return;
+    }
+    final modelName = argResults!.rest.first;
+    final formsDir = Directory(p.join(Directory.current.path, 'lib', 'forms'));
+    if (!formsDir.existsSync()) {
+      formsDir.createSync(recursive: true);
+    }
+    final file =
+        File(p.join(formsDir.path, '${modelName.toLowerCase()}_form.dart'));
+    if (file.existsSync()) {
+      Logger.log('Form file already exists: ${file.path}');
+      return;
+    }
+    final capitalized = modelName[0].toUpperCase() + modelName.substring(1);
+    final lower = modelName[0].toLowerCase() + modelName.substring(1);
+    file.writeAsStringSync('''import '../dartvel_client/dartvel_client.dart';
+import 'package:flutter/widgets.dart';
+
+@DVFunctionalWidget()
+@pragma('vm:entry-point')
+Widget _${lower}Form(BuildContext context, $capitalized model) =>
+    $capitalized.Form(model);
+''');
+    Logger.log('Generated form: ${file.path}');
   }
 }
