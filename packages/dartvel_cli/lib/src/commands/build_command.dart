@@ -265,7 +265,7 @@ class BuildCommand extends Command<void> {
 
     // Generate Dartvel routes/client/backend artifacts before optional user
     // build_runner builders so they can consume the generated client barrel.
-    Logger.log('📝 Generating routes...');
+    Logger.log('📝 Generating Dartvel artifacts...');
     final routesResult = await _processRun(
       'dart',
       ['run', 'dartvel_cli:dartvel', 'routes'],
@@ -274,7 +274,7 @@ class BuildCommand extends Command<void> {
     );
 
     if (routesResult.exitCode != 0) {
-      Logger.log('❌ Route generation failed');
+      Logger.log('❌ Dartvel artifact generation failed');
       exit(1);
     }
 
