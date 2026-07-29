@@ -151,7 +151,7 @@ class _Product {
         expect(found.single.resolveExpression, 'Product.publicStaticPaths');
         expect(
           found.single.importPath,
-          'package:shop/dartvel_client/models.g.dart',
+          'package:shop/dartvel_client/dartvel_client.dart',
         );
         expect(found.single.route, '/products/:slug');
       } finally {
@@ -214,7 +214,7 @@ class Product {
         providers: const [
           StaticPathsProvider(
             functionName: 'ProductPublicStaticPaths',
-            importPath: 'package:shop/dartvel_client/models.g.dart',
+            importPath: 'package:shop/dartvel_client/dartvel_client.dart',
             resolveExpression: 'Product.publicStaticPaths',
             route: '/products/:slug',
           ),
@@ -224,7 +224,7 @@ class Product {
 
       expect(
         source,
-        contains("import 'package:shop/dartvel_client/models.g.dart';"),
+        contains("import 'package:shop/dartvel_client/dartvel_client.dart';"),
       );
       expect(source, contains("name: 'ProductPublicStaticPaths',"));
       expect(source, contains("route: '/products/:slug',"));
