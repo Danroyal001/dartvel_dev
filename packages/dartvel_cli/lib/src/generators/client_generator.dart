@@ -410,7 +410,9 @@ class DartvelRuntime {
 
     final sbEnv = StringBuffer();
     sbEnv.writeln('// GENERATED – do not edit.');
-    sbEnv.writeln('// ignore_for_file: non_constant_identifier_names');
+    sbEnv.writeln(
+      '// ignore_for_file: non_constant_identifier_names, unused_element',
+    );
     sbEnv.writeln('library dartvel_client_env;');
     sbEnv.writeln('');
     sbEnv.writeln('/// Environment variables provider.');

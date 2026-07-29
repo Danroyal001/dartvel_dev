@@ -599,6 +599,7 @@ $routesSrc
 
     final sbEnv = StringBuffer();
     sbEnv.writeln('// GENERATED CODE - DO NOT MODIFY BY HAND');
+    sbEnv.writeln('// ignore_for_file: unused_element');
     sbEnv.writeln('library dartvel_client_env;');
     sbEnv.writeln('');
     sbEnv.writeln('/// Environment variables provider.');

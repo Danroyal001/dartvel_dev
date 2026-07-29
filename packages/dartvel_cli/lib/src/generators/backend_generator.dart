@@ -397,6 +397,7 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
     final sbClient = StringBuffer();
     sbClient.writeln('// GENERATED – do not edit.');
     sbClient.writeln('// BUILD: $buildId');
+    sbClient.writeln('// ignore_for_file: unused_element');
     sbClient.writeln('library dartvel_client_functions;');
     sbClient.writeln("import 'dart:convert';");
     sbClient.writeln("import 'dart:math' as math;");
