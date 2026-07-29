@@ -12,17 +12,17 @@ dart pub get --directory ../packages/dartvel_flutter
 dart pub get --directory ../packages/dartvel_cli
 flutter pub get
 
-# 2) Generate dartvel artifacts (router + client/backend configs + backend routes)
-dart run dartvel_cli:dartvel routes
+# 2) Build Dartvel artifacts (generation runs automatically)
+dart run dartvel_cli:dartvel build web
 # Optional: watch for changes and regenerate automatically
-# dart run dartvel_cli:watch
+# dart run dartvel_cli:dartvel watch
 
 # 3) Run Flutter (web)
 flutter run -d chrome
 
-# Or use dartvel dev/run to orchestrate backend + Flutter
+# Or use dartvel dev/run to generate, start the backend, and run Flutter
 # Prompts for device if not specified
-dart run dartvel_cli:run
+dart run dartvel_cli:dartvel run -d chrome
 
 # (Optional) Start your backend server (example provided)
 # From this directory:
@@ -51,5 +51,7 @@ Notes:
 
 Buttons in the home page trigger many of these endpoints for quick testing.
 
-The client artifacts are generated under `lib/dartvel_client/` (router, functions, config).
-You can re-generate anytime with `dart run dartvel_cli:dartvel routes`.
+The generated client barrel lives at `lib/dartvel_client/dartvel_client.dart`.
+Run `dart run dartvel_cli:dartvel build <target>` or
+`dart run dartvel_cli:dartvel run` for normal workflows; `dartvel routes`
+remains available for explicit generator debugging.
