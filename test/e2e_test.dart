@@ -225,6 +225,26 @@ void main() {
       stdout.writeln('✅ Security scan passed - no hardcoded secrets');
     });
 
+    test('generated code avoids dynamic and var declarations', () {
+      final files = [
+        'examples/dartvel_example/lib/dartvel_client/router.g.dart',
+        'examples/dartvel_example/lib/dartvel_client/functions.g.dart',
+        'examples/dartvel_example/lib/dartvel_client/models.g.dart',
+        'examples/dartvel_example/lib/dartvel_client/widgets.g.dart',
+        'examples/dartvel_example/.dart_tool/dartvel_backend_routes.g.dart',
+      ];
+
+      for (final filePath in files) {
+        final content = File(filePath).readAsStringSync();
+        expect(content, isNot(contains('dynamic')),
+            reason: '$filePath should use exact generated types.');
+        expect(content, isNot(contains(RegExp(r'\bvar\s+'))),
+            reason: '$filePath should use explicit generated declarations.');
+      }
+
+      stdout.writeln('✅ Generated code uses explicit strong typing');
+    });
+
     test('example backend payloads avoid dynamic maps', () {
       final backendDir = Directory('examples/dartvel_example/lib/backend');
       final files = backendDir
