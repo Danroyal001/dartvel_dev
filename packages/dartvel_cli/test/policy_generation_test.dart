@@ -391,6 +391,7 @@ import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/widgets.dart';
 
 @DVPage()
+@pragma('vm:entry-point')
 Widget _indexPage(BuildContext context) => const SizedBox.shrink();
 ''',
       );
