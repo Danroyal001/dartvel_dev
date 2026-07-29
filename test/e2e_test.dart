@@ -224,6 +224,28 @@ void main() {
 
       stdout.writeln('✅ Security scan passed - no hardcoded secrets');
     });
+
+    test('example backend payloads avoid dynamic maps', () {
+      final backendDir = Directory('examples/dartvel_example/lib/backend');
+      final files = backendDir
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((file) => file.path.endsWith('.dart'))
+          .toList();
+
+      for (final file in files) {
+        final content = file.readAsStringSync();
+        expect(content, isNot(contains('Map<String, dynamic>')),
+            reason: '${file.path} should use Map<String, Object?>.');
+        expect(content, isNot(contains('List<Map<String, dynamic>>')),
+            reason:
+                '${file.path} should use List<Map<String, Object?>>.');
+        expect(content, isNot(contains('<String, dynamic>')),
+            reason: '${file.path} should use typed Object? map literals.');
+      }
+
+      stdout.writeln('✅ Example backend payloads are strongly typed');
+    });
   });
 
   group('Code Quality Tests', () {
