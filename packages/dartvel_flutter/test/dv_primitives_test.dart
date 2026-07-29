@@ -39,7 +39,18 @@ void main() {
     });
 
     test('an unregistered module fails loudly', () {
-      expect(() => DV.Modules('absent'), throwsA(isA<DVUnknownModuleException>()));
+      expect(
+          () => DV.Modules('absent'), throwsA(isA<DVUnknownModuleException>()));
+    });
+  });
+
+  group('DV.global', () {
+    test('keeps app and module namespaces isolated', () {
+      DV.global<String>('app-value');
+      DV.global<String>('store-value', 'store');
+
+      expect(DV.global<String>(), 'app-value');
+      expect(DV.global<String>(null, 'store'), 'store-value');
     });
   });
 

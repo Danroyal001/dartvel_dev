@@ -1,4 +1,5 @@
 // State management - Simple but powerful
+import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 
@@ -114,11 +115,13 @@ class AsyncAction<T> {
 Middleware<TState> asyncMiddleware<TState>() {
   return (state, action, dispatch) {
     if (action is AsyncAction) {
-      action.execute().then((result) {
-        action.onSuccess?.call(result);
-      }).catchError((error) {
-        action.onError?.call(error);
-      });
+      unawaited(
+        action.execute().then((result) {
+          action.onSuccess?.call(result);
+        }).catchError((error) {
+          action.onError?.call(error);
+        }),
+      );
       return null; // Don't pass async actions to reducer
     }
     return action;

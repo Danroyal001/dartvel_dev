@@ -542,13 +542,13 @@ Global
 Register
 
 ```dart
-DV.globalSignal<Cart>(Cart());
+DV.global<Cart>(Cart());
 ```
 
 Retrieve
 
 ```dart
-DV.globalSignal<Cart>(); // To retrieve, don't pass a value, just the type.
+DV.global<Cart>(); // To retrieve, don't pass a value, just the type.
 ```
 
 Reactive
@@ -577,7 +577,7 @@ user.read();
 ```
 
 Internally powered by Riverpod, so it works in Flutter and pure Dart.
-Normal `signal()` tracks by parent widget or context. `globalSignal` tracks by
+Normal `signal()` tracks by parent widget or context. `DV.global` tracks by
 data type, so each type must be unique. Setting the same type replaces the
 previous value for that type.
 
@@ -806,7 +806,7 @@ Runtime guarantees:
 ## Signals
 
 Signals are already part of Dartvel through `context.signal(...)`,
-`signal(context, ...)`, reactive models, `DV.globalSignal`, and generated model
+`signal(context, ...)`, reactive models, `DV.global`, and generated model
 sync.
 Dartvel should not introduce separate signal/event annotations for the common
 case.
@@ -816,7 +816,7 @@ final counter = context.signal(0);
 counter.value++;
 
 final userSignal = user.signal(context);
-final cart = context.globalSignal<Cart>();
+final cart = context.global<Cart>();
 ```
 
 Computed values too
@@ -2710,8 +2710,8 @@ DI/service-container primitive. Globals are isolated by default between
 independently deployed modules; sharing is deliberate.
 
 ```dart
-DV.global<Cart>(Cart(), namespace: 'store');
-final cart = DV.global<Cart>(namespace: 'store');
+DV.global<Cart>(Cart(), 'store');
+final cart = DV.global<Cart>(null, 'store');
 final same = DV.Modules.store.global<Cart>();  // generated convenience
 ```
 
