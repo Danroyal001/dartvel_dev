@@ -190,8 +190,31 @@ class BuildCommand extends Command<void> {
     final treeShakeIcons = argResults?['tree-shake-icons'] as bool;
     final autoInstall = argResults?['auto-install'] as bool?;
 
+    // A distribution-target name (`sony-elinux-iso`) resolves to a base
+    // platform plus a format; an explicit `--format` overrides the default.
+    final normalized = normalizeBuildTarget(rawPlatform);
+    final platforms =
+        normalized.platform == 'all' ? allBuildPlatforms : [normalized.platform];
+    final format = formatFlag ?? normalized.format;
+
     Logger.log('🔨 Building Dartvel project...');
     Logger.log('');
+
+    var skipped = 0;
+    final buildablePlatforms = <String>[];
+    for (final platform in platforms) {
+      if (await _preflight(platform, autoInstall: autoInstall)) {
+        buildablePlatforms.add(platform);
+      } else {
+        skipped += 1;
+      }
+    }
+
+    if (buildablePlatforms.isEmpty) {
+      Logger.log('');
+      Logger.log('✅ Build complete with $skipped skipped target(s).');
+      return;
+    }
 
     // Run optional user-configured builders after Dartvel's own generation.
     if (hasBuildRunnerDependency(root)) {
@@ -227,23 +250,8 @@ class BuildCommand extends Command<void> {
     final buildMode =
         isProfile ? '--profile' : (isRelease ? '--release' : '--debug');
 
-    // A distribution-target name (`sony-elinux-iso`) resolves to a base
-    // platform plus a format; an explicit `--format` overrides the default.
-    final normalized = normalizeBuildTarget(rawPlatform);
-    final platforms =
-        normalized.platform == 'all' ? allBuildPlatforms : [normalized.platform];
-    final format = formatFlag ?? normalized.format;
-
     var failures = 0;
-    var skipped = 0;
-    for (final p in platforms) {
-      // Preflight: refuse to start a build that cannot possibly finish, and
-      // offer to fix what is fixable, before spending time on generation.
-      if (!await _preflight(p, autoInstall: autoInstall)) {
-        skipped += 1;
-        continue;
-      }
-
+    for (final p in buildablePlatforms) {
       final result = embeddedBuildPlatforms.contains(p)
           ? await _buildEmbedded(
               p,
