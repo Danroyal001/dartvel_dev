@@ -246,6 +246,30 @@ void main() {
 
       stdout.writeln('✅ Example backend payloads are strongly typed');
     });
+
+    test('source code does not use Flutter platform channels', () {
+      final forbiddenPatterns = <String>[
+        'Method' 'Channel',
+        'Event' 'Channel',
+        'BasicMessage' 'Channel',
+        'package:flutter/' 'services.dart',
+      ];
+      final files = _repoDartFiles();
+
+      for (final file in files) {
+        final content = file.readAsStringSync();
+        for (final pattern in forbiddenPatterns) {
+          expect(
+            content,
+            isNot(contains(pattern)),
+            reason:
+                '${file.path} must use FFI/ffigen or JNI/jnigen, not $pattern.',
+          );
+        }
+      }
+
+      stdout.writeln('✅ No Flutter platform channel APIs found in source');
+    });
   });
 
   group('Code Quality Tests', () {
@@ -336,4 +360,22 @@ void main() {
       stdout.writeln('✅ Code size is reasonable: $total lines total');
     });
   });
+}
+
+List<File> _repoDartFiles() {
+  final ignoredSegments = <String>{
+    '.dart_tool',
+    '.git',
+    '.pub-cache',
+    'build',
+  };
+  return Directory.current
+      .listSync(recursive: true, followLinks: false)
+      .whereType<File>()
+      .where((file) => file.path.endsWith('.dart'))
+      .where((file) {
+        final segments = p.split(file.path);
+        return !segments.any(ignoredSegments.contains);
+      })
+      .toList();
 }
