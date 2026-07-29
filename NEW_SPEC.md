@@ -8,10 +8,11 @@
 >
 > `DV.lifecycle.*`, `DV.Modules.<id>`, `DV.transaction(...)` with
 > `context.afterCommit`/`context.compensate`, `@DVStaticPaths()`, and generated
-> `Model.Page(...)` data-mode APIs (`.async`, `.signal`, `.fromId`) are
-> implemented. `@DVModel(generatePublicPages: true)` is **not** — the
-> annotation accepts it, but automatic public page/static-path generation does
-> not consume it yet.
+> `Model.Page(...)` data-mode APIs (`.async`, `.signal`, `.fromId`) and
+> `@DVModel(generatePublicPages: true)` public static-path manifest generation
+> are implemented. Public page record enumeration is resolver-backed: generated
+> models expose `Model.usePublicStaticPathsResolver(...)` and fail clearly if no
+> resolver is registered before prerendering.
 >
 > Where this spec and the code disagree, **the code wins**. For what is
 > actually implemented today, see the *Alpha status* section of

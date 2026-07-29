@@ -51,13 +51,14 @@ Implemented as of this writing: `DV.lifecycle.*` and `context.lifecycle.*`
 (read-only enum signals in `dartvel_core/src/lifecycle/`), `DV.Modules.<id>`
 (`src/modules/`), `DV.transaction(...)` with `context.afterCommit`/
 `context.compensate` (`src/transaction/`), `@DVStaticPaths()` (discovered by
-`static_paths_generator.dart` into `dartvel_client/static_paths.g.dart`), and
+`static_paths_generator.dart` into `dartvel_client/static_paths.g.dart`),
 generated `Model.Page(...)` data-mode APIs (`.async`, `.signal`, `.fromId`) in
-`model_generator.dart`.
+`model_generator.dart`, and `@DVModel(generatePublicPages: true)` static-path
+manifest generation backed by `Model.usePublicStaticPathsResolver(...)`.
 
-Still **not** implemented: automatic public page/static-path generation from
-`@DVModel(generatePublicPages: true)`. The annotation parameter exists and is
-accepted, but no generator consumes it yet — do not describe it as working.
+Still **not** implemented: automatic published-record enumeration without a
+registered public static-path resolver. Generated public model paths must fail
+clearly instead of inventing fake paths when no resolver is configured.
 
 ## Public API Shape Rules
 
