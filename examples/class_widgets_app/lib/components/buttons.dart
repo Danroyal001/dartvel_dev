@@ -1,10 +1,9 @@
-// ignore_for_file: unused_element
-
 import 'package:dartvel_core/dartvel.dart';
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/material.dart';
 
 @DVFunctionalWidget()
+@pragma('vm:entry-point')
 Widget _button(String label, VoidCallback onPressed) => DVText(label).modifier(
       const DVModifier()
           .padding(12)

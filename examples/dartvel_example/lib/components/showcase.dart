@@ -1,5 +1,3 @@
-// ignore_for_file: unused_element
-
 import 'dart:async';
 
 import 'package:dartvel_core/dartvel.dart';
@@ -51,12 +49,14 @@ final showcaseBodyStyle = const DVModifier()
     .fontWeight(FontWeight.w500);
 
 @DVFunctionalWidget()
+@pragma('vm:entry-point')
 Widget _showcaseSection(String title, List<Widget> children) => DVBox.list([
       DVText(title).modifier(showcaseTitleStyle),
       ...children,
     ]).modifier(showcaseCardStyle);
 
 @DVFunctionalWidget()
+@pragma('vm:entry-point')
 Widget _showcaseButton(String label, FutureOr<void> Function() onPressed) =>
     DVText(label).modifier(
       showcaseButtonStyle.onPressed(() {
@@ -65,12 +65,14 @@ Widget _showcaseButton(String label, FutureOr<void> Function() onPressed) =>
     );
 
 @DVFunctionalWidget()
+@pragma('vm:entry-point')
 Widget _showcaseMetric(String label, String value) => DVBox.list([
       DVText(label).modifier(showcaseMetricLabelStyle),
       DVText(value).modifier(showcaseMetricValueStyle),
     ]).modifier(showcaseMetricStyle);
 
 @DVFunctionalWidget()
+@pragma('vm:entry-point')
 Widget _featureCard(String title, String body) => DVBox.list([
       DVText(title).modifier(
         const DVModifier()
@@ -88,6 +90,7 @@ Widget _featureCard(String title, String body) => DVBox.list([
     );
 
 @DVFunctionalWidget()
+@pragma('vm:entry-point')
 Widget _showcaseHero(String platform, String deviceType, String backend) =>
     DVBox.list([
       const DVText('Dartvel Platform Showcase').modifier(
