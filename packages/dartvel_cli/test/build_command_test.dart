@@ -306,5 +306,39 @@ void main() {
       expect(preflightPlatforms, <String>['windows']);
       expect(processInvocations, isEmpty);
     });
+
+    test('generates routes before running build_runner', () async {
+      final temp = Directory.systemTemp.createTempSync('dartvel_build_test_');
+      final oldCurrent = Directory.current;
+      final processInvocations = <String>[];
+      final command = BuildCommand(
+        preflight: (String platform, {bool? autoInstall}) async => true,
+        processRun: (
+          String executable,
+          List<String> arguments, {
+          String? workingDirectory,
+          bool runInShell = false,
+        }) async {
+          processInvocations.add(<String>[executable, ...arguments].join(' '));
+          return ProcessResult(0, 0, '', '');
+        },
+        hasBuildRunner: (String root) => true,
+      );
+      final runner = CommandRunner<void>('dartvel', 'test')
+        ..addCommand(command);
+
+      try {
+        Directory.current = temp;
+        await runner.run(<String>['build', 'windows']);
+      } finally {
+        Directory.current = oldCurrent;
+        temp.deleteSync(recursive: true);
+      }
+
+      expect(processInvocations, <String>[
+        'dart run dartvel_cli:dartvel routes',
+        'dart run build_runner build --delete-conflicting-outputs',
+      ]);
+    });
   });
 }

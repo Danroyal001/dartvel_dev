@@ -255,7 +255,21 @@ class BuildCommand extends Command<void> {
       return;
     }
 
-    // Run optional user-configured builders after Dartvel's own generation.
+    // Generate Dartvel routes/client/backend artifacts before optional user
+    // build_runner builders so they can consume the generated client barrel.
+    Logger.log('📝 Generating routes...');
+    final routesResult = await _processRun(
+      'dart',
+      ['run', 'dartvel_cli:dartvel', 'routes'],
+      workingDirectory: root,
+      runInShell: true,
+    );
+
+    if (routesResult.exitCode != 0) {
+      Logger.log('❌ Route generation failed');
+      exit(1);
+    }
+
     if (_hasBuildRunner(root)) {
       Logger.log('📦 Running build_runner...');
       final buildRunnerResult = await _processRun(
@@ -270,20 +284,6 @@ class BuildCommand extends Command<void> {
       }
     } else {
       Logger.log('📦 No build_runner dependency declared; skipping build.');
-    }
-
-    // Generate routes
-    Logger.log('📝 Generating routes...');
-    final routesResult = await _processRun(
-      'dart',
-      ['run', 'dartvel_cli:dartvel', 'routes'],
-      workingDirectory: root,
-      runInShell: true,
-    );
-
-    if (routesResult.exitCode != 0) {
-      Logger.log('❌ Route generation failed');
-      exit(1);
     }
 
     final buildMode =
