@@ -6,7 +6,10 @@ import 'package:flutter/material.dart';
 StreamSubscription<String>? _subscription;
 
 @DVPage()
-Widget indexPage(BuildContext context) {
+@pragma('vm:entry-point')
+Widget _indexPage(BuildContext context) => buildIndexPage(context);
+
+Widget buildIndexPage(BuildContext context) {
   final counter = context.signal(0);
   final isStreaming = context.signal(false);
   final ticks = context.signal(<String>[]);
