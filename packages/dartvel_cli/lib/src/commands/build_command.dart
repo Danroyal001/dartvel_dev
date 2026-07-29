@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:args/command_runner.dart';
+import 'package:path/path.dart' as p;
 import '../utils/build_runner.dart';
 import '../utils/logger.dart';
 import '../utils/toolchain.dart';
@@ -505,6 +506,15 @@ class BuildCommand extends Command<void> {
       }
     }
 
+    final artifacts = validateVSCodeArtifacts(root);
+    if (!artifacts.isValid) {
+      Logger.log('❌ vscode build did not produce required artifacts.');
+      for (final missing in artifacts.missing) {
+        Logger.log('   Missing: $missing');
+      }
+      return _PlatformBuildResult.failed;
+    }
+
     Logger.log('✅ vscode extension build successful');
     return _PlatformBuildResult.succeeded;
   }
@@ -641,6 +651,56 @@ class EmbeddedBuildPlan {
 
   final String executable;
   final List<String> arguments;
+}
+
+class VSCodeArtifactValidation {
+  const VSCodeArtifactValidation({
+    required this.hasExtensionHostOutput,
+    required this.hasFlutterBootstrap,
+    required this.hasFlutterAssets,
+  });
+
+  final bool hasExtensionHostOutput;
+  final bool hasFlutterBootstrap;
+  final bool hasFlutterAssets;
+
+  bool get isValid =>
+      hasExtensionHostOutput && hasFlutterBootstrap && hasFlutterAssets;
+
+  List<String> get missing {
+    final missing = <String>[];
+    if (!hasExtensionHostOutput) {
+      missing.add('compiled extension host JavaScript under out/ or dist/');
+    }
+    if (!hasFlutterBootstrap) {
+      missing.add('build/web/flutter_bootstrap.js');
+    }
+    if (!hasFlutterAssets) {
+      missing.add('build/web/assets/');
+    }
+    return List<String>.unmodifiable(missing);
+  }
+}
+
+VSCodeArtifactValidation validateVSCodeArtifacts(String root) {
+  return VSCodeArtifactValidation(
+    hasExtensionHostOutput: _containsJavaScriptFile(
+          Directory(p.join(root, 'out')),
+        ) ||
+        _containsJavaScriptFile(Directory(p.join(root, 'dist'))),
+    hasFlutterBootstrap:
+        File(p.join(root, 'build', 'web', 'flutter_bootstrap.js')).existsSync(),
+    hasFlutterAssets:
+        Directory(p.join(root, 'build', 'web', 'assets')).existsSync(),
+  );
+}
+
+bool _containsJavaScriptFile(Directory directory) {
+  if (!directory.existsSync()) return false;
+  return directory
+      .listSync(recursive: true, followLinks: false)
+      .whereType<File>()
+      .any((file) => file.path.endsWith('.js'));
 }
 
 /// Resolves the embedder invocation for an embedded platform, or `null` if the
