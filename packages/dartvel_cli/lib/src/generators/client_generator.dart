@@ -39,8 +39,11 @@ class ClientGenerator {
     final pageGlob = Glob('$pagesDir/**.dart');
     final pageFiles = <File>[];
     final fs = const LocalFileSystem();
-    for (final e
-        in pageGlob.listFileSystemSync(fs, root: root, followLinks: false)) {
+    for (final e in pageGlob.listFileSystemSync(
+      fs,
+      root: root,
+      followLinks: false,
+    )) {
       final path = e.path;
       final ioFile = File(path);
       if (!ioFile.existsSync()) continue;
@@ -59,8 +62,11 @@ class ClientGenerator {
     // Scan layouts: any _layout.dart under pagesDir
     final layoutGlob = Glob(p.join(pagesDir, '**/_layout.dart'));
     final layoutFiles = <File>[];
-    for (final e
-        in layoutGlob.listFileSystemSync(fs, root: root, followLinks: false)) {
+    for (final e in layoutGlob.listFileSystemSync(
+      fs,
+      root: root,
+      followLinks: false,
+    )) {
       final ioFile = File(e.path);
       if (ioFile.existsSync()) layoutFiles.add(ioFile);
     }
@@ -79,8 +85,10 @@ class ClientGenerator {
     for (var i = 0; i < pageFiles.length; i++) {
       final abs = pageFiles[i].path;
       final rel = p.relative(abs, from: root).replaceAll('\\', '/');
-      final importPath =
-          rel.replaceFirst(RegExp(r'^lib/'), 'package:$pkgName/');
+      final importPath = rel.replaceFirst(
+        RegExp(r'^lib/'),
+        'package:$pkgName/',
+      );
       // Parse class name by scanning file for a page class or functional widget.
       final src = await File(abs).readAsString();
       final hasPageAnnotation = src.contains('@DVPage');
@@ -89,43 +97,60 @@ class ClientGenerator {
         continue;
       }
       final m = RegExp(
-              r'(?:@DVPage\([^)]*\)\s*)?class\s+([A-Za-z_][A-Za-z0-9_]*)\s+extends\s+(DartvelPage|DVClassWidget)')
-          .firstMatch(src);
+        r'(?:@DVPage\([^)]*\)\s*)?class\s+([A-Za-z_][A-Za-z0-9_]*)\s+extends\s+(DartvelPage|DVClassWidget)',
+      ).firstMatch(src);
       String className;
       String publicName;
       bool isFunctional = false;
+      String? pageExpressionBody;
+      Set<String> pageSourceSymbols = const <String>{};
       if (m != null) {
         className = m.group(1)!;
         if (className.startsWith('_')) {
           throw StateError(
-            'Dartvel page inputs are private in the spec, but this generator '
-            'still needs public page source while private wrappers are being '
-            'implemented. Rename $className to ${className.substring(1)} for '
-            'this build, and reference only the generated page API from '
-            'dartvel_client/dartvel_client.dart in application code.',
+            'Dartvel private class page input $className in $rel requires '
+            'generated class body lowering before it can be emitted without '
+            'per-source part files. Use a private expression-bodied @DVPage '
+            'function for this generator pass.',
           );
         }
         publicName = className;
       } else {
         final mf = RegExp(
-                r'@DVPage\([^)]*\)\s*(?:@DVFunctionalWidget\(\)\s*)?Widget\s+([A-Za-z_][A-Za-z0-9_]*)\(')
-            .firstMatch(src);
+          r'@DVPage\([^)]*\)\s*(?:@DVFunctionalWidget\(\)\s*)?Widget\s+([A-Za-z_][A-Za-z0-9_]*)\(',
+        ).firstMatch(src);
         if (mf == null) {
           stderr.writeln(
-              'dartvel: could not find class extending DartvelPage/DVClassWidget or @DVPage function in $rel');
+            'dartvel: could not find class extending DartvelPage/DVClassWidget or @DVPage function in $rel',
+          );
           continue;
         }
         className = mf.group(1)!;
         if (className.startsWith('_')) {
-          throw StateError(
-            'Dartvel page inputs are private in the spec, but this generator '
-            'still needs public page source while private wrappers are being '
-            'implemented. Rename $className to ${className.substring(1)} for '
-            'this build, and reference only the generated page API from '
-            'dartvel_client/dartvel_client.dart in application code.',
-          );
+          final openParen = mf.end - 1;
+          final closeParen = _matchingParen(src, openParen);
+          if (closeParen == -1) {
+            throw StateError(
+              'Dartvel private page input $className in $rel has an invalid '
+              'parameter list.',
+            );
+          }
+          final expressionBody = _expressionBodyAfter(src, closeParen);
+          if (expressionBody == null) {
+            throw StateError(
+              'Dartvel private page input $className in $rel must use an '
+              'expression body for this generator pass, for example '
+              'Widget $className(...) => DVBox(...). Block-bodied private '
+              'pages require generated body lowering before they can be '
+              'emitted without per-source part files.',
+            );
+          }
+          pageExpressionBody = expressionBody;
+          pageSourceSymbols = _topLevelSourceSymbols(src);
         }
-        publicName = className;
+        publicName = className.startsWith('_')
+            ? className.substring(1)
+            : className;
         isFunctional = true;
       }
 
@@ -148,45 +173,56 @@ class ClientGenerator {
       String? loadingAlias;
       String? errorAlias;
       if (!isFunctional && File(p.join(root, loadingRel)).existsSync()) {
-        final importPathL =
-            loadingRel.replaceFirst(RegExp(r'^lib/'), 'package:$pkgName/');
+        final importPathL = loadingRel.replaceFirst(
+          RegExp(r'^lib/'),
+          'package:$pkgName/',
+        );
         loadingAlias = 'pl$i';
         pageImports.add("import '$importPathL' as $loadingAlias;");
       }
       if (!isFunctional && File(p.join(root, errorRel)).existsSync()) {
-        final importPathE =
-            errorRel.replaceFirst(RegExp(r'^lib/'), 'package:$pkgName/');
+        final importPathE = errorRel.replaceFirst(
+          RegExp(r'^lib/'),
+          'package:$pkgName/',
+        );
         errorAlias = 'pe$i';
         pageImports.add("import '$importPathE' as $errorAlias;");
       }
 
-      pageEntries.add(_PageEntry(
-        importIndex: '$i',
-        className: className,
-        publicName: publicName,
-        generatedWidget: _generatedPageWidgetName(className),
-        pageScaffold: _pageScaffoldSpec(src),
-        route: route,
-        directory: dir,
-        isFunctional: isFunctional,
-        loadingAlias: loadingAlias,
-        errorAlias: errorAlias,
-      ));
+      pageEntries.add(
+        _PageEntry(
+          importIndex: '$i',
+          className: className,
+          publicName: publicName,
+          generatedWidget: _generatedPageWidgetName(className),
+          pageScaffold: _pageScaffoldSpec(src),
+          route: route,
+          directory: dir,
+          isFunctional: isFunctional,
+          expressionBody: pageExpressionBody,
+          sourceSymbols: pageSourceSymbols,
+          loadingAlias: loadingAlias,
+          errorAlias: errorAlias,
+        ),
+      );
     }
 
     // Import all layouts and build map by directory
     for (var j = 0; j < layoutFiles.length; j++) {
       final abs = layoutFiles[j].path;
       final rel = p.relative(abs, from: root).replaceAll('\\', '/');
-      final importPath =
-          rel.replaceFirst(RegExp(r'^lib/'), 'package:$pkgName/');
+      final importPath = rel.replaceFirst(
+        RegExp(r'^lib/'),
+        'package:$pkgName/',
+      );
       final src = await File(abs).readAsString();
-      final m =
-          RegExp(r'class\s+([A-Za-z_][A-Za-z0-9_]*)\s+extends\s+DartvelLayout')
-              .firstMatch(src);
+      final m = RegExp(
+        r'class\s+([A-Za-z_][A-Za-z0-9_]*)\s+extends\s+DartvelLayout',
+      ).firstMatch(src);
       if (m == null) {
         stderr.writeln(
-            'dartvel: could not find a class extending DartvelLayout in $rel');
+          'dartvel: could not find a class extending DartvelLayout in $rel',
+        );
         continue;
       }
       final className = m.group(1)!;
@@ -211,8 +247,9 @@ class ClientGenerator {
           final alias = 'p${e.importIndex}';
           // Search from pageImports for matching alias
           try {
-            final line =
-                pageImports.firstWhere((l) => l.contains(' as $alias;'));
+            final line = pageImports.firstWhere(
+              (l) => l.contains(' as $alias;'),
+            );
             final beforeAs = line.split(' as ').first;
             String path = beforeAs.trim();
             final impIdx = path.indexOf("import '");
@@ -235,13 +272,18 @@ class ClientGenerator {
     final guardImports = <String>[];
     final guardMapByDir = <String, String>{};
     final guardGlob = Glob(p.join(pagesDir, '**/_guard.dart'));
-    for (final e
-        in guardGlob.listFileSystemSync(fs, root: root, followLinks: false)) {
+    for (final e in guardGlob.listFileSystemSync(
+      fs,
+      root: root,
+      followLinks: false,
+    )) {
       final ioFile = File(e.path);
       if (!ioFile.existsSync()) continue;
       final rel = p.relative(ioFile.path, from: root).replaceAll('\\', '/');
-      final importPath =
-          rel.replaceFirst(RegExp(r'^lib/'), 'package:$pkgName/');
+      final importPath = rel.replaceFirst(
+        RegExp(r'^lib/'),
+        'package:$pkgName/',
+      );
       final alias = 'g${guardImports.length}';
       guardImports.add("import '$importPath' as $alias;");
       final dir = p.dirname(rel).replaceAll('\\', '/');
@@ -252,7 +294,9 @@ class ClientGenerator {
     // Ensure dirs
     Directory(p.join(root, '.dart_tool')).createSync();
     if (pageEntries.isEmpty) {
-      log('dartvel: no pages found under "$pagesDir" (looking for @DVPage() pages or legacy **/*.page.dart)');
+      log(
+        'dartvel: no pages found under "$pagesDir" (looking for @DVPage() pages or legacy **/*.page.dart)',
+      );
     }
 
     // Client runtime/helper – write only under lib/dartvel_client
@@ -280,8 +324,8 @@ export 'widgets.g.dart';
 ''');
 
     // Mirror config too for analyzer friendliness
-    File(p.join(libClientDir.path, 'dartvel_config.g.dart'))
-        .writeAsStringSync('''
+    File(p.join(libClientDir.path, 'dartvel_config.g.dart')).writeAsStringSync(
+      '''
 // GENERATED – do not edit.
 library dartvel_client_config;
 const String dvBackendBindHost = '${esc(backendHost)}';
@@ -289,7 +333,8 @@ const int    dvBackendPort      = $backendPort;
 const String dvDevBackendHost   = '${esc(devBackendHost)}';
 const String dvProdBackendHost  = '${esc(prodBackendHost)}';
 const String dvApiBasePath      = '${esc(apiBasePath)}';
-''');
+''',
+    );
 
     // Client runtime helper
     final runtimeDart = """
@@ -346,8 +391,9 @@ class DartvelRuntime {
   }
 }
 """;
-    File(p.join(libClientDir.path, 'dartvel_runtime.dart'))
-        .writeAsStringSync(runtimeDart);
+    File(
+      p.join(libClientDir.path, 'dartvel_runtime.dart'),
+    ).writeAsStringSync(runtimeDart);
 
     // --- Env handling: load .env files and expose PUBLIC_* keys
     final envMap = <String, String>{};
@@ -360,7 +406,7 @@ class DartvelRuntime {
     }
     final publicEnv = <String, String>{
       for (final e in envMap.entries)
-        if (e.key.startsWith('PUBLIC_')) e.key: e.value
+        if (e.key.startsWith('PUBLIC_')) e.key: e.value,
     };
 
     final sbEnv = StringBuffer();
@@ -372,7 +418,8 @@ class DartvelRuntime {
     sbEnv.writeln('class Env {');
     sbEnv.writeln('  /// Decrypts obfuscated values.');
     sbEnv.writeln(
-        '  static String _d(List<int> c, int k) => String.fromCharCodes(c.map((x) => x ^ k));');
+      '  static String _d(List<int> c, int k) => String.fromCharCodes(c.map((x) => x ^ k));',
+    );
     for (final e in publicEnv.entries) {
       final obf = RouteUtils.obfuscate(e.value);
       final parts = obf.split(', ');
@@ -397,8 +444,9 @@ class DartvelRuntime {
     sbEnv.writeln('  /// Gets a public environment variable by key.');
     sbEnv.writeln('  static String? get(String key) => dvPublicEnv[key];');
     sbEnv.writeln('}');
-    File(p.join(libClientDir.path, 'env.g.dart'))
-        .writeAsStringSync(sbEnv.toString());
+    File(
+      p.join(libClientDir.path, 'env.g.dart'),
+    ).writeAsStringSync(sbEnv.toString());
 
     // Router
     final imports = ([
@@ -408,7 +456,7 @@ class DartvelRuntime {
       "import 'dartvel_runtime.dart';",
       ...pageImports,
       ...layoutImports,
-      ...guardImports
+      ...guardImports,
     ]).join('\n');
 
     // Parse routingRedirects
@@ -416,15 +464,18 @@ class DartvelRuntime {
     if (dv['routingRedirects'] is YamlList) {
       for (final r in (dv['routingRedirects'] as YamlList)) {
         if (r is YamlMap && r['from'] != null && r['to'] != null) {
-          redirects
-              .add({'from': r['from'].toString(), 'to': r['to'].toString()});
+          redirects.add({
+            'from': r['from'].toString(),
+            'to': r['to'].toString(),
+          });
         }
       }
     }
 
     // i18n (query strategy)
-    final i18n =
-        dv['i18n'] is YamlMap ? dv['i18n'] as YamlMap : YamlMap.wrap({});
+    final i18n = dv['i18n'] is YamlMap
+        ? dv['i18n'] as YamlMap
+        : YamlMap.wrap({});
     final i18nParam = (i18n['param'] ?? 'lang').toString();
     final i18nDefault = (i18n['defaultLocale'] ?? '').toString();
     final i18nLocales = <String>[];
@@ -476,14 +527,18 @@ class DartvelRuntime {
           .toList();
       if (chain.isEmpty) return '';
       final calls = chain
-          .map((a) =>
-              '      { final r = await $a.guard(context, state); if (r != null) return r; }')
+          .map(
+            (a) =>
+                '      { final r = await $a.guard(context, state); if (r != null) return r; }',
+          )
           .join('\n');
       return '\n      redirect: (context, state) async {\n$calls\n        return null;\n      },\n';
     }
 
     final routesSrc = pageEntries
-        .map((e) => '''
+        .map(
+          (e) =>
+              '''
     GoRoute(
       path: '${esc(e.route)}',
 ${guardRedirectFor(e.directory)}      pageBuilder: (context, state) {
@@ -506,23 +561,23 @@ ${guardRedirectFor(e.directory)}      pageBuilder: (context, state) {
           load: () => page.loadData(params, query),
           child: withI18n,
 ${(() {
-              final la = e.loadingAlias;
-              final ea = e.errorAlias;
-              final lc = '${e.className}Loading';
-              final ec = '${e.className}Error';
-              final b = StringBuffer();
-              if (la != null && la.isNotEmpty) {
-                b.writeln("          loading: $la.$lc(),");
-              } else {
-                b.writeln("          loading: const DvDefaultLoading(),");
-              }
-              if (ea != null && ea.isNotEmpty) {
-                b.writeln("          error: $ea.$ec(),");
-              } else {
-                b.writeln("          error: const DvDefaultError(),");
-              }
-              return b.toString();
-            })()}        );
+                final la = e.loadingAlias;
+                final ea = e.errorAlias;
+                final lc = '${e.className}Loading';
+                final ec = '${e.className}Error';
+                final b = StringBuffer();
+                if (la != null && la.isNotEmpty) {
+                  b.writeln("          loading: $la.$lc(),");
+                } else {
+                  b.writeln("          loading: const DvDefaultLoading(),");
+                }
+                if (ea != null && ea.isNotEmpty) {
+                  b.writeln("          error: $ea.$ec(),");
+                } else {
+                  b.writeln("          error: const DvDefaultError(),");
+                }
+                return b.toString();
+              })()}        );
 
         final seoWrapped = DartvelSeo(
           props: page.buildWebSeo(params, query),
@@ -544,12 +599,26 @@ ${(() {
         );
       },
     )
-  ''')
+  ''',
+        )
         .join(',\n');
 
     final generatedPageWidgets = pageEntries
-        .map((e) => '''
-/// Deferred generated widget wrapper for [p${e.importIndex}.${e.publicName}].
+        .map((e) {
+          final buildReturn = e.expressionBody == null
+              ? '  return ${e.isFunctional ? 'p${e.importIndex}.${e.publicName}(context)' : 'p${e.importIndex}.${e.publicName}()'};'
+              : _indentGeneratedReturn(
+                  _qualifySourceSymbols(
+                    e.expressionBody!,
+                    'p${e.importIndex}',
+                    e.sourceSymbols,
+                  ),
+                );
+          final sourceDoc = e.expressionBody == null
+              ? '/// Deferred generated widget wrapper for [p${e.importIndex}.${e.publicName}].'
+              : '/// Deferred generated widget wrapper for a private @DVPage input.';
+          return '''
+$sourceDoc
 class ${e.generatedWidget} extends DartvelPage {
   const ${e.generatedWidget}({super.key});
 
@@ -593,27 +662,31 @@ ${e.isFunctional ? '''  @override
         if (snapshot.connectionState != ConnectionState.done) {
           return const DvDefaultLoading();
         }
-        return ${e.isFunctional ? 'p${e.importIndex}.${e.publicName}(context)' : 'p${e.importIndex}.${e.publicName}()'};
+${buildReturn.split('\n').map((line) => '        $line').join('\n')}
       },
     );
   }
 }
-''')
+''';
+        })
         .join('\n');
 
     // Global redirect builder from routingRedirects + normalization
     final sbRedirect = StringBuffer();
     sbRedirect.writeln(
-        'String? _globalRedirect(BuildContext context, GoRouterState state) {');
+      'String? _globalRedirect(BuildContext context, GoRouterState state) {',
+    );
     sbRedirect.writeln('  final path = state.uri.path;');
     if (notFoundRedirect.isNotEmpty) {
       sbRedirect.writeln(
-          "  if (state.error != null) return '${esc(notFoundRedirect)}';");
+        "  if (state.error != null) return '${esc(notFoundRedirect)}';",
+      );
     }
     if (normalizeTrailing) {
       sbRedirect.writeln("  if (path.length > 1 && path.endsWith('/')) {");
       sbRedirect.writeln(
-          '    final newUri = state.uri.replace(path: path.substring(0, path.length - 1));');
+        '    final newUri = state.uri.replace(path: path.substring(0, path.length - 1));',
+      );
       sbRedirect.writeln('    return newUri.toString();');
       sbRedirect.writeln('  }');
     }
@@ -627,9 +700,11 @@ ${e.isFunctional ? '''  @override
         sbRedirect.writeln('  if (m != null) {');
         final toEsc = to.replaceAll('"', '\\"');
         sbRedirect.writeln(
-            '    final newPath = "$toEsc".replaceAllMapped(RegExp(r":([a-zA-Z0-9_]+)"), (mm) => m.namedGroup(mm.group(1)!) ?? "");');
-        sbRedirect
-            .writeln('    final newUri = state.uri.replace(path: newPath);');
+          '    final newPath = "$toEsc".replaceAllMapped(RegExp(r":([a-zA-Z0-9_]+)"), (mm) => m.namedGroup(mm.group(1)!) ?? "");',
+        );
+        sbRedirect.writeln(
+          '    final newUri = state.uri.replace(path: newPath);',
+        );
         sbRedirect.writeln('    return newUri.toString();');
         sbRedirect.writeln('  } }');
       }
@@ -637,7 +712,8 @@ ${e.isFunctional ? '''  @override
     sbRedirect.writeln('  return null;');
     sbRedirect.writeln('}');
 
-    final router = '''
+    final router =
+        '''
 // GENERATED – do not edit.
 // ignore_for_file: unnecessary_import
 $imports
@@ -672,41 +748,38 @@ $routesSrc
 }
 
 ${(() {
-      final sbRoutes = StringBuffer();
-      sbRoutes.writeln(
-          '/// Strongly typed route targets for type-safe navigation.');
-      sbRoutes.writeln('class DVRoutes {');
-      for (final e in pageEntries) {
-        final routePath = e.route;
-        final cleanPath = routePath.replaceAll(RegExp(r'/:[A-Za-z0-9_]+'), '');
-        var name = cleanPath.replaceAll('/', '').trim();
-        if (name.isEmpty) {
-          name = 'index';
-        }
+          final sbRoutes = StringBuffer();
+          sbRoutes.writeln('/// Strongly typed route targets for type-safe navigation.');
+          sbRoutes.writeln('class DVRoutes {');
+          for (final e in pageEntries) {
+            final routePath = e.route;
+            final cleanPath = routePath.replaceAll(RegExp(r'/:[A-Za-z0-9_]+'), '');
+            var name = cleanPath.replaceAll('/', '').trim();
+            if (name.isEmpty) {
+              name = 'index';
+            }
 
-        final paramRegex = RegExp(r':([A-Za-z0-9_]+)');
-        final params =
-            paramRegex.allMatches(routePath).map((m) => m.group(1)!).toList();
+            final paramRegex = RegExp(r':([A-Za-z0-9_]+)');
+            final params = paramRegex.allMatches(routePath).map((m) => m.group(1)!).toList();
 
-        if (params.isEmpty) {
-          sbRoutes
-              .writeln("  static const $name = DVRouteTarget('$routePath');");
-        } else {
-          final funcParams = params.map((p) => "required String $p").join(', ');
-          var interpPath = routePath;
-          for (final p in params) {
-            interpPath = interpPath.replaceFirst(':$p', '\$$p');
+            if (params.isEmpty) {
+              sbRoutes.writeln("  static const $name = DVRouteTarget('$routePath');");
+            } else {
+              final funcParams = params.map((p) => "required String $p").join(', ');
+              var interpPath = routePath;
+              for (final p in params) {
+                interpPath = interpPath.replaceFirst(':$p', '\$$p');
+              }
+              sbRoutes.writeln("  static DVRouteTarget $name({$funcParams}) => DVRouteTarget('$interpPath');");
+            }
           }
-          sbRoutes.writeln(
-              "  static DVRouteTarget $name({$funcParams}) => DVRouteTarget('$interpPath');");
-        }
-      }
-      sbRoutes.writeln('}');
-      return sbRoutes.toString();
-    })()}
+          sbRoutes.writeln('}');
+          return sbRoutes.toString();
+        })()}
 ''';
-    File(p.join(libClientDir.path, 'router.g.dart'))
-        .writeAsStringSync('// BUILD: $buildId\n$router');
+    File(
+      p.join(libClientDir.path, 'router.g.dart'),
+    ).writeAsStringSync('// BUILD: $buildId\n$router');
 
     _generateFunctionalWidgets(
       root: root,
@@ -721,12 +794,14 @@ ${(() {
     final dbProvider = (dbMap['provider'] ?? 'sqlite').toString();
     final dbPath = (dbMap['path'] ?? 'dartvel.db').toString();
 
-    final storageMap =
-        dv['storage'] is YamlMap ? dv['storage'] as YamlMap : YamlMap.wrap({});
+    final storageMap = dv['storage'] is YamlMap
+        ? dv['storage'] as YamlMap
+        : YamlMap.wrap({});
     final storageProvider = (storageMap['provider'] ?? 'local').toString();
 
-    final authMap =
-        dv['auth'] is YamlMap ? dv['auth'] as YamlMap : YamlMap.wrap({});
+    final authMap = dv['auth'] is YamlMap
+        ? dv['auth'] as YamlMap
+        : YamlMap.wrap({});
     final authProviders = <String>[];
     if (authMap['providers'] is YamlList) {
       for (final p in (authMap['providers'] as YamlList)) {
@@ -742,8 +817,9 @@ ${(() {
         : YamlMap.wrap({});
     final mtEnabled = asBool(mtMap['enabled'], false);
 
-    final pwaMap =
-        dv['pwa'] is YamlMap ? dv['pwa'] as YamlMap : YamlMap.wrap({});
+    final pwaMap = dv['pwa'] is YamlMap
+        ? dv['pwa'] as YamlMap
+        : YamlMap.wrap({});
     final pwaEnabled = asBool(pwaMap['enabled'], true);
 
     final permissionsList = <String>[];
@@ -753,7 +829,8 @@ ${(() {
       }
     }
 
-    final configContent = '''
+    final configContent =
+        '''
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // Build ID: $buildId
 
@@ -785,14 +862,18 @@ class DartvelConfig {
 }
 ''';
 
-    File(p.join(libClientDir.path, 'config.g.dart'))
-        .writeAsStringSync(configContent);
+    File(
+      p.join(libClientDir.path, 'config.g.dart'),
+    ).writeAsStringSync(configContent);
 
     _generateSsgBuilder(pageEntries, pageImports, root);
   }
 
   static void _generateSsgBuilder(
-      List<_PageEntry> entries, List<String> imports, String root) {
+    List<_PageEntry> entries,
+    List<String> imports,
+    String root,
+  ) {
     final sb = StringBuffer();
     sb.writeln('// GENERATED – do not edit.');
     sb.writeln('import \'dart:convert\';');
@@ -804,7 +885,8 @@ class DartvelConfig {
     sb.writeln('void main() async {');
     sb.writeln("  final outDir = Directory('build/web/_ssg');");
     sb.writeln(
-        '  if (!outDir.existsSync()) outDir.createSync(recursive: true);');
+      '  if (!outDir.existsSync()) outDir.createSync(recursive: true);',
+    );
     sb.writeln("  stdout.writeln('Generating SSG data...');");
 
     for (final e in entries) {
@@ -829,11 +911,13 @@ class DartvelConfig {
         sb.writeln('      if (data != null) {');
         sb.writeln('        String key = "$routePath";');
         sb.writeln(
-            '        params.forEach((k, v) => key = key.replaceAll(":\$k", v));');
+          '        params.forEach((k, v) => key = key.replaceAll(":\$k", v));',
+        );
         sb.writeln('        final bytes = utf8.encode(key);');
         sb.writeln('        final filename = base64Url.encode(bytes);');
         sb.writeln(
-            '        File("\${outDir.path}/\$filename.json").writeAsStringSync(jsonEncode(data));');
+          '        File("\${outDir.path}/\$filename.json").writeAsStringSync(jsonEncode(data));',
+        );
         sb.writeln('      }');
         sb.writeln('    }');
       } else {
@@ -843,7 +927,8 @@ class DartvelConfig {
         sb.writeln('      final bytes = utf8.encode(key);');
         sb.writeln('      final filename = base64Url.encode(bytes);');
         sb.writeln(
-            '      File("\${outDir.path}/\$filename.json").writeAsStringSync(jsonEncode(data));');
+          '      File("\${outDir.path}/\$filename.json").writeAsStringSync(jsonEncode(data));',
+        );
         sb.writeln('    }');
       }
       sb.writeln('  } catch (e) {');
@@ -866,15 +951,18 @@ class DartvelConfig {
         .map((match) => match.group(0)!)
         .where((word) => word.isNotEmpty)
         .toList();
-    final pascalName =
-        words.map((word) => word[0].toUpperCase() + word.substring(1)).join();
+    final pascalName = words
+        .map((word) => word[0].toUpperCase() + word.substring(1))
+        .join();
     final baseName = pascalName.isEmpty ? 'Generated' : pascalName;
     return '${baseName}GeneratedPage';
   }
 
   static String _pageScaffoldSpec(String source) {
-    final match =
-        RegExp(r'@DVPage\(([^)]*)\)', dotAll: true).firstMatch(source);
+    final match = RegExp(
+      r'@DVPage\(([^)]*)\)',
+      dotAll: true,
+    ).firstMatch(source);
     if (match == null) {
       return _sourceBuildsScaffold(source)
           ? 'const DVPageScaffoldSpec(scaffold: false)'
@@ -916,8 +1004,9 @@ class DartvelConfig {
   }
 
   static bool _sourceBuildsScaffold(String source) {
-    return RegExp(r'\b(?:Scaffold|CupertinoPageScaffold)\s*\(')
-        .hasMatch(source);
+    return RegExp(
+      r'\b(?:Scaffold|CupertinoPageScaffold)\s*\(',
+    ).hasMatch(source);
   }
 
   static String? _namedStringArg(String args, String name) {
@@ -929,8 +1018,9 @@ class DartvelConfig {
   }
 
   static String? _namedEnumArg(String args, String name, String enumName) {
-    final match = RegExp('$name\\s*:\\s*($enumName\\.[A-Za-z_][A-Za-z0-9_]*)')
-        .firstMatch(args);
+    final match = RegExp(
+      '$name\\s*:\\s*($enumName\\.[A-Za-z_][A-Za-z0-9_]*)',
+    ).firstMatch(args);
     return match?.group(1);
   }
 
@@ -940,8 +1030,9 @@ class DartvelConfig {
   }
 
   static String? _namedIntArg(String args, String name) {
-    final match =
-        RegExp('$name\\s*:\\s*(0x[0-9A-Fa-f]+|[0-9]+)').firstMatch(args);
+    final match = RegExp(
+      '$name\\s*:\\s*(0x[0-9A-Fa-f]+|[0-9]+)',
+    ).firstMatch(args);
     return match?.group(1);
   }
 
@@ -953,21 +1044,27 @@ class DartvelConfig {
     final libDir = Directory(p.join(root, 'lib'));
     final entries = <_FunctionalWidgetEntry>[];
     if (libDir.existsSync()) {
-      final files = libDir
-          .listSync(recursive: true, followLinks: false)
-          .whereType<File>()
-          .where((file) => file.path.endsWith('.dart'))
-          .where((file) =>
-              !file.path.contains('${p.separator}dartvel_client${p.separator}'))
-          .toList()
-        ..sort((a, b) => a.path.compareTo(b.path));
+      final files =
+          libDir
+              .listSync(recursive: true, followLinks: false)
+              .whereType<File>()
+              .where((file) => file.path.endsWith('.dart'))
+              .where(
+                (file) => !file.path.contains(
+                  '${p.separator}dartvel_client${p.separator}',
+                ),
+              )
+              .toList()
+            ..sort((a, b) => a.path.compareTo(b.path));
 
       for (final file in files) {
         final source = file.readAsStringSync();
         if (!source.contains('@DVFunctionalWidget()')) continue;
         final rel = p.relative(file.path, from: root).replaceAll('\\', '/');
-        final importPath =
-            rel.replaceFirst(RegExp(r'^lib/'), 'package:$pkgName/');
+        final importPath = rel.replaceFirst(
+          RegExp(r'^lib/'),
+          'package:$pkgName/',
+        );
         entries.addAll(_functionalWidgetsInSource(source, importPath, rel));
       }
     }
@@ -982,20 +1079,24 @@ class DartvelConfig {
     final importAliases = <String, String>{};
     for (final entry in entries) {
       importAliases.putIfAbsent(
-          entry.importPath, () => 'w${importAliases.length}');
+        entry.importPath,
+        () => 'w${importAliases.length}',
+      );
     }
     for (final item in importAliases.entries) {
       imports.add("import '${item.key}' as ${item.value};");
     }
     for (int i = 0; i < entries.length; i++) {
-      entries[i] =
-          entries[i].copyWith(alias: importAliases[entries[i].importPath]!);
+      entries[i] = entries[i].copyWith(
+        alias: importAliases[entries[i].importPath]!,
+      );
     }
 
     final buffer = StringBuffer()
       ..writeln('// GENERATED – do not edit.')
       ..writeln(
-          '// ignore_for_file: non_constant_identifier_names, unused_import')
+        '// ignore_for_file: non_constant_identifier_names, unused_import',
+      )
       ..writeln('library dartvel_client_widgets;')
       ..writeln()
       ..writeln(imports.join('\n'))
@@ -1005,18 +1106,23 @@ class DartvelConfig {
       if (entry.expressionBody != null) {
         buffer
           ..writeln('Widget ${entry.generatedName}(${entry.parameters}) {')
-          ..writeln(_indentGeneratedReturn(_qualifySourceSymbols(
-            entry.expressionBody!,
-            entry.alias,
-            entry.sourceSymbols,
-          )))
+          ..writeln(
+            _indentGeneratedReturn(
+              _qualifySourceSymbols(
+                entry.expressionBody!,
+                entry.alias,
+                entry.sourceSymbols,
+              ),
+            ),
+          )
           ..writeln('}')
           ..writeln();
       } else {
         buffer
           ..writeln('Widget ${entry.generatedName}(${entry.parameters}) {')
           ..writeln(
-              '  return ${entry.alias}.${entry.sourceName}(${entry.argumentList});')
+            '  return ${entry.alias}.${entry.sourceName}(${entry.argumentList});',
+          )
           ..writeln('}')
           ..writeln();
       }
@@ -1043,8 +1149,9 @@ class DartvelConfig {
         cursor = widgetToken + 'Widget'.length;
         continue;
       }
-      final nameMatch = RegExp(r'Widget\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(')
-          .firstMatch(source.substring(widgetToken));
+      final nameMatch = RegExp(
+        r'Widget\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(',
+      ).firstMatch(source.substring(widgetToken));
       if (nameMatch == null) {
         cursor = widgetToken + 'Widget'.length;
         continue;
@@ -1084,17 +1191,19 @@ class DartvelConfig {
           'without per-source part files.',
         );
       }
-      entries.add(_FunctionalWidgetEntry(
-        importPath: importPath,
-        sourcePath: sourcePath,
-        alias: '',
-        sourceName: sourceName,
-        generatedName: _generatedWidgetName(sourceName),
-        parameters: parameters,
-        argumentList: _argumentList(parameters),
-        expressionBody: expressionBody,
-        sourceSymbols: _topLevelSourceSymbols(source),
-      ));
+      entries.add(
+        _FunctionalWidgetEntry(
+          importPath: importPath,
+          sourcePath: sourcePath,
+          alias: '',
+          sourceName: sourceName,
+          generatedName: _generatedWidgetName(sourceName),
+          parameters: parameters,
+          argumentList: _argumentList(parameters),
+          expressionBody: expressionBody,
+          sourceSymbols: _topLevelSourceSymbols(source),
+        ),
+      );
       cursor = closeParen + 1;
     }
     return entries;
@@ -1121,13 +1230,23 @@ class DartvelConfig {
     final ordered = symbols.toList()..sort((a, b) => b.length - a.length);
     for (final symbol in ordered) {
       qualified = qualified.replaceAllMapped(
-        RegExp(
-          '(?<![A-Za-z0-9_\\.])${RegExp.escape(symbol)}(?![A-Za-z0-9_])',
-        ),
+        RegExp('(?<![A-Za-z0-9_\\.])${RegExp.escape(symbol)}(?![A-Za-z0-9_])'),
         (_) => '$alias.$symbol',
       );
     }
     return qualified;
+  }
+
+  static String? _expressionBodyAfter(String source, int closeParen) {
+    final bodyStart = _skipWhitespace(source, closeParen + 1);
+    if (bodyStart + 1 >= source.length ||
+        source[bodyStart] != '=' ||
+        source[bodyStart + 1] != '>') {
+      return null;
+    }
+    final semicolon = _findStatementEnd(source, bodyStart + 2);
+    if (semicolon == -1) return null;
+    return source.substring(bodyStart + 2, semicolon).trim();
   }
 
   static void _validateFunctionalWidgetNames(
@@ -1140,15 +1259,17 @@ class DartvelConfig {
           .add(entry);
     }
 
-    final conflicts = byGeneratedName.entries
-        .where((entry) => entry.value.length > 1)
-        .toList()
-      ..sort((a, b) => a.key.compareTo(b.key));
+    final conflicts =
+        byGeneratedName.entries
+            .where((entry) => entry.value.length > 1)
+            .toList()
+          ..sort((a, b) => a.key.compareTo(b.key));
     if (conflicts.isEmpty) return;
 
     stderr.writeln('ERROR: Duplicate generated Dartvel widget names found.');
     stderr.writeln(
-        'Each @DVFunctionalWidget function must generate a unique global widget name.');
+      'Each @DVFunctionalWidget function must generate a unique global widget name.',
+    );
     for (final conflict in conflicts) {
       stderr.writeln('  ${conflict.key} is generated by:');
       final sources = conflict.value.toList()
@@ -1158,7 +1279,8 @@ class DartvelConfig {
       }
     }
     stderr.writeln(
-        'Rename the annotated functions so their generated PascalCase widget names are unique.');
+      'Rename the annotated functions so their generated PascalCase widget names are unique.',
+    );
     exit(42);
   }
 
@@ -1281,8 +1403,9 @@ class DartvelConfig {
   }
 
   static String _generatedWidgetName(String functionName) {
-    final stripped =
-        functionName.startsWith('_') ? functionName.substring(1) : functionName;
+    final stripped = functionName.startsWith('_')
+        ? functionName.substring(1)
+        : functionName;
     final words = RegExp(r'[A-Za-z0-9]+')
         .allMatches(stripped)
         .map((match) => match.group(0)!)
@@ -1303,6 +1426,8 @@ class _PageEntry {
   final String route;
   final String directory;
   final bool isFunctional;
+  final String? expressionBody;
+  final Set<String> sourceSymbols;
   final String? loadingAlias;
   final String? errorAlias;
 
@@ -1315,6 +1440,8 @@ class _PageEntry {
     required this.route,
     required this.directory,
     required this.isFunctional,
+    this.expressionBody,
+    this.sourceSymbols = const <String>{},
     this.loadingAlias,
     this.errorAlias,
   });

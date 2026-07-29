@@ -16,10 +16,10 @@ void main() {
     Directory.current = originalCwd;
   });
 
-  test('page template uses DVPage without redundant public functional widget',
-      () async {
-    final root =
-        await Directory.systemTemp.createTemp('dartvel_generate_page_');
+  test('page template uses a private expression-bodied DVPage input', () async {
+    final root = await Directory.systemTemp.createTemp(
+      'dartvel_generate_page_',
+    );
     try {
       Directory.current = root.path;
       await _runGenerate(<String>['generate', 'page', 'dashboard']);
@@ -30,37 +30,48 @@ void main() {
 
       expect(source, contains('@DVPage()'));
       expect(source, isNot(contains('@DVFunctionalWidget()')));
-      expect(source, contains('Widget dashboardPage(BuildContext context)'));
+      expect(
+        source,
+        contains('Widget _dashboardPage(BuildContext context) =>'),
+      );
+      expect(source, isNot(contains('Widget dashboardPage(')));
     } finally {
       root.deleteSync(recursive: true);
     }
   });
 
-  test('backend function template emits a private expression-bodied input',
-      () async {
-    final root =
-        await Directory.systemTemp.createTemp('dartvel_generate_backend_');
-    try {
-      Directory.current = root.path;
-      await _runGenerate(<String>['generate', 'backend-function', 'echo']);
+  test(
+    'backend function template emits a private expression-bodied input',
+    () async {
+      final root = await Directory.systemTemp.createTemp(
+        'dartvel_generate_backend_',
+      );
+      try {
+        Directory.current = root.path;
+        await _runGenerate(<String>['generate', 'backend-function', 'echo']);
 
-      final source = File(
-        p.join(root.path, 'lib', 'backend', 'functions', 'echo.dart'),
-      ).readAsStringSync();
+        final source = File(
+          p.join(root.path, 'lib', 'backend', 'functions', 'echo.dart'),
+        ).readAsStringSync();
 
-      expect(source, contains('@DVBackendFunction()'));
-      expect(
+        expect(source, contains('@DVBackendFunction()'));
+        expect(
           source,
           contains(
-              "Future<String> _getEcho(String input) async => 'Echo: \$input';"));
-      expect(source, isNot(contains('Future<String> getEcho(')));
-    } finally {
-      root.deleteSync(recursive: true);
-    }
-  });
+            "Future<String> _getEcho(String input) async => 'Echo: \$input';",
+          ),
+        );
+        expect(source, isNot(contains('Future<String> getEcho(')));
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    },
+  );
 }
 
 Future<void> _runGenerate(List<String> args) {
-  return (CommandRunner<void>('dartvel', 'test')..addCommand(GenerateCommand()))
-      .run(args);
+  return (CommandRunner<void>(
+    'dartvel',
+    'test',
+  )..addCommand(GenerateCommand())).run(args);
 }

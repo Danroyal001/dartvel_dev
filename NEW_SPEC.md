@@ -359,7 +359,9 @@ Functional
 @DVPage()
 Widget _usersPage(
     BuildContext context
-) {}
+) => DVBox.list([
+    DVText('Users'),
+]);
 ```
 
 `@DVPage()` alone is enough for page functions. Using both `@DVPage()` and
@@ -608,28 +610,25 @@ code references only the generated public API from
 `dartvel_client/dartvel_client.dart`, such as `UsersPage`, `Button`,
 `getUser`, and `User`.
 
-Until full body lowering is implemented, private `@DVFunctionalWidget` inputs
-must use expression bodies so Dartvel can emit the readable generated public
-widget without source-local `part` files:
+Until full body lowering is implemented, private `@DVPage`,
+`@DVFunctionalWidget`, and `@DVBackendFunction` function inputs must use
+expression bodies so Dartvel can emit readable generated public code without
+source-local `part` files:
 
 ```dart
+@DVPage()
+Widget _usersPage(BuildContext context) => DVBox.list([DVText('Users')]);
+
 @DVFunctionalWidget()
 Widget _featureCard(String title) => DVBox(DVText(title));
-```
 
-Block-bodied private functional widgets fail with a message explaining how to
-convert them. Public annotated functional widget inputs always fail.
-
-Private `@DVBackendFunction` inputs are supported for expression-bodied
-functions, and generated scaffolds use that shape:
-
-```dart
 @DVBackendFunction()
 Future<String> _getEcho(String input) async => 'Echo: $input';
 ```
 
-Block-bodied private backend functions fail until full body lowering is
-implemented.
+Generated page and backend scaffolds use that shape. Block-bodied private page,
+functional widget, and backend function inputs fail until full body lowering is
+implemented. Public annotated functional widget inputs always fail.
 
 Using the new native Dart data-class syntax. Automatically generates:
 * Database schema
