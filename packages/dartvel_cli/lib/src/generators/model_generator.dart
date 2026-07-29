@@ -65,9 +65,8 @@ class ModelGenerator {
         final isSearchableModel = modelArgs.contains(
           RegExp(r'\bsearchable\s*:\s*true\b'),
         );
-        // Page-generation options. These are surfaced as generated metadata so
-        // the declared intent is observable rather than silently discarded;
-        // the renderer that consumes them is not built yet.
+        // Page-generation options feed the generated Model.Page component and
+        // public static-path metadata.
         final pageDataModeMatch = RegExp(
           r'\bpageDataMode\s*:\s*DVModelPageDataMode\.([A-Za-z0-9_]+)',
         ).firstMatch(modelArgs);
