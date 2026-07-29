@@ -347,7 +347,7 @@ Class
 
 ```dart
 @DVPage()
-class UsersPage extends DVClassWidget {
+class _UsersPage extends DVClassWidget {
     Widget build(
         BuildContext context
     ) {}
@@ -358,7 +358,7 @@ Functional
 
 ```dart
 @DVPage()
-Widget usersPage(
+Widget _usersPage(
     BuildContext context
 ) {}
 ```
@@ -387,7 +387,7 @@ Page shell options are configured on the annotation with const values:
     appBarLeading: null,
     // all Material and Cupertino scaffold features are unified here
 )
-Widget settingsPage(BuildContext context) {
+Widget _settingsPage(BuildContext context) {
     return DVBox.list([
         DVText('Settings'),
     ]);
@@ -598,13 +598,15 @@ _User ...` generates the public `User` type. Generated static members such as
 `User.Form(...)`, `User.List(...)`, `User.Table(...)`, and `User.Page(...)`
 belong to that generated public class.
 
-Pages, functional widgets, backend functions, and AI tools are public source
-declarations so Dartvel can wrap them from the generated
-`dartvel_client/dartvel_client.dart` entrypoint without source-adjacent
-`*.dartvel.g.dart` part files. This is a hard generator rule:
-`@DVModel() class User` must fail and page/widget/backend declarations such as
-`Widget _usersPage(...)`, `Widget _button(...)`, and
-`Future<User> _getUser(...)` must fail with clear rename messages.
+Pages, functional widgets, backend functions, jobs, AI tools, and models are
+private generation inputs. This is a hard generator rule:
+`@DVModel() class User`, `Widget usersPage(...)`, `Widget button(...)`, and
+`Future<User> getUser(...)` must fail with clear rename messages that instruct
+the developer to rename them to `_User`, `_usersPage`, `_button`, and
+`_getUser`. Application
+code references only the generated public API from
+`dartvel_client/dartvel_client.dart`, such as `UsersPage`, `Button`,
+`getUser`, and `User`.
 
 Using the new native Dart data-class syntax. Automatically generates:
 * Database schema
@@ -679,7 +681,7 @@ Backend code is ordinary Dart.
 
 ```dart
 @DVBackendFunction()
-Future<User> getUser(...) {}
+Future<User> _getUser(...) {}
 ```
 
 Parameters are automatically validated by type, with automatic valudation messages generated. The messages can be customized if needed. Automatic request and response conversion.
@@ -721,7 +723,7 @@ Example
 
 ```dart
 @DVBackendFunction()
-Stream<Message> messages()
+Stream<Message> _messages()
 ```
 
 Automatically translated to efficient streaming endpoints (such as Server-Sent Events or websockets with automatic fallback to polling, can be configured) while preserving Dart's native `Stream<T>` API.
@@ -763,10 +765,10 @@ APIs.
 
 ```dart
 @DVJob(queue: 'mail', maxAttempts: 5, backoffSeconds: 60)
-class SendWelcomeEmail(String userId)
+class _SendWelcomeEmail(String userId)
 
 @DVJobHandler()
-Future<void> handleSendWelcomeEmail(SendWelcomeEmail job) async {
+Future<void> _handleSendWelcomeEmail(SendWelcomeEmail job) async {
   await DV.Notifications.send(...);
 }
 
@@ -893,10 +895,10 @@ Usage:
 
 ```dart
 @DVPage(policy: DVPolicies.viewAdmin)
-Widget adminPage(BuildContext context) => AdminDashboard();
+Widget _adminPage(BuildContext context) => AdminDashboard();
 
 @DVBackendFunction(policy: DVPolicies.refund)
-Future<Refund> refundOrder(Order order) async {}
+Future<Refund> _refundOrder(Order order) async {}
 ```
 
 Generated UI can hide disabled actions, but backend enforcement is mandatory.
@@ -912,11 +914,11 @@ Dartvel supports middleware for both pages and backend functions.
 ```dart
 @DVUseMiddleware([DVMiddlewares.auth, DVMiddlewares.tenant, DVMiddlewares.rateLimitCheckout])
 @DVPage()
-Widget checkoutPage(BuildContext context) {}
+Widget _checkoutPage(BuildContext context) {}
 
 @DVUseMiddleware([DVMiddlewares.auth, DVMiddlewares.csrf, DVMiddlewares.idempotency])
 @DVBackendFunction()
-Future<Order> createOrder(CreateOrderInput input) async {}
+Future<Order> _createOrder(CreateOrderInput input) async {}
 ```
 
 Middleware can be global, route/page scoped, layout scoped,
@@ -2279,7 +2281,7 @@ validation based on project configuration.
 ```dart
 @DVHomeWidget()
 @DVFunctionalWidget()
-Widget stepCounterWidget(
+Widget _stepCounterWidget(
     BuildContext context
 ) {...}
 ```
@@ -2380,7 +2382,7 @@ sync support, and admin representation for the public `User` type.
 
 ```dart
 @DVPage()
-Widget usersPage(BuildContext context) {
+Widget _usersPage(BuildContext context) {
   return User.List();
 }
 ```
@@ -2391,7 +2393,7 @@ File location determines the route (`lib/pages/users.dart` → `/users`).
 
 ```dart
 @DVBackendFunction()
-Future<User> createUser(String name, String email) async {
+Future<User> _createUser(String name, String email) async {
   return User.create(name: name, email: email);
 }
 ```
@@ -2514,7 +2516,7 @@ treated as a client-supplied argument.
 
 ```dart
 @DVBackendFunction()
-Future<User> getUser(DVContext context, String id) async {
+Future<User> _getUser(DVContext context, String id) async {
   return User.find(id);
 }
 ```
@@ -2556,7 +2558,7 @@ plugins, observability, security, debugging, Studio, and advanced behavior.
   authentication: DVAuthentication.required,
   rateLimit: '100/hour',
 )
-Future<Order> createOrder(DVContext context, OrderInput input) async {}
+Future<Order> _createOrder(DVContext context, OrderInput input) async {}
 ```
 
 ## Raw HTTP paths
@@ -2566,10 +2568,10 @@ Raw HTTP exposure stays part of `@DVBackendFunction`; there is no separate
 
 ```dart
 @DVBackendFunction(rawPath: '/payments/webhook')
-Future<void> paymentWebhook(DVContext context) async {}
+Future<void> _paymentWebhook(DVContext context) async {}
 
 @DVBackendFunction(rawPathSuffix: '/public')
-Future<Product> getProduct(String id) async {}
+Future<Product> _getProduct(String id) async {}
 ```
 
 `rawPath` exposes an exact custom path. `rawPathSuffix` keeps the generated path
@@ -2859,7 +2861,7 @@ parallel primitive:
 
 ```dart
 @DVBackendFunction(background: true, durable: true, retries: 5)
-Future<void> generateReport(String reportId) async {}
+Future<void> _generateReport(String reportId) async {}
 ```
 
 Workflows are ordinary backend functions composed from other typed backend
@@ -2868,7 +2870,7 @@ resumed by backend cron or durable function execution:
 
 ```dart
 @DVBackendFunction(durable: true)
-Future<Order> fulfilOrder(Order order) async {
+Future<Order> _fulfilOrder(Order order) async {
   return DV.transaction((context) async {
     await chargeCustomer(order);
     await reserveInventory(order);
@@ -2990,7 +2992,7 @@ dartvel:
     changeFrequency: DVSitemapChangeFrequency.daily,
   ),
 )
-Widget productsPage(BuildContext context) {}
+Widget _productsPage(BuildContext context) {}
 ```
 
 ---
