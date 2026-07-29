@@ -273,9 +273,8 @@ User.Page(users);
 ```
 
 The annotated `_User` class is not exported and should not be referenced by
-application code. Do not generate or call extra top-level UI wrappers such as
-`UserForm(...)`, `UserList(...)`, `UserTable(...)`, or `UserPage(...)`;
-generated public model methods are the only model component API.
+application code. Do not generate or call extra top-level model component
+wrappers; generated public model methods are the only model component API.
 
 Tables remain model-generated because they include sorting, filtering,
 pagination, resizing, keyboard navigation, virtualization, accessibility, and
