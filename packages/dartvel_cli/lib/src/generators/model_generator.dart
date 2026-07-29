@@ -15,8 +15,11 @@ class ModelGenerator {
     final glob = Glob(p.join('lib', 'models', '**.dart'));
     final files = <File>[];
     if (modelsDir.existsSync()) {
-      for (final entity
-          in glob.listFileSystemSync(fs, root: root, followLinks: false)) {
+      for (final entity in glob.listFileSystemSync(
+        fs,
+        root: root,
+        followLinks: false,
+      )) {
         if (entity is File) {
           files.add(File(entity.path));
         }
@@ -73,14 +76,13 @@ class ModelGenerator {
 
         // Parse fields
         // We find all fields of format: final Type name;
-        final fieldRegex =
-            RegExp(r'final\s+(.+?)\s+([A-Za-z0-9_]+)\s*;', dotAll: true);
+        final fieldRegex = RegExp(
+          r'final\s+(.+?)\s+([A-Za-z0-9_]+)\s*;',
+          dotAll: true,
+        );
         final fields = <Map<String, String>>[];
         for (final m in fieldRegex.allMatches(content)) {
-          fields.add({
-            'type': m.group(1)!,
-            'name': m.group(2)!,
-          });
+          fields.add({'type': m.group(1)!, 'name': m.group(2)!});
         }
         final searchableFields = <Map<String, String>>[];
         // Canonical form is @DVModel.searchableField(); the bare @DVSearchable
@@ -91,10 +93,7 @@ class ModelGenerator {
           dotAll: true,
         );
         for (final m in searchableFieldRegex.allMatches(content)) {
-          searchableFields.add({
-            'type': m.group(1)!,
-            'name': m.group(2)!,
-          });
+          searchableFields.add({'type': m.group(1)!, 'name': m.group(2)!});
         }
         // Fields marked @DVModel.sensitiveField(...): excluded from public
         // serialization and generated display by default. The deprecated
@@ -120,7 +119,7 @@ class ModelGenerator {
           sb.writeln('  final $type $name;');
         }
         sb.writeln();
-        sb.writeln('  ${constructorPrefix}$className({');
+        sb.writeln('  $constructorPrefix$className({');
         for (final field in fields) {
           final name = field['name']!;
           sb.writeln('    required this.$name,');
@@ -128,22 +127,28 @@ class ModelGenerator {
         sb.writeln('  });');
         sb.writeln();
         sb.writeln(
-            '  /// How generated pages for this model resolve their data, as');
+          '  /// How generated pages for this model resolve their data, as',
+        );
         sb.writeln('  /// declared by @DVModel(pageDataMode:).');
         sb.writeln(
-            '  static const DVModelPageDataMode pageDataMode = DVModelPageDataMode.$pageDataMode;');
+          '  static const DVModelPageDataMode pageDataMode = DVModelPageDataMode.$pageDataMode;',
+        );
         sb.writeln();
         sb.writeln(
-            '  /// Whether @DVModel(generatePublicPages:) requested public');
+          '  /// Whether @DVModel(generatePublicPages:) requested public',
+        );
         sb.writeln('  /// pages and static paths for this model.');
         sb.writeln(
-            '  static const bool generatePublicPages = $generatesPublicPages;');
+          '  static const bool generatePublicPages = $generatesPublicPages;',
+        );
         sb.writeln();
         sb.writeln(
-            '  /// Field names marked @DVModel.sensitiveField(), excluded from');
+          '  /// Field names marked @DVModel.sensitiveField(), excluded from',
+        );
         sb.writeln('  /// public serialization and generated display.');
         sb.writeln(
-            '  static const Set<String> sensitiveFields = <String>{${sensitiveFieldNames.map((n) => "'$n'").join(', ')}};');
+          '  static const Set<String> sensitiveFields = <String>{${sensitiveFieldNames.map((n) => "'$n'").join(', ')}};',
+        );
         sb.writeln();
         sb.writeln('  /// Generated form component for [$className].');
         sb.writeln('  static Widget Form($className model) {');
@@ -157,7 +162,8 @@ class ModelGenerator {
         sb.writeln('  }) {');
         sb.writeln('    final itemBuilder = builder ?? Card;');
         sb.writeln(
-            '    return DVBox.builder<$className>(models, itemBuilder);');
+          '    return DVBox.builder<$className>(models, itemBuilder);',
+        );
         sb.writeln('  }');
         sb.writeln();
         sb.writeln('  /// Generated grid table component for [$className].');
@@ -168,19 +174,15 @@ class ModelGenerator {
         sb.writeln('  }) {');
         sb.writeln('    final itemBuilder = builder ?? Card;');
         sb.writeln(
-            '    return DVBox.builder<$className>(models, itemBuilder).grid(columns: columns);');
+          '    return DVBox.builder<$className>(models, itemBuilder).grid(columns: columns);',
+        );
         sb.writeln('  }');
         sb.writeln();
-        sb.writeln('  /// Generated page body for [$className].');
-        sb.writeln('  static Widget Page(');
-        sb.writeln('    Iterable<$className> models, {');
-        sb.writeln('    Widget Function($className)? builder,');
-        sb.writeln('  }) {');
-        sb.writeln('    return DVBox.list([');
-        sb.writeln("      const DVText('$className'),");
-        sb.writeln('      List(models, builder: builder),');
-        sb.writeln('    ]);');
-        sb.writeln('  }');
+        sb.writeln('  /// Generated page component for [$className].');
+        sb.writeln('  // ignore: constant_identifier_names');
+        sb.writeln(
+          '  static const ${className}PageComponent Page = ${className}PageComponent._();',
+        );
         sb.writeln();
         sb.writeln('  /// Generated card component for [$className].');
         sb.writeln('  static Widget Card($className model) {');
@@ -191,6 +193,106 @@ class ModelGenerator {
           sb.writeln('      DVText(model.$name.toString()),');
         }
         sb.writeln('    ]).modifier(const DVModifier().card());');
+        sb.writeln('  }');
+        sb.writeln('}');
+
+        sb.writeln();
+        sb.writeln(
+          '/// Generated model-aware page component for [$className].',
+        );
+        sb.writeln('class ${className}PageComponent {');
+        sb.writeln('  const ${className}PageComponent._();');
+        sb.writeln();
+        sb.writeln(
+          '  /// Renders a collection page for already-loaded models.',
+        );
+        sb.writeln('  Widget call(');
+        sb.writeln('    Iterable<$className> models, {');
+        sb.writeln('    Widget Function($className)? builder,');
+        sb.writeln('  }) {');
+        sb.writeln('    return DVBox.list([');
+        sb.writeln("      const DVText('$className'),");
+        sb.writeln('      $className.List(models, builder: builder),');
+        sb.writeln('    ]);');
+        sb.writeln('  }');
+        sb.writeln();
+        sb.writeln('  /// Renders a detail page for an already-loaded model.');
+        sb.writeln('  Widget sync(');
+        sb.writeln('    $className model, {');
+        sb.writeln('    Widget Function($className)? builder,');
+        sb.writeln('  }) {');
+        sb.writeln('    final render = builder ?? $className.Card;');
+        sb.writeln('    return render(model);');
+        sb.writeln('  }');
+        sb.writeln();
+        sb.writeln('  /// Renders a detail page from a future.');
+        sb.writeln('  Widget async(');
+        sb.writeln('    Future<$className> model, {');
+        sb.writeln('    $className? initialData,');
+        sb.writeln('    Widget Function($className)? builder,');
+        sb.writeln(
+          "    Widget loading = const DVText('Loading $className...'),",
+        );
+        sb.writeln('    Widget Function(String message)? errorBuilder,');
+        sb.writeln('  }) {');
+        sb.writeln('    return FutureBuilder<$className>(');
+        sb.writeln('      future: model,');
+        sb.writeln('      initialData: initialData,');
+        sb.writeln('      builder: (context, snapshot) {');
+        sb.writeln('        if (snapshot.hasError) {');
+        sb.writeln('          final message = snapshot.error.toString();');
+        sb.writeln(
+          '          return errorBuilder?.call(message) ?? DVText(message);',
+        );
+        sb.writeln('        }');
+        sb.writeln('        final value = snapshot.data;');
+        sb.writeln('        if (value == null) return loading;');
+        sb.writeln('        return sync(value, builder: builder);');
+        sb.writeln('      },');
+        sb.writeln('    );');
+        sb.writeln('  }');
+        sb.writeln();
+        sb.writeln('  /// Renders a detail page from a Dartvel signal.');
+        sb.writeln('  Widget signal(');
+        sb.writeln('    DVSignal<$className> model, {');
+        sb.writeln('    Widget Function($className)? builder,');
+        sb.writeln('  }) {');
+        sb.writeln('    return sync(model.value, builder: builder);');
+        sb.writeln('  }');
+        sb.writeln();
+        sb.writeln('  /// Resolves and renders a detail page by id.');
+        sb.writeln('  Widget fromId(');
+        sb.writeln('    String id, {');
+        sb.writeln(
+          '    required Future<$className> Function(String id) findById,',
+        );
+        sb.writeln(
+          '    DVModelPageDataMode dataMode = $className.pageDataMode,',
+        );
+        sb.writeln('    $className? cachedModel,');
+        sb.writeln('    Widget Function($className)? builder,');
+        sb.writeln(
+          "    Widget loading = const DVText('Loading $className...'),",
+        );
+        sb.writeln('    Widget Function(String message)? errorBuilder,');
+        sb.writeln('  }) {');
+        sb.writeln('    if (dataMode == DVModelPageDataMode.cached &&');
+        sb.writeln('        cachedModel != null) {');
+        sb.writeln('      return sync(cachedModel, builder: builder);');
+        sb.writeln('    }');
+        sb.writeln('    final initialData =');
+        sb.writeln(
+          '        dataMode == DVModelPageDataMode.staleWhileRevalidate',
+        );
+        sb.writeln('            ? cachedModel');
+        sb.writeln('            : null;');
+        sb.writeln('    return async(');
+        sb.writeln('      findById(id),');
+        sb.writeln('      initialData: initialData,');
+        sb.writeln('      builder: builder,');
+        sb.writeln('      loading: loading,');
+        sb.writeln('      errorBuilder: errorBuilder,');
+        sb.writeln('    );');
         sb.writeln('  }');
         sb.writeln('}');
 
@@ -211,7 +313,8 @@ class ModelGenerator {
         // toPublicJson (excludes @DVModel.sensitiveField() fields)
         sb.writeln();
         sb.writeln(
-            '  /// Serializes [$className] for client/public output, omitting');
+          '  /// Serializes [$className] for client/public output, omitting',
+        );
         sb.writeln('  /// @DVModel.sensitiveField() fields.');
         sb.writeln('  Map<String, Object?> toPublicJson() => {');
         for (final field in fields) {
@@ -224,7 +327,8 @@ class ModelGenerator {
         // copyWith
         sb.writeln();
         sb.writeln(
-            '  /// Returns a copy of [$className] with the given fields replaced.');
+          '  /// Returns a copy of [$className] with the given fields replaced.',
+        );
         final params =
             fields.map((f) => "${f['type']}? ${f['name']}").join(', ');
         sb.writeln('  $className copyWith({$params}) {');
@@ -245,7 +349,8 @@ class ModelGenerator {
         sb.writeln('  /// SQL statement to create the [$className] table.');
         final cols = fields.map((f) => "${f['name']} TEXT").join(', ');
         sb.writeln(
-            "  String get createTableSql => 'CREATE TABLE IF NOT EXISTS $tableName ($cols)';");
+          "  String get createTableSql => 'CREATE TABLE IF NOT EXISTS $tableName ($cols)';",
+        );
 
         sb.writeln('}');
 
@@ -354,7 +459,8 @@ class ModelGenerator {
 
           sb.writeln();
           sb.writeln(
-              '  $type get $name => ${className.toLowerCase()}?.$name ?? $defaultVal;');
+            '  $type get $name => ${className.toLowerCase()}?.$name ?? $defaultVal;',
+          );
           if (type.replaceAll('?', '') == 'String') {
             final validation = name.toLowerCase().contains('email')
                 ? '$name.isNotEmpty && $name.contains(\'@\')'
@@ -366,7 +472,8 @@ class ModelGenerator {
         sb.writeln();
         sb.writeln('final bool _registered_$className = () {');
         sb.writeln(
-            '  registerFormControlsFactory<$className>((model, {onSubmit, onReset}) {');
+          '  registerFormControlsFactory<$className>((model, {onSubmit, onReset}) {',
+        );
         sb.writeln('    return ${className}FormControls(');
         sb.writeln('      ${className.toLowerCase()}: model as $className?,');
         sb.writeln('      onSubmit: onSubmit,');
@@ -374,7 +481,8 @@ class ModelGenerator {
         sb.writeln('    );');
         sb.writeln('  });');
         sb.writeln(
-            '  registerDVModelFactory<$className>(() => $constructorPrefix$className(');
+          '  registerDVModelFactory<$className>(() => $constructorPrefix$className(',
+        );
         for (final field in fields) {
           final name = field['name']!;
           final type = field['type']!;
@@ -387,7 +495,8 @@ class ModelGenerator {
         }
         sb.writeln('  ));');
         sb.writeln(
-            '  registerDVModelSerializer<$className>((model) => model.toJson());');
+          '  registerDVModelSerializer<$className>((model) => model.toJson());',
+        );
         sb.writeln('  return true;');
         sb.writeln('}();');
 
@@ -401,18 +510,21 @@ class ModelGenerator {
         sb.writeln('        .toList(growable: false);');
         sb.writeln('    if (lines.isEmpty) {');
         sb.writeln(
-            '      return const DVImportResult<$className>(items: <$className>[]);');
+          '      return const DVImportResult<$className>(items: <$className>[]);',
+        );
         sb.writeln('    }');
         sb.writeln('    final headers = _splitCsvLine(lines.first);');
         sb.writeln('    final items = <$className>[];');
         sb.writeln('    final errors = <DVImportRowError>[];');
         sb.writeln(
-            '    for (int index = 1; index < lines.length; index += 1) {');
+          '    for (int index = 1; index < lines.length; index += 1) {',
+        );
         sb.writeln('      final values = _splitCsvLine(lines[index]);');
         sb.writeln('      final row = <String, Object?>{};');
         sb.writeln('      for (int i = 0; i < headers.length; i += 1) {');
         sb.writeln(
-            "        row[headers[i]] = i < values.length ? values[i] : '';");
+          "        row[headers[i]] = i < values.length ? values[i] : '';",
+        );
         sb.writeln('      }');
         sb.writeln('      try {');
         sb.writeln('        items.add(${className}Parser.fromJson(row));');
@@ -424,21 +536,25 @@ class ModelGenerator {
         sb.writeln('      }');
         sb.writeln('    }');
         sb.writeln(
-            '    return DVImportResult<$className>(items: items, errors: errors);');
+          '    return DVImportResult<$className>(items: items, errors: errors);',
+        );
         sb.writeln('  }');
         sb.writeln();
         sb.writeln(
-            '  static Future<List<DVJobEnvelope<DVImportChunk>>> resumableCsv(');
+          '  static Future<List<DVJobEnvelope<DVImportChunk>>> resumableCsv(',
+        );
         sb.writeln('    String content, {');
         sb.writeln("    String queue = 'imports',");
         sb.writeln('    int chunkSize = 500,');
         sb.writeln('  }) async {');
         sb.writeln(
-            '    final chunks = _chunkImportRows(content, chunkSize: chunkSize);');
+          '    final chunks = _chunkImportRows(content, chunkSize: chunkSize);',
+        );
         sb.writeln('    final jobs = <DVJobEnvelope<DVImportChunk>>[];');
         sb.writeln('    for (final chunk in chunks) {');
         sb.writeln(
-            '      jobs.add(await const DVQueues().dispatch<DVImportChunk>(');
+          '      jobs.add(await const DVQueues().dispatch<DVImportChunk>(',
+        );
         sb.writeln('        DVImportChunk(');
         sb.writeln("          model: '$className',");
         sb.writeln("          format: 'csv',");
@@ -452,7 +568,8 @@ class ModelGenerator {
         sb.writeln('  }');
         sb.writeln();
         sb.writeln(
-            '  static DVImportResult<$className> ndjson(String content) {');
+          '  static DVImportResult<$className> ndjson(String content) {',
+        );
         sb.writeln('    final lines = const convert.LineSplitter()');
         sb.writeln('        .convert(content)');
         sb.writeln('        .where((line) => line.trim().isNotEmpty)');
@@ -460,15 +577,18 @@ class ModelGenerator {
         sb.writeln('    final items = <$className>[];');
         sb.writeln('    final errors = <DVImportRowError>[];');
         sb.writeln(
-            '    for (int index = 0; index < lines.length; index += 1) {');
+          '    for (int index = 0; index < lines.length; index += 1) {',
+        );
         sb.writeln('      try {');
         sb.writeln('        final decoded = convert.jsonDecode(lines[index]);');
         sb.writeln('        if (decoded is! Map<Object?, Object?>) {');
         sb.writeln(
-            "          throw const FormatException('NDJSON row must be a JSON object.');");
+          "          throw const FormatException('NDJSON row must be a JSON object.');",
+        );
         sb.writeln('        }');
         sb.writeln(
-            '        items.add(${className}Parser.fromJson(Map<String, Object?>.from(decoded)));');
+          '        items.add(${className}Parser.fromJson(Map<String, Object?>.from(decoded)));',
+        );
         sb.writeln('      } on Object catch (error) {');
         sb.writeln('        errors.add(DVImportRowError(');
         sb.writeln('          row: index + 1,');
@@ -477,21 +597,25 @@ class ModelGenerator {
         sb.writeln('      }');
         sb.writeln('    }');
         sb.writeln(
-            '    return DVImportResult<$className>(items: items, errors: errors);');
+          '    return DVImportResult<$className>(items: items, errors: errors);',
+        );
         sb.writeln('  }');
         sb.writeln();
         sb.writeln(
-            '  static Future<List<DVJobEnvelope<DVImportChunk>>> resumableNdjson(');
+          '  static Future<List<DVJobEnvelope<DVImportChunk>>> resumableNdjson(',
+        );
         sb.writeln('    String content, {');
         sb.writeln("    String queue = 'imports',");
         sb.writeln('    int chunkSize = 500,');
         sb.writeln('  }) async {');
         sb.writeln(
-            '    final chunks = _chunkImportRows(content, chunkSize: chunkSize);');
+          '    final chunks = _chunkImportRows(content, chunkSize: chunkSize);',
+        );
         sb.writeln('    final jobs = <DVJobEnvelope<DVImportChunk>>[];');
         sb.writeln('    for (final chunk in chunks) {');
         sb.writeln(
-            '      jobs.add(await const DVQueues().dispatch<DVImportChunk>(');
+          '      jobs.add(await const DVQueues().dispatch<DVImportChunk>(',
+        );
         sb.writeln('        DVImportChunk(');
         sb.writeln("          model: '$className',");
         sb.writeln("          format: 'ndjson',");
@@ -505,25 +629,29 @@ class ModelGenerator {
         sb.writeln('  }');
         sb.writeln();
         sb.writeln(
-            '  static DVImportResult<$className> excel(String content) {');
+          '  static DVImportResult<$className> excel(String content) {',
+        );
         sb.writeln('    final lines = const convert.LineSplitter()');
         sb.writeln('        .convert(content)');
         sb.writeln('        .where((line) => line.trim().isNotEmpty)');
         sb.writeln('        .toList(growable: false);');
         sb.writeln('    if (lines.isEmpty) {');
         sb.writeln(
-            '      return const DVImportResult<$className>(items: <$className>[]);');
+          '      return const DVImportResult<$className>(items: <$className>[]);',
+        );
         sb.writeln('    }');
         sb.writeln("    final headers = lines.first.split('\\t');");
         sb.writeln('    final items = <$className>[];');
         sb.writeln('    final errors = <DVImportRowError>[];');
         sb.writeln(
-            '    for (int index = 1; index < lines.length; index += 1) {');
+          '    for (int index = 1; index < lines.length; index += 1) {',
+        );
         sb.writeln("      final values = lines[index].split('\\t');");
         sb.writeln('      final row = <String, Object?>{};');
         sb.writeln('      for (int i = 0; i < headers.length; i += 1) {');
         sb.writeln(
-            "        row[headers[i]] = i < values.length ? values[i] : '';");
+          "        row[headers[i]] = i < values.length ? values[i] : '';",
+        );
         sb.writeln('      }');
         sb.writeln('      try {');
         sb.writeln('        items.add(${className}Parser.fromJson(row));');
@@ -535,18 +663,21 @@ class ModelGenerator {
         sb.writeln('      }');
         sb.writeln('    }');
         sb.writeln(
-            '    return DVImportResult<$className>(items: items, errors: errors);');
+          '    return DVImportResult<$className>(items: items, errors: errors);',
+        );
         sb.writeln('  }');
         sb.writeln('}');
         sb.writeln();
         sb.writeln('/// Generated export helpers for [$className].');
         sb.writeln('class ${className}Export {');
         sb.writeln(
-            '  static DVExportResult csv(Iterable<$className> items, {String fileName = \'${className.toLowerCase()}s.csv\', DVExportOptions<$className> options = const DVExportOptions<$className>()}) {');
+          '  static DVExportResult csv(Iterable<$className> items, {String fileName = \'${className.toLowerCase()}s.csv\', DVExportOptions<$className> options = const DVExportOptions<$className>()}) {',
+        );
         sb.writeln('    final exportItems = options.apply(items);');
         sb.writeln('    final buffer = StringBuffer();');
         sb.writeln(
-            "    buffer.writeln('${fields.map((f) => f['name']!).join(',')}');");
+          "    buffer.writeln('${fields.map((f) => f['name']!).join(',')}');",
+        );
         sb.writeln('    for (final item in exportItems) {');
         sb.writeln('      buffer.writeln([');
         for (final field in fields) {
@@ -564,18 +695,21 @@ class ModelGenerator {
         sb.writeln('  }');
         sb.writeln();
         sb.writeln(
-            '  static DVExportResult json(Iterable<$className> items, {String fileName = \'${className.toLowerCase()}s.json\', DVExportOptions<$className> options = const DVExportOptions<$className>()}) {');
+          '  static DVExportResult json(Iterable<$className> items, {String fileName = \'${className.toLowerCase()}s.json\', DVExportOptions<$className> options = const DVExportOptions<$className>()}) {',
+        );
         sb.writeln('    return DVExportResult(');
         sb.writeln('      fileName: fileName,');
         sb.writeln("      contentType: 'application/json; charset=utf-8',");
         sb.writeln(
-            '      bytes: convert.utf8.encode(convert.jsonEncode(options.apply(items).map((item) => item.toJson()).toList(growable: false))),');
+          '      bytes: convert.utf8.encode(convert.jsonEncode(options.apply(items).map((item) => item.toJson()).toList(growable: false))),',
+        );
         sb.writeln('      metadata: options.exportMetadata(),');
         sb.writeln('    );');
         sb.writeln('  }');
         sb.writeln();
         sb.writeln(
-            '  static DVExportResult ndjson(Iterable<$className> items, {String fileName = \'${className.toLowerCase()}s.ndjson\', DVExportOptions<$className> options = const DVExportOptions<$className>()}) {');
+          '  static DVExportResult ndjson(Iterable<$className> items, {String fileName = \'${className.toLowerCase()}s.ndjson\', DVExportOptions<$className> options = const DVExportOptions<$className>()}) {',
+        );
         sb.writeln('    final exportItems = options.apply(items);');
         sb.writeln('    final buffer = StringBuffer();');
         sb.writeln('    for (final item in exportItems) {');
@@ -590,63 +724,79 @@ class ModelGenerator {
         sb.writeln('  }');
         sb.writeln();
         sb.writeln(
-            '  static Stream<DVExportResult> streamCsv(Iterable<$className> items, {String fileName = \'${className.toLowerCase()}s.csv\', DVExportOptions<$className> options = const DVExportOptions<$className>()}) async* {');
+          '  static Stream<DVExportResult> streamCsv(Iterable<$className> items, {String fileName = \'${className.toLowerCase()}s.csv\', DVExportOptions<$className> options = const DVExportOptions<$className>()}) async* {',
+        );
         sb.writeln(
-            '    final exportItems = options.apply(items).toList(growable: false);');
+          '    final exportItems = options.apply(items).toList(growable: false);',
+        );
         sb.writeln('    if (options.chunkSize < 1) {');
         sb.writeln(
-            "      throw ArgumentError.value(options.chunkSize, 'chunkSize', 'chunkSize must be positive.');");
+          "      throw ArgumentError.value(options.chunkSize, 'chunkSize', 'chunkSize must be positive.');",
+        );
         sb.writeln('    }');
         sb.writeln(
-            '    for (int index = 0; index < exportItems.length; index += options.chunkSize) {');
+          '    for (int index = 0; index < exportItems.length; index += options.chunkSize) {',
+        );
         sb.writeln(
-            '      final end = math.min(index + options.chunkSize, exportItems.length);');
+          '      final end = math.min(index + options.chunkSize, exportItems.length);',
+        );
         sb.writeln('      yield csv(');
         sb.writeln('        exportItems.sublist(index, end),');
         sb.writeln(
-            "        fileName: fileName.replaceFirst('.csv', '.part\${(index ~/ options.chunkSize) + 1}.csv'),");
+          "        fileName: fileName.replaceFirst('.csv', '.part\${(index ~/ options.chunkSize) + 1}.csv'),",
+        );
         sb.writeln('        options: options,');
         sb.writeln('      );');
         sb.writeln('    }');
         sb.writeln('  }');
         sb.writeln();
         sb.writeln(
-            '  static Stream<DVExportResult> streamNdjson(Iterable<$className> items, {String fileName = \'${className.toLowerCase()}s.ndjson\', DVExportOptions<$className> options = const DVExportOptions<$className>()}) async* {');
+          '  static Stream<DVExportResult> streamNdjson(Iterable<$className> items, {String fileName = \'${className.toLowerCase()}s.ndjson\', DVExportOptions<$className> options = const DVExportOptions<$className>()}) async* {',
+        );
         sb.writeln(
-            '    final exportItems = options.apply(items).toList(growable: false);');
+          '    final exportItems = options.apply(items).toList(growable: false);',
+        );
         sb.writeln('    if (options.chunkSize < 1) {');
         sb.writeln(
-            "      throw ArgumentError.value(options.chunkSize, 'chunkSize', 'chunkSize must be positive.');");
+          "      throw ArgumentError.value(options.chunkSize, 'chunkSize', 'chunkSize must be positive.');",
+        );
         sb.writeln('    }');
         sb.writeln(
-            '    for (int index = 0; index < exportItems.length; index += options.chunkSize) {');
+          '    for (int index = 0; index < exportItems.length; index += options.chunkSize) {',
+        );
         sb.writeln(
-            '      final end = math.min(index + options.chunkSize, exportItems.length);');
+          '      final end = math.min(index + options.chunkSize, exportItems.length);',
+        );
         sb.writeln('      yield ndjson(');
         sb.writeln('        exportItems.sublist(index, end),');
         sb.writeln(
-            "        fileName: fileName.replaceFirst('.ndjson', '.part\${(index ~/ options.chunkSize) + 1}.ndjson'),");
+          "        fileName: fileName.replaceFirst('.ndjson', '.part\${(index ~/ options.chunkSize) + 1}.ndjson'),",
+        );
         sb.writeln('        options: options,');
         sb.writeln('      );');
         sb.writeln('    }');
         sb.writeln('  }');
         sb.writeln();
         sb.writeln(
-            '  static DVExportResult excel(Iterable<$className> items, {String fileName = \'${className.toLowerCase()}s.xls\', DVExportOptions<$className> options = const DVExportOptions<$className>()}) {');
+          '  static DVExportResult excel(Iterable<$className> items, {String fileName = \'${className.toLowerCase()}s.xls\', DVExportOptions<$className> options = const DVExportOptions<$className>()}) {',
+        );
         sb.writeln('    final exportItems = options.apply(items);');
         sb.writeln('    final buffer = StringBuffer();');
         sb.writeln("    buffer.writeln('<?xml version=\"1.0\"?>');");
         sb.writeln(
-            "    buffer.writeln('<?mso-application progid=\"Excel.Sheet\"?>');");
+          "    buffer.writeln('<?mso-application progid=\"Excel.Sheet\"?>');",
+        );
         sb.writeln(
-            "    buffer.writeln('<Workbook xmlns=\"urn:schemas-microsoft-com:office:spreadsheet\" xmlns:ss=\"urn:schemas-microsoft-com:office:spreadsheet\">');");
+          "    buffer.writeln('<Workbook xmlns=\"urn:schemas-microsoft-com:office:spreadsheet\" xmlns:ss=\"urn:schemas-microsoft-com:office:spreadsheet\">');",
+        );
         sb.writeln("    buffer.writeln('<Worksheet ss:Name=\"$className\">');");
         sb.writeln("    buffer.writeln('<Table>');");
         sb.writeln("    buffer.writeln('<Row>');");
         for (final field in fields) {
           final name = field['name']!;
           sb.writeln(
-              "    buffer.writeln('<Cell><Data ss:Type=\"String\">$name</Data></Cell>');");
+            "    buffer.writeln('<Cell><Data ss:Type=\"String\">$name</Data></Cell>');",
+          );
         }
         sb.writeln("    buffer.writeln('</Row>');");
         sb.writeln('    for (final item in exportItems) {');
@@ -654,7 +804,8 @@ class ModelGenerator {
         for (final field in fields) {
           final name = field['name']!;
           sb.writeln(
-              "      buffer.writeln('<Cell><Data ss:Type=\"String\">\${_escapeExcelCell(item.$name)}</Data></Cell>');");
+            "      buffer.writeln('<Cell><Data ss:Type=\"String\">\${_escapeExcelCell(item.$name)}</Data></Cell>');",
+          );
         }
         sb.writeln("      buffer.writeln('</Row>');");
         sb.writeln('    }');
@@ -664,7 +815,8 @@ class ModelGenerator {
         sb.writeln('    return DVExportResult(');
         sb.writeln('      fileName: fileName,');
         sb.writeln(
-            "      contentType: 'application/vnd.ms-excel; charset=utf-8',");
+          "      contentType: 'application/vnd.ms-excel; charset=utf-8',",
+        );
         sb.writeln('      bytes: convert.utf8.encode(buffer.toString()),');
         sb.writeln('      metadata: options.exportMetadata(),');
         sb.writeln('    );');
@@ -674,7 +826,8 @@ class ModelGenerator {
         sb.writeln('/// Generated reporting helpers for [$className].');
         sb.writeln('class ${className}Report {');
         sb.writeln(
-            '  static DVReportResult monthly(Iterable<$className> items, {DateTime? month}) {');
+          '  static DVReportResult monthly(Iterable<$className> items, {DateTime? month}) {',
+        );
         sb.writeln('    final selectedMonth = month ?? DateTime.now();');
         sb.writeln('    return DVReportResult(');
         sb.writeln("      name: '${className.toLowerCase()}.monthly',");
@@ -688,7 +841,8 @@ class ModelGenerator {
         sb.writeln('  }');
         sb.writeln();
         sb.writeln(
-            "  static DVScheduledReport scheduleMonthly({String cron = '0 0 1 * *', String queue = 'reports', DateTime? scheduledAt, DateTime? periodStart, DateTime? periodEnd, Map<String, String> metadata = const <String, String>{}}) {");
+          "  static DVScheduledReport scheduleMonthly({String cron = '0 0 1 * *', String queue = 'reports', DateTime? scheduledAt, DateTime? periodStart, DateTime? periodEnd, Map<String, String> metadata = const <String, String>{}}) {",
+        );
         sb.writeln('    return DVScheduledReport(');
         sb.writeln("      name: '${className.toLowerCase()}.monthly',");
         sb.writeln("      model: '$className',");
@@ -703,7 +857,8 @@ class ModelGenerator {
         sb.writeln('  }');
         sb.writeln();
         sb.writeln(
-            "  static Future<DVJobEnvelope<DVScheduledReport>> dispatchMonthly({String cron = '0 0 1 * *', String queue = 'reports', int priority = 0, int maxAttempts = 3, Duration backoff = const Duration(seconds: 30), DateTime? scheduledAt, DateTime? periodStart, DateTime? periodEnd, Map<String, String> metadata = const <String, String>{}}) {");
+          "  static Future<DVJobEnvelope<DVScheduledReport>> dispatchMonthly({String cron = '0 0 1 * *', String queue = 'reports', int priority = 0, int maxAttempts = 3, Duration backoff = const Duration(seconds: 30), DateTime? scheduledAt, DateTime? periodStart, DateTime? periodEnd, Map<String, String> metadata = const <String, String>{}}) {",
+        );
         sb.writeln('    return const DVQueues().dispatch<DVScheduledReport>(');
         sb.writeln('      scheduleMonthly(');
         sb.writeln('        cron: cron,');
@@ -744,10 +899,12 @@ class ModelGenerator {
           sb.writeln('/// Generated typed search facade for [$className].');
           sb.writeln('class ${className}Search {');
           sb.writeln(
-              '  static DVSearchProvider<$className, ${className}SearchFacets> _provider = const DVUnconfiguredSearchProvider<$className, ${className}SearchFacets>();');
+            '  static DVSearchProvider<$className, ${className}SearchFacets> _provider = const DVUnconfiguredSearchProvider<$className, ${className}SearchFacets>();',
+          );
           sb.writeln();
           sb.writeln(
-              '  static void useProvider(DVSearchProvider<$className, ${className}SearchFacets> provider) {');
+            '  static void useProvider(DVSearchProvider<$className, ${className}SearchFacets> provider) {',
+          );
           sb.writeln('    _provider = provider;');
           sb.writeln('  }');
           sb.writeln();
@@ -775,7 +932,8 @@ class ModelGenerator {
       sb.writeln("  return line.split(',').map((value) {");
       sb.writeln('    final trimmed = value.trim();');
       sb.writeln(
-          "    if (trimmed.length >= 2 && trimmed.startsWith('\"') && trimmed.endsWith('\"')) {");
+        "    if (trimmed.length >= 2 && trimmed.startsWith('\"') && trimmed.endsWith('\"')) {",
+      );
       sb.writeln('      return trimmed.substring(1, trimmed.length - 1);');
       sb.writeln('    }');
       sb.writeln('    return trimmed;');
@@ -785,7 +943,8 @@ class ModelGenerator {
       sb.writeln('String _escapeCsvValue(Object? value) {');
       sb.writeln("  final text = value?.toString() ?? '';");
       sb.writeln(
-          "  if (text.contains(',') || text.contains('\"') || text.contains('\\n')) {");
+        "  if (text.contains(',') || text.contains('\"') || text.contains('\\n')) {",
+      );
       sb.writeln(r'''    return '"${text.replaceAll('"', '""')}"';''');
       sb.writeln('  }');
       sb.writeln('  return text;');
@@ -802,10 +961,12 @@ class ModelGenerator {
       sb.writeln('}');
       sb.writeln();
       sb.writeln(
-          'List<Map<String, Object>> _chunkImportRows(String content, {required int chunkSize}) {');
+        'List<Map<String, Object>> _chunkImportRows(String content, {required int chunkSize}) {',
+      );
       sb.writeln('  if (chunkSize < 1) {');
       sb.writeln(
-          "    throw ArgumentError.value(chunkSize, 'chunkSize', 'chunkSize must be positive.');");
+        "    throw ArgumentError.value(chunkSize, 'chunkSize', 'chunkSize must be positive.');",
+      );
       sb.writeln('  }');
       sb.writeln('  final lines = const convert.LineSplitter()');
       sb.writeln('      .convert(content)');
@@ -813,7 +974,8 @@ class ModelGenerator {
       sb.writeln('      .toList(growable: false);');
       sb.writeln('  final chunks = <Map<String, Object>>[];');
       sb.writeln(
-          '  for (int index = 0; index < lines.length; index += chunkSize) {');
+        '  for (int index = 0; index < lines.length; index += chunkSize) {',
+      );
       sb.writeln('    final end = math.min(index + chunkSize, lines.length);');
       sb.writeln('    chunks.add(<String, Object>{');
       sb.writeln("      'startRow': index + 1,");
