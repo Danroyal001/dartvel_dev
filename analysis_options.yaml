@@ -2,8 +2,8 @@ include: package:lints/recommended.yaml
 
 analyzer:
   exclude:
-    - lib/dartvel_client/**
-    - '**/lib/dartvel_client/**'
+    - .dart_tool/**
+    - '**/.dart_tool/**'
     - .dartvel/**
     - '**/.dartvel/**'
 
