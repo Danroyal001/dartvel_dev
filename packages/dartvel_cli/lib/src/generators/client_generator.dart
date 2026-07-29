@@ -1211,6 +1211,13 @@ class DartvelConfig {
     for (final match in declarations.allMatches(source)) {
       symbols.add(match.group(1)!);
     }
+    final functions = RegExp(
+      r'^(?:[A-Za-z_][A-Za-z0-9_<>, ?]*\s+)+([A-Za-z][A-Za-z0-9_]*)\s*\(',
+      multiLine: true,
+    );
+    for (final match in functions.allMatches(source)) {
+      symbols.add(match.group(1)!);
+    }
     return symbols;
   }
 

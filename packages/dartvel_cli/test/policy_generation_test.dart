@@ -392,7 +392,9 @@ import 'package:flutter/widgets.dart';
 
 @DVPage()
 @pragma('vm:entry-point')
-Widget _indexPage(BuildContext context) => const SizedBox.shrink();
+Widget _indexPage(BuildContext context) => buildIndexPage(context);
+
+Widget buildIndexPage(BuildContext context) => const SizedBox.shrink();
 ''',
       );
 
@@ -427,7 +429,7 @@ Widget _indexPage(BuildContext context) => const SizedBox.shrink();
         p.join(root.path, 'lib', 'dartvel_client', 'router.g.dart'),
       ).readAsStringSync();
       expect(router, contains('class IndexPageGeneratedPage'));
-      expect(router, contains('return const SizedBox.shrink();'));
+      expect(router, contains('return p0.buildIndexPage(context);'));
       expect(router, isNot(contains('p0._indexPage(context)')));
     } finally {
       root.deleteSync(recursive: true);
