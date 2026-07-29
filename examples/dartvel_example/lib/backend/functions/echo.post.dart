@@ -1,1 +1,1 @@
-Map<String, dynamic> echo(String msg) => {'echo': msg};
+Map<String, Object?> echo(String msg) => <String, Object?>{'echo': msg};

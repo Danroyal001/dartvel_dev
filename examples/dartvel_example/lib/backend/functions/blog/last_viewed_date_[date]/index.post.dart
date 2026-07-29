@@ -1,1 +1,2 @@
-Map<String, dynamic> lastViewedDate(String date) => {'date': date};
+Map<String, Object?> lastViewedDate(String date) =>
+    <String, Object?>{'date': date};

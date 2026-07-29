@@ -1,3 +1,3 @@
 import '../../db/inmemory.dart';
 
-List<Map<String, dynamic>> todos() => InMemoryDB().todos;
+List<Map<String, Object?>> todos() => InMemoryDB().todos;
