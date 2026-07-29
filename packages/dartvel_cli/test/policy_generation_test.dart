@@ -185,6 +185,125 @@ Widget featureCard(String title) => DVText(title);
     }
   });
 
+  test('private expression-bodied functional widgets generate public wrappers',
+      () async {
+    final root =
+        await Directory.systemTemp.createTemp('dartvel_private_widget_test_');
+    try {
+      Directory(p.join(root.path, 'lib', 'dartvel_client'))
+          .createSync(recursive: true);
+      Directory(p.join(root.path, 'lib', 'components'))
+          .createSync(recursive: true);
+
+      File(p.join(root.path, 'lib', 'components', 'cards.dart'))
+          .writeAsStringSync('''
+import 'package:dartvel_flutter/dartvel_flutter.dart';
+import 'package:flutter/widgets.dart';
+
+@DVFunctionalWidget()
+Widget _featureCard(String title) => DVText(title);
+''');
+
+      await ClientGenerator.generate(
+        root: root.path,
+        pagesDir: 'lib/pages',
+        pkgName: 'private_client_app',
+        buildId: 'test-build',
+        backendHost: '127.0.0.1',
+        backendPort: 3000,
+        devBackendHost: 'http://localhost:3000',
+        prodBackendHost: 'https://api.example.test',
+        apiBasePath: '/api',
+        envFiles: const <String>[],
+        seoSiteName: 'Private App',
+        seoTitle: 'Private App',
+        seoDesc: 'Private App',
+        seoImage: '',
+        seoTwitter: '',
+        defaultTransition: 'fade',
+        durationMs: 200,
+        curve: 'easeInOut',
+        normalizeTrailing: true,
+        notFoundRedirect: '',
+        plugins: const <String>[],
+        webPrerender: false,
+        ota: false,
+        dv: YamlMap.wrap(<String, Object?>{}),
+      );
+
+      final widgets = File(
+        p.join(root.path, 'lib', 'dartvel_client', 'widgets.g.dart'),
+      ).readAsStringSync();
+
+      expect(widgets, contains('Widget FeatureCard(String title)'));
+      expect(widgets, contains('return DVText(title);'));
+      expect(widgets, isNot(contains('w0._featureCard')));
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
+  test('private block-bodied functional widgets require body lowering',
+      () async {
+    final root =
+        await Directory.systemTemp.createTemp('dartvel_private_widget_test_');
+    try {
+      Directory(p.join(root.path, 'lib', 'dartvel_client'))
+          .createSync(recursive: true);
+      Directory(p.join(root.path, 'lib', 'components'))
+          .createSync(recursive: true);
+
+      File(p.join(root.path, 'lib', 'components', 'cards.dart'))
+          .writeAsStringSync('''
+import 'package:dartvel_flutter/dartvel_flutter.dart';
+import 'package:flutter/widgets.dart';
+
+@DVFunctionalWidget()
+Widget _featureCard(String title) {
+  return DVText(title);
+}
+''');
+
+      await expectLater(
+        ClientGenerator.generate(
+          root: root.path,
+          pagesDir: 'lib/pages',
+          pkgName: 'private_client_app',
+          buildId: 'test-build',
+          backendHost: '127.0.0.1',
+          backendPort: 3000,
+          devBackendHost: 'http://localhost:3000',
+          prodBackendHost: 'https://api.example.test',
+          apiBasePath: '/api',
+          envFiles: const <String>[],
+          seoSiteName: 'Private App',
+          seoTitle: 'Private App',
+          seoDesc: 'Private App',
+          seoImage: '',
+          seoTwitter: '',
+          defaultTransition: 'fade',
+          durationMs: 200,
+          curve: 'easeInOut',
+          normalizeTrailing: true,
+          notFoundRedirect: '',
+          plugins: const <String>[],
+          webPrerender: false,
+          ota: false,
+          dv: YamlMap.wrap(<String, Object?>{}),
+        ),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            contains('must use an expression body'),
+          ),
+        ),
+      );
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
   test('private annotated pages and widgets are rejected', () async {
     final root =
         await Directory.systemTemp.createTemp('dartvel_private_client_test_');
