@@ -114,7 +114,7 @@ class IndexPage extends DartvelPage {
         DVModifier().color(Color(0xFF111827)).padding(8),
       ),
       DVText('Loaded at: \${data?['timestamp'] ?? 'N/A'}'),
-      DVBox.wrap([
+      DVBox.wrapLine([
         const DVText('Docs').modifier(DVModifier().padding(12).rounded(8)),
         const DVText('GitHub').modifier(DVModifier().padding(12).rounded(8)),
       ], spacing: 12),
@@ -134,7 +134,9 @@ class $className extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const DVBox(DVText('Loading...'));
+    return const DVBox(
+      DVText('Loading...'),
+    );
   }
 }
 ''';
@@ -333,8 +335,7 @@ Create a new file in `lib/pages/`:
 
 ```dart
 // lib/pages/about.dart
-import 'package:dartvel_core/dartvel.dart';
-import 'package:dartvel_flutter/dartvel_flutter.dart';
+import '../dartvel_client/dartvel_client.dart';
 import 'package:flutter/material.dart';
 
 @DVPage(

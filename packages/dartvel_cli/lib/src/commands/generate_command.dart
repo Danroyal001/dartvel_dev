@@ -43,7 +43,7 @@ class GeneratePageSubcommand extends Command<void> {
     }
     final capitalized = pageName[0].toUpperCase() + pageName.substring(1);
     file.writeAsStringSync(
-        '''import 'package:dartvel_flutter/dartvel_flutter.dart';
+        '''import '../dartvel_client/dartvel_client.dart';
 import 'package:flutter/material.dart';
 
 @DVPage()
