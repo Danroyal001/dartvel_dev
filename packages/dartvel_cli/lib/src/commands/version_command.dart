@@ -14,28 +14,7 @@ class VersionCommand extends Command<void> {
 
   @override
   Future<void> run() async {
-    // Try to read version from pubspec.yaml in the package
-    // This is tricky because we are running as a compiled executable or script.
-    // If running as script, we can find the pubspec relative to the script.
-    // But for now, let's hardcode it or try to find it.
-    // Actually, the best way is to have a constant generated or updated.
-    // For now, I'll read it from the pubspec if available, or fallback.
-
-    String version = '0.1.1'; // Fallback
-
-    try {
-      // Assuming we are running from source or the pubspec is nearby
-      // When installed globally, this might not work.
-      // A better approach for a real CLI is to bake the version in.
-      // But since we are running `dart run .../main.dart`, we can find it.
-      final scriptPath = Platform.script.toFilePath();
-      final pkgRoot = p.dirname(p.dirname(p.dirname(scriptPath)));
-      final pubspec = File(p.join(pkgRoot, 'pubspec.yaml'));
-      if (pubspec.existsSync()) {
-        final yaml = loadYaml(pubspec.readAsStringSync()) as YamlMap;
-        version = yaml['version']?.toString() ?? version;
-      }
-    } catch (_) {}
+    final version = readDartvelCliVersion() ?? '0.2.0';
 
     Logger.log('Dartvel CLI: $version');
     Logger.log('Dart SDK:    ${Platform.version.split(' ').first}');
@@ -66,4 +45,39 @@ class VersionCommand extends Command<void> {
       Logger.log('Shorebird:   (not installed)');
     }
   }
+}
+
+String? readDartvelCliVersion() {
+  final candidates = <Directory>[
+    Directory.current,
+    if (Platform.script.scheme == 'file')
+      File(Platform.script.toFilePath()).parent,
+  ];
+
+  for (final candidate in candidates) {
+    final version = _findVersionAbove(candidate);
+    if (version != null) return version;
+  }
+  return null;
+}
+
+String? _findVersionAbove(Directory start) {
+  Directory current = start.absolute;
+  while (true) {
+    final pubspec = File(p.join(current.path, 'pubspec.yaml'));
+    if (pubspec.existsSync()) {
+      final version = _readVersionFromPubspec(pubspec);
+      if (version != null) return version;
+    }
+    final parent = current.parent;
+    if (parent.path == current.path) return null;
+    current = parent;
+  }
+}
+
+String? _readVersionFromPubspec(File pubspec) {
+  final yaml = loadYaml(pubspec.readAsStringSync());
+  if (yaml is! YamlMap) return null;
+  if (yaml['name'] != 'dartvel_cli') return null;
+  return yaml['version']?.toString();
 }
