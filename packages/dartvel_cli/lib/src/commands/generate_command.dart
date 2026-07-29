@@ -42,12 +42,10 @@ class GeneratePageSubcommand extends Command<void> {
       return;
     }
     final capitalized = pageName[0].toUpperCase() + pageName.substring(1);
-    file.writeAsStringSync(
-        '''import '../dartvel_client/dartvel_client.dart';
+    file.writeAsStringSync('''import '../dartvel_client/dartvel_client.dart';
 import 'package:flutter/material.dart';
 
 @DVPage()
-@DVFunctionalWidget()
 Widget ${pageName.toLowerCase()}Page(BuildContext context) {
   return DVBox(
     const DVText('$capitalized Page'),
