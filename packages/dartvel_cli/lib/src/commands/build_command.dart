@@ -467,6 +467,16 @@ class BuildCommand extends Command<void> {
     Logger.log('');
     Logger.log('🔨 Building for vscode...');
 
+    if (!hasPubDependency(root, 'flutter_vscode')) {
+      Logger.log(
+        '❌ vscode build requires a flutter_vscode dependency in pubspec.yaml.',
+      );
+      Logger.log(
+        '   Add flutter_vscode, then run `dartvel build vscode` again.',
+      );
+      return _PlatformBuildResult.failed;
+    }
+
     final commands = <({String executable, List<String> arguments})>[
       (
         executable: 'dart',

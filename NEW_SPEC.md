@@ -3078,10 +3078,11 @@ barrel. Dartvel keeps the fork at
 `SlowGen/flutter_vscode`.
 
 The VS Code target requires Node.js/npm and a project dependency on
-`flutter_vscode`. `dartvel doctor --target vscode` reports whether npm is on
-PATH. The generated extension output is verified only when the TypeScript
-extension host compiles and the Flutter webview bundle exists; do not mark it
-verified from command wiring alone.
+`flutter_vscode`. `dartvel build vscode` validates that dependency before
+running the scaffold generator, and `dartvel doctor --target vscode` reports
+whether npm is on PATH. The generated extension output is verified only when
+the TypeScript extension host compiles and the Flutter webview bundle exists;
+do not mark it verified from command wiring alone.
 
 ## webOS
 

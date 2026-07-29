@@ -110,7 +110,9 @@ instead of using plain `flutter build web`.
 5. Run `npm run compile`.
 
 The target requires Node.js/npm plus a project dependency on `flutter_vscode`.
-`dartvel doctor --target vscode` reports whether npm is available.
+`dartvel build vscode` validates the pubspec dependency before running the
+scaffold generator. `dartvel doctor --target vscode` reports whether npm is
+available.
 
 Do **not** mark this target verified until a real project build has been run
 and these artifacts have been inspected:
