@@ -51,7 +51,7 @@ Implemented as of this writing: `DV.lifecycle.*` and `context.lifecycle.*`
 (read-only enum signals in `dartvel_core/src/lifecycle/`), `DV.Modules.<id>`
 (`src/modules/`), `DV.transaction(...)` with `context.afterCommit`/
 `context.compensate` (`src/transaction/`), `@DVStaticPaths()` (discovered by
-`static_paths_generator.dart` into `dartvel_client/static_paths.g.dart`),
+`static_paths_generator.dart` into the generated client barrel),
 generated `Model.Page(...)` data-mode APIs (`.async`, `.signal`, `.fromId`) in
 `model_generator.dart`, and `@DVModel(generatePublicPages: true)` static-path
 manifest generation. Generated public model paths default to `DV.Database`
