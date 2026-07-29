@@ -91,21 +91,13 @@ import '../dartvel_client/dartvel_client.dart';
   showAppBar: true,
   centerTitle: true,
 )
-class IndexPage extends DartvelPage {
-  const IndexPage({super.key});
+@pragma('vm:entry-point')
+Widget _indexPage(BuildContext context) => buildIndexPage(context);
 
-  @override
-  Future<Object?> loadData(
-      Map<String, String> params, Map<String, String> query) async {
-    await Future.delayed(const Duration(milliseconds: 500));
-    return <String, String>{'timestamp': DateTime.now().toIso8601String()};
-  }
+Widget buildIndexPage(BuildContext context) {
+  final loadedAt = DateTime.now().toIso8601String();
 
-  @override
-  Widget build(BuildContext context) {
-    final data = DvDataScope.of(context).data as Map<String, String>?;
-    
-    return DVBox.list([
+  return DVBox.list([
       const DVText('Welcome to Dartvel'),
       const DVText('DARTVEL').modifier(
         DVModifier().fontSize(28).fontWeight(FontWeight.w800),
@@ -113,7 +105,7 @@ class IndexPage extends DartvelPage {
       const DVText('Your Dartvel app is ready!').modifier(
         DVModifier().color(Color(0xFF111827)).padding(8),
       ),
-      DVText('Loaded at: \${data?['timestamp'] ?? 'N/A'}'),
+      DVText('Loaded at: \$loadedAt'),
       DVBox.wrapLine([
         const DVText('Docs').modifier(DVModifier().padding(12).rounded(8)),
         const DVText('GitHub').modifier(DVModifier().padding(12).rounded(8)),
@@ -121,7 +113,6 @@ class IndexPage extends DartvelPage {
     ]).modifier(
       const DVModifier().padding(24).align(Alignment.center),
     );
-  }
 }
 ''';
 
@@ -342,12 +333,13 @@ import 'package:flutter/material.dart';
   title: 'About',
   showAppBar: true,
 )
-Widget aboutPage(BuildContext context) {
-  return DVBox.list([
+@pragma('vm:entry-point')
+Widget _aboutPage(BuildContext context) => buildAboutPage(context);
+
+Widget buildAboutPage(BuildContext context) => DVBox.list([
     const DVText('About'),
     const DVText('About page'),
   ]).modifier(const DVModifier().padding(16));
-}
 ```
 
 Route is automatically available at `/about`.
