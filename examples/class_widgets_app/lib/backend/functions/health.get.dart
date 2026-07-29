@@ -1,6 +1,6 @@
 // GET /api/health
-Map<String, dynamic> handler() {
-  return {
+Map<String, Object?> handler() {
+  return <String, Object?>{
     'status': 'ok',
     'timestamp': DateTime.now().toIso8601String(),
   };
