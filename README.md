@@ -136,7 +136,7 @@ Verified on Linux x64 against `examples/dartvel_example`. "Verified" means the c
 | `tizen` / `tpk` | ✅ Signed 9.3MB TPK containing the engine and assets |
 | `sony-elinux` | ❌ Blocked — the embedder's newest Flutter ships Dart 3.7.2, below Dartvel's ≥3.9 floor |
 | `webos` | ⚠️ Embedder installs; a real build is not yet demonstrated |
-| `vscode` | ⚠️ Target wired — requires `flutter_vscode`, npm, and extension artifact verification |
+| `vscode` | ✅ Builds — verified extension host JS and Flutter webview artifacts |
 
 Flutter has **no desktop cross-compilation** — Windows needs Windows, the Apple targets need macOS. `dartvel build` skips what the host cannot build instead of failing the whole run.
 

@@ -10,8 +10,10 @@ the artifact. Rows that are not verified say so and say why.
 
 ## Verified status
 
-Verified on Linux x64 (Ubuntu 24.04), Flutter 3.44.5 / Dart 3.12.2, against
-`examples/dartvel_example`.
+Verified on Linux x64 (Ubuntu 24.04), Flutter 3.44.5 / Dart 3.12.2. Most
+Flutter targets were verified against `examples/dartvel_example`; the VS Code
+target was verified against a disposable copy of `examples/basic_app` with the
+local Dartvel `flutter-vscode` fork added as a dependency.
 
 | Target | Status | Evidence |
 |---|---|---|
@@ -26,7 +28,7 @@ Verified on Linux x64 (Ubuntu 24.04), Flutter 3.44.5 / Dart 3.12.2, against
 | `tizen` / `tpk` | ✅ Builds | Signed 9.3MB TPK with engine + assets; see [Tizen](#tizen-samsung) |
 | `sony-elinux` | ❌ Blocked | Dart version floor; see [Sony eLinux](#sony-elinux) |
 | `webos` | ⚠️ Unproven | Embedder installs; build not yet demonstrated |
-| `vscode` | ⚠️ Unproven | CLI target is wired; extension scaffold, TypeScript compile, and Flutter webview bundle not yet inspected |
+| `vscode` | ✅ Builds | `out/src/extension.js`, `out/lib/vscode_api.handlers.js`, `build/web/flutter_bootstrap.js`, `build/web/assets/` |
 
 Flutter has **no desktop cross-compilation**. A Windows desktop build requires
 Windows, a Linux desktop build requires Linux, and the Apple targets require
@@ -115,14 +117,16 @@ scaffold generator. `dartvel doctor --target vscode` reports whether npm is
 available.
 
 After the compile step, Dartvel validates the artifact shape and freshness so a
-zero exit code without current-build output cannot be reported as success. Do
-**not** mark this target verified until a real project build has been run and
-these artifacts have been inspected:
+zero exit code without current-build output cannot be reported as success.
+Verified evidence from the disposable `examples/basic_app` copy:
 
-- VS Code extension host output from the TypeScript compile step.
-- Flutter webview bundle output.
-- Generated extension metadata (`package.json`, activation commands, and
-  webview assets) produced by the Dartvel fork.
+- `dart run dartvel_cli:dartvel build vscode --no-auto-install`
+- Extension host output: `out/src/extension.js`,
+  `out/lib/vscode_api.handlers.js`, and `out/src/vscode_invoke.js`.
+- Flutter webview bundle output: `build/web/flutter_bootstrap.js`,
+  `build/web/main.dart.js`, and `build/web/assets/`.
+- Generated extension metadata: `package.json` produced by the Dartvel fork's
+  scaffold flow.
 
 ### Tizen (Samsung)
 
