@@ -94,6 +94,51 @@ void main() {
       }
     },
   );
+
+  test('form template emits a private generated-client wrapper', () async {
+    final root = await Directory.systemTemp.createTemp(
+      'dartvel_generate_form_',
+    );
+    try {
+      Directory.current = root.path;
+      await _runGenerate(<String>['generate', 'form', 'user']);
+
+      final source = File(
+        p.join(root.path, 'lib', 'forms', 'user_form.dart'),
+      ).readAsStringSync();
+
+      expect(
+          source, contains("import '../dartvel_client/dartvel_client.dart';"));
+      expect(source, contains('@DVFunctionalWidget()'));
+      expect(source, contains("@pragma('vm:entry-point')"));
+      expect(
+        source,
+        contains('Widget _userForm(BuildContext context, User model) =>'),
+      );
+      expect(source, contains('User.Form(model);'));
+      expect(source, isNot(contains('Widget userForm(')));
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
+  test('form generation without a name exits with usage code', () async {
+    final root = await Directory.systemTemp.createTemp(
+      'dartvel_generate_form_usage_',
+    );
+    try {
+      Directory.current = root.path;
+      exitCode = 0;
+      await _runGenerate(<String>['generate', 'form']);
+
+      expect(exitCode, 64);
+      expect(
+          Directory(p.join(root.path, 'lib', 'forms')).existsSync(), isFalse);
+    } finally {
+      exitCode = 0;
+      root.deleteSync(recursive: true);
+    }
+  });
 }
 
 Future<void> _runGenerate(List<String> args) {
