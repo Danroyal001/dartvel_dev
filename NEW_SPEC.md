@@ -3083,7 +3083,9 @@ running the scaffold generator, and `dartvel doctor --target vscode` reports
 whether npm is on PATH. After `npm run compile`, Dartvel validates that a
 compiled extension-host JavaScript file exists under `out/` or `dist/`, that
 `build/web/flutter_bootstrap.js` exists, and that `build/web/assets/` exists.
-Do not mark the target verified from command wiring alone.
+Those artifacts must be fresh from the current build invocation, so stale
+output from a previous run cannot make the build pass. Do not mark the target
+verified from command wiring alone.
 
 ## webOS
 

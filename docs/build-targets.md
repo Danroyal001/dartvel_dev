@@ -114,10 +114,10 @@ The target requires Node.js/npm plus a project dependency on `flutter_vscode`.
 scaffold generator. `dartvel doctor --target vscode` reports whether npm is
 available.
 
-After the compile step, Dartvel validates the artifact shape so a zero exit code
-without output cannot be reported as success. Do **not** mark this target
-verified until a real project build has been run and these artifacts have been
-inspected:
+After the compile step, Dartvel validates the artifact shape and freshness so a
+zero exit code without current-build output cannot be reported as success. Do
+**not** mark this target verified until a real project build has been run and
+these artifacts have been inspected:
 
 - VS Code extension host output from the TypeScript compile step.
 - Flutter webview bundle output.
