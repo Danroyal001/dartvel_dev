@@ -12,13 +12,13 @@ class RouterBuilder implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => {
-        'pubspec.yaml': [
-          'lib/dartvel_client/router.g.dart',
-          'lib/dartvel_client/env.g.dart',
-          'lib/dartvel_client/dartvel_config.g.dart',
-          'lib/dartvel_client/dartvel_runtime.dart',
-        ],
-      };
+    'pubspec.yaml': [
+      'lib/dartvel_client/router.g.dart',
+      'lib/dartvel_client/env.g.dart',
+      'lib/dartvel_client/dartvel_config.g.dart',
+      'lib/dartvel_client/dartvel_runtime.dart',
+    ],
+  };
 
   @override
   Future<void> build(BuildStep buildStep) async {
@@ -40,35 +40,36 @@ class RouterBuilder implements Builder {
     final pagesDir = (dv['pagesDir'] ?? 'lib/pages').toString();
     final backendHost = (dv['backendHost'] ?? '0.0.0.0').toString();
     final backendPort = (dv['backendPort'] as int?) ?? 3000;
-    final devBackendHost =
-        (dv['devBackendHost'] ?? 'http://localhost:3000').toString();
+    final devBackendHost = (dv['devBackendHost'] ?? 'http://localhost:3000')
+        .toString();
     final prodBackendHost = (dv['prodBackendHost'] ?? '').toString();
     final apiBasePath = (dv['apiBasePath'] ?? '/api').toString();
     final envFiles =
         (dv['envFiles'] as YamlList?)?.map((e) => e.toString()).toList() ??
-            ['.env', '.env.local'];
+        ['.env', '.env.local'];
     final seo = dv['seo'] is YamlMap
         ? dv['seo'] as YamlMap
         : (dv['webSeoDefaults'] is YamlMap
-            ? dv['webSeoDefaults'] as YamlMap
-            : YamlMap.wrap({}));
+              ? dv['webSeoDefaults'] as YamlMap
+              : YamlMap.wrap({}));
     final seoSiteName = (seo['siteName'] ?? pkgName).toString();
-    final seoTitle =
-        (seo['defaultTitle'] ?? seo['title'] ?? 'Dartvel App').toString();
-    final seoDesc =
-        (seo['defaultDescription'] ?? seo['description'] ?? '').toString();
+    final seoTitle = (seo['defaultTitle'] ?? seo['title'] ?? 'Dartvel App')
+        .toString();
+    final seoDesc = (seo['defaultDescription'] ?? seo['description'] ?? '')
+        .toString();
     final seoImage = (seo['defaultImage'] ?? seo['image'] ?? '').toString();
     final seoTwitter = (seo['twitterHandle'] ?? '').toString();
-    final defaultTransition =
-        (dv['transitions']?['default'] ?? 'fade').toString();
+    final defaultTransition = (dv['transitions']?['default'] ?? 'fade')
+        .toString();
     final durationMs = (dv['transitions']?['durationMs'] as int?) ?? 200;
     final curve = (dv['transitions']?['curve'] ?? 'easeInOut').toString();
     final normalizeTrailing =
         (dv['routingNormalizeTrailingSlash'] as bool?) ?? true;
-    final notFoundRedirect = (dv['routingRedirects'] is YamlMap
-            ? (dv['routingRedirects']['notFound'] ?? '').toString()
-            : '')
-        .toString();
+    final notFoundRedirect =
+        (dv['routingRedirects'] is YamlMap
+                ? (dv['routingRedirects']['notFound'] ?? '').toString()
+                : '')
+            .toString();
 
     // 2. Scan pages
     final pageGlob = Glob('$pagesDir/**.dart');
@@ -144,8 +145,8 @@ class RouterBuilder implements Builder {
         publicName = className;
       } else {
         final mf = RegExp(
-                r'@DVPage\([^)]*\)\s*(?:@pragma\([^)]*\)\s*)*(?:@DVFunctionalWidget\(\)\s*)?Widget\s+([A-Za-z_][A-Za-z0-9_]*)\(')
-            .firstMatch(src);
+          r'@DVPage\([^)]*\)\s*(?:@pragma\([^)]*\)\s*)*(?:@DVFunctionalWidget\(\)\s*)?Widget\s+([A-Za-z_][A-Za-z0-9_]*)\(',
+        ).firstMatch(src);
         if (mf == null) {
           log.warning(
             'dartvel: could not find class extending DartvelPage/DVClassWidget or @DVPage function in $path',
@@ -175,8 +176,9 @@ class RouterBuilder implements Builder {
           pageExpressionBody = expressionBody;
           pageSourceSymbols = _topLevelSourceSymbols(src);
         }
-        publicName =
-            className.startsWith('_') ? className.substring(1) : className;
+        publicName = className.startsWith('_')
+            ? className.substring(1)
+            : className;
         isFunctional = true;
       }
       pageImports.add("import '$importPath' deferred as p$i;");
@@ -363,7 +365,8 @@ class RouterBuilder implements Builder {
 
     final routesSrc = pageEntries
         .map(
-          (e) => '''
+          (e) =>
+              '''
     GoRoute(
       path: '${esc(e.route)}',
 ${guardRedirectFor(e.directory)}      pageBuilder: (context, state) {
@@ -393,8 +396,7 @@ ${(() {
                       if (la != null && la.isNotEmpty) {
                         b.writeln("          loading: $la.$lc(),");
                       } else {
-                        b.writeln(
-                            "          loading: const DvDefaultLoading(),");
+                        b.writeln("          loading: const DvDefaultLoading(),");
                       }
                       if (ea != null && ea.isNotEmpty) {
                         b.writeln("          error: $ea.$ec(),");
@@ -428,23 +430,23 @@ ${(() {
         )
         .join(',\n');
 
-    final generatedPageWidgets = pageEntries.map(
-      (e) {
-        final expressionBody = e.expressionBody;
-        final sourceSymbols = e.sourceSymbols;
-        final buildReturn = expressionBody == null
-            ? '  return ${e.isFunctional ? 'p${e.importIndex}.${e.publicName}(context)' : 'p${e.importIndex}.${e.publicName}()'};'
-            : _indentGeneratedReturn(
-                _qualifySourceSymbols(
-                  expressionBody,
-                  'p${e.importIndex}',
-                  sourceSymbols,
-                ),
-              );
-        final sourceDoc = expressionBody == null
-            ? '/// Deferred generated widget wrapper for [p${e.importIndex}.${e.publicName}].'
-            : '/// Deferred generated widget wrapper for a private @DVPage input.';
-        return '''
+    final generatedPageWidgets = pageEntries
+        .map((e) {
+          final expressionBody = e.expressionBody;
+          final sourceSymbols = e.sourceSymbols;
+          final buildReturn = expressionBody == null
+              ? '  return ${e.isFunctional ? 'p${e.importIndex}.${e.publicName}(context)' : 'p${e.importIndex}.${e.publicName}()'};'
+              : _indentGeneratedReturn(
+                  _qualifySourceSymbols(
+                    expressionBody,
+                    'p${e.importIndex}',
+                    sourceSymbols,
+                  ),
+                );
+          final sourceDoc = expressionBody == null
+              ? '/// Deferred generated widget wrapper for [p${e.importIndex}.${e.publicName}].'
+              : '/// Deferred generated widget wrapper for a private @DVPage input.';
+          return '''
 $sourceDoc
 class ${e.generatedWidget} extends DartvelPage {
   const ${e.generatedWidget}({super.key});
@@ -495,8 +497,8 @@ ${buildReturn.split('\n').map((line) => '        $line').join('\n')}
   }
 }
 ''';
-      },
-    ).join('\n');
+        })
+        .join('\n');
 
     // Global redirect
     final sbRedirect = StringBuffer();
@@ -521,13 +523,20 @@ ${buildReturn.split('\n').map((line) => '        $line').join('\n')}
     sbRedirect.writeln('  return null;');
     sbRedirect.writeln('}');
 
-    final routerContent = '''
+    final routerContent =
+        '''
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: unnecessary_import, unused_import
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:dartvel_flutter/dartvel_flutter.dart';
+import 'config.g.dart';
+import 'dartvel_config.g.dart';
+import 'env.g.dart';
+import 'functions.g.dart';
+import 'models.g.dart';
 import 'widgets.g.dart';
 ${pageImports.join('\n')}
 ${layoutImports.join('\n')}
@@ -638,7 +647,8 @@ $routesSrc
     );
 
     // Write dartvel_config.g.dart
-    final configContent = '''
+    final configContent =
+        '''
 // GENERATED CODE - DO NOT MODIFY BY HAND
 library dartvel_client_config;
 const String dvBackendBindHost = '${esc(backendHost)}';
@@ -714,8 +724,9 @@ class DartvelRuntime {
         .map((match) => match.group(0)!)
         .where((word) => word.isNotEmpty)
         .toList();
-    final pascalName =
-        words.map((word) => word[0].toUpperCase() + word.substring(1)).join();
+    final pascalName = words
+        .map((word) => word[0].toUpperCase() + word.substring(1))
+        .join();
     final baseName = pascalName.isEmpty ? 'Generated' : pascalName;
     return '${baseName}GeneratedPage';
   }
@@ -727,6 +738,13 @@ class DartvelRuntime {
       multiLine: true,
     );
     for (final match in declarations.allMatches(source)) {
+      symbols.add(match.group(1)!);
+    }
+    final typedVariables = RegExp(
+      r'^(?:[A-Za-z_][A-Za-z0-9_<>, ?]*\s+)+([A-Za-z][A-Za-z0-9_]*)\s*(?:=|;)',
+      multiLine: true,
+    );
+    for (final match in typedVariables.allMatches(source)) {
       symbols.add(match.group(1)!);
     }
     final functions = RegExp(
@@ -748,9 +766,7 @@ class DartvelRuntime {
     final ordered = symbols.toList()..sort((a, b) => b.length - a.length);
     for (final symbol in ordered) {
       qualified = qualified.replaceAllMapped(
-        RegExp(
-          '(?<![A-Za-z0-9_\\.])${RegExp.escape(symbol)}(?![A-Za-z0-9_])',
-        ),
+        RegExp('(?<![A-Za-z0-9_\\.])${RegExp.escape(symbol)}(?![A-Za-z0-9_])'),
         (_) => '$alias.$symbol',
       );
     }
@@ -850,8 +866,10 @@ class DartvelRuntime {
   }
 
   static String _pageScaffoldSpec(String source) {
-    final match =
-        RegExp(r'@DVPage\(([^)]*)\)', dotAll: true).firstMatch(source);
+    final match = RegExp(
+      r'@DVPage\(([^)]*)\)',
+      dotAll: true,
+    ).firstMatch(source);
     if (match == null) {
       return _sourceBuildsScaffold(source)
           ? 'const DVPageScaffoldSpec(scaffold: false)'
@@ -893,8 +911,9 @@ class DartvelRuntime {
   }
 
   static bool _sourceBuildsScaffold(String source) {
-    return RegExp(r'\b(?:Scaffold|CupertinoPageScaffold)\s*\(')
-        .hasMatch(source);
+    return RegExp(
+      r'\b(?:Scaffold|CupertinoPageScaffold)\s*\(',
+    ).hasMatch(source);
   }
 
   static String? _namedStringArg(String args, String name) {
@@ -906,8 +925,9 @@ class DartvelRuntime {
   }
 
   static String? _namedEnumArg(String args, String name, String enumName) {
-    final match = RegExp('$name\\s*:\\s*($enumName\\.[A-Za-z_][A-Za-z0-9_]*)')
-        .firstMatch(args);
+    final match = RegExp(
+      '$name\\s*:\\s*($enumName\\.[A-Za-z_][A-Za-z0-9_]*)',
+    ).firstMatch(args);
     return match?.group(1);
   }
 
@@ -917,8 +937,9 @@ class DartvelRuntime {
   }
 
   static String? _namedIntArg(String args, String name) {
-    final match =
-        RegExp('$name\\s*:\\s*(0x[0-9A-Fa-f]+|[0-9]+)').firstMatch(args);
+    final match = RegExp(
+      '$name\\s*:\\s*(0x[0-9A-Fa-f]+|[0-9]+)',
+    ).firstMatch(args);
     return match?.group(1);
   }
 }
