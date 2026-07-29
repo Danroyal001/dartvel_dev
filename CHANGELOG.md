@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 Dartvel is pre-1.0. Minor versions may contain breaking changes; breaking
 changes are called out explicitly below.
 
+## 0.2.1 — 2026-07-29
+
+Packages at 0.2.1: `dartvel`, `dartvel_core`, `dartvel_flutter`, `dartvel_cli`.
+
+### Fixed
+
+- Generated private `@DVPage` expression bodies now compile when they reference
+  generated client APIs and public source support symbols.
+- The Dartvel example app no longer routes through public widget helper
+  functions for generated page inputs.
+- `dartvel --version` reports the active CLI package version instead of a stale
+  fallback.
+- CLI `db`, `ai`, `deploy`, plugin, and form generation commands now fail
+  honestly or produce concrete artifacts instead of placeholder success output.
+
+### Verified
+
+- `packages/dartvel_cli`: `dart analyze .`, focused generator/version tests.
+- `packages/dartvel_generator`: `dart analyze .`, `dart test`.
+- `examples/dartvel_example`: `flutter analyze`, `flutter test`,
+  `flutter build web`.
+
 ## 0.2.0 — 2026-07-26
 
 Packages at 0.2.0: `dartvel`, `dartvel_core`, `dartvel_flutter`, `dartvel_cli`.
