@@ -126,6 +126,64 @@ Future<List<String>> blogPaths() async => <String>['hello'];
         root.deleteSync(recursive: true);
       }
     });
+
+    test('adds public model providers for generated model pages', () async {
+      final root = await _project({
+        'models/product.dart': '''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVModel(generatePublicPages: true)
+class _Product {
+  final String slug;
+  final String title;
+  const _Product({required this.slug, required this.title});
+}
+''',
+      });
+      try {
+        final found = StaticPathsGenerator.discover(
+          root: root.path,
+          pkgName: 'shop',
+        );
+
+        expect(found, hasLength(1));
+        expect(found.single.functionName, 'ProductPublicStaticPaths');
+        expect(found.single.resolveExpression, 'Product.publicStaticPaths');
+        expect(
+          found.single.importPath,
+          'package:shop/dartvel_client/models.g.dart',
+        );
+        expect(found.single.route, '/products/:slug');
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    });
+
+    test('rejects public annotated models for generated public pages',
+        () async {
+      final root = await _project({
+        'models/product.dart': '''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVModel(generatePublicPages: true)
+class Product {
+  final String slug;
+  const Product({required this.slug});
+}
+''',
+      });
+      try {
+        expect(
+          () => StaticPathsGenerator.discover(
+            root: root.path,
+            pkgName: 'shop',
+          ),
+          throwsStateError,
+        );
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    });
   });
 
   group('render', () {
@@ -149,6 +207,28 @@ Future<List<String>> blogPaths() async => <String>['hello'];
       expect(source, contains("route: '/products/:slug',"));
       expect(source, contains('resolve: productPaths,'));
       expect(source, contains('resolveDartvelStaticPaths'));
+    });
+
+    test('emits generated model resolve expressions', () {
+      final source = StaticPathsGenerator.render(
+        providers: const [
+          StaticPathsProvider(
+            functionName: 'ProductPublicStaticPaths',
+            importPath: 'package:shop/dartvel_client/models.g.dart',
+            resolveExpression: 'Product.publicStaticPaths',
+            route: '/products/:slug',
+          ),
+        ],
+        buildId: 'test-build',
+      );
+
+      expect(
+        source,
+        contains("import 'package:shop/dartvel_client/models.g.dart';"),
+      );
+      expect(source, contains("name: 'ProductPublicStaticPaths',"));
+      expect(source, contains("route: '/products/:slug',"));
+      expect(source, contains('resolve: Product.publicStaticPaths,'));
     });
 
     test('emits a null route when none was declared', () {
@@ -276,6 +356,20 @@ class _Product {
         expect(
           content,
           contains('dataMode == DVModelPageDataMode.staleWhileRevalidate'),
+        );
+        expect(
+          content,
+          contains(
+            'static void usePublicStaticPathsResolver(',
+          ),
+        );
+        expect(
+            content,
+            contains('static Future<List<String>> '
+                'publicStaticPaths() async {'));
+        expect(
+          content,
+          contains("static const String publicPageRoute = '/products/:slug';"),
         );
       } finally {
         root.deleteSync(recursive: true);

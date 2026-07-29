@@ -27,6 +27,7 @@ class ModelGenerator {
     }
 
     final sb = StringBuffer();
+    sb.writeln("import 'dart:async';");
     sb.writeln("import 'dart:convert' as convert;");
     sb.writeln("import 'dart:math' as math;");
     sb.writeln();
@@ -183,6 +184,61 @@ class ModelGenerator {
         sb.writeln(
           '  static const ${className}PageComponent Page = ${className}PageComponent._();',
         );
+        if (generatesPublicPages) {
+          final publicPathField = _publicPathField(fields);
+          sb.writeln();
+          sb.writeln(
+            '  static FutureOr<Iterable<String>> Function()? _publicStaticPathsResolver;',
+          );
+          sb.writeln();
+          sb.writeln(
+            '  /// Registers the published-record path resolver used by static',
+          );
+          sb.writeln(
+              '  /// generation for @DVModel(generatePublicPages: true).');
+          sb.writeln(
+            '  static void usePublicStaticPathsResolver(',
+          );
+          sb.writeln(
+            '    FutureOr<Iterable<String>> Function() resolver,',
+          );
+          sb.writeln('  ) {');
+          sb.writeln('    _publicStaticPathsResolver = resolver;');
+          sb.writeln('  }');
+          sb.writeln();
+          sb.writeln(
+            '  /// Resolves public page path values for generated static paths.',
+          );
+          sb.writeln(
+              '  static Future<List<String>> publicStaticPaths() async {');
+          sb.writeln('    final resolver = _publicStaticPathsResolver;');
+          sb.writeln('    if (resolver == null) {');
+          sb.writeln('      throw StateError(');
+          sb.writeln(
+            "        'No public static paths resolver registered for $className. '",
+          );
+          sb.writeln(
+            "        'Call $className.usePublicStaticPathsResolver(...) before '",
+          );
+          sb.writeln(
+            "        'prerendering or disable @DVModel(generatePublicPages: true).',",
+          );
+          sb.writeln('      );');
+          sb.writeln('    }');
+          sb.writeln(
+              '    final values = await Future<Iterable<String>>.value(');
+          sb.writeln('      resolver(),');
+          sb.writeln('    );');
+          sb.writeln('    return values.toList(growable: false);');
+          sb.writeln('  }');
+          sb.writeln();
+          sb.writeln(
+            '  /// Route generated for public [$className] pages.',
+          );
+          sb.writeln(
+            "  static const String publicPageRoute = '/${_pluralRouteSegment(className)}/:$publicPathField';",
+          );
+        }
         sb.writeln();
         sb.writeln('  /// Generated card component for [$className].');
         sb.writeln('  static Widget Card($className model) {');
@@ -1059,5 +1115,36 @@ class ModelGenerator {
       return 'true';
     }
     return null;
+  }
+
+  static String _publicPathField(List<Map<String, String>> fields) {
+    final stringFields = fields
+        .where((field) => field['type'] == 'String')
+        .map((field) => field['name']!)
+        .toList(growable: false);
+    if (stringFields.contains('slug')) return 'slug';
+    if (stringFields.contains('id')) return 'id';
+    if (stringFields.isNotEmpty) return stringFields.first;
+    throw StateError(
+      '@DVModel(generatePublicPages: true) requires a String slug, id, or '
+      'other String field so Dartvel can generate a parameterized public '
+      'page route.',
+    );
+  }
+
+  static String _pluralRouteSegment(String className) {
+    final buffer = StringBuffer();
+    for (var index = 0; index < className.length; index += 1) {
+      final char = className[index];
+      final lower = char.toLowerCase();
+      if (index > 0 && char != lower) buffer.write('-');
+      buffer.write(lower);
+    }
+    final singular = buffer.toString();
+    if (singular.endsWith('s')) return singular;
+    if (singular.endsWith('y')) {
+      return '${singular.substring(0, singular.length - 1)}ies';
+    }
+    return '${singular}s';
   }
 }
