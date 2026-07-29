@@ -50,13 +50,14 @@ code. Per-target build status lives in `docs/build-targets.md`, where
 Implemented as of this writing: `DV.lifecycle.*` and `context.lifecycle.*`
 (read-only enum signals in `dartvel_core/src/lifecycle/`), `DV.Modules.<id>`
 (`src/modules/`), `DV.transaction(...)` with `context.afterCommit`/
-`context.compensate` (`src/transaction/`), and `@DVStaticPaths()` (discovered
-by `static_paths_generator.dart` into `dartvel_client/static_paths.g.dart`).
+`context.compensate` (`src/transaction/`), `@DVStaticPaths()` (discovered by
+`static_paths_generator.dart` into `dartvel_client/static_paths.g.dart`), and
+generated `Model.Page(...)` data-mode APIs (`.async`, `.signal`, `.fromId`) in
+`model_generator.dart`.
 
-Still **not** implemented: `Model.Page` data-mode rendering
-(`.async`/`.signal`/`.fromId`) and `@DVModel(generatePublicPages: true)`. The
-`DVModelPageDataMode` enum and both annotation parameters exist and are
-accepted, but no generator acts on them yet — do not describe them as working.
+Still **not** implemented: automatic public page/static-path generation from
+`@DVModel(generatePublicPages: true)`. The annotation parameter exists and is
+accepted, but no generator consumes it yet — do not describe it as working.
 
 ## Public API Shape Rules
 
