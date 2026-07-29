@@ -196,32 +196,22 @@ class _User {
 Render custom-designed form layouts with auto-generated controls, validation states, and submit triggers:
 ```dart
 // lib/pages/index.page.dart
-import 'package:flutter/material.dart';
-import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:your_app/dartvel_client/models.g.dart';
+import 'package:your_app/dartvel_client/dartvel_client.dart';
 
 @DVPage()
-@DVFunctionalWidget()
-Widget indexPage(BuildContext context) {
+Widget _indexPage(BuildContext context) {
   return DVForm<User>.builder(
     (formControls) {
       final userControls = formControls as UserFormControls;
-      return Column(
-        children: [
-          TextFormField(
-            initialValue: userControls.name,
-            decoration: const InputDecoration(labelText: 'Name'),
+      return DVBox.list([
+        DVText(userControls.name).modifier(DVModifier().input()),
+        DVText(userControls.email).modifier(DVModifier().input()),
+        DVText('Save').modifier(
+          DVModifier().onPressed(
+            userControls.emailIsValid ? userControls.submit : null,
           ),
-          TextFormField(
-            initialValue: userControls.email,
-            decoration: const InputDecoration(labelText: 'Email'),
-          ),
-          ElevatedButton(
-            onPressed: userControls.emailIsValid ? () => userControls.submit() : null,
-            child: const Text('Save'),
-          ),
-        ],
-      );
+        ),
+      ]);
     },
     const User(name: 'John Doe', email: 'john@example.com'),
   );
@@ -233,9 +223,10 @@ Write plain Dart functions that are compiled into a high-performance Rust runtim
 ```dart
 // lib/backend/functions/hello.get.dart
 import 'package:dartvel_core/dartvel.dart';
+import 'package:your_app/dartvel_client/dartvel_client.dart';
 
 @DVBackendFunction()
-Future<User> getUser(String id) async {
+Future<User> _getUser(String id) async {
   return User(name: 'User $id', email: 'user$id@example.com');
 }
 ```
