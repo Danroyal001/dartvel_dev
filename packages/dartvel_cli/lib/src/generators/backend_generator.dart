@@ -948,10 +948,12 @@ class DartvelClient {
         final name = match.group(1)!;
         if (name.startsWith('_')) {
           throw StateError(
-            'Dartvel backend function inputs must be public source '
-            'declarations. Rename $name to ${name.substring(1)} so generated '
-            'backend routes and dartvel_client APIs can wrap it without '
-            'source-adjacent part files. File: $rel',
+            'Dartvel backend function inputs are private in the spec, but '
+            'this generator still needs public function source while private '
+            'wrappers are being implemented. Rename $name to '
+            '${name.substring(1)} for this build, and reference only the '
+            'generated backend API from dartvel_client/dartvel_client.dart. '
+            'File: $rel',
           );
         }
         break;
@@ -1061,9 +1063,11 @@ class DartvelClient {
       final name = match.group(3)!;
       if (name.startsWith('_')) {
         throw StateError(
-          'Dartvel AI tool inputs must be public source declarations. Rename '
-          '$name to ${name.substring(1)} so generated tool metadata can point '
-          'at the source without source-adjacent part files.',
+          'Dartvel AI tool inputs are private in the spec, but this generator '
+          'still needs public tool source while private wrappers are being '
+          'implemented. Rename $name to ${name.substring(1)} for this build, '
+          'and reference only generated tool APIs from '
+          'dartvel_client/dartvel_client.dart.',
         );
       }
       entriesByName[name] = _AIToolEntry(
@@ -1094,10 +1098,11 @@ class DartvelClient {
       final name = match.group(1)!;
       if (name.startsWith('_')) {
         throw StateError(
-          'Dartvel backend function inputs must be public source declarations. '
-          'Rename $name to ${name.substring(1)} so generated backend and AI '
-          'tool metadata can point at the source without source-adjacent part '
-          'files.',
+          'Dartvel backend function inputs are private in the spec, but this '
+          'generator still needs public function source while private wrappers '
+          'are being implemented. Rename $name to ${name.substring(1)} for '
+          'this build, and reference only generated backend and AI APIs from '
+          'dartvel_client/dartvel_client.dart.',
         );
       }
       if (declaration.contains('@DVAIHidden') ||

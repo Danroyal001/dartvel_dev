@@ -234,7 +234,7 @@ Widget _indexPage(BuildContext context) => const SizedBox.shrink();
           isA<StateError>().having(
             (error) => error.message,
             'message',
-            contains('page inputs must be public source declarations'),
+            contains('page inputs are private in the spec'),
           ),
         ),
       );
