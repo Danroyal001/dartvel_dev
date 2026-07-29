@@ -29,6 +29,8 @@ class ModelGenerator {
     final sb = StringBuffer();
     sb.writeln("import 'dart:async';");
     sb.writeln("import 'dart:convert' as convert;");
+    sb.writeln("import 'dart:core';");
+    sb.writeln("import 'dart:core' as core;");
     sb.writeln("import 'dart:math' as math;");
     sb.writeln();
     sb.writeln("import 'package:flutter/widgets.dart';");
@@ -212,7 +214,7 @@ class ModelGenerator {
             '  /// Resolves public page path values for generated static paths.',
           );
           sb.writeln(
-              '  static Future<List<String>> publicStaticPaths() async {');
+              '  static Future<core.List<String>> publicStaticPaths() async {');
           sb.writeln('    final resolver = _publicStaticPathsResolver;');
           sb.writeln('    if (resolver != null) {');
           sb.writeln(
