@@ -259,6 +259,37 @@ void main() {
       stdout.writeln('✅ Imports validated');
     });
 
+    test('application source imports only the dartvel client barrel', () {
+      final libDir = Directory('examples/dartvel_example/lib');
+      final sourceFiles = libDir
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((file) => file.path.endsWith('.dart'))
+          .where((file) => !file.path.contains('/dartvel_client/'))
+          .toList();
+
+      final siblingImport = RegExp(
+        r"dartvel_client/(?:ai_tools|config|dartvel_config|env|functions|models|router|schedules|static_paths|widgets)\.g\.dart",
+      );
+      final barrelImport = RegExp(r'dartvel_client/dartvel_client\.dart');
+
+      var importsBarrel = false;
+      for (final file in sourceFiles) {
+        final content = file.readAsStringSync();
+        expect(
+          siblingImport.hasMatch(content),
+          isFalse,
+          reason:
+              '${file.path} must import dartvel_client.dart, not generated siblings.',
+        );
+        importsBarrel = importsBarrel || barrelImport.hasMatch(content);
+      }
+
+      expect(importsBarrel, isTrue,
+          reason: 'Example app should use the generated client barrel.');
+      stdout.writeln('✅ Application imports use dartvel_client.dart only');
+    });
+
     test('total lines of generated code is reasonable', () async {
       final result = await Process.run(
         'bash',
