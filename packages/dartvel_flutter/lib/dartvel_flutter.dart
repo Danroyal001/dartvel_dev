@@ -883,10 +883,11 @@ extension DVSignalContextX on BuildContext {
     return DVSignal<T>(container, matchedProvider, element);
   }
 
-  T global<T>() {
+  T global<T>({String namespace = ''}) {
+    final key = _DVGlobalKey(namespace, T);
     final provider = _globalProviders.putIfAbsent(
-      T,
-      () => StateProvider<Object?>((ref) => DV.global<T>()),
+      key,
+      () => StateProvider<Object?>((ref) => DV.global<T>(null, namespace)),
     ) as StateProvider<T>;
 
     final container = ProviderScope.containerOf(this);
@@ -905,7 +906,23 @@ extension DVSignalContextX on BuildContext {
   }
 }
 
-final _globalProviders = <Type, StateProvider<Object?>>{};
+final _globalProviders = <_DVGlobalKey, StateProvider<Object?>>{};
+
+class _DVGlobalKey {
+  const _DVGlobalKey(this.namespace, this.type);
+
+  final String namespace;
+  final Type type;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _DVGlobalKey &&
+      other.namespace == namespace &&
+      other.type == type;
+
+  @override
+  int get hashCode => Object.hash(namespace, type);
+}
 
 extension DVModelSignalX<T> on T {
   DVSignal<T> signal(BuildContext context) {
@@ -2990,23 +3007,25 @@ class DVObservabilityAndLogging {
 }
 
 class DV {
-  static final _globals = <Type, Object>{};
+  static final _globals = <_DVGlobalKey, Object>{};
   static ProviderContainer? container;
 
-  static T global<T>([T? instance]) {
+  static T global<T>([T? instance, String namespace = '']) {
+    final key = _DVGlobalKey(namespace, T);
     if (instance != null) {
-      _globals[T] = instance as Object;
-      final provider = _globalProviders[T];
+      _globals[key] = instance as Object;
+      final provider = _globalProviders[key];
       if (provider != null && container != null) {
         container!.read(provider.notifier).state = instance;
       } else if (provider == null) {
-        _globalProviders[T] = StateProvider<Object?>((ref) => instance);
+        _globalProviders[key] = StateProvider<Object?>((ref) => instance);
       }
       return instance;
     }
-    final inst = _globals[T];
+    final inst = _globals[key];
     if (inst == null) {
-      throw StateError('Global instance of type $T not registered');
+      final scope = namespace.isEmpty ? 'app' : namespace;
+      throw StateError('Global instance of type $T not registered in $scope');
     }
     return inst as T;
   }
@@ -3103,8 +3122,7 @@ class DV {
       );
 
   /// The resolved backend base URL for the current build/target.
-  static String get baseUrl =>
-      (_baseUrlResolver ?? _runtimeNotConfigured())();
+  static String get baseUrl => (_baseUrlResolver ?? _runtimeNotConfigured())();
 
   /// The API base path segment (e.g. `/api`).
   static String get apiBasePath =>
