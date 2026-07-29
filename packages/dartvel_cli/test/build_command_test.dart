@@ -168,6 +168,7 @@ void main() {
       expect(allBuildPlatforms, contains('tizen'));
       expect(allBuildPlatforms, contains('sony-elinux'));
       expect(allBuildPlatforms, contains('webos'));
+      expect(allBuildPlatforms, contains('vscode'));
       expect(allBuildPlatforms, isNot(contains('sony-elinux-iso')));
       expect(allBuildPlatforms, isNot(contains('sony-elinux-img')));
     });
@@ -195,6 +196,7 @@ void main() {
       expect(resolve(['tizen']), 'tizen');
       expect(resolve(['webos']), 'webos');
       expect(resolve(['sony-elinux']), 'sony-elinux');
+      expect(resolve(['vscode']), 'vscode');
     });
 
     test('accepts alias and distribution target names positionally', () {
@@ -338,6 +340,43 @@ void main() {
       expect(processInvocations, <String>[
         'dart run dartvel_cli:dartvel routes',
         'dart run build_runner build --delete-conflicting-outputs',
+      ]);
+    });
+
+    test('builds vscode extension after dartvel generation', () async {
+      final temp = Directory.systemTemp.createTempSync('dartvel_build_test_');
+      final oldCurrent = Directory.current;
+      final processInvocations = <String>[];
+      final command = BuildCommand(
+        preflight: (String platform, {bool? autoInstall}) async => true,
+        processRun: (
+          String executable,
+          List<String> arguments, {
+          String? workingDirectory,
+          bool runInShell = false,
+        }) async {
+          processInvocations.add(<String>[executable, ...arguments].join(' '));
+          return ProcessResult(0, 0, '', '');
+        },
+        hasBuildRunner: (String root) => false,
+      );
+      final runner = CommandRunner<void>('dartvel', 'test')
+        ..addCommand(command);
+
+      try {
+        Directory.current = temp;
+        await runner.run(<String>['build', 'vscode']);
+      } finally {
+        Directory.current = oldCurrent;
+        temp.deleteSync(recursive: true);
+      }
+
+      expect(processInvocations, <String>[
+        'dart run dartvel_cli:dartvel routes',
+        'dart run flutter_vscode:generate_vscode_extension',
+        'flutter pub get',
+        'npm install',
+        'npm run compile',
       ]);
     });
   });

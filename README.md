@@ -124,6 +124,7 @@ dartvel build web
 dartvel build tizen        # alias: dartvel build tpk
 dartvel build sony-elinux  # also: sony-elinux-iso, sony-elinux-img
 dartvel build webos
+dartvel build vscode       # VS Code extension host + Flutter webview
 ```
 
 Verified on Linux x64 against `examples/dartvel_example`. "Verified" means the command was run and the artifact inspected:
@@ -135,6 +136,7 @@ Verified on Linux x64 against `examples/dartvel_example`. "Verified" means the c
 | `tizen` / `tpk` | ✅ Signed 9.3MB TPK containing the engine and assets |
 | `sony-elinux` | ❌ Blocked — the embedder's newest Flutter ships Dart 3.7.2, below Dartvel's ≥3.9 floor |
 | `webos` | ⚠️ Embedder installs; a real build is not yet demonstrated |
+| `vscode` | ⚠️ Target wired — requires `flutter_vscode`, npm, and extension artifact verification |
 
 Flutter has **no desktop cross-compilation** — Windows needs Windows, the Apple targets need macOS. `dartvel build` skips what the host cannot build instead of failing the whole run.
 
@@ -164,6 +166,7 @@ Embedded/TV targets run through the vendor's dedicated Flutter embedder, never p
 | `tizen` | [Danroyal001/flutter-tizen](https://github.com/Danroyal001/flutter-tizen) | [flutter-tizen/flutter-tizen](https://github.com/flutter-tizen/flutter-tizen) | Samsung |
 | `sony-elinux` | [Danroyal001/flutter-elinux](https://github.com/Danroyal001/flutter-elinux) | [sony/flutter-elinux](https://github.com/sony/flutter-elinux) | Sony |
 | `webos` | [Danroyal001/flutter-webos](https://github.com/Danroyal001/flutter-webos) | [lg-flutter-webos/flutter-webos](https://github.com/lg-flutter-webos/flutter-webos) | LG |
+| `vscode` | [Danroyal001/flutter-vscode](https://github.com/Danroyal001/flutter-vscode) | [SlowGen/flutter_vscode](https://github.com/SlowGen/flutter_vscode) | VS Code |
 
 These embedders download a *vendor-built* Flutter engine per version, so a target can lag behind Dartvel's Flutter — and a version-pin bump alone cannot fix that. For Sony eLinux the binding constraint is the opposite direction and worth stating precisely: the embedder's Flutter is too **old** for Dartvel's own dependency floor. Details and evidence are in [docs/build-targets.md](docs/build-targets.md).
 

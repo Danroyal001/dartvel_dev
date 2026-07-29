@@ -58,6 +58,17 @@ List<ToolRequirement> toolRequirementsFor(String platform, {String home = ''}) {
       // Flutter's own web toolchain; nothing extra to install.
       return const <ToolRequirement>[];
 
+    case 'vscode':
+      return const <ToolRequirement>[
+        ToolRequirement(
+          executable: 'npm',
+          name: 'Node.js/npm',
+          installHint:
+              'Install Node.js with npm. Dartvel uses npm to install and '
+              'compile the generated VS Code extension host package.',
+        ),
+      ];
+
     case 'android':
     case 'fireos':
       return const <ToolRequirement>[
@@ -90,7 +101,11 @@ List<ToolRequirement> toolRequirementsFor(String platform, {String home = ''}) {
           name: 'Ninja',
           installHint: 'sudo apt-get install ninja-build',
           installCommand: <String>[
-            'sudo', 'apt-get', 'install', '-y', 'ninja-build',
+            'sudo',
+            'apt-get',
+            'install',
+            '-y',
+            'ninja-build',
           ],
         ),
         ToolRequirement(
@@ -98,7 +113,12 @@ List<ToolRequirement> toolRequirementsFor(String platform, {String home = ''}) {
           name: 'pkg-config and GTK 3 headers',
           installHint: 'sudo apt-get install pkg-config libgtk-3-dev',
           installCommand: <String>[
-            'sudo', 'apt-get', 'install', '-y', 'pkg-config', 'libgtk-3-dev',
+            'sudo',
+            'apt-get',
+            'install',
+            '-y',
+            'pkg-config',
+            'libgtk-3-dev',
           ],
         ),
       ];
@@ -121,8 +141,7 @@ List<ToolRequirement> toolRequirementsFor(String platform, {String home = ''}) {
         ToolRequirement(
           executable: 'xcodebuild',
           name: 'Xcode',
-          installHint:
-              'Install Xcode from the App Store, then run '
+          installHint: 'Install Xcode from the App Store, then run '
               '`sudo xcode-select --install`.',
         ),
       ];
@@ -136,7 +155,10 @@ List<ToolRequirement> toolRequirementsFor(String platform, {String home = ''}) {
               'git clone https://github.com/Danroyal001/flutter-tizen.git '
               'and add its bin/ to PATH.',
           installCommand: <String>[
-            'git', 'clone', '--depth', '1',
+            'git',
+            'clone',
+            '--depth',
+            '1',
             'https://github.com/Danroyal001/flutter-tizen.git',
             '$root/flutter-tizen',
           ],
@@ -163,7 +185,10 @@ List<ToolRequirement> toolRequirementsFor(String platform, {String home = ''}) {
               'git clone https://github.com/Danroyal001/flutter-elinux.git '
               'and add its bin/ to PATH.',
           installCommand: <String>[
-            'git', 'clone', '--depth', '1',
+            'git',
+            'clone',
+            '--depth',
+            '1',
             'https://github.com/Danroyal001/flutter-elinux.git',
             '$root/flutter-elinux',
           ],
@@ -180,7 +205,10 @@ List<ToolRequirement> toolRequirementsFor(String platform, {String home = ''}) {
               'git clone https://github.com/Danroyal001/flutter-webos.git '
               'and add its bin/ to PATH.',
           installCommand: <String>[
-            'git', 'clone', '--depth', '1',
+            'git',
+            'clone',
+            '--depth',
+            '1',
             'https://github.com/Danroyal001/flutter-webos.git',
             '$root/flutter-webos',
           ],
@@ -191,7 +219,10 @@ List<ToolRequirement> toolRequirementsFor(String platform, {String home = ''}) {
           name: 'webOS CLI (ares)',
           installHint: 'npm install -g @webos-tools/cli',
           installCommand: <String>[
-            'npm', 'install', '-g', '@webos-tools/cli',
+            'npm',
+            'install',
+            '-g',
+            '@webos-tools/cli',
           ],
         ),
       ];
@@ -271,8 +302,8 @@ AutoInstallDecision decideAutoInstall({
 bool isExecutableOnPath(String executable) {
   try {
     final locator = Platform.isWindows ? 'where' : 'which';
-    final result = Process.runSync(locator, <String>[executable],
-        runInShell: true);
+    final result =
+        Process.runSync(locator, <String>[executable], runInShell: true);
     return result.exitCode == 0;
   } catch (_) {
     return false;
