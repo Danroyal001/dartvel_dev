@@ -467,6 +467,7 @@ class BuildCommand extends Command<void> {
   Future<_PlatformBuildResult> _buildVSCodeExtension(String root) async {
     Logger.log('');
     Logger.log('🔨 Building for vscode...');
+    final buildStartedAt = DateTime.now();
 
     if (!hasPubDependency(root, 'flutter_vscode')) {
       Logger.log(
@@ -506,7 +507,7 @@ class BuildCommand extends Command<void> {
       }
     }
 
-    final artifacts = validateVSCodeArtifacts(root);
+    final artifacts = validateVSCodeArtifacts(root, since: buildStartedAt);
     if (!artifacts.isValid) {
       Logger.log('❌ vscode build did not produce required artifacts.');
       for (final missing in artifacts.missing) {
@@ -682,25 +683,49 @@ class VSCodeArtifactValidation {
   }
 }
 
-VSCodeArtifactValidation validateVSCodeArtifacts(String root) {
+VSCodeArtifactValidation validateVSCodeArtifacts(String root,
+    {DateTime? since}) {
   return VSCodeArtifactValidation(
     hasExtensionHostOutput: _containsJavaScriptFile(
           Directory(p.join(root, 'out')),
+          since: since,
         ) ||
-        _containsJavaScriptFile(Directory(p.join(root, 'dist'))),
-    hasFlutterBootstrap:
-        File(p.join(root, 'build', 'web', 'flutter_bootstrap.js')).existsSync(),
-    hasFlutterAssets:
-        Directory(p.join(root, 'build', 'web', 'assets')).existsSync(),
+        _containsJavaScriptFile(Directory(p.join(root, 'dist')), since: since),
+    hasFlutterBootstrap: _existsAndIsFresh(
+      File(p.join(root, 'build', 'web', 'flutter_bootstrap.js')),
+      since: since,
+    ),
+    hasFlutterAssets: _directoryExistsAndIsFresh(
+      Directory(p.join(root, 'build', 'web', 'assets')),
+      since: since,
+    ),
   );
 }
 
-bool _containsJavaScriptFile(Directory directory) {
+bool _containsJavaScriptFile(Directory directory, {DateTime? since}) {
   if (!directory.existsSync()) return false;
   return directory
       .listSync(recursive: true, followLinks: false)
       .whereType<File>()
-      .any((file) => file.path.endsWith('.js'));
+      .any((file) => file.path.endsWith('.js') && _isFresh(file, since));
+}
+
+bool _directoryExistsAndIsFresh(Directory directory, {DateTime? since}) {
+  if (!directory.existsSync()) return false;
+  if (since == null) return true;
+  return directory
+      .listSync(recursive: true, followLinks: false)
+      .whereType<File>()
+      .any((file) => _isFresh(file, since));
+}
+
+bool _existsAndIsFresh(File file, {DateTime? since}) {
+  return file.existsSync() && _isFresh(file, since);
+}
+
+bool _isFresh(FileSystemEntity entity, DateTime? since) {
+  if (since == null) return true;
+  return !entity.statSync().modified.isBefore(since);
 }
 
 /// Resolves the embedder invocation for an embedded platform, or `null` if the

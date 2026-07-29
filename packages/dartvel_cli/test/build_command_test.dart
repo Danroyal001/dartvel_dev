@@ -275,7 +275,9 @@ void main() {
     test('requires extension JavaScript and Flutter webview assets', () {
       final temp = Directory.systemTemp.createTempSync('dartvel_vscode_test_');
       try {
-        var validation = validateVSCodeArtifacts(temp.path);
+        final buildStartedAt = DateTime.now();
+        var validation =
+            validateVSCodeArtifacts(temp.path, since: buildStartedAt);
         expect(validation.isValid, isFalse);
         expect(
           validation.missing,
@@ -289,12 +291,49 @@ void main() {
         Directory('${temp.path}/out').createSync();
         File('${temp.path}/out/extension.js').writeAsStringSync('compiled');
         Directory('${temp.path}/build/web/assets').createSync(recursive: true);
+        File('${temp.path}/build/web/assets/AssetManifest.json')
+            .writeAsStringSync('{}');
         File('${temp.path}/build/web/flutter_bootstrap.js')
             .writeAsStringSync('boot');
 
-        validation = validateVSCodeArtifacts(temp.path);
+        validation = validateVSCodeArtifacts(temp.path, since: buildStartedAt);
         expect(validation.isValid, isTrue);
         expect(validation.missing, isEmpty);
+      } finally {
+        temp.deleteSync(recursive: true);
+      }
+    });
+
+    test('rejects stale artifacts from a previous build', () {
+      final temp = Directory.systemTemp.createTempSync('dartvel_vscode_test_');
+      try {
+        Directory('${temp.path}/out').createSync();
+        final extension = File('${temp.path}/out/extension.js')
+          ..writeAsStringSync('old');
+        Directory('${temp.path}/build/web/assets').createSync(recursive: true);
+        final asset = File('${temp.path}/build/web/assets/AssetManifest.json')
+          ..writeAsStringSync('{}');
+        final bootstrap = File('${temp.path}/build/web/flutter_bootstrap.js')
+          ..writeAsStringSync('boot');
+        final oldTime = DateTime(2000);
+        extension.setLastModifiedSync(oldTime);
+        asset.setLastModifiedSync(oldTime);
+        bootstrap.setLastModifiedSync(oldTime);
+
+        final validation = validateVSCodeArtifacts(
+          temp.path,
+          since: DateTime(2026),
+        );
+
+        expect(validation.isValid, isFalse);
+        expect(
+          validation.missing,
+          containsAll(<String>[
+            'compiled extension host JavaScript under out/ or dist/',
+            'build/web/flutter_bootstrap.js',
+            'build/web/assets/',
+          ]),
+        );
       } finally {
         temp.deleteSync(recursive: true);
       }
@@ -395,6 +434,8 @@ void main() {
             Directory('$root/out').createSync(recursive: true);
             File('$root/out/extension.js').writeAsStringSync('compiled');
             Directory('$root/build/web/assets').createSync(recursive: true);
+            File('$root/build/web/assets/AssetManifest.json')
+                .writeAsStringSync('{}');
             File('$root/build/web/flutter_bootstrap.js')
                 .writeAsStringSync('boot');
           }
