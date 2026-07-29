@@ -176,7 +176,19 @@ Future<void> main() async {
         flutterArgs.addAll(['--web-hostname', webHostname]);
       }
       flutterArgs.addAll(['--web-port', webPort.toString()]);
-      Logger.log('Dartvel web app will run at http://localhost:$webPort');
+      Logger.log('Dartvel web-server device selected.');
+      Logger.log('Dartvel web app local URL: http://localhost:$webPort');
+      final forwardedHost = Platform.environment['CODESPACE_NAME'];
+      final forwardedDomain =
+          Platform.environment['GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN'];
+      if (forwardedHost != null &&
+          forwardedHost.isNotEmpty &&
+          forwardedDomain != null &&
+          forwardedDomain.isNotEmpty) {
+        Logger.log(
+          'Dartvel web app forwarded URL: https://$forwardedHost-$webPort.$forwardedDomain',
+        );
+      }
     }
     if (argResults?['verbose'] == true) flutterArgs.add('-v');
 
