@@ -124,15 +124,27 @@ class RouterBuilder implements Builder {
         continue;
       }
       final m = RegExp(
-        r'(?:@DVPage\([^)]*\)\s*)?class\s+([A-Za-z_][A-Za-z0-9_]*)\s+extends\s+(DartvelPage|DVClassWidget)',
+        r'(?:@DVPage\([^)]*\)\s*)?(?:@pragma\([^)]*\)\s*)*class\s+([A-Za-z_][A-Za-z0-9_]*)\s+extends\s+(DartvelPage|DVClassWidget)',
       ).firstMatch(src);
       String className;
+      String publicName;
       bool isFunctional = false;
+      String? pageExpressionBody;
+      Set<String> pageSourceSymbols = const <String>{};
       if (m != null) {
         className = m.group(1)!;
+        if (className.startsWith('_')) {
+          throw StateError(
+            'Dartvel private class page input $className in $path requires '
+            'generated class body lowering before it can be emitted without '
+            'per-source part files. Use a private expression-bodied @DVPage '
+            'function for this generator pass.',
+          );
+        }
+        publicName = className;
       } else {
         final mf = RegExp(
-                r'@DVPage\([^)]*\)\s*(?:@DVFunctionalWidget\(\)\s*)?Widget\s+([A-Za-z_][A-Za-z0-9_]*)\(')
+                r'@DVPage\([^)]*\)\s*(?:@pragma\([^)]*\)\s*)*(?:@DVFunctionalWidget\(\)\s*)?Widget\s+([A-Za-z_][A-Za-z0-9_]*)\(')
             .firstMatch(src);
         if (mf == null) {
           log.warning(
@@ -141,6 +153,30 @@ class RouterBuilder implements Builder {
           continue;
         }
         className = mf.group(1)!;
+        if (className.startsWith('_')) {
+          final openParen = mf.end - 1;
+          final closeParen = _matchingParen(src, openParen);
+          if (closeParen == -1) {
+            throw StateError(
+              'Dartvel private page input $className in $path has an invalid '
+              'parameter list.',
+            );
+          }
+          final expressionBody = _expressionBodyAfter(src, closeParen);
+          if (expressionBody == null) {
+            throw StateError(
+              'Dartvel private page input $className in $path must use an '
+              'expression body for this generator pass, for example '
+              'Widget $className(...) => DVBox(...). Block-bodied private '
+              'pages require generated body lowering before they can be '
+              'emitted without per-source part files.',
+            );
+          }
+          pageExpressionBody = expressionBody;
+          pageSourceSymbols = _topLevelSourceSymbols(src);
+        }
+        publicName =
+            className.startsWith('_') ? className.substring(1) : className;
         isFunctional = true;
       }
       pageImports.add("import '$importPath' deferred as p$i;");
@@ -184,11 +220,14 @@ class RouterBuilder implements Builder {
       pageEntries.add({
         'i': '$i',
         'class': className,
+        'publicName': publicName,
         'generatedWidget': _generatedPageWidgetName(className),
         'pageScaffold': _pageScaffoldSpec(src),
         'route': route,
         'dir': dir,
         'isFunctional': isFunctional,
+        if (pageExpressionBody != null) 'expressionBody': pageExpressionBody,
+        if (pageSourceSymbols.isNotEmpty) 'sourceSymbols': pageSourceSymbols,
         if (loadingAlias != null) 'loadingAlias': loadingAlias,
         if (errorAlias != null) 'errorAlias': errorAlias,
       });
@@ -390,10 +429,25 @@ ${(() {
         )
         .join(',\n');
 
-    final generatedPageWidgets = pageEntries
-        .map(
-          (e) => '''
-/// Deferred generated widget wrapper for [p${e['i']}.${e['class']}].
+    final generatedPageWidgets = pageEntries.map(
+      (e) {
+        final expressionBody = e['expressionBody'] as String?;
+        final sourceSymbols =
+            (e['sourceSymbols'] as Set<String>?) ?? const <String>{};
+        final buildReturn = expressionBody == null
+            ? '  return ${e['isFunctional'] == true ? 'p${e['i']}.${e['publicName']}(context)' : 'p${e['i']}.${e['publicName']}()'};'
+            : _indentGeneratedReturn(
+                _qualifySourceSymbols(
+                  expressionBody,
+                  'p${e['i']}',
+                  sourceSymbols,
+                ),
+              );
+        final sourceDoc = expressionBody == null
+            ? '/// Deferred generated widget wrapper for [p${e['i']}.${e['publicName']}].'
+            : '/// Deferred generated widget wrapper for a private @DVPage input.';
+        return '''
+$sourceDoc
 class ${e['generatedWidget']} extends DartvelPage {
   const ${e['generatedWidget']}({super.key});
 
@@ -420,7 +474,7 @@ ${e['isFunctional'] == true ? '''  @override
     Map<String, String> query,
   ) async {
     await loadLibrary();
-    return p${e['i']}.${e['class']}().loadData(params, query);
+    return p${e['i']}.${e['publicName']}().loadData(params, query);
   }
 
   @override
@@ -437,14 +491,14 @@ ${e['isFunctional'] == true ? '''  @override
         if (snapshot.connectionState != ConnectionState.done) {
           return const DvDefaultLoading();
         }
-        return ${e['isFunctional'] == true ? 'p${e['i']}.${e['class']}(context)' : 'p${e['i']}.${e['class']}()'};
+${buildReturn.split('\n').map((line) => '        $line').join('\n')}
       },
     );
   }
 }
-''',
-        )
-        .join('\n');
+''';
+      },
+    ).join('\n');
 
     // Global redirect
     final sbRedirect = StringBuffer();
@@ -471,10 +525,12 @@ ${e['isFunctional'] == true ? '''  @override
 
     final routerContent = '''
 // GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: unnecessary_import, unused_import
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:dartvel_flutter/dartvel_flutter.dart';
+import 'widgets.g.dart';
 ${pageImports.join('\n')}
 ${layoutImports.join('\n')}
 ${guardImports.join('\n')}
@@ -663,6 +719,135 @@ class DartvelRuntime {
         words.map((word) => word[0].toUpperCase() + word.substring(1)).join();
     final baseName = pascalName.isEmpty ? 'Generated' : pascalName;
     return '${baseName}GeneratedPage';
+  }
+
+  static Set<String> _topLevelSourceSymbols(String source) {
+    final symbols = <String>{};
+    final declarations = RegExp(
+      r'^(?:final|const|var)\s+(?:(?:[A-Za-z_][A-Za-z0-9_<>, ?]*)\s+)?([A-Za-z][A-Za-z0-9_]*)\s*=',
+      multiLine: true,
+    );
+    for (final match in declarations.allMatches(source)) {
+      symbols.add(match.group(1)!);
+    }
+    final functions = RegExp(
+      r'^(?:[A-Za-z_][A-Za-z0-9_<>, ?]*\s+)+([A-Za-z][A-Za-z0-9_]*)\s*\(',
+      multiLine: true,
+    );
+    for (final match in functions.allMatches(source)) {
+      symbols.add(match.group(1)!);
+    }
+    return symbols;
+  }
+
+  static String _qualifySourceSymbols(
+    String expression,
+    String alias,
+    Set<String> symbols,
+  ) {
+    var qualified = expression;
+    final ordered = symbols.toList()..sort((a, b) => b.length - a.length);
+    for (final symbol in ordered) {
+      qualified = qualified.replaceAllMapped(
+        RegExp(
+          '(?<![A-Za-z0-9_\\.])${RegExp.escape(symbol)}(?![A-Za-z0-9_])',
+        ),
+        (_) => '$alias.$symbol',
+      );
+    }
+    return qualified;
+  }
+
+  static String? _expressionBodyAfter(String source, int closeParen) {
+    final bodyStart = _skipWhitespace(source, closeParen + 1);
+    if (bodyStart + 1 >= source.length ||
+        source[bodyStart] != '=' ||
+        source[bodyStart + 1] != '>') {
+      return null;
+    }
+    final semicolon = _findStatementEnd(source, bodyStart + 2);
+    if (semicolon == -1) return null;
+    return source.substring(bodyStart + 2, semicolon).trim();
+  }
+
+  static int _matchingParen(String source, int openParen) {
+    int depth = 0;
+    for (int index = openParen; index < source.length; index++) {
+      final char = source[index];
+      if (char == '(') depth++;
+      if (char == ')') {
+        depth--;
+        if (depth == 0) return index;
+      }
+    }
+    return -1;
+  }
+
+  static int _skipWhitespace(String source, int start) {
+    int index = start;
+    while (index < source.length && source[index].trim().isEmpty) {
+      index += 1;
+    }
+    return index;
+  }
+
+  static int _findStatementEnd(String source, int start) {
+    int angleDepth = 0;
+    int parenDepth = 0;
+    int bracketDepth = 0;
+    int braceDepth = 0;
+    String? quote;
+    var escaped = false;
+    for (int index = start; index < source.length; index++) {
+      final char = source[index];
+      if (quote != null) {
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (char == r'\') {
+          escaped = true;
+          continue;
+        }
+        if (char == quote) quote = null;
+        continue;
+      }
+      if (char == "'" || char == '"') {
+        quote = char;
+        continue;
+      }
+      if (char == '<') angleDepth += 1;
+      if (char == '>' && angleDepth > 0) angleDepth -= 1;
+      if (char == '(') parenDepth += 1;
+      if (char == ')' && parenDepth > 0) parenDepth -= 1;
+      if (char == '[') bracketDepth += 1;
+      if (char == ']' && bracketDepth > 0) bracketDepth -= 1;
+      if (char == '{') braceDepth += 1;
+      if (char == '}' && braceDepth > 0) braceDepth -= 1;
+      if (char == ';' &&
+          angleDepth == 0 &&
+          parenDepth == 0 &&
+          bracketDepth == 0 &&
+          braceDepth == 0) {
+        return index;
+      }
+    }
+    return -1;
+  }
+
+  static String _indentGeneratedReturn(String expression) {
+    final normalized = expression.trim();
+    if (!normalized.contains('\n')) return '  return $normalized;';
+    final lines = normalized.split('\n');
+    final buffer = StringBuffer('  return ${lines.first.trimRight()}\n');
+    for (int index = 1; index < lines.length; index += 1) {
+      final suffix = index == lines.length - 1 ? ';' : '';
+      buffer.writeln('  ${lines[index].trimRight()}$suffix');
+    }
+    final generated = buffer.toString();
+    return generated.endsWith('\n')
+        ? generated.substring(0, generated.length - 1)
+        : generated;
   }
 
   static String _pageScaffoldSpec(String source) {
