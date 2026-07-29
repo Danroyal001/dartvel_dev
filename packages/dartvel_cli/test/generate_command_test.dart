@@ -29,6 +29,7 @@ void main() {
       ).readAsStringSync();
 
       expect(source, contains('@DVPage()'));
+      expect(source, contains("@pragma('vm:entry-point')"));
       expect(source, isNot(contains('@DVFunctionalWidget()')));
       expect(
         source,
@@ -39,6 +40,30 @@ void main() {
       root.deleteSync(recursive: true);
     }
   });
+
+  test(
+    'model template emits a private schema input without lint warnings',
+    () async {
+      final root = await Directory.systemTemp.createTemp(
+        'dartvel_generate_model_',
+      );
+      try {
+        Directory.current = root.path;
+        await _runGenerate(<String>['generate', 'model', 'account']);
+
+        final source = File(
+          p.join(root.path, 'lib', 'models', 'account.dart'),
+        ).readAsStringSync();
+
+        expect(source, contains('// ignore_for_file: unused_element'));
+        expect(source, contains('@DVModel()'));
+        expect(source, contains('class _Account'));
+        expect(source, isNot(contains('class Account')));
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    },
+  );
 
   test(
     'backend function template emits a private expression-bodied input',
@@ -55,6 +80,7 @@ void main() {
         ).readAsStringSync();
 
         expect(source, contains('@DVBackendFunction()'));
+        expect(source, contains("@pragma('vm:entry-point')"));
         expect(
           source,
           contains(
@@ -73,5 +99,6 @@ Future<void> _runGenerate(List<String> args) {
   return (CommandRunner<void>(
     'dartvel',
     'test',
-  )..addCommand(GenerateCommand())).run(args);
+  )..addCommand(GenerateCommand()))
+      .run(args);
 }
