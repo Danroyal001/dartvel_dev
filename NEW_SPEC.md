@@ -7,10 +7,11 @@
 > are not.
 >
 > `DV.lifecycle.*`, `DV.Modules.<id>`, `DV.transaction(...)` with
-> `context.afterCommit`/`context.compensate`, and `@DVStaticPaths()` are
-> implemented. `Model.Page` data-mode rendering and
-> `@DVModel(generatePublicPages: true)` are **not** — the annotations accept
-> them, but the generator does not yet act on them.
+> `context.afterCommit`/`context.compensate`, `@DVStaticPaths()`, and generated
+> `Model.Page(...)` data-mode APIs (`.async`, `.signal`, `.fromId`) are
+> implemented. `@DVModel(generatePublicPages: true)` is **not** — the
+> annotation accepts it, but automatic public page/static-path generation does
+> not consume it yet.
 >
 > Where this spec and the code disagree, **the code wins**. For what is
 > actually implemented today, see the *Alpha status* section of
