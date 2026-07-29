@@ -46,12 +46,10 @@ class GeneratePageSubcommand extends Command<void> {
 import 'package:flutter/material.dart';
 
 @DVPage()
-Widget ${pageName.toLowerCase()}Page(BuildContext context) {
-  return DVBox(
-    const DVText('$capitalized Page'),
-    const DVModifier().align(Alignment.center),
-  );
-}
+Widget _${pageName.toLowerCase()}Page(BuildContext context) => DVBox(
+      const DVText('$capitalized Page'),
+      const DVModifier().align(Alignment.center),
+    );
 ''');
     Logger.log('Generated page: ${file.path}');
   }
@@ -70,13 +68,15 @@ class GenerateModelSubcommand extends Command<void> {
       return;
     }
     final modelName = argResults!.rest.first;
-    final modelsDir =
-        Directory(p.join(Directory.current.path, 'lib', 'models'));
+    final modelsDir = Directory(
+      p.join(Directory.current.path, 'lib', 'models'),
+    );
     if (!modelsDir.existsSync()) {
       modelsDir.createSync(recursive: true);
     }
-    final file =
-        File(p.join(modelsDir.path, '${modelName.toLowerCase()}.dart'));
+    final file = File(
+      p.join(modelsDir.path, '${modelName.toLowerCase()}.dart'),
+    );
     if (file.existsSync()) {
       Logger.log('Model file already exists: ${file.path}');
       return;
@@ -110,12 +110,14 @@ class GenerateBackendSubcommand extends Command<void> {
     }
     final funcName = argResults!.rest.first;
     final backendDir = Directory(
-        p.join(Directory.current.path, 'lib', 'backend', 'functions'));
+      p.join(Directory.current.path, 'lib', 'backend', 'functions'),
+    );
     if (!backendDir.existsSync()) {
       backendDir.createSync(recursive: true);
     }
-    final file =
-        File(p.join(backendDir.path, '${funcName.toLowerCase()}.dart'));
+    final file = File(
+      p.join(backendDir.path, '${funcName.toLowerCase()}.dart'),
+    );
     if (file.existsSync()) {
       Logger.log('Backend function file already exists: ${file.path}');
       return;
