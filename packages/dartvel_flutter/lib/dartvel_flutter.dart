@@ -2023,10 +2023,10 @@ class DVPlatform {
     if (_deviceTypeOverride.isNotEmpty) return _deviceTypeOverride;
     if (isTV) return 'tv';
     if (isWatch) return 'watch';
-    if (isFoldable) return 'foldable';
     if (isWeb) return 'web';
     if (breakpoint == 'desktop') return 'desktop';
     if (breakpoint == 'tablet') return 'tablet';
+    if (isFoldable) return 'foldable';
     return 'phone';
   }
 
