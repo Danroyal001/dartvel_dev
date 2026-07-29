@@ -470,9 +470,10 @@ import 'package:flutter/widgets.dart';
 
 @DVPage()
 @pragma('vm:entry-point')
-Widget _indexPage(BuildContext context) => buildIndexPage(context);
+Widget _indexPage(BuildContext context) =>
+    DVBox(const DVText('Private page')).modifier(pageStyle);
 
-Widget buildIndexPage(BuildContext context) => const SizedBox.shrink();
+final pageStyle = const DVModifier();
 ''',
       );
 
@@ -507,7 +508,15 @@ Widget buildIndexPage(BuildContext context) => const SizedBox.shrink();
         p.join(root.path, 'lib', 'dartvel_client', 'router.g.dart'),
       ).readAsStringSync();
       expect(router, contains('class IndexPageGeneratedPage'));
-      expect(router, contains('return p0.buildIndexPage(context);'));
+      expect(router, contains("import 'models.g.dart';"));
+      expect(router, contains("import 'functions.g.dart';"));
+      expect(
+        router,
+        contains(
+          "return DVBox(const DVText('Private page')).modifier(p0.pageStyle);",
+        ),
+      );
+      expect(router, isNot(contains('buildIndexPage')));
       expect(router, isNot(contains('p0._indexPage(context)')));
     } finally {
       root.deleteSync(recursive: true);
