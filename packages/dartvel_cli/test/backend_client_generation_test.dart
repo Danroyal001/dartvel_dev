@@ -86,7 +86,10 @@ Future<Map<String, Object?>> handler(String title, int priority) async {
 import 'package:dartvel_core/dartvel.dart';
 
 @DVBackendFunction()
-Future<String> _handler(String input) async => 'ok \$input';
+@pragma('vm:entry-point')
+Future<String> _handler(String input) async => buildResponse(input);
+
+Future<String> buildResponse(String input) async => 'ok \$input';
 ''');
 
       await BackendGenerator.generate(
@@ -106,7 +109,16 @@ Future<String> _handler(String input) async => 'ok \$input';
         p.join(root.path, 'lib', 'dartvel_client', 'functions.g.dart'),
       ).readAsStringSync();
 
-      expect(routes, contains("_dvBackendFn0(String input) => 'ok \$input';"));
+      expect(
+        routes,
+        contains(
+          'import \'package:backend_client_app/backend/functions/task.post.dart\' as f0;',
+        ),
+      );
+      expect(
+        routes,
+        contains('_dvBackendFn0(String input) => f0.buildResponse(input);'),
+      );
       expect(routes, contains('Object? result = await _dvBackendFn0('));
       expect(routes, isNot(contains('f0._handler(')));
       expect(functions, contains('Future<String> handler('));
