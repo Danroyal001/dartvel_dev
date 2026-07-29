@@ -34,7 +34,10 @@ Future<List<String>> productPaths() async => <String>['a', 'b'];
         );
         expect(found, hasLength(1));
         expect(found.single.functionName, 'productPaths');
-        expect(found.single.importPath, 'package:shop/paths/product_paths.dart');
+        expect(
+          found.single.importPath,
+          'package:shop/paths/product_paths.dart',
+        );
         expect(found.single.route, isNull);
       } finally {
         root.deleteSync(recursive: true);
@@ -63,9 +66,9 @@ Future<List<String>> blogPaths() async => <String>['hello'];
       // Generated output must be stable, or every regenerate churns the diff.
       final root = await _project({
         'paths/b_paths.dart':
-            "@DVStaticPaths()\nFuture<List<String>> bPaths() async => [];\n",
+            '@DVStaticPaths()\nFuture<List<String>> bPaths() async => [];\n',
         'paths/a_paths.dart':
-            "@DVStaticPaths()\nFuture<List<String>> aPaths() async => [];\n",
+            '@DVStaticPaths()\nFuture<List<String>> aPaths() async => [];\n',
       });
       try {
         final found = StaticPathsGenerator.discover(
@@ -81,7 +84,7 @@ Future<List<String>> blogPaths() async => <String>['hello'];
     test('accepts a non-Future return type', () async {
       final root = await _project({
         'paths/sync_paths.dart':
-            "@DVStaticPaths()\nList<String> syncPaths() => <String>['x'];\n",
+            '@DVStaticPaths()\nList<String> syncPaths() => <String>[\'x\'];\n',
       });
       try {
         final found = StaticPathsGenerator.discover(
@@ -98,9 +101,9 @@ Future<List<String>> blogPaths() async => <String>['hello'];
       // Rediscovering its own emitted references would compound on every run.
       final root = await _project({
         'dartvel_client/static_paths.g.dart':
-            "@DVStaticPaths()\nFuture<List<String>> ghost() async => [];\n",
+            '@DVStaticPaths()\nFuture<List<String>> ghost() async => [];\n',
         'models.g.dart':
-            "@DVStaticPaths()\nFuture<List<String>> alsoGhost() async => [];\n",
+            '@DVStaticPaths()\nFuture<List<String>> alsoGhost() async => [];\n',
       });
       try {
         expect(
@@ -138,7 +141,10 @@ Future<List<String>> blogPaths() async => <String>['hello'];
         buildId: 'test-build',
       );
 
-      expect(source, contains("import 'package:shop/paths/product_paths.dart';"));
+      expect(
+        source,
+        contains("import 'package:shop/paths/product_paths.dart';"),
+      );
       expect(source, contains("name: 'productPaths',"));
       expect(source, contains("route: '/products/:slug',"));
       expect(source, contains('resolve: productPaths,'));
@@ -163,19 +169,28 @@ Future<List<String>> blogPaths() async => <String>['hello'];
         providers: const [],
         buildId: 'b',
       );
-      expect(source, contains('dartvelStaticPaths = <DVStaticPathsEntry>[\n];'));
+      expect(
+        source,
+        contains('dartvelStaticPaths = <DVStaticPathsEntry>[\n];'),
+      );
       expect(source, isNot(contains('import ')));
     });
 
     test('does not duplicate an import shared by two providers', () {
       final source = StaticPathsGenerator.render(
         providers: const [
-          StaticPathsProvider(functionName: 'a', importPath: 'package:s/p.dart'),
-          StaticPathsProvider(functionName: 'b', importPath: 'package:s/p.dart'),
+          StaticPathsProvider(
+            functionName: 'a',
+            importPath: 'package:s/p.dart',
+          ),
+          StaticPathsProvider(
+            functionName: 'b',
+            importPath: 'package:s/p.dart',
+          ),
         ],
         buildId: 'b',
       );
-      expect("import 'package:s/p.dart';".allMatches(source).length, 1);
+      expect('import \'package:s/p.dart\';'.allMatches(source).length, 1);
     });
   });
 
@@ -183,7 +198,7 @@ Future<List<String>> blogPaths() async => <String>['hello'];
     test('writes the manifest into the generated client directory', () async {
       final root = await _project({
         'paths/product_paths.dart':
-            "@DVStaticPaths()\nFuture<List<String>> productPaths() async => [];\n",
+            '@DVStaticPaths()\nFuture<List<String>> productPaths() async => [];\n',
       });
       try {
         final providers = await StaticPathsGenerator.generate(
@@ -205,19 +220,18 @@ Future<List<String>> blogPaths() async => <String>['hello'];
   });
 
   group('page options metadata', () {
-    test('declared pageDataMode and generatePublicPages reach the model',
-        () async {
-      // These annotation parameters compile but no renderer consumes them yet.
-      // Emitting them keeps the declared intent observable instead of
-      // silently discarding it.
+    test('declared pageDataMode drives generated page rendering', () async {
       final root = await Directory.systemTemp.createTemp('dartvel_page_opts_');
       try {
-        Directory(p.join(root.path, 'lib', 'models'))
-            .createSync(recursive: true);
-        Directory(p.join(root.path, 'lib', 'dartvel_client'))
-            .createSync(recursive: true);
-        File(p.join(root.path, 'lib', 'models', 'product.dart'))
-            .writeAsStringSync('''
+        Directory(
+          p.join(root.path, 'lib', 'models'),
+        ).createSync(recursive: true);
+        Directory(
+          p.join(root.path, 'lib', 'dartvel_client'),
+        ).createSync(recursive: true);
+        File(
+          p.join(root.path, 'lib', 'models', 'product.dart'),
+        ).writeAsStringSync('''
 import 'package:dartvel_core/dartvel.dart';
 
 @DVModel(
@@ -242,10 +256,27 @@ class _Product {
 
         expect(
           content,
-          contains('pageDataMode = '
-              'DVModelPageDataMode.staleWhileRevalidate;'),
+          contains(
+            'pageDataMode = '
+            'DVModelPageDataMode.staleWhileRevalidate;',
+          ),
         );
         expect(content, contains('generatePublicPages = true;'));
+        expect(content, contains('// ignore: constant_identifier_names'));
+        expect(
+          content,
+          contains(
+            'static const ProductPageComponent Page = '
+            'ProductPageComponent._();',
+          ),
+        );
+        expect(content, contains('class ProductPageComponent'));
+        expect(content, contains('Widget fromId('));
+        expect(content, contains('Product? cachedModel,'));
+        expect(
+          content,
+          contains('dataMode == DVModelPageDataMode.staleWhileRevalidate'),
+        );
       } finally {
         root.deleteSync(recursive: true);
       }
@@ -254,12 +285,14 @@ class _Product {
     test('defaults to auto and no public pages when unspecified', () async {
       final root = await Directory.systemTemp.createTemp('dartvel_page_def_');
       try {
-        Directory(p.join(root.path, 'lib', 'models'))
-            .createSync(recursive: true);
-        Directory(p.join(root.path, 'lib', 'dartvel_client'))
-            .createSync(recursive: true);
-        File(p.join(root.path, 'lib', 'models', 'note.dart'))
-            .writeAsStringSync('''
+        Directory(
+          p.join(root.path, 'lib', 'models'),
+        ).createSync(recursive: true);
+        Directory(
+          p.join(root.path, 'lib', 'dartvel_client'),
+        ).createSync(recursive: true);
+        File(p.join(root.path, 'lib', 'models', 'note.dart')).writeAsStringSync(
+          '''
 import 'package:dartvel_core/dartvel.dart';
 
 @DVModel()
@@ -267,7 +300,8 @@ class _Note {
   final String body;
   const _Note({required this.body});
 }
-''');
+''',
+        );
 
         await ModelGenerator.generate(
           root: root.path,
