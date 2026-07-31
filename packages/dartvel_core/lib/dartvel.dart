@@ -18,12 +18,13 @@ export 'src/analytics/analytics.dart';
 export 'src/annotations/annotations.dart';
 export 'src/auth/auth.dart';
 export 'src/auth/password.dart';
+export 'src/cache/adapters.dart';
 export 'src/database/adapters.dart';
 export 'src/lifecycle/lifecycle.dart';
 export 'src/modules/modules.dart';
-export 'src/transaction/transaction.dart';
 export 'src/platform_config.dart';
 export 'src/shell/shell.dart';
+export 'src/transaction/transaction.dart';
 export 'src/updates/ota.dart';
 
 typedef RequestType = dv.Request;
@@ -1009,6 +1010,10 @@ class DVCacheTags {
   Set<String> revalidateTag(String tag) {
     final keys = _tags.remove(tag) ?? const <String>{};
     return Set<String>.unmodifiable(keys);
+  }
+
+  void clear() {
+    _tags.clear();
   }
 }
 
