@@ -186,6 +186,163 @@ void main() {
     });
   });
 
+  group('OpenSearchProvider', () {
+    OpenSearchProvider<Product, ProductFacets> provider(
+      _Recorder recorder, {
+      String? username,
+      String? password,
+      String apiKey = '',
+    }) =>
+        OpenSearchProvider<Product, ProductFacets>(
+          baseUrl: Uri.https('search.example.com'),
+          indexName: 'products',
+          fromJson: productFrom,
+          username: username,
+          password: password,
+          apiKey: apiKey,
+          facetFilter: categoryFilter,
+          transport: recorder.send,
+        );
+
+    test('reads models out of the nested hits envelope', () async {
+      final recorder = _Recorder.json(<String, Object?>{
+        'hits': <String, Object?>{
+          'total': <String, Object?>{'value': 42, 'relation': 'eq'},
+          'hits': <Object?>[
+            <String, Object?>{
+              '_id': 'a',
+              '_source': <String, Object?>{'id': '1', 'title': 'Keyboard'},
+            },
+            <String, Object?>{
+              '_id': 'b',
+              '_source': <String, Object?>{'id': '2', 'title': 'Mouse'},
+            },
+          ],
+        },
+      });
+
+      final results = await provider(recorder).query('key', perPage: 10);
+
+      expect(
+        recorder.single.url.toString(),
+        'https://search.example.com/products/_search',
+      );
+      expect(results.items.map((product) => product.title),
+          <String>['Keyboard', 'Mouse']);
+      expect(results.total, 42);
+    });
+
+    test('translates a page number into a from/size offset', () async {
+      final recorder = _Recorder.json(<String, Object?>{
+        'hits': <String, Object?>{'total': 0, 'hits': <Object?>[]},
+      });
+
+      final results = await provider(recorder).query('x', page: 4, perPage: 25);
+
+      expect(recorder.json['from'], 75, reason: 'page 4 of 25 starts at 75');
+      expect(recorder.json['size'], 25);
+      expect(results.page, 4, reason: 'the caller still sees a page number');
+    });
+
+    test('reads a bare integer total from older clusters', () async {
+      final recorder = _Recorder.json(<String, Object?>{
+        'hits': <String, Object?>{'total': 7, 'hits': <Object?>[]},
+      });
+
+      expect((await provider(recorder).query('x')).total, 7);
+    });
+
+    test('matches everything when the query is blank', () async {
+      final recorder = _Recorder.json(<String, Object?>{
+        'hits': <String, Object?>{'total': 0, 'hits': <Object?>[]},
+      });
+      await provider(recorder).query('   ');
+
+      final must = ((recorder.json['query']! as Map<String, Object?>)['bool']!
+          as Map<String, Object?>)['must']! as List<Object?>;
+      expect((must.single as Map<String, Object?>).containsKey('match_all'),
+          isTrue);
+    });
+
+    test('sends facets as bool filters', () async {
+      final recorder = _Recorder.json(<String, Object?>{
+        'hits': <String, Object?>{'total': 0, 'hits': <Object?>[]},
+      });
+      await provider(recorder).query(
+        'x',
+        facets: const ProductFacets(category: <String>['audio']),
+      );
+
+      final bool_ = (recorder.json['query']! as Map<String, Object?>)['bool']!
+          as Map<String, Object?>;
+      expect(bool_['filter'], hasLength(1));
+    });
+
+    test('authenticates with basic auth when credentials are given', () async {
+      final recorder = _Recorder.json(<String, Object?>{
+        'hits': <String, Object?>{'total': 0, 'hits': <Object?>[]},
+      });
+      await provider(recorder, username: 'ada', password: 'secret').query('x');
+
+      expect(
+        recorder.single.headers['authorization'],
+        'Basic ${base64Encode(utf8.encode('ada:secret'))}',
+      );
+    });
+
+    test('uses an ApiKey header when only a key is given', () async {
+      final recorder = _Recorder.json(<String, Object?>{
+        'hits': <String, Object?>{'total': 0, 'hits': <Object?>[]},
+      });
+      await provider(recorder, apiKey: 'abc123').query('x');
+
+      expect(recorder.single.headers['authorization'], 'ApiKey abc123');
+    });
+
+    test('sends no authorization header for an open cluster', () async {
+      final recorder = _Recorder.json(<String, Object?>{
+        'hits': <String, Object?>{'total': 0, 'hits': <Object?>[]},
+      });
+      await provider(recorder).query('x');
+
+      expect(recorder.single.headers.containsKey('authorization'), isFalse);
+    });
+
+    test('rejects a malformed hits envelope', () async {
+      final recorder = _Recorder.json(<String, Object?>{'hits': <Object?>[]});
+
+      await expectLater(
+        provider(recorder).query('x'),
+        throwsA(
+          isA<DVSearchProviderException>().having(
+            (error) => error.message,
+            'message',
+            contains('"hits" was not a JSON object'),
+          ),
+        ),
+      );
+    });
+
+    test('skips a hit with no _source rather than crashing', () async {
+      final recorder = _Recorder.json(<String, Object?>{
+        'hits': <String, Object?>{
+          'total': 2,
+          'hits': <Object?>[
+            <String, Object?>{'_id': 'a'},
+            <String, Object?>{
+              '_id': 'b',
+              '_source': <String, Object?>{'id': '2', 'title': 'Mouse'},
+            },
+          ],
+        },
+      });
+
+      final results = await provider(recorder).query('x');
+      expect(results.items, hasLength(1));
+      expect(results.items.single.title, 'Mouse');
+    });
+  });
+
   group('shared hosted-search behaviour', () {
     DVHttpSearchProvider<Product, ProductFacets> provider(_Recorder recorder) =>
         MeilisearchProvider<Product, ProductFacets>(

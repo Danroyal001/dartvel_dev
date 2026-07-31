@@ -703,6 +703,135 @@ class AlgoliaSearchProvider<TModel, TFacets>
       );
 }
 
+/// OpenSearch and Elasticsearch, which share this query API.
+///
+/// Three things differ from the other hosted providers, and each is translated
+/// here so callers see one contract: paging is offset-based (`from`/`size`)
+/// rather than page numbers, hits are nested under `hits.hits[]._source`, and
+/// the total is an object on 7.x but a bare integer on 6.x.
+class OpenSearchProvider<TModel, TFacets>
+    extends DVHttpSearchProvider<TModel, TFacets> {
+  /// Fields to match against. `['*']` searches every indexed field.
+  final List<String> searchFields;
+
+  final String? username;
+  final String? password;
+
+  const OpenSearchProvider({
+    required super.baseUrl,
+    required super.indexName,
+    required super.fromJson,
+    super.apiKey = '',
+    this.searchFields = const <String>['*'],
+    this.username,
+    this.password,
+    super.facetFilter,
+    super.transport,
+  });
+
+  @override
+  String get providerName => 'opensearch';
+
+  Map<String, String> get _authHeaders {
+    if (username != null && password != null) {
+      final token = base64Encode(utf8.encode('$username:$password'));
+      return <String, String>{'authorization': 'Basic $token'};
+    }
+    if (apiKey.isNotEmpty) {
+      return <String, String>{'authorization': 'ApiKey $apiKey'};
+    }
+    return const <String, String>{};
+  }
+
+  @override
+  DVHttpRequest buildRequest(
+    String query,
+    List<String> filters,
+    int page,
+    int perPage,
+  ) =>
+      DVHttpRequest(
+        url: baseUrl.replace(path: '/$indexName/_search'),
+        headers: <String, String>{
+          'content-type': 'application/json',
+          ..._authHeaders,
+        },
+        body: utf8.encode(jsonEncode(<String, Object?>{
+          // Dartvel pages are 1-based; Elasticsearch takes an offset.
+          'from': (page - 1) * perPage,
+          'size': perPage,
+          'query': <String, Object?>{
+            'bool': <String, Object?>{
+              'must': <Object?>[
+                if (query.trim().isEmpty)
+                  <String, Object?>{'match_all': <String, Object?>{}}
+                else
+                  <String, Object?>{
+                    'multi_match': <String, Object?>{
+                      'query': query,
+                      'fields': searchFields,
+                    },
+                  },
+              ],
+              if (filters.isNotEmpty)
+                'filter': <Object?>[
+                  for (final filter in filters)
+                    <String, Object?>{'query_string': <String, Object?>{
+                      'query': filter,
+                    }},
+                ],
+            },
+          },
+        })),
+      );
+
+  @override
+  DVSearchResultPage<TModel> readResponse(
+    Map<String, Object?> payload,
+    int page,
+    int perPage,
+  ) {
+    final envelope = payload['hits'];
+    if (envelope is! Map<String, Object?>) {
+      throw DVSearchProviderException(
+        providerName,
+        '"hits" was not a JSON object.',
+        responseBody: jsonEncode(payload),
+      );
+    }
+    final rows = envelope['hits'];
+    if (rows is! List<Object?>) {
+      throw DVSearchProviderException(
+        providerName,
+        '"hits.hits" was not a JSON array.',
+        responseBody: jsonEncode(payload),
+      );
+    }
+
+    return DVSearchResultPage<TModel>(
+      items: List<TModel>.unmodifiable(<TModel>[
+        for (final row in rows)
+          if (row is Map<String, Object?>)
+            if (row['_source'] case final Map<String, Object?> source)
+              fromJson(source),
+      ]),
+      total: _readTotal(envelope, rows.length),
+      page: page,
+      perPage: perPage,
+    );
+  }
+
+  /// 7.x reports `{"value": n, "relation": "eq"}`; 6.x reports a bare integer.
+  static int _readTotal(Map<String, Object?> envelope, int fallback) {
+    final total = envelope['total'];
+    if (total is int) return total;
+    if (total is Map<String, Object?> && total['value'] is int) {
+      return total['value']! as int;
+    }
+    return fallback;
+  }
+}
+
 /// Fails loudly when a searchable model has no configured provider.
 class DVUnconfiguredSearchProvider<TModel, TFacets>
     implements DVSearchProvider<TModel, TFacets> {
