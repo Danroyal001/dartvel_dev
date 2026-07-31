@@ -388,6 +388,33 @@ The in-memory adapter keeps the Dart object and needs no codec.
 
 Redis, SQS, Pub/Sub, RabbitMQ and Kafka adapters are **not** implemented yet.
 
+### Full-text search
+
+`DVSqliteSearchProvider` indexes records with SQLite's FTS5 extension, so
+matching is word-based and results are ranked by relevance:
+
+```dart
+final search = DVSqliteSearchProvider<User, UserFacets>(
+  database: db,
+  records: users,
+  document: (user) => '${user.name} ${user.bio}',
+  facetMatcher: (user, facets) =>
+      facets?.role == null || facets!.role!.contains(user.role),
+);
+final page = await search.query('ada lovel');   // prefix-matches the last term
+```
+
+Unlike `DVInMemorySearchProvider`, which scans for substrings, this matches
+whole words — `lovelace` no longer hits `Unlovelaced` — and orders by BM25.
+Raw user input is quoted term by term, so FTS5 operators someone types
+(`AND`, `*`, `:`, quotes) are searched for literally instead of executing as
+query syntax or raising an error.
+
+FTS5 does the matching; models stay in Dart and facets are applied afterwards,
+so ranked ids are read in full before paging. That suits datasets that fit in
+memory rather than very large corpora. Meilisearch, Algolia and
+OpenSearch/Elasticsearch providers are **not** implemented yet.
+
 ---
 
 The database-backed cache adapter stores values as JSON, so only JSON-encodable

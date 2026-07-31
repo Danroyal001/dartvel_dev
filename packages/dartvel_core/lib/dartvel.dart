@@ -320,6 +320,142 @@ class DVInMemorySearchProvider<TModel, TFacets>
   }
 }
 
+/// Full-text search backed by SQLite's FTS5 extension.
+///
+/// FTS5 does the matching and relevance ranking; the models stay in Dart. That
+/// buys real tokenisation and BM25 ordering instead of the substring scan
+/// [DVInMemorySearchProvider] performs, so "lovelace" no longer matches
+/// "unlovelaced" and better matches sort first.
+///
+/// Facets are applied in Dart after the index returns candidates, which is the
+/// post-filtering the spec allows when a provider cannot enforce them itself.
+/// Ranked ids are read in full before paging, so this suits datasets that fit
+/// in memory rather than very large corpora.
+class DVSqliteSearchProvider<TModel, TFacets>
+    implements DVSearchProvider<TModel, TFacets> {
+  final DVDatabaseAdapter database;
+  final String tableName;
+  final DVSearchDocument<TModel> document;
+  final DVSearchFacetMatcher<TModel, TFacets>? facetMatcher;
+
+  /// Treats the final term as a prefix, so "ada lov" matches "Ada Lovelace".
+  final bool prefixMatchLastTerm;
+
+  List<TModel> _records;
+  bool _indexed = false;
+
+  DVSqliteSearchProvider({
+    required this.database,
+    required List<TModel> records,
+    required this.document,
+    this.facetMatcher,
+    this.tableName = 'dartvel_search',
+    this.prefixMatchLastTerm = true,
+  }) : _records = List<TModel>.unmodifiable(records) {
+    if (!RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$').hasMatch(tableName)) {
+      throw ArgumentError.value(
+        tableName,
+        'tableName',
+        'Search table names must be plain SQL identifiers.',
+      );
+    }
+  }
+
+  List<TModel> get records => _records;
+
+  /// Rebuilds the index. Call it after the underlying records change; passing
+  /// [records] replaces the indexed set.
+  Future<void> reindex([List<TModel>? records]) async {
+    if (records != null) {
+      _records = List<TModel>.unmodifiable(records);
+    }
+    await database.execute('DROP TABLE IF EXISTS $tableName');
+    await database.execute(
+      'CREATE VIRTUAL TABLE $tableName USING fts5(doc)',
+    );
+    for (var i = 0; i < _records.length; i++) {
+      await database.execute(
+        'INSERT INTO $tableName (rowid, doc) VALUES (?, ?)',
+        <Object?>[i + 1, document(_records[i])],
+      );
+    }
+    _indexed = true;
+  }
+
+  @override
+  Future<DVSearchResultPage<TModel>> query(
+    String query, {
+    TFacets? facets,
+    int page = 1,
+    int perPage = 20,
+  }) async {
+    if (page < 1) throw ArgumentError.value(page, 'page', 'must be positive');
+    if (perPage < 1) {
+      throw ArgumentError.value(perPage, 'perPage', 'must be positive');
+    }
+    if (!_indexed) await reindex();
+
+    final expression = _toMatchExpression(query);
+    final List<TModel> matches;
+    if (expression == null) {
+      // No usable terms behaves like the in-memory provider's empty query.
+      matches = _records.where((record) => _matchesFacets(record, facets))
+          .toList(growable: false);
+    } else {
+      final rows = await database.query(
+        'SELECT rowid FROM $tableName WHERE $tableName MATCH ? '
+        'ORDER BY bm25($tableName)',
+        <Object?>[expression],
+      );
+      matches = <TModel>[
+        for (final row in rows)
+          if (row['rowid'] case final int rowid)
+            if (rowid >= 1 && rowid <= _records.length)
+              if (_matchesFacets(_records[rowid - 1], facets))
+                _records[rowid - 1],
+      ];
+    }
+
+    final start = (page - 1) * perPage;
+    final end =
+        start + perPage > matches.length ? matches.length : start + perPage;
+    final pageItems =
+        start >= matches.length ? <TModel>[] : matches.sublist(start, end);
+
+    return DVSearchResultPage<TModel>(
+      items: List<TModel>.unmodifiable(pageItems),
+      total: matches.length,
+      page: page,
+      perPage: perPage,
+    );
+  }
+
+  bool _matchesFacets(TModel record, TFacets? facets) =>
+      facetMatcher?.call(record, facets) ?? true;
+
+  /// Builds a safe FTS5 MATCH expression from raw user input.
+  ///
+  /// Every term is quoted, so FTS5 operators typed by a user ("AND", "*", ":",
+  /// quotes) are matched literally instead of being executed as query syntax
+  /// or raising a syntax error. Returns null when nothing searchable remains.
+  String? _toMatchExpression(String query) {
+    final terms = query
+        .split(RegExp(r'[^\p{L}\p{N}_]+', unicode: true))
+        .where((term) => term.isNotEmpty)
+        .toList(growable: false);
+    if (terms.isEmpty) return null;
+
+    final quoted = <String>[
+      for (var i = 0; i < terms.length; i++)
+        if (prefixMatchLastTerm && i == terms.length - 1)
+          '"${terms[i].replaceAll('"', '""')}"*'
+        else
+          '"${terms[i].replaceAll('"', '""')}"',
+    ];
+    return quoted.join(' ');
+  }
+}
+
 /// Fails loudly when a searchable model has no configured provider.
 class DVUnconfiguredSearchProvider<TModel, TFacets>
     implements DVSearchProvider<TModel, TFacets> {
