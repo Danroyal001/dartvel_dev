@@ -4,10 +4,8 @@ library dartvel_core.ai;
 
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math';
-import 'dart:typed_data';
 
-import 'package:http/http.dart' as http;
+import '../http/transport.dart';
 
 typedef DVJsonObject = Map<String, DVJsonValue>;
 typedef DVAIToolHandler = FutureOr<DVJsonValue> Function(DVJsonObject input);
@@ -305,51 +303,14 @@ class LocalDVAIAdapter implements DVAIAdapter {
 // HTTP transport
 // ---------------------------------------------------------------------------
 
-class DVAIHttpRequest {
-  final Uri url;
-  final String method;
-  final Map<String, String> headers;
-  final List<int> body;
+/// Retained names for the shared HTTP seam, which now lives in
+/// `src/http/transport.dart` so mail and other provider adapters share it.
+typedef DVAIHttpRequest = DVHttpRequest;
+typedef DVAIHttpResponse = DVHttpResponse;
+typedef DVAIHttpSend = DVHttpSend;
 
-  const DVAIHttpRequest({
-    required this.url,
-    this.method = 'POST',
-    this.headers = const <String, String>{},
-    this.body = const <int>[],
-  });
-}
-
-class DVAIHttpResponse {
-  final int statusCode;
-  final String body;
-
-  const DVAIHttpResponse({required this.statusCode, required this.body});
-
-  bool get isSuccess => statusCode >= 200 && statusCode < 300;
-}
-
-/// Transport seam for [DVHttpAIAdapter]. Tests inject a function instead of
-/// mocking a client, so provider request/response handling is covered without
-/// network access.
-typedef DVAIHttpSend = Future<DVAIHttpResponse> Function(
-  DVAIHttpRequest request,
-);
-
-Future<DVAIHttpResponse> dvSendAIHttpRequest(DVAIHttpRequest request) async {
-  final client = http.Client();
-  try {
-    final outgoing = http.Request(request.method, request.url)
-      ..headers.addAll(request.headers)
-      ..bodyBytes = request.body;
-    final streamed = await client.send(outgoing);
-    return DVAIHttpResponse(
-      statusCode: streamed.statusCode,
-      body: await streamed.stream.bytesToString(),
-    );
-  } finally {
-    client.close();
-  }
-}
+Future<DVAIHttpResponse> dvSendAIHttpRequest(DVAIHttpRequest request) =>
+    dvSendHttpRequest(request);
 
 /// Thrown when a provider rejects a request or returns a payload Dartvel
 /// cannot interpret. Provider failures are never swallowed into empty results.
@@ -612,48 +573,6 @@ abstract class DVHttpAIAdapter implements DVAIAdapter {
 // ---------------------------------------------------------------------------
 // Multipart helper (audio transcription uploads)
 // ---------------------------------------------------------------------------
-
-String dvGenerateMultipartBoundary([Random? random]) {
-  final source = random ?? Random();
-  final suffix = List<int>.generate(16, (_) => source.nextInt(36))
-      .map((value) => value.toRadixString(36))
-      .join();
-  return '----dartvel$suffix';
-}
-
-List<int> dvEncodeMultipartBody({
-  required String boundary,
-  required Map<String, String> fields,
-  required String fileField,
-  required String fileName,
-  required String fileContentType,
-  required List<int> fileBytes,
-}) {
-  final builder = BytesBuilder();
-  void writeLine(String text) => builder.add(utf8.encode('$text\r\n'));
-
-  for (final entry in fields.entries) {
-    writeLine('--$boundary');
-    writeLine(
-      'content-disposition: form-data; name="${entry.key}"',
-    );
-    writeLine('');
-    writeLine(entry.value);
-  }
-
-  writeLine('--$boundary');
-  writeLine(
-    'content-disposition: form-data; name="$fileField"; '
-    'filename="$fileName"',
-  );
-  writeLine('content-type: $fileContentType');
-  writeLine('');
-  builder.add(fileBytes);
-  writeLine('');
-  writeLine('--$boundary--');
-
-  return builder.takeBytes();
-}
 
 String dvAudioFileNameFor(String mimeType) {
   final subtype = mimeType.split('/').last.split(';').first.trim();
