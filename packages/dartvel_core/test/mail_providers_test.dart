@@ -190,6 +190,108 @@ void main() {
     });
   });
 
+  group('SesMailProvider', () {
+    final at = DateTime.utc(2026, 7, 31, 12, 34, 56);
+    const credentials = DVAwsCredentials(
+      accessKeyId: 'AKIDEXAMPLE',
+      secretAccessKey: 'wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY',
+    );
+
+    test('posts the SES v2 payload signed with SigV4', () async {
+      final recorder = _Recorder();
+      await SesMailProvider(
+        credentials: credentials,
+        region: 'us-east-1',
+        now: () => at,
+        transport: recorder.send,
+      ).send(message);
+
+      expect(
+        recorder.single.url.toString(),
+        'https://email.us-east-1.amazonaws.com/v2/email/outbound-emails',
+      );
+      expect(
+        recorder.single.headers['authorization'],
+        allOf(
+          startsWith('AWS4-HMAC-SHA256 '),
+          contains(
+              'Credential=AKIDEXAMPLE/20260731/us-east-1/ses/aws4_request'),
+        ),
+      );
+      expect(recorder.single.headers['x-amz-date'], '20260731T123456Z');
+
+      expect(
+          recorder.json['FromEmailAddress'], '"Support" <support@example.com>');
+      expect(
+        (recorder.json['Destination']! as Map<String, Object?>)['ToAddresses'],
+        <String>['ada@example.com', 'grace@example.com'],
+      );
+      final simple = (recorder.json['Content']!
+          as Map<String, Object?>)['Simple']! as Map<String, Object?>;
+      expect((simple['Subject']! as Map<String, Object?>)['Data'], 'Welcome');
+      final bodyContent = simple['Body']! as Map<String, Object?>;
+      expect((bodyContent['Text']! as Map<String, Object?>)['Data'],
+          'Thanks for joining');
+      expect((bodyContent['Html']! as Map<String, Object?>)['Data'],
+          '<p>Thanks for joining</p>');
+    });
+
+    test('omits the html body when there is none', () async {
+      final recorder = _Recorder();
+      await SesMailProvider(
+        credentials: credentials,
+        region: 'us-east-1',
+        now: () => at,
+        transport: recorder.send,
+      ).send(const DVMailMessage(
+        from: DVMailAddress('a@example.com'),
+        to: <DVMailAddress>[DVMailAddress('b@example.com')],
+        subject: 'Plain',
+        text: 'Body',
+      ));
+
+      final simple = (recorder.json['Content']!
+          as Map<String, Object?>)['Simple']! as Map<String, Object?>;
+      expect((simple['Body']! as Map<String, Object?>).containsKey('Html'),
+          isFalse);
+    });
+
+    test('signs the body, so two different messages differ', () async {
+      Future<String> signatureFor(DVMailMessage sent) async {
+        final recorder = _Recorder();
+        await SesMailProvider(
+          credentials: credentials,
+          region: 'us-east-1',
+          now: () => at,
+          transport: recorder.send,
+        ).send(sent);
+        return recorder.requests.single.headers['authorization']!;
+      }
+
+      expect(
+        await signatureFor(message),
+        isNot(await signatureFor(const DVMailMessage(
+          from: DVMailAddress('support@example.com', name: 'Support'),
+          to: <DVMailAddress>[DVMailAddress('ada@example.com')],
+          subject: 'Different',
+          text: 'Different',
+        ))),
+      );
+    });
+
+    test('targets the regional endpoint', () async {
+      final recorder = _Recorder();
+      await SesMailProvider(
+        credentials: credentials,
+        region: 'eu-west-1',
+        now: () => at,
+        transport: recorder.send,
+      ).send(message);
+
+      expect(recorder.single.url.host, 'email.eu-west-1.amazonaws.com');
+    });
+  });
+
   group('shared provider behaviour', () {
     test('a rejected message throws with the status and body', () async {
       final recorder = _Recorder(
@@ -234,6 +336,13 @@ void main() {
         SendGridMailProvider(apiKey: 'k'),
         PostmarkMailProvider(apiKey: 'k'),
         MailgunMailProvider(apiKey: 'k', domain: 'd'),
+        SesMailProvider(
+          credentials: const DVAwsCredentials(
+            accessKeyId: 'a',
+            secretAccessKey: 's',
+          ),
+          region: 'us-east-1',
+        ),
         DVMemoryMailProvider(),
       ];
       expect(providers, everyElement(isA<DVMailProvider>()));

@@ -72,7 +72,7 @@ Everything else is automatically compiled, generated, or served by the framework
 | **Platform APIs** | Runtime platform/screen detection; camera, location, haptics, etc. are scaffolded pending native plugins | ⚠️ Partial |
 | **Authentication** | Prebuilt pages plus a local provider that really stores and verifies salted password hashes; external identity providers are not complete | ⚠️ Partial |
 | **Database & Cache** | Real SQLite adapter (file + in-memory, WAL) and a pluggable cache with memory/database-backed adapters; Postgres/MySQL/Redis adapters are not complete | ⚠️ Partial |
-| **Mail & Notifications** | HTTP mail providers (Resend, SendGrid, Postmark, Mailgun) and FCM push; SMTP, SES, APNS and Web Push are not complete | ⚠️ Partial |
+| **Mail & Notifications** | HTTP mail providers (Resend, SendGrid, Postmark, Mailgun, SES) and FCM push; SMTP, APNS and Web Push are not complete | ⚠️ Partial |
 | **PWA & SEO** | Automatic PWA manifest/worker & runtime/global SEO injection | ✅ Implemented |
 | **AI Integration** | HTTP adapters for Claude, OpenAI, Gemini, OpenRouter, and Ollama, plus the deterministic local adapter | ✅ Implemented |
 | **Sensitive Fields** | `@DVModel.sensitiveField()` redacts fields from public serialization, cards, logs, and AI context | ✅ Implemented |
