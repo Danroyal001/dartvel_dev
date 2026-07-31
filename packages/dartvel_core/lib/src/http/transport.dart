@@ -27,8 +27,17 @@ class DVHttpRequest {
 class DVHttpResponse {
   final int statusCode;
   final String body;
+  final List<int>? _bytes;
 
-  const DVHttpResponse({required this.statusCode, required this.body});
+  const DVHttpResponse({
+    required this.statusCode,
+    required this.body,
+    List<int>? bytes,
+  }) : _bytes = bytes;
+
+  /// The raw response body. Falls back to encoding [body] when the transport
+  /// only captured text, so binary-aware callers work with either.
+  List<int> get bodyBytes => _bytes ?? utf8.encode(body);
 
   bool get isSuccess => statusCode >= 200 && statusCode < 300;
 }
@@ -42,9 +51,12 @@ Future<DVHttpResponse> dvSendHttpRequest(DVHttpRequest request) async {
       ..headers.addAll(request.headers)
       ..bodyBytes = request.body;
     final streamed = await client.send(outgoing);
+    final bytes = await streamed.stream.toBytes();
     return DVHttpResponse(
       statusCode: streamed.statusCode,
-      body: await streamed.stream.bytesToString(),
+      // Binary bodies are kept verbatim; the text view tolerates non-UTF-8.
+      body: utf8.decode(bytes, allowMalformed: true),
+      bytes: bytes,
     );
   } finally {
     client.close();
