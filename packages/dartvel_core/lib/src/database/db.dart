@@ -57,7 +57,7 @@ class DartvelDatabase {
 }
 
 /// Example: How to define a table with Drift
-/// 
+///
 /// ```dart
 /// // Define your table
 /// class Users extends Table {
@@ -67,15 +67,15 @@ class DartvelDatabase {
 ///   BoolColumn get isActive => boolean().withDefault(const Constant(true))();
 ///   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 /// }
-/// 
+///
 /// // Define your database
 /// @DriftDatabase(tables: [Users])
 /// class AppDatabase extends _$AppDatabase {
 ///   AppDatabase(QueryExecutor e) : super(e);
-///   
+///
 ///   @override
 ///   int get schemaVersion => 1;
-///   
+///
 ///   // Queries
 ///   Future<List<User>> getAllUsers() => select(users).get();
 ///   Future<User?> getUserById(int id) => (select(users)..where((u) => u.id.equals(id))).getSingleOrNull();
@@ -83,7 +83,7 @@ class DartvelDatabase {
 ///   Future<bool> updateUser(User user) => update(users).replace(user);
 ///   Future<int> deleteUser(int id) => (delete(users)..where((u) => u.id.equals(id))).go();
 /// }
-/// 
+///
 /// // Usage in your backend functions:
 /// final db = AppDatabase(/* executor */);
 /// final users = await db.getAllUsers();
@@ -91,7 +91,7 @@ class DartvelDatabase {
 /// ```
 
 /// Quick Start Guide
-/// 
+///
 /// 1. Add dependencies to pubspec.yaml:
 /// ```yaml
 /// dependencies:
@@ -99,50 +99,50 @@ class DartvelDatabase {
 ///   sqlite3_flutter_libs: ^0.5.0  # For mobile
 ///   path_provider: ^2.0.0
 ///   path: ^1.8.0
-/// 
+///
 /// dev_dependencies:
 ///   drift_dev: ^2.14.0
 ///   build_runner: ^2.4.0
 /// ```
-/// 
+///
 /// 2. Create your database file (e.g., lib/database/database.dart):
 /// ```dart
 /// import 'package:drift/drift.dart';
-/// 
+///
 /// part 'database.g.dart';
-/// 
+///
 /// class Users extends Table {
 ///   IntColumn get id => integer().autoIncrement()();
 ///   TextColumn get name => text()();
 ///   TextColumn get email => text().unique()();
 /// }
-/// 
+///
 /// @DriftDatabase(tables: [Users])
 /// class AppDatabase extends _$AppDatabase {
 ///   AppDatabase(QueryExecutor e) : super(e);
-///   
+///
 ///   @override
 ///   int get schemaVersion => 1;
 /// }
 /// ```
-/// 
+///
 /// 3. Run code generation:
 /// ```bash
 /// dart run build_runner build
 /// ```
-/// 
+///
 /// 4. Use in your backend functions:
 /// ```dart
 /// // lib/backend/functions/users/list.get.dart
 /// import 'package:shelf/shelf.dart';
 /// import 'package:your_app/database/database.dart';
 /// import 'dart:convert';
-/// 
+///
 /// Future<Response> handler(Request req) async {
 ///   final db = req.context['database'] as AppDatabase;
-///   
+///
 ///   final users = await db.select(db.users).get();
-///   
+///
 ///   return Response.ok(
 ///     jsonEncode(users.map((u) => {
 ///       'id': u.id,
@@ -155,17 +155,17 @@ class DartvelDatabase {
 /// ```
 
 /// Migration Guide
-/// 
+///
 /// Drift has excellent migration support:
-/// 
+///
 /// ```dart
 /// @DriftDatabase(tables: [Users, Posts])
 /// class AppDatabase extends _$AppDatabase {
 ///   AppDatabase(QueryExecutor e) : super(e);
-///   
+///
 ///   @override
 ///   int get schemaVersion => 2;  // Increment when schema changes
-///   
+///
 ///   @override
 ///   MigrationStrategy get migration {
 ///     return MigrationStrategy(
@@ -190,7 +190,7 @@ class DartvelDatabase {
 /// ```
 
 /// Benefits of Drift vs Custom ORM:
-/// 
+///
 /// ✅ Type-safe queries (compile-time errors)
 /// ✅ Auto-generated code (less boilerplate)
 /// ✅ Multiple database support (SQLite, PostgreSQL, MySQL)
@@ -200,5 +200,5 @@ class DartvelDatabase {
 /// ✅ Battle-tested in production
 /// ✅ Active maintenance
 /// ✅ Excellent documentation
-/// 
+///
 /// See DATABASE_ORM.md for complete setup guide.

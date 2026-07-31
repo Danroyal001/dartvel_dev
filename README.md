@@ -71,7 +71,7 @@ Everything else is automatically compiled, generated, or served by the framework
 | **Backend Runtime** | Axum/Tokio Rust server calling Dart FFI, supporting SSE streams | ✅ Implemented |
 | **Platform APIs** | Runtime platform/screen detection; camera, location, haptics, etc. are scaffolded pending native plugins | ⚠️ Partial |
 | **Authentication** | API surface and prebuilt pages; provider integrations are not complete | ⚠️ Scaffold |
-| **Database & Cache** | API surface plus local primitives; external DB/Redis adapters are not complete | ⚠️ Partial |
+| **Database & Cache** | Real SQLite adapter (file + in-memory, WAL); Postgres/MySQL/Redis adapters are not complete | ⚠️ Partial |
 | **PWA & SEO** | Automatic PWA manifest/worker & runtime/global SEO injection | ✅ Implemented |
 | **AI Integration** | HTTP adapters for Claude, OpenAI, Gemini, OpenRouter, and Ollama, plus the deterministic local adapter | ✅ Implemented |
 | **Sensitive Fields** | `@DVModel.sensitiveField()` redacts fields from public serialization, cards, logs, and AI context | ✅ Implemented |
@@ -310,6 +310,43 @@ DV.lifecycle.build.value; // DVBuildLifecycle.idle
 Also available: `context.lifecycle.page`, `.request`, and `.transaction`, plus
 `DV.Modules.<id>.lifecycle`. There is no setter on the public signal type — a
 failing observer can't break a transition for anyone else.
+
+---
+
+## 🗄️ Local Database
+
+SQLite is the zero-config local database — no separate service for development
+or tests:
+
+```dart
+// Tests and ephemeral work
+DV.Database.configure(SqliteDVDatabaseAdapter.memory());
+
+// Development and production files: WAL and foreign keys on by default
+DV.Database.configure(SqliteDVDatabaseAdapter.file('.dartvel/app.db'));
+
+await DV.Database.execute(
+  'INSERT INTO users (name, age) VALUES (?, ?)',
+  <Object?>['Ada', 36],
+);
+final rows = await DV.Database.query(
+  'SELECT * FROM users WHERE age > ?',
+  <Object?>[30],
+);
+```
+
+This executes arbitrary SQL — DDL, joins, aggregates, transactions, blobs.
+`MemoryDVDatabaseAdapter` remains available but understands only a few
+statement shapes and throws on anything else; prefer
+`SqliteDVDatabaseAdapter.memory()` for tests.
+
+SQLite needs `dart:ffi`, so on web `SqliteDVDatabaseAdapter` throws
+`UnsupportedError` at construction naming the alternative, rather than
+degrading to a fake database. The import is conditional, so web and Wasm
+builds do not pull in `dart:ffi` at all.
+
+Postgres, MySQL, MongoDB, Turso, ClickHouse and BigQuery adapters are **not**
+implemented yet.
 
 ---
 
