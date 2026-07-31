@@ -1,3 +1,35 @@
+/// AI: the `DV.AI` facade plus everything needed to configure and drive it.
 library dartvel_ai;
 
-export 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVAI;
+export 'package:dartvel_flutter/dartvel_flutter.dart'
+    show
+        DV,
+        DVAI,
+        DVAIAdapter,
+        DVHttpAIAdapter,
+        LocalDVAIAdapter,
+        AnthropicDVAIAdapter,
+        OpenAIDVAIAdapter,
+        OpenRouterDVAIAdapter,
+        GeminiDVAIAdapter,
+        OllamaDVAIAdapter,
+        DVAIProviderException,
+        DVAIAgentRequest,
+        DVAIAgentResult,
+        DVAITranscript,
+        DVAIToolDefinition,
+        DVAIToolHandler,
+        DVAIToolRegistry,
+        DVJsonValue,
+        DVJsonObject,
+        DVJsonNull,
+        DVJsonBool,
+        DVJsonNumber,
+        DVJsonString,
+        DVJsonList,
+        DVJsonMap,
+        DVJsonCodec,
+        DVHttpRequest,
+        DVHttpResponse,
+        DVHttpSend,
+        dvSendHttpRequest;

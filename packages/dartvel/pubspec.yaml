@@ -7,6 +7,8 @@ environment:
   sdk: ">=3.4.0 <4.0.0"
 
 dependencies:
+  flutter:
+    sdk: flutter
   dartvel_core:
     path: ../dartvel_core
   dartvel_flutter:
@@ -15,3 +17,7 @@ dependencies:
     path: ../dartvel_shelf
   dartvel_cli:
     path: ../dartvel_cli
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
