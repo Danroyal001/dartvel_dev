@@ -413,8 +413,30 @@ query syntax or raising an error.
 
 FTS5 does the matching; models stay in Dart and facets are applied afterwards,
 so ranked ids are read in full before paging. That suits datasets that fit in
-memory rather than very large corpora. Meilisearch, Algolia and
-OpenSearch/Elasticsearch providers are **not** implemented yet.
+memory rather than very large corpora.
+
+For hosted search, `MeilisearchProvider` and `AlgoliaSearchProvider` speak the
+same `DVSearchProvider` contract over the shared HTTP transport:
+
+```dart
+final search = MeilisearchProvider<Product, ProductFacets>(
+  baseUrl: Uri.https('search.example.com'),
+  apiKey: env.meilisearchKey,
+  indexName: 'products',
+  fromJson: (hit) => Product.fromJson(hit),
+  facetFilter: (facets) => <String>[
+    if (facets?.category case final c?) for (final v in c) 'category = "$v"',
+  ],
+);
+```
+
+Dartvel pages are 1-based; Algolia counts from zero, so the page number is
+translated in both directions and callers always see the page they asked for.
+A rejected query or an unreadable response throws
+`DVSearchProviderException` rather than returning an empty page.
+
+OpenSearch/Elasticsearch and PostgreSQL full-text providers are **not**
+implemented yet.
 
 ---
 
