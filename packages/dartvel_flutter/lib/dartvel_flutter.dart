@@ -32,7 +32,10 @@ export 'package:dartvel_core/dartvel.dart'
         DVAITranscript,
         DVAIToolEntry,
         DVAIToolHandler,
+        AuthException,
+        AuthFailure,
         DVAIToolDefinition,
+        DVPasswordHasher,
         DVDatabaseAdapter,
         DVAIToolRegistry,
         DVAIHttpRequest,
@@ -2108,8 +2111,37 @@ abstract class DVAuthProvider {
 ///
 /// Production applications must configure a provider backed by their auth
 /// service before calling [DV.Auth].
+class _DVLocalCredential {
+  final DVAuthUser user;
+  final String passwordHash;
+
+  const _DVLocalCredential(this.user, this.passwordHash);
+}
+
+/// Development and test auth adapter.
+///
+/// E-mail/password credentials are stored salted and hashed and are really
+/// verified. Everything lives in memory with no recovery, verification or
+/// session expiry, so this must not be mistaken for production authentication.
 class DVLocalAuthProvider implements DVAuthProvider {
+  static const int minimumPasswordLength = 8;
+
+  final DVPasswordHasher _hasher;
+  final Map<String, _DVLocalCredential> _accounts =
+      <String, _DVLocalCredential>{};
   bool _signedIn = false;
+
+  DVLocalAuthProvider({DVPasswordHasher? hasher})
+      : _hasher = hasher ?? DVPasswordHasher(iterations: 10000);
+
+  /// Registered account e-mails, for test assertions and dev tooling.
+  List<String> get accounts => List<String>.unmodifiable(_accounts.keys);
+
+  /// Removes every registered account. Intended for test teardown.
+  void reset() {
+    _accounts.clear();
+    _signedIn = false;
+  }
 
   @override
   Future<DVAuthUser> signInAnonymously() async {
@@ -2121,11 +2153,28 @@ class DVLocalAuthProvider implements DVAuthProvider {
     required String email,
     required String password,
   }) async {
-    final normalizedEmail = email.trim();
-    if (normalizedEmail.isEmpty || password.isEmpty) {
+    final key = email.trim().toLowerCase();
+    if (key.isEmpty || password.isEmpty) {
       throw ArgumentError('Email and password are required.');
     }
-    return _setUser(email: normalizedEmail, provider: 'email');
+    final stored = _accounts[key];
+    if (stored == null) {
+      // Hash anyway so a missing account does not answer faster than a wrong
+      // password, which would leak which e-mails are registered.
+      _hasher.verify(password, _hasher.hash(password));
+      throw const AuthException(
+        AuthFailure.unknownAccount,
+        'No account exists for that e-mail address. Call signUp first.',
+      );
+    }
+    if (!_hasher.verify(password, stored.passwordHash)) {
+      throw const AuthException(
+        AuthFailure.invalidPassword,
+        'That password is incorrect.',
+      );
+    }
+    _signedIn = true;
+    return stored.user;
   }
 
   @override
@@ -2178,16 +2227,41 @@ class DVLocalAuthProvider implements DVAuthProvider {
     String? password,
     Map<String, Object?> metadata = const <String, Object?>{},
   }) async {
-    final normalizedEmail = email?.trim();
+    final normalizedEmail = email?.trim().toLowerCase();
     if ((normalizedEmail == null || normalizedEmail.isEmpty) &&
         metadata.isEmpty) {
       throw ArgumentError('Email or metadata is required to create a user.');
     }
-    return _setUser(
+
+    if (normalizedEmail != null && normalizedEmail.isNotEmpty) {
+      if (_accounts.containsKey(normalizedEmail)) {
+        throw const AuthException(
+          AuthFailure.accountExists,
+          'An account already exists for that e-mail address.',
+        );
+      }
+      if (password != null && password.length < minimumPasswordLength) {
+        throw const AuthException(
+          AuthFailure.weakPassword,
+          'Passwords must be at least $minimumPasswordLength characters.',
+        );
+      }
+    }
+
+    final user = _setUser(
       email: normalizedEmail,
       provider: normalizedEmail == null ? 'custom' : 'email',
       metadata: metadata,
     );
+
+    // Only an account created with a password can sign in with one later.
+    if (normalizedEmail != null &&
+        normalizedEmail.isNotEmpty &&
+        password != null) {
+      _accounts[normalizedEmail] =
+          _DVLocalCredential(user, _hasher.hash(password));
+    }
+    return user;
   }
 
   DVAuthUser _setUser({
