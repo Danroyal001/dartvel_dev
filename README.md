@@ -70,7 +70,7 @@ Everything else is automatically compiled, generated, or served by the framework
 | **Models & Forms** | `@DVModel` annotation + `DVForm<T>` automatic & manual controls | ✅ Implemented |
 | **Backend Runtime** | Axum/Tokio Rust server calling Dart FFI, supporting SSE streams | ✅ Implemented |
 | **Platform APIs** | Runtime platform/screen detection; camera, location, haptics, etc. are scaffolded pending native plugins | ⚠️ Partial |
-| **Authentication** | Prebuilt pages plus a local provider that really stores and verifies salted password hashes; external identity providers are not complete | ⚠️ Partial |
+| **Authentication** | Local provider with salted password hashes, plus OAuth2 (PKCE) with Google/GitHub/GitLab/Bitbucket/Microsoft presets; magic links, OTP, LDAP and SAML are not complete | ⚠️ Partial |
 | **Database & Cache** | Real SQLite adapter (file + in-memory, WAL) and a pluggable cache with memory/database-backed adapters; Postgres/MySQL/Redis adapters are not complete | ⚠️ Partial |
 | **Mail & Notifications** | SMTP plus HTTP mail providers (Resend, SendGrid, Postmark, Mailgun, SES) and FCM push; APNS and Web Push are not complete | ⚠️ Partial |
 | **PWA & SEO** | Automatic PWA manifest/worker & runtime/global SEO injection | ✅ Implemented |
