@@ -8,6 +8,7 @@ environment:
 dependencies:
   dartvel_shelf:
     path: ../dartvel_shelf
+  http: ^1.6.0
   mime: ^1.0.4
   http_parser: ^4.0.2
   shelf_multipart: ^1.0.0

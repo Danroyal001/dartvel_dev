@@ -27,6 +27,7 @@ now have runtime implementations and tests:
 | `@DVStaticPaths()` | ✅ Discovered during generation and exported by the generated client barrel |
 | `DVModelPageDataMode` | ✅ Drives generated `Model.Page.async/.signal/.fromId` renderers |
 | `@DVModel(generatePublicPages: true)` | ✅ Emits static-path manifest entries and DB-backed `Model.publicStaticPaths()` resolvers |
+| `DV.AI` provider adapters | ✅ Real HTTP adapters for Claude, OpenAI, Gemini, OpenRouter, and Ollama |
 
 **Implemented, but not equally mature.** The feature table below marks each
 area. Anything flagged ⚠️ Scaffold has an API surface and prebuilt pieces, but
@@ -72,7 +73,7 @@ Everything else is automatically compiled, generated, or served by the framework
 | **Authentication** | API surface and prebuilt pages; provider integrations are not complete | ⚠️ Scaffold |
 | **Database & Cache** | API surface plus local primitives; external DB/Redis adapters are not complete | ⚠️ Partial |
 | **PWA & SEO** | Automatic PWA manifest/worker & runtime/global SEO injection | ✅ Implemented |
-| **AI Integration** | API surface and annotations; provider calls are not complete | ⚠️ Scaffold |
+| **AI Integration** | HTTP adapters for Claude, OpenAI, Gemini, OpenRouter, and Ollama, plus the deterministic local adapter | ✅ Implemented |
 | **Sensitive Fields** | `@DVModel.sensitiveField()` redacts fields from public serialization, cards, logs, and AI context | ✅ Implemented |
 | **Lifecycle Signals** | Read-only enum signals: `DV.lifecycle.app`/`.build`, `context.lifecycle.page`/`.request`/`.transaction` | ✅ Implemented |
 | **Modules** | `DV.Modules.<id>` registry with per-module lifecycle and mount-point independence | ✅ Implemented |
@@ -309,6 +310,53 @@ DV.lifecycle.build.value; // DVBuildLifecycle.idle
 Also available: `context.lifecycle.page`, `.request`, and `.transaction`, plus
 `DV.Modules.<id>.lifecycle`. There is no setter on the public signal type — a
 failing observer can't break a transition for anyone else.
+
+---
+
+## 🤖 AI Providers
+
+`DV.AI` is provider-backed. Configure an adapter once, then use the same typed
+surface everywhere:
+
+```dart
+DV.AI.configure(AnthropicDVAIAdapter(apiKey: DV.Secrets.get('ANTHROPIC_API_KEY')));
+
+final answer = await DV.AI.chat('Summarize this ledger');
+final structured = await DV.AI.structuredOutput(
+  'Extract the totals',
+  const <String, DVJsonValue>{'type': DVJsonString('object')},
+);
+```
+
+Shipped adapters and what each service actually serves:
+
+| Adapter | Chat | Embeddings | Structured output | Transcription |
+| :--- | :---: | :---: | :---: | :---: |
+| `AnthropicDVAIAdapter` | ✅ | ❌ | ✅ | ❌ |
+| `OpenAIDVAIAdapter` | ✅ | ✅ | ✅ | ✅ |
+| `GeminiDVAIAdapter` | ✅ | ✅ | ✅ | ✅ |
+| `OpenRouterDVAIAdapter` | ✅ | ❌ | ✅ | ❌ |
+| `OllamaDVAIAdapter` | ✅ | ✅ | ✅ | ❌ |
+| `LocalDVAIAdapter` | ✅ | ✅ | ✅ | ✅ |
+
+❌ means the provider has no such endpoint — the call throws `UnsupportedError`
+naming the capability rather than returning an empty result. Provider rejections
+and payloads Dartvel cannot parse throw `DVAIProviderException` carrying the
+status code and response body.
+
+Every adapter takes a `send` transport, so tests drive the exact wire format
+without network access:
+
+```dart
+final adapter = OpenAIDVAIAdapter(
+  apiKey: 'test',
+  send: (request) async =>
+      const DVAIHttpResponse(statusCode: 200, body: '{"choices":[...]}'),
+);
+```
+
+`LocalDVAIAdapter` stays the deterministic development/test adapter and is what
+`DV.Test.fakeAI()` installs.
 
 ---
 
