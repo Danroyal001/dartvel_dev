@@ -389,6 +389,36 @@ The in-memory adapter keeps the Dart object and needs no codec.
 
 Redis, SQS, Pub/Sub, RabbitMQ and Kafka adapters are **not** implemented yet.
 
+### File storage
+
+`DV.FileStorage` runs on a swappable adapter, defaulting to process-local
+memory. `S3FileStorageAdapter` covers AWS S3 and S3-compatible stores
+(Cloudflare R2, MinIO), signing each request with SigV4:
+
+```dart
+DV.Storage.configure(S3FileStorageAdapter(
+  bucket: 'assets',
+  region: 'us-east-1',
+  credentials: DVAwsCredentials(
+    accessKeyId: env.awsKeyId,
+    secretAccessKey: env.awsSecret,
+  ),
+  endpoint: Uri.https('minio.internal:9000'),   // optional; R2/MinIO
+));
+
+await DV.Storage.put('avatar.png', bytes, contentType: 'image/png');
+final keys = await DV.Storage.list(prefix: 'avatars/');
+```
+
+Path-style addressing (`{endpoint}/{bucket}/{key}`) is the default because R2
+and MinIO require it; pass `usePathStyle: false` for virtual-hosted AWS
+buckets. A missing object reports `DVFileStorageException.isNotFound` rather
+than a generic failure, and deleting an object that is already gone succeeds.
+
+Azure Blob and Google Cloud Storage adapters are **not** implemented yet.
+
+---
+
 ### Push notifications
 
 `FirebasePushProvider` sends through FCM's HTTP v1 API. Minting a Google

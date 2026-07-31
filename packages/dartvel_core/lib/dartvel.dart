@@ -31,6 +31,7 @@ export 'src/mail/smtp.dart';
 export 'src/modules/modules.dart';
 export 'src/platform_config.dart';
 export 'src/shell/shell.dart';
+export 'src/storage/adapters.dart';
 export 'src/transaction/transaction.dart';
 export 'src/updates/ota.dart';
 

@@ -859,9 +859,15 @@ void main() {
       () async {
     final storage = DV.Test.fakeStorage();
     await DV.Storage.put('test.bin', <int>[1, 2, 3]);
-    expect(storage['test.bin'], <int>[1, 2, 3]);
+    expect(await storage.get('test.bin'), <int>[1, 2, 3]);
+    expect(await DV.Storage.exists('test.bin'), isTrue);
+    expect(await DV.Storage.list(), <String>['test.bin']);
     DV.Test.resetStorage();
-    expect(DV.Storage.get('test.bin'), throwsStateError);
+    expect(
+      DV.Storage.get('test.bin'),
+      throwsA(isA<DVFileStorageException>()
+          .having((error) => error.isNotFound, 'isNotFound', isTrue)),
+    );
 
     DV.Test.fakeAI();
     DV.AI.registerTool('testTool', (_) => const DVJsonString('ok'));

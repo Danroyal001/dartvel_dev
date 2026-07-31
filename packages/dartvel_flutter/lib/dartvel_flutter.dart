@@ -57,6 +57,10 @@ export 'package:dartvel_core/dartvel.dart'
         DVCronTarget,
         DVBillingCheckoutSession,
         DVBillingProvider,
+        DVFileStorageAdapter,
+        DVFileStorageException,
+        DVMemoryFileStorageAdapter,
+        S3FileStorageAdapter,
         DVFormControls,
         DVFormControlsFactory,
         DVAuthAuthorization,
@@ -2499,9 +2503,10 @@ extension DVFlutterTestHarness on DVTestHarness {
     DVBilling._provider = null;
   }
 
-  Map<String, List<int>> fakeStorage() {
-    DVStorage._memory.clear();
-    return DVStorage._memory;
+  DVMemoryFileStorageAdapter fakeStorage() {
+    final adapter = DVMemoryFileStorageAdapter();
+    DV.Storage.configure(adapter);
+    return adapter;
   }
 
   MemoryDVDatabaseAdapter fakeDatabase() {
@@ -2529,7 +2534,7 @@ extension DVFlutterTestHarness on DVTestHarness {
   }
 
   void resetStorage() {
-    DVStorage._memory.clear();
+    DV.Storage.configure(DVMemoryFileStorageAdapter());
   }
 
   void refreshDatabase() {
@@ -2832,23 +2837,33 @@ class DVCache {
 
 class DVStorage {
   const DVStorage();
-  static final Map<String, List<int>> _memory = {};
+  static DVFileStorageAdapter _adapter = DVMemoryFileStorageAdapter();
 
-  Future<void> put(String key, List<int> bytes) async {
+  /// Swaps the storage behind `DV.FileStorage`. Defaults to
+  /// [DVMemoryFileStorageAdapter]; pass an [S3FileStorageAdapter] for an
+  /// object store.
+  ///
+  /// Browser-extension storage still takes precedence where the host provides
+  /// it, since that is the only storage such a target can reach.
+  void configure(DVFileStorageAdapter adapter) {
+    _adapter = adapter;
+  }
+
+  DVFileStorageAdapter get adapter => _adapter;
+
+  Future<void> put(String key, List<int> bytes, {String? contentType}) async {
     if (browser_extension_platform.supportsFileStorage()) {
       await browser_extension_platform.fileStoragePut(key, bytes);
       return;
     }
-    _memory[key] = List<int>.from(bytes);
+    await _adapter.put(key, bytes, contentType: contentType);
   }
 
   Future<List<int>> get(String key) async {
     if (browser_extension_platform.supportsFileStorage()) {
       return browser_extension_platform.fileStorageGet(key);
     }
-    final bytes = _memory[key];
-    if (bytes == null) throw StateError('No storage object exists for "$key".');
-    return List<int>.from(bytes);
+    return _adapter.get(key);
   }
 
   Future<void> delete(String key) async {
@@ -2856,8 +2871,13 @@ class DVStorage {
       await browser_extension_platform.fileStorageDelete(key);
       return;
     }
-    _memory.remove(key);
+    await _adapter.delete(key);
   }
+
+  Future<bool> exists(String key) => _adapter.exists(key);
+
+  Future<List<String>> list({String prefix = ''}) =>
+      _adapter.list(prefix: prefix);
 }
 
 class DVRustInt {
