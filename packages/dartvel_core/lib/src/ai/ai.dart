@@ -91,32 +91,87 @@ class DVJsonCodec {
       };
 }
 
+/// A registered AI tool: the handler plus the description and JSON Schema a
+/// provider needs in order to decide when to call it.
+class DVAIToolDefinition {
+  final String name;
+  final String description;
+
+  /// JSON Schema object describing the tool's input.
+  final DVJsonObject parameters;
+  final DVAIToolHandler handler;
+
+  const DVAIToolDefinition({
+    required this.name,
+    required this.handler,
+    this.description = '',
+    this.parameters = const <String, DVJsonValue>{},
+  });
+
+  /// The schema sent to providers. A tool that declared no parameters is
+  /// advertised as an object with no properties rather than omitted, because
+  /// every provider requires a schema on each tool.
+  Map<String, Object?> get jsonSchema => parameters.isEmpty
+      ? <String, Object?>{
+          'type': 'object',
+          'properties': <String, Object?>{},
+        }
+      : DVJsonCodec.toJsonObject(parameters);
+}
+
 class DVAIToolRegistry {
-  static final Map<String, DVAIToolHandler> _handlers = {};
+  static final Map<String, DVAIToolDefinition> _tools = {};
 
   const DVAIToolRegistry();
 
-  void register(String name, DVAIToolHandler handler) {
+  void register(
+    String name,
+    DVAIToolHandler handler, {
+    String description = '',
+    DVJsonObject parameters = const <String, DVJsonValue>{},
+  }) {
     if (name.trim().isEmpty) {
       throw ArgumentError.value(name, 'name', 'AI tool names cannot be empty.');
     }
-    _handlers[name] = handler;
+    _tools[name] = DVAIToolDefinition(
+      name: name,
+      handler: handler,
+      description: description,
+      parameters: parameters,
+    );
   }
 
-  bool contains(String name) => _handlers.containsKey(name);
+  void registerDefinition(DVAIToolDefinition definition) => register(
+        definition.name,
+        definition.handler,
+        description: definition.description,
+        parameters: definition.parameters,
+      );
 
-  List<String> get names => List<String>.unmodifiable(_handlers.keys);
+  bool contains(String name) => _tools.containsKey(name);
+
+  List<String> get names => List<String>.unmodifiable(_tools.keys);
+
+  DVAIToolDefinition? definition(String name) => _tools[name];
+
+  /// Resolves [names] to registered definitions, skipping unknown tools so a
+  /// stale tool name cannot fail an otherwise valid agent run.
+  List<DVAIToolDefinition> definitions(Iterable<String> names) =>
+      List<DVAIToolDefinition>.unmodifiable(<DVAIToolDefinition>[
+        for (final name in names)
+          if (_tools[name] case final definition?) definition,
+      ]);
 
   Future<DVJsonValue> call(String name, [DVJsonObject input = const {}]) async {
-    final handler = _handlers[name];
-    if (handler == null) {
+    final tool = _tools[name];
+    if (tool == null) {
       throw StateError('No AI tool registered for "$name".');
     }
-    return handler(input);
+    return tool.handler(input);
   }
 
   void clear() {
-    _handlers.clear();
+    _tools.clear();
   }
 }
 
@@ -355,6 +410,51 @@ abstract class DVHttpAIAdapter implements DVAIAdapter {
   @override
   Future<String> chat(String prompt, {String provider = 'gemini'});
 
+  /// Upper bound on model turns in a native tool-calling loop. Reaching it is
+  /// an error, not a silent truncation.
+  int get maxAgentIterations => 8;
+
+  /// Registered definitions for the tools this request allows.
+  List<DVAIToolDefinition> agentTools(DVAIAgentRequest request) =>
+      const DVAIToolRegistry().definitions(request.tools);
+
+  String agentPrompt(DVAIAgentRequest request) => request.context.isEmpty
+      ? request.goal
+      : '${request.goal}\n\nContext:\n'
+          '${jsonEncode(DVJsonCodec.toJsonObject(request.context))}';
+
+  /// Runs one registered tool, converting a thrown handler error into a value
+  /// the model can read and recover from.
+  Future<({DVJsonValue value, bool isError})> invokeAgentTool(
+    DVAIToolDefinition tool,
+    DVJsonObject input,
+  ) async {
+    try {
+      return (value: await tool.handler(input), isError: false);
+    } on Object catch (error) {
+      return (value: DVJsonString('$error'), isError: true);
+    }
+  }
+
+  DVJsonObject decodeToolInput(Object? raw) {
+    if (raw is Map<String, Object?>) return DVJsonCodec.fromJsonObject(raw);
+    if (raw is String && raw.trim().isNotEmpty) {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map<String, Object?>) {
+        return DVJsonCodec.fromJsonObject(decoded);
+      }
+    }
+    return const <String, DVJsonValue>{};
+  }
+
+  Never agentDidNotFinish() => throw DVAIProviderException(
+        providerName,
+        'The agent did not finish within $maxAgentIterations model turns.',
+      );
+
+  /// Fallback used when the provider has no native tool calling, or when the
+  /// request names no registered tools: run the allowed tools up front and put
+  /// their results in the prompt.
   @override
   Future<DVAIAgentResult> runAgent(DVAIAgentRequest request) async {
     const registry = DVAIToolRegistry();
@@ -366,16 +466,10 @@ abstract class DVHttpAIAdapter implements DVAIAdapter {
       data[toolName] = await registry.call(toolName, request.context);
     }
 
-    final prompt = StringBuffer(request.goal);
-    if (request.context.isNotEmpty) {
-      prompt
-        ..writeln()
-        ..writeln()
-        ..writeln('Context:')
-        ..writeln(jsonEncode(DVJsonCodec.toJsonObject(request.context)));
-    }
+    final prompt = StringBuffer(agentPrompt(request));
     if (data.isNotEmpty) {
       prompt
+        ..writeln()
         ..writeln()
         ..writeln('Tool results:')
         ..writeln(jsonEncode(DVJsonCodec.toJsonObject(data)));
@@ -478,7 +572,9 @@ abstract class DVHttpAIAdapter implements DVAIAdapter {
   List<double> readDoubles(List<Object?> source, String description) {
     final values = <double>[];
     for (final entry in source) {
-      if (entry is! num) malformed('$description contained a non-numeric entry');
+      if (entry is! num) {
+        malformed('$description contained a non-numeric entry');
+      }
       values.add(entry.toDouble());
     }
     return List<double>.unmodifiable(values);
@@ -645,6 +741,102 @@ class AnthropicDVAIAdapter extends DVHttpAIAdapter {
   }) async =>
       unsupported('an audio transcription endpoint');
 
+  /// Native Messages API tool-use loop: the model decides which tools to call
+  /// and when to stop. Falls back to the prompt-based run when the request
+  /// names no registered tools.
+  @override
+  Future<DVAIAgentResult> runAgent(DVAIAgentRequest request) async {
+    final tools = agentTools(request);
+    if (tools.isEmpty) return super.runAgent(request);
+
+    final messages = <Object?>[
+      <String, Object?>{'role': 'user', 'content': agentPrompt(request)},
+    ];
+    final usedTools = <String>[];
+    final data = <String, DVJsonValue>{};
+
+    for (var turn = 0; turn < maxAgentIterations; turn++) {
+      final payload = await postJson(
+        endpoint('/v1/messages'),
+        <String, Object?>{
+          'model': model,
+          'max_tokens': maxOutputTokens,
+          'messages': messages,
+          'tools': <Object?>[
+            for (final tool in tools)
+              <String, Object?>{
+                'name': tool.name,
+                'description': tool.description,
+                'input_schema': tool.jsonSchema,
+              },
+          ],
+        },
+      );
+
+      if (payload['stop_reason'] == 'refusal') {
+        throw DVAIProviderException(
+          providerName,
+          'The request was declined by Anthropic safety classifiers.',
+          responseBody: jsonEncode(payload),
+        );
+      }
+
+      final content = readList(payload, 'content');
+      if (payload['stop_reason'] != 'tool_use') {
+        return DVAIAgentResult(
+          output: _joinTextBlocks(content),
+          data: Map<String, DVJsonValue>.unmodifiable(data),
+          usedTools: List<String>.unmodifiable(usedTools),
+        );
+      }
+
+      messages.add(<String, Object?>{'role': 'assistant', 'content': content});
+
+      final results = <Object?>[];
+      for (final block in content) {
+        if (block is! Map<String, Object?> || block['type'] != 'tool_use') {
+          continue;
+        }
+        final name = readString(block, 'name');
+        final tool = tools.where((entry) => entry.name == name).firstOrNull;
+        if (tool == null) {
+          results.add(<String, Object?>{
+            'type': 'tool_result',
+            'tool_use_id': readString(block, 'id'),
+            'content': 'No tool named "$name" is available.',
+            'is_error': true,
+          });
+          continue;
+        }
+        final outcome =
+            await invokeAgentTool(tool, decodeToolInput(block['input']));
+        if (!outcome.isError) {
+          usedTools.add(name);
+          data[name] = outcome.value;
+        }
+        results.add(<String, Object?>{
+          'type': 'tool_result',
+          'tool_use_id': readString(block, 'id'),
+          'content': jsonEncode(DVJsonCodec.toJson(outcome.value)),
+          if (outcome.isError) 'is_error': true,
+        });
+      }
+      messages.add(<String, Object?>{'role': 'user', 'content': results});
+    }
+
+    agentDidNotFinish();
+  }
+
+  String _joinTextBlocks(List<Object?> content) {
+    final buffer = StringBuffer();
+    for (final block in content) {
+      if (block is Map<String, Object?> && block['type'] == 'text') {
+        buffer.write(block['text'] as String? ?? '');
+      }
+    }
+    return buffer.toString();
+  }
+
   Map<String, Object?> _messagesBody(String prompt) => <String, Object?>{
         'model': model,
         'max_tokens': maxOutputTokens,
@@ -789,6 +981,91 @@ class OpenAIDVAIAdapter extends DVHttpAIAdapter {
         'byteLength': DVJsonNumber(audioBytes.length),
       },
     );
+  }
+
+  /// Native chat-completions tool-calling loop. Falls back to the
+  /// prompt-based run when the request names no registered tools.
+  @override
+  Future<DVAIAgentResult> runAgent(DVAIAgentRequest request) async {
+    final tools = agentTools(request);
+    if (tools.isEmpty) return super.runAgent(request);
+
+    final messages = <Object?>[
+      <String, Object?>{'role': 'user', 'content': agentPrompt(request)},
+    ];
+    final usedTools = <String>[];
+    final data = <String, DVJsonValue>{};
+
+    for (var turn = 0; turn < maxAgentIterations; turn++) {
+      final payload = await postJson(
+        endpoint('/v1/chat/completions'),
+        <String, Object?>{
+          'model': model,
+          'max_completion_tokens': maxOutputTokens,
+          'messages': messages,
+          'tools': <Object?>[
+            for (final tool in tools)
+              <String, Object?>{
+                'type': 'function',
+                'function': <String, Object?>{
+                  'name': tool.name,
+                  'description': tool.description,
+                  'parameters': tool.jsonSchema,
+                },
+              },
+          ],
+        },
+      );
+
+      final choices = readList(payload, 'choices');
+      if (choices.isEmpty) {
+        malformed('"choices" was empty', jsonEncode(payload));
+      }
+      final choice = choices.first;
+      if (choice is! Map<String, Object?>) {
+        malformed('"choices[0]" was not a JSON object', jsonEncode(payload));
+      }
+      final message = readMap(choice, 'message');
+      final calls = message['tool_calls'];
+
+      if (calls is! List<Object?> || calls.isEmpty) {
+        return DVAIAgentResult(
+          output: message['content'] as String? ?? '',
+          data: Map<String, DVJsonValue>.unmodifiable(data),
+          usedTools: List<String>.unmodifiable(usedTools),
+        );
+      }
+
+      messages.add(message);
+      for (final call in calls) {
+        if (call is! Map<String, Object?>) continue;
+        final id = readString(call, 'id');
+        final function = readMap(call, 'function');
+        final name = readString(function, 'name');
+        final tool = tools.where((entry) => entry.name == name).firstOrNull;
+        if (tool == null) {
+          messages.add(<String, Object?>{
+            'role': 'tool',
+            'tool_call_id': id,
+            'content': 'No tool named "$name" is available.',
+          });
+          continue;
+        }
+        final outcome =
+            await invokeAgentTool(tool, decodeToolInput(function['arguments']));
+        if (!outcome.isError) {
+          usedTools.add(name);
+          data[name] = outcome.value;
+        }
+        messages.add(<String, Object?>{
+          'role': 'tool',
+          'tool_call_id': id,
+          'content': jsonEncode(DVJsonCodec.toJson(outcome.value)),
+        });
+      }
+    }
+
+    agentDidNotFinish();
   }
 
   Map<String, Object?> _completionsBody(String prompt) => <String, Object?>{
@@ -982,8 +1259,8 @@ class GeminiDVAIAdapter extends DVHttpAIAdapter {
       }
     }
     if (buffer.isEmpty) {
-      malformed('no text parts were present in the candidate',
-          jsonEncode(payload));
+      malformed(
+          'no text parts were present in the candidate', jsonEncode(payload));
     }
     return buffer.toString();
   }
