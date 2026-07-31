@@ -319,12 +319,26 @@ void main() {
     await DV.Auth.signIn();
     expect(DV.Auth.currentUser, isA<DVAuthUser>());
 
+    await DV.Auth.signUp(
+      email: 'dev@example.com',
+      password: 'dev-password',
+    );
+    await DV.Auth.signOut();
     await DV.Auth.signInWithEmailAndPassword(
       email: 'dev@example.com',
-      password: 'secret',
+      password: 'dev-password',
     );
     final user = DV.Auth.currentUser!;
     expect(user.email, 'dev@example.com');
+
+    // The local provider verifies credentials rather than accepting anything.
+    await expectLater(
+      DV.Auth.signInWithEmailAndPassword(
+        email: 'dev@example.com',
+        password: 'wrong-password',
+      ),
+      throwsA(isA<AuthException>()),
+    );
 
     expect(await DV.Platform.camera.takePhoto(), [1, 2, 3]);
     expect(
@@ -884,6 +898,10 @@ void main() {
 
   testWidgets('prebuilt auth pages use Dartvel primitives without scaffolds',
       (WidgetTester tester) async {
+    await DV.Auth.signUp(
+      email: 'pages@example.com',
+      password: 'pages-password',
+    );
     await DV.Auth.signOut();
 
     await tester.pumpWidget(
@@ -897,13 +915,13 @@ void main() {
     expect(find.byType(DVBox), findsOneWidget);
     expect(find.text('Sign in'), findsOneWidget);
 
-    await tester.enterText(find.byType(TextField).first, 'dev@example.com');
-    await tester.enterText(find.byType(TextField).last, 'secret');
+    await tester.enterText(find.byType(TextField).first, 'pages@example.com');
+    await tester.enterText(find.byType(TextField).last, 'pages-password');
     await tester.tap(find.text('Sign in'));
     await tester.pump();
 
     final user = DV.Auth.currentUser!;
-    expect(user.email, 'dev@example.com');
+    expect(user.email, 'pages@example.com');
 
     await DV.Auth.signOut();
     await tester.pumpWidget(
