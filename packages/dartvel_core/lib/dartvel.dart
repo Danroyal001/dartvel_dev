@@ -1835,6 +1835,110 @@ class DVSentNotification {
   });
 }
 
+/// Supplies a short-lived OAuth2 access token for a push service.
+///
+/// Minting one requires signing a service-account JWT, which needs an RSA
+/// implementation Dartvel does not bundle. Applications supply the token from
+/// their own credentials layer instead, and it is fetched per send so an
+/// expired token is never reused.
+typedef DVAccessTokenSupplier = Future<String> Function();
+
+/// Thrown when a push service rejects a notification.
+class DVPushProviderException implements Exception {
+  final String provider;
+  final int? statusCode;
+  final String message;
+  final String? responseBody;
+
+  const DVPushProviderException(
+    this.provider,
+    this.message, {
+    this.statusCode,
+    this.responseBody,
+  });
+
+  /// True when the service says this device token is no longer valid, so the
+  /// application should stop sending to it and prune its record.
+  bool get isUnregisteredToken {
+    if (statusCode == 404) return true;
+    final body = responseBody;
+    if (body == null) return false;
+    return body.contains('UNREGISTERED') || body.contains('NOT_FOUND');
+  }
+
+  @override
+  String toString() {
+    final status = statusCode == null ? '' : ' (HTTP $statusCode)';
+    final body = responseBody == null || responseBody!.isEmpty
+        ? ''
+        : '\nResponse: $responseBody';
+    return 'DVPushProviderException[$provider]$status: $message$body';
+  }
+}
+
+/// Firebase Cloud Messaging, HTTP v1.
+///
+/// The recipient is an FCM registration token. A stale token surfaces as a
+/// [DVPushProviderException] whose [DVPushProviderException.isUnregisteredToken]
+/// is true, which is the signal to drop it rather than retry.
+class FirebasePushProvider implements DVNotificationProvider {
+  final String projectId;
+  final DVAccessTokenSupplier accessToken;
+  final Uri baseUrl;
+  final DVHttpSend transport;
+
+  FirebasePushProvider({
+    required this.projectId,
+    required this.accessToken,
+    Uri? baseUrl,
+    this.transport = dvSendHttpRequest,
+  }) : baseUrl = baseUrl ?? Uri.https('fcm.googleapis.com');
+
+  @override
+  DVNotificationProviderKind get kind => DVNotificationProviderKind.firebase;
+
+  @override
+  Future<void> send(String recipient, DVNotificationMessage message) async {
+    if (recipient.trim().isEmpty) {
+      throw ArgumentError.value(
+        recipient,
+        'recipient',
+        'A push notification needs an FCM registration token.',
+      );
+    }
+
+    final token = await accessToken();
+    final response = await transport(
+      DVHttpRequest(
+        url: baseUrl.replace(path: '/v1/projects/$projectId/messages:send'),
+        headers: <String, String>{
+          'content-type': 'application/json',
+          'authorization': 'Bearer $token',
+        },
+        body: utf8.encode(jsonEncode(<String, Object?>{
+          'message': <String, Object?>{
+            'token': recipient,
+            'notification': <String, Object?>{
+              'title': message.title,
+              'body': message.body,
+            },
+            if (message.data.isNotEmpty) 'data': message.data,
+          },
+        })),
+      ),
+    );
+
+    if (!response.isSuccess) {
+      throw DVPushProviderException(
+        'firebase',
+        'The push service rejected the notification.',
+        statusCode: response.statusCode,
+        responseBody: response.body,
+      );
+    }
+  }
+}
+
 class DVMemoryNotificationProvider implements DVNotificationProvider {
   final List<DVSentNotification> sent = <DVSentNotification>[];
 

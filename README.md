@@ -72,7 +72,7 @@ Everything else is automatically compiled, generated, or served by the framework
 | **Platform APIs** | Runtime platform/screen detection; camera, location, haptics, etc. are scaffolded pending native plugins | ⚠️ Partial |
 | **Authentication** | Prebuilt pages plus a local provider that really stores and verifies salted password hashes; external identity providers are not complete | ⚠️ Partial |
 | **Database & Cache** | Real SQLite adapter (file + in-memory, WAL) and a pluggable cache with memory/database-backed adapters; Postgres/MySQL/Redis adapters are not complete | ⚠️ Partial |
-| **Mail & Notifications** | In-app/memory providers plus HTTP mail providers for Resend, SendGrid, Postmark and Mailgun; SMTP and SES are not complete | ⚠️ Partial |
+| **Mail & Notifications** | HTTP mail providers (Resend, SendGrid, Postmark, Mailgun) and FCM push; SMTP, SES, APNS and Web Push are not complete | ⚠️ Partial |
 | **PWA & SEO** | Automatic PWA manifest/worker & runtime/global SEO injection | ✅ Implemented |
 | **AI Integration** | HTTP adapters for Claude, OpenAI, Gemini, OpenRouter, and Ollama, plus the deterministic local adapter | ✅ Implemented |
 | **Sensitive Fields** | `@DVModel.sensitiveField()` redacts fields from public serialization, cards, logs, and AI context | ✅ Implemented |
@@ -388,6 +388,34 @@ whose codec is missing from the running process — neither silently drops work.
 The in-memory adapter keeps the Dart object and needs no codec.
 
 Redis, SQS, Pub/Sub, RabbitMQ and Kafka adapters are **not** implemented yet.
+
+### Push notifications
+
+`FirebasePushProvider` sends through FCM's HTTP v1 API. Minting a Google
+access token needs RSA JWT signing, which Dartvel does not bundle, so the token
+comes from your own credentials layer and is fetched per send — an expired one
+is never reused:
+
+```dart
+const DVNotifications().useProvider(
+  FirebasePushProvider(
+    projectId: 'my-project',
+    accessToken: () => googleCredentials.accessToken(),
+  ),
+);
+```
+
+A stale device token surfaces as `DVPushProviderException` with
+`isUnregisteredToken == true`, which is the signal to prune the token rather
+than retry it.
+
+**APNS and Web Push are not implemented, and are not quick follow-ons.** APNS
+requires HTTP/2, which `package:http` does not speak. Web Push requires P-256
+ECDH key agreement, HKDF and AES128GCM payload encryption; the bundled `crypto`
+package provides none of those. Both need dependencies this project does not
+currently have, so they are absent rather than stubbed.
+
+---
 
 ### Full-text search
 
