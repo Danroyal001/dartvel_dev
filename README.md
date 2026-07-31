@@ -358,6 +358,46 @@ final adapter = OpenAIDVAIAdapter(
 `LocalDVAIAdapter` stays the deterministic development/test adapter and is what
 `DV.Test.fakeAI()` installs.
 
+### Agents and tool calling
+
+Register a tool with a description and JSON Schema, and the model decides when
+to call it:
+
+```dart
+DV.AI.registerTool(
+  'getWeather',
+  (input) => DVJsonString('sunny in ${(input['city']! as DVJsonString).value}'),
+  description: 'Look up the current weather for a city.',
+  parameters: const <String, DVJsonValue>{
+    'type': DVJsonString('object'),
+    'properties': DVJsonMap(<String, DVJsonValue>{
+      'city': DVJsonMap(<String, DVJsonValue>{'type': DVJsonString('string')}),
+    }),
+    'required': DVJsonList(<DVJsonValue>[DVJsonString('city')]),
+  },
+);
+
+final result = await DV.AI.runAgent(
+  const DVAIAgentRequest(
+    goal: 'What is the weather in Paris?',
+    tools: <String>['getWeather'],
+  ),
+);
+result.usedTools; // ['getWeather'] — only tools the model actually called
+```
+
+`AnthropicDVAIAdapter` drives the Messages API `tool_use`/`tool_result` loop and
+`OpenAIDVAIAdapter` (with `OpenRouterDVAIAdapter`) drives `tool_calls` — the
+model selects tools and decides when to stop. `GeminiDVAIAdapter` and
+`OllamaDVAIAdapter` use the prompt-based fallback: allowed tools run up front
+and their results go into the prompt. The fallback is also used when a request
+names no registered tool.
+
+A tool that throws is reported back to the model as an error result so it can
+recover, and is left out of `usedTools`. A loop that never settles fails with
+`DVAIProviderException` after `maxAgentIterations` (8) model turns rather than
+spinning.
+
 ---
 
 ## 📱 Platform Expo-style Native APIs

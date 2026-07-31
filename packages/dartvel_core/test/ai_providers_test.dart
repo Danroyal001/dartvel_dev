@@ -243,8 +243,37 @@ void main() {
       expect(body, contains('content-type: audio/mpeg'));
     });
 
-    test('runAgent executes registered tools and feeds results to the model',
-        () async {
+    test('a model that calls no tool returns its answer directly', () async {
+      const DVAIToolRegistry().clear();
+      const DVAIToolRegistry()
+          .register('sumLedger', (_) => const DVJsonNumber(10));
+      addTearDown(const DVAIToolRegistry().clear);
+
+      final transport = _RecordingTransport.json(<String, Object?>{
+        'choices': <Object?>[
+          <String, Object?>{
+            'message': <String, Object?>{'content': 'No lookup needed.'},
+          },
+        ],
+      });
+      final adapter = OpenAIDVAIAdapter(apiKey: 'sk-a', send: transport.send);
+
+      final result = await adapter.runAgent(
+        const DVAIAgentRequest(
+          goal: 'Reconcile the ledger',
+          tools: <String>['sumLedger'],
+        ),
+      );
+
+      expect(result.output, 'No lookup needed.');
+      expect(result.usedTools, isEmpty,
+          reason: 'the model declined to call the tool');
+      expect(transport.requests, hasLength(1));
+    });
+  });
+
+  group('prompt-based agent fallback', () {
+    setUp(() {
       const DVAIToolRegistry().clear();
       const DVAIToolRegistry().register('sumLedger', (input) {
         final left = input['left'];
@@ -254,16 +283,23 @@ void main() {
         }
         return DVJsonNumber(left.value + right.value);
       });
-      addTearDown(const DVAIToolRegistry().clear);
+    });
+    tearDown(const DVAIToolRegistry().clear);
 
+    test('Gemini runs allowed tools up front and puts results in the prompt',
+        () async {
       final transport = _RecordingTransport.json(<String, Object?>{
-        'choices': <Object?>[
+        'candidates': <Object?>[
           <String, Object?>{
-            'message': <String, Object?>{'content': 'The ledger totals 10.'},
+            'content': <String, Object?>{
+              'parts': <Object?>[
+                <String, Object?>{'text': 'The ledger totals 10.'},
+              ],
+            },
           },
         ],
       });
-      final adapter = OpenAIDVAIAdapter(apiKey: 'sk-a', send: transport.send);
+      final adapter = GeminiDVAIAdapter(apiKey: 'g-key', send: transport.send);
 
       final result = await adapter.runAgent(
         const DVAIAgentRequest(
@@ -280,9 +316,10 @@ void main() {
       expect((result.data['sumLedger']! as DVJsonNumber).value, 10);
       expect(result.output, 'The ledger totals 10.');
 
-      final messages = transport.sentJson['messages']! as List<Object?>;
-      final prompt =
-          (messages.single as Map<String, Object?>)['content']! as String;
+      final contents = transport.sentJson['contents']! as List<Object?>;
+      final parts =
+          (contents.single as Map<String, Object?>)['parts']! as List<Object?>;
+      final prompt = (parts.single as Map<String, Object?>)['text']! as String;
       expect(prompt, startsWith('Reconcile the ledger'));
       expect(prompt, contains('Tool results:'));
       expect(prompt, contains('"sumLedger":10'));
@@ -383,8 +420,8 @@ void main() {
 
       expect(transcript.text, 'spoken words');
       final contents = transport.sentJson['contents']! as List<Object?>;
-      final parts = (contents.single as Map<String, Object?>)['parts']!
-          as List<Object?>;
+      final parts =
+          (contents.single as Map<String, Object?>)['parts']! as List<Object?>;
       final inline = (parts.first as Map<String, Object?>)['inline_data']!
           as Map<String, Object?>;
       expect(inline['mime_type'], 'audio/ogg');
@@ -436,6 +473,308 @@ void main() {
           ),
         ),
       );
+    });
+  });
+
+  group('native tool calling', () {
+    setUp(() {
+      const DVAIToolRegistry().clear();
+      const DVAIToolRegistry().register(
+        'getWeather',
+        (input) {
+          final city = input['city'];
+          if (city is! DVJsonString) {
+            throw ArgumentError('getWeather requires a city.');
+          }
+          return DVJsonString('sunny in ${city.value}');
+        },
+        description: 'Look up the current weather for a city.',
+        parameters: const <String, DVJsonValue>{
+          'type': DVJsonString('object'),
+          'properties': DVJsonMap(<String, DVJsonValue>{
+            'city': DVJsonMap(<String, DVJsonValue>{
+              'type': DVJsonString('string'),
+            }),
+          }),
+          'required': DVJsonList(<DVJsonValue>[DVJsonString('city')]),
+        },
+      );
+    });
+    tearDown(const DVAIToolRegistry().clear);
+
+    test('the registry keeps each tool description and schema', () {
+      final definition = const DVAIToolRegistry().definition('getWeather')!;
+      expect(definition.description, startsWith('Look up the current'));
+      expect(definition.jsonSchema['type'], 'object');
+      expect(definition.jsonSchema['required'], <Object?>['city']);
+    });
+
+    test('a tool with no declared parameters still advertises a schema', () {
+      const DVAIToolRegistry().register('ping', (_) => const DVJsonNull());
+      expect(
+        const DVAIToolRegistry().definition('ping')!.jsonSchema,
+        <String, Object?>{'type': 'object', 'properties': <String, Object?>{}},
+      );
+    });
+
+    test('Anthropic drives a tool_use round trip and returns the final text',
+        () async {
+      final transport = _RecordingTransport(<DVAIHttpResponse>[
+        DVAIHttpResponse(
+          statusCode: 200,
+          body: jsonEncode(<String, Object?>{
+            'stop_reason': 'tool_use',
+            'content': <Object?>[
+              <String, Object?>{
+                'type': 'tool_use',
+                'id': 'toolu_1',
+                'name': 'getWeather',
+                'input': <String, Object?>{'city': 'Paris'},
+              },
+            ],
+          }),
+        ),
+        DVAIHttpResponse(
+          statusCode: 200,
+          body: jsonEncode(<String, Object?>{
+            'stop_reason': 'end_turn',
+            'content': <Object?>[
+              <String, Object?>{'type': 'text', 'text': 'Paris is sunny.'},
+            ],
+          }),
+        ),
+      ]);
+      final adapter = AnthropicDVAIAdapter(
+        apiKey: 'sk-test',
+        send: transport.send,
+      );
+
+      final result = await adapter.runAgent(
+        const DVAIAgentRequest(
+          goal: 'What is the weather in Paris?',
+          tools: <String>['getWeather'],
+        ),
+      );
+
+      expect(result.output, 'Paris is sunny.');
+      expect(result.usedTools, <String>['getWeather']);
+      expect(
+        (result.data['getWeather']! as DVJsonString).value,
+        'sunny in Paris',
+      );
+
+      // Turn 1 advertises the tool with its description and schema.
+      final firstBody = jsonDecode(utf8.decode(transport.requests[0].body))
+          as Map<String, Object?>;
+      final advertised =
+          (firstBody['tools']! as List<Object?>).single as Map<String, Object?>;
+      expect(advertised['name'], 'getWeather');
+      expect(advertised['description'], startsWith('Look up the current'));
+      expect(
+        (advertised['input_schema']! as Map<String, Object?>)['type'],
+        'object',
+      );
+
+      // Turn 2 echoes the assistant turn and answers with a tool_result.
+      final secondBody = jsonDecode(utf8.decode(transport.requests[1].body))
+          as Map<String, Object?>;
+      final messages = secondBody['messages']! as List<Object?>;
+      expect(messages, hasLength(3));
+      expect((messages[1] as Map<String, Object?>)['role'], 'assistant');
+      final toolTurn = messages[2] as Map<String, Object?>;
+      expect(toolTurn['role'], 'user');
+      final toolResult = (toolTurn['content']! as List<Object?>).single
+          as Map<String, Object?>;
+      expect(toolResult['type'], 'tool_result');
+      expect(toolResult['tool_use_id'], 'toolu_1');
+      expect(toolResult['content'], '"sunny in Paris"');
+      expect(toolResult.containsKey('is_error'), isFalse);
+    });
+
+    test('a throwing tool is reported to the model instead of failing the run',
+        () async {
+      final transport = _RecordingTransport(<DVAIHttpResponse>[
+        DVAIHttpResponse(
+          statusCode: 200,
+          body: jsonEncode(<String, Object?>{
+            'stop_reason': 'tool_use',
+            'content': <Object?>[
+              <String, Object?>{
+                'type': 'tool_use',
+                'id': 'toolu_1',
+                'name': 'getWeather',
+                'input': <String, Object?>{'wrong': 'shape'},
+              },
+            ],
+          }),
+        ),
+        DVAIHttpResponse(
+          statusCode: 200,
+          body: jsonEncode(<String, Object?>{
+            'stop_reason': 'end_turn',
+            'content': <Object?>[
+              <String, Object?>{'type': 'text', 'text': 'I need a city.'},
+            ],
+          }),
+        ),
+      ]);
+      final adapter = AnthropicDVAIAdapter(
+        apiKey: 'sk-test',
+        send: transport.send,
+      );
+
+      final result = await adapter.runAgent(
+        const DVAIAgentRequest(
+          goal: 'Weather?',
+          tools: <String>['getWeather'],
+        ),
+      );
+
+      expect(result.output, 'I need a city.');
+      expect(result.usedTools, isEmpty);
+      expect(result.data, isEmpty);
+
+      final secondBody = jsonDecode(utf8.decode(transport.requests[1].body))
+          as Map<String, Object?>;
+      final messages = secondBody['messages']! as List<Object?>;
+      final toolResult =
+          ((messages[2] as Map<String, Object?>)['content']! as List<Object?>)
+              .single as Map<String, Object?>;
+      expect(toolResult['is_error'], isTrue);
+      expect(toolResult['content'], contains('requires a city'));
+    });
+
+    test('OpenAI drives a tool_calls round trip', () async {
+      final transport = _RecordingTransport(<DVAIHttpResponse>[
+        DVAIHttpResponse(
+          statusCode: 200,
+          body: jsonEncode(<String, Object?>{
+            'choices': <Object?>[
+              <String, Object?>{
+                'message': <String, Object?>{
+                  'role': 'assistant',
+                  'content': null,
+                  'tool_calls': <Object?>[
+                    <String, Object?>{
+                      'id': 'call_1',
+                      'type': 'function',
+                      'function': <String, Object?>{
+                        'name': 'getWeather',
+                        'arguments': '{"city":"Berlin"}',
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          }),
+        ),
+        DVAIHttpResponse(
+          statusCode: 200,
+          body: jsonEncode(<String, Object?>{
+            'choices': <Object?>[
+              <String, Object?>{
+                'message': <String, Object?>{'content': 'Berlin is sunny.'},
+              },
+            ],
+          }),
+        ),
+      ]);
+      final adapter = OpenAIDVAIAdapter(apiKey: 'sk-a', send: transport.send);
+
+      final result = await adapter.runAgent(
+        const DVAIAgentRequest(
+          goal: 'Weather in Berlin?',
+          tools: <String>['getWeather'],
+        ),
+      );
+
+      expect(result.output, 'Berlin is sunny.');
+      expect(result.usedTools, <String>['getWeather']);
+      expect(
+        (result.data['getWeather']! as DVJsonString).value,
+        'sunny in Berlin',
+      );
+
+      final firstBody = jsonDecode(utf8.decode(transport.requests[0].body))
+          as Map<String, Object?>;
+      final advertised =
+          (firstBody['tools']! as List<Object?>).single as Map<String, Object?>;
+      expect(advertised['type'], 'function');
+      expect(
+        (advertised['function']! as Map<String, Object?>)['name'],
+        'getWeather',
+      );
+
+      final secondBody = jsonDecode(utf8.decode(transport.requests[1].body))
+          as Map<String, Object?>;
+      final messages = secondBody['messages']! as List<Object?>;
+      final toolTurn = messages.last as Map<String, Object?>;
+      expect(toolTurn['role'], 'tool');
+      expect(toolTurn['tool_call_id'], 'call_1');
+      expect(toolTurn['content'], '"sunny in Berlin"');
+    });
+
+    test('a runaway tool loop fails instead of spinning forever', () async {
+      final toolUse = DVAIHttpResponse(
+        statusCode: 200,
+        body: jsonEncode(<String, Object?>{
+          'stop_reason': 'tool_use',
+          'content': <Object?>[
+            <String, Object?>{
+              'type': 'tool_use',
+              'id': 'toolu_1',
+              'name': 'getWeather',
+              'input': <String, Object?>{'city': 'Paris'},
+            },
+          ],
+        }),
+      );
+      final transport = _RecordingTransport(
+        List<DVAIHttpResponse>.filled(12, toolUse),
+      );
+      final adapter = AnthropicDVAIAdapter(
+        apiKey: 'sk-test',
+        send: transport.send,
+      );
+
+      await expectLater(
+        adapter.runAgent(
+          const DVAIAgentRequest(
+            goal: 'loop',
+            tools: <String>['getWeather'],
+          ),
+        ),
+        throwsA(
+          isA<DVAIProviderException>().having(
+            (error) => error.message,
+            'message',
+            contains('did not finish within'),
+          ),
+        ),
+      );
+      expect(transport.requests, hasLength(adapter.maxAgentIterations));
+    });
+
+    test('an unregistered tool name falls back to the prompt-based run',
+        () async {
+      final transport = _RecordingTransport.json(<String, Object?>{
+        'stop_reason': 'end_turn',
+        'content': <Object?>[
+          <String, Object?>{'type': 'text', 'text': 'no tools needed'},
+        ],
+      });
+      final adapter = AnthropicDVAIAdapter(
+        apiKey: 'sk-test',
+        send: transport.send,
+      );
+
+      final result = await adapter.runAgent(
+        const DVAIAgentRequest(goal: 'hi', tools: <String>['notRegistered']),
+      );
+
+      expect(result.output, 'no tools needed');
+      expect(transport.sentJson.containsKey('tools'), isFalse);
     });
   });
 

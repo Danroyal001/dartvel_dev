@@ -32,6 +32,7 @@ export 'package:dartvel_core/dartvel.dart'
         DVAITranscript,
         DVAIToolEntry,
         DVAIToolHandler,
+        DVAIToolDefinition,
         DVAIToolRegistry,
         DVAIHttpRequest,
         DVAIHttpResponse,
@@ -2586,8 +2587,18 @@ class DVAI {
     _adapter = adapter;
   }
 
-  void registerTool(String name, DVAIToolHandler handler) {
-    _tools.register(name, handler);
+  void registerTool(
+    String name,
+    DVAIToolHandler handler, {
+    String description = '',
+    DVJsonObject parameters = const <String, DVJsonValue>{},
+  }) {
+    _tools.register(
+      name,
+      handler,
+      description: description,
+      parameters: parameters,
+    );
   }
 
   bool hasTool(String name) => _tools.contains(name);
