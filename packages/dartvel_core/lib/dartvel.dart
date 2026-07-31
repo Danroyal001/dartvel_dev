@@ -9,6 +9,7 @@ import 'package:mime/mime.dart';
 
 import 'src/ai/ai.dart';
 import 'src/database/adapter.dart';
+import 'src/http/aws_sigv4.dart';
 import 'src/http/transport.dart';
 
 // Re-export common types so backends can import only dartvel_core.
@@ -22,6 +23,7 @@ export 'src/auth/auth.dart';
 export 'src/auth/password.dart';
 export 'src/cache/adapters.dart';
 export 'src/database/adapters.dart';
+export 'src/http/aws_sigv4.dart';
 export 'src/http/transport.dart';
 export 'src/lifecycle/lifecycle.dart';
 export 'src/modules/modules.dart';
@@ -1717,6 +1719,76 @@ class PostmarkMailProvider extends DVHttpMailProvider {
             ],
         })),
       );
+}
+
+/// Amazon SES v2, signed with AWS Signature Version 4.
+///
+/// SES has no API-key auth, so this signs each request with the account's
+/// credentials. Temporary credentials work too: a session token is included in
+/// the signature when present.
+class SesMailProvider extends DVHttpMailProvider {
+  final DVAwsCredentials credentials;
+  final String region;
+
+  /// Injectable clock. SigV4 signatures are time-bound, so tests pin it.
+  final DateTime Function() now;
+
+  SesMailProvider({
+    required this.credentials,
+    required this.region,
+    Uri? baseUrl,
+    DateTime Function()? now,
+    super.transport = dvSendHttpRequest,
+  })  : now = now ?? DateTime.now,
+        super(
+          apiKey: '',
+          baseUrl: baseUrl ?? Uri.https('email.$region.amazonaws.com'),
+        );
+
+  @override
+  String get providerName => 'ses';
+
+  @override
+  DVHttpRequest buildRequest(DVMailMessage message) {
+    final url = baseUrl.replace(path: '/v2/email/outbound-emails');
+    final body = utf8.encode(jsonEncode(<String, Object?>{
+      'FromEmailAddress': DVHttpMailProvider.formatAddress(message.from),
+      'Destination': <String, Object?>{
+        'ToAddresses': <String>[
+          for (final address in message.to) address.email,
+        ],
+      },
+      'Content': <String, Object?>{
+        'Simple': <String, Object?>{
+          'Subject': <String, Object?>{'Data': message.subject},
+          'Body': <String, Object?>{
+            'Text': <String, Object?>{'Data': message.text},
+            if (message.html != null)
+              'Html': <String, Object?>{'Data': message.html},
+          },
+        },
+      },
+    }));
+
+    const baseHeaders = <String, String>{'content-type': 'application/json'};
+    return DVHttpRequest(
+      url: url,
+      headers: <String, String>{
+        ...baseHeaders,
+        ...DVAwsSigV4.signedHeaders(
+          method: 'POST',
+          url: url,
+          headers: baseHeaders,
+          body: body,
+          credentials: credentials,
+          region: region,
+          service: 'ses',
+          timestamp: now(),
+        ),
+      },
+      body: body,
+    );
+  }
 }
 
 /// Mailgun messages API. Unlike the others this is form-encoded, and it
