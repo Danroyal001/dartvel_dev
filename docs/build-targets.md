@@ -17,8 +17,8 @@ local Dartvel `flutter-vscode` fork added as a dependency.
 
 | Target | Status | Evidence |
 |---|---|---|
-| `web` | ✅ Builds | `build/web` with `flutter_bootstrap.js`, assets, CanvasKit |
-| `linux` | ✅ Builds | `build/linux/x64/release/bundle/dartvel_example` |
+| `web` | ✅ Builds | `build/web` (43 MB) with `flutter_bootstrap.js`, `main.dart.js`, assets, CanvasKit; Wasm dry run passes |
+| `linux` | ✅ Builds | `build/linux/x64/release/bundle/dartvel_example`, 23.8 KB launcher + bundle |
 | `android` | ✅ Builds | `build/app/outputs/flutter-apk/app-release.apk`, 47.9 MB |
 | `fireos` | ✅ Builds | Same APK path; `fireos` maps onto the Android toolchain |
 | `windows` | ⏭️ Not on Linux | Requires a Windows host. See [CI](#ci-for-hosts-you-do-not-have) |
@@ -34,6 +34,21 @@ Flutter has **no desktop cross-compilation**. A Windows desktop build requires
 Windows, a Linux desktop build requires Linux, and the Apple targets require
 macOS. `dartvel build` skips a target its host cannot build rather than
 failing the whole run.
+
+### Web is the guard on native dependencies
+
+`dartvel_core` now depends on packages that cannot run in a browser: `sqlite3`
+(via `dart:ffi`) behind `SqliteDVDatabaseAdapter`, and `dart:io` sockets behind
+`SmtpMailProvider`. Both are reached through conditional imports, so a web
+build resolves a stand-in that throws with the supported alternative named
+rather than pulling the native library in.
+
+Nothing about that is enforced by the type system, so **re-run `flutter build
+web` after adding a dependency to `dartvel_core`**. A direct import of a
+native-only library compiles fine on every other target and fails only here.
+The Wasm dry run is the stronger signal of the two: it fails on `dart:ffi` and
+`dart:io` reachability that plain JS compilation can tolerate, so treat a
+passing dry run — not just `✓ Built build/web` — as the check.
 
 ---
 
