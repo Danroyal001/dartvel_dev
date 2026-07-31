@@ -2055,6 +2055,7 @@ enum DVNotificationProviderKind {
   firebase,
   apns,
   webPush,
+  sms,
   windows,
   macos,
   linux,
@@ -2193,6 +2194,103 @@ class FirebasePushProvider implements DVNotificationProvider {
         responseBody: response.body,
       );
     }
+  }
+}
+
+/// Twilio SMS.
+///
+/// The recipient is the destination number in E.164 form (`+15551234567`).
+/// [DVNotificationMessage] carries a title and a body; SMS has no title, so a
+/// non-empty title is prefixed on its own line rather than dropped.
+class TwilioSmsProvider implements DVNotificationProvider {
+  final String accountSid;
+  final String authToken;
+
+  /// The sending number, in E.164 form.
+  final String? fromNumber;
+
+  /// A Twilio Messaging Service, used instead of a single sending number.
+  final String? messagingServiceSid;
+
+  final Uri baseUrl;
+  final DVHttpSend transport;
+
+  TwilioSmsProvider({
+    required this.accountSid,
+    required this.authToken,
+    this.fromNumber,
+    this.messagingServiceSid,
+    Uri? baseUrl,
+    this.transport = dvSendHttpRequest,
+  }) : baseUrl = baseUrl ?? Uri.https('api.twilio.com') {
+    if ((fromNumber == null) == (messagingServiceSid == null)) {
+      throw ArgumentError(
+        'Provide exactly one of fromNumber or messagingServiceSid.',
+      );
+    }
+  }
+
+  @override
+  DVNotificationProviderKind get kind => DVNotificationProviderKind.sms;
+
+  @override
+  Future<void> send(String recipient, DVNotificationMessage message) async {
+    if (recipient.trim().isEmpty) {
+      throw ArgumentError.value(
+        recipient,
+        'recipient',
+        'An SMS needs a destination number.',
+      );
+    }
+
+    final credentials = base64Encode(utf8.encode('$accountSid:$authToken'));
+    final response = await transport(DVHttpRequest(
+      url: baseUrl.replace(
+        path: '/2010-04-01/Accounts/$accountSid/Messages.json',
+      ),
+      headers: <String, String>{
+        'content-type': 'application/x-www-form-urlencoded',
+        'accept': 'application/json',
+        'authorization': 'Basic $credentials',
+      },
+      body: dvEncodeFormBody(<(String, String)>[
+        ('To', recipient.trim()),
+        if (fromNumber case final from?) ('From', from),
+        if (messagingServiceSid case final service?)
+          ('MessagingServiceSid', service),
+        ('Body', smsBody(message)),
+      ]),
+    ));
+
+    if (!response.isSuccess) {
+      throw DVPushProviderException(
+        'twilio',
+        _describe(response.body),
+        statusCode: response.statusCode,
+        responseBody: response.body,
+      );
+    }
+  }
+
+  /// SMS has no subject line, so a title becomes the first line.
+  static String smsBody(DVNotificationMessage message) =>
+      message.title.trim().isEmpty
+          ? message.body
+          : '${message.title}\n${message.body}';
+
+  static String _describe(String body) {
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map<String, Object?> && decoded['message'] is String) {
+        final code = decoded['code'];
+        return code == null
+            ? decoded['message']! as String
+            : '${decoded['message']} (Twilio code $code)';
+      }
+    } on FormatException {
+      // Fall through to the generic message below.
+    }
+    return 'Twilio rejected the message.';
   }
 }
 

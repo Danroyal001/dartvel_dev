@@ -169,4 +169,136 @@ void main() {
       );
     });
   });
+
+  group('TwilioSmsProvider', () {
+    TwilioSmsProvider provider(_Recorder recorder) => TwilioSmsProvider(
+          accountSid: 'AC123',
+          authToken: 'token',
+          fromNumber: '+15550000000',
+          transport: recorder.send,
+        );
+
+    test('posts a form-encoded message with basic auth', () async {
+      final recorder = _Recorder();
+      await provider(recorder).send('+15551234567', message);
+
+      expect(
+        recorder.single.url.toString(),
+        'https://api.twilio.com/2010-04-01/Accounts/AC123/Messages.json',
+      );
+      expect(
+        recorder.single.headers['authorization'],
+        'Basic ${base64Encode(utf8.encode('AC123:token'))}',
+      );
+      expect(
+        recorder.single.headers['content-type'],
+        'application/x-www-form-urlencoded',
+      );
+
+      final form = Uri.splitQueryString(utf8.decode(recorder.single.body));
+      expect(form['To'], '+15551234567');
+      expect(form['From'], '+15550000000');
+      expect(form['Body'], 'Order shipped\nYour order is on the way');
+    });
+
+    test('sends only the body when there is no title', () {
+      expect(
+        TwilioSmsProvider.smsBody(
+          const DVNotificationMessage(title: '  ', body: 'Just the body'),
+        ),
+        'Just the body',
+      );
+    });
+
+    test('uses a messaging service instead of a from number', () async {
+      final recorder = _Recorder();
+      await TwilioSmsProvider(
+        accountSid: 'AC123',
+        authToken: 'token',
+        messagingServiceSid: 'MG456',
+        transport: recorder.send,
+      ).send('+15551234567', message);
+
+      final form = Uri.splitQueryString(utf8.decode(recorder.single.body));
+      expect(form['MessagingServiceSid'], 'MG456');
+      expect(form.containsKey('From'), isFalse);
+    });
+
+    test('requires exactly one sender', () {
+      expect(
+        () => TwilioSmsProvider(accountSid: 'AC', authToken: 't'),
+        throwsArgumentError,
+        reason: 'neither sender given',
+      );
+      expect(
+        () => TwilioSmsProvider(
+          accountSid: 'AC',
+          authToken: 't',
+          fromNumber: '+1',
+          messagingServiceSid: 'MG',
+        ),
+        throwsArgumentError,
+        reason: 'both senders given',
+      );
+    });
+
+    test('rejects an empty destination before any request', () async {
+      final recorder = _Recorder();
+      await expectLater(
+        provider(recorder).send('  ', message),
+        throwsArgumentError,
+      );
+      expect(recorder.requests, isEmpty);
+    });
+
+    test('surfaces the Twilio error code and message', () async {
+      final recorder = _Recorder(
+        DVHttpResponse(
+          statusCode: 400,
+          body: jsonEncode(<String, Object?>{
+            'code': 21211,
+            'message': "Invalid 'To' Phone Number",
+          }),
+        ),
+      );
+
+      await expectLater(
+        provider(recorder).send('+1', message),
+        throwsA(
+          isA<DVPushProviderException>()
+              .having((error) => error.provider, 'provider', 'twilio')
+              .having((error) => error.statusCode, 'statusCode', 400)
+              .having(
+                  (error) => error.message,
+                  'message',
+                  allOf(contains("Invalid 'To' Phone Number"),
+                      contains('21211'))),
+        ),
+      );
+    });
+
+    test('falls back to a generic message for a non-JSON error', () async {
+      final recorder = _Recorder(
+        const DVHttpResponse(statusCode: 502, body: '<html>bad gateway</html>'),
+      );
+
+      await expectLater(
+        provider(recorder).send('+1', message),
+        throwsA(isA<DVPushProviderException>().having(
+          (error) => error.message,
+          'message',
+          contains('Twilio rejected the message'),
+        )),
+      );
+    });
+
+    test('reports itself as the sms provider kind', () {
+      expect(provider(_Recorder()).kind, DVNotificationProviderKind.sms);
+      expect(provider(_Recorder()), isA<DVNotificationProvider>());
+      expect(
+        FirebasePushProvider(projectId: 'p', accessToken: () async => 't'),
+        isA<DVNotificationProvider>(),
+      );
+    });
+  });
 }

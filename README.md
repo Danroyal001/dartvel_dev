@@ -72,7 +72,7 @@ Everything else is automatically compiled, generated, or served by the framework
 | **Platform APIs** | Runtime platform/screen detection; camera, location, haptics, etc. are scaffolded pending native plugins | ⚠️ Partial |
 | **Authentication** | Local provider with salted password hashes, plus OAuth2 (PKCE) with Google/GitHub/GitLab/Bitbucket/Microsoft presets; magic links, OTP, LDAP and SAML are not complete | ⚠️ Partial |
 | **Database & Cache** | Real SQLite adapter (file + in-memory, WAL) and a pluggable cache with memory/database-backed adapters; Postgres/MySQL/Redis adapters are not complete | ⚠️ Partial |
-| **Mail & Notifications** | SMTP plus HTTP mail providers (Resend, SendGrid, Postmark, Mailgun, SES) and FCM push; APNS and Web Push are not complete | ⚠️ Partial |
+| **Mail & Notifications** | SMTP plus HTTP mail (Resend, SendGrid, Postmark, Mailgun, SES), FCM push and Twilio SMS; APNS and Web Push are not complete | ⚠️ Partial |
 | **PWA & SEO** | Automatic PWA manifest/worker & runtime/global SEO injection | ✅ Implemented |
 | **AI Integration** | HTTP adapters for Claude, OpenAI, Gemini, OpenRouter, and Ollama, plus the deterministic local adapter | ✅ Implemented |
 | **Sensitive Fields** | `@DVModel.sensitiveField()` redacts fields from public serialization, cards, logs, and AI context | ✅ Implemented |
@@ -462,6 +462,26 @@ can retry rather than treating it as permanent.
 Raw TCP is unavailable in browsers, so on web the connection throws
 `UnsupportedError` naming the HTTP providers instead — the import is
 conditional, verified by a passing `flutter build web` and Wasm dry run.
+
+---
+
+### SMS
+
+`TwilioSmsProvider` fills the `sms` notification channel:
+
+```dart
+const DVNotifications().useProvider(TwilioSmsProvider(
+  accountSid: env.twilioAccountSid,
+  authToken: env.twilioAuthToken,
+  fromNumber: '+15550000000',        // or messagingServiceSid: 'MG…'
+));
+```
+
+Exactly one of `fromNumber` or `messagingServiceSid` is required, checked at
+construction rather than failing on the first send. SMS has no subject line, so
+a non-empty `title` becomes the first line of the body rather than being
+dropped. Twilio's error code and message are surfaced on
+`DVPushProviderException`.
 
 ---
 
