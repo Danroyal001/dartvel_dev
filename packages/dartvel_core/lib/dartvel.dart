@@ -8,6 +8,7 @@ import 'package:http_parser/http_parser.dart';
 import 'package:mime/mime.dart';
 
 import 'src/ai/ai.dart';
+import 'src/database/adapter.dart';
 
 // Re-export common types so backends can import only dartvel_core.
 export 'package:dartvel_shelf/dartvel_shelf.dart'
@@ -217,6 +218,12 @@ abstract class DVJobPayload {
   const DVJobPayload();
 
   Type get payloadType;
+
+  /// Wraps a decoded payload so a durable adapter can rebuild the envelope a
+  /// handler expects. Handlers are routed by [payloadType], so [TPayload] must
+  /// be the type the handler was registered for.
+  static DVJobPayload of<TPayload>(TPayload value) =>
+      _DVStoredJobPayload<TPayload>(value);
 }
 
 class _DVStoredJobPayload<TPayload> extends DVJobPayload {
@@ -710,6 +717,308 @@ class DVInMemoryQueueAdapter implements DVQueueAdapter {
     final pending = _pending.remove(queue)?.length ?? 0;
     final deadLetters = _deadLetters.remove(queue)?.length ?? 0;
     return pending + deadLetters;
+  }
+}
+
+/// Converts a job payload to and from JSON so a durable queue can store it.
+///
+/// [name] is written to the database and read back after a restart, so it must
+/// stay stable across releases even if the Dart class is renamed.
+class DVJobPayloadCodec<TPayload> {
+  final String name;
+  final Map<String, Object?> Function(TPayload payload) encode;
+  final TPayload Function(Map<String, Object?> json) decode;
+
+  const DVJobPayloadCodec({
+    required this.name,
+    required this.encode,
+    required this.decode,
+  });
+}
+
+class _DVRegisteredCodec {
+  final String name;
+  final Type type;
+  final Map<String, Object?> Function(Object? value) encode;
+  final DVJobPayload Function(Map<String, Object?> json) decode;
+
+  const _DVRegisteredCodec({
+    required this.name,
+    required this.type,
+    required this.encode,
+    required this.decode,
+  });
+}
+
+/// Codecs that let [DVDatabaseQueueAdapter] persist job payloads.
+///
+/// In-memory queues keep the Dart object itself and need no codec. A durable
+/// queue has to write bytes, so every persisted payload type must be
+/// registered; enqueueing an unregistered type fails loudly rather than
+/// storing something that cannot be read back.
+class DVJobPayloadCodecs {
+  static final Map<Type, _DVRegisteredCodec> _byType = {};
+  static final Map<String, _DVRegisteredCodec> _byName = {};
+
+  const DVJobPayloadCodecs();
+
+  void register<TPayload>(DVJobPayloadCodec<TPayload> codec) {
+    if (codec.name.trim().isEmpty) {
+      throw ArgumentError.value(
+        codec.name,
+        'name',
+        'Job payload codec names cannot be empty.',
+      );
+    }
+    final existing = _byName[codec.name];
+    if (existing != null && existing.type != TPayload) {
+      throw ArgumentError.value(
+        codec.name,
+        'name',
+        'Codec name "${codec.name}" is already registered for '
+            '${existing.type}.',
+      );
+    }
+    final registered = _DVRegisteredCodec(
+      name: codec.name,
+      type: TPayload,
+      encode: (value) => codec.encode(value as TPayload),
+      decode: (json) => DVJobPayload.of<TPayload>(codec.decode(json)),
+    );
+    _byType[TPayload] = registered;
+    _byName[codec.name] = registered;
+  }
+
+  bool supports(Type type) => _byType.containsKey(type);
+
+  List<String> get names => List<String>.unmodifiable(_byName.keys);
+
+  void clear() {
+    _byType.clear();
+    _byName.clear();
+  }
+}
+
+/// Queue storage backed by a [DVDatabaseAdapter], so dispatched jobs survive a
+/// process restart. With SQLite this is the durable local queue the spec calls
+/// for, sharing one database file with the application and cache.
+///
+/// Payload types must be registered with [DVJobPayloadCodecs] first.
+class DVDatabaseQueueAdapter implements DVQueueAdapter {
+  final DVDatabaseAdapter database;
+  final String tableName;
+
+  bool _initialized = false;
+  int _sequence = 0;
+
+  DVDatabaseQueueAdapter(
+    this.database, {
+    this.tableName = 'dartvel_jobs',
+  }) {
+    if (!RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$').hasMatch(tableName)) {
+      throw ArgumentError.value(
+        tableName,
+        'tableName',
+        'Queue table names must be plain SQL identifiers.',
+      );
+    }
+  }
+
+  Future<void> initialize() async {
+    if (_initialized) return;
+    await database.execute('''
+      CREATE TABLE IF NOT EXISTS $tableName (
+        id TEXT PRIMARY KEY,
+        queue TEXT NOT NULL,
+        payload_name TEXT NOT NULL,
+        payload TEXT NOT NULL,
+        priority INTEGER NOT NULL,
+        max_attempts INTEGER NOT NULL,
+        backoff_ms INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        attempts INTEGER NOT NULL,
+        state TEXT NOT NULL,
+        last_error TEXT
+      )
+    ''');
+    _initialized = true;
+  }
+
+  @override
+  Future<DVJobEnvelope<TPayload>> enqueue<TPayload>(
+    String queue,
+    TPayload payload, {
+    int priority = 0,
+    int maxAttempts = 3,
+    Duration backoff = const Duration(seconds: 30),
+  }) async {
+    await initialize();
+    final codec = DVJobPayloadCodecs._byType[TPayload];
+    if (codec == null) {
+      throw StateError(
+        'No DVJobPayloadCodec registered for $TPayload, so it cannot be '
+        'persisted. Register one, or use DVInMemoryQueueAdapter.',
+      );
+    }
+
+    final envelope = DVJobEnvelope<TPayload>(
+      id: 'job-${DateTime.now().microsecondsSinceEpoch}-${_sequence++}',
+      queue: queue,
+      payloadType: TPayload,
+      payload: payload,
+      priority: priority,
+      maxAttempts: maxAttempts,
+      backoff: backoff,
+      createdAt: DateTime.now(),
+      attempts: 0,
+      state: DVJobState.queued,
+    );
+
+    await database.execute(
+      'INSERT INTO $tableName (id, queue, payload_name, payload, priority, '
+      'max_attempts, backoff_ms, created_at, attempts, state, last_error) '
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)',
+      <Object?>[
+        envelope.id,
+        queue,
+        codec.name,
+        jsonEncode(codec.encode(payload)),
+        priority,
+        maxAttempts,
+        backoff.inMilliseconds,
+        envelope.createdAt.millisecondsSinceEpoch,
+        0,
+        DVJobState.queued.name,
+      ],
+    );
+    return envelope;
+  }
+
+  @override
+  Future<DVJobEnvelope<DVJobPayload>?> reserve(String queue) async {
+    await initialize();
+    final rows = await database.query(
+      'SELECT * FROM $tableName WHERE queue = ? AND state = ? '
+      'ORDER BY priority DESC, created_at ASC LIMIT 1',
+      <Object?>[queue, DVJobState.queued.name],
+    );
+    if (rows.isEmpty) return null;
+
+    final id = rows.first['id'] as String;
+    await database.execute(
+      'UPDATE $tableName SET state = ? WHERE id = ?',
+      <Object?>[DVJobState.running.name, id],
+    );
+    return _toEnvelope(rows.first, state: DVJobState.running);
+  }
+
+  @override
+  Future<void> complete(String id) async {
+    await initialize();
+    await database.execute(
+      'DELETE FROM $tableName WHERE id = ?',
+      <Object?>[id],
+    );
+  }
+
+  @override
+  Future<void> fail(String id, String error, StackTrace stackTrace) async {
+    await initialize();
+    final rows = await database.query(
+      'SELECT attempts, max_attempts FROM $tableName WHERE id = ?',
+      <Object?>[id],
+    );
+    if (rows.isEmpty) return;
+
+    final attempts = (rows.first['attempts'] as int) + 1;
+    final maxAttempts = rows.first['max_attempts'] as int;
+    final state =
+        attempts >= maxAttempts ? DVJobState.deadLettered : DVJobState.queued;
+
+    await database.execute(
+      'UPDATE $tableName SET attempts = ?, state = ?, last_error = ? '
+      'WHERE id = ?',
+      <Object?>[attempts, state.name, error, id],
+    );
+  }
+
+  @override
+  Future<List<DVJobEnvelope<DVJobPayload>>> pending(String queue) =>
+      _select(queue, DVJobState.queued);
+
+  @override
+  Future<List<DVJobEnvelope<DVJobPayload>>> deadLetters(String queue) =>
+      _select(queue, DVJobState.deadLettered);
+
+  @override
+  Future<bool> retry(String id) async {
+    await initialize();
+    final moved = await database.execute(
+      'UPDATE $tableName SET state = ?, attempts = 0 '
+      'WHERE id = ? AND state = ?',
+      <Object?>[
+        DVJobState.queued.name,
+        id,
+        DVJobState.deadLettered.name,
+      ],
+    );
+    return moved > 0;
+  }
+
+  @override
+  Future<int> flush(String queue) async {
+    await initialize();
+    return database.execute(
+      'DELETE FROM $tableName WHERE queue = ?',
+      <Object?>[queue],
+    );
+  }
+
+  Future<List<DVJobEnvelope<DVJobPayload>>> _select(
+    String queue,
+    DVJobState state,
+  ) async {
+    await initialize();
+    final rows = await database.query(
+      'SELECT * FROM $tableName WHERE queue = ? AND state = ? '
+      'ORDER BY priority DESC, created_at ASC',
+      <Object?>[queue, state.name],
+    );
+    return List<
+        DVJobEnvelope<DVJobPayload>>.unmodifiable(<DVJobEnvelope<DVJobPayload>>[
+      for (final row in rows) _toEnvelope(row, state: state),
+    ]);
+  }
+
+  DVJobEnvelope<DVJobPayload> _toEnvelope(
+    Map<String, Object?> row, {
+    required DVJobState state,
+  }) {
+    final name = row['payload_name'] as String;
+    final codec = DVJobPayloadCodecs._byName[name];
+    if (codec == null) {
+      throw StateError(
+        'Job ${row['id']} was stored with payload codec "$name", which is '
+        'not registered in this process. Register it before draining the '
+        'queue, or the job cannot be decoded.',
+      );
+    }
+    final decoded = jsonDecode(row['payload'] as String);
+    return DVJobEnvelope<DVJobPayload>(
+      id: row['id'] as String,
+      queue: row['queue'] as String,
+      payloadType: codec.type,
+      payload: codec.decode(
+        decoded is Map<String, Object?> ? decoded : const <String, Object?>{},
+      ),
+      priority: row['priority'] as int,
+      maxAttempts: row['max_attempts'] as int,
+      backoff: Duration(milliseconds: row['backoff_ms'] as int),
+      createdAt: DateTime.fromMillisecondsSinceEpoch(row['created_at'] as int),
+      attempts: row['attempts'] as int,
+      state: state,
+      lastError: row['last_error'] as String?,
+    );
   }
 }
 
