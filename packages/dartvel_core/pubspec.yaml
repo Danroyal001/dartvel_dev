@@ -12,6 +12,7 @@ dependencies:
   mime: ^1.0.4
   http_parser: ^4.0.2
   shelf_multipart: ^1.0.0
+  sqlite3: ^2.9.4
   drift: ^2.14.0
 dev_dependencies:
   test: ^1.28.0
