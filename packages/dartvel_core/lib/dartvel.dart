@@ -9,6 +9,7 @@ import 'package:mime/mime.dart';
 
 import 'src/ai/ai.dart';
 import 'src/database/adapter.dart';
+import 'src/http/transport.dart';
 
 // Re-export common types so backends can import only dartvel_core.
 export 'package:dartvel_shelf/dartvel_shelf.dart'
@@ -21,6 +22,7 @@ export 'src/auth/auth.dart';
 export 'src/auth/password.dart';
 export 'src/cache/adapters.dart';
 export 'src/database/adapters.dart';
+export 'src/http/transport.dart';
 export 'src/lifecycle/lifecycle.dart';
 export 'src/modules/modules.dart';
 export 'src/platform_config.dart';
@@ -1285,6 +1287,233 @@ class DVMailMessage {
 
 abstract class DVMailProvider {
   Future<void> send(DVMailMessage message);
+}
+
+/// Thrown when a mail provider rejects a message. Delivery failures are never
+/// swallowed - a caller always learns the message did not go out.
+class DVMailProviderException implements Exception {
+  final String provider;
+  final int? statusCode;
+  final String message;
+  final String? responseBody;
+
+  const DVMailProviderException(
+    this.provider,
+    this.message, {
+    this.statusCode,
+    this.responseBody,
+  });
+
+  @override
+  String toString() {
+    final status = statusCode == null ? '' : ' (HTTP $statusCode)';
+    final body = responseBody == null || responseBody!.isEmpty
+        ? ''
+        : '\nResponse: $responseBody';
+    return 'DVMailProviderException[$provider]$status: $message$body';
+  }
+}
+
+/// Shared behaviour for mail providers that speak HTTP.
+///
+/// Each provider supplies the endpoint, headers and body encoding for its own
+/// API; this posts the request and turns a non-2xx answer into a
+/// [DVMailProviderException] carrying the status and body.
+abstract class DVHttpMailProvider implements DVMailProvider {
+  final String apiKey;
+  final Uri baseUrl;
+  final DVHttpSend transport;
+
+  const DVHttpMailProvider({
+    required this.apiKey,
+    required this.baseUrl,
+    required this.transport,
+  });
+
+  String get providerName;
+
+  DVHttpRequest buildRequest(DVMailMessage message);
+
+  @override
+  Future<void> send(DVMailMessage message) async {
+    if (message.to.isEmpty) {
+      throw ArgumentError.value(
+        message.to,
+        'to',
+        'A mail message needs at least one recipient.',
+      );
+    }
+    final response = await transport(buildRequest(message));
+    if (!response.isSuccess) {
+      throw DVMailProviderException(
+        providerName,
+        'The provider rejected the message.',
+        statusCode: response.statusCode,
+        responseBody: response.body,
+      );
+    }
+  }
+
+  /// RFC 5322 display form, e.g. `Ada Lovelace <ada@example.com>`.
+  static String formatAddress(DVMailAddress address) {
+    final name = address.name;
+    if (name == null || name.trim().isEmpty) return address.email;
+    final escaped = name.replaceAll('"', '');
+    return '"$escaped" <${address.email}>';
+  }
+}
+
+/// Resend (https://resend.com) transactional mail.
+class ResendMailProvider extends DVHttpMailProvider {
+  ResendMailProvider({
+    required super.apiKey,
+    Uri? baseUrl,
+    super.transport = dvSendHttpRequest,
+  }) : super(baseUrl: baseUrl ?? Uri.https('api.resend.com'));
+
+  @override
+  String get providerName => 'resend';
+
+  @override
+  DVHttpRequest buildRequest(DVMailMessage message) => DVHttpRequest(
+        url: baseUrl.replace(path: '/emails'),
+        headers: <String, String>{
+          'content-type': 'application/json',
+          'authorization': 'Bearer $apiKey',
+        },
+        body: utf8.encode(jsonEncode(<String, Object?>{
+          'from': DVHttpMailProvider.formatAddress(message.from),
+          'to': <String>[
+            for (final address in message.to)
+              DVHttpMailProvider.formatAddress(address),
+          ],
+          'subject': message.subject,
+          'text': message.text,
+          if (message.html != null) 'html': message.html,
+          if (message.headers.isNotEmpty) 'headers': message.headers,
+        })),
+      );
+}
+
+/// SendGrid v3 mail send.
+class SendGridMailProvider extends DVHttpMailProvider {
+  SendGridMailProvider({
+    required super.apiKey,
+    Uri? baseUrl,
+    super.transport = dvSendHttpRequest,
+  }) : super(baseUrl: baseUrl ?? Uri.https('api.sendgrid.com'));
+
+  @override
+  String get providerName => 'sendgrid';
+
+  @override
+  DVHttpRequest buildRequest(DVMailMessage message) => DVHttpRequest(
+        url: baseUrl.replace(path: '/v3/mail/send'),
+        headers: <String, String>{
+          'content-type': 'application/json',
+          'authorization': 'Bearer $apiKey',
+        },
+        body: utf8.encode(jsonEncode(<String, Object?>{
+          'personalizations': <Object?>[
+            <String, Object?>{
+              'to': <Object?>[
+                for (final address in message.to)
+                  <String, Object?>{
+                    'email': address.email,
+                    if (address.name != null) 'name': address.name,
+                  },
+              ],
+            },
+          ],
+          'from': <String, Object?>{
+            'email': message.from.email,
+            if (message.from.name != null) 'name': message.from.name,
+          },
+          'subject': message.subject,
+          'content': <Object?>[
+            <String, Object?>{'type': 'text/plain', 'value': message.text},
+            if (message.html != null)
+              <String, Object?>{'type': 'text/html', 'value': message.html},
+          ],
+          if (message.headers.isNotEmpty) 'headers': message.headers,
+        })),
+      );
+}
+
+/// Postmark single-message send.
+class PostmarkMailProvider extends DVHttpMailProvider {
+  final String messageStream;
+
+  PostmarkMailProvider({
+    required super.apiKey,
+    this.messageStream = 'outbound',
+    Uri? baseUrl,
+    super.transport = dvSendHttpRequest,
+  }) : super(baseUrl: baseUrl ?? Uri.https('api.postmarkapp.com'));
+
+  @override
+  String get providerName => 'postmark';
+
+  @override
+  DVHttpRequest buildRequest(DVMailMessage message) => DVHttpRequest(
+        url: baseUrl.replace(path: '/email'),
+        headers: <String, String>{
+          'content-type': 'application/json',
+          'accept': 'application/json',
+          'x-postmark-server-token': apiKey,
+        },
+        body: utf8.encode(jsonEncode(<String, Object?>{
+          'From': DVHttpMailProvider.formatAddress(message.from),
+          'To': message.to.map(DVHttpMailProvider.formatAddress).join(', '),
+          'Subject': message.subject,
+          'TextBody': message.text,
+          if (message.html != null) 'HtmlBody': message.html,
+          'MessageStream': messageStream,
+          if (message.headers.isNotEmpty)
+            'Headers': <Object?>[
+              for (final entry in message.headers.entries)
+                <String, Object?>{'Name': entry.key, 'Value': entry.value},
+            ],
+        })),
+      );
+}
+
+/// Mailgun messages API. Unlike the others this is form-encoded, and it
+/// authenticates with HTTP Basic using the literal user name `api`.
+class MailgunMailProvider extends DVHttpMailProvider {
+  final String domain;
+
+  MailgunMailProvider({
+    required super.apiKey,
+    required this.domain,
+    Uri? baseUrl,
+    super.transport = dvSendHttpRequest,
+  }) : super(baseUrl: baseUrl ?? Uri.https('api.mailgun.net'));
+
+  @override
+  String get providerName => 'mailgun';
+
+  @override
+  DVHttpRequest buildRequest(DVMailMessage message) {
+    final credentials = base64Encode(utf8.encode('api:$apiKey'));
+    return DVHttpRequest(
+      url: baseUrl.replace(path: '/v3/$domain/messages'),
+      headers: <String, String>{
+        'content-type': 'application/x-www-form-urlencoded',
+        'authorization': 'Basic $credentials',
+      },
+      body: dvEncodeFormBody(<(String, String)>[
+        ('from', DVHttpMailProvider.formatAddress(message.from)),
+        for (final address in message.to)
+          ('to', DVHttpMailProvider.formatAddress(address)),
+        ('subject', message.subject),
+        ('text', message.text),
+        if (message.html != null) ('html', message.html!),
+        for (final entry in message.headers.entries)
+          ('h:${entry.key}', entry.value),
+      ]),
+    );
+  }
 }
 
 class DVMemoryMailProvider implements DVMailProvider {
