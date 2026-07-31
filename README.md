@@ -72,7 +72,7 @@ Everything else is automatically compiled, generated, or served by the framework
 | **Platform APIs** | Runtime platform/screen detection; camera, location, haptics, etc. are scaffolded pending native plugins | ⚠️ Partial |
 | **Authentication** | Prebuilt pages plus a local provider that really stores and verifies salted password hashes; external identity providers are not complete | ⚠️ Partial |
 | **Database & Cache** | Real SQLite adapter (file + in-memory, WAL) and a pluggable cache with memory/database-backed adapters; Postgres/MySQL/Redis adapters are not complete | ⚠️ Partial |
-| **Mail & Notifications** | HTTP mail providers (Resend, SendGrid, Postmark, Mailgun, SES) and FCM push; SMTP, APNS and Web Push are not complete | ⚠️ Partial |
+| **Mail & Notifications** | SMTP plus HTTP mail providers (Resend, SendGrid, Postmark, Mailgun, SES) and FCM push; APNS and Web Push are not complete | ⚠️ Partial |
 | **PWA & SEO** | Automatic PWA manifest/worker & runtime/global SEO injection | ✅ Implemented |
 | **AI Integration** | HTTP adapters for Claude, OpenAI, Gemini, OpenRouter, and Ollama, plus the deterministic local adapter | ✅ Implemented |
 | **Sensitive Fields** | `@DVModel.sensitiveField()` redacts fields from public serialization, cards, logs, and AI context | ✅ Implemented |
@@ -408,6 +408,32 @@ const DVNotifications().useProvider(
 A stale device token surfaces as `DVPushProviderException` with
 `isUnregisteredToken == true`, which is the signal to prune the token rather
 than retry it.
+
+### SMTP
+
+`SmtpMailProvider` speaks SMTP over a raw socket, so it works against any mail
+server rather than a vendor API:
+
+```dart
+DV.Notifications.mail.useProvider(SmtpMailProvider(
+  host: 'smtp.example.com',
+  username: env.smtpUser,
+  password: env.smtpPassword,
+));
+```
+
+STARTTLS is issued automatically when the server advertises it and the
+connection is not already secure, and capabilities are re-read afterwards
+because servers commonly advertise `AUTH` only once the channel is encrypted.
+`AUTH PLAIN` is preferred over `AUTH LOGIN`; a server offering neither fails
+loudly. A `4xx` reply is reported as `DVSmtpException.isTransient` so callers
+can retry rather than treating it as permanent.
+
+Raw TCP is unavailable in browsers, so on web the connection throws
+`UnsupportedError` naming the HTTP providers instead — the import is
+conditional, verified by a passing `flutter build web` and Wasm dry run.
+
+---
 
 **APNS and Web Push are not implemented, and are not quick follow-ons.** APNS
 requires HTTP/2, which `package:http` does not speak. Web Push requires P-256
