@@ -5,6 +5,98 @@ All notable changes to this project will be documented in this file.
 Dartvel is pre-1.0. Minor versions may contain breaking changes; breaking
 changes are called out explicitly below.
 
+## Unreleased
+
+Provider and adapter implementations for subsystems that previously had an API
+surface but no way to reach a real service.
+
+### Added
+
+- **AI providers.** `DV.AI` had only the deterministic `LocalDVAIAdapter`.
+  HTTP adapters now exist for Claude (`AnthropicDVAIAdapter`), OpenAI,
+  OpenRouter, Gemini and Ollama, covering chat, embeddings, structured output
+  and transcription. A capability a provider does not serve throws
+  `UnsupportedError` naming it, and a rejected request throws
+  `DVAIProviderException` carrying the status and body — neither degrades to an
+  empty result.
+- **Agents and tool calling.** `runAgent` drives the provider's own tool loop
+  (Anthropic `tool_use`, OpenAI `tool_calls`) so the model chooses tools, rather
+  than firing every requested tool up front. Tools carry a description and JSON
+  Schema via `DV.AI.registerTool(..., description:, parameters:)`. A throwing
+  tool is reported back to the model as an error result instead of failing the
+  run; a loop that never settles throws after `maxAgentIterations`.
+- **SQLite database.** `SqliteDVDatabaseAdapter.memory()` and `.file()` execute
+  arbitrary SQL, with WAL and foreign keys on by default for file databases.
+  `MemoryDVDatabaseAdapter` understood only four statement shapes.
+- **Pluggable cache and durable queues.** `DV.Cache` and `DV.Queues` now run on
+  adapters, with `DVDatabaseCacheAdapter` and `DVDatabaseQueueAdapter` able to
+  share one SQLite file with the application. Durable jobs need a
+  `DVJobPayloadCodec`; dispatching or draining a payload with no registered
+  codec throws rather than dropping work.
+- **Search backends.** `DVSqliteSearchProvider` (FTS5, word matching and BM25
+  ranking), plus `MeilisearchProvider`, `AlgoliaSearchProvider` and
+  `OpenSearchProvider`. Paging models differ per service and are translated, so
+  callers always see the page they asked for.
+- **Mail providers.** `SmtpMailProvider` speaks SMTP over a socket, with
+  STARTTLS, `AUTH PLAIN`/`LOGIN` and dot-stuffing. HTTP providers cover Resend,
+  SendGrid, Postmark, Mailgun and SES, the last signed with the new
+  `DVAwsSigV4`.
+- **Push and SMS.** `FirebasePushProvider` (FCM HTTP v1), which flags a stale
+  device token as `isUnregisteredToken` so callers prune rather than retry, and
+  `TwilioSmsProvider` for the `sms` channel.
+- **File storage.** `DV.FileStorage` runs on an adapter, with
+  `S3FileStorageAdapter` for S3, Cloudflare R2 and MinIO.
+- **Authentication.** `DVPasswordHasher` (PBKDF2-HMAC-SHA256, per-password
+  salt, constant-time compare) plus `DVOAuth2Client`, an authorization-code
+  client with PKCE and constant-time state validation, with presets for Google,
+  GitHub, GitLab, Bitbucket and Microsoft.
+
+### Fixed
+
+- **Local auth accepted any password.** `LocalAuthProvider.signIn` and
+  `DVLocalAuthProvider.signInWithEmailAndPassword` returned a user for any
+  e-mail with any password and never stored the password at sign-up. Both now
+  keep salted hashes and reject an unknown account or a wrong password. They
+  remain development and test adapters.
+- **Shipped features were unreachable from applications.** `dartvel_flutter`
+  re-exports core through a `show` list, and `DVDatabaseQueueAdapter`,
+  `DVJobPayloadCodec(s)`, `LocalAuthProvider` and `AuthProvider` were missing
+  from it — the durable-queue feature was unusable despite passing its own
+  tests. The focused entrypoints (`package:dartvel/dartvel_ai.dart` and
+  siblings) exported only their facade, so no adapter could be passed to
+  `configure`. Both surfaces now have tests that import the way an application
+  does and fail to compile when a symbol is missing.
+
+### Changed — breaking
+
+- `DV.Cache.revalidateTag` returns `Future<Set<String>>`; it now removes
+  entries through the configured adapter.
+- `DV.Test.fakeStorage()` returns a `DVMemoryFileStorageAdapter` rather than the
+  raw `Map`, and a missing object throws `DVFileStorageException` rather than
+  `StateError`.
+- `LocalAuthProvider` requires an account to exist before sign-in and raises the
+  minimum password length to 8; failures are `AuthException` carrying an
+  `AuthFailure`.
+
+### Not implemented
+
+Recorded so the gaps are visible rather than assumed: Postgres, MySQL, MongoDB,
+Turso, ClickHouse and BigQuery databases; Redis and Memcached cache; Redis,
+SQS, Pub/Sub, RabbitMQ and Kafka queues; PostgreSQL full-text search; Azure
+Blob and Google Cloud Storage; APNS, which needs HTTP/2, and Web Push, which
+needs P-256 ECDH and AES128GCM payload encryption; magic links, OTP, LDAP and
+SAML; and the `DV.Platform` device APIs, which need generated JNI/FFI bindings.
+
+### Verified
+
+- `packages/dartvel_core`: `dart analyze`, `dart test` (99 → 309 tests).
+- `packages/dartvel_flutter`: `dart analyze`, `flutter test` (41 tests).
+- `packages/dartvel`: `flutter test` (new entrypoint tests).
+- `packages/dartvel_cli`: `dart test` (156 tests).
+- `examples/dartvel_example`: `flutter build web`, including the Wasm dry run,
+  confirming the conditional imports keep `dart:ffi` and `dart:io` out of web
+  output.
+
 ## 0.2.1 — 2026-07-29
 
 Packages at 0.2.1: `dartvel`, `dartvel_core`, `dartvel_flutter`, `dartvel_cli`.
