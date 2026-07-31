@@ -365,7 +365,32 @@ await DV.Cache.revalidateTag('users');
 await DV.Cache.purgeExpired();
 ```
 
-The database-backed adapter stores values as JSON, so only JSON-encodable
+### Durable queues
+
+`DV.Queues` defaults to an in-memory adapter, so dispatched jobs are lost on
+restart. Point it at a database to make them durable:
+
+```dart
+const DVJobPayloadCodecs().register(
+  DVJobPayloadCodec<SendWelcomeEmail>(
+    name: 'send_welcome_email',                       // stable across releases
+    encode: (job) => <String, Object?>{'userId': job.userId},
+    decode: (json) => SendWelcomeEmail(json['userId']! as String),
+  ),
+);
+const DVQueues().useAdapter(DVDatabaseQueueAdapter(db));
+```
+
+A durable queue has to write bytes, so every persisted payload type needs a
+codec. Dispatching a type with no codec throws, and so does draining a job
+whose codec is missing from the running process — neither silently drops work.
+The in-memory adapter keeps the Dart object and needs no codec.
+
+Redis, SQS, Pub/Sub, RabbitMQ and Kafka adapters are **not** implemented yet.
+
+---
+
+The database-backed cache adapter stores values as JSON, so only JSON-encodable
 values can be cached — a value that cannot be encoded raises `ArgumentError`
 rather than being silently dropped. The round trip is JSON's, not Dart's: a
 `List<String>` comes back as `List<Object?>`. `DVMemoryCacheAdapter` has no
