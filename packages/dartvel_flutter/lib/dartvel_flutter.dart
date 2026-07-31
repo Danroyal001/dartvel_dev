@@ -157,6 +157,7 @@ export 'package:dartvel_core/dartvel.dart'
         DVSearchFacetFilter,
         DVSqliteSearchProvider,
         MeilisearchProvider,
+        OpenSearchProvider,
         AlgoliaSearchProvider,
         DVSearchDocument,
         DVSearchFacetMatcher,

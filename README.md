@@ -489,8 +489,15 @@ translated in both directions and callers always see the page they asked for.
 A rejected query or an unreadable response throws
 `DVSearchProviderException` rather than returning an empty page.
 
-OpenSearch/Elasticsearch and PostgreSQL full-text providers are **not**
-implemented yet.
+`OpenSearchProvider` covers OpenSearch and Elasticsearch, which share this
+query API. It translates the three things they do differently so callers still
+see one contract: paging is offset-based (`from`/`size`) rather than page
+numbers, hits arrive nested under `hits.hits[]._source`, and the total is an
+object on 7.x but a bare integer on 6.x. It authenticates with HTTP Basic when
+given credentials, an `ApiKey` header when given a key, and neither for an open
+cluster.
+
+A PostgreSQL full-text provider is **not** implemented yet.
 
 ---
 
