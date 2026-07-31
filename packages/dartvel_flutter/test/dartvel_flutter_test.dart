@@ -827,7 +827,7 @@ void main() {
     );
 
     DV.Cache.tag('users:list', <String>['users']);
-    expect(DV.Cache.revalidateTag('users'), contains('users:list'));
+    expect(await DV.Cache.revalidateTag('users'), contains('users:list'));
   });
 
   test('DV.Test provides explicit fake auth users and scoped login', () async {

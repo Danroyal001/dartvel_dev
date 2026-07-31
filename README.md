@@ -71,7 +71,7 @@ Everything else is automatically compiled, generated, or served by the framework
 | **Backend Runtime** | Axum/Tokio Rust server calling Dart FFI, supporting SSE streams | ✅ Implemented |
 | **Platform APIs** | Runtime platform/screen detection; camera, location, haptics, etc. are scaffolded pending native plugins | ⚠️ Partial |
 | **Authentication** | Prebuilt pages plus a local provider that really stores and verifies salted password hashes; external identity providers are not complete | ⚠️ Partial |
-| **Database & Cache** | Real SQLite adapter (file + in-memory, WAL); Postgres/MySQL/Redis adapters are not complete | ⚠️ Partial |
+| **Database & Cache** | Real SQLite adapter (file + in-memory, WAL) and a pluggable cache with memory/database-backed adapters; Postgres/MySQL/Redis adapters are not complete | ⚠️ Partial |
 | **PWA & SEO** | Automatic PWA manifest/worker & runtime/global SEO injection | ✅ Implemented |
 | **AI Integration** | HTTP adapters for Claude, OpenAI, Gemini, OpenRouter, and Ollama, plus the deterministic local adapter | ✅ Implemented |
 | **Sensitive Fields** | `@DVModel.sensitiveField()` redacts fields from public serialization, cards, logs, and AI context | ✅ Implemented |
@@ -347,6 +347,29 @@ builds do not pull in `dart:ffi` at all.
 
 Postgres, MySQL, MongoDB, Turso, ClickHouse and BigQuery adapters are **not**
 implemented yet.
+
+### Cache
+
+`DV.Cache` runs on a swappable adapter. It defaults to process-local memory;
+point it at a database to survive restarts and share the application's SQLite
+file:
+
+```dart
+final db = SqliteDVDatabaseAdapter.file('.dartvel/app.db');
+DV.Database.configure(db);
+DV.Cache.configure(DVDatabaseCacheAdapter(db));   // shares the same file
+
+await DV.Cache.set('users:list', users, const Duration(minutes: 5));
+DV.Cache.tag('users:list', <String>['users']);
+await DV.Cache.revalidateTag('users');
+await DV.Cache.purgeExpired();
+```
+
+The database-backed adapter stores values as JSON, so only JSON-encodable
+values can be cached — a value that cannot be encoded raises `ArgumentError`
+rather than being silently dropped. The round trip is JSON's, not Dart's: a
+`List<String>` comes back as `List<Object?>`. `DVMemoryCacheAdapter` has no
+such restriction. Redis/Memcached adapters are **not** implemented yet.
 
 ---
 

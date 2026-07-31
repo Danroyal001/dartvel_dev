@@ -92,7 +92,10 @@ export 'package:dartvel_core/dartvel.dart'
         DVPolicies,
         DVPolicyAction,
         DVUseMiddleware,
+        DVCacheAdapter,
         DVCacheTags,
+        DVDatabaseCacheAdapter,
+        DVMemoryCacheAdapter,
         DVInMemorySearchProvider,
         DVImportResult,
         DVImportChunk,
@@ -2751,31 +2754,36 @@ class DVDatabase {
 
 class DVCache {
   const DVCache();
-  static final Map<String, ({Object? value, DateTime? expiresAt})> _memory = {};
+  static DVCacheAdapter _adapter = DVMemoryCacheAdapter();
   static const DVCacheTags _tags = DVCacheTags();
 
+  /// Swaps the storage behind the cache. Defaults to [DVMemoryCacheAdapter];
+  /// pass a [DVDatabaseCacheAdapter] to persist entries across restarts.
+  void configure(DVCacheAdapter adapter) {
+    _adapter = adapter;
+  }
+
+  DVCacheAdapter get adapter => _adapter;
+
   Future<T?> get<T>(String key) async {
-    final entry = _memory[key];
-    if (entry == null) return null;
-    final expiresAt = entry.expiresAt;
-    if (expiresAt != null && DateTime.now().isAfter(expiresAt)) {
-      _memory.remove(key);
-      return null;
-    }
-    final value = entry.value;
+    final value = await _adapter.read(key);
     return value is T ? value : null;
   }
 
-  Future<void> set(String key, Object? value, [Duration? ttl]) async {
-    _memory[key] = (
-      value: value,
-      expiresAt: ttl == null ? null : DateTime.now().add(ttl),
-    );
+  Future<void> set(String key, Object? value, [Duration? ttl]) =>
+      _adapter.write(key, value, ttl);
+
+  Future<void> delete(String key) => _adapter.remove(key);
+
+  /// Drops every entry. Tag associations are cleared with it.
+  Future<void> clear() async {
+    await _adapter.clear();
+    _tags.clear();
   }
 
-  Future<void> delete(String key) async {
-    _memory.remove(key);
-  }
+  /// Removes entries whose TTL has elapsed, reclaiming storage. Reads already
+  /// ignore expired entries, so this is housekeeping rather than correctness.
+  Future<int> purgeExpired() => _adapter.purgeExpired();
 
   void tag(String key, Iterable<String> tags) {
     _tags.tag(key, tags);
@@ -2785,10 +2793,10 @@ class DVCache {
     return _tags.keysForTag(tag);
   }
 
-  Set<String> revalidateTag(String tag) {
+  Future<Set<String>> revalidateTag(String tag) async {
     final keys = _tags.revalidateTag(tag);
     for (final key in keys) {
-      _memory.remove(key);
+      await _adapter.remove(key);
     }
     return keys;
   }
