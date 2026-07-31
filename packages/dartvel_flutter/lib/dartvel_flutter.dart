@@ -64,6 +64,11 @@ export 'package:dartvel_core/dartvel.dart'
         DVFormControls,
         DVFormControlsFactory,
         DVAuthAuthorization,
+        DVOAuth2Client,
+        DVOAuth2Config,
+        DVOAuth2Authorization,
+        DVOAuth2Tokens,
+        DVOAuth2Exception,
         // Lifecycle
         DVAppLifecycle,
         DVPageLifecycle,
