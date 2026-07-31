@@ -25,12 +25,26 @@ export 'package:dartvel_core/dartvel.dart'
         Analytics,
         AnalyticsEvent,
         AnalyticsProvider,
+        AnthropicDVAIAdapter,
+        DVAIAdapter,
         DVAIAgentRequest,
         DVAIAgentResult,
         DVAITranscript,
         DVAIToolEntry,
         DVAIToolHandler,
         DVAIToolRegistry,
+        DVAIHttpRequest,
+        DVAIHttpResponse,
+        DVAIHttpSend,
+        DVAIProviderException,
+        DVHttpAIAdapter,
+        DVJsonCodec,
+        GeminiDVAIAdapter,
+        LocalDVAIAdapter,
+        OllamaDVAIAdapter,
+        OpenAIDVAIAdapter,
+        OpenRouterDVAIAdapter,
+        dvSendAIHttpRequest,
         BillingPlan,
         DVCronEntry,
         DVCronTarget,
@@ -2616,91 +2630,6 @@ class DVAI {
       );
     }
     return adapter;
-  }
-}
-
-abstract class DVAIAdapter {
-  Future<String> chat(String prompt, {String provider = 'gemini'});
-  Future<List<double>> embed(String text);
-  Future<DVJsonObject> structuredOutput(
-    String prompt,
-    DVJsonObject schema,
-  );
-  Future<DVAITranscript> transcribe(
-    List<int> audioBytes, {
-    String mimeType = 'audio/wav',
-    String language = 'und',
-  });
-  Future<DVAIAgentResult> runAgent(DVAIAgentRequest request);
-}
-
-class LocalDVAIAdapter implements DVAIAdapter {
-  const LocalDVAIAdapter();
-
-  @override
-  Future<String> chat(String prompt, {String provider = 'gemini'}) async {
-    final normalized = prompt.trim();
-    return normalized.isEmpty
-        ? ''
-        : '[$provider] ${normalized.split(RegExp(r'\s+')).take(120).join(' ')}';
-  }
-
-  @override
-  Future<List<double>> embed(String text) async {
-    final buckets = List<double>.filled(16, 0);
-    for (var i = 0; i < text.length; i++) {
-      buckets[i % buckets.length] += text.codeUnitAt(i) / 65535;
-    }
-    return buckets;
-  }
-
-  @override
-  Future<DVJsonObject> structuredOutput(
-    String prompt,
-    DVJsonObject schema,
-  ) async =>
-      {
-        'prompt': DVJsonString(prompt),
-        'schema': DVJsonMap(schema),
-        'summary': DVJsonString(await chat(prompt, provider: 'local')),
-      };
-
-  @override
-  Future<DVAITranscript> transcribe(
-    List<int> audioBytes, {
-    String mimeType = 'audio/wav',
-    String language = 'und',
-  }) async {
-    final checksum = audioBytes.fold<int>(0, (sum, byte) => sum + byte);
-    return DVAITranscript(
-      text: 'local transcript ${audioBytes.length} bytes checksum $checksum',
-      language: language,
-      metadata: <String, DVJsonValue>{
-        'mimeType': DVJsonString(mimeType),
-        'byteLength': DVJsonNumber(audioBytes.length),
-        'checksum': DVJsonNumber(checksum),
-      },
-    );
-  }
-
-  @override
-  Future<DVAIAgentResult> runAgent(DVAIAgentRequest request) async {
-    final usedTools = <String>[];
-    final data = <String, DVJsonValue>{};
-    for (final toolName in request.tools) {
-      if (!const DVAIToolRegistry().contains(toolName)) continue;
-      usedTools.add(toolName);
-      data[toolName] = await const DVAIToolRegistry().call(
-        toolName,
-        request.context,
-      );
-    }
-    final summary = await chat(request.goal, provider: 'local-agent');
-    return DVAIAgentResult(
-      output: summary,
-      data: Map<String, DVJsonValue>.unmodifiable(data),
-      usedTools: List<String>.unmodifiable(usedTools),
-    );
   }
 }
 

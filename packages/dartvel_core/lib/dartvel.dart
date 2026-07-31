@@ -7,10 +7,13 @@ import 'package:dartvel_shelf/dartvel_shelf.dart' as dv;
 import 'package:http_parser/http_parser.dart';
 import 'package:mime/mime.dart';
 
+import 'src/ai/ai.dart';
+
 // Re-export common types so backends can import only dartvel_core.
 export 'package:dartvel_shelf/dartvel_shelf.dart'
     show Request, Response, Headers;
 
+export 'src/ai/ai.dart';
 export 'src/analytics/analytics.dart';
 export 'src/annotations/annotations.dart';
 export 'src/auth/auth.dart';
@@ -53,109 +56,6 @@ class DVAIToolEntry {
     required this.description,
     required this.importUri,
     required this.filePath,
-  });
-}
-
-typedef DVJsonObject = Map<String, DVJsonValue>;
-typedef DVAIToolHandler = FutureOr<DVJsonValue> Function(DVJsonObject input);
-
-sealed class DVJsonValue {
-  const DVJsonValue();
-}
-
-class DVJsonNull extends DVJsonValue {
-  const DVJsonNull();
-}
-
-class DVJsonString extends DVJsonValue {
-  final String value;
-  const DVJsonString(this.value);
-}
-
-class DVJsonNumber extends DVJsonValue {
-  final num value;
-  const DVJsonNumber(this.value);
-}
-
-class DVJsonBool extends DVJsonValue {
-  final bool value;
-  const DVJsonBool(this.value);
-}
-
-class DVJsonList extends DVJsonValue {
-  final List<DVJsonValue> value;
-  const DVJsonList(this.value);
-}
-
-class DVJsonMap extends DVJsonValue {
-  final DVJsonObject value;
-  const DVJsonMap(this.value);
-}
-
-class DVAIToolRegistry {
-  static final Map<String, DVAIToolHandler> _handlers = {};
-
-  const DVAIToolRegistry();
-
-  void register(String name, DVAIToolHandler handler) {
-    if (name.trim().isEmpty) {
-      throw ArgumentError.value(name, 'name', 'AI tool names cannot be empty.');
-    }
-    _handlers[name] = handler;
-  }
-
-  bool contains(String name) => _handlers.containsKey(name);
-
-  List<String> get names => List<String>.unmodifiable(_handlers.keys);
-
-  Future<DVJsonValue> call(String name, [DVJsonObject input = const {}]) async {
-    final handler = _handlers[name];
-    if (handler == null) {
-      throw StateError('No AI tool registered for "$name".');
-    }
-    return handler(input);
-  }
-
-  void clear() {
-    _handlers.clear();
-  }
-}
-
-class DVAITranscript {
-  final String text;
-  final String language;
-  final Duration duration;
-  final DVJsonObject metadata;
-
-  const DVAITranscript({
-    required this.text,
-    this.language = 'und',
-    this.duration = Duration.zero,
-    this.metadata = const <String, DVJsonValue>{},
-  });
-}
-
-class DVAIAgentRequest {
-  final String goal;
-  final DVJsonObject context;
-  final List<String> tools;
-
-  const DVAIAgentRequest({
-    required this.goal,
-    this.context = const <String, DVJsonValue>{},
-    this.tools = const <String>[],
-  });
-}
-
-class DVAIAgentResult {
-  final String output;
-  final DVJsonObject data;
-  final List<String> usedTools;
-
-  const DVAIAgentResult({
-    required this.output,
-    this.data = const <String, DVJsonValue>{},
-    this.usedTools = const <String>[],
   });
 }
 
