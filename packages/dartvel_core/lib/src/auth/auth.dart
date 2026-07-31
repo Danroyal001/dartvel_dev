@@ -1,6 +1,8 @@
 // Authentication system
 import 'dart:async';
 
+import 'password.dart';
+
 /// User model
 class AuthUser {
   final String id;
@@ -90,25 +92,83 @@ class Auth {
   Stream<AuthUser?> get authStateChanges => provider.authStateChanges;
 }
 
+/// Why an authentication attempt failed.
+enum AuthFailure {
+  unknownAccount,
+  invalidPassword,
+  accountExists,
+  weakPassword,
+  invalidEmail,
+}
+
+class AuthException implements Exception {
+  final AuthFailure failure;
+  final String message;
+
+  const AuthException(this.failure, this.message);
+
+  @override
+  String toString() => 'AuthException(${failure.name}): $message';
+}
+
+class _StoredCredential {
+  final AuthUser user;
+  final String passwordHash;
+
+  const _StoredCredential(this.user, this.passwordHash);
+}
+
 /// In-memory auth provider for local development and tests.
+///
+/// Credentials are really stored and really verified: passwords are salted and
+/// hashed with [DVPasswordHasher], an unknown account or a wrong password is
+/// rejected, and accounts cannot be silently overwritten. It holds everything
+/// in memory and has no account recovery, e-mail verification, or session
+/// expiry, so it remains a development and test adapter — configure a real
+/// [AuthProvider] for production.
 class LocalAuthProvider implements AuthProvider {
+  static const int minimumPasswordLength = 8;
+
   final _controller = StreamController<AuthUser?>.broadcast();
+  final Map<String, _StoredCredential> _accounts =
+      <String, _StoredCredential>{};
+  final DVPasswordHasher _hasher;
+
   AuthUser? _currentUser;
+  int _nextId = 1;
+
+  LocalAuthProvider({DVPasswordHasher? hasher})
+      : _hasher = hasher ??
+            DVPasswordHasher(
+              // Development default: strong enough to exercise the real code
+              // path without making every test sign-in slow.
+              iterations: 10000,
+            );
+
+  /// Registered account e-mails, for test assertions and dev tooling.
+  List<String> get accounts => List<String>.unmodifiable(_accounts.keys);
 
   @override
   Future<AuthUser?> signIn(String email, String password) async {
-    await Future.delayed(const Duration(milliseconds: 500));
-
-    if (password.length < 6) {
-      throw Exception('Password too short');
+    final key = _normalize(email);
+    final stored = _accounts[key];
+    if (stored == null) {
+      // Hash anyway so a missing account and a wrong password take comparable
+      // time, rather than leaking which e-mails are registered.
+      _hasher.verify(password, _hasher.hash(password));
+      throw const AuthException(
+        AuthFailure.unknownAccount,
+        'No account exists for that e-mail address.',
+      );
+    }
+    if (!_hasher.verify(password, stored.passwordHash)) {
+      throw const AuthException(
+        AuthFailure.invalidPassword,
+        'That password is incorrect.',
+      );
     }
 
-    _currentUser = AuthUser(
-      id: '123',
-      email: email,
-      name: 'Demo User',
-    );
-
+    _currentUser = stored.user;
     _controller.add(_currentUser);
     return _currentUser;
   }
@@ -116,17 +176,42 @@ class LocalAuthProvider implements AuthProvider {
   @override
   Future<AuthUser?> signUp(String email, String password,
       {String? name}) async {
-    await Future.delayed(const Duration(milliseconds: 500));
+    final key = _normalize(email);
+    if (!key.contains('@') || key.startsWith('@') || key.endsWith('@')) {
+      throw const AuthException(
+        AuthFailure.invalidEmail,
+        'That e-mail address is not valid.',
+      );
+    }
+    if (password.length < minimumPasswordLength) {
+      throw const AuthException(
+        AuthFailure.weakPassword,
+        'Passwords must be at least $minimumPasswordLength characters.',
+      );
+    }
+    if (_accounts.containsKey(key)) {
+      throw const AuthException(
+        AuthFailure.accountExists,
+        'An account already exists for that e-mail address.',
+      );
+    }
 
-    _currentUser = AuthUser(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      email: email,
-      name: name,
-    );
+    final user = AuthUser(id: 'local_${_nextId++}', email: key, name: name);
+    _accounts[key] = _StoredCredential(user, _hasher.hash(password));
 
+    _currentUser = user;
     _controller.add(_currentUser);
     return _currentUser;
   }
+
+  /// Removes every account and signs out. Intended for test teardown.
+  void reset() {
+    _accounts.clear();
+    _nextId = 1;
+    _currentUser = null;
+  }
+
+  static String _normalize(String email) => email.trim().toLowerCase();
 
   @override
   Future<void> signOut() async {

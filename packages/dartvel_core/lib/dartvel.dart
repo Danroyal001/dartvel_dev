@@ -17,6 +17,7 @@ export 'src/ai/ai.dart';
 export 'src/analytics/analytics.dart';
 export 'src/annotations/annotations.dart';
 export 'src/auth/auth.dart';
+export 'src/auth/password.dart';
 export 'src/database/adapters.dart';
 export 'src/lifecycle/lifecycle.dart';
 export 'src/modules/modules.dart';
