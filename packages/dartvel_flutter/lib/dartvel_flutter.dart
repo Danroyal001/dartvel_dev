@@ -154,6 +154,7 @@ export 'package:dartvel_core/dartvel.dart'
         DVPushProviderException,
         DVAccessTokenSupplier,
         FirebasePushProvider,
+        TwilioSmsProvider,
         DVNotificationsService,
         DVPolicyCheck,
         DVQueueAdapter,
