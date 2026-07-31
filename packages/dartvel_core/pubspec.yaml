@@ -8,6 +8,7 @@ environment:
 dependencies:
   dartvel_shelf:
     path: ../dartvel_shelf
+  async: ^2.13.1
   crypto: ^3.0.7
   http: ^1.6.0
   mime: ^1.0.4

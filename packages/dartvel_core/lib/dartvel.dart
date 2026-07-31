@@ -11,6 +11,7 @@ import 'src/ai/ai.dart';
 import 'src/database/adapter.dart';
 import 'src/http/aws_sigv4.dart';
 import 'src/http/transport.dart';
+import 'src/mail/smtp.dart';
 
 // Re-export common types so backends can import only dartvel_core.
 export 'package:dartvel_shelf/dartvel_shelf.dart'
@@ -26,6 +27,7 @@ export 'src/database/adapters.dart';
 export 'src/http/aws_sigv4.dart';
 export 'src/http/transport.dart';
 export 'src/lifecycle/lifecycle.dart';
+export 'src/mail/smtp.dart';
 export 'src/modules/modules.dart';
 export 'src/platform_config.dart';
 export 'src/shell/shell.dart';
@@ -1719,6 +1721,58 @@ class PostmarkMailProvider extends DVHttpMailProvider {
             ],
         })),
       );
+}
+
+/// Sends through an SMTP server.
+///
+/// Unlike the HTTP providers this speaks the SMTP protocol over a raw socket,
+/// so it is unavailable on web; constructing a connection there throws with the
+/// HTTP alternatives named. STARTTLS is used automatically when the server
+/// advertises it and the connection is not already secure.
+class SmtpMailProvider implements DVMailProvider {
+  final DVSmtpClient client;
+
+  SmtpMailProvider({
+    required String host,
+    int port = 587,
+    bool secure = false,
+    String? username,
+    String? password,
+    String clientName = 'dartvel',
+    DVSmtpConnect connect = dvConnectSmtp,
+  }) : client = DVSmtpClient(
+          host: host,
+          port: port,
+          secure: secure,
+          username: username,
+          password: password,
+          clientName: clientName,
+          connect: connect,
+        );
+
+  @override
+  Future<void> send(DVMailMessage message) async {
+    if (message.to.isEmpty) {
+      throw ArgumentError.value(
+        message.to,
+        'to',
+        'A mail message needs at least one recipient.',
+      );
+    }
+    await client.send(
+      envelopeFrom: message.from.email,
+      recipients: <String>[for (final address in message.to) address.email],
+      fromHeader: DVHttpMailProvider.formatAddress(message.from),
+      toHeaders: <String>[
+        for (final address in message.to)
+          DVHttpMailProvider.formatAddress(address),
+      ],
+      subject: message.subject,
+      text: message.text,
+      html: message.html,
+      headers: message.headers,
+    );
+  }
 }
 
 /// Amazon SES v2, signed with AWS Signature Version 4.
