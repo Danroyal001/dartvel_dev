@@ -290,6 +290,56 @@ void main() {
 
       stdout.writeln('✅ No Flutter platform channel APIs found in source');
     });
+
+    test('web code uses package:web, not the legacy dart:html stack', () {
+      // dart:html, dart:js, dart:js_util and package:js are the pre-Wasm web
+      // interop stack. Dartvel targets package:web + dart:js_interop so web
+      // builds stay dart2wasm-compatible.
+      final forbiddenImports = <String>[
+        'import ' "'dart:" 'html',
+        'import ' "'dart:" "js'",
+        'import ' "'dart:" 'js_util',
+        'import ' "'package:" "js/js.dart'",
+      ];
+      final files = _repoDartFiles();
+
+      for (final file in files) {
+        final content = file.readAsStringSync();
+        for (final pattern in forbiddenImports) {
+          expect(
+            content,
+            isNot(contains(pattern)),
+            reason: '${file.path} must use package:web and dart:js_interop, '
+                'not the legacy $pattern stack.',
+          );
+        }
+      }
+
+      stdout.writeln('✅ No legacy dart:html/dart:js web interop in source');
+    });
+
+    test('device APIs route through the native binding registry only', () {
+      // DV.Platform device APIs must resolve through DVNativeBridge, which
+      // demands a generated FFI/ffigen or JNI/jnigen binding. A missing
+      // binding must throw rather than silently returning a fake value.
+      final source = File(
+        'packages/dartvel_flutter/lib/dartvel_flutter.dart',
+      ).readAsStringSync();
+
+      expect(
+        source,
+        contains('Native binding "\$method" is not registered.'),
+        reason: 'DVNativeBridge.require must name the missing binding and '
+            'point at FFI/ffigen or JNI/jnigen generation.',
+      );
+      expect(
+        RegExp(r'DVNativeBridge\.(require|invoke)<').allMatches(source).length,
+        greaterThan(20),
+        reason: 'Device APIs must delegate to the native binding registry.',
+      );
+
+      stdout.writeln('✅ Device APIs delegate to the native binding registry');
+    });
   });
 
   group('Code Quality Tests', () {
