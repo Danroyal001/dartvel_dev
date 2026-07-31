@@ -458,6 +458,247 @@ class DVSqliteSearchProvider<TModel, TFacets>
   }
 }
 
+/// Builds provider filter expressions from typed facets. Meilisearch and
+/// Algolia both express facets as filter strings, so this is where an
+/// application maps its own facet type onto that syntax.
+typedef DVSearchFacetFilter<TFacets> = List<String> Function(TFacets? facets);
+
+/// Thrown when a hosted search service rejects a query or answers with a shape
+/// Dartvel cannot read. A failed search never degrades to an empty page.
+class DVSearchProviderException implements Exception {
+  final String provider;
+  final int? statusCode;
+  final String message;
+  final String? responseBody;
+
+  const DVSearchProviderException(
+    this.provider,
+    this.message, {
+    this.statusCode,
+    this.responseBody,
+  });
+
+  @override
+  String toString() {
+    final status = statusCode == null ? '' : ' (HTTP $statusCode)';
+    final body = responseBody == null || responseBody!.isEmpty
+        ? ''
+        : '\nResponse: $responseBody';
+    return 'DVSearchProviderException[$provider]$status: $message$body';
+  }
+}
+
+/// Shared behaviour for hosted search services reached over HTTP.
+///
+/// The service owns the index, so results arrive as JSON documents; [fromJson]
+/// turns each hit back into the application's model.
+abstract class DVHttpSearchProvider<TModel, TFacets>
+    implements DVSearchProvider<TModel, TFacets> {
+  final Uri baseUrl;
+  final String apiKey;
+  final String indexName;
+  final TModel Function(Map<String, Object?> hit) fromJson;
+  final DVSearchFacetFilter<TFacets>? facetFilter;
+  final DVHttpSend transport;
+
+  const DVHttpSearchProvider({
+    required this.baseUrl,
+    required this.apiKey,
+    required this.indexName,
+    required this.fromJson,
+    this.facetFilter,
+    this.transport = dvSendHttpRequest,
+  });
+
+  String get providerName;
+
+  DVHttpRequest buildRequest(
+    String query,
+    List<String> filters,
+    int page,
+    int perPage,
+  );
+
+  DVSearchResultPage<TModel> readResponse(
+    Map<String, Object?> payload,
+    int page,
+    int perPage,
+  );
+
+  @override
+  Future<DVSearchResultPage<TModel>> query(
+    String query, {
+    TFacets? facets,
+    int page = 1,
+    int perPage = 20,
+  }) async {
+    if (page < 1) throw ArgumentError.value(page, 'page', 'must be positive');
+    if (perPage < 1) {
+      throw ArgumentError.value(perPage, 'perPage', 'must be positive');
+    }
+
+    final filters = facetFilter?.call(facets) ?? const <String>[];
+    final response = await transport(
+      buildRequest(query, filters, page, perPage),
+    );
+    if (!response.isSuccess) {
+      throw DVSearchProviderException(
+        providerName,
+        'The search service rejected the query.',
+        statusCode: response.statusCode,
+        responseBody: response.body,
+      );
+    }
+
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } on FormatException catch (error) {
+      throw DVSearchProviderException(
+        providerName,
+        'Response was not valid JSON: ${error.message}',
+        responseBody: response.body,
+      );
+    }
+    if (decoded is! Map<String, Object?>) {
+      throw DVSearchProviderException(
+        providerName,
+        'Expected a JSON object at the top level of the response.',
+        responseBody: response.body,
+      );
+    }
+    return readResponse(decoded, page, perPage);
+  }
+
+  List<TModel> readHits(Map<String, Object?> payload, String key) {
+    final hits = payload[key];
+    if (hits is! List<Object?>) {
+      throw DVSearchProviderException(
+        providerName,
+        '"$key" was not a JSON array.',
+        responseBody: jsonEncode(payload),
+      );
+    }
+    return List<TModel>.unmodifiable(<TModel>[
+      for (final hit in hits)
+        if (hit is Map<String, Object?>) fromJson(hit),
+    ]);
+  }
+}
+
+/// Meilisearch search endpoint. Paging is 1-based, matching Dartvel.
+class MeilisearchProvider<TModel, TFacets>
+    extends DVHttpSearchProvider<TModel, TFacets> {
+  const MeilisearchProvider({
+    required super.baseUrl,
+    required super.apiKey,
+    required super.indexName,
+    required super.fromJson,
+    super.facetFilter,
+    super.transport,
+  });
+
+  @override
+  String get providerName => 'meilisearch';
+
+  @override
+  DVHttpRequest buildRequest(
+    String query,
+    List<String> filters,
+    int page,
+    int perPage,
+  ) =>
+      DVHttpRequest(
+        url: baseUrl.replace(path: '/indexes/$indexName/search'),
+        headers: <String, String>{
+          'content-type': 'application/json',
+          'authorization': 'Bearer $apiKey',
+        },
+        body: utf8.encode(jsonEncode(<String, Object?>{
+          'q': query,
+          'page': page,
+          'hitsPerPage': perPage,
+          if (filters.isNotEmpty) 'filter': filters,
+        })),
+      );
+
+  @override
+  DVSearchResultPage<TModel> readResponse(
+    Map<String, Object?> payload,
+    int page,
+    int perPage,
+  ) =>
+      DVSearchResultPage<TModel>(
+        items: readHits(payload, 'hits'),
+        total: payload['totalHits'] is int
+            ? payload['totalHits']! as int
+            : readHits(payload, 'hits').length,
+        page: page,
+        perPage: perPage,
+      );
+}
+
+/// Algolia query endpoint.
+///
+/// Algolia pages are zero-based while Dartvel's contract is one-based, so the
+/// page number is translated in both directions.
+class AlgoliaSearchProvider<TModel, TFacets>
+    extends DVHttpSearchProvider<TModel, TFacets> {
+  final String applicationId;
+
+  AlgoliaSearchProvider({
+    required this.applicationId,
+    required super.apiKey,
+    required super.indexName,
+    required super.fromJson,
+    Uri? baseUrl,
+    super.facetFilter,
+    super.transport,
+  }) : super(baseUrl: baseUrl ?? Uri.https('$applicationId-dsn.algolia.net'));
+
+  @override
+  String get providerName => 'algolia';
+
+  @override
+  DVHttpRequest buildRequest(
+    String query,
+    List<String> filters,
+    int page,
+    int perPage,
+  ) =>
+      DVHttpRequest(
+        url: baseUrl.replace(path: '/1/indexes/$indexName/query'),
+        headers: <String, String>{
+          'content-type': 'application/json',
+          'x-algolia-api-key': apiKey,
+          'x-algolia-application-id': applicationId,
+        },
+        body: utf8.encode(jsonEncode(<String, Object?>{
+          'query': query,
+          // Dartvel pages are 1-based; Algolia counts from zero.
+          'page': page - 1,
+          'hitsPerPage': perPage,
+          if (filters.isNotEmpty) 'filters': filters.join(' AND '),
+        })),
+      );
+
+  @override
+  DVSearchResultPage<TModel> readResponse(
+    Map<String, Object?> payload,
+    int page,
+    int perPage,
+  ) =>
+      DVSearchResultPage<TModel>(
+        items: readHits(payload, 'hits'),
+        total: payload['nbHits'] is int
+            ? payload['nbHits']! as int
+            : readHits(payload, 'hits').length,
+        // Translate back, so callers always see the page they asked for.
+        page: payload['page'] is int ? (payload['page']! as int) + 1 : page,
+        perPage: perPage,
+      );
+}
+
 /// Fails loudly when a searchable model has no configured provider.
 class DVUnconfiguredSearchProvider<TModel, TFacets>
     implements DVSearchProvider<TModel, TFacets> {
