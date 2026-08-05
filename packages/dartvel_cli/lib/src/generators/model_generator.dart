@@ -4,8 +4,8 @@ import 'package:file/local.dart';
 import 'package:glob/glob.dart';
 import 'package:path/path.dart' as p;
 
-/// Sort key for a field with no `@DVPageOrder`, so every ordered field lands
-/// ahead of every unordered one regardless of the value used.
+/// Sort key for a field with no `@DVModel.pageOrder(n)`, so every ordered
+/// field lands ahead of every unordered one regardless of the value used.
 const int _unorderedPageField = 1 << 30;
 
 class ModelGenerator {
@@ -125,23 +125,26 @@ class ModelGenerator {
         }
 
         // Generated model pages compose fields semantically rather than
-        // dumping them in declaration order. These annotations override what
-        // the composition would otherwise infer.
-        String? singleAnnotatedField(String annotation) {
+        // dumping them in declaration order. These field annotations override
+        // what the composition would otherwise infer, and live under the
+        // DVModel parent like @DVModel.sensitiveField() rather than standing
+        // alone.
+        String? singleAnnotatedField(String constructor) {
           final match = RegExp(
-            '@$annotation\\s*\\(\\s*\\)\\s*final\\s+.+?\\s+([A-Za-z0-9_]+)\\s*;',
+            '@DVModel\\.$constructor\\s*\\(\\s*\\)\\s*final\\s+.+?\\s+'
+            '([A-Za-z0-9_]+)\\s*;',
             dotAll: true,
           ).firstMatch(content);
           return match?.group(1);
         }
 
-        final featuredImageField = singleAnnotatedField('DVFeaturedImage');
-        final pageTitleField = singleAnnotatedField('DVPageTitle');
-        final mainContentField = singleAnnotatedField('DVMainContent');
+        final featuredImageField = singleAnnotatedField('featuredImage');
+        final pageTitleField = singleAnnotatedField('pageTitle');
+        final mainContentField = singleAnnotatedField('mainContent');
 
         final hiddenPageFields = <String>{};
         for (final m in RegExp(
-          r'@DVHideFromPage\s*\(\s*\)\s*final\s+.+?\s+([A-Za-z0-9_]+)\s*;',
+          r'@DVModel\.hideFromPage\s*\(\s*\)\s*final\s+.+?\s+([A-Za-z0-9_]+)\s*;',
           dotAll: true,
         ).allMatches(content)) {
           hiddenPageFields.add(m.group(1)!);
@@ -149,7 +152,8 @@ class ModelGenerator {
 
         final pageFieldOrder = <String, int>{};
         for (final m in RegExp(
-          r'@DVPageOrder\s*\(\s*(-?\d+)\s*\)\s*final\s+.+?\s+([A-Za-z0-9_]+)\s*;',
+          r'@DVModel\.pageOrder\s*\(\s*(-?\d+)\s*\)\s*final\s+.+?\s+'
+          r'([A-Za-z0-9_]+)\s*;',
           dotAll: true,
         ).allMatches(content)) {
           pageFieldOrder[m.group(2)!] = int.parse(m.group(1)!);
@@ -197,14 +201,14 @@ class ModelGenerator {
             firstOf(stringFields);
 
         // Candidates the page picks the longest value from, when no field is
-        // annotated @DVMainContent.
+        // annotated @DVModel.mainContent().
         final mainContentCandidates = mainContentField != null
             ? <String>[mainContentField]
             : stringFields
                 .where((String name) => name != resolvedPageTitle)
                 .toList();
 
-        // Everything else, in @DVPageOrder order first and declaration order
+        // Everything else, in @DVModel.pageOrder(n) order first and declaration
         // after, with the fields already placed above removed.
         final placedFields = <String>{
           if (resolvedFeaturedImage != null) resolvedFeaturedImage,
@@ -400,7 +404,7 @@ class ModelGenerator {
           '[${mainContentCandidates.map((String n) => "'$n'").join(', ')}];',
         );
         sb.writeln('  /// Fields excluded from generated pages by');
-        sb.writeln('  /// @DVHideFromPage().');
+        sb.writeln('  /// @DVModel.hideFromPage().');
         sb.writeln(
           '  static const Set<String> hiddenPageFields = <String>'
           '{${hiddenPageFields.map((String n) => "'$n'").join(', ')}};',

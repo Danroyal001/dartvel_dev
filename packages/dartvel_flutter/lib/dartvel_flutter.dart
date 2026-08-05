@@ -95,11 +95,7 @@ export 'package:dartvel_core/dartvel.dart'
         // Model pages and static generation
         DVModelPageDataMode,
         DVStaticPaths,
-        DVFeaturedImage,
-        DVPageTitle,
-        DVMainContent,
-        DVPageOrder,
-        DVHideFromPage,
+        DVModelPageRole,
         DVImage,
         DVImageSource,
         DVJob,

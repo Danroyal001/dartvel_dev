@@ -46,15 +46,15 @@ import 'package:dartvel_core/dartvel.dart';
 @DVModel()
 class _Post {
   final String id;
-  @DVFeaturedImage()
+  @DVModel.featuredImage()
   final DVImage cover;
-  @DVPageTitle()
+  @DVModel.pageTitle()
   final String headline;
-  @DVMainContent()
+  @DVModel.mainContent()
   final String body;
-  @DVPageOrder(1)
+  @DVModel.pageOrder(1)
   final String author;
-  @DVHideFromPage()
+  @DVModel.hideFromPage()
   final String internalReference;
 
   const _Post({
@@ -98,9 +98,9 @@ class _Post {
       body.indexOf('_mainContentOf(model)'),
       lessThan(body.indexOf('model.author')),
     );
-    // @DVPageOrder(1) puts author ahead of the unannotated id.
+    // @DVModel.pageOrder(1) puts author ahead of the unannotated id.
     expect(body.indexOf('model.author'), lessThan(body.indexOf('model.id')));
-    // @DVHideFromPage keeps the field off the page but on the model.
+    // @DVModel.hideFromPage() keeps the field off the page but on the model.
     expect(body, isNot(contains('internalReference')));
     expect(generated, contains('final String internalReference;'));
   });

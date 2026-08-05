@@ -2784,12 +2784,17 @@ fields in this order:
 Explicit overrides:
 
 ```dart
-@DVFeaturedImage() final DVImage cover;
-@DVPageTitle()     final String title;
-@DVMainContent()   final String body;
-@DVPageOrder(3)    final String author;
-@DVHideFromPage()  final String internalReference;
+@DVModel.featuredImage() final DVImage cover;
+@DVModel.pageTitle()     final String title;
+@DVModel.mainContent()   final String body;
+@DVModel.pageOrder(3)    final String author;
+@DVModel.hideFromPage()  final String internalReference;
 ```
+
+Field-scoped model annotations live under the `DVModel` parent, alongside
+`@DVModel.sensitiveField()` and `@DVModel.searchableField()`. There are no
+standalone `@DVFeaturedImage`, `@DVPageTitle`, `@DVMainContent`, `@DVPageOrder`
+or `@DVHideFromPage` annotations.
 
 ## Page data modes
 
