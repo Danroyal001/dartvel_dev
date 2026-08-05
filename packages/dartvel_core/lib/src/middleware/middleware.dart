@@ -4,6 +4,7 @@ import 'dart:convert';
 
 import 'package:dartvel_shelf/dartvel_shelf.dart' as dv;
 
+import '../annotations/annotations.dart' show DVCSRF;
 import '../tenancy/tenants.dart';
 
 /// Request context for middleware
@@ -153,6 +154,187 @@ class CommonMiddleware {
   static Middleware compression() {
     return (request, context) {
       context.data['enableCompression'] = true;
+    };
+  }
+
+  /// CSRF validation middleware.
+  ///
+  /// State-changing methods must present the token in the
+  /// `x-dartvel-csrf-token` header. When [issuedToken] is provided it resolves
+  /// the token the server issued for this request's session and the header
+  /// must equal it — format checks alone accept any well-shaped forgery.
+  /// Without it, the header is compared against the `_dv_csrf` body field
+  /// (double-submit), so a cross-site form that cannot read the page still
+  /// cannot forge a matching pair.
+  static Middleware csrf({
+    FutureOr<String?> Function(Object? request)? issuedToken,
+  }) {
+    const validator = DVCSRF();
+    return (request, context) async {
+      final method = _requestMethod(request);
+      if (!validator.requiresValidation(method)) return;
+
+      final headerToken = _requestHeaders(request)[DVCSRF.headerName];
+      String? expected;
+      if (issuedToken != null) {
+        expected = await issuedToken(request);
+      } else {
+        final body = await _parseBody(request);
+        expected = body is Map ? body[DVCSRF.fieldName]?.toString() : null;
+      }
+
+      final valid = validator.validate(headerToken, bodyToken: expected) &&
+          expected != null;
+      if (!valid) {
+        context.abort();
+        context.data['csrfError'] = 'CSRF token missing or invalid';
+      }
+    };
+  }
+
+  /// Idempotency-key middleware.
+  ///
+  /// A request carrying an `Idempotency-Key` header records its key; a repeat
+  /// of the same key within [window] is flagged as a replay and given the
+  /// stored response, so retrying a payment cannot charge twice. Keys are
+  /// scoped to method + path: the same key on a different endpoint is a
+  /// different operation.
+  static Middleware idempotency({
+    Duration window = const Duration(hours: 24),
+    bool require = false,
+  }) {
+    final seen = <String, ({DateTime at, Object? response})>{};
+
+    return (request, context) {
+      final method = _requestMethod(request);
+      // Safe methods are naturally idempotent; a key on a GET is a no-op.
+      if (method == 'GET' || method == 'HEAD' || method == 'OPTIONS') return;
+
+      final key = _requestHeaders(request)['idempotency-key'];
+      if (key == null || key.trim().isEmpty) {
+        if (require) {
+          context.abort();
+          context.data['idempotencyError'] =
+              'This endpoint requires an Idempotency-Key header.';
+        }
+        return;
+      }
+
+      final now = DateTime.now();
+      seen.removeWhere((_, entry) => now.difference(entry.at) > window);
+
+      final scoped = '$method ${_requestPath(request)} ${key.trim()}';
+      final previous = seen[scoped];
+      if (previous != null) {
+        context.abort();
+        context.data['idempotentReplay'] = true;
+        context.data['idempotentResponse'] = previous.response;
+        return;
+      }
+      seen[scoped] = (at: now, response: null);
+      context.data['idempotencyKey'] = key.trim();
+      // The handler stores its response for replays through this callback.
+      context.data['recordIdempotentResponse'] = (Object? response) {
+        seen[scoped] = (at: now, response: response);
+      };
+    };
+  }
+
+  /// Locale negotiation middleware.
+  ///
+  /// Resolution order: `?locale=` query parameter, then `Accept-Language`
+  /// against [supported], then [fallback]. Matching tries the exact tag first
+  /// and then the bare language, so `en-GB` finds `en` when only `en` ships.
+  static Middleware locale({
+    List<String> supported = const <String>['en'],
+    String? fallback,
+  }) {
+    final normalized = <String, String>{
+      for (final tag in supported) tag.toLowerCase(): tag,
+    };
+    final defaultLocale = fallback ?? supported.first;
+
+    String? match(String tag) {
+      final lower = tag.toLowerCase();
+      final exact = normalized[lower];
+      if (exact != null) return exact;
+      return normalized[lower.split('-').first];
+    }
+
+    return (request, context) {
+      final query = _requestUri(request).queryParameters['locale'];
+      if (query != null) {
+        final resolved = match(query);
+        if (resolved != null) {
+          context.data['locale'] = resolved;
+          return;
+        }
+      }
+
+      final header = _requestHeaders(request)['accept-language'];
+      if (header != null) {
+        // "fr-CH, fr;q=0.9, en;q=0.8" — order carries the preference; the
+        // q-values arrive already sorted from every mainstream browser.
+        for (final part in header.split(',')) {
+          final tag = part.split(';').first.trim();
+          if (tag.isEmpty || tag == '*') continue;
+          final resolved = match(tag);
+          if (resolved != null) {
+            context.data['locale'] = resolved;
+            return;
+          }
+        }
+      }
+
+      context.data['locale'] = defaultLocale;
+    };
+  }
+
+  /// Feature-flag middleware.
+  ///
+  /// [flags] resolves each flag for the request — a lookup table, a percentage
+  /// rollout, a tenant check. The resolved set lands in
+  /// `context.data['featureFlags']` so later middleware and handlers branch on
+  /// it without re-resolving.
+  static Middleware featureFlags({
+    required Map<String, FutureOr<bool> Function(Object? request)> flags,
+  }) {
+    return (request, context) async {
+      final enabled = <String>{};
+      for (final entry in flags.entries) {
+        if (await entry.value(request)) enabled.add(entry.key);
+      }
+      context.data['featureFlags'] = enabled;
+    };
+  }
+
+  /// Maintenance-mode middleware.
+  ///
+  /// While [isDown] reports true, requests abort with a `maintenanceError`
+  /// unless the path is in [allowedPaths] (health checks must stay
+  /// reachable) or the request carries the bypass secret in
+  /// `x-dartvel-maintenance-bypass` (operators need to see the site they are
+  /// fixing).
+  static Middleware maintenance({
+    required FutureOr<bool> Function() isDown,
+    List<String> allowedPaths = const <String>['/health'],
+    String? bypassSecret,
+  }) {
+    return (request, context) async {
+      if (!await isDown()) return;
+
+      final path = _requestPath(request);
+      if (allowedPaths.contains(path)) return;
+
+      if (bypassSecret != null &&
+          _requestHeaders(request)['x-dartvel-maintenance-bypass'] ==
+              bypassSecret) {
+        return;
+      }
+
+      context.abort();
+      context.data['maintenanceError'] =
+          'The application is down for maintenance.';
     };
   }
 
