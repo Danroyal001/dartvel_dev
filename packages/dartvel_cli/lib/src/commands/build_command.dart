@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
+import '../build/browser_extension.dart';
 import '../utils/build_runner.dart';
 import '../utils/logger.dart';
 import '../utils/toolchain.dart';
@@ -45,6 +46,13 @@ const extensionBuildPlatforms = <String>[
   'vscode',
 ];
 
+/// Browser extension bundles. These are Flutter web output plus a generated
+/// manifest and background script, not a separate embedder.
+const browserExtensionBuildPlatforms = <String>[
+  'chrome-extension',
+  'firefox-extension',
+];
+
 /// The set built by `--platform all`. Distribution-image formats
 /// (`sony-elinux-iso`/`sony-elinux-img`) are intentionally excluded; they are
 /// explicit packaging targets, not part of a general build.
@@ -52,6 +60,7 @@ const allBuildPlatforms = <String>[
   ...flutterBuildPlatforms,
   ...embeddedBuildPlatforms,
   ...extensionBuildPlatforms,
+  ...browserExtensionBuildPlatforms,
 ];
 
 /// Everything `dartvel build <platform>` accepts, positionally or via
@@ -123,6 +132,11 @@ bool isPlatformAvailableOn(String platform, String hostOs) {
     case 'web':
     case 'android':
     case 'fireos':
+      return true;
+    // A browser extension is web output; any host that can build web can
+    // build it.
+    case 'chrome-extension':
+    case 'firefox-extension':
       return true;
     case 'ios':
     case 'macos':
@@ -308,18 +322,20 @@ class BuildCommand extends Command<void> {
               arch: arch,
               target: target,
             )
-          : extensionBuildPlatforms.contains(p)
-              ? await _buildVSCodeExtension(root)
-              : await _buildPlatform(
-                  p,
-                  buildMode,
-                  target: target,
-                  splitPerAbi: splitPerAbi,
-                  buildNumber: buildNumber,
-                  buildName: buildName,
-                  obfuscate: obfuscate && isRelease,
-                  treeShakeIcons: treeShakeIcons,
-                );
+          : browserExtensionBuildPlatforms.contains(p)
+              ? await _buildBrowserExtension(p, buildMode, root, target: target)
+              : extensionBuildPlatforms.contains(p)
+                  ? await _buildVSCodeExtension(root)
+                  : await _buildPlatform(
+                      p,
+                      buildMode,
+                      target: target,
+                      splitPerAbi: splitPerAbi,
+                      buildNumber: buildNumber,
+                      buildName: buildName,
+                      obfuscate: obfuscate && isRelease,
+                      treeShakeIcons: treeShakeIcons,
+                    );
       switch (result) {
         case _PlatformBuildResult.succeeded:
           break;
@@ -461,6 +477,85 @@ class BuildCommand extends Command<void> {
       );
       return _PlatformBuildResult.skipped;
     }
+    return _PlatformBuildResult.succeeded;
+  }
+
+  /// Builds a Chromium or Firefox extension bundle.
+  ///
+  /// This is Flutter web output plus a generated manifest and background
+  /// script. Two build flags are load-bearing rather than stylistic:
+  /// `--csp`, because manifest V3 forbids `eval`, and `--pwa-strategy=none`,
+  /// because Flutter's service worker fights the extension's own.
+  Future<_PlatformBuildResult> _buildBrowserExtension(
+    String platform,
+    String buildMode,
+    String root, {
+    String? target,
+  }) async {
+    final extensionTarget = BrowserExtensionTarget.forTarget(platform);
+    if (extensionTarget == null) {
+      Logger.log('❌ Unknown browser extension target "$platform".');
+      return _PlatformBuildResult.failed;
+    }
+
+    Logger.log('');
+    Logger.log('🔨 Building for $platform...');
+
+    final pubspec = readPubspecYaml(root);
+    if (pubspec == null) {
+      Logger.log('❌ No readable pubspec.yaml at $root.');
+      return _PlatformBuildResult.failed;
+    }
+    final config = BrowserExtensionConfig.fromPubspec(pubspec);
+
+    final arguments = <String>[
+      'build',
+      'web',
+      buildMode,
+      '--csp',
+      '--pwa-strategy=none',
+      if (target != null) ...<String>['-t', target],
+    ];
+    Logger.log('   flutter ${arguments.join(' ')}');
+    final result = await _processRun(
+      'flutter',
+      arguments,
+      workingDirectory: root,
+      runInShell: true,
+    );
+    if (result.exitCode != 0) {
+      Logger.log('❌ $platform build failed');
+      stdout.write(result.stdout);
+      stderr.write(result.stderr);
+      return _PlatformBuildResult.failed;
+    }
+
+    final outputDir = p.join(root, 'build', platform);
+    try {
+      assembleExtensionBundle(
+        webBuildDir: p.join(root, 'build', 'web'),
+        outputDir: outputDir,
+        config: config,
+        target: extensionTarget,
+      );
+    } on FileSystemException catch (error) {
+      Logger.log('❌ Could not assemble the extension bundle: ${error.message}');
+      return _PlatformBuildResult.failed;
+    }
+
+    final artifacts = validateExtensionArtifacts(outputDir);
+    if (!artifacts.isValid) {
+      Logger.log('❌ $platform build did not produce a loadable extension.');
+      for (final missing in artifacts.missing) {
+        Logger.log('   Missing: $missing');
+      }
+      return _PlatformBuildResult.failed;
+    }
+
+    Logger.log(
+      '✅ ${extensionTarget.label} extension built at build/$platform '
+      '(${config.name} ${config.version})',
+    );
     return _PlatformBuildResult.succeeded;
   }
 

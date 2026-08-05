@@ -103,9 +103,16 @@ class DoctorCommand extends Command<void> {
       'sony-elinux' => 'flutter-elinux',
       'webos' => 'flutter-webos',
       'vscode' => 'npm',
+      // A browser extension is Flutter web output plus a generated manifest,
+      // so the web toolchain is the whole requirement.
+      'chrome-extension' || 'firefox-extension' => 'flutter',
       _ => 'flutter',
     };
-    final label = target == 'vscode' ? 'toolchain' : 'embedder';
+    final label = switch (target) {
+      'vscode' => 'toolchain',
+      'chrome-extension' || 'firefox-extension' => 'toolchain',
+      _ => 'embedder',
+    };
 
     final available = await _isExecutableAvailable(executable);
     if (available) {
@@ -114,10 +121,15 @@ class DoctorCommand extends Command<void> {
     } else {
       Logger.log('[!] $target $label: $executable not found on PATH');
       Logger.log(
-        target == 'vscode'
-            ? '    Install Node.js/npm before running `dartvel build vscode`.'
-            : '    Install the $target Flutter embedder before running '
+        switch (target) {
+          'vscode' =>
+            '    Install Node.js/npm before running `dartvel build vscode`.',
+          'chrome-extension' || 'firefox-extension' =>
+            '    Install Flutter with web support before running '
                 '`dartvel build $target`.',
+          _ => '    Install the $target Flutter embedder before running '
+              '`dartvel build $target`.',
+        },
       );
     }
 

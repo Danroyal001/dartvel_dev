@@ -26,6 +26,9 @@ bool hasPubDependency(String root, String dependencyName) {
   return false;
 }
 
+/// Reads and parses `pubspec.yaml`, or null when it is absent or not a map.
+YamlMap? readPubspecYaml(String root) => _readPubspec(root);
+
 YamlMap? _readPubspec(String root) {
   final file = File(p.join(root, 'pubspec.yaml'));
   if (!file.existsSync()) return null;
