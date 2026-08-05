@@ -29,6 +29,7 @@ export 'src/http/aws_sigv4.dart';
 export 'src/http/transport.dart';
 export 'src/lifecycle/lifecycle.dart';
 export 'src/mail/smtp.dart';
+export 'src/media/image.dart';
 export 'src/modules/modules.dart';
 export 'src/platform_config.dart';
 export 'src/secrets/secrets.dart';
