@@ -52,6 +52,77 @@ typedef _GtkClipboardStoreDart = void Function(Pointer<Void>);
 typedef _GFreeNative = Void Function(Pointer<Void>);
 typedef _GFreeDart = void Function(Pointer<Void>);
 
+// --- GTK window control ------------------------------------------------------
+
+typedef _GtkWindowListNative = Pointer<Void> Function();
+typedef _GtkWindowListDart = Pointer<Void> Function();
+typedef _GListLengthNative = Uint32 Function(Pointer<Void>);
+typedef _GListLengthDart = int Function(Pointer<Void>);
+typedef _GListNthDataNative = Pointer<Void> Function(Pointer<Void>, Uint32);
+typedef _GListNthDataDart = Pointer<Void> Function(Pointer<Void>, int);
+typedef _GtkWindowSetTitleNative = Void Function(Pointer<Void>, Pointer<Utf8>);
+typedef _GtkWindowSetTitleDart = void Function(Pointer<Void>, Pointer<Utf8>);
+typedef _GtkWindowGetTitleNative = Pointer<Utf8> Function(Pointer<Void>);
+typedef _GtkWindowGetTitleDart = Pointer<Utf8> Function(Pointer<Void>);
+typedef _GtkWindowActionNative = Void Function(Pointer<Void>);
+typedef _GtkWindowActionDart = void Function(Pointer<Void>);
+
+// --- GDBus (desktop notifications) -------------------------------------------
+
+typedef _GBusGetSyncNative = Pointer<Void> Function(
+  Int32,
+  Pointer<Void>,
+  Pointer<Pointer<Void>>,
+);
+typedef _GBusGetSyncDart = Pointer<Void> Function(
+  int,
+  Pointer<Void>,
+  Pointer<Pointer<Void>>,
+);
+typedef _GVariantNewParsedNative = Pointer<Void> Function(
+  Pointer<Utf8>,
+  Pointer<Void>,
+);
+typedef _GVariantNewParsedDart = Pointer<Void> Function(
+  Pointer<Utf8>,
+  Pointer<Void>,
+);
+typedef _GDBusCallSyncNative = Pointer<Void> Function(
+  Pointer<Void>,
+  Pointer<Utf8>,
+  Pointer<Utf8>,
+  Pointer<Utf8>,
+  Pointer<Utf8>,
+  Pointer<Void>,
+  Pointer<Void>,
+  Int32,
+  Int32,
+  Pointer<Void>,
+  Pointer<Pointer<Void>>,
+);
+typedef _GDBusCallSyncDart = Pointer<Void> Function(
+  Pointer<Void>,
+  Pointer<Utf8>,
+  Pointer<Utf8>,
+  Pointer<Utf8>,
+  Pointer<Utf8>,
+  Pointer<Void>,
+  Pointer<Void>,
+  int,
+  int,
+  Pointer<Void>,
+  Pointer<Pointer<Void>>,
+);
+typedef _GVariantUnrefNative = Void Function(Pointer<Void>);
+typedef _GVariantUnrefDart = void Function(Pointer<Void>);
+typedef _GVariantGetUint32Native = Pointer<Void> Function(
+  Pointer<Void>,
+  Uint64,
+);
+typedef _GVariantGetUint32Dart = Pointer<Void> Function(Pointer<Void>, int);
+typedef _GVariantGetUint32ValueNative = Uint32 Function(Pointer<Void>);
+typedef _GVariantGetUint32ValueDart = int Function(Pointer<Void>);
+
 /// Registers the Linux bindings that are genuinely implemented.
 ///
 /// Deliberately partial. A binding this cannot implement is left
@@ -59,9 +130,11 @@ typedef _GFreeDart = void Function(Pointer<Void>);
 /// registered" error rather than returning a plausible lie — an unimplemented
 /// API that reports success is worse than one that fails loudly.
 ///
-/// Implemented: `clipboard.copy`, `clipboard.paste` (GTK's CLIPBOARD
-/// selection — the one other applications actually read), and
-/// `screen.geometry` (X11 display dimensions).
+/// Implemented: `clipboard.copy`/`clipboard.paste` (GTK's CLIPBOARD
+/// selection — the one other applications actually read), `screen.geometry`
+/// (X11 display dimensions), `notifications.sendLocal` (the freedesktop
+/// notification service over GDBus), and `window.setTitle`/`maximize`/
+/// `minimize`/`restore` (the app's own GTK toplevel).
 class DVLinuxBindings {
   const DVLinuxBindings._();
 
@@ -76,11 +149,18 @@ class DVLinuxBindings {
     'clipboard.copy',
     'clipboard.paste',
     'screen.geometry',
+    'notifications.sendLocal',
+    'window.setTitle',
+    'window.maximize',
+    'window.minimize',
+    'window.restore',
   };
 
   static DynamicLibrary? _x11;
   static DynamicLibrary? _gtk;
   static DynamicLibrary? _gdk;
+  static DynamicLibrary? _glib;
+  static DynamicLibrary? _gio;
   static bool _gtkReady = false;
 
   /// Loads the libraries and registers the handlers.
@@ -94,6 +174,8 @@ class DVLinuxBindings {
       _x11 = DynamicLibrary.open('libX11.so.6');
       _gtk = DynamicLibrary.open('libgtk-3.so.0');
       _gdk = DynamicLibrary.open('libgdk-3.so.0');
+      _glib = DynamicLibrary.open('libglib-2.0.so.0');
+      _gio = DynamicLibrary.open('libgio-2.0.so.0');
     } on ArgumentError {
       return false;
     }
@@ -104,6 +186,28 @@ class DVLinuxBindings {
     });
     DVNativeBridge.register('clipboard.paste', (Object? _) => _paste());
     DVNativeBridge.register('screen.geometry', (Object? _) => _geometry());
+
+    DVNativeBridge.register('notifications.sendLocal', (Object? arguments) {
+      final map = arguments is Map ? arguments : const <Object?, Object?>{};
+      return _notify('${map['title'] ?? ''}', '${map['body'] ?? ''}');
+    });
+
+    DVNativeBridge.register('window.setTitle', (Object? arguments) {
+      final map = arguments is Map ? arguments : const <Object?, Object?>{};
+      return _setWindowTitle('${map['title'] ?? ''}');
+    });
+    DVNativeBridge.register(
+      'window.maximize',
+      (Object? _) => _windowAction('gtk_window_maximize'),
+    );
+    DVNativeBridge.register(
+      'window.minimize',
+      (Object? _) => _windowAction('gtk_window_iconify'),
+    );
+    DVNativeBridge.register(
+      'window.restore',
+      (Object? _) => _windowAction('gtk_window_unmaximize'),
+    );
 
     _registered = true;
     return true;
@@ -221,4 +325,143 @@ class DVLinuxBindings {
       closeDisplay(display);
     }
   }
+
+  /// The application's own GTK window.
+  ///
+  /// A Flutter Linux app has exactly one toplevel; taking the first is how
+  /// the embedder's own code finds it. Null outside a GTK app, which is why
+  /// the window bindings report failure rather than crashing in a headless
+  /// process.
+  static Pointer<Void>? _toplevel() {
+    if (!_ensureGtk()) return null;
+    final list = _gtk!
+        .lookupFunction<_GtkWindowListNative, _GtkWindowListDart>(
+      'gtk_window_list_toplevels',
+    )();
+    if (list == nullptr) return null;
+    final length = _glib!
+        .lookupFunction<_GListLengthNative, _GListLengthDart>(
+      'g_list_length',
+    )(list);
+    if (length == 0) return null;
+    final window = _glib!
+        .lookupFunction<_GListNthDataNative, _GListNthDataDart>(
+      'g_list_nth_data',
+    )(list, 0);
+    return window == nullptr ? null : window;
+  }
+
+  static bool _setWindowTitle(String title) {
+    final window = _toplevel();
+    if (window == null) return false;
+    final value = title.toNativeUtf8();
+    try {
+      _gtk!.lookupFunction<_GtkWindowSetTitleNative, _GtkWindowSetTitleDart>(
+        'gtk_window_set_title',
+      )(window, value);
+      return true;
+    } finally {
+      calloc.free(value);
+    }
+  }
+
+  /// The window title GTK currently reports. Used by tests to confirm the
+  /// call landed rather than trusting its return value.
+  static String? currentWindowTitle() {
+    final window = _toplevel();
+    if (window == null) return null;
+    final title = _gtk!
+        .lookupFunction<_GtkWindowGetTitleNative, _GtkWindowGetTitleDart>(
+      'gtk_window_get_title',
+    )(window);
+    // GTK owns this string; it must not be freed here.
+    return title == nullptr ? null : title.toDartString();
+  }
+
+  static bool _windowAction(String symbol) {
+    final window = _toplevel();
+    if (window == null) return false;
+    _gtk!.lookupFunction<_GtkWindowActionNative, _GtkWindowActionDart>(
+      symbol,
+    )(window);
+    return true;
+  }
+
+  /// Sends a desktop notification through the freedesktop service.
+  ///
+  /// Returns the daemon's notification id, or null when no notification
+  /// service is running — a headless container has none, and reporting
+  /// success there would be a lie.
+  static int? _notify(String title, String body) {
+    final error = calloc<Pointer<Void>>();
+    try {
+      // G_BUS_TYPE_SESSION == 2. The system bus (1) is the wrong bus and is
+      // usually absent in a desktop session.
+      final bus = _gio!
+          .lookupFunction<_GBusGetSyncNative, _GBusGetSyncDart>(
+        'g_bus_get_sync',
+      )(2, nullptr, error);
+      if (bus == nullptr) return null;
+
+      // g_variant_new_parsed avoids constructing the (susssasa{sv}i)
+      // signature by hand through varargs, which dart:ffi cannot express.
+      final parameters = _glib!
+          .lookupFunction<_GVariantNewParsedNative, _GVariantNewParsedDart>(
+        'g_variant_new_parsed',
+      )(
+        "('${_escapeVariant(_appName)}', uint32 0, '', "
+                "'${_escapeVariant(title)}', '${_escapeVariant(body)}', "
+                '@as [], @a{sv} {}, 5000)'
+            .toNativeUtf8(),
+        nullptr,
+      );
+      if (parameters == nullptr) return null;
+
+      final reply = _gio!
+          .lookupFunction<_GDBusCallSyncNative, _GDBusCallSyncDart>(
+        'g_dbus_connection_call_sync',
+      )(
+        bus,
+        _notificationsName,
+        _notificationsPath,
+        _notificationsName,
+        _notifyMethod,
+        parameters,
+        nullptr,
+        0,
+        5000,
+        nullptr,
+        error,
+      );
+      if (reply == nullptr) return null;
+
+      // The reply is (u); read the id back so callers can dismiss it.
+      final id = _gio!
+          .lookupFunction<_GVariantGetUint32Native, _GVariantGetUint32Dart>(
+        'g_variant_get_child_value',
+      )(reply, 0);
+      final value = id == nullptr
+          ? null
+          : _glib!.lookupFunction<_GVariantGetUint32ValueNative,
+              _GVariantGetUint32ValueDart>('g_variant_get_uint32')(id);
+      _glib!.lookupFunction<_GVariantUnrefNative, _GVariantUnrefDart>(
+        'g_variant_unref',
+      )(reply);
+      return value;
+    } finally {
+      calloc.free(error);
+    }
+  }
+
+  /// Notification content is interpolated into a GVariant text literal, so a
+  /// quote or backslash in it would otherwise change the parse.
+  static String _escapeVariant(String value) =>
+      value.replaceAll(r'\', r'\\').replaceAll("'", r"\'");
+
+  static const String _appName = 'Dartvel';
+  static final Pointer<Utf8> _notificationsName =
+      'org.freedesktop.Notifications'.toNativeUtf8();
+  static final Pointer<Utf8> _notificationsPath =
+      '/org/freedesktop/Notifications'.toNativeUtf8();
+  static final Pointer<Utf8> _notifyMethod = 'Notify'.toNativeUtf8();
 }

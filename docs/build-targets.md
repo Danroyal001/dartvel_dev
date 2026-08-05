@@ -37,18 +37,36 @@ failing the whole run.
 
 ### Linux native bindings
 
-`DVLinuxBindings.register()` binds `clipboard.copy`, `clipboard.paste` and
-`screen.geometry` to libX11 and libgtk-3 through `dart:ffi` — no platform
-channels, per the spec. It is deliberately partial: a binding it cannot
-implement is left unregistered, so calling it still throws
-`DVNativeBridge`'s "not registered" error rather than returning a plausible
-lie.
+`DVLinuxBindings.register()` binds eight names to libX11, libgtk-3 and GDBus
+through `dart:ffi` — no platform channels, per the spec:
 
-Verified under Xvfb: a real GTK CLIPBOARD round trip (including a multi-byte
-UTF-8 value), and `screen.geometry` reporting the X display's actual size —
-asserted against the geometry the harness started, with a negative control
-confirming the assertion fails when told to expect the wrong number. The
-remaining `DV.Platform` bindings are still unimplemented on every platform.
+| Binding | Backed by |
+|---|---|
+| `clipboard.copy`, `clipboard.paste` | GTK CLIPBOARD selection |
+| `screen.geometry` | X11 display dimensions |
+| `notifications.sendLocal` | freedesktop notification service over GDBus |
+| `window.setTitle`, `.maximize`, `.minimize`, `.restore` | the app's GTK toplevel |
+
+It is deliberately partial: a binding it cannot implement is left
+unregistered, so calling it still throws `DVNativeBridge`'s "not registered"
+error rather than returning a plausible lie.
+
+Verified under Xvfb with a session bus:
+
+- A real GTK CLIPBOARD round trip, including a multi-byte UTF-8 value.
+- `screen.geometry` reporting the X display's actual size, asserted against
+  the geometry the harness started — with a negative control confirming the
+  assertion fails when told to expect the wrong number.
+- A notification delivered to a real daemon, which answered with the id it
+  assigned. D-Bus **activated** the daemon on demand (`dunst` went from 0 to
+  1 process during the call), so the message travelled the full bus path.
+- Window control driving a real GtkWindow: the title is read back through
+  GTK rather than from Dartvel's own state, and the no-window case is
+  asserted to report failure rather than pretend.
+
+That is 8 of the 43 binding names `DV.Platform` and friends reference. The
+other 35 remain unimplemented on Linux, and all 43 are unimplemented on
+Android, iOS, macOS, Windows and web.
 
 ### Web is the guard on native dependencies
 
