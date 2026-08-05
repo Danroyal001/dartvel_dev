@@ -590,3 +590,125 @@ class _DVStudioPageRouteState extends State<DVStudioPageRoute> {
         ]);
   }
 }
+
+/// A set of page documents shipped together — the unit an OTA patch carries.
+///
+/// Editor changes reach a *running* app through [DVPageStore.changes]. This
+/// is how they reach an *installed* one: the bundle travels with a release or
+/// patch, and applying it writes the documents into the store, at which point
+/// the running app picks them up through the same change stream.
+class DVPageBundle {
+  /// The release this bundle belongs to, for provenance in logs and rollback.
+  final String version;
+
+  final List<DVPageDocument> pages;
+
+  /// Routes whose documents this bundle removes, restoring their compiled
+  /// pages. Without this an edit could be shipped but never withdrawn.
+  final List<String> removedRoutes;
+
+  const DVPageBundle({
+    required this.version,
+    this.pages = const <DVPageDocument>[],
+    this.removedRoutes = const <String>[],
+  });
+
+  factory DVPageBundle.fromJson(Map<String, Object?> json) {
+    final version = json['version'];
+    if (version is! String || version.isEmpty) {
+      throw ArgumentError.value(
+        json,
+        'json',
+        'A page bundle needs a non-empty "version" so an applied bundle can '
+            'be identified and rolled back.',
+      );
+    }
+    return DVPageBundle(
+      version: version,
+      pages: <DVPageDocument>[
+        for (final page in (json['pages'] as List?) ?? const <Object?>[])
+          DVPageDocument.fromJson((page! as Map).cast<String, Object?>()),
+      ],
+      removedRoutes: <String>[
+        for (final route
+            in (json['removedRoutes'] as List?) ?? const <Object?>[])
+          route! as String,
+      ],
+    );
+  }
+
+  Map<String, Object?> toJson() => <String, Object?>{
+        'version': version,
+        'pages': <Object?>[for (final page in pages) page.toJson()],
+        if (removedRoutes.isNotEmpty) 'removedRoutes': removedRoutes,
+      };
+
+  String encode() => jsonEncode(toJson());
+
+  static DVPageBundle decode(String source) =>
+      DVPageBundle.fromJson((jsonDecode(source) as Map).cast<String, Object?>());
+}
+
+/// Applies page bundles delivered with a release or OTA patch.
+class DVPageBundleInstaller {
+  const DVPageBundleInstaller();
+
+  static const String table = 'dartvel_page_bundles';
+
+  Future<void> _initialize() async {
+    await DV.Database.execute(
+      'CREATE TABLE IF NOT EXISTS $table (version TEXT, applied_at TEXT)',
+    );
+  }
+
+  /// Versions already applied, newest last.
+  Future<List<String>> appliedVersions() async {
+    await _initialize();
+    final rows = await DV.Database.query(
+      'SELECT version FROM $table ORDER BY applied_at',
+    );
+    return <String>[
+      for (final row in rows) row['version']! as String,
+    ];
+  }
+
+  /// Whether [version] has already been applied.
+  Future<bool> isApplied(String version) async =>
+      (await appliedVersions()).contains(version);
+
+  /// Writes [bundle]'s documents into the store and records the version.
+  ///
+  /// Idempotent: applying the same version twice is a no-op, because an OTA
+  /// patch can be delivered more than once and re-applying it would undo
+  /// edits made since. Returns whether anything was written.
+  Future<bool> apply(DVPageBundle bundle) async {
+    await _initialize();
+    if (await isApplied(bundle.version)) return false;
+
+    const store = DVPageStore();
+    for (final page in bundle.pages) {
+      await store.save(page);
+    }
+    for (final route in bundle.removedRoutes) {
+      await store.delete(route);
+    }
+    await DV.Database.execute(
+      'INSERT INTO $table (version, applied_at) VALUES (?, ?)',
+      <Object?>[bundle.version, DateTime.now().toIso8601String()],
+    );
+    return true;
+  }
+
+  /// Forgets that [version] was applied, so it can be applied again.
+  ///
+  /// This does not restore the documents the bundle replaced — a rollback
+  /// ships the previous bundle rather than inverting this one, which is the
+  /// only way to be sure what an app ends up with.
+  Future<void> forget(String version) async {
+    await _initialize();
+    await DV.Database.execute(
+      'DELETE FROM $table WHERE version = ?',
+      <Object?>[version],
+    );
+  }
+}

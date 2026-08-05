@@ -2079,7 +2079,12 @@ await DVPageStore().save(document) // persisted, immediately publishable
 - Compiled export: `document.toDartSource()` emits the page as ordinary
   `@DVPage` source for projects that want the builder out of the loop.
 - OTA on command: `dartvel updates patch` pushes builder-made changes to
-  running installations through the existing OTA layer.
+  installed applications. Documents travel as a `DVPageBundle` — a versioned
+  set of pages plus the routes it withdraws — and `DVPageBundleInstaller`
+  writes them into the store on apply. Applying a version twice is a no-op,
+  because a patch can be delivered more than once and re-applying it would
+  undo edits made since. A rollback ships the previous bundle rather than
+  inverting one, which is the only way to be sure what an app ends up with.
 
 ---
 
