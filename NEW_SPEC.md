@@ -2036,9 +2036,14 @@ same `DVBox`/`DVText`/generated components the running app renders, so what is
 edited is what ships. It must be feature-rich enough that Dartvel itself could
 be rebuilt with it.
 
-- Drag/drop inserts and moves actual widgets.
+- Drag/drop inserts and moves actual widgets. `DVStudioPalette` is the source
+  list, `DVStudioCanvas` renders the document as real widgets with selection
+  and drop targets layered over it, and `DVStudioEditorController` owns
+  selection and a bounded undo/redo history — an editor without undo is not an
+  editor, since a mis-drop that cannot be reversed loses work.
 - Properties, modifiers, gestures, and actions are edited on the selected
-  widget; actions bind to `DV.Navigation`, backend functions, and signals.
+  widget through `DVStudioInspector`; actions bind to `DV.Navigation`,
+  backend functions, and signals.
 - View-code at any time (Figma/Webflow-style), and full code export: a page
   document exports to the same private `@DVPage` source a hand-written page
   uses, with no builder runtime required afterwards.
