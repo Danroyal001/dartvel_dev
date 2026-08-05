@@ -26,6 +26,7 @@ export 'src/auth/password.dart';
 export 'src/cache/adapters.dart';
 export 'src/cache/redis.dart';
 export 'src/database/adapters.dart';
+export 'src/database/postgres.dart';
 export 'src/http/aws_sigv4.dart';
 export 'src/http/transport.dart';
 export 'src/lifecycle/lifecycle.dart';
