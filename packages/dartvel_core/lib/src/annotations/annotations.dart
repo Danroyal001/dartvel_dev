@@ -127,6 +127,48 @@ class DVStaticPaths {
   const DVStaticPaths({this.route});
 }
 
+/// Marks the field a generated model page uses as its featured image.
+///
+/// Without it the page takes the first public image/media field. Only one
+/// field per model may carry it.
+class DVFeaturedImage {
+  const DVFeaturedImage();
+}
+
+/// Marks the field a generated model page uses as its title.
+///
+/// Without it the page takes the first public `String` field named `title` or
+/// `name`, else the first public `String` field.
+class DVPageTitle {
+  const DVPageTitle();
+}
+
+/// Marks the field a generated model page renders as its main text content.
+///
+/// Without it the page picks the longest non-empty text field at render time,
+/// ignoring the title and any hidden or sensitive field.
+class DVMainContent {
+  const DVMainContent();
+}
+
+/// Sets where a field appears among the remaining fields of a generated model
+/// page. Lower values come first; unannotated fields keep declaration order
+/// after every ordered one.
+class DVPageOrder {
+  final int order;
+
+  const DVPageOrder(this.order);
+}
+
+/// Excludes a field from generated model pages.
+///
+/// The field stays part of the model, its serialization, and its forms — this
+/// only removes it from the generated page. Use `@DVModel.sensitiveField()`
+/// for data that must not reach clients at all.
+class DVHideFromPage {
+  const DVHideFromPage();
+}
+
 /// Annotation metadata for a Dartvel data model.
 ///
 /// The generator adds serialization and model behavior to the annotated class;

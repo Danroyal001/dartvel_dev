@@ -4,6 +4,10 @@ import 'package:file/local.dart';
 import 'package:glob/glob.dart';
 import 'package:path/path.dart' as p;
 
+/// Sort key for a field with no `@DVPageOrder`, so every ordered field lands
+/// ahead of every unordered one regardless of the value used.
+const int _unorderedPageField = 1 << 30;
+
 class ModelGenerator {
   static Future<void> generate({
     required String root,
@@ -110,6 +114,112 @@ class ModelGenerator {
         for (final m in sensitiveFieldRegex.allMatches(content)) {
           sensitiveFieldNames.add(m.group(1)!);
         }
+
+        // Generated model pages compose fields semantically rather than
+        // dumping them in declaration order. These annotations override what
+        // the composition would otherwise infer.
+        String? singleAnnotatedField(String annotation) {
+          final match = RegExp(
+            '@$annotation\\s*\\(\\s*\\)\\s*final\\s+.+?\\s+([A-Za-z0-9_]+)\\s*;',
+            dotAll: true,
+          ).firstMatch(content);
+          return match?.group(1);
+        }
+
+        final featuredImageField = singleAnnotatedField('DVFeaturedImage');
+        final pageTitleField = singleAnnotatedField('DVPageTitle');
+        final mainContentField = singleAnnotatedField('DVMainContent');
+
+        final hiddenPageFields = <String>{};
+        for (final m in RegExp(
+          r'@DVHideFromPage\s*\(\s*\)\s*final\s+.+?\s+([A-Za-z0-9_]+)\s*;',
+          dotAll: true,
+        ).allMatches(content)) {
+          hiddenPageFields.add(m.group(1)!);
+        }
+
+        final pageFieldOrder = <String, int>{};
+        for (final m in RegExp(
+          r'@DVPageOrder\s*\(\s*(-?\d+)\s*\)\s*final\s+.+?\s+([A-Za-z0-9_]+)\s*;',
+          dotAll: true,
+        ).allMatches(content)) {
+          pageFieldOrder[m.group(2)!] = int.parse(m.group(1)!);
+        }
+
+        // Inference for anything not annotated. The featured image is the
+        // first DVImage field; the title is the first `title`/`name` string,
+        // else the first string. Main content cannot be resolved here — the
+        // spec picks the longest non-empty text, which is only known at render
+        // time — so the generator emits the candidates and the page chooses.
+        bool isPageVisible(String name) =>
+            !sensitiveFieldNames.contains(name) &&
+            !hiddenPageFields.contains(name);
+
+        String baseType(String type) =>
+            type.endsWith('?') ? type.substring(0, type.length - 1) : type;
+
+        String? firstOf(Iterable<String> names) {
+          for (final name in names) {
+            return name;
+          }
+          return null;
+        }
+
+        final resolvedFeaturedImage = featuredImageField ??
+            firstOf(
+              fields
+                  .where((Map<String, String> f) =>
+                      baseType(f['type']!) == 'DVImage' &&
+                      isPageVisible(f['name']!))
+                  .map((Map<String, String> f) => f['name']!),
+            );
+
+        final stringFields = fields
+            .where((Map<String, String> f) =>
+                baseType(f['type']!) == 'String' && isPageVisible(f['name']!))
+            .map((Map<String, String> f) => f['name']!)
+            .toList();
+
+        final resolvedPageTitle = pageTitleField ??
+            firstOf(stringFields.where((String name) {
+              final lower = name.toLowerCase();
+              return lower == 'title' || lower == 'name';
+            })) ??
+            firstOf(stringFields);
+
+        // Candidates the page picks the longest value from, when no field is
+        // annotated @DVMainContent.
+        final mainContentCandidates = mainContentField != null
+            ? <String>[mainContentField]
+            : stringFields
+                .where((String name) => name != resolvedPageTitle)
+                .toList();
+
+        // Everything else, in @DVPageOrder order first and declaration order
+        // after, with the fields already placed above removed.
+        final placedFields = <String>{
+          if (resolvedFeaturedImage != null) resolvedFeaturedImage,
+          if (resolvedPageTitle != null) resolvedPageTitle,
+          ...mainContentCandidates,
+        };
+        final remainingPageFields = fields
+            .map((Map<String, String> f) => f['name']!)
+            .where((String name) =>
+                isPageVisible(name) && !placedFields.contains(name))
+            .toList();
+        // Sorted on (order, declaration index) rather than order alone:
+        // List.sort is not stable, so comparing equal would let unannotated
+        // fields drift out of declaration order between runs.
+        final declarationIndex = <String, int>{
+          for (var i = 0; i < remainingPageFields.length; i++)
+            remainingPageFields[i]: i,
+        };
+        remainingPageFields.sort((String a, String b) {
+          final orderA = pageFieldOrder[a] ?? _unorderedPageField;
+          final orderB = pageFieldOrder[b] ?? _unorderedPageField;
+          if (orderA != orderB) return orderA.compareTo(orderB);
+          return declarationIndex[a]!.compareTo(declarationIndex[b]!);
+        });
 
         // Generate the public runtime model. The annotated source class is a
         // private schema input; application code uses this generated class.
@@ -248,10 +358,108 @@ class ModelGenerator {
         for (final field in fields) {
           final name = field['name']!;
           if (sensitiveFieldNames.contains(name)) continue;
-          sb.writeln('      DVText(model.$name.toString()),');
+          final type = baseType(field['type']!);
+          if (type == 'DVImage') {
+            sb.writeln('      DVImageView(model.$name),');
+          } else {
+            sb.writeln('      DVText(model.$name.toString()),');
+          }
         }
         sb.writeln('    ]).modifier(const DVModifier().card());');
         sb.writeln('  }');
+        sb.writeln();
+
+        // Semantic page composition, in the order NEW_SPEC.md defines:
+        // featured image, title, main content, then the remaining fields.
+        sb.writeln('  /// Field a generated page renders as its featured');
+        sb.writeln('  /// image, or null when the model has none.');
+        sb.writeln(
+          '  static const String? featuredImageField = '
+          '${resolvedFeaturedImage == null ? 'null' : "'$resolvedFeaturedImage'"};',
+        );
+        sb.writeln('  /// Field a generated page renders as its title.');
+        sb.writeln(
+          '  static const String? pageTitleField = '
+          '${resolvedPageTitle == null ? 'null' : "'$resolvedPageTitle'"};',
+        );
+        sb.writeln('  /// Fields a generated page may render as its main');
+        sb.writeln('  /// content; the longest non-empty one wins.');
+        // core-prefixed: the class already declares a static `List` component,
+        // which shadows the type inside the class body.
+        sb.writeln(
+          '  static const core.List<String> mainContentFields = <String>'
+          '[${mainContentCandidates.map((String n) => "'$n'").join(', ')}];',
+        );
+        sb.writeln('  /// Fields excluded from generated pages by');
+        sb.writeln('  /// @DVHideFromPage().');
+        sb.writeln(
+          '  static const Set<String> hiddenPageFields = <String>'
+          '{${hiddenPageFields.map((String n) => "'$n'").join(', ')}};',
+        );
+        sb.writeln();
+        sb.writeln('  /// Renders the semantic page body for [$className].');
+        sb.writeln('  static Widget PageBody($className model) {');
+        sb.writeln('    return DVBox.list([');
+        if (resolvedFeaturedImage != null) {
+          sb.writeln('      DVImageView(model.$resolvedFeaturedImage),');
+        }
+        if (resolvedPageTitle != null) {
+          sb.writeln(
+            '      DVText(model.$resolvedPageTitle.toString())'
+            '.modifier(const DVModifier().fontSize(24)),',
+          );
+        }
+        if (mainContentCandidates.isNotEmpty) {
+          // The spec picks the largest text block, which depends on the
+          // record's values, so the choice happens here rather than at
+          // generation time.
+          sb.writeln('      DVText(_mainContentOf(model)),');
+        }
+        for (final name in remainingPageFields) {
+          final type = baseType(
+            fields.firstWhere(
+              (Map<String, String> f) => f['name'] == name,
+            )['type']!,
+          );
+          if (type == 'DVImage') {
+            sb.writeln('      DVImageView(model.$name),');
+          } else {
+            sb.writeln('      DVText(model.$name.toString()),');
+          }
+        }
+        sb.writeln('    ]);');
+        sb.writeln('  }');
+        if (mainContentCandidates.isNotEmpty) {
+          sb.writeln();
+          sb.writeln('  /// The longest non-empty main-content candidate.');
+          sb.writeln('  static String _mainContentOf($className model) {');
+          sb.writeln('    final candidates = <String>[');
+          for (final name in mainContentCandidates) {
+            final isNullable = fields
+                .firstWhere(
+                  (Map<String, String> f) => f['name'] == name,
+                )['type']!
+                .endsWith('?');
+            // `?.` on a non-nullable field is a warning, so the null handling
+            // is emitted only where the field can actually be null.
+            sb.writeln(
+              isNullable
+                  ? "      model.$name ?? '',"
+                  : '      model.$name,',
+            );
+          }
+          sb.writeln('    ];');
+          // Explicitly typed rather than `var`: generated code is held to the
+          // same lint rules as hand-written code.
+          sb.writeln('    String longest = \'\';');
+          sb.writeln('    for (final candidate in candidates) {');
+          sb.writeln('      if (candidate.length > longest.length) {');
+          sb.writeln('        longest = candidate;');
+          sb.writeln('      }');
+          sb.writeln('    }');
+          sb.writeln('    return longest;');
+          sb.writeln('  }');
+        }
         sb.writeln('}');
 
         sb.writeln();
@@ -279,7 +487,9 @@ class ModelGenerator {
         sb.writeln('    $className model, {');
         sb.writeln('    Widget Function($className)? builder,');
         sb.writeln('  }) {');
-        sb.writeln('    final render = builder ?? $className.Card;');
+        // A page renders the semantic composition; Card stays the compact
+        // representation used inside lists and tables.
+        sb.writeln('    final render = builder ?? $className.PageBody;');
         sb.writeln('    return render(model);');
         sb.writeln('  }');
         sb.writeln();
@@ -1048,7 +1258,10 @@ class ModelGenerator {
       clientDir.createSync(recursive: true);
     }
     final generatedHeader =
-        '// GENERATED CODE - DO NOT MODIFY BY HAND\n// ignore_for_file: directives_ordering, non_constant_identifier_names, unused_element, use_super_parameters\n// Build ID: $buildId\n';
+        // unnecessary_nullable_for_final_variable_declarations: page metadata
+        // is declared `String?` for every model, so it reads as unnecessary on
+        // the models that happen to resolve a value.
+        '// GENERATED CODE - DO NOT MODIFY BY HAND\n// ignore_for_file: directives_ordering, non_constant_identifier_names, unused_element, use_super_parameters, unnecessary_nullable_for_final_variable_declarations\n// Build ID: $buildId\n';
     final content = classesGenerated.isEmpty
         ? '${generatedHeader}library dartvel_client_models;\n'
         : '$generatedHeader\n${sb.toString()}';
@@ -1077,6 +1290,11 @@ class ModelGenerator {
     if (baseType == 'bool') return 'true';
     if (baseType == 'DateTime') {
       return 'DateTime.fromMillisecondsSinceEpoch(0, isUtc: true)';
+    }
+    if (baseType == 'DVImage') {
+      // An asset rather than a URL: a test factory should not have a default
+      // that makes a network request when something renders it.
+      return "const DVImage.asset('assets/test_$name.png')";
     }
     if (baseType == 'List<String>') return "const <String>['test']";
     if (baseType == 'List<int>') return 'const <int>[1]';
