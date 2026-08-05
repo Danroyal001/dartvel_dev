@@ -211,6 +211,7 @@ export 'package:go_router/go_router.dart';
 export 'src/media/image_view.dart';
 export 'src/platform/linux/linux_bindings.dart';
 export 'src/studio/page_document.dart';
+export 'src/studio/studio_editor.dart';
 
 // ==========================================
 // UI & Styling Primitives (NEW_SPEC.md)
