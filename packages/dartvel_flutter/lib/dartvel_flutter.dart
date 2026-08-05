@@ -191,6 +191,9 @@ export 'package:dartvel_core/dartvel.dart'
         DVSecrets,
         DVSentNotification,
         DVShell,
+        DVTenants,
+        DVTenantIsolation,
+        DVTenantSource,
         DVShellCommand,
         DVShellResult,
         DVShellResultFuture,
@@ -3135,23 +3138,18 @@ class DV {
   static DVAccessibility get Accessibility => const DVAccessibility();
   static DVObservabilityAndLogging get ObservabilityAndLogging =>
       const DVObservabilityAndLogging();
-  static String _activeTenant = 'default';
-  static String get currentTenant => _activeTenant;
+  static DVTenants get Tenants => const DVTenants();
+
+  /// Alias for `DV.Tenants.currentTenant`, as the spec defines it. Both read
+  /// and write the same state, so setting one is visible through the other.
+  static String get currentTenant => Tenants.currentTenant;
   static set currentTenant(String tenant) {
-    final trimmed = tenant.trim();
-    _activeTenant = trimmed.isEmpty ? 'default' : trimmed;
+    Tenants.currentTenant = tenant;
   }
 
   /// Runs [callback] within the dynamic multi-tenant context of [tenant].
-  static R withTenant<R>(String tenant, R Function() callback) {
-    final previous = _activeTenant;
-    currentTenant = tenant;
-    try {
-      return callback();
-    } finally {
-      _activeTenant = previous;
-    }
-  }
+  static R withTenant<R>(String tenant, R Function() callback) =>
+      Tenants.withTenant(tenant, callback);
 
   // --- Runtime backend URL ---------------------------------------------------
   // The generated `dartvel_client` wires the app's backend config into these
