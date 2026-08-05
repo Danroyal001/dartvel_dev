@@ -142,8 +142,10 @@ class DVWorkflowStep {
         type: 'condition',
         arguments: <String, DVWorkflowValue>{'condition': condition},
         branches: <String, List<DVWorkflowStep>>{
-          'then': then,
-          'else': otherwise,
+          // Copied into growable lists: the defaults are const, and a branch
+          // that cannot accept a drop is not a branch.
+          'then': List<DVWorkflowStep>.of(then),
+          'else': List<DVWorkflowStep>.of(otherwise),
         },
       );
 
@@ -151,6 +153,44 @@ class DVWorkflowStep {
   factory DVWorkflowStep.returns(DVWorkflowValue value) => DVWorkflowStep(
         type: 'return',
         arguments: <String, DVWorkflowValue>{'value': value},
+      );
+
+  /// A copy with a different action or variable name.
+  DVWorkflowStep withName(String? value) => DVWorkflowStep(
+        id: id,
+        type: type,
+        name: value,
+        arguments: arguments,
+        assignTo: assignTo,
+        branches: branches,
+      );
+
+  /// A copy with one argument set, or removed when [value] is null.
+  DVWorkflowStep withArgument(String key, DVWorkflowValue? value) {
+    final next = <String, DVWorkflowValue>{...arguments};
+    if (value == null) {
+      next.remove(key);
+    } else {
+      next[key] = value;
+    }
+    return DVWorkflowStep(
+      id: id,
+      type: type,
+      name: name,
+      arguments: next,
+      assignTo: assignTo,
+      branches: branches,
+    );
+  }
+
+  /// A copy storing its result in [value], or discarding it when null.
+  DVWorkflowStep withAssignTo(String? value) => DVWorkflowStep(
+        id: id,
+        type: type,
+        name: name,
+        arguments: arguments,
+        assignTo: value,
+        branches: branches,
       );
 
   factory DVWorkflowStep.fromJson(Map<String, Object?> json) => DVWorkflowStep(
@@ -209,8 +249,8 @@ class DVWorkflowDocument {
     required this.name,
     List<String>? parameters,
     List<DVWorkflowStep>? steps,
-  })  : parameters = parameters ?? <String>[],
-        steps = steps ?? <DVWorkflowStep>[];
+  })  : parameters = List<String>.of(parameters ?? const <String>[]),
+        steps = List<DVWorkflowStep>.of(steps ?? const <DVWorkflowStep>[]);
 
   factory DVWorkflowDocument.fromJson(Map<String, Object?> json) {
     final name = json['name'];
@@ -329,6 +369,105 @@ class DVWorkflowDocument {
           stepId: step.id,
         );
     }
+  }
+}
+
+/// Structural edits to a workflow's step tree.
+///
+/// A parent is either [rootParent] for the top level, or `<stepId>/<branch>`
+/// for a condition's branch — a string so the same value can travel as a
+/// drag payload.
+class DVWorkflowDocumentEditor {
+  final DVWorkflowDocument document;
+
+  DVWorkflowDocumentEditor(this.document);
+
+  /// The parent id meaning "the workflow's top-level steps".
+  static const String rootParent = 'root';
+
+  DVWorkflowStep? find(String id) => _find(document.steps, id);
+
+  static DVWorkflowStep? _find(List<DVWorkflowStep> steps, String id) {
+    for (final step in steps) {
+      if (step.id == id) return step;
+      for (final branch in step.branches.values) {
+        final found = _find(branch, id);
+        if (found != null) return found;
+      }
+    }
+    return null;
+  }
+
+  /// The list a parent id addresses, or null when it addresses nothing.
+  List<DVWorkflowStep>? childrenOf(String parent) {
+    if (parent == rootParent) return document.steps;
+    final slash = parent.lastIndexOf('/');
+    if (slash == -1) return null;
+    final step = find(parent.substring(0, slash));
+    if (step == null) return null;
+    final branch = parent.substring(slash + 1);
+    return step.branches.putIfAbsent(branch, () => <DVWorkflowStep>[]);
+  }
+
+  void insert(DVWorkflowStep step, {required String parent, int? index}) {
+    final children = childrenOf(parent);
+    if (children == null) {
+      throw ArgumentError.value(parent, 'parent', 'No such step or branch.');
+    }
+    children.insert(
+      index == null || index > children.length ? children.length : index,
+      step,
+    );
+  }
+
+  DVWorkflowStep remove(String id) {
+    final owner = _ownerOf(document.steps, id);
+    if (owner == null) {
+      throw ArgumentError.value(id, 'id', 'No such step.');
+    }
+    final step = owner.firstWhere((DVWorkflowStep s) => s.id == id);
+    owner.remove(step);
+    return step;
+  }
+
+  static List<DVWorkflowStep>? _ownerOf(
+    List<DVWorkflowStep> steps,
+    String id,
+  ) {
+    for (final step in steps) {
+      if (step.id == id) return steps;
+      for (final branch in step.branches.values) {
+        final owner = _ownerOf(branch, id);
+        if (owner != null) return owner;
+      }
+    }
+    return null;
+  }
+
+  void move(String id, {required String parent, int? index}) {
+    final moving = find(id);
+    if (moving == null) {
+      throw ArgumentError.value(id, 'id', 'No such step.');
+    }
+    // Moving a condition into its own branch would detach the tree from
+    // itself and lose everything below it.
+    if (parent != rootParent && _find(<DVWorkflowStep>[moving], parent.split('/').first) != null) {
+      throw ArgumentError('Cannot move a step into its own branch.');
+    }
+    remove(id);
+    insert(moving, parent: parent, index: index);
+  }
+
+  void update(
+    String id,
+    DVWorkflowStep Function(DVWorkflowStep step) transform,
+  ) {
+    final owner = _ownerOf(document.steps, id);
+    if (owner == null) {
+      throw ArgumentError.value(id, 'id', 'No such step.');
+    }
+    final index = owner.indexWhere((DVWorkflowStep s) => s.id == id);
+    owner[index] = transform(owner[index]);
   }
 }
 
