@@ -35,6 +35,21 @@ Windows, a Linux desktop build requires Linux, and the Apple targets require
 macOS. `dartvel build` skips a target its host cannot build rather than
 failing the whole run.
 
+### Linux native bindings
+
+`DVLinuxBindings.register()` binds `clipboard.copy`, `clipboard.paste` and
+`screen.geometry` to libX11 and libgtk-3 through `dart:ffi` — no platform
+channels, per the spec. It is deliberately partial: a binding it cannot
+implement is left unregistered, so calling it still throws
+`DVNativeBridge`'s "not registered" error rather than returning a plausible
+lie.
+
+Verified under Xvfb: a real GTK CLIPBOARD round trip (including a multi-byte
+UTF-8 value), and `screen.geometry` reporting the X display's actual size —
+asserted against the geometry the harness started, with a negative control
+confirming the assertion fails when told to expect the wrong number. The
+remaining `DV.Platform` bindings are still unimplemented on every platform.
+
 ### Web is the guard on native dependencies
 
 `dartvel_core` now depends on packages that cannot run in a browser: `sqlite3`
