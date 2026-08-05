@@ -50,6 +50,45 @@ surface but no way to reach a real service.
   salt, constant-time compare) plus `DVOAuth2Client`, an authorization-code
   client with PKCE and constant-time state validation, with presets for Google,
   GitHub, GitLab, Bitbucket and Microsoft.
+- **`DV.Navigation`.** The spec makes it the navigation API, with `go_router` an
+  implementation detail behind it, but only `context.navigateToPage(...)`
+  existed. `DV.Navigation.to(target)` returns a `VoidCallback` for use in
+  handlers, so the generated `createDartvelRouter()` hands the live router to
+  `DVNavigation.attach`. Navigating with no router attached throws naming
+  `createDartvelRouter()`.
+- **`DV.Secrets`.** Only `PUBLIC_`-prefixed variables reach the generated
+  `env.g.dart`, so nothing else was readable. Secrets resolve from the process
+  environment through a conditional import; a web build resolves nothing and
+  says to fetch the value through a backend function, because a secret compiled
+  into a browser bundle ships to every visitor.
+- **`DV.Tenants`.** `DV.currentTenant` is now genuinely an alias for it.
+  Tenants resolve from a subdomain, header, path prefix, query parameter or a
+  supplied resolver, and `CommonMiddleware.tenant(require: true)` aborts a
+  request that names none rather than serving the default tenant's data. The
+  `tenant` middleware name previously passed build validation while resolving
+  nothing.
+- **`DVImage`.** The spec declares `final DVImage? avatar` on a model; the type
+  did not exist. It is a value so models can serialize it, with `DVImageView`
+  as the rendering half, and `fromJson` accepts a bare URL string.
+- **Platform device namespaces.** `DV.Platform.Location`, `.NFC`, `.Camera` and
+  the rest now carry the names the spec uses, each with a top-level `DV.X`
+  proxy. `DV.Platform.FileStorage` and `.Notifications` return the `DV.*`
+  surfaces rather than a parallel platform-local copy.
+- **Generated jobs.** `@DVJob` was an annotation nothing read. The generator now
+  emits the public payload with `fromJson`/`toJson`, a `dispatch()` carrying the
+  annotation's queue, priority, attempts and backoff, and `DVJobQueues`
+  constants; codecs and handlers register from `configureDartvelRuntime()`.
+  Handlers are `@DVJob.handler()`. Generation fails on a handler for a job no
+  `@DVJob` declares and on two handlers for one job.
+- **Semantic model pages.** `Page.sync` rendered `Model.Card` — the flat field
+  dump a list row uses. Pages now compose as featured image, title, main
+  content, then the remaining fields, with `@DVModel.featuredImage()`,
+  `.pageTitle()`, `.mainContent()`, `.pageOrder(n)` and `.hideFromPage()` as
+  overrides. Main content resolves at render time because the largest text block
+  depends on the record, not the schema.
+- **`dartvel cache` reaches a persistent cache.** `clear` took only in-process
+  tag metadata; it now takes `--database`/`--table`, and `cache purge` drops
+  expired entries. Tag output says it reflects the CLI process only.
 
 ### Fixed
 
@@ -66,6 +105,15 @@ surface but no way to reach a real service.
   siblings) exported only their facade, so no adapter could be passed to
   `configure`. Both surfaces now have tests that import the way an application
   does and fail to compile when a symbol is missing.
+- **Sensitive fields reached generated exports.** `@DVModel.sensitiveField()` is
+  specified as excluded from generated tables, but CSV and Excel emitted a
+  column per field and the JSON/NDJSON exports called `toJson()` rather than
+  `toPublicJson()` — `Account.Export.csv(accounts)` produced a file containing
+  every tax number. Sensitive columns now require
+  `DVExportOptions(includeSensitiveFields: true)`.
+- **Sensitive fields reached generated forms.** `showInForms` defaults to false,
+  but the generator read only the annotated field's name and never its
+  arguments, so every sensitive field got a form getter.
 
 ### Changed — breaking
 
