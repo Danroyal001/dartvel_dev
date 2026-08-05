@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/widgets.dart';
@@ -379,6 +380,16 @@ class DVPageStore {
 
   const DVPageStore();
 
+  static final StreamController<String> _changes =
+      StreamController<String>.broadcast();
+
+  /// Routes whose stored document changed, as it changes.
+  ///
+  /// This is what makes "saving publishes" true for an app that is already
+  /// running: a route showing a stored page reloads when its document is
+  /// saved, instead of serving whatever it read when it was first opened.
+  static Stream<String> get changes => _changes.stream;
+
   Future<void> _initialize() async {
     await DV.Database.execute(
       'CREATE TABLE IF NOT EXISTS $table (route TEXT, title TEXT, '
@@ -397,6 +408,7 @@ class DVPageStore {
       'INSERT INTO $table (route, title, document) VALUES (?, ?, ?)',
       <Object?>[document.route, document.title, jsonEncode(document.toJson())],
     );
+    _changes.add(document.route);
   }
 
   Future<DVPageDocument?> load(String route) async {
@@ -426,6 +438,98 @@ class DVPageStore {
     await DV.Database.execute(
       'DELETE FROM $table WHERE route = ?',
       <Object?>[route],
+    );
+    _changes.add(route);
+  }
+}
+
+/// Renders the Studio page stored at [route], if one exists.
+///
+/// The generated router falls back to this when no compiled route matches:
+/// builder pages are data, so saving one publishes it without a rebuild.
+/// Compiled routes always take precedence — this is only reached after
+/// matching has already failed.
+class DVStudioPageRoute extends StatefulWidget {
+  final String route;
+
+  /// Shown while the store is read. Brief — a local database query.
+  final Widget loading;
+
+  /// Shown when no stored page claims this route either. Defaults to a
+  /// plain 404 rather than a blank screen, which is indistinguishable from
+  /// a crash.
+  final Widget Function(String route)? notFound;
+
+  const DVStudioPageRoute(
+    this.route, {
+    super.key,
+    this.loading = const SizedBox.shrink(),
+    this.notFound,
+  });
+
+  @override
+  State<DVStudioPageRoute> createState() => _DVStudioPageRouteState();
+}
+
+class _DVStudioPageRouteState extends State<DVStudioPageRoute> {
+  late Future<DVPageDocument?> _document;
+  StreamSubscription<String>? _subscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _document = _load();
+    // Saving publishes: a running app must pick up an edit to the page it is
+    // currently showing, not the copy it read when the route opened.
+    _subscription = DVPageStore.changes.listen((String route) {
+      if (route == widget.route && mounted) {
+        setState(() {
+          _document = _load();
+        });
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(DVStudioPageRoute oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.route != widget.route) _document = _load();
+  }
+
+  @override
+  void dispose() {
+    unawaited(_subscription?.cancel());
+    super.dispose();
+  }
+
+  /// A store read can fail outright — no database configured in a test, for
+  /// instance — which must render the 404, not throw into the router.
+  Future<DVPageDocument?> _load() async {
+    try {
+      return await const DVPageStore().load(widget.route);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<DVPageDocument?>(
+      future: _document,
+      builder: (BuildContext context, AsyncSnapshot<DVPageDocument?> snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return widget.loading;
+        }
+        final document = snapshot.data;
+        if (document == null) {
+          return widget.notFound?.call(widget.route) ??
+              DVBox.list(<Widget>[
+                const DVText('404'),
+                DVText("No page at '${widget.route}'"),
+              ]);
+        }
+        return DVPageDocumentRenderer(document);
+      },
     );
   }
 }
