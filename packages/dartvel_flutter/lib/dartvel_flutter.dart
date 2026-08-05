@@ -900,6 +900,11 @@ class DVText extends StatelessWidget {
 // ==========================================
 
 final _signalProviders = Expando<List<StateProvider<Object?>>>();
+
+/// Position of the next `context.signal(...)` call within the current build,
+/// per element. Rewound by a post-frame callback so each build walks the
+/// provider list from the top in call order.
+final _signalCursor = Expando<int>();
 final _signalListeners =
     Expando<Map<StateProvider<Object?>, ProviderSubscription<Object?>>>();
 
@@ -934,32 +939,71 @@ class DVSignal<T> {
   }
 }
 
+/// A value derived from other signals: `context.computed(() => a.value + b.value)`.
+///
+/// Reading [value] evaluates the computation. Reactivity comes from the source
+/// signals themselves — reading `a.value` inside the computation subscribes
+/// the element exactly as it would in a build method — so a computed stays
+/// current without its own subscription bookkeeping.
+class DVComputed<T> {
+  final T Function() _compute;
+
+  const DVComputed(this._compute);
+
+  /// The current derived value.
+  T get value => _compute();
+
+  /// Alias for [value], matching `signal.read()`.
+  T read() => _compute();
+}
+
 extension DVSignalContextX on BuildContext {
+  /// Derives a reactive value from other signals.
+  ///
+  /// ```dart
+  /// final a = context.signal(1);
+  /// final b = context.signal(2);
+  /// final c = context.computed(() => a.value + b.value);
+  /// ```
+  DVComputed<T> computed<T>(T Function() compute) => DVComputed<T>(compute);
+
   DVSignal<T> signal<T>(T initialValue) {
     final element = this as Element;
     final container = ProviderScope.containerOf(this);
 
-    var list = _signalProviders[element];
-    if (list == null) {
-      list = [];
-      _signalProviders[element] = list;
+    final list = _signalProviders[element] ??= [];
+
+    // Signals map to providers by call order within a build, the same
+    // contract hooks use. Matching by type — the previous behaviour — made
+    // the spec's own example impossible: `context.signal(1)` and
+    // `context.signal(2)` in one build collapsed into a single int signal.
+    final index = _signalCursor[element] ?? 0;
+    _signalCursor[element] = index + 1;
+    if (index == 0) {
+      // First signal call of this build: rewind the cursor when the frame
+      // ends so the next build walks the provider list from the top again.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _signalCursor[element] = null;
+      });
     }
 
-    // Attempt to locate an existing provider of matching type
-    StateProvider<T>? matchedProvider;
-    for (final p in list) {
-      if (p is StateProvider<T>) {
-        matchedProvider = p;
-        break;
-      }
+    if (index < list.length && list[index] is StateProvider<T>) {
+      return DVSignal<T>(
+        container,
+        list[index] as StateProvider<T>,
+        element,
+      );
     }
 
-    if (matchedProvider == null) {
-      matchedProvider = StateProvider<T>((ref) => initialValue);
-      list.add(matchedProvider);
+    final provider = StateProvider<T>((ref) => initialValue);
+    if (index < list.length) {
+      // The call at this position changed type — a hot-reload edit. Keep the
+      // positions behind it intact and replace just this slot.
+      list[index] = provider;
+    } else {
+      list.add(provider);
     }
-
-    return DVSignal<T>(container, matchedProvider, element);
+    return DVSignal<T>(container, provider, element);
   }
 
   T global<T>({String namespace = ''}) {
