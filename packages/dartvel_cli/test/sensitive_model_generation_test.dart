@@ -178,6 +178,56 @@ class _Account {
     }
   });
 
+  test('generated forms omit sensitive fields unless opted back in', () async {
+    final root = await Directory.systemTemp.createTemp('dartvel_form_test_');
+    try {
+      Directory(p.join(root.path, 'lib', 'models')).createSync(recursive: true);
+      Directory(p.join(root.path, 'lib', 'dartvel_client'))
+          .createSync(recursive: true);
+      File(p.join(root.path, 'lib', 'models', 'user.dart'))
+          .writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVModel()
+class _User {
+  final String id;
+  @DVModel.sensitiveField()
+  final String nationalId;
+  @DVModel.sensitiveField(showInForms: true)
+  final String recoveryEmail;
+
+  const _User({
+    required this.id,
+    required this.nationalId,
+    required this.recoveryEmail,
+  });
+}
+''');
+
+      await ModelGenerator.generate(
+        root: root.path,
+        pkgName: 'form_app',
+        buildId: 'test-build',
+      );
+
+      final content = File(
+        p.join(root.path, 'lib', 'dartvel_client', 'models.g.dart'),
+      ).readAsStringSync();
+
+      final formStart = content.indexOf('class UserFormControls');
+      expect(formStart, greaterThan(-1));
+      final form = content.substring(formStart, content.indexOf('\n}', formStart));
+
+      expect(form, contains('String get id'));
+      // showInForms: true puts this one back on the form.
+      expect(form, contains('String get recoveryEmail'));
+      // Default sensitive fields stay off it.
+      expect(form, isNot(contains('nationalId')));
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
   test('a model with no sensitive fields keeps a plain export', () async {
     // The flag should not add a branch where nothing can be hidden.
     final root = await Directory.systemTemp.createTemp('dartvel_export_test_');

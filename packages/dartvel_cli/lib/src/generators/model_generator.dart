@@ -106,13 +106,22 @@ class ModelGenerator {
         // serialization and generated display by default. The deprecated
         // @DVSensitiveModelField spelling is still accepted.
         final sensitiveFieldNames = <String>{};
+        // Fields opted back into generated forms with
+        // @DVModel.sensitiveField(showInForms: true). There is no generated
+        // admin view yet, so showInAdmin has nothing to gate.
+        final sensitiveFormFields = <String>{};
         final sensitiveFieldRegex = RegExp(
-          r'@(?:DVModel\.sensitiveField|DVSensitiveModelField)\s*\([^)]*\)\s*'
+          r'@(?:DVModel\.sensitiveField|DVSensitiveModelField)\s*\(([^)]*)\)\s*'
           r'final\s+.+?\s+([A-Za-z0-9_]+)\s*;',
           dotAll: true,
         );
         for (final m in sensitiveFieldRegex.allMatches(content)) {
-          sensitiveFieldNames.add(m.group(1)!);
+          final args = m.group(1)!;
+          final name = m.group(2)!;
+          sensitiveFieldNames.add(name);
+          if (RegExp(r'\bshowInForms\s*:\s*true\b').hasMatch(args)) {
+            sensitiveFormFields.add(name);
+          }
         }
 
         // Generated model pages compose fields semantically rather than
@@ -713,6 +722,12 @@ class ModelGenerator {
         for (final field in fields) {
           final name = field['name']!;
           final type = field['type']!;
+          // A sensitive field stays out of generated forms unless it was
+          // opted back in with @DVModel.sensitiveField(showInForms: true).
+          if (sensitiveFieldNames.contains(name) &&
+              !sensitiveFormFields.contains(name)) {
+            continue;
+          }
           var defaultVal = 'null';
           if (type == 'String') {
             defaultVal = "''";
