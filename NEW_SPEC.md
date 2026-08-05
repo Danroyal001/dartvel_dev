@@ -2066,10 +2066,16 @@ await DVPageStore().save(document) // persisted, immediately publishable
 ## Publishing
 
 - Saving publishes: stored documents are served to running apps immediately —
-  page content is data, like WordPress posts. The generated router falls back
-  to the page store when no compiled route matches, and a page already on
-  screen reloads when its document is saved. Compiled routes always win; the
-  store is consulted only after matching fails.
+  page content is data, like WordPress posts.
+- **A stored document overrides the compiled page.** A compiled `@DVPage` is
+  the entrypoint an app ships with, not a permanent fixture: the editor has to
+  be able to change it, or a shipped page could never be edited, only added
+  to. Deleting the document restores the compiled page, so an edit is always
+  revertible.
+- Routes with no compiled page at all are served from the store too, so the
+  editor can add pages as well as edit them.
+- A page already on screen reloads when its own document is saved, so an edit
+  reaches a running app without navigation.
 - Compiled export: `document.toDartSource()` emits the page as ordinary
   `@DVPage` source for projects that want the builder out of the loop.
 - OTA on command: `dartvel updates patch` pushes builder-made changes to

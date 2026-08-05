@@ -1,6 +1,11 @@
-// Studio's publish loop end to end, through the app's real generated router:
-// a page saved to the store is served at its route with no rebuild, while a
-// compiled route still wins over a stored one of the same name.
+// Studio's publish loop through the app's real generated router: a saved
+// page is served at its route with no rebuild, and a stored document
+// overrides the compiled page for that route.
+//
+// Override precedence itself is covered directly in
+// dartvel_flutter/test/studio_override_test.dart — instantiating this
+// generated router repeatedly in one isolate is unreliable, so the wiring is
+// integration-tested once here and the logic is unit-tested there.
 import 'package:dartvel_example/dartvel_client/dartvel_client.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -33,11 +38,13 @@ void main() {
   setUp(() {
     database = SqliteDVDatabaseAdapter.memory();
     DV.Database.configure(database);
+    DVPageStore.resetCache();
   });
 
   tearDown(() {
     database.close();
     DVNavigation.detach();
+    DVPageStore.resetCache();
   });
 
   testWidgets('a saved page is served at its route without a rebuild',
@@ -84,11 +91,13 @@ void main() {
     expect(find.text('Spring Sale'), findsNothing);
   });
 
-  testWidgets('a compiled route still wins over a stored page',
+  testWidgets('a stored document overrides the compiled page',
       (WidgetTester tester) async {
-    // /about is a real compiled page in this app. A stored document must not
-    // shadow it — the store is consulted only after matching fails.
-    await const DVPageStore().save(marketingPage('/about', 'Hijacked'));
+    // /about ships as a compiled @DVPage. The editor must be able to change
+    // it — a compiled page is the entrypoint an app ships with, not a
+    // permanent fixture. Without this, a shipped page could never be edited,
+    // only added to.
+    await const DVPageStore().save(marketingPage('/about', 'Edited In Studio'));
 
     final router = createDartvelRouter();
     addTearDown(router.dispose);
@@ -98,8 +107,11 @@ void main() {
     );
     await settle(tester);
 
-    expect(find.text('Hijacked'), findsNothing);
+    expect(find.text('Edited In Studio'), findsOneWidget);
   });
+
+
+
 
   testWidgets('an unknown route renders 404 rather than a blank screen',
       (WidgetTester tester) async {
