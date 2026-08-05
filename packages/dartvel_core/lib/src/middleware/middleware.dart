@@ -4,6 +4,8 @@ import 'dart:convert';
 
 import 'package:dartvel_shelf/dartvel_shelf.dart' as dv;
 
+import '../tenancy/tenants.dart';
+
 /// Request context for middleware
 class MiddlewareContext {
   final Map<String, Object?> data = {};
@@ -153,6 +155,52 @@ class CommonMiddleware {
       context.data['enableCompression'] = true;
     };
   }
+
+  /// Tenant resolution middleware.
+  ///
+  /// Reads the tenant from the request through the configured
+  /// [DVTenants.source] and makes it current for the rest of the chain. With
+  /// [require] set, a request that names no tenant is aborted rather than
+  /// served the default tenant's data.
+  static Middleware tenant({bool require = false}) {
+    return (request, context) {
+      const tenants = DVTenants();
+      final resolved = tenants.resolve(
+        _requestUri(request),
+        headers: _requestHeaders(request),
+      );
+
+      if (resolved == null && require) {
+        context.abort();
+        context.data['tenantError'] = 'No tenant could be resolved from the '
+            'request (source: ${tenants.source.name}).';
+        return;
+      }
+
+      tenants.currentTenant = resolved ?? DVTenants.defaultTenant;
+      context.data['tenant'] = tenants.currentTenant;
+    };
+  }
+}
+
+/// The full request URI, which tenant resolution needs — the host carries the
+/// subdomain, and [_requestPath] deliberately returns only the path.
+Uri _requestUri(Object? request) {
+  if (request is Uri) return request;
+  if (request is dv.Request) return request.url;
+  if (request is Map<String, Object?>) {
+    final url = request['url'];
+    if (url is Uri) return url;
+    if (url is String) {
+      final parsed = Uri.tryParse(url);
+      if (parsed != null) return parsed;
+    }
+    final host = request['host'];
+    if (host is String && host.trim().isNotEmpty) {
+      return Uri(scheme: 'https', host: host.trim(), path: _requestPath(request));
+    }
+  }
+  return Uri(path: _requestPath(request));
 }
 
 String _clientIdentifier(Object? request) {

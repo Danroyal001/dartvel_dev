@@ -215,6 +215,23 @@ void main() {
     expect(DV.Contacts, isA<DVContacts>());
   });
 
+  test('DV.currentTenant is an alias for DV.Tenants.currentTenant', () {
+    // The spec defines it as an alias, so writing either must be visible
+    // through the other rather than two states drifting apart.
+    addTearDown(DVTenants.reset);
+
+    DV.currentTenant = 'acme';
+    expect(DV.Tenants.currentTenant, 'acme');
+
+    DV.Tenants.currentTenant = 'other';
+    expect(DV.currentTenant, 'other');
+
+    DV.withTenant('scoped', () {
+      expect(DV.Tenants.currentTenant, 'scoped');
+    });
+    expect(DV.currentTenant, 'other');
+  });
+
   test('platform storage and notifications proxy the DV facades', () {
     // The spec calls these proxies, not separate platform-local APIs, so they
     // must be the same surface rather than a parallel one.
