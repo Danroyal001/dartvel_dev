@@ -426,6 +426,22 @@ $requestPrelude
   if (!_hasHealth) {
     router.get(cfg.apiBasePath + '/health', (dv.Request _) async => dv.Response.text('ok'));
   }
+  // GraphQL: whatever the application registered on DVGraphQL, served on
+  // the spec-shaped POST body {query, variables, operationName}. The SDL
+  // document at /graphql/schema is the machine-readable schema.
+  router.post(cfg.apiBasePath + '/graphql', (dv.Request req) async {
+    final text = await req.body.text();
+    final decoded = text.isEmpty ? const <String, Object?>{} : conv.jsonDecode(text);
+    final map = decoded is Map ? decoded : const <String, Object?>{};
+    final result = await core.DVGraphQL.execute(
+      '\${map['query'] ?? ''}',
+      variables: (map['variables'] as Map?)?.cast<String, Object?>(),
+      operationName: map['operationName'] as String?,
+    );
+    return dv.Response.json(result);
+  });
+  router.get(cfg.apiBasePath + '/graphql/schema', (dv.Request _) async =>
+      dv.Response.text(core.DVGraphQL.toSdl()));
   router.get(cfg.apiBasePath + '/openapi.json', (dv.Request _) async =>
       dv.Response(200,
           headers: dv.Headers({'content-type': 'application/json'}),
