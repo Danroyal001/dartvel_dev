@@ -2026,7 +2026,14 @@ Studio provides:
 - **Model management.** Generated model CRUD, driven by the same metadata the
   admin already uses.
 - **Backend function and workflow building.** Drag-and-drop composition of
-  backend behaviour, Webflow/FlutterFlow-style.
+  backend behaviour, Webflow/FlutterFlow-style. A `DVWorkflowDocument` is a
+  serializable step tree — `call`, `set`, `condition`, `return` — that
+  `DVWorkflows.run` executes directly, so saving publishes, and
+  `toDartSource()` exports as an ordinary `@DVBackendFunction`, so the builder
+  can be dropped. Steps call actions registered with
+  `DVWorkflows.registerAction`, which is the same code an application calls.
+  A workflow fails loudly: an unknown action or variable stops the run and
+  names the step, rather than yielding null and reporting success.
 
 ## The page builder
 
