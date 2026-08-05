@@ -6,6 +6,7 @@ import 'package:yaml/yaml.dart';
 
 import '../utils/helpers.dart';
 import '../utils/logger.dart';
+import 'openapi_generator.dart';
 import 'route_utils.dart';
 
 class BackendGenerator {
@@ -217,6 +218,49 @@ const String dvGenBuildId = '$buildId';
       });
     }
 
+    // OpenAPI: derived entirely from the discovered functions, per the spec's
+    // "no manual openapi configs" rule. Written into the client so apps can
+    // read it, and served by the generated backend at /openapi.json.
+    final pubspecVersion = () {
+      final pubspecFile = File(p.join(root, 'pubspec.yaml'));
+      if (!pubspecFile.existsSync()) return '0.0.0';
+      final parsed = loadYaml(pubspecFile.readAsStringSync());
+      return parsed is YamlMap ? '${parsed['version'] ?? '0.0.0'}' : '0.0.0';
+    }();
+    final openApiDocument = buildOpenApiDocument(
+      title: pkgName,
+      version: pubspecVersion,
+      apiBasePath: apiBasePath,
+      operations: <OpenApiOperation>[
+        for (final e in backendEntries)
+          OpenApiOperation(
+            method: e['method']!,
+            path: e['path']!,
+            name: e['typed'] ?? '',
+            parameterNames: (e['tparams'] ?? '')
+                .split(',')
+                .where((String s) => s.isNotEmpty)
+                .toList(),
+            parameterTypes: (e['ttypes'] ?? '')
+                .split(',')
+                .where((String s) => s.isNotEmpty)
+                .toList(),
+            returnType: e['rtype'] ?? '',
+          ),
+      ],
+    );
+    final openApiJson = encodeOpenApiDocument(openApiDocument);
+    File(p.join(libClientDir.path, 'openapi.g.dart')).writeAsStringSync('''
+// GENERATED – do not edit.
+library dartvel_client_openapi;
+
+/// The generated OpenAPI 3.1 document for this application's backend
+/// functions, as JSON. Served by the generated backend at
+/// `<apiBasePath>/openapi.json`.
+const String dartvelOpenApiJson = r\'\'\'
+$openApiJson\'\'\';
+''');
+
     final backendRoutes = '''
 // GENERATED – do not edit.
 import 'dart:convert' as conv;
@@ -227,6 +271,10 @@ import 'package:dartvel_shelf/dartvel_shelf.dart' as dv;
 import 'package:mime/mime.dart';
 import 'dartvel_backend.g.dart' as cfg;
 ${backendImports.join('\n')}
+
+// The generated OpenAPI document, served at cfg.apiBasePath + '/openapi.json'.
+const String _dvOpenApiJson = r\'\'\'
+$openApiJson\'\'\';
 
 ${backendEntries.map((e) => e['helper'] ?? '').where((helper) => helper.isNotEmpty).join('\n')}
 
@@ -378,6 +426,10 @@ $requestPrelude
   if (!_hasHealth) {
     router.get(cfg.apiBasePath + '/health', (dv.Request _) async => dv.Response.text('ok'));
   }
+  router.get(cfg.apiBasePath + '/openapi.json', (dv.Request _) async =>
+      dv.Response(200,
+          headers: dv.Headers({'content-type': 'application/json'}),
+          body: Stream<List<int>>.value(conv.utf8.encode(_dvOpenApiJson))));
   return router;
 }
 

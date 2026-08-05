@@ -318,6 +318,7 @@ export 'ai_tools.g.dart';
 export 'functions.g.dart';
 export 'jobs.g.dart';
 export 'models.g.dart';
+export 'openapi.g.dart';
 export 'router.g.dart';
 export 'schedules.g.dart';
 export 'widgets.g.dart';
