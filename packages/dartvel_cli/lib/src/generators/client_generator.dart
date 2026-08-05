@@ -756,6 +756,12 @@ GoRouter createDartvelRouter() {
 $routesSrc
     ],
     redirect: _globalRedirect,
+    // A route with no compiled page may still be a Studio page: builder
+    // documents are data, so saving one publishes it without a rebuild.
+    // Compiled routes always win — the store is only consulted here, after
+    // matching has already failed.
+    errorBuilder: (BuildContext context, GoRouterState state) =>
+        DVStudioPageRoute(state.uri.path),
   );
   // DV.Navigation is used from callbacks with no BuildContext, so it needs the
   // live router rather than looking one up from the widget tree.
