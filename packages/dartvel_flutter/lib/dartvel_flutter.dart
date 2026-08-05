@@ -3085,6 +3085,7 @@ class DV {
       _transactionRunner.call<T>(body, isolated: isolated);
 
   static DVPlatform get Platform => const DVPlatform();
+  static DVNavigation get Navigation => const DVNavigation();
 
   // Top-level proxies onto the `DV.Platform` device namespaces. Everything
   // still lives under `DV.Platform.*`; these only save a hop for the device
@@ -3219,6 +3220,70 @@ extension DartvelNavigationX on BuildContext {
   void navigateToPage(DVRouteTarget target) {
     go(target.path);
   }
+}
+
+/// Context-free navigation over the generated route targets.
+///
+/// `go_router` is an implementation detail behind this surface: application
+/// code navigates with `DV.Navigation` and `DVPages`/`DVRoutes` so the engine
+/// can change without breaking call sites.
+class DVNavigation {
+  const DVNavigation();
+
+  static GoRouter? _router;
+
+  /// Called by the generated `createDartvelRouter()`. Navigation needs a
+  /// handle to the live router because [to] is used in callbacks such as
+  /// `onPressed`, where no `BuildContext` is in scope.
+  static void attach(GoRouter router) {
+    _router = router;
+  }
+
+  /// Forgets the attached router. Tests that build their own router should
+  /// call this in teardown so one test cannot navigate another's.
+  static void detach() {
+    _router = null;
+  }
+
+  static GoRouter get _active {
+    final router = _router;
+    if (router == null) {
+      throw StateError(
+        'DV.Navigation has no router. The generated createDartvelRouter() '
+        'attaches one; call DVNavigation.attach(router) directly if you build '
+        'a router yourself.',
+      );
+    }
+    return router;
+  }
+
+  /// Whether a router has been attached. Navigating without one throws, so
+  /// widgets built outside a Dartvel app can check first.
+  bool get isAttached => _router != null;
+
+  /// A callback that navigates to [target], for use directly in handlers:
+  /// `DVBox(...).onPressed(DV.Navigation.to(DVPages.users))`.
+  VoidCallback to(DVRouteTarget target) => () => navigate(target);
+
+  /// Navigates to [target] now, replacing the current location.
+  void navigate(DVRouteTarget target) => _active.go(target.path);
+
+  /// Pushes [target] onto the navigation stack, keeping the current page.
+  Future<T?> push<T extends Object?>(DVRouteTarget target) =>
+      _active.push<T>(target.path);
+
+  /// Pops the top page when there is one to pop.
+  void back<T extends Object?>([T? result]) {
+    final router = _active;
+    if (router.canPop()) router.pop<T>(result);
+  }
+
+  /// Whether [back] would do anything.
+  bool get canGoBack => _active.canPop();
+
+  /// The current location, as the URL the router resolved.
+  String get currentPath =>
+      _active.routerDelegate.currentConfiguration.uri.toString();
 }
 
 class DartvelRouteState extends InheritedWidget {

@@ -561,12 +561,18 @@ ${sbRedirect.toString()}
 $generatedPageWidgets
 
 /// Creates the GoRouter instance for Dartvel routing.
-GoRouter createDartvelRouter() => GoRouter(
-  routes: [
+GoRouter createDartvelRouter() {
+  final router = GoRouter(
+    routes: [
 $routesSrc
-  ],
-  redirect: _globalRedirect,
-);
+    ],
+    redirect: _globalRedirect,
+  );
+  // DV.Navigation is used from callbacks with no BuildContext, so it needs the
+  // live router rather than looking one up from the widget tree.
+  DVNavigation.attach(router);
+  return router;
+}
 ''';
 
     // Write router.g.dart
