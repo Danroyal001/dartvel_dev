@@ -2992,16 +2992,23 @@ class DVCache {
     Duration ttl = const Duration(seconds: 30),
   }) async {
     final lockKey = _scoped('lock:$key');
-    final existing = await _adapter.read(lockKey);
-    if (existing != null) return null;
     final token =
         '${DateTime.now().microsecondsSinceEpoch}-${identityHashCode(this)}';
-    await _adapter.write(lockKey, token, ttl);
+    final adapter = _adapter;
+    if (adapter is DVAtomicCacheAdapter) {
+      // The adapter offers real compare-and-set (Redis SET NX); use it.
+      final acquired = await (adapter as DVAtomicCacheAdapter)
+          .writeIfAbsent(lockKey, token, ttl);
+      return acquired ? DVCacheLock._(lockKey, token, adapter) : null;
+    }
+    final existing = await adapter.read(lockKey);
+    if (existing != null) return null;
+    await adapter.write(lockKey, token, ttl);
     // Read back: if two acquirers raced, exactly one token survived the
     // second write and only its owner proceeds.
-    final winner = await _adapter.read(lockKey);
+    final winner = await adapter.read(lockKey);
     if (winner != token) return null;
-    return DVCacheLock._(lockKey, token, _adapter);
+    return DVCacheLock._(lockKey, token, adapter);
   }
 
   /// Returns the cached value for [key], computing and storing it on a miss.
