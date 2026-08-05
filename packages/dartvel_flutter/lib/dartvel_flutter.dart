@@ -2126,6 +2126,29 @@ class DVPlatform {
   DVPermissions get permissions => const DVPermissions();
   DVBrowserExtension get browserExtension => const DVBrowserExtension();
   DVDisplayControls get display => const DVDisplayControls();
+
+  // The spec names these device namespaces in capitals, matching `Window`,
+  // `Tray` and `Menus` above, and `DV` proxies each one at the top level. The
+  // lowerCamel getters stay as-is so existing call sites keep working.
+  DVCamera get Camera => camera;
+  DVLocation get Location => location;
+  DVBluetooth get Bluetooth => bluetooth;
+  DVNfc get NFC => nfc;
+  DVClipboard get Clipboard => clipboard;
+  DVShare get Share => share;
+  DVSensors get Sensors => sensors;
+  DVBiometrics get Biometrics => biometrics;
+  DVDeepLinks get DeepLinking => deepLinks;
+  DVHaptics get Haptics => haptics;
+  DVContacts get Contacts => contacts;
+
+  /// Proxies to [DV.FileStorage], so media and files are one API rather than a
+  /// platform-local duplicate of it.
+  DVStorage get FileStorage => DV.FileStorage;
+
+  /// Proxies to [DV.Notifications]. Device-local notifications remain on the
+  /// lowerCamel [notifications] getter.
+  DVNotificationsService get Notifications => DV.Notifications;
 }
 
 abstract class DVAuthProvider {
@@ -3062,6 +3085,21 @@ class DV {
       _transactionRunner.call<T>(body, isolated: isolated);
 
   static DVPlatform get Platform => const DVPlatform();
+
+  // Top-level proxies onto the `DV.Platform` device namespaces. Everything
+  // still lives under `DV.Platform.*`; these only save a hop for the device
+  // APIs the spec proxies by name.
+  static DVLocation get Location => Platform.Location;
+  static DVBluetooth get Bluetooth => Platform.Bluetooth;
+  static DVNfc get NFC => Platform.NFC;
+  static DVClipboard get Clipboard => Platform.Clipboard;
+  static DVShare get Share => Platform.Share;
+  static DVSensors get Sensors => Platform.Sensors;
+  static DVBiometrics get Biometrics => Platform.Biometrics;
+  static DVDeepLinks get DeepLinking => Platform.DeepLinking;
+  static DVHaptics get Haptics => Platform.Haptics;
+  static DVContacts get Contacts => Platform.Contacts;
+
   static DVAuth get Auth => const DVAuth();
   static DVTheme get Theme => const DVTheme();
   static DVAI get AI => const DVAI();
