@@ -1,6 +1,7 @@
 library dartvel_flutter;
 
 import 'dart:async';
+import 'dart:convert' show jsonEncode;
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:dartvel_core/dartvel.dart';
@@ -1378,6 +1379,42 @@ class DVUpdates {
     if (!handled) {
       throw StateError('Native update binding rejected the rollback request.');
     }
+  }
+
+  static String? _lockedVersion;
+  static String? _skippedVersion;
+
+  /// The version [check] and [apply] are pinned to, or null when unpinned.
+  String? get lockedVersion => _lockedVersion;
+
+  /// Pins the application to [version]: [apply] refuses any other update
+  /// until [unlockVersion] is called. A kiosk fleet mid-audit is the use
+  /// case — updates keep arriving, the device keeps declining them.
+  void lockVersion(String version) {
+    _lockedVersion = version.trim().isEmpty ? null : version.trim();
+  }
+
+  /// Removes the version pin.
+  void unlockVersion() => _lockedVersion = null;
+
+  /// Skips [version]: [shouldApply] declines exactly that version and no
+  /// other, so "remind me next release" means what it says.
+  void skipImmediateNextVersion(String version) {
+    _skippedVersion = version.trim().isEmpty ? null : version.trim();
+  }
+
+  /// Whether [update] should be applied under the current lock and skip
+  /// state. The generated update UI consults this before prompting.
+  bool shouldApply(DVUpdateInfo update) {
+    if (!update.available) return false;
+    final version = update.version;
+    if (_lockedVersion != null && version != _lockedVersion) return false;
+    if (_skippedVersion != null && version == _skippedVersion) {
+      // A required update overrides a user's skip; a skip is a preference,
+      // a minimum supported version is not.
+      return update.required;
+    }
+    return true;
   }
 }
 
@@ -3567,6 +3604,10 @@ class SeoProps {
   final String? twitterHandle;
   final Map<String, String> extraMeta;
 
+  /// Explicit JSON-LD structured data. When null, [structuredDataJson]
+  /// derives a schema.org WebPage from the other properties.
+  final Map<String, Object?>? structuredData;
+
   const SeoProps({
     this.title,
     this.description,
@@ -3575,6 +3616,7 @@ class SeoProps {
     this.siteName,
     this.twitterHandle,
     this.extraMeta = const {},
+    this.structuredData,
   });
 
   SeoProps merge(SeoProps other) => SeoProps(
@@ -3585,7 +3627,39 @@ class SeoProps {
         siteName: other.siteName ?? siteName,
         twitterHandle: other.twitterHandle ?? twitterHandle,
         extraMeta: {...extraMeta, ...other.extraMeta},
+        structuredData: other.structuredData ?? structuredData,
       );
+
+  /// The JSON-LD document for this page, or null when there is nothing to
+  /// say. Explicit [structuredData] wins (with `@context` filled in when
+  /// omitted); otherwise a schema.org WebPage derives from the properties
+  /// the page already declares — the spec's "structured data and content
+  /// schema" without per-page authoring.
+  String? structuredDataJson() {
+    final explicit = structuredData;
+    if (explicit != null) {
+      return jsonEncode(<String, Object?>{
+        '@context': 'https://schema.org',
+        ...explicit,
+      });
+    }
+    if (title == null && description == null && canonicalUrl == null) {
+      return null;
+    }
+    return jsonEncode(<String, Object?>{
+      '@context': 'https://schema.org',
+      '@type': 'WebPage',
+      if (title != null) 'name': title,
+      if (description != null) 'description': description,
+      if (canonicalUrl != null) 'url': canonicalUrl,
+      if (imageUrl != null) 'image': imageUrl,
+      if (siteName != null)
+        'isPartOf': <String, Object?>{
+          '@type': 'WebSite',
+          'name': siteName,
+        },
+    });
+  }
 
   static const empty = SeoProps();
 }

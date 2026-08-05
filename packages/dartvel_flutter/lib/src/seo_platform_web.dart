@@ -56,4 +56,21 @@ void applySeo(SeoProps p) {
   for (final e in p.extraMeta.entries) {
     _upsertMeta(e.key, e.value);
   }
+
+  // Structured data: one JSON-LD script, replaced per page rather than
+  // accumulated.
+  final jsonLd = p.structuredDataJson();
+  final head = doc.head!;
+  final existingScript =
+      head.querySelector('script#dartvel-jsonld') as web.HTMLScriptElement?;
+  if (jsonLd == null) {
+    existingScript?.remove();
+    return;
+  }
+  final script = existingScript ??
+      (doc.createElement('script') as web.HTMLScriptElement
+        ..id = 'dartvel-jsonld'
+        ..type = 'application/ld+json');
+  script.text = jsonLd;
+  if (existingScript == null) head.append(script);
 }
