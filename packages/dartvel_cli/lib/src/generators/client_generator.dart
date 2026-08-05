@@ -316,6 +316,7 @@ export 'dartvel_runtime.dart';
 export 'env.g.dart';
 export 'ai_tools.g.dart';
 export 'functions.g.dart';
+export 'jobs.g.dart';
 export 'models.g.dart';
 export 'router.g.dart';
 export 'schedules.g.dart';
@@ -340,6 +341,7 @@ const String dvApiBasePath      = '${esc(apiBasePath)}';
 import 'package:flutter/foundation.dart' show kReleaseMode, kIsWeb, defaultTargetPlatform, TargetPlatform, debugPrint;
 import 'package:dartvel_flutter/dartvel_flutter.dart' show DV;
 import 'dartvel_config.g.dart' as cfg;
+import 'jobs.g.dart' show registerDartvelJobs;
 
 /// Wires the generated runtime into the short `DV.baseUrl` / `DV.api(...)` API.
 /// Called automatically during app/router initialization.
@@ -349,6 +351,10 @@ void configureDartvelRuntime() {
     apiBasePath: () => DartvelRuntime.apiBasePath,
     api: DartvelRuntime.api,
   );
+  // A dispatched job is useless without its codec and handler, so they are
+  // registered as part of configuring the runtime rather than left to the
+  // application to remember.
+  registerDartvelJobs();
 }
 
 class DartvelRuntime {

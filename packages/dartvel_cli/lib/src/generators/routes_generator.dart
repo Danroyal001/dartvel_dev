@@ -5,6 +5,7 @@ import '../config/dartvel_config.dart';
 import '../utils/logger.dart';
 import 'backend_generator.dart';
 import 'client_generator.dart';
+import 'job_generator.dart';
 import 'model_generator.dart';
 import 'static_paths_generator.dart';
 
@@ -85,6 +86,14 @@ Future<void> generate({bool validateProd = false}) async {
 
   // Generate Models
   await ModelGenerator.generate(
+    root: root,
+    pkgName: pkgName,
+    buildId: buildId,
+  );
+
+  // Generate job payloads, queue constants and handler registration.
+  // @DVJob was an annotation nothing read before this pass.
+  await JobGenerator.generate(
     root: root,
     pkgName: pkgName,
     buildId: buildId,

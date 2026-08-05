@@ -316,12 +316,29 @@ class DVJob {
   final int maxAttempts;
   final int backoffSeconds;
 
+  /// Whether this annotation marks a handler function rather than a payload
+  /// class. Set only by [DVJob.handler].
+  final bool isHandler;
+
   const DVJob({
     this.queue,
     this.priority = 0,
     this.maxAttempts = 3,
     this.backoffSeconds = 30,
-  });
+  }) : isHandler = false;
+
+  /// Marks the function that runs a job: `@DVJob.handler()`.
+  ///
+  /// The function takes the generated payload type as its only parameter. Job
+  /// metadata is grouped under the job annotation rather than a standalone
+  /// name, which also leaves the [DVJobHandler] typedef — the runtime handler
+  /// function type — free to keep meaning what it means.
+  const DVJob.handler()
+      : queue = null,
+        priority = 0,
+        maxAttempts = 3,
+        backoffSeconds = 30,
+        isHandler = true;
 }
 
 /// Annotation for backend function/page middleware.
