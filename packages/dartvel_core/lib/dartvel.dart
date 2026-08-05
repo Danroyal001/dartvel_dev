@@ -1001,11 +1001,19 @@ class DVExportOptions<TModel> {
   final int chunkSize;
   final Map<String, String> metadata;
 
+  /// Whether `@DVModel.sensitiveField()` columns are written to the export.
+  ///
+  /// Off by default: an export is a file that leaves the system, and the
+  /// spec excludes sensitive fields from generated tables unless something
+  /// asks for them. Turning it on is the explicit authorization step.
+  final bool includeSensitiveFields;
+
   const DVExportOptions({
     this.tenantId,
     this.policyFilter,
     this.chunkSize = 1000,
     this.metadata = const <String, String>{},
+    this.includeSensitiveFields = false,
   });
 
   Iterable<TModel> apply(Iterable<TModel> items) {

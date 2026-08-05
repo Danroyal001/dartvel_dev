@@ -942,14 +942,32 @@ class ModelGenerator {
         );
         sb.writeln('    final exportItems = options.apply(items);');
         sb.writeln('    final buffer = StringBuffer();');
-        sb.writeln(
-          "    buffer.writeln('${fields.map((f) => f['name']!).join(',')}');",
-        );
+        // An export is a file that leaves the system, so sensitive columns are
+        // written only when the caller asks for them.
+        final publicFieldNames = fields
+            .map((Map<String, String> f) => f['name']!)
+            .where((String name) => !sensitiveFieldNames.contains(name))
+            .toList();
+        final allFieldNames =
+            fields.map((Map<String, String> f) => f['name']!).toList();
+        if (sensitiveFieldNames.isEmpty) {
+          sb.writeln("    buffer.writeln('${allFieldNames.join(',')}');");
+        } else {
+          sb.writeln(
+            '    final includeSensitive = options.includeSensitiveFields;',
+          );
+          sb.writeln(
+            "    buffer.writeln(includeSensitive ? '${allFieldNames.join(',')}'"
+            " : '${publicFieldNames.join(',')}');",
+          );
+        }
         sb.writeln('    for (final item in exportItems) {');
         sb.writeln('      buffer.writeln([');
         for (final field in fields) {
           final name = field['name']!;
-          sb.writeln('        _escapeCsvValue(item.$name),');
+          final guard =
+              sensitiveFieldNames.contains(name) ? 'if (includeSensitive) ' : '';
+          sb.writeln('        ${guard}_escapeCsvValue(item.$name),');
         }
         sb.writeln("      ].join(','));");
         sb.writeln('    }');
@@ -967,8 +985,14 @@ class ModelGenerator {
         sb.writeln('    return DVExportResult(');
         sb.writeln('      fileName: fileName,');
         sb.writeln("      contentType: 'application/json; charset=utf-8',");
+        // toPublicJson drops sensitive fields; toJson is the internal form and
+        // is reached only when the caller explicitly asks for it.
+        final exportJsonCall = sensitiveFieldNames.isEmpty
+            ? 'item.toJson()'
+            : '(options.includeSensitiveFields ? item.toJson() '
+                ': item.toPublicJson())';
         sb.writeln(
-          '      bytes: convert.utf8.encode(convert.jsonEncode(options.apply(items).map((item) => item.toJson()).toList(growable: false))),',
+          '      bytes: convert.utf8.encode(convert.jsonEncode(options.apply(items).map((item) => $exportJsonCall).toList(growable: false))),',
         );
         sb.writeln('      metadata: options.exportMetadata(),');
         sb.writeln('    );');
@@ -980,7 +1004,9 @@ class ModelGenerator {
         sb.writeln('    final exportItems = options.apply(items);');
         sb.writeln('    final buffer = StringBuffer();');
         sb.writeln('    for (final item in exportItems) {');
-        sb.writeln('      buffer.writeln(convert.jsonEncode(item.toJson()));');
+        sb.writeln(
+          '      buffer.writeln(convert.jsonEncode($exportJsonCall));',
+        );
         sb.writeln('    }');
         sb.writeln('    return DVExportResult(');
         sb.writeln('      fileName: fileName,');
@@ -1058,21 +1084,32 @@ class ModelGenerator {
         );
         sb.writeln("    buffer.writeln('<Worksheet ss:Name=\"$className\">');");
         sb.writeln("    buffer.writeln('<Table>');");
+        if (sensitiveFieldNames.isNotEmpty) {
+          sb.writeln(
+            '    final includeSensitive = options.includeSensitiveFields;',
+          );
+        }
         sb.writeln("    buffer.writeln('<Row>');");
         for (final field in fields) {
           final name = field['name']!;
+          final sensitive = sensitiveFieldNames.contains(name);
+          if (sensitive) sb.writeln('    if (includeSensitive) {');
           sb.writeln(
-            "    buffer.writeln('<Cell><Data ss:Type=\"String\">$name</Data></Cell>');",
+            "    ${sensitive ? '  ' : ''}buffer.writeln('<Cell><Data ss:Type=\"String\">$name</Data></Cell>');",
           );
+          if (sensitive) sb.writeln('    }');
         }
         sb.writeln("    buffer.writeln('</Row>');");
         sb.writeln('    for (final item in exportItems) {');
         sb.writeln("      buffer.writeln('<Row>');");
         for (final field in fields) {
           final name = field['name']!;
+          final sensitive = sensitiveFieldNames.contains(name);
+          if (sensitive) sb.writeln('      if (includeSensitive) {');
           sb.writeln(
-            "      buffer.writeln('<Cell><Data ss:Type=\"String\">\${_escapeExcelCell(item.$name)}</Data></Cell>');",
+            "      ${sensitive ? '  ' : ''}buffer.writeln('<Cell><Data ss:Type=\"String\">\${_escapeExcelCell(item.$name)}</Data></Cell>');",
           );
+          if (sensitive) sb.writeln('      }');
         }
         sb.writeln("      buffer.writeln('</Row>');");
         sb.writeln('    }');
