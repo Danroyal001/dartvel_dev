@@ -15,4 +15,9 @@ class DVLinuxBindings {
   static bool register() => false;
 
   static void unregister() {}
+
+  /// Null here: there is no GTK window to report a title for. Both branches
+  /// of the conditional import must expose the same surface, or code that
+  /// compiles on Linux fails to compile everywhere else.
+  static String? currentWindowTitle() => null;
 }

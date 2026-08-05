@@ -4,10 +4,37 @@
 @TestOn('linux')
 library;
 
+import 'dart:ffi';
 import 'dart:io';
 
 import 'package:dartvel_flutter/dartvel_flutter.dart';
+import 'package:ffi/ffi.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+typedef _GtkInitCheckNative = Int32 Function(
+  Pointer<Int32>,
+  Pointer<Pointer<Pointer<Utf8>>>,
+);
+typedef _GtkInitCheckDart = int Function(
+  Pointer<Int32>,
+  Pointer<Pointer<Pointer<Utf8>>>,
+);
+typedef _GtkWindowNewNative = Pointer<Void> Function(Int32);
+typedef _GtkWindowNewDart = Pointer<Void> Function(int);
+
+/// Creates a real GtkWindow, the same kind the Flutter Linux embedder makes,
+/// so the window bindings can be exercised on their success path rather than
+/// only their no-window failure path.
+void createRealToplevel() {
+  final gtk = DynamicLibrary.open('libgtk-3.so.0');
+  gtk.lookupFunction<_GtkInitCheckNative, _GtkInitCheckDart>('gtk_init_check')(
+    nullptr,
+    nullptr,
+  );
+  gtk.lookupFunction<_GtkWindowNewNative, _GtkWindowNewDart>('gtk_window_new')(
+    0,
+  );
+}
 
 void main() {
   final hasDisplay = Platform.environment['DISPLAY']?.isNotEmpty ?? false;
@@ -36,9 +63,92 @@ void main() {
     // not return a plausible lie.
     expect(
       DVLinuxBindings.implemented,
-      <String>{'clipboard.copy', 'clipboard.paste', 'screen.geometry'},
+      <String>{
+        'clipboard.copy',
+        'clipboard.paste',
+        'screen.geometry',
+        'notifications.sendLocal',
+        'window.setTitle',
+        'window.maximize',
+        'window.minimize',
+        'window.restore',
+      },
     );
     expect(DVLinuxBindings.isRegistered, isTrue);
+  });
+
+  test('a desktop notification reaches the notification service', () async {
+    // Requires a session bus with a notification daemon; the harness starts
+    // dbus and dunst. Without one there is nothing to deliver to, and
+    // reporting success would be the lie this design exists to avoid.
+    final hasBus =
+        Platform.environment['DBUS_SESSION_BUS_ADDRESS']?.isNotEmpty ?? false;
+    if (!hasBus) {
+      markTestSkipped('no session bus; start dbus-launch and a notifier');
+      return;
+    }
+
+    final id = await DVNativeBridge.require<int>(
+      'notifications.sendLocal',
+      <String, Object?>{'title': 'Dartvel', 'body': 'binding test'},
+    );
+
+    // A real daemon answers with the id it assigned.
+    expect(id, greaterThan(0));
+  });
+
+  test('a quote in notification text does not break the GVariant parse',
+      () async {
+    final hasBus =
+        Platform.environment['DBUS_SESSION_BUS_ADDRESS']?.isNotEmpty ?? false;
+    if (!hasBus) {
+      markTestSkipped('no session bus');
+      return;
+    }
+
+    // The content is interpolated into a GVariant text literal; an unescaped
+    // apostrophe would end the string early and the call would fail.
+    final id = await DVNativeBridge.require<int>(
+      'notifications.sendLocal',
+      <String, Object?>{
+        'title': "Ada's build",
+        'body': r"path\to\thing 'quoted'",
+      },
+    );
+
+    expect(id, greaterThan(0));
+  });
+
+  group('window control', () {
+    test('reports failure honestly when there is no window yet', () async {
+      // Before any toplevel exists the binding must say so, not pretend.
+      expect(DVLinuxBindings.currentWindowTitle(), isNull);
+      expect(
+        await DVNativeBridge.require<bool>(
+          'window.setTitle',
+          <String, Object?>{'title': 'ignored'},
+        ),
+        isFalse,
+      );
+    });
+
+    test('drives a real GTK window once one exists', () async {
+      createRealToplevel();
+
+      expect(
+        await DVNativeBridge.require<bool>(
+          'window.setTitle',
+          <String, Object?>{'title': 'Dartvel Window'},
+        ),
+        isTrue,
+      );
+      // Read back through GTK, not from our own state.
+      expect(DVLinuxBindings.currentWindowTitle(), 'Dartvel Window');
+
+      expect(await DVNativeBridge.require<bool>('window.maximize'), isTrue);
+      expect(await DVNativeBridge.require<bool>('window.minimize'), isTrue);
+      expect(await DVNativeBridge.require<bool>('window.restore'), isTrue);
+    });
   });
 
   test('DV.Clipboard round-trips through the real GTK clipboard', () async {
