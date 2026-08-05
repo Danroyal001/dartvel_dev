@@ -95,6 +95,8 @@ export 'package:dartvel_core/dartvel.dart'
         // Model pages and static generation
         DVModelPageDataMode,
         DVStaticPaths,
+        DVImage,
+        DVImageSource,
         DVJob,
         DVExportResult,
         DVExportOptions,
@@ -194,6 +196,8 @@ export 'package:dartvel_core/dartvel.dart'
         formControlsFactories,
         registerFormControlsFactory;
 export 'package:go_router/go_router.dart';
+
+export 'src/media/image_view.dart';
 
 // ==========================================
 // UI & Styling Primitives (NEW_SPEC.md)
