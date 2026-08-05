@@ -180,6 +180,8 @@ export 'package:dartvel_core/dartvel.dart'
         DVSearchFacetMatcher,
         DVSearchResultPage,
         DVUnconfiguredSearchProvider,
+        DVSecretNotFoundException,
+        DVSecrets,
         DVSentNotification,
         DVShell,
         DVShellCommand,
@@ -3116,6 +3118,7 @@ class DV {
   static DVNotificationsService get Notifications =>
       const DVNotificationsService();
   static DVUpdates get Updates => const DVUpdates();
+  static DVSecrets get Secrets => const DVSecrets();
   static DVTestHarness get Test => const DVTestHarness();
   static DVCSRF get CSRF => const DVCSRF();
   static DVCSRF get Csrf => const DVCSRF();
