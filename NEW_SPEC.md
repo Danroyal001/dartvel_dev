@@ -794,13 +794,22 @@ APIs.
 @DVJob(queue: 'mail', maxAttempts: 5, backoffSeconds: 60)
 class _SendWelcomeEmail(String userId)
 
-@DVJobHandler()
-Future<void> _handleSendWelcomeEmail(SendWelcomeEmail job) async {
-  await DV.Notifications.send(...);
-}
+@DVJob.handler()
+Future<void> _handleSendWelcomeEmail(SendWelcomeEmail job) async =>
+    DV.Notifications.send(...);
 
 await DV.Jobs.dispatch(SendWelcomeEmail(user.id));
+
+// Or with the queue, priority, attempts and backoff the annotation declares,
+// which plain DV.Jobs.dispatch cannot know:
+await SendWelcomeEmail(userId: user.id).dispatch();
 ```
+
+Job metadata is grouped under the job annotation: the handler is
+`@DVJob.handler()`, not a standalone `@DVJobHandler`. That also leaves the
+`DVJobHandler` typedef — the runtime handler function type — meaning what it
+already means. Like private page and backend-function inputs, a private handler
+must use an expression body until generated body lowering exists.
 
 Queues support:
 - named queues and generated queue constants
