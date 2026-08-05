@@ -1,26 +1,6 @@
 # New Spec v2
 
-> ## ⚠️ This is a design specification, not release notes
->
-> This document describes Dartvel's intended design. It is **not** a
-> description of what ships today: some surfaces below are implemented, others
-> are not.
->
-> `DV.lifecycle.*`, `DV.Modules.<id>`, `DV.transaction(...)` with
-> `context.afterCommit`/`context.compensate`, `@DVStaticPaths()`, and generated
-> `Model.Page(...)` data-mode APIs (`.async`, `.signal`, `.fromId`) and
-> `@DVModel(generatePublicPages: true)` public static-path manifest generation
-> are implemented. Public page record enumeration defaults to querying
-> `DV.Database` for the generated model table, filters `published`/
-> `isPublished` when present, and can be overridden with
-> `Model.usePublicStaticPathsResolver(...)`.
->
-> Where this spec and the code disagree, **the code wins**. For what is
-> actually implemented today, see the *Alpha status* section of
-> [README.md](README.md); for per-target build status backed by evidence, see
-> [docs/build-targets.md](docs/build-targets.md).
-
-# Dartvel — The Complete Vision
+# Dartvel — The Complete Vision, to be implemented
 
 > **Flutter's Laravel, Flutter's Expo, Flutter's Next.js, Flutter's Hasura.**
 >
@@ -2029,6 +2009,68 @@ Generated metadata powers:
 
 Native implementations still follow the Dartvel rule: generated FFI/ffigen or
 JNI/jnigen only, no Flutter platform channels.
+
+---
+
+# Dartvel Studio
+
+Dartvel Studio is the admin section every Dartvel application ships with —
+WordPress's admin for a Flutter platform. Every app is fully self-contained,
+frontend and backend, regardless of publish target: the app carries the tools
+to manage itself.
+
+Studio provides:
+- **Page management with a visual builder.** Pages are managed like WordPress
+  content, edited with a builder that sits between a free canvas (Figma) and a
+  page-based editor (WordPress/FlutterFlow) — Framer's middle ground.
+- **Model management.** Generated model CRUD, driven by the same metadata the
+  admin already uses.
+- **Backend function and workflow building.** Drag-and-drop composition of
+  backend behaviour, Webflow/FlutterFlow-style.
+
+## The page builder
+
+The builder manipulates **real widgets, not a canvas facsimile**. No
+CustomPaint re-implementation of the UI: the editing surface instantiates the
+same `DVBox`/`DVText`/generated components the running app renders, so what is
+edited is what ships. It must be feature-rich enough that Dartvel itself could
+be rebuilt with it.
+
+- Drag/drop inserts and moves actual widgets.
+- Properties, modifiers, gestures, and actions are edited on the selected
+  widget; actions bind to `DV.Navigation`, backend functions, and signals.
+- View-code at any time (Figma/Webflow-style), and full code export: a page
+  document exports to the same private `@DVPage` source a hand-written page
+  uses, with no builder runtime required afterwards.
+
+The load-bearing primitive is the **page document**: a serializable widget
+tree (`DVPageDocument`) that the builder edits, the renderer instantiates as
+real widgets, the store persists through `DV.Database`, and the exporter lowers
+to Dart source. Everything else in the builder is UI over these four
+operations.
+
+```dart
+final document = DVPageDocument(route: '/pricing', title: 'Pricing');
+// Editor operations — what drag/drop and the inspector call:
+final editor = DVPageDocumentEditor(document);
+editor.insert(DVPageNode.text('Plans'), parent: document.root.id);
+editor.update(nodeId, (node) => node.withProperty('fontSize', 24));
+editor.move(nodeId, parent: otherId, index: 0);
+
+// The same document, three ways out:
+DVPageDocumentRenderer(document)   // real widgets, in-app and in-editor
+document.toDartSource()            // full code export, @DVPage form
+await DVPageStore().save(document) // persisted, immediately publishable
+```
+
+## Publishing
+
+- Saving publishes: stored documents are served to running apps immediately —
+  page content is data, like WordPress posts.
+- Compiled export: `document.toDartSource()` emits the page as ordinary
+  `@DVPage` source for projects that want the builder out of the loop.
+- OTA on command: `dartvel updates patch` pushes builder-made changes to
+  running installations through the existing OTA layer.
 
 ---
 

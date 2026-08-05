@@ -207,6 +207,7 @@ export 'package:dartvel_core/dartvel.dart'
 export 'package:go_router/go_router.dart';
 
 export 'src/media/image_view.dart';
+export 'src/studio/page_document.dart';
 
 // ==========================================
 // UI & Styling Primitives (NEW_SPEC.md)
