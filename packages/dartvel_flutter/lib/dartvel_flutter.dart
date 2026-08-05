@@ -37,6 +37,7 @@ export 'package:dartvel_core/dartvel.dart'
         AuthFailure,
         DVAIToolDefinition,
         DVPasswordHasher,
+        DVDatabase,
         DVDatabaseAdapter,
         DVAIToolRegistry,
         DVAIHttpRequest,
@@ -2675,7 +2676,7 @@ extension DVFlutterTestHarness on DVTestHarness {
   }
 
   void resetDatabaseProvider() {
-    DVDatabase._adapter = null;
+    const DVDatabase().unconfigure();
   }
 
   void resetAI() {
@@ -2884,34 +2885,6 @@ class DVAI {
     if (adapter == null) {
       throw StateError(
         'DV.AI has no configured adapter. Configure an AI provider before use.',
-      );
-    }
-    return adapter;
-  }
-}
-
-class DVDatabase {
-  const DVDatabase();
-  static DVDatabaseAdapter? _adapter;
-
-  void configure(DVDatabaseAdapter adapter) {
-    _adapter = adapter;
-  }
-
-  Future<List<Map<String, Object?>>> query(
-    String sql, [
-    List<Object?>? params,
-  ]) =>
-      _configuredAdapter.query(sql, params);
-
-  Future<int> execute(String sql, [List<Object?>? params]) =>
-      _configuredAdapter.execute(sql, params);
-
-  static DVDatabaseAdapter get _configuredAdapter {
-    final adapter = _adapter;
-    if (adapter == null) {
-      throw StateError(
-        'DV.Database has no configured adapter. Configure SQLite or another database adapter before use.',
       );
     }
     return adapter;
