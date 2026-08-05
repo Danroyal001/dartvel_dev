@@ -2875,10 +2875,36 @@ class DVDatabase {
   }
 }
 
+/// A held cache lock. Release it when the guarded work completes.
+class DVCacheLock {
+  final String _key;
+  final String _token;
+  final DVCacheAdapter _adapter;
+  bool _released = false;
+
+  DVCacheLock._(this._key, this._token, this._adapter);
+
+  /// Releases the lock, but only if this holder still owns it — a lock that
+  /// expired and was re-acquired by someone else must not be torn down by the
+  /// previous owner.
+  Future<void> release() async {
+    if (_released) return;
+    _released = true;
+    final current = await _adapter.read(_key);
+    if (current == _token) await _adapter.remove(_key);
+  }
+}
+
 class DVCache {
   const DVCache();
   static DVCacheAdapter _adapter = DVMemoryCacheAdapter();
+  static DVCacheAdapter? _globalAdapter;
   static const DVCacheTags _tags = DVCacheTags();
+  static const DVCacheTags _globalTags = DVCacheTags();
+
+  /// In-flight computations, so concurrent callers of the same key share one
+  /// compute instead of stampeding it.
+  static final Map<String, Future<Object?>> _inFlight = {};
 
   /// Swaps the storage behind the cache. Defaults to [DVMemoryCacheAdapter];
   /// pass a [DVDatabaseCacheAdapter] to persist entries across restarts.
@@ -2886,17 +2912,174 @@ class DVCache {
     _adapter = adapter;
   }
 
+  /// Configures the backend/global cache used by the `global*` helpers.
+  void configureGlobal(DVCacheAdapter adapter) {
+    _globalAdapter = adapter;
+  }
+
   DVCacheAdapter get adapter => _adapter;
 
+  static DVCacheAdapter get _global {
+    final adapter = _globalAdapter;
+    if (adapter == null) {
+      throw StateError(
+        'No global cache is configured. Call DV.Cache.configureGlobal(...) '
+        'with the backend/shared cache adapter before using the global '
+        'helpers.',
+      );
+    }
+    return adapter;
+  }
+
+  /// Scopes [key] to the current tenant, so tenants cannot read each other's
+  /// entries through a shared adapter. The default tenant stays unprefixed:
+  /// single-tenant applications keep plain keys.
+  static String _scoped(String key) {
+    final tenant = const DVTenants().currentTenant;
+    return tenant == DVTenants.defaultTenant ? key : 'tenant:$tenant:$key';
+  }
+
   Future<T?> get<T>(String key) async {
-    final value = await _adapter.read(key);
+    final value = await _adapter.read(_scoped(key));
     return value is T ? value : null;
   }
 
   Future<void> set(String key, Object? value, [Duration? ttl]) =>
-      _adapter.write(key, value, ttl);
+      _adapter.write(_scoped(key), value, ttl);
 
-  Future<void> delete(String key) => _adapter.remove(key);
+  Future<void> delete(String key) => _adapter.remove(_scoped(key));
+
+  // --- global (backend/shared) cache ---------------------------------------
+
+  Future<T?> globalGet<T>(String key) async {
+    final value = await _global.read(_scoped(key));
+    return value is T ? value : null;
+  }
+
+  Future<void> globalSet(String key, Object? value, [Duration? ttl]) =>
+      _global.write(_scoped(key), value, ttl);
+
+  Future<void> globalDelete(String key) => _global.remove(_scoped(key));
+
+  void globalTag(String key, Iterable<String> tags) {
+    _globalTags.tag(_scoped(key), tags);
+  }
+
+  Future<Set<String>> globalRevalidateTag(String tag) async {
+    final keys = _globalTags.revalidateTag(tag);
+    for (final key in keys) {
+      await _global.remove(key);
+    }
+    return keys;
+  }
+
+  // --- locks and stampede protection ---------------------------------------
+
+  /// Tries to take the lock named [key] for [ttl]. Returns null when another
+  /// holder has it.
+  ///
+  /// The TTL bounds how long a crashed holder can wedge the lock. Acquisition
+  /// is atomic only as far as the adapter is: in-memory and SQLite adapters
+  /// serve one process, which is; a distributed adapter must provide
+  /// compare-and-set before its locks mean anything, as the spec requires.
+  Future<DVCacheLock?> lock(
+    String key, {
+    Duration ttl = const Duration(seconds: 30),
+  }) async {
+    final lockKey = _scoped('lock:$key');
+    final existing = await _adapter.read(lockKey);
+    if (existing != null) return null;
+    final token =
+        '${DateTime.now().microsecondsSinceEpoch}-${identityHashCode(this)}';
+    await _adapter.write(lockKey, token, ttl);
+    // Read back: if two acquirers raced, exactly one token survived the
+    // second write and only its owner proceeds.
+    final winner = await _adapter.read(lockKey);
+    if (winner != token) return null;
+    return DVCacheLock._(lockKey, token, _adapter);
+  }
+
+  /// Returns the cached value for [key], computing and storing it on a miss.
+  ///
+  /// Concurrent callers of the same key share one [compute] — the stampede a
+  /// cold cache otherwise sends at an expensive query.
+  Future<T> remember<T>(
+    String key,
+    Duration? ttl,
+    Future<T> Function() compute,
+  ) async {
+    final scoped = _scoped(key);
+    final cached = await _adapter.read(scoped);
+    if (cached is T && cached != null) return cached;
+
+    final pending = _inFlight[scoped];
+    if (pending != null) return await pending as T;
+
+    final future = () async {
+      try {
+        final value = await compute();
+        await _adapter.write(scoped, value, ttl);
+        return value as Object?;
+      } finally {
+        // The removed value is this very future; nothing awaits it here.
+        _inFlight.remove(scoped)?.ignore();
+      }
+    }();
+    _inFlight[scoped] = future;
+    return await future as T;
+  }
+
+  /// Stale-while-revalidate: a value older than [ttl] but within [staleFor]
+  /// is returned immediately while one background [compute] refreshes it.
+  ///
+  /// The entry lives in the adapter for `ttl + staleFor`; freshness is this
+  /// wrapper's bookkeeping, since adapters treat expiry as absence.
+  Future<T> staleWhileRevalidate<T>(
+    String key, {
+    required Duration ttl,
+    Duration staleFor = const Duration(minutes: 5),
+    required Future<T> Function() compute,
+  }) async {
+    final scoped = _scoped('swr:$key');
+
+    Future<T> refresh() async {
+      final pending = _inFlight[scoped];
+      if (pending != null) {
+        final entry = await pending;
+        return (entry! as Map)['v'] as T;
+      }
+      final future = () async {
+        try {
+          final value = await compute();
+          final entry = <String, Object?>{
+            'v': value,
+            'freshUntil':
+                DateTime.now().add(ttl).millisecondsSinceEpoch,
+          };
+          await _adapter.write(scoped, entry, ttl + staleFor);
+          return entry as Object?;
+        } finally {
+          // The removed value is this very future; nothing awaits it here.
+          _inFlight.remove(scoped)?.ignore();
+        }
+      }();
+      _inFlight[scoped] = future;
+      final entry = await future;
+      return (entry! as Map)['v'] as T;
+    }
+
+    final raw = await _adapter.read(scoped);
+    if (raw is! Map) return refresh();
+
+    final freshUntil = raw['freshUntil'];
+    final stale = freshUntil is int &&
+        DateTime.now().millisecondsSinceEpoch >= freshUntil;
+    if (stale) {
+      // Serve the stale value now; exactly one refresh runs behind it.
+      unawaited(refresh());
+    }
+    return raw['v'] as T;
+  }
 
   /// Drops every entry. Tag associations are cleared with it.
   Future<void> clear() async {
@@ -2909,7 +3092,9 @@ class DVCache {
   Future<int> purgeExpired() => _adapter.purgeExpired();
 
   void tag(String key, Iterable<String> tags) {
-    _tags.tag(key, tags);
+    // Tags record the scoped key: revalidation removes exactly the entries
+    // the tenant that tagged them can see.
+    _tags.tag(_scoped(key), tags);
   }
 
   Set<String> keysForTag(String tag) {

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 /// How tenant data is separated.
 enum DVTenantIsolation {
   /// One database, one schema, rows scoped by a tenant column.
@@ -50,8 +52,16 @@ class DVTenants {
   DVTenantIsolation get isolation => _isolation;
   DVTenantSource get source => _source;
 
+  /// Zone key carrying the tenant through [withTenant] scopes.
+  static const Symbol _zoneTenant = #dartvelTenant;
+
   /// The tenant the current work is running for.
-  String get currentTenant => _current;
+  ///
+  /// A [withTenant] scope wins over the process-wide tenant: zone values
+  /// follow async work across awaits, so a callback keeps its tenant through
+  /// its whole body and concurrent scopes cannot bleed into each other.
+  String get currentTenant =>
+      (Zone.current[_zoneTenant] as String?) ?? _current;
 
   set currentTenant(String tenant) {
     final trimmed = tenant.trim();
@@ -134,16 +144,20 @@ class DVTenants {
     return resolved;
   }
 
-  /// Runs [callback] with [tenant] current, restoring the previous tenant
-  /// afterwards even if [callback] throws.
+  /// Runs [callback] with [tenant] current for its entire execution.
+  ///
+  /// The tenant is carried by a zone value rather than set-and-restored
+  /// around the call: an async callback crosses awaits, and a synchronous
+  /// restore would strip its tenant at the first one while the work is still
+  /// running. Outside the scope nothing changes, throw or not.
   R withTenant<R>(String tenant, R Function() callback) {
-    final previous = _current;
-    currentTenant = tenant;
-    try {
-      return callback();
-    } finally {
-      _current = previous;
-    }
+    final trimmed = tenant.trim();
+    return runZoned(
+      callback,
+      zoneValues: <Object?, Object?>{
+        _zoneTenant: trimmed.isEmpty ? defaultTenant : trimmed,
+      },
+    );
   }
 
   /// The database or schema name for [tenant] under the configured isolation.
