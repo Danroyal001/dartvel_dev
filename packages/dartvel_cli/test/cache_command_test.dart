@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:args/command_runner.dart';
 import 'package:dartvel_cli/src/commands/cache_command.dart';
 import 'package:dartvel_core/dartvel.dart';
@@ -38,6 +40,96 @@ void main() {
       await runner.run(<String>['cache', 'clear']);
 
       expect(tags.keysForTag('users'), isEmpty);
+    });
+
+    group('persistent cache', () {
+      late Directory directory;
+      late String path;
+
+      setUp(() {
+        directory = Directory.systemTemp.createTempSync('dartvel_cache_cli');
+        path = '${directory.path}/cache.db';
+      });
+
+      tearDown(() {
+        directory.deleteSync(recursive: true);
+      });
+
+      /// Writes entries the way an application would, then closes the database
+      /// so the command under test opens the file itself.
+      Future<void> seed() async {
+        final database = SqliteDVDatabaseAdapter.file(path);
+        final cache = DVDatabaseCacheAdapter(database);
+        await cache.write('fresh', 'a', const Duration(hours: 1));
+        await cache.write('stale', 'b', const Duration(milliseconds: 1));
+        await cache.write('forever', 'c', null);
+        database.close();
+      }
+
+      Future<List<Map<String, Object?>>> rows() async {
+        final database = SqliteDVDatabaseAdapter.file(path);
+        try {
+          return await database.query('SELECT key FROM dartvel_cache');
+        } finally {
+          database.close();
+        }
+      }
+
+      test('clear --database empties the persistent cache', () async {
+        await seed();
+
+        await runner.run(<String>['cache', 'clear', '--database', path]);
+
+        expect(await rows(), isEmpty);
+      });
+
+      test('purge removes only expired entries', () async {
+        await seed();
+        // The 1ms entry has to actually be past its expiry before purging.
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+
+        await runner.run(<String>['cache', 'purge', '--database', path]);
+
+        expect(
+          (await rows()).map((Map<String, Object?> row) => row['key']),
+          unorderedEquals(<String>['fresh', 'forever']),
+        );
+      });
+
+      test('clear reports a missing database rather than creating one',
+          () async {
+        final missing = '${directory.path}/absent.db';
+
+        await expectLater(
+          runner.run(<String>['cache', 'clear', '--database', missing]),
+          throwsA(isA<UsageException>()),
+        );
+        expect(File(missing).existsSync(), isFalse);
+      });
+
+      test('purge requires a database path', () async {
+        await expectLater(
+          runner.run(<String>['cache', 'purge']),
+          throwsA(isA<UsageException>()),
+        );
+      });
+
+      test('clear --table rejects an unsafe identifier', () async {
+        await seed();
+
+        await expectLater(
+          runner.run(<String>[
+            'cache',
+            'clear',
+            '--database',
+            path,
+            '--table',
+            'dartvel_cache; DROP TABLE dartvel_cache',
+          ]),
+          throwsA(isA<ArgumentError>()),
+        );
+        expect((await rows()).length, 3);
+      });
     });
   });
 }
