@@ -924,7 +924,9 @@ class ModelGenerator {
         }
         sb.writeln('}');
         sb.writeln();
-        sb.writeln('final bool _registered_$className = () {');
+        // A plain function, not a lazy final: a lazy runs once per isolate,
+        // which makes re-registration after a test reset silently a no-op.
+        sb.writeln('void _register$className() {');
         // A transport cannot carry a model without a codec; registering it
         // here means cross-client sync works without app wiring.
         sb.writeln('  DVModelSync.registerCodec<$className>(');
@@ -958,8 +960,107 @@ class ModelGenerator {
         sb.writeln(
           '  registerDVModelSerializer<$className>((model) => model.toJson());',
         );
-        sb.writeln('  return true;');
-        sb.writeln('}();');
+
+        // GraphQL: the generated API surface for this model. Sensitive fields
+        // stay out of the type, the resolvers, and the mutation arguments —
+        // GraphQL is a public API, so it reads through toPublicJson.
+        if (keyField != null) {
+          String sdlType(Map<String, String> f) {
+            final base = f['type']!.replaceAll('?', '');
+            final nullable = f['type']!.endsWith('?');
+            final scalar = switch (base) {
+              'int' => 'Int',
+              'double' || 'num' => 'Float',
+              'bool' => 'Boolean',
+              _ => 'String',
+            };
+            return nullable ? scalar : '$scalar!';
+          }
+
+          final publicFields = fields
+              .where((Map<String, String> f) =>
+                  !sensitiveFieldNames.contains(f['name']))
+              .toList();
+          final singular =
+              className[0].toLowerCase() + className.substring(1);
+
+          sb.writeln('  DVGraphQL.registerType(DVGraphQLObjectType(');
+          sb.writeln("    '$className',");
+          sb.writeln('    const <DVGraphQLField>[');
+          for (final f in publicFields) {
+            sb.writeln(
+              "      DVGraphQLField('${f['name']}', '${sdlType(f)}'),",
+            );
+          }
+          sb.writeln('    ],');
+          sb.writeln('  ));');
+          sb.writeln('  DVGraphQL.registerQuery(DVGraphQLField(');
+          sb.writeln("    '$tableName',");
+          sb.writeln("    '[$className!]!',");
+          sb.writeln('    resolve: (args, parent) async =>');
+          sb.writeln('        (await $className.all())');
+          sb.writeln(
+            '            .map(($className m) => m.toPublicJson())',
+          );
+          sb.writeln('            .toList(),');
+          sb.writeln('  ));');
+          sb.writeln('  DVGraphQL.registerQuery(DVGraphQLField(');
+          sb.writeln("    '$singular',");
+          sb.writeln("    '$className',");
+          sb.writeln("    args: const <String, String>{'$keyField': 'String!'},");
+          sb.writeln('    resolve: (args, parent) async =>');
+          sb.writeln(
+            "        (await $className.find(args['$keyField'] as String))",
+          );
+          sb.writeln('            ?.toPublicJson(),');
+          sb.writeln('  ));');
+
+          // save<Model>: public fields as arguments; sensitive fields take
+          // their generated defaults rather than crossing the API.
+          final constructorArgs = fields.map((Map<String, String> f) {
+            final name = f['name']!;
+            final type = f['type']!;
+            if (sensitiveFieldNames.contains(name)) {
+              final fallback = _factoryDefaultValue(
+                type: type,
+                name: name,
+                className: className,
+              );
+              return '$name: $fallback';
+            }
+            return "$name: args['$name'] as $type";
+          }).join(', ');
+          sb.writeln('  DVGraphQL.registerMutation(DVGraphQLField(');
+          sb.writeln("    'save$className',");
+          sb.writeln("    '$className!',");
+          sb.writeln('    args: const <String, String>{');
+          for (final f in publicFields) {
+            sb.writeln("      '${f['name']}': '${sdlType(f)}',");
+          }
+          sb.writeln('    },');
+          sb.writeln('    resolve: (args, parent) async =>');
+          // Runtime argument values: never const, whatever the source
+          // class's constructor is.
+          sb.writeln(
+            '        (await $className.save($className($constructorArgs)))',
+          );
+          sb.writeln('            .toPublicJson(),');
+          sb.writeln('  ));');
+          sb.writeln('  DVGraphQL.registerMutation(DVGraphQLField(');
+          sb.writeln("    'delete$className',");
+          sb.writeln("    'Boolean!',");
+          sb.writeln("    args: const <String, String>{'$keyField': 'String!'},");
+          sb.writeln('    resolve: (args, parent) async {');
+          sb.writeln(
+            "      final model = await $className.find(args['$keyField'] as String);",
+          );
+          sb.writeln('      if (model == null) return false;');
+          sb.writeln('      await $className.destroy(model);');
+          sb.writeln('      return true;');
+          sb.writeln('    },');
+          sb.writeln('  ));');
+        }
+        sb.writeln('}');
 
         sb.writeln();
         sb.writeln('/// Generated bulk import helpers for [$className].');
@@ -1423,6 +1524,21 @@ class ModelGenerator {
         }
       }
     }
+
+    // The per-model registration blocks are lazy top-level finals, which
+    // nothing evaluates on its own — form factories, codecs and GraphQL
+    // resolvers would silently never register. This function forces them and
+    // is called from the generated configureDartvelRuntime().
+    sb.writeln();
+    sb.writeln('/// Runs every generated model registration: form');
+    sb.writeln('/// factories, codecs, sync codecs and GraphQL resolvers.');
+    sb.writeln('/// Idempotent — registries overwrite by key — and');
+    sb.writeln('/// repeatable after a test reset.');
+    sb.writeln('void registerDartvelModels() {');
+    for (final className in classesGenerated) {
+      sb.writeln('  _register$className();');
+    }
+    sb.writeln('}');
 
     if (classesGenerated.isNotEmpty) {
       sb.writeln();

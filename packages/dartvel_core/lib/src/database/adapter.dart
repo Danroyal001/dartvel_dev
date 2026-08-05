@@ -79,3 +79,41 @@ class MemoryDVDatabaseAdapter implements DVDatabaseAdapter {
     return num.tryParse(trimmed) ?? trimmed;
   }
 }
+
+/// The database facade behind `DV.Database`.
+///
+/// Lives in core, not the Flutter layer: it wraps only [DVDatabaseAdapter],
+/// and a backend isolate needs it as much as a widget does.
+class DVDatabase {
+  const DVDatabase();
+  static DVDatabaseAdapter? _adapter;
+
+  void configure(DVDatabaseAdapter adapter) {
+    _adapter = adapter;
+  }
+
+  /// Forgets the configured adapter. Intended for tests.
+  void unconfigure() {
+    _adapter = null;
+  }
+
+  Future<List<Map<String, Object?>>> query(
+    String sql, [
+    List<Object?>? params,
+  ]) =>
+      _configuredAdapter.query(sql, params);
+
+  Future<int> execute(String sql, [List<Object?>? params]) =>
+      _configuredAdapter.execute(sql, params);
+
+  static DVDatabaseAdapter get _configuredAdapter {
+    final adapter = _adapter;
+    if (adapter == null) {
+      throw StateError(
+        'DV.Database has no configured adapter. Configure SQLite or another '
+        'database adapter before use.',
+      );
+    }
+    return adapter;
+  }
+}

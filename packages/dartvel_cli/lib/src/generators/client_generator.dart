@@ -343,6 +343,7 @@ import 'package:flutter/foundation.dart' show kReleaseMode, kIsWeb, defaultTarge
 import 'package:dartvel_flutter/dartvel_flutter.dart' show DV;
 import 'dartvel_config.g.dart' as cfg;
 import 'jobs.g.dart' show registerDartvelJobs;
+import 'models.g.dart' show registerDartvelModels;
 
 /// Wires the generated runtime into the short `DV.baseUrl` / `DV.api(...)` API.
 /// Called automatically during app/router initialization.
@@ -356,6 +357,7 @@ void configureDartvelRuntime() {
   // registered as part of configuring the runtime rather than left to the
   // application to remember.
   registerDartvelJobs();
+  registerDartvelModels();
 }
 
 class DartvelRuntime {
