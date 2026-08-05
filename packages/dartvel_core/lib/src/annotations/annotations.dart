@@ -127,46 +127,21 @@ class DVStaticPaths {
   const DVStaticPaths({this.route});
 }
 
-/// Marks the field a generated model page uses as its featured image.
-///
-/// Without it the page takes the first public image/media field. Only one
-/// field per model may carry it.
-class DVFeaturedImage {
-  const DVFeaturedImage();
-}
+/// The part a field plays in a generated model page, set by the field-scoped
+/// `@DVModel.featuredImage()`, `.pageTitle()`, `.mainContent()` and
+/// `.hideFromPage()` constructors.
+enum DVModelPageRole {
+  /// The page's featured image.
+  featuredImage,
 
-/// Marks the field a generated model page uses as its title.
-///
-/// Without it the page takes the first public `String` field named `title` or
-/// `name`, else the first public `String` field.
-class DVPageTitle {
-  const DVPageTitle();
-}
+  /// The page's title.
+  pageTitle,
 
-/// Marks the field a generated model page renders as its main text content.
-///
-/// Without it the page picks the longest non-empty text field at render time,
-/// ignoring the title and any hidden or sensitive field.
-class DVMainContent {
-  const DVMainContent();
-}
+  /// The page's main text content.
+  mainContent,
 
-/// Sets where a field appears among the remaining fields of a generated model
-/// page. Lower values come first; unannotated fields keep declaration order
-/// after every ordered one.
-class DVPageOrder {
-  final int order;
-
-  const DVPageOrder(this.order);
-}
-
-/// Excludes a field from generated model pages.
-///
-/// The field stays part of the model, its serialization, and its forms — this
-/// only removes it from the generated page. Use `@DVModel.sensitiveField()`
-/// for data that must not reach clients at all.
-class DVHideFromPage {
-  const DVHideFromPage();
+  /// Excluded from the page.
+  hidden,
 }
 
 /// Annotation metadata for a Dartvel data model.
@@ -190,6 +165,14 @@ class DVModel {
   final bool showInForms;
   final bool showInAdmin;
 
+  /// The part this field plays in a generated model page, when one of the
+  /// page-composition field constructors set it.
+  final DVModelPageRole? pageRole;
+
+  /// Where this field sits among a generated page's remaining fields, set by
+  /// `@DVModel.pageOrder(n)`. Lower comes first.
+  final int? pageOrderIndex;
+
   const DVModel({
     this.searchable = false,
     this.billable = false,
@@ -198,7 +181,9 @@ class DVModel {
     this.generatePublicPages = false,
   })  : encrypted = false,
         showInForms = false,
-        showInAdmin = false;
+        showInAdmin = false,
+        pageRole = null,
+        pageOrderIndex = null;
 
   /// Marks a model field as sensitive: `@DVModel.sensitiveField()`.
   ///
@@ -216,12 +201,62 @@ class DVModel {
         billable = false,
         nativePrice = null,
         pageDataMode = DVModelPageDataMode.auto,
-        generatePublicPages = false;
+        generatePublicPages = false,
+        pageRole = null,
+        pageOrderIndex = null;
 
   /// Marks a model field for generated search indexing:
   /// `@DVModel.searchableField()`.
   const DVModel.searchableField()
       : searchable = true,
+        billable = false,
+        nativePrice = null,
+        pageDataMode = DVModelPageDataMode.auto,
+        generatePublicPages = false,
+        encrypted = false,
+        showInForms = false,
+        showInAdmin = false,
+        pageRole = null,
+        pageOrderIndex = null;
+
+  /// Marks the field a generated model page uses as its featured image:
+  /// `@DVModel.featuredImage()`.
+  ///
+  /// Without it the page takes the first public image/media field. Only one
+  /// field per model may carry it.
+  const DVModel.featuredImage() : this._page(DVModelPageRole.featuredImage);
+
+  /// Marks the field a generated model page uses as its title:
+  /// `@DVModel.pageTitle()`.
+  ///
+  /// Without it the page takes the first public `String` field named `title`
+  /// or `name`, else the first public `String` field.
+  const DVModel.pageTitle() : this._page(DVModelPageRole.pageTitle);
+
+  /// Marks the field a generated model page renders as its main text content:
+  /// `@DVModel.mainContent()`.
+  ///
+  /// Without it the page picks the longest non-empty text field at render
+  /// time, ignoring the title and any hidden or sensitive field.
+  const DVModel.mainContent() : this._page(DVModelPageRole.mainContent);
+
+  /// Excludes the field from generated model pages:
+  /// `@DVModel.hideFromPage()`.
+  ///
+  /// The field stays part of the model, its serialization, and its forms —
+  /// this only removes it from the generated page. Use
+  /// `@DVModel.sensitiveField()` for data that must not reach clients at all.
+  const DVModel.hideFromPage() : this._page(DVModelPageRole.hidden);
+
+  /// Sets where the field appears among a generated page's remaining fields:
+  /// `@DVModel.pageOrder(3)`.
+  ///
+  /// Lower values come first; unannotated fields keep declaration order after
+  /// every ordered one.
+  const DVModel.pageOrder(int order) : this._page(null, order);
+
+  const DVModel._page(this.pageRole, [this.pageOrderIndex])
+      : searchable = false,
         billable = false,
         nativePrice = null,
         pageDataMode = DVModelPageDataMode.auto,
