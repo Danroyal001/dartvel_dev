@@ -13,6 +13,7 @@ dependencies:
   seo: ^0.0.10
   mix: ^2.0.0
   flutter_riverpod: ^2.5.1
+  ffi: ^2.1.0
   dartvel_core:
     path: ../dartvel_core
 
