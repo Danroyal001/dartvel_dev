@@ -5,6 +5,7 @@ import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:dartvel_example/pages/about.page.dart' deferred as p0;
 import 'package:dartvel_example/pages/blog/[id].page.dart' deferred as p1;
 import 'package:dartvel_example/pages/index.page.dart' deferred as p2;
+import 'package:dartvel_example/pages/pricing.dart' deferred as p3;
 void main() async {
   final outDir = Directory('build/web/_ssg');
   if (!outDir.existsSync()) outDir.createSync(recursive: true);
@@ -15,5 +16,7 @@ void main() async {
   // Skipped functional widget page: /blog/:id
   // /
   // Skipped functional widget page: /
+  // /pricing
+  // Skipped functional widget page: /pricing
   stdout.writeln('SSG generation complete.');
 }

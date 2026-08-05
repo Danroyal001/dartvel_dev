@@ -339,8 +339,9 @@ const String dvApiBasePath      = '${esc(apiBasePath)}';
 
     // Client runtime helper
     final runtimeDart = """
+import 'dart:async' show unawaited;
 import 'package:flutter/foundation.dart' show kReleaseMode, kIsWeb, defaultTargetPlatform, TargetPlatform, debugPrint;
-import 'package:dartvel_flutter/dartvel_flutter.dart' show DV;
+import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVPageStore;
 import 'dartvel_config.g.dart' as cfg;
 import 'jobs.g.dart' show registerDartvelJobs;
 import 'models.g.dart' show registerDartvelModels;
@@ -358,6 +359,9 @@ void configureDartvelRuntime() {
   // application to remember.
   registerDartvelJobs();
   registerDartvelModels();
+  // Reads stored Studio documents into memory so an override resolves during
+  // navigation instead of flashing the compiled page first.
+  unawaited(DVPageStore.prime());
 }
 
 class DartvelRuntime {
@@ -560,7 +564,14 @@ ${guardRedirectFor(e.directory)}      pageBuilder: (context, state) {
         final params = Map<String, String>.from(state.pathParameters);
         final query  = Map<String, String>.from(state.uri.queryParameters);
         final page = const ${e.generatedWidget}();
-        final withState = DartvelRouteState(params: params, query: query, child: page);
+        // A stored Studio document overrides this compiled page: the
+        // compiled one is the entrypoint the app shipped with, and the
+        // editor has to be able to change it.
+        final overridable = DVStudioPageRoute(
+          '${esc(e.route)}',
+          fallback: page,
+        );
+        final withState = DartvelRouteState(params: params, query: query, child: overridable);
 
         // i18n scope using the configured query parameter strategy.
         final i18nParam = '${esc(i18nParam)}';
@@ -760,6 +771,7 @@ $routesSrc
     // documents are data, so saving one publishes it without a rebuild.
     // Compiled routes always win — the store is only consulted here, after
     // matching has already failed.
+    // A route with no compiled page at all may still be a Studio page.
     errorBuilder: (BuildContext context, GoRouterState state) =>
         DVStudioPageRoute(state.uri.path),
   );
