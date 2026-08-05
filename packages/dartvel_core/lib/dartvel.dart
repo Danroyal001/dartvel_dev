@@ -35,6 +35,7 @@ export 'src/platform_config.dart';
 export 'src/secrets/secrets.dart';
 export 'src/shell/shell.dart';
 export 'src/storage/adapters.dart';
+export 'src/sync/model_sync.dart';
 export 'src/tenancy/tenants.dart';
 export 'src/transaction/transaction.dart';
 export 'src/updates/ota.dart';

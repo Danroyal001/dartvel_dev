@@ -40,6 +40,11 @@ class ModelGenerator {
     sb.writeln("import 'package:flutter/widgets.dart';");
     sb.writeln("import 'package:dartvel_core/dartvel.dart';");
     sb.writeln("import 'package:dartvel_flutter/dartvel_flutter.dart';");
+    sb.writeln();
+    sb.writeln('/// Reads a numeric column. The generated columns have TEXT');
+    sb.writeln('/// affinity, which coerces bound numbers to strings.');
+    sb.writeln('num _dvAsNum(Object? value) =>');
+    sb.writeln('    value is num ? value : num.parse(value.toString());');
 
     final classesGenerated = <String>[];
 
@@ -473,6 +478,149 @@ class ModelGenerator {
           sb.writeln('    return longest;');
           sb.writeln('  }');
         }
+
+        // Persistence and model sync. The key column is the same field public
+        // pages use; falling back to the first field keeps keyless models
+        // usable for append-only data.
+        final keyField = fields.isEmpty
+            ? null
+            : (() {
+                try {
+                  return _publicPathField(fields);
+                } on StateError {
+                  return fields.first['name']!;
+                }
+              })();
+        if (keyField != null) {
+          final columnList =
+              fields.map((Map<String, String> f) => f['name']!).join(', ');
+          final placeholderList =
+              fields.map((Map<String, String> f) => '?').join(', ');
+          String toParam(Map<String, String> f) {
+            final base = f['type']!.replaceAll('?', '');
+            final name = f['name']!;
+            // SQLite stores booleans as integers and DateTimes as text; the
+            // conversion happens here so _fromRow can reverse it.
+            if (base == 'bool') return 'model.$name == true ? 1 : 0';
+            if (base == 'DateTime') {
+              return f['type']!.endsWith('?')
+                  ? 'model.$name?.toIso8601String()'
+                  : 'model.$name.toIso8601String()';
+            }
+            return 'model.$name';
+          }
+
+          sb.writeln();
+          sb.writeln('  /// Typed change stream for [$className].');
+          sb.writeln(
+            '  static Stream<DVModelChange<$className>> get changes =>',
+          );
+          sb.writeln('      DVModelSync.changes<$className>();');
+          sb.writeln();
+          sb.writeln('  /// Reads a row back into a [$className].');
+          sb.writeln(
+            '  static $className _fromRow(Map<String, Object?> row) {',
+          );
+          sb.writeln('    return $className(');
+          for (final field in fields) {
+            final name = field['name']!;
+            final type = field['type']!;
+            final base = type.replaceAll('?', '');
+            final nullable = type.endsWith('?');
+            String read;
+            if (base == 'bool') {
+              // The generated columns have TEXT affinity, which coerces a
+              // bound integer to the string '1'; accept every stored form.
+              const truthy =
+                  "== 1 || row['NAME'] == true || row['NAME'] == '1' || row['NAME'] == 'true'";
+              final check = "row['$name'] ${truthy.replaceAll('NAME', name)}";
+              read = nullable
+                  ? "row['$name'] == null ? null : ($check)"
+                  : check;
+            } else if (base == 'int') {
+              read = nullable
+                  ? "row['$name'] == null ? null : _dvAsNum(row['$name']).toInt()"
+                  : "_dvAsNum(row['$name']).toInt()";
+            } else if (base == 'double') {
+              read = nullable
+                  ? "row['$name'] == null ? null : _dvAsNum(row['$name']).toDouble()"
+                  : "_dvAsNum(row['$name']).toDouble()";
+            } else if (base == 'DateTime') {
+              read = nullable
+                  ? "row['$name'] == null ? null : DateTime.parse(row['$name']! as String)"
+                  : "DateTime.parse(row['$name']! as String)";
+            } else {
+              read = "row['$name'] as $type";
+            }
+            sb.writeln('      $name: $read,');
+          }
+          sb.writeln('    );');
+          sb.writeln('  }');
+          sb.writeln();
+          sb.writeln('  /// Every stored [$className].');
+          sb.writeln('  static Future<core.List<$className>> all() async {');
+          sb.writeln(
+            "    final rows = await const DVDatabase().query('SELECT * FROM $tableName');",
+          );
+          sb.writeln(
+            '    return rows.map(_fromRow).toList(growable: false);',
+          );
+          sb.writeln('  }');
+          sb.writeln();
+          sb.writeln('  /// The stored [$className] whose $keyField matches,');
+          sb.writeln('  /// or null.');
+          sb.writeln('  static Future<$className?> find(String $keyField) async {');
+          sb.writeln(
+            "    final rows = await const DVDatabase().query('SELECT * FROM $tableName WHERE $keyField = ?', <Object?>[$keyField]);",
+          );
+          sb.writeln('    return rows.isEmpty ? null : _fromRow(rows.first);');
+          sb.writeln('  }');
+          sb.writeln();
+          sb.writeln('  /// Upserts [model] and publishes the change.');
+          sb.writeln('  static Future<$className> save($className model) async {');
+          sb.writeln('    const db = DVDatabase();');
+          sb.writeln(
+            "    final existing = await db.query('SELECT ${fields.first['name']} FROM $tableName WHERE $keyField = ?', <Object?>[model.$keyField]);",
+          );
+          sb.writeln(
+            "    await db.execute('DELETE FROM $tableName WHERE $keyField = ?', <Object?>[model.$keyField]);",
+          );
+          sb.writeln(
+            "    await db.execute('INSERT INTO $tableName ($columnList) VALUES ($placeholderList)', <Object?>[${fields.map(toParam).join(', ')}]);",
+          );
+          sb.writeln('    await DVModelSync.publish<$className>(');
+          sb.writeln('      model,');
+          sb.writeln('      kind: existing.isEmpty');
+          sb.writeln('          ? DVModelChangeKind.created');
+          sb.writeln('          : DVModelChangeKind.updated,');
+          sb.writeln('    );');
+          sb.writeln('    return model;');
+          sb.writeln('  }');
+          sb.writeln();
+          sb.writeln('  /// Removes [model] and publishes the deletion.');
+          sb.writeln('  static Future<void> destroy($className model) async {');
+          sb.writeln(
+            "    await const DVDatabase().execute('DELETE FROM $tableName WHERE $keyField = ?', <Object?>[model.$keyField]);",
+          );
+          sb.writeln(
+            '    await DVModelSync.publish<$className>(model, kind: DVModelChangeKind.deleted);',
+          );
+          sb.writeln('  }');
+          sb.writeln();
+          sb.writeln('  /// Calls [callback] with every stored [$className]');
+          sb.writeln('  /// now and again after each change, per the spec\'s');
+          sb.writeln('  /// `Model.watch((models) { ... })`.');
+          sb.writeln(
+            '  static Future<DVModelWatch> watch(void Function(core.List<$className>) callback) async {',
+          );
+          sb.writeln('    Future<void> emit() async => callback(await all());');
+          sb.writeln('    await emit();');
+          sb.writeln(
+            '    final subscription = DVModelSync.changes<$className>().listen((_) { emit(); });',
+          );
+          sb.writeln('    return DVModelWatch(subscription);');
+          sb.writeln('  }');
+        }
         sb.writeln('}');
 
         sb.writeln();
@@ -621,6 +769,26 @@ class ModelGenerator {
         sb.writeln('    );');
         sb.writeln('  }');
 
+        // Instance persistence, per the spec's `await user.sync()`.
+        if (fields.isNotEmpty) {
+          sb.writeln();
+          sb.writeln('  /// Upserts this model and publishes the change.');
+          sb.writeln('  Future<$className> save() => $className.save(this);');
+          sb.writeln();
+          sb.writeln('  /// Removes this model and publishes the deletion.');
+          sb.writeln('  Future<void> destroy() => $className.destroy(this);');
+          sb.writeln();
+          sb.writeln('  /// Persists this model and announces it as synced,');
+          sb.writeln('  /// so other watchers converge on this state.');
+          sb.writeln('  Future<$className> sync() async {');
+          sb.writeln('    await $className.save(this);');
+          sb.writeln(
+            '    await DVModelSync.publish<$className>(this, kind: DVModelChangeKind.synced);',
+          );
+          sb.writeln('    return this;');
+          sb.writeln('  }');
+        }
+
         // Database metadata
         sb.writeln();
         sb.writeln('  /// Database table name for [$className].');
@@ -757,6 +925,13 @@ class ModelGenerator {
         sb.writeln('}');
         sb.writeln();
         sb.writeln('final bool _registered_$className = () {');
+        // A transport cannot carry a model without a codec; registering it
+        // here means cross-client sync works without app wiring.
+        sb.writeln('  DVModelSync.registerCodec<$className>(');
+        sb.writeln("    name: '$className',");
+        sb.writeln('    encode: ($className model) => model.toJson(),');
+        sb.writeln('    decode: ${className}Parser.fromJson,');
+        sb.writeln('  );');
         sb.writeln(
           '  registerFormControlsFactory<$className>((model, {onSubmit, onReset}) {',
         );
