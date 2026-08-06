@@ -24,6 +24,7 @@ export 'src/annotations/annotations.dart';
 export 'src/auth/auth.dart';
 export 'src/auth/oauth2.dart';
 export 'src/auth/password.dart';
+export 'src/auth/tokens.dart';
 export 'src/cache/adapters.dart';
 export 'src/cache/redis.dart';
 export 'src/database/adapters.dart';

@@ -1018,8 +1018,8 @@ Providers
 * Gitlab
 * Bitbucket
 * Microsoft
-* Magic Links
-* OTP
+* Magic Links (`DVAuthTokens.issueMagicLink` / `redeemMagicLink`)
+* OTP (`DVAuthTokens.issueOtp` / `redeemOtp`)
 * LDAP
 * SAML
 
