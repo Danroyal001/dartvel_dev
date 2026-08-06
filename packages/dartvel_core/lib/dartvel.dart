@@ -26,6 +26,7 @@ export 'src/auth/oauth2.dart';
 export 'src/auth/password.dart';
 export 'src/auth/tokens.dart';
 export 'src/cache/adapters.dart';
+export 'src/cache/memcached.dart';
 export 'src/cache/redis.dart';
 export 'src/database/adapters.dart';
 export 'src/database/mysql.dart';
@@ -38,6 +39,7 @@ export 'src/mail/smtp.dart';
 export 'src/media/image.dart';
 export 'src/modules/modules.dart';
 export 'src/platform_config.dart';
+export 'src/queues/redis_queue.dart';
 export 'src/secrets/secrets.dart';
 export 'src/shell/shell.dart';
 export 'src/storage/adapters.dart';
@@ -1295,6 +1297,38 @@ class DVJobPayloadCodecs {
   static final Map<String, _DVRegisteredCodec> _byName = {};
 
   const DVJobPayloadCodecs();
+
+  /// The codec name registered for [TPayload], or null when none is.
+  ///
+  /// Public so a queue adapter can live outside this library and still use
+  /// the one registry — a second registry would drift from this one.
+  String? nameFor<TPayload>() => _byType[TPayload]?.name;
+
+  /// Encodes [payload] with its registered codec.
+  ///
+  /// Throws when nothing is registered: a durable queue that silently
+  /// dropped an unencodable payload would lose work with no trace.
+  Map<String, Object?> encodeFor<TPayload>(TPayload payload) {
+    final codec = _byType[TPayload];
+    if (codec == null) {
+      throw StateError(
+        'No DVJobPayloadCodec registered for $TPayload, so it cannot be '
+        'persisted. Register one, or use DVInMemoryQueueAdapter.',
+      );
+    }
+    return codec.encode(payload);
+  }
+
+  /// Decodes a payload previously encoded under [name].
+  ///
+  /// Returns null for an unknown name, which happens when a job outlives the
+  /// code that could read it — the caller decides whether that is a
+  /// dead-letter or a deploy skew to wait out.
+  DVJobPayload? decodeNamed(String name, Map<String, Object?> json) =>
+      _byName[name]?.decode(json);
+
+  /// The runtime type registered under [name], for rebuilding an envelope.
+  Type? typeNamed(String name) => _byName[name]?.type;
 
   void register<TPayload>(DVJobPayloadCodec<TPayload> codec) {
     if (codec.name.trim().isEmpty) {
