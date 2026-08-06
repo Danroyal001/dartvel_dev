@@ -1167,7 +1167,10 @@ and queues, not a separate realtime facade.
 - model sync
 - collection sync
 - generated model subscriptions
-- presence generated from authenticated model/session state
+- presence generated from authenticated model/session state, via
+  `DVPresence` — channel membership keyed on identity rather than
+  connection, tenant-scoped, expiring on silence because a crashed
+  client never sends a departure
 - collaborative editing through generated model operations
 - reactive models
 - WebSockets/SSE transport under the generated layer
