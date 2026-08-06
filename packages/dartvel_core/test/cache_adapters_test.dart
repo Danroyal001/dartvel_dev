@@ -142,7 +142,10 @@ void main() {
 
       final cache = DVDatabaseCacheAdapter(db, tableName: 'page_cache');
       await cache.write('k', 'v', null);
-      expect((await db.query('SELECT key FROM page_cache')).single['key'], 'k');
+      expect(
+        (await db.query('SELECT cache_key FROM page_cache')).single['cache_key'],
+        'k',
+      );
 
       for (final unsafe in <String>[
         'cache; DROP TABLE users',
