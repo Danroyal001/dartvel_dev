@@ -1501,7 +1501,9 @@ Features
 - Chat
 - Embeddings
 - Agents
-- MCP
+- MCP, both directions: `DVMcpServer` exposes the registered AI tools to an
+  MCP client, and `DVMcpClient.adoptTools()` registers an external
+  server's tools so `DV.AI` calls them like its own
 - Transcription
 - Structured outputs
 - AI-native diagnostics

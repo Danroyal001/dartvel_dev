@@ -18,6 +18,7 @@ export 'package:dartvel_shelf/dartvel_shelf.dart'
     show Request, Response, Headers;
 
 export 'src/ai/ai.dart';
+export 'src/ai/mcp.dart';
 export 'src/analytics/analytics.dart';
 export 'src/annotations/annotations.dart';
 export 'src/auth/auth.dart';
