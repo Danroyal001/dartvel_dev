@@ -40,6 +40,7 @@ export 'src/media/image.dart';
 export 'src/modules/modules.dart';
 export 'src/platform_config.dart';
 export 'src/queues/redis_queue.dart';
+export 'src/search/postgres_search.dart';
 export 'src/secrets/secrets.dart';
 export 'src/shell/shell.dart';
 export 'src/storage/adapters.dart';

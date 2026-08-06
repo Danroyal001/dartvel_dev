@@ -1689,7 +1689,7 @@ app flows.
 Dartvel should provide a generated search abstraction for models and content.
 
 Providers:
-- PostgreSQL full-text
+- PostgreSQL full-text (`DVPostgresSearchProvider`)
 - SQLite FTS
 - Meilisearch
 - Algolia
