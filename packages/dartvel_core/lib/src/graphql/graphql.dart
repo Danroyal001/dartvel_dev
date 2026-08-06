@@ -1,9 +1,10 @@
 /// GraphQL support: a document parser, a schema registry, and an executor.
 ///
 /// This is the executable subset a generated API needs — operations,
-/// selection sets, arguments, variables, aliases, and fragments. It is not a
-/// general GraphQL server library: directives and subscriptions are not
-/// implemented, and asking for them is an error rather than a silent no-op.
+/// selection sets, arguments, variables, aliases, fragments, and
+/// introspection. It is not a general GraphQL server library: directives and
+/// subscriptions are not implemented, and asking for them is an error rather
+/// than a silent no-op.
 library dartvel_core.graphql;
 
 import 'dart:async';
@@ -71,8 +72,8 @@ class DVGraphQL {
     _mutations.clear();
   }
 
-  /// The schema as SDL, for tooling. Introspection is not implemented; this
-  /// document is the machine-readable schema instead.
+  /// The schema as SDL, for humans and for tooling that prefers it to an
+  /// introspection round trip.
   static String toSdl() {
     final buffer = StringBuffer();
     String fieldLine(DVGraphQLField field) {
@@ -168,6 +169,36 @@ class DVGraphQL {
     final data = <String, Object?>{};
     for (final selection
         in context.expand(operation.selections)) {
+      // Introspection resolves from the registry rather than a resolver, so
+      // tooling works against whatever the application registered.
+      if (selection.name == '__schema') {
+        data[selection.alias] = context.project(
+          introspectionSchema(),
+          selection,
+        );
+        continue;
+      }
+      if (selection.name == '__type') {
+        final name = context.argument(selection, 'name');
+        final types =
+            introspectionSchema()['types']! as List<Object?>;
+        Map<String, Object?>? match;
+        for (final type in types) {
+          if ((type! as Map)['name'] == name) {
+            match = (type as Map).cast<String, Object?>();
+            break;
+          }
+        }
+        data[selection.alias] =
+            match == null ? null : context.project(match, selection);
+        continue;
+      }
+      if (selection.name == '__typename') {
+        data[selection.alias] =
+            operation.kind == 'mutation' ? 'Mutation' : 'Query';
+        continue;
+      }
+
       final field = roots[selection.name];
       if (field == null) {
         errors.add(<String, Object?>{
@@ -187,6 +218,114 @@ class DVGraphQL {
   }
 
   static DVGraphQLObjectType? typeNamed(String name) => _types[_bare(name)];
+
+  /// The introspection document, in the shape GraphQL clients expect.
+  ///
+  /// Built from the same registry that serves queries, so it cannot drift
+  /// from what actually executes — the failure mode a hand-maintained schema
+  /// document has.
+  static Map<String, Object?> introspectionSchema() {
+    final objectTypes = <Map<String, Object?>>[
+      if (_queries.isNotEmpty) _introspectFields('Query', _queries),
+      if (_mutations.isNotEmpty) _introspectFields('Mutation', _mutations),
+      for (final type in _types.values)
+        _introspectFields(type.name, type.fields),
+    ];
+    final scalars = <String>{
+      for (final type in _types.values)
+        for (final field in type.fields.values) _bare(field.type),
+      for (final field in _queries.values) _bare(field.type),
+      for (final field in _mutations.values) _bare(field.type),
+      for (final field in <DVGraphQLField>[
+        ..._queries.values,
+        ..._mutations.values,
+        for (final type in _types.values) ...type.fields.values,
+      ])
+        for (final argument in field.args.values) _bare(argument),
+    }.where((String name) => !_types.containsKey(name)).toList()
+      ..sort();
+
+    return <String, Object?>{
+      'queryType':
+          _queries.isEmpty ? null : <String, Object?>{'name': 'Query'},
+      'mutationType':
+          _mutations.isEmpty ? null : <String, Object?>{'name': 'Mutation'},
+      'subscriptionType': null,
+      'directives': <Object?>[],
+      'types': <Object?>[
+        ...objectTypes,
+        for (final scalar in scalars)
+          <String, Object?>{
+            'kind': 'SCALAR',
+            'name': scalar,
+            'fields': null,
+            'inputFields': null,
+            'interfaces': null,
+            'enumValues': null,
+            'possibleTypes': null,
+          },
+      ],
+    };
+  }
+
+  static Map<String, Object?> _introspectFields(
+    String name,
+    Map<String, DVGraphQLField> fields,
+  ) =>
+      <String, Object?>{
+        'kind': 'OBJECT',
+        'name': name,
+        'interfaces': <Object?>[],
+        'inputFields': null,
+        'enumValues': null,
+        'possibleTypes': null,
+        'fields': <Object?>[
+          for (final field in fields.values)
+            <String, Object?>{
+              'name': field.name,
+              'description': null,
+              'isDeprecated': false,
+              'deprecationReason': null,
+              'type': typeReference(field.type),
+              'args': <Object?>[
+                for (final argument in field.args.entries)
+                  <String, Object?>{
+                    'name': argument.key,
+                    'description': null,
+                    'defaultValue': null,
+                    'type': typeReference(argument.value),
+                  },
+              ],
+            },
+        ],
+      };
+
+  /// An SDL type string as an introspection type reference.
+  ///
+  /// `[User!]!` becomes NON_NULL(LIST(NON_NULL(OBJECT User))) — the nesting
+  /// clients rely on to know what can be null.
+  static Map<String, Object?> typeReference(String type) {
+    final trimmed = type.trim();
+    if (trimmed.endsWith('!')) {
+      return <String, Object?>{
+        'kind': 'NON_NULL',
+        'name': null,
+        'ofType': typeReference(trimmed.substring(0, trimmed.length - 1)),
+      };
+    }
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      return <String, Object?>{
+        'kind': 'LIST',
+        'name': null,
+        'ofType': typeReference(trimmed.substring(1, trimmed.length - 1)),
+      };
+    }
+    return <String, Object?>{
+      'kind': _types.containsKey(trimmed) ? 'OBJECT' : 'SCALAR',
+      'name': trimmed,
+      'ofType': null,
+    };
+  }
 
   /// `[User!]!` → `User`.
   static String _bare(String type) =>
@@ -264,6 +403,10 @@ class _ExecutionContext {
 
     final result = <String, Object?>{};
     for (final sub in expand(selection.selections)) {
+      if (sub.name == '__typename') {
+        result[sub.alias] = objectType.name;
+        continue;
+      }
       final subField = objectType.fields[sub.name];
       if (subField == null) {
         errors.add(<String, Object?>{
@@ -277,6 +420,26 @@ class _ExecutionContext {
     }
     return result;
   }
+
+  /// Applies a selection set to a plain map — how introspection results are
+  /// shaped, since they are data rather than registered types.
+  Object? project(Object? value, _Selection selection) {
+    if (value == null) return null;
+    if (value is List) {
+      return <Object?>[for (final item in value) project(item, selection)];
+    }
+    if (selection.selections.isEmpty || value is! Map) return value;
+
+    final result = <String, Object?>{};
+    for (final sub in expand(selection.selections)) {
+      result[sub.alias] = project(value[sub.name], sub);
+    }
+    return result;
+  }
+
+  /// One resolved argument of [selection].
+  Object? argument(_Selection selection, String name) =>
+      _coerce(selection.arguments[name]);
 
   Object? _coerce(Object? literal) {
     if (literal is _Variable) {
