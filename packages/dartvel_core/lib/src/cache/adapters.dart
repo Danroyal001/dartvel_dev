@@ -78,6 +78,9 @@ class DVMemoryCacheAdapter implements DVCacheAdapter {
 /// With [SqliteDVDatabaseAdapter] this is the zero-config persistent cache the
 /// spec calls for; the same adapter works over any future SQL adapter.
 ///
+/// The column is `cache_key` rather than `key` because `KEY` is reserved in
+/// MySQL, and quoting it differs per dialect.
+///
 /// Values are stored as JSON, so only JSON-encodable values can be cached.
 /// A value that cannot be encoded raises [ArgumentError] on [write] rather
 /// than being silently dropped. Note the round trip is JSON's, not Dart's:
@@ -108,9 +111,9 @@ class DVDatabaseCacheAdapter implements DVCacheAdapter {
     if (_initialized) return;
     await database.execute('''
       CREATE TABLE IF NOT EXISTS $tableName (
-        key TEXT PRIMARY KEY,
+        cache_key VARCHAR(255) PRIMARY KEY,
         value TEXT NOT NULL,
-        expires_at INTEGER
+        expires_at BIGINT
       )
     ''');
     _initialized = true;
@@ -120,7 +123,7 @@ class DVDatabaseCacheAdapter implements DVCacheAdapter {
   Future<Object?> read(String key) async {
     await initialize();
     final rows = await database.query(
-      'SELECT value, expires_at FROM $tableName WHERE key = ?',
+      'SELECT value, expires_at FROM $tableName WHERE cache_key = ?',
       <Object?>[key],
     );
     if (rows.isEmpty) return null;
@@ -146,9 +149,15 @@ class DVDatabaseCacheAdapter implements DVCacheAdapter {
         ttl == null ? null : DateTime.now().add(ttl).millisecondsSinceEpoch;
 
     await database.execute(
-      'INSERT INTO $tableName (key, value, expires_at) VALUES (?, ?, ?) '
-      'ON CONFLICT(key) DO UPDATE SET value = excluded.value, '
-      'expires_at = excluded.expires_at',
+      // Delete-then-insert rather than an upsert: ON CONFLICT is SQLite and
+      // Postgres syntax, ON DUPLICATE KEY is MySQL's, and the adapter has to
+      // run on all three.
+      'DELETE FROM $tableName WHERE cache_key = ?',
+      <Object?>[key],
+    );
+    await database.execute(
+      'INSERT INTO $tableName (cache_key, value, expires_at) '
+      'VALUES (?, ?, ?)',
       <Object?>[key, encoded, expiresAt],
     );
   }
@@ -157,7 +166,7 @@ class DVDatabaseCacheAdapter implements DVCacheAdapter {
   Future<void> remove(String key) async {
     await initialize();
     await database.execute(
-      'DELETE FROM $tableName WHERE key = ?',
+      'DELETE FROM $tableName WHERE cache_key = ?',
       <Object?>[key],
     );
   }
