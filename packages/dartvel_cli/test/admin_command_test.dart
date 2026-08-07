@@ -44,6 +44,41 @@ void main() {
       expect(indexSource, contains('DVText'));
     });
 
+    test('every modifier the admin pages call exists on DVModifier', () {
+      // The generated pages are strings, so nothing compiles them until a user
+      // does. They shipped calling a `.bold()` that DVModifier never had; this
+      // checks the emitted calls against the real declarations instead.
+      final modifiers = File(p.join(
+        previous.path,
+        '..',
+        'dartvel_flutter',
+        'lib',
+        'dartvel_flutter.dart',
+      ));
+      expect(modifiers.existsSync(), isTrue,
+          reason: 'dartvel_flutter must sit beside dartvel_cli');
+      final declared = RegExp(r'^  DVModifier ([a-zA-Z0-9_]+)\(', multiLine: true)
+          .allMatches(modifiers.readAsStringSync())
+          .map((RegExpMatch m) => m.group(1))
+          .toSet();
+      expect(declared, contains('fontWeight'));
+
+      final generated = DartvelAdminGenerator.generate(root: temp, force: true);
+      for (final file in generated.writtenFiles) {
+        final source = file.readAsStringSync();
+        for (final call
+            in RegExp(r'DVModifier\(\)((?:\.[a-zA-Z0-9_]+\([^;]*?\))+)')
+                .allMatches(source)) {
+          for (final method in RegExp(r'\.([a-zA-Z0-9_]+)\(')
+              .allMatches(call.group(1)!)
+              .map((RegExpMatch m) => m.group(1)!)) {
+            expect(declared, contains(method),
+                reason: '${p.basename(file.path)} calls DVModifier.$method');
+          }
+        }
+      }
+    });
+
     test('admin generate preserves existing files unless forced', () async {
       final first = DartvelAdminGenerator.generate(root: temp, force: false);
       expect(first.writtenFiles, isNotEmpty);
