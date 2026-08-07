@@ -767,8 +767,12 @@ class ModelGenerator {
         sb.writeln(
           '  /// Returns a copy of [$className] with the given fields replaced.',
         );
-        final params =
-            fields.map((f) => "${f['type']}? ${f['name']}").join(', ');
+        // An already-nullable field is already optional here; appending a
+        // second `?` is a syntax error, not a more optional parameter.
+        final params = fields.map((f) {
+          final type = f['type']!;
+          return '${type.endsWith('?') ? type : '$type?'} ${f['name']}';
+        }).join(', ');
         sb.writeln('  $className copyWith({$params}) {');
         sb.writeln('    return $className(');
         for (final field in fields) {
@@ -919,14 +923,24 @@ class ModelGenerator {
             defaultVal = 'false';
           }
 
+          // No default means the getter can return null, whatever the field
+          // was declared as. Keeping the field's own type there made the
+          // whole generated client fail to compile for a DateTime.
+          final hasDefault = defaultVal != 'null';
+          final getterType =
+              hasDefault || type.endsWith('?') ? type : '$type?';
           sb.writeln();
           sb.writeln(
-            '  $type get $name => ${className.toLowerCase()}?.$name ?? $defaultVal;',
+            '  $getterType get $name => ${className.toLowerCase()}?.$name'
+            '${hasDefault ? ' ?? $defaultVal' : ''};',
           );
           if (type.replaceAll('?', '') == 'String') {
+            // A nullable string has no text to validate until it has one;
+            // calling trim() on it unconditionally does not compile.
+            final subject = getterType.endsWith('?') ? '($name ?? \'\')' : name;
             final validation = name.toLowerCase().contains('email')
-                ? '$name.isNotEmpty && $name.contains(\'@\')'
-                : '$name.trim().isNotEmpty';
+                ? '$subject.isNotEmpty && $subject.contains(\'@\')'
+                : '$subject.trim().isNotEmpty';
             sb.writeln('  bool get ${name}IsValid => $validation;');
           }
         }
@@ -952,7 +966,11 @@ class ModelGenerator {
         sb.writeln('    );');
         sb.writeln('  });');
         sb.writeln(
-          '  registerDVModelFactory<$className>(() => $constructorPrefix$className(',
+          // Not const, even when the constructor is: the defaults include
+          // expressions such as DateTime.fromMillisecondsSinceEpoch that no
+          // const invocation can hold. A non-const call to a const
+          // constructor is always legal; the reverse is not.
+          '  registerDVModelFactory<$className>(() => $className(',
         );
         for (final field in fields) {
           final name = field['name']!;
@@ -1621,7 +1639,7 @@ class ModelGenerator {
         // unnecessary_nullable_for_final_variable_declarations: page metadata
         // is declared `String?` for every model, so it reads as unnecessary on
         // the models that happen to resolve a value.
-        '// GENERATED CODE - DO NOT MODIFY BY HAND\n// ignore_for_file: directives_ordering, non_constant_identifier_names, unused_element, use_super_parameters, unnecessary_nullable_for_final_variable_declarations\n// Build ID: $buildId\n';
+        '// GENERATED CODE - DO NOT MODIFY BY HAND\n// ignore_for_file: directives_ordering, non_constant_identifier_names, unused_element, use_super_parameters, unnecessary_nullable_for_final_variable_declarations, unnecessary_import\n// Build ID: $buildId\n';
     final content = classesGenerated.isEmpty
         ? '${generatedHeader}library dartvel_client_models;\n'
         : '$generatedHeader\n${sb.toString()}';
