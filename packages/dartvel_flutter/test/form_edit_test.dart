@@ -187,4 +187,40 @@ void main() {
     expect((error as StateError).message,
         allOf(contains('seats'), contains('not-a-number')));
   });
+
+  testWidgets('the fields show the record, not a grey hint of it',
+      (WidgetTester tester) async {
+    registerAccount();
+    await pumpAccountForm(tester, onSubmit: (Account _) {});
+
+    // The value was passed as `hintText`, which draws it as placeholder text
+    // in an empty field: a stored record looked like a blank one, and
+    // clicking in to edit showed nothing to edit.
+    expect(
+      tester.widget<EditableText>(find.byType(EditableText).at(emailField))
+          .controller.text,
+      'old@example.com',
+    );
+    expect(
+      tester.widget<EditableText>(find.byType(EditableText).at(seatsField))
+          .controller.text,
+      '3',
+    );
+  });
+
+  testWidgets('typing does not fight the field for the cursor',
+      (WidgetTester tester) async {
+    registerAccount();
+    await pumpAccountForm(tester, onSubmit: (Account _) {});
+
+    // Each keystroke rebuilds the form; a controller recreated per build
+    // would send the caret back to the start every time.
+    final field = find.byType(EditableText).at(emailField);
+    await tester.enterText(field, 'abc');
+    await tester.pumpAndSettle();
+
+    final state = tester.widget<EditableText>(field);
+    expect(state.controller.text, 'abc');
+    expect(state.controller.selection.baseOffset, 3);
+  });
 }
