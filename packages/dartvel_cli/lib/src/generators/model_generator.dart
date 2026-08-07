@@ -45,6 +45,15 @@ class ModelGenerator {
     sb.writeln('/// affinity, which coerces bound numbers to strings.');
     sb.writeln('num _dvAsNum(Object? value) =>');
     sb.writeln('    value is num ? value : num.parse(value.toString());');
+    sb.writeln();
+    sb.writeln('/// Reads a timestamp. JSON has no date type, so a value that');
+    sb.writeln('/// has been through jsonEncode arrives as the ISO string');
+    sb.writeln('/// [toJson] wrote; one that has not is still a DateTime.');
+    sb.writeln('DateTime _dvAsDateTime(Object? value) => value is DateTime');
+    sb.writeln('    ? value');
+    sb.writeln('    : value is num');
+    sb.writeln('        ? DateTime.fromMillisecondsSinceEpoch(value.toInt())');
+    sb.writeln('        : DateTime.parse(value.toString());');
 
     final classesGenerated = <String>[];
 
@@ -735,7 +744,7 @@ class ModelGenerator {
         sb.writeln('  Map<String, Object?> toJson() => {');
         for (final field in fields) {
           final name = field['name']!;
-          sb.writeln("    '$name': $name,");
+          sb.writeln("    '$name': ${_jsonValue(field)},");
         }
         sb.writeln('  };');
 
@@ -749,7 +758,7 @@ class ModelGenerator {
         for (final field in fields) {
           final name = field['name']!;
           if (sensitiveFieldNames.contains(name)) continue;
-          sb.writeln("    '$name': $name,");
+          sb.writeln("    '$name': ${_jsonValue(field)},");
         }
         sb.writeln('  };');
 
@@ -811,8 +820,7 @@ class ModelGenerator {
         sb.writeln('    return $className(');
         for (final field in fields) {
           final name = field['name']!;
-          final type = field['type']!;
-          sb.writeln("      $name: json['$name'] as $type,");
+          sb.writeln('      $name: ${_fromJsonValue(field)},');
         }
         sb.writeln('    );');
         sb.writeln('  }');
@@ -1665,6 +1673,42 @@ class ModelGenerator {
       '$className.$name of type $type. Make the field nullable or add an '
       'explicit value with ${className}Factory($name: ...).',
     );
+  }
+
+  /// How a field is written into a JSON map.
+  ///
+  /// A `DateTime` is not JSON: leaving one in the map makes `jsonEncode` throw
+  /// on the whole model, so it goes out as the ISO string [_fromJsonValue]
+  /// reads back.
+  static String _jsonValue(Map<String, String> field) {
+    final name = field['name']!;
+    final type = field['type']!;
+    final nullable = type.endsWith('?');
+    if (type.replaceAll('?', '') != 'DateTime') return name;
+    return nullable ? '$name?.toIso8601String()' : '$name.toIso8601String()';
+  }
+
+  /// How a field is read back out of a JSON map.
+  ///
+  /// Casting is not enough: a decoded map holds strings and numbers, so a
+  /// straight `as DateTime` or `as int` throws on exactly the values
+  /// `toJson` produced.
+  static String _fromJsonValue(Map<String, String> field) {
+    final name = field['name']!;
+    final type = field['type']!;
+    final base = type.replaceAll('?', '');
+    final nullable = type.endsWith('?');
+    final read = switch (base) {
+      'DateTime' => "_dvAsDateTime(json['$name'])",
+      'int' => "_dvAsNum(json['$name']).toInt()",
+      'double' => "_dvAsNum(json['$name']).toDouble()",
+      'num' => "_dvAsNum(json['$name'])",
+      _ => "json['$name'] as $type",
+    };
+    // A plain cast already carries the `?`; a coercion helper does not, so
+    // only those need the null guard.
+    if (!nullable || !read.startsWith('_dv')) return read;
+    return "json['$name'] == null ? null : $read";
   }
 
   static String? _factoryAdminValue(String type, String name) {
