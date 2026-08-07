@@ -139,4 +139,14 @@ void main() {
 
     expect(fromJson, contains("id: json['id'] as String"));
   });
+
+  test('the model registers the way back, not only the way out', () async {
+    final generated = await generate(_model);
+
+    // Serializing alone is one-way: DVForm can render a Post and accept
+    // typing, but cannot return an edited one without this.
+    expect(generated, contains('registerDVModelSerializer<Post>'));
+    expect(generated,
+        contains('registerDVModelDeserializer<Post>(PostParser.fromJson)'));
+  });
 }

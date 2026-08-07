@@ -968,6 +968,11 @@ class ModelGenerator {
         sb.writeln(
           '  registerDVModelSerializer<$className>((model) => model.toJson());',
         );
+        // The way back: without it a DVForm can render a model but not
+        // return an edited one.
+        sb.writeln(
+          '  registerDVModelDeserializer<$className>(${className}Parser.fromJson);',
+        );
 
         // GraphQL: the generated API surface for this model. Sensitive fields
         // stay out of the type, the resolvers, and the mutation arguments —

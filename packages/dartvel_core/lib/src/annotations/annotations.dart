@@ -504,9 +504,12 @@ final Map<Type, DVFormControlsFactory> formControlsFactories = {};
 
 typedef DVModelFactory<T> = T Function();
 typedef DVModelSerializer<T> = Map<String, Object?> Function(T model);
+typedef DVModelDeserializer<T> = T Function(Map<String, Object?> json);
 
 final Map<Type, Object? Function()> dvModelFactories = {};
 final Map<Type, Map<String, Object?> Function(Object?)> dvModelSerializers = {};
+final Map<Type, Object? Function(Map<String, Object?>)> dvModelDeserializers =
+    {};
 
 void registerFormControlsFactory<T>(DVFormControlsFactory factory) {
   formControlsFactories[T] = factory;
@@ -530,4 +533,19 @@ Map<String, Object?>? serializeDVModel<T>(T model) {
   final serializer = dvModelSerializers[T];
   if (serializer == null) return null;
   return serializer(model);
+}
+
+/// Registers how a [T] is rebuilt from a JSON map.
+///
+/// Serializing alone is one-way: a form can show a model's fields but cannot
+/// hand back an edited one without this.
+void registerDVModelDeserializer<T>(DVModelDeserializer<T> deserializer) {
+  dvModelDeserializers[T] = (Map<String, Object?> json) => deserializer(json);
+}
+
+/// Rebuilds a [T] from [json], or null when no deserializer is registered.
+T? deserializeDVModel<T>(Map<String, Object?> json) {
+  final deserializer = dvModelDeserializers[T];
+  if (deserializer == null) return null;
+  return deserializer(json) as T;
 }
