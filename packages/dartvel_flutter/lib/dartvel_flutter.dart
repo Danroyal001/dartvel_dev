@@ -217,7 +217,15 @@ export 'package:dartvel_core/dartvel.dart'
         Entitlement,
         LocalAnalyticsProvider,
         formControlsFactories,
-        registerFormControlsFactory;
+        registerFormControlsFactory,
+        // The model registries a DVForm reads: an application registers
+        // through the generated client, and a test registers directly.
+        dvModelDeserializers,
+        dvModelFactories,
+        dvModelSerializers,
+        registerDVModelDeserializer,
+        registerDVModelFactory,
+        registerDVModelSerializer;
 export 'package:go_router/go_router.dart';
 
 export 'src/media/image_view.dart';
@@ -1088,10 +1096,16 @@ class DVForm<T> extends StatefulWidget {
   final T? initialValue;
   final Widget Function(DVFormControls)? builder;
 
-  const DVForm([this.initialValue]) : builder = null;
+  /// Called on submit with the model the fields describe.
+  ///
+  /// Without this a form is display-only: the edits live in the widget and
+  /// nothing else can see them.
+  final void Function(T value)? onSubmit;
+
+  const DVForm([this.initialValue, this.onSubmit]) : builder = null;
 
   const DVForm.builder(Widget Function(DVFormControls) this.builder,
-      [this.initialValue, Key? key])
+      [this.initialValue, Key? key, this.onSubmit])
       : super(key: key);
 
   @override
@@ -1166,15 +1180,96 @@ class _DVFormState<T> extends State<DVForm<T>> {
       ));
     }
 
+    // Fields with nothing to press are a display, not a form. The controls
+    // appear once a caller has asked for the value, because that is the only
+    // point at which submitting means anything.
+    if (widget.onSubmit != null) {
+      fields.add(
+        const DVText('Save').modifier(
+          const DVModifier()
+              .semanticButton()
+              .onTap(_submit)
+              .minimumTapTarget(width: 48, height: 48),
+        ),
+      );
+      fields.add(
+        const DVText('Reset').modifier(
+          const DVModifier()
+              .semanticButton()
+              .onTap(_reset)
+              .minimumTapTarget(width: 48, height: 48),
+        ),
+      );
+    }
+
     return Form(
+      key: const ValueKey<String>('dv-form'),
       child: DVBox.list(fields),
     );
   }
 
+  /// The model the fields currently describe.
+  ///
+  /// The typed values live in [_fieldValues] as text, so the edited model is
+  /// built by writing them over the serialized form and reading it back —
+  /// which is also what makes the field types the model's own rather than
+  /// strings.
+  T _edited() {
+    if (_fieldValues.isEmpty) return formValue;
+    final serialized = serializeDVModel<T>(formValue);
+    if (serialized == null) {
+      throw StateError(
+        'No generated serializer registered for $T, so the edits to this '
+        'form cannot be read back. Run dartvel build after annotating the '
+        'model with @DVModel().',
+      );
+    }
+    final json = Map<String, Object?>.of(serialized);
+    for (final entry in _fieldValues.entries) {
+      json[entry.key] = entry.value;
+    }
+    try {
+      final value = deserializeDVModel<T>(json);
+      if (value == null) {
+        throw StateError(
+          'No generated deserializer registered for $T, so this form can '
+          'show a $T but cannot return an edited one. Run dartvel build '
+          'after annotating the model with @DVModel().',
+        );
+      }
+      return value;
+    } on FormatException catch (error) {
+      // A half-typed number reaches here as text the model cannot hold.
+      // Naming the field beats a bare "Invalid radix-10 number" — but which
+      // field is only inferable from the value, and parsers disagree about
+      // where they put it: num.parse reports the input as the message and
+      // leaves source null, while int.parse sets source.
+      final reported = <String>{
+        if (error.source is String) error.source! as String,
+        error.message,
+      };
+      final offending = _fieldValues.entries
+          .where((MapEntry<String, String> e) => reported.contains(e.value))
+          .toList(growable: false);
+      final where =
+          offending.map((MapEntry<String, String> e) => e.key).join(', ');
+      final value = offending.isEmpty ? error.message : offending.first.value;
+      throw StateError(
+        'Cannot build $T from this form: '
+        '${where.isEmpty ? 'a field' : where} '
+        'holds "$value", which is not a valid value for it.',
+      );
+    }
+  }
+
   void _submit() {
+    final value = _edited();
     setState(() {
-      _initialValue = formValue;
+      formValue = value;
+      _initialValue = value;
+      _fieldValues.clear();
     });
+    widget.onSubmit?.call(value);
   }
 
   void _reset() {
