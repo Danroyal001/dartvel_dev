@@ -105,6 +105,7 @@ class DartvelAdminGenerator {
       'queues.page.dart': _queuesPage,
       'cache.page.dart': _cachePage,
       'routes.page.dart': _routesPage,
+      'studio.page.dart': _studioPage,
     };
     final written = <File>[];
     final skipped = <File>[];
@@ -137,14 +138,35 @@ Widget buildDartvelAdminIndexPage(BuildContext context) => DVBox.list([
     ),
     DVText('Generated model, route, queue, cache, policy, and notification tools.'),
     DVBox.grid([
-      const DVBox(DVText('Queues and Jobs')).modifier(const DVModifier().card().padding(16)),
-      const DVBox(DVText('Cache Tags')).modifier(const DVModifier().card().padding(16)),
-      const DVBox(DVText('Routes and Pages')).modifier(const DVModifier().card().padding(16)),
-      const DVBox(DVText('Policies and Permissions')).modifier(const DVModifier().card().padding(16)),
-      const DVBox(DVText('Notifications')).modifier(const DVModifier().card().padding(16)),
-      const DVBox(DVText('Model Sync')).modifier(const DVModifier().card().padding(16)),
+      dartvelAdminCard(context, 'Studio', '/_dartvel_admin/studio'),
+      dartvelAdminCard(context, 'Queues and Jobs', '/_dartvel_admin/queues'),
+      dartvelAdminCard(context, 'Cache Tags', '/_dartvel_admin/cache'),
+      dartvelAdminCard(context, 'Routes and Pages', '/_dartvel_admin/routes'),
     ], columns: 2),
   ]).modifier(const DVModifier().padding(24));
+
+/// A card that opens the surface it names. Cards that named a page without
+/// going to it left the admin unnavigable.
+Widget dartvelAdminCard(BuildContext context, String label, String path) =>
+    DVBox(DVText(label)).modifier(
+      const DVModifier().card().padding(16).semanticButton().onTap(
+        () => context.navigateToPage(DVRouteTarget(path)),
+      ),
+    );
+''';
+
+  static const String _studioPage = '''
+import '../../dartvel_client/dartvel_client.dart';
+import 'package:flutter/widgets.dart';
+
+@DVPage(title: 'Dartvel Studio', path: '/_dartvel_admin/studio')
+@pragma('vm:entry-point')
+Widget _dartvelAdminStudioPage(BuildContext context) => buildDartvelAdminStudioPage(context);
+
+/// The page builder itself. DVStudioScreen is a tested widget in
+/// dartvel_flutter rather than source emitted here, so what the generator
+/// writes cannot drift from the editor it opens.
+Widget buildDartvelAdminStudioPage(BuildContext context) => const DVStudioScreen();
 ''';
 
   static const String _queuesPage = '''
