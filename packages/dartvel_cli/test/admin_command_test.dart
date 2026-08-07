@@ -44,6 +44,24 @@ void main() {
       expect(indexSource, contains('DVText'));
     });
 
+    test('the admin opens the Studio rather than only naming it', () async {
+      final runner = CommandRunner<void>('dartvel', 'Test runner')
+        ..addCommand(AdminCommand());
+      await runner.run(<String>['admin', 'generate']);
+
+      final admin = p.join(temp.path, 'lib', 'pages', '_dartvel_admin');
+      final studio =
+          File(p.join(admin, 'studio.page.dart')).readAsStringSync();
+      expect(studio, contains("path: '/_dartvel_admin/studio'"));
+      // Delegating to the tested widget, not re-emitting an editor as source.
+      expect(studio, contains('const DVStudioScreen()'));
+
+      final index = File(p.join(admin, 'index.page.dart')).readAsStringSync();
+      expect(index, contains("'/_dartvel_admin/studio'"));
+      // Cards that name a page without navigating leave the admin a dead end.
+      expect(index, contains('context.navigateToPage'));
+    });
+
     test('every modifier the admin pages call exists on DVModifier', () {
       // The generated pages are strings, so nothing compiles them until a user
       // does. They shipped calling a `.bold()` that DVModifier never had; this
