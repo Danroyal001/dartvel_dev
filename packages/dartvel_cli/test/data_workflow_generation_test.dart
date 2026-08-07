@@ -204,7 +204,10 @@ class _Account {
 }
 ''');
 
-      expect(
+      // Awaited: generate() is async, and the finally below deletes the
+      // fixture out from under it — the read then fails with a path error
+      // instead of the StateError this is checking for.
+      await expectLater(
         () => ModelGenerator.generate(
           root: root.path,
           pkgName: 'workflow_app',
@@ -245,7 +248,10 @@ class User {
 }
 ''');
 
-      expect(
+      // Awaited: generate() is async, and the finally below deletes the
+      // fixture out from under it — the read then fails with a path error
+      // instead of the StateError this is checking for.
+      await expectLater(
         () => ModelGenerator.generate(
           root: root.path,
           pkgName: 'workflow_app',
