@@ -228,6 +228,7 @@ export 'package:dartvel_core/dartvel.dart'
         registerDVModelSerializer;
 export 'package:go_router/go_router.dart';
 
+export 'src/admin/model_admin.dart';
 export 'src/media/image_view.dart';
 export 'src/platform/linux/linux_bindings.dart';
 export 'src/studio/page_document.dart';
@@ -880,6 +881,54 @@ class DVBox<T> extends StatelessWidget {
   int get _safeColumns => _columns < 1 ? 1 : _columns;
 }
 
+/// The editable form of [DVText], which needs state a stateless widget cannot
+/// hold: a controller rebuilt every frame would reset the cursor on each
+/// keystroke.
+class _DVInputField extends StatefulWidget {
+  final String value;
+  final DVModifier modifier;
+
+  const _DVInputField({required this.value, required this.modifier});
+
+  @override
+  State<_DVInputField> createState() => _DVInputFieldState();
+}
+
+class _DVInputFieldState extends State<_DVInputField> {
+  late final TextEditingController _controller =
+      TextEditingController(text: widget.value);
+
+  @override
+  void didUpdateWidget(_DVInputField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Follow the value when it changes underneath — a different record was
+    // opened, or the model was reset — but never while it already matches
+    // what is on screen, which is every keystroke the user makes.
+    if (widget.value != oldWidget.value && widget.value != _controller.text) {
+      _controller.text = widget.value;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: _controller,
+      obscureText: widget.modifier.inputObscureText,
+      decoration: InputDecoration(
+        labelText: widget.modifier.inputLabelValue,
+        hintText: widget.modifier.inputHintValue,
+      ),
+      onChanged: widget.modifier.inputChanged,
+    );
+  }
+}
+
 class DVText extends StatelessWidget {
   final String text;
   final DVModifier? _modifier;
@@ -894,14 +943,10 @@ class DVText extends StatelessWidget {
     final modifier = _modifier;
     Widget result;
     if (modifier?.inputValue == true) {
-      result = TextField(
-        obscureText: modifier!.inputObscureText,
-        decoration: InputDecoration(
-          labelText: modifier.inputLabelValue,
-          hintText: modifier.inputHintValue ?? text,
-        ),
-        onChanged: modifier.inputChanged,
-      );
+      // The text is the field's value, not a placeholder for it. Passing it
+      // as a hint drew every populated field as empty grey text, so a form
+      // over a stored record looked like a blank record.
+      result = _DVInputField(value: text, modifier: modifier!);
     } else {
       result = Text(
         text,
