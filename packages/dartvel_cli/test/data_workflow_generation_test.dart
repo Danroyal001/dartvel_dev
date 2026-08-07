@@ -43,7 +43,7 @@ class _Order {
           isNot(contains("export 'package:workflow_app/models/order.dart'")));
       expect(content, contains('class Order {'));
       expect(content, contains('const Order({'));
-      expect(content, contains('static Widget Form(Order model)'));
+      expect(content, contains('static Widget Form(Order model, [void Function(Order)? onSubmit])'));
       expect(content, contains('static Widget List('));
       expect(content, contains('static Widget Table('));
       expect(
