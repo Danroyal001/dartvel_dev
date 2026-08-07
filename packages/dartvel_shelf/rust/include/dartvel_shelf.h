@@ -50,7 +50,7 @@ int32_t aw_configure_spa_root(struct FfiStr path);
 
 int32_t aw_configure_compression(int32_t enabled);
 
-int32_t aw_start(struct FfiStr host, uint16_t port, uint32_t flags);
+int32_t aw_start(struct FfiStr host, uint16_t port, uint32_t _flags);
 
 int32_t aw_stop(uint64_t server_id);
 
