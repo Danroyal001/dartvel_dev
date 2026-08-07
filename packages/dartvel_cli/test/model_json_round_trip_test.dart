@@ -149,4 +149,24 @@ void main() {
     expect(generated,
         contains('registerDVModelDeserializer<Post>(PostParser.fromJson)'));
   });
+
+  test('the model generates a CRUD admin over its own operations', () async {
+    final generated = await generate(_model);
+    final admin = bodyOf(generated, 'static Widget Admin()');
+
+    // Wired to the model's real persistence, not a placeholder screen.
+    expect(admin, contains('DVModelAdmin<Post>'));
+    expect(admin, contains('load: all'));
+    expect(admin, contains('save: save'));
+    expect(admin, contains('destroy: destroy'));
+    // New opens the same blank the form falls back to.
+    expect(admin, contains('createDVModel<Post>()!'));
+    // The form has to be able to hand back an edited model, or saving from
+    // the admin would write the record it opened.
+    expect(admin, contains('Form(model, onSubmit)'));
+    expect(
+      generated,
+      contains('static Widget Form(Post model, [void Function(Post)? onSubmit])'),
+    );
+  });
 }

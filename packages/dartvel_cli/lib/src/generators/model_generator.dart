@@ -291,8 +291,14 @@ class ModelGenerator {
         );
         sb.writeln();
         sb.writeln('  /// Generated form component for [$className].');
-        sb.writeln('  static Widget Form($className model) {');
-        sb.writeln('    return DVForm<$className>(model);');
+        sb.writeln('  ///');
+        sb.writeln('  /// Pass [onSubmit] to receive the edited model; without');
+        sb.writeln('  /// it the form has no one to hand a value to and shows');
+        sb.writeln('  /// no controls.');
+        sb.writeln(
+          '  static Widget Form($className model, [void Function($className)? onSubmit]) {',
+        );
+        sb.writeln('    return DVForm<$className>(model, onSubmit);');
         sb.writeln('  }');
         sb.writeln();
         sb.writeln('  /// Generated lazy list component for [$className].');
@@ -614,6 +620,32 @@ class ModelGenerator {
           sb.writeln(
             '    await DVModelSync.publish<$className>(model, kind: DVModelChangeKind.deleted);',
           );
+          sb.writeln('  }');
+          sb.writeln();
+          sb.writeln('  /// Generated CRUD admin for [$className].');
+          sb.writeln('  ///');
+          sb.writeln('  /// One call rather than a generated screen: the model');
+          sb.writeln('  /// supplies list, blank, save, delete and its own');
+          sb.writeln('  /// form, and DVModelAdmin is the screen around them.');
+          sb.writeln('  static Widget Admin() {');
+          sb.writeln('    return DVModelAdmin<$className>(');
+          sb.writeln("      title: '$className',");
+          sb.writeln('      load: all,');
+          sb.writeln('      save: save,');
+          sb.writeln('      destroy: destroy,');
+          // The registered factory is the same blank the form falls back to,
+          // so New and an empty form agree on what a new record looks like.
+          sb.writeln(
+            '      blank: () => createDVModel<$className>()!,',
+          );
+          sb.writeln(
+            "      label: ($className model) => '\${model.$keyField}',",
+          );
+          sb.writeln(
+            '      form: ($className model, void Function($className) onSubmit) =>',
+          );
+          sb.writeln('          Form(model, onSubmit),');
+          sb.writeln('    );');
           sb.writeln('  }');
           sb.writeln();
           sb.writeln('  /// Calls [callback] with every stored [$className]');

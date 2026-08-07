@@ -54,7 +54,7 @@ class _User {
         );
         expect(content, contains('class User {'));
         expect(content, contains('const User({'));
-        expect(content, contains('static Widget Form(User model)'));
+        expect(content, contains('static Widget Form(User model, [void Function(User)? onSubmit])'));
         expect(content, contains('static Widget List('));
         expect(content, contains('static Widget Table('));
         expect(content, contains('// ignore: constant_identifier_names'));
