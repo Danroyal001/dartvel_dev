@@ -263,6 +263,7 @@ $openApiJson\'\'\';
 
     final backendRoutes = '''
 // GENERATED – do not edit.
+import 'dart:async';
 import 'dart:convert' as conv;
 import 'dart:io';
 import 'dart:typed_data';
@@ -442,6 +443,43 @@ $requestPrelude
   });
   router.get(cfg.apiBasePath + '/graphql/schema', (dv.Request _) async =>
       dv.Response.text(core.DVGraphQL.toSdl()));
+  // Subscriptions over Server-Sent Events. The server has no WebSocket, and
+  // SSE is a standard GraphQL transport, so a subscription is reachable
+  // today rather than waiting on one.
+  router.post(cfg.apiBasePath + '/graphql/stream', (dv.Request req) async {
+    final text = await req.body.text();
+    final decoded = text.isEmpty ? const <String, Object?>{} : conv.jsonDecode(text);
+    final map = decoded is Map ? decoded : const <String, Object?>{};
+    return dv.Response.stream(
+      (sink) {
+        final events = core.DVGraphQL.subscribe(
+          '\${map['query'] ?? ''}',
+          variables: (map['variables'] as Map?)?.cast<String, Object?>(),
+          operationName: map['operationName'] as String?,
+        );
+        late StreamSubscription<Map<String, Object?>> sub;
+        sub = events.listen(
+          (event) => sink.add(conv.utf8.encode(
+              'data: \${conv.jsonEncode(event)}\\n\\n')),
+          onDone: () {
+            sink.close();
+          },
+          onError: (Object error) {
+            sink.add(conv.utf8.encode(
+                'data: \${conv.jsonEncode(<String, Object?>{'errors': <Object?>[<String, Object?>{'message': '\$error'}]})}\\n\\n'));
+            sink.close();
+          },
+        );
+        // Nothing else cancels it: when the response sink closes, the
+        // subscription must go with it or the producer runs forever.
+        sink.done.whenComplete(sub.cancel);
+      },
+      headers: dv.Headers({
+        'content-type': 'text/event-stream; charset=utf-8',
+        'cache-control': 'no-cache',
+      }),
+    );
+  });
   router.get(cfg.apiBasePath + '/openapi.json', (dv.Request _) async =>
       dv.Response(200,
           headers: dv.Headers({'content-type': 'application/json'}),

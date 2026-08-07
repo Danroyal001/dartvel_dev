@@ -52,6 +52,7 @@ class DVGraphQL {
   static final Map<String, DVGraphQLObjectType> _types = {};
   static final Map<String, DVGraphQLField> _queries = {};
   static final Map<String, DVGraphQLField> _mutations = {};
+  static final Map<String, DVGraphQLField> _subscriptions = {};
 
   static void registerType(DVGraphQLObjectType type) {
     _types[type.name] = type;
@@ -65,11 +66,18 @@ class DVGraphQL {
     _mutations[field.name] = field;
   }
 
+  /// Registers a subscription. Its resolver returns a [Stream]; each event
+  /// becomes one `{data}` payload shaped by the client's selection set.
+  static void registerSubscription(DVGraphQLField field) {
+    _subscriptions[field.name] = field;
+  }
+
   /// Drops every registration. Intended for tests.
   static void reset() {
     _types.clear();
     _queries.clear();
     _mutations.clear();
+    _subscriptions.clear();
   }
 
   /// The schema as SDL, for humans and for tooling that prefers it to an
@@ -94,6 +102,14 @@ class DVGraphQL {
       if (buffer.isNotEmpty) buffer.writeln();
       buffer.writeln('type Mutation {');
       for (final field in _mutations.values) {
+        buffer.writeln(fieldLine(field));
+      }
+      buffer.writeln('}');
+    }
+    if (_subscriptions.isNotEmpty) {
+      if (buffer.isNotEmpty) buffer.writeln();
+      buffer.writeln('type Subscription {');
+      for (final field in _subscriptions.values) {
         buffer.writeln(fieldLine(field));
       }
       buffer.writeln('}');
@@ -154,7 +170,8 @@ class DVGraphQL {
       return <String, Object?>{
         'errors': <Object?>[
           <String, Object?>{
-            'message': '${operation.kind} operations are not supported.',
+            'message': 'A ${operation.kind} operation yields a stream of '
+                'results; use DVGraphQL.subscribe instead of execute.',
           },
         ],
       };
@@ -217,6 +234,162 @@ class DVGraphQL {
     };
   }
 
+  /// Runs a subscription, yielding one spec-shaped result per event.
+  ///
+  /// The resolver returns a Stream; each event is completed against the
+  /// client's selection set, so a subscriber receives exactly the fields it
+  /// asked for rather than the raw payload.
+  static Stream<Map<String, Object?>> subscribe(
+    String document, {
+    Map<String, Object?>? variables,
+    String? operationName,
+  }) {
+    _ParsedDocument parsed;
+    try {
+      parsed = _Parser(document).parseDocument();
+    } on FormatException catch (error) {
+      return Stream<Map<String, Object?>>.value(<String, Object?>{
+        'errors': <Object?>[
+          <String, Object?>{'message': error.message},
+        ],
+      });
+    }
+
+    final operation = parsed.operation(operationName);
+    if (operation == null || operation.kind != 'subscription') {
+      return Stream<Map<String, Object?>>.value(<String, Object?>{
+        'errors': <Object?>[
+          <String, Object?>{
+            'message': operation == null
+                ? 'No subscription operation to run.'
+                : 'That operation is a ${operation.kind}; use execute.',
+          },
+        ],
+      });
+    }
+
+    // One root field per subscription: the spec requires it, and a client
+    // subscribing to two streams at once has no defined event ordering.
+    final selections = <_Selection>[];
+    final context = _ExecutionContext(
+      variables: variables ?? const <String, Object?>{},
+      fragments: parsed.fragments,
+      errors: <Map<String, Object?>>[],
+    );
+    try {
+      selections.addAll(context.expand(operation.selections));
+    } on FormatException catch (error) {
+      return Stream<Map<String, Object?>>.value(<String, Object?>{
+        'errors': <Object?>[
+          <String, Object?>{'message': error.message},
+        ],
+      });
+    }
+    if (selections.length != 1) {
+      return Stream<Map<String, Object?>>.value(<String, Object?>{
+        'errors': <Object?>[
+          <String, Object?>{
+            'message': 'A subscription must select exactly one root field; '
+                'this one selects ${selections.length}.',
+          },
+        ],
+      });
+    }
+
+    final selection = selections.single;
+    final field = _subscriptions[selection.name];
+    if (field == null) {
+      return Stream<Map<String, Object?>>.value(<String, Object?>{
+        'errors': <Object?>[
+          <String, Object?>{
+            'message': 'Unknown subscription field "${selection.name}".',
+          },
+        ],
+      });
+    }
+
+    final resolve = field.resolve;
+    if (resolve == null) {
+      return Stream<Map<String, Object?>>.value(<String, Object?>{
+        'errors': <Object?>[
+          <String, Object?>{
+            'message': 'Subscription "${field.name}" has no resolver.',
+          },
+        ],
+      });
+    }
+
+    late StreamController<Map<String, Object?>> controller;
+    StreamSubscription<Object?>? source;
+
+    Future<void> start() async {
+      Object? stream;
+      try {
+        final args = <String, Object?>{
+          for (final entry in selection.arguments.entries)
+            entry.key: context.argument(selection, entry.key),
+        };
+        stream = await resolve(args, null);
+      } catch (error) {
+        controller.add(<String, Object?>{
+          'errors': <Object?>[
+            <String, Object?>{'message': '$error'},
+          ],
+        });
+        await controller.close();
+        return;
+      }
+      if (stream is! Stream) {
+        controller.add(<String, Object?>{
+          'errors': <Object?>[
+            <String, Object?>{
+              'message': 'Subscription "${field.name}" must resolve to a '
+                  'Stream; it returned ${stream.runtimeType}.',
+            },
+          ],
+        });
+        await controller.close();
+        return;
+      }
+
+      source = stream.listen(
+        (Object? event) async {
+          // Each event carries its own errors, so one bad payload does not
+          // end a long-lived subscription.
+          final errors = <Map<String, Object?>>[];
+          final eventContext = _ExecutionContext(
+            variables: variables ?? const <String, Object?>{},
+            fragments: parsed.fragments,
+            errors: errors,
+          );
+          final value = await eventContext._complete(
+            event,
+            field.type,
+            selection,
+          );
+          controller.add(<String, Object?>{
+            'data': <String, Object?>{selection.alias: value},
+            if (errors.isNotEmpty) 'errors': errors,
+          });
+        },
+        onError: (Object error) => controller.add(<String, Object?>{
+          'errors': <Object?>[
+            <String, Object?>{'message': '$error'},
+          ],
+        }),
+        onDone: () => unawaited(controller.close()),
+      );
+    }
+
+    controller = StreamController<Map<String, Object?>>(
+      onListen: () => unawaited(start()),
+      // Cancelling the subscriber must cancel the source, or a closed client
+      // leaves the producer running forever.
+      onCancel: () async => source?.cancel(),
+    );
+    return controller.stream;
+  }
+
   static DVGraphQLObjectType? typeNamed(String name) => _types[_bare(name)];
 
   /// The introspection document, in the shape GraphQL clients expect.
@@ -228,6 +401,8 @@ class DVGraphQL {
     final objectTypes = <Map<String, Object?>>[
       if (_queries.isNotEmpty) _introspectFields('Query', _queries),
       if (_mutations.isNotEmpty) _introspectFields('Mutation', _mutations),
+      if (_subscriptions.isNotEmpty)
+        _introspectFields('Subscription', _subscriptions),
       for (final type in _types.values)
         _introspectFields(type.name, type.fields),
     ];
@@ -236,9 +411,11 @@ class DVGraphQL {
         for (final field in type.fields.values) _bare(field.type),
       for (final field in _queries.values) _bare(field.type),
       for (final field in _mutations.values) _bare(field.type),
+      for (final field in _subscriptions.values) _bare(field.type),
       for (final field in <DVGraphQLField>[
         ..._queries.values,
         ..._mutations.values,
+        ..._subscriptions.values,
         for (final type in _types.values) ...type.fields.values,
       ])
         for (final argument in field.args.values) _bare(argument),
@@ -250,7 +427,9 @@ class DVGraphQL {
           _queries.isEmpty ? null : <String, Object?>{'name': 'Query'},
       'mutationType':
           _mutations.isEmpty ? null : <String, Object?>{'name': 'Mutation'},
-      'subscriptionType': null,
+      'subscriptionType': _subscriptions.isEmpty
+          ? null
+          : <String, Object?>{'name': 'Subscription'},
       'directives': <Object?>[],
       'types': <Object?>[
         ...objectTypes,
@@ -526,7 +705,9 @@ class _Parser {
         _expectWord('on');
         _readName(); // The type condition is not enforced.
         fragments[name] = _parseSelectionSet();
-      } else if (_peekWord('query') || _peekWord('mutation')) {
+      } else if (_peekWord('query') ||
+          _peekWord('mutation') ||
+          _peekWord('subscription')) {
         final kind = _readWord();
         String? name;
         _skipIgnored();

@@ -69,7 +69,7 @@ void main() {
       Future<List<Map<String, Object?>>> rows() async {
         final database = SqliteDVDatabaseAdapter.file(path);
         try {
-          return await database.query('SELECT key FROM dartvel_cache');
+          return await database.query('SELECT cache_key FROM dartvel_cache');
         } finally {
           database.close();
         }
@@ -91,7 +91,7 @@ void main() {
         await runner.run(<String>['cache', 'purge', '--database', path]);
 
         expect(
-          (await rows()).map((Map<String, Object?> row) => row['key']),
+          (await rows()).map((Map<String, Object?> row) => row['cache_key']),
           unorderedEquals(<String>['fresh', 'forever']),
         );
       });
