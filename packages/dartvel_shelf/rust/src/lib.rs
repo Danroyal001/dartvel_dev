@@ -210,8 +210,12 @@ pub type DartReqHandler = extern "C" fn(u64, FfiStr, FfiStr, *const u8, usize, F
 pub type DartStreamCancelHandler = extern "C" fn(u64);
 
 // ===== Globals =====
-static DART_REQUEST_HANDLER: OnceCell<DartReqHandler> = OnceCell::new();
-static DART_CANCEL_HANDLER: OnceCell<DartStreamCancelHandler> = OnceCell::new();
+// Replaceable rather than set-once: each `serve()` owns its own Dart
+// callbacks, and a stale pointer here is a use-after-free the moment the
+// server that registered it closes them.
+static DART_REQUEST_HANDLER: OnceCell<Mutex<Option<DartReqHandler>>> = OnceCell::new();
+static DART_CANCEL_HANDLER: OnceCell<Mutex<Option<DartStreamCancelHandler>>> =
+    OnceCell::new();
 
 struct FfiRespOwned {
     status: u16,
@@ -221,7 +225,22 @@ struct FfiRespOwned {
 }
 static PENDING_RESPONSES: OnceCell<Mutex<HashMap<u64, oneshot::Sender<FfiRespOwned>>>> =
     OnceCell::new();
-static PENDING_STREAM_SENDERS: OnceCell<Mutex<HashMap<u64, mpsc::Sender<Result<Bytes, axum::BoxError>>>>> =
+/// Unbounded because `aw_stream_send_chunk` is called from Dart's thread,
+/// which is not a runtime thread: a bounded sender there can only drop the
+/// chunk, block the isolate, or reorder it behind a spawned send. Buffering
+/// instead trades memory for a stream that is neither lossy nor reordered.
+static PENDING_STREAM_SENDERS:
+    OnceCell<Mutex<HashMap<u64, mpsc::UnboundedSender<Result<Bytes, axum::BoxError>>>>> =
+    OnceCell::new();
+/// Receivers are created when Dart completes the response rather than when the
+/// server task builds the body, so a chunk sent immediately after
+/// `aw_complete` still has somewhere to go.
+static PENDING_STREAM_RECEIVERS:
+    OnceCell<Mutex<HashMap<u64, mpsc::UnboundedReceiver<Result<Bytes, axum::BoxError>>>>> =
+    OnceCell::new();
+/// Server threads, so a stop can wait for one to finish before Dart frees the
+/// callbacks its in-flight streams still call.
+static SERVER_THREADS: OnceCell<Mutex<HashMap<u64, std::thread::JoinHandle<()>>>> =
     OnceCell::new();
 static NEXT_ID: OnceCell<AtomicU64> = OnceCell::new();
 static TLS_CONFIG: OnceCell<Arc<ServerConfig>> = OnceCell::new();
@@ -259,11 +278,16 @@ where
 impl<S> Drop for CancelOnDropStream<S> {
     fn drop(&mut self) {
         if let Some(map_mutex) = PENDING_STREAM_SENDERS.get() {
-            let mut map = safe_lock(map_mutex);
-            map.remove(&self.req_id);
+            safe_lock(map_mutex).remove(&self.req_id);
         }
-        if let Some(cb) = DART_CANCEL_HANDLER.get() {
-            (cb)(self.req_id);
+        if let Some(map_mutex) = PENDING_STREAM_RECEIVERS.get() {
+            safe_lock(map_mutex).remove(&self.req_id);
+        }
+        if let Some(slot) = DART_CANCEL_HANDLER.get() {
+            let cb = *safe_lock(slot);
+            if let Some(cb) = cb {
+                (cb)(self.req_id);
+            }
         }
     }
 }
@@ -271,7 +295,9 @@ impl<S> Drop for CancelOnDropStream<S> {
 // ===== FFI Exports =====
 #[no_mangle]
 pub extern "C" fn aw_register_handler(cb: DartReqHandler) {
-    let _ = DART_REQUEST_HANDLER.set(cb);
+    let slot = DART_REQUEST_HANDLER.get_or_init(|| Mutex::new(None));
+    *safe_lock(slot) = Some(cb);
+    let _ = SERVER_THREADS.set(Mutex::new(HashMap::new()));
     let _ = PENDING_RESPONSES.set(Mutex::new(HashMap::new()));
     let _ = NEXT_ID.set(AtomicU64::new(1));
     let _ = SERVER_HANDLES.set(Mutex::new(HashMap::new()));
@@ -280,8 +306,10 @@ pub extern "C" fn aw_register_handler(cb: DartReqHandler) {
 
 #[no_mangle]
 pub extern "C" fn aw_register_cancel_handler(cb: DartStreamCancelHandler) {
-    let _ = DART_CANCEL_HANDLER.set(cb);
+    let slot = DART_CANCEL_HANDLER.get_or_init(|| Mutex::new(None));
+    *safe_lock(slot) = Some(cb);
     let _ = PENDING_STREAM_SENDERS.set(Mutex::new(HashMap::new()));
+    let _ = PENDING_STREAM_RECEIVERS.set(Mutex::new(HashMap::new()));
 }
 
 #[no_mangle]
@@ -366,7 +394,7 @@ pub extern "C" fn aw_tls_rustls_from_pem(cert_pem: FfiBuf, key_pem: FfiBuf) -> i
         for item in rustls_pemfile::read_all(&mut r) {
             let item = match item {
                 Ok(item) => item,
-                Err(_) => return 3;
+                Err(_) => return 3,
             };
             match item {
                 Item::Pkcs8Key(k) => {
@@ -489,7 +517,7 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, _flags: u32) -> i32 {
     let host_clone = host_string.clone();
     let handle_clone = handle.clone();
 
-    std::thread::spawn(move || {
+    let server_thread = std::thread::spawn(move || {
         let rt = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
@@ -534,6 +562,10 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, _flags: u32) -> i32 {
         });
     });
 
+    if let Some(threads) = SERVER_THREADS.get() {
+        safe_lock(threads).insert(server_id, server_thread);
+    }
+
     server_id as i32
 }
 
@@ -543,6 +575,18 @@ pub extern "C" fn aw_stop(server_id: u64) -> i32 {
         let mut map = safe_lock(handles);
         if let Some(handle) = map.remove(&server_id) {
             handle.graceful_shutdown(Some(std::time::Duration::from_secs(5)));
+            // Dropping the lock first: joining below can run stream drops that
+            // reach back into these maps.
+            drop(map);
+            // Waiting for the thread means every in-flight stream has been
+            // dropped and every cancel callback delivered, so the caller can
+            // safely free the Dart callbacks it registered.
+            if let Some(threads) = SERVER_THREADS.get() {
+                let thread = safe_lock(threads).remove(&server_id);
+                if let Some(thread) = thread {
+                    let _ = thread.join();
+                }
+            }
             return 0;
         }
     }
@@ -578,6 +622,19 @@ pub extern "C" fn aw_complete(req_id: u64, resp: FfiResp) -> i32 {
                 is_stream: resp.is_stream,
             }
         };
+        if owned.is_stream != 0 {
+            let (chunk_tx, chunk_rx) =
+                mpsc::unbounded_channel::<Result<Bytes, axum::BoxError>>();
+            if let (Some(senders), Some(receivers)) = (
+                PENDING_STREAM_SENDERS.get(),
+                PENDING_STREAM_RECEIVERS.get(),
+            ) {
+                safe_lock(senders).insert(req_id, chunk_tx);
+                safe_lock(receivers).insert(req_id, chunk_rx);
+            } else {
+                return 4;
+            }
+        }
         let _ = tx.send(owned);
         0
     } else {
@@ -595,11 +652,11 @@ pub extern "C" fn aw_stream_send_chunk(req_id: u64, chunk: FfiBuf) -> i32 {
     if let Some(map_mutex) = PENDING_STREAM_SENDERS.get() {
         let map = safe_lock(map_mutex);
         if let Some(tx) = map.get(&req_id) {
-            let tx_clone = tx.clone();
-            tokio::spawn(async move {
-                let _ = tx_clone.send(Ok(bytes)).await;
-            });
-            0
+            match tx.send(Ok(bytes)) {
+                Ok(()) => 0,
+                // The receiver is gone: the client disconnected.
+                Err(_) => 2,
+            }
         } else {
             2
         }
@@ -690,7 +747,9 @@ async fn dart_proxy_with_fallback(
             .unwrap();
     }
 
-    if let Some(cb) = DART_REQUEST_HANDLER.get() {
+    let request_handler =
+        DART_REQUEST_HANDLER.get().and_then(|slot| *safe_lock(slot));
+    if let Some(cb) = request_handler {
         (cb)(
             req_id,
             method_ffi,
@@ -740,12 +799,20 @@ async fn dart_proxy_with_fallback(
             }
 
             if resp.is_stream != 0 {
-                let (tx, rx) = mpsc::channel::<Result<Bytes, axum::BoxError>>(100);
-                if let Some(map_mutex) = PENDING_STREAM_SENDERS.get() {
-                    safe_lock(map_mutex).insert(req_id, tx);
-                }
-                
-                let receiver_stream = tokio_stream::wrappers::ReceiverStream::new(rx);
+                let rx = PENDING_STREAM_RECEIVERS
+                    .get()
+                    .and_then(|m| safe_lock(m).remove(&req_id));
+                let rx = match rx {
+                    Some(rx) => rx,
+                    None => {
+                        return Response::builder()
+                            .status(StatusCode::INTERNAL_SERVER_ERROR)
+                            .body(Body::empty())
+                            .unwrap()
+                    }
+                };
+                let receiver_stream =
+                    tokio_stream::wrappers::UnboundedReceiverStream::new(rx);
                 let cancel_stream = CancelOnDropStream {
                     inner: receiver_stream,
                     req_id,

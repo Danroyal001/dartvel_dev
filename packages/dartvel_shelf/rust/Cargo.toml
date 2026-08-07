@@ -9,7 +9,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 axum = { version = "0.7", features = ["http2"] }
-axum-server = { version = "0.6", features = ["tls-rustls"] }
+axum-server = { version = "0.7", features = ["tls-rustls"] }
 tower = { version = "0.4", features = ["util"] }
 tower-http = { version = "0.5", features = ["cors", "compression-full", "fs"] }
 bytes = "1"
@@ -19,6 +19,7 @@ num_cpus = "1"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 rustls-pemfile = "2"
 futures-util = "0.3"
+tokio-stream = "0.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0"
 libc = "0.2"
