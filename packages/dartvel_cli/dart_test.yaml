@@ -1,0 +1,12 @@
+# Nine suites in this package set `Directory.current`, because the commands
+# they drive read the project root from it. That setter is process-wide and
+# affects every isolate, so a suite that chdirs into its temp directory moves
+# the ground under whatever else is running: with the default concurrency this
+# suite failed four runs out of four, on a different test each time, and left
+# generated files behind in the package.
+#
+# One suite at a time costs about three seconds and removes the race entirely.
+# Raising it again means giving the commands an explicit root instead of
+# reading `Directory.current` — about thirty call sites — not just changing
+# this number.
+concurrency: 1
