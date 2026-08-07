@@ -133,7 +133,7 @@ Widget _dartvelAdminIndexPage(BuildContext context) => buildDartvelAdminIndexPag
 
 Widget buildDartvelAdminIndexPage(BuildContext context) => DVBox.list([
     const DVText('Dartvel Admin').modifier(
-      const DVModifier().fontSize(28).bold(),
+      const DVModifier().fontSize(28).fontWeight(FontWeight.bold),
     ),
     DVText('Generated model, route, queue, cache, policy, and notification tools.'),
     DVBox.grid([
@@ -157,7 +157,7 @@ Widget _dartvelAdminQueuesPage(BuildContext context) => buildDartvelAdminQueuesP
 
 Widget buildDartvelAdminQueuesPage(BuildContext context) => DVBox.list([
     const DVText('Queues and Jobs').modifier(
-      const DVModifier().fontSize(24).bold(),
+      const DVModifier().fontSize(24).fontWeight(FontWeight.bold),
     ),
     DVText('Inspect pending jobs, failed jobs, retries, and worker health.'),
     DVBox.row([
@@ -178,7 +178,7 @@ Widget _dartvelAdminCachePage(BuildContext context) => buildDartvelAdminCachePag
 
 Widget buildDartvelAdminCachePage(BuildContext context) => DVBox.list([
     const DVText('Cache Tags').modifier(
-      const DVModifier().fontSize(24).bold(),
+      const DVModifier().fontSize(24).fontWeight(FontWeight.bold),
     ),
     DVText('Inspect cache tags, keys, revalidation, and stale-while-revalidate state.'),
     DVBox.row([
@@ -199,7 +199,7 @@ Widget _dartvelAdminRoutesPage(BuildContext context) => buildDartvelAdminRoutesP
 
 Widget buildDartvelAdminRoutesPage(BuildContext context) => DVBox.list([
     const DVText('Routes and Pages').modifier(
-      const DVModifier().fontSize(24).bold(),
+      const DVModifier().fontSize(24).fontWeight(FontWeight.bold),
     ),
     DVText('Inspect generated route metadata, deferred pages, policies, and middleware.'),
     DVBox.row([
