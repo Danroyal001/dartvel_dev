@@ -84,7 +84,9 @@ dartvel: dartvel_config.dart
 class _AppConfig extends DartvelConfig {}
 ''');
 
-      expect(
+      // Awaited: load() is async, so an un-awaited expect lets the test
+      // finish before the expectation is ever checked.
+      await expectLater(
         () => DartvelConfig.load(temp),
         throwsA(isA<FormatException>()),
       );

@@ -40,7 +40,9 @@ import 'package:dartvel_core/dartvel.dart';
 Future<Map<String, bool>> handler() async => <String, bool>{'ok': true};
 ''');
 
-      expect(
+      // Awaited: _generate is async, and the finally below deletes the
+      // fixture the generator is still reading.
+      await expectLater(
         () => _generate(root),
         throwsA(
           isA<StateError>().having(
