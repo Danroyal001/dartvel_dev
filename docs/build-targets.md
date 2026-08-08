@@ -28,7 +28,7 @@ local Dartvel `dartvel_vscode` fork added as a dependency.
 | `tizen` / `tpk` | ✅ Builds | Signed 9.3MB TPK with engine + assets; see [Tizen](#tizen-samsung) |
 | `sony-elinux` | ❌ Blocked | Dart version floor; see [Sony eLinux](#sony-elinux) |
 | `webos` | ⚠️ Unproven | Embedder installs; build not yet demonstrated |
-| `fuchsia` | ⚠️ Unproven | Fork created; upstream has no path for an out-of-workspace app. See [Fuchsia](#fuchsia) |
+| `fuchsia` | ⚠️ Unproven | Fork created and taught to package any Flutter app; not yet executed — bootstrap needs Bazel + Fuchsia SDK. x64 only. See [Fuchsia](#fuchsia) |
 | `vscode` | ✅ Builds | `out/src/extension.js`, `out/lib/vscode_api.handlers.js`, `build/web/flutter_bootstrap.js`, `build/web/assets/` |
 
 Flutter has **no desktop cross-compilation**. A Windows desktop build requires
