@@ -2270,6 +2270,9 @@ class DVPlatform {
         return 'linux';
       case TargetPlatform.macOS:
         return 'macos';
+      // Not a Dartvel target — see docs/build-targets.md. The case stays
+      // because TargetPlatform is Flutter's enum and this switch must cover
+      // it; reporting the platform honestly beats mislabelling it.
       case TargetPlatform.fuchsia:
         return 'fuchsia';
     }
@@ -2282,7 +2285,6 @@ class DVPlatform {
   bool get isLinux => currentPlatform == 'linux';
   bool get isSonyELinux => currentPlatform == 'sony-elinux';
   bool get isMacOS => currentPlatform == 'macos';
-  bool get isFuchsia => currentPlatform == 'fuchsia';
   bool get isWeb => currentPlatform == 'web';
   bool get isChromiumExtension =>
       browser_extension_platform.isChromiumExtension();
