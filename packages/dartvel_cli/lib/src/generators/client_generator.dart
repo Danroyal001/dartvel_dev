@@ -786,17 +786,26 @@ ${(() {
       sbRoutes.writeln(
           '/// Strongly typed route targets for type-safe navigation.');
       sbRoutes.writeln('class DVRoutes {');
+      final claimed = <String, String>{};
       for (final e in pageEntries) {
         final routePath = e.route;
         final cleanPath = routePath.replaceAll(RegExp(r'/:[A-Za-z0-9_]+'), '');
-        var name = cleanPath.replaceAll('/', '').trim();
-        if (name.isEmpty) {
-          name = 'index';
-        }
+        final name = _routeTargetName(cleanPath);
 
         final paramRegex = RegExp(r':([A-Za-z0-9_]+)');
         final params =
             paramRegex.allMatches(routePath).map((m) => m.group(1)!).toList();
+
+        // Two routes reducing to one identifier emit the same member twice,
+        // which fails to compile with no indication of which routes collided.
+        final previous = claimed[name];
+        if (previous != null && previous != routePath) {
+          throw StateError(
+            'Routes $previous and $routePath both generate DVRoutes.$name. '
+            'Rename one of the page directories so the typed targets differ.',
+          );
+        }
+        claimed[name] = routePath;
 
         if (params.isEmpty) {
           sbRoutes
@@ -812,6 +821,27 @@ ${(() {
         }
       }
       sbRoutes.writeln('}');
+      // A manifest as well as the typed targets: DVRoutes is static consts,
+      // which nothing can enumerate, so the admin's route explorer would have
+      // no way to ask what routes exist.
+      sbRoutes.writeln();
+      sbRoutes.writeln('/// Every generated route, for tools that need to');
+      sbRoutes.writeln('/// enumerate them rather than navigate to one.');
+      sbRoutes.writeln(
+          'const List<DVRouteInfo> dartvelRouteManifest = <DVRouteInfo>[');
+      for (final e in pageEntries) {
+        final params = RegExp(r':([A-Za-z0-9_]+)')
+            .allMatches(e.route)
+            .map((m) => "'${m.group(1)!}'")
+            .join(', ');
+        sbRoutes.writeln('  DVRouteInfo(');
+        sbRoutes.writeln("    path: '${e.route}',");
+        sbRoutes.writeln("    page: '${e.publicName}',");
+        sbRoutes.writeln("    directory: '${e.directory}',");
+        sbRoutes.writeln('    parameters: <String>[$params],');
+        sbRoutes.writeln('  ),');
+      }
+      sbRoutes.writeln('];');
       return sbRoutes.toString();
     })()}
 ''';
@@ -1460,6 +1490,23 @@ class DartvelConfig {
         .map((word) => word[0].toUpperCase() + word.substring(1))
         .join();
   }
+}
+
+/// A public Dart identifier for a route.
+///
+/// A leading underscore — every route under `/_dartvel_admin`, for one —
+/// makes the generated member private, so the typed target exists but no
+/// application code can reach it.
+String _routeTargetName(String cleanPath) {
+  final name = cleanPath
+      .replaceAll(RegExp(r'[^A-Za-z0-9_/]'), '')
+      .replaceAll('/', '')
+      .replaceAll(RegExp(r'^_+'), '')
+      .trim();
+  if (name.isEmpty) return 'index';
+  // An identifier cannot begin with a digit.
+  if (RegExp(r'^[0-9]').hasMatch(name)) return 'r$name';
+  return name;
 }
 
 class _PageEntry {
