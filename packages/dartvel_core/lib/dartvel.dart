@@ -1141,6 +1141,11 @@ abstract class DVQueueAdapter {
   Future<List<DVJobEnvelope<DVJobPayload>>> pending(String queue);
   Future<List<DVJobEnvelope<DVJobPayload>>> deadLetters(String queue);
   Future<bool> retry(String id);
+
+  /// Drops one dead-lettered job. Flushing a queue to be rid of a single
+  /// poison message would take every other job with it.
+  Future<bool> discard(String id);
+
   Future<int> flush(String queue);
 }
 
@@ -1246,6 +1251,17 @@ class DVInMemoryQueueAdapter implements DVQueueAdapter {
         state: DVJobState.queued,
       ));
       _pending[job.queue]!.sort((a, b) => b.priority.compareTo(a.priority));
+      return true;
+    }
+    return false;
+  }
+
+  @override
+  Future<bool> discard(String id) async {
+    for (final entry in _deadLetters.entries) {
+      final index = entry.value.indexWhere((job) => job.id == id);
+      if (index == -1) continue;
+      entry.value.removeAt(index);
       return true;
     }
     return false;
@@ -1537,6 +1553,18 @@ class DVDatabaseQueueAdapter implements DVQueueAdapter {
   }
 
   @override
+  Future<bool> discard(String id) async {
+    await initialize();
+    // Scoped to dead-lettered rows: discarding a job that is queued or
+    // running would delete work nobody asked to abandon.
+    final removed = await database.execute(
+      'DELETE FROM $tableName WHERE id = ? AND state = ?',
+      <Object?>[id, DVJobState.deadLettered.name],
+    );
+    return removed > 0;
+  }
+
+  @override
   Future<int> flush(String queue) async {
     await initialize();
     return database.execute(
@@ -1682,6 +1710,11 @@ class DVQueues {
 
   Future<bool> retry(String id) {
     return _adapter.retry(id);
+  }
+
+  /// Drops one dead-lettered job, for a message that will never succeed.
+  Future<bool> discard(String id) {
+    return _adapter.discard(id);
   }
 
   Future<int> flush({String queue = 'default'}) {
