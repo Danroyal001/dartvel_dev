@@ -162,11 +162,21 @@ is worth stating plainly rather than discovering mid-build:
 - Upstream calls itself an in-progress, experimental runtime and states it has
   no commit queue. Its most recent commit is from early 2023.
 - It is **not a Flutter CLI wrapper.** There is no embedder binary to invoke.
-  It is a Bazel workspace whose `scripts/build_and_run_example.sh` builds a
-  directory under `src/examples` carrying a `<name>_pkg` target.
-- Consequently there is **no upstream path for an app outside the workspace.**
-  `dartvel build fuchsia` stages the app in as `dartvel_app`, which needs a
-  package template the fork does not have yet. That is the first patch.
+  It is a Bazel workspace, and upstream builds only directories under
+  `src/examples` carrying a hand-written `<name>_pkg` target — so upstream has
+  no path for an app outside its workspace at all.
+- The fork closes that: `src/flutter/defs.bzl` adds the `flutter_application`
+  rule upstream's own TODO asks for, and `scripts/build_flutter_app.sh` takes
+  the path of any Flutter package, runs `flutter build bundle`, stages the
+  assets under `src/apps`, and builds them. `dartvel build fuchsia` calls that
+  script with the project path.
+- Nothing handed to the embedder is Dartvel-specific. A Dartvel app is an
+  ordinary Flutter package, so the same script serves a plain `flutter create`
+  app — the fork stays a general embedder rather than becoming a Dartvel one.
+- **arm64 needs an engine build.** Upstream committed a 291 MB arm64
+  `libflutter_engine.so`, which exceeds GitHub's 100 MB limit and was stripped
+  on import; the 59 MB x64 engine survived. Build one with
+  `scripts/build_and_copy_engine_artifacts.sh` before targeting arm64.
 
 The fork's history is **not** hash-identical to upstream. Upstream committed
 prebuilt engine binaries (`libflutter_engine.so`, ~290 MB each, across several

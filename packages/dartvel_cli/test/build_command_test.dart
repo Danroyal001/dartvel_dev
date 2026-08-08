@@ -631,13 +631,28 @@ dependencies:
         platform: 'fuchsia',
         buildMode: '--release',
         arch: 'x64',
+        appPath: '/work/my_app',
       );
 
       expect(plan, isNotNull);
       expect(plan!.executable, 'dartvel_fuchsia');
-      expect(plan.arguments, contains('scripts/build_and_run_example.sh'));
-      expect(plan.arguments, contains(dartvelFuchsiaPackageName));
+      expect(plan.arguments, contains(fuchsiaAppBuildScript));
       expect(plan.arguments, containsAllInOrder(<String>['--cpu', 'x64']));
+    });
+
+    test('the app is passed by path, so nothing Dartvel-specific is handed '
+        'to the embedder', () {
+      // A Dartvel app is an ordinary Flutter package. The embedder stays a
+      // general one: the same script serves a plain `flutter create` app.
+      final plan = resolveEmbeddedBuildPlan(
+        platform: 'fuchsia',
+        buildMode: '--release',
+        arch: 'x64',
+        appPath: '/work/my_app',
+      );
+
+      expect(plan!.arguments, contains('/work/my_app'));
+      expect(plan.arguments.join(' '), isNot(contains('dartvel_app')));
     });
 
     test('an arm64 build asks the embedder for arm64', () {
@@ -645,6 +660,7 @@ dependencies:
         platform: 'fuchsia',
         buildMode: '--release',
         arch: 'arm64',
+        appPath: '/work/my_app',
       );
 
       expect(plan!.arguments, containsAllInOrder(<String>['--cpu', 'arm64']));
