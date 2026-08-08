@@ -229,6 +229,7 @@ export 'package:dartvel_core/dartvel.dart'
 export 'package:go_router/go_router.dart';
 
 export 'src/admin/model_admin.dart';
+export 'src/admin/queue_admin.dart';
 export 'src/media/image_view.dart';
 export 'src/platform/linux/linux_bindings.dart';
 export 'src/studio/page_document.dart';
