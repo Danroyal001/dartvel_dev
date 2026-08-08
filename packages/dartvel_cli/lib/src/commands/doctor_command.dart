@@ -106,7 +106,7 @@ class DoctorCommand extends Command<void> {
       // The Fuchsia embedder is a checkout driven by its own scripts, not a
       // Flutter CLI wrapper on PATH.
       'fuchsia' => '${dartvelToolchainRoot(Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '')}'
-          '/flutter-fuchsia/scripts/bootstrap.sh',
+          '/dartvel_fuchsia/scripts/bootstrap.sh',
       'vscode' => 'npm',
       // A browser extension is Flutter web output plus a generated manifest,
       // so the web toolchain is the whole requirement.

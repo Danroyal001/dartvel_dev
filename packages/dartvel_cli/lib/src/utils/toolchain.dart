@@ -47,6 +47,12 @@ String dartvelToolchainRoot(String home) => '$home/.dartvel/toolchains';
 
 /// The tools [platform] needs, beyond a working Flutter SDK.
 ///
+/// Repository names and executable names differ on purpose: the Dartvel forks
+/// are `dartvel_tizen`, `dartvel_elinux`, `dartvel_webos` and
+/// `dartvel_fuchsia`, but the binaries inside them are upstream's own
+/// `flutter-tizen`, `flutter-elinux` and `flutter-webos`. Renaming those would
+/// mean patching every vendor script and would break tracking upstream.
+///
 /// Host support is a separate question answered by `isPlatformAvailableOn`;
 /// this describes what must be *installed*, assuming the host can build the
 /// target at all.
@@ -152,17 +158,17 @@ List<ToolRequirement> toolRequirementsFor(String platform, {String home = ''}) {
           executable: 'flutter-tizen',
           name: 'flutter-tizen embedder',
           installHint:
-              'git clone https://github.com/Danroyal001/flutter-tizen.git '
+              'git clone https://github.com/Danroyal001/dartvel_tizen.git '
               'and add its bin/ to PATH.',
           installCommand: <String>[
             'git',
             'clone',
             '--depth',
             '1',
-            'https://github.com/Danroyal001/flutter-tizen.git',
-            '$root/flutter-tizen',
+            'https://github.com/Danroyal001/dartvel_tizen.git',
+            '$root/dartvel_tizen',
           ],
-          pathHint: '$root/flutter-tizen/bin',
+          pathHint: '$root/dartvel_tizen/bin',
         ),
         const ToolRequirement(
           executable: 'tizen',
@@ -182,17 +188,17 @@ List<ToolRequirement> toolRequirementsFor(String platform, {String home = ''}) {
           executable: 'flutter-elinux',
           name: 'flutter-elinux embedder',
           installHint:
-              'git clone https://github.com/Danroyal001/flutter-elinux.git '
+              'git clone https://github.com/Danroyal001/dartvel_elinux.git '
               'and add its bin/ to PATH.',
           installCommand: <String>[
             'git',
             'clone',
             '--depth',
             '1',
-            'https://github.com/Danroyal001/flutter-elinux.git',
-            '$root/flutter-elinux',
+            'https://github.com/Danroyal001/dartvel_elinux.git',
+            '$root/dartvel_elinux',
           ],
-          pathHint: '$root/flutter-elinux/bin',
+          pathHint: '$root/dartvel_elinux/bin',
         ),
       ];
 
@@ -202,20 +208,20 @@ List<ToolRequirement> toolRequirementsFor(String platform, {String home = ''}) {
           // Not a PATH executable like the other embedders: the Fuchsia
           // embedder is a Bazel workspace driven by scripts inside its own
           // checkout, so what has to be present is the checkout itself.
-          executable: '$root/flutter-fuchsia/scripts/bootstrap.sh',
+          executable: '$root/dartvel_fuchsia/scripts/bootstrap.sh',
           name: 'Fuchsia Flutter embedder',
           installHint:
-              'git clone https://github.com/Danroyal001/flutter-fuchsia.git '
+              'git clone https://github.com/Danroyal001/dartvel_fuchsia.git '
               'and run its scripts/bootstrap.sh.',
           installCommand: <String>[
             'git',
             'clone',
             '--depth',
             '1',
-            'https://github.com/Danroyal001/flutter-fuchsia.git',
-            '$root/flutter-fuchsia',
+            'https://github.com/Danroyal001/dartvel_fuchsia.git',
+            '$root/dartvel_fuchsia',
           ],
-          pathHint: '$root/flutter-fuchsia/tools',
+          pathHint: '$root/dartvel_fuchsia/tools',
         ),
       ];
 
@@ -225,17 +231,17 @@ List<ToolRequirement> toolRequirementsFor(String platform, {String home = ''}) {
           executable: 'flutter-webos',
           name: 'flutter-webos embedder',
           installHint:
-              'git clone https://github.com/Danroyal001/flutter-webos.git '
+              'git clone https://github.com/Danroyal001/dartvel_webos.git '
               'and add its bin/ to PATH.',
           installCommand: <String>[
             'git',
             'clone',
             '--depth',
             '1',
-            'https://github.com/Danroyal001/flutter-webos.git',
-            '$root/flutter-webos',
+            'https://github.com/Danroyal001/dartvel_webos.git',
+            '$root/dartvel_webos',
           ],
-          pathHint: '$root/flutter-webos/bin',
+          pathHint: '$root/dartvel_webos/bin',
         ),
         const ToolRequirement(
           executable: 'ares',

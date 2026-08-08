@@ -98,11 +98,11 @@ be overridden with `Model.usePublicStaticPathsResolver(...)`.
 
 | Target | Fork | Upstream | Vendor |
 |---|---|---|---|
-| `dartvel build tizen` (alias `tpk`) | https://github.com/Danroyal001/flutter-tizen | `flutter-tizen/flutter-tizen` | Samsung |
-| `dartvel build sony-elinux` (+ `-iso`, `-img`) | https://github.com/Danroyal001/flutter-elinux | `sony/flutter-elinux` | Sony |
-| `dartvel build webos` | https://github.com/Danroyal001/flutter-webos | `lg-flutter-webos/flutter-webos` | LG |
-| `dartvel build fuchsia` | https://github.com/Danroyal001/flutter-fuchsia | `fuchsia/flutter-embedder` | Fuchsia |
-| `dartvel build vscode` | https://github.com/Danroyal001/flutter-vscode | `SlowGen/flutter_vscode` | VS Code |
+| `dartvel build tizen` (alias `tpk`) | https://github.com/Danroyal001/dartvel_tizen | `flutter-tizen/flutter-tizen` | Samsung |
+| `dartvel build sony-elinux` (+ `-iso`, `-img`) | https://github.com/Danroyal001/dartvel_elinux | `sony/flutter-elinux` | Sony |
+| `dartvel build webos` | https://github.com/Danroyal001/dartvel_webos | `lg-flutter-webos/flutter-webos` | LG |
+| `dartvel build fuchsia` | https://github.com/Danroyal001/dartvel_fuchsia | `fuchsia/flutter-embedder` | Fuchsia |
+| `dartvel build vscode` | https://github.com/Danroyal001/dartvel_vscode | `SlowGen/flutter_vscode` | VS Code |
 
 - Each fork's README carries a Dartvel banner stating why the fork exists and the verified Flutter version the embedder pins. Keep that banner accurate when pins change; leave upstream docs and license untouched below it.
 - The Fuchsia embedder is not a Flutter CLI wrapper like the vendor ones: it is

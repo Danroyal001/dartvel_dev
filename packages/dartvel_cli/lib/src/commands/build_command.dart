@@ -910,7 +910,7 @@ EmbeddedBuildPlan? resolveEmbeddedBuildPlan({
           'flutter-webos', List<String>.unmodifiable(args));
     case 'fuchsia':
       // Unlike the other three, Fuchsia's embedder is not a Flutter CLI
-      // wrapper — there is no `flutter-fuchsia build`. It is a Bazel workspace
+      // wrapper — there is no embedder binary at all. It is a Bazel workspace
       // whose build script packages a directory under src/examples that
       // carries a `<name>_pkg` target, so an app is staged into the fork and
       // built through that script.
@@ -921,7 +921,7 @@ EmbeddedBuildPlan? resolveEmbeddedBuildPlan({
         arch == 'arm64' ? 'arm64' : 'x64',
       ];
       return EmbeddedBuildPlan(
-          'flutter-fuchsia', List<String>.unmodifiable(args));
+          'dartvel_fuchsia', List<String>.unmodifiable(args));
     default:
       return null;
   }

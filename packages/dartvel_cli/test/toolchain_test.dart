@@ -34,9 +34,9 @@ void main() {
       expect(tizen.method, InstallMethod.automatic);
       expect(
         tizen.installCommand,
-        contains('https://github.com/Danroyal001/flutter-tizen.git'),
+        contains('https://github.com/Danroyal001/dartvel_tizen.git'),
       );
-      expect(tizen.pathHint, '/home/u/.dartvel/toolchains/flutter-tizen/bin');
+      expect(tizen.pathHint, '/home/u/.dartvel/toolchains/dartvel_tizen/bin');
     });
 
     test('vendor SDKs are manual, never auto-installed', () {
@@ -155,10 +155,10 @@ void main() {
       // A checkout, not a binary on PATH: the embedder is driven by scripts
       // inside its own tree.
       expect(embedder.executable,
-          '/home/dev/.dartvel/toolchains/flutter-fuchsia/scripts/bootstrap.sh');
+          '/home/dev/.dartvel/toolchains/dartvel_fuchsia/scripts/bootstrap.sh');
       expect(embedder.installCommand, isNotNull);
       expect(embedder.installCommand!.join(' '),
-          contains('https://github.com/Danroyal001/flutter-fuchsia.git'));
+          contains('https://github.com/Danroyal001/dartvel_fuchsia.git'));
       expect(embedder.method, InstallMethod.automatic);
     });
 

@@ -625,8 +625,8 @@ dependencies:
 
     test('the build plan drives the embedder script, not a flutter wrapper',
         () {
-      // Unlike flutter-tizen or flutter-webos there is no `flutter-fuchsia
-      // build`: the embedder is a Bazel workspace with its own script.
+      // Unlike flutter-tizen or flutter-webos there is no embedder binary:
+      // the Fuchsia embedder is a Bazel workspace with its own script.
       final plan = resolveEmbeddedBuildPlan(
         platform: 'fuchsia',
         buildMode: '--release',
@@ -634,7 +634,7 @@ dependencies:
       );
 
       expect(plan, isNotNull);
-      expect(plan!.executable, 'flutter-fuchsia');
+      expect(plan!.executable, 'dartvel_fuchsia');
       expect(plan.arguments, contains('scripts/build_and_run_example.sh'));
       expect(plan.arguments, contains(dartvelFuchsiaPackageName));
       expect(plan.arguments, containsAllInOrder(<String>['--cpu', 'x64']));
