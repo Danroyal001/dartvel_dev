@@ -32,13 +32,13 @@ const flutterBuildPlatforms = <String>[
   'fireos',
 ];
 
-/// The package name a Dartvel app is staged under inside the Fuchsia
-/// embedder's Bazel workspace.
+/// The Fuchsia embedder's script for building an arbitrary Flutter package.
 ///
-/// The embedder builds directories under `src/examples` that carry a
-/// `<name>_pkg` target; it has no path for an app living outside the
-/// workspace, so the app is staged in under a fixed name.
-const String dartvelFuchsiaPackageName = 'dartvel_app';
+/// A Dartvel app is an ordinary Flutter package, so nothing Dartvel-specific
+/// is handed to the embedder: this is the same entry point a plain
+/// `flutter create` app uses, and the fork keeps it that way so it stays a
+/// general embedder rather than a Dartvel one.
+const String fuchsiaAppBuildScript = 'scripts/build_flutter_app.sh';
 
 /// Embedded/television platforms built through dedicated Flutter embedders:
 /// `flutter-tizen` (Samsung), `flutter-elinux` (Sony), `flutter-webos` (LG),
@@ -457,6 +457,9 @@ class BuildCommand extends Command<void> {
       arch: arch,
       deviceProfile: deviceProfile,
       target: target,
+      // The project being built. The Fuchsia embedder takes a package path
+      // rather than a name, because it builds apps from outside its workspace.
+      appPath: Directory.current.path,
     );
     if (plan == null) {
       Logger.log('❌ Unsupported embedded platform: $platform');
@@ -876,6 +879,7 @@ EmbeddedBuildPlan? resolveEmbeddedBuildPlan({
   required String arch,
   String? deviceProfile,
   String? target,
+  String? appPath,
 }) {
   switch (platform) {
     case 'tizen':
@@ -910,16 +914,16 @@ EmbeddedBuildPlan? resolveEmbeddedBuildPlan({
           'flutter-webos', List<String>.unmodifiable(args));
     case 'fuchsia':
       // Unlike the other three, Fuchsia's embedder is not a Flutter CLI
-      // wrapper — there is no embedder binary at all. It is a Bazel workspace
-      // whose build script packages a directory under src/examples that
-      // carries a `<name>_pkg` target, so an app is staged into the fork and
-      // built through that script.
+      // wrapper — there is no embedder binary at all. It is a Bazel workspace,
+      // and its build script takes the path of a Flutter package to stage in
+      // and build.
       final args = <String>[
-        'scripts/build_and_run_example.sh',
-        dartvelFuchsiaPackageName,
+        fuchsiaAppBuildScript,
+        appPath ?? '.',
         '--cpu',
         arch == 'arm64' ? 'arm64' : 'x64',
       ];
+      if (target != null) args.addAll(<String>['--target', target]);
       return EmbeddedBuildPlan(
           'dartvel_fuchsia', List<String>.unmodifiable(args));
     default:
