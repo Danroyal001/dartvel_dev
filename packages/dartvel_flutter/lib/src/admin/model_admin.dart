@@ -130,7 +130,7 @@ class _DVModelAdminState<T> extends State<DVModelAdmin<T>> {
   }
 
   Widget _list() {
-    return DVBox.list(<Widget>[
+    return DVBox.scrollableList(<Widget>[
       DVText(widget.title)
           .modifier(const DVModifier().fontSize(20).fontWeight(FontWeight.bold)),
       if (_error != null) DVText('Could not read ${widget.title}: $_error'),
@@ -160,7 +160,7 @@ class _DVModelAdminState<T> extends State<DVModelAdmin<T>> {
   }
 
   Widget _editor(T editing) {
-    return DVBox.list(<Widget>[
+    return DVBox.scrollableList(<Widget>[
       DVBox.wrapLine(<Widget>[
         DVText(widget.label(editing)).modifier(
             const DVModifier().fontSize(18).fontWeight(FontWeight.bold)),

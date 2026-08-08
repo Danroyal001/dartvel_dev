@@ -228,8 +228,11 @@ export 'package:dartvel_core/dartvel.dart'
         registerDVModelSerializer;
 export 'package:go_router/go_router.dart';
 
+export 'src/admin/cache_admin.dart';
 export 'src/admin/model_admin.dart';
 export 'src/admin/queue_admin.dart';
+export 'src/admin/route_admin.dart';
+export 'src/admin/route_info.dart';
 export 'src/media/image_view.dart';
 export 'src/platform/linux/linux_bindings.dart';
 export 'src/studio/page_document.dart';
@@ -498,6 +501,25 @@ class DVBox<T> extends StatelessWidget {
         _columns = 1,
         _spacing = spacing,
         _scrollable = false,
+        _items = null,
+        _itemBuilder = null;
+
+  /// A vertical list that scrolls when its children do not fit.
+  ///
+  /// [DVBox.list] is a plain column: a collection whose length is not known
+  /// in advance — every record, every route, every failed job — overflows it
+  /// and the overflowing entries simply cannot be seen.
+  const DVBox.scrollableList(
+    List<Widget> children, {
+    DVModifier? modifier,
+    double spacing = 8,
+  })  : _child = null,
+        _children = children,
+        _modifier = modifier,
+        _layout = _DVBoxLayout.vertical,
+        _columns = 1,
+        _spacing = spacing,
+        _scrollable = true,
         _items = null,
         _itemBuilder = null;
 
@@ -3280,6 +3302,9 @@ class DVCache {
   Set<String> keysForTag(String tag) {
     return _tags.keysForTag(tag);
   }
+
+  /// Every tag that currently has keys under it.
+  Set<String> get tags => _tags.tags;
 
   Future<Set<String>> revalidateTag(String tag) async {
     final keys = _tags.revalidateTag(tag);
