@@ -142,6 +142,33 @@ embedder against the Flutter version Dartvel ships.
 | `webos` | [Danroyal001/flutter-webos](https://github.com/Danroyal001/flutter-webos) | `lg-flutter-webos/flutter-webos` | LG |
 | `vscode` | [Danroyal001/flutter-vscode](https://github.com/Danroyal001/flutter-vscode) | `SlowGen/flutter_vscode` | VS Code |
 
+### Fuchsia is not a target
+
+Dropped, because the fork strategy that carries Tizen, eLinux and webOS has
+nothing to attach to here.
+
+Those three work because the vendor maintains a live embedder Dartvel can pin
+and patch. Fuchsia's equivalent is
+[fuchsia.googlesource.com/flutter-embedder](https://fuchsia.googlesource.com/flutter-embedder/),
+the out-of-tree runtime Flutter-on-Fuchsia was supposed to migrate to. It
+describes itself as an in-progress, experimental runtime, states it has no
+commit queue, and its most recent commit is from early 2023. Forking it would
+mean adopting an unfinished embedder nobody upstream is maintaining, which is
+a different proposition from tracking Samsung's or Sony's.
+
+On the upstream history: the Flutter team handed Flutter-on-Fuchsia
+maintenance back to the Fuchsia team and planned to move it out of the engine
+into that custom embedder — see
+[Flutter-on-Fuchsia Velocity](https://fuchsia.dev/fuchsia-src/contribute/roadmap/2021/flutter_on_fuchsia_velocity).
+Fuchsia-related code is still touched in the engine as recently as the 3.44.0
+release notes, so this is an ownership handover that stalled rather than a
+clean removal. Treat any stronger claim as unverified.
+
+`DV.Platform` still reports `fuchsia` when Flutter's own `TargetPlatform` says
+so — reporting the platform accurately costs nothing — but there is no
+`dartvel build fuchsia`, and `DV.Platform.isFuchsia` is gone rather than
+implying support that does not exist.
+
 ## Extension-host targets
 
 Extension-host targets compile Flutter into the host's webview/runtime shape
