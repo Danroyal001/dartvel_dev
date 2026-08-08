@@ -3192,7 +3192,7 @@ Application code uses annotated Dart controller APIs for VS Code commands and
 messages, initializes `VSCodeWebViewHelper` in the Flutter webview entry point,
 and imports Dartvel through the generated `dartvel_client/dartvel_client.dart`
 barrel. Dartvel keeps the fork at
-`https://github.com/Danroyal001/flutter-vscode` and tracks upstream
+`https://github.com/Danroyal001/dartvel_vscode` and tracks upstream
 `SlowGen/flutter_vscode`.
 
 The VS Code target requires Node.js/npm, a project dependency on

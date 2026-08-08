@@ -13,7 +13,7 @@ the artifact. Rows that are not verified say so and say why.
 Verified on Linux x64 (Ubuntu 24.04), Flutter 3.44.5 / Dart 3.12.2. Most
 Flutter targets were verified against `examples/dartvel_example`; the VS Code
 target was verified against a disposable copy of `examples/basic_app` with the
-local Dartvel `flutter-vscode` fork added as a dependency.
+local Dartvel `dartvel_vscode` fork added as a dependency.
 
 | Target | Status | Evidence |
 |---|---|---|
@@ -112,12 +112,16 @@ installed it.
 
 Dartvel installs the things it can fetch unattended:
 
-| Tool | Installed via |
-|---|---|
-| `flutter-tizen` | `git clone` of the Dartvel fork |
-| `flutter-elinux` | `git clone` of the Dartvel fork |
-| `flutter-webos` | `git clone` of the Dartvel fork |
-| `flutter-fuchsia` | `git clone` of the Dartvel fork |
+The fork repositories are named `dartvel_*`; the executables inside three of
+them keep upstream's own `flutter-*` names, because renaming those would mean
+patching every vendor script.
+
+| Tool | Installed via | From |
+|---|---|---|
+| `flutter-tizen` | `git clone` | `dartvel_tizen` |
+| `flutter-elinux` | `git clone` | `dartvel_elinux` |
+| `flutter-webos` | `git clone` | `dartvel_webos` |
+| the Fuchsia embedder checkout (no binary) | `git clone` | `dartvel_fuchsia` |
 | `ares` (webOS CLI) | `npm install -g @webos-tools/cli` |
 | `npm` (VS Code extension host) | Manual Node.js/npm install |
 | Linux desktop deps (`clang`, `cmake`, `ninja`, `pkg-config`, GTK 3) | `apt-get` |
@@ -139,17 +143,17 @@ embedder against the Flutter version Dartvel ships.
 
 | Target | Fork | Upstream | Vendor |
 |---|---|---|---|
-| `tizen` | [Danroyal001/flutter-tizen](https://github.com/Danroyal001/flutter-tizen) | `flutter-tizen/flutter-tizen` | Samsung |
-| `sony-elinux` | [Danroyal001/flutter-elinux](https://github.com/Danroyal001/flutter-elinux) | `sony/flutter-elinux` | Sony |
-| `webos` | [Danroyal001/flutter-webos](https://github.com/Danroyal001/flutter-webos) | `lg-flutter-webos/flutter-webos` | LG |
-| `fuchsia` | [Danroyal001/flutter-fuchsia](https://github.com/Danroyal001/flutter-fuchsia) | `fuchsia/flutter-embedder` | Fuchsia |
-| `vscode` | [Danroyal001/flutter-vscode](https://github.com/Danroyal001/flutter-vscode) | `SlowGen/flutter_vscode` | VS Code |
+| `tizen` | [Danroyal001/dartvel_tizen](https://github.com/Danroyal001/dartvel_tizen) | `flutter-tizen/flutter-tizen` | Samsung |
+| `sony-elinux` | [Danroyal001/dartvel_elinux](https://github.com/Danroyal001/dartvel_elinux) | `sony/flutter-elinux` | Sony |
+| `webos` | [Danroyal001/dartvel_webos](https://github.com/Danroyal001/dartvel_webos) | `lg-flutter-webos/flutter-webos` | LG |
+| `fuchsia` | [Danroyal001/dartvel_fuchsia](https://github.com/Danroyal001/dartvel_fuchsia) | `fuchsia/flutter-embedder` | Fuchsia |
+| `vscode` | [Danroyal001/dartvel_vscode](https://github.com/Danroyal001/dartvel_vscode) | `SlowGen/flutter_vscode` | VS Code |
 
 ### Fuchsia
 
 Driven by Fuchsia's out-of-tree Flutter embedder
 ([fuchsia.googlesource.com/flutter-embedder](https://fuchsia.googlesource.com/flutter-embedder/)),
-forked to [Danroyal001/flutter-fuchsia](https://github.com/Danroyal001/flutter-fuchsia)
+forked to [Danroyal001/dartvel_fuchsia](https://github.com/Danroyal001/dartvel_fuchsia)
 so it can be pinned and patched like the vendor embedders.
 
 This fork is a different proposition from the other three, and the difference
@@ -157,7 +161,7 @@ is worth stating plainly rather than discovering mid-build:
 
 - Upstream calls itself an in-progress, experimental runtime and states it has
   no commit queue. Its most recent commit is from early 2023.
-- It is **not a Flutter CLI wrapper.** There is no `flutter-fuchsia build`.
+- It is **not a Flutter CLI wrapper.** There is no embedder binary to invoke.
   It is a Bazel workspace whose `scripts/build_and_run_example.sh` builds a
   directory under `src/examples` carrying a `<name>_pkg` target.
 - Consequently there is **no upstream path for an app outside the workspace.**
