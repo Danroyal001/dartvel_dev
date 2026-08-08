@@ -32,13 +32,22 @@ const flutterBuildPlatforms = <String>[
   'fireos',
 ];
 
+/// The package name a Dartvel app is staged under inside the Fuchsia
+/// embedder's Bazel workspace.
+///
+/// The embedder builds directories under `src/examples` that carry a
+/// `<name>_pkg` target; it has no path for an app living outside the
+/// workspace, so the app is staged in under a fixed name.
+const String dartvelFuchsiaPackageName = 'dartvel_app';
+
 /// Embedded/television platforms built through dedicated Flutter embedders:
-/// `flutter-tizen` (Samsung), `flutter-elinux` (Sony), and `flutter-webos`
-/// (LG).
+/// `flutter-tizen` (Samsung), `flutter-elinux` (Sony), `flutter-webos` (LG),
+/// and Fuchsia's out-of-tree embedder.
 const embeddedBuildPlatforms = <String>[
   'tizen',
   'sony-elinux',
   'webos',
+  'fuchsia',
 ];
 
 /// Extension-host platforms built through host-specific Flutter embedders.
@@ -127,6 +136,18 @@ String resolveRequestedPlatform({
 /// Web is host-independent. Android and its `fireos` variant are treated as
 /// available everywhere because they depend on the Android SDK rather than the
 /// host OS; a missing SDK surfaces as Flutter's own diagnostic.
+/// The host OS an embedded target's embedder requires, or null when it runs
+/// anywhere.
+///
+/// Separate from [isPlatformAvailableOn], which answers whether plain
+/// `flutter build` can serve a target — embedded targets never can. An
+/// embedder can still be host-constrained: Fuchsia's states it builds on Linux
+/// only, not macOS or Windows natively.
+String? embeddedHostRequirement(String platform) => switch (platform) {
+      'fuchsia' => 'linux',
+      _ => null,
+    };
+
 bool isPlatformAvailableOn(String platform, String hostOs) {
   switch (platform) {
     case 'web':
@@ -655,6 +676,19 @@ class BuildCommand extends Command<void> {
   /// support is checked first, because offering to install Xcode on Linux
   /// would be nonsense.
   Future<bool> _preflight(String platform, {bool? autoInstall}) async {
+    // An embedder that only runs on one host is still unavailable elsewhere,
+    // even though embedded targets are otherwise exempt from the host check.
+    final embedderHost = embeddedHostRequirement(platform);
+    if (embedderHost != null && embedderHost != Platform.operatingSystem) {
+      Logger.log('');
+      Logger.log('🔨 Checking $platform...');
+      Logger.log(
+        '⚠️  The $platform embedder builds on $embedderHost only, not '
+        '${Platform.operatingSystem}. Skipping...',
+      );
+      return false;
+    }
+
     if (!isPlatformAvailableOn(platform, Platform.operatingSystem) &&
         !embeddedBuildPlatforms.contains(platform) &&
         !extensionBuildPlatforms.contains(platform)) {
@@ -874,6 +908,20 @@ EmbeddedBuildPlan? resolveEmbeddedBuildPlan({
       }
       return EmbeddedBuildPlan(
           'flutter-webos', List<String>.unmodifiable(args));
+    case 'fuchsia':
+      // Unlike the other three, Fuchsia's embedder is not a Flutter CLI
+      // wrapper — there is no `flutter-fuchsia build`. It is a Bazel workspace
+      // whose build script packages a directory under src/examples that
+      // carries a `<name>_pkg` target, so an app is staged into the fork and
+      // built through that script.
+      final args = <String>[
+        'scripts/build_and_run_example.sh',
+        dartvelFuchsiaPackageName,
+        '--cpu',
+        arch == 'arm64' ? 'arm64' : 'x64',
+      ];
+      return EmbeddedBuildPlan(
+          'flutter-fuchsia', List<String>.unmodifiable(args));
     default:
       return null;
   }

@@ -145,4 +145,26 @@ void main() {
       );
     });
   });
+
+  group('fuchsia toolchain', () {
+    test('requires the forked embedder checkout', () {
+      final requirements = toolRequirementsFor('fuchsia', home: '/home/dev');
+
+      expect(requirements, hasLength(1));
+      final embedder = requirements.single;
+      // A checkout, not a binary on PATH: the embedder is driven by scripts
+      // inside its own tree.
+      expect(embedder.executable,
+          '/home/dev/.dartvel/toolchains/flutter-fuchsia/scripts/bootstrap.sh');
+      expect(embedder.installCommand, isNotNull);
+      expect(embedder.installCommand!.join(' '),
+          contains('https://github.com/Danroyal001/flutter-fuchsia.git'));
+      expect(embedder.method, InstallMethod.automatic);
+    });
+
+    test('an absolute requirement is checked as a path, not a PATH lookup', () {
+      // `which /some/path` answers a different question from "is it there".
+      expect(isExecutableOnPath('/definitely/not/here/bootstrap.sh'), isFalse);
+    });
+  });
 }

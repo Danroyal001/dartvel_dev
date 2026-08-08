@@ -28,6 +28,7 @@ local Dartvel `flutter-vscode` fork added as a dependency.
 | `tizen` / `tpk` | ✅ Builds | Signed 9.3MB TPK with engine + assets; see [Tizen](#tizen-samsung) |
 | `sony-elinux` | ❌ Blocked | Dart version floor; see [Sony eLinux](#sony-elinux) |
 | `webos` | ⚠️ Unproven | Embedder installs; build not yet demonstrated |
+| `fuchsia` | ⚠️ Unproven | Fork created; upstream has no path for an out-of-workspace app. See [Fuchsia](#fuchsia) |
 | `vscode` | ✅ Builds | `out/src/extension.js`, `out/lib/vscode_api.handlers.js`, `build/web/flutter_bootstrap.js`, `build/web/assets/` |
 
 Flutter has **no desktop cross-compilation**. A Windows desktop build requires
@@ -116,6 +117,7 @@ Dartvel installs the things it can fetch unattended:
 | `flutter-tizen` | `git clone` of the Dartvel fork |
 | `flutter-elinux` | `git clone` of the Dartvel fork |
 | `flutter-webos` | `git clone` of the Dartvel fork |
+| `flutter-fuchsia` | `git clone` of the Dartvel fork |
 | `ares` (webOS CLI) | `npm install -g @webos-tools/cli` |
 | `npm` (VS Code extension host) | Manual Node.js/npm install |
 | Linux desktop deps (`clang`, `cmake`, `ninja`, `pkg-config`, GTK 3) | `apt-get` |
@@ -140,34 +142,41 @@ embedder against the Flutter version Dartvel ships.
 | `tizen` | [Danroyal001/flutter-tizen](https://github.com/Danroyal001/flutter-tizen) | `flutter-tizen/flutter-tizen` | Samsung |
 | `sony-elinux` | [Danroyal001/flutter-elinux](https://github.com/Danroyal001/flutter-elinux) | `sony/flutter-elinux` | Sony |
 | `webos` | [Danroyal001/flutter-webos](https://github.com/Danroyal001/flutter-webos) | `lg-flutter-webos/flutter-webos` | LG |
+| `fuchsia` | [Danroyal001/flutter-fuchsia](https://github.com/Danroyal001/flutter-fuchsia) | `fuchsia/flutter-embedder` | Fuchsia |
 | `vscode` | [Danroyal001/flutter-vscode](https://github.com/Danroyal001/flutter-vscode) | `SlowGen/flutter_vscode` | VS Code |
 
-### Fuchsia is not a target
+### Fuchsia
 
-Dropped, because the fork strategy that carries Tizen, eLinux and webOS has
-nothing to attach to here.
+Driven by Fuchsia's out-of-tree Flutter embedder
+([fuchsia.googlesource.com/flutter-embedder](https://fuchsia.googlesource.com/flutter-embedder/)),
+forked to [Danroyal001/flutter-fuchsia](https://github.com/Danroyal001/flutter-fuchsia)
+so it can be pinned and patched like the vendor embedders.
 
-Those three work because the vendor maintains a live embedder Dartvel can pin
-and patch. Fuchsia's equivalent is
-[fuchsia.googlesource.com/flutter-embedder](https://fuchsia.googlesource.com/flutter-embedder/),
-the out-of-tree runtime Flutter-on-Fuchsia was supposed to migrate to. It
-describes itself as an in-progress, experimental runtime, states it has no
-commit queue, and its most recent commit is from early 2023. Forking it would
-mean adopting an unfinished embedder nobody upstream is maintaining, which is
-a different proposition from tracking Samsung's or Sony's.
+This fork is a different proposition from the other three, and the difference
+is worth stating plainly rather than discovering mid-build:
+
+- Upstream calls itself an in-progress, experimental runtime and states it has
+  no commit queue. Its most recent commit is from early 2023.
+- It is **not a Flutter CLI wrapper.** There is no `flutter-fuchsia build`.
+  It is a Bazel workspace whose `scripts/build_and_run_example.sh` builds a
+  directory under `src/examples` carrying a `<name>_pkg` target.
+- Consequently there is **no upstream path for an app outside the workspace.**
+  `dartvel build fuchsia` stages the app in as `dartvel_app`, which needs a
+  package template the fork does not have yet. That is the first patch.
+
+Host support is Linux only — upstream's README states it cannot be built on
+macOS or Windows natively — so `dartvel build fuchsia` skips with that reason
+on other hosts rather than failing part-way through.
 
 On the upstream history: the Flutter team handed Flutter-on-Fuchsia
 maintenance back to the Fuchsia team and planned to move it out of the engine
-into that custom embedder — see
+into this custom embedder — see
 [Flutter-on-Fuchsia Velocity](https://fuchsia.dev/fuchsia-src/contribute/roadmap/2021/flutter_on_fuchsia_velocity).
-Fuchsia-related code is still touched in the engine as recently as the 3.44.0
-release notes, so this is an ownership handover that stalled rather than a
-clean removal. Treat any stronger claim as unverified.
+Fuchsia code is still touched in the engine as recently as the 3.44.0 release
+notes, so this reads as an ownership handover that stalled rather than a clean
+removal. Treat any stronger claim as unverified.
 
-`DV.Platform` still reports `fuchsia` when Flutter's own `TargetPlatform` says
-so — reporting the platform accurately costs nothing — but there is no
-`dartvel build fuchsia`, and `DV.Platform.isFuchsia` is gone rather than
-implying support that does not exist.
+**Status: unproven.** The fork exists; no Dartvel app has been built with it.
 
 ## Extension-host targets
 

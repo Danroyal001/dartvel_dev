@@ -101,9 +101,17 @@ be overridden with `Model.usePublicStaticPathsResolver(...)`.
 | `dartvel build tizen` (alias `tpk`) | https://github.com/Danroyal001/flutter-tizen | `flutter-tizen/flutter-tizen` | Samsung |
 | `dartvel build sony-elinux` (+ `-iso`, `-img`) | https://github.com/Danroyal001/flutter-elinux | `sony/flutter-elinux` | Sony |
 | `dartvel build webos` | https://github.com/Danroyal001/flutter-webos | `lg-flutter-webos/flutter-webos` | LG |
+| `dartvel build fuchsia` | https://github.com/Danroyal001/flutter-fuchsia | `fuchsia/flutter-embedder` | Fuchsia |
 | `dartvel build vscode` | https://github.com/Danroyal001/flutter-vscode | `SlowGen/flutter_vscode` | VS Code |
 
 - Each fork's README carries a Dartvel banner stating why the fork exists and the verified Flutter version the embedder pins. Keep that banner accurate when pins change; leave upstream docs and license untouched below it.
+- The Fuchsia embedder is not a Flutter CLI wrapper like the vendor ones: it is
+  a Bazel workspace whose script builds a package under `src/examples`, so it
+  has no upstream path for an app outside the workspace. `dartvel build
+  fuchsia` stages the app in as `dartvel_app`, and the fork must supply that
+  package template. Upstream is experimental, has no commit queue, and is
+  years stale — treat a working pin as something to establish by building, not
+  to read off a release.
 - Vendor embedders download a **prebuilt** Flutter engine per version. When Dartvel's Flutter version is ahead of the newest engine the vendor has published, a version-pin bump alone cannot work — the fix is a vendor (or from-source) engine build, not a patch in the fork. Record the verified engine/version evidence in the fork README rather than pinning to something that 404s.
 - An embedder's Flutter can also be too **old**: `dartvel_shelf`'s native-asset build hook requires `code_assets` and therefore Dart >= 3.9, so any embedder pinned below that cannot build a Dartvel app at all. State which wall a target actually hits — floor or ceiling — rather than assuming it is the engine.
 - `dartvel build vscode` must follow the `flutter_vscode` flow: generate the VS Code extension scaffold/controller bindings, run Flutter pub resolution, install the Node extension host dependencies, and compile the TypeScript extension. It must not be represented as plain `flutter build web`.
