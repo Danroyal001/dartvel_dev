@@ -248,17 +248,8 @@ import 'package:flutter/widgets.dart';
 @pragma('vm:entry-point')
 Widget _dartvelAdminCachePage(BuildContext context) => buildDartvelAdminCachePage(context);
 
-Widget buildDartvelAdminCachePage(BuildContext context) => DVBox.list([
-    const DVText('Cache Tags').modifier(
-      const DVModifier().fontSize(24).fontWeight(FontWeight.bold),
-    ),
-    DVText('Inspect cache tags, keys, revalidation, and stale-while-revalidate state.'),
-    DVBox.row([
-      const DVBox(DVText('Tagged keys')).modifier(const DVModifier().card().padding(16)),
-      const DVBox(DVText('Revalidation')).modifier(const DVModifier().card().padding(16)),
-      const DVBox(DVText('Locks')).modifier(const DVModifier().card().padding(16)),
-    ]),
-  ]).modifier(const DVModifier().padding(24));
+Widget buildDartvelAdminCachePage(BuildContext context) =>
+    const DVBox(DVCacheAdmin()).modifier(const DVModifier().padding(24));
 ''';
 
   static const String _routesPage = '''
@@ -269,16 +260,10 @@ import 'package:flutter/widgets.dart';
 @pragma('vm:entry-point')
 Widget _dartvelAdminRoutesPage(BuildContext context) => buildDartvelAdminRoutesPage(context);
 
-Widget buildDartvelAdminRoutesPage(BuildContext context) => DVBox.list([
-    const DVText('Routes and Pages').modifier(
-      const DVModifier().fontSize(24).fontWeight(FontWeight.bold),
-    ),
-    DVText('Inspect generated route metadata, deferred pages, policies, and middleware.'),
-    DVBox.row([
-      const DVBox(DVText('Pages')).modifier(const DVModifier().card().padding(16)),
-      const DVBox(DVText('Middleware')).modifier(const DVModifier().card().padding(16)),
-      const DVBox(DVText('Policies')).modifier(const DVModifier().card().padding(16)),
-    ]),
-  ]).modifier(const DVModifier().padding(24));
+/// Reads the generated manifest rather than a hand-kept list, so a page added
+/// later shows up here without anyone remembering to register it.
+Widget buildDartvelAdminRoutesPage(BuildContext context) =>
+    const DVBox(DVRouteAdmin(routes: dartvelRouteManifest))
+        .modifier(const DVModifier().padding(24));
 ''';
 }
