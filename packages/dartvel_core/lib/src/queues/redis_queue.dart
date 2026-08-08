@@ -184,6 +184,20 @@ class DVRedisQueueAdapter implements DVQueueAdapter {
   }
 
   @override
+  Future<bool> discard(String id) async {
+    final data = await _load(id);
+    if (data == null) return false;
+    // Only from the dead-letter list: a queued job is still expected to run.
+    final queue = '${data['queue']}';
+    final removed = await client.command(
+      <String>['LREM', _dead(queue), '0', id],
+    );
+    if (removed is int && removed == 0) return false;
+    await client.command(<String>['DEL', _job(id)]);
+    return true;
+  }
+
+  @override
   Future<int> flush(String queue) async {
     final queued = await client.command(
       <String>['ZRANGE', _queued(queue), '0', '-1'],

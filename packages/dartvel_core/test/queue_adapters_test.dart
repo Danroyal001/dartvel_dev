@@ -115,6 +115,45 @@ void main() {
         expect(await queue.retry('does-not-exist'), isFalse);
       });
 
+      test('discard drops one dead letter and leaves the rest', () async {
+        // Flushing to be rid of a single poison message would take every
+        // other job in the queue with it.
+        final poison = await queue.enqueue(
+          'mail',
+          const SendWelcomeEmail('poison'),
+          maxAttempts: 1,
+        );
+        await queue.reserve('mail');
+        await queue.fail(poison.id, 'boom', StackTrace.empty);
+        final other = await queue.enqueue(
+          'mail',
+          const SendWelcomeEmail('other'),
+          maxAttempts: 1,
+        );
+        await queue.reserve('mail');
+        await queue.fail(other.id, 'boom', StackTrace.empty);
+        expect(await queue.deadLetters('mail'), hasLength(2));
+
+        expect(await queue.discard(poison.id), isTrue);
+
+        final remaining = await queue.deadLetters('mail');
+        expect(remaining, hasLength(1));
+        expect(remaining.single.id, other.id);
+      });
+
+      test('discard reports false for an unknown job', () async {
+        expect(await queue.discard('does-not-exist'), isFalse);
+      });
+
+      test('discard leaves a queued job alone', () async {
+        // A job waiting to run has not been abandoned; only a dead letter
+        // has.
+        final job = await queue.enqueue('mail', const SendWelcomeEmail('a'));
+
+        expect(await queue.discard(job.id), isFalse);
+        expect(await queue.pending('mail'), hasLength(1));
+      });
+
       test('flush empties the queue', () async {
         await queue.enqueue('mail', const SendWelcomeEmail('a'));
         await queue.enqueue('mail', const SendWelcomeEmail('b'));
