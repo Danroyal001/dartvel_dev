@@ -129,6 +129,24 @@ void main() {
       expect(index, contains("'/_dartvel_admin/models'"));
     });
 
+    test('the cache and route pages show real state, not labels', () {
+      final generated = DartvelAdminGenerator.generate(root: temp, force: true);
+      String pageNamed(String name) => generated.writtenFiles
+          .firstWhere((File f) => f.path.endsWith(name))
+          .readAsStringSync();
+
+      final cache = pageNamed('cache.page.dart');
+      expect(cache, contains('DVCacheAdmin'));
+      expect(cache, isNot(contains("DVText('Tagged keys')")));
+
+      final routes = pageNamed('routes.page.dart');
+      expect(routes, contains('DVRouteAdmin'));
+      // Reading the generated manifest, so a page added later appears without
+      // anyone remembering to register it here.
+      expect(routes, contains('dartvelRouteManifest'));
+      expect(routes, isNot(contains("DVText('Middleware')")));
+    });
+
     test('every modifier the admin pages call exists on DVModifier', () {
       // The generated pages are strings, so nothing compiles them until a user
       // does. They shipped calling a `.bold()` that DVModifier never had; this
