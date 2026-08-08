@@ -1076,6 +1076,7 @@ Native APIs, including:
 - SONY E-Linux (DV.Platform.isSonyELinux)
 - macOS (DV.Platform.isMacOS)
 - Web (DV.Platform.isWeb)
+- Fuchsia (DV.Platform.isFuchsia)
 - Tizen (DV.Platform.isTizen)
 - webOS (DV.Platform.isWebOS)
 - Amazon (DV.Platform.isAmazon)

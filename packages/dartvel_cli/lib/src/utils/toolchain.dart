@@ -196,6 +196,29 @@ List<ToolRequirement> toolRequirementsFor(String platform, {String home = ''}) {
         ),
       ];
 
+    case 'fuchsia':
+      return <ToolRequirement>[
+        ToolRequirement(
+          // Not a PATH executable like the other embedders: the Fuchsia
+          // embedder is a Bazel workspace driven by scripts inside its own
+          // checkout, so what has to be present is the checkout itself.
+          executable: '$root/flutter-fuchsia/scripts/bootstrap.sh',
+          name: 'Fuchsia Flutter embedder',
+          installHint:
+              'git clone https://github.com/Danroyal001/flutter-fuchsia.git '
+              'and run its scripts/bootstrap.sh.',
+          installCommand: <String>[
+            'git',
+            'clone',
+            '--depth',
+            '1',
+            'https://github.com/Danroyal001/flutter-fuchsia.git',
+            '$root/flutter-fuchsia',
+          ],
+          pathHint: '$root/flutter-fuchsia/tools',
+        ),
+      ];
+
     case 'webos':
       return <ToolRequirement>[
         ToolRequirement(
@@ -300,6 +323,12 @@ AutoInstallDecision decideAutoInstall({
 
 /// Whether [executable] resolves on the current PATH.
 bool isExecutableOnPath(String executable) {
+  // An absolute path is a location, not a PATH lookup. The Fuchsia embedder is
+  // a checkout rather than a binary on PATH, and asking `which` about a path
+  // that does not exist yet answers a different question.
+  if (executable.contains(Platform.pathSeparator)) {
+    return File(executable).existsSync();
+  }
   try {
     final locator = Platform.isWindows ? 'where' : 'which';
     final result =

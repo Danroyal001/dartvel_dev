@@ -3,6 +3,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../utils/logger.dart';
+import '../utils/toolchain.dart';
 
 class DoctorCommand extends Command<void> {
   @override
@@ -15,7 +16,7 @@ class DoctorCommand extends Command<void> {
   DoctorCommand() {
     argParser.addOption(
       'target',
-      allowed: ['webos', 'tizen', 'sony-elinux', 'vscode'],
+      allowed: ['webos', 'tizen', 'sony-elinux', 'fuchsia', 'vscode'],
       help:
           'Validate the toolchain for a specific embedded/TV/extension build target',
     );
@@ -102,6 +103,10 @@ class DoctorCommand extends Command<void> {
       'tizen' => 'flutter-tizen',
       'sony-elinux' => 'flutter-elinux',
       'webos' => 'flutter-webos',
+      // The Fuchsia embedder is a checkout driven by its own scripts, not a
+      // Flutter CLI wrapper on PATH.
+      'fuchsia' => '${dartvelToolchainRoot(Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '')}'
+          '/flutter-fuchsia/scripts/bootstrap.sh',
       'vscode' => 'npm',
       // A browser extension is Flutter web output plus a generated manifest,
       // so the web toolchain is the whole requirement.

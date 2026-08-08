@@ -607,4 +607,47 @@ dependencies:
       ]);
     });
   });
+
+  group('fuchsia', () {
+    test('is an embedded target, not a Flutter-path one', () {
+      expect(embeddedBuildPlatforms, contains('fuchsia'));
+      expect(isPlatformAvailableOn('fuchsia', 'linux'), isFalse);
+    });
+
+    test('its embedder builds on Linux only', () {
+      // The embedder's own README states it cannot be built on macOS or
+      // Windows natively, so those hosts skip rather than fail mid-build.
+      expect(embeddedHostRequirement('fuchsia'), 'linux');
+      expect(embeddedHostRequirement('tizen'), isNull);
+      expect(embeddedHostRequirement('webos'), isNull);
+      expect(embeddedHostRequirement('sony-elinux'), isNull);
+    });
+
+    test('the build plan drives the embedder script, not a flutter wrapper',
+        () {
+      // Unlike flutter-tizen or flutter-webos there is no `flutter-fuchsia
+      // build`: the embedder is a Bazel workspace with its own script.
+      final plan = resolveEmbeddedBuildPlan(
+        platform: 'fuchsia',
+        buildMode: '--release',
+        arch: 'x64',
+      );
+
+      expect(plan, isNotNull);
+      expect(plan!.executable, 'flutter-fuchsia');
+      expect(plan.arguments, contains('scripts/build_and_run_example.sh'));
+      expect(plan.arguments, contains(dartvelFuchsiaPackageName));
+      expect(plan.arguments, containsAllInOrder(<String>['--cpu', 'x64']));
+    });
+
+    test('an arm64 build asks the embedder for arm64', () {
+      final plan = resolveEmbeddedBuildPlan(
+        platform: 'fuchsia',
+        buildMode: '--release',
+        arch: 'arm64',
+      );
+
+      expect(plan!.arguments, containsAllInOrder(<String>['--cpu', 'arm64']));
+    });
+  });
 }
