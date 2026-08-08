@@ -164,6 +164,15 @@ is worth stating plainly rather than discovering mid-build:
   `dartvel build fuchsia` stages the app in as `dartvel_app`, which needs a
   package template the fork does not have yet. That is the first patch.
 
+The fork's history is **not** hash-identical to upstream. Upstream committed
+prebuilt engine binaries (`libflutter_engine.so`, ~290 MB each, across several
+revisions), and GitHub rejects any file over 100 MB. Git LFS would spend more
+than the free quota to carry a 2023 engine Dartvel cannot use, so blobs over
+90 MB were stripped from every commit on import — 1.1 GB down to 108 MB. The
+repository obtains those artifacts through `scripts/setup_engine.sh` and
+`scripts/build_and_copy_engine_artifacts.sh` anyway, which is the supported
+route. The fork's README records this.
+
 Host support is Linux only — upstream's README states it cannot be built on
 macOS or Windows natively — so `dartvel build fuchsia` skips with that reason
 on other hosts rather than failing part-way through.
