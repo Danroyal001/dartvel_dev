@@ -2471,6 +2471,12 @@ class DVCacheTags {
     return Set<String>.unmodifiable(_tags[tag] ?? const <String>{});
   }
 
+  /// Every tag that currently has keys under it.
+  ///
+  /// Without this a tag can only be inspected by already knowing its name,
+  /// which is no use to an operator asking what is cached.
+  Set<String> get tags => Set<String>.unmodifiable(_tags.keys);
+
   Set<String> revalidateTag(String tag) {
     final keys = _tags.remove(tag) ?? const <String>{};
     return Set<String>.unmodifiable(keys);
