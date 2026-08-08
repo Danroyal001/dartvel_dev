@@ -106,6 +106,7 @@ class DartvelAdminGenerator {
       'cache.page.dart': _cachePage,
       'routes.page.dart': _routesPage,
       'studio.page.dart': _studioPage,
+      'models.page.dart': _modelsPage(_discoverModels(root)),
     };
     final written = <File>[];
     final skipped = <File>[];
@@ -124,6 +125,58 @@ class DartvelAdminGenerator {
     );
   }
 
+  /// The models an application declared, read the same way the model
+  /// generator reads them.
+  ///
+  /// Scanned rather than configured: an admin that had to be told which
+  /// models exist would silently omit every model added afterwards.
+  static List<String> _discoverModels(Directory root) {
+    final modelsDir = Directory(p.join(root.path, 'lib', 'models'));
+    if (!modelsDir.existsSync()) return const <String>[];
+    final pattern = RegExp(
+      r'@DVModel\s*\([^)]*\)\s*(?:@pragma\([^)]*\)\s*)*class\s+_([A-Za-z0-9_]+)\b',
+      dotAll: true,
+    );
+    final names = <String>{};
+    for (final entity in modelsDir.listSync(recursive: true)) {
+      if (entity is! File || !entity.path.endsWith('.dart')) continue;
+      for (final match in pattern.allMatches(entity.readAsStringSync())) {
+        names.add(match.group(1)!);
+      }
+    }
+    return names.toList(growable: false)..sort();
+  }
+
+  /// The model CRUD page, one section per declared model.
+  static String _modelsPage(List<String> models) {
+    final buffer = StringBuffer()
+      ..writeln("import '../../dartvel_client/dartvel_client.dart';")
+      ..writeln("import 'package:flutter/widgets.dart';")
+      ..writeln()
+      ..writeln("@DVPage(title: 'Dartvel Models', path: '/_dartvel_admin/models')")
+      ..writeln("@pragma('vm:entry-point')")
+      ..writeln('Widget _dartvelAdminModelsPage(BuildContext context) => '
+          'buildDartvelAdminModelsPage(context);')
+      ..writeln()
+      ..writeln('Widget buildDartvelAdminModelsPage(BuildContext context) => '
+          'DVBox.list([');
+    buffer.writeln("    const DVText('Models').modifier(");
+    buffer.writeln('      const DVModifier().fontSize(24)'
+        '.fontWeight(FontWeight.bold),');
+    buffer.writeln('    ),');
+    if (models.isEmpty) {
+      // An app with no models is a real state, and an empty page with no
+      // explanation reads as a broken one.
+      buffer.writeln("    const DVText('No @DVModel classes found in "
+          "lib/models.'),");
+    }
+    for (final model in models) {
+      buffer.writeln('    $model.Admin(),');
+    }
+    buffer.writeln('  ]).modifier(const DVModifier().padding(24));');
+    return buffer.toString();
+  }
+
   static const String _indexPage = '''
 import '../../dartvel_client/dartvel_client.dart';
 import 'package:flutter/widgets.dart';
@@ -139,6 +192,7 @@ Widget buildDartvelAdminIndexPage(BuildContext context) => DVBox.list([
     DVText('Generated model, route, queue, cache, policy, and notification tools.'),
     DVBox.grid([
       dartvelAdminCard(context, 'Studio', '/_dartvel_admin/studio'),
+      dartvelAdminCard(context, 'Models', '/_dartvel_admin/models'),
       dartvelAdminCard(context, 'Queues and Jobs', '/_dartvel_admin/queues'),
       dartvelAdminCard(context, 'Cache Tags', '/_dartvel_admin/cache'),
       dartvelAdminCard(context, 'Routes and Pages', '/_dartvel_admin/routes'),
@@ -177,18 +231,14 @@ import 'package:flutter/widgets.dart';
 @pragma('vm:entry-point')
 Widget _dartvelAdminQueuesPage(BuildContext context) => buildDartvelAdminQueuesPage(context);
 
-Widget buildDartvelAdminQueuesPage(BuildContext context) => DVBox.list([
-    const DVText('Queues and Jobs').modifier(
-      const DVModifier().fontSize(24).fontWeight(FontWeight.bold),
-    ),
-    DVText('Inspect pending jobs, failed jobs, retries, and worker health.'),
-    DVBox.row([
-      const DVBox(DVText('Pending jobs')).modifier(const DVModifier().card().padding(16)),
-      const DVBox(DVText('Failed jobs')).modifier(const DVModifier().card().padding(16)),
-      const DVBox(DVText('Workers')).modifier(const DVModifier().card().padding(16)),
-    ]),
-  ]).modifier(const DVModifier().padding(24));
-''';
+/// Jobs are stored per queue and nothing enumerates the names, so an
+/// application lists the queues it dispatches to here.
+const List<String> dartvelAdminQueues = <String>['default'];
+
+Widget buildDartvelAdminQueuesPage(BuildContext context) =>
+    const DVBox(DVQueueAdmin(queues: dartvelAdminQueues))
+        .modifier(const DVModifier().padding(24));
+'''; 
 
   static const String _cachePage = '''
 import '../../dartvel_client/dartvel_client.dart';

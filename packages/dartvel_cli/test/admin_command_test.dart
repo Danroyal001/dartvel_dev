@@ -5,6 +5,23 @@ import 'package:dartvel_cli/src/commands/admin_command.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
+const String modelSource = '''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVModel()
+class _Order {
+  final String id;
+  const _Order({required this.id});
+}
+
+@DVModel()
+@pragma('vm:entry-point')
+class _Customer {
+  final String id;
+  const _Customer({required this.id});
+}
+''';
+
 void main() {
   group('AdminCommand', () {
     late Directory previous;
@@ -60,6 +77,56 @@ void main() {
       expect(index, contains("'/_dartvel_admin/studio'"));
       // Cards that name a page without navigating leave the admin a dead end.
       expect(index, contains('context.navigateToPage'));
+    });
+
+    test('the queues page is a live dashboard, not placeholder cards', () {
+      final generated = DartvelAdminGenerator.generate(root: temp, force: true);
+      final queues = generated.writtenFiles
+          .firstWhere((File f) => f.path.endsWith('queues.page.dart'))
+          .readAsStringSync();
+
+      expect(queues, contains('DVQueueAdmin'));
+      // The old page named three surfaces and showed none of them.
+      expect(queues, isNot(contains("DVText('Pending jobs')")));
+      expect(queues, isNot(contains("DVText('Failed jobs')")));
+    });
+
+    test('models found in lib/models get a CRUD admin', () {
+      Directory(p.join(temp.path, 'lib', 'models')).createSync(recursive: true);
+      File(p.join(temp.path, 'lib', 'models', 'shop.dart'))
+          .writeAsStringSync(modelSource);
+
+      final generated = DartvelAdminGenerator.generate(root: temp, force: true);
+      final models = generated.writtenFiles
+          .firstWhere((File f) => f.path.endsWith('models.page.dart'))
+          .readAsStringSync();
+
+      // Scanned rather than configured, so a model added later is not
+      // silently left out of the admin.
+      expect(models, contains('Customer.Admin()'));
+      expect(models, contains('Order.Admin()'));
+      // The generated public type, not the private annotated input.
+      expect(models, isNot(contains('_Order')));
+      expect(models, contains("path: '/_dartvel_admin/models'"));
+    });
+
+    test('an app with no models says so rather than showing a blank page', () {
+      final generated = DartvelAdminGenerator.generate(root: temp, force: true);
+      final models = generated.writtenFiles
+          .firstWhere((File f) => f.path.endsWith('models.page.dart'))
+          .readAsStringSync();
+
+      expect(models, contains('No @DVModel classes found'));
+    });
+
+    test('the index links to the model admin', () {
+      final generated = DartvelAdminGenerator.generate(root: temp, force: true);
+      final index = generated.writtenFiles
+          .firstWhere((File f) => f.path.endsWith('index.page.dart'))
+          .readAsStringSync();
+
+      // Model CRUD is generated per model; without this it is unreachable.
+      expect(index, contains("'/_dartvel_admin/models'"));
     });
 
     test('every modifier the admin pages call exists on DVModifier', () {
