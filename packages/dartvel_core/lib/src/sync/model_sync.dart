@@ -62,6 +62,16 @@ class DVModelSync {
       {};
   static final Map<Type, Map<String, Object?> Function(Object?)> _encoders =
       {};
+  /// The model types with a live sync channel, and the wire names their
+  /// codecs are registered under.
+  ///
+  /// Sync failures are usually a missing codec or a channel nobody opened,
+  /// and neither is visible from the outside without this.
+  static Set<Type> get syncedTypes => Set<Type>.unmodifiable(_controllers.keys);
+
+  /// Wire names that can be decoded from an incoming envelope.
+  static Set<String> get decodableNames => Set<String>.unmodifiable(_decoders.keys);
+
   static DVModelSyncTransport? _transport;
   static StreamSubscription<Map<String, Object?>>? _transportSubscription;
 

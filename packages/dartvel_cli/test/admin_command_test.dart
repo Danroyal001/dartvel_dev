@@ -147,6 +147,20 @@ void main() {
       expect(routes, isNot(contains("DVText('Middleware')")));
     });
 
+    test('the outbox and policy pages render live registries', () {
+      final generated = DartvelAdminGenerator.generate(root: temp, force: true);
+      String pageNamed(String name) => generated.writtenFiles
+          .firstWhere((File f) => f.path.endsWith(name))
+          .readAsStringSync();
+
+      expect(pageNamed('outbox.page.dart'), contains('DVOutboxAdmin'));
+      expect(pageNamed('policies.page.dart'), contains('DVPolicyAdmin'));
+
+      final index = pageNamed('index.page.dart');
+      expect(index, contains("'/_dartvel_admin/outbox'"));
+      expect(index, contains("'/_dartvel_admin/policies'"));
+    });
+
     test('every modifier the admin pages call exists on DVModifier', () {
       // The generated pages are strings, so nothing compiles them until a user
       // does. They shipped calling a `.bold()` that DVModifier never had; this

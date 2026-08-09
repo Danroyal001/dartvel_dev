@@ -230,6 +230,8 @@ export 'package:go_router/go_router.dart';
 
 export 'src/admin/cache_admin.dart';
 export 'src/admin/model_admin.dart';
+export 'src/admin/outbox_admin.dart';
+export 'src/admin/policy_admin.dart';
 export 'src/admin/queue_admin.dart';
 export 'src/admin/route_admin.dart';
 export 'src/admin/route_info.dart';

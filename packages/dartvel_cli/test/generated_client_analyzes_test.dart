@@ -227,6 +227,8 @@ dartvel:
         'cache.page.dart',
         'routes.page.dart',
         'studio.page.dart',
+        'outbox.page.dart',
+        'policies.page.dart',
       ]),
     );
   });
