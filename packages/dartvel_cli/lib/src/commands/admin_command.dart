@@ -107,6 +107,8 @@ class DartvelAdminGenerator {
       'routes.page.dart': _routesPage,
       'studio.page.dart': _studioPage,
       'models.page.dart': _modelsPage(_discoverModels(root)),
+      'outbox.page.dart': _outboxPage,
+      'policies.page.dart': _policiesPage,
     };
     final written = <File>[];
     final skipped = <File>[];
@@ -196,6 +198,8 @@ Widget buildDartvelAdminIndexPage(BuildContext context) => DVBox.list([
       dartvelAdminCard(context, 'Queues and Jobs', '/_dartvel_admin/queues'),
       dartvelAdminCard(context, 'Cache Tags', '/_dartvel_admin/cache'),
       dartvelAdminCard(context, 'Routes and Pages', '/_dartvel_admin/routes'),
+      dartvelAdminCard(context, 'Outbox', '/_dartvel_admin/outbox'),
+      dartvelAdminCard(context, 'Policies and Sync', '/_dartvel_admin/policies'),
     ], columns: 2),
   ]).modifier(const DVModifier().padding(24));
 
@@ -207,6 +211,40 @@ Widget dartvelAdminCard(BuildContext context, String label, String path) =>
         () => context.navigateToPage(DVRouteTarget(path)),
       ),
     );
+''';
+
+  static const String _outboxPage = '''
+import '../../dartvel_client/dartvel_client.dart';
+import 'package:flutter/widgets.dart';
+
+@DVPage(title: 'Dartvel Outbox', path: '/_dartvel_admin/outbox')
+@pragma('vm:entry-point')
+Widget _dartvelAdminOutboxPage(BuildContext context) => buildDartvelAdminOutboxPage(context);
+
+/// Only an in-memory provider keeps a record a local admin can read; a remote
+/// provider sends from its own infrastructure. Point these at the providers
+/// the application configured.
+DVMemoryMailProvider? dartvelAdminMailOutbox;
+DVMemoryNotificationProvider? dartvelAdminNotificationOutbox;
+
+Widget buildDartvelAdminOutboxPage(BuildContext context) => DVBox(
+      DVOutboxAdmin(
+        mail: dartvelAdminMailOutbox,
+        notifications: dartvelAdminNotificationOutbox,
+      ),
+    ).modifier(const DVModifier().padding(24));
+''';
+
+  static const String _policiesPage = '''
+import '../../dartvel_client/dartvel_client.dart';
+import 'package:flutter/widgets.dart';
+
+@DVPage(title: 'Dartvel Policies', path: '/_dartvel_admin/policies')
+@pragma('vm:entry-point')
+Widget _dartvelAdminPoliciesPage(BuildContext context) => buildDartvelAdminPoliciesPage(context);
+
+Widget buildDartvelAdminPoliciesPage(BuildContext context) =>
+    const DVBox(DVPolicyAdmin()).modifier(const DVModifier().padding(24));
 ''';
 
   static const String _studioPage = '''

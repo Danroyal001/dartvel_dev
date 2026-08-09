@@ -2427,6 +2427,13 @@ class DVAuthAuthorization {
 
   const DVAuthAuthorization();
 
+  /// Every registered policy, as `action:ResourceType`.
+  ///
+  /// `can` answers one question at a time and returns false for a policy that
+  /// was never registered, which is indistinguishable from a policy that
+  /// denied. Enumerating them is how that distinction becomes visible.
+  Set<String> get registeredPolicies => Set<String>.unmodifiable(_policies.keys);
+
   void register<TUser, TResource>(
     String action,
     DVPolicyCheck<TUser, TResource> check,
