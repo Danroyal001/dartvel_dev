@@ -503,13 +503,19 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
     final sbClient = StringBuffer();
     sbClient.writeln('// GENERATED – do not edit.');
     sbClient.writeln('// BUILD: $buildId');
-    sbClient.writeln('// ignore_for_file: unused_element');
+    // dio arrives through dartvel_core rather than the application's own
+    // pubspec, so the lint that wants it declared locally does not apply.
+    sbClient.writeln(
+        '// ignore_for_file: unused_element, depend_on_referenced_packages');
     sbClient.writeln('library dartvel_client_functions;');
     sbClient.writeln("import 'dart:convert';");
     sbClient.writeln("import 'dart:math' as math;");
+    // Declared by dartvel_core, which every generated client depends on.
+    // Emitting an import for a package nothing in the graph declared made
+    // every app with a backend function fail to compile.
     sbClient.writeln("import 'package:dio/dio.dart' as dio;");
     sbClient.writeln("import 'package:dartvel_core/dartvel.dart';");
-    sbClient.writeln("import 'dartvel_runtime.dart';");
+    // The runtime import is decided after the body is written; see below.
     sbClient.writeln('final dio.Dio _dvDio = dio.Dio();');
     sbClient.writeln('''
 /// Shared generated client state for auth and custom request headers.
@@ -901,8 +907,20 @@ class DartvelClient {
       }
     }
 
+    // Emitted only when the body actually uses it. An unconditional import
+    // warns on every project whose backend functions happen not to need the
+    // runtime, and a warning in generated code is one nobody can fix.
+    final clientBody = sbClient.toString();
+    const runtimeSymbols = <String>['DartvelRuntime', 'dartvelBaseUrl',
+        'dartvelApiBase', 'DartvelConfigRuntime'];
+    final needsRuntime =
+        runtimeSymbols.any((String symbol) => clientBody.contains(symbol));
+    final clientSource = needsRuntime
+        ? clientBody.replaceFirst("import 'dart:convert';",
+            "import 'dart:convert';\nimport 'dartvel_runtime.dart';")
+        : clientBody;
     File(p.join(libClientDir.path, 'functions.g.dart'))
-        .writeAsStringSync(sbClient.toString());
+        .writeAsStringSync(clientSource);
     File(p.join(libClientDir.path, 'schedules.g.dart'))
         .writeAsStringSync(await _generateSchedules(
       root: root,
