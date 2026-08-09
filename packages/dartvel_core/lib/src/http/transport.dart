@@ -4,6 +4,7 @@
 /// tests drive the exact wire format without network access.
 library dartvel_core.http.transport;
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
@@ -40,6 +41,37 @@ class DVHttpResponse {
   List<int> get bodyBytes => _bytes ?? utf8.encode(body);
 
   bool get isSuccess => statusCode >= 200 && statusCode < 300;
+
+  /// The body decoded as JSON, or the text when it is not JSON.
+  ///
+  /// Callers that expect JSON should not have to decide whether an error page
+  /// or an empty body is decodable; this returns what is there either way.
+  Object? get data {
+    if (body.isEmpty) return null;
+    try {
+      return jsonDecode(body);
+    } on FormatException {
+      return body;
+    }
+  }
+}
+
+/// A response whose body is still arriving.
+class DVHttpStreamedResponse {
+  final int statusCode;
+  final Map<String, String> headers;
+
+  /// The body as it arrives. Listening to it is what keeps the connection
+  /// open; the underlying client closes when the stream completes.
+  final Stream<List<int>> body;
+
+  const DVHttpStreamedResponse({
+    required this.statusCode,
+    required this.headers,
+    required this.body,
+  });
+
+  bool get isSuccess => statusCode >= 200 && statusCode < 300;
 }
 
 typedef DVHttpSend = Future<DVHttpResponse> Function(DVHttpRequest request);
@@ -60,6 +92,47 @@ Future<DVHttpResponse> dvSendHttpRequest(DVHttpRequest request) async {
     );
   } finally {
     client.close();
+  }
+}
+
+/// Sends [request] and yields the body as it arrives.
+///
+/// Server-sent events and long-running responses cannot go through
+/// [dvSendHttpRequest], which waits for the whole body: a stream that never
+/// ends would never return. The client stays open until the body completes,
+/// so a caller that abandons the stream must cancel its subscription.
+Future<DVHttpStreamedResponse> dvStreamHttpRequest(DVHttpRequest request) async {
+  final client = http.Client();
+  try {
+    final outgoing = http.Request(request.method, request.url)
+      ..headers.addAll(request.headers)
+      ..bodyBytes = request.body;
+    final streamed = await client.send(outgoing);
+    // Closing the client mid-body would truncate the stream, so it is closed
+    // when the body ends rather than when this function returns.
+    final controller = StreamController<List<int>>();
+    late StreamSubscription<List<int>> subscription;
+    subscription = streamed.stream.listen(
+      controller.add,
+      onError: controller.addError,
+      onDone: () {
+        client.close();
+        unawaited(controller.close());
+      },
+      cancelOnError: false,
+    );
+    controller.onCancel = () async {
+      await subscription.cancel();
+      client.close();
+    };
+    return DVHttpStreamedResponse(
+      statusCode: streamed.statusCode,
+      headers: streamed.headers,
+      body: controller.stream,
+    );
+  } catch (_) {
+    client.close();
+    rethrow;
   }
 }
 
