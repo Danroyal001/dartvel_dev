@@ -925,15 +925,30 @@ abstract class DVBillingProvider {
 }
 
 class DVLocalBillingProvider implements DVBillingProvider {
-  final Set<String> _grants = <String>{};
+  /// Entitlement ids held, by customer.
+  final Map<String, Set<String>> _grants = <String, Set<String>>{};
   var _nextSession = 0;
 
+  /// Who holds what, for an entitlements view.
+  ///
+  /// `hasEntitlement` answers one pair at a time, so a customer who lost
+  /// access and one who never had it are indistinguishable without this.
+  Map<String, Set<String>> get grants => Map<String, Set<String>>.unmodifiable(
+        <String, Set<String>>{
+          for (final entry in _grants.entries)
+            entry.key: Set<String>.unmodifiable(entry.value),
+        },
+      );
+
   void grant(Object customer, Entitlement entitlement) {
-    _grants.add(_key(customer, entitlement));
+    (_grants[_customerKey(customer)] ??= <String>{}).add(entitlement.id);
   }
 
   void revoke(Object customer, Entitlement entitlement) {
-    _grants.remove(_key(customer, entitlement));
+    final held = _grants[_customerKey(customer)];
+    if (held == null) return;
+    held.remove(entitlement.id);
+    if (held.isEmpty) _grants.remove(_customerKey(customer));
   }
 
   @override
@@ -952,12 +967,14 @@ class DVLocalBillingProvider implements DVBillingProvider {
 
   @override
   Future<bool> hasEntitlement(Object customer, Entitlement entitlement) async {
-    return _grants.contains(_key(customer, entitlement));
+    return _grants[_customerKey(customer)]?.contains(entitlement.id) ?? false;
   }
 
-  String _key(Object customer, Entitlement entitlement) {
-    return '${customer.hashCode}:${entitlement.id}';
-  }
+  /// Identity, not hash. Keying grants by `customer.hashCode` meant two
+  /// customers whose hashes collided shared entitlements — one paying for a
+  /// plan could unlock it for a stranger — and made the stored keys
+  /// unreadable to anything inspecting them.
+  String _customerKey(Object customer) => customer.toString();
 }
 
 class DVImportRowError {
