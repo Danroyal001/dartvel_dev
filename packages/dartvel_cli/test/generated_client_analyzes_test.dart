@@ -229,6 +229,7 @@ dartvel:
         'studio.page.dart',
         'outbox.page.dart',
         'policies.page.dart',
+        'telemetry.page.dart',
       ]),
     );
   });

@@ -109,6 +109,7 @@ class DartvelAdminGenerator {
       'models.page.dart': _modelsPage(_discoverModels(root)),
       'outbox.page.dart': _outboxPage,
       'policies.page.dart': _policiesPage,
+      'telemetry.page.dart': _telemetryPage,
     };
     final written = <File>[];
     final skipped = <File>[];
@@ -200,6 +201,7 @@ Widget buildDartvelAdminIndexPage(BuildContext context) => DVBox.list([
       dartvelAdminCard(context, 'Routes and Pages', '/_dartvel_admin/routes'),
       dartvelAdminCard(context, 'Outbox', '/_dartvel_admin/outbox'),
       dartvelAdminCard(context, 'Policies and Sync', '/_dartvel_admin/policies'),
+      dartvelAdminCard(context, 'Entitlements and Events', '/_dartvel_admin/telemetry'),
     ], columns: 2),
   ]).modifier(const DVModifier().padding(24));
 
@@ -245,6 +247,28 @@ Widget _dartvelAdminPoliciesPage(BuildContext context) => buildDartvelAdminPolic
 
 Widget buildDartvelAdminPoliciesPage(BuildContext context) =>
     const DVBox(DVPolicyAdmin()).modifier(const DVModifier().padding(24));
+''';
+
+  static const String _telemetryPage = '''
+import '../../dartvel_client/dartvel_client.dart';
+import 'package:flutter/widgets.dart';
+
+@DVPage(title: 'Dartvel Telemetry', path: '/_dartvel_admin/telemetry')
+@pragma('vm:entry-point')
+Widget _dartvelAdminTelemetryPage(BuildContext context) => buildDartvelAdminTelemetryPage(context);
+
+/// Only local providers keep records this admin can read; a hosted billing or
+/// analytics provider keeps them on its own infrastructure. Point these at
+/// the providers the application configured.
+DVLocalBillingProvider? dartvelAdminBilling;
+LocalAnalyticsProvider? dartvelAdminAnalytics;
+
+Widget buildDartvelAdminTelemetryPage(BuildContext context) => DVBox(
+      DVTelemetryAdmin(
+        billing: dartvelAdminBilling,
+        analytics: dartvelAdminAnalytics,
+      ),
+    ).modifier(const DVModifier().padding(24));
 ''';
 
   static const String _studioPage = '''

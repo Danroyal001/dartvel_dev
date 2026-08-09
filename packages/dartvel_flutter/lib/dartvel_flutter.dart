@@ -235,6 +235,7 @@ export 'src/admin/policy_admin.dart';
 export 'src/admin/queue_admin.dart';
 export 'src/admin/route_admin.dart';
 export 'src/admin/route_info.dart';
+export 'src/admin/telemetry_admin.dart';
 export 'src/media/image_view.dart';
 export 'src/platform/linux/linux_bindings.dart';
 export 'src/studio/page_document.dart';
