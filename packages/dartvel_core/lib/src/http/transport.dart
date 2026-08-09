@@ -180,6 +180,27 @@ List<int> dvEncodeMultipartBody({
   return builder.takeBytes();
 }
 
+/// A `multipart/form-data` body of plain fields, with no file part.
+///
+/// [dvEncodeMultipartBody] always writes a file; a generated form post
+/// usually has none, and an empty file part is not the same message.
+List<int> dvEncodeMultipartFields({
+  required String boundary,
+  required Map<String, String> fields,
+}) {
+  final builder = BytesBuilder();
+  void writeLine(String text) => builder.add(utf8.encode('$text\r\n'));
+
+  for (final entry in fields.entries) {
+    writeLine('--$boundary');
+    writeLine('content-disposition: form-data; name="${entry.key}"');
+    writeLine('');
+    writeLine(entry.value);
+  }
+  writeLine('--$boundary--');
+  return builder.takeBytes();
+}
+
 /// `application/x-www-form-urlencoded` body. Repeated keys are supported
 /// because several mail APIs express multiple recipients that way.
 List<int> dvEncodeFormBody(List<(String, String)> fields) => utf8.encode(

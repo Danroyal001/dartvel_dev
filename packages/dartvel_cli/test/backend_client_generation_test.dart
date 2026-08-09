@@ -45,8 +45,12 @@ Future<Map<String, Object?>> handler(String title, int priority) async {
       expect(content, contains('final fb = <String, Object?>{};'));
       expect(content, contains('const <String, Object?>{}'));
       expect(content, contains('String routePath = '));
-      expect(content, contains('Map<String, String> hdrs = '));
-      expect(content, contains('Object? send = '));
+      // The client sends through Dartvel's own transport; a generated client
+      // that pulled in a third-party HTTP package made every app depend on it.
+      expect(content, contains('dvSendHttpRequest('));
+      expect(content, contains('dvStreamHttpRequest('));
+      expect(content, isNot(contains('package:dio')));
+      expect(content, contains('final hdrs = _dvPrepareHeaders('));
       expect(content, contains("String buffer = '';"));
       expect(content, contains('Map<String, Object?>.from'));
       expect(content, isNot(contains('Map<String, dynamic>')));

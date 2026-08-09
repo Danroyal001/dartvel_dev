@@ -503,20 +503,27 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
     final sbClient = StringBuffer();
     sbClient.writeln('// GENERATED – do not edit.');
     sbClient.writeln('// BUILD: $buildId');
-    // dio arrives through dartvel_core rather than the application's own
-    // pubspec, so the lint that wants it declared locally does not apply.
-    sbClient.writeln(
-        '// ignore_for_file: unused_element, depend_on_referenced_packages');
+    sbClient.writeln('// ignore_for_file: unused_element');
     sbClient.writeln('library dartvel_client_functions;');
     sbClient.writeln("import 'dart:convert';");
     sbClient.writeln("import 'dart:math' as math;");
-    // Declared by dartvel_core, which every generated client depends on.
-    // Emitting an import for a package nothing in the graph declared made
-    // every app with a backend function fail to compile.
-    sbClient.writeln("import 'package:dio/dio.dart' as dio;");
     sbClient.writeln("import 'package:dartvel_core/dartvel.dart';");
     // The runtime import is decided after the body is written; see below.
-    sbClient.writeln('final dio.Dio _dvDio = dio.Dio();');
+    sbClient.writeln('''
+/// Multipart fields for a generated POST. Modelled here rather than taken
+/// from an HTTP package, so a generated client imposes no client library on
+/// the application.
+class DartvelFormData {
+  final Map<String, String> fields;
+  DartvelFormData(this.fields);
+
+  factory DartvelFormData.fromMap(Map<Object?, Object?> map) =>
+      DartvelFormData(<String, String>{
+        for (final entry in map.entries)
+          if (entry.key != null) '\${entry.key}': '\${entry.value ?? ''}',
+      });
+}
+''');
     sbClient.writeln('''
 /// Shared generated client state for auth and custom request headers.
 class DartvelClient {
@@ -537,42 +544,91 @@ class DartvelClient {
     sbClient.writeln(
         'Map<String, String> _dvHeadersWithCsrf(String method, Map<String, String> headers) { if (!_dvRequiresCsrf(method)) return headers; return {...headers, DVCSRF.headerName: headers[DVCSRF.headerName] ?? _dvCsrfToken}; }');
     sbClient.writeln(
-        'Object? _dvPayloadWithCsrf(String method, Object? payload) { if (!_dvRequiresCsrf(method)) return payload; if (payload is dio.FormData) { if (!payload.fields.any((field) => field.key == DVCSRF.fieldName)) { payload.fields.add(MapEntry<String, String>(DVCSRF.fieldName, _dvCsrfToken)); } return payload; } if (payload is Map<Object?, Object?>) { final copy = Map<String, Object?>.from(payload); copy.putIfAbsent(DVCSRF.fieldName, () => _dvCsrfToken); return copy; } return payload; }');
+        'Object? _dvPayloadWithCsrf(String method, Object? payload) { if (!_dvRequiresCsrf(method)) return payload; if (payload is DartvelFormData) { payload.fields.putIfAbsent(DVCSRF.fieldName, () => _dvCsrfToken); return payload; } if (payload is Map<Object?, Object?>) { final copy = Map<String, Object?>.from(payload); copy.putIfAbsent(DVCSRF.fieldName, () => _dvCsrfToken); return copy; } return payload; }');
     sbClient.writeln(
-        'Future<dio.Response<Object?>> _dvRequest(String method, Uri uri, {Object? data, Map<String, String>? headers}) async {');
-    sbClient.writeln(
-        '  Map<String, String> hdrs = <String, String>{...DartvelClient.defaultHeaders, ...(headers ?? const <String, String>{})};');
-    sbClient.writeln('  final methodUpper = method.toUpperCase();');
-    sbClient.writeln(
-        "  Object? send = (data == null && methodUpper != 'GET' && methodUpper != 'HEAD') ? '' : data;");
-    sbClient.writeln('  hdrs = _dvHeadersWithCsrf(methodUpper, hdrs);');
-    sbClient.writeln('  send = _dvPayloadWithCsrf(methodUpper, send);');
-    sbClient.writeln(
-        "  final ct = (hdrs['content-type'] ?? hdrs['Content-Type'] ?? '').toLowerCase();");
-    sbClient.writeln(
-        "  if (send is Map && ct.contains('application/x-www-form-urlencoded')) {\n    final q = <String,String>{};\n    send.forEach((k, v) { if (k == null) return; final kk = k.toString(); if (v == null) return; if (v is List) { q[kk] = v.map((e)=> e?.toString() ?? '').join(','); } else { q[kk] = v.toString(); } });\n    send = q.entries.map((e)=> '\${Uri.encodeQueryComponent(e.key)}=\${Uri.encodeQueryComponent(e.value)}').join('&');\n  }");
-    sbClient.writeln(
-        '  return _dvDio.requestUri(uri, data: send, options: dio.Options(method: methodUpper, headers: hdrs));');
-    sbClient.writeln('}');
-    sbClient.writeln(
-        'Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson, {String method = "GET", Object? data, Map<String, String>? headers}) async* {');
-    sbClient.writeln('  final methodUpper = method.toUpperCase();');
-    sbClient.writeln(
-        '  Map<String, String> hdrs = <String, String>{...DartvelClient.defaultHeaders, ...(headers ?? const <String, String>{})};');
-    sbClient.writeln('  hdrs = _dvHeadersWithCsrf(methodUpper, hdrs);');
-    sbClient
-        .writeln('  final reqPayload = _dvPayloadWithCsrf(methodUpper, data);');
-    sbClient.writeln('  final response = await _dvDio.requestUri(');
-    sbClient.writeln('    uri,');
-    sbClient.writeln('    data: reqPayload,');
-    sbClient.writeln('    options: dio.Options(');
-    sbClient.writeln('      method: methodUpper,');
-    sbClient.writeln('      headers: hdrs,');
-    sbClient.writeln('      responseType: dio.ResponseType.stream,');
-    sbClient.writeln('    ),');
-    sbClient.writeln('  );');
-    sbClient.writeln(
-        '  final bodyStream = (response.data as dio.ResponseBody).stream;');
+        '''
+/// Encodes a payload for the wire, and reports the content type it used.
+///
+/// The shape decides the encoding: multipart for a form, urlencoded when the
+/// caller asked for it, JSON otherwise. An explicit content-type header from
+/// the caller wins, because it is the caller who knows what the endpoint
+/// expects.
+({List<int> body, String? contentType}) _dvEncodeBody(
+    Object? payload, String? declaredType) {
+  if (payload == null) return (body: const <int>[], contentType: null);
+  if (payload is DartvelFormData) {
+    final boundary = dvGenerateMultipartBoundary();
+    return (
+      body: dvEncodeMultipartFields(boundary: boundary, fields: payload.fields),
+      contentType: 'multipart/form-data; boundary=\$boundary',
+    );
+  }
+  if (payload is List<int>) return (body: payload, contentType: declaredType);
+  if (payload is String) {
+    return (body: utf8.encode(payload), contentType: declaredType);
+  }
+  final type = (declaredType ?? '').toLowerCase();
+  if (payload is Map && type.contains('application/x-www-form-urlencoded')) {
+    final fields = <String, String>{};
+    payload.forEach((Object? k, Object? v) {
+      if (k == null || v == null) return;
+      fields['\$k'] = v is List
+          ? v.map((Object? e) => e?.toString() ?? '').join(',')
+          : v.toString();
+    });
+    return (
+      body: dvEncodeFormBody(<(String, String)>[\n        for (final e in fields.entries) (e.key, e.value),\n      ]),
+      contentType: declaredType,
+    );
+  }
+  return (
+    body: utf8.encode(jsonEncode(payload)),
+    contentType: declaredType ?? 'application/json; charset=utf-8',
+  );
+}
+
+Map<String, String> _dvPrepareHeaders(
+    String methodUpper, Map<String, String>? headers) {
+  final merged = <String, String>{
+    ...DartvelClient.defaultHeaders,
+    ...(headers ?? const <String, String>{}),
+  };
+  return _dvHeadersWithCsrf(methodUpper, merged);
+}
+
+Future<DVHttpResponse> _dvRequest(String method, Uri uri,
+    {Object? data, Map<String, String>? headers}) async {
+  final methodUpper = method.toUpperCase();
+  final hdrs = _dvPrepareHeaders(methodUpper, headers);
+  final payload = _dvPayloadWithCsrf(methodUpper, data);
+  final declared = hdrs['content-type'] ?? hdrs['Content-Type'];
+  final encoded = _dvEncodeBody(payload, declared);
+  if (encoded.contentType != null) hdrs['content-type'] = encoded.contentType!;
+  return dvSendHttpRequest(DVHttpRequest(
+    url: uri,
+    method: methodUpper,
+    headers: hdrs,
+    body: encoded.body,
+  ));
+}
+
+Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
+    {String method = "GET", Object? data, Map<String, String>? headers}) async* {
+  final methodUpper = method.toUpperCase();
+  final hdrs = _dvPrepareHeaders(methodUpper, headers);
+  final payload = _dvPayloadWithCsrf(methodUpper, data);
+  final declared = hdrs['content-type'] ?? hdrs['Content-Type'];
+  final encoded = _dvEncodeBody(payload, declared);
+  if (encoded.contentType != null) hdrs['content-type'] = encoded.contentType!;
+  final response = await dvStreamHttpRequest(DVHttpRequest(
+    url: uri,
+    method: methodUpper,
+    headers: hdrs,
+    body: encoded.body,
+  ));
+  final bodyStream = response.body;
+''');
+
     sbClient.writeln("  String buffer = '';");
     sbClient.writeln('  await for (final chunk in bodyStream) {');
     sbClient.writeln('    buffer += utf8.decode(chunk);');
@@ -617,7 +673,7 @@ class DartvelClient {
       final argsNamed =
           '${hasParams ? ('${names.map((n) => '$n: $n').join(', ')}, ') : ''}query: query, body: body, headers: headers';
 
-      sbClient.writeln('Future<dio.Response<Object?>> $fname($sig) async {');
+      sbClient.writeln('Future<DVHttpResponse> $fname($sig) async {');
       sbClient
           .writeln("  String routePath = '${colon.replaceAll("'", "\\'")}';");
       sbClient.writeln('  final Map<String, Object?> pp = $paramMap;');
@@ -641,11 +697,11 @@ class DartvelClient {
         if (method == 'post') {
           // Enforce multipart form-data for all generated POST endpoints
           sbClient.writeln(
-              '  final reqPayload = (body is dio.FormData) ? body : (body == null ? dio.FormData.fromMap(fb) : (body is Map<Object?, Object?> ? dio.FormData.fromMap(Map<String, Object?>.from(body)) : body));');
+              '  final reqPayload = (body is DartvelFormData) ? body : (body == null ? DartvelFormData.fromMap(fb) : (body is Map<Object?, Object?> ? DartvelFormData.fromMap(Map<String, Object?>.from(body)) : body));');
         } else {
           // Other non-GET methods: honor provided payload, fall back to simple map
           sbClient.writeln(
-              '  final reqPayload = (body is dio.FormData) ? body : (body ?? fb);');
+              '  final reqPayload = (body is DartvelFormData) ? body : (body ?? fb);');
         }
         sbClient.writeln(
             "  return _dvRequest('$method', uri, data: reqPayload, headers: reqHeaders);");
@@ -791,10 +847,10 @@ class DartvelClient {
             sbClient.writeln('  final reqPayload = body;');
           } else if (method == 'post') {
             sbClient.writeln(
-                '  final reqPayload = (body is dio.FormData) ? body : (body == null ? dio.FormData.fromMap(fb) : (body is Map<Object?, Object?> ? dio.FormData.fromMap(Map<String, Object?>.from(body)) : body));');
+                '  final reqPayload = (body is DartvelFormData) ? body : (body == null ? DartvelFormData.fromMap(fb) : (body is Map<Object?, Object?> ? DartvelFormData.fromMap(Map<String, Object?>.from(body)) : body));');
           } else {
             sbClient.writeln(
-                '  final reqPayload = (body is dio.FormData) ? body : (body ?? fb);');
+                '  final reqPayload = (body is DartvelFormData) ? body : (body ?? fb);');
           }
           if (convExprStream.isEmpty) {
             sbClient.writeln(
@@ -889,10 +945,10 @@ class DartvelClient {
             sbClient.writeln('  final reqPayload = body;');
           } else if (method == 'post') {
             sbClient.writeln(
-                '  final reqPayload = (body is dio.FormData) ? body : (body == null ? dio.FormData.fromMap(fb) : (body is Map<Object?, Object?> ? dio.FormData.fromMap(Map<String, Object?>.from(body)) : body));');
+                '  final reqPayload = (body is DartvelFormData) ? body : (body == null ? DartvelFormData.fromMap(fb) : (body is Map<Object?, Object?> ? DartvelFormData.fromMap(Map<String, Object?>.from(body)) : body));');
           } else {
             sbClient.writeln(
-                '  final reqPayload = (body is dio.FormData) ? body : (body ?? fb);');
+                '  final reqPayload = (body is DartvelFormData) ? body : (body ?? fb);');
           }
           sbClient.writeln(
               "  final r = await _dvRequest('$method', uri, data: reqPayload, headers: reqHeaders);");

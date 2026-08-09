@@ -17,7 +17,6 @@ dependencies:
   sqlite3: ^2.9.4
   drift: ^2.14.0
   pointycastle: ^4.0.0
-  dio: ^5.11.0
 dev_dependencies:
   test: ^1.28.0
   build_runner: ^2.4.0
