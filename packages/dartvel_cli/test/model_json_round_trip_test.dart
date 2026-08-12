@@ -169,4 +169,13 @@ void main() {
       contains('static Widget Form(Post model, [void Function(Post)? onSubmit])'),
     );
   });
+
+  test('an application with no models still gets registerDartvelModels', () async {
+    // The generated dartvel_runtime.dart imports and calls
+    // registerDartvelModels() unconditionally, so the no-models stub must
+    // define it — otherwise every model-less app fails to compile.
+    final generated = await generate('// no models in this application\n');
+
+    expect(generated, contains('void registerDartvelModels() {}'));
+  });
 }
