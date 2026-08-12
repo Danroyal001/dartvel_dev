@@ -43,6 +43,13 @@ analysis_benchmark.json
 .pub/
 .home/
 build/
+# `build/` is unanchored, so git applies it at every depth. That silently
+# excluded packages/dartvel_cli/lib/src/build/ — a source directory, not build
+# output — from every commit, and the loss only surfaced when CI cloned the
+# repository and `dartvel build` failed to compile for every target. A source
+# tree under lib/ is never build output.
+!packages/*/lib/**/build/
+!packages/*/lib/**/build/**
 flutter_*.png
 linked_*.ds
 unlinked.ds
