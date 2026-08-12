@@ -1672,8 +1672,15 @@ class ModelGenerator {
         // is declared `String?` for every model, so it reads as unnecessary on
         // the models that happen to resolve a value.
         '// GENERATED CODE - DO NOT MODIFY BY HAND\n// ignore_for_file: directives_ordering, non_constant_identifier_names, unused_element, use_super_parameters, unnecessary_nullable_for_final_variable_declarations, unnecessary_import\n// Build ID: $buildId\n';
+    // The no-models stub must still define registerDartvelModels(): the
+    // generated dartvel_runtime.dart imports and calls it unconditionally,
+    // so an app with no @DVModel inputs otherwise generates a client that
+    // does not compile.
     final content = classesGenerated.isEmpty
-        ? '${generatedHeader}library dartvel_client_models;\n'
+        ? '${generatedHeader}library dartvel_client_models;\n\n'
+            '/// This application declares no @DVModel inputs; the generated\n'
+            '/// runtime calls this unconditionally.\n'
+            'void registerDartvelModels() {}\n'
         : '$generatedHeader\n${sb.toString()}';
     File(p.join(clientDir.path, 'models.g.dart')).writeAsStringSync(content);
   }
