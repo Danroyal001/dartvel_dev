@@ -30,13 +30,26 @@ Future<void> main(List<String> args) async {
       return;
     }
 
-    final tripleInfo = _resolveTarget();
+    // The hook must build for the architecture the toolchain asks for, not
+    // the one it runs on: a macOS universal build invokes this hook once per
+    // architecture and lipos the results together, so answering both requests
+    // with a host-arch dylib hands lipo two arm64 inputs and fails the build.
+    final targetOS = input.config.code.targetOS;
+    final targetArch = input.config.code.targetArchitecture;
+    final tripleInfo = _resolveTarget(targetOS, targetArch);
     if (tripleInfo == null) {
       stdout.writeln(
-          'dartvel_shelf hook: no native artifact target configured for this host.');
+          'dartvel_shelf hook: no native artifact target configured for '
+          '$targetOS/$targetArch; skipping.');
       return;
     }
     final (triple, libName, subdir) = tripleInfo;
+
+    // Cross-arch triples (the x86_64 half of a universal build on an arm64
+    // host) need their std library installed. Best-effort and quiet: without
+    // rustup the subsequent build still fails with cargo's own message.
+    await Process.run('rustup', ['target', 'add', triple])
+        .catchError((_) => ProcessResult(-1, 127, '', ''));
 
     final cargo = await Process.start(
         'cargo', ['build', '--release', '--target', triple],
@@ -102,69 +115,57 @@ Future<void> main(List<String> args) async {
   });
 }
 
-(String, String, String)? _resolveTarget() {
-  final os = Platform.operatingSystem;
-  final arch = _detectArch();
-  switch (os) {
-    case 'linux':
-      if (arch == 'arm64') {
-        return (
+/// Maps the *requested* build target — never the host — onto a Rust triple,
+/// library name, and `lib/native/` subdirectory.
+///
+/// Unmapped targets return null and the hook skips with a message naming
+/// them, so a new target shows up as an explicit gap rather than a host-arch
+/// library bundled under the wrong name.
+(String, String, String)? _resolveTarget(OS os, Architecture arch) {
+  if (os == OS.linux) {
+    return switch (arch) {
+      Architecture.arm64 => (
           'aarch64-unknown-linux-gnu',
           'libdartvel_shelf.so',
           'linux-arm64'
-        );
-      }
-      return ('x86_64-unknown-linux-gnu', 'libdartvel_shelf.so', 'linux-x64');
-    case 'macos':
-      if (arch == 'arm64') {
-        return (
+        ),
+      Architecture.x64 => (
+          'x86_64-unknown-linux-gnu',
+          'libdartvel_shelf.so',
+          'linux-x64'
+        ),
+      _ => null,
+    };
+  }
+  if (os == OS.macOS) {
+    return switch (arch) {
+      Architecture.arm64 => (
           'aarch64-apple-darwin',
           'libdartvel_shelf.dylib',
           'macos-arm64'
-        );
-      }
-      return ('x86_64-apple-darwin', 'libdartvel_shelf.dylib', 'macos-x64');
-    case 'windows':
-      if (arch == 'arm64') {
-        return (
+        ),
+      Architecture.x64 => (
+          'x86_64-apple-darwin',
+          'libdartvel_shelf.dylib',
+          'macos-x64'
+        ),
+      _ => null,
+    };
+  }
+  if (os == OS.windows) {
+    return switch (arch) {
+      Architecture.arm64 => (
           'aarch64-pc-windows-msvc',
           'dartvel_shelf.dll',
           'windows-arm64'
-        );
-      }
-      return ('x86_64-pc-windows-msvc', 'dartvel_shelf.dll', 'windows-x64');
-    default:
-      return null;
+        ),
+      Architecture.x64 => (
+          'x86_64-pc-windows-msvc',
+          'dartvel_shelf.dll',
+          'windows-x64'
+        ),
+      _ => null,
+    };
   }
-}
-
-String _detectArch() {
-  final envArch = Platform.environment['PROCESSOR_ARCHITECTURE'] ??
-      Platform.environment['HOSTTYPE'] ??
-      '';
-  final lower = envArch.toLowerCase();
-  if (lower.contains('arm64') || lower.contains('aarch64')) {
-    return 'arm64';
-  }
-  if (lower.contains('x86') || lower.contains('amd64')) {
-    return 'x64';
-  }
-
-  final uname = Platform.isWindows ? null : _runSync('uname', ['-m']);
-  if (uname != null) {
-    if (uname.contains('arm') || uname.contains('aarch64')) {
-      return 'arm64';
-    }
-  }
-  return 'x64';
-}
-
-String? _runSync(String cmd, List<String> args) {
-  try {
-    final result = Process.runSync(cmd, args);
-    if (result.exitCode == 0) {
-      return (result.stdout as String?)?.trim();
-    }
-  } catch (_) {}
   return null;
 }
