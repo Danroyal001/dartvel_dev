@@ -21,10 +21,10 @@ local Dartvel `dartvel_vscode` fork added as a dependency.
 | `linux` | ✅ Builds and **runs** | `build/linux/x64/release/bundle/dartvel_example`, 23.8 KB launcher + bundle. Runtime-verified under Xvfb: the release binary ran headless (software EGL), stayed alive, and a root-window screenshot showed the full UI — `DV.Platform` live-reporting `linux`/`desktop`, signals active (`showcase-ready`). The first target verified by running, not only building |
 | `android` | ✅ Builds | `build/app/outputs/flutter-apk/app-release.apk`, 47.9 MB |
 | `fireos` | ✅ Builds | Same APK path; `fireos` maps onto the Android toolchain |
-| `windows` | ⏭️ Not on Linux | Requires a Windows host. See [CI](#ci-for-hosts-you-do-not-have) |
-| `macos` | ⏭️ Not on Linux | Requires macOS |
-| `ios` | ⏭️ Not on Linux | Requires macOS |
-| `tvos` | ⏭️ Not on Linux | Requires macOS **and the `flutter-tvos` embedder**, not the iOS toolchain. See [tvOS](#tvos) |
+| `windows` | ⚠️ Unproven | Two macOS-runner-equivalent attempts hung in `dartvel build windows` for 257 and 226 minutes with no output and were killed, never reaching an artifact. Requires a Windows host. See [CI](#ci-for-hosts-you-do-not-have) |
+| `macos` | ❌ Failing | Reached Xcode on a macOS runner and died in `lipo`: the native-asset hook answered both halves of the universal build with a host-arch dylib. Fixed in `976ccfa8`; the re-run hung and was never re-verified. See [CI](#ci-for-hosts-you-do-not-have) |
+| `ios` | ✅ Builds | **Verified on a macOS runner**, not this host: `build/ios/iphoneos/Runner.app` (15.4 MB), artifact directory listed. Run [31554165981](https://github.com/Danroyal001/dartvel/actions/runs/31554165981) |
+| `tvos` | ⚠️ Unproven | The embedder installs and precaches its own engine on a macOS runner, then stops at `This project is not configured for tvOS`. Scaffold generation added in `d0874755`, not yet executed. Any earlier "passing" tvOS build was `flutter build ios` under another name. See [tvOS](#tvos) |
 | `tizen` / `tpk` | ✅ Builds | Signed 9.3MB TPK with engine + assets; see [Tizen](#tizen-samsung) |
 | `sony-elinux` | ❌ Blocked | Dart version floor; see [Sony eLinux](#sony-elinux) |
 | `webos` | ⚠️ Unproven | Embedder installs; build not yet demonstrated |
@@ -349,8 +349,29 @@ The build command is `flutter-tvos build tvos`, **not** `flutter build ios`.
 Device builds are AOT and require a configured Xcode signing team;
 `--simulator --debug` is the only unsigned path, which is what CI can use.
 
-**Not yet demonstrated.** No Dartvel app has been built through this fork —
-it needs macOS with Xcode. Treat the pin as recorded, not verified.
+**Not yet demonstrated, but further along than that sounds.** On a macOS
+runner the fork clones, bootstraps, and precaches its own engine cleanly —
+all six tvOS engine variants (`tvos-debug-sim-arm64` through
+`tvos-host-release`) fetch in about 15 seconds, confirming the origin-signed
+artifacts for 3.44.8 genuinely exist. `flutter-tvos doctor` then reports
+Flutter 3.44.8 from the fork's own checkout.
+
+The build stops at the next wall:
+
+```
+Running build hooks...This project is not configured for tvOS.
+To fix this problem, create a new project by running `flutter-tvos create <app-dir>`.
+```
+
+`examples/dartvel_example` has no `tvos/` directory, exactly as it has no
+`tizen/`. Rather than making that a manual prerequisite the way Tizen's is
+(step 1 below), `dartvel build` now generates a missing platform scaffold
+through the embedder's own `create` (`d0874755`, covering tizen, sony-elinux,
+webos and tvos). That path has not been executed on a runner yet.
+
+**Any earlier "passing" tvOS build was not one.** Until `b25b025a` the CLI
+mapped `tvos` onto the iOS toolchain and ran `flutter build ios --no-codesign`,
+so the matrix reported a green tvOS job for an iPhone app.
 
 ---
 
@@ -369,6 +390,36 @@ The workflow installs `cbindgen` explicitly. `dartvel_shelf`'s build hook skips
 Rust compilation when `cargo` is missing, but treats a missing `cbindgen` as a
 hard error — and hosted runners ship cargo without cbindgen. It also asserts an
 artifact exists rather than trusting the build command's exit code.
+
+### What the first four dispatches cost
+
+Recorded because the numbers are counterintuitive and shaped the workflow.
+Four runs consumed roughly **4,957 billed minutes**, and over 90% of that was
+three jobs that hung rather than failed:
+
+| Job | Wall | Multiplier | Billed |
+|---|---|---|---|
+| `macos` (run 31554165981) | 360 min — GitHub's cap | 10x | **~3,603** |
+| `windows` (run 31548309453) | 257 min | 2x | ~515 |
+| `windows` (run 31550108127) | 226 min | 2x | ~452 |
+| every other job, all four runs | 3–7 min each | 2–10x | ~390 total |
+
+A build that *fails* is cheap: the three macOS jobs that died on a compile
+error cost about 40 billed minutes each. A build that **hangs** is not, and a
+hung job is invisible — `dartvel build macos` printed `🔨 Building for macos...`
+and then nothing at all for five hours and fifty-six minutes.
+
+Two guards followed. The hook can no longer block indefinitely (`db93571b`),
+and every job now carries `timeout-minutes: 45` (`d568dff9`) — generous
+against a sub-ten-minute successful build, and roughly an eighth of what one
+hang cost.
+
+**Further verification is currently blocked at the account level.** Dispatches
+are refused before any job starts, with: *"The job was not started because
+recent account payments have failed or your spending limit needs to be
+increased."* Raising the Actions spending limit under Settings → Billing &
+plans is the only way to resume; nothing in this repository can work around
+it.
 
 ---
 
