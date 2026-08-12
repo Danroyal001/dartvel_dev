@@ -478,6 +478,29 @@ class BuildCommand extends Command<void> {
       return _PlatformBuildResult.skipped;
     }
 
+    // These embedders refuse a project with no platform directory. That
+    // directory is generated output, so Dartvel generates it rather than
+    // failing with the vendor's "not configured" message and a manual step.
+    final scaffoldDir = plan.scaffoldDirectory;
+    if (scaffoldDir != null &&
+        !Directory(p.join(Directory.current.path, scaffoldDir)).existsSync()) {
+      Logger.log('   No $scaffoldDir/ scaffold; generating it...');
+      final scaffold = await _processRun(
+        plan.executable,
+        plan.scaffoldArguments,
+        workingDirectory: Directory.current.path,
+        runInShell: true,
+      );
+      if (scaffold.exitCode != 0 ||
+          !Directory(p.join(Directory.current.path, scaffoldDir)).existsSync()) {
+        Logger.log('❌ Could not generate the $scaffoldDir/ scaffold.');
+        stdout.write(scaffold.stdout);
+        stderr.write(scaffold.stderr);
+        return _PlatformBuildResult.failed;
+      }
+      Logger.log('   Generated $scaffoldDir/.');
+    }
+
     final proc = await Process.start(
       plan.executable,
       plan.arguments,
@@ -794,11 +817,77 @@ enum _PlatformBuildResult { succeeded, failed, skipped }
 /// Describes how an embedded/television platform is built: which embedder
 /// executable to invoke and with which arguments.
 class EmbeddedBuildPlan {
-  const EmbeddedBuildPlan(this.executable, this.arguments);
+  const EmbeddedBuildPlan(
+    this.executable,
+    this.arguments, {
+    this.scaffoldDirectory,
+    this.scaffoldArguments = const <String>[],
+  });
 
   final String executable;
   final List<String> arguments;
+
+  /// The platform directory the embedder requires, the way an Android build
+  /// requires `android/`. Null when the embedder needs no scaffold.
+  final String? scaffoldDirectory;
+
+  /// Generates [scaffoldDirectory] when it is absent.
+  final List<String> scaffoldArguments;
 }
+
+/// Attaches [platform]'s scaffold requirement to a plan.
+EmbeddedBuildPlan _withScaffold(
+  String platform,
+  String executable,
+  List<String> arguments,
+) {
+  final scaffold = embeddedScaffoldFor(platform);
+  return EmbeddedBuildPlan(
+    executable,
+    arguments,
+    scaffoldDirectory: scaffold?.directory,
+    scaffoldArguments: scaffold?.arguments ?? const <String>[],
+  );
+}
+
+/// The embedder scaffold [platform] needs, or null when it needs none.
+///
+/// These embedders refuse to build a project that has no platform directory —
+/// `This project is not configured for <platform>` — and the directory is
+/// generated output, not application code, so Dartvel generates it rather
+/// than making every developer run the vendor's `create` by hand. The vendor
+/// `create` commands write only files that do not already exist, so an
+/// existing `pubspec.yaml` or `lib/main.dart` is never clobbered.
+({String directory, List<String> arguments})? embeddedScaffoldFor(
+  String platform,
+) =>
+    switch (platform) {
+      'tizen' => (
+          directory: 'tizen',
+          // The default scaffold is C#/.NET; cpp matches the native toolchain.
+          arguments: <String>[
+            'create',
+            '--platforms',
+            'tizen',
+            '--tizen-language',
+            'cpp',
+            '.',
+          ],
+        ),
+      'sony-elinux' => (
+          directory: 'elinux',
+          arguments: <String>['create', '--platforms', 'elinux', '.'],
+        ),
+      'webos' => (
+          directory: 'webos',
+          arguments: <String>['create', '--platforms', 'webos', '.'],
+        ),
+      'tvos' => (
+          directory: 'tvos',
+          arguments: <String>['create', '--platforms=tvos', '.'],
+        ),
+      _ => null,
+    };
 
 class VSCodeArtifactValidation {
   const VSCodeArtifactValidation({
@@ -892,8 +981,8 @@ EmbeddedBuildPlan? resolveEmbeddedBuildPlan({
       if (deviceProfile != null) {
         args.addAll(<String>['--device-profile', deviceProfile]);
       }
-      return EmbeddedBuildPlan(
-          'flutter-tizen', List<String>.unmodifiable(args));
+      return _withScaffold(
+          'tizen', 'flutter-tizen', List<String>.unmodifiable(args));
     case 'sony-elinux':
       final args = <String>[
         'build',
@@ -906,16 +995,16 @@ EmbeddedBuildPlan? resolveEmbeddedBuildPlan({
       if (deviceProfile != null) {
         args.addAll(<String>['--device-profile', deviceProfile]);
       }
-      return EmbeddedBuildPlan(
-          'flutter-elinux', List<String>.unmodifiable(args));
+      return _withScaffold(
+          'sony-elinux', 'flutter-elinux', List<String>.unmodifiable(args));
     case 'webos':
       final args = <String>['build', 'webos', buildMode];
       if (target != null) args.addAll(<String>['--target', target]);
       if (deviceProfile != null) {
         args.addAll(<String>['--device-profile', deviceProfile]);
       }
-      return EmbeddedBuildPlan(
-          'flutter-webos', List<String>.unmodifiable(args));
+      return _withScaffold(
+          'webos', 'flutter-webos', List<String>.unmodifiable(args));
     case 'tvos':
       // Device builds are AOT and require a configured Xcode signing team.
       // `simulator` (via --device-profile simulator) is the unsigned path,
@@ -928,8 +1017,8 @@ EmbeddedBuildPlan? resolveEmbeddedBuildPlan({
         if (simulator) '--simulator',
       ];
       if (target != null) args.addAll(<String>['--target', target]);
-      return EmbeddedBuildPlan(
-          'flutter-tvos', List<String>.unmodifiable(args));
+      return _withScaffold(
+          'tvos', 'flutter-tvos', List<String>.unmodifiable(args));
     case 'fuchsia':
       // Unlike the other three, Fuchsia's embedder is not a Flutter CLI
       // wrapper — there is no embedder binary at all. It is a Bazel workspace,
