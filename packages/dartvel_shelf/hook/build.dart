@@ -48,8 +48,20 @@ Future<void> main(List<String> args) async {
     // Cross-arch triples (the x86_64 half of a universal build on an arm64
     // host) need their std library installed. Best-effort and quiet: without
     // rustup the subsequent build still fails with cargo's own message.
-    await Process.run('rustup', ['target', 'add', triple])
-        .catchError((_) => ProcessResult(-1, 127, '', ''));
+    //
+    // Bounded, and skipped when the target is already installed, because a
+    // universal build runs this hook once per architecture — concurrently —
+    // and two `rustup target add` processes contend for the same ~/.rustup
+    // lock. An unbounded wait there is invisible: the hook prints nothing
+    // while it blocks, so a deadlock looks exactly like a slow build until
+    // CI's own limit kills the job hours later.
+    if (!await _hasRustTarget(triple)) {
+      await _runBounded(
+        'rustup',
+        <String>['target', 'add', triple],
+        const Duration(minutes: 5),
+      );
+    }
 
     final cargo = await Process.start(
         'cargo', ['build', '--release', '--target', triple],
@@ -113,6 +125,47 @@ Future<void> main(List<String> args) async {
         .add(File('${rustDir.path}/include/dartvel_shelf.h').uri);
     output.dependencies.add(File('${pkgRoot.path}/ffigen.yaml').uri);
   });
+}
+
+/// Whether rustup already has [triple]'s standard library.
+///
+/// Reading the installed list is lock-free, so the common case — the target
+/// is present — never touches the lock `rustup target add` takes.
+Future<bool> _hasRustTarget(String triple) async {
+  final result = await _runBounded(
+    'rustup',
+    const <String>['target', 'list', '--installed'],
+    const Duration(minutes: 1),
+  );
+  if (result == null || result.exitCode != 0) return false;
+  return '${result.stdout}'.split('\n').map((l) => l.trim()).contains(triple);
+}
+
+/// Runs [executable] and kills it if it outlives [timeout].
+///
+/// Returns null when the process could not be started, failed, or timed out —
+/// every caller here treats those the same way, and the build that follows
+/// reports the real problem with its own diagnostics.
+Future<ProcessResult?> _runBounded(
+  String executable,
+  List<String> arguments,
+  Duration timeout,
+) async {
+  try {
+    final process = await Process.start(executable, arguments);
+    final stdoutText = process.stdout.transform(const SystemEncoding().decoder).join();
+    final stderrText = process.stderr.transform(const SystemEncoding().decoder).join();
+    final code = await process.exitCode.timeout(timeout, onTimeout: () {
+      stderr.writeln(
+          'dartvel_shelf hook: $executable ${arguments.join(' ')} exceeded '
+          '${timeout.inMinutes}m; killing it and continuing.');
+      process.kill(ProcessSignal.sigkill);
+      return -1;
+    });
+    return ProcessResult(process.pid, code, await stdoutText, await stderrText);
+  } catch (_) {
+    return null;
+  }
 }
 
 /// Maps the *requested* build target — never the host — onto a Rust triple,
