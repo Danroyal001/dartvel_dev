@@ -24,7 +24,7 @@ local Dartvel `dartvel_vscode` fork added as a dependency.
 | `windows` | ⏭️ Not on Linux | Requires a Windows host. See [CI](#ci-for-hosts-you-do-not-have) |
 | `macos` | ⏭️ Not on Linux | Requires macOS |
 | `ios` | ⏭️ Not on Linux | Requires macOS |
-| `tvos` | ⏭️ Not on Linux | Requires macOS |
+| `tvos` | ⏭️ Not on Linux | Requires macOS **and the `flutter-tvos` embedder**, not the iOS toolchain. See [tvOS](#tvos) |
 | `tizen` / `tpk` | ✅ Builds | Signed 9.3MB TPK with engine + assets; see [Tizen](#tizen-samsung) |
 | `sony-elinux` | ❌ Blocked | Dart version floor; see [Sony eLinux](#sony-elinux) |
 | `webos` | ⚠️ Unproven | Embedder installs; build not yet demonstrated |
@@ -331,6 +331,26 @@ The embedder and `ares` CLI install cleanly via auto-install. A real webOS
 build has **not** been demonstrated yet — it needs an LG-published webOS engine
 for that Flutter version and a webOS platform scaffold, the same way Tizen
 needed one.
+
+### tvOS
+
+Apple publishes no tvOS Flutter embedder. The target rides the community
+[`fluttertv/flutter-tvos`](https://github.com/fluttertv/flutter-tvos) CLI,
+forked as [`dartvel_tvos`](https://github.com/Danroyal001/dartvel_tvos).
+
+**Upstream pins Flutter 3.44.8** (revision `058e0af2c2b57e369d905a03ac9748b0ebf543c6`)
+with origin-signed tvOS engine artifacts `v1.0.2-flutter3.44.8`. Dartvel targets
+3.44.5, so the embedder is three patches **ahead** — the same minor, and clear of
+both walls the other forks hit: no missing prebuilt engine as on Sony eLinux, and
+no Dart 3.9 floor problem. The embedder carries its own Flutter SDK, so a tvOS
+build compiles against 3.44.8 rather than the 3.44.5 pinned elsewhere.
+
+The build command is `flutter-tvos build tvos`, **not** `flutter build ios`.
+Device builds are AOT and require a configured Xcode signing team;
+`--simulator --debug` is the only unsigned path, which is what CI can use.
+
+**Not yet demonstrated.** No Dartvel app has been built through this fork —
+it needs macOS with Xcode. Treat the pin as recorded, not verified.
 
 ---
 

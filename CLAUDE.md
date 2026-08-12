@@ -103,6 +103,7 @@ be overridden with `Model.usePublicStaticPathsResolver(...)`.
 | `dartvel build webos` | https://github.com/Danroyal001/dartvel_webos | `lg-flutter-webos/flutter-webos` | LG |
 | `dartvel build fuchsia` | https://github.com/Danroyal001/dartvel_fuchsia | `fuchsia/flutter-embedder` | Fuchsia |
 | `dartvel build vscode` | https://github.com/Danroyal001/dartvel_vscode | `SlowGen/flutter_vscode` | VS Code |
+| `dartvel build tvos` | https://github.com/Danroyal001/dartvel_tvos | `fluttertv/flutter-tvos` | Apple TV (community) |
 
 - Each fork's README carries a Dartvel banner stating why the fork exists and the verified Flutter version the embedder pins. Keep that banner accurate when pins change; leave upstream docs and license untouched below it.
 - The Fuchsia embedder is not a Flutter CLI wrapper like the vendor ones: it is
@@ -112,6 +113,12 @@ be overridden with `Model.usePublicStaticPathsResolver(...)`.
   package template. Upstream is experimental, has no commit queue, and is
   years stale — treat a working pin as something to establish by building, not
   to read off a release.
+- Apple ships no tvOS Flutter embedder, so `dartvel build tvos` rides the
+  community `fluttertv/flutter-tvos` CLI rather than a platform vendor's. It is
+  not `flutter build ios` under another name: the embedder carries its own
+  Flutter SDK and origin-signed tvOS engine artifacts, and its build command is
+  `flutter-tvos build tvos`. Device builds require a configured Xcode signing
+  team, so `--simulator --debug` is the only unsigned path.
 - Vendor embedders download a **prebuilt** Flutter engine per version. When Dartvel's Flutter version is ahead of the newest engine the vendor has published, a version-pin bump alone cannot work — the fix is a vendor (or from-source) engine build, not a patch in the fork. Record the verified engine/version evidence in the fork README rather than pinning to something that 404s.
 - An embedder's Flutter can also be too **old**: `dartvel_shelf`'s native-asset build hook requires `code_assets` and therefore Dart >= 3.9, so any embedder pinned below that cannot build a Dartvel app at all. State which wall a target actually hits — floor or ceiling — rather than assuming it is the engine.
 - `dartvel build vscode` must follow the `flutter_vscode` flow: generate the VS Code extension scaffold/controller bindings, run Flutter pub resolution, install the Node extension host dependencies, and compile the TypeScript extension. It must not be represented as plain `flutter build web`.
