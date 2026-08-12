@@ -28,7 +28,6 @@ const flutterBuildPlatforms = <String>[
   'windows',
   'macos',
   'linux',
-  'tvos',
   'fireos',
 ];
 
@@ -42,11 +41,16 @@ const String fuchsiaAppBuildScript = 'scripts/build_flutter_app.sh';
 
 /// Embedded/television platforms built through dedicated Flutter embedders:
 /// `flutter-tizen` (Samsung), `flutter-elinux` (Sony), `flutter-webos` (LG),
-/// and Fuchsia's out-of-tree embedder.
+/// `flutter-tvos` (community, Apple TV), and Fuchsia's out-of-tree embedder.
+///
+/// tvOS lives here and not in [flutterBuildPlatforms]: Apple ships no tvOS
+/// Flutter embedder, and `flutter build ios` produces an iPhone app whatever
+/// the caller names it.
 const embeddedBuildPlatforms = <String>[
   'tizen',
   'sony-elinux',
   'webos',
+  'tvos',
   'fuchsia',
 ];
 
@@ -912,6 +916,20 @@ EmbeddedBuildPlan? resolveEmbeddedBuildPlan({
       }
       return EmbeddedBuildPlan(
           'flutter-webos', List<String>.unmodifiable(args));
+    case 'tvos':
+      // Device builds are AOT and require a configured Xcode signing team.
+      // `simulator` (via --device-profile simulator) is the unsigned path,
+      // and the embedder accepts it only with a debug build.
+      final simulator = deviceProfile == 'simulator';
+      final args = <String>[
+        'build',
+        'tvos',
+        simulator ? '--debug' : buildMode,
+        if (simulator) '--simulator',
+      ];
+      if (target != null) args.addAll(<String>['--target', target]);
+      return EmbeddedBuildPlan(
+          'flutter-tvos', List<String>.unmodifiable(args));
     case 'fuchsia':
       // Unlike the other three, Fuchsia's embedder is not a Flutter CLI
       // wrapper — there is no embedder binary at all. It is a Bazel workspace,
@@ -943,7 +961,6 @@ List<String> resolveFlutterBuildArguments({
 }) {
   final command = switch (platform) {
     'android' || 'fireos' => 'apk',
-    'tvos' => 'ios',
     _ => platform,
   };
   final args = <String>['build', command, buildMode];
@@ -972,7 +989,7 @@ List<String> resolveFlutterBuildArguments({
   if (platform == 'android' && splitPerAbi) {
     args.add('--split-per-abi');
   }
-  if (platform == 'ios' || platform == 'tvos') {
+  if (platform == 'ios') {
     args.add('--no-codesign');
   }
 

@@ -52,14 +52,11 @@ void main() {
       );
     });
 
-    test('maps TV platforms to supported Flutter build commands', () {
-      expect(
-        resolveFlutterBuildArguments(
-          platform: 'tvos',
-          buildMode: '--release',
-        ),
-        <String>['build', 'ios', '--release', '--no-codesign'],
-      );
+    test('tvOS is not a Flutter build platform in disguise', () {
+      // `flutter build ios` produces an iPhone app whatever the caller names
+      // it; tvOS belongs to the flutter-tvos embedder.
+      expect(flutterBuildPlatforms, isNot(contains('tvos')));
+      expect(embeddedBuildPlatforms, contains('tvos'));
     });
   });
 
@@ -149,6 +146,33 @@ void main() {
         '--device-profile',
         'lg-tv',
       ]);
+    });
+
+    test('builds tvOS through flutter-tvos (community embedder)', () {
+      final plan = resolveEmbeddedBuildPlan(
+        platform: 'tvos',
+        buildMode: '--release',
+        arch: 'arm64',
+      );
+
+      expect(plan, isNotNull);
+      expect(plan!.executable, 'flutter-tvos');
+      expect(plan.arguments, <String>['build', 'tvos', '--release']);
+    });
+
+    test('tvOS simulator builds are debug: the only unsigned path is JIT', () {
+      // A release/profile device build requires a configured Xcode signing
+      // team; the embedder accepts --simulator only with a debug build.
+      final plan = resolveEmbeddedBuildPlan(
+        platform: 'tvos',
+        buildMode: '--release',
+        arch: 'arm64',
+        deviceProfile: 'simulator',
+      );
+
+      expect(plan, isNotNull);
+      expect(plan!.executable, 'flutter-tvos');
+      expect(plan.arguments, <String>['build', 'tvos', '--debug', '--simulator']);
     });
 
     test('returns null for non-embedded platforms', () {
