@@ -29,6 +29,12 @@ jobs:
     if: always()
     # One failing target should not hide the results of the others.
     continue-on-error: true
+    # A build that hangs is the expensive failure mode, not a build that
+    # breaks. A silently blocked `dartvel build macos` once ran to GitHub's
+    # 6-hour default and billed ~3,600 minutes at the macOS 10x multiplier —
+    # more than every other job in every other run combined. A successful
+    # job here takes under 10 minutes, so anything past 45 is hung.
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
