@@ -61,6 +61,18 @@ jobs:
           channel: stable
           cache: true
 
+      # tvOS is not an iOS build: it goes through the community flutter-tvos
+      # embedder (Dartvel fork), which carries its own Flutter SDK and
+      # origin-signed engine artifacts. Runners have no signing team, so the
+      # build below uses the simulator profile — the only unsigned path.
+      - name: Install flutter-tvos embedder
+        if: steps.gate.outputs.run == 'true' && matrix.platform == 'tvos'
+        run: |
+          git clone --depth 1 https://github.com/Danroyal001/dartvel_tvos.git "$HOME/dartvel_tvos"
+          echo "$HOME/dartvel_tvos/bin" >> "$GITHUB_PATH"
+          "$HOME/dartvel_tvos/bin/flutter-tvos" precache
+          "$HOME/dartvel_tvos/bin/flutter-tvos" doctor || true
+
       # dartvel_shelf's build hook compiles the Rust runtime and then runs
       # cbindgen over it. Runners ship cargo but not cbindgen, and the hook
       # treats a missing cbindgen as a hard error (unlike a missing cargo,
@@ -77,10 +89,20 @@ jobs:
       - name: Build
         if: steps.gate.outputs.run == 'true'
         working-directory: examples/dartvel_example
-        run: dart run dartvel_cli:dartvel build ${{ matrix.platform }}
+        shell: bash
+        run: |
+          extra=""
+          if [ "${{ matrix.platform }}" = "tvos" ]; then
+            extra="--device-profile simulator"
+          fi
+          dart run dartvel_cli:dartvel build ${{ matrix.platform }} $extra
 
-      # Proves an artifact exists rather than trusting the command's exit code.
+      # Proves an artifact exists rather than trusting the command's exit
+      # code — and for tvOS, that the artifact is a tvOS app, not an iPhone
+      # app that skipped signing. `dartvel build tvos` skipping because the
+      # embedder is missing must fail here, not pass silently.
       - name: Verify artifact
+        id: artifact
         if: steps.gate.outputs.run == 'true'
         shell: bash
         working-directory: examples/dartvel_example
@@ -88,19 +110,25 @@ jobs:
           case "${{ matrix.platform }}" in
             windows) path=build/windows/x64/runner/Release ;;
             macos)   path=build/macos/Build/Products/Release ;;
-            ios|tvos) path=build/ios/iphoneos ;;
+            ios)     path=build/ios/iphoneos ;;
+            tvos)
+              path=$(find build -type d \( -path '*appletvsimulator*' -o -path '*appletvos*' \) -name '*.app' -print -quit)
+              path=${path:-build/tvos-missing} ;;
           esac
           if [ ! -d "$path" ] || [ -z "$(ls -A "$path")" ]; then
             echo "::error::no artifact at $path"
             exit 1
           fi
+          echo "path=$path" >> "$GITHUB_OUTPUT"
           echo "artifact at $path:"
           ls -la "$path"
 
+      # Only the verified artifact: uploading all of build/ ships gigabytes
+      # of intermediates against a storage quota measured in megabytes.
       - uses: actions/upload-artifact@v4
         if: steps.gate.outputs.run == 'true'
         with:
           name: dartvel-${{ matrix.platform }}
-          path: examples/dartvel_example/build/
-          retention-days: 7
+          path: examples/dartvel_example/${{ steps.artifact.outputs.path }}
+          retention-days: 2
           if-no-files-found: warn
