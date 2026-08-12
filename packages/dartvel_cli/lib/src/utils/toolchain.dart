@@ -48,10 +48,11 @@ String dartvelToolchainRoot(String home) => '$home/.dartvel/toolchains';
 /// The tools [platform] needs, beyond a working Flutter SDK.
 ///
 /// Repository names and executable names differ on purpose: the Dartvel forks
-/// are `dartvel_tizen`, `dartvel_elinux`, `dartvel_webos` and
+/// are `dartvel_tizen`, `dartvel_elinux`, `dartvel_webos`, `dartvel_tvos` and
 /// `dartvel_fuchsia`, but the binaries inside them are upstream's own
-/// `flutter-tizen`, `flutter-elinux` and `flutter-webos`. Renaming those would
-/// mean patching every vendor script and would break tracking upstream.
+/// `flutter-tizen`, `flutter-elinux`, `flutter-webos` and `flutter-tvos`.
+/// Renaming those would mean patching every vendor script and would break
+/// tracking upstream.
 ///
 /// Host support is a separate question answered by `isPlatformAvailableOn`;
 /// this describes what must be *installed*, assuming the host can build the
@@ -142,9 +143,37 @@ List<ToolRequirement> toolRequirementsFor(String platform, {String home = ''}) {
 
     case 'macos':
     case 'ios':
-    case 'tvos':
       return const <ToolRequirement>[
         ToolRequirement(
+          executable: 'xcodebuild',
+          name: 'Xcode',
+          installHint: 'Install Xcode from the App Store, then run '
+              '`sudo xcode-select --install`.',
+        ),
+      ];
+
+    // Apple ships no tvOS Flutter embedder; the target rides the community
+    // flutter-tvos CLI, which carries its own Flutter SDK and engine
+    // artifacts. Xcode is still required — the embedder drives xcodebuild.
+    case 'tvos':
+      return <ToolRequirement>[
+        ToolRequirement(
+          executable: 'flutter-tvos',
+          name: 'flutter-tvos embedder',
+          installHint:
+              'git clone https://github.com/Danroyal001/dartvel_tvos.git '
+              'and add its bin/ to PATH.',
+          installCommand: <String>[
+            'git',
+            'clone',
+            '--depth',
+            '1',
+            'https://github.com/Danroyal001/dartvel_tvos.git',
+            '$root/dartvel_tvos',
+          ],
+          pathHint: '$root/dartvel_tvos/bin',
+        ),
+        const ToolRequirement(
           executable: 'xcodebuild',
           name: 'Xcode',
           installHint: 'Install Xcode from the App Store, then run '

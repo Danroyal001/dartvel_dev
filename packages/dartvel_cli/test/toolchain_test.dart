@@ -26,6 +26,10 @@ void main() {
         toolRequirementsFor('webos').map((r) => r.executable),
         contains('flutter-webos'),
       );
+      expect(
+        toolRequirementsFor('tvos').map((r) => r.executable),
+        containsAll(<String>['flutter-tvos', 'xcodebuild']),
+      );
     });
 
     test('embedders install from the Dartvel forks', () {
@@ -47,6 +51,7 @@ void main() {
         'android': 'sdkmanager',
         'ios': 'xcodebuild',
         'macos': 'xcodebuild',
+        'tvos': 'xcodebuild',
         'windows': 'cl',
       };
       manual.forEach((platform, executable) {
