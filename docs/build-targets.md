@@ -30,6 +30,8 @@ local Dartvel `dartvel_vscode` fork added as a dependency.
 | `webos` | ⚠️ Unproven | Embedder installs; build not yet demonstrated |
 | `fuchsia` | ⚠️ Unproven | Fork created and taught to package any Flutter app; not yet executed — bootstrap needs Bazel + Fuchsia SDK. x64 only. See [Fuchsia](#fuchsia) |
 | `vscode` | ✅ Builds | `out/src/extension.js`, `out/lib/vscode_api.handlers.js`, `build/web/flutter_bootstrap.js`, `build/web/assets/` |
+| `chrome-extension` | ✅ Builds | `build/chrome-extension` (41 MB): MV3 manifest with a `service_worker` background, `index.html`, `main.dart.js`, `background.js`, icons. See [Browser extensions](#browser-extensions) |
+| `firefox-extension` | ✅ Builds | `build/firefox-extension`: the same bundle with an event-page `background.scripts` manifest — verified to differ from the Chromium one, not copy it |
 
 Flutter has **no desktop cross-compilation**. A Windows desktop build requires
 Windows, a Linux desktop build requires Linux, and the Apple targets require
@@ -372,6 +374,41 @@ webos and tvos). That path has not been executed on a runner yet.
 **Any earlier "passing" tvOS build was not one.** Until `b25b025a` the CLI
 mapped `tvos` onto the iOS toolchain and ran `flutter build ios --no-codesign`,
 so the matrix reported a green tvOS job for an iPhone app.
+
+---
+
+### Browser extensions
+
+`chrome-extension` and `firefox-extension` are not embedder targets. They are
+Flutter web output plus a generated manifest and background script, so any host
+that can build web can build them. Two build flags are load-bearing rather than
+stylistic: `--csp`, because manifest V3 forbids `eval`, and
+`--pwa-strategy=none`, because Flutter's service worker fights the extension's
+own — the assembler also deletes `flutter_service_worker.js` from the bundle if
+it appears, since two service workers contend over fetch handling.
+
+The two manifests genuinely differ, and must: Chromium runs a manifest V3
+`service_worker`, while Firefox runs an event page and refuses to load a
+manifest declaring `service_worker`.
+
+```jsonc
+// chrome-extension/manifest.json     // firefox-extension/manifest.json
+"background": {                       "background": {
+  "service_worker": "background.js",    "scripts": ["background.js"]
+  "type": "module"                    }
+}
+```
+
+Verified 2026-08-15 against `examples/dartvel_example`: both bundles build,
+carry all four artifacts a browser needs to load them unpacked
+(`index.html`, `main.dart.js`, `manifest.json`, `background.js`), share one CSP
+with no `unsafe-eval` or `unsafe-inline`, and drop Flutter's service worker.
+
+Two things applications should know. The generated background script resolves
+`globalThis.browser ?? globalThis.chrome` rather than being emitted per target,
+so one script serves both. And `browser_specific_settings.gecko.id` is only
+emitted when `dartvel.extension.geckoId` is set in `pubspec.yaml` — fine for a
+temporary Firefox install, required before distribution.
 
 ---
 
