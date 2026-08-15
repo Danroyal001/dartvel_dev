@@ -1,6 +1,8 @@
 # Dartvel Platform Additions — Proposal
 
-**Status: Proposal for review. Nothing in this document is part of NEW_SPEC.md.**
+**Status: Reviewed 2026-08-15 — all ten approved with amendments. Nothing in
+this document is part of NEW_SPEC.md yet.** See [Review outcome](#review-outcome--2026-08-15)
+for verdicts, the corrected drafting order, and the cross-item conflicts.
 Each item below is a candidate section; on approval, it gets written into the
 spec in house style at the placement noted. Rejected items stay here with a
 note, so the reasoning isn't lost.
@@ -296,3 +298,103 @@ pass, which forces the useful arguments about what is actually frozen today.
 
 Approve, reject, or amend per item; approved items get drafted into
 NEW_SPEC.md individually in house style.
+
+---
+
+## Review outcome — 2026-08-15
+
+Every item was reviewed against `NEW_SPEC.md`, `CLAUDE.md`'s Public API Shape
+Rules, and the code, then adversarially verified by a second pass that
+re-checked each load-bearing claim with grep. **All ten verdicts survived
+verification; none was overturned.** Every item is `approve-with-amendments` —
+the ideas hold, the shapes need work.
+
+| # | Item | Effort | What must change first |
+|---|---|---|---|
+| 1 | Protocol Versioning and Client Compatibility | large | Reconcile the `dartvel compatibility-check` name: either specify one command whose default mode is… |
+| 2 | Offline-First Models | large | State explicitly that the mutation log compiles onto the DVQueues/DVDatabaseQueueAdapter layer (the existing… |
+| 3 | Secrets and Environments | medium | Add a secrets declaration manifest to the spec section: secret names, scope, and per-environment requiredness… |
+| 4 | Data Compliance and Lifecycle | large | Replace @DVField(pii:, retention:) with @DVModel.piiField(retention: ...) per the field-annotation shape rule |
+| 5 | Feature Flags and Staged Rollout | large | Split declaration from state: the dartvel: pubspec config declares flag identity, type, and defaults (the… |
+| 6 | Media Pipeline | large | Replace @DVField(image: DVImage(...)) with @DVModel.imageField(variants: [...], formats: [...]) per the… |
+| 7 | Distributed Tracing | large | Change placement: make this a subsection of the existing "Monitoring and Observability" section (`##… |
+| 8 | AI-Native Tooling Contracts | large | Lead with the project graph, not with `--json`. Spec a single versioned `DartvelProjectGraph` |
+| 9 | Module Distribution and Trust | large | Rename the trust axis so it does not collide with the spec's existing "capability" term. Keep `capabilities:`… |
+| 10 | Specification Status and Conformance | medium | Replace the single ladder with two orthogonal labels per section, so the spec's own scope rule survives:… |
+
+### Draft in this order
+
+Not the order this document recommends. The reasoning is dependency-driven:
+
+- **#3 Secrets and Environments** — draft first. It is the only item whose core guarantee is already half-shipped (DVSecrets resolves from process env only, PUBLIC_-prefixed vars are the sole path into env.g.dart on both generation paths, web resolution structurally throws), so the section largely writes down and hardens an existing posture at medium effort. More importantly it is the unblocker three other items silently depend on: #2's local-store encryption, #4's erasure receipt signing, and #9's grant list all name key material or DV.Secrets surface that only #3 defines. Drafting #2/#4/#9 first bakes in names #3 would renumber. The one thing #3 must add rather than record is the pubspec secrets-declaration manifest — without an enumerable set of declared secrets there is nothing to scope, validate at deploy, or rotate.
+
+- **#10 Specification Status and Conformance (labels + checker only, conformance suites split out)** — draft second and land it in the same commit as its checker. Every other item in this document argues from claims about what NEW_SPEC.md already promises, and the spec has no way to say which promises are built: NEW_SPEC.md:3406-3424 describes eight `dartvel inspect` commands in flat present tense that the CLI registers none of (verified — only `cache inspect` exists). That single unlabeled section is what makes items #7, #8 and #10 itself misjudge their own cost. Fix the ladder into orthogonal Stability/Status axes, bind Shipped to named evidence the way docs/build-targets.md already does, ship it as a checked-in docs/spec-status.json with no CLI dependency, and collapse the seven-file status paragraph into a pointer so this replaces drift rather than adding an eighth copy.
+
+- **#8 AI-Native Tooling Contracts, reframed around the DartvelProjectGraph** — draft third, ahead of its third-wave slot. Its `--json` limb is not nearly free as the proposal claims, and that inversion is the reason to draft now: the real deliverable is one versioned project graph (routes, models and fields, backend functions, jobs, modules, static paths, schema, capability metadata) that generators consume instead of each re-parsing source with ~100 hand-rolled regexes across 8 files. Five other items consume that graph — #10's status index, #7's generated span names and cardinality cap, #5's stale-flag analyzer rule, #6's image-field discovery, #9's module grant introspection — so every month more generators ship private regex discovery, the retrofit gets more expensive. MCP itself is genuinely shipped (dartvel_core/lib/src/ai/mcp.dart, JSON-RPC + stdio, both directions), so `dartvel mcp` is thin once the graph exists, needing one constructor parameter to stop hardwiring the global application tool registry.
+
+### Cross-item conflicts
+
+Invisible from inside any single item — each is a duplicate mechanism or
+vocabulary the spec would otherwise grow:
+
+- Envelope-metadata land grab (#1, #2, #7): three items independently add fields to the same carriers. #1 stamps a protocol version into request headers and every sync/SSE/WebSocket connection; #2 requires the mutation-log entries to carry that version; #7 needs trace context on `DVJobEnvelope` (dartvel.dart:1098), `DVContext` (transaction.dart:87), and `DVModelSyncTransport` (model_sync.dart:33), none of which have any metadata slot today. Drafted separately, the spec grows three envelope extensions with three vocabularies. Fix: #1's section defines ONE envelope-metadata contract (protocol version + trace context + tenant + idempotency key) covering HTTP headers, the job envelope, and the sync transport; #2 and #7 reference it instead of defining their own.
+
+- Item #7's stated dependency on #1 is wrong, and the proposal's sequencing repeats the error. The proposal justifies putting #7 in the second wave because it 'needs the transport hooks protocol work touches anyway' — but #1 as scoped touches only HTTP request headers (the generated client's `_dvPrepareHeaders` choke point, backend_generator.dart:591). The hops #7 actually cannot do today are queue, sync, and FFI, and #1 delivers no carrier for any of them. Either widen #1 to the full envelope contract above, or stop claiming #7 rides on it.
+
+- `dartvel inspect` is a shared, wholly unbuilt dependency for #7, #8, and #10, and no per-item reviewer could see all three leaning on it. Verified: `dartvel inspect` is not registered anywhere in the CLI — the only `inspect` in packages/dartvel_cli is `cache inspect` (cache_command.dart:16). #10 wants `dartvel inspect spec --json`, #8 wants `dartvel inspect <thing> --json --provenance`, #7 wants traces to 'reuse the same source mappings as dartvel inspect'. This directly contradicts the proposal's sequencing, which puts #10 'immediately (costless)' and #8 in the third wave while asserting #8's `--json` can land early 'since inspectors already exist'. Fix: #8's project graph is the real prerequisite; #10 must ship as a checked-in `docs/spec-status.json` with no CLI dependency, and #7 must forward-reference rather than assume.
+
+- Three items claim the same compatibility/drift-check surface: #1 wants `dartvel compatibility-check --against production` for client protocol gating, the spec already uses the identical command at NEW_SPEC.md:2523 and :3445 for framework-version compatibility, and #9 routes module grant drift through `dartvel doctor --modules` plus `dartvel upgrade --plan` (NEW_SPEC.md:3446-3451). Three different questions ('is my framework upgrade safe', 'is my deployed fleet inside the protocol window', 'did this module quietly ask for rawSql') with two command names between them. Fix: one `dartvel compatibility-check` with named modes, decided in #1's draft, and #9 written against whichever mode it needs rather than inventing a doctor flag.
+
+- #3 (Secrets) is a hard prerequisite for #2, #4, and #9, but the proposal's waves put #3 alongside #2 in the first wave and #4/#9 later without stating the dependency. Concretely: #2's `DVOffline(encrypt:)` local-store encryption needs key material and custody that only #3 defines; #4's erasure receipt is 'signed' with keys #3 has not specified (its own reviewer caught this); #9's grant list enumerates `DV.Secrets` as a grantable surface, but NEW_SPEC.md mentions DV.Secrets exactly once (line 2556, in a payments example), so the grant names would be baked in before #3 fixes them. #3 must be drafted before all three, not with them.
+
+- Four items independently extend the sensitive-field exclusion list, each in its own section: #2 adds the on-device local store, #7 adds span names/attributes, #8 adds `--json` output and MCP tool results, #4 adds the PII-vs-sensitive distinction. CLAUDE.md's enumerated list (logs, AI context, traces, analytics, public serialization, search, model pages, tables, admin) becomes authoritative in five places at once. Fix: one amendment to the Sensitive Model Fields section (NEW_SPEC.md:3004-3016) defining the surface set normatively, with #2/#4/#7/#8 cross-referencing it. #4 additionally needs the stacking rule stated there (PII drives erasure/export membership, sensitivity drives exposure redaction; a field can be both).
+
+- #4's audit log and #7's traces are on a collision course that neither reviewer could see: both record actor, tenant, timestamp, and operation over the same data-access paths, and #7's own amendment mandates head-based sampling on by default. If the audit log is implemented as a trace consumer — the obvious economy — sampling silently drops compliance-relevant access events. Fix: #4's section must state that the audit log is a durable, unsampled, tamper-evident record and is explicitly NOT the trace exporter, while allowing an audit event to carry the ambient trace ID for correlation.
+
+- #1 and #5 both amend the OTA section and produce an unstated interaction: #1 makes the protocol compatibility window the authority on whether a client may talk to production, while #5 lets a flag select the Shorebird channel a device pulls from. A flag can therefore route a device to a bundle whose protocol version is outside #1's window, and #5's own amendment already forbids rollback from depending on flag evaluation. Fix: state precedence explicitly in whichever section lands second — the protocol window is a hard gate evaluated before channel selection, flags are a soft selector inside it.
+
+- Three items add generated read-only signal families under DV.* citing the same DV.lifecycle precedent: #1's protocol state, #2's `order.syncState` / `Order.pendingMutations`, #5's per-flag `DV.Flags.<name>.enabled`. Individually correct, collectively they re-justify the same rule three times. Fix: add one CLAUDE.md shape rule ('framework-owned state is exposed as generated read-only signals; application code observes, never assigns') in the same pass, and let all three cite it.
+
+- CLI surface expansion is unmanaged across seven items: #1 (compatibility-check modes), #4 (`dartvel db backup|restore`), #5 (a `dartvel analyze` stale-flag rule), #7 (replacing the `dartvel traces` stub), #8 (`dartvel inspect` family + `dartvel mcp`), #9 (`dartvel module init|publish|verify|grants`, plus deprecating the existing hardcoded `dartvel plugin auth|analytics`), #10 (`dartvel spec status --check`). The Bun-inspired tooling rule requires one discoverable surface. Fix: one CLI-surface pass decides the groups (`db`, `module`, `inspect`, `spec`, `mcp`) and the fate of `dartvel plugin` before any individual section names a verb.
+
+- Three items extend the `@DVModel` annotation namespace in the same window — #2's class-level `offline:`, #4's `@DVModel.piiField(...)`, #6's `@DVModel.imageField(...)` — and two of them (#4, #6) arrived proposing a nonexistent standalone `@DVField`, which the codebase already deprecated once (annotations.dart:269-289). No name collides, but the field-annotation catalog at NEW_SPEC.md:2876-2879 enumerates the permitted set and must be updated once with all three rather than three times. #2 and #4 also both touch at-rest encryption (`DVOffline(encrypt:)`, crypto-shredding via `sensitiveField(encrypted: true)`), so the encryption seam must be defined once, in #3.
+
+### Placement corrections
+
+- #7 Distributed Tracing — wrong placement, and the most consequential of the set. Proposed as a new top-level section after Monitoring and Observability; it must be a `## Distributed tracing` subsection INSIDE Monitoring and Observability (NEW_SPEC.md:1581-1597), whose 'Traces' and 'OpenTelemetry' built-in bullets must be rewritten in place to point at it. A sibling section leaves Monitoring still claiming tracing as a built-in while the contract lives next door — the exact fragmentation the mail-into-Notifications and authorization-into-DV.Auth rules exist to prevent. The API must likewise sit on the existing `DV.ObservabilityAndLogging`, not a new `DV.Tracing` namespace.
+
+- #9 Module Distribution and Trust — placement too weak. Its own reviewer asked only for a forward reference from the Modules section's `federated` bullet, but NEW_SPEC.md:2765-2775 already specifies a signed module manifest verified before integration (for `federated` only) and NEW_SPEC.md:2753 already names `DV.Modules.<id>.manifest`. The manifest must be DEFINED once inside the Modules section for all four deployment modes, with the trust/grant material as a subsection there; a standalone trust section elsewhere leaves two manifest definitions in the document. The `grants:` axis must also be registered next to the existing capability metadata at NEW_SPEC.md:3426-3430 with the collision called out in the text.
+
+- #10 Status labels — placement unstated in the proposal and it matters. The convention paragraph belongs adjacent to the spec's own scope rule at NEW_SPEC.md:3499-3502, which it directly modifies (that rule is why a linear ladder ending in `Implemented` is wrong), not as a trailing section. The per-section markup then applies to the 71 h1 sections with h2 inheritance, and the machine-readable index lives at docs/spec-status.json.
+
+- #4 Data Compliance and Lifecycle — the section placement after Multi-tenancy is right, but the item spans three homes and the draft must edit all three rather than centralize. `@DVModel.piiField(retention:)` belongs in the field-annotation catalog at NEW_SPEC.md:2876-2879 alongside sensitiveField/searchableField/featuredImage; the PII-vs-sensitive stacking rule belongs in the Sensitive Model Fields section at 3004-3016; `dartvel db backup|restore` joins the existing db command group rather than being invented inside the compliance section.
+
+- #2 Offline-First Models — the new section must sit adjacent to Model Sync and Presence (which specs only the connected case), not near PWA, and the four existing scattered mentions (PWA 'Offline support' and 'Background sync', the two embedded-target bullets) must be rewritten in place to cross-reference it. Leaving them as-is gives the spec five uncoordinated statements about offline behavior.
+
+- #6 Media Pipeline — after File Storage is correct, but two existing passages must be edited in place rather than duplicated: the model-page favicon derivative at NEW_SPEC.md:2858-2861 becomes a generated variant of this pipeline (same content-hashing and caching), and the 'uncompressed large model images' diagnostic at line 3458 must link to variant declaration as its fix. The `@DVModel.imageField(...)` annotation also registers in the field-annotation catalog at 2876-2879.
+
+- #5 Feature Flags — the new section is fine, but the middleware bullet at NEW_SPEC.md:957 ('feature flags and experiments') must be rewritten in place to name the generated featureFlags middleware as the enforcement point of DV.Flags, and the OTA section (1458-1471) must gain the boundary sentence. Otherwise the spec keeps a bullet that reads as an independent stringly-typed feature alongside the typed one.
+
+- #1 Protocol Versioning — placement after OTA Updates is right, but the draft must edit the OTA section's existing 'minimum supported app versions' and 'forced update prompts' text (lines 1461-1462) in place to derive from the compatibility window, and must update BOTH existing `dartvel compatibility-check` occurrences (NEW_SPEC.md:2523 and 3445). Appending a section without touching those leaves two independent min-version mechanisms and two meanings of one command.
+
+- #8 AI-Native Tooling — must not be a new standalone AI-tooling section. The inspector family is already enumerated in prose at NEW_SPEC.md:3406-3421 (including the unbacked `dartvel explain DV001`), so the graph/`--json`/diagnostic-code contract belongs there, edited in place; the framework-vs-application MCP registry separation belongs in the AI tools section at 1504-1548 where `@DVAITool` opt-in and `@DVAIHidden()` are already defined.
+
+### Claims in this document that verification falsified
+
+Recorded because they changed the sequencing:
+
+- **#10's premise.** `NEW_SPEC.md` contains zero occurrences of "Proposal" and
+  no `DVPlatformMemory` section exists anywhere in the repo. There is no
+  improvised label to formalize, so the item stands on its own merits rather
+  than as codification of existing practice.
+- **#8's sequencing note** claims `--json` can land early "since inspectors
+  already exist". `dartvel inspect` is not a registered command — the CLI
+  registers 25 commands and the only `inspect` is `cache inspect`. The eight
+  inspectors at `NEW_SPEC.md:3406-3424` are described in flat present tense and
+  none is built.
+- **#4 and #6 both propose `@DVField`,** which exists nowhere in the spec, in
+  `CLAUDE.md`, or in `packages/` — only inside this document. The codebase
+  already deprecated a standalone field annotation once.
+- **#9's "existing platform-capability manifest"** is a flat, app-level,
+  unvalidated `dartvel: permissions:` list, not the per-module capability
+  system the item builds on.
