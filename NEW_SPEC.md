@@ -2184,6 +2184,109 @@ retry, queue selection, priority, and report-period metadata.
 
 ---
 
+# Secrets and Environments
+
+A secret compiled into a client bundle ships to every visitor. Because Dartvel
+compiles both ends from one project, it can make that a build error rather than
+a code-review habit — no stack assembled from separate frontend and backend
+repositories can.
+
+Secrets are **backend-scoped by default**. Reaching one from client-reachable
+code is a typed build error, `DV-SECRETS-001`. Genuinely public values — a
+publishable Stripe key, a map tile token — opt in explicitly, and the opt-in is
+visible in the declaration rather than inferred from a call site.
+
+## Declaration
+
+Secrets are declared under `dartvel:` in `pubspec.yaml`. **Names and scopes
+only; never values.**
+
+```yaml
+dartvel:
+  secrets:
+    PAYSTACK_SECRET:
+      scope: backend            # default; may be omitted
+      required: [production, staging]
+    PUBLIC_STRIPE_KEY:
+      scope: client             # ships to the bundle, deliberately
+      required: [production]
+    OPENAI_API_KEY:
+      scope: backend
+      required: []              # optional everywhere
+```
+
+The declaration is what makes the rest possible: an enumerable set is what
+`dartvel deploy` validates, what rotation iterates, and what an inspector can
+report. An undeclared name used through `DV.Secrets` is a build error naming
+the pubspec key to add, because a typo in a secret name is otherwise a runtime
+failure in production.
+
+A `scope: client` secret must carry the `PUBLIC_` prefix. There is one client
+opt-in, not two: the prefix is the marker in the environment and the generated
+`env.g.dart`, and the declaration is where it is justified.
+
+## Access
+
+```dart
+final key = DV.Secrets.get('PAYSTACK_SECRET');     // throws if unresolved
+final opt = DV.Secrets.maybeGet('OPENAI_API_KEY'); // null if unresolved
+final url = DV.Secrets.getOr('CACHE_URL', 'memory://');
+DV.Secrets.has('PAYSTACK_SECRET');
+```
+
+Resolution order is process environment, then `.env` for local development,
+then values supplied by `DV.Secrets.configure(...)`. Vault and KMS adapters
+plug in behind the same call, so application code never learns where a value
+came from.
+
+## What is guaranteed, and by which layer
+
+Stated separately because the layers have different strengths, and a reader
+deciding what to rely on needs to know which is which.
+
+1. **Values never reach a client bundle.** Only `PUBLIC_`-prefixed variables are
+   emitted into the generated `env.g.dart`, and a web build resolves the process
+   environment to nothing at all — the browser implementation returns null by
+   construction and `DV.Secrets.get` throws `DVSecretNotFoundException` naming
+   the backend function to fetch the value through. This is a structural
+   guarantee: it holds whether or not any analysis runs.
+2. **`DV-SECRETS-001` reports a backend-scoped secret reached from client
+   code.** A diagnostic over the declared set and the generated client's import
+   graph. It is a strong signal, not a proof — a value routed through an
+   indirection it cannot follow is a false negative, which is exactly why layer
+   1 is structural and layer 2 is advisory on top of it.
+3. **`dartvel deploy` refuses to ship when a declared secret required for the
+   target environment does not resolve.** Checked against the declaration, so a
+   secret forgotten in a new environment fails the deploy rather than the first
+   request that needs it.
+
+## Redaction
+
+Secret values are excluded from logs, traces, diagnostics and error messages by
+construction — the same exclusion set as `@DVModel.sensitiveField()`, which
+remains the single normative list. An exception raised while resolving a secret
+names the key, never the value.
+
+## Rotation
+
+```dart
+DV.Secrets.onRotate('PAYSTACK_SECRET', (String value) async {
+  await paymentGateway.reconfigure(value);
+});
+```
+
+Rotation hooks fire when a resolver reports a new value, so a long-lived client
+holding a connection can rebuild it without a restart. A secret with no hook is
+simply re-read on next access.
+
+## Testing
+
+`DV.Test.withSecrets({...})` supplies values for the duration of a test and
+restores the previous state after, so a suite never depends on the developer's
+environment and a forgotten override cannot leak into the next test.
+
+---
+
 # Deployment
 
 ## Monolith
