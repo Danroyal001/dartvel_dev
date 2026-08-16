@@ -7,8 +7,12 @@ changes are called out explicitly below.
 
 ## Unreleased
 
-Provider and adapter implementations for subsystems that previously had an API
-surface but no way to reach a real service.
+Two tranches of work. The first filled in provider and adapter implementations
+for subsystems that had an API surface but no way to reach a real service. The
+second built the subsystems the spec named and nothing stood behind — Studio,
+GraphQL, model sync and presence, MCP, the generated admin — and then went
+looking for the difference between what the documentation claimed and what a
+clean checkout could actually do.
 
 ### Added
 
@@ -90,6 +94,103 @@ surface but no way to reach a real service.
   tag metadata; it now takes `--database`/`--table`, and `cache purge` drops
   expired entries. Tag output says it reflects the CLI process only.
 
+- **Dartvel Studio.** The WordPress-style admin whose page builder sits between
+  a free canvas and a page editor, manipulating real widgets rather than a
+  canvas facsimile. `DVPageDocument` is the serializable widget tree;
+  `DVPageDocumentEditor` is the four operations every builder gesture reduces
+  to — insert, remove, move (which refuses a drop into the node's own subtree),
+  update. `DVPageDocumentRenderer` instantiates the actual `DVBox`/`DVText`/
+  `DVImageView` widgets identically in-editor and in-app, with bound actions
+  driving `DV.Navigation`, and `DVPageStore` persists through `DV.Database` —
+  saving is publishing, page content is data. The running app serves stored
+  pages and reloads them on save, a stored document overrides the compiled page
+  rather than the reverse, and pages ship through OTA as versioned bundles.
+  Visual backend workflows follow the same shape: a runner, a store, code
+  export, and a canvas where steps drag into condition branches with undo/redo.
+- **GraphQL.** The spec lists it among the generated APIs and nothing existed.
+  This is the executable subset a generated API needs, not a general server
+  library: operations, selection sets, arguments, variables, aliases, and named
+  plus inline fragments, served at `/graphql`. Error semantics follow the spec —
+  a request-level failure returns only errors, while a field-level failure nulls
+  that field and appends a named error, so one bad resolver does not take down
+  the response. Directives and subscriptions error rather than silently
+  no-oping. Models generate their own schema and resolvers, and introspection
+  answers `__schema`, `__type` and `__typename`.
+- **Model sync, persistence and presence.** The Model Sync and Presence section
+  had nothing behind it: no change delivery, and generated models had no `save`,
+  `find`, `all`, `watch` or `sync`. `DVModelSync` is the hub the spec's rules
+  demand — typed per-model change streams with tenant filtering and policy
+  checks applied before delivery rather than in the UI, and a transport seam so
+  arriving envelopes re-enter the local streams and remote changes look exactly
+  like local ones. `DVPresence` keys channel membership on authenticated
+  identity rather than connection, tenant-scoped, expiring on silence because a
+  crashed client never sends a departure. Deliberately not a realtime facade;
+  the spec forbids one.
+- **Generated admin surfaces.** `Model.Admin()` is one call rather than a
+  generated screen — the model already knows how to list, save, delete and blank
+  itself, so `DVModelAdmin` is the screen around those. Beyond model CRUD: a
+  queue and job dashboard with retry and single-job discard, cache/tag and
+  route/page explorers showing real state, and outbox, policy/sync, entitlements
+  and events surfaces. The admin opens the Studio.
+- **MCP, both directions.** `DVMcpServer` serves Dartvel's registered AI tools
+  to an MCP client and `DVMcpClient` consumes an external server, with
+  `adoptTools()` registering the peer's tools into the same registry so an agent
+  run calls a remote tool exactly like a local one. Both speak JSON-RPC 2.0 over
+  a transport seam, with a newline-delimited implementation for stdio. The tools
+  served are exactly the ones `DV.AI.registerTool` knows about, so a client and
+  Dartvel's own agent runs see one surface rather than two registries that
+  drift.
+- **Databases.** PostgreSQL and MySQL/MariaDB adapters speaking their wire
+  protocols directly.
+- **Cache and queues.** A Redis adapter with real compare-and-set locks, a
+  Memcached adapter, and a Redis-backed durable queue. Cache gained locks,
+  stampede protection, stale-while-revalidate, tenant-aware keys and the
+  permissioned global helpers.
+- **PostgreSQL full-text search.** The index lives in the database rather than a
+  separate service: one datastore to operate, and results that cannot go stale
+  relative to the rows they came from. Ranking uses `ts_rank` rather than table
+  order, and stemming means "learn" finds "learning" — pinned by a test, since
+  that is the behaviour a `LIKE` cannot reproduce.
+- **Magic links and one-time passcodes.** Two of the four auth providers the
+  spec listed with nothing behind them, both the same primitive: a secret issued
+  to a channel the user controls, redeemable once, within a window. Only the
+  hash is stored, so a dump of the token table does not let anyone sign in, and
+  comparison is constant time so a timing difference cannot reveal how much of a
+  code was right.
+- **Web Push.** `DVNotificationChannel.webPush` was an enum value with nothing
+  behind it. A browser subscription cannot be posted to like a device token —
+  the push service is untrusted infrastructure, so RFC 8291 encrypts the payload
+  end to end against a key only the subscribing user agent holds, and an
+  unencrypted body is a protocol error rather than a degraded send. VAPID
+  application-server identification ships alongside it.
+- **Linux native bindings.** The first native bindings that actually do
+  something. Every `DV.Platform` API had thrown "not registered" since the
+  bridge existed; eight names now work on Linux desktop through direct libX11,
+  libgtk-3 and GDBus calls — `dart:ffi`, not platform channels, per the spec —
+  covering clipboard, screen geometry, desktop notifications and window control.
+  A binding that cannot be implemented is left unregistered so it still throws
+  rather than returning a plausible lie.
+- **OpenAPI.** Documents generated for backend functions and served.
+- **Middleware.** The `csrf`, `idempotency`, `locale`, `featureFlags` and
+  `maintenance` built-ins, which previously passed build validation while doing
+  nothing.
+- **`context.computed`.** Computed values that stay reactive to their source
+  signals, plus a fix for same-type signal collision.
+- **SEO and OTA.** Structured data emission, and OTA version gates.
+- **New build targets.** `chrome-extension` and `firefox-extension` produce
+  loadable MV3 bundles from web output plus a generated manifest and background
+  script. `fuchsia` returned as a target on a Dartvel-forked embedder that
+  packages an arbitrary Flutter app. `tvos` moved onto the community
+  `flutter-tvos` embedder — see *Fixed* for why that matters.
+- **Platform scaffold generation.** `dartvel build` generates the platform
+  directory an embedder refuses to build without (`tizen/`, `elinux/`, `webos/`,
+  `tvos/`) through the vendor's own `create`, rather than failing with a manual
+  step. A scaffold that fails partway is removed rather than left to satisfy the
+  next run's existence check.
+- **Streaming HTTP transport.** `dvStreamHttpRequest` yields a body as it
+  arrives and keeps the client open until it ends; `DVHttpResponse.data`
+  decodes JSON, returning text when the body is not JSON and null when empty.
+
 ### Fixed
 
 - **Local auth accepted any password.** `LocalAuthProvider.signIn` and
@@ -114,6 +215,57 @@ surface but no way to reach a real service.
 - **Sensitive fields reached generated forms.** `showInForms` defaults to false,
   but the generator read only the annotated field's name and never its
   arguments, so every sensitive field got a form getter.
+- **A source directory was never committed, so no clean clone could build.**
+  `.gitignore`'s bare `build/` matches at every depth, and
+  `packages/dartvel_cli/lib/src/build/` is a source directory that happens to be
+  named build. Its only file existed solely as an untracked file on the machine
+  that wrote it — `git log --all` on the path is empty. Because the import sits
+  at the top of `build_command.dart`, ahead of any platform dispatch, *every*
+  `dartvel build <target>` failed to compile from a fresh checkout. The ignore
+  rule now carves out `lib/` trees, and the file is rebuilt against the test
+  that did survive.
+- **`dartvel build tvos` built an iPhone app.** The CLI mapped `tvos` onto the
+  iOS toolchain and ran `flutter build ios --no-codesign`, so the platform
+  matrix reported a green tvOS job for an artifact that was not a tvOS app.
+  tvOS now runs through the `flutter-tvos` embedder, which carries its own
+  Flutter SDK and origin-signed engine artifacts.
+- **A model-less application generated a client that did not compile.** The
+  generated runtime calls `registerDartvelModels()` unconditionally, but an
+  application with no `@DVModel` inputs got a bare `library` stub — the function
+  was discarded with the rest of the buffer. Two of the three example apps were
+  broken.
+- **The native-asset hook built for the host, not the target.** A macOS
+  universal build invokes the hook once per architecture and `lipo`s the
+  results, so answering both requests with a host-arch dylib failed the link
+  with "have the same architectures". The triple now comes from the requested
+  target OS and architecture.
+- **The same hook could block forever.** Because a universal build runs it twice
+  concurrently, both invocations contended on one `~/.rustup` lock, and the hook
+  prints nothing while blocked — a build went silent for five hours and
+  fifty-six minutes before CI's own cap killed it. Nothing in the hook can wait
+  indefinitely now.
+- **Toolchain installed, toolchain not found.** Auto-install extends the PATH
+  handed to child processes, but the scaffold step did not receive that
+  environment, so the availability check resolved an embedder that the very next
+  line could not execute.
+- **`dartvel doctor` could not answer for three buildable targets.** The
+  allowlist was a hand-written literal that rejected `tvos` outright and made
+  the browser-extension arms of the check unreachable. It is now derived from
+  the build command's own target sets.
+- **The generated client depended on a package nothing declared.** It imported
+  `dio`, which meant every Dartvel application depended on a third-party HTTP
+  package whether it wanted to or not — and until `dartvel_core` declared it,
+  none of them compiled. Requests and SSE streams now go through Dartvel's own
+  transport.
+- **Entitlements were keyed by `hashCode`, so customers shared them.**
+- **`DVForm` threw away every edit it collected**, and form fields drew their
+  value as a placeholder.
+- **Generated models could not survive a JSON round trip**, and the generated
+  client did not compile for common field types.
+- **Routes starting with an underscore generated private targets.**
+- **The generated admin pages called a modifier that never existed.**
+- **The `dartvel_shelf` native build was broken** and streaming responses did
+  not work.
 
 ### Changed — breaking
 
@@ -128,22 +280,48 @@ surface but no way to reach a real service.
 
 ### Not implemented
 
-Recorded so the gaps are visible rather than assumed: Postgres, MySQL, MongoDB,
-Turso, ClickHouse and BigQuery databases; Redis and Memcached cache; Redis,
-SQS, Pub/Sub, RabbitMQ and Kafka queues; PostgreSQL full-text search; Azure
-Blob and Google Cloud Storage; APNS, which needs HTTP/2, and Web Push, which
-needs P-256 ECDH and AES128GCM payload encryption; magic links, OTP, LDAP and
-SAML; and the `DV.Platform` device APIs, which need generated JNI/FFI bindings.
+Recorded so the gaps are visible rather than assumed, and corrected as things
+ship — an earlier revision of this list went stale and claimed Postgres, MySQL,
+Redis, Memcached, PostgreSQL full-text search, Web Push, magic links and OTP
+were missing weeks after they landed.
+
+Still absent: MongoDB, Turso, ClickHouse and BigQuery databases; SQS, Pub/Sub,
+RabbitMQ and Kafka queues; Azure Blob and Google Cloud Storage; APNS, which
+needs HTTP/2; LDAP and SAML; GraphQL directives and subscriptions, which error
+rather than silently no-op.
+
+Partial: the `DV.Platform` device APIs. Eight binding names work on Linux
+desktop over `dart:ffi`; the other 35 remain unregistered there, and all 43 are
+unimplemented on Android, iOS, macOS, Windows and web. An unregistered binding
+throws rather than returning a plausible value.
 
 ### Verified
 
-- `packages/dartvel_core`: `dart analyze`, `dart test` (99 → 309 tests).
-- `packages/dartvel_flutter`: `dart analyze`, `flutter test` (41 tests).
-- `packages/dartvel`: `flutter test` (new entrypoint tests).
-- `packages/dartvel_cli`: `dart test` (156 tests).
-- `examples/dartvel_example`: `flutter build web`, including the Wasm dry run,
-  confirming the conditional imports keep `dart:ffi` and `dart:io` out of web
-  output.
+Suites, on Linux x64 with Flutter 3.44.5 / Dart 3.12.2:
+
+- `packages/dartvel_core`: 496 passing (6 skipped, needing memcached).
+- `packages/dartvel_cli`: 236 passing.
+- `packages/dartvel_flutter`: 191 passing.
+- `packages/dartvel`, `packages/dartvel_generator`, `packages/dartvel_shelf`:
+  4, 2 and 5 passing.
+- `examples/`: 16, 1 and 1 passing across the three apps.
+
+Builds, run and inspected rather than inferred:
+
+- `web`, including the Wasm dry run, which is the real check — it fails on
+  `dart:ffi` and `dart:io` reachability that plain JS compilation tolerates.
+- `linux`, verified by **running** it: the release binary ran headless under
+  Xvfb with the hook-built `libdartvel_shelf.so` bundled, and a screenshot
+  showed the UI with `DV.Platform` reporting `linux`/`desktop` and signals live.
+- `chrome-extension` and `firefox-extension`, with the two manifests confirmed
+  to differ rather than one being a copy of the other — Firefox refuses a
+  manifest declaring `service_worker`, so a shared one would silently not load.
+- `ios`, on a macOS runner: `Runner.app`, 15.4 MB.
+
+`macos` reached Xcode and failed in `lipo`; the fix is in but unverified.
+`windows` and `tvos` remain unproven. `sony-elinux` and `webos` are blocked by
+Dart version floors in their vendor embedders. See `docs/build-targets.md`,
+which records the evidence per target and what each one actually hit.
 
 ## 0.2.1 — 2026-07-29
 
