@@ -109,6 +109,19 @@ hooks; values redacted from logs, traces, and diagnostics by construction.
 import-graph-based, and its false-positive story); whether `scope: client`
 should be named something scarier; secret access in tests.
 
+> **Drafted 2026-08-16 — this item is now in `NEW_SPEC.md`.** Written first per
+> the review's ordering, because #2's local-store encryption, #4's erasure
+> receipt signing and #9's grant list all name key material only this section
+> defines. Amendments applied: a `dartvel: secrets:` declaration manifest
+> carrying names and scopes but never values; `scope: client` unified with the
+> shipped `PUBLIC_` prefix rather than added beside it; the guarantee split into
+> three layers with their strengths stated separately, so the structural one
+> (values cannot reach a bundle) is not confused with the advisory one
+> (`DV-SECRETS-001` reachability analysis, which admits false negatives); and
+> the shipped web backstop kept in the contract. The open questions above
+> stand — the section states that layer 2 is a signal rather than a proof
+> instead of resolving how its analysis is implemented.
+
 ---
 
 ## 4. Data Compliance and Lifecycle
