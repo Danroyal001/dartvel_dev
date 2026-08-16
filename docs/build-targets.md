@@ -27,7 +27,7 @@ local Dartvel `dartvel_vscode` fork added as a dependency.
 | `tvos` | ⚠️ Unproven | The embedder installs and precaches its own engine on a macOS runner, then stops at `This project is not configured for tvOS`. Scaffold generation added in `d0874755`, not yet executed. Any earlier "passing" tvOS build was `flutter build ios` under another name. See [tvOS](#tvos) |
 | `tizen` / `tpk` | ✅ Builds | Signed 9.3MB TPK with engine + assets; see [Tizen](#tizen-samsung) |
 | `sony-elinux` | ❌ Blocked | Dart version floor; see [Sony eLinux](#sony-elinux) |
-| `webos` | ⚠️ Unproven | Embedder installs; build not yet demonstrated |
+| `webos` | ❌ Blocked | Dart version floor — the embedder ships Dart 3.10.9, `mix` needs ≥ 3.11.0; see [webOS](#webos-lg) |
 | `fuchsia` | ⚠️ Unproven | Fork created and taught to package any Flutter app; not yet executed — bootstrap needs Bazel + Fuchsia SDK. x64 only. See [Fuchsia](#fuchsia) |
 | `vscode` | ✅ Builds | `out/src/extension.js`, `out/lib/vscode_api.handlers.js`, `build/web/flutter_bootstrap.js`, `build/web/assets/` |
 | `chrome-extension` | ✅ Builds | `build/chrome-extension` (41 MB): MV3 manifest with a `service_worker` background, `index.html`, `main.dart.js`, `background.js`, icons. See [Browser extensions](#browser-extensions) |
@@ -328,11 +328,35 @@ release — a from-source engine build, not a version-pin bump.
 
 ### webOS (LG)
 
-**Upstream pins Flutter 3.38.10**, which should clear the Dart ≥ 3.9 floor.
-The embedder and `ares` CLI install cleanly via auto-install. A real webOS
-build has **not** been demonstrated yet — it needs an LG-published webOS engine
-for that Flutter version and a webOS platform scaffold, the same way Tizen
-needed one.
+**Verified Flutter: 3.38.10 / Dart 3.10.9 — target is blocked.**
+
+The embedder and the `ares` CLI both install cleanly through auto-install, and
+`dartvel build webos` now generates the `webos/` scaffold itself rather than
+requiring the manual step Tizen needs. The scaffold is written — seven files,
+`CMakeLists.txt`, `runner/main.cc`, `meta/appinfo.json` and the rest — and then
+the embedder's own dependency resolution refuses the project:
+
+```
+The current Dart SDK version is 3.10.9.
+
+Because every version of dartvel_flutter from path depends on mix >=2.0.0 which
+requires SDK version >=3.11.0 <4.0.0, dartvel_flutter from path is forbidden.
+```
+
+**This is a floor, and it is not the floor the target was previously measured
+against.** The earlier note reasoned that Flutter 3.38.10 "should clear the
+Dart ≥ 3.9 floor" — true, and irrelevant. That 3.9 floor is `code_assets`, what
+`dartvel_shelf`'s build hook needs. The binding constraint is higher and comes
+from the UI layer: `dartvel_flutter` depends on `mix: ^2.0.0`, which requires
+Dart ≥ 3.11.0. The embedder ships 3.10.9, so **no Dartvel application can build
+for webOS at all** — this fails before any webOS engine or `ares` packaging
+question is reached.
+
+Like Sony eLinux, a version-pin bump alone cannot fix it: LG must publish a
+webOS embedder on a newer Flutter. Unlike Sony eLinux, the wall is the Dart SDK
+the embedder bundles rather than a missing prebuilt engine artifact. Whether an
+LG-published webOS engine exists for a qualifying Flutter version is untested,
+because the build cannot get far enough to ask.
 
 ### tvOS
 
