@@ -4,6 +4,23 @@ import 'package:path/path.dart' as p;
 
 import '../utils/logger.dart';
 import '../utils/toolchain.dart';
+import 'build_command.dart'
+    show
+        browserExtensionBuildPlatforms,
+        embeddedBuildPlatforms,
+        extensionBuildPlatforms;
+
+/// Targets `dartvel doctor --target` accepts.
+///
+/// Derived from the build command's own sets rather than restated, because a
+/// hand-maintained copy drifts: tvOS became an embedder target and could not
+/// be asked about, while the browser extensions had check logic that the
+/// option's allowlist made unreachable.
+final List<String> doctorTargets = <String>[
+  ...embeddedBuildPlatforms,
+  ...extensionBuildPlatforms,
+  ...browserExtensionBuildPlatforms,
+];
 
 class DoctorCommand extends Command<void> {
   @override
@@ -16,7 +33,7 @@ class DoctorCommand extends Command<void> {
   DoctorCommand() {
     argParser.addOption(
       'target',
-      allowed: ['webos', 'tizen', 'sony-elinux', 'fuchsia', 'vscode'],
+      allowed: doctorTargets,
       help:
           'Validate the toolchain for a specific embedded/TV/extension build target',
     );
@@ -103,6 +120,7 @@ class DoctorCommand extends Command<void> {
       'tizen' => 'flutter-tizen',
       'sony-elinux' => 'flutter-elinux',
       'webos' => 'flutter-webos',
+      'tvos' => 'flutter-tvos',
       // The Fuchsia embedder is a checkout driven by its own scripts, not a
       // Flutter CLI wrapper on PATH.
       'fuchsia' => '${dartvelToolchainRoot(Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '')}'
