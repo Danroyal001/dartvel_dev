@@ -485,17 +485,31 @@ class BuildCommand extends Command<void> {
     if (scaffoldDir != null &&
         !Directory(p.join(Directory.current.path, scaffoldDir)).existsSync()) {
       Logger.log('   No $scaffoldDir/ scaffold; generating it...');
-      final scaffold = await _processRun(
+      // Started the same way as the build below, with [_buildEnvironment]: an
+      // embedder auto-installed moments ago lives on a PATH this process was
+      // not started with, so a plain run would not find the executable the
+      // availability check just resolved.
+      final scaffold = await Process.start(
         plan.executable,
         plan.scaffoldArguments,
         workingDirectory: Directory.current.path,
         runInShell: true,
+        environment: _buildEnvironment,
       );
-      if (scaffold.exitCode != 0 ||
-          !Directory(p.join(Directory.current.path, scaffoldDir)).existsSync()) {
+      scaffold.stdout.listen((data) => stdout.add(data));
+      scaffold.stderr.listen((data) => stderr.add(data));
+      final scaffoldCode = await scaffold.exitCode;
+      final generated = Directory(p.join(Directory.current.path, scaffoldDir));
+      if (scaffoldCode != 0 || !generated.existsSync()) {
+        // A vendor `create` that fails partway still leaves the directory
+        // behind. Left in place it would satisfy the check above on the next
+        // run, so the build would proceed against a half-written scaffold and
+        // fail somewhere less obvious.
+        if (generated.existsSync()) {
+          generated.deleteSync(recursive: true);
+          Logger.log('   Removed the partial $scaffoldDir/ scaffold.');
+        }
         Logger.log('❌ Could not generate the $scaffoldDir/ scaffold.');
-        stdout.write(scaffold.stdout);
-        stderr.write(scaffold.stderr);
         return _PlatformBuildResult.failed;
       }
       Logger.log('   Generated $scaffoldDir/.');
