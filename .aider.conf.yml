@@ -1,0 +1,6 @@
+# aider configuration
+# This project's working rules live in CONVENTIONS.md, which carries the same
+# body as AGENTS.md, CLAUDE.md and the other agent rule files in this
+# repository. Keep them in sync; see the list at the top of CONVENTIONS.md.
+read:
+  - CONVENTIONS.md
