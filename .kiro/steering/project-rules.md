@@ -57,16 +57,15 @@ not mark anything "✅ Implemented" in user-facing docs without checking the
 code. Per-target build status lives in `docs/build-targets.md`, where
 "verified" means the command was run and the artifact inspected.
 
-Implemented as of this writing: `DV.lifecycle.*` and `context.lifecycle.*`
-(read-only enum signals in `dartvel_core/src/lifecycle/`), `DV.Modules.<id>`
-(`src/modules/`), `DV.transaction(...)` with `context.afterCommit`/
-`context.compensate` (`src/transaction/`), `@DVStaticPaths()` (discovered by
-`static_paths_generator.dart` into the generated client barrel),
-generated `Model.Page(...)` data-mode APIs (`.async`, `.signal`, `.fromId`) in
-`model_generator.dart`, and `@DVModel(generatePublicPages: true)` static-path
-manifest generation. Generated public model paths default to `DV.Database`
-table enumeration with `published`/`isPublished` filtering when present, and can
-be overridden with `Model.usePublicStaticPathsResolver(...)`.
+Implementation status per spec section lives in **`docs/spec-status.json`**,
+validated by `dart run tool/spec_status_check.dart`, which fails when a section
+claims to be built and the evidence it names does not exist. Read that file
+rather than restating status here — a status paragraph copied across eleven
+rule files is how the copies drift apart. Each entry carries two independent
+labels: `stability` (`Draft`/`Contract`, how much the surface can still move)
+and `status` (`Designed`/`Partial`/`Shipped`, how much is built), because a
+frozen contract that is deliberately unbuilt is the scope rule working, not a
+gap.
 
 ## Public API Shape Rules
 

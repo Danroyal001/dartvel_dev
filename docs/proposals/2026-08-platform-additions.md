@@ -293,6 +293,28 @@ retroactive labeling pass over all existing sections.
 **Open questions.** None structural — the real work is the retro-labeling
 pass, which forces the useful arguments about what is actually frozen today.
 
+> **Drafted 2026-08-17 — this item is now in `NEW_SPEC.md`, with its checker.**
+> Amendments applied. The single ladder is replaced by two orthogonal axes,
+> `stability` (`Draft`/`Contract`) and `status` (`Designed`/`Partial`/`Shipped`),
+> because a linear ladder ending in `Implemented` ranks a frozen, deliberately
+> unbuilt contract below a shipped one and so contradicts the spec's own scope
+> rule — which is why the section sits adjacent to that rule rather than
+> trailing the document. `Partial` and `Shipped` must cite evidence that exists,
+> borrowing `docs/build-targets.md`'s discipline, and `Partial` must additionally
+> say what is absent, since otherwise it reads to a caller exactly like
+> `Shipped`. The index is a checked-in `docs/spec-status.json` with no CLI
+> dependency; `dart run tool/spec_status_check.dart` validates it and runs in CI
+> on every push. Conformance suites are split out and not drafted.
+>
+> Two corrections the review forced. The item's stated premise was false —
+> `NEW_SPEC.md` contains no "Proposal" label and no `DVPlatformMemory` section,
+> so there was no improvised convention to formalise. And rather than adding an
+> eighth copy of implementation status, the paragraph that listed it across the
+> seven agent rule files is now a pointer to the index.
+>
+> First labelling pass: 73 sections — 22 `Shipped`, 26 `Partial`, 5 `Designed`,
+> 20 narrative sections that describe no API and carry no labels.
+
 ---
 
 ## Recommended sequencing
