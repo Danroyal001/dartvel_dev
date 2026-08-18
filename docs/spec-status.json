@@ -1,0 +1,556 @@
+{
+  "$comment": "Implementation status per NEW_SPEC.md h1 section. See the \"Specification Status\" section of NEW_SPEC.md. Validate with: dart run tool/spec_status_check.dart",
+  "specFile": "NEW_SPEC.md",
+  "updated": "2026-08-17",
+  "sections": [
+    {
+      "section": "New Spec v2",
+      "kind": "narrative"
+    },
+    {
+      "section": "Dartvel — The Complete Vision, to be implemented",
+      "kind": "narrative"
+    },
+    {
+      "section": "Philosophy",
+      "kind": "narrative"
+    },
+    {
+      "section": "Design Goals",
+      "kind": "narrative"
+    },
+    {
+      "section": "Project Structure",
+      "kind": "narrative"
+    },
+    {
+      "section": "Configuration",
+      "kind": "narrative"
+    },
+    {
+      "section": "UI",
+      "stability": "Contract",
+      "status": "Shipped",
+      "evidence": [
+        "packages/dartvel_flutter/test/dv_primitives_test.dart"
+      ]
+    },
+    {
+      "section": "Styling",
+      "stability": "Contract",
+      "status": "Shipped",
+      "evidence": [
+        "packages/dartvel_flutter/test/dv_primitives_test.dart"
+      ]
+    },
+    {
+      "section": "Pages",
+      "stability": "Contract",
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_cli/test/model_page_composition_test.dart"
+      ],
+      "absent": "Full body lowering; block-bodied private page inputs still fail"
+    },
+    {
+      "section": "Routing",
+      "stability": "Contract",
+      "status": "Shipped",
+      "evidence": [
+        "packages/dartvel_flutter/test/advanced_routing_test.dart",
+        "packages/dartvel_flutter/test/navigation_test.dart"
+      ]
+    },
+    {
+      "section": "State",
+      "stability": "Contract",
+      "status": "Shipped",
+      "evidence": [
+        "packages/dartvel_flutter/test/computed_test.dart"
+      ]
+    },
+    {
+      "section": "Models",
+      "stability": "Contract",
+      "status": "Shipped",
+      "evidence": [
+        "packages/dartvel_cli/test/model_json_round_trip_test.dart",
+        "packages/dartvel_core/test/model_annotations_test.dart"
+      ]
+    },
+    {
+      "section": "Forms",
+      "stability": "Contract",
+      "status": "Shipped",
+      "evidence": [
+        "packages/dartvel_flutter/test/form_edit_test.dart"
+      ]
+    },
+    {
+      "section": "Backend",
+      "stability": "Contract",
+      "status": "Shipped",
+      "evidence": [
+        "packages/dartvel_core/test/wire_contract_test.dart",
+        "packages/dartvel_cli/test/backend_client_generation_test.dart"
+      ]
+    },
+    {
+      "section": "Streaming Functions",
+      "stability": "Contract",
+      "status": "Shipped",
+      "evidence": [
+        "packages/dartvel_core/test/http_streaming_test.dart"
+      ]
+    },
+    {
+      "section": "Scheduling",
+      "stability": "Draft",
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_cli/test/schedule_generation_test.dart"
+      ],
+      "absent": "Client cron (@DVClientCron) generation"
+    },
+    {
+      "section": "Queues, Jobs, and Signals",
+      "stability": "Contract",
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_core/test/queue_adapters_test.dart",
+        "packages/dartvel_cli/test/job_generation_test.dart"
+      ],
+      "absent": "SQS, Pub/Sub, RabbitMQ and Kafka queue adapters"
+    },
+    {
+      "section": "Authorization",
+      "stability": "Contract",
+      "status": "Shipped",
+      "evidence": [
+        "packages/dartvel_cli/test/policy_generation_test.dart"
+      ]
+    },
+    {
+      "section": "Middleware",
+      "stability": "Contract",
+      "status": "Shipped",
+      "evidence": [
+        "packages/dartvel_core/test/middleware_builtins_test.dart",
+        "packages/dartvel_cli/test/middleware_generation_test.dart"
+      ]
+    },
+    {
+      "section": "Authentication",
+      "stability": "Contract",
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_core/test/auth_credentials_test.dart",
+        "packages/dartvel_core/test/auth_tokens_test.dart",
+        "packages/dartvel_core/test/oauth2_test.dart"
+      ],
+      "absent": "LDAP and SAML providers; passkey, biometric and Web3 sign-in"
+    },
+    {
+      "section": "Theme",
+      "stability": "Contract",
+      "status": "Shipped",
+      "evidence": [
+        "packages/dartvel_flutter/test/dartvel_flutter_test.dart"
+      ]
+    },
+    {
+      "section": "Platform",
+      "stability": "Contract",
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_flutter/test/linux_bindings_test.dart"
+      ],
+      "absent": "35 of 43 binding names on Linux, and all 43 on Android, iOS, macOS, Windows and web"
+    },
+    {
+      "section": "Database",
+      "stability": "Contract",
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_core/test/sqlite_adapter_test.dart",
+        "packages/dartvel_core/test/postgres_adapter_test.dart",
+        "packages/dartvel_core/test/mysql_adapter_test.dart"
+      ],
+      "absent": "MongoDB, Turso, ClickHouse and BigQuery adapters"
+    },
+    {
+      "section": "APIs",
+      "stability": "Contract",
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_core/test/graphql_test.dart",
+        "packages/dartvel_cli/test/openapi_generator_test.dart"
+      ],
+      "absent": "GraphQL directives and subscriptions, which error rather than no-op"
+    },
+    {
+      "section": "Model Sync and Presence",
+      "stability": "Contract",
+      "status": "Shipped",
+      "evidence": [
+        "packages/dartvel_core/test/model_sync_test.dart",
+        "packages/dartvel_core/test/presence_test.dart"
+      ]
+    },
+    {
+      "section": "Mail and Notifications",
+      "stability": "Contract",
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_core/test/mail_providers_test.dart",
+        "packages/dartvel_core/test/push_providers_test.dart",
+        "packages/dartvel_core/test/web_push_test.dart"
+      ],
+      "absent": "APNS, which needs HTTP/2"
+    },
+    {
+      "section": "File Storage",
+      "stability": "Contract",
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_core/test/file_storage_test.dart"
+      ],
+      "absent": "Azure Blob and Google Cloud Storage adapters"
+    },
+    {
+      "section": "Cache",
+      "stability": "Contract",
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_core/test/cache_adapters_test.dart",
+        "packages/dartvel_core/test/redis_cache_test.dart",
+        "packages/dartvel_flutter/test/cache_features_test.dart"
+      ],
+      "absent": "Distributed cache beyond Redis and Memcached"
+    },
+    {
+      "section": "Multi-tenancy",
+      "stability": "Contract",
+      "status": "Shipped",
+      "evidence": [
+        "packages/dartvel_core/test/tenants_test.dart"
+      ]
+    },
+    {
+      "section": "SEO",
+      "stability": "Contract",
+      "status": "Shipped",
+      "evidence": [
+        "packages/dartvel_flutter/test/seo_ota_test.dart"
+      ]
+    },
+    {
+      "section": "PWA",
+      "stability": "Draft",
+      "status": "Designed",
+      "evidence": []
+    },
+    {
+      "section": "OTA Updates",
+      "stability": "Contract",
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_flutter/test/seo_ota_test.dart",
+        "packages/dartvel_cli/test/updates_command_test.dart"
+      ],
+      "absent": "Shorebird-backed native patch application"
+    },
+    {
+      "section": "AI",
+      "stability": "Contract",
+      "status": "Shipped",
+      "evidence": [
+        "packages/dartvel_core/test/ai_providers_test.dart",
+        "packages/dartvel_core/test/mcp_test.dart"
+      ]
+    },
+    {
+      "section": "Monitoring and Observability",
+      "stability": "Draft",
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_flutter/test/telemetry_admin_test.dart"
+      ],
+      "absent": "Distributed tracing spans, context propagation and sampling"
+    },
+    {
+      "section": "Testing",
+      "stability": "Draft",
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_cli/test/test_command_test.dart"
+      ],
+      "absent": "Golden, e2e, native and accessibility suites"
+    },
+    {
+      "section": "Search",
+      "stability": "Contract",
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_core/test/sqlite_search_test.dart",
+        "packages/dartvel_core/test/postgres_search_test.dart",
+        "packages/dartvel_core/test/hosted_search_test.dart"
+      ],
+      "absent": "Facets, highlighting, typo tolerance and synonyms"
+    },
+    {
+      "section": "Billing",
+      "stability": "Draft",
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_core/test/billing_grants_test.dart"
+      ],
+      "absent": "Stripe and Paddle providers; app-store and Play Billing purchases"
+    },
+    {
+      "section": "Internationalization and Localization",
+      "stability": "Draft",
+      "status": "Designed",
+      "evidence": []
+    },
+    {
+      "section": "Accessibility",
+      "stability": "Draft",
+      "status": "Designed",
+      "evidence": []
+    },
+    {
+      "section": "Desktop, Embedded, and Qt-Critical Capabilities",
+      "stability": "Draft",
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_flutter/test/linux_bindings_test.dart"
+      ],
+      "absent": "Tray, menus, global shortcuts, multi-window, and every device/fleet API"
+    },
+    {
+      "section": "Dartvel Studio",
+      "stability": "Draft",
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_flutter/test/studio_editor_test.dart",
+        "packages/dartvel_flutter/test/page_document_test.dart",
+        "packages/dartvel_flutter/test/workflow_editor_test.dart"
+      ],
+      "absent": "Studio panels contributed by plugins"
+    },
+    {
+      "section": "Admin, Devtools, and Scaffolding",
+      "stability": "Draft",
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_flutter/test/model_admin_test.dart",
+        "packages/dartvel_cli/test/admin_command_test.dart"
+      ],
+      "absent": "The dartvel inspect command family, which is not registered"
+    },
+    {
+      "section": "Data Import, Export, and Reporting",
+      "stability": "Draft",
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_cli/test/sensitive_model_generation_test.dart"
+      ],
+      "absent": "Resumable imports and scheduled reports"
+    },
+    {
+      "section": "Secrets and Environments",
+      "stability": "Draft",
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_core/lib/src/secrets/secrets.dart",
+        "packages/dartvel_core/test/secrets_test.dart"
+      ],
+      "absent": "DV-SECRETS-001 reachability analysis, the pubspec declaration manifest, rotation hooks and deploy-time validation"
+    },
+    {
+      "section": "Deployment",
+      "stability": "Draft",
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_cli/test/deploy_command_test.dart"
+      ],
+      "absent": "Function mode across the listed targets"
+    },
+    {
+      "section": "CLI",
+      "stability": "Contract",
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_cli/test/build_command_test.dart",
+        "packages/dartvel_cli/test/doctor_targets_test.dart"
+      ],
+      "absent": "dartvel inspect, dartvel mcp and dartvel spec status"
+    },
+    {
+      "section": "etc.",
+      "kind": "narrative"
+    },
+    {
+      "section": ".dartvel.sh",
+      "stability": "Draft",
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_cli/test/shell_command_test.dart"
+      ],
+      "absent": "Task runner beyond DV.$ and dartvel sh"
+    },
+    {
+      "section": "Package Structure",
+      "kind": "narrative"
+    },
+    {
+      "section": "Home Widgets",
+      "kind": "narrative"
+    },
+    {
+      "section": "CSRF Protection",
+      "stability": "Contract",
+      "status": "Shipped",
+      "evidence": [
+        "packages/dartvel_core/test/wire_contract_test.dart",
+        "packages/dartvel_core/test/middleware_builtins_test.dart"
+      ]
+    },
+    {
+      "section": "The Golden Path",
+      "kind": "narrative"
+    },
+    {
+      "section": "Lifecycle Signals",
+      "stability": "Contract",
+      "status": "Shipped",
+      "evidence": [
+        "packages/dartvel_core/test/lifecycle_test.dart"
+      ]
+    },
+    {
+      "section": "Backend Function Request Lifecycle",
+      "stability": "Contract",
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_core/test/middleware_test.dart"
+      ],
+      "absent": "Flat-buffer envelope encoding; the shipped transport is text multipart"
+    },
+    {
+      "section": "Modules",
+      "stability": "Contract",
+      "status": "Shipped",
+      "evidence": [
+        "packages/dartvel_core/test/modules_test.dart"
+      ]
+    },
+    {
+      "section": "Generated Model Pages",
+      "stability": "Contract",
+      "status": "Shipped",
+      "evidence": [
+        "packages/dartvel_cli/test/model_page_composition_test.dart",
+        "packages/dartvel_cli/test/static_paths_generation_test.dart"
+      ]
+    },
+    {
+      "section": "Reversible Transactions",
+      "stability": "Contract",
+      "status": "Shipped",
+      "evidence": [
+        "packages/dartvel_core/test/transaction_test.dart"
+      ]
+    },
+    {
+      "section": "Background and Durable Work",
+      "stability": "Contract",
+      "status": "Shipped",
+      "evidence": [
+        "packages/dartvel_core/test/queue_adapters_test.dart",
+        "packages/dartvel_cli/test/job_generation_test.dart"
+      ]
+    },
+    {
+      "section": "Sensitive Model Fields",
+      "stability": "Contract",
+      "status": "Shipped",
+      "evidence": [
+        "packages/dartvel_cli/test/sensitive_model_generation_test.dart"
+      ]
+    },
+    {
+      "section": "Static Web Generation",
+      "stability": "Draft",
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_cli/test/static_paths_generation_test.dart"
+      ],
+      "absent": "The SSG build pipeline itself"
+    },
+    {
+      "section": "Web Server Rendering",
+      "stability": "Draft",
+      "status": "Designed",
+      "evidence": []
+    },
+    {
+      "section": "Embedded, Television, and Extension Build Targets",
+      "stability": "Contract",
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_cli/test/build_command_test.dart",
+        "packages/dartvel_cli/test/browser_extension_test.dart",
+        "docs/build-targets.md"
+      ],
+      "absent": "macOS, Windows, tvOS and Fuchsia builds; webOS and Sony eLinux are blocked by vendor Dart floors"
+    },
+    {
+      "section": "Mobile",
+      "kind": "narrative"
+    },
+    {
+      "section": "Web",
+      "kind": "narrative"
+    },
+    {
+      "section": "Desktop",
+      "kind": "narrative"
+    },
+    {
+      "section": "Television, embedded, and extension platforms",
+      "kind": "narrative"
+    },
+    {
+      "section": "Complete Sony Embedded Linux system images",
+      "stability": "Draft",
+      "status": "Designed",
+      "evidence": []
+    },
+    {
+      "section": "Unified Development, Transparency, and Contracts",
+      "kind": "narrative"
+    },
+    {
+      "section": "Mental Model",
+      "kind": "narrative"
+    },
+    {
+      "section": "Specification Status",
+      "kind": "narrative"
+    },
+    {
+      "section": "The Vision",
+      "kind": "narrative"
+    },
+    {
+      "section": "App store publishing",
+      "kind": "narrative"
+    },
+    {
+      "section": "Takeaway",
+      "kind": "narrative"
+    }
+  ]
+}

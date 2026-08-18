@@ -1,0 +1,27 @@
+name: Spec status
+
+# Checks that docs/spec-status.json still describes NEW_SPEC.md and the tree:
+# every section labelled, no label naming a section that no longer exists, and
+# every "Partial" or "Shipped" claim citing evidence that is actually present.
+#
+# Unlike the platform build matrix this runs on every push, because it is a
+# Linux job that finishes in seconds and the whole point of the labels is that
+# something checks them — an unchecked status index is the drift it replaced.
+
+on:
+  push:
+    paths: [NEW_SPEC.md, docs/spec-status.json, tool/spec_status_check.dart, .github/workflows/spec-status.yml]
+  pull_request:
+    paths: [NEW_SPEC.md, docs/spec-status.json, tool/spec_status_check.dart]
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: 3.12.2
+      - run: dart run tool/spec_status_check.dart

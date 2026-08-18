@@ -3604,6 +3604,74 @@ destination.
 
 ---
 
+# Specification Status
+
+The scope rule above is why this section exists and why it takes the shape it
+does. "Design the contracts for the full vision, then implement progressively"
+means a section can be **finished as a contract and unbuilt as code at the same
+time** — that is the method working, not a defect. A single ladder ending in
+`Implemented` would rank a frozen, fully designed contract below a shipped one
+and quietly pressure the spec toward describing only what exists.
+
+So status is **two independent axes**, and every h1 section carries both. An h2
+subsection inherits its parent's labels unless it declares its own.
+
+**Stability** — how much the surface can still move:
+
+| Label | Meaning |
+|---|---|
+| `Draft` | Shape under discussion. APIs are illustrative; names and signatures may change without notice. |
+| `Contract` | Frozen surface. A breaking change requires the migration path in [Upgrade and compatibility](#upgrade-and-compatibility), not a spec edit. |
+
+**Status** — how much of it is built:
+
+| Label | Meaning |
+|---|---|
+| `Designed` | Nothing shipped yet. |
+| `Partial` | Some of the contract is shipped; the section says which part, and what is absent. |
+| `Shipped` | The contract is implemented and covered by tests. |
+
+The two are genuinely orthogonal. `Contract`/`Designed` is a promise the
+platform intends to keep and will not casually reword — the most valuable state
+for anyone building against the roadmap. `Draft`/`Partial` is code that exists
+while its surface is still being argued about, which is a warning to callers.
+
+## Evidence, not adjectives
+
+A `Partial` or `Shipped` label **must name what proves it** — a test file, a
+source path, a CLI command. This borrows the discipline `docs/build-targets.md`
+already applies to build targets, where "verified" means the command was run and
+the artifact inspected, and for the same reason: a status nobody can check is a
+status that drifts.
+
+The machine-readable index is `docs/spec-status.json`, checked into the
+repository so that reading it needs no toolchain:
+
+```json
+{
+  "section": "Secrets and Environments",
+  "stability": "Draft",
+  "status": "Partial",
+  "evidence": [
+    "packages/dartvel_core/lib/src/secrets/secrets.dart",
+    "packages/dartvel_core/test/secrets_test.dart"
+  ],
+  "absent": "DV-SECRETS-001 reachability analysis; rotation hooks; deploy-time validation"
+}
+```
+
+`dart run tool/spec_status_check.dart` fails when a section's claim cannot be
+substantiated: an entry naming a section the spec does not contain, a section
+the index omits, a `Partial` or `Shipped` entry whose evidence path does not
+exist, or a `Partial` entry that does not say what is absent. Running it in CI
+is what keeps the labels honest — without it this is another list that ages.
+
+The index is the single source of truth for implementation status. The agent
+rule files point at it rather than restating it; a status paragraph copied
+across eleven files is exactly the drift this section exists to end.
+
+---
+
 # The Vision
 
 Developers write only:
