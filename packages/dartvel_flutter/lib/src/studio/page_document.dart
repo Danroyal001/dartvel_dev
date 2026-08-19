@@ -65,6 +65,17 @@ class DVPageNode {
         children: children,
       );
 
+  /// A copy with a different node [type], for palette factories that build on
+  /// an existing shape.
+  DVPageNode withType(String type) => DVPageNode(
+        id: id,
+        type: type,
+        layout: layout,
+        properties: properties,
+        action: action,
+        children: children,
+      );
+
   /// A copy with the bound [action] — what the action editor applies.
   DVPageNode withAction(Map<String, Object?>? action) => DVPageNode(
         id: id,
@@ -164,15 +175,11 @@ class DVPageDocument {
   String _nodeSource(DVPageNode node, int depth) {
     final pad = '  ' * depth;
     String core;
-    switch (node.type) {
-      case 'text':
-        // const-receiver: valid even under a .modifier(...) call.
-        core = "const DVText('${_escape('${node.properties['text'] ?? ''}')}')";
-      case 'image':
-        core =
-            "const DVImageView(DVImage.network('${_escape('${node.properties['src'] ?? ''}')}'"
-            "${node.properties['alt'] != null ? ", alt: '${_escape('${node.properties['alt']}')}'" : ''}))";
-      default:
+    final leaf = dvStudioLeafTypeFor(node);
+    if (leaf != null) {
+      // const-receiver where possible: valid even under a .modifier(...) call.
+      core = leaf.source(node, _escape);
+    } else {
         final children = node.children
             .map((DVPageNode c) => '\n$pad  ${_nodeSource(c, depth + 1)},')
             .join();
@@ -318,17 +325,10 @@ class DVPageDocumentRenderer extends StatelessWidget {
 
   Widget _build(DVPageNode node) {
     Widget built;
-    switch (node.type) {
-      case 'text':
-        built = DVText('${node.properties['text'] ?? ''}');
-      case 'image':
-        built = DVImageView(
-          DVImage.network(
-            '${node.properties['src'] ?? ''}',
-            alt: node.properties['alt'] as String?,
-          ),
-        );
-      default:
+    final leaf = dvStudioLeafTypeFor(node);
+    if (leaf != null) {
+      built = leaf.build(node);
+    } else {
         final children =
             node.children.map(_build).toList(growable: false);
         built = switch (node.layout) {
@@ -404,6 +404,110 @@ const Map<Object?, AlignmentGeometry> _alignments = <Object?, AlignmentGeometry>
   'bottomCenter': Alignment.bottomCenter,
   'bottomRight': Alignment.bottomRight,
 };
+
+
+/// A leaf node type the page builder can place.
+///
+/// Renderer, Dart exporter and palette all read [dvStudioLeafTypes], for the
+/// same reason the styling controls share one list: a type handled in the
+/// renderer but not the exporter produces a page that previews correctly and
+/// exports to code that will not compile.
+class DVStudioLeafType {
+  final String type;
+
+  /// Palette label.
+  final String label;
+
+  /// A new node of this type, as dropped from the palette.
+  final DVPageNode Function() create;
+
+  /// Renders the node. Styling and actions are applied by the caller.
+  final Widget Function(DVPageNode node) build;
+
+  /// The node as Dart source, for `toDartSource`.
+  final String Function(DVPageNode node, String Function(String) escape) source;
+
+  const DVStudioLeafType({
+    required this.type,
+    required this.label,
+    required this.create,
+    required this.build,
+    required this.source,
+  });
+}
+
+double _size(DVPageNode node, String name, double fallback) {
+  final value = node.properties[name];
+  return value is num ? value.toDouble() : fallback;
+}
+
+final List<DVStudioLeafType> dvStudioLeafTypes = <DVStudioLeafType>[
+  DVStudioLeafType(
+    type: 'text',
+    label: 'Text',
+    create: () => DVPageNode.text('Text'),
+    build: (node) => DVText('${node.properties['text'] ?? ''}'),
+    source: (node, escape) =>
+        "const DVText('${escape('${node.properties['text'] ?? ''}')}')",
+  ),
+  DVStudioLeafType(
+    type: 'image',
+    label: 'Image',
+    create: () => DVPageNode.image('https://example.com/image.png'),
+    build: (node) => DVImageView(
+      DVImage.network(
+        '${node.properties['src'] ?? ''}',
+        alt: node.properties['alt'] as String?,
+      ),
+    ),
+    source: (node, escape) =>
+        "const DVImageView(DVImage.network('${escape('${node.properties['src'] ?? ''}')}'"
+        "${node.properties['alt'] != null ? ", alt: '${escape('${node.properties['alt']}')}'" : ''}))",
+  ),
+  // A button is a text node that announces itself as one. The tap itself is
+  // the node's action, the same mechanism any node uses, so this adds the
+  // semantics and the tap target rather than a second way to handle presses.
+  DVStudioLeafType(
+    type: 'button',
+    label: 'Button',
+    create: () => DVPageNode.text('Button').withType('button'),
+    build: (node) => DVText('${node.properties['text'] ?? ''}').modifier(
+      const DVModifier().semanticButton().minimumTapTarget(),
+    ),
+    source: (node, escape) =>
+        "DVText('${escape('${node.properties['text'] ?? ''}')}')"
+        '.modifier(const DVModifier().semanticButton().minimumTapTarget())',
+  ),
+  DVStudioLeafType(
+    type: 'spacer',
+    label: 'Spacer',
+    create: () => DVPageNode.text('').withType('spacer').withProperty('size', 16),
+    build: (node) => SizedBox(height: _size(node, 'size', 16)),
+    source: (node, escape) =>
+        'const SizedBox(height: ${_size(node, 'size', 16)})',
+  ),
+  DVStudioLeafType(
+    type: 'divider',
+    label: 'Divider',
+    create: () =>
+        DVPageNode.text('').withType('divider').withProperty('thickness', 1),
+    build: (node) => SizedBox(
+      height: _size(node, 'thickness', 1),
+      child: const ColoredBox(color: Color(0x33000000)),
+    ),
+    source: (node, escape) =>
+        'const SizedBox(height: ${_size(node, 'thickness', 1)}, '
+        'child: ColoredBox(color: Color(0x33000000)))',
+  ),
+];
+
+/// The leaf type [node] declares, or null when it is a layout box.
+DVStudioLeafType? dvStudioLeafTypeFor(DVPageNode node) {
+  for (final leaf in dvStudioLeafTypes) {
+    if (leaf.type == node.type) return leaf;
+  }
+  return null;
+}
 
 /// Reads a colour from a document property.
 ///
