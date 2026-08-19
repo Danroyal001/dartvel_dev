@@ -1,7 +1,7 @@
 {
   "$comment": "Implementation status per NEW_SPEC.md h1 section. See the \"Specification Status\" section of NEW_SPEC.md. Validate with: dart run tool/spec_status_check.dart",
   "specFile": "NEW_SPEC.md",
-  "updated": "2026-08-17",
+  "updated": "2026-08-19",
   "sections": [
     {
       "section": "New Spec v2",
@@ -256,9 +256,10 @@
       "status": "Partial",
       "evidence": [
         "packages/dartvel_flutter/test/seo_ota_test.dart",
-        "packages/dartvel_cli/test/updates_command_test.dart"
+        "packages/dartvel_cli/test/updates_command_test.dart",
+        "packages/dartvel_flutter/test/page_update_delivery_test.dart"
       ],
-      "absent": "Shorebird-backed native patch application"
+      "absent": "Shorebird-backed native patch application; page bundles ship as data and do not need it"
     },
     {
       "section": "AI",
@@ -335,9 +336,10 @@
       "evidence": [
         "packages/dartvel_flutter/test/studio_editor_test.dart",
         "packages/dartvel_flutter/test/page_document_test.dart",
-        "packages/dartvel_flutter/test/workflow_editor_test.dart"
+        "packages/dartvel_flutter/test/workflow_editor_test.dart",
+        "packages/dartvel_flutter/test/page_update_delivery_test.dart"
       ],
-      "absent": "Studio panels contributed by plugins"
+      "absent": "Renderer covers two leaf node types (text, image) and two style properties (fontSize, padding); no reusable components, revision history, responsive breakpoints or multi-user editing"
     },
     {
       "section": "Admin, Devtools, and Scaffolding",

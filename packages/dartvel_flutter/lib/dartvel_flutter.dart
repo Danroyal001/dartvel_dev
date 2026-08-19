@@ -20,6 +20,8 @@ import 'src/display_platform.dart'
     as display_platform;
 import 'src/seo_platform_memory.dart'
     if (dart.library.html) 'src/seo_platform_web.dart' as seo_platform;
+// DV.Updates.applyPages installs page bundles, which are these types.
+import 'src/studio/page_document.dart';
 
 export 'package:dartvel_core/dartvel.dart'
     show
@@ -1599,6 +1601,98 @@ class DVUpdates {
     }
     return true;
   }
+
+  /// What [applyPages] did, so a caller can report it rather than guess.
+  ///
+  /// A no-op is not a failure: an OTA patch can be delivered more than once,
+  /// and a device under a version lock is declining on purpose.
+  Future<DVPageUpdateResult> applyPages({
+    required Uri from,
+    Map<String, String> headers = const <String, String>{},
+    DVPageBundleInstaller installer = const DVPageBundleInstaller(),
+  }) async {
+    final response = await dvSendHttpRequest(
+      DVHttpRequest(url: from, method: 'GET', headers: headers),
+    );
+    if (response.statusCode == 404) {
+      return const DVPageUpdateResult._(DVPageUpdateOutcome.none);
+    }
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw StateError(
+        'Fetching the page bundle from $from failed with HTTP '
+        '${response.statusCode}.',
+      );
+    }
+
+    final DVPageBundle bundle;
+    try {
+      bundle = DVPageBundle.decode(response.body);
+    } on FormatException catch (error) {
+      throw StateError('$from did not return a page bundle: ${error.message}');
+    }
+
+    // Page bundles obey the same lock and skip the code path does. A kiosk
+    // pinned mid-audit is declining *this release*, and content is part of a
+    // release; two independent notions of "pinned" would be a trap.
+    if (_lockedVersion != null && bundle.version != _lockedVersion) {
+      return DVPageUpdateResult._(
+        DVPageUpdateOutcome.declined,
+        version: bundle.version,
+      );
+    }
+
+    final applied = await installer.apply(bundle);
+    return DVPageUpdateResult._(
+      applied ? DVPageUpdateOutcome.applied : DVPageUpdateOutcome.alreadyApplied,
+      version: bundle.version,
+      pages: bundle.pages.length,
+      removedRoutes: bundle.removedRoutes.length,
+    );
+  }
+
+  /// Versions of page bundles this installation has applied, newest last.
+  Future<List<String>> appliedPageVersions({
+    DVPageBundleInstaller installer = const DVPageBundleInstaller(),
+  }) =>
+      installer.appliedVersions();
+}
+
+/// What a page bundle fetch resulted in.
+enum DVPageUpdateOutcome {
+  /// The bundle was applied and its documents are now live.
+  applied,
+
+  /// The bundle's version had already been applied, so nothing was written.
+  /// Re-applying would undo edits made since.
+  alreadyApplied,
+
+  /// A version lock is in force and this bundle is not the pinned version.
+  declined,
+
+  /// The source has no bundle to serve.
+  none,
+}
+
+class DVPageUpdateResult {
+  final DVPageUpdateOutcome outcome;
+  final String? version;
+  final int pages;
+  final int removedRoutes;
+
+  const DVPageUpdateResult._(
+    this.outcome, {
+    this.version,
+    this.pages = 0,
+    this.removedRoutes = 0,
+  });
+
+  bool get changedAnything => outcome == DVPageUpdateOutcome.applied;
+
+  @override
+  String toString() => 'DVPageUpdateResult(${outcome.name}'
+      '${version == null ? '' : ', version: $version'}'
+      '${pages == 0 ? '' : ', pages: $pages'}'
+      '${removedRoutes == 0 ? '' : ', removedRoutes: $removedRoutes'})';
 }
 
 class DVBluetooth {
