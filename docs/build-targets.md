@@ -22,7 +22,7 @@ local Dartvel `dartvel_vscode` fork added as a dependency.
 | `android` | ✅ Builds | `build/app/outputs/flutter-apk/app-release.apk`, 47.9 MB |
 | `fireos` | ✅ Builds | Same APK path; `fireos` maps onto the Android toolchain |
 | `windows` | ⚠️ Unproven | Two macOS-runner-equivalent attempts hung in `dartvel build windows` for 257 and 226 minutes with no output and were killed, never reaching an artifact. Requires a Windows host. See [CI](#ci-for-hosts-you-do-not-have) |
-| `macos` | ❌ Failing | Reached Xcode on a macOS runner and died in `lipo`: the native-asset hook answered both halves of the universal build with a host-arch dylib. Fixed in `976ccfa8`; the re-run hung and was never re-verified. See [CI](#ci-for-hosts-you-do-not-have) |
+| `macos` | ⚠️ Unproven | The `lipo` failure is fixed: it previously died 99s into the build, and run [32201351600](https://github.com/Danroyal001/dartvel/actions/runs/32201351600) ran 335s past that point with no such error. Cancelled by an 8-minute budget cap before Xcode finished, so no artifact exists yet. See [CI](#ci-for-hosts-you-do-not-have) |
 | `ios` | ✅ Builds | **Verified on a macOS runner**, not this host: `build/ios/iphoneos/Runner.app` (15.4 MB), artifact directory listed. Run [31554165981](https://github.com/Danroyal001/dartvel/actions/runs/31554165981) |
 | `tvos` | ⚠️ Unproven | The embedder installs and precaches its own engine on a macOS runner, then stops at `This project is not configured for tvOS`. Scaffold generation added in `d0874755`, not yet executed. Any earlier "passing" tvOS build was `flutter build ios` under another name. See [tvOS](#tvos) |
 | `tizen` / `tpk` | ✅ Builds | Signed 9.3MB TPK with engine + assets; see [Tizen](#tizen-samsung) |
@@ -474,6 +474,29 @@ Two guards followed. The hook can no longer block indefinitely (`db93571b`),
 and every job now carries `timeout-minutes: 45` (`d568dff9`) — generous
 against a sub-ten-minute successful build, and roughly an eighth of what one
 hang cost.
+
+### What a macOS run actually costs
+
+Measured on run 32201351600, which was given an 8-minute cap against a $1
+budget and hit it:
+
+| Phase | Time |
+|---|---|
+| Flutter setup, `cargo install cbindgen`, `pub get` | 2m33s |
+| Rust runtime compile, inside the build step | ~2m36s |
+| `flutter build macos` before the cap | ~3m (incomplete) |
+
+Setup is most of a short run, and at the 10x multiplier it costs more than the
+build it exists to enable. Both halves are now cached — the cbindgen binary,
+and the Rust target directory keyed on the crate's own sources — so a repeat
+run should reach Xcode in about a minute rather than four and a half. Budget a
+macOS attempt at **15 minutes** (~$1.20 uncached, considerably less warm);
+8 was sized from the iOS job's total and did not account for a full Xcode
+application build.
+
+Unselected matrix entries are gated at the job level rather than in a step,
+because a skipped step still starts a runner: three four-second gated jobs on
+that run billed roughly 22 minutes between them.
 
 **Further verification is currently blocked at the account level.** Dispatches
 are refused before any job starts, with: *"The job was not started because

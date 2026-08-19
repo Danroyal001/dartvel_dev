@@ -79,12 +79,41 @@ jobs:
           "$HOME/dartvel_tvos/bin/flutter-tvos" precache
           "$HOME/dartvel_tvos/bin/flutter-tvos" doctor || true
 
+      # Setup is most of a short run's budget, and all of it is cacheable.
+      # Measured on run 32201351600: 69s installing cbindgen and ~2m36s
+      # compiling the Rust runtime, against 3m of actual Xcode build before
+      # the cap. At the macOS 10x multiplier that setup costs more than the
+      # build it exists to enable.
+      - name: Cache cbindgen
+        id: cbindgen-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cbindgen
+          key: cbindgen-${{ runner.os }}-${{ runner.arch }}
+
       # dartvel_shelf's build hook compiles the Rust runtime and then runs
       # cbindgen over it. Runners ship cargo but not cbindgen, and the hook
       # treats a missing cbindgen as a hard error (unlike a missing cargo,
       # which it skips), so it has to be installed explicitly.
       - name: Install cbindgen
+        if: steps.cbindgen-cache.outputs.cache-hit != 'true'
         run: cargo install cbindgen --locked
+
+      # Keyed on the Rust sources and manifest, so a cache hit is only ever a
+      # build of the same crate — a stale hit would be worse than no cache.
+      - name: Cache the Rust runtime build
+        uses: actions/cache@v4
+        with:
+          path: |
+            packages/dartvel_shelf/rust/target
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: >-
+            dartvel-shelf-${{ runner.os }}-${{ runner.arch }}-${{
+            hashFiles('packages/dartvel_shelf/rust/Cargo.toml',
+                      'packages/dartvel_shelf/rust/Cargo.lock',
+                      'packages/dartvel_shelf/rust/src/**') }}
+          restore-keys: dartvel-shelf-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Resolve dependencies
         working-directory: examples/dartvel_example
