@@ -32,7 +32,13 @@ jobs:
   build:
     name: dartvel build ${{ matrix.platform }}
     runs-on: ${{ matrix.os }}
-    if: always()
+    # Gated at the job level, not inside a step. A skipped step still starts a
+    # runner, and a four-second macOS job bills a whole minute at 10x — three
+    # unselected jobs cost about as much as the one being asked for.
+    if: >-
+      inputs.targets == 'all' ||
+      inputs.targets == matrix.group ||
+      inputs.targets == matrix.platform
     # One failing target should not hide the results of the others.
     continue-on-error: true
     # A build that hangs is the expensive failure mode, not a build that
@@ -53,27 +59,9 @@ jobs:
           - { os: macos-latest, platform: tvos, group: apple }
 
     steps:
-      - name: Skip target not selected
-        id: gate
-        shell: bash
-        run: |
-          selected='${{ inputs.targets }}'
-          # A bare platform name runs exactly that job. Selecting "apple" runs
-          # three macOS jobs at 10x, which is the difference between a build
-          # that costs cents and one that costs a budget.
-          if [ "$selected" = "all" ] || [ "$selected" = "${{ matrix.group }}" ] \
-             || [ "$selected" = "${{ matrix.platform }}" ]; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "run=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::skipping ${{ matrix.platform }} (selected: $selected)"
-          fi
-
       - uses: actions/checkout@v4
-        if: steps.gate.outputs.run == 'true'
 
       - uses: subosito/flutter-action@v2
-        if: steps.gate.outputs.run == 'true'
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
@@ -84,7 +72,7 @@ jobs:
       # origin-signed engine artifacts. Runners have no signing team, so the
       # build below uses the simulator profile — the only unsigned path.
       - name: Install flutter-tvos embedder
-        if: steps.gate.outputs.run == 'true' && matrix.platform == 'tvos'
+        if: matrix.platform == 'tvos'
         run: |
           git clone --depth 1 https://github.com/Danroyal001/dartvel_tvos.git "$HOME/dartvel_tvos"
           echo "$HOME/dartvel_tvos/bin" >> "$GITHUB_PATH"
@@ -96,16 +84,13 @@ jobs:
       # treats a missing cbindgen as a hard error (unlike a missing cargo,
       # which it skips), so it has to be installed explicitly.
       - name: Install cbindgen
-        if: steps.gate.outputs.run == 'true'
         run: cargo install cbindgen --locked
 
       - name: Resolve dependencies
-        if: steps.gate.outputs.run == 'true'
         working-directory: examples/dartvel_example
         run: flutter pub get
 
       - name: Build
-        if: steps.gate.outputs.run == 'true'
         working-directory: examples/dartvel_example
         shell: bash
         run: |
@@ -121,7 +106,6 @@ jobs:
       # embedder is missing must fail here, not pass silently.
       - name: Verify artifact
         id: artifact
-        if: steps.gate.outputs.run == 'true'
         shell: bash
         working-directory: examples/dartvel_example
         run: |
@@ -144,7 +128,6 @@ jobs:
       # Only the verified artifact: uploading all of build/ ships gigabytes
       # of intermediates against a storage quota measured in megabytes.
       - uses: actions/upload-artifact@v4
-        if: steps.gate.outputs.run == 'true'
         with:
           name: dartvel-${{ matrix.platform }}
           path: examples/dartvel_example/${{ steps.artifact.outputs.path }}
