@@ -190,6 +190,33 @@ clean checkout could actually do.
 - **Streaming HTTP transport.** `dvStreamHttpRequest` yields a body as it
   arrives and keeps the client open until it ends; `DVHttpResponse.data`
   decodes JSON, returning text when the body is not JSON and null when empty.
+- **Page bundles reach installed apps.** `DV.Updates.applyPages(from:)` fetches
+  a Studio bundle and applies it, returning a typed `DVPageUpdateResult` rather
+  than a bool, because the interesting outcomes are not success and failure: a
+  redelivered patch is inert on purpose, a version-locked device declines on
+  purpose, and a source with nothing to serve is not an error. It deliberately
+  avoids `DVNativeBridge` — page bundles are data, not code, so they need no
+  Shorebird patch and no store review. The bundle machinery and the override
+  machinery were each already tested; nothing had joined them.
+- **The page builder's styling vocabulary.** The renderer honoured two of the
+  twenty-one properties `DVModifier` offers and the inspector exposed one of
+  those two, so `padding` was applied by the platform with no control able to
+  set it. Both now read one `dvStudioProperties` list carrying each property's
+  name, how it is edited, and the closure that applies it, which makes the
+  drift structurally impossible rather than merely repaired. Twelve controls:
+  fontSize, letterSpacing, padding, margin, width, height, rounded, color,
+  backgroundColor, fontWeight, align and card. Colours are read from both the
+  `0xAARRGGBB` integer the `@DVPage` annotation uses and the `#RRGGBB` string a
+  web colour input produces; an unreadable value is ignored rather than guessed
+  at, so a typo renders unstyled instead of black.
+- **`docs/spec-status.json` and its checker.** Implementation status per spec
+  section, with two independent labels — `stability` (Draft/Contract) and
+  `status` (Designed/Partial/Shipped) — because a frozen contract that is
+  deliberately unbuilt is the scope rule working, not a gap. A Partial or
+  Shipped entry must cite evidence that exists and Partial must say what is
+  absent; `dart run tool/spec_status_check.dart` enforces both and runs in CI.
+  It replaces the status paragraph that had been copied across seven agent rule
+  files, rather than becoming an eighth copy.
 
 ### Fixed
 
@@ -266,6 +293,10 @@ clean checkout could actually do.
 - **The generated admin pages called a modifier that never existed.**
 - **The `dartvel_shelf` native build was broken** and streaming responses did
   not work.
+- **The Studio inspector overflowed once it had more than four fields.** An
+  unbounded label overflowed its row, and the inspector had no bounded height
+  to scroll within. Labels are now flexible with accepted values on their own
+  hint line, and the three editor panes share the height the toolbar leaves.
 
 ### Changed — breaking
 
