@@ -345,15 +345,22 @@ class DVStudioInspector extends StatelessWidget {
               onChanged: (String value) =>
                   controller.setProperty(node.id, 'src', value),
             ),
-          _DVStudioField(
-            label: 'fontSize',
-            value: '${node.properties['fontSize'] ?? ''}',
-            onChanged: (String value) => controller.setProperty(
-              node.id,
-              'fontSize',
-              num.tryParse(value),
+          // Rendered from dvStudioProperties, the same list the renderer
+          // applies, so the inspector cannot offer a control the page ignores
+          // or omit one it honours.
+          for (final property in dvStudioProperties)
+            _DVStudioField(
+              label: property.name,
+              hint: property.choices.isEmpty
+                  ? null
+                  : property.choices.join(' / '),
+              value: '${node.properties[property.name] ?? ''}',
+              onChanged: (String value) => controller.setProperty(
+                node.id,
+                property.name,
+                _parseProperty(property, value),
+              ),
             ),
-          ),
           _DVStudioField(
             label: 'navigate to',
             value: '${node.action?['to'] ?? ''}',
@@ -364,7 +371,7 @@ class DVStudioInspector extends StatelessWidget {
                   : <String, Object?>{'type': 'navigate', 'to': value},
             ),
           ),
-        ]);
+        ]).scrollable();
       },
     );
   }
@@ -375,16 +382,21 @@ class _DVStudioField extends StatelessWidget {
   final String value;
   final ValueChanged<String> onChanged;
 
+  /// Accepted values, shown beneath the field. Kept out of the label because
+  /// an unbounded label overflows the inspector row.
+  final String? hint;
+
   const _DVStudioField({
     required this.label,
     required this.value,
     required this.onChanged,
+    this.hint,
   });
 
   @override
   Widget build(BuildContext context) {
-    return DVBox.row(<Widget>[
-      DVText(label),
+    final field = DVBox.row(<Widget>[
+      Flexible(child: DVText(label)),
       Expanded(
         child: EditableText(
           key: ValueKey<String>('dv-studio-field-$label-$value'),
@@ -397,5 +409,28 @@ class _DVStudioField extends StatelessWidget {
         ),
       ),
     ]);
+    final hintText = hint;
+    if (hintText == null) return field;
+    return DVBox.list(<Widget>[
+      field,
+      DVText(hintText).modifier(const DVModifier().fontSize(11)),
+    ]);
   }
+}
+
+/// Turns what was typed into the value the renderer expects.
+///
+/// An empty field clears the property rather than storing an empty string,
+/// so deleting a value removes the styling instead of leaving one the
+/// renderer silently ignores.
+Object? _parseProperty(DVStudioProperty property, String input) {
+  final text = input.trim();
+  if (text.isEmpty) return null;
+  return switch (property.kind) {
+    DVStudioPropertyKind.number => num.tryParse(text),
+    DVStudioPropertyKind.flag => text.toLowerCase() == 'true',
+    DVStudioPropertyKind.colour ||
+    DVStudioPropertyKind.choice =>
+      text,
+  };
 }

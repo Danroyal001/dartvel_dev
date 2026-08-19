@@ -236,11 +236,17 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
           // Proportional rather than fixed: the palette and inspector have to
           // survive a narrow window, and fixed sidebars plus an expanded
           // canvas overflow before the canvas ever gives up space.
-          DVBox.row(<Widget>[
-            Expanded(flex: 2, child: DVStudioPalette(items: widget.palette)),
-            Expanded(flex: 5, child: DVStudioCanvas(controller: controller)),
-            Expanded(flex: 3, child: DVStudioInspector(controller: controller)),
-          ]),
+          // Expanded so the three panes share the height left by the
+          // toolbar. Unbounded, the inspector's own scroll view has no height
+          // to scroll within and overflows instead.
+          Expanded(
+            child: DVBox.row(<Widget>[
+              Expanded(flex: 2, child: DVStudioPalette(items: widget.palette)),
+              Expanded(flex: 5, child: DVStudioCanvas(controller: controller)),
+              Expanded(
+                  flex: 3, child: DVStudioInspector(controller: controller)),
+            ]),
+          ),
       ]),
     );
   }
