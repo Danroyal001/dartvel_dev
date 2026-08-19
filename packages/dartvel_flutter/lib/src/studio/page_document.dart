@@ -345,17 +345,26 @@ class DVPageDocumentRenderer extends StatelessWidget {
         };
     }
 
+    final styled = _applyStyle(node, built);
+    return styled;
+  }
+
+  /// Folds a node's properties onto the widget as a [DVModifier].
+  ///
+  /// Every entry here is a control the builder's inspector can offer. A
+  /// property the renderer ignores is one the inspector cannot meaningfully
+  /// expose, so this list is the page builder's actual styling vocabulary.
+  Widget _applyStyle(DVPageNode node, Widget built) {
     var modifier = const DVModifier();
     var modified = false;
-    final fontSize = node.properties['fontSize'];
-    if (fontSize is num) {
-      modifier = modifier.fontSize(fontSize.toDouble());
-      modified = true;
-    }
-    final padding = node.properties['padding'];
-    if (padding is num) {
-      modifier = modifier.padding(padding.toDouble());
-      modified = true;
+
+    for (final property in dvStudioProperties) {
+      final applied =
+          property.apply(modifier, node.properties[property.name]);
+      if (applied != null) {
+        modifier = applied;
+        modified = true;
+      }
     }
 
     final action = node.action;
@@ -372,6 +381,132 @@ class DVPageDocumentRenderer extends StatelessWidget {
     return DVBox(built).modifier(modifier);
   }
 }
+
+const Map<Object?, FontWeight> _fontWeights = <Object?, FontWeight>{
+  'thin': FontWeight.w100,
+  'light': FontWeight.w300,
+  'normal': FontWeight.w400,
+  'regular': FontWeight.w400,
+  'medium': FontWeight.w500,
+  'semibold': FontWeight.w600,
+  'bold': FontWeight.w700,
+  'black': FontWeight.w900,
+};
+
+const Map<Object?, AlignmentGeometry> _alignments = <Object?, AlignmentGeometry>{
+  'topLeft': Alignment.topLeft,
+  'topCenter': Alignment.topCenter,
+  'topRight': Alignment.topRight,
+  'centerLeft': Alignment.centerLeft,
+  'center': Alignment.center,
+  'centerRight': Alignment.centerRight,
+  'bottomLeft': Alignment.bottomLeft,
+  'bottomCenter': Alignment.bottomCenter,
+  'bottomRight': Alignment.bottomRight,
+};
+
+/// Reads a colour from a document property.
+///
+/// A document is JSON, so a colour arrives either as the `0xAARRGGBB` integer
+/// the `@DVPage` annotation already uses, or as the `#RRGGBB` string a web
+/// editor's colour input produces. Both are accepted; anything else is ignored
+/// rather than guessed at, so a typo renders unstyled instead of black.
+Color? parseDocumentColor(Object? value) {
+  if (value is int) return Color(value);
+  if (value is! String) return null;
+  var text = value.trim();
+  if (text.startsWith('#')) text = text.substring(1);
+  if (text.startsWith('0x') || text.startsWith('0X')) text = text.substring(2);
+  if (text.length == 6) text = 'FF$text';
+  if (text.length != 8) return null;
+  final parsed = int.tryParse(text, radix: 16);
+  return parsed == null ? null : Color(parsed);
+}
+
+/// How a document property is edited and applied.
+///
+/// Renderer and inspector both read this list, so a property cannot be
+/// applied but uneditable, or offered but ignored — which is exactly what had
+/// happened: `padding` rendered while the inspector offered no control for it.
+enum DVStudioPropertyKind { number, colour, choice, flag }
+
+class DVStudioProperty {
+  final String name;
+  final DVStudioPropertyKind kind;
+
+  /// Applies this property's [value] to [modifier]. Returns null when the
+  /// value is missing or unusable, so a typo renders unstyled rather than
+  /// guessed at.
+  final DVModifier? Function(DVModifier modifier, Object? value) apply;
+
+  /// The accepted values, for [DVStudioPropertyKind.choice].
+  final List<String> choices;
+
+  const DVStudioProperty(
+    this.name,
+    this.kind,
+    this.apply, {
+    this.choices = const <String>[],
+  });
+}
+
+DVModifier? _number(
+  DVModifier modifier,
+  Object? value,
+  DVModifier Function(DVModifier m, double v) apply,
+) =>
+    value is num ? apply(modifier, value.toDouble()) : null;
+
+DVModifier? _colour(
+  DVModifier modifier,
+  Object? value,
+  DVModifier Function(DVModifier m, Color v) apply,
+) {
+  final parsed = parseDocumentColor(value);
+  return parsed == null ? null : apply(modifier, parsed);
+}
+
+/// Every styling control the page builder offers.
+final List<DVStudioProperty> dvStudioProperties = <DVStudioProperty>[
+  DVStudioProperty('fontSize', DVStudioPropertyKind.number,
+      (m, v) => _number(m, v, (m, v) => m.fontSize(v))),
+  DVStudioProperty('letterSpacing', DVStudioPropertyKind.number,
+      (m, v) => _number(m, v, (m, v) => m.letterSpacing(v))),
+  DVStudioProperty('padding', DVStudioPropertyKind.number,
+      (m, v) => _number(m, v, (m, v) => m.padding(v))),
+  DVStudioProperty('margin', DVStudioPropertyKind.number,
+      (m, v) => _number(m, v, (m, v) => m.margin(v))),
+  DVStudioProperty('width', DVStudioPropertyKind.number,
+      (m, v) => _number(m, v, (m, v) => m.width(v))),
+  DVStudioProperty('height', DVStudioPropertyKind.number,
+      (m, v) => _number(m, v, (m, v) => m.height(v))),
+  DVStudioProperty('rounded', DVStudioPropertyKind.number,
+      (m, v) => _number(m, v, (m, v) => m.rounded(v))),
+  DVStudioProperty('color', DVStudioPropertyKind.colour,
+      (m, v) => _colour(m, v, (m, v) => m.color(v))),
+  DVStudioProperty('backgroundColor', DVStudioPropertyKind.colour,
+      (m, v) => _colour(m, v, (m, v) => m.backgroundColor(v))),
+  DVStudioProperty(
+    'fontWeight',
+    DVStudioPropertyKind.choice,
+    (m, v) {
+      final weight = _fontWeights[v];
+      return weight == null ? null : m.fontWeight(weight);
+    },
+    choices: _fontWeights.keys.cast<String>().toList(growable: false),
+  ),
+  DVStudioProperty(
+    'align',
+    DVStudioPropertyKind.choice,
+    (m, v) {
+      final alignment = _alignments[v];
+      return alignment == null ? null : m.align(alignment);
+    },
+    choices: _alignments.keys.cast<String>().toList(growable: false),
+  ),
+  DVStudioProperty('card', DVStudioPropertyKind.flag,
+      (m, v) => v == true ? m.card() : null),
+];
 
 /// Stores documents through `DV.Database`, WordPress-style: page content is
 /// data, so saving is publishing.
