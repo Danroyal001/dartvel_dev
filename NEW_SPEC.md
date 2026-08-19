@@ -1524,6 +1524,27 @@ Tool generation:
   `pubspec.yaml` to expose backend functions as tools. Add `@DVAIHidden()` to
   a backend function that must remain private under that mode.
 
+Framework tools are a separate registry from application tools, and the
+separation is load-bearing rather than tidy:
+
+- `dartvel mcp` serves Dartvel's own tools — the inspectors over the project
+  graph, migration planning, doctor, and build validation — to a coding agent
+  working on the application.
+- `DVMcpServer` serves the application's tools, the ones `DV.AI.registerTool`
+  and `@DVAITool` declare, to whatever the application exposes them to.
+
+Framework tools must never enter the process-global tool registry. Application
+AI tool exposure is explicit opt-in with `@DVAIHidden()` as the escape, and a
+framework surface that let itself be adopted into that registry would make an
+agent building the app indistinguishable from an agent the app serves to its
+users — one of which can read the project's schema. The same redaction rule
+applies to both: a `@DVModel.sensitiveField()` is described, never valued.
+
+Agent-produced code has no privileged path. It passes the same typed
+validation as hand-written code and carries the same provenance in source
+mappings, so `dartvel inspect generated` can say what produced a given line
+regardless of who asked for it.
+
 Tool calls:
 ```dart
 DV.AI.registerTool('sumLedger', (input) {
@@ -3523,6 +3544,65 @@ dartvel inspect schema
 dartvel inspect generated
 dartvel explain DV001
 ```
+
+### The project graph
+
+Every inspector above answers a question about the same thing: what this
+application is made of. That is one artifact, not eight — a versioned
+**`DartvelProjectGraph`** carrying routes, models and their fields, backend
+functions, jobs, modules, static paths, the schema, and capability metadata,
+each node keeping the source mapping it was derived from.
+
+The graph is the contract, and `--json` is how it is read:
+
+```bash
+dartvel inspect routes --json
+dartvel inspect model User --json
+dartvel inspect --json            # the whole graph
+```
+
+```json
+{
+  "graphVersion": 1,
+  "models": [
+    {
+      "name": "User",
+      "source": "lib/models/user.dart:7",
+      "fields": [
+        {"name": "email", "type": "String"},
+        {"name": "taxId", "type": "String", "sensitive": true}
+      ]
+    }
+  ]
+}
+```
+
+`graphVersion` is a contract: a consumer that understands version 1 keeps
+working, and a breaking change to the shape increments it rather than quietly
+reshaping a field.
+
+This ordering is deliberate and is the opposite of how the feature is usually
+proposed. `--json` looks like a flag to add to commands that already exist,
+but the generators do not share a model of the project — each rediscovers what
+it needs from source, so eight inspectors would mean eight partial answers that
+disagree at the edges. The graph is the work; `--json` is a serialization of
+it. Building it in that order is also what lets the other subsystems stop
+re-deriving the same facts: generated span names, stale-flag analysis, image
+field discovery and the specification status index are all questions about the
+graph.
+
+**Sensitive fields are named, never valued.** `@DVModel.sensitiveField()` is
+excluded from logs, AI context, traces, analytics, public serialization,
+search, model pages, tables and admin; `--json` output and MCP tool results are
+the same kind of surface and are covered by that rule. A sensitive field
+appears in the graph as a field that exists, marked `"sensitive": true`, with
+no value — the schema is what an agent needs, and the data is what it must not
+be handed.
+
+Diagnostics are part of the contract. Every error and warning Dartvel emits
+carries a stable code, and `dartvel explain <code>` describes the cause and the
+fix. A code is an identifier other tools can match on, so it does not change
+meaning between releases.
 
 ## Platform compatibility
 

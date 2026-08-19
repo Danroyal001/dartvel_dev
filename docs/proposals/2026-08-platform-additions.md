@@ -243,6 +243,30 @@ continuously measures how well AI can build with it.
 surface freeze policy (tools are an API too); whether provenance is mandatory
 or advisory metadata.
 
+> **Drafted 2026-08-19 — this item is now in `NEW_SPEC.md`.** Not as a new
+> section: per the review's placement correction it edits the two places that
+> already cover its ground. The project graph, `--json` and the diagnostic-code
+> contract join *Generated-code transparency*, where the eight inspectors were
+> already enumerated in prose; the framework-versus-application MCP registry
+> separation joins the AI tools section, where `@DVAITool` opt-in and
+> `@DVAIHidden()` are already defined.
+>
+> Reframed as the review required: the deliverable is a versioned
+> `DartvelProjectGraph`, not a flag. The section says so explicitly, because
+> the proposal's own sequencing had it backwards — `--json` reads like
+> something to bolt onto commands that exist, and `dartvel inspect` is not a
+> registered command at all. The generators share no model of the project, so
+> eight inspectors would be eight partial answers that disagree at the edges.
+>
+> The redaction rule was added unprompted, as the review asked: `--json` output
+> and MCP tool results are the same kind of surface the sensitive-field
+> exclusion list already governs, so a sensitive field appears in the graph
+> marked `"sensitive": true` with no value — the schema is what an agent needs,
+> the data is what it must not be handed.
+>
+> Conformance suites and `dartvel ai eval` are not drafted; the graph is the
+> prerequisite and the rest can be argued once it exists.
+
 ---
 
 ## 9. Module Distribution and Trust
