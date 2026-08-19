@@ -140,12 +140,12 @@ class DVStudioPaletteItem {
 
   const DVStudioPaletteItem({required this.label, required this.create});
 
-  /// The default palette: the primitives a Dartvel page is built from.
+  /// The default palette: every leaf type the renderer knows, plus the layout
+  /// boxes. Built from `dvStudioLeafTypes` rather than restated, so a new node
+  /// type appears in the palette, the canvas and the code export together.
   static List<DVStudioPaletteItem> get defaults => <DVStudioPaletteItem>[
-        DVStudioPaletteItem(
-          label: 'Text',
-          create: () => DVPageNode.text('Text'),
-        ),
+        for (final leaf in dvStudioLeafTypes)
+          DVStudioPaletteItem(label: leaf.label, create: leaf.create),
         DVStudioPaletteItem(
           label: 'Column',
           create: () => DVPageNode.box(),
@@ -159,8 +159,8 @@ class DVStudioPaletteItem {
           create: () => DVPageNode.box(layout: 'grid'),
         ),
         DVStudioPaletteItem(
-          label: 'Image',
-          create: () => DVPageNode.image('https://example.com/image.png'),
+          label: 'Stack',
+          create: () => DVPageNode.box(layout: 'stack'),
         ),
       ];
 }

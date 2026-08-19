@@ -94,6 +94,8 @@ void main() {
     });
   });
 
+  nodeCatalogue();
+
   group('rendering', () {
     testWidgets('a styled node renders', (WidgetTester tester) async {
       await pump(
@@ -128,6 +130,71 @@ void main() {
         documentWith(const <String, Object?>{'color': 'chartreuse'}),
       );
       expect(find.text('Hello'), findsOneWidget);
+    });
+  });
+}
+
+// Appended: the node catalogue. Same lesson as the property table — a type has
+// to be handled in the renderer, the Dart exporter and the palette, and one
+// handled in only two of the three produces a page that previews correctly and
+// exports to code that does not compile.
+void nodeCatalogue() {
+  group('leaf types', () {
+    test('the catalogue covers more than text and image', () {
+      final types = dvStudioLeafTypes.map((t) => t.type).toSet();
+      expect(types,
+          containsAll(<String>['text', 'image', 'button', 'spacer', 'divider']));
+    });
+
+    test('every type builds a widget and exports Dart source', () {
+      for (final leaf in dvStudioLeafTypes) {
+        final node = leaf.create();
+        expect(node.type, leaf.type,
+            reason: '${leaf.label} creates a node of another type');
+        expect(leaf.build(node), isNotNull);
+        final source = leaf.source(node, (String v) => v);
+        expect(source, isNotEmpty,
+            reason: '${leaf.label} exports no source');
+      }
+    });
+
+    test('the palette offers exactly the types the renderer knows', () {
+      final palette =
+          DVStudioPaletteItem.defaults.map((i) => i.create().type).toSet();
+      for (final leaf in dvStudioLeafTypes) {
+        expect(palette, contains(leaf.type),
+            reason: '${leaf.type} renders but is not in the palette');
+      }
+    });
+
+    testWidgets('a document of every type renders', (WidgetTester tester) async {
+      final document = DVPageDocument(route: '/all', title: 'All');
+      final editor = DVPageDocumentEditor(document);
+      for (final leaf in dvStudioLeafTypes) {
+        editor.insert(leaf.create(), parent: document.root.id);
+      }
+
+      await tester.pumpWidget(
+        MaterialApp(home: Scaffold(body: DVPageDocumentRenderer(document))),
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Button'), findsOneWidget);
+    });
+
+    test('exported source mentions every node in the document', () {
+      final document = DVPageDocument(route: '/all', title: 'All');
+      final editor = DVPageDocumentEditor(document);
+      for (final leaf in dvStudioLeafTypes) {
+        editor.insert(leaf.create(), parent: document.root.id);
+      }
+
+      final source = document.toDartSource();
+      expect(source, contains('DVText'));
+      expect(source, contains('DVImageView'));
+      expect(source, contains('semanticButton'));
+      expect(source, contains('SizedBox'));
+      expect(source, contains('ColoredBox'));
     });
   });
 }

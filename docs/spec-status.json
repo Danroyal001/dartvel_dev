@@ -339,7 +339,7 @@
         "packages/dartvel_flutter/test/studio_styling_test.dart",
         "packages/dartvel_flutter/test/page_update_delivery_test.dart"
       ],
-      "absent": "Two leaf node types (text, image); no reusable components or patterns, revision history beyond in-session undo, responsive breakpoints, or multi-user editing"
+      "absent": "Five leaf node types (text, image, button, spacer, divider); no reusable components or patterns, revision history beyond in-session undo, responsive breakpoints, or multi-user editing"
     },
     {
       "section": "Admin, Devtools, and Scaffolding",
