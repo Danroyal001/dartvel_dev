@@ -1,0 +1,11 @@
+include: package:lints/recommended.yaml
+
+# `lints`, not `flutter_lints`: dartvel_cli is a pure-Dart package and does not
+# depend on Flutter, so including the Flutter rule set left every analysis
+# reporting an unresolvable include instead of analysing.
+linter:
+  rules:
+    - always_declare_return_types
+    - avoid_print
+    - prefer_final_locals
+    - prefer_const_constructors
