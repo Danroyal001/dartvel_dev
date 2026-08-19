@@ -17,7 +17,13 @@ on:
         description: Which targets to build
         type: choice
         default: all
-        options: [all, windows, apple]
+        options: [all, windows, apple, macos, ios, tvos]
+      timeout:
+        description: >-
+          Minutes before a job is killed. A macOS minute bills at 10x, so this
+          is the budget control: a run costs at most timeout x 10 x macOS jobs.
+        type: string
+        default: '45'
 
 env:
   FLUTTER_VERSION: 3.44.5
@@ -33,8 +39,10 @@ jobs:
     # breaks. A silently blocked `dartvel build macos` once ran to GitHub's
     # 6-hour default and billed ~3,600 minutes at the macOS 10x multiplier —
     # more than every other job in every other run combined. A successful
-    # job here takes under 10 minutes, so anything past 45 is hung.
-    timeout-minutes: 45
+    # job here takes under 10 minutes, so anything past the default 45 is
+    # hung. Lower it on dispatch to cap what a hang can cost: at the macOS
+    # 10x multiplier every wall minute is ten billed ones.
+    timeout-minutes: ${{ fromJSON(inputs.timeout || '45') }}
     strategy:
       fail-fast: false
       matrix:
@@ -50,7 +58,11 @@ jobs:
         shell: bash
         run: |
           selected='${{ inputs.targets }}'
-          if [ "$selected" = "all" ] || [ "$selected" = "${{ matrix.group }}" ]; then
+          # A bare platform name runs exactly that job. Selecting "apple" runs
+          # three macOS jobs at 10x, which is the difference between a build
+          # that costs cents and one that costs a budget.
+          if [ "$selected" = "all" ] || [ "$selected" = "${{ matrix.group }}" ] \
+             || [ "$selected" = "${{ matrix.platform }}" ]; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
