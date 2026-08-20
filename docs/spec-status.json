@@ -335,9 +335,11 @@
       "status": "Partial",
       "evidence": [
         "packages/dartvel_flutter/lib/src/windowing/window.dart",
-        "packages/dartvel_flutter/test/windowing_test.dart"
+        "packages/dartvel_flutter/lib/src/windowing/shared_store.dart",
+        "packages/dartvel_flutter/test/windowing_test.dart",
+        "packages/dartvel_flutter/test/window_shared_store_test.dart"
       ],
-      "absent": "Native window bindings on every target, so no OS window is created yet and every open() degrades; the shared window store, handover, workspace persistence and the window inspector"
+      "absent": "Native window bindings on every target, so no OS window is created yet and every open() degrades; preference-store backends and the application-key cipher, so the store is in-memory and unencrypted; value spilling to DV.FileStorage; workspace persistence; the window inspector"
     },
     {
       "section": "Tab Workspaces",
