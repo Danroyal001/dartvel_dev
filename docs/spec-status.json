@@ -332,8 +332,12 @@
     {
       "section": "Multi-Window",
       "stability": "Draft",
-      "status": "Designed",
-      "evidence": []
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_flutter/lib/src/windowing/window.dart",
+        "packages/dartvel_flutter/test/windowing_test.dart"
+      ],
+      "absent": "Native window bindings on every target, so no OS window is created yet and every open() degrades; the shared window store, handover, workspace persistence and the window inspector"
     },
     {
       "section": "Tab Workspaces",
