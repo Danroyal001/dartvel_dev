@@ -1930,7 +1930,7 @@ Desktop:
 - native menus
 - tray/status icons
 - global shortcuts
-- multi-window apps
+- multi-window apps — see [Multi-Window](#multi-window)
 - window state persistence
 - file associations
 - drag and drop
@@ -2037,6 +2037,401 @@ Native implementations still follow the Dartvel rule: generated FFI/ffigen or
 JNI/jnigen only, no Flutter platform channels.
 
 ---
+
+---
+
+# Multi-Window
+
+Stability: `Draft` · Status: `Designed`
+
+Desktop-class applications are made of windows. The hard part is not opening
+one: it is defining what a window *means* across targets that disagree about
+whether windows exist at all.
+
+## A window is a route
+
+Every Dartvel window hosts exactly one route. This is what makes a single API
+possible across platforms that implement "another window" in four unrelated
+ways:
+
+| Platform family | "Open a window" means | Content addressed by |
+|---|---|---|
+| Windows / macOS / Linux | native window, same engine | route |
+| Web | `window.open('/route')`, separate instance | URL (the route) |
+| Android | new task, separate engine | deep link (the route) |
+| iPadOS | new `UIScene`, separate root | scene activation URL (the route) |
+
+Dartvel is already URL-first — static generation, server rendering and
+sitemaps all require every route to map to one canonical URL — so windows
+inherit that for free. The route *is* the serialization of "what this window
+shows", and the platforms that cannot share memory already know how to open a
+URL. No second addressing scheme, and no window-content registry.
+
+Anything a window shows is therefore deep-linkable, restorable after a
+restart, and subject to the same middleware, policies, tenant scope and locale
+as any navigated page — because it is one. A window with no route is not
+expressible, which is the point.
+
+## Surface
+
+`DV.Platform.Window` grows from "the current window" into the window manager,
+with `DV.Window` as its alias per the established proxy pattern. There is no
+separate plural namespace, and the existing `setTitle`/`persistState`/
+`restoreState` members now read as sugar over `DV.Window.current`.
+
+```dart
+DV.Window.current                  // DVWindow
+DV.Window.all                      // DVSignal<List<DVWindow>>
+DV.Window.capability               // DVWindowingCapability
+
+final win = await DV.Window.open(
+  DVPages.orders,
+  options: DVWindowOptions(
+    size: Size(900, 620),
+    constraints: BoxConstraints(minWidth: 480, minHeight: 320),
+    title: 'Orders',
+    kind: DVWindowKind.regular,    // regular | dialog | popup | tooltip | satellite
+  ),
+);
+
+win.route;                         // what it shows
+win.lifecycle;                     // DVSignal<DVWindowLifecycle>
+await win.close();
+```
+
+`DV.Navigation` gains a target rather than a second API:
+`DV.Navigation.to(DVPages.orders, window: DVWindowTarget.newWindow)`.
+
+```dart
+enum DVWindowLifecycle {
+  requested, creating, created, ready, active,
+  inactive, minimized, maximized, fullscreen,
+  closing, closed, failed,
+}
+```
+
+Lifecycle is a generated read-only enum signal per [Lifecycle
+Signals](#lifecycle-signals): the runtime owns transitions and application
+code observes them.
+
+**There is no `activate()`.** `open()` opens, focuses and activates, because a
+window that appears unfocused is not behaviour anyone wants. Bringing an
+existing window forward is the same verb: opening a route a window already
+shows focuses that window rather than duplicating it. One verb, idempotent by
+route; a deliberate second window on the same route says
+`DVWindowOptions(duplicate: true)`.
+
+**Placement is not part of the contract.** There is no `position` and no
+`setPosition`. Wayland forbids app-positioned windows, Flutter's desktop API
+exposes none, and web, Android and iPadOS delegate placement to the OS. A
+capability only three targets could honour — one of which refuses — is not a
+capability. If upstream ships placement it arrives as
+`DVWindowPlacementHint`, best-effort by name.
+
+## open() never fails
+
+Where a real window cannot be created, `open()` navigates to the route
+instead: `regular` becomes a pushed page, `dialog` a modal route, and
+`popup`, `tooltip` and `satellite` overlays. This is the payoff of a window
+being a route — the fallback is not a consolation prize, it is the same
+content presented the way the platform can present it.
+
+**Failing is removed; reporting is not.** Every fallback carries a stable
+diagnostic code, is written to observability through `DV.log`, and is readable
+on the returned window. A degradation nobody can see is the silent-ignoring
+this specification forbids.
+
+```dart
+enum DVWindowDegradation {
+  none, capabilityUnsupported, kioskLocked,
+  gestureRequired, platformRefused, disabledByConfig,
+}
+```
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-WINDOW-001` | target has no multi-window capability | `debug` |
+| `DV-WINDOW-002` | kiosk mode active; the surface stays locked | `info` |
+| `DV-WINDOW-003` | web popup blocked — called outside a user gesture | `warning` |
+| `DV-WINDOW-004` | platform refused (OS window limit, task creation denied) | `warning` |
+| `DV-WINDOW-005` | `windowing.enabled: false` in configuration | `info` |
+
+Levels are calibrated to whether the developer can act. A phone has no windows
+and the fallback is the intended behaviour, so warning on every call would
+train people to ignore the channel; a blocked popup and a refused task are
+both fixable, and both mean the application asked for something it could have
+had. `dartvel analyze performance` aggregates these, so a call site that
+always degrades is one finding rather than a thousand log lines.
+
+```dart
+win.isVirtual;      // true when the route was navigated, not windowed
+win.degradation;    // why, or .none
+win.presentation;   // window | page | dialog | overlay
+await win.close();  // closes the window, or pops the route — same call
+```
+
+The returned `DVWindow` is real either way, and `DV.Window.all` lists virtual
+windows alongside real ones, so a tab strip or a close-all command is written
+once and works on a phone. **Application code never branches on capability.**
+
+Honest about what degrades: `setSize` and `constraints` are no-ops on a
+virtual window and log at `debug` rather than vanishing; `setTitle` maps to the
+page title, which is the closest true equivalent rather than a discard; and
+opening N windows on a phone yields N stacked routes, which is what was asked
+for. A workspace UI should still read `capability.multiWindow` when deciding
+whether to *offer* "open in new window" — degrading a call is right,
+advertising a control that surprises is not. Kiosk degradation is not a
+security hole: kiosk restricts the surface, not the content, and the route
+still faces the same middleware and policies.
+
+## Capability
+
+```dart
+final cap = DV.Window.capability;
+cap.multiWindow;   // can a second OS-level window exist
+cap.sameEngine;    // do windows share one engine (object handover)
+cap.tearOut;       // can a tab detach into a window
+cap.inPageViews;   // web: in-page multi-view embedding
+```
+
+## Shared window state
+
+Two handover modes, chosen automatically from `capability.sameEngine`:
+
+- **sameEngine** (desktop, web in-page views): the moved content is the same
+  Dart object tree, so signals, in-flight requests and scroll positions
+  survive by construction.
+- **shared** (web `window.open`, Android tasks, iPadOS scenes): the new window
+  is a separate engine, so state is shared through a watched store — one
+  writer publishes, every other window is notified and its signals update.
+
+`DV.Window.shared` is a typed, watched key-value store scoped to the
+application, tenant and user. It is one API on every platform, desktop
+included:
+
+```dart
+await DV.Window.shared.set('workspace.activeTab', DVJsonString(tab.id));
+final tabId = DV.Window.shared.signal('workspace.activeTab');
+
+// or declared at the signal, with the wiring generated:
+final activeTab = context.signal('', shared: 'workspace.activeTab');
+```
+
+A watched store rather than message passing, for a reason worth stating: a
+message is delivered once, to whoever is listening at that instant. A window
+opened five seconds later gets nothing, and crash recovery has nothing to
+read. A store has no delivery moment — late joiners read current state on
+open, and the same bytes that sync a running window restore a crashed one.
+This is also why there is **no `DV.Window.broadcast`**: the store publishes
+state, which a late or restarted window can read; a message API would publish
+events, sitting alongside model sync doing a worse version of its job.
+
+What varies per target is which of the store's two jobs the OS performs:
+
+| Target | Notification | Persistence |
+|---|---|---|
+| Windows / macOS / Linux | in-process — signals | `NSUserDefaults`, or config via `DV.FileStorage` |
+| Android | `OnSharedPreferenceChangeListener` | `SharedPreferences` |
+| iPadOS | KVO | `NSUserDefaults` |
+| Web | `storage` event | `localStorage` |
+
+Every platform needs persistence — tab order and draft values must survive a
+relaunch on Windows as much as on a phone. Only cross-engine targets need OS
+notification, because desktop windows share an isolate and a signal write
+already reaches every window with no serialization. Separating those two
+columns is what makes the abstraction genuinely uniform rather than
+uniform-looking, and it removes three native watchers Dartvel would otherwise
+have had to write and keep working.
+
+Rules:
+
+- **Encryption is Dartvel's, not the store's.** Values are encrypted with the
+  application key (see [Secrets and Environments](#secrets-and-environments))
+  before the write, so the backing store is a dumb byte sink on every target —
+  one code path and one threat model, rather than depending on
+  `EncryptedSharedPreferences` on one platform and `localStorage`, which has
+  no encryption story at all, on another. Encryption is on for the whole store
+  rather than per key, because a per-key opt-in means the one key someone
+  forgot is the one that mattered.
+- **Writes are coalesced.** A signal changing per frame must not write per
+  frame; shared writes are debounced and batched per flush.
+- **Last write wins, per key.** Keys are the conflict unit. State that needs
+  merge semantics is model state — use a model.
+- **Large values spill.** Preference stores are built for small values, so
+  anything over `spillThresholdKb` goes to `DV.FileStorage` with an encrypted
+  pointer left behind. The pointer write triggers the notification and the
+  reader follows it, so no watcher is needed.
+- **The store is not for model data.** Models already converge through model
+  sync, which applies auth, tenant filters and policy checks before delivery;
+  duplicating rows into the shared store would bypass all three. The store
+  holds view state: active tab, tab order, layout, scroll offsets, drafts.
+- **`DV.Secrets` values never reach it**, and the reason is scope rather than
+  confidentiality: a backend-scoped secret on a client is a `DV-SECRETS-001`
+  violation whether or not the bytes are encrypted. That stays a build error.
+- **Entries are ephemeral by contract**, session-scoped and swept by age. A
+  crashed application leaves a readable store — that is the recovery feature —
+  but a stale one is collected rather than kept.
+- **An undecryptable store is discarded, not fatal.** It holds view state, so
+  losing it costs a tab order; a window that refuses to open because a scroll
+  offset would not decrypt is the worse outcome. Reported through `DV.log`,
+  never silently.
+
+Genuinely separate processes — a second application *instance* rather than a
+second window — fall outside preference listeners, and degrade to polling the
+store at `pollMs`, reported once by `dartvel doctor`. It is narrow enough to be
+a fallback rather than the architecture.
+
+## Platform matrix
+
+| Target | Multi-window | Mechanism | Handover | Label |
+|---|---|---|---|---|
+| Windows | yes | Flutter windowing | sameEngine | `Experimental`¹ |
+| macOS | yes | Flutter windowing | sameEngine | `Experimental`¹ |
+| Linux | yes | Flutter windowing; Wayland: never placement | sameEngine | `Experimental`¹ |
+| Web | yes | `window.open(route)`; in-page multi-view | shared / sameEngine² | `Supported with limitations` |
+| Android | yes | task-per-window via engine groups | shared | `Supported with limitations` |
+| iPadOS | yes | `UIScene` | shared | `Supported with limitations` |
+| iOS (iPhone) | no | navigation fallback | — | `Supported with limitations`³ |
+| Fuchsia | plausible | view-based compositor | sameEngine | `Experimental` |
+| Tizen / webOS | no | single-fullscreen app model | — | `Supported with limitations`³ |
+| eLinux / embedded | no by policy | kiosk stays locked | — | `Supported with limitations`³ |
+| Watch | no | navigation fallback | — | `Supported with limitations`³ |
+
+¹ **Upstream dependency, stated plainly.** Flutter's desktop windowing is
+experimental — main channel, behind `--enable-windowing`, with `@internal`
+APIs that may rename between releases. Dartvel's abstraction is the churn
+absorber: the generated bindings under `window.*` are the only code touching
+that surface, so an upstream rename is a Dartvel point release rather than an
+application change. The desktop rows are labelled `Experimental` for as long
+as that is true, and are the one place this section's own status is gated on
+someone else's.
+
+² Web is two tiers by design: `window.open` for OS-level windows, and in-page
+multi-view embedding for panels and embedded workspace regions. The second
+tier also serves the browser-extension targets.
+
+³ The *capability* is unsupported; the *API* is not. `capability.multiWindow`
+reports false and no OS window is created, but `open()` navigates to the
+route, so application and workspace code compiles and runs unchanged. No
+target is labelled `Unsupported`, because the label describes what an
+application can rely on and every target can rely on `open()` presenting the
+route.
+
+## Configuration
+
+```yaml
+dartvel:
+  windowing:
+    enabled: true
+    workspace:
+      persist: true
+      tearOut: auto             # auto | disabled
+    sharedState:
+      encrypt: true
+      debounceMs: 50
+      spillThresholdKb: 32
+      pollMs: 250               # separate-process fallback only
+      sweepAfter: 24h
+    web:
+      inPageViews: true
+      openInNewWindow: true
+    android:
+      freeform: auto
+    kiosk:
+      allowWindows: false
+```
+
+## Bindings
+
+Generated FFI/ffigen or JNI/jnigen bindings only, per the standing rule:
+
+- desktop: `window.open`, `window.close`, `window.setTitle`, `window.setSize`,
+  `window.observeLifecycle`
+- android: `window.task.open`, `window.task.close` (JNI, engine groups)
+- ios: `window.scene.request`, `window.scene.close`
+- web: generated bindings over `window.open`, `localStorage` and the `storage`
+  event, and the multi-view embedder API
+- shared store: `window.shared.get`, `window.shared.set`,
+  `window.shared.observe`; desktop needs no `observe`, since notification is
+  in-process
+
+A missing or refusing binding fails typed (`DV-WINDOW-006`), never silently.
+
+Windows and tabs are project-graph nodes, so `dartvel inspect windows --json`
+answers like every other inspector, and the devtools window inspector shows the
+live window list, each window's route and lifecycle state, handover mode, and
+the capability report per configured target.
+
+---
+
+# Tab Workspaces
+
+Stability: `Draft` · Status: `Designed`
+
+`DVTabWorkspace` is a generated application component — like `User.Table()`,
+composed from `DVBox` and `DVText`, introducing no new primitive — that owns
+the tab strip, reordering, tear-out and re-dock, wired to `DV.Window`.
+
+```dart
+@DVPage(title: 'Workspace')
+Widget _workspacePage(BuildContext context) => DVTabWorkspace(
+      initialTabs: [
+        DVTab(DVPages.orders),
+        DVTab(DVPages.customers),
+        DVTab(DVPages.reports),
+      ],
+    );
+```
+
+A tab is a route, the same identity a window has, which is what makes tear-out
+navigation rather than surgery:
+
+- **Reorder** — drag within the strip. Works on every target, including TV and
+  watch-sized screens where the strip renders as a platform-appropriate
+  switcher. Pure UI; no windowing capability required.
+- **Tear-out** — drag beyond the strip, or a context-menu action where drag is
+  unavailable. Gated on `capability.tearOut`, and executes
+  `DV.Window.open(tab.route)`. Where `tearOut` is false the gesture is absent
+  rather than broken.
+- **Re-dock** — dragging a tab into another window's strip. Same-engine
+  targets hit-test across windows and hand the object over; separate-engine
+  targets re-dock by adoption, the receiving workspace adding the route and
+  the source closing it. Same convergence, two steps.
+- **Empty-window rule** — a workspace window whose last tab leaves closes
+  itself, and its tabs fold into the main window if the OS closes it around
+  them. This is workspace state policy rather than window callbacks, so
+  tear-out, re-dock and cleanup are one transition.
+- **Persistence** — layout, tab order and active tab persist through
+  `DV.Window.persistWorkspace(name)` / `restoreWorkspace(name)`, tenant- and
+  user-scoped like any stored state.
+
+Tab strip behaviour is capability-shaped, never capability-broken:
+
+```text
+tearOut: true      → detachable tabs                      (desktop, iPad, ChromeOS)
+tearOut: false,
+  multiWindow: true → tabs plus explicit "open in new window"  (web, Android phones)
+multiWindow: false → tabs only; open() navigates          (iPhone, TV, watch, kiosk)
+```
+
+Web tear-out by drag is false because a drag ending on the desktop cannot open
+a popup without a gesture-attributed call; web gets the explicit affordance
+instead, which satisfies the gesture requirement.
+
+Tear-out on a separate-engine target is: write the tab's shared keys, open the
+window at the route, let the new engine read them on boot. The route carries
+identity and the store carries state, so a slow-starting window loses
+nothing — the state is waiting for it, which is exactly what message passing
+gets wrong.
+
+A tab is always a route. `DVTab.widget(...)` is deliberately absent: a tab
+without a route cannot tear out on any separate-engine target, and cannot be
+deep-linked or restored. A page is cheap; make one.
+
+Sharing is always explicit at the signal declaration. A workspace does not
+implicitly share its tabs' page signals, because implicit persisted writes of
+arbitrary signal values are both a redaction risk and a write-amplification
+one.
 
 # Dartvel Studio
 
@@ -2287,6 +2682,45 @@ Secret values are excluded from logs, traces, diagnostics and error messages by
 construction — the same exclusion set as `@DVModel.sensitiveField()`, which
 remains the single normative list. An exception raised while resolving a secret
 names the key, never the value.
+
+## The application key
+
+The secrets above are backend-scoped. A client also needs a key — for the
+shared window store, and for anything else Dartvel encrypts at rest on a
+device — and it is a different key with a different threat model. Conflating
+the two is how a device key ends up on a server, or a server key in a bundle.
+
+```bash
+dartvel key generate     # writes to the platform key store, never the repo
+dartvel key rotate
+dartvel key status
+```
+
+The application key is **never in the bundle and never in `pubspec.yaml`**.
+That is this section's own rule rather than caution: only `PUBLIC_`-prefixed
+values reach the generated `env.g.dart`, and a key shipped to every visitor
+encrypts nothing. A server-side framework can keep such a key in an
+environment file because it lives on a machine the operator controls; an
+application's store lives on the user's device, so the key must come from
+somewhere the user's own OS protects.
+
+| Target | Key custody |
+|---|---|
+| Windows | DPAPI-protected, per user |
+| macOS / iPadOS | Keychain, app-scoped |
+| Linux | Secret Service (libsecret), keyring-backed |
+| Android | Android Keystore, hardware-backed where available |
+| Web | non-extractable WebCrypto `CryptoKey` in IndexedDB |
+
+Generated at first run, per install and per user, so it is not a shared secret
+and there is nothing to leak into version control. The web row is the
+strongest in one specific way: a non-extractable `CryptoKey` cannot be read
+back even by the application's own JavaScript, so it survives an XSS that
+would trivially lift a string from `localStorage`.
+
+Rotation re-encrypts in place through the same hook shape as below. Backend
+encryption of model fields at rest uses the server-held key from `DV.Secrets`
+in the ordinary way; these two never meet.
 
 ## Rotation
 
