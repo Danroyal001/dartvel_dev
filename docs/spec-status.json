@@ -336,10 +336,11 @@
       "evidence": [
         "packages/dartvel_flutter/lib/src/windowing/window.dart",
         "packages/dartvel_flutter/lib/src/windowing/shared_store.dart",
+        "packages/dartvel_core/lib/src/crypto/app_key.dart",
         "packages/dartvel_flutter/test/windowing_test.dart",
         "packages/dartvel_flutter/test/window_shared_store_test.dart"
       ],
-      "absent": "Native window bindings on every target, so no OS window is created yet and every open() degrades; preference-store backends and the application-key cipher, so the store is in-memory and unencrypted; value spilling to DV.FileStorage; workspace persistence; the window inspector"
+      "absent": "Native window bindings on every target, so no OS window is created yet and every open() degrades; platform key stores, so the application key is held in memory; preference-store backends; value spilling to DV.FileStorage; workspace persistence; the window inspector"
     },
     {
       "section": "Tab Workspaces",
@@ -388,9 +389,11 @@
       "status": "Partial",
       "evidence": [
         "packages/dartvel_core/lib/src/secrets/secrets.dart",
-        "packages/dartvel_core/test/secrets_test.dart"
+        "packages/dartvel_core/test/secrets_test.dart",
+        "packages/dartvel_core/lib/src/crypto/app_key.dart",
+        "packages/dartvel_core/test/app_key_test.dart"
       ],
-      "absent": "DV-SECRETS-001 reachability analysis, the pubspec declaration manifest, rotation hooks and deploy-time validation"
+      "absent": "DV-SECRETS-001 reachability analysis, the pubspec declaration manifest, rotation hooks and deploy-time validation; the platform key stores behind DVAppKeyStore"
     },
     {
       "section": "Deployment",
