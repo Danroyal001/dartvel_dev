@@ -440,6 +440,57 @@ class DVWindowManager {
         },
       );
 
+  /// Saves the current window and tab layout under [name].
+  ///
+  /// Stored as view state through the shared store rather than a native
+  /// window API, because the layout has to come back on a target that has no
+  /// windows at all — a phone reopening its tabs is the same feature.
+  Future<void> persistWorkspace(
+    String name, {
+    List<DVTabWorkspaceController> workspaces =
+        const <DVTabWorkspaceController>[],
+  }) async {
+    final layout = <DVJsonValue>[
+      for (final workspace in workspaces)
+        DVJsonMap(<String, DVJsonValue>{
+          'active': DVJsonNumber(workspace.activeIndex),
+          'tabs': DVJsonList(<DVJsonValue>[
+            for (final tab in workspace.tabs) DVJsonString(tab.route.path),
+          ]),
+        }),
+    ];
+    await shared.set(_workspaceKey(name), DVJsonList(layout));
+    await shared.flush(_workspaceKey(name));
+  }
+
+  /// Restores what [persistWorkspace] saved, or an empty list when nothing is
+  /// stored — a first launch is not a failure.
+  Future<List<DVTabWorkspaceController>> restoreWorkspace(String name) async {
+    final stored = await shared.get(_workspaceKey(name));
+    if (stored is! DVJsonList) return <DVTabWorkspaceController>[];
+
+    final restored = <DVTabWorkspaceController>[];
+    for (final entry in stored.value) {
+      if (entry is! DVJsonMap) continue;
+      final tabs = entry.value['tabs'];
+      if (tabs is! DVJsonList) continue;
+      final controller = DVTabWorkspaceController(
+        tabs: <DVTab>[
+          for (final path in tabs.value)
+            if (path is DVJsonString) DVTab(DVRouteTarget(path.value)),
+        ],
+      );
+      final active = entry.value['active'];
+      if (active is DVJsonNumber) controller.activate(active.value.toInt());
+      restored.add(controller);
+    }
+    return restored;
+  }
+
+  /// Tenant- and user-scoped like any stored state; the store applies that
+  /// scoping, so the key only distinguishes one workspace from another.
+  static String _workspaceKey(String name) => 'workspace.layout.$name';
+
   Future<void> setTitle(String title) async {
     await DVNativeBridge.require<bool>('window.setTitle', {'title': title});
   }
