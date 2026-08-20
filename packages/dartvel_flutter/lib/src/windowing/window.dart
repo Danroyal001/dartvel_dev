@@ -283,6 +283,7 @@ class DVWindowManager {
     _windows.clear();
     _all.value = <DVWindow>[];
     _capabilityOverride = null;
+    _shared = null;
   }
 
   static void forget(DVWindow window) {
@@ -306,6 +307,19 @@ class DVWindowManager {
         isIOS: _platform.isIOS,
         hasNativeWindowBinding: DVNativeBridge.isRegistered('window.open'),
       );
+
+  static DVWindowSharedStore? _shared;
+
+  /// Cross-window view state. One API on every platform; what varies is
+  /// whether the OS delivers the notification or a shared isolate does.
+  static DVWindowSharedStore get shared =>
+      _shared ??= DVWindowSharedStore();
+
+  /// Replaces the store, for tests and for targets that register a
+  /// preference-backed backend.
+  static void useSharedStore(DVWindowSharedStore store) {
+    _shared = store;
+  }
 
   Rect get bounds =>
       Offset.zero & Size(_platform.screenWidth, _platform.screenHeight);
