@@ -22,6 +22,7 @@ import 'src/seo_platform_memory.dart'
     if (dart.library.html) 'src/seo_platform_web.dart' as seo_platform;
 // DV.Updates.applyPages installs page bundles, which are these types.
 import 'src/studio/page_document.dart';
+import 'src/windowing/window.dart';
 
 export 'package:dartvel_core/dartvel.dart'
     show
@@ -244,6 +245,7 @@ export 'src/studio/page_document.dart';
 export 'src/studio/studio_editor.dart';
 export 'src/studio/studio_screen.dart';
 export 'src/studio/workflow_editor.dart';
+export 'src/windowing/window.dart';
 
 // ==========================================
 // UI & Styling Primitives (NEW_SPEC.md)
@@ -1393,6 +1395,15 @@ class DVNativeBridge {
   static void unregister(String method) {
     _handlers.remove(method);
   }
+
+  /// Whether [method] has a registered binding.
+  ///
+  /// For deciding what to advertise, not for deciding whether to call: an
+  /// API that degrades still calls, and one that cannot still throws through
+  /// [require]. Windowing capability reads this because Flutter's desktop
+  /// windowing is experimental, so claiming the capability before the binding
+  /// exists would be a promise the next call breaks.
+  static bool isRegistered(String method) => _handlers.containsKey(method);
 }
 
 class DVCamera {
@@ -2060,37 +2071,6 @@ class DVScreen {
   String get shape => _platform.screenShape;
 }
 
-class DVWindow {
-  final DVPlatform _platform;
-  const DVWindow(this._platform);
-
-  Rect get bounds =>
-      Offset.zero & Size(_platform.screenWidth, _platform.screenHeight);
-
-  Future<void> setTitle(String title) async {
-    await DVNativeBridge.require<bool>('window.setTitle', {'title': title});
-  }
-
-  Future<void> maximize() async {
-    await DVNativeBridge.require<bool>('window.maximize');
-  }
-
-  Future<void> minimize() async {
-    await DVNativeBridge.require<bool>('window.minimize');
-  }
-
-  Future<void> restore() async {
-    await DVNativeBridge.require<bool>('window.restore');
-  }
-
-  Future<void> persistState(String key) async {
-    await DVNativeBridge.require<bool>('window.persistState', {'key': key});
-  }
-
-  Future<void> restoreState(String key) async {
-    await DVNativeBridge.require<bool>('window.restoreState', {'key': key});
-  }
-}
 
 class DVTrayMenuItem {
   final String id;
@@ -2477,7 +2457,7 @@ class DVPlatform {
   String get type => deviceType;
   Orientation get deviceOrientation => orientation;
   DVScreen get screen => DVScreen(this);
-  DVWindow get Window => DVWindow(this);
+  DVWindowManager get Window => DVWindowManager(this);
   DVTray get Tray => const DVTray();
   DVMenus get Menus => const DVMenus();
   DVShortcuts get Shortcuts => const DVShortcuts();
