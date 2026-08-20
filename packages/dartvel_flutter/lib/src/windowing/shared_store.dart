@@ -120,10 +120,25 @@ class DVWindowSharedStore {
     DVSharedStoreBackend? backend,
     DVSharedStoreCipher cipher = const DVNullSharedStoreCipher(),
     this.debounce = const Duration(milliseconds: 50),
+    this.spillThresholdBytes = 32 * 1024,
+    DVFileStorageAdapter? spillStorage,
   })  : _backend = backend ?? DVMemorySharedStoreBackend(),
-        _cipher = cipher {
+        _cipher = cipher,
+        _spill = spillStorage {
     _subscription = _backend.changed.listen(_onExternalChange);
   }
+
+  /// Values larger than this go to file storage, leaving a pointer behind.
+  ///
+  /// Preference stores are built for small values — they load wholesale into
+  /// memory, and browsers cap an origin at a few megabytes. Workspace state is
+  /// bytes; a rich-text draft is not.
+  final int spillThresholdBytes;
+
+  final DVFileStorageAdapter? _spill;
+
+  /// Marks a stored value as a pointer to spilled bytes rather than the bytes.
+  static const String _spillPrefix = 'dv-spill:';
 
   final DVSharedStoreBackend _backend;
   final DVSharedStoreCipher _cipher;
@@ -141,7 +156,26 @@ class DVWindowSharedStore {
 
   Future<DVJsonValue?> get(String key) async {
     if (_latest.containsKey(key)) return _latest[key];
-    return _decode(await _backend.read(key));
+    return _resolve(await _backend.read(key));
+  }
+
+  /// Reads a stored entry, following a spill pointer when it is one.
+  Future<DVJsonValue?> _resolve(String? stored) async {
+    if (stored == null) return null;
+    final plaintext = _cipher.decrypt(stored);
+    if (plaintext == null) return null;
+    if (!plaintext.startsWith(_spillPrefix)) return _parse(plaintext);
+
+    final storage = _spill;
+    if (storage == null) return null;
+    try {
+      final bytes = await storage.get(plaintext.substring(_spillPrefix.length));
+      final body = _cipher.decrypt(utf8.decode(bytes));
+      return body == null ? null : _parse(body);
+    } catch (_) {
+      // A pointer whose object is gone is an unreadable value like any other.
+      return null;
+    }
   }
 
   /// Writes [value], coalescing rapid writes to the same key.
@@ -175,11 +209,27 @@ class DVWindowSharedStore {
       await _backend.write(key, null);
       return;
     }
-    await _backend.write(
-      key,
-      _cipher.encrypt(jsonEncode(DVJsonCodec.toJson(value))),
-    );
+    final encoded = jsonEncode(DVJsonCodec.toJson(value));
+    final storage = _spill;
+    if (storage != null && encoded.length > spillThresholdBytes) {
+      // The pointer write is what triggers the notification, and the reader
+      // follows it — so spilling needs no watcher of its own.
+      final objectKey = 'dartvel/window-shared/${_objectName(key)}';
+      await storage.put(
+        objectKey,
+        utf8.encode(_cipher.encrypt(encoded)),
+        contentType: 'application/octet-stream',
+      );
+      await _backend.write(key, _cipher.encrypt('$_spillPrefix$objectKey'));
+      return;
+    }
+    await _backend.write(key, _cipher.encrypt(encoded));
   }
+
+  /// A file-safe name for [key]. Deterministic, so a rewrite replaces the
+  /// object rather than leaving the previous one behind.
+  static String _objectName(String key) =>
+      key.replaceAll(RegExp('[^A-Za-z0-9._-]'), '_');
 
   Stream<DVJsonValue?> watch(String key) => _watchers
       .putIfAbsent(key, () => StreamController<DVJsonValue?>.broadcast())
@@ -216,15 +266,12 @@ class DVWindowSharedStore {
   }
 
   Future<void> _onExternalChange(String key) async {
-    final value = _decode(await _backend.read(key));
+    final value = await _resolve(await _backend.read(key));
     _latest[key] = value;
     _publish(key, value);
   }
 
-  DVJsonValue? _decode(String? stored) {
-    if (stored == null) return null;
-    final plaintext = _cipher.decrypt(stored);
-    if (plaintext == null) return null;
+  DVJsonValue? _parse(String plaintext) {
     try {
       return DVJsonCodec.fromJson(jsonDecode(plaintext));
     } catch (_) {

@@ -338,9 +338,10 @@
         "packages/dartvel_flutter/lib/src/windowing/shared_store.dart",
         "packages/dartvel_core/lib/src/crypto/app_key.dart",
         "packages/dartvel_flutter/test/windowing_test.dart",
-        "packages/dartvel_flutter/test/window_shared_store_test.dart"
+        "packages/dartvel_flutter/test/window_shared_store_test.dart",
+        "packages/dartvel_flutter/test/window_persistence_test.dart"
       ],
-      "absent": "Native window bindings on every target, so no OS window is created yet and every open() degrades; platform key stores, so the application key is held in memory; preference-store backends; value spilling to DV.FileStorage; workspace persistence; the window inspector"
+      "absent": "Native window bindings on every target, so no OS window is created yet and every open() degrades; platform key stores, so the application key is held in memory; preference-store backends, so cross-engine notification is untested against a real OS; the window inspector"
     },
     {
       "section": "Tab Workspaces",
@@ -348,9 +349,10 @@
       "status": "Partial",
       "evidence": [
         "packages/dartvel_flutter/lib/src/windowing/tab_workspace.dart",
-        "packages/dartvel_flutter/test/tab_workspace_test.dart"
+        "packages/dartvel_flutter/test/tab_workspace_test.dart",
+        "packages/dartvel_flutter/test/window_persistence_test.dart"
       ],
-      "absent": "Drag gestures in the strip, so reorder and tear-out are controller calls rather than drags; cross-window drag hit-testing for re-dock; workspace persistence through persistWorkspace/restoreWorkspace"
+      "absent": "Drag gestures in the strip, so reorder and tear-out are controller calls rather than drags; cross-window drag hit-testing for re-dock"
     },
     {
       "section": "Dartvel Studio",
