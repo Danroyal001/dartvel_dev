@@ -344,8 +344,12 @@
     {
       "section": "Tab Workspaces",
       "stability": "Draft",
-      "status": "Designed",
-      "evidence": []
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_flutter/lib/src/windowing/tab_workspace.dart",
+        "packages/dartvel_flutter/test/tab_workspace_test.dart"
+      ],
+      "absent": "Drag gestures in the strip, so reorder and tear-out are controller calls rather than drags; cross-window drag hit-testing for re-dock; workspace persistence through persistWorkspace/restoreWorkspace"
     },
     {
       "section": "Dartvel Studio",
