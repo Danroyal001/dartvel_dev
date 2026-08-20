@@ -330,6 +330,18 @@
       "absent": "Tray, menus, global shortcuts, multi-window, and every device/fleet API"
     },
     {
+      "section": "Multi-Window",
+      "stability": "Draft",
+      "status": "Designed",
+      "evidence": []
+    },
+    {
+      "section": "Tab Workspaces",
+      "stability": "Draft",
+      "status": "Designed",
+      "evidence": []
+    },
+    {
       "section": "Dartvel Studio",
       "stability": "Draft",
       "status": "Partial",
