@@ -66,7 +66,7 @@ abstract class DVSharedStoreCipher {
   String? decrypt(String ciphertext);
 }
 
-/// The default until a platform key store is wired.
+/// The default when no application key has been provided.
 ///
 /// Deliberately not encryption, and it says so: a cipher that pretends would
 /// be worse than one that is honest about doing nothing, because the first
@@ -79,6 +79,29 @@ class DVNullSharedStoreCipher implements DVSharedStoreCipher {
 
   @override
   String? decrypt(String ciphertext) => ciphertext;
+}
+
+/// AES-256-GCM under the application key.
+///
+/// Encryption is on for the whole store rather than per key: a per-key opt-in
+/// means the one key someone forgot is the one that mattered, and encrypting
+/// view state costs nothing at these sizes.
+class DVAppKeySharedStoreCipher implements DVSharedStoreCipher {
+  final DVAppKeyCipher _cipher;
+
+  DVAppKeySharedStoreCipher(Uint8List key) : _cipher = DVAppKeyCipher(key);
+
+  /// Resolves the key from [store], generating one on first use.
+  static Future<DVAppKeySharedStoreCipher> forStore(
+    DVAppKeyStore store,
+  ) async =>
+      DVAppKeySharedStoreCipher(await DVAppKey.ensure(store));
+
+  @override
+  String encrypt(String plaintext) => _cipher.encrypt(plaintext);
+
+  @override
+  String? decrypt(String ciphertext) => _cipher.decrypt(ciphertext);
 }
 
 /// Cross-window view state: which tab is active, tab order, layout, scroll
@@ -177,6 +200,13 @@ class DVWindowSharedStore {
   }
 
   Future<List<String>> keys() => _backend.keys();
+
+  /// Drops the in-memory copy so the next read goes to the backend.
+  ///
+  /// Exists for tests that need to prove a value survived the wire format
+  /// rather than being served from the cache that made the write fast.
+  @visibleForTesting
+  void evictCache() => _latest.clear();
 
   Future<void> remove(String key) => set(key, null);
 

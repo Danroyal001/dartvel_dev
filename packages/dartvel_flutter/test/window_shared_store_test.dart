@@ -210,6 +210,66 @@ void main() {
     });
   });
 
+  group('encrypted at rest', () {
+    test('the backend never sees the plaintext', () async {
+      final backend = NotifyingBackend();
+      final cipher = await DVAppKeySharedStoreCipher.forStore(
+        DVMemoryAppKeyStore(),
+      );
+      final store = DVWindowSharedStore(
+        backend: backend, cipher: cipher, debounce: noDebounce,
+      );
+      addTearDown(store.dispose);
+
+      await store.set('draft', const DVJsonString('the unsent message'));
+
+      expect(backend.values['draft'], isNotNull);
+      expect(backend.values['draft'], isNot(contains('unsent')),
+          reason: 'the store is a byte sink; encryption happens before it');
+      expect(backend.values['draft'], startsWith('dv1:'));
+    });
+
+    test('and the value still round-trips', () async {
+      final cipher = await DVAppKeySharedStoreCipher.forStore(
+        DVMemoryAppKeyStore(),
+      );
+      final store = DVWindowSharedStore(
+        backend: NotifyingBackend(), cipher: cipher, debounce: noDebounce,
+      );
+      addTearDown(store.dispose);
+
+      await store.set('k', const DVJsonString('readable again'));
+      store.evictCache();
+
+      expect(((await store.get('k'))! as DVJsonString).value, 'readable again');
+    });
+
+    test('a store written under another key reads as empty, not broken',
+        () async {
+      final backend = NotifyingBackend();
+      final theirs = await DVAppKeySharedStoreCipher.forStore(
+        DVMemoryAppKeyStore(),
+      );
+      final writing = DVWindowSharedStore(
+        backend: backend, cipher: theirs, debounce: noDebounce,
+      );
+      await writing.set('k', const DVJsonString('theirs'));
+      await writing.dispose();
+
+      // A rotated key, a reset keychain, a profile moved between machines.
+      final ours = await DVAppKeySharedStoreCipher.forStore(
+        DVMemoryAppKeyStore(),
+      );
+      final reading = DVWindowSharedStore(
+        backend: backend, cipher: ours, debounce: noDebounce,
+      );
+      addTearDown(reading.dispose);
+
+      expect(await reading.get('k'), isNull,
+          reason: 'losing view state costs a tab order, not a window');
+    });
+  });
+
   group('DV.Window.shared', () {
     tearDown(DVWindowManager.reset);
 

@@ -38,6 +38,7 @@ export 'src/lifecycle/lifecycle.dart';
 export 'src/mail/smtp.dart';
 export 'src/media/image.dart';
 export 'src/modules/modules.dart';
+export 'src/crypto/app_key.dart';
 export 'src/notifications/web_push.dart';
 export 'src/notifications/web_push_vapid.dart';
 export 'src/platform_config.dart';
