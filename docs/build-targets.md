@@ -452,23 +452,14 @@ Rust compilation when `cargo` is missing, but treats a missing `cbindgen` as a
 hard error — and hosted runners ship cargo without cbindgen. It also asserts an
 artifact exists rather than trusting the build command's exit code.
 
-### What the first four dispatches cost
+### Why a hang is the expensive failure
 
-Recorded because the numbers are counterintuitive and shaped the workflow.
-Four runs consumed roughly **4,957 billed minutes**, and over 90% of that was
-three jobs that hung rather than failed:
-
-| Job | Wall | Multiplier | Billed |
-|---|---|---|---|
-| `macos` (run 31554165981) | 360 min — GitHub's cap | 10x | **~3,603** |
-| `windows` (run 31548309453) | 257 min | 2x | ~515 |
-| `windows` (run 31550108127) | 226 min | 2x | ~452 |
-| every other job, all four runs | 3–7 min each | 2–10x | ~390 total |
-
-A build that *fails* is cheap: the three macOS jobs that died on a compile
-error cost about 40 billed minutes each. A build that **hangs** is not, and a
-hung job is invisible — `dartvel build macos` printed `🔨 Building for macos...`
-and then nothing at all for five hours and fifty-six minutes.
+A build that *fails* is cheap: a job that dies on a compile error costs a few
+minutes. A build that **hangs** bills to the job's timeout, and a hung job is
+invisible — `dartvel build macos` once printed "Building for macos..." and then
+nothing at all for five hours and fifty-six minutes before GitHub's own 6-hour
+cap killed it. At the macOS 10x multiplier that single job cost more than every
+other job across four runs combined.
 
 Two guards followed. The hook can no longer block indefinitely (`db93571b`),
 and every job now carries `timeout-minutes: 45` (`d568dff9`) — generous
@@ -498,12 +489,10 @@ Unselected matrix entries are gated at the job level rather than in a step,
 because a skipped step still starts a runner: three four-second gated jobs on
 that run billed roughly 22 minutes between them.
 
-**Further verification is currently blocked at the account level.** Dispatches
-are refused before any job starts, with: *"The job was not started because
-recent account payments have failed or your spending limit needs to be
-increased."* Raising the Actions spending limit under Settings → Billing &
-plans is the only way to resume; nothing in this repository can work around
-it.
+**Runner minutes are billed against the repository owner's account.** A public
+repository gets unlimited free Actions minutes on standard runners, which is
+the intended arrangement for this project; a private one bills at the
+multipliers above and will exhaust an allowance quickly if a job hangs.
 
 ---
 
