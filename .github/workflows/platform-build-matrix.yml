@@ -16,7 +16,7 @@ on:
         description: Which targets to build
         type: choice
         default: all
-        options: [all, windows, apple, macos, ios, tvos]
+        options: [all, windows, apple, embedded, macos, ios, tvos, tizen, webos, sony-elinux, fuchsia, linux]
       timeout:
         description: >-
           Minutes before a job is killed. A successful build takes under ten;
@@ -52,6 +52,15 @@ jobs:
           - { os: macos-latest, platform: macos, group: apple }
           - { os: macos-latest, platform: ios, group: apple }
           - { os: macos-latest, platform: tvos, group: apple }
+          # Embedded and desktop Linux targets. All build on the cheapest,
+          # most plentiful runner, and none of them were covered before —
+          # `tizen` was verified once on a laptop, and `fuchsia` had never
+          # been executed anywhere at all.
+          - { os: ubuntu-latest, platform: linux, group: embedded }
+          - { os: ubuntu-latest, platform: tizen, group: embedded }
+          - { os: ubuntu-latest, platform: webos, group: embedded }
+          - { os: ubuntu-latest, platform: sony-elinux, group: embedded }
+          - { os: ubuntu-latest, platform: fuchsia, group: embedded }
 
     steps:
       - name: Skip target not selected
@@ -127,6 +136,24 @@ jobs:
                       'packages/dartvel_shelf/rust/src/**') }}
           restore-keys: dartvel-shelf-${{ runner.os }}-${{ runner.arch }}-
 
+      # Linux desktop needs GTK; the embedders need it too once they reach a
+      # Flutter build. Cheap on a runner, and skipped everywhere else.
+      - name: Install Linux build dependencies
+        if: steps.gate.outputs.run == 'true' && runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ninja-build libgtk-3-dev clang cmake pkg-config
+
+      # Fuchsia's embedder is a Bazel workspace rather than a Flutter CLI
+      # wrapper, so it needs Bazel before `dartvel build fuchsia` can reach it.
+      - name: Install Bazel for Fuchsia
+        if: steps.gate.outputs.run == 'true' && matrix.platform == 'fuchsia'
+        run: |
+          curl -sSLo /usr/local/bin/bazel \
+            https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64
+          chmod +x /usr/local/bin/bazel
+          bazel --version || true
+
       - name: Resolve dependencies
         if: steps.gate.outputs.run == 'true'
         working-directory: examples/dartvel_example
@@ -141,7 +168,7 @@ jobs:
           if [ "${{ matrix.platform }}" = "tvos" ]; then
             extra="--device-profile simulator"
           fi
-          dart run dartvel_cli:dartvel build ${{ matrix.platform }} $extra
+          dart run dartvel_cli:dartvel build ${{ matrix.platform }} $extra --auto-install
 
       # Proves an artifact exists rather than trusting the command's exit
       # code — and for tvOS, that the artifact is a tvOS app, not an iPhone
@@ -160,6 +187,11 @@ jobs:
             tvos)
               path=$(find build -type d \( -path '*appletvsimulator*' -o -path '*appletvos*' \) -name '*.app' -print -quit)
               path=${path:-build/tvos-missing} ;;
+            linux)   path=build/linux/x64/release/bundle ;;
+            tizen)   path=build/tizen/tpk ;;
+            webos)   path=build/webos ;;
+            sony-elinux) path=build/elinux ;;
+            fuchsia) path=build/fuchsia ;;
           esac
           if [ ! -d "$path" ] || [ -z "$(ls -A "$path")" ]; then
             echo "::error::no artifact at $path"
