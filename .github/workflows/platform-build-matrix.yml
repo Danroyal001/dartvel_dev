@@ -167,24 +167,56 @@ jobs:
       # even Flutter's own first line — and no xcodebuild among the orphaned
       # processes, so Flutter never reaches Xcode.
       #
-      # An earlier version of this step used `timeout`, which macOS does not
-      # ship: it failed with "command not found" and the step reported success
-      # without running anything. Perl is present on every runner and does the
-      # same job portably.
+      # Previous attempts only established *that* it stopped. This establishes
+      # *what it is doing* while stopped: the build runs unbounded in the
+      # background, and once it has had time to wedge, `sample` captures a
+      # stack for every dart and flutter process alive. A wedged process has a
+      # stack, and the stack names the syscall it is parked in — a lock, a
+      # read, a wait — which is the thing no amount of log-staring can produce.
       #
-      # This never fails the job; it exists to produce the log line that says
-      # where the block is.
+      # Never fails the job. It exists to produce evidence.
       - name: Diagnose the macOS hang
         if: steps.gate.outputs.run == 'true' && matrix.platform == 'macos'
         working-directory: examples/dartvel_example
         continue-on-error: true
+        timeout-minutes: 16
         run: |
           set +e
-          perl -e 'alarm shift; exec @ARGV' 600 \
-            flutter build macos --debug -v > /tmp/plain-flutter.log 2>&1
-          status=$?
-          echo "plain flutter build macos exit: $status (142 = killed by alarm)"
-          tail -40 /tmp/plain-flutter.log
+          mkdir -p "$RUNNER_TEMP/diagnostics"
+          # Unbounded on purpose: the point is to catch it mid-hang, not to
+          # let Dartvel kill it before it can be sampled.
+          dart run dartvel_cli:dartvel build macos --auto-install \
+            --build-timeout 0 > "$RUNNER_TEMP/diagnostics/hang-build.log" 2>&1 &
+          build_pid=$!
+
+          # Long enough that a healthy build would have finished; short enough
+          # to leave room for sampling inside the step timeout.
+          sleep 600
+
+          if ! kill -0 "$build_pid" 2>/dev/null; then
+            echo "build finished on its own; nothing to sample"
+            tail -40 "$RUNNER_TEMP/diagnostics/hang-build.log"
+            exit 0
+          fi
+
+          echo "still running after 10 minutes; sampling"
+          ps aux | grep -Ei 'dart|flutter|xcodebuild' | grep -v grep \
+            > "$RUNNER_TEMP/diagnostics/hang-processes.txt"
+          cat "$RUNNER_TEMP/diagnostics/hang-processes.txt"
+
+          for pid in $(pgrep -f 'dartvm|dart |flutter' | head -6); do
+            out="$RUNNER_TEMP/diagnostics/sample-$pid.txt"
+            echo "=== sampling $pid ==="
+            ps -p "$pid" -o pid=,command= | cut -c1-200
+            sample "$pid" 3 -file "$out" >/dev/null 2>&1
+            # The blocked frames are what matter, not the whole tree.
+            grep -A 4 -iE 'Binary Images|Call graph|\?\?\?|read|wait|lock|poll' \
+              "$out" 2>/dev/null | head -40
+          done
+
+          kill "$build_pid" 2>/dev/null
+          echo "--- tail of the hung build ---"
+          tail -30 "$RUNNER_TEMP/diagnostics/hang-build.log"
 
       - name: Build
         if: steps.gate.outputs.run == 'true'
