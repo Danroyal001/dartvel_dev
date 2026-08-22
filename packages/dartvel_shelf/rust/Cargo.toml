@@ -9,7 +9,11 @@ crate-type = ["cdylib"]
 
 [dependencies]
 axum = { version = "0.7", features = ["http2"] }
-axum-server = { version = "0.7", features = ["tls-rustls"] }
+# tls-rustls-no-provider, not tls-rustls: the latter drags in aws-lc-rs as
+# rustls's default crypto provider. We use ring, so aws-lc was compiled for
+# nothing — a large C codebase that also fails on macOS, where cc-rs invokes
+# clang without an -isysroot and cannot find stdlib.h.
+axum-server = { version = "0.7", default-features = false, features = ["tls-rustls-no-provider"] }
 tower = { version = "0.4", features = ["util"] }
 tower-http = { version = "0.5", features = ["cors", "compression-full", "fs"] }
 bytes = "1"
