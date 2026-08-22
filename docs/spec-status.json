@@ -332,8 +332,11 @@
     {
       "section": "Terminal Rendering",
       "stability": "Draft",
-      "status": "Designed",
-      "notes": "Specified only. Nothing built: no terminal backend, no dartvel_flt fork, no -cli build suffixes, no dartvel.terminal opt-in, no DV.Platform.surface. Upstream jiahaog/flt runs apps in development but does not produce distributable binaries, which the fork must add."
+      "status": "Partial",
+      "notes": "Target resolution and backend selection are implemented and tested: the -cli/-tui suffixes, refusal on platforms with no terminal, and the rule that no build links a backend it did not ask for. Not built: the terminal backend itself, the dartvel_flt fork, the dartvel.terminal pubspec key being read, launch negotiation, and DV.Platform.surface.",
+      "evidence": [
+        "packages/dartvel_cli/test/build_command_test.dart"
+      ]
     },
     {
       "section": "Multi-Window",

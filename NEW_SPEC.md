@@ -2177,6 +2177,44 @@ lossless is worse than one with documented edges:
   SSH is not free the way a local compositor is.
 - **Pointer input is whatever the terminal reports**, and some report none.
 
+## Windows in a terminal
+
+`DVWindowManager.open(...)` is not a special case here. Terminal rendering is a
+surface with a particular set of capabilities, and the windowing model already
+describes what happens when a surface cannot honour a request: it presents the
+route another way and reports why.
+
+In a terminal, `open()` **navigates** — the route is presented as a page, with
+`DVWindowPresentation.page` and `DVWindowDegradation.capabilityUnsupported`
+(`DV-WINDOW-001`), exactly as on a phone. Application code does not branch on
+whether it is in a terminal; it observes the presentation it got, the same way
+it already does everywhere else.
+
+### Why not spawn a second terminal
+
+It is the obvious idea and it defeats the purpose. Opening a new terminal
+*emulator* window requires a window server — which is the thing terminal
+rendering exists to work without. On the machine where this matters most, a
+server reached over SSH, there is exactly one pty and nothing to spawn into.
+
+A multiplexer is the one honest exception: where the application is running
+under `tmux` or similar, real additional surfaces exist and a window request
+could be given one. That is a capability to detect, not to assume, and it is
+deliberately left out of the first implementation. A feature that works only
+under one multiplexer, and silently degrades everywhere else, is harder to
+reason about than one that always navigates.
+
+So the rule is: **navigate, and say so.** If multiplexer surfaces are added
+later they raise the presentation from `page` to `window` for applications that
+already work either way, because those applications were reading the
+presentation rather than assuming it.
+
+### Tab workspaces
+
+`DVTabWorkspace` needs no terminal-specific behaviour. Tabs are a layout, and a
+layout renders in cells as readily as in pixels. Tearing a tab out into its own
+window degrades the same way `open()` does, and for the same reason.
+
 ## The embedder
 
 Terminal rendering is driven by a Dartvel fork of a Flutter terminal embedder,

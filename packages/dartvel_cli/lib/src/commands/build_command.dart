@@ -85,8 +85,66 @@ const buildPlatformArguments = <String>[
   'tpk',
   'sony-elinux-iso',
   'sony-elinux-img',
+  ...terminalBuildTargets,
   'all',
 ];
+
+/// Targets that can render into a terminal.
+///
+/// Desktop platforms and Fuchsia. Android, iOS and web have no terminal to
+/// render into, so the suffix is refused there rather than accepted and
+/// ignored — building a GUI application under a name promising a TUI is worse
+/// than refusing the name.
+const terminalCapablePlatforms = <String>[
+  'linux',
+  'windows',
+  'macos',
+  'fuchsia',
+];
+
+/// `linux-cli`, `linux-tui`, and the same for every terminal-capable platform.
+///
+/// `-tui` says what it does and `-cli` says where it runs; they resolve
+/// identically.
+const terminalBuildTargets = <String>[
+  'linux-cli', 'linux-tui',
+  'windows-cli', 'windows-tui',
+  'macos-cli', 'macos-tui',
+  'fuchsia-cli', 'fuchsia-tui',
+];
+
+/// A rendering backend linked into a build.
+///
+/// Which of these a binary contains is decided at build time and never at
+/// startup: resolving it on launch would mean every application shipped every
+/// backend, and paid for modes most of them never use.
+enum DVRenderBackend { gui, terminal }
+
+/// The backends a build links, from the target's format and the application's
+/// opt-in.
+///
+/// The whole rule, and both halves of it are exclusions:
+///
+/// | build | gui | terminal |
+/// |---|---|---|
+/// | plain desktop | yes | no |
+/// | desktop + `dartvel.terminal: true` | yes | yes |
+/// | `-cli` / `-tui` | no | yes |
+///
+/// A terminal build contains no GUI backend at all — not a window that stays
+/// closed. A plain desktop build contains no terminal code. Nothing gives an
+/// application a backend it did not ask for.
+Set<DVRenderBackend> resolveRenderBackends({
+  required String? format,
+  required bool terminalOptIn,
+}) {
+  // Asking for a terminal build is the stronger statement: the pubspec key
+  // enables a mode, it does not add one back.
+  if (format == 'tui') return const <DVRenderBackend>{DVRenderBackend.terminal};
+  return terminalOptIn
+      ? const <DVRenderBackend>{DVRenderBackend.gui, DVRenderBackend.terminal}
+      : const <DVRenderBackend>{DVRenderBackend.gui};
+}
 
 /// Resolves which platform to build from the positional argument and the
 /// `--platform` option.
@@ -908,6 +966,18 @@ enum _PlatformBuildResult { succeeded, failed, skipped }
 /// Splits a distribution-format target name into a base platform plus an output
 /// format. Non-distribution targets pass through unchanged with a null format.
 ({String platform, String? format}) normalizeBuildTarget(String target) {
+  for (final suffix in const <String>['-cli', '-tui']) {
+    if (!target.endsWith(suffix)) continue;
+    final base = target.substring(0, target.length - suffix.length);
+    if (!terminalCapablePlatforms.contains(base)) {
+      throw FormatException(
+        '$base cannot render in a terminal. Terminal builds are available for '
+        '${terminalCapablePlatforms.join(', ')}.',
+        target,
+      );
+    }
+    return (platform: base, format: 'tui');
+  }
   return switch (target) {
     'sony-elinux-iso' => (platform: 'sony-elinux', format: 'iso'),
     'sony-elinux-img' => (platform: 'sony-elinux', format: 'img'),
