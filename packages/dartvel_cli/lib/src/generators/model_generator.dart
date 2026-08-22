@@ -16,7 +16,11 @@ class ModelGenerator {
   }) async {
     final modelsDir = Directory(p.join(root, 'lib', 'models'));
     final fs = const LocalFileSystem();
-    final glob = Glob(p.join('lib', 'models', '**.dart'));
+    // Always '/': a glob separator is not a host path separator, and a
+    // backslash is glob's escape character. p.join here matched nothing on
+    // Windows, so models.g.dart came out empty and every model type was
+    // undefined hundreds of lines away.
+    final glob = Glob('lib/models/**.dart');
     final files = <File>[];
     if (modelsDir.existsSync()) {
       for (final entity in glob.listFileSystemSync(

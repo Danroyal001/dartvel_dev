@@ -8,6 +8,49 @@ import '../utils/helpers.dart';
 import '../utils/logger.dart';
 import 'route_utils.dart';
 
+/// Every `_layout.dart` under [pagesDir].
+///
+/// Extracted so discovery is testable on its own. It had no test until a
+/// glob pattern was briefly turned into a literal string by an escaping slip
+/// and nothing matched — the whole suite still passed, because a generator
+/// that finds nothing does not fail. It emits a smaller file and the
+/// application quietly loses its layouts.
+List<File> discoverLayouts({required String root, required String pagesDir}) =>
+    _discover(root: root, pagesDir: pagesDir, basename: '_layout.dart');
+
+/// Every `_guard.dart` under [pagesDir]. See [discoverLayouts].
+List<File> discoverGuards({required String root, required String pagesDir}) =>
+    _discover(root: root, pagesDir: pagesDir, basename: '_guard.dart');
+
+List<File> _discover({
+  required String root,
+  required String pagesDir,
+  required String basename,
+}) {
+  final found = <File>[];
+
+  // `**/` requires at least one directory, so the file directly in pagesDir
+  // is not matched by it and has to be looked up by name. Layout discovery
+  // already did this; guard discovery did not, so a root `_guard.dart` —
+  // authorisation for the whole application — was silently ignored.
+  final rootFile = File(p.join(root, pagesDir, basename));
+  if (rootFile.existsSync()) found.add(rootFile);
+
+  // Always '/': a glob separator is not a host path separator, and a
+  // backslash is glob's escape character.
+  for (final entity in Glob('$pagesDir/**/$basename').listFileSystemSync(
+    const LocalFileSystem(),
+    root: root,
+    followLinks: false,
+  )) {
+    final file = File(entity.path);
+    if (file.existsSync()) found.add(file);
+  }
+
+  found.sort((a, b) => a.path.compareTo(b.path));
+  return found;
+}
+
 class ClientGenerator {
   static Future<void> generate({
     required String root,
@@ -60,7 +103,9 @@ class ClientGenerator {
     pageFiles.sort((a, b) => a.path.compareTo(b.path));
 
     // Scan layouts: any _layout.dart under pagesDir
-    final layoutGlob = Glob(p.join(pagesDir, '**/_layout.dart'));
+    // pagesDir is already a posix-style path; joining with the host
+    // separator would break the pattern on Windows.
+    final layoutGlob = Glob('$pagesDir/**/_layout.dart');
     final layoutFiles = <File>[];
     for (final e in layoutGlob.listFileSystemSync(
       fs,
@@ -270,7 +315,7 @@ class ClientGenerator {
     // Guards: scan for _guard.dart files and build a dir->alias map
     final guardImports = <String>[];
     final guardMapByDir = <String, String>{};
-    final guardGlob = Glob(p.join(pagesDir, '**/_guard.dart'));
+    final guardGlob = Glob('$pagesDir/**/_guard.dart');
     for (final e in guardGlob.listFileSystemSync(
       fs,
       root: root,
