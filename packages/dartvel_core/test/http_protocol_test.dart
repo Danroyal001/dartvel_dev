@@ -1,0 +1,285 @@
+// Protocol negotiation, early hints, and the fallback walk.
+//
+// A fake transport stands in for the network so the *policy* is what is being
+// tested: which protocols get attempted, in what order, and when the walk
+// stops. A test that needed a server would be testing the server.
+import 'dart:async';
+
+import 'package:dartvel_core/dartvel.dart';
+import 'package:test/test.dart';
+
+/// Records what it was asked to do and answers however the test says.
+class _FakeTransport implements DVHttpTransport {
+  _FakeTransport({
+    required this.supportedProtocols,
+    this.failWith,
+    this.succeedOn,
+  });
+
+  @override
+  final Set<DVHttpProtocol> supportedProtocols;
+
+  @override
+  String get name => 'fake';
+
+  /// Protocols that fail, and whether the failure is worth retrying.
+  final Map<DVHttpProtocol, bool>? failWith;
+
+  /// The protocol that succeeds. Null means every supported one does.
+  final DVHttpProtocol? succeedOn;
+
+  final List<DVHttpProtocol> attempted = <DVHttpProtocol>[];
+
+  DVHttpProtocol _only(DVHttpRequest request) =>
+      request.protocols.protocols.single;
+
+  @override
+  Future<DVHttpResponse> send(DVHttpRequest request) async {
+    final protocol = _only(request);
+    attempted.add(protocol);
+    final retryable = failWith?[protocol];
+    if (retryable != null) {
+      throw DVHttpNegotiationFailure(protocol, 'refused', retryable: retryable);
+    }
+    if (succeedOn != null && succeedOn != protocol) {
+      throw DVHttpNegotiationFailure(protocol, 'not this one');
+    }
+    return DVHttpResponse(statusCode: 200, body: 'ok', protocol: protocol);
+  }
+
+  @override
+  Future<DVHttpStreamedResponse> stream(DVHttpRequest request) async {
+    final protocol = _only(request);
+    attempted.add(protocol);
+    return DVHttpStreamedResponse(
+      statusCode: 200,
+      headers: const <String, String>{},
+      body: const Stream<List<int>>.empty(),
+      protocol: protocol,
+    );
+  }
+}
+
+void main() {
+  final url = Uri.parse('https://example.test/v1/send');
+
+  group('protocol chain', () {
+    test('the standard chain prefers HTTP/3 and floors at HTTP/1.1', () {
+      expect(
+        DVHttpProtocolChain.standard.protocols,
+        <DVHttpProtocol>[
+          DVHttpProtocol.http3,
+          DVHttpProtocol.http2,
+          DVHttpProtocol.http11,
+        ],
+      );
+    });
+
+    test('narrowing keeps the chain order, not the capability order', () {
+      // Preference belongs to the caller; the transport only says what it can
+      // do. If narrowing reordered, a transport could quietly demote HTTP/3.
+      final narrowed = DVHttpProtocolChain.standard.supportedBy(
+        <DVHttpProtocol>{DVHttpProtocol.http11, DVHttpProtocol.http3},
+      );
+      expect(narrowed.protocols,
+          <DVHttpProtocol>[DVHttpProtocol.http3, DVHttpProtocol.http11]);
+    });
+
+    test('ALPN tokens map back, draft h3 versions included', () {
+      expect(DVHttpProtocol.fromAlpn('h3'), DVHttpProtocol.http3);
+      expect(DVHttpProtocol.fromAlpn('h3-29'), DVHttpProtocol.http3);
+      expect(DVHttpProtocol.fromAlpn('h2'), DVHttpProtocol.http2);
+      expect(DVHttpProtocol.fromAlpn('HTTP/1.1'), DVHttpProtocol.http11);
+      expect(DVHttpProtocol.fromAlpn('spdy/3'), isNull);
+    });
+  });
+
+  group('fallback', () {
+    test('stops at the first protocol that works', () async {
+      final transport = _FakeTransport(
+        supportedProtocols: const <DVHttpProtocol>{
+          DVHttpProtocol.http3,
+          DVHttpProtocol.http2,
+          DVHttpProtocol.http11,
+        },
+      );
+      final response = await DVHttpFallbackClient(transport)
+          .send(DVHttpRequest(url: url));
+
+      expect(transport.attempted, <DVHttpProtocol>[DVHttpProtocol.http3]);
+      expect(response.protocol, DVHttpProtocol.http3);
+    });
+
+    test('walks down the chain when a protocol is refused', () async {
+      // The QUIC case this exists for: UDP blocked, HTTP/2 fine.
+      final transport = _FakeTransport(
+        supportedProtocols: const <DVHttpProtocol>{
+          DVHttpProtocol.http3,
+          DVHttpProtocol.http2,
+          DVHttpProtocol.http11,
+        },
+        failWith: const <DVHttpProtocol, bool>{DVHttpProtocol.http3: true},
+      );
+      final response = await DVHttpFallbackClient(transport)
+          .send(DVHttpRequest(url: url));
+
+      expect(transport.attempted,
+          <DVHttpProtocol>[DVHttpProtocol.http3, DVHttpProtocol.http2]);
+      expect(response.protocol, DVHttpProtocol.http2);
+    });
+
+    test('skips protocols the transport cannot speak, without failing',
+        () async {
+      // Asking for HTTP/3 on a 1.1-only transport is not an error. It is a
+      // preference that cannot be honoured.
+      final transport = _FakeTransport(
+        supportedProtocols: const <DVHttpProtocol>{DVHttpProtocol.http11},
+      );
+      final response = await DVHttpFallbackClient(transport)
+          .send(DVHttpRequest(url: url));
+
+      expect(transport.attempted, <DVHttpProtocol>[DVHttpProtocol.http11]);
+      expect(response.protocol, DVHttpProtocol.http11);
+    });
+
+    test('a non-retryable failure stops the walk', () async {
+      // The request reached the origin and was answered. Trying again over a
+      // different handshake would just ask the same question.
+      final transport = _FakeTransport(
+        supportedProtocols: const <DVHttpProtocol>{
+          DVHttpProtocol.http3,
+          DVHttpProtocol.http2,
+          DVHttpProtocol.http11,
+        },
+        failWith: const <DVHttpProtocol, bool>{DVHttpProtocol.http3: false},
+      );
+
+      await expectLater(
+        DVHttpFallbackClient(transport).send(DVHttpRequest(url: url)),
+        throwsA(isA<DVHttpProtocolExhausted>()),
+      );
+      expect(transport.attempted, <DVHttpProtocol>[DVHttpProtocol.http3]);
+    });
+
+    test('an HTTP/2-only request never silently downgrades', () async {
+      // APNS is HTTP/2-only. Falling back to 1.1 would turn a configuration
+      // problem into a connection error that cannot explain itself.
+      final transport = _FakeTransport(
+        supportedProtocols: const <DVHttpProtocol>{DVHttpProtocol.http11},
+      );
+
+      await expectLater(
+        DVHttpFallbackClient(transport).send(
+          DVHttpRequest(url: url, protocols: DVHttpProtocolChain.http2Only),
+        ),
+        throwsA(isA<DVHttpProtocolExhausted>()),
+      );
+      expect(transport.attempted, isEmpty);
+    });
+
+    test('exhaustion reports every attempt, not just the last', () async {
+      final transport = _FakeTransport(
+        supportedProtocols: const <DVHttpProtocol>{
+          DVHttpProtocol.http3,
+          DVHttpProtocol.http2,
+        },
+        failWith: const <DVHttpProtocol, bool>{
+          DVHttpProtocol.http3: true,
+          DVHttpProtocol.http2: true,
+        },
+      );
+
+      try {
+        await DVHttpFallbackClient(transport).send(DVHttpRequest(url: url));
+        fail('expected exhaustion');
+      } on DVHttpProtocolExhausted catch (error) {
+        expect(error.attempts, hasLength(2));
+        expect(error.attempts.map((a) => a.protocol),
+            <DVHttpProtocol>[DVHttpProtocol.http3, DVHttpProtocol.http2]);
+        expect(error.toString(), contains('h3'));
+        expect(error.toString(), contains('h2'));
+      }
+    });
+  });
+
+  group('early hints', () {
+    test('parses a preload link', () {
+      final hints = DVEarlyHints(const <String, String>{
+        'link': '</style.css>; rel=preload; as=style',
+      });
+      expect(hints.links, hasLength(1));
+      expect(hints.links.single.uri, '/style.css');
+      expect(hints.links.single.rel, 'preload');
+      expect(hints.links.single.asType, 'style');
+    });
+
+    test('splits multiple links without splitting inside the URL', () {
+      // A comma is legal in a URL. Splitting on every comma is the obvious
+      // implementation and it corrupts exactly this case.
+      final hints = DVEarlyHints(const <String, String>{
+        'link': '</a,b.css>; rel=preload; as=style, </c.js>; rel=preload; '
+            'as=script',
+      });
+      expect(hints.links.map((l) => l.uri), <String>['/a,b.css', '/c.js']);
+      expect(hints.links.last.asType, 'script');
+    });
+
+    test('keeps quoted parameters intact', () {
+      final hints = DVEarlyHints(const <String, String>{
+        'link': '</f.woff2>; rel="preload"; as="font"; crossorigin="anonymous"',
+      });
+      final link = hints.links.single;
+      expect(link.rel, 'preload');
+      expect(link.asType, 'font');
+      expect(link.parameters['crossorigin'], 'anonymous');
+    });
+
+    test('a malformed hint is skipped, not thrown', () {
+      // Early hints are an optimisation. Failing a request over one would make
+      // the feature worse than not having it.
+      final hints = DVEarlyHints(const <String, String>{
+        'link': 'garbage, </ok.css>; rel=preload',
+      });
+      expect(hints.links.map((l) => l.uri), <String>['/ok.css']);
+    });
+
+    test('no link header means no links', () {
+      expect(const DVEarlyHints(<String, String>{}).links, isEmpty);
+    });
+  });
+
+  group('default transport', () {
+    tearDown(() => dvUseHttpTransport(null));
+
+    test('package:http is declared HTTP/1.1 only', () {
+      // It is dart:io's HttpClient underneath, which does not speak HTTP/2.
+      // Saying so is what lets the fallback driver skip rather than pretend.
+      expect(
+        const DVPackageHttpTransport().supportedProtocols,
+        const <DVHttpProtocol>{DVHttpProtocol.http11},
+      );
+    });
+
+    test('the browser is declared to speak all three', () {
+      // It negotiates them itself and acts on early hints without being asked.
+      expect(
+        const DVBrowserHttpTransport().supportedProtocols,
+        containsAll(<DVHttpProtocol>[
+          DVHttpProtocol.http3,
+          DVHttpProtocol.http2,
+          DVHttpProtocol.http11,
+        ]),
+      );
+    });
+
+    test('a registered transport replaces the default and can be removed', () {
+      final fake = _FakeTransport(
+        supportedProtocols: const <DVHttpProtocol>{DVHttpProtocol.http2},
+      );
+      expect(dvUseHttpTransport(fake), isNull);
+      expect(dvHttpTransport, same(fake));
+      dvUseHttpTransport(null);
+      expect(dvHttpTransport, isNot(same(fake)));
+    });
+  });
+}
