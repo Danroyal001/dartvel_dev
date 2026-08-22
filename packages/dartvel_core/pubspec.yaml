@@ -11,6 +11,9 @@ dependencies:
   async: ^2.13.1
   crypto: ^3.0.7
   http: ^1.6.0
+  # The native HTTP/2 client is reached through FFI; the library itself is
+  # packaged by dartvel_shelf, which this already depends on.
+  ffi: ^2.1.0
   mime: ^1.0.4
   http_parser: ^4.0.2
   shelf_multipart: ^1.0.0

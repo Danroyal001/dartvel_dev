@@ -163,7 +163,7 @@ pub unsafe extern "C" fn dv_http_send(request_json: FfiStr, body: FfiBuf) -> u64
     let (cancel_tx, cancel_rx) = tokio::sync::oneshot::channel();
     let id = NEXT_REQUEST_ID.fetch_add(1, Ordering::SeqCst);
 
-    requests().lock().map_or((), |mut map| {
+    if let Ok(mut map) = requests().lock() {
         map.insert(
             id,
             PendingRequest {
@@ -171,7 +171,7 @@ pub unsafe extern "C" fn dv_http_send(request_json: FfiStr, body: FfiBuf) -> u64
                 cancel: Some(cancel_tx),
             },
         );
-    });
+    }
 
     runtime().spawn(async move {
         let work = perform(request, body_bytes, event_tx.clone());
