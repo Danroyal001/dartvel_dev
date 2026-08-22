@@ -26,6 +26,8 @@ use rustls::{
 };
 use rustls_pemfile::Item;
 
+mod http_client;
+
 // ===== C ABI structs =====
 #[repr(C)]
 pub struct FfiBuf {

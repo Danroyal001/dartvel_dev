@@ -442,3 +442,59 @@ Future<DVHttpResponse> dvSendHttpRequest(DVHttpRequest request) =>
 /// ends would never return.
 Future<DVHttpStreamedResponse> dvStreamHttpRequest(DVHttpRequest request) =>
     DVHttpFallbackClient(dvHttpTransport).stream(request);
+
+/// Routes each protocol to whichever transport can speak it.
+///
+/// Exists so a faster transport can arrive one protocol at a time. A native
+/// HTTP/2 client is useful the day it works, and should not have to
+/// reimplement HTTP/1.1 first just to avoid regressing requests that fall back
+/// — this sends HTTP/2 to the native client and HTTP/1.1 to `package:http`,
+/// and the fallback walk cannot tell the difference.
+///
+/// Later entries never shadow earlier ones: the first transport that claims a
+/// protocol owns it, so registering a native client ahead of the default is
+/// enough to take over exactly what it supports.
+class DVCompositeHttpTransport implements DVHttpTransport {
+  final List<DVHttpTransport> transports;
+
+  DVCompositeHttpTransport(this.transports)
+      : assert(transports.length > 0, 'a composite needs a transport');
+
+  @override
+  String get name =>
+      'composite(${transports.map((t) => t.name).join(' + ')})';
+
+  @override
+  Set<DVHttpProtocol> get supportedProtocols => <DVHttpProtocol>{
+        for (final transport in transports) ...transport.supportedProtocols,
+      };
+
+  /// The transport that owns [protocol], or null when none claims it.
+  DVHttpTransport? transportFor(DVHttpProtocol protocol) {
+    for (final transport in transports) {
+      if (transport.supportedProtocols.contains(protocol)) return transport;
+    }
+    return null;
+  }
+
+  DVHttpTransport _require(DVHttpRequest request) {
+    final protocol = request.protocols.protocols.single;
+    final transport = transportFor(protocol);
+    if (transport == null) {
+      throw DVHttpNegotiationFailure(
+        protocol,
+        'no transport in $name speaks ${protocol.alpn}',
+        retryable: false,
+      );
+    }
+    return transport;
+  }
+
+  @override
+  Future<DVHttpResponse> send(DVHttpRequest request) =>
+      _require(request).send(request);
+
+  @override
+  Future<DVHttpStreamedResponse> stream(DVHttpRequest request) =>
+      _require(request).stream(request);
+}
