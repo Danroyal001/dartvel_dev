@@ -727,6 +727,23 @@ dependencies:
       expect(plan.arguments.join(' '), isNot(contains('dartvel_app')));
     });
 
+    test('defaults to x64, because that is the only engine the embedder ships',
+        () {
+      // --arch defaults to arm64 for TVs and embedded boards. Fuchsia has an
+      // x64 prebuilt engine only, so inheriting that default made a plain
+      // `dartvel build fuchsia` fail with "no arm64 engine in
+      // src/embedder/engine/debug_arm64" without anyone choosing arm64.
+      expect(resolveEmbeddedArch('fuchsia', 'arm64'), 'x64');
+      expect(resolveEmbeddedArch('tizen', 'arm64'), 'arm64');
+      expect(resolveEmbeddedArch('sony-elinux', 'arm64'), 'arm64');
+    });
+
+    test('an explicit --arch still wins, engine present or not', () {
+      // Someone who has built an arm64 engine should be able to use it, and
+      // the embedder says so clearly enough if they have not.
+      expect(resolveEmbeddedArch('fuchsia', 'arm64', explicit: true), 'arm64');
+    });
+
     test('an arm64 build asks the embedder for arm64', () {
       final plan = resolveEmbeddedBuildPlan(
         platform: 'fuchsia',

@@ -267,6 +267,7 @@ class BuildCommand extends Command<void> {
     final formatFlag = argResults?['format'] as String?;
     final deviceProfile = argResults?['device-profile'] as String?;
     final arch = argResults?['arch'] as String;
+    final archExplicit = argResults?.wasParsed('arch') ?? false;
     final splitPerAbi = argResults?['split-per-abi'] as bool;
     final buildNumber = argResults?['build-number'] as String?;
     final buildName = argResults?['build-name'] as String?;
@@ -344,7 +345,7 @@ class BuildCommand extends Command<void> {
               buildMode,
               format: p == 'sony-elinux' ? (format ?? 'bundle') : null,
               deviceProfile: deviceProfile,
-              arch: arch,
+              arch: resolveEmbeddedArch(p, arch, explicit: archExplicit),
               target: target,
             )
           : browserExtensionBuildPlatforms.contains(p)
@@ -1005,6 +1006,23 @@ bool _isFresh(FileSystemEntity entity, DateTime? since) {
   if (since == null) return true;
   return !entity.statSync().modified.isBefore(since);
 }
+
+/// Embedded targets whose default architecture is not the global one.
+///
+/// `--arch` defaults to arm64, which is right for TVs and embedded boards.
+/// Fuchsia's embedder ships an x64 prebuilt engine only, so inheriting that
+/// default asks it for an engine that does not exist — and a `dartvel build
+/// all` would ask for it without anyone having chosen arm64 at all.
+const embeddedArchDefaults = <String, String>{'fuchsia': 'x64'};
+
+/// [arch] unless [platform] defaults differently and the caller did not ask.
+///
+/// An explicit `--arch` always wins: a developer who has built an arm64
+/// Fuchsia engine should be able to use it, and the embedder's own error is
+/// clear if they have not.
+String resolveEmbeddedArch(String platform, String arch,
+        {bool explicit = false}) =>
+    explicit ? arch : (embeddedArchDefaults[platform] ?? arch);
 
 /// The directory Dartvel-managed toolchains are installed under.
 String resolveToolchainHome() =>
