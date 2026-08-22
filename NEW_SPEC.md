@@ -2073,35 +2073,49 @@ frames land does.
 ## Two ways in, and they are different
 
 **A terminal-only build.** `dartvel build linux-cli` produces a binary that
-renders in a terminal and never opens a window. It resolves the way
+renders in a terminal. It contains **no GUI backend at all** — not a window
+that stays closed, not a fallback, nothing. It resolves the way
 `sony-elinux-iso` already does: a suffix naming a base platform and a
 presentation, not a new platform.
 
 ```
-dartvel build linux-cli
-dartvel build windows-cli
-dartvel build macos-cli
-dartvel build fuchsia-cli
+dartvel build linux-cli      dartvel build linux-tui
+dartvel build windows-cli    dartvel build windows-tui
+dartvel build macos-cli      dartvel build macos-tui
+dartvel build fuchsia-cli    dartvel build fuchsia-tui
 ```
 
-**A dual-mode desktop build.** An ordinary `dartvel build linux` can also
-carry terminal rendering, if the application asks for it:
+`-tui` and `-cli` are the same target under two names. `-tui` says what it
+does; `-cli` says where it runs.
+
+**A dual-mode build**, only when asked for. `dartvel build linux` produces a
+GUI binary containing no terminal code. It carries both backends **only** if
+the application opts in:
 
 ```yaml
 dartvel:
   terminal: true
 ```
 
-That is the whole opt-in. An application that does not declare it links no
-terminal code at all.
+## What each build contains
+
+| Build | GUI backend | Terminal backend |
+|---|---|---|
+| `dartvel build linux` | yes | **no** |
+| `dartvel build linux` with `dartvel.terminal: true` | yes | yes |
+| `dartvel build linux-cli` / `linux-tui` | **no** | yes |
+
+There is no configuration under which an application gets a backend it did
+not ask for. A GUI build without the opt-in is byte-for-byte what it is today;
+a terminal build carries no window-server code it would never call.
 
 ## Nothing is carried by an application that did not ask
 
 This is a constraint on the implementation, not a preference. A rendering
 backend costs binary size for every user who never reaches it, so the
-presentation is resolved at **build time** from the `-cli` suffix or the
-`dartvel.terminal` key, and only the backends an application asked for are
-linked.
+presentation is resolved at **build time** — from the `-cli`/`-tui` suffix or
+the `dartvel.terminal` key — and only the backends an application asked for
+are linked. The default on every desktop target is GUI alone.
 
 That rules out the obvious shortcut of always shipping both and choosing at
 startup. It is simpler, and it makes every application pay for a capability
