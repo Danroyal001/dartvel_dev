@@ -24,6 +24,16 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1.0"
 libc = "0.2"
 
+# Outbound HTTP client. h2 is used directly rather than through reqwest or
+# hyper because ResponseFuture::poll_informational is the only place in the
+# ecosystem where 103 Early Hints surface; hyper supports them in neither
+# direction. See docs/http-transport.md.
+h2 = "0.4"
+http = "1"
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+rustls-native-certs = "0.7"
+webpki-roots = "0.26"
+
 [build-dependencies]
 cbindgen = "0.29"
 

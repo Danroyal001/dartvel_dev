@@ -248,6 +248,8 @@ void main() {
     });
   });
 
+  compositeTests();
+
   group('default transport', () {
     tearDown(() => dvUseHttpTransport(null));
 
@@ -280,6 +282,60 @@ void main() {
       expect(dvHttpTransport, same(fake));
       dvUseHttpTransport(null);
       expect(dvHttpTransport, isNot(same(fake)));
+    });
+  });
+}
+
+// Appended: routing per protocol, which is what lets a native client ship one
+// protocol at a time instead of all at once.
+void compositeTests() {
+  final url = Uri.parse('https://example.test/v1/send');
+
+  group('composite transport', () {
+    test('advertises the union of what its members speak', () {
+      final composite = DVCompositeHttpTransport(<DVHttpTransport>[
+        _FakeTransport(
+            supportedProtocols: const <DVHttpProtocol>{DVHttpProtocol.http2}),
+        const DVPackageHttpTransport(),
+      ]);
+      expect(composite.supportedProtocols,
+          <DVHttpProtocol>{DVHttpProtocol.http2, DVHttpProtocol.http11});
+    });
+
+    test('sends each protocol to the member that claims it', () async {
+      // The shipping case: HTTP/2 to a native client, HTTP/1.1 to
+      // package:http, with neither reimplementing the other.
+      final native = _FakeTransport(
+          supportedProtocols: const <DVHttpProtocol>{DVHttpProtocol.http2});
+      final composite = DVCompositeHttpTransport(<DVHttpTransport>[
+        native,
+        const DVPackageHttpTransport(),
+      ]);
+
+      final response = await DVHttpFallbackClient(composite).send(
+        DVHttpRequest(url: url, protocols: DVHttpProtocolChain.http2Only),
+      );
+
+      expect(native.attempted, <DVHttpProtocol>[DVHttpProtocol.http2]);
+      expect(response.protocol, DVHttpProtocol.http2);
+    });
+
+    test('the first claimant owns a protocol, so order is precedence', () {
+      final first = _FakeTransport(
+          supportedProtocols: const <DVHttpProtocol>{DVHttpProtocol.http11});
+      final composite = DVCompositeHttpTransport(<DVHttpTransport>[
+        first,
+        const DVPackageHttpTransport(),
+      ]);
+      expect(composite.transportFor(DVHttpProtocol.http11), same(first));
+    });
+
+    test('an unclaimed protocol is a non-retryable failure', () {
+      // Nothing else in the composite could serve it either, so walking on
+      // would only produce the same answer more slowly.
+      final composite = DVCompositeHttpTransport(
+          <DVHttpTransport>[const DVPackageHttpTransport()]);
+      expect(composite.transportFor(DVHttpProtocol.http3), isNull);
     });
   });
 }

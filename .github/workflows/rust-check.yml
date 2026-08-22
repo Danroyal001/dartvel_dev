@@ -1,0 +1,79 @@
+name: Rust runtime
+
+# Compiles and tests dartvel_shelf's Rust crate.
+#
+# This exists because the development environment for this project has no
+# cargo and not enough disk for a target directory, so CI is where the Rust
+# code is actually checked. It runs on push rather than on demand: a compile
+# error found four commits later is much more expensive than one found now.
+
+on:
+  push:
+    paths:
+      - 'packages/dartvel_shelf/rust/**'
+      - '.github/workflows/rust-check.yml'
+  pull_request:
+    paths:
+      - 'packages/dartvel_shelf/rust/**'
+  workflow_dispatch:
+
+concurrency:
+  # A push that supersedes an in-flight check makes the older run irrelevant.
+  group: rust-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: cargo check, clippy, test
+    runs-on: ubuntu-latest
+    # A clean build of this crate is minutes, not tens of minutes. Anything
+    # approaching this is stuck rather than slow.
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: packages/dartvel_shelf/rust
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the Rust toolchain
+        run: |
+          rustup toolchain install stable --profile minimal \
+            --component clippy,rustfmt
+          rustup default stable
+          rustc --version && cargo --version
+
+      # Keyed on the manifest and lockfile so a hit is the same dependency
+      # graph. Sources are deliberately not in the key: a source edit should
+      # reuse the dependency build rather than discard it, which is most of
+      # the time.
+      - name: Cache cargo and target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            packages/dartvel_shelf/rust/target
+          key: >-
+            rust-check-${{ runner.os }}-${{
+            hashFiles('packages/dartvel_shelf/rust/Cargo.toml',
+                      'packages/dartvel_shelf/rust/Cargo.lock') }}
+          restore-keys: rust-check-${{ runner.os }}-
+
+      # The crate's build script runs cbindgen, which is not on a runner.
+      - name: Install cbindgen
+        run: cargo install cbindgen --locked || true
+
+      - name: cargo check
+        run: cargo check --all-targets
+
+      # Warnings are failures here. The FFI surface is unsafe by nature, and
+      # the lints that matter most on it are the ones easiest to wave through.
+      - name: cargo clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: cargo test
+        run: cargo test
+
+      - name: cargo fmt
+        run: cargo fmt --check
