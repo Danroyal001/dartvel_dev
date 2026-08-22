@@ -163,19 +163,28 @@ jobs:
         working-directory: examples/dartvel_example
         run: flutter pub get
 
-      # macOS has hung twice with no output after "Building for macos...".
-      # iOS, which is the same toolchain minus signing, succeeds — so this
-      # runs plain Flutter verbosely, self-limited, to find out whether the
-      # block is Dartvel's build path or Xcode waiting on something. It never
-      # fails the job; it exists to produce the log line that says where.
+      # macOS hangs after "Building for macos..." with no output at all — not
+      # even Flutter's own first line — and no xcodebuild among the orphaned
+      # processes, so Flutter never reaches Xcode.
+      #
+      # An earlier version of this step used `timeout`, which macOS does not
+      # ship: it failed with "command not found" and the step reported success
+      # without running anything. Perl is present on every runner and does the
+      # same job portably.
+      #
+      # This never fails the job; it exists to produce the log line that says
+      # where the block is.
       - name: Diagnose the macOS hang
         if: steps.gate.outputs.run == 'true' && matrix.platform == 'macos'
         working-directory: examples/dartvel_example
         continue-on-error: true
         run: |
           set +e
-          timeout 600 flutter build macos --debug -v 2>&1 | tail -60
-          echo "exit: $? (124 = timed out, so plain Flutter hangs too)"
+          perl -e 'alarm shift; exec @ARGV' 600 \
+            flutter build macos --debug -v > /tmp/plain-flutter.log 2>&1
+          status=$?
+          echo "plain flutter build macos exit: $status (142 = killed by alarm)"
+          tail -40 /tmp/plain-flutter.log
 
       - name: Build
         if: steps.gate.outputs.run == 'true'
@@ -187,7 +196,11 @@ jobs:
             extra="--device-profile simulator"
           fi
           set -o pipefail
-          dart run dartvel_cli:dartvel build ${{ matrix.platform }} $extra --auto-install \
+          # Bounded well inside the job cap, so a stall is reported by Dartvel
+          # with the command it ran rather than as a cancelled job with no
+          # explanation.
+          dart run dartvel_cli:dartvel build ${{ matrix.platform }} $extra \
+            --auto-install --build-timeout 20 \
             2>&1 | tee "$RUNNER_TEMP/build.log"
 
       # Proves an artifact exists rather than trusting the command's exit

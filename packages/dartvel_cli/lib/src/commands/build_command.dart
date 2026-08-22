@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
@@ -209,6 +210,10 @@ class BuildCommand extends Command<void> {
           help: 'Sony eLinux output format (bundle | iso | img)')
       ..addOption('device-profile',
           help: 'Named embedded device profile from pubspec.yaml')
+      ..addOption('build-timeout',
+          help: 'Minutes before a stalled build is killed (0 disables). '
+              'A build that stops producing output is the failure mode worth '
+              'guarding: it looks identical to a slow one and costs far more.')
       ..addOption('arch',
           allowed: ['arm', 'arm64', 'x64'],
           defaultsTo: 'arm64',
@@ -274,6 +279,8 @@ class BuildCommand extends Command<void> {
     final obfuscate = argResults?['obfuscate'] as bool;
     final treeShakeIcons = argResults?['tree-shake-icons'] as bool;
     final autoInstall = argResults?['auto-install'] as bool?;
+    final buildTimeout =
+        parseBuildTimeout(argResults?['build-timeout'] as String?);
 
     // A distribution-target name (`sony-elinux-iso`) resolves to a base
     // platform plus a format; an explicit `--format` overrides the default.
@@ -355,6 +362,7 @@ class BuildCommand extends Command<void> {
                   : await _buildPlatform(
                       p,
                       buildMode,
+                      timeout: buildTimeout,
                       target: target,
                       splitPerAbi: splitPerAbi,
                       buildNumber: buildNumber,
@@ -396,6 +404,7 @@ class BuildCommand extends Command<void> {
     String? buildName,
     bool obfuscate = false,
     bool treeShakeIcons = false,
+    Duration? timeout,
   }) async {
     Logger.log('');
     Logger.log('🔨 Building for $platform...');
@@ -418,6 +427,11 @@ class BuildCommand extends Command<void> {
       return _PlatformBuildResult.skipped;
     }
 
+    // Printed before starting, so a log that ends here says exactly what was
+    // invoked. A macOS build once stopped at this point and produced nothing
+    // for 41 minutes; the log could not even show the command.
+    Logger.log('   flutter ${args.join(' ')}');
+
     final proc = await Process.start(
       'flutter',
       args,
@@ -428,7 +442,12 @@ class BuildCommand extends Command<void> {
     proc.stdout.listen((data) => stdout.add(data));
     proc.stderr.listen((data) => stderr.add(data));
 
-    final exitCode = await proc.exitCode;
+    final exitCode = await _awaitBuild(
+      proc,
+      timeout: timeout,
+      description: 'flutter build $platform',
+    );
+    if (exitCode == null) return _PlatformBuildResult.failed;
 
     if (exitCode == 0) {
       Logger.log('✅ $platform build successful');
@@ -692,6 +711,38 @@ class BuildCommand extends Command<void> {
 
     Logger.log('✅ vscode extension build successful');
     return _PlatformBuildResult.succeeded;
+  }
+
+  /// Waits for [proc], killing it if it stops making progress.
+  ///
+  /// Returns null when the build was killed, having already reported why. A
+  /// build that hangs is worse than one that fails: it is indistinguishable
+  /// from a slow one, so it runs to whatever cap it was given — a silent
+  /// `flutter build macos` once burned 41 minutes and reported nothing.
+  Future<int?> _awaitBuild(
+    Process proc, {
+    required Duration? timeout,
+    required String description,
+  }) async {
+    if (timeout == null) return proc.exitCode;
+    try {
+      return await proc.exitCode.timeout(timeout);
+    } on TimeoutException {
+      // SIGKILL rather than SIGTERM: a process wedged on a lock or a pipe is
+      // often not responsive to a polite signal, and this one has already had
+      // its full allowance.
+      proc.kill(ProcessSignal.sigkill);
+      Logger.log('');
+      Logger.log(
+        '❌ $description produced no result within '
+        '${timeout.inMinutes} minute(s) and was killed.',
+      );
+      Logger.log(
+        '   Raise or remove the limit with --build-timeout <minutes> '
+        '(0 disables it).',
+      );
+      return null;
+    }
   }
 
   Future<bool> _isPlatformAvailable(String platform) async =>
@@ -1023,6 +1074,26 @@ const embeddedArchDefaults = <String, String>{'fuchsia': 'x64'};
 String resolveEmbeddedArch(String platform, String arch,
         {bool explicit = false}) =>
     explicit ? arch : (embeddedArchDefaults[platform] ?? arch);
+
+/// How long a build may run before it is treated as stalled.
+///
+/// Null means no limit. The default is deliberately generous — a clean
+/// release build of a large app on a cold cache is genuinely slow — but it is
+/// finite, because a build that hangs looks exactly like a slow one and keeps
+/// costing until something else stops it.
+Duration? parseBuildTimeout(String? minutes) {
+  if (minutes == null || minutes.trim().isEmpty) {
+    return const Duration(minutes: 45);
+  }
+  final parsed = int.tryParse(minutes.trim());
+  if (parsed == null || parsed < 0) {
+    throw FormatException(
+      'A --build-timeout is a whole number of minutes, or 0 to disable it.',
+      minutes,
+    );
+  }
+  return parsed == 0 ? null : Duration(minutes: parsed);
+}
 
 /// The directory Dartvel-managed toolchains are installed under.
 String resolveToolchainHome() =>
