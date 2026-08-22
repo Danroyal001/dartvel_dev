@@ -149,10 +149,11 @@ jobs:
       - name: Install Bazel for Fuchsia
         if: steps.gate.outputs.run == 'true' && matrix.platform == 'fuchsia'
         run: |
-          curl -sSLo /usr/local/bin/bazel \
+          set -euo pipefail
+          sudo curl -fsSLo /usr/local/bin/bazel \
             https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64
-          chmod +x /usr/local/bin/bazel
-          bazel --version || true
+          sudo chmod +x /usr/local/bin/bazel
+          bazel --version
 
       - name: Resolve dependencies
         if: steps.gate.outputs.run == 'true'
@@ -182,7 +183,9 @@ jobs:
           if [ "${{ matrix.platform }}" = "tvos" ]; then
             extra="--device-profile simulator"
           fi
-          dart run dartvel_cli:dartvel build ${{ matrix.platform }} $extra --auto-install
+          set -o pipefail
+          dart run dartvel_cli:dartvel build ${{ matrix.platform }} $extra --auto-install \
+            2>&1 | tee "$RUNNER_TEMP/build.log"
 
       # Proves an artifact exists rather than trusting the command's exit
       # code — and for tvOS, that the artifact is a tvOS app, not an iPhone
@@ -207,6 +210,22 @@ jobs:
             sony-elinux) path=build/elinux ;;
             fuchsia) path=build/fuchsia ;;
           esac
+
+          # Tizen Studio is licence-gated, so Dartvel must never install it and
+          # a runner can never build a TPK. The pass condition here is that it
+          # skipped *for that reason and said so* — a skip with no explanation,
+          # or one blamed on something else, is still a failure. Every other
+          # target must produce a real artifact; a skip is a failure there.
+          if [ "${{ matrix.platform }}" = "tizen" ]; then
+            log="$RUNNER_TEMP/build.log"
+            if grep -q 'Skipping tizen' "$log" && grep -q 'Tizen Studio SDK' "$log"; then
+              echo "::notice::tizen skipped as expected — the SDK is licence-gated"
+              exit 0
+            fi
+            echo "::error::tizen did not skip for the documented licence reason"
+            exit 1
+          fi
+
           if [ ! -d "$path" ] || [ -z "$(ls -A "$path")" ]; then
             echo "::error::no artifact at $path"
             exit 1
@@ -218,7 +237,7 @@ jobs:
       # Only the verified artifact: uploading all of build/ ships gigabytes
       # of intermediates against a storage quota measured in megabytes.
       - uses: actions/upload-artifact@v4
-        if: steps.gate.outputs.run == 'true'
+        if: steps.gate.outputs.run == 'true' && matrix.platform != 'tizen'
         with:
           name: dartvel-${{ matrix.platform }}
           path: examples/dartvel_example/${{ steps.artifact.outputs.path }}
