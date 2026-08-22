@@ -227,18 +227,21 @@ struct FfiRespOwned {
 }
 static PENDING_RESPONSES: OnceCell<Mutex<HashMap<u64, oneshot::Sender<FfiRespOwned>>>> =
     OnceCell::new();
+/// One streamed body chunk, or the error that ended the stream.
+type StreamChunkResult = Result<Bytes, axum::BoxError>;
+type StreamChunkSender = mpsc::UnboundedSender<StreamChunkResult>;
+type StreamChunkReceiver = mpsc::UnboundedReceiver<StreamChunkResult>;
+
 /// Unbounded because `aw_stream_send_chunk` is called from Dart's thread,
 /// which is not a runtime thread: a bounded sender there can only drop the
 /// chunk, block the isolate, or reorder it behind a spawned send. Buffering
 /// instead trades memory for a stream that is neither lossy nor reordered.
-static PENDING_STREAM_SENDERS:
-    OnceCell<Mutex<HashMap<u64, mpsc::UnboundedSender<Result<Bytes, axum::BoxError>>>>> =
+static PENDING_STREAM_SENDERS: OnceCell<Mutex<HashMap<u64, StreamChunkSender>>> =
     OnceCell::new();
 /// Receivers are created when Dart completes the response rather than when the
 /// server task builds the body, so a chunk sent immediately after
 /// `aw_complete` still has somewhere to go.
-static PENDING_STREAM_RECEIVERS:
-    OnceCell<Mutex<HashMap<u64, mpsc::UnboundedReceiver<Result<Bytes, axum::BoxError>>>>> =
+static PENDING_STREAM_RECEIVERS: OnceCell<Mutex<HashMap<u64, StreamChunkReceiver>>> =
     OnceCell::new();
 /// Server threads, so a stop can wait for one to finish before Dart frees the
 /// callbacks its in-flight streams still call.
@@ -403,15 +406,13 @@ pub extern "C" fn aw_tls_rustls_from_pem(cert_pem: FfiBuf, key_pem: FfiBuf) -> i
                     key = Some(PrivateKeyDer::from(k));
                     break;
                 }
-                Item::Pkcs1Key(k) => {
-                    if key.is_none() {
-                        key = Some(PrivateKeyDer::from(k));
-                    }
+                // Only the first of these wins: a PKCS#8 key later in the
+                // file still takes precedence by breaking out above.
+                Item::Pkcs1Key(k) if key.is_none() => {
+                    key = Some(PrivateKeyDer::from(k));
                 }
-                Item::Sec1Key(k) => {
-                    if key.is_none() {
-                        key = Some(PrivateKeyDer::from(k));
-                    }
+                Item::Sec1Key(k) if key.is_none() => {
+                    key = Some(PrivateKeyDer::from(k));
                 }
                 _ => {}
             }
@@ -421,6 +422,10 @@ pub extern "C" fn aw_tls_rustls_from_pem(cert_pem: FfiBuf, key_pem: FfiBuf) -> i
             None => return 3,
         }
     };
+
+    // Same ambiguity as the client: with two rustls providers compiled in,
+    // builder() panics unless a process default exists.
+    crate::http_client::ensure_crypto_provider();
 
     let cfg = ServerConfig::builder()
         .with_no_client_auth()
