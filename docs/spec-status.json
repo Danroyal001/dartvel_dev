@@ -335,9 +335,10 @@
       "stability": "Draft",
       "status": "Partial",
       "evidence": [
-        "packages/dartvel_cli/test/build_command_test.dart"
+        "packages/dartvel_cli/test/build_command_test.dart",
+        "packages/dartvel_flutter/test/render_surface_test.dart"
       ],
-      "absent": "The terminal backend and the dartvel_flt fork; launch negotiation (GUI default, --tui, the no-display prompt); DV.Platform.surface and the terminal signals"
+      "absent": "The terminal backend and the dartvel_flt fork; terminal size as a signal; launch negotiation (GUI default, --tui, the no-display prompt)"
     },
     {
       "section": "Multi-Window",
