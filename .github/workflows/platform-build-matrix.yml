@@ -37,8 +37,11 @@ jobs:
     # was private and billed; it is a public repository now, so standard
     # runners are free and the waste is a few seconds rather than money.
     if: always()
-    # One failing target should not hide the results of the others.
-    continue-on-error: true
+    # `fail-fast: false` below is what keeps one failing target from cancelling
+    # the others. `continue-on-error: true` used to be set here as well, and it
+    # was actively harmful: it rewrites a job's conclusion to success even when
+    # a step failed, so `dartvel build fuchsia` skipping and failing the
+    # artifact check was reported as a green job.
     # A build that hangs is the failure mode worth guarding, not one that
     # breaks: a silently blocked `dartvel build macos` once ran to GitHub's
     # 6-hour default having printed nothing after "Building for macos...".

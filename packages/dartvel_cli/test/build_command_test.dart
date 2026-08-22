@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:dartvel_cli/src/commands/build_command.dart';
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 void main() {
@@ -691,11 +692,17 @@ dependencies:
         buildMode: '--release',
         arch: 'x64',
         appPath: '/work/my_app',
+        toolchainHome: '/home/dev',
       );
 
       expect(plan, isNotNull);
-      expect(plan!.executable, 'dartvel_fuchsia');
-      expect(plan.arguments, contains(fuchsiaAppBuildScript));
+      // An absolute path into the checkout, not a bare name. This test used to
+      // assert the name `dartvel_fuchsia` — which is nothing that is ever
+      // installed, so the build could only ever skip. The plan was shaped
+      // right and unrunnable, and asserting the shape did not catch it.
+      expect(plan!.executable,
+          '/home/dev/.dartvel/toolchains/dartvel_fuchsia/$fuchsiaAppBuildScript');
+      expect(p.isAbsolute(plan.executable), isTrue);
       expect(plan.arguments, containsAllInOrder(<String>['--cpu', 'x64']));
     });
 
@@ -708,6 +715,7 @@ dependencies:
         buildMode: '--release',
         arch: 'x64',
         appPath: '/work/my_app',
+        toolchainHome: '/home/dev',
       );
 
       expect(plan!.arguments, contains('/work/my_app'));

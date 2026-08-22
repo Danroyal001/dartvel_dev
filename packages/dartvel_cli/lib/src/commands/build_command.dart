@@ -472,8 +472,11 @@ class BuildCommand extends Command<void> {
 
     if (!await _isExecutableAvailable(plan.executable)) {
       Logger.log(
-        '⚠️  ${plan.executable} not found on PATH. '
-        'Install the $platform embedder to build this target. Skipping...',
+        p.isAbsolute(plan.executable)
+            ? '⚠️  ${plan.executable} does not exist. '
+                'Install the $platform embedder to build this target. Skipping...'
+            : '⚠️  ${plan.executable} not found on PATH. '
+                'Install the $platform embedder to build this target. Skipping...',
       );
       return _PlatformBuildResult.skipped;
     }
@@ -744,9 +747,7 @@ class BuildCommand extends Command<void> {
       return false;
     }
 
-    final home = Platform.environment['HOME'] ??
-        Platform.environment['USERPROFILE'] ??
-        '';
+    final home = resolveToolchainHome();
     var missing = missingRequirements(
       platform,
       isInstalled: isExecutableOnPath,
@@ -803,6 +804,13 @@ class BuildCommand extends Command<void> {
   }
 
   Future<bool> _isExecutableAvailable(String executable) async {
+    // An absolute path is not a PATH lookup. Fuchsia's embedder is a script
+    // inside its own checkout rather than an installed binary, so asking
+    // `which` about it is the wrong question — and on Windows `where` answers
+    // a different one entirely.
+    if (p.isAbsolute(executable)) {
+      return File(executable).existsSync();
+    }
     try {
       final locator = Platform.isWindows ? 'where' : 'which';
       final result = await Process.run(locator, [executable],
@@ -977,6 +985,10 @@ bool _isFresh(FileSystemEntity entity, DateTime? since) {
   return !entity.statSync().modified.isBefore(since);
 }
 
+/// The directory Dartvel-managed toolchains are installed under.
+String resolveToolchainHome() =>
+    Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '';
+
 /// Resolves the embedder invocation for an embedded platform, or `null` if the
 /// platform is not an embedded target. `iso`/`img` packaging builds the same
 /// bundle; the packaging step is handled separately by the caller.
@@ -987,6 +999,7 @@ EmbeddedBuildPlan? resolveEmbeddedBuildPlan({
   String? deviceProfile,
   String? target,
   String? appPath,
+  String? toolchainHome,
 }) {
   switch (platform) {
     case 'tizen':
@@ -1038,15 +1051,24 @@ EmbeddedBuildPlan? resolveEmbeddedBuildPlan({
       // wrapper — there is no embedder binary at all. It is a Bazel workspace,
       // and its build script takes the path of a Flutter package to stage in
       // and build.
+      //
+      // So the executable is the script's absolute path inside the checkout,
+      // not a bare name. A bare name is looked up on PATH, and nothing named
+      // `dartvel_fuchsia` is ever installed there — which is exactly how this
+      // target reported "not found on PATH" and skipped on a runner that had
+      // just installed the embedder successfully.
+      final root =
+          dartvelToolchainRoot(toolchainHome ?? resolveToolchainHome());
       final args = <String>[
-        fuchsiaAppBuildScript,
         appPath ?? '.',
         '--cpu',
         arch == 'arm64' ? 'arm64' : 'x64',
       ];
       if (target != null) args.addAll(<String>['--target', target]);
       return EmbeddedBuildPlan(
-          'dartvel_fuchsia', List<String>.unmodifiable(args));
+        '$root/dartvel_fuchsia/$fuchsiaAppBuildScript',
+        List<String>.unmodifiable(args),
+      );
     default:
       return null;
   }
