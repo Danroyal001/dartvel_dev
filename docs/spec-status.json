@@ -333,7 +333,7 @@
       "section": "Terminal Rendering",
       "stability": "Draft",
       "status": "Designed",
-      "notes": "Specified only. No implementation: the terminal backend, the dartvel_tui opt-in package, the -cli build suffixes and DV.Platform.surface do not exist yet."
+      "notes": "Specified only. Nothing built: no terminal backend, no dartvel_flt fork, no -cli build suffixes, no dartvel.terminal opt-in, no DV.Platform.surface. Upstream jiahaog/flt runs apps in development but does not produce distributable binaries, which the fork must add."
     },
     {
       "section": "Multi-Window",
