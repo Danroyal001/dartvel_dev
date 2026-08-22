@@ -76,6 +76,7 @@ gap.
 
 - Authorization belongs under `DV.Auth.authorization`; do not add or use a top-level `DV.Authorization`.
 - Signals are `context.signal(...)`, `signal(context, value)`, reactive models, and `DV.global`; do not add `@DVSignalEvent`, `@DVSignalListener`, or a standalone `DV.Signals`.
+- Derived signals come from operating on signals: `a + b`, `price * quantity`, `stock > 0`, `agreed & paid` each return a signal that tracks its sources. Do not add `context.computed(...)`, a `DVComputed` type, or any other separate derived-value constructor — the result of an operation on signals is already a signal, and composes because of it.
 - Model sync and presence belong to generated models, signals, and queues; never add or use `DV.Realtime`, `DVRealtime`, or realtime-specific annotations.
 - Cache invalidation belongs on `DV.Cache` through methods such as `DV.Cache.tag(...)` and `DV.Cache.revalidateTag(...)`; do not add `DV.CacheInvalidation`.
 - Notifications include email. Use `DV.Notifications.mail.send(...)`; do not add or use `DV.Mail`.
