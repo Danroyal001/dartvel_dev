@@ -513,7 +513,7 @@ class DartvelRuntime {
       while (true) {
         parts.add(cur);
         if (cur == pagesDir) break;
-        final parent = p.dirname(cur).replaceAll('\\\\', '/');
+        final parent = p.dirname(cur).replaceAll(r'\', '/');
         if (parent == cur) break;
         cur = parent;
       }
@@ -537,7 +537,7 @@ class DartvelRuntime {
       while (true) {
         parts.add(cur);
         if (cur == pagesDir) break;
-        final parent = p.dirname(cur).replaceAll('\\\\', '/');
+        final parent = p.dirname(cur).replaceAll(r'\', '/');
         if (parent == cur) break;
         cur = parent;
       }

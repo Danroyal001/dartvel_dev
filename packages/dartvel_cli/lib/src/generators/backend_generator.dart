@@ -62,7 +62,7 @@ const String dvGenBuildId = '$buildId';
 
     for (var i = 0; i < fnFiles.length; i++) {
       final abs = fnFiles[i].path;
-      final rel = p.relative(abs, from: root).replaceAll('\\\\', '/');
+      final rel = p.relative(abs, from: root).replaceAll(r'\', '/');
       final pathRel = rel;
       // detect method from filename
       final base = p.basenameWithoutExtension(rel); // removes .dart

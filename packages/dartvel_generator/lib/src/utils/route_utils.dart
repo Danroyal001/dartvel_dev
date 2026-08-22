@@ -83,9 +83,15 @@ class RouteUtils {
 
   static String routeFromRel(String rel, String backendDir) {
     // rel like lib/backend/functions/blog/[id].get.dart
-    var path = rel
-        .replaceFirst(RegExp('^$backendDir/functions/?'), '')
-        .replaceAll('\\\\', '/');
+    // Normalised first, and on both sides: stripping the prefix before
+    // normalising cannot work when `rel` uses backslashes and `backendDir`
+    // does not. Mirrors dartvel_cli's copy of this function.
+    final normalisedRel = rel.replaceAll(r'\', '/');
+    final normalisedBackendDir = backendDir.replaceAll(r'\', '/');
+    var path = normalisedRel.replaceFirst(
+      RegExp('^$normalisedBackendDir/functions/?'),
+      '',
+    );
     // strip group folders (parentheses)
     path = path.replaceAllMapped(RegExp(r'\(([^)]+)\)/'), (_) => '');
     // strip extension .dart and method suffix
