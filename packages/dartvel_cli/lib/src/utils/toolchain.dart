@@ -20,6 +20,7 @@ class ToolRequirement {
     required this.installHint,
     this.installCommand,
     this.pathHint,
+    this.probe,
   });
 
   /// The executable that must resolve on PATH for this requirement to be met.
@@ -37,6 +38,15 @@ class ToolRequirement {
   /// Directory to add to PATH after an automatic install, when the tool does
   /// not land somewhere already on PATH.
   final String? pathHint;
+
+  /// Answers whether this tool is present, for tools PATH cannot answer for.
+  ///
+  /// Most requirements are a binary on PATH and [executable] is the whole
+  /// question. Visual Studio is not: `cl` exists only inside a Developer
+  /// Command Prompt, so probing PATH reports a fully installed machine as
+  /// missing it — and a false negative here does not fail a build, it silently
+  /// skips the target, which is worse.
+  final bool Function()? probe;
 
   InstallMethod get method =>
       installCommand == null ? InstallMethod.manual : InstallMethod.automatic;
@@ -138,6 +148,7 @@ List<ToolRequirement> toolRequirementsFor(String platform, {String home = ''}) {
           installHint:
               'Install Visual Studio with the "Desktop development with C++" '
               'workload. See https://visualstudio.microsoft.com/downloads/',
+          probe: isVisualStudioInstalled,
         ),
       ];
 
@@ -298,10 +309,61 @@ List<ToolRequirement> missingRequirements(
   String platform, {
   required bool Function(String executable) isInstalled,
   String home = '',
+  bool Function(ToolRequirement requirement)? probeOverride,
 }) {
   return toolRequirementsFor(platform, home: home)
-      .where((requirement) => !isInstalled(requirement.executable))
+      .where((requirement) {
+        // A requirement that knows how to answer for itself is asked; only
+        // the rest fall back to PATH. Consulting PATH anyway would let the
+        // false negative back in through the side door.
+        final probe = requirement.probe;
+        if (probe != null) {
+          return !(probeOverride?.call(requirement) ?? probe());
+        }
+        return !isInstalled(requirement.executable);
+      })
       .toList(growable: false);
+}
+
+/// Where the Visual Studio Installer puts `vswhere.exe`.
+///
+/// A fixed location by design: it is how a tool finds Visual Studio without
+/// knowing which edition or year is installed.
+String vswherePath(Map<String, String> environment) {
+  final programFiles =
+      environment['ProgramFiles(x86)'] ?? r'C:\Program Files (x86)';
+  return '$programFiles\\Microsoft Visual Studio\\Installer\\vswhere.exe';
+}
+
+/// Whether [output] from `vswhere` names at least one installation.
+///
+/// `vswhere` exits 0 and prints nothing when the query matches nothing, so the
+/// exit code cannot be the answer — the output has to be read.
+bool visualStudioFoundIn(String output) => output.trim().isNotEmpty;
+
+/// Whether Visual Studio with the C++ toolset is installed.
+///
+/// Asks `vswhere` for an installation carrying the VC tools component, which
+/// is what `flutter build windows` needs and what Flutter itself queries for.
+/// Never true off Windows.
+bool isVisualStudioInstalled() {
+  if (!Platform.isWindows) return false;
+  final vswhere = vswherePath(Platform.environment);
+  if (!File(vswhere).existsSync()) return false;
+  try {
+    final result = Process.runSync(vswhere, <String>[
+      '-latest',
+      '-products',
+      '*',
+      '-requires',
+      'Microsoft.VisualStudio.Component.VC.Tools.x86.x64',
+      '-property',
+      'installationPath',
+    ]);
+    return visualStudioFoundIn('${result.stdout}');
+  } catch (_) {
+    return false;
+  }
 }
 
 /// Whether Dartvel is running unattended and must not wait on a prompt.

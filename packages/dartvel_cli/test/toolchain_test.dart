@@ -2,6 +2,7 @@ import 'package:dartvel_cli/src/utils/toolchain.dart';
 import 'package:test/test.dart';
 
 void main() {
+  visualStudioDetectionTests();
   group('toolRequirementsFor', () {
     test('web needs nothing beyond Flutter itself', () {
       expect(toolRequirementsFor('web'), isEmpty);
@@ -170,6 +171,72 @@ void main() {
     test('an absolute requirement is checked as a path, not a PATH lookup', () {
       // `which /some/path` answers a different question from "is it there".
       expect(isExecutableOnPath('/definitely/not/here/bootstrap.sh'), isFalse);
+    });
+  });
+}
+
+// Windows was reported as missing the C++ build tools on a runner that has
+// them. `cl` is only on PATH inside a Developer Command Prompt, so probing for
+// it there is a false negative — and a false negative here does not fail the
+// build, it silently *skips* the target, which is worse.
+//
+// Flutter locates Visual Studio through vswhere.exe at a fixed path rather
+// than through PATH, and so should this.
+void visualStudioDetectionTests() {
+  group('Visual Studio detection', () {
+    test('an installation path means the tools are present', () {
+      expect(
+        visualStudioFoundIn(
+          r'C:\Program Files\Microsoft Visual Studio\2022\Enterprise',
+        ),
+        isTrue,
+      );
+    });
+
+    test('no output means no qualifying installation', () {
+      // vswhere exits 0 and prints nothing when nothing matches the query,
+      // so the exit code alone cannot be the answer.
+      expect(visualStudioFoundIn(''), isFalse);
+      expect(visualStudioFoundIn('   \r\n  \n'), isFalse);
+    });
+
+    test('several installations still count as found', () {
+      expect(
+        visualStudioFoundIn(
+          'C:\\VS\\2022\\Community\r\nC:\\VS\\2019\\Professional\r\n',
+        ),
+        isTrue,
+      );
+    });
+
+    test('the requirement probes vswhere rather than PATH', () {
+      // The regression that matters: reverting to a PATH lookup for `cl`
+      // brings back a skip on machines that can build.
+      final windows = toolRequirementsFor('windows');
+      expect(windows, hasLength(1));
+      expect(windows.single.probe, isNotNull,
+          reason: 'Visual Studio is not found on PATH');
+    });
+
+    test('a probe decides the requirement, not the PATH lookup', () {
+      // isInstalled must not be consulted for a requirement that knows how to
+      // answer for itself, or the false negative returns through the back door.
+      final missing = missingRequirements(
+        'windows',
+        isInstalled: (String executable) => false,
+        probeOverride: (ToolRequirement r) => true,
+      );
+      expect(missing, isEmpty);
+    });
+
+    test('a requirement without a probe still uses PATH', () {
+      // Everything else — flutter-tizen, ares, cbindgen — is a real PATH
+      // lookup and must keep working exactly as before.
+      final missing = missingRequirements(
+        'webos',
+        isInstalled: (String executable) => false,
+      );
+      expect(missing, isNotEmpty);
     });
   });
 }
