@@ -115,7 +115,8 @@ class JobGenerator {
   static List<File> _dartFiles(String root) {
     const fs = LocalFileSystem();
     final files = <File>[];
-    for (final entity in Glob(p.join('lib', '**.dart'))
+    // Always '/', never the host separator: see model_generator.
+    for (final entity in Glob('lib/**.dart')
         .listFileSystemSync(fs, root: root, followLinks: false)) {
       if (entity is! File) continue;
       final path = entity.path.replaceAll('\\', '/');
