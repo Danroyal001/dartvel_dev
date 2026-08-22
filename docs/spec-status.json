@@ -284,9 +284,10 @@
       "stability": "Draft",
       "status": "Partial",
       "evidence": [
-        "packages/dartvel_cli/test/test_command_test.dart"
+        "packages/dartvel_cli/test/test_command_test.dart",
+        "examples/dartvel_example/integration_test/app_launch_test.dart"
       ],
-      "absent": "Golden, e2e, native and accessibility suites"
+      "absent": "e2e beyond a Linux launch test; golden tests; device/browser E2E; dartvel test native and accessibility modes"
     },
     {
       "section": "Search",
