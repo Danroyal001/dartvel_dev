@@ -669,6 +669,7 @@ dependencies:
   });
 
   buildTimeoutTests();
+  terminalRenderingTests();
   everyBuildPathIsBoundedTests();
 
   group('fuchsia', () {
@@ -844,6 +845,113 @@ void everyBuildPathIsBoundedTests() {
         isTrue,
         reason: 'scaffold generation must not be able to hang indefinitely',
       );
+    });
+  });
+}
+
+// Terminal rendering, step one: resolving the target and refusing to link a
+// backend nobody asked for. Written against the spec's table, before any of it
+// exists.
+//
+// | dartvel build linux                    | GUI yes | terminal no  |
+// | dartvel build linux + dartvel.terminal | GUI yes | terminal yes |
+// | dartvel build linux-cli / linux-tui    | GUI no  | terminal yes |
+void terminalRenderingTests() {
+  group('terminal target resolution', () {
+    test('-cli resolves to the base platform with a terminal presentation',
+        () {
+      // A presentation, not a platform: linux-cli is still the linux target.
+      final resolved = normalizeBuildTarget('linux-cli');
+      expect(resolved.platform, 'linux');
+      expect(resolved.format, 'tui');
+    });
+
+    test('-tui is the same target under another name', () {
+      // -tui says what it does, -cli says where it runs.
+      expect(normalizeBuildTarget('linux-tui'),
+          equals(normalizeBuildTarget('linux-cli')));
+    });
+
+    test('every desktop target and fuchsia accept the suffix', () {
+      for (final platform in <String>['linux', 'windows', 'macos', 'fuchsia']) {
+        for (final suffix in <String>['cli', 'tui']) {
+          final resolved = normalizeBuildTarget('$platform-$suffix');
+          expect(resolved.platform, platform, reason: '$platform-$suffix');
+          expect(resolved.format, 'tui', reason: '$platform-$suffix');
+        }
+      }
+    });
+
+    test('a plain target is unchanged', () {
+      // The regression that matters: adding a suffix must not alter the
+      // meaning of the targets that already worked.
+      expect(normalizeBuildTarget('linux').platform, 'linux');
+      expect(normalizeBuildTarget('linux').format, isNull);
+      expect(normalizeBuildTarget('sony-elinux-iso').format, 'iso');
+      expect(normalizeBuildTarget('tpk').platform, 'tizen');
+    });
+
+    test('the suffixes are accepted arguments', () {
+      for (final target in <String>[
+        'linux-cli',
+        'linux-tui',
+        'windows-cli',
+        'macos-tui',
+        'fuchsia-cli',
+      ]) {
+        expect(buildPlatformArguments, contains(target));
+      }
+    });
+
+    test('a suffix on a target that cannot render in a terminal is refused',
+        () {
+      // Android and iOS have no terminal to render into. Accepting the suffix
+      // and ignoring it would build a GUI app under a name promising a TUI.
+      expect(() => normalizeBuildTarget('android-cli'), throwsFormatException);
+      expect(() => normalizeBuildTarget('web-tui'), throwsFormatException);
+    });
+  });
+
+  group('terminal backend selection', () {
+    test('a plain desktop build links no terminal backend', () {
+      // The default, and the one that must not regress: an application that
+      // said nothing pays nothing.
+      final backends = resolveRenderBackends(
+        format: null,
+        terminalOptIn: false,
+      );
+      expect(backends, <DVRenderBackend>{DVRenderBackend.gui});
+    });
+
+    test('opting in adds the terminal backend without removing the GUI', () {
+      final backends = resolveRenderBackends(
+        format: null,
+        terminalOptIn: true,
+      );
+      expect(backends, <DVRenderBackend>{
+        DVRenderBackend.gui,
+        DVRenderBackend.terminal,
+      });
+    });
+
+    test('a terminal-only build links no GUI backend at all', () {
+      // Not a window that stays closed. Nothing.
+      final backends = resolveRenderBackends(
+        format: 'tui',
+        terminalOptIn: false,
+      );
+      expect(backends, <DVRenderBackend>{DVRenderBackend.terminal});
+    });
+
+    test('a terminal-only build ignores the opt-in rather than adding a GUI',
+        () {
+      // Asking for a terminal build is the stronger statement; the pubspec key
+      // enables a mode, it does not add one back.
+      final backends = resolveRenderBackends(
+        format: 'tui',
+        terminalOptIn: true,
+      );
+      expect(backends, <DVRenderBackend>{DVRenderBackend.terminal});
     });
   });
 }
