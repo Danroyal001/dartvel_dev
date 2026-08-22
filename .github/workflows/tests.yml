@@ -153,6 +153,16 @@ jobs:
         working-directory: examples/dartvel_example
         run: flutter pub get
 
+      # Generated output is not committed — examples/dartvel_example/.gitignore
+      # excludes lib/dartvel_client/ — so a fresh checkout has no client at all
+      # and the app cannot compile until it is generated. That makes this job an
+      # end-to-end check of the generator itself: if generation emits something
+      # that does not compile or does not wire up, the app fails to start here
+      # rather than in someone's clone.
+      - name: Generate the Dartvel client
+        working-directory: examples/dartvel_example
+        run: dart run dartvel_cli:dartvel routes
+
       # A real window server, because the app is a desktop binary and a
       # headless runner has no display. This is the same arrangement that first
       # proved the Linux target runs rather than merely builds.
