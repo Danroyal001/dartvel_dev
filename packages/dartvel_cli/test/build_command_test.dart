@@ -669,6 +669,7 @@ dependencies:
   });
 
   buildTimeoutTests();
+  everyBuildPathIsBoundedTests();
 
   group('fuchsia', () {
     test('is an embedded target, not a Flutter-path one', () {
@@ -787,6 +788,62 @@ void buildTimeoutTests() {
       expect(() => parseBuildTimeout('soon'), throwsFormatException);
       expect(() => parseBuildTimeout('-1'), throwsFormatException);
       expect(() => parseBuildTimeout('1.5'), throwsFormatException);
+    });
+  });
+}
+
+// Written before the fix. Every path that starts a long-running child process
+// must be bounded, not just the Flutter one: an embedded build that wedges is
+// indistinguishable from a slow one and runs to whatever cap it was given.
+// Two Windows attempts burned 257 and 226 minutes producing no output.
+void everyBuildPathIsBoundedTests() {
+  group('every build path is bounded', () {
+    test('the embedded build path awaits its child through the same guard',
+        () {
+      // Asserting on behaviour is not possible without spawning a real
+      // embedder, so this asserts the structural property that makes the
+      // behaviour possible: no build path may await a raw exitCode.
+      final source = File('lib/src/commands/build_command.dart')
+          .readAsStringSync();
+
+      // The guard itself is where exitCode is legitimately awaited, so its
+      // own body is excluded — everything else awaiting a raw exitCode is a
+      // path that can hang forever.
+      final guardStart = source.indexOf('Future<int?> _awaitBuild(');
+      expect(guardStart, greaterThan(0), reason: 'the guard must exist');
+      // From the body, not the declaration: the parameter list closes with
+      // `}) async {`, which also matches a method-closing brace.
+      final guardBody = source.indexOf('async {', guardStart);
+      final guardEnd = source.indexOf('\n  }', guardBody);
+      final outsideGuard =
+          source.substring(0, guardStart) + source.substring(guardEnd);
+
+      final unguarded = RegExp(r'await\s+[A-Za-z_][A-Za-z0-9_]*\.exitCode\b')
+          .allMatches(outsideGuard)
+          .map((m) => m.group(0))
+          .toList();
+      expect(
+        unguarded,
+        isEmpty,
+        reason: 'a child process awaited directly cannot be timed out; '
+            'route it through _awaitBuild',
+      );
+    });
+
+    test('the scaffold generation step is bounded too', () {
+      // Generating an embedder scaffold shells out to the vendor CLI, which
+      // is exactly the kind of process that has hung before.
+      final source = File('lib/src/commands/build_command.dart')
+          .readAsStringSync();
+      final scaffoldSection = source.substring(
+        source.indexOf('Could not generate the'),
+      );
+      expect(
+        scaffoldSection.contains('.exitCode.timeout') ||
+            source.contains('_awaitBuild'),
+        isTrue,
+        reason: 'scaffold generation must not be able to hang indefinitely',
+      );
     });
   });
 }

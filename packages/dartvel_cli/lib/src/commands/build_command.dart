@@ -350,6 +350,7 @@ class BuildCommand extends Command<void> {
           ? await _buildEmbedded(
               p,
               buildMode,
+              timeout: buildTimeout,
               format: p == 'sony-elinux' ? (format ?? 'bundle') : null,
               deviceProfile: deviceProfile,
               arch: resolveEmbeddedArch(p, arch, explicit: archExplicit),
@@ -469,6 +470,7 @@ class BuildCommand extends Command<void> {
     String? deviceProfile,
     required String arch,
     String? target,
+    Duration? timeout,
   }) async {
     final label =
         format == null || format == 'bundle' ? platform : '$platform ($format)';
@@ -521,7 +523,18 @@ class BuildCommand extends Command<void> {
       );
       scaffold.stdout.listen((data) => stdout.add(data));
       scaffold.stderr.listen((data) => stderr.add(data));
-      final scaffoldCode = await scaffold.exitCode;
+      // Scaffold generation shells out to the vendor CLI, which is exactly
+      // the kind of process that has hung before. Bounded at a share of the
+      // build's allowance: generating a platform directory is quick, and one
+      // that is not quick is stuck.
+      final scaffoldCode = await _awaitBuild(
+        scaffold,
+        timeout: timeout == null
+            ? null
+            : Duration(minutes: (timeout.inMinutes ~/ 3).clamp(1, 10)),
+        description: 'generating the $scaffoldDir/ scaffold',
+      );
+      if (scaffoldCode == null) return _PlatformBuildResult.failed;
       final generated = Directory(p.join(Directory.current.path, scaffoldDir));
       if (scaffoldCode != 0 || !generated.existsSync()) {
         // A vendor `create` that fails partway still leaves the directory
@@ -546,7 +559,12 @@ class BuildCommand extends Command<void> {
     );
     proc.stdout.listen((data) => stdout.add(data));
     proc.stderr.listen((data) => stderr.add(data));
-    final exitCode = await proc.exitCode;
+    final exitCode = await _awaitBuild(
+      proc,
+      timeout: timeout,
+      description: '$label build',
+    );
+    if (exitCode == null) return _PlatformBuildResult.failed;
 
     if (exitCode != 0) {
       Logger.log('❌ $label build failed');
