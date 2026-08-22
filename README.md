@@ -72,7 +72,7 @@ Everything else is automatically compiled, generated, or served by the framework
 | **Platform APIs** | Runtime platform/screen detection; camera, location, haptics, etc. are scaffolded pending native plugins | ⚠️ Partial |
 | **Authentication** | Local provider with salted password hashes, plus OAuth2 (PKCE) with Google/GitHub/GitLab/Bitbucket/Microsoft presets; magic links, OTP, LDAP and SAML are not complete | ⚠️ Partial |
 | **Database & Cache** | Real SQLite adapter (file + in-memory, WAL) and a pluggable cache with memory/database-backed adapters; Postgres/MySQL/Redis adapters are not complete | ⚠️ Partial |
-| **Mail & Notifications** | SMTP plus HTTP mail (Resend, SendGrid, Postmark, Mailgun, SES), FCM push and Twilio SMS; APNS and Web Push are not complete | ⚠️ Partial |
+| **Mail & Notifications** | SMTP plus HTTP mail (Resend, SendGrid, Postmark, Mailgun, SES), FCM push, APNS over native HTTP/2, and Twilio SMS; Web Push is not complete | ⚠️ Partial |
 | **PWA & SEO** | Automatic PWA manifest/worker & runtime/global SEO injection | ✅ Implemented |
 | **AI Integration** | HTTP adapters for Claude, OpenAI, Gemini, OpenRouter, and Ollama, plus the deterministic local adapter | ✅ Implemented |
 | **Sensitive Fields** | `@DVModel.sensitiveField()` redacts fields from public serialization, cards, logs, and AI context | ✅ Implemented |
@@ -485,11 +485,18 @@ dropped. Twilio's error code and message are surfaced on
 
 ---
 
-**APNS and Web Push are not implemented, and are not quick follow-ons.** APNS
-requires HTTP/2, which `package:http` does not speak. Web Push requires P-256
-ECDH key agreement, HKDF and AES128GCM payload encryption; the bundled `crypto`
-package provides none of those. Both need dependencies this project does not
-currently have, so they are absent rather than stubbed.
+**APNS is implemented. Web Push is not yet.**
+
+APNS needed HTTP/2, which `package:http` does not speak — on native it is
+`dart:io`'s `HttpClient`, which is HTTP/1.1 only. Rather than narrow the
+feature, Dartvel now ships a native HTTP/2 client, and `ApnsPushProvider` pins
+itself to HTTP/2 so it can never silently downgrade to an endpoint Apple does
+not run. See [`docs/http-transport.md`](docs/http-transport.md).
+
+Web Push still needs P-256 ECDH key agreement, HKDF and AES128GCM payload
+encryption, none of which the bundled `crypto` package provides. That work now
+has somewhere to go — the native runtime this client lives in — rather than
+being blocked outright.
 
 ---
 
