@@ -24,7 +24,7 @@ now have runtime implementations and tests:
 | `DV.lifecycle.app` / `.build`, `context.lifecycle.*` | ✅ Read-only enum signals |
 | `DV.Modules.<id>` | ✅ Registry, per-module lifecycle, mount-point independence |
 | `DV.transaction(...)`, `context.afterCommit`, `context.compensate` | ✅ Reverse-order compensation, nesting, isolation |
-| `@DVStaticPaths()` | ✅ Discovered during generation and exported by the generated client barrel |
+| `@DVModel(publicPathsResolver:)` | ✅ Discovered during generation and exported by the generated client barrel |
 | `DVModelPageDataMode` | ✅ Drives generated `Model.Page.async/.signal/.fromId` renderers |
 | `@DVModel(generatePublicPages: true)` | ✅ Emits static-path manifest entries and DB-backed `Model.publicStaticPaths()` resolvers |
 | `DV.AI` provider adapters | ✅ Real HTTP adapters for Claude, OpenAI, Gemini, OpenRouter, and Ollama |

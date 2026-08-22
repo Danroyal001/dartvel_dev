@@ -3641,20 +3641,26 @@ Static routes are always generated. Parameterized routes require a known list of
 values:
 
 ```dart
-@DVStaticPaths()
-Future<List<String>> _productPaths() async => productPaths();
+@DVModel(generatePublicPages: true)
+class _Product(...)
+```
+
+That renders one page per published record, which is the common case and needs
+nothing else. When the set to generate is a subset, a particular order, or
+drawn from somewhere the model does not know about, name a resolver instead:
+
+```dart
+@DVModel(publicPathsResolver: productPaths)
+class _Product(...)
 
 Future<List<String>> productPaths() async {
   return Product.public().select((product) => product.slug);
 }
 ```
 
-A model can supply these automatically:
-
-```dart
-@DVModel(generatePublicPages: true)
-class _Product(...)
-```
+The route is the model's own either way, so it is never written out as a
+string — a route repeated in an annotation drifts the moment the page file
+moves, which is what file-based routing exists to prevent.
 
 For routes without generated static instances, Dartvel produces a configured
 fallback document, a client-rendered fallback, a 404, or a redirect to the

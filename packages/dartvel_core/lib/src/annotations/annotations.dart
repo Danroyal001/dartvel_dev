@@ -108,24 +108,21 @@ enum DVModelPageDataMode {
 /// Supplies the concrete parameter values a parameterized route needs during
 /// static generation.
 ///
-/// Static routes are always generated. A parameterized route cannot be, unless
-/// something enumerates the values to generate:
+/// Static routes are always generated. A parameterized route cannot be unless
+/// something enumerates the values to generate for it:
 ///
 /// ```dart
-/// @DVStaticPaths()
+/// @DVModel(publicPathsResolver: productPaths)
+/// class _Product { ... }
+///
 /// Future<List<String>> productPaths() async =>
 ///     Product.public().select((product) => product.slug);
 /// ```
 ///
-/// `@DVModel(generatePublicPages: true)` supplies these automatically for a
-/// model's published records.
-class DVStaticPaths {
-  /// The route these paths belong to. Defaults to inferring it from the
-  /// annotated function's name and location.
-  final String? route;
-
-  const DVStaticPaths({this.route});
-}
+/// `@DVModel(generatePublicPages: true)` supplies these automatically from a
+/// model's published records, which covers the common case without a resolver
+/// at all. See [DVModel.publicPathsResolver].
+typedef DVPublicPathsResolver = Future<List<String>> Function();
 
 /// The part a field plays in a generated model page, set by the field-scoped
 /// `@DVModel.featuredImage()`, `.pageTitle()`, `.mainContent()` and
@@ -160,6 +157,21 @@ class DVModel {
   /// during static generation, from this model's published records.
   final bool generatePublicPages;
 
+  /// Supplies the path values static generation should render for this
+  /// model's parameterized route, when the default enumeration is not what is
+  /// wanted.
+  ///
+  /// Static generation can enumerate `/about` on its own but not
+  /// `/products/:slug`: nothing tells it which slugs exist. With
+  /// [generatePublicPages] the values come from the model's published
+  /// records; this replaces that with an explicit resolver — a subset, an
+  /// ordering, or paths drawn from somewhere the model does not know about.
+  ///
+  /// The route is the model's own, so it is never written out as a string.
+  /// A route repeated in an annotation drifts silently the moment the page
+  /// file moves, which is the failure file-based routing exists to prevent.
+  final DVPublicPathsResolver? publicPathsResolver;
+
   /// Field-scoped metadata, set only by the named field constructors below.
   final bool encrypted;
   final bool showInForms;
@@ -179,6 +191,7 @@ class DVModel {
     this.nativePrice,
     this.pageDataMode = DVModelPageDataMode.auto,
     this.generatePublicPages = false,
+    this.publicPathsResolver,
   })  : encrypted = false,
         showInForms = false,
         showInAdmin = false,
@@ -202,6 +215,7 @@ class DVModel {
         nativePrice = null,
         pageDataMode = DVModelPageDataMode.auto,
         generatePublicPages = false,
+        publicPathsResolver = null,
         pageRole = null,
         pageOrderIndex = null;
 
@@ -213,6 +227,7 @@ class DVModel {
         nativePrice = null,
         pageDataMode = DVModelPageDataMode.auto,
         generatePublicPages = false,
+        publicPathsResolver = null,
         encrypted = false,
         showInForms = false,
         showInAdmin = false,
@@ -261,6 +276,7 @@ class DVModel {
         nativePrice = null,
         pageDataMode = DVModelPageDataMode.auto,
         generatePublicPages = false,
+        publicPathsResolver = null,
         encrypted = false,
         showInForms = false,
         showInAdmin = false;
