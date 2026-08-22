@@ -11,18 +11,48 @@ import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
+import 'protocol.dart';
+
+export 'protocol.dart';
+
 class DVHttpRequest {
   final Uri url;
   final String method;
   final Map<String, String> headers;
   final List<int> body;
 
+  /// Protocols to attempt, best first.
+  ///
+  /// A preference rather than a demand: a transport that cannot speak an entry
+  /// skips it. Use [DVHttpProtocolChain.http2Only] where a peer requires a
+  /// specific protocol and falling back would be wrong.
+  final DVHttpProtocolChain protocols;
+
+  /// Called for each 103 Early Hints response that arrives before the final
+  /// one. Never called after the response returns.
+  final DVEarlyHintsCallback? onEarlyHints;
+
   const DVHttpRequest({
     required this.url,
     this.method = 'POST',
     this.headers = const <String, String>{},
     this.body = const <int>[],
+    this.protocols = DVHttpProtocolChain.standard,
+    this.onEarlyHints,
   });
+
+  /// A copy of this request pinned to [protocol].
+  ///
+  /// What the fallback driver hands a transport, so a transport is never
+  /// asked to do its own negotiation across protocols.
+  DVHttpRequest forProtocol(DVHttpProtocol protocol) => DVHttpRequest(
+        url: url,
+        method: method,
+        headers: headers,
+        body: body,
+        protocols: DVHttpProtocolChain(<DVHttpProtocol>[protocol]),
+        onEarlyHints: onEarlyHints,
+      );
 }
 
 class DVHttpResponse {
@@ -30,10 +60,22 @@ class DVHttpResponse {
   final String body;
   final List<int>? _bytes;
 
+  /// The protocol the response actually arrived over.
+  ///
+  /// Null when the transport does not report it. Worth surfacing because
+  /// "HTTP/3 was requested" and "HTTP/3 was used" are different facts, and
+  /// only the second one is evidence.
+  final DVHttpProtocol? protocol;
+
+  /// Early hints received before this response, in arrival order.
+  final List<DVEarlyHints> earlyHints;
+
   const DVHttpResponse({
     required this.statusCode,
     required this.body,
     List<int>? bytes,
+    this.protocol,
+    this.earlyHints = const <DVEarlyHints>[],
   }) : _bytes = bytes;
 
   /// The raw response body. Falls back to encoding [body] when the transport
@@ -61,6 +103,12 @@ class DVHttpStreamedResponse {
   final int statusCode;
   final Map<String, String> headers;
 
+  /// The protocol the response arrived over, when the transport reports it.
+  final DVHttpProtocol? protocol;
+
+  /// Early hints received before the final response, in arrival order.
+  final List<DVEarlyHints> earlyHints;
+
   /// The body as it arrives. Listening to it is what keeps the connection
   /// open; the underlying client closes when the stream completes.
   final Stream<List<int>> body;
@@ -69,6 +117,8 @@ class DVHttpStreamedResponse {
     required this.statusCode,
     required this.headers,
     required this.body,
+    this.protocol,
+    this.earlyHints = const <DVEarlyHints>[],
   });
 
   bool get isSuccess => statusCode >= 200 && statusCode < 300;
@@ -76,7 +126,140 @@ class DVHttpStreamedResponse {
 
 typedef DVHttpSend = Future<DVHttpResponse> Function(DVHttpRequest request);
 
-Future<DVHttpResponse> dvSendHttpRequest(DVHttpRequest request) async {
+/// A thing that can put a request on the wire over one specific protocol.
+///
+/// Implementations do not negotiate across protocols; [DVHttpFallbackClient]
+/// does that by calling them in order. Keeping the two apart means a new
+/// transport only has to answer "can you speak this, and what happened", and
+/// the fallback rules stay in one place instead of once per backend.
+abstract class DVHttpTransport {
+  /// Protocols this transport can actually speak here — which depends on the
+  /// platform, not only on the implementation.
+  Set<DVHttpProtocol> get supportedProtocols;
+
+  /// A name for diagnostics: `package:http`, `rust`, `fetch`.
+  String get name;
+
+  /// Sends [request], which is already pinned to a single protocol.
+  Future<DVHttpResponse> send(DVHttpRequest request);
+
+  /// Sends [request] and yields the body as it arrives.
+  Future<DVHttpStreamedResponse> stream(DVHttpRequest request);
+}
+
+/// Walks a request's protocol chain until one succeeds.
+///
+/// The chain is first narrowed to what the transport can speak, so asking for
+/// HTTP/3 on a transport without QUIC costs nothing and is not an error. If
+/// nothing in the chain is supported, that *is* an error — a request pinned to
+/// HTTP/2 must not quietly go out over HTTP/1.1.
+class DVHttpFallbackClient {
+  final DVHttpTransport transport;
+
+  const DVHttpFallbackClient(this.transport);
+
+  Future<DVHttpResponse> send(DVHttpRequest request) =>
+      _attempt(request, (r) => transport.send(r));
+
+  Future<DVHttpStreamedResponse> stream(DVHttpRequest request) =>
+      _attempt(request, (r) => transport.stream(r));
+
+  Future<T> _attempt<T>(
+    DVHttpRequest request,
+    Future<T> Function(DVHttpRequest) run,
+  ) async {
+    final usable = request.protocols.supportedBy(transport.supportedProtocols);
+    if (usable.isEmpty) {
+      throw DVHttpProtocolExhausted(
+        request.url,
+        request.protocols.protocols
+            .map((p) => DVHttpNegotiationFailure(
+                  p,
+                  '${transport.name} cannot speak ${p.alpn}',
+                  retryable: false,
+                ))
+            .toList(growable: false),
+      );
+    }
+
+    final failures = <DVHttpNegotiationFailure>[];
+    for (final protocol in usable.protocols) {
+      try {
+        return await run(request.forProtocol(protocol));
+      } on DVHttpNegotiationFailure catch (failure) {
+        failures.add(failure);
+        // A transport that says "this is not worth retrying" is reporting
+        // something a different protocol cannot fix. Continuing would send the
+        // same doomed request again with a different handshake.
+        if (!failure.retryable) break;
+      } catch (error) {
+        failures.add(DVHttpNegotiationFailure(protocol, error));
+      }
+    }
+    throw DVHttpProtocolExhausted(request.url, failures);
+  }
+}
+
+/// The `package:http` transport: HTTP/1.1 everywhere, and nothing more.
+///
+/// `package:http` speaks neither HTTP/2 nor HTTP/3 — on native it is
+/// `dart:io`'s HttpClient, which is 1.1-only. Declaring that honestly is what
+/// lets the fallback driver skip the higher protocols instead of pretending to
+/// have tried them.
+///
+/// On the web it delegates to the browser, which does negotiate HTTP/2 and
+/// HTTP/3 by itself; [DVBrowserHttpTransport] is that case, stated separately
+/// because the capability set genuinely differs.
+class DVPackageHttpTransport implements DVHttpTransport {
+  const DVPackageHttpTransport();
+
+  @override
+  String get name => 'package:http';
+
+  @override
+  Set<DVHttpProtocol> get supportedProtocols =>
+      const <DVHttpProtocol>{DVHttpProtocol.http11};
+
+  @override
+  Future<DVHttpResponse> send(DVHttpRequest request) =>
+      _sendWithPackageHttp(request);
+
+  @override
+  Future<DVHttpStreamedResponse> stream(DVHttpRequest request) =>
+      _streamWithPackageHttp(request);
+}
+
+/// The browser's own stack, reached through `package:http` on web.
+///
+/// The browser negotiates HTTP/2 and HTTP/3 without being asked and acts on
+/// 103 Early Hints itself, starting the preloads before the page is told
+/// anything. Neither the negotiated protocol nor the hints are visible to
+/// script, so this reports the capability and leaves [DVHttpResponse.protocol]
+/// null: claiming a protocol it cannot observe would be a guess dressed as a
+/// measurement.
+class DVBrowserHttpTransport implements DVHttpTransport {
+  const DVBrowserHttpTransport();
+
+  @override
+  String get name => 'fetch';
+
+  @override
+  Set<DVHttpProtocol> get supportedProtocols => const <DVHttpProtocol>{
+        DVHttpProtocol.http3,
+        DVHttpProtocol.http2,
+        DVHttpProtocol.http11,
+      };
+
+  @override
+  Future<DVHttpResponse> send(DVHttpRequest request) =>
+      _sendWithPackageHttp(request);
+
+  @override
+  Future<DVHttpStreamedResponse> stream(DVHttpRequest request) =>
+      _streamWithPackageHttp(request);
+}
+
+Future<DVHttpResponse> _sendWithPackageHttp(DVHttpRequest request) async {
   final client = http.Client();
   try {
     final outgoing = http.Request(request.method, request.url)
@@ -101,7 +284,8 @@ Future<DVHttpResponse> dvSendHttpRequest(DVHttpRequest request) async {
 /// [dvSendHttpRequest], which waits for the whole body: a stream that never
 /// ends would never return. The client stays open until the body completes,
 /// so a caller that abandons the stream must cancel its subscription.
-Future<DVHttpStreamedResponse> dvStreamHttpRequest(DVHttpRequest request) async {
+Future<DVHttpStreamedResponse> _streamWithPackageHttp(
+    DVHttpRequest request) async {
   final client = http.Client();
   try {
     final outgoing = http.Request(request.method, request.url)
@@ -210,3 +394,51 @@ List<int> dvEncodeFormBody(List<(String, String)> fields) => utf8.encode(
               '${Uri.encodeQueryComponent(field.$2)}')
           .join('&'),
     );
+
+// ---------------------------------------------------------------------------
+// Default transport selection
+// ---------------------------------------------------------------------------
+
+/// True when running on the web.
+///
+/// On the web every number is a double, so `1` and `1.0` are the same object.
+/// This is the standard Dart test for it and needs no platform import, which
+/// matters here because `dartvel_core` is plain Dart with no `dart:io`.
+const bool dvIsWeb = identical(1, 1.0);
+
+DVHttpTransport? _transportOverride;
+
+/// The transport outbound requests use.
+///
+/// On the web this is the browser, which already negotiates HTTP/2 and HTTP/3.
+/// Everywhere else it is `package:http`, which is HTTP/1.1 only — until the
+/// native runtime registers a transport that can do better, at which point
+/// HTTP/2 and HTTP/3 become available to native targets without a single
+/// caller changing.
+DVHttpTransport get dvHttpTransport =>
+    _transportOverride ??
+    (dvIsWeb
+        ? const DVBrowserHttpTransport()
+        : const DVPackageHttpTransport());
+
+/// Installs [transport] as the default, returning the previous one.
+///
+/// This is the seam the Rust client attaches through, and the seam a test uses
+/// to assert what was negotiated without a network.
+DVHttpTransport? dvUseHttpTransport(DVHttpTransport? transport) {
+  final previous = _transportOverride;
+  _transportOverride = transport;
+  return previous;
+}
+
+/// Sends [request], walking its protocol chain until one succeeds.
+Future<DVHttpResponse> dvSendHttpRequest(DVHttpRequest request) =>
+    DVHttpFallbackClient(dvHttpTransport).send(request);
+
+/// Sends [request] and yields the body as it arrives.
+///
+/// Server-sent events and long-running responses cannot go through
+/// [dvSendHttpRequest], which waits for the whole body: a stream that never
+/// ends would never return.
+Future<DVHttpStreamedResponse> dvStreamHttpRequest(DVHttpRequest request) =>
+    DVHttpFallbackClient(dvHttpTransport).stream(request);
