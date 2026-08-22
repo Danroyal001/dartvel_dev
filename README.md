@@ -379,7 +379,7 @@ const DVJobPayloadCodecs().register(
     decode: (json) => SendWelcomeEmail(json['userId']! as String),
   ),
 );
-const DVQueues().useAdapter(DVDatabaseQueueAdapter(db));
+DV.Queues.useAdapter(DVDatabaseQueueAdapter(db));
 ```
 
 A durable queue has to write bytes, so every persisted payload type needs a
@@ -427,7 +427,7 @@ comes from your own credentials layer and is fetched per send — an expired one
 is never reused:
 
 ```dart
-const DVNotifications().useProvider(
+DV.Notifications.register(
   FirebasePushProvider(
     projectId: 'my-project',
     accessToken: () => googleCredentials.accessToken(),
@@ -470,7 +470,7 @@ conditional, verified by a passing `flutter build web` and Wasm dry run.
 `TwilioSmsProvider` fills the `sms` notification channel:
 
 ```dart
-const DVNotifications().useProvider(TwilioSmsProvider(
+DV.Notifications.register(TwilioSmsProvider(
   accountSid: env.twilioAccountSid,
   authToken: env.twilioAuthToken,
   fromNumber: '+15550000000',        // or messagingServiceSid: 'MG…'
