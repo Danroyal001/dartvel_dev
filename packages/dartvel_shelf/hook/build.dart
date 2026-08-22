@@ -8,9 +8,13 @@ Future<void> main(List<String> args) async {
     final pkgRoot = Directory.fromUri(input.packageRoot);
     final rustDir = Directory('${pkgRoot.path}/rust');
 
-    final cargoCheck = await Process.run('cargo', ['--version'])
-        .catchError((_) => ProcessResult(-1, 127, '', ''));
-    if (cargoCheck.exitCode != 0) {
+    // A version check that takes longer than this is not slow, it is stuck.
+    final cargoCheck = await _runBounded(
+      'cargo',
+      <String>['--version'],
+      const Duration(minutes: 1),
+    );
+    if (cargoCheck == null || cargoCheck.exitCode != 0) {
       stdout.writeln(
           'dartvel_shelf hook: cargo not found on system, skipping Rust compilation.');
       return;
@@ -63,14 +67,19 @@ Future<void> main(List<String> args) async {
       );
     }
 
-    final cargo = await Process.start(
-        'cargo', ['build', '--release', '--target', triple],
-        workingDirectory: rustDir.path);
-    await stdout.addStream(cargo.stdout);
-    await stderr.addStream(cargo.stderr);
-    final cargoCode = await cargo.exitCode;
-    if (cargoCode != 0) {
-      throw StateError('cargo build failed (exit $cargoCode)');
+    // Generous: a cold cache compiles close to two hundred crates, some of
+    // them slow. Finite: without a limit, "slow" and "wedged" are the same
+    // thing until something else gives up hours later.
+    final cargo = await _runBounded(
+      'cargo',
+      <String>['build', '--release', '--target', triple],
+      const Duration(minutes: 30),
+      workingDirectory: rustDir.path,
+      stream: true,
+    );
+    if (cargo == null || cargo.exitCode != 0) {
+      throw StateError(
+          'cargo build failed (exit ${cargo?.exitCode ?? 'timed out'})');
     }
 
     final built = File('${rustDir.path}/target/$triple/release/$libName');
@@ -78,9 +87,9 @@ Future<void> main(List<String> args) async {
       throw StateError('built dynlib missing: ${built.path}');
     }
 
-    final cbindgen = await Process.run(
+    final cbindgen = await _runBounded(
       'cbindgen',
-      [
+      <String>[
         '--crate',
         'dartvel_shelf_core',
         '--config',
@@ -88,19 +97,21 @@ Future<void> main(List<String> args) async {
         '--output',
         'include/dartvel_shelf.h',
       ],
+      const Duration(minutes: 5),
       workingDirectory: rustDir.path,
     );
-    if (cbindgen.exitCode != 0) {
-      throw StateError('cbindgen failed: ${cbindgen.stderr}');
+    if (cbindgen == null || cbindgen.exitCode != 0) {
+      throw StateError('cbindgen failed: ${cbindgen?.stderr ?? 'timed out'}');
     }
 
-    final ff = await Process.run(
+    final ff = await _runBounded(
       'dart',
-      ['run', 'ffigen', '--config', 'ffigen.yaml'],
+      <String>['run', 'ffigen', '--config', 'ffigen.yaml'],
+      const Duration(minutes: 5),
       workingDirectory: pkgRoot.path,
     );
-    if (ff.exitCode != 0) {
-      throw StateError('ffigen failed: ${ff.stderr}');
+    if (ff == null || ff.exitCode != 0) {
+      throw StateError('ffigen failed: ${ff?.stderr ?? 'timed out'}');
     }
 
     final nativeDir = Directory('${pkgRoot.path}/lib/native/$subdir')
@@ -143,18 +154,48 @@ Future<bool> _hasRustTarget(String triple) async {
 
 /// Runs [executable] and kills it if it outlives [timeout].
 ///
-/// Returns null when the process could not be started, failed, or timed out —
-/// every caller here treats those the same way, and the build that follows
-/// reports the real problem with its own diagnostics.
+/// Every process this hook starts goes through here. The hook runs before
+/// anything else — before `dart run` reaches a CLI main, before any Dartvel
+/// logging — so a process that hangs here hangs the whole build with no output
+/// at all, and nothing downstream can time it out because nothing downstream
+/// has started. A Windows build spent 40 minutes this way having printed only
+/// "Running build hooks..."; two earlier attempts ran 257 and 226 minutes.
+///
+/// Returns null when the process could not be started or timed out — every
+/// caller treats those the same way, and the build that follows reports the
+/// real problem with its own diagnostics.
+///
+/// Set [stream] for a process whose progress is worth watching. A long
+/// compile that prints nothing is indistinguishable from a stuck one, which is
+/// the confusion this whole function exists to end.
 Future<ProcessResult?> _runBounded(
   String executable,
   List<String> arguments,
-  Duration timeout,
-) async {
+  Duration timeout, {
+  String? workingDirectory,
+  bool stream = false,
+}) async {
   try {
-    final process = await Process.start(executable, arguments);
-    final stdoutText = process.stdout.transform(const SystemEncoding().decoder).join();
-    final stderrText = process.stderr.transform(const SystemEncoding().decoder).join();
+    final process = await Process.start(
+      executable,
+      arguments,
+      workingDirectory: workingDirectory,
+    );
+
+    Future<String> stdoutText;
+    Future<String> stderrText;
+    if (stream) {
+      // Forwarded live rather than buffered, so a slow build shows progress
+      // and a wedged one visibly stops.
+      stdoutText = stdout.addStream(process.stdout).then((_) => '');
+      stderrText = stderr.addStream(process.stderr).then((_) => '');
+    } else {
+      stdoutText =
+          process.stdout.transform(const SystemEncoding().decoder).join();
+      stderrText =
+          process.stderr.transform(const SystemEncoding().decoder).join();
+    }
+
     final code = await process.exitCode.timeout(timeout, onTimeout: () {
       stderr.writeln(
           'dartvel_shelf hook: $executable ${arguments.join(' ')} exceeded '
