@@ -837,14 +837,32 @@ final userSignal = user.signal(context);
 final cart = context.global<Cart>();
 ```
 
-Computed values too
+Derived values come from operating on signals — there is no separate computed
+construct:
+
 ```dart
 final a = context.signal(1);
 final b = context.signal(2);
-final c = context.computed(() => a.value + b.value);
+final c = a + b;
 ```
 
-Computed values remain reactive to changes from their source signals.
+`c` is a signal. Adding, subtracting, comparing or concatenating signals
+produces a signal that tracks its sources and changes when they change, so a
+derived value is simply a value and there is nothing extra to reach for.
+
+Because the result is itself a signal, derivations compose:
+
+```dart
+final total = (price * quantity) + shipping;
+final inStock = stock > 0;
+final canShip = agreed & paid;
+final fullName = firstName + ' ' + lastName;
+```
+
+An operand may be another signal or a plain value. Reactivity rides on the
+sources: reading a source inside the derivation subscribes the element exactly
+as it would in a build method, so a derived signal stays current without
+subscription bookkeeping of its own.
 
 ---
 

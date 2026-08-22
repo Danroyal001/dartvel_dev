@@ -1021,15 +1021,30 @@ final _signalCursor = Expando<int>();
 final _signalListeners =
     Expando<Map<StateProvider<Object?>, ProviderSubscription<Object?>>>();
 
-class DVSignal<T> {
+/// A reactive value that can be read, whether it stores its own state or is
+/// derived from signals that do.
+///
+/// Exists so that a derivation can take signals and other derivations without
+/// caring which it was handed: `(a + b) * c` is the same shape at every step.
+abstract class DVReadableSignal<T> {
+  /// The current value, subscribing the reading element to changes.
+  T get value;
+
+  /// The current value without subscribing.
+  T read();
+}
+
+class DVSignal<T> implements DVReadableSignal<T> {
   final ProviderContainer container;
   final StateProvider<T> provider;
   final Element element;
 
   DVSignal(this.container, this.provider, this.element);
 
+  @override
   T read() => container.read(provider);
 
+  @override
   T get value {
     final listeners = _signalListeners[element] ??= {};
     if (!listeners.containsKey(provider)) {
@@ -1052,34 +1067,110 @@ class DVSignal<T> {
   }
 }
 
-/// A value derived from other signals: `context.computed(() => a.value + b.value)`.
+/// A signal produced by operating on other signals.
 ///
-/// Reading [value] evaluates the computation. Reactivity comes from the source
-/// signals themselves — reading `a.value` inside the computation subscribes
-/// the element exactly as it would in a build method — so a computed stays
-/// current without its own subscription bookkeeping.
-class DVComputed<T> {
-  final T Function() _compute;
+/// Never constructed directly and never named in application code — it is what
+/// `a + b`, `price * quantity` or `first + last` evaluate to. Operating on
+/// signals yields a signal, so a derived value is simply a value, and there is
+/// no separate derived-value constructor to reach for.
+///
+/// Reactivity rides on the sources. Reading `a.value` inside the derivation
+/// subscribes the element exactly as it would in a build method, so a derived
+/// signal stays current without subscription bookkeeping of its own — and
+/// derivations compose, because a derivation over a derivation still bottoms
+/// out in stored signals.
+class DVDerivedSignal<T> implements DVReadableSignal<T> {
+  final T Function() _derive;
 
-  const DVComputed(this._compute);
+  const DVDerivedSignal(this._derive);
 
-  /// The current derived value.
-  T get value => _compute();
+  @override
+  T get value => _derive();
 
-  /// Alias for [value], matching `signal.read()`.
-  T read() => _compute();
+  @override
+  T read() => _derive();
+}
+
+/// Resolves an operand that may be a signal or a plain value.
+///
+/// Reading happens at derivation time rather than when the operator runs, so
+/// `total * rate` tracks `rate` rather than capturing whatever it held once.
+num _dvNum(Object other) {
+  if (other is DVReadableSignal<num>) return other.value;
+  if (other is num) return other;
+  throw ArgumentError.value(other, 'other',
+      'Expected a numeric signal or a num');
+}
+
+bool _dvBool(Object other) {
+  if (other is DVReadableSignal<bool>) return other.value;
+  if (other is bool) return other;
+  throw ArgumentError.value(other, 'other',
+      'Expected a boolean signal or a bool');
+}
+
+Object? _dvAny(Object? other) =>
+    other is DVReadableSignal<Object?> ? other.value : other;
+
+/// Arithmetic and comparison over numeric signals.
+///
+/// Each operator returns a [DVDerivedSignal] rather than a number, so the
+/// result is itself reactive and can be operated on again. The right-hand side
+/// may be another signal or a plain number.
+extension DVNumericSignalX on DVReadableSignal<num> {
+  DVDerivedSignal<num> operator +(Object other) =>
+      DVDerivedSignal<num>(() => value + _dvNum(other));
+
+  DVDerivedSignal<num> operator -(Object other) =>
+      DVDerivedSignal<num>(() => value - _dvNum(other));
+
+  DVDerivedSignal<num> operator *(Object other) =>
+      DVDerivedSignal<num>(() => value * _dvNum(other));
+
+  DVDerivedSignal<double> operator /(Object other) =>
+      DVDerivedSignal<double>(() => value / _dvNum(other));
+
+  DVDerivedSignal<int> operator ~/(Object other) =>
+      DVDerivedSignal<int>(() => value ~/ _dvNum(other));
+
+  DVDerivedSignal<num> operator %(Object other) =>
+      DVDerivedSignal<num>(() => value % _dvNum(other));
+
+  DVDerivedSignal<bool> operator <(Object other) =>
+      DVDerivedSignal<bool>(() => value < _dvNum(other));
+
+  DVDerivedSignal<bool> operator <=(Object other) =>
+      DVDerivedSignal<bool>(() => value <= _dvNum(other));
+
+  DVDerivedSignal<bool> operator >(Object other) =>
+      DVDerivedSignal<bool>(() => value > _dvNum(other));
+
+  DVDerivedSignal<bool> operator >=(Object other) =>
+      DVDerivedSignal<bool>(() => value >= _dvNum(other));
+}
+
+/// Concatenation over string signals.
+extension DVStringSignalX on DVReadableSignal<String> {
+  DVDerivedSignal<String> operator +(Object other) =>
+      DVDerivedSignal<String>(() => '$value${_dvAny(other)}');
+}
+
+/// Logic over boolean signals.
+///
+/// `&` and `|` are Dart's non-short-circuiting operators, which is what a
+/// derivation wants: both sides are read, so both stay tracked.
+extension DVBooleanSignalX on DVReadableSignal<bool> {
+  DVDerivedSignal<bool> operator &(Object other) =>
+      DVDerivedSignal<bool>(() => value && _dvBool(other));
+
+  DVDerivedSignal<bool> operator |(Object other) =>
+      DVDerivedSignal<bool>(() => value || _dvBool(other));
+
+  DVDerivedSignal<bool> operator ^(Object other) =>
+      DVDerivedSignal<bool>(() => value ^ _dvBool(other));
 }
 
 extension DVSignalContextX on BuildContext {
-  /// Derives a reactive value from other signals.
-  ///
-  /// ```dart
-  /// final a = context.signal(1);
-  /// final b = context.signal(2);
-  /// final c = context.computed(() => a.value + b.value);
-  /// ```
-  DVComputed<T> computed<T>(T Function() compute) => DVComputed<T>(compute);
-
   DVSignal<T> signal<T>(T initialValue) {
     final element = this as Element;
     final container = ProviderScope.containerOf(this);
