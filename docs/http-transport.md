@@ -110,10 +110,28 @@ rule: FFI, never platform channels.
 | Dart protocol/transport contract | ✅ Implemented, 17 tests |
 | `package:http` transport declaring HTTP/1.1 only | ✅ Implemented |
 | Browser transport declaring all three | ✅ Implemented |
-| Rust client (h2 with early hints, h3, h1.1 fallback) | ⏳ Next |
-| `DVRustHttpTransport` Dart binding | ⏳ Next |
-| APNS provider | ⏳ Blocked on the above |
-| Web Push payload encryption | ⏳ Blocked on the above |
+| Rust HTTP/2 client with early hints | ✅ Implemented, 8 unit tests + a live check |
+| `DVRustHttpTransport` Dart binding | ✅ Implemented |
+| Rust HTTP/3 client | ⏳ Next |
+| APNS provider | ⏳ Next — unblocked |
+| Web Push payload encryption | ⏳ Next — needs P-256/HKDF/AES-GCM in Rust |
 
-Nothing above is marked done on the strength of a plan. The first three rows
-have tests; the rest do not exist yet.
+Nothing above is marked done on the strength of a plan.
+
+**The HTTP/2 client is verified against a real server**, not only compiled.
+`cargo test -- --ignored` performs an actual request and asserts on what comes
+back: TCP, TLS, ALPN negotiating `h2`, an HTTP/2 request, and a response whose
+headers are unmistakably live (`cf-ray`, `server: cloudflare`, current date).
+Those tests are `#[ignore]` by default so an offline or firewalled build is not
+a failing one — a network test that fails without a network trains people to
+ignore red.
+
+## A latent crash found on the way
+
+Both `ring` and `aws-lc-rs` end up enabled on rustls through this crate's
+dependency graph. With two providers compiled in, rustls 0.23 will not guess:
+`ClientConfig::builder()` and `ServerConfig::builder()` panic unless a
+process-level provider has been installed. That applied to the **existing TLS
+server path** as much as to the new client, and had simply never been reached
+in a build where both features were on. Both now pin the ring provider before
+building a config.

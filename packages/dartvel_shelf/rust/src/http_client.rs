@@ -84,6 +84,23 @@ fn requests() -> &'static Mutex<HashMap<u64, PendingRequest>> {
     REQUESTS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
+/// Pins rustls to the ring provider before any config is built.
+///
+/// Both `ring` and `aws-lc-rs` end up enabled on rustls through this crate's
+/// dependency graph, and with two providers compiled in rustls cannot pick one
+/// on its own: `ClientConfig::builder()` and `ServerConfig::builder()` panic
+/// rather than guess. Installing a default once removes the ambiguity for
+/// every builder in the process, the server's included.
+///
+/// A second call losing the race is not an error — someone installed a
+/// provider, which is the whole requirement.
+pub(crate) fn ensure_crypto_provider() {
+    static INSTALLED: OnceLock<()> = OnceLock::new();
+    INSTALLED.get_or_init(|| {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+    });
+}
+
 /// Trust anchors, preferring the platform store.
 ///
 /// The OS store is what an enterprise TLS-inspecting proxy installs into, so
@@ -282,6 +299,7 @@ fn leak_buf(bytes: Bytes) -> FfiBuf {
 
 // ===== Failure reporting =====
 
+#[derive(Debug)]
 struct Failure {
     message: String,
     /// Whether another protocol could plausibly succeed. A refused handshake
@@ -355,6 +373,7 @@ async fn perform(
         // what a provider API sends.
         let _ = tcp.set_nodelay(true);
 
+        ensure_crypto_provider();
         let mut config = ClientConfig::builder()
             .with_root_certificates(tls_roots())
             .with_no_client_auth();
@@ -510,4 +529,170 @@ fn headers_json(headers: &http::HeaderMap) -> String {
             .or_insert_with(|| json!(text));
     }
     serde_json::Value::Object(map).to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn headers_are_lowercased_and_repeats_joined() {
+        // HTTP defines field-value concatenation with ", ", and Dart looks
+        // headers up by lowercase name.
+        let mut headers = http::HeaderMap::new();
+        headers.append("Content-Type", "application/json".parse().unwrap());
+        headers.append("X-Trace", "a".parse().unwrap());
+        headers.append("X-Trace", "b".parse().unwrap());
+
+        let json: serde_json::Value = serde_json::from_str(&headers_json(&headers)).unwrap();
+        assert_eq!(json["content-type"], "application/json");
+        assert_eq!(json["x-trace"], "a, b");
+    }
+
+    #[test]
+    fn a_header_that_is_not_text_is_skipped_rather_than_failing() {
+        // A binary header value must not take down a response that is
+        // otherwise fine.
+        let mut headers = http::HeaderMap::new();
+        headers.append("ok", "fine".parse().unwrap());
+        headers.append(
+            "binary",
+            http::HeaderValue::from_bytes(&[0xff, 0xfe]).unwrap(),
+        );
+
+        let json: serde_json::Value = serde_json::from_str(&headers_json(&headers)).unwrap();
+        assert_eq!(json["ok"], "fine");
+        assert!(json.get("binary").is_none());
+    }
+
+    #[test]
+    fn a_request_defaults_to_get_over_h2() {
+        let parsed: ClientRequest =
+            serde_json::from_str(r#"{"url":"https://example.test/"}"#).unwrap();
+        assert_eq!(parsed.method, "GET");
+        assert_eq!(parsed.alpn, "h2");
+        assert_eq!(parsed.timeout_ms, 0);
+    }
+
+    #[test]
+    fn failure_json_carries_retryability() {
+        // The Dart fallback chain decides whether to try another protocol from
+        // this flag alone, so it has to survive the crossing.
+        let json: serde_json::Value =
+            serde_json::from_str(&Failure::new("refused", true).to_json()).unwrap();
+        assert_eq!(json["message"], "refused");
+        assert_eq!(json["retryable"], true);
+    }
+
+    #[tokio::test]
+    async fn cleartext_is_refused_without_retrying() {
+        // ALPN happens in the TLS handshake, so there is no cleartext path to
+        // HTTP/2 here. Retrying on another protocol would not help.
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let request = ClientRequest {
+            url: "http://example.test/".to_string(),
+            method: "GET".to_string(),
+            headers: HashMap::new(),
+            alpn: "h2".to_string(),
+            timeout_ms: 1000,
+        };
+        let failure = perform(request, Bytes::new(), tx).await.unwrap_err();
+        assert!(!failure.retryable, "cleartext is not a protocol problem");
+        assert!(failure.message.contains("https"));
+    }
+
+    #[tokio::test]
+    async fn an_unparseable_url_is_not_retryable() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let request = ClientRequest {
+            url: "not a url".to_string(),
+            method: "GET".to_string(),
+            headers: HashMap::new(),
+            alpn: "h2".to_string(),
+            timeout_ms: 1000,
+        };
+        let failure = perform(request, Bytes::new(), tx).await.unwrap_err();
+        assert!(!failure.retryable);
+    }
+
+    #[test]
+    fn cancelling_an_unknown_handle_is_harmless() {
+        assert_eq!(dv_http_cancel(u64::MAX), 0);
+    }
+
+    #[test]
+    fn the_crypto_provider_can_be_installed_twice() {
+        // Both the client and the TLS server call this; the second must not
+        // panic.
+        ensure_crypto_provider();
+        ensure_crypto_provider();
+    }
+}
+
+/// Live network checks. Ignored by default so an offline or firewalled build
+/// is not a failing one; run with `cargo test -- --ignored --nocapture`.
+#[cfg(test)]
+mod live_tests {
+    use super::*;
+
+    async fn collect(request: ClientRequest) -> (Vec<String>, Option<String>, usize) {
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let task = tokio::spawn(async move { perform(request, Bytes::new(), tx).await });
+
+        let mut hints = Vec::new();
+        let mut head = None;
+        let mut body_len = 0usize;
+        while let Some(event) = rx.recv().await {
+            match event {
+                ClientEvent::EarlyHints(json) => hints.push(json),
+                ClientEvent::Head(json) => head = Some(json),
+                ClientEvent::Body(bytes) => body_len += bytes.len(),
+                ClientEvent::Error(json) => panic!("request failed: {json}"),
+            }
+        }
+        task.await.unwrap().unwrap();
+        (hints, head, body_len)
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn fetches_over_real_http2() {
+        let (_, head, body_len) = collect(ClientRequest {
+            url: "https://cloudflare.com/cdn-cgi/trace".to_string(),
+            method: "GET".to_string(),
+            headers: HashMap::new(),
+            alpn: "h2".to_string(),
+            timeout_ms: 20_000,
+        })
+        .await;
+
+        let head: serde_json::Value = serde_json::from_str(&head.expect("no head")).unwrap();
+        eprintln!("LIVE head={head} body_len={body_len}");
+        assert_eq!(head["status"], 200);
+        // The protocol is reported from the ALPN the peer actually chose, not
+        // from what was asked for.
+        assert_eq!(head["protocol"], "h2");
+        assert!(body_len > 0, "expected a body");
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn a_peer_without_http2_is_a_retryable_failure() {
+        // Exactly what the Dart fallback chain is for.
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let failure = perform(
+            ClientRequest {
+                url: "https://http1.example.invalid/".to_string(),
+                method: "GET".to_string(),
+                headers: HashMap::new(),
+                alpn: "h2".to_string(),
+                timeout_ms: 5_000,
+            },
+            Bytes::new(),
+            tx,
+        )
+        .await
+        .unwrap_err();
+        assert!(failure.retryable);
+    }
 }
