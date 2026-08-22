@@ -704,6 +704,11 @@ dependencies:
           '/home/dev/.dartvel/toolchains/dartvel_fuchsia/$fuchsiaAppBuildScript');
       expect(p.isAbsolute(plan.executable), isTrue);
       expect(plan.arguments, containsAllInOrder(<String>['--cpu', 'x64']));
+      // The embedder's scripts locate their workspace through this variable
+      // and refuse to run without it. Dartvel installed the checkout, so it
+      // knows the answer and should not ask the developer to edit a profile.
+      expect(plan.environment['FUCHSIA_EMBEDDER_DIR'],
+          '/home/dev/.dartvel/toolchains/dartvel_fuchsia');
     });
 
     test('the app is passed by path, so nothing Dartvel-specific is handed '
