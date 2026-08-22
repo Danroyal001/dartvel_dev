@@ -25,6 +25,26 @@ Future<void> main(List<String> args) async {
       return;
     }
 
+    // Probed here rather than discovered mid-build, and treated the way a
+    // missing cargo is: absent means skip, not fail.
+    //
+    // This hook runs for anything depending on this package, including a
+    // `dart run` on a documentation checker. Hard-failing on a tool that such
+    // a command has no reason to need turns an unrelated job red — which is
+    // exactly what happened to the spec-status check, after it had already
+    // spent minutes compiling Rust it did not need either.
+    final cbindgenCheck = await _runBounded(
+      'cbindgen',
+      <String>['--version'],
+      const Duration(minutes: 1),
+    );
+    if (cbindgenCheck == null || cbindgenCheck.exitCode != 0) {
+      stdout.writeln(
+          'dartvel_shelf hook: cbindgen not found, skipping native build. '
+          'Install it with `cargo install cbindgen` to regenerate bindings.');
+      return;
+    }
+
     const codeAssetType = 'code_assets/code';
     final buildAssetTypes = input.config.buildAssetTypes;
     final wantsCodeAsset = buildAssetTypes.contains(codeAssetType);

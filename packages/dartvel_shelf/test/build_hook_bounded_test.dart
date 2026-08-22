@@ -11,6 +11,8 @@ import 'dart:io';
 import 'package:test/test.dart';
 
 void main() {
+  missingToolsSkipTests();
+
   group('the native asset hook', () {
     late String source;
     late String outsideGuard;
@@ -64,6 +66,39 @@ void main() {
       final guard = source.substring(guardStart);
       expect(guard.contains('.kill('), isTrue,
           reason: 'a bounded process must be killed when it outlives its bound');
+    });
+  });
+}
+
+// A missing tool must not break unrelated Dart commands. The hook runs for
+// anything that depends on this package, including `dart run` on a
+// documentation checker — which is how a spec-status job ended up compiling
+// 162 Rust crates and then failing on a tool it had no reason to need.
+void missingToolsSkipTests() {
+  group('missing build tools', () {
+    late String source;
+
+    setUp(() => source = File('hook/build.dart').readAsStringSync());
+
+    test('cbindgen is probed before use, the way cargo is', () {
+      // cargo already gets this treatment: absent means skip, not fail. A
+      // hard error for cbindgen is the same situation reported differently.
+      expect(
+        source.contains("'cbindgen',\n      <String>['--version']") ||
+            source.contains('cbindgenCheck'),
+        isTrue,
+        reason: 'probe for cbindgen and skip when it is absent',
+      );
+    });
+
+    test('an absent tool skips rather than throwing', () {
+      // The skip messages are the contract: a build that cannot produce a
+      // native asset says so and lets the caller continue.
+      final skipMessages = RegExp(r"skipping[^']*'")
+          .allMatches(source)
+          .length;
+      expect(skipMessages, greaterThanOrEqualTo(3),
+          reason: 'cargo, cbindgen and an unsupported target each skip');
     });
   });
 }
