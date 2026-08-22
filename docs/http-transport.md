@@ -126,12 +126,26 @@ Those tests are `#[ignore]` by default so an offline or firewalled build is not
 a failing one — a network test that fails without a network trains people to
 ignore red.
 
-## A latent crash found on the way
+## Two crypto-provider problems found on the way
 
-Both `ring` and `aws-lc-rs` end up enabled on rustls through this crate's
-dependency graph. With two providers compiled in, rustls 0.23 will not guess:
+`aws-lc-rs` arrived as rustls's default provider through `axum-server`'s
+`tls-rustls` feature, while this crate uses `ring` everywhere. It caused two
+distinct problems and is now gone, via `tls-rustls-no-provider`.
+
+**A latent panic.** With two providers compiled in, rustls 0.23 will not guess:
 `ClientConfig::builder()` and `ServerConfig::builder()` panic unless a
 process-level provider has been installed. That applied to the **existing TLS
-server path** as much as to the new client, and had simply never been reached
-in a build where both features were on. Both now pin the ring provider before
-building a config.
+server path** as much as to the new client and had simply never been reached.
+Both pin the ring provider before building a config, which stays as
+belt-and-braces now that only one provider is compiled in.
+
+**A broken macOS build, and a red herring.** `aws-lc-sys` failed to compile on
+macOS, which looked like the cause of `dartvel build macos` failing. Removing
+it proved otherwise: `ring` and `zstd-sys` then failed identically. The real
+fault was `cc-rs` being invoked with no `-isysroot` because `SDKROOT` was
+unset, so no C crate could find its headers. The build hook now supplies it
+from `xcrun`, chosen from the target rather than the host.
+
+Removing `aws-lc-rs` stays regardless — it was compiling a large C codebase for
+nothing on every platform — and a CI check fails the build if it returns, since
+it comes back silently through any dependency enabling a rustls default feature.
