@@ -34,6 +34,7 @@ export 'src/database/postgres.dart';
 export 'src/graphql/graphql.dart';
 export 'src/http/aws_sigv4.dart';
 export 'src/http/transport.dart';
+export 'src/http/native_client.dart';
 export 'src/lifecycle/lifecycle.dart';
 export 'src/mail/smtp.dart';
 export 'src/media/image.dart';
