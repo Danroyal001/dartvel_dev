@@ -2061,13 +2061,21 @@ JNI/jnigen only, no Flutter platform channels.
 # Terminal Rendering
 
 A Dartvel application can present itself in a terminal instead of a window,
-without being a different application. `dartvel build linux-cli` builds the
-same Linux target as `dartvel build linux` from the same widgets — it changes
-where frames are drawn, not what is drawn.
+without being a different application. The same widgets, the same pages, the
+same generated model pages and Studio documents — drawn as cells rather than
+pixels.
 
-This is a **rendering mode, not a platform**. It resolves the way
-`sony-elinux-iso` already does: a suffix that names a base platform and a
-presentation.
+The point is not novelty. It is that a powerful application can live on a
+powerful machine and be driven from anywhere: a server with no desktop, a
+container, a phone over SSH. The application does not change; only where its
+frames land does.
+
+## Two ways in, and they are different
+
+**A terminal-only build.** `dartvel build linux-cli` produces a binary that
+renders in a terminal and never opens a window. It resolves the way
+`sony-elinux-iso` already does: a suffix naming a base platform and a
+presentation, not a new platform.
 
 ```
 dartvel build linux-cli
@@ -2076,59 +2084,62 @@ dartvel build macos-cli
 dartvel build fuchsia-cli
 ```
 
-Nothing about a page changes. `DVBox`, `DVText`, generated model pages and
-Studio documents render as they do anywhere else, subject to what a terminal
-can express.
-
-## It is opt-in, and that is a constraint on the implementation
-
-The terminal renderer is **not** part of an ordinary build. An application
-that will never run in a terminal must not carry the code that would draw one
-— the cost of a rendering backend is paid in binary size by every user who
-never uses it.
-
-So terminal support is a dependency an application adds, not a capability
-every application has:
-
-```yaml
-dependencies:
-  dartvel_tui: ^0.1.0
-```
-
-Without that dependency, `dartvel build linux-cli` fails with a message
-naming it rather than silently producing a GUI binary. With it, an ordinary
-`dartvel build linux` still links no terminal code: the presentation is
-selected at build time, and only one backend is ever linked.
-
-This rules out the obvious shortcut of shipping both and choosing at startup.
-A runtime switch is simpler and is the wrong trade — it makes every GUI build
-pay for a terminal backend it will never reach.
-
-## Fallback is also opt-in
-
-An application may declare that it should fall back to terminal rendering
-where a GUI is unavailable — a headless server, an SSH session, a platform
-with no window system.
+**A dual-mode desktop build.** An ordinary `dartvel build linux` can also
+carry terminal rendering, if the application asks for it:
 
 ```yaml
 dartvel:
-  terminal:
-    fallback: whenNoDisplay
+  terminal: true
 ```
 
-The default is `never`. A GUI application that cannot open a window should
-fail visibly rather than silently redraw itself as text, because a fallback
-nobody asked for is indistinguishable from a bug at the moment it happens.
+That is the whole opt-in. An application that does not declare it links no
+terminal code at all.
 
-Where fallback is enabled, the reason is observable rather than inferred, in
-the same way a degraded window reports why it was degraded.
+## Nothing is carried by an application that did not ask
+
+This is a constraint on the implementation, not a preference. A rendering
+backend costs binary size for every user who never reaches it, so the
+presentation is resolved at **build time** from the `-cli` suffix or the
+`dartvel.terminal` key, and only the backends an application asked for are
+linked.
+
+That rules out the obvious shortcut of always shipping both and choosing at
+startup. It is simpler, and it makes every application pay for a capability
+most of them will never use.
+
+## How a dual-mode application starts
+
+For an application that opted into both, launching from a shell:
+
+1. **GUI by default.** A terminal is where the command was typed, not
+   necessarily where the application belongs.
+2. **`--tui` starts in the terminal**, skipping the GUI entirely. This is the
+   explicit path, and it is the one to reach for over SSH.
+3. **No display available, and the application offers both** — a machine with
+   no desktop installed, a headless container, a bare SSH session — the
+   application says so and offers the alternative rather than choosing for the
+   user:
+
+   ```
+   No display server is available.
+   This app can run in your terminal instead. Continue in TUI mode? [Y/n]
+   ```
+
+The prompt exists because both silent answers are wrong. Silently redrawing as
+text is indistinguishable from a bug at the moment it happens, and failing
+outright wastes a capability the application was built with. Asking costs one
+keystroke and is unambiguous.
+
+An application that did **not** opt into terminal rendering has none of this:
+no prompt, no flag, no branch. It fails to find a display exactly as it does
+today.
 
 ## What the application can observe
 
 ```dart
-DV.Platform.surface        // DVRenderSurface.gui | DVRenderSurface.terminal
-DV.Platform.terminal       // null unless surface is terminal
-DV.Platform.terminal.size  // columns and rows, as a signal
+DV.Platform.surface            // DVRenderSurface.gui | DVRenderSurface.terminal
+DV.Platform.terminal           // null unless surface is terminal
+DV.Platform.terminal.size      // columns and rows, as a signal
 DV.Platform.terminal.graphics  // DVTerminalGraphics.kitty | .ansi
 ```
 
@@ -2136,32 +2147,32 @@ DV.Platform.terminal.graphics  // DVTerminalGraphics.kitty | .ansi
 capability; a terminal is another thing it reports on rather than a namespace
 of its own.
 
-`size` is a signal, so a layout responds to a resized terminal the way it
-responds to a resized window — the same reactive path, not a parallel one.
+`size` is a signal, so a layout responds to a resized terminal through the same
+reactive path a resized window uses, not a parallel one.
 
-## What a terminal cannot do
+## What a terminal costs
 
-Stated plainly, because a rendering mode that pretends to be lossless is worse
-than one with documented edges:
+Stated rather than glossed, because a rendering mode that pretends to be
+lossless is worse than one with documented edges:
 
-- **Arbitrary pixels need a capable terminal.** Full-fidelity rendering uses
-  the Kitty graphics protocol. Where that is unavailable, rendering falls back
-  to ANSI cells, which is coarser and slower. Both are supported; which one is
-  in use is reported by `DV.Platform.terminal.graphics` rather than guessed at.
-- **Over a slow link, frames cost bandwidth.** A 60fps animation redrawn over
+- **Fidelity depends on the terminal.** Full-quality rendering uses the Kitty
+  graphics protocol; where it is unavailable, rendering degrades to ANSI cells,
+  which is coarser. Which one is active is reported by
+  `DV.Platform.terminal.graphics` rather than guessed at.
+- **Frames cost bandwidth over a slow link.** A 60fps animation redrawn across
   SSH is not free the way a local compositor is.
-- **Pointer input is limited** to what the terminal reports, and some terminals
-  report none.
+- **Pointer input is whatever the terminal reports**, and some report none.
 
-An application that needs to know should ask `DV.Platform`. An application
-that does not should not have to.
+## The embedder
 
-## Why this is not a separate target family
+Terminal rendering is driven by a Dartvel fork of a Flutter terminal embedder,
+maintained the way the television and embedded forks are: pinned to the Flutter
+version Dartvel ships, patched where upstream is short.
 
-A `cli` target that compiled a plain Dart entrypoint would be a different
-product: no widgets, no pages, no Studio — closer to `dart compile exe` than
-to Dartvel. Terminal rendering is deliberately the other thing. The same
-application, the same pages, presented where there is no window server.
+Upstream is a research project and does not need to already do everything —
+that is what the fork is for. Producing a distributable binary rather than only
+a development run, and whatever else Dartvel requires, is work the fork carries
+rather than a reason to wait.
 
 # Multi-Window
 
