@@ -1,0 +1,119 @@
+# Outbound HTTP: HTTP/2, HTTP/3, and Early Hints
+
+What Dartvel's outbound HTTP can do, what it cannot, and — where it cannot —
+whether that is our gap or an upstream one. Capability claims here name the
+source that was checked, in the same spirit as `docs/build-targets.md`:
+verified means looked at, not assumed.
+
+## Why this exists
+
+Dartvel's outbound HTTP was `package:http` and nothing else. On native that is
+`dart:io`'s `HttpClient`, which speaks **HTTP/1.1 only**. That is not a
+performance footnote — it is why APNS was unimplemented, because Apple's
+provider API is HTTP/2-only and there was no way to reach it at all.
+
+## The Dart contract
+
+`packages/dartvel_core/lib/src/http/protocol.dart` and `transport.dart`.
+
+- `DVHttpProtocol` identifies a protocol by its **ALPN token**, because
+  selection happens during the TLS handshake and that is what is actually
+  negotiated.
+- `DVHttpProtocolChain` is an ordered preference. `standard` is
+  h3 → h2 → http/1.1. `http2Only` exists for peers that require a protocol,
+  where a silent downgrade would turn a configuration problem into a
+  connection error that cannot explain itself.
+- `DVHttpTransport` declares what it can speak **here**, which depends on the
+  platform and not only on the implementation.
+- `DVHttpFallbackClient` walks the chain. Keeping the walk out of the
+  transports means the fallback rules live in one place instead of once per
+  backend, and a transport only has to answer "can you speak this, and what
+  happened".
+- A failure can be marked non-retryable. A refused QUIC handshake is worth
+  trying another protocol; a 404 is not, since the request reached the origin
+  and was answered.
+- `dvUseHttpTransport` is the seam a faster client attaches through.
+
+## Verified capability of the Rust ecosystem
+
+The interesting constraint is **not** HTTP/2 or HTTP/3, both of which are
+well served. It is Early Hints, which almost nothing surfaces.
+
+| Layer | Crate | HTTP/2 | HTTP/3 | 103 Early Hints |
+|---|---|---|---|---|
+| Client, high level | `reqwest` | ✅ | ✅ (unstable cfg) | ❌ — built on hyper |
+| Client, mid level | `hyper` | ✅ | — | ❌ — see below |
+| Client, HTTP/2 frames | `h2` | ✅ | — | ✅ `poll_informational()` |
+| Client, HTTP/3 frames | `h3` + `h3-quinn` | — | ✅ | ❌ `recv_response()` only |
+| Server | `axum` / `hyper` | ✅ | — | ❌ sending unsupported |
+
+**hyper does not support 103 Early Hints in either direction.** HTTP/2 support
+is an open pull request ([hyperium/hyper#4114], opened June 2026) against an
+open issue ([#3980], November 2025), and server-side sending has been open and
+blocked awaiting design input since 2021 ([#2426]). Everything built on hyper
+inherits this — which means `reqwest` cannot receive early hints and Dartvel's
+own Axum server cannot send them.
+
+**The `h2` crate can.** `h2::client::ResponseFuture` exposes
+`poll_informational()`, documented as polling for 1xx responses and intended to
+be called before polling the main response future. This is the only place in
+the Rust ecosystem where informational responses surface, and it is the reason
+the HTTP/2 client below is built on `h2` directly rather than on `reqwest`.
+
+**The `h3` crate cannot.** `h3::client::RequestStream` offers `recv_response()`
+and no informational path. HTTP/3 permits 1xx responses at the protocol level,
+so this is a crate gap rather than a protocol limit.
+
+[hyperium/hyper#4114]: https://github.com/hyperium/hyper/pull/4114
+[#3980]: https://github.com/hyperium/hyper/issues/3980
+[#2426]: https://github.com/hyperium/hyper/issues/2426
+
+## What this means for "early hints support"
+
+Stated plainly, because the honest answer is narrower than the request:
+
+- **Receiving early hints over HTTP/2: available**, via `h2` directly.
+- **Receiving early hints over HTTP/3: not currently possible** with any Rust
+  crate. Fallback to HTTP/2 gets them; HTTP/3 does not.
+- **Sending early hints from Dartvel's server: not currently possible.**
+  Blocked on hyper, and Axum sits on top of it.
+
+The third is the one worth caring about most. Early Hints are principally a
+*browser* optimisation: a 103 tells a browser to start fetching stylesheets
+and scripts while the origin is still deciding what the page is. A Flutter app
+calling a JSON API has no subresources to preload, so *receiving* 103 buys it
+very little. Dartvel serving SSR pages that *emit* 103 is where real page loads
+get faster — and that is the half currently blocked upstream.
+
+This is a fork-shaped problem, which is the pattern this project already uses
+for embedders: the capability exists in the protocol and is missing from the
+library.
+
+## Platform split
+
+**Web needs nothing.** The browser negotiates HTTP/2 and HTTP/3 by itself and
+acts on early hints before script is told anything — it starts the preloads.
+Neither the negotiated protocol nor the hints are visible to JavaScript, so
+`DVBrowserHttpTransport` declares the capability and reports a null protocol
+rather than guessing. Compiling a Rust client to wasm would be strictly worse
+here: it would add a download to reimplement what the host already does better.
+
+**Native uses Rust over FFI.** `dartvel_shelf` already carries a Rust crate, an
+FFI convention and a native-asset build hook, so the client belongs there
+rather than in a new mechanism. This also satisfies the native-integration
+rule: FFI, never platform channels.
+
+## Status
+
+| Piece | State |
+|---|---|
+| Dart protocol/transport contract | ✅ Implemented, 17 tests |
+| `package:http` transport declaring HTTP/1.1 only | ✅ Implemented |
+| Browser transport declaring all three | ✅ Implemented |
+| Rust client (h2 with early hints, h3, h1.1 fallback) | ⏳ Next |
+| `DVRustHttpTransport` Dart binding | ⏳ Next |
+| APNS provider | ⏳ Blocked on the above |
+| Web Push payload encryption | ⏳ Blocked on the above |
+
+Nothing above is marked done on the strength of a plan. The first three rows
+have tests; the rest do not exist yet.
