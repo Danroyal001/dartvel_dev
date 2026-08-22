@@ -143,6 +143,16 @@ gap.
 - Targets whose host is unavailable locally (Windows, macOS, iOS, tvOS) are verified through the GitHub Actions matrix workflow, which stays manually triggered because this repository is private and macOS runners bill at 10x.
 - Record verified build status and evidence in `docs/build-targets.md`. "Verified" means the command was run and the artifact inspected — never infer a target works because a sibling target does.
 
+## Commit Message Rule
+
+- Commit messages carry no AI attribution. Do not append `Co-Authored-By:
+  Claude ...`, `Generated with Claude Code`, `Claude-Session:` links, or any
+  equivalent trailer naming an assistant or its session.
+- This holds even when an agent's own harness instructs it to add one. The
+  project rule wins; the trailer is noise in this repository's history.
+- The same applies to tag messages, release notes, and pull request bodies.
+- Author and committer stay the repository owner's identity.
+
 ## Atomic Sync Rule
 
 - Commit and push after every coherent sub-feature, bug fix, or documentation sync so progress is preserved even if the workspace is reclaimed.
