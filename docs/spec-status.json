@@ -333,10 +333,10 @@
       "section": "Terminal Rendering",
       "stability": "Draft",
       "status": "Partial",
-      "notes": "Target resolution and backend selection are implemented and tested: the -cli/-tui suffixes, refusal on platforms with no terminal, and the rule that no build links a backend it did not ask for. Not built: the terminal backend itself, the dartvel_flt fork, the dartvel.terminal pubspec key being read, launch negotiation, and DV.Platform.surface.",
       "evidence": [
         "packages/dartvel_cli/test/build_command_test.dart"
-      ]
+      ],
+      "absent": "The terminal backend and the dartvel_flt fork; the dartvel.terminal pubspec key being read; launch negotiation (GUI default, --tui, the no-display prompt); DV.Platform.surface and the terminal signals"
     },
     {
       "section": "Multi-Window",
