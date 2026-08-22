@@ -77,9 +77,22 @@ class RouteUtils {
 
   static String routeFromRel(String rel, String backendDir) {
     // rel like lib/backend/functions/blog/[id].get.dart
-    var path = rel
-        .replaceFirst(RegExp('^$backendDir/functions/?'), '')
-        .replaceAll('\\\\', '/');
+    // Separators are normalised first, and both sides of the comparison are.
+    // A route is a URL, not a filesystem path, so the host separator must not
+    // reach it — and stripping the prefix before normalising cannot work when
+    // `rel` uses backslashes and `backendDir` does not.
+    //
+    // This used to replaceAll('\\', '/'), which in Dart is the two-character
+    // string `\` `\` and so only matched *doubled* backslashes. Windows paths
+    // have single ones, so nothing was replaced: the route became
+    // `\lib\backend\functions\user\:id`, the prefix strip missed, and the
+    // result was written into a Dart literal where `\u` is an invalid escape.
+    final normalisedRel = rel.replaceAll(r'\', '/');
+    final normalisedBackendDir = backendDir.replaceAll(r'\', '/');
+    var path = normalisedRel.replaceFirst(
+      RegExp('^$normalisedBackendDir/functions/?'),
+      '',
+    );
     // strip group folders (parentheses)
     path = path.replaceAllMapped(RegExp(r'\(([^)]+)\)/'), (_) => '');
     // strip extension .dart and method suffix

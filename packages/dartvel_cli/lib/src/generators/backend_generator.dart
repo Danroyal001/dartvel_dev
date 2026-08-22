@@ -675,7 +675,7 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
 
       sbClient.writeln('Future<DVHttpResponse> $fname($sig) async {');
       sbClient
-          .writeln("  String routePath = '${colon.replaceAll("'", "\\'")}';");
+          .writeln("  String routePath = '${esc(colon)}';");
       sbClient.writeln('  final Map<String, Object?> pp = $paramMap;');
       sbClient.writeln(
           "  pp.forEach((k, v) { final rep = (v is List) ? v.map((e)=>e.toString()).join('/') : ((v?.toString()) ?? ''); routePath = routePath.replaceAll(':\$k', Uri.encodeComponent(rep)); });");
@@ -817,7 +817,7 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
           }
 
           sbClient.writeln(
-              "  String routePath = '${colon.replaceAll("'", "\\'")}';");
+              "  String routePath = '${esc(colon)}';");
           sbClient.writeln('  final Map<String, Object?> pp = $ppExpr;');
           sbClient.writeln(
               "  pp.forEach((k, v) { final rep = (v is List) ? v.map((e)=>e.toString()).join('/') : ((v?.toString()) ?? ''); routePath = routePath.replaceAll(':\$k', Uri.encodeComponent(rep)); });");
@@ -914,7 +914,7 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
                 'Future<$clientReturnType> $fnameApi($sigApi) async {');
           }
           sbClient.writeln(
-              "  String routePath = '${colon.replaceAll("'", "\\'")}';");
+              "  String routePath = '${esc(colon)}';");
           sbClient.writeln('  final Map<String, Object?> pp = $ppExpr;');
           sbClient.writeln(
               "  pp.forEach((k, v) { final rep = (v is List) ? v.map((e)=>e.toString()).join('/') : ((v?.toString()) ?? ''); routePath = routePath.replaceAll(':\$k', Uri.encodeComponent(rep)); });");
