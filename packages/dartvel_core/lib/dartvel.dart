@@ -2306,6 +2306,174 @@ class FirebasePushProvider implements DVNotificationProvider {
   }
 }
 
+/// Which APNS environment a device token belongs to.
+///
+/// A token minted by a development build is not valid in production and vice
+/// versa, and the failure is a `BadDeviceToken` that says nothing about which
+/// half is wrong — so this is explicit rather than inferred.
+enum ApnsEnvironment {
+  production('api.push.apple.com'),
+  sandbox('api.sandbox.push.apple.com');
+
+  const ApnsEnvironment(this.host);
+
+  final String host;
+}
+
+/// What kind of notification is being delivered.
+///
+/// Required by APNS on iOS 13 and later, and rejected outright when it does
+/// not match the payload — a `background` push carrying an alert is an error,
+/// not a warning.
+enum ApnsPushType {
+  alert,
+  background,
+  location,
+  voip,
+  complication,
+  fileprovider,
+  mdm,
+  liveactivity,
+  pushtotalk;
+
+  String get wireName => name;
+}
+
+/// Apple Push Notification service.
+///
+/// The recipient is the hex device token. Delivery is **HTTP/2 only** — Apple
+/// operates no HTTP/1.1 endpoint — which is why this provider pins
+/// [DVHttpProtocolChain.http2Only] rather than accepting the default chain. A
+/// silent downgrade would surface as a connection error that could not explain
+/// itself.
+///
+/// Authorization is a bearer JWT signed with ES256 over an Apple `.p8` key.
+/// Signing that needs an ECDSA implementation Dartvel does not bundle, so the
+/// token comes from the application's own credentials layer and is fetched per
+/// send — the same arrangement [FirebasePushProvider] uses, and for the same
+/// reason. Apple accepts a token for one hour and refuses one older than that,
+/// so a supplier that caches should refresh well inside the hour.
+class ApnsPushProvider implements DVNotificationProvider {
+  /// The app's bundle identifier, sent as `apns-topic`.
+  final String topic;
+
+  /// Supplies the bearer JWT.
+  final DVAccessTokenSupplier accessToken;
+
+  final ApnsEnvironment environment;
+
+  final ApnsPushType pushType;
+
+  /// 10 delivers immediately; 5 lets the device batch for power. APNS requires
+  /// 5 for a `background` push and rejects 10.
+  final int priority;
+
+  final DVHttpSend transport;
+
+  ApnsPushProvider({
+    required this.topic,
+    required this.accessToken,
+    this.environment = ApnsEnvironment.production,
+    this.pushType = ApnsPushType.alert,
+    int? priority,
+    this.transport = dvSendHttpRequest,
+  }) : priority = priority ??
+            (pushType == ApnsPushType.background ? 5 : 10);
+
+  @override
+  DVNotificationProviderKind get kind => DVNotificationProviderKind.apns;
+
+  /// The APNS payload for [message].
+  ///
+  /// Custom data goes at the top level, as a sibling of `aps` — nesting it
+  /// inside `aps` is the usual mistake, and Apple silently ignores unknown
+  /// keys there rather than reporting them.
+  Map<String, Object?> buildPayload(DVNotificationMessage message) {
+    return <String, Object?>{
+      'aps': <String, Object?>{
+        if (pushType == ApnsPushType.background)
+          'content-available': 1
+        else
+          'alert': <String, Object?>{
+            'title': message.title,
+            'body': message.body,
+          },
+      },
+      ...message.data,
+    };
+  }
+
+  @override
+  Future<void> send(String recipient, DVNotificationMessage message) async {
+    final deviceToken = recipient.trim();
+    if (deviceToken.isEmpty) {
+      throw ArgumentError.value(
+        recipient,
+        'recipient',
+        'An APNS notification needs a device token.',
+      );
+    }
+
+    final token = await accessToken();
+    final response = await transport(
+      DVHttpRequest(
+        url: Uri.https(environment.host, '/3/device/$deviceToken'),
+        headers: <String, String>{
+          'content-type': 'application/json',
+          'authorization': 'bearer $token',
+          'apns-topic': topic,
+          'apns-push-type': pushType.wireName,
+          'apns-priority': '$priority',
+        },
+        body: utf8.encode(jsonEncode(buildPayload(message))),
+        // Apple runs no HTTP/1.1 endpoint. Falling back would fail at a layer
+        // that cannot say why.
+        protocols: DVHttpProtocolChain.http2Only,
+      ),
+    );
+
+    if (!response.isSuccess) {
+      throw DVPushProviderException(
+        'apns',
+        apnsFailureReason(response),
+        statusCode: response.statusCode,
+        responseBody: response.body,
+      );
+    }
+  }
+}
+
+/// A readable explanation for an APNS rejection.
+///
+/// Apple answers failures with `{"reason": "BadDeviceToken"}` and nothing else,
+/// which is precise and unhelpful in a log. The few reasons that mean something
+/// an operator should act on are spelled out; the rest are passed through so a
+/// new one is never swallowed.
+String apnsFailureReason(DVHttpResponse response) {
+  final data = response.data;
+  final reason = data is Map ? data['reason'] : null;
+  if (reason is! String || reason.isEmpty) {
+    return 'The push service rejected the notification.';
+  }
+  return switch (reason) {
+    'BadDeviceToken' =>
+      'BadDeviceToken: the token is malformed, or belongs to the other APNS '
+          'environment than the one configured.',
+    'Unregistered' =>
+      'Unregistered: the app was uninstalled or the token expired. Stop '
+          'sending to it.',
+    'TopicDisallowed' =>
+      'TopicDisallowed: apns-topic does not match the key\'s app.',
+    'ExpiredProviderToken' =>
+      'ExpiredProviderToken: the bearer JWT is older than one hour.',
+    'InvalidProviderToken' =>
+      'InvalidProviderToken: the JWT signature or key id was rejected.',
+    'PayloadTooLarge' =>
+      'PayloadTooLarge: APNS caps a payload at 4KB (5KB for VoIP).',
+    _ => reason,
+  };
+}
+
 /// Twilio SMS.
 ///
 /// The recipient is the destination number in E.164 form (`+15551234567`).
