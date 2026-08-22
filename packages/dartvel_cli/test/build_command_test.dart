@@ -4,6 +4,7 @@ import 'package:args/command_runner.dart';
 import 'package:dartvel_cli/src/commands/build_command.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
+import 'package:yaml/yaml.dart';
 
 void main() {
   group('resolveFlutterBuildArguments', () {
@@ -670,6 +671,7 @@ dependencies:
 
   buildTimeoutTests();
   terminalRenderingTests();
+  terminalOptInTests();
   everyBuildPathIsBoundedTests();
 
   group('fuchsia', () {
@@ -959,6 +961,85 @@ void terminalRenderingTests() {
         terminalOptIn: true,
       );
       expect(backends, <DVRenderBackend>{DVRenderBackend.terminal});
+    });
+  });
+}
+
+// Terminal rendering, step two: the pubspec opt-in that decides whether a
+// desktop build carries a terminal backend at all. The spec's rule is that an
+// application which said nothing gets nothing.
+void terminalOptInTests() {
+  group('the terminal opt-in', () {
+    test('absent means no terminal backend', () {
+      // The default and the one that must never regress.
+      expect(readTerminalOptIn(loadYaml('name: app\n') as YamlMap?), isFalse);
+    });
+
+    test('a dartvel section without the key means no', () {
+      expect(
+        readTerminalOptIn(loadYaml('''
+name: app
+dartvel:
+  backendPort: 3000
+''') as YamlMap?),
+        isFalse,
+      );
+    });
+
+    test('dartvel.terminal true opts in', () {
+      expect(
+        readTerminalOptIn(loadYaml('''
+name: app
+dartvel:
+  terminal: true
+''') as YamlMap?),
+        isTrue,
+      );
+    });
+
+    test('explicit false stays out', () {
+      expect(
+        readTerminalOptIn(loadYaml('''
+name: app
+dartvel:
+  terminal: false
+''') as YamlMap?),
+        isFalse,
+      );
+    });
+
+    test('a non-boolean value is refused rather than guessed', () {
+      // "yes", "1" and a nested map are all plausible things to write and all
+      // ambiguous. Guessing one way links a backend nobody asked for; guessing
+      // the other silently ignores a request. Refusing says which it was.
+      expect(
+        () => readTerminalOptIn(loadYaml('''
+name: app
+dartvel:
+  terminal: maybe
+''') as YamlMap?),
+        throwsFormatException,
+      );
+    });
+
+    test('a missing pubspec is not an opt-in', () {
+      expect(readTerminalOptIn(null), isFalse);
+    });
+
+    test('the opt-in reaches backend selection', () {
+      // The two halves joined: what the pubspec says decides what gets linked.
+      final pubspec = loadYaml('''
+name: app
+dartvel:
+  terminal: true
+''') as YamlMap?;
+      expect(
+        resolveRenderBackends(
+          format: null,
+          terminalOptIn: readTerminalOptIn(pubspec),
+        ),
+        <DVRenderBackend>{DVRenderBackend.gui, DVRenderBackend.terminal},
+      );
     });
   });
 }

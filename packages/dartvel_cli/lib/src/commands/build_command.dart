@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
+import 'package:yaml/yaml.dart';
 import '../build/browser_extension.dart';
 import '../utils/build_runner.dart';
 import '../utils/logger.dart';
@@ -125,6 +126,30 @@ const terminalBuildTargets = <String>[
 /// startup: resolving it on launch would mean every application shipped every
 /// backend, and paid for modes most of them never use.
 enum DVRenderBackend { gui, terminal }
+
+/// Whether `pubspec.yaml` opts this application into terminal rendering.
+///
+/// `dartvel.terminal: true`, and nothing else. An application that says
+/// nothing gets no terminal backend, which is the rule the whole feature rests
+/// on: a rendering backend costs binary size for every user who never reaches
+/// it.
+///
+/// A value that is neither boolean is refused rather than guessed. `yes`, `1`
+/// and a nested map are all plausible things to write and all ambiguous;
+/// guessing one way links a backend nobody asked for, and guessing the other
+/// silently ignores a request that was made.
+bool readTerminalOptIn(YamlMap? pubspec) {
+  final dartvel = pubspec?['dartvel'];
+  if (dartvel is! YamlMap) return false;
+  if (!dartvel.containsKey('terminal')) return false;
+
+  final value = dartvel['terminal'];
+  if (value is bool) return value;
+  throw FormatException(
+    'dartvel.terminal must be true or false, not "$value". Terminal '
+    'rendering is linked into a build or it is not; there is no third state.',
+  );
+}
 
 /// The backends a build links, from the target's format and the application's
 /// opt-in.
@@ -354,7 +379,27 @@ class BuildCommand extends Command<void> {
         : [normalized.platform];
     final format = formatFlag ?? normalized.format;
 
+    // Resolved once, before any target runs, so a mistyped opt-in is reported
+    // before minutes of generation rather than after.
+    final Set<DVRenderBackend> renderBackends;
+    try {
+      renderBackends = resolveRenderBackends(
+        format: format,
+        terminalOptIn: readTerminalOptIn(readPubspecYaml(root)),
+      );
+    } on FormatException catch (error) {
+      Logger.log('❌ ${error.message}');
+      exit(78); // EX_CONFIG
+    }
+
     Logger.log('🔨 Building Dartvel project...');
+    if (renderBackends.contains(DVRenderBackend.terminal)) {
+      Logger.log(
+        renderBackends.contains(DVRenderBackend.gui)
+            ? '   Rendering: GUI and terminal.'
+            : '   Rendering: terminal only.',
+      );
+    }
     Logger.log('');
 
     var skipped = 0;
