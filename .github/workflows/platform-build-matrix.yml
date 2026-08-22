@@ -250,6 +250,36 @@ jobs:
           echo "artifact at $path:"
           ls -la "$path"
 
+      # Diagnostics as an artifact, not only as job logs.
+      #
+      # The Actions *logs* endpoint has its own abuse throttle, separate from
+      # the API rate limit, and it refuses reads for long stretches after a
+      # burst — which is exactly when a failing build most needs reading.
+      # Artifacts download through a different endpoint, so a failure stays
+      # readable. Always runs, since the interesting case is the failing one.
+      - name: Collect diagnostics
+        if: steps.gate.outputs.run == 'true' && always()
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/diagnostics"
+          cp "$RUNNER_TEMP/build.log" "$RUNNER_TEMP/diagnostics/" 2>/dev/null || true
+          cp /tmp/plain-flutter.log "$RUNNER_TEMP/diagnostics/" 2>/dev/null || true
+          {
+            echo "platform: ${{ matrix.platform }}"
+            echo "runner: ${{ matrix.os }}"
+            echo "flutter: $(flutter --version 2>&1 | head -1)"
+            echo "--- processes still alive ---"
+            ps aux | grep -Ei 'dart|flutter|xcodebuild|cargo' | grep -v grep || true
+          } > "$RUNNER_TEMP/diagnostics/environment.txt" 2>&1
+
+      - uses: actions/upload-artifact@v4
+        if: steps.gate.outputs.run == 'true' && always()
+        with:
+          name: diagnostics-${{ matrix.platform }}
+          path: ${{ runner.temp }}/diagnostics
+          retention-days: 5
+          if-no-files-found: warn
+
       # Only the verified artifact: uploading all of build/ ships gigabytes
       # of intermediates against a storage quota measured in megabytes.
       - uses: actions/upload-artifact@v4
