@@ -60,6 +60,15 @@ Future<void> main(List<String> args) async {
     // with a host-arch dylib hands lipo two arm64 inputs and fails the build.
     final targetOS = input.config.code.targetOS;
     final targetArch = input.config.code.targetArchitecture;
+    // The SDK follows the *target*, never the host: a macOS host building for
+    // iOS needs the iOS SDK. Null everywhere that has no Apple SDK, and the
+    // environment helper then adds nothing.
+    final appleSdk = switch (targetOS) {
+      OS.macOS => resolveAppleSdkRoot('macosx'),
+      OS.iOS => resolveAppleSdkRoot('iphoneos'),
+      _ => null,
+    };
+
     final tripleInfo = _resolveTarget(targetOS, targetArch);
     if (tripleInfo == null) {
       stdout.writeln(
@@ -96,6 +105,9 @@ Future<void> main(List<String> args) async {
       const Duration(minutes: 30),
       workingDirectory: rustDir.path,
       stream: true,
+      // cc-rs needs this to emit -isysroot; without it every C dependency
+      // fails to find its headers.
+      sdkRoot: appleSdk,
     );
     if (cargo == null || cargo.exitCode != 0) {
       throw StateError(
@@ -185,23 +197,61 @@ Future<bool> _hasRustTarget(String triple) async {
 ///
 /// Nothing is guessed when there is no home directory to derive from: an
 /// invented path would replace a clear error with a confusing one.
-Map<String, String>? hookChildEnvironment(Map<String, String> parent) {
-  if (parent.containsKey('PUB_CACHE')) return null;
-  if (parent.containsKey('LOCALAPPDATA')) return null;
+Map<String, String>? hookChildEnvironment(
+  Map<String, String> parent, {
+  String? sdkRoot,
+}) {
+  final additions = <String, String>{};
+
+  // cc-rs asks the environment where the Apple SDK is. Without SDKROOT it
+  // emits no -isysroot, and every C dependency fails to find its headers:
+  // `cc --target=x86_64-apple-macosx` with nothing to include from. ring,
+  // zstd-sys and aws-lc-sys all died that way on macOS, which made whichever
+  // compiled first look like the culprit.
+  //
+  // Never overridden when already present: during a real Xcode build it is set
+  // by Xcode, which knows which SDK this build is for better than we do.
+  if (sdkRoot != null &&
+      sdkRoot.isNotEmpty &&
+      !parent.containsKey('SDKROOT')) {
+    additions['SDKROOT'] = sdkRoot;
+  }
+
+  if (parent.containsKey('PUB_CACHE') || parent.containsKey('LOCALAPPDATA')) {
+    return additions.isEmpty ? null : <String, String>{...parent, ...additions};
+  }
 
   final userProfile = parent['USERPROFILE'];
   final home = parent['HOME'];
-  final String derived;
   if (userProfile != null && userProfile.isNotEmpty) {
     // Where Dart puts it on Windows when LOCALAPPDATA is available.
-    derived = '$userProfile\\AppData\\Local\\Pub\\Cache';
+    additions['PUB_CACHE'] = '$userProfile\\AppData\\Local\\Pub\\Cache';
   } else if (home != null && home.isNotEmpty) {
-    derived = '$home/.pub-cache';
-  } else {
-    return null;
+    additions['PUB_CACHE'] = '$home/.pub-cache';
   }
 
-  return <String, String>{...parent, 'PUB_CACHE': derived};
+  if (additions.isEmpty) return null;
+  return <String, String>{...parent, ...additions};
+}
+
+/// The Apple SDK path for [sdk], or null when this is not a Mac or the query
+/// fails.
+///
+/// Asked of `xcrun` rather than guessed: the path moves between Xcode versions
+/// and between Xcode and the standalone command line tools.
+String? resolveAppleSdkRoot(String sdk) {
+  if (!Platform.isMacOS) return null;
+  try {
+    final result = Process.runSync(
+      'xcrun',
+      <String>['--sdk', sdk, '--show-sdk-path'],
+    );
+    if (result.exitCode != 0) return null;
+    final path = '${result.stdout}'.trim();
+    return path.isEmpty ? null : path;
+  } catch (_) {
+    return null;
+  }
 }
 
 /// Runs [executable] and kills it if it outlives [timeout].
@@ -226,13 +276,17 @@ Future<ProcessResult?> _runBounded(
   Duration timeout, {
   String? workingDirectory,
   bool stream = false,
+  String? sdkRoot,
 }) async {
   try {
     final process = await Process.start(
       executable,
       arguments,
       workingDirectory: workingDirectory,
-      environment: hookChildEnvironment(Platform.environment),
+      environment: hookChildEnvironment(
+        Platform.environment,
+        sdkRoot: sdkRoot,
+      ),
     );
 
     Future<String> stdoutText;
