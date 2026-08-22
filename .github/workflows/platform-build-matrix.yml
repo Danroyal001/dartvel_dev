@@ -159,6 +159,20 @@ jobs:
         working-directory: examples/dartvel_example
         run: flutter pub get
 
+      # macOS has hung twice with no output after "Building for macos...".
+      # iOS, which is the same toolchain minus signing, succeeds — so this
+      # runs plain Flutter verbosely, self-limited, to find out whether the
+      # block is Dartvel's build path or Xcode waiting on something. It never
+      # fails the job; it exists to produce the log line that says where.
+      - name: Diagnose the macOS hang
+        if: steps.gate.outputs.run == 'true' && matrix.platform == 'macos'
+        working-directory: examples/dartvel_example
+        continue-on-error: true
+        run: |
+          set +e
+          timeout 600 flutter build macos --debug -v 2>&1 | tail -60
+          echo "exit: $? (124 = timed out, so plain Flutter hangs too)"
+
       - name: Build
         if: steps.gate.outputs.run == 'true'
         working-directory: examples/dartvel_example
