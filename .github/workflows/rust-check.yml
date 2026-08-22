@@ -64,6 +64,19 @@ jobs:
       - name: Install cbindgen
         run: cargo install cbindgen --locked || true
 
+      # aws-lc-rs is rustls's default provider and we use ring. It compiles a
+      # large C codebase for nothing, and on macOS it fails outright: cc-rs
+      # invokes clang without an -isysroot and cannot find stdlib.h, which is
+      # what broke `dartvel build macos`. Keep it out.
+      - name: no second crypto provider
+        run: |
+          if cargo tree -i aws-lc-rs -e normal >/dev/null 2>&1; then
+            echo "::error::aws-lc-rs is back in the dependency tree."
+            cargo tree -i aws-lc-rs -e normal
+            exit 1
+          fi
+          echo "aws-lc-rs absent, ring is the only provider"
+
       - name: cargo check
         run: cargo check --all-targets
 
