@@ -2422,8 +2422,71 @@ class DVBrowserExtension {
   }
 }
 
+/// Where an application's frames are landing.
+///
+/// Decided at build time from what was linked — the `-cli`/`-tui` suffix or a
+/// `dartvel.terminal` opt-in — and never by probing at startup. Probing would
+/// make the presentation a runtime question, which is exactly what would force
+/// every application to ship both backends.
+enum DVRenderSurface { gui, terminal }
+
+/// How faithfully a terminal can draw.
+///
+/// Kitty's graphics protocol carries real pixels; ANSI carries cells and is
+/// coarser. Which one is active is reported rather than inferred from a
+/// terminal's name, because the name is a poor predictor and a wrong guess
+/// changes what a layout can reasonably draw.
+enum DVTerminalGraphics { kitty, ansi }
+
+/// The terminal an application is drawing into.
+///
+/// Null whenever the surface is a GUI: asking a window for its column count is
+/// a question with no answer, and a fabricated one would be worse than none.
+class DVTerminalSurface {
+  const DVTerminalSurface({
+    required this.columns,
+    required this.rows,
+    required this.graphics,
+  });
+
+  final int columns;
+  final int rows;
+  final DVTerminalGraphics graphics;
+
+  @override
+  String toString() =>
+      'DVTerminalSurface(${columns}x$rows, ${graphics.name})';
+}
+
 class DVPlatform {
   const DVPlatform();
+
+  static DVRenderSurface? _surfaceOverride;
+  static DVTerminalSurface? _terminal;
+
+  /// Where this application's frames are landing.
+  ///
+  /// The GUI unless a terminal backend was linked and installed itself at
+  /// startup. An application that opted into nothing sees exactly what it
+  /// always saw.
+  DVRenderSurface get surface => _surfaceOverride ?? DVRenderSurface.gui;
+
+  /// The terminal being drawn into, or null when this is a GUI.
+  DVTerminalSurface? get terminal =>
+      surface == DVRenderSurface.terminal ? _terminal : null;
+
+  /// Installs the surface the runtime actually started on.
+  ///
+  /// Called by the terminal backend during startup, and by tests. Passing null
+  /// restores the default. Setting a GUI surface clears any terminal details,
+  /// so a stale terminal can never end up describing a window.
+  void useRenderSurface(
+    DVRenderSurface? surface, {
+    DVTerminalSurface? terminal,
+  }) {
+    _surfaceOverride = surface;
+    _terminal = surface == DVRenderSurface.terminal ? terminal : null;
+  }
 
   static const String _platformOverride =
       String.fromEnvironment('DARTVEL_PLATFORM');
