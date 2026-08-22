@@ -91,10 +91,16 @@ const buildPlatformArguments = <String>[
 
 /// Targets that can render into a terminal.
 ///
-/// Desktop platforms and Fuchsia. Android, iOS and web have no terminal to
-/// render into, so the suffix is refused there rather than accepted and
-/// ignored — building a GUI application under a name promising a TUI is worse
-/// than refusing the name.
+/// Desktop platforms and Fuchsia. The suffix is refused elsewhere rather than
+/// accepted and ignored, because building something other than what the name
+/// promises is worse than refusing the name.
+///
+/// Android is refused for a reason worth writing down, since the obvious
+/// objection is that Termux exists. It does, but a `linux-cli` binary cannot
+/// run in it: Termux is Android userland, so it uses bionic rather than glibc
+/// and has no `/lib/ld-linux-aarch64.so.1` to load a `linux-gnu` binary with.
+/// Supporting it would need an Android-triple build and a Flutter engine that
+/// runs without an Activity — a project, not a suffix.
 const terminalCapablePlatforms = <String>[
   'linux',
   'windows',
