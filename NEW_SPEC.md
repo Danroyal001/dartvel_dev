@@ -2058,6 +2058,111 @@ JNI/jnigen only, no Flutter platform channels.
 
 ---
 
+# Terminal Rendering
+
+A Dartvel application can present itself in a terminal instead of a window,
+without being a different application. `dartvel build linux-cli` builds the
+same Linux target as `dartvel build linux` from the same widgets — it changes
+where frames are drawn, not what is drawn.
+
+This is a **rendering mode, not a platform**. It resolves the way
+`sony-elinux-iso` already does: a suffix that names a base platform and a
+presentation.
+
+```
+dartvel build linux-cli
+dartvel build windows-cli
+dartvel build macos-cli
+dartvel build fuchsia-cli
+```
+
+Nothing about a page changes. `DVBox`, `DVText`, generated model pages and
+Studio documents render as they do anywhere else, subject to what a terminal
+can express.
+
+## It is opt-in, and that is a constraint on the implementation
+
+The terminal renderer is **not** part of an ordinary build. An application
+that will never run in a terminal must not carry the code that would draw one
+— the cost of a rendering backend is paid in binary size by every user who
+never uses it.
+
+So terminal support is a dependency an application adds, not a capability
+every application has:
+
+```yaml
+dependencies:
+  dartvel_tui: ^0.1.0
+```
+
+Without that dependency, `dartvel build linux-cli` fails with a message
+naming it rather than silently producing a GUI binary. With it, an ordinary
+`dartvel build linux` still links no terminal code: the presentation is
+selected at build time, and only one backend is ever linked.
+
+This rules out the obvious shortcut of shipping both and choosing at startup.
+A runtime switch is simpler and is the wrong trade — it makes every GUI build
+pay for a terminal backend it will never reach.
+
+## Fallback is also opt-in
+
+An application may declare that it should fall back to terminal rendering
+where a GUI is unavailable — a headless server, an SSH session, a platform
+with no window system.
+
+```yaml
+dartvel:
+  terminal:
+    fallback: whenNoDisplay
+```
+
+The default is `never`. A GUI application that cannot open a window should
+fail visibly rather than silently redraw itself as text, because a fallback
+nobody asked for is indistinguishable from a bug at the moment it happens.
+
+Where fallback is enabled, the reason is observable rather than inferred, in
+the same way a degraded window reports why it was degraded.
+
+## What the application can observe
+
+```dart
+DV.Platform.surface        // DVRenderSurface.gui | DVRenderSurface.terminal
+DV.Platform.terminal       // null unless surface is terminal
+DV.Platform.terminal.size  // columns and rows, as a signal
+DV.Platform.terminal.graphics  // DVTerminalGraphics.kitty | .ansi
+```
+
+`DV.Platform` stays the stable surface, as it does for every other platform
+capability; a terminal is another thing it reports on rather than a namespace
+of its own.
+
+`size` is a signal, so a layout responds to a resized terminal the way it
+responds to a resized window — the same reactive path, not a parallel one.
+
+## What a terminal cannot do
+
+Stated plainly, because a rendering mode that pretends to be lossless is worse
+than one with documented edges:
+
+- **Arbitrary pixels need a capable terminal.** Full-fidelity rendering uses
+  the Kitty graphics protocol. Where that is unavailable, rendering falls back
+  to ANSI cells, which is coarser and slower. Both are supported; which one is
+  in use is reported by `DV.Platform.terminal.graphics` rather than guessed at.
+- **Over a slow link, frames cost bandwidth.** A 60fps animation redrawn over
+  SSH is not free the way a local compositor is.
+- **Pointer input is limited** to what the terminal reports, and some terminals
+  report none.
+
+An application that needs to know should ask `DV.Platform`. An application
+that does not should not have to.
+
+## Why this is not a separate target family
+
+A `cli` target that compiled a plain Dart entrypoint would be a different
+product: no widgets, no pages, no Studio — closer to `dart compile exe` than
+to Dartvel. Terminal rendering is deliberately the other thing. The same
+application, the same pages, presented where there is no window server.
+
 # Multi-Window
 
 Stability: `Draft` · Status: `Designed`

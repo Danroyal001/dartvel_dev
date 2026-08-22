@@ -8,7 +8,7 @@
       "kind": "narrative"
     },
     {
-      "section": "Dartvel — The Complete Vision, to be implemented",
+      "section": "Dartvel \u2014 The Complete Vision, to be implemented",
       "kind": "narrative"
     },
     {
@@ -328,6 +328,12 @@
         "packages/dartvel_flutter/test/linux_bindings_test.dart"
       ],
       "absent": "Tray, menus, global shortcuts, multi-window, and every device/fleet API"
+    },
+    {
+      "section": "Terminal Rendering",
+      "stability": "Draft",
+      "status": "Designed",
+      "notes": "Specified only. No implementation: the terminal backend, the dartvel_tui opt-in package, the -cli build suffixes and DV.Platform.surface do not exist yet."
     },
     {
       "section": "Multi-Window",
