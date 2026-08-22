@@ -70,5 +70,38 @@ void main() {
       expect(hookChildEnvironment(const <String, String>{'PATH': '/usr/bin'}),
           isNull);
     });
+
+    test('supplies SDKROOT for an Apple target when it is missing', () {
+      // Every C dependency failed on macOS with headers not found, because
+      // cc-rs emitted no -isysroot: `cc --target=x86_64-apple-macosx` with no
+      // SDK. ring, zstd-sys and aws-lc-sys all died the same way, which is
+      // what made aws-lc-rs look like the cause when it was only the first
+      // crate to compile.
+      final env = hookChildEnvironment(
+        const <String, String>{'PUB_CACHE': '/c'},
+        sdkRoot: '/Xcode/MacOSX.sdk',
+      );
+      expect(env, isNotNull);
+      expect(env!['SDKROOT'], '/Xcode/MacOSX.sdk');
+    });
+
+    test('does not override an SDKROOT the parent already set', () {
+      // Xcode sets it during a real build, and it knows better than we do
+      // which SDK this build is for.
+      final env = hookChildEnvironment(
+        const <String, String>{'PUB_CACHE': '/c', 'SDKROOT': '/theirs.sdk'},
+        sdkRoot: '/ours.sdk',
+      );
+      expect(env?['SDKROOT'] ?? '/theirs.sdk', '/theirs.sdk');
+    });
+
+    test('adds nothing on a platform with no SDK root to supply', () {
+      // Linux and Windows have no equivalent; passing null must not create an
+      // environment map for the sake of it.
+      expect(
+        hookChildEnvironment(const <String, String>{'PUB_CACHE': '/c'}),
+        isNull,
+      );
+    });
   });
 }
