@@ -522,7 +522,7 @@ class BuildCommand extends Command<void> {
       plan.executable,
       plan.arguments,
       runInShell: true,
-      environment: _buildEnvironment,
+      environment: _environmentFor(plan),
     );
     proc.stdout.listen((data) => stdout.add(data));
     proc.stderr.listen((data) => stderr.add(data));
@@ -716,6 +716,17 @@ class BuildCommand extends Command<void> {
     };
   }
 
+  /// [_buildEnvironment] plus whatever the embedder itself requires.
+  ///
+  /// Null only when there is nothing to add, so the child inherits normally.
+  Map<String, String>? _environmentFor(EmbeddedBuildPlan plan) {
+    if (plan.environment.isEmpty) return _buildEnvironment;
+    return <String, String>{
+      ...(_buildEnvironment ?? Platform.environment),
+      ...plan.environment,
+    };
+  }
+
   /// Checks that this host can build [platform] and that its toolchain is
   /// present, installing what it can.
   ///
@@ -844,10 +855,20 @@ class EmbeddedBuildPlan {
     this.arguments, {
     this.scaffoldDirectory,
     this.scaffoldArguments = const <String>[],
+    this.environment = const <String, String>{},
   });
 
   final String executable;
   final List<String> arguments;
+
+  /// Variables the embedder requires beyond an inherited environment.
+  ///
+  /// Vendor embedders are ordinarily configured by being on PATH. Fuchsia's is
+  /// not: its scripts locate their own workspace through
+  /// `FUCHSIA_EMBEDDER_DIR`, and refuse to run without it. Dartvel installed
+  /// that checkout and therefore knows the value, so it sets it rather than
+  /// telling the developer to edit a shell profile.
+  final Map<String, String> environment;
 
   /// The platform directory the embedder requires, the way an Android build
   /// requires `android/`. Null when the embedder needs no scaffold.
@@ -1068,6 +1089,9 @@ EmbeddedBuildPlan? resolveEmbeddedBuildPlan({
       return EmbeddedBuildPlan(
         '$root/dartvel_fuchsia/$fuchsiaAppBuildScript',
         List<String>.unmodifiable(args),
+        environment: Map<String, String>.unmodifiable(<String, String>{
+          'FUCHSIA_EMBEDDER_DIR': '$root/dartvel_fuchsia',
+        }),
       );
     default:
       return null;
