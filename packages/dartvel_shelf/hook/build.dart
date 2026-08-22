@@ -172,6 +172,38 @@ Future<bool> _hasRustTarget(String triple) async {
   return '${result.stdout}'.split('\n').map((l) => l.trim()).contains(triple);
 }
 
+/// The environment a hook child process should see, or null to inherit.
+///
+/// Returns null whenever the parent is already sufficient — rebuilding an
+/// environment we have no reason to touch is a way to lose something from it.
+///
+/// The case this exists for came from Windows CI. Once the native build
+/// stopped hanging it reached ffigen, which died with "Could not find the pub
+/// cache. No `LOCALAPPDATA` environment variable exists." The Rust half had
+/// already succeeded; the failure was a child inheriting an environment with
+/// neither `PUB_CACHE` nor `LOCALAPPDATA` in it.
+///
+/// Nothing is guessed when there is no home directory to derive from: an
+/// invented path would replace a clear error with a confusing one.
+Map<String, String>? hookChildEnvironment(Map<String, String> parent) {
+  if (parent.containsKey('PUB_CACHE')) return null;
+  if (parent.containsKey('LOCALAPPDATA')) return null;
+
+  final userProfile = parent['USERPROFILE'];
+  final home = parent['HOME'];
+  final String derived;
+  if (userProfile != null && userProfile.isNotEmpty) {
+    // Where Dart puts it on Windows when LOCALAPPDATA is available.
+    derived = '$userProfile\\AppData\\Local\\Pub\\Cache';
+  } else if (home != null && home.isNotEmpty) {
+    derived = '$home/.pub-cache';
+  } else {
+    return null;
+  }
+
+  return <String, String>{...parent, 'PUB_CACHE': derived};
+}
+
 /// Runs [executable] and kills it if it outlives [timeout].
 ///
 /// Every process this hook starts goes through here. The hook runs before
@@ -200,6 +232,7 @@ Future<ProcessResult?> _runBounded(
       executable,
       arguments,
       workingDirectory: workingDirectory,
+      environment: hookChildEnvironment(Platform.environment),
     );
 
     Future<String> stdoutText;
