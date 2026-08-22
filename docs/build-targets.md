@@ -28,7 +28,7 @@ local Dartvel `dartvel_vscode` fork added as a dependency.
 | `tizen` / `tpk` | ✅ Builds | Signed 9.3MB TPK with engine + assets, built on a laptop with Tizen Studio installed. CI can only ever *skip* it — the SDK is licence-gated and Dartvel must not install it unattended — so the workflow asserts the skip names that reason. See [Tizen](#tizen-samsung) |
 | `sony-elinux` | ❌ Blocked | Dart version floor; see [Sony eLinux](#sony-elinux) |
 | `webos` | ❌ Blocked | Dart version floor — the embedder ships Dart 3.10.9, `mix` needs ≥ 3.11.0; see [webOS](#webos-lg) |
-| `fuchsia` | ⚠️ Unproven | **Still never executed anywhere.** The first CI attempt ([32538715349](https://github.com/Danroyal001/dartvel/actions/runs/32538715349)) did not reach the build: its Bazel bootstrap piped `curl` into `/usr/local/bin` without `sudo` and died with exit 23. Fixed; re-running. x64 only. See [Fuchsia](#fuchsia) |
+| `fuchsia` | ⚠️ Blocked in the fork | **Executed for the first time**, and now builds the Flutter bundle and stages the app into the embedder workspace. Stops there: the fork's `build_flutter_app.sh` delegates to `build_and_run_example.sh`, which tries to *run* the result on a device through `ffx`. Needs a build-only path in [`dartvel_fuchsia`](https://github.com/Danroyal001/dartvel_fuchsia), not a change in Dartvel. x64 only. See [Fuchsia](#fuchsia) |
 | `vscode` | ✅ Builds | `out/src/extension.js`, `out/lib/vscode_api.handlers.js`, `build/web/flutter_bootstrap.js`, `build/web/assets/` |
 | `chrome-extension` | ✅ Builds | `build/chrome-extension` (41 MB): MV3 manifest with a `service_worker` background, `index.html`, `main.dart.js`, `background.js`, icons. See [Browser extensions](#browser-extensions) |
 | `firefox-extension` | ✅ Builds | `build/firefox-extension`: the same bundle with an event-page `background.scripts` manifest — verified to differ from the Chromium one, not copy it |
@@ -152,6 +152,33 @@ embedder against the Flutter version Dartvel ships.
 | `vscode` | [Danroyal001/dartvel_vscode](https://github.com/Danroyal001/dartvel_vscode) | `SlowGen/flutter_vscode` | VS Code |
 
 ### Fuchsia
+
+**Four Dartvel bugs stood between "never executed" and "builds the bundle",
+and each one hid the next.** Recorded because the shape is worth remembering:
+every layer failed in a way that looked like the target being unsupported.
+
+1. **Bazel was never installed.** CI piped `curl` into `/usr/local/bin`
+   without `sudo` and exited 23, and `|| true` swallowed it. Fuchsia was never
+   reached at all, while the run looked like a Fuchsia failure.
+2. **The build plan named an executable that does not exist.** It resolved
+   `dartvel_fuchsia` on PATH, though the comment directly above the code says
+   Fuchsia has no embedder binary — it is a Bazel workspace. The lookup could
+   only fail, so the target could only skip. The unit test asserted
+   `executable == 'dartvel_fuchsia'`, so it passed on the broken behaviour: it
+   checked the plan's shape, never that the thing named could be found.
+3. **`$FUCHSIA_EMBEDDER_DIR` was unset.** The script named the exact path
+   Dartvel had just cloned the checkout to. Dartvel now sets it, per the rule
+   that tools installed during a run must reach child processes.
+4. **The architecture default was wrong for this target.** `--arch` defaults to
+   arm64, which suits TVs and boards; Fuchsia's embedder ships an x64 prebuilt
+   engine only. A plain `dartvel build fuchsia` therefore asked for an engine
+   that does not exist without anyone choosing arm64.
+
+A fifth wall is in the fork rather than in Dartvel: `build_flutter_app.sh`
+calls `build_and_run_example.sh`, which after building tries to run the app on
+a device via `tools/ffx`. CI has no device and no `ffx`. The fork needs a
+build-only entry point before this target can produce an inspectable artifact.
+
 
 Driven by Fuchsia's out-of-tree Flutter embedder
 ([fuchsia.googlesource.com/flutter-embedder](https://fuchsia.googlesource.com/flutter-embedder/)),
