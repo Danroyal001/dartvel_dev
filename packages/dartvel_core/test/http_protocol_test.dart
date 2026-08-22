@@ -13,7 +13,6 @@ class _FakeTransport implements DVHttpTransport {
   _FakeTransport({
     required this.supportedProtocols,
     this.failWith,
-    this.succeedOn,
   });
 
   @override
@@ -24,9 +23,6 @@ class _FakeTransport implements DVHttpTransport {
 
   /// Protocols that fail, and whether the failure is worth retrying.
   final Map<DVHttpProtocol, bool>? failWith;
-
-  /// The protocol that succeeds. Null means every supported one does.
-  final DVHttpProtocol? succeedOn;
 
   final List<DVHttpProtocol> attempted = <DVHttpProtocol>[];
 
@@ -40,9 +36,6 @@ class _FakeTransport implements DVHttpTransport {
     final retryable = failWith?[protocol];
     if (retryable != null) {
       throw DVHttpNegotiationFailure(protocol, 'refused', retryable: retryable);
-    }
-    if (succeedOn != null && succeedOn != protocol) {
-      throw DVHttpNegotiationFailure(protocol, 'not this one');
     }
     return DVHttpResponse(statusCode: 200, body: 'ok', protocol: protocol);
   }

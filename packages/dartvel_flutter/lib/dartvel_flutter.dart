@@ -100,7 +100,7 @@ export 'package:dartvel_core/dartvel.dart'
         DVTransactionRunner,
         // Model pages and static generation
         DVModelPageDataMode,
-        DVStaticPaths,
+        DVPublicPathsResolver,
         DVModelPageRole,
         DVWorkflowDocument,
         DVWorkflowDocumentEditor,

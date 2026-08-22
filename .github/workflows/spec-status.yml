@@ -8,11 +8,15 @@ name: Spec status
 # Linux job that finishes in seconds and the whole point of the labels is that
 # something checks them — an unchecked status index is the drift it replaced.
 
+# The path filter this used to carry was the bug. It triggered only on changes
+# to NEW_SPEC.md, the index, or the checker — but the index cites evidence
+# living under packages/, so deleting a test file invalidates it without
+# touching any of those. That is exactly what happened when computed_test.dart
+# was renamed: a dangling citation shipped, and no push-triggered job was
+# watching. The check runs in seconds; filtering it was a false economy.
 on:
   push:
-    paths: [NEW_SPEC.md, docs/spec-status.json, tool/spec_status_check.dart, .github/workflows/spec-status.yml]
   pull_request:
-    paths: [NEW_SPEC.md, docs/spec-status.json, tool/spec_status_check.dart]
   workflow_dispatch:
 
 jobs:
