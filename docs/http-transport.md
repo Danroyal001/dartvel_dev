@@ -113,8 +113,8 @@ rule: FFI, never platform channels.
 | Rust HTTP/2 client with early hints | ✅ Implemented, 8 unit tests + a live check |
 | `DVRustHttpTransport` Dart binding | ✅ Implemented |
 | Rust HTTP/3 client | ⏳ Next |
-| APNS provider | ⏳ Next — unblocked |
-| Web Push payload encryption | ⏳ Next — needs P-256/HKDF/AES-GCM in Rust |
+| APNS provider | ✅ Implemented, 17 tests |
+| Web Push provider (RFC 8291 + 8292) | ✅ Implemented, 15 tests |
 
 Nothing above is marked done on the strength of a plan.
 

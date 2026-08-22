@@ -11,6 +11,8 @@ import 'src/ai/ai.dart';
 import 'src/database/adapter.dart';
 import 'src/http/aws_sigv4.dart';
 import 'src/http/transport.dart';
+import 'src/notifications/web_push.dart';
+import 'src/notifications/web_push_vapid.dart';
 import 'src/mail/smtp.dart';
 
 // Re-export common types so backends can import only dartvel_core.
@@ -2471,6 +2473,143 @@ String apnsFailureReason(DVHttpResponse response) {
     'PayloadTooLarge' =>
       'PayloadTooLarge: APNS caps a payload at 4KB (5KB for VoIP).',
     _ => reason,
+  };
+}
+
+/// Web Push, per RFC 8291 (encryption) and RFC 8292 (VAPID).
+///
+/// The recipient is the browser subscription as JSON, exactly as
+/// `PushManager.subscribe()` produced it. It is not a token that can be posted
+/// to: the push service is untrusted infrastructure that never sees the
+/// plaintext, so the payload is encrypted to a key only the subscribing user
+/// agent holds, and the request is signed so the service knows which
+/// application server is sending.
+///
+/// Both halves already exist as [DVWebPush] and [DVWebPushVapid]; this is what
+/// puts them on the wire together. Neither is optional — an unencrypted body
+/// is a protocol error rather than a degraded mode, and an unsigned POST is
+/// refused because anyone who learned the endpoint could otherwise send to it.
+class WebPushProvider implements DVNotificationProvider {
+  /// The application server's identity key. **Stable across sends**: it is the
+  /// public half of this pair that the browser pinned at subscribe time, so
+  /// rotating it invalidates every existing subscription.
+  final DVWebPushKeyPair vapidKeys;
+
+  /// A `mailto:` or `https:` contact for whoever operates this server. Push
+  /// services require one so they can report abuse to a human.
+  final String subject;
+
+  /// How long a message may wait if the device is offline.
+  final Duration timeToLive;
+
+  final DVHttpSend transport;
+
+  WebPushProvider({
+    required this.vapidKeys,
+    required this.subject,
+    this.timeToLive = const Duration(hours: 24),
+    this.transport = dvSendHttpRequest,
+  });
+
+  @override
+  DVNotificationProviderKind get kind => DVNotificationProviderKind.webPush;
+
+  /// The payload a service worker receives in its `push` event.
+  Map<String, Object?> buildPayload(DVNotificationMessage message) =>
+      <String, Object?>{
+        'title': message.title,
+        'body': message.body,
+        if (message.data.isNotEmpty) 'data': message.data,
+      };
+
+  @override
+  Future<void> send(String recipient, DVNotificationMessage message) async {
+    final subscription = _parseSubscription(recipient);
+
+    // A fresh key pair per message, which is what stops one recovered key
+    // from opening every message ever sent. Distinct from the VAPID pair,
+    // which must stay stable — conflating them is the mistake that silently
+    // breaks every subscription on the next send.
+    final encrypted = DVWebPush.encrypt(
+      subscription: subscription,
+      payload: utf8.encode(jsonEncode(buildPayload(message))),
+    );
+
+    final response = await transport(
+      DVHttpRequest(
+        url: Uri.parse(subscription.endpoint),
+        headers: <String, String>{
+          ...encrypted.headers,
+          'authorization': DVWebPushVapid.authorizationHeader(
+            endpoint: subscription.endpoint,
+            keyPair: vapidKeys,
+            subject: subject,
+          ),
+          'ttl': '${timeToLive.inSeconds}',
+        },
+        body: encrypted.body,
+      ),
+    );
+
+    if (!response.isSuccess) {
+      throw DVPushProviderException(
+        'webPush',
+        webPushFailureReason(response),
+        statusCode: response.statusCode,
+        responseBody: response.body,
+      );
+    }
+  }
+
+  DVWebPushSubscription _parseSubscription(String recipient) {
+    if (recipient.trim().isEmpty) {
+      throw ArgumentError.value(
+        recipient,
+        'recipient',
+        'A Web Push notification needs the browser subscription JSON.',
+      );
+    }
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(recipient);
+    } on FormatException catch (error) {
+      throw ArgumentError.value(
+        recipient,
+        'recipient',
+        'A Web Push recipient is the subscription JSON from '
+            'PushManager.subscribe(): $error',
+      );
+    }
+    if (decoded is! Map<String, Object?>) {
+      throw ArgumentError.value(
+        recipient,
+        'recipient',
+        'A Web Push subscription is a JSON object.',
+      );
+    }
+    return DVWebPushSubscription.fromJson(decoded);
+  }
+}
+
+/// A readable explanation for a push service rejection.
+///
+/// Push services answer with a status and little else, and the statuses that
+/// matter mean different things here than they do elsewhere — a 410 is not a
+/// missing page, it is an instruction to stop sending to this subscription
+/// forever.
+String webPushFailureReason(DVHttpResponse response) {
+  return switch (response.statusCode) {
+    404 || 410 =>
+      'The subscription is gone: the user revoked permission or cleared site '
+          'data. Delete it rather than retrying.',
+    413 =>
+      'Payload too large. A push service guarantees only 4KB of encrypted '
+          'payload.',
+    429 => 'Rate limited by the push service. Honour Retry-After.',
+    401 || 403 =>
+      'VAPID rejected: the signature, the subject, or the key does not match '
+          'the one the browser subscribed with.',
+    _ => 'The push service rejected the notification.',
   };
 }
 
