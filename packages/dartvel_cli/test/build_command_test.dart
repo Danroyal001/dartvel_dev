@@ -905,8 +905,15 @@ void terminalRenderingTests() {
 
     test('a suffix on a target that cannot render in a terminal is refused',
         () {
-      // Android and iOS have no terminal to render into. Accepting the suffix
-      // and ignoring it would build a GUI app under a name promising a TUI.
+      // Not because Android has no terminal — Termux is one. Because a
+      // linux-cli binary cannot run there: Termux is Android userland, so it
+      // uses bionic rather than glibc and has no /lib/ld-linux-aarch64.so.1
+      // to load a linux-gnu binary with. Supporting it would mean an
+      // Android-triple build and an engine that runs without an Activity,
+      // which is a project rather than a suffix.
+      //
+      // Accepting the suffix and quietly building something else would be
+      // worse than refusing it.
       expect(() => normalizeBuildTarget('android-cli'), throwsFormatException);
       expect(() => normalizeBuildTarget('web-tui'), throwsFormatException);
     });
