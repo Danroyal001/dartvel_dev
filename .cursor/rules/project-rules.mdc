@@ -159,6 +159,23 @@ gap.
 - The same applies to tag messages, release notes, and pull request bodies.
 - Author and committer stay the repository owner's identity.
 
+## Test-Driven Development Rule
+
+- Write the failing test first, watch it fail for the right reason, then write
+  the code that makes it pass. Tests written after an implementation encode
+  what the code does rather than what it should do.
+- A test that has never failed has proven nothing. If a new test passes the
+  first time it is run, that is a signal to check whether it is asserting
+  anything real — not a signal to move on.
+- Never adjust a test so that existing code passes. If a test and the code
+  disagree, decide which is wrong on the merits and say so.
+- Assert on behaviour, not on shape. `expect(plan.executable, 'dartvel_fuchsia')`
+  passed for weeks while that target could never build, because nothing by that
+  name is ever installed: the test checked the name of a command instead of
+  checking that the command could run.
+- Cover the failure modes that are silent. A wrong value that still produces a
+  plausible result is worth more test effort than one that throws.
+
 ## Atomic Sync Rule
 
 - Commit and push after every coherent sub-feature, bug fix, or documentation sync so progress is preserved even if the workspace is reclaimed.
