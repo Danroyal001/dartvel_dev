@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
-/// A discovered `@DVStaticPaths()` provider.
+/// A discovered source of static paths for a parameterized model route.
 class StaticPathsProvider {
   const StaticPathsProvider({
     required this.functionName,
@@ -24,30 +24,19 @@ class StaticPathsProvider {
   final String? route;
 }
 
-/// Discovers `@DVStaticPaths()` providers and emits a manifest the static
+/// Discovers static-path sources on `@DVModel` and emits a manifest the static
 /// generator can enumerate.
 ///
 /// Static routes are always generated; a parameterized route cannot be unless
-/// something enumerates the values to generate for it. This turns those
-/// annotated functions into a typed list rather than leaving static generation
+/// something enumerates the values to generate for it. Either
+/// `generatePublicPages: true` (the model's published records) or
+/// `publicPathsResolver:` (an explicit function) says what those values are,
+/// and this turns them into a typed list rather than leaving static generation
 /// to guess.
 class StaticPathsGenerator {
-  /// Matches `@DVStaticPaths(...)` on a top-level function, capturing an
-  /// explicit `route:` argument when present.
-  ///
-  /// The return type is deliberately loose (`Future<List<String>>`,
-  /// `List<String>`, or a typedef) because the annotation, not the signature,
-  /// is what marks the provider.
-  static final _providerRegex = RegExp(
-    r'@DVStaticPaths\s*\(([^)]*)\)\s*'
-    r'(?:@pragma\([^)]*\)\s*)*'
-    r'(?:Future\s*<[^>]*>|[A-Za-z0-9_<>, ]+?)\s+'
-    r'([A-Za-z0-9_]+)\s*\(',
-    dotAll: true,
-  );
-
-  static final _routeArgRegex = RegExp(
-    '''route\\s*:\\s*['"]([^'"]*)['"]''',
+  /// Captures an explicit `publicPathsResolver:` argument on `@DVModel(...)`.
+  static final _resolverArgRegex = RegExp(
+    r'publicPathsResolver\s*:\s*([A-Za-z0-9_.]+)',
   );
 
   static final _modelRegex = RegExp(
@@ -88,33 +77,17 @@ class StaticPathsGenerator {
       final importPath =
           relative.replaceFirst(RegExp(r'^lib/'), 'package:$pkgName/');
 
-      if (content.contains('@DVStaticPaths')) {
-        for (final match in _providerRegex.allMatches(content)) {
-          final args = match.group(1) ?? '';
-          final routeMatch = _routeArgRegex.firstMatch(args);
-          final sourceFunctionName = match.group(2)!;
-          if (!sourceFunctionName.startsWith('_')) {
-            throw StateError(
-              'Dartvel static-path generation inputs must be private. Rename '
-              '$sourceFunctionName to _$sourceFunctionName and reference '
-              'static paths through dartvel_client/dartvel_client.dart.',
-            );
-          }
-          providers.add(
-            StaticPathsProvider(
-              functionName: sourceFunctionName.substring(1),
-              importPath: importPath,
-              route: routeMatch?.group(1),
-            ),
-          );
-        }
-      }
-
       if (content.contains('@DVModel') &&
-          content.contains('generatePublicPages')) {
+          (content.contains('generatePublicPages') ||
+              content.contains('publicPathsResolver'))) {
         for (final match in _modelRegex.allMatches(content)) {
           final args = match.group(1) ?? '';
-          if (!RegExp(r'\bgeneratePublicPages\s*:\s*true\b').hasMatch(args)) {
+          final resolver = _resolverArgRegex.firstMatch(args)?.group(1);
+          final generates =
+              RegExp(r'\bgeneratePublicPages\s*:\s*true\b').hasMatch(args);
+          // A resolver is enough on its own: naming one is the statement that
+          // this model's parameterized route should be generated.
+          if (!generates && resolver == null) {
             continue;
           }
           final sourceClassName = match.group(2)!;
@@ -139,11 +112,19 @@ class StaticPathsGenerator {
               )
               .toList(growable: false);
           final publicPathField = _publicPathField(className, fields);
+          // The route is the model's own either way, so it is never written
+          // out as a string. A route repeated in an annotation drifts the
+          // moment the page file moves, which is what file-based routing
+          // exists to prevent.
           providers.add(
             StaticPathsProvider(
               functionName: '${className}PublicStaticPaths',
-              importPath: 'package:$pkgName/dartvel_client/dartvel_client.dart',
-              resolveExpression: '$className.publicStaticPaths',
+              // A resolver lives in the model's own file; the default
+              // enumeration lives on the generated model.
+              importPath: resolver != null
+                  ? importPath
+                  : 'package:$pkgName/dartvel_client/dartvel_client.dart',
+              resolveExpression: resolver ?? '$className.publicStaticPaths',
               route: '/${_pluralRouteSegment(className)}/:$publicPathField',
             ),
           );
@@ -164,7 +145,8 @@ class StaticPathsGenerator {
       ..writeln('// build: $buildId')
       ..writeln('//')
       ..writeln('// Static paths for parameterized routes, discovered from')
-      ..writeln('// @DVStaticPaths() providers.')
+      ..writeln('// @DVModel(generatePublicPages:) and')
+      ..writeln('// @DVModel(publicPathsResolver:).')
       ..writeln();
 
     final imports = providers.map((p) => p.importPath).toSet().toList()..sort();

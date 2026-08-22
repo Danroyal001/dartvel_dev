@@ -18,17 +18,20 @@ Future<Directory> _project(Map<String, String> files) async {
 
 void main() {
   group('discover', () {
-    test('finds an annotated provider', () async {
+    test('finds a model with an explicit paths resolver', () async {
       final root = await _project({
-        'paths/product_paths.dart': '''
+        'models/product.dart': """
 import 'package:dartvel_core/dartvel.dart';
 
-@DVStaticPaths()
+@DVModel(publicPathsResolver: productPaths)
 @pragma('vm:entry-point')
-Future<List<String>> _productPaths() async => productPaths();
+class _Product {
+  final String slug;
+  const _Product({required this.slug});
+}
 
 Future<List<String>> productPaths() async => <String>['a', 'b'];
-''',
+""",
       });
       try {
         final found = StaticPathsGenerator.discover(
@@ -36,98 +39,157 @@ Future<List<String>> productPaths() async => <String>['a', 'b'];
           pkgName: 'shop',
         );
         expect(found, hasLength(1));
-        expect(found.single.functionName, 'productPaths');
-        expect(
-          found.single.importPath,
-          'package:shop/paths/product_paths.dart',
-        );
-        expect(found.single.route, isNull);
+        // The resolver is called directly, not through the generated model.
+        expect(found.single.resolveExpression, 'productPaths');
+        // And it is imported from the file that declares it.
+        expect(found.single.importPath, 'package:shop/models/product.dart');
       } finally {
         root.deleteSync(recursive: true);
       }
     });
 
-    test('captures an explicit route argument', () async {
+    test('derives the route from the model, never from a string', () async {
+      // The whole reason this moved onto @DVModel: a route repeated in an
+      // annotation drifts silently the moment the page file moves.
       final root = await _project({
-        'paths/blog.dart': '''
-@DVStaticPaths(route: '/blog/:slug')
+        'models/product.dart': """
+import 'package:dartvel_core/dartvel.dart';
+
+@DVModel(publicPathsResolver: productPaths)
 @pragma('vm:entry-point')
-Future<List<String>> _blogPaths() async => blogPaths();
+class _Product {
+  final String slug;
+  const _Product({required this.slug});
+}
 
-Future<List<String>> blogPaths() async => <String>['hello'];
-''',
+Future<List<String>> productPaths() async => <String>['a'];
+""",
       });
       try {
         final found = StaticPathsGenerator.discover(
           root: root.path,
-          pkgName: 'site',
+          pkgName: 'shop',
         );
-        expect(found.single.route, '/blog/:slug');
+        expect(found.single.route, '/products/:slug');
       } finally {
         root.deleteSync(recursive: true);
       }
     });
 
-    test('finds several providers across files, deterministically', () async {
-      // Generated output must be stable, or every regenerate churns the diff.
+    test('a resolver alone is enough, without generatePublicPages', () async {
+      // Naming a resolver is itself the statement that this route should be
+      // generated; requiring a second flag would be ceremony.
       final root = await _project({
-        'paths/b_paths.dart':
-            '@DVStaticPaths()\n'
-            "@pragma('vm:entry-point')\n"
-            'Future<List<String>> _bPaths() async => bPaths();\n'
-            'Future<List<String>> bPaths() async => [];\n',
-        'paths/a_paths.dart':
-            '@DVStaticPaths()\n'
-            "@pragma('vm:entry-point')\n"
-            'Future<List<String>> _aPaths() async => aPaths();\n'
-            'Future<List<String>> aPaths() async => [];\n',
-      });
-      try {
-        final found = StaticPathsGenerator.discover(
-          root: root.path,
-          pkgName: 'site',
-        );
-        expect(found.map((e) => e.functionName), <String>['aPaths', 'bPaths']);
-      } finally {
-        root.deleteSync(recursive: true);
-      }
-    });
+        'models/product.dart': """
+import 'package:dartvel_core/dartvel.dart';
 
-    test('accepts a non-Future return type', () async {
-      final root = await _project({
-        'paths/sync_paths.dart':
-            '@DVStaticPaths()\n'
-            "@pragma('vm:entry-point')\n"
-            'List<String> _syncPaths() => syncPaths();\n'
-            'List<String> syncPaths() => <String>[\'x\'];\n',
-      });
-      try {
-        final found = StaticPathsGenerator.discover(
-          root: root.path,
-          pkgName: 'site',
-        );
-        expect(found.single.functionName, 'syncPaths');
-      } finally {
-        root.deleteSync(recursive: true);
-      }
-    });
+@DVModel(publicPathsResolver: productPaths)
+@pragma('vm:entry-point')
+class _Product {
+  final String slug;
+  const _Product({required this.slug});
+}
 
-    test('rejects public annotated providers', () async {
-      final root = await _project({
-        'paths/public_paths.dart':
-            '@DVStaticPaths()\n'
-            'Future<List<String>> productPaths() async => <String>[];\n',
+Future<List<String>> productPaths() async => <String>['a'];
+""",
       });
       try {
         expect(
-          () => StaticPathsGenerator.discover(root: root.path, pkgName: 'site'),
-          throwsA(
-            isA<StateError>().having(
-              (error) => error.message,
-              'message',
-              contains('static-path generation inputs must be private'),
-            ),
-          ),
+          StaticPathsGenerator.discover(root: root.path, pkgName: 'shop'),
+          hasLength(1),
+        );
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    });
+
+    test('a resolver overrides the default record enumeration', () async {
+      // Both declared: the explicit resolver wins, because it was written down
+      // on purpose and the enumeration is the default it replaces.
+      final root = await _project({
+        'models/product.dart': """
+import 'package:dartvel_core/dartvel.dart';
+
+@DVModel(generatePublicPages: true, publicPathsResolver: productPaths)
+@pragma('vm:entry-point')
+class _Product {
+  final String slug;
+  const _Product({required this.slug});
+}
+
+Future<List<String>> productPaths() async => <String>['a'];
+""",
+      });
+      try {
+        final found = StaticPathsGenerator.discover(
+          root: root.path,
+          pkgName: 'shop',
+        );
+        expect(found, hasLength(1));
+        expect(found.single.resolveExpression, 'productPaths');
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    });
+
+    test('finds resolvers across files, deterministically', () async {
+      final root = await _project({
+        'models/b_product.dart': """
+import 'package:dartvel_core/dartvel.dart';
+
+@DVModel(publicPathsResolver: productPaths)
+@pragma('vm:entry-point')
+class _Product {
+  final String slug;
+  const _Product({required this.slug});
+}
+
+Future<List<String>> productPaths() async => <String>['a'];
+""",
+        'models/a_article.dart': """
+import 'package:dartvel_core/dartvel.dart';
+
+@DVModel(publicPathsResolver: articlePaths)
+@pragma('vm:entry-point')
+class _Article {
+  final String slug;
+  const _Article({required this.slug});
+}
+
+Future<List<String>> articlePaths() async => <String>['x'];
+""",
+      });
+      try {
+        final found = StaticPathsGenerator.discover(
+          root: root.path,
+          pkgName: 'shop',
+        );
+        // Sorted by file path, so a regenerate never reorders the manifest.
+        expect(found.map((e) => e.resolveExpression),
+            <String>['articlePaths', 'productPaths']);
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    });
+
+    test('rejects public annotated models', () async {
+      final root = await _project({
+        'models/product.dart': """
+import 'package:dartvel_core/dartvel.dart';
+
+@DVModel(publicPathsResolver: productPaths)
+class Product {
+  final String slug;
+  const Product({required this.slug});
+}
+
+Future<List<String>> productPaths() async => <String>['a'];
+""",
+      });
+      try {
+        expect(
+          () => StaticPathsGenerator.discover(root: root.path, pkgName: 'shop'),
+          throwsA(isA<StateError>()),
         );
       } finally {
         root.deleteSync(recursive: true);
@@ -135,22 +197,26 @@ Future<List<String>> blogPaths() async => <String>['hello'];
     });
 
     test('ignores generated output', () async {
-      // Rediscovering its own emitted references would compound on every run.
+      // A regenerate must not rediscover its own emitted references.
       final root = await _project({
-        'dartvel_client/static_paths.g.dart':
-            '@DVStaticPaths()\nFuture<List<String>> ghost() async => [];\n',
-        'models.g.dart':
-            '@DVStaticPaths()\nFuture<List<String>> alsoGhost() async => [];\n',
+        'dartvel_client/models.g.dart': """
+@DVModel(publicPathsResolver: productPaths)
+class _Product {
+  final String slug;
+  const _Product({required this.slug});
+}
+""",
       });
       try {
         expect(
-          StaticPathsGenerator.discover(root: root.path, pkgName: 'site'),
+          StaticPathsGenerator.discover(root: root.path, pkgName: 'shop'),
           isEmpty,
         );
       } finally {
         root.deleteSync(recursive: true);
       }
     });
+
 
     test('returns nothing when the project has no lib directory', () async {
       final root = await Directory.systemTemp.createTemp('dartvel_empty_');
@@ -314,10 +380,13 @@ class Product {
   group('generate', () {
     test('writes the manifest into the generated client directory', () async {
       final root = await _project({
-        'paths/product_paths.dart':
-            '@DVStaticPaths()\n'
+        'models/product.dart':
+            '@DVModel(publicPathsResolver: productPaths)\n'
             "@pragma('vm:entry-point')\n"
-            'Future<List<String>> _productPaths() async => productPaths();\n'
+            'class _Product {\n'
+            '  final String slug;\n'
+            '  const _Product({required this.slug});\n'
+            '}\n'
             'Future<List<String>> productPaths() async => [];\n',
       });
       try {
