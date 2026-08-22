@@ -336,7 +336,7 @@
       "evidence": [
         "packages/dartvel_cli/test/build_command_test.dart"
       ],
-      "absent": "The terminal backend and the dartvel_flt fork; the dartvel.terminal pubspec key being read; launch negotiation (GUI default, --tui, the no-display prompt); DV.Platform.surface and the terminal signals"
+      "absent": "The terminal backend and the dartvel_flt fork; launch negotiation (GUI default, --tui, the no-display prompt); DV.Platform.surface and the terminal signals"
     },
     {
       "section": "Multi-Window",
