@@ -1,0 +1,113 @@
+name: Tests
+
+# Runs the analyzer and every Dart and Flutter test suite.
+#
+# This did not exist. The Rust crate and the spec-status index were checked on
+# every push, and the 1,100-odd Dart tests were not checked at all — they ran
+# only when someone remembered to run them locally. A green commit therefore
+# meant nothing had been checked, which is worse than no signal, because it
+# looks like one.
+#
+# Per package rather than one job, so a failure names which package broke
+# instead of which command did, and so a slow suite does not delay the others.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: 3.44.5
+
+jobs:
+  test:
+    name: ${{ matrix.package }}
+    runs-on: ubuntu-latest
+    # A suite that takes this long has stopped making progress. The whole set
+    # runs in well under two minutes locally.
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { package: dartvel_core, runner: dart }
+          - { package: dartvel_cli, runner: dart }
+          - { package: dartvel_shelf, runner: dart }
+          - { package: dartvel_generator, runner: dart }
+          - { package: dartvel_flutter, runner: flutter }
+          - { package: dartvel, runner: flutter }
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      # dartvel_shelf's native-asset build hook compiles the Rust runtime and
+      # runs cbindgen over it, and that hook runs during `dart test` for
+      # anything depending on it. A missing cbindgen is a hard error there,
+      # unlike a missing cargo, so it has to be installed rather than assumed.
+      - name: Cache cbindgen
+        id: cbindgen-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cbindgen
+          key: cbindgen-${{ runner.os }}-${{ runner.arch }}
+
+      - name: Install cbindgen
+        if: steps.cbindgen-cache.outputs.cache-hit != 'true'
+        run: cargo install cbindgen --locked
+
+      # Keyed on the Rust sources, so a hit is a build of the same crate.
+      - name: Cache the Rust runtime build
+        uses: actions/cache@v4
+        with:
+          path: |
+            packages/dartvel_shelf/rust/target
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: >-
+            tests-shelf-${{ runner.os }}-${{
+            hashFiles('packages/dartvel_shelf/rust/Cargo.toml',
+                      'packages/dartvel_shelf/rust/Cargo.lock',
+                      'packages/dartvel_shelf/rust/src/**') }}
+          restore-keys: tests-shelf-${{ runner.os }}-
+
+      - name: Resolve dependencies
+        working-directory: packages/${{ matrix.package }}
+        run: ${{ matrix.runner }} pub get
+
+      # Analyzer failures are build failures. Infos are not: this repository
+      # carries a handful of pre-existing directive-ordering and close-sinks
+      # infos, and failing on those would mean the gate is switched off on its
+      # first day, which is how a gate stops being read.
+      - name: Analyze
+        working-directory: packages/${{ matrix.package }}
+        run: ${{ matrix.runner }} analyze --fatal-warnings lib test
+
+      - name: Test
+        working-directory: packages/${{ matrix.package }}
+        run: ${{ matrix.runner }} test
+
+  spec:
+    name: spec-status index
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: 3.12.2
+      # Deliberately not path-filtered here. The index cites evidence that
+      # lives under packages/, so deleting a test file can invalidate it — and
+      # that is exactly what happened: renaming computed_test.dart left a
+      # dangling citation that no push-triggered job was watching for.
+      - run: dart run tool/spec_status_check.dart
