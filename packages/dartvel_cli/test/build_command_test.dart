@@ -668,6 +668,8 @@ dependencies:
     });
   });
 
+  buildTimeoutTests();
+
   group('fuchsia', () {
     test('is an embedded target, not a Flutter-path one', () {
       expect(embeddedBuildPlatforms, contains('fuchsia'));
@@ -753,6 +755,38 @@ dependencies:
       );
 
       expect(plan!.arguments, containsAllInOrder(<String>['--cpu', 'arm64']));
+    });
+  });
+}
+
+// Appended: a build that hangs is worse than one that fails, because it is
+// indistinguishable from a slow one and keeps costing until something else
+// stops it. A macOS build once ran 41 minutes producing nothing at all.
+void buildTimeoutTests() {
+  group('build timeout', () {
+    test('defaults to a generous but finite limit', () {
+      // Generous because a clean release build on a cold cache is genuinely
+      // slow; finite because nothing else here notices a stall.
+      expect(parseBuildTimeout(null), const Duration(minutes: 45));
+      expect(parseBuildTimeout(''), const Duration(minutes: 45));
+      expect(parseBuildTimeout('   '), const Duration(minutes: 45));
+    });
+
+    test('an explicit number of minutes is honoured', () {
+      expect(parseBuildTimeout('90'), const Duration(minutes: 90));
+      expect(parseBuildTimeout(' 5 '), const Duration(minutes: 5));
+    });
+
+    test('zero disables the limit rather than meaning instantly', () {
+      // The obvious wrong reading of 0 would kill every build immediately.
+      expect(parseBuildTimeout('0'), isNull);
+    });
+
+    test('a value that is not minutes is refused, not silently defaulted', () {
+      // Silently falling back would turn a typo into a limit nobody chose.
+      expect(() => parseBuildTimeout('soon'), throwsFormatException);
+      expect(() => parseBuildTimeout('-1'), throwsFormatException);
+      expect(() => parseBuildTimeout('1.5'), throwsFormatException);
     });
   });
 }
