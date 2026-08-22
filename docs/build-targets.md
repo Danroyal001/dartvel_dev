@@ -22,13 +22,13 @@ local Dartvel `dartvel_vscode` fork added as a dependency.
 | `android` | ✅ Builds | `build/app/outputs/flutter-apk/app-release.apk`, 47.9 MB |
 | `fireos` | ✅ Builds | Same APK path; `fireos` maps onto the Android toolchain |
 | `windows` | ⚠️ Unproven | Two macOS-runner-equivalent attempts hung in `dartvel build windows` for 257 and 226 minutes with no output and were killed, never reaching an artifact. Requires a Windows host. See [CI](#ci-for-hosts-you-do-not-have) |
-| `macos` | ⚠️ Unproven | The `lipo` failure is fixed: it previously died 99s into the build, and run [32201351600](https://github.com/Danroyal001/dartvel/actions/runs/32201351600) ran 335s past that point with no such error. Cancelled by an 8-minute budget cap before Xcode finished, so no artifact exists yet. See [CI](#ci-for-hosts-you-do-not-have) |
+| `macos` | ⚠️ Hangs | The `lipo` failure is fixed. What remains is a **second, different hang**: run [32538073146](https://github.com/Danroyal001/dartvel/actions/runs/32538073146) printed `🔨 Building for macos...` and then nothing for 41m40s until a 45-minute cap killed it. Setup was fast (58s Flutter, 44s cbindgen, 3s pub get), so the block is inside `flutter build macos`, not Dartvel's setup — the build path streams child output rather than buffering it, so silence means blocked. Not the rustup deadlock, which was fixed before this run. Under diagnosis. See [macOS](#macos) |
 | `ios` | ✅ Builds | **Verified on a macOS runner**, not this host: `build/ios/iphoneos/Runner.app` (15.4 MB), artifact directory listed. Run [31554165981](https://github.com/Danroyal001/dartvel/actions/runs/31554165981) |
-| `tvos` | ⚠️ Unproven | The embedder installs and precaches its own engine on a macOS runner, then stops at `This project is not configured for tvOS`. Scaffold generation added in `d0874755`, not yet executed. Any earlier "passing" tvOS build was `flutter build ios` under another name. See [tvOS](#tvos) |
-| `tizen` / `tpk` | ✅ Builds | Signed 9.3MB TPK with engine + assets; see [Tizen](#tizen-samsung) |
+| `tvos` | ✅ Builds | **Verified on a macOS runner**: scaffold auto-generated, then `build/tvos/Debug-appletvsimulator/Runner.app`. The `appletvsimulator` path is the proof it is a tvOS app and not the iPhone app an earlier mapping produced. Run [32538073146](https://github.com/Danroyal001/dartvel/actions/runs/32538073146). See [tvOS](#tvos) |
+| `tizen` / `tpk` | ✅ Builds | Signed 9.3MB TPK with engine + assets, built on a laptop with Tizen Studio installed. CI can only ever *skip* it — the SDK is licence-gated and Dartvel must not install it unattended — so the workflow asserts the skip names that reason. See [Tizen](#tizen-samsung) |
 | `sony-elinux` | ❌ Blocked | Dart version floor; see [Sony eLinux](#sony-elinux) |
 | `webos` | ❌ Blocked | Dart version floor — the embedder ships Dart 3.10.9, `mix` needs ≥ 3.11.0; see [webOS](#webos-lg) |
-| `fuchsia` | ⚠️ Unproven | Fork created and taught to package any Flutter app; not yet executed — bootstrap needs Bazel + Fuchsia SDK. x64 only. See [Fuchsia](#fuchsia) |
+| `fuchsia` | ⚠️ Unproven | **Still never executed anywhere.** The first CI attempt ([32538715349](https://github.com/Danroyal001/dartvel/actions/runs/32538715349)) did not reach the build: its Bazel bootstrap piped `curl` into `/usr/local/bin` without `sudo` and died with exit 23. Fixed; re-running. x64 only. See [Fuchsia](#fuchsia) |
 | `vscode` | ✅ Builds | `out/src/extension.js`, `out/lib/vscode_api.handlers.js`, `build/web/flutter_bootstrap.js`, `build/web/assets/` |
 | `chrome-extension` | ✅ Builds | `build/chrome-extension` (41 MB): MV3 manifest with a `service_worker` background, `index.html`, `main.dart.js`, `background.js`, icons. See [Browser extensions](#browser-extensions) |
 | `firefox-extension` | ✅ Builds | `build/firefox-extension`: the same bundle with an event-page `background.scripts` manifest — verified to differ from the Chromium one, not copy it |
@@ -323,8 +323,12 @@ not a missing engine. Sony's newest published engine is `ef0cd00091`
 (2025-07-25); the 3.44.5 engine `83675ed276` returns HTTP 404. So the ceiling
 is real, but the floor is what the build actually hits first.
 
-Unblocking it requires an eLinux Flutter engine built for a Dart ≥ 3.9
-release — a from-source engine build, not a version-pin bump.
+Unblocking it requires an eLinux Flutter engine built for a Dart ≥ 3.11
+release. That is a from-source engine build rather than a version-pin bump —
+but it is **our** build to do, not something to wait on Sony for. The whole
+reason `dartvel_elinux` is a fork is that it can be pinned and patched ahead of
+upstream; inheriting Sony's Flutter pin is a choice this fork has not yet
+un-made, not a limit the vendor imposes on us.
 
 ### webOS (LG)
 
@@ -352,11 +356,16 @@ Dart ≥ 3.11.0. The embedder ships 3.10.9, so **no Dartvel application can buil
 for webOS at all** — this fails before any webOS engine or `ares` packaging
 question is reached.
 
-Like Sony eLinux, a version-pin bump alone cannot fix it: LG must publish a
-webOS embedder on a newer Flutter. Unlike Sony eLinux, the wall is the Dart SDK
-the embedder bundles rather than a missing prebuilt engine artifact. Whether an
-LG-published webOS engine exists for a qualifying Flutter version is untested,
-because the build cannot get far enough to ask.
+Like Sony eLinux, a version-pin bump alone cannot fix it. Unlike Sony eLinux,
+the wall is the Dart SDK the embedder bundles rather than a missing prebuilt
+engine artifact.
+
+**This is not a wait-on-LG blocker.** `dartvel_webos` is a fork precisely so it
+does not have to ship whatever Flutter LG last pinned; the fork currently
+inherits that pin, which is a thing to change rather than a constraint to
+report. Unblocking means moving the fork to a Flutter whose Dart clears 3.11
+and building the webOS engine from source for it. Whether an LG-published
+engine happens to exist for such a version is a convenience, not the gate.
 
 ### tvOS
 
