@@ -19,6 +19,7 @@ class ToolRequirement {
     required this.name,
     required this.installHint,
     this.installCommand,
+    this.postInstall,
     this.pathHint,
     this.probe,
   });
@@ -34,6 +35,15 @@ class ToolRequirement {
 
   /// The command Dartvel runs to install this, or null when it cannot.
   final List<String>? installCommand;
+
+  /// Run after [installCommand] for tools where fetching is not installing.
+  ///
+  /// Every other embedder is a binary that works the moment it is on disk.
+  /// Fuchsia's is a Bazel workspace: cloning it leaves no `tools/bazel`, so a
+  /// build reaches its final step and dies on
+  /// `./tools/bazel: No such file or directory` having already done all its
+  /// work. Null wherever a clone or a package install is genuinely enough.
+  final List<String>? postInstall;
 
   /// Directory to add to PATH after an automatic install, when the tool does
   /// not land somewhere already on PATH.
@@ -258,8 +268,17 @@ List<ToolRequirement> toolRequirementsFor(String platform, {String home = ''}) {
             'clone',
             '--depth',
             '1',
+            '--recurse-submodules',
             'https://github.com/Danroyal001/dartvel_fuchsia.git',
             '$root/dartvel_fuchsia',
+          ],
+          // A clone is not an install here. The bootstrap initialises the
+          // submodules and produces tools/bazel; --build-only stops it before
+          // the SSH keys, git hooks and the multi-gigabyte emulator image,
+          // which exist for running on a device rather than producing one.
+          postInstall: <String>[
+            '$root/dartvel_fuchsia/scripts/bootstrap.sh',
+            '--build-only',
           ],
           pathHint: '$root/dartvel_fuchsia/tools',
         ),
@@ -480,6 +499,26 @@ Future<List<ToolRequirement>> installRequirements(
       command.sublist(1),
       runInShell: true,
     );
+
+    if (result.exitCode == 0 && requirement.postInstall != null) {
+      // Fetching is not always installing. A cloned Bazel workspace has no
+      // tools/bazel until it is bootstrapped, and without this the build gets
+      // all the way to its final step before discovering that.
+      final prepare = requirement.postInstall!;
+      Logger.log('🔧 Preparing ${requirement.name}...');
+      final prepared = await Process.run(
+        prepare.first,
+        prepare.sublist(1),
+        runInShell: true,
+      );
+      if (prepared.exitCode != 0) {
+        Logger.log('⚠️  Failed to prepare ${requirement.name}.');
+        final text = (prepared.stderr as Object?)?.toString().trim() ?? '';
+        if (text.isNotEmpty) Logger.log('   ${text.split('\n').last}');
+        stillMissing.add(requirement);
+        continue;
+      }
+    }
 
     if (result.exitCode != 0) {
       Logger.log('⚠️  Failed to install ${requirement.name}.');

@@ -3,6 +3,7 @@ import 'package:test/test.dart';
 
 void main() {
   visualStudioDetectionTests();
+  fuchsiaInstallTests();
   group('toolRequirementsFor', () {
     test('web needs nothing beyond Flutter itself', () {
       expect(toolRequirementsFor('web'), isEmpty);
@@ -237,6 +238,39 @@ void visualStudioDetectionTests() {
         isInstalled: (String executable) => false,
       );
       expect(missing, isNotEmpty);
+    });
+  });
+}
+
+// The Fuchsia embedder is a Bazel workspace, not a binary. Cloning it is not
+// installing it: without submodules and a Bazel bootstrap there is no
+// tools/bazel, so a build reaches the last step and dies on
+// "./tools/bazel: No such file or directory" having already done all its work.
+void fuchsiaInstallTests() {
+  group('installing the Fuchsia embedder', () {
+    ToolRequirement fuchsia() =>
+        toolRequirementsFor('fuchsia', home: '/home/dev').single;
+
+    test('clones with submodules', () {
+      // third_party/sdk-integration carries bootstrap_bazel.sh, which is what
+      // produces tools/bazel. A --depth 1 clone without submodules leaves the
+      // workspace unable to build anything.
+      expect(fuchsia().installCommand, contains('--recurse-submodules'));
+    });
+
+    test('runs the bootstrap, because a clone is not an install', () {
+      // Every other embedder is a binary on PATH and cloning is enough. This
+      // one has to be prepared.
+      expect(fuchsia().postInstall, isNotNull,
+          reason: 'cloning a Bazel workspace does not make it buildable');
+      expect(fuchsia().postInstall!.join(' '), contains('bootstrap.sh'));
+    });
+
+    test('bootstraps for a build, not for a device', () {
+      // The full bootstrap downloads a multi-gigabyte emulator image, makes
+      // SSH keys and installs git hooks — all of it for running on hardware
+      // that CI does not have.
+      expect(fuchsia().postInstall, contains('--build-only'));
     });
   });
 }
