@@ -327,6 +327,14 @@ real `libtinfo5` package.
 
 ### The three blocked targets share a shape, not a cause
 
+The terminal embedder was in this group and is not any more. `dartvel_flt`
+pinned Flutter 3.38.5, below Dartvel's floor — but the prebuilt
+`linux-x64-embedder` artifact **is** published for Dartvel's engine, so the
+re-pin needed four source changes rather than an engine build, and the fork now
+compiles against 3.44.5. Worth stating plainly because it is the counterexample:
+being behind the floor does not by itself mean an engine build, and the way to
+tell is to check whether the artifact exists rather than to assume.
+
 webOS, Sony eLinux and Fuchsia are all blocked by an embedder shipping a Dart
 older than Dartvel needs. The distances are very different, and conflating them
 would send the work in the wrong direction:
