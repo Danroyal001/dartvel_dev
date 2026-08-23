@@ -28,7 +28,7 @@ local Dartvel `dartvel_vscode` fork added as a dependency.
 | `tizen` / `tpk` | ✅ Builds | Signed 9.3MB TPK with engine + assets, built on a laptop with Tizen Studio installed. CI can only ever *skip* it — the SDK is licence-gated and Dartvel must not install it unattended — so the workflow asserts the skip names that reason. See [Tizen](#tizen-samsung) |
 | `sony-elinux` | ❌ Blocked | Dart version floor; see [Sony eLinux](#sony-elinux) |
 | `webos` | ❌ Blocked | Dart version floor — the embedder ships Dart 3.10.9, `mix` needs ≥ 3.11.0; see [webOS](#webos-lg) |
-| `fuchsia` | ⚠️ Blocked in the fork | **Executed for the first time**, and now builds the Flutter bundle and stages the app into the embedder workspace. Stops there: the fork's `build_flutter_app.sh` delegates to `build_and_run_example.sh`, which tries to *run* the result on a device through `ffx`. Needs a build-only path in [`dartvel_fuchsia`](https://github.com/Danroyal001/dartvel_fuchsia), not a change in Dartvel. x64 only. See [Fuchsia](#fuchsia) |
+| `fuchsia` | ❌ Blocked, same class as webOS | The five build-plumbing walls are fixed: `--build-only` in the fork, `postInstall` bootstrap, submodule handling, the bootstrap's workspace variable, and skipping an unfetchable `googletest` pin. It now clones, bootstraps and stages the app — then dies in `pub get` because the fork's bundled Flutter is **older than Dart 3.4**: `dartvel_example requires SDK version >=3.4.0 <4.0.0, version solving failed`. That is not a Dartvel bug and not a `mix` problem; the embedder's Flutter submodule is simply ancient. Unblocking needs the fork re-pinned to a modern Flutter **and its engine rebuilt from source**, because bootstrap.sh warns the engine and the Flutter pin must stay aligned. See [Fuchsia](#fuchsia) |
 | `vscode` | ✅ Builds | `out/src/extension.js`, `out/lib/vscode_api.handlers.js`, `build/web/flutter_bootstrap.js`, `build/web/assets/` |
 | `chrome-extension` | ✅ Builds | `build/chrome-extension` (41 MB): MV3 manifest with a `service_worker` background, `index.html`, `main.dart.js`, `background.js`, icons. See [Browser extensions](#browser-extensions) |
 | `firefox-extension` | ✅ Builds | `build/firefox-extension`: the same bundle with an event-page `background.scripts` manifest — verified to differ from the Chromium one, not copy it |
@@ -324,6 +324,34 @@ which 24.04 does not ship (available from the deadsnakes PPA). Its bundled
 LLVM 10 links against `libtinfo.so.5`; symlinking `libtinfo.so.6` is not
 enough because the ncurses 5 ABI symbols are genuinely absent — install the
 real `libtinfo5` package.
+
+### The three blocked targets share a shape, not a cause
+
+webOS, Sony eLinux and Fuchsia are all blocked by an embedder shipping a Dart
+older than Dartvel needs. The distances are very different, and conflating them
+would send the work in the wrong direction:
+
+| Target | Embedder's Dart | Short by | Cheapest unblock |
+| --- | --- | --- | --- |
+| webOS | 3.10.9 | 0.0.1 against `mix`'s 3.11 floor | Possibly a dependency change, see below |
+| Sony eLinux | 3.7.2 | Well short of `mix` | Engine rebuild |
+| Fuchsia | **older than 3.4** | Short of Dartvel's own example, before `mix` is reached | Re-pin the fork's Flutter **and rebuild its engine** |
+
+**webOS is the interesting one, and it may not need a fork at all.**
+`mix 2.1.0` declares `sdk: >=3.11.0`, but the floor was not always that high —
+`mix 2.0.0-rc.1` declares `>=3.10.0`, which webOS's 3.10.9 satisfies. Of the
+published versions, 54 carry a floor below 3.11.
+
+That leaves a question worth answering before any fork is written: **does
+`mix` 2.1.0 actually use a Dart 3.11 language feature, or is the constraint
+conservative?** If it is conservative, a fork that lowers only the floor is
+trivial and safe. If it is real, the choice is between pinning an RC — a
+pre-release UI dependency for the whole framework, which is a genuine cost —
+and rebuilding the webOS engine.
+
+Fuchsia gets no benefit from any of that. Its Flutter cannot run Dartvel's own
+example, so it needs the re-pin and engine build regardless of what `mix`
+requires.
 
 ### Sony eLinux
 
