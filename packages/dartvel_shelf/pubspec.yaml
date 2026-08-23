@@ -2,7 +2,7 @@ name: dartvel_shelf
 description: WinterCG-first (Fetch-like) Shelf-style Dart API powered by Actix Web via ffigen-generated FFI. No IPC.
 version: 0.3.0
 environment:
-  sdk: ">=3.1.0 <4.0.0"
+  sdk: ">=3.4.0 <4.0.0"
 
 dependencies:
   meta: ^1.12.0
