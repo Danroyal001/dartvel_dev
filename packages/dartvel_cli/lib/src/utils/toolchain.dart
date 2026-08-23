@@ -20,6 +20,7 @@ class ToolRequirement {
     required this.installHint,
     this.installCommand,
     this.postInstall,
+    this.postInstallEnvironment,
     this.pathHint,
     this.probe,
   });
@@ -44,6 +45,16 @@ class ToolRequirement {
   /// `./tools/bazel: No such file or directory` having already done all its
   /// work. Null wherever a clone or a package install is genuinely enough.
   final List<String>? postInstall;
+
+  /// Variables [postInstall] needs beyond an inherited environment.
+  ///
+  /// The Fuchsia bootstrap locates its own workspace through
+  /// `FUCHSIA_EMBEDDER_DIR` and refuses to run without it. Dartvel chose that
+  /// directory, so it knows the answer — telling a developer to export a path
+  /// we created would be the wrong half of the bargain, and the toolchain rule
+  /// already says a tool installed during a run must reach the process that
+  /// uses it.
+  final Map<String, String>? postInstallEnvironment;
 
   /// Directory to add to PATH after an automatic install, when the tool does
   /// not land somewhere already on PATH.
@@ -283,6 +294,9 @@ List<ToolRequirement> toolRequirementsFor(String platform, {String home = ''}) {
             '$root/dartvel_fuchsia/scripts/bootstrap.sh',
             '--build-only',
           ],
+          postInstallEnvironment: <String, String>{
+            'FUCHSIA_EMBEDDER_DIR': '$root/dartvel_fuchsia',
+          },
           pathHint: '$root/dartvel_fuchsia/tools',
         ),
       ];
@@ -513,6 +527,7 @@ Future<List<ToolRequirement>> installRequirements(
         prepare.first,
         prepare.sublist(1),
         runInShell: true,
+        environment: requirement.postInstallEnvironment,
       );
       if (prepared.exitCode != 0) {
         Logger.log('⚠️  Failed to prepare ${requirement.name}.');
