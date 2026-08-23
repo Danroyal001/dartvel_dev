@@ -122,3 +122,67 @@ List<String> genSnapshotArguments({
     kernel,
   ];
 }
+
+
+/// One copy performed while assembling a bundle.
+class ELinuxCopy {
+  /// Absolute source path.
+  final String from;
+
+  /// Destination inside the bundle, relative to its root.
+  final String to;
+
+  const ELinuxCopy({required this.from, required this.to});
+}
+
+/// How to assemble an eLinux release bundle from a desktop release build.
+///
+/// This is the route that works today, and it is worth saying why it exists
+/// rather than the obvious one. A desktop release build already produces every
+/// piece an eLinux release bundle needs — `data/flutter_assets`,
+/// `data/icudtl.dat`, and an AOT `lib/libapp.so` for the same architecture —
+/// and differs only in which executable and which engine library sit beside
+/// them. So a release bundle needs neither an engine build nor
+/// `flutter-elinux`, which is pinned to Flutter 3.29.3 and fifteen minor
+/// versions behind.
+///
+/// [desktopBundle] is `build/linux/<arch>/release/bundle`; [artifacts] is the
+/// directory holding Sony's embedder executables and `libflutter_engine.so`.
+List<ELinuxCopy> elinuxAssemblyPlan({
+  required String desktopBundle,
+  required String artifacts,
+  required ELinuxBackend backend,
+  required ELinuxMode mode,
+}) {
+  if (mode != ELinuxMode.release) {
+    // A debug desktop bundle carries kernel_blob.bin and no libapp.so, and the
+    // only engine obtainable without building one is the release build, which
+    // has no interpreter to run kernel with. Assembling that pair produces a
+    // bundle that looks complete and cannot start.
+    throw UnsupportedError(
+      'Only release bundles can be assembled this way. Debug and profile need '
+      'an engine built for those modes, which Google does not publish as a '
+      'standalone embedder artifact.',
+    );
+  }
+
+  return <ELinuxCopy>[
+    // The app and its assets, from the desktop build.
+    ELinuxCopy(from: '$desktopBundle/lib/libapp.so', to: 'lib/libapp.so'),
+    ELinuxCopy(
+        from: '$desktopBundle/data/flutter_assets',
+        to: 'data/flutter_assets'),
+    ELinuxCopy(
+        from: '$desktopBundle/data/icudtl.dat', to: 'data/icudtl.dat'),
+
+    // The embedder and engine, from the eLinux artifacts. Deliberately not
+    // from the desktop bundle: its libflutter_linux_gtk.so is the desktop
+    // embedder with the engine linked into it, and carrying that would ship
+    // the GUI stack this target exists to avoid.
+    ELinuxCopy(
+        from: '$artifacts/${backend.executable}', to: backend.executable),
+    ELinuxCopy(
+        from: '$artifacts/libflutter_engine.so',
+        to: 'lib/libflutter_engine.so'),
+  ];
+}
