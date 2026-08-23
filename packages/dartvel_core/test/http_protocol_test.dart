@@ -267,6 +267,31 @@ void main() {
       );
     });
 
+    test('the native client is declared to speak HTTP/3 as well as HTTP/2', () {
+      // The Rust client speaks both — quinn and h3 for QUIC, h2 for TCP — and
+      // what it declares here is the only thing the fallback chain consults.
+      // Under-declaring is silent: the request still succeeds, over h2,
+      // and nothing reports that HTTP/3 was never attempted.
+      expect(
+        const DVRustHttpTransport('libdartvel.so').supportedProtocols,
+        containsAll(<DVHttpProtocol>[
+          DVHttpProtocol.http3,
+          DVHttpProtocol.http2,
+        ]),
+      );
+    });
+
+    test('the native client does not claim HTTP/1.1', () {
+      // ALPN is negotiated in the handshake and the Rust client asks for one
+      // token. There is no HTTP/1.1 path through it, and claiming one would
+      // route requests into a transport that cannot serve them instead of
+      // letting package:http take them.
+      expect(
+        const DVRustHttpTransport('libdartvel.so').supportedProtocols,
+        isNot(contains(DVHttpProtocol.http11)),
+      );
+    });
+
     test('a registered transport replaces the default and can be removed', () {
       final fake = _FakeTransport(
         supportedProtocols: const <DVHttpProtocol>{DVHttpProtocol.http2},

@@ -184,7 +184,12 @@ void _pump(_PumpArgs args) {
   }
 }
 
-/// HTTP/2 over the native Rust client, with 103 Early Hints.
+/// HTTP/2 and HTTP/3 over the native Rust client.
+///
+/// 103 Early Hints arrive over HTTP/2 only. `h3` exposes `recv_response()` and
+/// no informational path, so 1xx responses cannot surface over HTTP/3 with any
+/// current Rust crate — a crate gap, not a protocol limit, since HTTP/3 permits
+/// them. A caller that needs hints should prefer a chain reaching HTTP/2.
 class DVRustHttpTransport implements DVHttpTransport {
   final String libraryPath;
 
@@ -214,8 +219,10 @@ class DVRustHttpTransport implements DVHttpTransport {
   String get name => 'rust';
 
   @override
-  Set<DVHttpProtocol> get supportedProtocols =>
-      const <DVHttpProtocol>{DVHttpProtocol.http2};
+  Set<DVHttpProtocol> get supportedProtocols => const <DVHttpProtocol>{
+        DVHttpProtocol.http3,
+        DVHttpProtocol.http2,
+      };
 
   @override
   Future<DVHttpResponse> send(DVHttpRequest request) async {
