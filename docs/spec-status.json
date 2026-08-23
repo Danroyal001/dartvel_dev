@@ -204,9 +204,11 @@
       "evidence": [
         "packages/dartvel_core/test/mail_providers_test.dart",
         "packages/dartvel_core/test/push_providers_test.dart",
-        "packages/dartvel_core/test/web_push_test.dart"
+        "packages/dartvel_core/test/web_push_test.dart",
+        "packages/dartvel_core/test/apns_test.dart",
+        "packages/dartvel_core/test/web_push_vapid_test.dart"
       ],
-      "absent": "APNS, which needs HTTP/2"
+      "absent": "no provider has been exercised against a real APNS or push service; the native transport they depend on speaks HTTP/2 and HTTP/3 and is verified live, the providers above it are not"
     },
     {
       "section": "File Storage",
