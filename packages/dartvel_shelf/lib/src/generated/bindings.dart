@@ -11,193 +11,224 @@ import 'dart:ffi' as ffi;
 class DartvelShelfBindings {
   /// Holds the symbol lookup function.
   final ffi.Pointer<T> Function<T extends ffi.NativeType>(String symbolName)
-      _lookup;
+  _lookup;
 
   /// The symbols are looked up in [dynamicLibrary].
   DartvelShelfBindings(ffi.DynamicLibrary dynamicLibrary)
-      : _lookup = dynamicLibrary.lookup;
+    : _lookup = dynamicLibrary.lookup;
 
   /// The symbols are looked up with [lookup].
   DartvelShelfBindings.fromLookup(
-      ffi.Pointer<T> Function<T extends ffi.NativeType>(String symbolName)
-          lookup)
-      : _lookup = lookup;
+    ffi.Pointer<T> Function<T extends ffi.NativeType>(String symbolName) lookup,
+  ) : _lookup = lookup;
 
-  void aw_register_handler(
-    DartReqHandler cb,
-  ) {
-    return _aw_register_handler(
-      cb,
-    );
+  void aw_register_handler(DartReqHandler cb) {
+    return _aw_register_handler(cb);
   }
 
   late final _aw_register_handlerPtr =
       _lookup<ffi.NativeFunction<ffi.Void Function(DartReqHandler)>>(
-          'aw_register_handler');
-  late final _aw_register_handler =
-      _aw_register_handlerPtr.asFunction<void Function(DartReqHandler)>();
+        'aw_register_handler',
+      );
+  late final _aw_register_handler = _aw_register_handlerPtr
+      .asFunction<void Function(DartReqHandler)>();
 
-  void aw_register_cancel_handler(
-    DartStreamCancelHandler cb,
-  ) {
-    return _aw_register_cancel_handler(
-      cb,
-    );
+  void aw_register_cancel_handler(DartStreamCancelHandler cb) {
+    return _aw_register_cancel_handler(cb);
   }
 
   late final _aw_register_cancel_handlerPtr =
       _lookup<ffi.NativeFunction<ffi.Void Function(DartStreamCancelHandler)>>(
-          'aw_register_cancel_handler');
-  late final _aw_register_cancel_handler =
-      _aw_register_cancel_handlerPtr.asFunction<void Function(DartStreamCancelHandler)>();
+        'aw_register_cancel_handler',
+      );
+  late final _aw_register_cancel_handler = _aw_register_cancel_handlerPtr
+      .asFunction<void Function(DartStreamCancelHandler)>();
 
-  int aw_configure_cors(
-    FfiStr config_json,
-  ) {
-    return _aw_configure_cors(
-      config_json,
-    );
+  int aw_configure_cors(FfiStr config_json) {
+    return _aw_configure_cors(config_json);
   }
 
   late final _aw_configure_corsPtr =
       _lookup<ffi.NativeFunction<ffi.Int32 Function(FfiStr)>>(
-          'aw_configure_cors');
-  late final _aw_configure_cors =
-      _aw_configure_corsPtr.asFunction<int Function(FfiStr)>();
+        'aw_configure_cors',
+      );
+  late final _aw_configure_cors = _aw_configure_corsPtr
+      .asFunction<int Function(FfiStr)>();
 
-  int aw_tls_rustls_from_pem(
-    FfiBuf cert_pem,
-    FfiBuf key_pem,
-  ) {
-    return _aw_tls_rustls_from_pem(
-      cert_pem,
-      key_pem,
-    );
+  int aw_tls_rustls_from_pem(FfiBuf cert_pem, FfiBuf key_pem) {
+    return _aw_tls_rustls_from_pem(cert_pem, key_pem);
   }
 
   late final _aw_tls_rustls_from_pemPtr =
       _lookup<ffi.NativeFunction<ffi.Int32 Function(FfiBuf, FfiBuf)>>(
-          'aw_tls_rustls_from_pem');
-  late final _aw_tls_rustls_from_pem =
-      _aw_tls_rustls_from_pemPtr.asFunction<int Function(FfiBuf, FfiBuf)>();
+        'aw_tls_rustls_from_pem',
+      );
+  late final _aw_tls_rustls_from_pem = _aw_tls_rustls_from_pemPtr
+      .asFunction<int Function(FfiBuf, FfiBuf)>();
 
-  int aw_configure_static(
-    FfiStr path,
-  ) {
-    return _aw_configure_static(
-      path,
-    );
+  int aw_configure_static(FfiStr path) {
+    return _aw_configure_static(path);
   }
 
   late final _aw_configure_staticPtr =
       _lookup<ffi.NativeFunction<ffi.Int32 Function(FfiStr)>>(
-          'aw_configure_static');
-  late final _aw_configure_static =
-      _aw_configure_staticPtr.asFunction<int Function(FfiStr)>();
+        'aw_configure_static',
+      );
+  late final _aw_configure_static = _aw_configure_staticPtr
+      .asFunction<int Function(FfiStr)>();
 
-  int aw_configure_spa_root(
-    FfiStr path,
-  ) {
-    return _aw_configure_spa_root(
-      path,
-    );
+  int aw_configure_spa_root(FfiStr path) {
+    return _aw_configure_spa_root(path);
   }
 
   late final _aw_configure_spa_rootPtr =
       _lookup<ffi.NativeFunction<ffi.Int32 Function(FfiStr)>>(
-          'aw_configure_spa_root');
-  late final _aw_configure_spa_root =
-      _aw_configure_spa_rootPtr.asFunction<int Function(FfiStr)>();
+        'aw_configure_spa_root',
+      );
+  late final _aw_configure_spa_root = _aw_configure_spa_rootPtr
+      .asFunction<int Function(FfiStr)>();
 
-  int aw_configure_compression(
-    int enabled,
-  ) {
-    return _aw_configure_compression(
-      enabled,
-    );
+  int aw_configure_compression(int enabled) {
+    return _aw_configure_compression(enabled);
   }
 
   late final _aw_configure_compressionPtr =
       _lookup<ffi.NativeFunction<ffi.Int32 Function(ffi.Int32)>>(
-          'aw_configure_compression');
-  late final _aw_configure_compression =
-      _aw_configure_compressionPtr.asFunction<int Function(int)>();
+        'aw_configure_compression',
+      );
+  late final _aw_configure_compression = _aw_configure_compressionPtr
+      .asFunction<int Function(int)>();
 
-  int aw_start(
-    FfiStr host,
-    int port,
-    int flags,
-  ) {
-    return _aw_start(
-      host,
-      port,
-      flags,
-    );
+  int aw_start(FfiStr host, int port, int _flags) {
+    return _aw_start(host, port, _flags);
   }
 
-  late final _aw_startPtr = _lookup<
-      ffi.NativeFunction<
-          ffi.Int32 Function(FfiStr, ffi.Uint16, ffi.Uint32)>>('aw_start');
-  late final _aw_start =
-      _aw_startPtr.asFunction<int Function(FfiStr, int, int)>();
+  late final _aw_startPtr =
+      _lookup<
+        ffi.NativeFunction<ffi.Int32 Function(FfiStr, ffi.Uint16, ffi.Uint32)>
+      >('aw_start');
+  late final _aw_start = _aw_startPtr
+      .asFunction<int Function(FfiStr, int, int)>();
 
-  int aw_stop(
-    int server_id,
-  ) {
-    return _aw_stop(
-      server_id,
-    );
+  /// The port [server_id] is listening on, or 0 if it is unknown.
+  ///
+  /// Meaningful because a caller may start a server on port 0 and let the OS
+  /// choose; without this there is no way to learn where it landed.
+  int aw_server_port(int server_id) {
+    return _aw_server_port(server_id);
+  }
+
+  late final _aw_server_portPtr =
+      _lookup<ffi.NativeFunction<ffi.Uint16 Function(ffi.Uint64)>>(
+        'aw_server_port',
+      );
+  late final _aw_server_port = _aw_server_portPtr
+      .asFunction<int Function(int)>();
+
+  int aw_stop(int server_id) {
+    return _aw_stop(server_id);
   }
 
   late final _aw_stopPtr =
       _lookup<ffi.NativeFunction<ffi.Int32 Function(ffi.Uint64)>>('aw_stop');
   late final _aw_stop = _aw_stopPtr.asFunction<int Function(int)>();
 
-  int aw_complete(
-    int req_id,
-    FfiResp resp,
-  ) {
-    return _aw_complete(
-      req_id,
-      resp,
-    );
+  int aw_complete(int req_id, FfiResp resp) {
+    return _aw_complete(req_id, resp);
   }
 
   late final _aw_completePtr =
       _lookup<ffi.NativeFunction<ffi.Int32 Function(ffi.Uint64, FfiResp)>>(
-          'aw_complete');
-  late final _aw_complete =
-      _aw_completePtr.asFunction<int Function(int, FfiResp)>();
+        'aw_complete',
+      );
+  late final _aw_complete = _aw_completePtr
+      .asFunction<int Function(int, FfiResp)>();
 
-  int aw_stream_send_chunk(
-    int req_id,
-    FfiBuf chunk,
-  ) {
-    return _aw_stream_send_chunk(
-      req_id,
-      chunk,
-    );
+  int aw_stream_send_chunk(int req_id, FfiBuf chunk) {
+    return _aw_stream_send_chunk(req_id, chunk);
   }
 
   late final _aw_stream_send_chunkPtr =
       _lookup<ffi.NativeFunction<ffi.Int32 Function(ffi.Uint64, FfiBuf)>>(
-          'aw_stream_send_chunk');
-  late final _aw_stream_send_chunk =
-      _aw_stream_send_chunkPtr.asFunction<int Function(int, FfiBuf)>();
+        'aw_stream_send_chunk',
+      );
+  late final _aw_stream_send_chunk = _aw_stream_send_chunkPtr
+      .asFunction<int Function(int, FfiBuf)>();
 
-  int aw_stream_complete(
-    int req_id,
-  ) {
-    return _aw_stream_complete(
-      req_id,
-    );
+  int aw_stream_complete(int req_id) {
+    return _aw_stream_complete(req_id);
   }
 
   late final _aw_stream_completePtr =
       _lookup<ffi.NativeFunction<ffi.Int32 Function(ffi.Uint64)>>(
-          'aw_stream_complete');
-  late final _aw_stream_complete =
-      _aw_stream_completePtr.asFunction<int Function(int)>();
+        'aw_stream_complete',
+      );
+  late final _aw_stream_complete = _aw_stream_completePtr
+      .asFunction<int Function(int)>();
+
+  /// Starts a request and returns a handle, or 0 if it could not be started.
+  ///
+  /// # Safety
+  /// `request_json` and `body` must be valid for their stated lengths for the
+  /// duration of this call. Both are copied before returning, so the caller may
+  /// free them immediately afterwards.
+  int dv_http_send(FfiStr request_json, FfiBuf body) {
+    return _dv_http_send(request_json, body);
+  }
+
+  late final _dv_http_sendPtr =
+      _lookup<ffi.NativeFunction<ffi.Uint64 Function(FfiStr, FfiBuf)>>(
+        'dv_http_send',
+      );
+  late final _dv_http_send = _dv_http_sendPtr
+      .asFunction<int Function(FfiStr, FfiBuf)>();
+
+  /// Blocks until the next event for [handle].
+  ///
+  /// Returns one of the `DV_HTTP_EVENT_*` codes and writes the payload to `out`.
+  /// A payload with a non-null pointer must be released with
+  /// [`dv_http_free_buf`]; `DONE`, `INVALID` and any empty payload write a null
+  /// pointer and need no release.
+  ///
+  /// # Safety
+  /// `out` must point to a writable `FfiBuf`.
+  int dv_http_next_event(int handle, ffi.Pointer<FfiBuf> out) {
+    return _dv_http_next_event(handle, out);
+  }
+
+  late final _dv_http_next_eventPtr =
+      _lookup<
+        ffi.NativeFunction<ffi.Int32 Function(ffi.Uint64, ffi.Pointer<FfiBuf>)>
+      >('dv_http_next_event');
+  late final _dv_http_next_event = _dv_http_next_eventPtr
+      .asFunction<int Function(int, ffi.Pointer<FfiBuf>)>();
+
+  /// Releases a payload returned by [`dv_http_next_event`].
+  ///
+  /// # Safety
+  /// `buf` must be a buffer this library produced and not already freed.
+  void dv_http_free_buf(FfiBuf buf) {
+    return _dv_http_free_buf(buf);
+  }
+
+  late final _dv_http_free_bufPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(FfiBuf)>>(
+        'dv_http_free_buf',
+      );
+  late final _dv_http_free_buf = _dv_http_free_bufPtr
+      .asFunction<void Function(FfiBuf)>();
+
+  /// Asks an in-flight request to stop. Safe to call on an unknown handle.
+  int dv_http_cancel(int handle) {
+    return _dv_http_cancel(handle);
+  }
+
+  late final _dv_http_cancelPtr =
+      _lookup<ffi.NativeFunction<ffi.Int32 Function(ffi.Uint64)>>(
+        'dv_http_cancel',
+      );
+  late final _dv_http_cancel = _dv_http_cancelPtr
+      .asFunction<int Function(int)>();
 }
 
 final class FfiStr extends ffi.Struct {
@@ -229,16 +260,34 @@ final class FfiResp extends ffi.Struct {
   external int is_stream;
 }
 
-typedef DartReqHandler
-    = ffi.Pointer<ffi.NativeFunction<DartReqHandlerFunction>>;
-typedef DartReqHandlerFunction = ffi.Void Function(
-    ffi.Uint64, FfiStr, FfiStr, ffi.Pointer<ffi.Uint8>, ffi.Size, FfiBuf);
-typedef DartDartReqHandlerFunction = void Function(
-    int, FfiStr, FfiStr, ffi.Pointer<ffi.Uint8>, int, FfiBuf);
-
-typedef DartStreamCancelHandler
-    = ffi.Pointer<ffi.NativeFunction<DartStreamCancelHandlerFunction>>;
+typedef DartReqHandler =
+    ffi.Pointer<ffi.NativeFunction<DartReqHandlerFunction>>;
+typedef DartReqHandlerFunction =
+    ffi.Void Function(
+      ffi.Uint64,
+      FfiStr,
+      FfiStr,
+      ffi.Pointer<ffi.Uint8>,
+      ffi.Size,
+      FfiBuf,
+    );
+typedef DartDartReqHandlerFunction =
+    void Function(int, FfiStr, FfiStr, ffi.Pointer<ffi.Uint8>, int, FfiBuf);
+typedef DartStreamCancelHandler =
+    ffi.Pointer<ffi.NativeFunction<DartStreamCancelHandlerFunction>>;
 typedef DartStreamCancelHandlerFunction = ffi.Void Function(ffi.Uint64);
 typedef DartDartStreamCancelHandlerFunction = void Function(int);
 
 const int AW_FLAG_H2C = 1;
+
+const int DV_HTTP_EVENT_DONE = 0;
+
+const int DV_HTTP_EVENT_EARLY_HINTS = 1;
+
+const int DV_HTTP_EVENT_HEAD = 2;
+
+const int DV_HTTP_EVENT_BODY = 3;
+
+const int DV_HTTP_EVENT_ERROR = -1;
+
+const int DV_HTTP_EVENT_INVALID = -2;

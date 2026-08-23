@@ -83,6 +83,14 @@ int32_t aw_configure_compression(int32_t enabled);
 
 int32_t aw_start(struct FfiStr host, uint16_t port, uint32_t _flags);
 
+/**
+ * The port [server_id] is listening on, or 0 if it is unknown.
+ *
+ * Meaningful because a caller may start a server on port 0 and let the OS
+ * choose; without this there is no way to learn where it landed.
+ */
+uint16_t aw_server_port(uint64_t server_id);
+
 int32_t aw_stop(uint64_t server_id);
 
 int32_t aw_complete(uint64_t req_id, struct FfiResp resp);

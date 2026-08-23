@@ -317,11 +317,24 @@ Future<ServerHandle> serve(
   pkgffi.calloc.free(hostFfiPtr);
 
   if (serverId <= 0) {
-    throw StateError('aw_start failed ($serverId)');
+    // Named rather than numeric, because "aw_start failed (-3)" sends the
+    // reader into the FFI layer to find out that a port was in use.
+    final reason = switch (serverId) {
+      -2 => 'could not parse "$host:$port" as an address',
+      -3 => 'could not bind $host:$port — in use, or not permitted',
+      _ => 'aw_start failed ($serverId)',
+    };
+    throw StateError('dartvel: $reason');
   }
 
-  return ServerHandle(
-      host, port, serverId, api, dartRequestHandler, dartCancelHandler);
+  // Not `port`: a caller may pass 0 and let the OS assign one, and 0 is not
+  // something anything can connect to. The bound port is the only callable
+  // answer, and it is also the one to report back for a fixed port, since
+  // agreeing with the request is then the same number.
+  final boundPort = api.aw_server_port(serverId);
+
+  return ServerHandle(host, boundPort == 0 ? port : boundPort, serverId, api,
+      dartRequestHandler, dartCancelHandler);
 }
 
 void _configureCors(gen.DartvelShelfBindings api, CorsOptions? cors) {
