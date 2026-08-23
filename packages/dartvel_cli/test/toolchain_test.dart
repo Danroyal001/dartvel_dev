@@ -1,3 +1,4 @@
+import 'package:dartvel_cli/src/commands/build_command.dart';
 import 'package:dartvel_cli/src/utils/toolchain.dart';
 import 'package:test/test.dart';
 
@@ -150,6 +151,60 @@ void main() {
         decideAutoInstall(hasMissing: true, isCi: true, autoInstallFlag: false),
         AutoInstallDecision.declined,
       );
+    });
+  });
+
+  group('terminal toolchain', () {
+    test('a terminal target requires the flt fork and can fetch it', () {
+      final requirements =
+          toolRequirementsFor('linux-cli', home: '/home/dev');
+
+      expect(requirements, isNotEmpty,
+          reason: 'with no requirement, preflight finds nothing missing and '
+              'never offers to install the embedder — the target just skips '
+              'forever with no way forward');
+      final embedder = requirements.single;
+      expect(embedder.installCommand!.join(' '),
+          contains('https://github.com/Danroyal001/dartvel_flt'));
+      expect(embedder.method, InstallMethod.automatic,
+          reason: 'an embedder fork is fetchable unattended; only the '
+              'licence-gated vendor SDKs are not');
+    });
+
+    test('the executable is where Dartvel installs it, not a bare name', () {
+      // The Fuchsia lesson: a plan naming a bare command that nothing ever
+      // installs is unbuildable and looks fine. Dartvel-managed toolchains
+      // live under ~/.dartvel/toolchains, so that is the path to check.
+      final embedder =
+          toolRequirementsFor('linux-cli', home: '/home/dev').single;
+      expect(embedder.executable, startsWith('/home/dev/.dartvel/toolchains/'));
+      expect(embedder.executable, contains('dartvel-flt'));
+    });
+
+    test('every terminal target names the same embedder', () {
+      // -cli and -tui are one target under two names, and macos-cli must not
+      // quietly require something different from linux-cli.
+      final executables = <String>{
+        for (final target in terminalBuildTargets)
+          toolRequirementsFor(target, home: '/home/dev').single.executable,
+      };
+      expect(executables, hasLength(1));
+    });
+
+    test('the build runs exactly what this checks', () {
+      // The invariant the embedder targets are held to, applied here before
+      // this target grows the same defect.
+      for (final target in terminalBuildTargets) {
+        final plan = terminalBuildPlan(
+          normalizeBuildTarget(target).platform,
+          toolchainHome: '/home/dev',
+        );
+        final checked = toolRequirementsFor(target, home: '/home/dev')
+            .map((ToolRequirement r) => r.executable);
+        expect(checked, contains(plan.toolchain),
+            reason: '$target would build with "${plan.toolchain}" while '
+                'preflight checks something else');
+      }
     });
   });
 

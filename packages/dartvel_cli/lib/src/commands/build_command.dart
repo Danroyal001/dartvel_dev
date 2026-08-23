@@ -158,13 +158,22 @@ class TerminalBuildPlan {
 /// The plan for rendering [platform] into a terminal.
 ///
 /// [platform] is the base platform, so `linux` rather than `linux-cli`.
-TerminalBuildPlan terminalBuildPlan(String platform, {String? buildMode}) {
+TerminalBuildPlan terminalBuildPlan(
+  String platform, {
+  String? buildMode,
+  String? toolchainHome,
+}) {
+  final root = dartvelToolchainRoot(toolchainHome ?? resolveToolchainHome());
   return TerminalBuildPlan(
     platform: platform,
-    // The fork, not upstream. Upstream `flt` runs an app in development and
-    // does not produce a distributable binary; supplying that is the fork's
-    // reason to exist, so the name Dartvel installs is the one named here.
-    toolchain: 'dartvel-flt',
+    // The fork, not upstream: upstream `flt` runs an app in development and
+    // does not produce a distributable binary, and supplying that is the
+    // fork's reason to exist.
+    //
+    // An absolute path under the toolchain root rather than a bare name,
+    // because that is where Dartvel installs it — and a plan naming something
+    // nothing installs is the Fuchsia defect.
+    toolchain: '$root/dartvel_flt/bin/dartvel-flt',
     arguments: <String>[
       'build',
       platform,

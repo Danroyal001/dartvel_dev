@@ -270,6 +270,35 @@ List<ToolRequirement> toolRequirementsFor(String platform, {String home = ''}) {
         ),
       ];
 
+    // Terminal rendering. One embedder for every -cli/-tui target, since the
+    // suffix chooses a presentation rather than a platform.
+    case 'linux-cli' || 'linux-tui':
+    case 'windows-cli' || 'windows-tui':
+    case 'macos-cli' || 'macos-tui':
+    case 'fuchsia-cli' || 'fuchsia-tui':
+      return <ToolRequirement>[
+        ToolRequirement(
+          // An absolute path under the Dartvel toolchain root, not a bare
+          // name. A bare name is looked up on PATH, and a plan naming a
+          // command that nothing installs is how the Fuchsia target stayed
+          // green for weeks while being unbuildable.
+          executable: '$root/dartvel_flt/bin/dartvel-flt',
+          name: 'Dartvel terminal embedder (dartvel_flt)',
+          installHint:
+              'cargo install --git https://github.com/Danroyal001/dartvel_flt '
+              '--root $root/dartvel_flt — needs a Rust toolchain.',
+          installCommand: <String>[
+            'cargo',
+            'install',
+            '--git',
+            'https://github.com/Danroyal001/dartvel_flt.git',
+            '--root',
+            '$root/dartvel_flt',
+            'dartvel-flt',
+          ],
+        ),
+      ];
+
     case 'fuchsia':
       return <ToolRequirement>[
         ToolRequirement(
