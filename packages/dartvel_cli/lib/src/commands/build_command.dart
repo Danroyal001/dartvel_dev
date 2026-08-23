@@ -4,6 +4,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 import '../build/browser_extension.dart';
+import '../build/elinux_bundle.dart';
 import '../utils/build_runner.dart';
 import '../utils/logger.dart';
 import '../utils/toolchain.dart';
@@ -596,6 +597,26 @@ class BuildCommand extends Command<void> {
         continue;
       }
 
+      if (p == 'sony-elinux') {
+        final result = await _buildELinuxBundle(
+          root: root,
+          arch: resolveEmbeddedArch(p, arch, explicit: archExplicit),
+          isRelease: isRelease,
+          buildMode: buildMode,
+          timeout: buildTimeout,
+          target: target,
+        );
+        switch (result) {
+          case _PlatformBuildResult.succeeded:
+            break;
+          case _PlatformBuildResult.skipped:
+            skipped += 1;
+          case _PlatformBuildResult.failed:
+            failures += 1;
+        }
+        continue;
+      }
+
       final result = embeddedBuildPlatforms.contains(p)
           ? await _buildEmbedded(
               p,
@@ -733,6 +754,131 @@ class BuildCommand extends Command<void> {
     }
     Logger.log('✅ ${plan.platform} terminal build successful');
     return _PlatformBuildResult.succeeded;
+  }
+
+  /// Assembles an eLinux release bundle from the desktop release build.
+  ///
+  /// See build/elinux_bundle.dart for why this does not go through
+  /// flutter-elinux: that tool is pinned to Flutter 3.29.3, fifteen minor
+  /// versions behind Dartvel's floor, and a release bundle does not need it.
+  Future<_PlatformBuildResult> _buildELinuxBundle({
+    required String root,
+    required String arch,
+    required bool isRelease,
+    required String buildMode,
+    required Duration? timeout,
+    required String? target,
+  }) async {
+    if (!isRelease) {
+      // Refused rather than approximated. A debug desktop bundle carries
+      // kernel_blob.bin and no libapp.so, and the only engine obtainable
+      // without building one is the release build, which has no interpreter to
+      // run kernel with — so the result would look complete and never start.
+      Logger.log('⏭️  Skipping sony-elinux: only release bundles can be '
+          'assembled. Debug and profile need an engine built for those modes, '
+          'which is not published as a standalone embedder artifact.');
+      return _PlatformBuildResult.skipped;
+    }
+
+    final artifacts =
+        '${dartvelToolchainRoot(resolveToolchainHome())}/dartvel_elinux/artifacts';
+    final backend = ELinuxBackend.wayland;
+    if (!File('$artifacts/${backend.executable}').existsSync()) {
+      Logger.log('⏭️  Skipping sony-elinux: the embedder artifacts are not '
+          'installed at $artifacts. Build them with the "Embedder artifacts" '
+          'workflow and unpack the result there.');
+      return _PlatformBuildResult.skipped;
+    }
+
+    // The desktop build supplies the app, the assets and the AOT library.
+    Logger.log('🔨 Building the host bundle sony-elinux assembles from...');
+    final desktop = await _buildPlatform(
+      'linux',
+      buildMode,
+      timeout: timeout,
+      target: target,
+      splitPerAbi: false,
+      buildNumber: null,
+      buildName: null,
+      obfuscate: false,
+      treeShakeIcons: true,
+    );
+    if (desktop != _PlatformBuildResult.succeeded) {
+      Logger.log('❌ sony-elinux: the host build it assembles from failed');
+      return _PlatformBuildResult.failed;
+    }
+
+    // The desktop build is host-native, so the bundle architecture is the
+    // host's. Requesting another is refused rather than assembled from a
+    // directory that will not exist.
+    final String bundleArch;
+    try {
+      bundleArch = elinuxAssemblyArch(
+        requested: arch,
+        host: _hostArchitecture(),
+      );
+    } on UnsupportedError catch (error) {
+      Logger.log('❌ sony-elinux: ${error.message}');
+      return _PlatformBuildResult.failed;
+    }
+
+    final desktopBundle = '$root/build/linux/$bundleArch/release/bundle';
+    final outDir = '$root/build/elinux/$bundleArch/release/bundle';
+
+    final List<ELinuxCopy> plan;
+    try {
+      plan = elinuxAssemblyPlan(
+        desktopBundle: desktopBundle,
+        artifacts: artifacts,
+        backend: backend,
+        mode: ELinuxMode.release,
+      );
+    } on UnsupportedError catch (error) {
+      Logger.log('❌ sony-elinux: ${error.message}');
+      return _PlatformBuildResult.failed;
+    }
+
+    Directory(outDir).createSync(recursive: true);
+    for (final copy in plan) {
+      final destination = '$outDir/${copy.to}';
+      Directory(p.dirname(destination)).createSync(recursive: true);
+      final source = Directory(copy.from);
+      if (source.existsSync()) {
+        _copyDirectory(source, Directory(destination));
+        continue;
+      }
+      final file = File(copy.from);
+      if (!file.existsSync()) {
+        // Naming the missing piece, because an incomplete bundle is still a
+        // directory and fails on the device instead of here.
+        Logger.log('❌ sony-elinux: ${copy.from} is missing');
+        return _PlatformBuildResult.failed;
+      }
+      file.copySync(destination);
+    }
+
+    Logger.log('✅ sony-elinux bundle assembled at $outDir');
+    Logger.log('   ${backend.executable} + engine + libapp.so, no GUI stack');
+    return _PlatformBuildResult.succeeded;
+  }
+
+  /// The architecture this machine builds natively for.
+  String _hostArchitecture() {
+    final version = Platform.version;
+    if (version.contains('arm64') || version.contains('aarch64')) return 'arm64';
+    return 'x64';
+  }
+
+  void _copyDirectory(Directory from, Directory to) {
+    to.createSync(recursive: true);
+    for (final entity in from.listSync()) {
+      final name = entity.uri.pathSegments.where((s) => s.isNotEmpty).last;
+      if (entity is Directory) {
+        _copyDirectory(entity, Directory('${to.path}/$name'));
+      } else if (entity is File) {
+        entity.copySync('${to.path}/$name');
+      }
+    }
   }
 
   Future<_PlatformBuildResult> _buildEmbedded(

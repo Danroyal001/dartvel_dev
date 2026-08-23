@@ -143,6 +143,25 @@ void main() {
     });
   });
 
+  group('architecture', () {
+    test('assembling for a different architecture than the host is refused',
+        () {
+      // The app, assets and AOT library come from a desktop build, and that
+      // build is host-native — `flutter build linux` does not cross-compile.
+      // Asking for arm64 on an x64 host produced a bundle path that did not
+      // exist, and the first symptom was a missing libapp.so.
+      expect(
+        () => elinuxAssemblyArch(requested: 'arm64', host: 'x64'),
+        throwsA(isA<UnsupportedError>()),
+      );
+    });
+
+    test('the host architecture is used when it matches', () {
+      expect(elinuxAssemblyArch(requested: 'x64', host: 'x64'), 'x64');
+      expect(elinuxAssemblyArch(requested: 'arm64', host: 'arm64'), 'arm64');
+    });
+  });
+
   group('AOT compilation', () {
     test('release asks gen_snapshot for a shared library, not a blob', () {
       // An eLinux release app loads libapp.so through the engine. Emitting an
