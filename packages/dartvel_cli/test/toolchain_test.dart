@@ -277,6 +277,18 @@ void fuchsiaInstallTests() {
       expect(fuchsia().postInstall!.join(' '), contains('bootstrap.sh'));
     });
 
+    test('the bootstrap is told where the workspace is', () {
+      // Its scripts locate themselves through FUCHSIA_EMBEDDER_DIR and refuse
+      // to run without it — the same variable the build invocation already
+      // sets. Dartvel chose the directory, so it knows the answer; asking a
+      // developer to export it for a directory we created is the wrong half of
+      // the bargain.
+      expect(
+        fuchsia().postInstallEnvironment?['FUCHSIA_EMBEDDER_DIR'],
+        '/home/dev/.dartvel/toolchains/dartvel_fuchsia',
+      );
+    });
+
     test('bootstraps for a build, not for a device', () {
       // The full bootstrap downloads a multi-gigabyte emulator image, makes
       // SSH keys and installs git hooks — all of it for running on hardware
