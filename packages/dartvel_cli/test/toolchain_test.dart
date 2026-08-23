@@ -21,10 +21,8 @@ void main() {
         toolRequirementsFor('tizen').map((r) => r.executable),
         contains('flutter-tizen'),
       );
-      expect(
-        toolRequirementsFor('sony-elinux').map((r) => r.executable),
-        contains('flutter-elinux'),
-      );
+      // sony-elinux deliberately absent: it no longer uses a vendor embedder
+      // command. Its own group below covers what it requires instead.
       expect(
         toolRequirementsFor('webos').map((r) => r.executable),
         contains('flutter-webos'),
@@ -151,6 +149,31 @@ void main() {
         decideAutoInstall(hasMissing: true, isCi: true, autoInstallFlag: false),
         AutoInstallDecision.declined,
       );
+    });
+  });
+
+  group('sony eLinux toolchain', () {
+    test('it needs the embedder artifacts, not the flutter-elinux tool', () {
+      // The tool is pinned to Flutter 3.29.3 and upstream has not committed
+      // since 2025-07-09, so requiring it makes the target permanently
+      // unbuildable at Dartvel's floor. A release bundle does not need it: the
+      // desktop build supplies the app and assets, and these artifacts supply
+      // the embedder and engine.
+      final requirements =
+          toolRequirementsFor('sony-elinux', home: '/home/dev');
+
+      expect(requirements, isNotEmpty);
+      final artifact = requirements.first;
+      expect(artifact.executable, contains('flutter-client'),
+          reason: 'what has to be present is Sony\'s embedder executable, '
+              'which is what the bundle actually runs');
+      expect(artifact.executable, startsWith('/home/dev/.dartvel/toolchains/'));
+    });
+
+    test('it does not require flutter-elinux at all', () {
+      final executables = toolRequirementsFor('sony-elinux', home: '/home/dev')
+          .map((ToolRequirement r) => r.executable);
+      expect(executables, isNot(contains('flutter-elinux')));
     });
   });
 

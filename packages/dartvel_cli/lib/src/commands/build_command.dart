@@ -1438,19 +1438,15 @@ EmbeddedBuildPlan? resolveEmbeddedBuildPlan({
       return _withScaffold(
           'tizen', 'flutter-tizen', List<String>.unmodifiable(args));
     case 'sony-elinux':
-      final args = <String>[
-        'build',
-        'elinux',
-        buildMode,
-        '--target-arch',
-        arch
-      ];
-      if (target != null) args.addAll(<String>['--target', target]);
-      if (deviceProfile != null) {
-        args.addAll(<String>['--device-profile', deviceProfile]);
-      }
-      return _withScaffold(
-          'sony-elinux', 'flutter-elinux', List<String>.unmodifiable(args));
+      // No external embedder command any more.
+      //
+      // flutter-elinux is pinned to Flutter 3.29.3 and upstream has not
+      // committed since 2025-07-09, so driving the build through it makes the
+      // target permanently unbuildable at Dartvel's floor. A release bundle is
+      // assembled instead: the desktop release build supplies the app, the
+      // assets and the AOT library, and Sony's artifacts supply the embedder
+      // and the engine. See build/elinux_bundle.dart.
+      return null;
     case 'webos':
       final args = <String>['build', 'webos', buildMode];
       if (target != null) args.addAll(<String>['--target', target]);

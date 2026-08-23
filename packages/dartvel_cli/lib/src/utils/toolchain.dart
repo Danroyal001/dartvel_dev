@@ -253,20 +253,22 @@ List<ToolRequirement> toolRequirementsFor(String platform, {String home = ''}) {
     case 'sony-elinux':
       return <ToolRequirement>[
         ToolRequirement(
-          executable: 'flutter-elinux',
-          name: 'flutter-elinux embedder',
+          // Sony's embedder executable, not the flutter-elinux tool.
+          //
+          // The tool is pinned to Flutter 3.29.3 and upstream has not
+          // committed since 2025-07-09, so requiring it makes this target
+          // permanently unbuildable at Dartvel's floor. A release bundle does
+          // not need it: the desktop build supplies the app, the assets and
+          // the AOT library, and these artifacts supply the embedder and the
+          // engine.
+          //
+          // An absolute path, because this is not installed on PATH and a bare
+          // name would be looked up there — the Fuchsia mistake.
+          executable: '$root/dartvel_elinux/artifacts/flutter-client',
+          name: 'Sony eLinux embedder artifacts',
           installHint:
-              'git clone https://github.com/Danroyal001/dartvel_elinux.git '
-              'and add its bin/ to PATH.',
-          installCommand: <String>[
-            'git',
-            'clone',
-            '--depth',
-            '1',
-            'https://github.com/Danroyal001/dartvel_elinux.git',
-            '$root/dartvel_elinux',
-          ],
-          pathHint: '$root/dartvel_elinux/bin',
+              'Build them with the `Embedder artifacts` workflow and unpack '
+              'the result into $root/dartvel_elinux/artifacts.',
         ),
       ];
 
