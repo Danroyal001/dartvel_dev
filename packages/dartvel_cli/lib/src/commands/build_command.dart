@@ -1312,6 +1312,12 @@ EmbeddedBuildPlan? resolveEmbeddedBuildPlan({
         appPath ?? '.',
         '--cpu',
         arch == 'arm64' ? 'arm64' : 'x64',
+        // Build the package and stop. Without this the fork's script hands off
+        // to build_and_run_example.sh, which starts a package server and
+        // bazel-runs the component through ffx — so the build does all its work
+        // and then fails at the last step on any machine with no device.
+        // `dartvel build` produces artifacts; running is a different verb.
+        '--build-only',
       ];
       if (target != null) args.addAll(<String>['--target', target]);
       return EmbeddedBuildPlan(

@@ -750,6 +750,24 @@ dependencies:
       expect(resolveEmbeddedArch('fuchsia', 'arm64', explicit: true), 'arm64');
     });
 
+    test('asks the embedder to build, not to run', () {
+      // The fork's build_flutter_app.sh otherwise hands off to
+      // build_and_run_example.sh, which starts a package server and bazel-runs
+      // the component through ffx. There is no device in CI and no ffx on a
+      // runner, so without this the build does all its work and then fails at
+      // the last step. `dartvel build` produces artifacts; running is a
+      // different verb.
+      final plan = resolveEmbeddedBuildPlan(
+        platform: 'fuchsia',
+        buildMode: '--release',
+        arch: 'x64',
+        appPath: '/work/my_app',
+        toolchainHome: '/home/dev',
+      );
+
+      expect(plan!.arguments, contains('--build-only'));
+    });
+
     test('an arm64 build asks the embedder for arm64', () {
       final plan = resolveEmbeddedBuildPlan(
         platform: 'fuchsia',
