@@ -186,3 +186,23 @@ List<ELinuxCopy> elinuxAssemblyPlan({
         to: 'lib/libflutter_engine.so'),
   ];
 }
+
+
+/// The architecture an assembled bundle can actually be built for.
+///
+/// The app, assets and AOT library come from a desktop build, and that build is
+/// host-native: `flutter build linux` does not cross-compile. So a [requested]
+/// architecture that differs from [host] cannot be satisfied this way, and
+/// saying so beats assembling from a directory that does not exist — which
+/// surfaces as a missing `libapp.so` and reads like a build failure.
+String elinuxAssemblyArch({required String requested, required String host}) {
+  if (requested != host) {
+    throw UnsupportedError(
+      'Cannot assemble a $requested eLinux bundle on a $host host. The app and '
+      'its AOT library come from a host-native desktop build. Build on a '
+      '$requested machine, or use an engine and gen_snapshot for $requested '
+      'with a cross-compiling toolchain.',
+    );
+  }
+  return host;
+}
