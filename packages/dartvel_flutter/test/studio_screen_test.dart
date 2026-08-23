@@ -175,133 +175,50 @@ void main() {
     expect(undo().onTap, isNotNull);
   });
 
-  group('workflows', () {
-    Future<void> openWorkflows(WidgetTester tester) async {
+  group('sections are registered, not built in', () {
+    // The workflow builder is a Pro feature and lives in dartvel_enterprise.
+    // Studio itself is free and has to be complete without it, so the section
+    // switcher takes whatever sections it is given rather than naming them.
+    testWidgets('the free Studio has no Workflows tab',
+        (WidgetTester tester) async {
       await tester.pumpWidget(host());
       await tester.pumpAndSettle();
-      await tester.tap(
-          find.byKey(const ValueKey<String>('dv-studio-section-workflows')));
-      await tester.pumpAndSettle();
-    }
 
-    testWidgets('stored workflows are listed', (WidgetTester tester) async {
-      await const DVWorkflowStore().save(DVWorkflowDocument(name: 'sendMail'));
-
-      await openWorkflows(tester);
-
-      expect(find.text('sendMail'), findsOneWidget);
-      expect(
-          find.text('Select or create a workflow to edit.'), findsOneWidget);
-    });
-
-    testWidgets('an empty store says so rather than looking broken',
-        (WidgetTester tester) async {
-      await openWorkflows(tester);
-
-      expect(find.text('No stored workflows yet.'), findsOneWidget);
-    });
-
-    testWidgets('creating a workflow opens the step builder',
-        (WidgetTester tester) async {
-      await openWorkflows(tester);
-
-      await tester.enterText(find.byType(EditableText).first, 'charge');
-      await tester.tap(find
-          .byKey(const ValueKey<String>('dv-studio-workflow-create')));
-      await tester.pumpAndSettle();
-
-      // The step palette, not a page palette: switching sections switches
-      // what is being built.
-      expect(find.text('Condition'), findsOneWidget);
-      expect(find.text('No step selected'), findsOneWidget);
-      expect(find.text('Column'), findsNothing);
-      // Not yet published: creating is not saving.
-      expect(await const DVWorkflowStore().names(), isEmpty);
-    });
-
-    testWidgets('publishing writes the workflow to the store',
-        (WidgetTester tester) async {
-      await openWorkflows(tester);
-      await tester.enterText(find.byType(EditableText).first, 'charge');
-      await tester.tap(find
-          .byKey(const ValueKey<String>('dv-studio-workflow-create')));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find
-          .byKey(const ValueKey<String>('dv-studio-workflow-publish')));
-      await tester.pumpAndSettle();
-
-      expect(await const DVWorkflowStore().names(), <String>['charge']);
-      expect(find.byKey(const ValueKey<String>('dv-studio-workflow-charge')),
+      // By tab key, not by label: "Pages" also appears as the section heading,
+      // so matching on text asserts something other than what it reads.
+      expect(find.byKey(const ValueKey<String>('dv-studio-section-pages')),
           findsOneWidget);
-    });
-
-    testWidgets('creating a name that already exists opens it instead of '
-        'blanking it', (WidgetTester tester) async {
-      final stored = DVWorkflowDocument(name: 'charge');
-      DVWorkflowDocumentEditor(stored)
-          .insert(DVWorkflowStep.call('capturePayment'),
-              parent: DVWorkflowDocumentEditor.rootParent);
-      await const DVWorkflowStore().save(stored);
-
-      await openWorkflows(tester);
-      await tester.enterText(find.byType(EditableText).first, 'charge');
-      await tester.tap(find
-          .byKey(const ValueKey<String>('dv-studio-workflow-create')));
-      await tester.pumpAndSettle();
-
-      // Starting blank here would drop the steps on the first publish.
-      expect(find.text('call capturePayment'), findsOneWidget);
-    });
-
-    testWidgets('deleting removes the workflow', (WidgetTester tester) async {
-      await const DVWorkflowStore().save(DVWorkflowDocument(name: 'charge'));
-
-      await openWorkflows(tester);
-      await tester
-          .tap(find.byKey(const ValueKey<String>('dv-studio-workflow-charge')));
-      await tester.pumpAndSettle();
-      await tester.tap(
-          find.byKey(const ValueKey<String>('dv-studio-workflow-delete')));
-      await tester.pumpAndSettle();
-
-      expect(await const DVWorkflowStore().names(), isEmpty);
       expect(
-          find.text('Select or create a workflow to edit.'), findsOneWidget);
+        find.byKey(const ValueKey<String>('dv-studio-section-workflows')),
+        findsNothing,
+        reason: 'a tab for a feature this build does not contain would open '
+            'onto nothing',
+      );
     });
 
-    testWidgets('view code shows the workflow as a backend function',
+    testWidgets('a registered section appears and renders',
         (WidgetTester tester) async {
-      await const DVWorkflowStore().save(DVWorkflowDocument(name: 'charge'));
+      await tester.pumpWidget(MaterialApp(
+        home: Material(
+          child: DVStudioScreen(
+            sections: <DVStudioSection>[
+              DVStudioSection(
+                id: 'widgets',
+                label: 'Widgets',
+                build: (BuildContext context) => const Text('registered body'),
+              ),
+            ],
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
 
-      await openWorkflows(tester);
+      expect(find.text('Widgets'), findsOneWidget);
       await tester
-          .tap(find.byKey(const ValueKey<String>('dv-studio-workflow-charge')));
+          .tap(find.byKey(const ValueKey<String>('dv-studio-section-widgets')));
       await tester.pumpAndSettle();
-      await tester.tap(
-          find.byKey(const ValueKey<String>('dv-studio-workflow-view-code')));
-      await tester.pumpAndSettle();
-
-      expect(find.textContaining('@DVBackendFunction'), findsOneWidget);
-      expect(find.textContaining('charge'), findsWidgets);
-    });
-
-    testWidgets('switching back to pages leaves the workflow edit behind',
-        (WidgetTester tester) async {
-      await const DVPageStore().save(documentFor('/pricing', 'Plans'));
-      await openWorkflows(tester);
-      await tester.enterText(find.byType(EditableText).first, 'charge');
-      await tester.tap(find
-          .byKey(const ValueKey<String>('dv-studio-workflow-create')));
-      await tester.pumpAndSettle();
-
-      await tester.tap(
-          find.byKey(const ValueKey<String>('dv-studio-section-pages')));
-      await tester.pumpAndSettle();
-
-      // An unpublished workflow must not linger under the page builder.
-      expect(find.text('No step selected'), findsNothing);
-      expect(find.text('/pricing'), findsOneWidget);
+      expect(find.text('registered body'), findsOneWidget);
     });
   });
+
 }
