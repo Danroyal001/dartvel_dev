@@ -1192,9 +1192,24 @@ bool _existsAndIsFresh(File file, {DateTime? since}) {
   return file.existsSync() && _isFresh(file, since);
 }
 
+/// How far below the build's start time an artifact's timestamp may sit and
+/// still count as produced by that build.
+///
+/// The build start is a `DateTime.now()` carrying microseconds; a file's mtime
+/// is whatever the filesystem chose to record, which is second-granular on
+/// several and two-second-granular on FAT. So an artifact written a moment
+/// after the build began can carry a timestamp numerically below it, and a
+/// strict comparison reports a file that is right there as missing.
+///
+/// Two seconds covers the coarsest granularity in use. It does not weaken what
+/// the check is for: a leftover from an earlier build is minutes or hours old,
+/// not two seconds.
+const _timestampGranularitySlack = Duration(seconds: 2);
+
 bool _isFresh(FileSystemEntity entity, DateTime? since) {
   if (since == null) return true;
-  return !entity.statSync().modified.isBefore(since);
+  final floor = since.subtract(_timestampGranularitySlack);
+  return !entity.statSync().modified.isBefore(floor);
 }
 
 /// Embedded targets whose default architecture is not the global one.
