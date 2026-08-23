@@ -77,35 +77,37 @@ jobs:
           git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git "$HOME/depot_tools"
           echo "$HOME/depot_tools" >> $GITHUB_PATH
 
-      # The layout is fixed by DEPS and took two wrong attempts to pin down,
-      # so it is worth stating exactly:
+      # Settled by reading the repository rather than guessing a fourth time.
       #
-      #   * DEPS lives at the flutter/flutter repo root.
-      #   * Its entries and hooks use paths like `engine/src/build/...`, and
-      #     gclient resolves those against the **gclient root**, not the
-      #     solution.
-      #   * `engine/src/build` is a chromium dependency DEPS syncs in; the
-      #     flutter checkout itself belongs at `engine/src/flutter`.
+      # flutter/flutter contains BOTH engine/src/build and engine/src/flutter,
+      # and DEPS at its root uses paths relative to the gclient root. Those two
+      # facts together mean the repository root *is* the gclient root: there is
+      # no subdirectory arrangement that satisfies both.
       #
-      # So the solution is named `engine/src/flutter` and `.gclient` sits one
-      # level above `engine/`. The first attempt put the checkout in the right
-      # place but `.gclient` inside `engine/`, which made the root one level too
-      # deep and the hooks look for `engine/engine/src/build`. The second tried
-      # depot_tools' `fetch` recipe instead of working the layout out.
+      # So the checkout is made first and gclient is pointed at it with a
+      # self-referential solution — `managed: False` and no url, which is how
+      # gclient is run inside an existing checkout. The three earlier attempts
+      # each put the root one level away from the repository and failed on the
+      # same sysroot hook, first with a doubled path and then with a path that
+      # was correct and empty.
       - name: Sync engine sources
         id: sync
         run: |
           set -euo pipefail
           mkdir -p engine-root && cd engine-root
-          cat > .gclient <<EOF
+          git init -q
+          git remote add origin https://github.com/flutter/flutter.git
+          git fetch --depth 1 origin "${{ inputs.flutter_ref }}"
+          git checkout -q FETCH_HEAD
+          # Present before the hooks run, which is the thing that was missing.
+          test -f engine/src/build/linux/sysroot_scripts/install-sysroot.py
+          cat > .gclient <<'EOF'
           solutions = [
             {
               "managed": False,
-              "name": "engine/src/flutter",
-              "url": "https://github.com/flutter/flutter.git@${{ inputs.flutter_ref }}",
-              "custom_deps": {},
+              "name": ".",
+              "url": None,
               "deps_file": "DEPS",
-              "safesync_url": "",
               "custom_vars": {
                 "download_android_deps": False,
                 "download_fuchsia_deps": False,
@@ -115,8 +117,7 @@ jobs:
           EOF
           gclient sync --no-history --shallow -j$(nproc) 2>&1 | tail -30
           df -h /
-          ls engine/src/flutter | head -5
-          test -d engine/src/build
+          test -d engine/src/third_party
 
       - name: Build the engine
         id: build
