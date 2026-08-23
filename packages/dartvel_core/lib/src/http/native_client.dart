@@ -200,17 +200,37 @@ class DVRustHttpTransport implements DVHttpTransport {
   /// Returning null rather than throwing lets an application register this
   /// opportunistically: a target without the native library keeps working over
   /// `package:http` instead of failing at startup.
+  ///
+  /// The failure is recorded in [dvHttpTransportHint] rather than swallowed.
+  /// Silently degrading to HTTP/1.1 is right for most callers and wrong for
+  /// APNS, which requires HTTP/2 and would otherwise fail with a message that
+  /// never mentions a library.
   static Future<DVRustHttpTransport?> tryLoad() async {
+    String path;
     try {
-      final path = await resolveNativeLibraryPath();
-      if (!File(path).existsSync()) return null;
+      path = await resolveNativeLibraryPath();
+    } on Object catch (error) {
+      dvHttpTransportHint = describeNativeTransportAbsence(null, error);
+      return null;
+    }
+
+    if (!File(path).existsSync()) {
+      dvHttpTransportHint = describeNativeTransportAbsence(path, null);
+      return null;
+    }
+
+    try {
       // Proves the symbols exist before anything depends on them, so a stale
       // library fails here rather than mid-request.
       final library = ffi.DynamicLibrary.open(path);
       library.lookup<ffi.NativeFunction<_SendNative>>('dv_http_send');
       library.lookup<ffi.NativeFunction<_NextNative>>('dv_http_next_event');
+      // Cleared on success, so an earlier failed attempt cannot leave a stale
+      // hint pointing at a library that is now loaded.
+      dvHttpTransportHint = null;
       return DVRustHttpTransport(path);
-    } catch (_) {
+    } on Object catch (error) {
+      dvHttpTransportHint = describeNativeTransportAbsence(path, error);
       return null;
     }
   }
@@ -395,4 +415,23 @@ Future<bool> installNativeHttpTransport() async {
     const DVPackageHttpTransport(),
   ]));
   return true;
+}
+
+/// Why the native HTTP transport could not be used, phrased for someone who
+/// has just been told that `package:http` cannot speak h2.
+///
+/// [path] is where the library was looked for, or null if even that could not
+/// be worked out. [error] is what went wrong opening it, or null when the file
+/// simply was not there.
+String describeNativeTransportAbsence(String? path, Object? error) {
+  final where = path == null ? 'its location could not be resolved' : path;
+  final because = error == null
+      // The ordinary case, and the one worth explaining: only a prebuilt Linux
+      // library is committed, so anywhere else this means it was never built
+      // here rather than that something broke.
+      ? 'it is not there'
+      : 'opening it failed: $error';
+  return 'HTTP/2 and HTTP/3 need the native library ($where), and $because. '
+      'Build it with a Rust toolchain (cargo and cbindgen) present, or use a '
+      'protocol chain that permits HTTP/1.1.';
 }
