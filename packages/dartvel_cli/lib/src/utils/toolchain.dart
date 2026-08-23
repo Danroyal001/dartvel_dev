@@ -268,7 +268,10 @@ List<ToolRequirement> toolRequirementsFor(String platform, {String home = ''}) {
             'clone',
             '--depth',
             '1',
-            '--recurse-submodules',
+            // Deliberately not --recurse-submodules: combined with --depth 1
+            // it fails, because a shallow submodule fetch only gets the tip
+            // and googletest is pinned off-tip. bootstrap.sh below initialises
+            // them unshallowed, which is the mechanism that works.
             'https://github.com/Danroyal001/dartvel_fuchsia.git',
             '$root/dartvel_fuchsia',
           ],
@@ -524,7 +527,18 @@ Future<List<ToolRequirement>> installRequirements(
       Logger.log('⚠️  Failed to install ${requirement.name}.');
       final stderrText = (result.stderr as Object?)?.toString().trim() ?? '';
       if (stderrText.isNotEmpty) {
-        Logger.log('   ${stderrText.split('\n').first}');
+        // The last lines, not the first. git's first stderr line is always
+        // "Cloning into '...'", so reporting the first line hid every real
+        // failure behind progress noise — including the submodule error that
+        // this comment exists because of.
+        final lines = stderrText
+            .split('\n')
+            .map((line) => line.trim())
+            .where((line) => line.isNotEmpty)
+            .toList();
+        for (final line in lines.reversed.take(3).toList().reversed) {
+          Logger.log('   $line');
+        }
       }
       stillMissing.add(requirement);
       continue;

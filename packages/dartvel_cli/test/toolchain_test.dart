@@ -251,11 +251,22 @@ void fuchsiaInstallTests() {
     ToolRequirement fuchsia() =>
         toolRequirementsFor('fuchsia', home: '/home/dev').single;
 
-    test('clones with submodules', () {
-      // third_party/sdk-integration carries bootstrap_bazel.sh, which is what
-      // produces tools/bazel. A --depth 1 clone without submodules leaves the
-      // workspace unable to build anything.
-      expect(fuchsia().installCommand, contains('--recurse-submodules'));
+    test('does not shallow-clone submodules, which cannot work', () {
+      // The requirement is that submodules end up initialised — bootstrap.sh
+      // does that with `git submodule update --recursive --init`, unshallowed.
+      //
+      // Asking git for both --depth 1 and --recurse-submodules fails: a
+      // shallow submodule fetch only gets the tip, and googletest is pinned to
+      // a commit that is not it. "Fetched in submodule path
+      // 'third_party/googletest', but it did not contain 7b0ac59d". This test
+      // originally asserted --recurse-submodules, which was the wrong
+      // mechanism for the right requirement.
+      final command = fuchsia().installCommand!;
+      expect(
+        command.contains('--depth') && command.contains('--recurse-submodules'),
+        isFalse,
+        reason: 'a shallow clone cannot recurse submodules pinned off-tip',
+      );
     });
 
     test('runs the bootstrap, because a clone is not an install', () {
