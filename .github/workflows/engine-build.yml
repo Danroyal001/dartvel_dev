@@ -77,41 +77,35 @@ jobs:
           git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git "$HOME/depot_tools"
           echo "$HOME/depot_tools" >> $GITHUB_PATH
 
-      # Since the engine moved into flutter/flutter, the engine sources live at
-      # engine/src/flutter inside the monorepo and gclient drives the sync from
-      # a .gclient beside it. Written out rather than using `fetch flutter`,
-      # because that assumes an interactive, unpinned checkout.
+      # `fetch flutter` rather than a hand-written .gclient. The first attempt
+      # wrote one with the solution at src/flutter, and the DEPS hooks then
+      # looked for engine/src/build relative to the gclient root and got
+      # engine/engine/src/build — a doubled path, two and a half minutes in.
+      # depot_tools ships a recipe that lays the monorepo out the way its own
+      # hooks expect, so guessing the layout is not worth it.
       - name: Sync engine sources
         id: sync
         run: |
           set -euo pipefail
-          mkdir -p engine
-          cat > engine/.gclient <<EOF
-          solutions = [
-            {
-              "managed": False,
-              "name": "src/flutter",
-              "url": "https://github.com/flutter/flutter.git@${{ inputs.flutter_ref }}",
-              "custom_deps": {},
-              "deps_file": "DEPS",
-              "safesync_url": "",
-            },
-          ]
-          EOF
-          cd engine
-          # --no-history keeps this to what is needed to build; the full history
-          # is tens of gigabytes on its own.
-          gclient sync --no-history --shallow -j$(nproc) 2>&1 | tail -40
+          mkdir -p engine && cd engine
+          fetch --no-history flutter
+          cd flutter
+          git fetch --depth 1 origin "${{ inputs.flutter_ref }}"
+          git checkout FETCH_HEAD
+          cd ..
+          # -D removes directories DEPS no longer references, which the ref
+          # change above can strand.
+          gclient sync -D --no-history --shallow -j$(nproc) 2>&1 | tail -30
           df -h /
-          ls src/flutter | head
+          ls flutter | head
 
       - name: Build the engine
         id: build
         continue-on-error: true
         run: |
           set -uo pipefail
-          cd engine/src
-          ./flutter/bin/et build -c ${{ inputs.mode == 'debug' && 'host_debug' || format('host_{0}', inputs.mode) }} 2>&1 | tail -40
+          cd engine/flutter
+          ./bin/et build -c ${{ inputs.mode == 'debug' && 'host_debug' || format('host_{0}', inputs.mode) }} 2>&1 | tail -40
           echo "et exit=$?"
           find out -name "libflutter_engine.so" -o -name "gen_snapshot" | head
 
@@ -119,9 +113,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p out
-          find engine/src/out -name "libflutter_engine.so" -exec cp {} out/ \; 2>/dev/null || true
-          find engine/src/out -name "gen_snapshot" -type f -exec cp {} out/ \; 2>/dev/null || true
-          find engine/src/out -name "flutter_embedder.h" -exec cp {} out/ \; 2>/dev/null || true
+          find engine -path "*/out/*" -name "libflutter_engine.so" -exec cp {} out/ \; 2>/dev/null || true
+          find engine -path "*/out/*" -name "gen_snapshot" -type f -exec cp {} out/ \; 2>/dev/null || true
+          find engine -path "*/out/*" -name "flutter_embedder.h" -exec cp {} out/ \; 2>/dev/null || true
           echo "${{ inputs.flutter_ref }}" > out/flutter.ref
           ls -la out/
           test -s out/libflutter_engine.so
