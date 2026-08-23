@@ -37,6 +37,18 @@ http = "1"
 tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
 rustls-native-certs = "0.7"
 webpki-roots = "0.26"
+# HTTP/3. quinn carries QUIC, h3 the HTTP semantics on top of it, h3-quinn the
+# adapter between them. default-features off on quinn so it cannot pull
+# aws-lc-rs back in as rustls's provider the way axum-server did — ring is what
+# the rest of this crate uses and a second provider makes rustls panic rather
+# than choose.
+#
+# h3 has no informational-response path, so 103 Early Hints do not survive an
+# HTTP/3 request. That is a crate gap rather than a protocol limit, and the
+# fallback to h2 is what recovers them.
+h3 = "0.0.8"
+h3-quinn = "0.0.10"
+quinn = { version = "0.11", default-features = false, features = ["runtime-tokio", "rustls", "ring"] }
 
 [build-dependencies]
 cbindgen = "0.29"

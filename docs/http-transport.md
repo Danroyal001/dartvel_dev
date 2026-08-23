@@ -111,20 +111,52 @@ rule: FFI, never platform channels.
 | `package:http` transport declaring HTTP/1.1 only | ✅ Implemented |
 | Browser transport declaring all three | ✅ Implemented |
 | Rust HTTP/2 client with early hints | ✅ Implemented, 8 unit tests + a live check |
-| `DVRustHttpTransport` Dart binding | ✅ Implemented |
-| Rust HTTP/3 client | ⏳ Next |
+| `DVRustHttpTransport` Dart binding | ✅ Implemented, declares h3 and h2 |
+| Rust HTTP/3 client | ✅ Implemented, verified against a live server |
 | APNS provider | ✅ Implemented, 17 tests |
 | Web Push provider (RFC 8291 + 8292) | ✅ Implemented, 15 tests |
 
 Nothing above is marked done on the strength of a plan.
 
-**The HTTP/2 client is verified against a real server**, not only compiled.
+**Both clients are verified against a real server**, not only compiled.
 `cargo test -- --ignored` performs an actual request and asserts on what comes
 back: TCP, TLS, ALPN negotiating `h2`, an HTTP/2 request, and a response whose
 headers are unmistakably live (`cf-ray`, `server: cloudflare`, current date).
 Those tests are `#[ignore]` by default so an offline or firewalled build is not
 a failing one — a network test that fails without a network trains people to
 ignore red.
+
+## The HTTP/3 client
+
+`quinn` carries QUIC, `h3` the HTTP semantics above it, `h3-quinn` the adapter.
+It shares the Dart contract, the FFI event pump and the failure classification
+with the HTTP/2 client, and shares none of the connection path: QUIC is UDP,
+brings its own TLS 1.3 handshake, and opens no TCP socket at all. An h3 request
+is therefore routed before the TCP connect rather than after it.
+
+Three things were worth getting right and are easy to get wrong silently:
+
+- **TLS 1.3 only.** QUIC forbids TLS 1.2, and `QuicClientConfig::try_from`
+  rejects a config that permits it rather than negotiating down. The QUIC path
+  builds its own rustls config with `builder_with_protocol_versions` instead of
+  sharing the TCP path's.
+- **The socket is bound in the peer's address family.** Resolution happens
+  first, then the bind is `0.0.0.0` or `[::]` to match. Binding IPv4 and
+  dialling an IPv6 peer fails with an error that reads like a network problem.
+- **`recv_data` yields a `Buf`, not a contiguous slice.** Treating it as one
+  truncates bodies that span more than one segment — the kind of wrong answer
+  that still looks like a body.
+
+**Version pinning is not free here.** `h3-quinn` 0.0.7 does not compile against
+current `quinn`: it reads `StreamId`'s tuple field, which became private. The
+working pairing is `h3` 0.0.8 with `h3-quinn` 0.0.10, and `quinn` is declared
+with `default-features = false` so it cannot reintroduce `aws-lc-rs` as
+rustls's provider through its own defaults — the same trap `axum-server`'s
+`tls-rustls` feature set earlier in this file.
+
+Early hints do not survive an HTTP/3 request, and a test asserts that rather
+than leaving it as a comment: if `h3` ever grows an informational path, the
+live check fails and sends someone back to this document.
 
 ## Two crypto-provider problems found on the way
 

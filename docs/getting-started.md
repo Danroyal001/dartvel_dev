@@ -228,7 +228,9 @@ none:
   and a public helper, as above.
 - **Terminal rendering** resolves its targets and selects backends, but the
   terminal backend itself is not built.
-- **HTTP/3** is not implemented. HTTP/2 is, with 103 Early Hints.
+- **HTTP/3 is implemented and verified against a live server**, alongside
+  HTTP/2. Early Hints arrive over HTTP/2 only — no Rust crate surfaces 1xx
+  responses over HTTP/3, which is a crate gap rather than a protocol limit.
 - Several provider integrations are partial. `docs/spec-status.json` records
   every specification section with what is present and what is absent, and
   `dart run tool/spec_status_check.dart` fails if a claim cites evidence that

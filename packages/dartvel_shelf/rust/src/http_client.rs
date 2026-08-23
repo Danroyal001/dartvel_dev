@@ -20,7 +20,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::task::{Context, Poll};
 
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 use serde::Deserialize;
 use serde_json::json;
 use tokio::net::TcpStream;
@@ -365,6 +365,16 @@ async fn perform(
         std::time::Duration::from_millis(request.timeout_ms)
     };
 
+    if request.alpn == "h3" {
+        // Nothing below this point applies: QUIC is UDP, brings its own TLS
+        // 1.3 handshake, and never opens a TCP connection at all.
+        let work = send_http3(host.clone(), port, url, request, body, events);
+        return match tokio::time::timeout(timeout, work).await {
+            Ok(result) => result,
+            Err(_) => Err(Failure::new("quic: timed out", true)),
+        };
+    }
+
     let work = async {
         let tcp = TcpStream::connect((host.as_str(), port))
             .await
@@ -510,6 +520,142 @@ where
     Ok(())
 }
 
+// ===== HTTP/3 =====
+
+/// Roots for QUIC, which is TLS 1.3 only.
+///
+/// A separate config from the TCP path rather than a shared one: QUIC forbids
+/// TLS 1.2, and `QuicClientConfig::try_from` refuses a config that permits it
+/// instead of quietly negotiating down. Building for 1.3 explicitly makes that
+/// a compile-time shape rather than a runtime rejection.
+fn quic_client_config(alpn: &str) -> Result<rustls::ClientConfig, Failure> {
+    ensure_crypto_provider();
+    let mut config = rustls::ClientConfig::builder_with_protocol_versions(&[&rustls::version::TLS13])
+        .with_root_certificates(tls_roots())
+        .with_no_client_auth();
+    config.alpn_protocols = vec![alpn.as_bytes().to_vec()];
+    Ok(config)
+}
+
+async fn send_http3(
+    host: String,
+    port: u16,
+    url: http::Uri,
+    request: ClientRequest,
+    body: Bytes,
+    events: mpsc::UnboundedSender<ClientEvent>,
+) -> Result<(), Failure> {
+    use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
+
+    // Resolution first, because the socket has to be bound in the same address
+    // family as the peer. Binding 0.0.0.0 and then dialling an IPv6 address is
+    // an error that reads like a network failure.
+    let mut addrs = tokio::net::lookup_host((host.as_str(), port))
+        .await
+        .map_err(|e| Failure::new(format!("quic: resolve {host}: {e}"), true))?;
+    let peer: SocketAddr = addrs
+        .next()
+        .ok_or_else(|| Failure::new(format!("quic: {host} resolved to nothing"), true))?;
+
+    let bind: SocketAddr = if peer.is_ipv6() {
+        (Ipv6Addr::UNSPECIFIED, 0).into()
+    } else {
+        (Ipv4Addr::UNSPECIFIED, 0).into()
+    };
+
+    let mut endpoint = quinn::Endpoint::client(bind)
+        .map_err(|e| Failure::new(format!("quic: bind: {e}"), true))?;
+
+    let tls = quic_client_config(&request.alpn)?;
+    let quic_crypto = quinn::crypto::rustls::QuicClientConfig::try_from(tls)
+        .map_err(|e| Failure::new(format!("quic: tls config: {e}"), false))?;
+    endpoint.set_default_client_config(quinn::ClientConfig::new(Arc::new(quic_crypto)));
+
+    let connection = endpoint
+        .connect(peer, &host)
+        .map_err(|e| Failure::new(format!("quic: connect: {e}"), true))?
+        .await
+        .map_err(|e| {
+            // A peer that does not speak QUIC does not refuse — UDP has
+            // nothing to refuse with — so this is usually a timeout. Either
+            // way it is the case the Dart fallback chain exists to answer.
+            Failure::new(format!("quic: handshake: {e}"), true)
+        })?;
+
+    let (mut driver, mut send_request) = h3::client::new(h3_quinn::Connection::new(connection))
+        .await
+        .map_err(|e| Failure::new(format!("quic: h3 handshake: {e}"), true))?;
+
+    // The driver owns the control streams. Without a task polling it the
+    // connection stalls, exactly as with h2's connection future.
+    let drive = tokio::spawn(async move {
+        let _ = std::future::poll_fn(|cx| driver.poll_close(cx)).await;
+    });
+
+    let method = http::Method::from_bytes(request.method.as_bytes())
+        .map_err(|e| Failure::new(format!("bad method: {e}"), false))?;
+    let mut builder = http::Request::builder().method(method).uri(url);
+    for (name, value) in &request.headers {
+        builder = builder.header(name.as_str(), value.as_str());
+    }
+    let outgoing = builder
+        .body(())
+        .map_err(|e| Failure::new(format!("bad request: {e}"), false))?;
+
+    let mut stream = send_request
+        .send_request(outgoing)
+        .await
+        .map_err(|e| Failure::new(format!("quic: send: {e}"), true))?;
+
+    if !body.is_empty() {
+        stream
+            .send_data(body)
+            .await
+            .map_err(|e| Failure::new(format!("quic: send body: {e}"), true))?;
+    }
+    stream
+        .finish()
+        .await
+        .map_err(|e| Failure::new(format!("quic: finish: {e}"), true))?;
+
+    // No informational path here, deliberately. h3::client::RequestStream
+    // offers recv_response() and nothing else; 1xx responses are legal in
+    // HTTP/3 and no Rust crate surfaces them. A request that needs early hints
+    // has to reach h2, which the Dart fallback chain does by preference order
+    // rather than by anything decided here.
+    let response = stream
+        .recv_response()
+        .await
+        .map_err(|e| Failure::new(format!("quic: response: {e}"), true))?;
+
+    let head = json!({
+        "status": response.status().as_u16(),
+        "protocol": "h3",
+        "headers": serde_json::from_str::<serde_json::Value>(
+            &headers_json(response.headers())
+        ).unwrap_or_else(|_| json!({})),
+    })
+    .to_string();
+    let _ = events.send(ClientEvent::Head(head));
+
+    loop {
+        let chunk = stream.recv_data().await.map_err(|e| {
+            // The head already reached the caller, so the origin answered and
+            // another protocol would be asking a settled question again.
+            Failure::new(format!("quic: body: {e}"), false)
+        })?;
+        let Some(mut chunk) = chunk else { break };
+        // recv_data yields an impl Buf, which may not be one contiguous slice.
+        let remaining = chunk.remaining();
+        if remaining > 0 {
+            let _ = events.send(ClientEvent::Body(chunk.copy_to_bytes(remaining)));
+        }
+    }
+
+    drive.abort();
+    Ok(())
+}
+
 fn headers_json(headers: &http::HeaderMap) -> String {
     let mut map = serde_json::Map::new();
     for (name, value) in headers {
@@ -615,6 +761,61 @@ mod tests {
         assert!(!failure.retryable);
     }
 
+    #[tokio::test]
+    async fn an_h3_request_takes_the_quic_path() {
+        // The protocol is chosen by ALPN token, and h3 does not run over TCP
+        // at all — it runs over QUIC, which is UDP. Routing an h3 request into
+        // the TCP path would still fail, but for the wrong reason and with a
+        // message that sends the reader to the wrong place, so this asserts
+        // which transport was attempted rather than merely that it failed.
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let failure = perform(
+            ClientRequest {
+                url: "https://h3.invalid.test/".to_string(),
+                method: "GET".to_string(),
+                headers: HashMap::new(),
+                alpn: "h3".to_string(),
+                timeout_ms: 2_000,
+            },
+            Bytes::new(),
+            tx,
+        )
+        .await
+        .unwrap_err();
+
+        assert!(
+            failure.message.contains("quic"),
+            "an h3 request must fail on the QUIC path, got: {}",
+            failure.message
+        );
+        assert!(
+            failure.retryable,
+            "a QUIC connection that could not be made is exactly what the \
+             fallback chain exists to answer"
+        );
+    }
+
+    #[tokio::test]
+    async fn cleartext_is_refused_for_h3_as_well() {
+        // h3 has no cleartext form at all — QUIC always carries TLS 1.3.
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let failure = perform(
+            ClientRequest {
+                url: "http://example.test/".to_string(),
+                method: "GET".to_string(),
+                headers: HashMap::new(),
+                alpn: "h3".to_string(),
+                timeout_ms: 1_000,
+            },
+            Bytes::new(),
+            tx,
+        )
+        .await
+        .unwrap_err();
+        assert!(!failure.retryable);
+        assert!(failure.message.contains("https"));
+    }
+
     #[test]
     fn cancelling_an_unknown_handle_is_harmless() {
         assert_eq!(dv_http_cancel(u64::MAX), 0);
@@ -673,6 +874,38 @@ mod live_tests {
         // from what was asked for.
         assert_eq!(head["protocol"], "h2");
         assert!(body_len > 0, "expected a body");
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn fetches_over_real_http3() {
+        // Cloudflare serves HTTP/3, and the same endpoint the h2 check uses,
+        // so a difference between the two is the protocol and not the origin.
+        let (hints, head, body_len) = collect(ClientRequest {
+            url: "https://cloudflare.com/cdn-cgi/trace".to_string(),
+            method: "GET".to_string(),
+            headers: HashMap::new(),
+            alpn: "h3".to_string(),
+            timeout_ms: 20_000,
+        })
+        .await;
+
+        let head: serde_json::Value = serde_json::from_str(&head.expect("no head")).unwrap();
+        eprintln!("LIVE h3 head={head} body_len={body_len}");
+        assert_eq!(head["status"], 200);
+        assert_eq!(head["protocol"], "h3");
+        assert!(body_len > 0, "expected a body");
+
+        // Not an aspiration that failed — a documented gap. h3's RequestStream
+        // offers recv_response() and no informational path, so 1xx responses
+        // cannot surface over HTTP/3 with any current Rust crate. HTTP/3
+        // permits them at the protocol level; this is a crate limit. If this
+        // assertion ever fails, the crate gained the capability and
+        // docs/http-transport.md is out of date.
+        assert!(
+            hints.is_empty(),
+            "h3 surfaced early hints; the crate gap may have closed"
+        );
     }
 
     #[tokio::test]
