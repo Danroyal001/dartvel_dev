@@ -120,6 +120,103 @@ const terminalBuildTargets = <String>[
   'fuchsia-cli', 'fuchsia-tui',
 ];
 
+/// How a terminal build is actually produced.
+///
+/// This exists because `dartvel build linux-cli` resolved its target
+/// correctly, printed "Rendering: terminal only", then ran
+/// `flutter build linux` and reported success — shipping a GUI binary under a
+/// name that promises no GUI. The resolution tests all passed throughout,
+/// because they asserted what the target was called rather than what building
+/// it did.
+///
+/// `flt` is not a Flutter CLI wrapper like `flutter-tizen` or `flutter-webos`.
+/// It uses Flutter's Custom Embedder API from Rust and renders through the
+/// Kitty graphics protocol, so no combination of flags to `flutter build`
+/// produces a terminal binary. There is no fallback to degrade to.
+class TerminalBuildPlan {
+  const TerminalBuildPlan({
+    required this.platform,
+    required this.toolchain,
+    required this.arguments,
+  });
+
+  /// The base platform this renders on — `linux`, not `linux-cli`.
+  final String platform;
+
+  /// The executable that performs the build, looked up on PATH.
+  final String toolchain;
+
+  final List<String> arguments;
+
+  /// Whether this plan would run a GUI desktop build.
+  ///
+  /// Computed from the command rather than declared, so that an implementation
+  /// which later resolves to `flutter build linux` fails the assertion instead
+  /// of satisfying it by construction.
+  bool get usesFlutterDesktopBuild =>
+      toolchain == 'flutter' &&
+      arguments.length >= 2 &&
+      arguments.first == 'build' &&
+      const <String>{'linux', 'windows', 'macos'}.contains(arguments[1]);
+}
+
+/// The plan for rendering [platform] into a terminal.
+///
+/// [platform] is the base platform, so `linux` rather than `linux-cli`.
+TerminalBuildPlan terminalBuildPlan(String platform, {String? buildMode}) {
+  return TerminalBuildPlan(
+    platform: platform,
+    // The fork, not upstream. Upstream `flt` runs an app in development and
+    // does not produce a distributable binary; supplying that is the fork's
+    // reason to exist, so the name Dartvel installs is the one named here.
+    toolchain: 'dartvel-flt',
+    arguments: <String>[
+      'build',
+      platform,
+      if (buildMode != null) buildMode,
+    ],
+  );
+}
+
+/// Whether a terminal build can proceed, and what to say when it cannot.
+class TerminalBuildOutcome {
+  const TerminalBuildOutcome({required this.shouldRun, required this.message});
+
+  final bool shouldRun;
+  final String message;
+}
+
+/// Decides what to do about a terminal build for [plan].
+///
+/// Separated from the loop that runs it so the decision can be asserted on
+/// without spawning a build. The rule it implements is the Build Toolchain
+/// Rule: check tooling before doing work, and skip cleanly rather than start
+/// something that cannot finish.
+///
+/// It deliberately does not name `flutter build` as an alternative. That is
+/// what the code used to do silently, and suggesting it would be recommending
+/// the bug.
+TerminalBuildOutcome terminalBuildOutcome(
+  TerminalBuildPlan plan, {
+  required bool toolchainPresent,
+}) {
+  if (toolchainPresent) {
+    return TerminalBuildOutcome(
+      shouldRun: true,
+      message: 'Building ${plan.platform} for the terminal with '
+          '${plan.toolchain}.',
+    );
+  }
+  return TerminalBuildOutcome(
+    shouldRun: false,
+    message: 'Skipping ${plan.platform}-cli: ${plan.toolchain} is not '
+        'installed. Terminal rendering uses the dartvel_flt embedder, which '
+        'renders through the Kitty graphics protocol from Rust — there is no '
+        'way to produce a terminal binary from the desktop toolchain, so this '
+        'target is skipped rather than substituted.',
+  );
+}
+
 /// A rendering backend linked into a build.
 ///
 /// Which of these a binary contains is decided at build time and never at
@@ -282,7 +379,9 @@ class BuildCommand extends Command<void> {
     BuildPreflight? preflight,
     BuildProcessRun? processRun,
     BuildRunnerDependencyCheck? hasBuildRunner,
+    bool Function(String)? onPath,
   })  : _preflightOverride = preflight,
+        _onPathOverride = onPath,
         _processRun = processRun ?? _defaultProcessRun,
         _hasBuildRunner = hasBuildRunner ?? hasBuildRunnerDependency {
     argParser
@@ -322,6 +421,13 @@ class BuildCommand extends Command<void> {
   }
 
   final BuildPreflight? _preflightOverride;
+  final bool Function(String)? _onPathOverride;
+
+  /// Overridable so a test never depends on what is installed on the machine
+  /// running it — the mistake that let a Fuchsia test assert an executable
+  /// name for weeks while nothing by that name was ever present.
+  bool _isOnPath(String executable) =>
+      (_onPathOverride ?? isExecutableOnPath)(executable);
   final BuildProcessRun _processRun;
   final BuildRunnerDependencyCheck _hasBuildRunner;
 
@@ -453,8 +559,39 @@ class BuildCommand extends Command<void> {
     final buildMode =
         isProfile ? '--profile' : (isRelease ? '--release' : '--debug');
 
+    // A terminal-only build must not reach the desktop branch below. It used
+    // to, which is how `dartvel build linux-cli` produced a GUI binary and
+    // called it a success.
+    final terminalOnly = renderBackends.contains(DVRenderBackend.terminal) &&
+        !renderBackends.contains(DVRenderBackend.gui);
+
     var failures = 0;
     for (final p in buildablePlatforms) {
+      if (terminalOnly) {
+        final plan = terminalBuildPlan(p, buildMode: buildMode);
+        final outcome = terminalBuildOutcome(
+          plan,
+          toolchainPresent: _isOnPath(plan.toolchain),
+        );
+        Logger.log(outcome.shouldRun
+            ? '🔨 ${outcome.message}'
+            : '⏭️  ${outcome.message}');
+        if (!outcome.shouldRun) {
+          skipped += 1;
+          continue;
+        }
+        final result = await _buildTerminal(plan, timeout: buildTimeout);
+        switch (result) {
+          case _PlatformBuildResult.succeeded:
+            break;
+          case _PlatformBuildResult.skipped:
+            skipped += 1;
+          case _PlatformBuildResult.failed:
+            failures += 1;
+        }
+        continue;
+      }
+
       final result = embeddedBuildPlatforms.contains(p)
           ? await _buildEmbedded(
               p,
@@ -572,6 +709,28 @@ class BuildCommand extends Command<void> {
   /// embedders (`flutter-tizen`, `flutter-elinux`). The bundle is always built
   /// first; `iso`/`img` are distribution-packaging steps layered on top of the
   /// bundle and require the configured Sony eLinux image toolchain.
+  Future<_PlatformBuildResult> _buildTerminal(
+    TerminalBuildPlan plan, {
+    required Duration? timeout,
+  }) async {
+    final command = '${plan.toolchain} ${plan.arguments.join(' ')}';
+    Logger.log('   $command');
+    final process = await Process.start(
+      plan.toolchain,
+      plan.arguments,
+      mode: ProcessStartMode.inheritStdio,
+    );
+    final exitCode =
+        await _awaitBuild(process, timeout: timeout, description: command);
+    if (exitCode == null) return _PlatformBuildResult.failed;
+    if (exitCode != 0) {
+      Logger.log('❌ ${plan.platform} terminal build failed (exit $exitCode)');
+      return _PlatformBuildResult.failed;
+    }
+    Logger.log('✅ ${plan.platform} terminal build successful');
+    return _PlatformBuildResult.succeeded;
+  }
+
   Future<_PlatformBuildResult> _buildEmbedded(
     String platform,
     String buildMode, {
