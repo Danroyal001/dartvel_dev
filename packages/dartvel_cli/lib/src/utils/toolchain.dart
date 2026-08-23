@@ -76,6 +76,13 @@ class ToolRequirement {
 /// Where Dartvel installs toolchains it manages itself.
 String dartvelToolchainRoot(String home) => '$home/.dartvel/toolchains';
 
+/// A Dartvel app is an ordinary Flutter package, so nothing Dartvel-specific
+/// is handed to the embedder: this is the same entry point a plain
+/// `flutter create` app uses, and the fork keeps it that way so it stays a
+/// general embedder rather than a Dartvel one.
+const String fuchsiaAppBuildScript = 'scripts/build_flutter_app.sh';
+
+
 /// The tools [platform] needs, beyond a working Flutter SDK.
 ///
 /// Repository names and executable names differ on purpose: the Dartvel forks
@@ -269,7 +276,14 @@ List<ToolRequirement> toolRequirementsFor(String platform, {String home = ''}) {
           // Not a PATH executable like the other embedders: the Fuchsia
           // embedder is a Bazel workspace driven by scripts inside its own
           // checkout, so what has to be present is the checkout itself.
-          executable: '$root/dartvel_fuchsia/scripts/bootstrap.sh',
+          //
+          // Specifically the script the *build* runs, not the one that sets
+          // the checkout up. Checking bootstrap.sh passed for a checkout that
+          // could not perform a build, which is the shape of "reports ready
+          // and cannot build" that the Build Toolchain Rule exists to stop.
+          // postInstall below still runs bootstrap.sh; it is an installation
+          // step rather than the thing whose absence should block a build.
+          executable: '$root/dartvel_fuchsia/$fuchsiaAppBuildScript',
           name: 'Fuchsia Flutter embedder',
           installHint:
               'git clone https://github.com/Danroyal001/dartvel_fuchsia.git '

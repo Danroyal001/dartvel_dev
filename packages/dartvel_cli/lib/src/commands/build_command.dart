@@ -35,11 +35,6 @@ const flutterBuildPlatforms = <String>[
 
 /// The Fuchsia embedder's script for building an arbitrary Flutter package.
 ///
-/// A Dartvel app is an ordinary Flutter package, so nothing Dartvel-specific
-/// is handed to the embedder: this is the same entry point a plain
-/// `flutter create` app uses, and the fork keeps it that way so it stays a
-/// general embedder rather than a Dartvel one.
-const String fuchsiaAppBuildScript = 'scripts/build_flutter_app.sh';
 
 /// Embedded/television platforms built through dedicated Flutter embedders:
 /// `flutter-tizen` (Samsung), `flutter-elinux` (Sony), `flutter-webos` (LG),

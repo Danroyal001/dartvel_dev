@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:dartvel_cli/src/commands/build_command.dart';
+import 'package:dartvel_cli/src/utils/toolchain.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
@@ -670,6 +671,7 @@ dependencies:
   });
 
   buildTimeoutTests();
+  planMatchesPreflightTests();
   terminalRenderingTests();
   terminalOptInTests();
   everyBuildPathIsBoundedTests();
@@ -876,6 +878,49 @@ void everyBuildPathIsBoundedTests() {
 // | dartvel build linux                    | GUI yes | terminal no  |
 // | dartvel build linux + dartvel.terminal | GUI yes | terminal yes |
 // | dartvel build linux-cli / linux-tui    | GUI no  | terminal yes |
+/// The defect this repository has now shipped twice: a plan that names a
+/// command, and a test that agrees the name is spelled correctly while nothing
+/// establishes the command can run.
+///
+/// First `expect(plan.executable, 'dartvel_fuchsia')`, green for weeks against
+/// a target that could never build. Then the terminal targets, green while
+/// `dartvel build linux-cli` produced a GUI binary.
+///
+/// The invariant underneath both: whatever a build plan is about to execute is
+/// what preflight must have checked for. Checking a *different* file is a
+/// weaker guarantee than it appears — it passes for a toolchain that is
+/// present but cannot perform the build, which is the case the Build Toolchain
+/// Rule exists to prevent.
+void planMatchesPreflightTests() {
+  group('a build plan runs what preflight checked', () {
+    for (final platform in embeddedBuildPlatforms) {
+      test('$platform', () {
+        final plan = resolveEmbeddedBuildPlan(
+          platform: platform,
+          buildMode: '--release',
+          arch: 'arm64',
+          appPath: '/work/app',
+          toolchainHome: '/home/dev',
+        );
+        expect(plan, isNotNull, reason: '$platform has no build plan');
+
+        final checked = toolRequirementsFor(platform, home: '/home/dev')
+            .map((ToolRequirement r) => r.executable)
+            .toList();
+
+        expect(
+          checked,
+          contains(plan!.executable),
+          reason: 'dartvel build $platform runs "${plan.executable}", but '
+              'preflight checks $checked. Preflight would pass and the build '
+              'would then fail on something nobody looked for — which is how a '
+              'target reports "ready" and cannot build.',
+        );
+      });
+    }
+  });
+}
+
 void terminalRenderingTests() {
   group('terminal builds do not quietly become GUI builds', () {
     // The tests below this group check that `linux-cli` *resolves* to a
