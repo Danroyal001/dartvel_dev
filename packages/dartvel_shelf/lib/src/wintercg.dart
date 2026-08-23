@@ -124,7 +124,10 @@ class Response {
       : headers = headers ?? Headers(),
         _body = body;
 
-  Body? get body => _body == null ? null : Body(_body!);
+  // No `!` here: with the language version this package now declares, a
+  // private final field promotes after a null check, so the assertion is
+  // provably redundant rather than merely unfashionable.
+  Body? get body => _body == null ? null : Body(_body);
 
   static Response text(String s,
       {int status = 200, Headers? headers, Encoding encoding = utf8}) {
