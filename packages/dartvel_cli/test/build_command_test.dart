@@ -114,22 +114,18 @@ void main() {
       ]);
     });
 
-    test('builds Sony eLinux through flutter-elinux with target arch', () {
+    test('Sony eLinux has no external embedder command', () {
+      // It used to return a `flutter-elinux build elinux` plan. That tool is
+      // pinned to Flutter 3.29.3 with no upstream commit since 2025-07-09, so
+      // a plan naming it describes a build that cannot run at Dartvel's floor.
+      // The release bundle is assembled instead — see build/elinux_bundle.dart
+      // and its tests, which cover what replaced this.
       final plan = resolveEmbeddedBuildPlan(
         platform: 'sony-elinux',
         buildMode: '--release',
         arch: 'arm64',
       );
-
-      expect(plan, isNotNull);
-      expect(plan!.executable, 'flutter-elinux');
-      expect(plan.arguments, <String>[
-        'build',
-        'elinux',
-        '--release',
-        '--target-arch',
-        'arm64',
-      ]);
+      expect(plan, isNull);
     });
 
     test('builds webOS through flutter-webos (LG embedder)', () {
@@ -182,9 +178,12 @@ void main() {
       // Each of these refuses to build a project with no platform directory
       // ("This project is not configured for <platform>"). The directory is
       // generated output, so the plan carries the command that generates it.
+      // sony-elinux is deliberately absent. It needed an `elinux/` directory
+      // because flutter-elinux read one; the assembled release bundle is built
+      // from the desktop build instead, which uses `linux/` — a directory the
+      // project already has.
       final expected = <String, String>{
         'tizen': 'tizen',
-        'sony-elinux': 'elinux',
         'webos': 'webos',
         'tvos': 'tvos',
       };
@@ -902,15 +901,23 @@ void planMatchesPreflightTests() {
           appPath: '/work/app',
           toolchainHome: '/home/dev',
         );
-        expect(plan, isNotNull, reason: '$platform has no build plan');
-
         final checked = toolRequirementsFor(platform, home: '/home/dev')
             .map((ToolRequirement r) => r.executable)
             .toList();
 
+        if (plan == null) {
+          // No external command: the bundle is assembled in process. The
+          // invariant still bites — preflight must check *something*, or the
+          // target would report ready with no artifacts present at all.
+          expect(checked, isNotEmpty,
+              reason: '$platform runs no external command, so preflight must '
+                  'still check for the artifacts the assembly needs');
+          return;
+        }
+
         expect(
           checked,
-          contains(plan!.executable),
+          contains(plan.executable),
           reason: 'dartvel build $platform runs "${plan.executable}", but '
               'preflight checks $checked. Preflight would pass and the build '
               'would then fail on something nobody looked for — which is how a '
