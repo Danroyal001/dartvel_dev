@@ -327,6 +327,36 @@ real `libtinfo5` package.
 
 ### The three blocked targets share a shape, not a cause
 
+**Terminal builds and native assets do not currently compose, and that is
+Flutter's constraint rather than Dartvel's.** `dartvel-flt` assembles a bundle
+from `flutter build bundle`, which is the only Flutter command that emits an
+asset bundle without also building a GUI shell. On Linux, a project with native
+assets — which every Dartvel project has, because the Rust runtime is one —
+fails there with:
+
+```
+Target dart_build failed: Could not read compiler configurations for build
+hooks, expected build/flutter_assets/linux/x64/debug/CMakeCache.txt to exist.
+```
+
+That path cannot exist. Flutter derives the native-asset compiler
+configuration from a CMake cache under the *bundle output directory*, and
+`flutter build bundle` never runs CMake — only the desktop build does, and it
+writes its cache under `build/linux/x64/<mode>/` instead. So the two are
+mutually exclusive as things stand.
+
+The bundle assembly itself is proven: `dartvel-flt build` against the flt
+fork's own `sample_app`, which has no native assets, produces a bundle that
+starts and runs. What is unproven is a *Dartvel* application in a terminal,
+and this is why.
+
+Two ways out, neither yet taken. A desktop build could be run purely to produce
+the assets, with its GUI binary discarded — which honours the rule that a
+`-cli` build *bundles* no GUI, since nothing GUI is shipped, at the cost of
+building one to throw away. Or `flutter assemble` could be driven directly with
+the native-asset configuration supplied rather than inferred, which is the
+cleaner answer and the larger one.
+
 **webOS was checked the same way and is not out of the group.** LG publishes
 artifacts at `lg-flutter-webos/artifacts`, and the newest release is recent —
 `c6f67dede3-webos26-1`, 2026-06-29 — which looks encouraging and is not. That
