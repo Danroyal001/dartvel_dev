@@ -30,6 +30,18 @@ void main() {
           containsAll(<String>['chrome-extension', 'firefox-extension']));
     });
 
+    test('covers the terminal targets, which need an embedder too', () {
+      // Same rule, third drift. `dartvel build linux-cli` needs the
+      // dartvel_flt embedder, which is not a plain Flutter SDK, so it must be
+      // askable — and it was not, because the derived sets above did not
+      // include the terminal ones.
+      for (final target in terminalBuildTargets) {
+        expect(doctorTargets, contains(target),
+            reason: '`dartvel build $target` exists, so '
+                '`dartvel doctor --target $target` must too');
+      }
+    });
+
     test('offers nothing plain `flutter build` already handles', () {
       // Asking about `web` or `android` would imply Dartvel checks a toolchain
       // it does not manage; those surface through `flutter doctor`.

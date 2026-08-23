@@ -877,6 +877,73 @@ void everyBuildPathIsBoundedTests() {
 // | dartvel build linux + dartvel.terminal | GUI yes | terminal yes |
 // | dartvel build linux-cli / linux-tui    | GUI no  | terminal yes |
 void terminalRenderingTests() {
+  group('terminal builds do not quietly become GUI builds', () {
+    // The tests below this group check that `linux-cli` *resolves* to a
+    // terminal presentation, and every one of them passed while
+    // `dartvel build linux-cli` ran `flutter build linux`, produced an
+    // ordinary GUI binary, and printed "Build complete".
+    //
+    // That is the failure the project's own rule names: asserting the name of
+    // a plan instead of what the plan does. A terminal target needs the flt
+    // embedder, which is not a Flutter CLI wrapper — `flutter build linux`
+    // cannot produce a terminal binary under any flag.
+
+    test('a terminal-only build refuses to run a GUI flutter build', () {
+      // The plan for a terminal target must not be the desktop one. Asserting
+      // on the resolved command rather than on a label, because the label was
+      // already correct while the command was wrong.
+      final plan = terminalBuildPlan('linux');
+      expect(
+        plan.usesFlutterDesktopBuild,
+        isFalse,
+        reason: 'flutter build linux links the GUI backend; a -cli target that '
+            'ran it would ship exactly what the suffix promises to exclude',
+      );
+    });
+
+    test('a terminal build reports the embedder it needs', () {
+      // It must name what is missing rather than skipping wordlessly, and it
+      // must name the fork, since the whole point of the fork is that upstream
+      // does not produce distributable binaries.
+      final plan = terminalBuildPlan('linux');
+      expect(plan.toolchain, contains('flt'));
+    });
+
+    test('a missing embedder skips rather than falling back to GUI', () {
+      // The Build Toolchain Rule: skip cleanly when the toolchain is absent,
+      // and never start a build that cannot finish. Falling back to the
+      // desktop build is worse than either, because it finishes.
+      final outcome = terminalBuildOutcome(
+        terminalBuildPlan('linux'),
+        toolchainPresent: false,
+      );
+
+      expect(outcome.shouldRun, isFalse);
+      expect(outcome.message, contains('dartvel-flt'));
+      expect(outcome.message, isNot(contains('flutter build')),
+          reason: 'suggesting the desktop build as a substitute is the bug, '
+              'not the remedy');
+    });
+
+    test('a present embedder runs the terminal build', () {
+      final outcome = terminalBuildOutcome(
+        terminalBuildPlan('linux'),
+        toolchainPresent: true,
+      );
+      expect(outcome.shouldRun, isTrue);
+    });
+
+    test('every terminal-capable platform has a plan, not just linux', () {
+      // A platform that resolves a -cli name but has no plan behind it would
+      // fall through to the desktop build again, which is how this started.
+      for (final platform in terminalCapablePlatforms) {
+        final plan = terminalBuildPlan(platform);
+        expect(plan.usesFlutterDesktopBuild, isFalse,
+            reason: '$platform-cli must not run a GUI build');
+      }
+    });
+  });
+
   group('terminal target resolution', () {
     test('-cli resolves to the base platform with a terminal presentation',
         () {

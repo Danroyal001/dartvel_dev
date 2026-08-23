@@ -8,7 +8,10 @@ import 'build_command.dart'
     show
         browserExtensionBuildPlatforms,
         embeddedBuildPlatforms,
-        extensionBuildPlatforms;
+        extensionBuildPlatforms,
+        normalizeBuildTarget,
+        terminalBuildPlan,
+        terminalBuildTargets;
 
 /// Targets `dartvel doctor --target` accepts.
 ///
@@ -20,6 +23,9 @@ final List<String> doctorTargets = <String>[
   ...embeddedBuildPlatforms,
   ...extensionBuildPlatforms,
   ...browserExtensionBuildPlatforms,
+  // Terminal targets need the dartvel_flt embedder, which is no more a plain
+  // Flutter SDK than flutter-tizen is. Third time this list drifted.
+  ...terminalBuildTargets,
 ];
 
 class DoctorCommand extends Command<void> {
@@ -114,6 +120,15 @@ class DoctorCommand extends Command<void> {
   Future<void> _checkTargetToolchain(String target) async {
     Logger.log('Dartvel Doctor — target: $target');
     Logger.log('==================================================\n');
+
+    // Terminal targets answer from the build plan itself rather than from a
+    // second copy here. A doctor that names a different executable from the
+    // one the build runs is worse than no doctor: it reports ready for
+    // something that will not build.
+    if (terminalBuildTargets.contains(target)) {
+      await _checkTerminalToolchain(target);
+      return;
+    }
 
     // Executable each target's build path invokes.
     final executable = switch (target) {
@@ -216,6 +231,23 @@ class DoctorCommand extends Command<void> {
     } catch (_) {}
     Logger.log('[!] Git: Not found (recommended for version control)');
     return true; // Not critical
+  }
+
+  Future<void> _checkTerminalToolchain(String target) async {
+    final plan = terminalBuildPlan(normalizeBuildTarget(target).platform);
+    final available = await _isExecutableAvailable(plan.toolchain);
+    if (available) {
+      Logger.log('[+] $target embedder: ${plan.toolchain} found');
+      Logger.log('\n[+] Target $target looks ready to build.');
+      return;
+    }
+    Logger.log('[!] $target embedder: ${plan.toolchain} not found on PATH');
+    Logger.log(
+      '    Terminal rendering uses the dartvel_flt embedder, which renders '
+      'from Rust through the Kitty graphics protocol. `flutter build '
+      '${plan.platform}` cannot produce a terminal binary, so this target is '
+      'skipped rather than substituted.',
+    );
   }
 
   Future<void> _checkShorebird() async {
