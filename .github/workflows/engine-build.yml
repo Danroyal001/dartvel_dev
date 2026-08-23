@@ -77,34 +77,53 @@ jobs:
           git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git "$HOME/depot_tools"
           echo "$HOME/depot_tools" >> $GITHUB_PATH
 
-      # `fetch flutter` rather than a hand-written .gclient. The first attempt
-      # wrote one with the solution at src/flutter, and the DEPS hooks then
-      # looked for engine/src/build relative to the gclient root and got
-      # engine/engine/src/build — a doubled path, two and a half minutes in.
-      # depot_tools ships a recipe that lays the monorepo out the way its own
-      # hooks expect, so guessing the layout is not worth it.
+      # The layout is fixed by DEPS and took two wrong attempts to pin down,
+      # so it is worth stating exactly:
+      #
+      #   * DEPS lives at the flutter/flutter repo root.
+      #   * Its entries and hooks use paths like `engine/src/build/...`, and
+      #     gclient resolves those against the **gclient root**, not the
+      #     solution.
+      #   * `engine/src/build` is a chromium dependency DEPS syncs in; the
+      #     flutter checkout itself belongs at `engine/src/flutter`.
+      #
+      # So the solution is named `engine/src/flutter` and `.gclient` sits one
+      # level above `engine/`. The first attempt put the checkout in the right
+      # place but `.gclient` inside `engine/`, which made the root one level too
+      # deep and the hooks look for `engine/engine/src/build`. The second tried
+      # depot_tools' `fetch` recipe instead of working the layout out.
       - name: Sync engine sources
         id: sync
         run: |
           set -euo pipefail
-          mkdir -p engine && cd engine
-          fetch --no-history flutter
-          cd flutter
-          git fetch --depth 1 origin "${{ inputs.flutter_ref }}"
-          git checkout FETCH_HEAD
-          cd ..
-          # -D removes directories DEPS no longer references, which the ref
-          # change above can strand.
-          gclient sync -D --no-history --shallow -j$(nproc) 2>&1 | tail -30
+          mkdir -p engine-root && cd engine-root
+          cat > .gclient <<EOF
+          solutions = [
+            {
+              "managed": False,
+              "name": "engine/src/flutter",
+              "url": "https://github.com/flutter/flutter.git@${{ inputs.flutter_ref }}",
+              "custom_deps": {},
+              "deps_file": "DEPS",
+              "safesync_url": "",
+              "custom_vars": {
+                "download_android_deps": False,
+                "download_fuchsia_deps": False,
+              },
+            },
+          ]
+          EOF
+          gclient sync --no-history --shallow -j$(nproc) 2>&1 | tail -30
           df -h /
-          ls flutter | head
+          ls engine/src/flutter | head -5
+          test -d engine/src/build
 
       - name: Build the engine
         id: build
         continue-on-error: true
         run: |
           set -uo pipefail
-          cd engine/flutter
+          cd engine-root/engine/src/flutter
           ./bin/et build -c ${{ inputs.mode == 'debug' && 'host_debug' || format('host_{0}', inputs.mode) }} 2>&1 | tail -40
           echo "et exit=$?"
           find out -name "libflutter_engine.so" -o -name "gen_snapshot" | head
@@ -113,9 +132,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p out
-          find engine -path "*/out/*" -name "libflutter_engine.so" -exec cp {} out/ \; 2>/dev/null || true
-          find engine -path "*/out/*" -name "gen_snapshot" -type f -exec cp {} out/ \; 2>/dev/null || true
-          find engine -path "*/out/*" -name "flutter_embedder.h" -exec cp {} out/ \; 2>/dev/null || true
+          find engine-root -path "*/out/*" -name "libflutter_engine.so" -exec cp {} out/ \; 2>/dev/null || true
+          find engine-root -path "*/out/*" -name "gen_snapshot" -type f -exec cp {} out/ \; 2>/dev/null || true
+          find engine-root -path "*/out/*" -name "flutter_embedder.h" -exec cp {} out/ \; 2>/dev/null || true
           echo "${{ inputs.flutter_ref }}" > out/flutter.ref
           ls -la out/
           test -s out/libflutter_engine.so
