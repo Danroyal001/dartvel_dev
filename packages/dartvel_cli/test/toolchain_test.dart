@@ -161,8 +161,20 @@ void main() {
       final embedder = requirements.single;
       // A checkout, not a binary on PATH: the embedder is driven by scripts
       // inside its own tree.
+      //
+      // Specifically the script the build runs. This asserted bootstrap.sh,
+      // which is the installation step — so preflight was answering "was this
+      // checkout set up" when the question is "can it build". Both files
+      // happen to exist in the fork, so nothing was broken; the check was
+      // simply weaker than it read, in exactly the way that let a Fuchsia plan
+      // name an executable nothing installs and stay green for weeks.
       expect(embedder.executable,
-          '/home/dev/.dartvel/toolchains/dartvel_fuchsia/scripts/bootstrap.sh');
+          '/home/dev/.dartvel/toolchains/dartvel_fuchsia/$fuchsiaAppBuildScript');
+      expect(embedder.postInstall?.join(' '), contains('bootstrap.sh'),
+          reason: 'bootstrap.sh is still how the checkout is prepared — it '
+              'unshallows the submodules the clone deliberately skipped — but '
+              'it runs after installation rather than being the thing whose '
+              'absence blocks a build');
       expect(embedder.installCommand, isNotNull);
       expect(embedder.installCommand!.join(' '),
           contains('https://github.com/Danroyal001/dartvel_fuchsia.git'));

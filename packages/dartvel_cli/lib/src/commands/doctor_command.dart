@@ -138,8 +138,11 @@ class DoctorCommand extends Command<void> {
       'tvos' => 'flutter-tvos',
       // The Fuchsia embedder is a checkout driven by its own scripts, not a
       // Flutter CLI wrapper on PATH.
+      // The script the build runs, so doctor and build agree about what has
+      // to be present. Reporting a different file answers a different
+      // question from "can this target build".
       'fuchsia' => '${dartvelToolchainRoot(Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '')}'
-          '/dartvel_fuchsia/scripts/bootstrap.sh',
+          '/dartvel_fuchsia/$fuchsiaAppBuildScript',
       'vscode' => 'npm',
       // A browser extension is Flutter web output plus a generated manifest,
       // so the web toolchain is the whole requirement.
