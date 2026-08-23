@@ -2422,6 +2422,78 @@ class DVBrowserExtension {
   }
 }
 
+/// What a dual-mode application should do at startup.
+///
+/// Returned rather than performed: the prompt is an outcome the caller acts
+/// on, which keeps every branch testable without a TTY and keeps the policy in
+/// one readable place instead of spread through a main().
+enum DVLaunchOutcome {
+  gui,
+  terminal,
+
+  /// Offer the terminal and let the person decide. See
+  /// [dvTerminalFallbackPrompt].
+  askToUseTerminal,
+}
+
+/// What the application says when it has no display but can use a terminal.
+///
+/// The wording is part of the feature. A prompt nobody understands is a worse
+/// outcome than either silent answer, so it names what is missing, what is on
+/// offer, and which way Enter goes.
+const String dvTerminalFallbackPrompt =
+    'No display server is available.\n'
+    'This app can run in your terminal instead. Continue in TUI mode? [Y/n]';
+
+/// Decides where a launch should start.
+///
+/// [linked] is what the build actually contains — resolved at build time from
+/// the `-cli`/`-tui` suffix or a `dartvel.terminal` opt-in, never probed here.
+///
+/// The rules, in order:
+///
+/// 1. One backend means no decision. A GUI-only build starts the GUI and fails
+///    to find a display exactly as it does today; an application that opted
+///    into nothing gains no prompt, no flag and no branch.
+/// 2. `--tui` starts the terminal. The explicit path, and the one to reach for
+///    over SSH.
+/// 3. A display means the GUI. A terminal is where the command was typed, not
+///    necessarily where the application belongs.
+/// 4. No display, and someone is there to answer: ask. Both silent answers are
+///    wrong — quietly redrawing as text is indistinguishable from a bug at the
+///    moment it happens, and failing outright wastes a capability the
+///    application was built with.
+/// 5. No display and nobody to ask: take the terminal. A prompt with no human
+///    at the other end is a hang, and the terminal is the only surface that
+///    can work.
+DVLaunchOutcome resolveLaunchSurface({
+  required Set<DVRenderSurface> linked,
+  required List<String> arguments,
+  required bool displayAvailable,
+  bool interactive = true,
+}) {
+  if (linked.isEmpty) {
+    throw ArgumentError.value(
+      linked,
+      'linked',
+      'A build must contain at least one rendering backend. An empty set is a '
+          'build configuration error, not a runtime condition.',
+    );
+  }
+
+  final hasTerminal = linked.contains(DVRenderSurface.terminal);
+  final hasGui = linked.contains(DVRenderSurface.gui);
+
+  if (!hasTerminal) return DVLaunchOutcome.gui;
+  if (!hasGui) return DVLaunchOutcome.terminal;
+
+  if (arguments.contains('--tui')) return DVLaunchOutcome.terminal;
+  if (displayAvailable) return DVLaunchOutcome.gui;
+  return interactive
+      ? DVLaunchOutcome.askToUseTerminal
+      : DVLaunchOutcome.terminal;
+}
+
 /// Where an application's frames are landing.
 ///
 /// Decided at build time from what was linked — the `-cli`/`-tui` suffix or a
