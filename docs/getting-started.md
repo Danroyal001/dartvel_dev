@@ -226,8 +226,12 @@ none:
   build-only entry point.
 - **Block-bodied annotated inputs are not supported yet.** Expression bodies
   and a public helper, as above.
-- **Terminal rendering** resolves its targets and selects backends, but the
-  terminal backend itself is not built.
+- **Terminal rendering** resolves targets, selects backends and negotiates
+  launch, but the `dartvel_flt` embedder is not built, so
+  `dartvel build linux-cli` skips with a message naming what is missing.
+  `dartvel doctor --target linux-cli` reports the same thing. It does not fall
+  back to a desktop build — a `-cli` binary that contained a GUI would be the
+  opposite of what the suffix promises.
 - **HTTP/3 is implemented and verified against a live server**, alongside
   HTTP/2. Early Hints arrive over HTTP/2 only — no Rust crate surfaces 1xx
   responses over HTTP/3, which is a crate gap rather than a protocol limit.
