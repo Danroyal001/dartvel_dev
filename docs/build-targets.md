@@ -26,7 +26,7 @@ local Dartvel `dartvel_vscode` fork added as a dependency.
 | `ios` | ✅ Builds | **Verified on a macOS runner**, not this host: `build/ios/iphoneos/Runner.app` (15.4 MB), artifact directory listed. Run [31554165981](https://github.com/Danroyal001/dartvel/actions/runs/31554165981) |
 | `tvos` | ✅ Builds | **Verified on a macOS runner**: scaffold auto-generated, then `build/tvos/Debug-appletvsimulator/Runner.app`. The `appletvsimulator` path is the proof it is a tvOS app and not the iPhone app an earlier mapping produced. Run [32538073146](https://github.com/Danroyal001/dartvel/actions/runs/32538073146). See [tvOS](#tvos) |
 | `tizen` / `tpk` | ✅ Builds | Signed 9.3MB TPK with engine + assets, built on a laptop with Tizen Studio installed. CI can only ever *skip* it — the SDK is licence-gated and Dartvel must not install it unattended — so the workflow asserts the skip names that reason. See [Tizen](#tizen-samsung) |
-| `sony-elinux` | ⚠️ Engine unblocked | Sony's embedder **builds and links against Dartvel's engine** (3.44.5, `83675ed2`) in CI — no engine build needed. What remains is wiring the `dartvel_elinux` tools fork to those artifacts. See [Sony eLinux](#sony-elinux) |
+| `sony-elinux` | ⚠️ Engine unblocked, tool is not | Sony's embedder **builds and links against Dartvel's engine** in CI, so **release** mode needs no engine build. The blocker moved: `flutter-elinux` is pinned to Flutter 3.29.3 and upstream has not moved since 2025-07. See [Sony eLinux](#sony-elinux) |
 | `webos` | ❌ Blocked | Dart version floor — the embedder ships Dart 3.10.9, `dartvel_mix` needs ≥ 3.12.0; see [webOS](#webos-lg) |
 | `fuchsia` | ❌ Blocked, same class as webOS | The five build-plumbing walls are fixed: `--build-only` in the fork, `postInstall` bootstrap, submodule handling, the bootstrap's workspace variable, and skipping an unfetchable `googletest` pin. It now clones, bootstraps and stages the app — then dies in `pub get` because the fork's bundled Flutter is **older than Dart 3.4**: `dartvel_example requires SDK version >=3.4.0 <4.0.0, version solving failed`. That is not a Dartvel bug and not a `mix` problem; the embedder's Flutter submodule is simply ancient. Unblocking needs the fork re-pinned to a modern Flutter **and its engine rebuilt from source**, because bootstrap.sh warns the engine and the Flutter pin must stay aligned. See [Fuchsia](#fuchsia) |
 | `vscode` | ✅ Builds | `out/src/extension.js`, `out/lib/vscode_api.handlers.js`, `build/web/flutter_bootstrap.js`, `build/web/assets/` |
@@ -327,6 +327,19 @@ real `libtinfo5` package.
 
 ### The three blocked targets share a shape, not a cause
 
+**webOS was checked the same way and is not out of the group.** LG publishes
+artifacts at `lg-flutter-webos/artifacts`, and the newest release is recent —
+`c6f67dede3-webos26-1`, 2026-06-29 — which looks encouraging and is not. That
+tag's Flutter commit `c6f67dede3` resolves to **Flutter 3.38.10** (tagged, Feb
+2026), whose Dart is 3.10.9 and below Dartvel's floor. It is new artifacts for
+an old Flutter.
+
+The difference from Sony matters: Sony's embedder links the *official* engine,
+so Google publishing one for our revision was enough. LG's is a webOS platform
+engine that only LG builds, so there is no official artifact to substitute and
+no public recipe to reproduce it. webOS stays blocked on a vendor build, and
+that is a genuinely different position from eLinux.
+
 **Sony eLinux is out of this group too, and for the same reason.** The premise
 was that it needed a Flutter engine built from source. It does not, and the
 check cost minutes:
@@ -346,9 +359,29 @@ check cost minutes:
   `FlutterEngine` symbols. Sony's newest published build is a year older than
   this engine, so that compatibility was the real unknown and is now answered.
 
-What is left for the target is not an engine: it is re-pinning the
-`dartvel_elinux` tools fork and pointing it at these artifacts instead of
-Sony's stale release. That is plumbing.
+What is left for the target is not an engine, and it is not plumbing either —
+calling it that was wrong. Two things stand in the way, and they are different
+sizes:
+
+- **Debug and profile still need an engine build.** Google publishes exactly
+  one standalone `libflutter_engine.so` per revision and it is the **release**
+  build: 41.7 MB, against Sony's release 42.6 MB, profile 52.5 MB and debug
+  381 MB, all three of which have distinct hashes. The per-mode directories
+  carry `linux-{arch}-flutter-gtk.zip`, where the engine is statically linked
+  into the GTK embedder and cannot be reused. `.github/workflows/engine-build.yml`
+  builds the missing modes.
+- **`flutter-elinux`, the tool, is pinned to Flutter 3.29.3**, and upstream has
+  not committed since 2025-07-09. Its classes subclass `flutter_tools`
+  internals, so moving it to 3.44.5 is a port across fifteen minor versions
+  rather than a version bump. That is now the binding constraint for
+  `dartvel build sony-elinux`, and it is the larger of the two.
+
+There is a way around the second that is worth weighing before paying for it:
+an eLinux application is the embedder executable, `libflutter_engine.so`, the
+app's AOT `app.so`, `icudtl.dat` and the asset bundle. Every one of those can be
+produced by stock Flutter 3.44.5 plus the artifacts above — `flutter build
+bundle` and `gen_snapshot` — which would let Dartvel assemble the bundle
+directly and never invoke `flutter-elinux` at all.
 
 The terminal embedder was in this group and is not any more. `dartvel_flt`
 pinned Flutter 3.38.5, below Dartvel's floor — but the prebuilt
