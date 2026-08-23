@@ -1,0 +1,149 @@
+name: Embedder artifacts
+
+# Builds the pieces a blocked embedder target needs at Dartvel's Flutter
+# version, and publishes them as committable chunks.
+#
+# The premise this started from was "build the Flutter engine". For Sony
+# eLinux that turned out to be wrong, and checking cost minutes rather than
+# hours: Sony's elinux-x64-release.zip is the *official* engine at their pinned
+# revision, plus their own embedder .so files, plus gen_snapshot. Both engines
+# were compared and differ only in the revision string they carry — Sony does
+# not patch the engine, they build an embedder on the stable Custom Embedder
+# API above it.
+#
+# Google publishes linux-x64 and linux-arm64 embedder engines, artifacts.zip
+# (gen_snapshot, icudtl.dat, impellerc) for Dartvel's engine already. So what is
+# missing is Sony's embedder libraries at that version, which is a CMake C++
+# project and not an engine build.
+#
+# Manually triggered. It is an experiment until it has passed once, and a
+# scheduled experiment is just noise.
+
+on:
+  workflow_dispatch:
+    inputs:
+      engine:
+        description: Engine revision (defaults to the one Dartvel's Flutter pins)
+        required: false
+        default: 83675ed27633283e7fc296c8bca22e841224c096
+      arch:
+        description: Target architecture
+        required: false
+        default: x64
+        type: choice
+        options: [x64, arm64]
+
+jobs:
+  elinux-embedder:
+    name: sony eLinux embedder (${{ inputs.arch }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: 3.12.2
+
+      # Sony's embedder renders through Wayland, X11, GBM/DRM or EGLStream, and
+      # links each backend separately. The headers decide which of the four
+      # libraries can be produced at all, so a missing package here is a
+      # silently smaller artifact rather than a failure.
+      - name: Install embedder build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            cmake ninja-build pkg-config clang \
+            libwayland-dev wayland-protocols libxkbcommon-dev \
+            libgles2-mesa-dev libegl1-mesa-dev libdrm-dev libgbm-dev \
+            libinput-dev libudev-dev libsystemd-dev libx11-dev unzip
+
+      - name: Fetch the official engine and tools
+        env:
+          ENGINE: ${{ inputs.engine }}
+          ARCH: ${{ inputs.arch }}
+        run: |
+          set -euo pipefail
+          BASE="https://storage.googleapis.com/flutter_infra_release/flutter/$ENGINE"
+          mkdir -p engine
+          # The embedder library and its header — the same artifact the flt
+          # terminal embedder links against.
+          curl -fsSL -o engine/embedder.zip "$BASE/linux-$ARCH/linux-$ARCH-embedder.zip"
+          # gen_snapshot and icudtl.dat, which an AOT app build needs.
+          curl -fsSL -o engine/artifacts.zip "$BASE/linux-$ARCH/artifacts.zip"
+          unzip -qo engine/embedder.zip -d engine/
+          unzip -qo engine/artifacts.zip -d engine/
+          ls -la engine/
+          test -f engine/libflutter_engine.so
+          test -f engine/flutter_embedder.h
+          test -f engine/gen_snapshot
+
+      - name: Check out Sony's embedder source
+        run: git clone --depth 1 https://github.com/sony/flutter-embedded-linux.git elinux-src
+
+      # The real unknown. Sony's newest published build is a year behind
+      # Dartvel's engine, so whether their source still compiles against this
+      # embedder header is the question this whole job exists to answer.
+      - name: Build the eLinux embedder libraries
+        id: build
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          cd elinux-src
+          cp ../engine/flutter_embedder.h src/flutter/shell/platform/embedder/ 2>/dev/null || \
+            cp ../engine/flutter_embedder.h . || true
+          for backend in wayland x11 gbm eglstream; do
+            echo "::group::$backend"
+            cmake -B "build-$backend" -G Ninja \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DUSER_PROJECT_PATH=examples/flutter-client \
+              -DBACKEND_TYPE=$(echo "$backend" | tr '[:lower:]' '[:upper:]') \
+              . 2>&1 | tail -20 || echo "configure failed for $backend"
+            cmake --build "build-$backend" 2>&1 | tail -30 || echo "build failed for $backend"
+            echo "::endgroup::"
+          done
+          find . -name "libflutter_elinux*.so" -o -name "flutter-client" | head
+
+      - name: Assemble what was produced
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          cp engine/libflutter_engine.so engine/flutter_embedder.h out/
+          cp engine/gen_snapshot engine/icudtl.dat out/ 2>/dev/null || true
+          find elinux-src -name "libflutter_elinux*.so" -exec cp {} out/ \; 2>/dev/null || true
+          echo "${{ inputs.engine }}" > out/engine.version
+          ls -la out/
+          du -sh out/
+
+      # One tarball, then chunks, so the manifest describes a single artifact
+      # rather than a directory that could be reassembled incompletely.
+      - name: Split into committable chunks
+        run: |
+          set -euo pipefail
+          tar -czf elinux-${{ inputs.arch }}-${{ inputs.engine }}.tar.gz -C out .
+          ls -lh elinux-*.tar.gz
+          dart pub get --directory packages/dartvel_cli
+          dart run packages/dartvel_cli/bin/dartvel.dart artifact split \
+            "elinux-${{ inputs.arch }}-${{ inputs.engine }}.tar.gz" \
+            --out chunks
+          ls -la chunks/
+          cat chunks/*.manifest.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: elinux-${{ inputs.arch }}-chunks
+          path: chunks/
+          retention-days: 90
+
+      - name: Report
+        run: |
+          echo "### eLinux embedder artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Engine: \`${{ inputs.engine }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Embedder build step outcome: \`${{ steps.build.outcome }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Rejoin with:" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "dartvel artifact join chunks/*.manifest.json --out elinux.tar.gz" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
