@@ -68,6 +68,81 @@ void main() {
     });
   });
 
+  group('assembling from a desktop release build', () {
+    // The route that works today, and the reason it is worth taking: a desktop
+    // release build already produces every piece an eLinux release bundle
+    // needs — data/flutter_assets, data/icudtl.dat and an AOT lib/libapp.so —
+    // and differs only in which executable and which engine library sit beside
+    // them. So no engine build and no flutter-elinux are required for release.
+    test('it takes the app and assets from the desktop bundle', () {
+      final plan = elinuxAssemblyPlan(
+        desktopBundle: '/p/build/linux/x64/release/bundle',
+        artifacts: '/t/dartvel_elinux',
+        backend: ELinuxBackend.wayland,
+        mode: ELinuxMode.release,
+      );
+
+      final sources = plan.map((ELinuxCopy c) => c.from).toList();
+      expect(sources, contains('/p/build/linux/x64/release/bundle/lib/libapp.so'));
+      expect(sources,
+          contains('/p/build/linux/x64/release/bundle/data/flutter_assets'));
+      expect(sources,
+          contains('/p/build/linux/x64/release/bundle/data/icudtl.dat'));
+    });
+
+    test('it takes the embedder and engine from the artifacts, not the desktop build', () {
+      final plan = elinuxAssemblyPlan(
+        desktopBundle: '/p/build/linux/x64/release/bundle',
+        artifacts: '/t/dartvel_elinux',
+        backend: ELinuxBackend.wayland,
+        mode: ELinuxMode.release,
+      );
+
+      final engine = plan.singleWhere(
+          (ELinuxCopy c) => c.to == 'lib/libflutter_engine.so');
+      expect(engine.from, startsWith('/t/dartvel_elinux'));
+
+      final embedder =
+          plan.singleWhere((ELinuxCopy c) => c.to == 'flutter-client');
+      expect(embedder.from, startsWith('/t/dartvel_elinux'));
+    });
+
+    test('the GTK library is never copied', () {
+      // It is the one file in the desktop bundle that must not travel: it is
+      // the desktop embedder, and a -cli style bundle carrying it would ship
+      // the GUI stack the target exists to avoid.
+      final plan = elinuxAssemblyPlan(
+        desktopBundle: '/p/build/linux/x64/release/bundle',
+        artifacts: '/t/dartvel_elinux',
+        backend: ELinuxBackend.drmGbm,
+        mode: ELinuxMode.release,
+      );
+      expect(
+        plan.where((ELinuxCopy c) => c.from.contains('gtk')),
+        isEmpty,
+        reason: 'libflutter_linux_gtk.so is the desktop embedder',
+      );
+      expect(plan.where((ELinuxCopy c) => c.to.contains('gtk')), isEmpty);
+    });
+
+    test('debug is refused, because the desktop bundle would be the wrong one',
+        () {
+      // A debug desktop bundle carries kernel_blob.bin and no libapp.so, and
+      // the engine Dartvel can obtain is the release build, which has no
+      // interpreter to run kernel with. Assembling that would produce a bundle
+      // that is complete and cannot start.
+      expect(
+        () => elinuxAssemblyPlan(
+          desktopBundle: '/p/build/linux/x64/debug/bundle',
+          artifacts: '/t/dartvel_elinux',
+          backend: ELinuxBackend.wayland,
+          mode: ELinuxMode.debug,
+        ),
+        throwsA(isA<UnsupportedError>()),
+      );
+    });
+  });
+
   group('AOT compilation', () {
     test('release asks gen_snapshot for a shared library, not a blob', () {
       // An eLinux release app loads libapp.so through the engine. Emitting an
