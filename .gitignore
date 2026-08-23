@@ -1,6 +1,16 @@
 # Miscellaneous
 *.class
 *.lock
+# ...except the Rust lockfile, which pins a native library that ships. The
+# blanket *.lock above is aimed at pubspec.lock, and it caught this one by
+# accident: h3-quinn 0.0.7 does not compile against current quinn, so the
+# working versions are a fact about this crate rather than a preference, and
+# an unpinned resolution can pick a broken pairing on a machine that has not
+# built before.
+#
+# It also un-breaks the Rust cache key in .github/workflows/tests.yml, which
+# hashes this file and was hashing something not in the repository.
+!packages/dartvel_shelf/rust/Cargo.lock
 *.log
 *.pyc
 *.swp
