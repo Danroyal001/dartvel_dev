@@ -102,13 +102,6 @@ export 'package:dartvel_core/dartvel.dart'
         DVModelPageDataMode,
         DVPublicPathsResolver,
         DVModelPageRole,
-        DVWorkflowDocument,
-        DVWorkflowDocumentEditor,
-        DVWorkflowException,
-        DVWorkflowStep,
-        DVWorkflowStore,
-        DVWorkflowValue,
-        DVWorkflows,
         DVPresence,
         DVPresenceEvent,
         DVPresenceEventKind,
@@ -248,7 +241,6 @@ export 'src/platform/linux/linux_bindings.dart';
 export 'src/studio/page_document.dart';
 export 'src/studio/studio_editor.dart';
 export 'src/studio/studio_screen.dart';
-export 'src/studio/workflow_editor.dart';
 export 'src/windowing/shared_store.dart';
 export 'src/windowing/tab_workspace.dart';
 export 'src/windowing/window.dart';
