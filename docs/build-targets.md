@@ -26,7 +26,7 @@ local Dartvel `dartvel_vscode` fork added as a dependency.
 | `ios` | ✅ Builds | **Verified on a macOS runner**, not this host: `build/ios/iphoneos/Runner.app` (15.4 MB), artifact directory listed. Run [31554165981](https://github.com/Danroyal001/dartvel/actions/runs/31554165981) |
 | `tvos` | ✅ Builds | **Verified on a macOS runner**: scaffold auto-generated, then `build/tvos/Debug-appletvsimulator/Runner.app`. The `appletvsimulator` path is the proof it is a tvOS app and not the iPhone app an earlier mapping produced. Run [32538073146](https://github.com/Danroyal001/dartvel/actions/runs/32538073146). See [tvOS](#tvos) |
 | `tizen` / `tpk` | ✅ Builds | Signed 9.3MB TPK with engine + assets, built on a laptop with Tizen Studio installed. CI can only ever *skip* it — the SDK is licence-gated and Dartvel must not install it unattended — so the workflow asserts the skip names that reason. See [Tizen](#tizen-samsung) |
-| `sony-elinux` | ⚠️ Engine unblocked, tool is not | Sony's embedder **builds and links against Dartvel's engine** in CI, so **release** mode needs no engine build. The blocker moved: `flutter-elinux` is pinned to Flutter 3.29.3 and upstream has not moved since 2025-07. See [Sony eLinux](#sony-elinux) |
+| `sony-elinux` | ⚠️ Release bundle assembles, unrun | A complete release bundle was assembled and inspected: Sony's Wayland embedder, the engine, an AOT `libapp.so` carrying real Dart snapshot symbols, assets and `icudtl.dat` — 48 MB, **zero GTK/GDK dependencies**. Not run: no eLinux device here. Debug and profile still need an engine build. See [Sony eLinux](#sony-elinux) |
 | `webos` | ❌ Blocked | Dart version floor — the embedder ships Dart 3.10.9, `dartvel_mix` needs ≥ 3.12.0; see [webOS](#webos-lg) |
 | `fuchsia` | ❌ Blocked, same class as webOS | The five build-plumbing walls are fixed: `--build-only` in the fork, `postInstall` bootstrap, submodule handling, the bootstrap's workspace variable, and skipping an unfetchable `googletest` pin. It now clones, bootstraps and stages the app — then dies in `pub get` because the fork's bundled Flutter is **older than Dart 3.4**: `dartvel_example requires SDK version >=3.4.0 <4.0.0, version solving failed`. That is not a Dartvel bug and not a `mix` problem; the embedder's Flutter submodule is simply ancient. Unblocking needs the fork re-pinned to a modern Flutter **and its engine rebuilt from source**, because bootstrap.sh warns the engine and the Flutter pin must stay aligned. See [Fuchsia](#fuchsia) |
 | `vscode` | ✅ Builds | `out/src/extension.js`, `out/lib/vscode_api.handlers.js`, `build/web/flutter_bootstrap.js`, `build/web/assets/` |
@@ -326,6 +326,29 @@ enough because the ncurses 5 ABI symbols are genuinely absent — install the
 real `libtinfo5` package.
 
 ### The three blocked targets share a shape, not a cause
+
+**The eLinux release path no longer goes through `flutter-elinux` at all.** A
+desktop release build already produces every piece an eLinux release bundle
+needs — `data/flutter_assets`, `data/icudtl.dat` and an AOT `lib/libapp.so` for
+the same architecture — and differs only in which executable and which engine
+library sit beside them. Swapping those two is the whole job, so neither an
+engine build nor the fifteen-version-stale tool is required.
+
+Assembled and inspected from the example app's release build plus the
+CI-produced Sony artifacts:
+
+```
+flutter-client            Sony's Wayland embedder, 0 GTK/GDK deps
+lib/libflutter_engine.so  official engine, exports FlutterEngineRun
+lib/libapp.so             AOT, carries _kDartVmSnapshotData and
+                          _kDartIsolateSnapshotInstructions
+data/flutter_assets/      from the desktop build
+data/icudtl.dat
+```
+
+48 MB. **It has not been run** — that needs an eLinux device with Wayland or
+DRM, which this host is not. Assembled and structurally verified is a weaker
+claim than working, and is the one being made.
 
 **Terminal builds and native assets do not currently compose, and that is
 Flutter's constraint rather than Dartvel's.** `dartvel-flt` assembles a bundle
