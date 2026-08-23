@@ -1,0 +1,124 @@
+/// Assembling an eLinux application without `flutter-elinux`.
+///
+/// `flutter-elinux` is pinned to Flutter 3.29.3 and upstream has not committed
+/// since 2025-07-09. Its classes subclass `flutter_tools` internals, so moving
+/// it to Dartvel's 3.44.5 is a port across fifteen minor versions rather than a
+/// version bump.
+///
+/// It is also not the only route. An eLinux application is:
+///
+///   * Sony's embedder executable for the display backend,
+///   * `libflutter_engine.so`,
+///   * the app — `libapp.so` in release, `kernel_blob.bin` in debug,
+///   * `icudtl.dat`,
+///   * the Flutter asset bundle.
+///
+/// Every one comes from stock Flutter 3.44.5 plus artifacts already verified
+/// against Dartvel's engine, so Dartvel can assemble the bundle itself.
+library;
+
+/// Sony builds one embedder executable per display backend.
+///
+/// They are not interchangeable: a Wayland binary on a DRM-only device fails at
+/// startup rather than at build, which is the wrong end of the process to find
+/// out.
+enum ELinuxBackend {
+  wayland('flutter-client'),
+  drmGbm('flutter-drm-gbm-backend'),
+  drmEglstream('flutter-drm-eglstream-backend');
+
+  const ELinuxBackend(this.executable);
+
+  /// The file Sony's build produces for this backend.
+  final String executable;
+}
+
+/// Which engine flavour the bundle is built against.
+///
+/// Worth stating because the modes are not merely optimisation levels here:
+/// a release engine has no interpreter and cannot run kernel, so the app is
+/// shipped as an AOT shared library instead.
+enum ELinuxMode { debug, profile, release }
+
+/// One file in the assembled bundle.
+class ELinuxBundleEntry {
+  /// Where the file comes from — an artifact name or a build output.
+  final String source;
+
+  /// Path inside the bundle, relative to its root.
+  final String target;
+
+  const ELinuxBundleEntry({required this.source, required this.target});
+}
+
+/// What an assembled eLinux bundle contains.
+class ELinuxBundleLayout {
+  final ELinuxBackend backend;
+  final ELinuxMode mode;
+  final List<ELinuxBundleEntry> entries;
+
+  const ELinuxBundleLayout({
+    required this.backend,
+    required this.mode,
+    required this.entries,
+  });
+
+  String get embedderExecutable => backend.executable;
+}
+
+/// The layout for [backend] in [mode].
+ELinuxBundleLayout elinuxBundleLayout({
+  required ELinuxBackend backend,
+  required ELinuxMode mode,
+}) {
+  final entries = <ELinuxBundleEntry>[
+    ELinuxBundleEntry(source: backend.executable, target: backend.executable),
+    const ELinuxBundleEntry(
+        source: 'libflutter_engine.so', target: 'lib/libflutter_engine.so'),
+    const ELinuxBundleEntry(source: 'icudtl.dat', target: 'data/icudtl.dat'),
+    const ELinuxBundleEntry(
+        source: 'flutter_assets', target: 'data/flutter_assets'),
+  ];
+
+  if (mode == ELinuxMode.debug) {
+    // Debug runs from kernel through the interpreter.
+    entries.add(const ELinuxBundleEntry(
+      source: 'kernel_blob.bin',
+      target: 'data/flutter_assets/kernel_blob.bin',
+    ));
+  } else {
+    // Profile and release are AOT. Shipping kernel alongside would be dead
+    // weight, and would imply the app is debuggable when it is not.
+    entries.add(const ELinuxBundleEntry(
+      source: 'libapp.so',
+      target: 'lib/libapp.so',
+    ));
+  }
+
+  return ELinuxBundleLayout(backend: backend, mode: mode, entries: entries);
+}
+
+/// Arguments for `gen_snapshot` producing an eLinux AOT library.
+///
+/// `app-aot-elf` is the only kind the engine will load here. An assembly or
+/// blob snapshot produces files that look plausible and fail at startup on the
+/// device, which is a long way from the machine that built them.
+///
+/// There is deliberately no target-architecture argument: `gen_snapshot` is
+/// downloaded per architecture from `linux-{arch}/artifacts.zip`, so the binary
+/// already *is* the target. A parameter that reads as though it selects the
+/// architecture, and does not, is worse than no parameter — it invites a caller
+/// to pass arm64 to an x64 binary and expect a cross-compile.
+List<String> genSnapshotArguments({
+  required String kernel,
+  required String output,
+}) {
+  return <String>[
+    '--deterministic',
+    '--snapshot_kind=app-aot-elf',
+    '--elf=$output',
+    // These ship to devices, often with little storage.
+    '--strip',
+    kernel,
+  ];
+}
