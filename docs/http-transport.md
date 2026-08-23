@@ -89,6 +89,25 @@ This is a fork-shaped problem, which is the pattern this project already uses
 for embedders: the capability exists in the protocol and is missing from the
 library.
 
+## Only Linux gets the fast transport for free
+
+`packages/dartvel_shelf/lib/native/` contains a prebuilt `linux-x64` library
+and nothing else. The build hook compiles the crate wherever cargo and cbindgen
+are present, so a developer with a Rust toolchain gets HTTP/2 and HTTP/3 on any
+platform — but without one, only Linux does. On macOS and Windows
+`DVRustHttpTransport.tryLoad()` finds no library, returns null, and
+`package:http` is what remains: HTTP/1.1 only.
+
+That is a real limit rather than a theoretical one, because **APNS is
+HTTP/2-only**. It fails loudly rather than downgrading, since it asks for
+`DVHttpProtocolChain.http2Only` — but until recently the message was
+`http cannot speak h2`, which is accurate and unactionable. `dvHttpTransportHint`
+now carries the reason into `DVHttpProtocolExhausted`: where the library was
+looked for, whether it was missing or unloadable, and what produces one.
+
+Committing binaries for all three hosts, or for none, are both defensible. The
+current arrangement is the one that quietly makes Linux special.
+
 ## Platform split
 
 **Web needs nothing.** The browser negotiates HTTP/2 and HTTP/3 by itself and

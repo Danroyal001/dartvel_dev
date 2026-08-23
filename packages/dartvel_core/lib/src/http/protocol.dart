@@ -287,6 +287,21 @@ class DVHttpProtocolExhausted implements Exception {
     final detail = attempts
         .map((a) => '  ${a.protocol.alpn}: ${a.cause}')
         .join('\n');
-    return 'DVHttpProtocolExhausted: no protocol succeeded for $url\n$detail';
+    final hint = dvHttpTransportHint;
+    final suffix = hint == null ? '' : '\n$hint';
+    return 'DVHttpProtocolExhausted: no protocol succeeded for $url\n$detail'
+        '$suffix';
   }
 }
+
+/// Why the faster transport is not available, when something knows.
+///
+/// "http cannot speak h2" is accurate and tells a caller nothing they can act
+/// on. Only a prebuilt Linux library is committed, so on macOS and Windows
+/// without a Rust toolchain the native transport does not load and
+/// `package:http` is what remains — and APNS, which requires HTTP/2, then fails
+/// with a message that never mentions a library.
+///
+/// Set by whatever tried and failed to load a transport; null when nothing did,
+/// so a machine with a working library never sees a hint about a missing one.
+String? dvHttpTransportHint;

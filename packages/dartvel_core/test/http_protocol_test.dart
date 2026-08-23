@@ -292,6 +292,67 @@ void main() {
       );
     });
 
+    test('exhaustion says why the native transport is missing, when it is', () {
+      // The message a macOS or Windows user gets when calling APNS without a
+      // Rust toolchain was "http cannot speak h2" — true, and useless. Only a
+      // prebuilt Linux library is committed, so on those platforms the native
+      // transport does not load and package:http is what remains. Nothing
+      // connected the two facts for the reader.
+      dvHttpTransportHint = 'native HTTP/2 library not loaded: not built here';
+      addTearDown(() => dvHttpTransportHint = null);
+
+      final error = DVHttpProtocolExhausted(
+        Uri.parse('https://api.push.apple.com/3/device/abc'),
+        const <DVHttpNegotiationFailure>[
+          DVHttpNegotiationFailure(
+              DVHttpProtocol.http2, 'http cannot speak h2', retryable: false),
+        ],
+      );
+
+      expect(error.toString(), contains('not built here'),
+          reason: 'the reason the native transport is absent belongs in the '
+              'error, since that is the only place the caller looks');
+    });
+
+    test('exhaustion says nothing extra when the native transport is fine', () {
+      // A hint that appears unconditionally is noise, and would point at a
+      // missing library on a machine where the library is present and the
+      // failure is something else entirely.
+      dvHttpTransportHint = null;
+      final error = DVHttpProtocolExhausted(
+        Uri.parse('https://example.test/'),
+        const <DVHttpNegotiationFailure>[
+          DVHttpNegotiationFailure(DVHttpProtocol.http2, 'refused'),
+        ],
+      );
+      expect(error.toString(), isNot(contains('native')));
+    });
+
+    test('the absence message names the path and what to do about it', () {
+      final reason = describeNativeTransportAbsence(
+          '/app/lib/native/macos-arm64/libdartvel_shelf.dylib', null);
+
+      // Three things a reader needs: which protocols they lost, where it
+      // looked, and what makes it appear. A message missing any of them sends
+      // someone to read Dartvel's source to find out.
+      expect(reason, contains('HTTP/2'));
+      expect(reason, contains('macos-arm64'));
+      expect(reason, contains('cargo'));
+    });
+
+    test('an open failure is reported differently from a missing file', () {
+      // "It is not there" and "it is there and would not load" call for
+      // different actions, and a stale or wrong-architecture library is the
+      // second.
+      final missing = describeNativeTransportAbsence('/x/lib.so', null);
+      final broken = describeNativeTransportAbsence(
+          '/x/lib.so', ArgumentError('undefined symbol: dv_http_send'));
+
+      expect(missing, contains('not there'));
+      expect(broken, contains('undefined symbol'));
+      expect(broken, isNot(contains('not there')));
+    });
+
     test('a registered transport replaces the default and can be removed', () {
       final fake = _FakeTransport(
         supportedProtocols: const <DVHttpProtocol>{DVHttpProtocol.http2},
