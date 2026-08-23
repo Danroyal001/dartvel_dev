@@ -1,0 +1,159 @@
+name: Flutter engine build
+
+# Builds the Flutter engine from source, for the modes Google does not publish
+# as a standalone custom-embedder artifact.
+#
+# Why this is needed, precisely — because the obvious assumption is wrong and
+# cost real time already: Google publishes exactly one standalone
+# `libflutter_engine.so` per engine revision, at `linux-{arch}/linux-{arch}-
+# embedder.zip`, and it is the **release** build (41.7 MB, matching Sony's
+# 42.6 MB release engine; their debug is 381 MB and profile 52.5 MB). The
+# per-mode directories publish `linux-{arch}-flutter-gtk.zip`, where the engine
+# is statically linked into the GTK embedder and cannot be reused.
+#
+# So release-mode embedder targets need no engine build, and debug and profile
+# do. This builds those.
+#
+# Runs on a GitHub runner because the checkout alone is tens of gigabytes,
+# which is more disk than the development Codespace has. The output is split
+# into chunks small enough to commit, so it can travel back without Git LFS.
+
+on:
+  workflow_dispatch:
+    inputs:
+      flutter_ref:
+        description: Flutter tag or commit to build the engine from
+        required: false
+        default: "3.44.5"
+      mode:
+        description: Runtime mode
+        required: false
+        default: profile
+        type: choice
+        options: [debug, profile, release]
+      arch:
+        description: Target CPU
+        required: false
+        default: x64
+        type: choice
+        options: [x64, arm64]
+
+jobs:
+  engine:
+    name: engine ${{ inputs.mode }} ${{ inputs.arch }}
+    runs-on: ubuntu-latest
+    # The sync is the long pole and the build is not short. Six hours is the
+    # ceiling GitHub allows; a job that reaches it has not "nearly finished".
+    timeout-minutes: 350
+    steps:
+      # A stock runner does not have room for the engine checkout. This is not
+      # optimisation — without it the sync fails partway with a disk error that
+      # reads like a network fault.
+      - name: Reclaim disk
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /usr/local/share/boost /usr/share/swift "$AGENT_TOOLSDIRECTORY" || true
+          sudo apt-get clean
+          docker image prune -af || true
+          df -h /
+
+      - uses: actions/checkout@v4
+        with:
+          path: dartvel
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: 3.12.2
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq python3 ninja-build pkg-config \
+            libgtk-3-dev git curl unzip
+
+      - name: Fetch depot_tools
+        run: |
+          git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git "$HOME/depot_tools"
+          echo "$HOME/depot_tools" >> $GITHUB_PATH
+
+      # Since the engine moved into flutter/flutter, the engine sources live at
+      # engine/src/flutter inside the monorepo and gclient drives the sync from
+      # a .gclient beside it. Written out rather than using `fetch flutter`,
+      # because that assumes an interactive, unpinned checkout.
+      - name: Sync engine sources
+        id: sync
+        run: |
+          set -euo pipefail
+          mkdir -p engine
+          cat > engine/.gclient <<EOF
+          solutions = [
+            {
+              "managed": False,
+              "name": "src/flutter",
+              "url": "https://github.com/flutter/flutter.git@${{ inputs.flutter_ref }}",
+              "custom_deps": {},
+              "deps_file": "DEPS",
+              "safesync_url": "",
+            },
+          ]
+          EOF
+          cd engine
+          # --no-history keeps this to what is needed to build; the full history
+          # is tens of gigabytes on its own.
+          gclient sync --no-history --shallow -j$(nproc) 2>&1 | tail -40
+          df -h /
+          ls src/flutter | head
+
+      - name: Build the engine
+        id: build
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          cd engine/src
+          ./flutter/bin/et build -c ${{ inputs.mode == 'debug' && 'host_debug' || format('host_{0}', inputs.mode) }} 2>&1 | tail -40
+          echo "et exit=$?"
+          find out -name "libflutter_engine.so" -o -name "gen_snapshot" | head
+
+      - name: Collect the artifact
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          find engine/src/out -name "libflutter_engine.so" -exec cp {} out/ \; 2>/dev/null || true
+          find engine/src/out -name "gen_snapshot" -type f -exec cp {} out/ \; 2>/dev/null || true
+          find engine/src/out -name "flutter_embedder.h" -exec cp {} out/ \; 2>/dev/null || true
+          echo "${{ inputs.flutter_ref }}" > out/flutter.ref
+          ls -la out/
+          test -s out/libflutter_engine.so
+
+      - name: Split into committable chunks
+        run: |
+          set -euo pipefail
+          NAME="engine-${{ inputs.arch }}-${{ inputs.mode }}-${{ inputs.flutter_ref }}.tar.gz"
+          tar -czf "$NAME" -C out .
+          ls -lh "$NAME"
+          dart pub get --directory dartvel/packages/dartvel_cli
+          dart run dartvel/packages/dartvel_cli/bin/dartvel.dart artifact split "$NAME" --out chunks
+          ls -la chunks/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: engine-${{ inputs.arch }}-${{ inputs.mode }}-chunks
+          path: chunks/
+          retention-days: 90
+
+      - name: Report
+        if: always()
+        run: |
+          {
+            echo "### Engine build"
+            echo ""
+            echo "Flutter ref: \`${{ inputs.flutter_ref }}\` · mode: \`${{ inputs.mode }}\` · arch: \`${{ inputs.arch }}\`"
+            echo ""
+            echo "sync: \`${{ steps.sync.outcome }}\` · build: \`${{ steps.build.outcome }}\`"
+            echo ""
+            echo "Rejoin locally with:"
+            echo '```'
+            echo "dartvel artifact join chunks/*.manifest.json"
+            echo '```'
+          } >> $GITHUB_STEP_SUMMARY
