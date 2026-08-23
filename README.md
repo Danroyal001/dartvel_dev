@@ -162,6 +162,8 @@ Flutter has **no desktop cross-compilation** — Windows needs Windows, the Appl
 
 **→ Full detail, evidence, and per-target setup: [docs/build-targets.md](docs/build-targets.md)**
 
+**→ New here? [docs/getting-started.md](docs/getting-started.md)** — create a project, add a page, add a model, add a backend function. Every command on that page was run against a fresh project before it was written.
+
 ### Toolchain preflight
 
 Before building, Dartvel checks that the host supports the target and that the required tools are installed. Missing tools are named, and Dartvel offers to install what it safely can:
