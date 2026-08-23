@@ -256,7 +256,19 @@ jobs:
             tizen)   path=build/tizen/tpk ;;
             webos)   path=build/webos ;;
             sony-elinux) path=build/elinux ;;
-            fuchsia) path=build/fuchsia ;;
+            # The Fuchsia package is a .far produced inside the embedder's
+            # bazel-out, not under the app's build/ directory. Verifying the
+            # app's build/ would pass on an empty directory.
+            fuchsia)
+              far=$(find -L "$HOME/.dartvel/toolchains/dartvel_fuchsia/bazel-out" \
+                -name '*.far' -print -quit 2>/dev/null)
+              if [ -z "$far" ]; then
+                echo "::error::no .far produced for fuchsia"
+                exit 1
+              fi
+              echo "fuchsia package: $far"
+              ls -la "$far"
+              exit 0 ;;
           esac
 
           # Tizen Studio is licence-gated, so Dartvel must never install it and
