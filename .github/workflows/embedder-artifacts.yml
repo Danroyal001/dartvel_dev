@@ -81,28 +81,33 @@ jobs:
       - name: Check out Sony's embedder source
         run: git clone --depth 1 https://github.com/sony/flutter-embedded-linux.git elinux-src
 
-      # The real unknown. Sony's newest published build is a year behind
-      # Dartvel's engine, so whether their source still compiles against this
-      # embedder header is the question this whole job exists to answer.
+      # The recipe is Sony's own build-test.yml, not a guess. The first
+      # attempt invented -DBACKEND_TYPE, ran cmake from the wrong directory,
+      # and never put the engine where the build expects it; all three were
+      # wrong. The backend is chosen by USER_PROJECT_PATH, the engine .so must
+      # already be in the build directory when cmake configures, and cmake runs
+      # from inside it.
+      #
+      # Sony's own CI takes libflutter_engine.so from their latest release.
+      # This takes it from the official bucket at Dartvel's engine instead —
+      # which is the entire point, and the thing that has never been tried.
       - name: Build the eLinux embedder libraries
         id: build
         continue-on-error: true
         run: |
-          set -euo pipefail
+          set -uo pipefail
           cd elinux-src
-          cp ../engine/flutter_embedder.h src/flutter/shell/platform/embedder/ 2>/dev/null || \
-            cp ../engine/flutter_embedder.h . || true
-          for backend in wayland x11 gbm eglstream; do
-            echo "::group::$backend"
-            cmake -B "build-$backend" -G Ninja \
-              -DCMAKE_BUILD_TYPE=Release \
-              -DUSER_PROJECT_PATH=examples/flutter-client \
-              -DBACKEND_TYPE=$(echo "$backend" | tr '[:lower:]' '[:upper:]') \
-              . 2>&1 | tail -20 || echo "configure failed for $backend"
-            cmake --build "build-$backend" 2>&1 | tail -30 || echo "build failed for $backend"
+          cmake -E make_directory build
+          cp ../engine/libflutter_engine.so build/
+          for project in flutter-wayland-client flutter-drm-gbm-backend flutter-drm-eglstream-backend; do
+            echo "::group::$project"
+            ( cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -DUSER_PROJECT_PATH="examples/$project" \
+              && cmake --build . --config Release ) 2>&1 | tail -25
+            echo "exit=$?"
             echo "::endgroup::"
           done
-          find . -name "libflutter_elinux*.so" -o -name "flutter-client" | head
+          echo "--- produced ---"
+          find build -maxdepth 1 -type f \( -name "*.so" -o -perm -u+x \) | head -20
 
       - name: Assemble what was produced
         run: |
@@ -110,7 +115,11 @@ jobs:
           mkdir -p out
           cp engine/libflutter_engine.so engine/flutter_embedder.h out/
           cp engine/gen_snapshot engine/icudtl.dat out/ 2>/dev/null || true
-          find elinux-src -name "libflutter_elinux*.so" -exec cp {} out/ \; 2>/dev/null || true
+          # Whatever the embedder build produced: the backend libraries Sony
+          # ships, and the example clients, which prove the engine links.
+          find elinux-src/build -maxdepth 1 -name "*.so" -exec cp {} out/ \; 2>/dev/null || true
+          find elinux-src/build -maxdepth 1 -type f -perm -u+x ! -name "*.so" ! -name "*.cmake" \
+            -exec cp {} out/ \; 2>/dev/null || true
           echo "${{ inputs.engine }}" > out/engine.version
           ls -la out/
           du -sh out/
