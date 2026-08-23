@@ -28,10 +28,20 @@ now have runtime implementations and tests:
 | `DVModelPageDataMode` | ✅ Drives generated `Model.Page.async/.signal/.fromId` renderers |
 | `@DVModel(generatePublicPages: true)` | ✅ Emits static-path manifest entries and DB-backed `Model.publicStaticPaths()` resolvers |
 | `DV.AI` provider adapters | ✅ Real HTTP adapters for Claude, OpenAI, Gemini, OpenRouter, and Ollama |
+| Native HTTP/2 client | ✅ On the `h2` crate, with 103 Early Hints, verified against a live server |
+| `ApnsPushProvider`, `WebPushProvider` | ✅ Both unblocked by that client; Web Push is RFC 8291 + 8292 |
+| `DV.Platform.surface`, launch negotiation | ✅ Terminal rendering's runtime surface; the backend itself is not built |
 
 **Implemented, but not equally mature.** The feature table below marks each
 area. Anything flagged ⚠️ Scaffold has an API surface and prebuilt pieces, but
 provider integrations are incomplete — expect to fill gaps yourself.
+
+**How "verified" is used here.** A target marked ✅ had its build run and its
+artifact inspected — the file listed, its type checked. That proves it
+compiles and links; it does not prove the application starts. Exactly one
+target, `linux`, is covered by a test that launches the app and asserts it
+renders, and that test runs in CI on every push. The rest need emulators or
+hardware, and that gap is stated rather than glossed.
 
 **Still maturing:** generated public model pages and static paths now exist,
 but every target must still be verified through `docs/build-targets.md` before
@@ -71,6 +81,8 @@ Everything else is automatically compiled, generated, or served by the framework
 | **Backend Runtime** | Axum/Tokio Rust server calling Dart FFI, supporting SSE streams | ✅ Implemented |
 | **Platform APIs** | Runtime platform/screen detection; camera, location, haptics, etc. are scaffolded pending native plugins | ⚠️ Partial |
 | **Authentication** | Local provider with salted password hashes, plus OAuth2 (PKCE) with Google/GitHub/GitLab/Bitbucket/Microsoft presets; magic links, OTP, LDAP and SAML are not complete | ⚠️ Partial |
+| **Outbound HTTP** | Protocol negotiation with ordered fallback, RFC 8297 early hints, and a native HTTP/2 client on the `h2` crate verified against a live server; HTTP/3 is not complete | ⚠️ Partial |
+| **Terminal rendering** | `-cli`/`-tui` targets resolve, build-time backend selection, `DV.Platform.surface`, launch negotiation. The terminal backend itself is not built | ⚠️ Partial |
 | **Database & Cache** | Real SQLite adapter (file + in-memory, WAL) and a pluggable cache with memory/database-backed adapters; Postgres/MySQL/Redis adapters are not complete | ⚠️ Partial |
 | **Mail & Notifications** | SMTP plus HTTP mail (Resend, SendGrid, Postmark, Mailgun, SES), FCM push, APNS over native HTTP/2, Web Push (RFC 8291/8292), and Twilio SMS | ✅ Implemented |
 | **PWA & SEO** | Automatic PWA manifest/worker & runtime/global SEO injection | ✅ Implemented |
@@ -133,14 +145,20 @@ Verified on Linux x64 against `examples/dartvel_example`. "Verified" means the c
 
 | Target | Status |
 | :--- | :--- |
-| `web`, `linux`, `android`, `fireos` | ✅ Build, artifacts verified |
-| `windows`, `macos`, `ios`, `tvos` | ⏭️ Need their own host — [run in CI](.github/workflows/platform-build-matrix.yml) |
+| `linux` | ✅ Builds **and runs** — an integration test launches it under Xvfb in CI on every push |
+| `web`, `android`, `fireos` | ✅ Build, artifacts verified |
+| `windows` | ✅ Verified on a CI host — `dartvel_example.exe` is a PE32+ x86-64 binary beside `dartvel_shelf.dll` |
+| `macos` | ✅ Verified on a CI host — a Mach-O **universal binary** (x86_64 + arm64) with the Rust runtime bundled as a framework |
+| `ios`, `tvos` | ✅ Verified on a CI host — `Runner.app`, and for tvOS an `appletvsimulator` build rather than an iPhone one |
 | `tizen` / `tpk` | ✅ Signed 9.3MB TPK containing the engine and assets |
-| `sony-elinux` | ❌ Blocked — the embedder's newest Flutter ships Dart 3.7.2, below Dartvel's ≥3.9 floor |
-| `webos` | ⚠️ Embedder installs; a real build is not yet demonstrated |
+| `chrome-extension`, `firefox-extension` | ✅ Build — MV3 service worker and event-page manifests, verified to differ |
 | `vscode` | ✅ Builds — verified extension host JS and Flutter webview artifacts |
+| `webos`, `sony-elinux` | ❌ Blocked — both embedders ship a Dart below `mix`'s ≥3.11 floor. Ours to fix by re-pinning the forks, not a vendor limit |
+| `fuchsia` | ⚠️ Builds the Flutter bundle and stages the app; the fork needs a build-only entry point |
 
-Flutter has **no desktop cross-compilation** — Windows needs Windows, the Apple targets need macOS. `dartvel build` skips what the host cannot build instead of failing the whole run.
+Flutter has **no desktop cross-compilation** — Windows needs Windows, the Apple targets need macOS. `dartvel build` skips what the host cannot build instead of failing the whole run, and the [CI matrix](.github/workflows/platform-build-matrix.yml) covers the hosts this repository's development machine does not have.
+
+**Twelve of sixteen targets build with an inspected artifact. One — `linux` — is verified by actually running.** That distinction is deliberate: an artifact existing proves compilation, not that the application starts.
 
 **→ Full detail, evidence, and per-target setup: [docs/build-targets.md](docs/build-targets.md)**
 
