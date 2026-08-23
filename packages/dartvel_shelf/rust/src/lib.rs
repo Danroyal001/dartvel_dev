@@ -216,6 +216,23 @@ pub type DartStreamCancelHandler = extern "C" fn(u64);
 // callbacks, and a stale pointer here is a use-after-free the moment the
 // server that registered it closes them.
 static DART_REQUEST_HANDLER: OnceCell<Mutex<Option<DartReqHandler>>> = OnceCell::new();
+/// The Dart request handler belonging to each server.
+///
+/// DART_REQUEST_HANDLER above is a single slot that every aw_register_handler
+/// call overwrote, so with two servers in one process the last one to start
+/// answered for all of them — and answered with a plausible 404 from the wrong
+/// router rather than an error. dart test runs suites concurrently in one
+/// process sharing one loaded library, so this is the ordinary case and not a
+/// contrived one.
+///
+/// The global slot stays as the source aw_start snapshots from, which keeps
+/// the FFI call order (register, then start) unchanged.
+static SERVER_REQUEST_HANDLERS: OnceCell<Mutex<HashMap<u64, DartReqHandler>>> = OnceCell::new();
+
+/// Rides along in the request extensions so a handler can tell which server
+/// took the request. Cheaper than threading state through every route.
+#[derive(Clone, Copy)]
+struct ServerId(u64);
 static DART_CANCEL_HANDLER: OnceCell<Mutex<Option<DartStreamCancelHandler>>> =
     OnceCell::new();
 
@@ -251,10 +268,22 @@ static NEXT_ID: OnceCell<AtomicU64> = OnceCell::new();
 static TLS_CONFIG: OnceCell<Arc<ServerConfig>> = OnceCell::new();
 static SERVER_HANDLES: OnceCell<Mutex<HashMap<u64, axum_server::Handle>>> = OnceCell::new();
 static NEXT_SERVER_ID: OnceCell<AtomicU64> = OnceCell::new();
+/// The port each server is actually listening on.
+///
+/// Not the port that was asked for: a caller may pass 0 to let the OS assign
+/// one, and 0 is not an address anything can connect to. Without this the
+/// caller would have no way to find out where its own server ended up.
+static SERVER_PORTS: OnceCell<Mutex<HashMap<u64, u16>>> = OnceCell::new();
 static CORS_CONFIG: OnceCell<Mutex<Option<Arc<CorsOptions>>>> = OnceCell::new();
 static STATIC_DIR: OnceCell<Mutex<Option<String>>> = OnceCell::new();
 static SPA_ROOT_DIR: OnceCell<Mutex<Option<String>>> = OnceCell::new();
 static COMPRESSION_ENABLED: OnceCell<Mutex<bool>> = OnceCell::new();
+
+/// aw_start could not parse host:port into an address.
+const AW_START_BAD_ADDRESS: i32 = -2;
+/// aw_start parsed the address but could not bind it — in use, or not
+/// permitted. Distinct from -1 so a caller can say which happened.
+const AW_START_BIND_FAILED: i32 = -3;
 
 // Flags for aw_start
 pub const AW_FLAG_H2C: u32 = 0x01;
@@ -306,6 +335,8 @@ pub extern "C" fn aw_register_handler(cb: DartReqHandler) {
     let _ = PENDING_RESPONSES.set(Mutex::new(HashMap::new()));
     let _ = NEXT_ID.set(AtomicU64::new(1));
     let _ = SERVER_HANDLES.set(Mutex::new(HashMap::new()));
+    let _ = SERVER_PORTS.set(Mutex::new(HashMap::new()));
+    let _ = SERVER_REQUEST_HANDLERS.set(Mutex::new(HashMap::new()));
     let _ = NEXT_SERVER_ID.set(AtomicU64::new(1));
 }
 
@@ -521,7 +552,39 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, _flags: u32) -> i32 {
         safe_lock(handles).insert(server_id, handle.clone());
     }
 
-    let host_clone = host_string.clone();
+    // The bind happens here, on the calling thread, and not inside the thread
+    // below. It used to be the last thing a spawned thread did, which meant
+    // aw_start returned a positive id before anything had tried to listen: a
+    // bind that failed panicked inside a detached thread while the caller held
+    // a handle that looked healthy. The first symptom was a connection refused
+    // somewhere unrelated, which is the worst place for it to appear.
+    let addr = format!("{}:{}", host_string, port);
+    let parsed_addr: std::net::SocketAddr = match addr.parse() {
+        Ok(parsed) => parsed,
+        Err(_) => return AW_START_BAD_ADDRESS,
+    };
+    let listener = match std::net::TcpListener::bind(parsed_addr) {
+        Ok(listener) => listener,
+        Err(_) => return AW_START_BIND_FAILED,
+    };
+    // Port 0 asks the OS to choose, so what was requested and what was bound
+    // are different numbers and only this one is callable.
+    let bound_port = match listener.local_addr() {
+        Ok(local) => local.port(),
+        Err(_) => return AW_START_BIND_FAILED,
+    };
+    if let Some(ports) = SERVER_PORTS.get() {
+        safe_lock(ports).insert(server_id, bound_port);
+    }
+    // Taken now rather than read at request time: aw_register_handler is
+    // called immediately before this, and a later server registering its own
+    // must not redirect this one's traffic.
+    if let Some(handler) = DART_REQUEST_HANDLER.get().and_then(|slot| *safe_lock(slot)) {
+        if let Some(handlers) = SERVER_REQUEST_HANDLERS.get() {
+            safe_lock(handlers).insert(server_id, handler);
+        }
+    }
+
     let handle_clone = handle.clone();
 
     let server_thread = std::thread::spawn(move || {
@@ -545,26 +608,39 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, _flags: u32) -> i32 {
                 app = app.layer(build_cors(&cfg));
             }
 
-            let addr = format!("{}:{}", host_clone, port);
-            let parsed_addr: std::net::SocketAddr = addr.parse().expect("Failed to parse address");
+            // Tags every request with the server that accepted it, so the
+            // proxy can reach this server's Dart handler rather than whichever
+            // was registered most recently.
+            app = app.layer(axum::Extension(ServerId(server_id)));
 
-            if let Some(tls_config) = TLS_CONFIG.get() {
+            // Already bound above, so nothing here can fail for want of a
+            // port. A serve error now means the loop ended, which is what
+            // shutdown looks like too — it is not grounds for a panic in a
+            // thread nobody is watching.
+            let result = if let Some(tls_config) = TLS_CONFIG.get() {
                 let rustls_config = axum_server::tls_rustls::RustlsConfig::from_config(tls_config.clone());
-                axum_server::bind_rustls(parsed_addr, rustls_config)
+                axum_server::from_tcp_rustls(listener, rustls_config)
                     .handle(handle_clone)
                     .serve(app.into_make_service())
                     .await
-                    .expect("Failed to start HTTPS server");
             } else {
-                axum_server::bind(parsed_addr)
+                axum_server::from_tcp(listener)
                     .handle(handle_clone)
                     .serve(app.into_make_service())
                     .await
-                    .expect("Failed to start HTTP server");
+            };
+            if let Err(error) = result {
+                eprintln!("dartvel: server {server_id} stopped: {error}");
             }
 
             if let Some(handles) = SERVER_HANDLES.get() {
                 safe_lock(handles).remove(&server_id);
+            }
+            if let Some(ports) = SERVER_PORTS.get() {
+                safe_lock(ports).remove(&server_id);
+            }
+            if let Some(handlers) = SERVER_REQUEST_HANDLERS.get() {
+                safe_lock(handlers).remove(&server_id);
             }
         });
     });
@@ -574,6 +650,18 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, _flags: u32) -> i32 {
     }
 
     server_id as i32
+}
+
+/// The port [server_id] is listening on, or 0 if it is unknown.
+///
+/// Meaningful because a caller may start a server on port 0 and let the OS
+/// choose; without this there is no way to learn where it landed.
+#[no_mangle]
+pub extern "C" fn aw_server_port(server_id: u64) -> u16 {
+    SERVER_PORTS
+        .get()
+        .and_then(|ports| safe_lock(ports).get(&server_id).copied())
+        .unwrap_or(0)
 }
 
 #[no_mangle]
@@ -706,6 +794,8 @@ async fn dart_proxy_with_fallback(
     req: Request<Body>,
     fallback: Option<fn() -> Response<Body>>,
 ) -> Response<Body> {
+    // Read while the request is still whole; the body is taken further down.
+    let server_id = req.extensions().get::<ServerId>().map(|ServerId(id)| *id);
     let req_id = match NEXT_ID.get() {
         Some(id) => id.fetch_add(1, Ordering::Relaxed),
         None => return Response::builder()
@@ -754,8 +844,15 @@ async fn dart_proxy_with_fallback(
             .unwrap();
     }
 
-    let request_handler =
-        DART_REQUEST_HANDLER.get().and_then(|slot| *safe_lock(slot));
+    // This server's handler first. The global is the fallback, for any path
+    // that reaches here without having gone through a server.
+    let request_handler = server_id
+        .and_then(|id| {
+            SERVER_REQUEST_HANDLERS
+                .get()
+                .and_then(|handlers| safe_lock(handlers).get(&id).copied())
+        })
+        .or_else(|| DART_REQUEST_HANDLER.get().and_then(|slot| *safe_lock(slot)));
     if let Some(cb) = request_handler {
         (cb)(
             req_id,

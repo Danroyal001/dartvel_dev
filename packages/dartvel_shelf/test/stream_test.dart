@@ -41,8 +41,14 @@ void main() {
         });
       });
 
-    port = 8300 + (DateTime.now().microsecondsSinceEpoch % 400);
-    server = await serve(router, host: '127.0.0.1', port: port);
+    // Port 0 lets the OS assign a free one. This used to be
+    // `8300 + microsecondsSinceEpoch % 400`, which collides whenever two
+    // setUps land a multiple of 400us apart — and the collision was invisible,
+    // because aw_start returned a handle before attempting the bind. The
+    // symptom was a connection refused in whichever test drew the short
+    // straw, which reads like a streaming bug and is not one.
+    server = await serve(router, host: '127.0.0.1', port: 0);
+    port = server.port;
     client = HttpClient();
   });
 
