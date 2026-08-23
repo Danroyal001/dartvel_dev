@@ -24,6 +24,7 @@ dependencies:
     path: ../dartvel_core
   dartvel_shelf:
     path: ../dartvel_shelf
+  crypto: ^3.0.7
 dev_dependencies:
   lints: ^4.0.0
   test: ^1.25.0  # Downgraded for analyzer compatibility with build package
