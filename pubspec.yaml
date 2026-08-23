@@ -1,7 +1,12 @@
 name: dartvel_root
 publish_to: 'none'
 environment:
-  sdk: ">=3.4.0 <4.0.0"
+  # One floor for every Dartvel package, deliberately.
+  # Two floors that disagreed is what recorded webOS as merely
+  # unproven when its Dart could not resolve dependencies at all:
+  # the lower number was the one that got reasoned from.
+  # 3.12 is what dartvel_mix pins; 3.9 is only what code_assets needs.
+  sdk: ">=3.12.0 <4.0.0"
 
 dev_dependencies:
   lints: ^4.0.0

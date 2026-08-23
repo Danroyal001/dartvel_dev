@@ -27,7 +27,7 @@ local Dartvel `dartvel_vscode` fork added as a dependency.
 | `tvos` | ✅ Builds | **Verified on a macOS runner**: scaffold auto-generated, then `build/tvos/Debug-appletvsimulator/Runner.app`. The `appletvsimulator` path is the proof it is a tvOS app and not the iPhone app an earlier mapping produced. Run [32538073146](https://github.com/Danroyal001/dartvel/actions/runs/32538073146). See [tvOS](#tvos) |
 | `tizen` / `tpk` | ✅ Builds | Signed 9.3MB TPK with engine + assets, built on a laptop with Tizen Studio installed. CI can only ever *skip* it — the SDK is licence-gated and Dartvel must not install it unattended — so the workflow asserts the skip names that reason. See [Tizen](#tizen-samsung) |
 | `sony-elinux` | ❌ Blocked | Dart version floor; see [Sony eLinux](#sony-elinux) |
-| `webos` | ❌ Blocked | Dart version floor — the embedder ships Dart 3.10.9, `mix` needs ≥ 3.11.0; see [webOS](#webos-lg) |
+| `webos` | ❌ Blocked | Dart version floor — the embedder ships Dart 3.10.9, `dartvel_mix` needs ≥ 3.12.0; see [webOS](#webos-lg) |
 | `fuchsia` | ❌ Blocked, same class as webOS | The five build-plumbing walls are fixed: `--build-only` in the fork, `postInstall` bootstrap, submodule handling, the bootstrap's workspace variable, and skipping an unfetchable `googletest` pin. It now clones, bootstraps and stages the app — then dies in `pub get` because the fork's bundled Flutter is **older than Dart 3.4**: `dartvel_example requires SDK version >=3.4.0 <4.0.0, version solving failed`. That is not a Dartvel bug and not a `mix` problem; the embedder's Flutter submodule is simply ancient. Unblocking needs the fork re-pinned to a modern Flutter **and its engine rebuilt from source**, because bootstrap.sh warns the engine and the Flutter pin must stay aligned. See [Fuchsia](#fuchsia) |
 | `vscode` | ✅ Builds | `out/src/extension.js`, `out/lib/vscode_api.handlers.js`, `build/web/flutter_bootstrap.js`, `build/web/assets/` |
 | `chrome-extension` | ✅ Builds | `build/chrome-extension` (41 MB): MV3 manifest with a `service_worker` background, `index.html`, `main.dart.js`, `background.js`, icons. See [Browser extensions](#browser-extensions) |
@@ -333,21 +333,32 @@ would send the work in the wrong direction:
 
 | Target | Embedder's Dart | Short by | Cheapest unblock |
 | --- | --- | --- | --- |
-| webOS | 3.10.9 | 0.0.1 against `mix`'s 3.11 floor | Possibly a dependency change, see below |
-| Sony eLinux | 3.7.2 | Well short of `mix` | Engine rebuild |
-| Fuchsia | **older than 3.4** | Short of Dartvel's own example, before `mix` is reached | Re-pin the fork's Flutter **and rebuild its engine** |
+| webOS | 3.10.9 | 1.1 against `dartvel_mix`'s 3.12 floor | Engine rebuild, or lower our own fork's pin |
+| Sony eLinux | 3.7.2 | Well short of `dartvel_mix` | Engine rebuild |
+| Fuchsia | **older than 3.4** | Short of Dartvel's own example, before the UI layer is reached | Re-pin the fork's Flutter **and rebuild its engine** |
 
-**webOS is the interesting one, and it may not need a fork at all.**
-`mix 2.1.0` declares `sdk: >=3.11.0`, but the floor was not always that high —
-`mix 2.0.0-rc.1` declares `>=3.10.0`, which webOS's 3.10.9 satisfies. Of the
-published versions, 54 carry a floor below 3.11.
+**webOS changed shape once `dartvel_mix` existed, and got further away
+rather than closer.** This section previously asked whether pub's `mix 2.1.0`
+really needed Dart 3.11 or was merely conservative, because an older published
+`mix` would have cleared webOS's 3.10.9 by a hair. That question is now
+retired: `dartvel_flutter` does not depend on pub's `mix` at all. It depends on
+`dartvel_mix`, which pins Dart 3.12 to stay level with every other Dartvel
+fork — so the gap widened from 0.0.1 to 1.1.
 
-That leaves a question worth answering before any fork is written: **does
-`mix` 2.1.0 actually use a Dart 3.11 language feature, or is the constraint
-conservative?** If it is conservative, a fork that lowers only the floor is
-trivial and safe. If it is real, the choice is between pinning an RC — a
-pre-release UI dependency for the whole framework, which is a genuine cost —
-and rebuilding the webOS engine.
+The useful part is that **the floor is now a Dartvel decision rather than an
+upstream fact.** Nobody has to pin a pre-release UI dependency for the whole
+framework to move it. There are two levers, and they are both ours:
+
+1. **Rebuild the webOS engine** against a Flutter whose Dart clears 3.12. This
+   is the same work Sony eLinux needs, and it is the one that leaves the fork
+   pinned where the rest of the project is.
+2. **Lower `dartvel_mix`'s floor**, if nothing in it genuinely requires 3.12.
+   Cheap if true, but it pulls one fork off the shared pin, and the whole point
+   of the fork table is that the pins are tracked together.
+
+Lever 1 is the right default. Lever 2 is worth measuring before committing to
+an engine build, because the measurement is an afternoon and the engine build
+is not — but it should not be taken merely because it is cheaper.
 
 Fuchsia gets no benefit from any of that. Its Flutter cannot run Dartvel's own
 example, so it needs the re-pin and engine build regardless of what `mix`
@@ -378,7 +389,7 @@ not a missing engine. Sony's newest published engine is `ef0cd00091`
 (2025-07-25); the 3.44.5 engine `83675ed276` returns HTTP 404. So the ceiling
 is real, but the floor is what the build actually hits first.
 
-Unblocking it requires an eLinux Flutter engine built for a Dart ≥ 3.11
+Unblocking it requires an eLinux Flutter engine built for a Dart ≥ 3.12
 release. That is a from-source engine build rather than a version-pin bump —
 but it is **our** build to do, not something to wait on Sony for. The whole
 reason `dartvel_elinux` is a fork is that it can be pinned and patched ahead of
@@ -415,10 +426,14 @@ Like Sony eLinux, a version-pin bump alone cannot fix it. Unlike Sony eLinux,
 the wall is the Dart SDK the embedder bundles rather than a missing prebuilt
 engine artifact.
 
+The error above was captured against pub's `mix` and its 3.11 floor. Dartvel
+now depends on `dartvel_mix` at 3.12, so the same resolution fails the same way
+with a larger number; the shape of the failure is unchanged.
+
 **This is not a wait-on-LG blocker.** `dartvel_webos` is a fork precisely so it
 does not have to ship whatever Flutter LG last pinned; the fork currently
 inherits that pin, which is a thing to change rather than a constraint to
-report. Unblocking means moving the fork to a Flutter whose Dart clears 3.11
+report. Unblocking means moving the fork to a Flutter whose Dart clears 3.12
 and building the webOS engine from source for it. Whether an LG-published
 engine happens to exist for such a version is a convenience, not the gate.
 

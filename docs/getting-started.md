@@ -10,8 +10,14 @@ what that means before building anything you have to keep.
 
 ## Prerequisites
 
-- **Flutter 3.44.5 or newer**, with Dart ≥ 3.11. Dartvel's UI layer depends on
-  `mix ^2.0.0`, which sets that floor.
+- **Flutter 3.44.5 or newer, with Dart ≥ 3.12.** One floor, declared by every
+  Dartvel package. It comes from `dartvel_mix`, Dartvel's fork of `mix`.
+
+  Parts of Dartvel would resolve on an older Dart — the backend packages only
+  need 3.9, which is what `code_assets` requires — but declaring that
+  separately is how a target gets measured against the wrong number, so
+  Dartvel declares one. If your Dart is below 3.12, `pub get` says so directly
+  instead of failing later on a transitive package you did not choose.
 - **Rust and `cbindgen`** if you want the native backend runtime. Without them
   the native asset build skips with a message and the rest still works.
 - Platform toolchains only for the platforms you build. `dartvel doctor`

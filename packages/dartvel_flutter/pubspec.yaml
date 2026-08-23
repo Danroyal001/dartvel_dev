@@ -3,7 +3,12 @@ description: Flutter helpers for dartvel pages (SEO + transitions + route state)
 version: 0.2.1
 publish_to: none
 environment:
-  sdk: ">=3.4.0 <4.0.0"
+  # One floor for every Dartvel package, deliberately.
+  # Two floors that disagreed is what recorded webOS as merely
+  # unproven when its Dart could not resolve dependencies at all:
+  # the lower number was the one that got reasoned from.
+  # 3.12 is what dartvel_mix pins; 3.9 is only what code_assets needs.
+  sdk: ">=3.12.0 <4.0.0"
 
 dependencies:
   flutter:

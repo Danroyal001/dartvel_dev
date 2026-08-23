@@ -173,6 +173,41 @@ jobs:
           sleep 3
           DISPLAY=:99 flutter test integration_test -d linux
 
+  # The SDK floor is one number across every package, and nothing enforced
+  # that. All eight declared >=3.4.0 while dartvel_mix required 3.12, so the
+  # error a user on an old Dart actually got named a transitive package rather
+  # than their Dart version.
+  #
+  # This needs every package resolved, because it reads the real floor out of
+  # each package's resolved dependency graph rather than trusting a number
+  # written here — a hard-coded version in the check would sleep through the
+  # one event that matters, a dependency raising its own floor.
+  sdk-floor:
+    name: sdk floor
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Resolve every package
+        run: |
+          set -e
+          for dir in packages/*/ examples/*/ .; do
+            [ -f "$dir/pubspec.yaml" ] || continue
+            echo "::group::$dir"
+            (cd "$dir" && flutter pub get)
+            echo "::endgroup::"
+          done
+
+      - name: Check the declared floors
+        run: dart test test/unit/sdk_floor_test.dart
+
   spec:
     name: spec-status index
     runs-on: ubuntu-latest
