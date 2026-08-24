@@ -15,14 +15,15 @@ and misleading about the capability, and the two are easy to conflate.
 | Linux | **8** — see below |
 | web | **9** — see below |
 | Windows | **7** — see below |
-| macOS | none |
+| macOS | **3** — see below |
 | Android | none |
 | iOS | none |
 | Embedded (Tizen, webOS, eLinux, Fuchsia) | none |
 
-`packages/dartvel_flutter/lib/src/platform/` contains three directories:
-`linux/`, `web/` and `windows/`. For the other four there is nothing —
-not a partial implementation waiting to be finished, nothing.
+`packages/dartvel_flutter/lib/src/platform/` contains four directories:
+`linux/`, `macos/`, `web/` and `windows/`. For iOS, Android and the embedded
+targets there is nothing — not a partial implementation waiting to be
+finished, nothing.
 
 ## The Linux eight
 
@@ -116,6 +117,39 @@ round trip including non-ASCII, an empty-string copy, and a real display
 geometry. The window bindings are not exercised there — a test harness has no
 top-level window, so they correctly return false, and asserting that would be
 asserting the harness.
+
+## The macOS three
+
+| Binding | Backed by |
+| --- | --- |
+| `clipboard.copy`, `clipboard.paste` | `NSPasteboard` through the Objective-C runtime |
+| `screen.geometry` | CoreGraphics |
+
+The smallest set so far, and the omissions are the interesting part.
+
+**`screen.geometry` uses CoreGraphics rather than `NSScreen.frame`.** The
+latter returns a struct, and a struct return through `objc_msgSend` needs
+`objc_msgSend_stret` on some ABIs — calling the wrong entry point corrupts the
+stack rather than failing cleanly. CoreGraphics is plain C and needs no
+messaging at all, so the risk is removed rather than managed.
+
+**Notifications are absent.** `UNUserNotificationCenter` requires a bundled,
+signed application with the right entitlement, and `NSUserNotification` is
+removed. A binding that worked inside a signed bundle and silently did nothing
+elsewhere would look like it worked in development, which is the worst place
+for that to be discovered.
+
+**Window controls are absent, and that is a thread-safety decision rather than
+an effort one.** They need `NSApp.keyWindow`, and reading it through the
+Objective-C runtime from Dart's isolate is not reliably on the main thread.
+Getting that wrong crashes rather than misbehaves, so it waits until it can go
+through the engine's platform thread.
+
+Verified on a macOS runner by the `apple-bindings` job: a pasteboard round trip
+including Japanese and an emoji, a second write proving `clearContents` is
+called first — `NSPasteboard` rejects writes made without it — and a real
+display geometry. A mistyped Objective-C message does not fail to compile, so
+this is the only place the messaging is actually checked.
 
 ## What the framework calls and nothing implements
 

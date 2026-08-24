@@ -265,6 +265,32 @@ jobs:
         working-directory: packages/dartvel_flutter
         run: flutter test test/windows_bindings_live_test.dart
 
+  # The Objective-C bindings can only be exercised on macOS. A mistyped message
+  # signature does not fail to compile — it corrupts the stack or returns
+  # rubbish — so this is the only place the clipboard path is actually checked.
+  #
+  # macOS runners bill at ten times the Linux rate, so this runs one small
+  # suite rather than the package's full set.
+  apple-bindings:
+    name: macos bindings
+    runs-on: macos-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Resolve dependencies
+        working-directory: packages/dartvel_flutter
+        run: flutter pub get
+
+      - name: Run the macOS suite
+        working-directory: packages/dartvel_flutter
+        run: flutter test test/macos_bindings_live_test.dart
+
   spec:
     name: spec-status index
     runs-on: ubuntu-latest
