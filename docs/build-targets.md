@@ -327,6 +327,37 @@ real `libtinfo5` package.
 
 ### The three blocked targets share a shape, not a cause
 
+## Runtime verification
+
+`.github/workflows/runtime-verification.yml` builds each target, **runs** it,
+and captures what it drew. Every image below is an artifact of that workflow,
+and a green job with no image is not a pass — the eLinux job went green with no
+screenshot on its first run, which is exactly the false positive the images
+exist to catch.
+
+| Target | Runs | What the capture shows |
+| --- | --- | --- |
+| `linux` | ✅ | The showcase under Xvfb: platform `linux`, device `desktop`, signal `showcase-ready` |
+| `web` | ✅ | The same page in headless Chrome: platform `web`, device `web` |
+| `sony-elinux` | ✅ | The showcase on a **virtual eLinux device** — Weston on the X11 backend, Sony's Wayland embedder, software GL |
+| `linux-cli` | ✅ | The TUI photographed inside xterm, plus 20,874 true-colour writes captured through a pty |
+
+What running found that building could not:
+
+- **The web build had been broken** since the Rust HTTP transport landed —
+  `dart:ffi` is not available on web and the export was unconditional. No CI job
+  built web, so nothing noticed.
+- **The eLinux release bundle cannot start.** See the correction below.
+- **The terminal embedder panicked** with a capacity overflow when the terminal
+  had no dimensions, before drawing anything.
+- **Software GL is required** on a runner. Without it the eLinux client's EGL
+  falls through to ZINK, fails `vkCreateInstance` with
+  `VK_ERROR_INCOMPATIBLE_DRIVER`, and never gets a context — which reads as an
+  embedder fault and is not one.
+
+Not yet covered: Android, Windows, macOS, iOS and tvOS. Each needs a different
+runner or emulator, and none has been run.
+
 **Correction, established by running the thing rather than inspecting it: the
 official standalone engine is the JIT build, not the release build.** This file
 previously said the opposite, inferred from its size — 41.7 MB against Sony's
