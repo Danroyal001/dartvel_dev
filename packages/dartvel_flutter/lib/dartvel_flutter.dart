@@ -2668,13 +2668,14 @@ class DVPlatform {
 
   String get deviceType {
     if (_deviceTypeOverride.isNotEmpty) return _deviceTypeOverride;
-    if (isTV) return 'tv';
-    if (isWatch) return 'watch';
-    if (isWeb) return 'web';
-    if (breakpoint == 'desktop') return 'desktop';
-    if (breakpoint == 'tablet') return 'tablet';
-    if (isFoldable) return 'foldable';
-    return 'phone';
+    return dvDeviceTypeFor(
+      platform: currentPlatform,
+      breakpoint: breakpoint,
+      isTV: isTV,
+      isWatch: isWatch,
+      isWeb: isWeb,
+      isFoldable: isFoldable,
+    );
   }
 
   String get screenShape => isWatch ? 'round' : 'rectangle';
@@ -4782,4 +4783,51 @@ class DvI18n {
     final newUri = uri.replace(queryParameters: qp);
     router.go(newUri.toString());
   }
+}
+
+
+/// Desktop operating systems, where the machine is a desktop whatever size its
+/// window is.
+const Set<String> _dvDesktopPlatforms = <String>{'linux', 'macos', 'windows'};
+
+/// What kind of device this is.
+///
+/// Separated from [DVPlatform] so it can be asserted on directly, and because
+/// getting it wrong is invisible until an application takes a layout branch on
+/// the wrong platform.
+///
+/// It used to answer from [breakpoint] alone, which meant the same desktop
+/// application reported a different device depending on how wide its window
+/// was. Running the example on two platforms and comparing the screenshots
+/// showed it plainly: Linux at 1280px said `desktop`, Windows at 1024px said
+/// `tablet`. Same framework, same app, same class of machine — the only
+/// difference was the window, and anything branching on the result took the
+/// tablet path on Windows.
+///
+/// Width is the right input for *layout*, which is what [breakpoint] remains
+/// for and which is unchanged. It is the wrong input for what the device is.
+String dvDeviceTypeFor({
+  required String platform,
+  required String breakpoint,
+  bool isTV = false,
+  bool isWatch = false,
+  bool isWeb = false,
+  bool isFoldable = false,
+}) {
+  // The explicit kinds first: a television is a television at any width, and
+  // calling it a desktop would send an application down the pointer-and-window
+  // path on a device driven by a remote control.
+  if (isTV) return 'tv';
+  if (isWatch) return 'watch';
+  if (isWeb) return 'web';
+
+  // The platform, before the window. A desktop OS is a desktop however narrow
+  // the window has been dragged.
+  if (_dvDesktopPlatforms.contains(platform)) return 'desktop';
+
+  // On a mobile OS the screen genuinely is the signal, because the same system
+  // runs on both phones and tablets.
+  if (breakpoint == 'desktop' || breakpoint == 'tablet') return 'tablet';
+  if (isFoldable) return 'foldable';
+  return 'phone';
 }
