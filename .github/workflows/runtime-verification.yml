@@ -256,7 +256,8 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq pkg-config libxkbcommon-dev unzip
+          sudo apt-get install -y -qq pkg-config libxkbcommon-dev unzip \
+            xterm xvfb imagemagick x11-apps fonts-dejavu-core
 
       - name: Build the terminal embedder
         run: |
@@ -286,50 +287,44 @@ jobs:
           ./target/release/dartvel-cli-flt build linux --project sample_app --out /tmp/terminal-out
           find /tmp/terminal-out -maxdepth 2
 
-      - name: Run it under a pty and capture what it drew
+      # Two captures, because they answer different questions.
+      #
+      # The pty run says what the embedder wrote: whether it emitted escape
+      # sequences at all, whether it transmitted Kitty image data or only asked
+      # whether the terminal supports it, and how many colour writes it made.
+      # That is the difference between started and rendered.
+      #
+      # The xterm run photographs it, which is the only thing that shows the
+      # application actually looks like itself.
+      - name: Run under a pty and record what it wrote
         id: run
         continue-on-error: true
         run: |
           set -uo pipefail
-          # Written to a file rather than piped to python3 from a heredoc: the
-          # heredoc body sits at this block's indentation, so Python received
-          # leading whitespace on every line and refused to parse it.
-          cat > /tmp/pty_capture.py <<'PY'
-          import os, pty, select, time
-
-          os.environ['TERM'] = 'xterm-256color'
-          pid, fd = pty.fork()
-          if pid == 0:
-              os.execv('/bin/sh', ['/bin/sh', '-c', '/tmp/terminal-out/run.sh --simple-output'])
-
-          captured = bytearray()
-          deadline = time.time() + 25
-          while time.time() < deadline:
-              ready, _, _ = select.select([fd], [], [], 1.0)
-              if fd in ready:
-                  try:
-                      chunk = os.read(fd, 65536)
-                  except OSError:
-                      break
-                  if not chunk:
-                      break
-                  captured += chunk
-
-          open('/tmp/terminal-output.bin', 'wb').write(bytes(captured))
-          text = bytes(captured).decode('utf-8', 'replace')
-          print('captured bytes:', len(captured))
-          # Started and rendered are different claims; these separate them.
-          print('has escape sequences:', '\\x1b[' in repr(text))
-          print('has kitty graphics:', '_G' in text)
-          print('vm service line:', 'Dart VM service' in text)
-          PY
-          sed -i 's/^          //' /tmp/pty_capture.py
-          mkdir -p /tmp/diag
           exec > >(tee -a /tmp/diag/terminal-run.log) 2>&1
           echo "=== bundle ==="; find /tmp/terminal-out -maxdepth 2
-          python3 /tmp/pty_capture.py
-          cp /tmp/terminal-output.bin /tmp/diag/ 2>/dev/null || echo "nothing captured"
+          python3 tool/pty_capture.py /tmp/diag/terminal-output.bin 25 \
+            /tmp/terminal-out/run.sh
+          echo "=== first bytes, escaped ==="
           head -c 400 /tmp/diag/terminal-output.bin | cat -v | head -20 || true
+
+      - name: Photograph the terminal
+        id: shot
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          exec > >(tee -a /tmp/diag/terminal-shot.log) 2>&1
+          Xvfb :99 -screen 0 1400x900x24 &
+          sleep 3
+          export DISPLAY=:99
+          # A generous geometry: the embedder sizes its frame from the terminal
+          # dimensions, and a pty with none at all panics with a capacity
+          # overflow before drawing anything.
+          xterm -geometry 150x45 -fa 'DejaVu Sans Mono' -fs 11 \
+            -e /tmp/terminal-out/run.sh &
+          sleep 20
+          import -window root /tmp/diag/terminal.png
+          identify /tmp/diag/terminal.png
 
       - uses: actions/upload-artifact@v4
         if: always()
