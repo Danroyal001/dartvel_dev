@@ -26,7 +26,7 @@ local Dartvel `dartvel_vscode` fork added as a dependency.
 | `ios` | ✅ Builds | **Verified on a macOS runner**, not this host: `build/ios/iphoneos/Runner.app` (15.4 MB), artifact directory listed. Run [31554165981](https://github.com/Danroyal001/dartvel/actions/runs/31554165981) |
 | `tvos` | ✅ Builds | **Verified on a macOS runner**: scaffold auto-generated, then `build/tvos/Debug-appletvsimulator/Runner.app`. The `appletvsimulator` path is the proof it is a tvOS app and not the iPhone app an earlier mapping produced. Run [32538073146](https://github.com/Danroyal001/dartvel/actions/runs/32538073146). See [tvOS](#tvos) |
 | `tizen` / `tpk` | ✅ Builds | Signed 9.3MB TPK with engine + assets, built on a laptop with Tizen Studio installed. CI can only ever *skip* it — the SDK is licence-gated and Dartvel must not install it unattended — so the workflow asserts the skip names that reason. See [Tizen](#tizen-samsung) |
-| `sony-elinux` | ⚠️ **Builds** (release), unrun | A complete release bundle was assembled and inspected: Sony's Wayland embedder, the engine, an AOT `libapp.so` carrying real Dart snapshot symbols, assets and `icudtl.dat` — 48 MB, **zero GTK/GDK dependencies**. Not run: no eLinux device here. Debug and profile still need an engine build. See [Sony eLinux](#sony-elinux) |
+| `sony-elinux` | ⚠️ Builds, **does not start** | The bundle assembles and was run on a virtual device (Weston on Xvfb) in CI. It **fails at `FlutterEngineInitialize`**: the official engine is JIT and the bundle ships an AOT `libapp.so`. Needs a release engine from `engine-build.yml`. See [Sony eLinux](#sony-elinux) |
 | `webos` | ❌ Blocked | Dart version floor — the embedder ships Dart 3.10.9, `dartvel_mix` needs ≥ 3.12.0; see [webOS](#webos-lg) |
 | `fuchsia` | ❌ Blocked, same class as webOS | The five build-plumbing walls are fixed: `--build-only` in the fork, `postInstall` bootstrap, submodule handling, the bootstrap's workspace variable, and skipping an unfetchable `googletest` pin. It now clones, bootstraps and stages the app — then dies in `pub get` because the fork's bundled Flutter is **older than Dart 3.4**: `dartvel_example requires SDK version >=3.4.0 <4.0.0, version solving failed`. That is not a Dartvel bug and not a `mix` problem; the embedder's Flutter submodule is simply ancient. Unblocking needs the fork re-pinned to a modern Flutter **and its engine rebuilt from source**, because bootstrap.sh warns the engine and the Flutter pin must stay aligned. See [Fuchsia](#fuchsia) |
 | `vscode` | ✅ Builds | `out/src/extension.js`, `out/lib/vscode_api.handlers.js`, `build/web/flutter_bootstrap.js`, `build/web/assets/` |
@@ -326,6 +326,30 @@ enough because the ncurses 5 ABI symbols are genuinely absent — install the
 real `libtinfo5` package.
 
 ### The three blocked targets share a shape, not a cause
+
+**Correction, established by running the thing rather than inspecting it: the
+official standalone engine is the JIT build, not the release build.** This file
+previously said the opposite, inferred from its size — 41.7 MB against Sony's
+release 42.6 MB — and that inference was wrong. The binary settles it: it
+contains the strings `kernel_blob.bin` and `Not running in AOT mode but could
+not resolve the kernel binary`, which a release engine has no use for.
+
+The eLinux release bundle assembled from it therefore **cannot start**. It
+pairs an AOT `libapp.so` with an engine that only runs kernel, and the
+application dies during `FlutterEngineInitialize` with exactly that message.
+The structural verification recorded below — snapshot symbols present, no GTK
+dependencies — was true and insufficient: nothing about inspecting an artifact
+can catch a mode mismatch between two files that are each individually correct.
+
+That is the whole argument for running rather than building, and it took one
+run to demonstrate.
+
+What follows from it:
+
+- **eLinux debug** is what the official artifact supports today, with
+  `kernel_blob.bin` rather than `libapp.so`.
+- **eLinux release** needs a release engine built from source, which is what
+  `engine-build.yml` is for.
 
 **The engine build works, and the modes Google does not publish are now
 obtainable.** `.github/workflows/engine-build.yml` builds the Flutter engine
