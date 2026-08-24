@@ -36,7 +36,12 @@ export 'src/database/postgres.dart';
 export 'src/graphql/graphql.dart';
 export 'src/http/aws_sigv4.dart';
 export 'src/http/transport.dart';
-export 'src/http/native_client.dart';
+// Conditional, because the native client needs dart:ffi and web has none.
+// Exporting it unconditionally broke the web build with "Dart library
+// 'dart:ffi' is not available on this platform", and nothing noticed because
+// nothing built web afterwards.
+export 'src/http/native_client_web.dart'
+    if (dart.library.ffi) 'src/http/native_client.dart';
 export 'src/lifecycle/lifecycle.dart';
 export 'src/mail/smtp.dart';
 export 'src/media/image.dart';
