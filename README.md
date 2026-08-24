@@ -106,10 +106,9 @@ dartvel init
 dartvel doctor
 dartvel doctor --target tizen      # check one target's toolchain
 
-# Development
+# Development — one loop: generation, hot reload, backend, native runtime
 dartvel dev
-dartvel watch
-hotreload
+dartvel run                        # alias
 
 # Production builds (see Build Targets below)
 dartvel build [platform]

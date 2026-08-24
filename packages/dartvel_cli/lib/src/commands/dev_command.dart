@@ -2,8 +2,11 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:args/command_runner.dart';
+import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
+import 'package:watcher/watcher.dart';
 
+import '../config/dartvel_config.dart';
 import '../generators/routes_generator.dart';
 import '../utils/build_runner.dart';
 import '../utils/linux_utils.dart';
@@ -76,6 +79,8 @@ Future<void> main() async {
     // Start processes: build_runner + backend + flutter
     Process? buildRunnerP;
     Process? backP;
+    // Kept so a restart starts the backend the same way the first start did.
+    Map<String, String>? backendEnv;
     Process? flutterP;
 
     // Run optional user-configured builders after Dartvel's own generation.
@@ -234,6 +239,7 @@ Future<void> main() async {
         'RUST_BACKTRACE': '1',
         'MALLOC_CHECK_': '3',
       };
+      backendEnv = extraEnv;
       backP = await _spawn(
           'dart', ['run', '.dart_tool/dartvel_dev_server.dart'], 'backend',
           extraEnv: extraEnv);
@@ -262,12 +268,155 @@ Future<void> main() async {
       });
     }
 
+    final config = await DartvelConfig.load(Directory(root));
+
+    // Keep generated code, the app, the backend and the Rust runtime in step
+    // while the loop runs. This used to be `dartvel watch`, a separate command
+    // aliased `hotreload` that never asked Flutter to reload anything — so the
+    // command that sounded like it handled reloading was the one that did not,
+    // and editing a page during `dartvel dev` left the router stale.
+    final watchSubscriptions = _startWatching(
+      root: root,
+      config: config,
+      regenerate: () async {
+        Logger.log('[dev] regenerating...');
+        try {
+          await generate();
+        } catch (e) {
+          Logger.log('[dev] generation failed: $e');
+        }
+      },
+      hotReloadFlutter: () {
+        // Flutter's own hot reload, not a rebuild. This is the whole reason
+        // the loop feels instant.
+        try {
+          flutterP?.stdin.write('r');
+        } catch (_) {}
+      },
+      restartBackend: () async {
+        Logger.log('[dev] restarting backend...');
+        backP?.kill();
+        try {
+          backP = await _spawn(
+              'dart', ['run', '.dart_tool/dartvel_dev_server.dart'], 'backend',
+              extraEnv: backendEnv);
+        } catch (_) {
+          Logger.log('[dev] backend failed to restart');
+        }
+      },
+      rebuildNative: () async {
+        Logger.log('[dev] rebuilding the native runtime...');
+        final rust = p.join(root, 'packages/dartvel_shelf/rust');
+        if (!Directory(rust).existsSync()) return;
+        final build = await Process.run(
+            'cargo', <String>['build', '--release'],
+            workingDirectory: rust);
+        if (build.exitCode != 0) {
+          Logger.log('[dev] cargo build failed:\n${build.stderr}');
+        }
+      },
+    );
+
     // Keep running until one exits
     await Future.any([
       if (buildRunnerP != null) buildRunnerP.exitCode,
-      if (backP != null) backP.exitCode,
+      if (backP != null) backP!.exitCode,
       if (flutterP != null) flutterP.exitCode,
     ].whereType<Future<int>>());
+
+    for (final subscription in watchSubscriptions) {
+      await subscription.cancel();
+    }
+  }
+
+  /// Watches the configured sources and runs only the actions a change needs.
+  ///
+  /// Two things keep this cheap. Events are debounced, because a single save
+  /// produces several and a formatter produces more. And each path's content is
+  /// digested, so a touched-but-identical file does nothing — editors save on
+  /// focus loss and build tools stamp mtimes, and acting on the event rather
+  /// than the content restarts a backend for a stray save.
+  List<StreamSubscription<WatchEvent>> _startWatching({
+    required String root,
+    required DartvelConfig config,
+    required Future<void> Function() regenerate,
+    required void Function() hotReloadFlutter,
+    required Future<void> Function() restartBackend,
+    required Future<void> Function() rebuildNative,
+  }) {
+    final targets = dartvelWatchTargets(
+      root: root,
+      pagesDir: config.pagesDir,
+      backendDir: config.backendDir,
+      envFiles: config.envFiles,
+    );
+
+    final digests = <String, String>{};
+    final subscriptions = <StreamSubscription<WatchEvent>>[];
+    Timer? debounce;
+    final pending = <DevChangeAction>{};
+
+    Future<void> flush() async {
+      final actions = Set<DevChangeAction>.from(pending);
+      pending.clear();
+      if (actions.isEmpty) return;
+
+      // Order matters: generate before reloading, and rebuild the native
+      // runtime before restarting the process that loads it.
+      if (actions.contains(DevChangeAction.regenerate)) await regenerate();
+      if (actions.contains(DevChangeAction.rebuildNative)) await rebuildNative();
+      if (actions.contains(DevChangeAction.restartBackend)) {
+        await restartBackend();
+      }
+      if (actions.contains(DevChangeAction.hotReloadFlutter)) {
+        hotReloadFlutter();
+      }
+    }
+
+    for (final target in targets) {
+      final entity = target.isDirectory
+          ? Directory(target.path) as FileSystemEntity
+          : File(target.path);
+      if (!entity.existsSync()) continue;
+
+      final watcher = target.isDirectory
+          ? DirectoryWatcher(target.path) as Watcher
+          : FileWatcher(target.path);
+
+      subscriptions.add(watcher.events.listen((WatchEvent event) {
+        final digest = _digestOf(event.path);
+        if (digest != null &&
+            !dartvelChangeIsMeaningful(
+              previousDigest: digests[event.path],
+              currentDigest: digest,
+            )) {
+          return;
+        }
+        if (digest != null) digests[event.path] = digest;
+
+        pending.addAll(target.actions);
+        debounce?.cancel();
+        debounce = Timer(const Duration(milliseconds: 250), () {
+          unawaited(flush());
+        });
+      }));
+    }
+
+    return subscriptions;
+  }
+
+  /// A content digest, or null when the file cannot be read.
+  ///
+  /// Null means "cannot tell", and the caller treats that as a change: failing
+  /// to reload is worse than reloading unnecessarily.
+  String? _digestOf(String path) {
+    try {
+      final file = File(path);
+      if (!file.existsSync()) return null;
+      return md5.convert(file.readAsBytesSync()).toString();
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<Process> _spawn(String exe, List<String> args, String tag,
@@ -337,4 +486,120 @@ Future<void> main() async {
       await socket?.close();
     }
   }
+}
+
+/// What a change under a watched path has to set off.
+///
+/// Separate actions rather than one "reload everything", because reloading
+/// what did not change is the difference between a loop that keeps up with
+/// typing and one that does not. A widget edit should not restart a server; a
+/// Rust edit should not disturb the Flutter app.
+enum DevChangeAction {
+  /// Re-run route, client and config generation.
+  regenerate,
+
+  /// Ask the running `flutter run` to hot reload, by sending it `r`.
+  ///
+  /// Flutter's own mechanism, deliberately. Rebuilding to show a changed
+  /// widget would throw away the thing that makes this fast.
+  hotReloadFlutter,
+
+  /// Stop and start the backend process.
+  ///
+  /// There is no hot reload for it: it is a separate Dart process, and the
+  /// generated route table it serves is built at startup.
+  restartBackend,
+
+  /// Rebuild the Rust runtime the backend loads.
+  rebuildNative,
+}
+
+/// One watched path and what changing it means.
+class DevWatchTarget {
+  final String path;
+
+  /// Directories and files need different watchers, and using the wrong one
+  /// fails at runtime rather than at construction.
+  final bool isDirectory;
+
+  final Set<DevChangeAction> actions;
+
+  const DevWatchTarget({
+    required this.path,
+    required this.isDirectory,
+    required this.actions,
+  });
+}
+
+/// Everything `dartvel dev` watches, and what each change triggers.
+///
+/// Paths come from configuration rather than being hardcoded. The previous
+/// watcher assumed `lib/pages` and `lib/backend` while the generator honoured
+/// `pagesDir` and `backendDir`, so a project that moved either got a watcher
+/// pointed at nothing — silently, because a watcher on a missing directory
+/// simply never fires.
+List<DevWatchTarget> dartvelWatchTargets({
+  required String root,
+  required String pagesDir,
+  required String backendDir,
+  required List<String> envFiles,
+}) {
+  return <DevWatchTarget>[
+    // Dart the app runs. Flutter reloads it in place.
+    DevWatchTarget(
+      path: '$root/$pagesDir',
+      isDirectory: true,
+      actions: const <DevChangeAction>{
+        DevChangeAction.regenerate,
+        DevChangeAction.hotReloadFlutter,
+      },
+    ),
+    // Dart the server runs. The generated client changes with it, so the app
+    // reloads too or it will be calling signatures that no longer exist.
+    DevWatchTarget(
+      path: '$root/$backendDir',
+      isDirectory: true,
+      actions: const <DevChangeAction>{
+        DevChangeAction.regenerate,
+        DevChangeAction.restartBackend,
+        DevChangeAction.hotReloadFlutter,
+      },
+    ),
+    // No Dart changed, so there is nothing for Flutter to reload — but the
+    // backend has the old library mapped until it restarts.
+    DevWatchTarget(
+      path: '$root/packages/dartvel_shelf/rust',
+      isDirectory: true,
+      actions: const <DevChangeAction>{
+        DevChangeAction.rebuildNative,
+        DevChangeAction.restartBackend,
+      },
+    ),
+    for (final envFile in envFiles)
+      DevWatchTarget(
+        path: '$root/$envFile',
+        isDirectory: false,
+        actions: const <DevChangeAction>{
+          DevChangeAction.regenerate,
+          DevChangeAction.restartBackend,
+          DevChangeAction.hotReloadFlutter,
+        },
+      ),
+  ];
+}
+
+/// Whether a filesystem event represents an actual edit.
+///
+/// Editors save on focus loss, formatters rewrite bytes that are already
+/// there, and build tools stamp mtimes. Acting on the event rather than the
+/// content restarts a backend for a stray save.
+///
+/// A null [previousDigest] means nothing has been recorded yet, and skipping
+/// then would mean never acting at all.
+bool dartvelChangeIsMeaningful({
+  required String? previousDigest,
+  required String currentDigest,
+}) {
+  if (previousDigest == null) return true;
+  return previousDigest != currentDigest;
 }
