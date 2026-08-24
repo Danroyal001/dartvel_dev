@@ -4222,7 +4222,18 @@ class DVPageShell extends StatelessWidget {
                 backgroundColor: _color(spec.appBarBackgroundColor),
               )
             : null,
-        child: _body(child),
+        // CupertinoPageScaffold provides no Material, and on Material it is
+        // Material that establishes the DefaultTextStyle. Without one, every
+        // DVText under this shell falls back to Flutter's built-in default —
+        // oversized, with the yellow double underline it uses to say there is
+        // no text style here.
+        //
+        // It shipped that way on macOS, iOS and tvOS because nothing rendered
+        // on an Apple platform until the runtime-verification screenshots.
+        child: DefaultTextStyle(
+          style: CupertinoTheme.of(context).textTheme.textStyle,
+          child: _body(child),
+        ),
       );
     }
 
