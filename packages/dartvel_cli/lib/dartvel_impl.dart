@@ -23,7 +23,6 @@ import 'src/commands/shell_command.dart';
 import 'src/commands/test_command.dart';
 import 'src/commands/updates_command.dart';
 import 'src/commands/version_command.dart';
-import 'src/commands/watch_command.dart';
 
 Future<void> main(List<String> args) async {
   // Handle --version flag
@@ -43,7 +42,6 @@ Future<void> main(List<String> args) async {
     ..addCommand(DeployCommand())
     ..addCommand(PreviewCommand())
     ..addCommand(PrerenderCommand())
-    ..addCommand(WatchCommand())
     ..addCommand(PluginCommand())
     ..addCommand(UpdatesCommand())
     ..addCommand(QueueCommand())

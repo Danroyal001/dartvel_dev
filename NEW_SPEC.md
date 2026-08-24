@@ -2965,10 +2965,30 @@ dartvel doctor
 Development
 
 ```bash
-dartvel dev
-dartvel watch
-dartvel hotreload
+dartvel dev          # aliases: run, start
 ```
+
+`dartvel dev` is the whole loop. It watches the configured sources and does
+only what a change needs:
+
+| Changed | What happens |
+| --- | --- |
+| A page or widget | Regenerate, then Flutter's own hot reload |
+| A backend function | Regenerate, restart the backend, reload the app — the generated client changed with it |
+| Rust | Rebuild the native runtime and restart the backend; no Dart changed, so the app is left alone |
+| An env file | Regenerate, restart the backend, reload the app |
+
+Hot reload and hot restart are Flutter's: `r` and `R` reach the running
+`flutter run`. Nothing is rebuilt to show a changed widget.
+
+Unchanged content costs nothing. Each watched path is digested, so a
+touched-but-identical file does no work — editors save on focus loss and build
+tools stamp mtimes, and acting on the event rather than the content would
+restart a backend for a stray save.
+
+There is no separate `dartvel watch` or `dartvel hotreload`. The second name in
+particular was wrong: it never asked Flutter to reload anything, so the command
+that sounded like it handled reloading was the one that did not.
 
 Database
 
