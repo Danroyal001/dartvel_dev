@@ -8,7 +8,6 @@
 // It was found by photographing the running app on macOS and iOS and noticing
 // that both looked wrong in a way Linux, Windows, Android and web did not.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -34,9 +33,9 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: ThemeData(platform: platform),
-        home: DVPageShell(
-          spec: const DVPageScaffoldSpec(title: 'Title'),
-          child: const DVText('body text'),
+        home: const DVPageShell(
+          spec: DVPageScaffoldSpec(title: 'Title'),
+          child: DVText('body text'),
         ),
       ),
     );
