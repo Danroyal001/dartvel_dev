@@ -21,8 +21,8 @@ and misleading about the capability, and the two are easy to conflate.
 | Embedded (Tizen, webOS, eLinux, Fuchsia) | none |
 
 `packages/dartvel_flutter/lib/src/platform/` contains four directories:
-`linux/`, `macos/`, `web/` and `windows/`. For iOS, Android and the embedded
-targets there is nothing — not a partial implementation waiting to be
+`linux/`, `ios/`, `macos/`, `web/` and `windows/`. For Android and the
+embedded targets there is nothing — not a partial implementation waiting to be
 finished, nothing.
 
 ## The Linux eight
@@ -150,6 +150,31 @@ including Japanese and an emoji, a second write proving `clearContents` is
 called first — `NSPasteboard` rejects writes made without it — and a real
 display geometry. A mistyped Objective-C message does not fail to compile, so
 this is the only place the messaging is actually checked.
+
+## The iOS two
+
+| Binding | Backed by |
+| --- | --- |
+| `clipboard.copy`, `clipboard.paste` | `UIPasteboard` through the Objective-C runtime |
+
+The runtime is linked into the app on iOS rather than living in a dylib that
+can be opened by path, so the process itself is opened and the lookup of
+`objc_getClass` is checked before anything depends on it.
+
+**`screen.geometry` is absent here while macOS has it**, and the asymmetry is
+deliberate. It would come from `UIScreen.nativeBounds`, which returns a
+`CGRect`; a struct return through `objc_msgSend` needs `objc_msgSend_stret` on
+some ABIs and corrupts the stack when the wrong entry point is used. macOS
+sidesteps that with CoreGraphics, and iOS has no equivalent C path — so there
+is nowhere safe to read it from, rather than nobody having got round to it.
+
+`setString:` returns void, so `clipboard.copy` reports success as the absence
+of a crash. UIKit gives no result to check and inventing one would be a lie.
+
+Notifications, haptics and window controls are absent: the first needs
+authorisation and a configured app delegate, the second must run on the main
+thread, and the third does not exist — an iOS app does not own a resizable
+window.
 
 ## What the framework calls and nothing implements
 
