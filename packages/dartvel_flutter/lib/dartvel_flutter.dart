@@ -238,6 +238,7 @@ export 'src/admin/route_info.dart';
 export 'src/admin/telemetry_admin.dart';
 export 'src/media/image_view.dart';
 export 'src/platform/linux/linux_bindings.dart';
+export 'src/platform/web/web_bindings.dart';
 export 'src/studio/page_document.dart';
 export 'src/studio/studio_editor.dart';
 export 'src/studio/studio_screen.dart';
