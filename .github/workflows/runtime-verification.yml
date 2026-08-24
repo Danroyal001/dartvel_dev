@@ -32,6 +32,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
+      - name: Open the diagnostics directory
+        run: mkdir -p /tmp/diag
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with: { flutter-version: '3.44.5', channel: stable, cache: true }
@@ -46,8 +48,10 @@ jobs:
         run: cargo install cbindgen --locked || true
 
       - name: Generate and build
-        working-directory: examples/dartvel_example
         run: |
+          set -uo pipefail
+          exec > >(tee -a /tmp/diag/linux-build.log) 2>&1
+          cd examples/dartvel_example
           flutter pub get
           dart run dartvel_cli:dartvel routes
           flutter build linux --release
@@ -64,12 +68,13 @@ jobs:
           # Long enough for the first frame; a screenshot taken too early
           # photographs an empty window and looks like a rendering failure.
           sleep 12
-          import -window root /tmp/linux-gui.png
+          import -window root /tmp/diag/linux-gui.png
           kill $APP 2>/dev/null || true
-          identify /tmp/linux-gui.png
+          identify /tmp/diag/linux-gui.png
 
       - uses: actions/upload-artifact@v4
-        with: { name: screenshot-linux-gui, path: /tmp/linux-gui.png }
+        if: always()
+        with: { name: screenshot-linux-gui, path: /tmp/diag/, if-no-files-found: warn }
 
   # The one asked for. Sony's embedder is a Wayland client, so it needs a
   # compositor — there is no such thing as running it "headless" on its own.
@@ -84,6 +89,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
+      - name: Open the diagnostics directory
+        run: mkdir -p /tmp/diag
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with: { flutter-version: '3.44.5', channel: stable, cache: true }
@@ -132,13 +139,34 @@ jobs:
       - name: Install cbindgen
         run: cargo install cbindgen --locked || true
 
-      - name: Assemble the eLinux bundle
-        working-directory: examples/dartvel_example
+      # A DEBUG bundle, deliberately, and this is the correction that matters:
+      # the official standalone engine is the JIT build, not the release build.
+      # It carries the strings kernel_blob.bin and "Not running in AOT mode",
+      # which a release engine has no use for. Pairing it with an AOT libapp.so
+      # — which is what `dartvel build sony-elinux` produces — fails inside
+      # FlutterEngineInitialize with exactly that message.
+      #
+      # So this proves the stack with the pieces that match: JIT engine plus
+      # kernel_blob.bin. The release path waits on engine-build.yml.
+      - name: Assemble a debug eLinux bundle the JIT engine can run
         run: |
+          set -euo pipefail
+          mkdir -p /tmp/diag
+          exec > >(tee -a /tmp/diag/assemble.log) 2>&1
+          cd examples/dartvel_example
           flutter pub get
           dart run dartvel_cli:dartvel routes
-          dart run dartvel_cli:dartvel build sony-elinux --arch x64
-          find build/elinux -maxdepth 3 | head -10
+          flutter build linux --debug
+          SRC=build/linux/x64/debug/bundle
+          OUT=build/elinux/x64/debug/bundle
+          mkdir -p "$OUT/lib" "$OUT/data"
+          cp -r "$SRC/data/flutter_assets" "$OUT/data/"
+          cp "$SRC/data/icudtl.dat" "$OUT/data/"
+          cp "$HOME/.dartvel/toolchains/dartvel_elinux/artifacts/flutter-client" "$OUT/"
+          cp "$HOME/.dartvel/toolchains/dartvel_elinux/artifacts/libflutter_engine.so" "$OUT/lib/"
+          echo "--- assembled ---"; find "$OUT" -maxdepth 2
+          echo "--- kernel present? (JIT needs it) ---"
+          ls -l "$OUT/data/flutter_assets/kernel_blob.bin"
 
       # Display and application in ONE step, deliberately.
       #
@@ -173,13 +201,20 @@ jobs:
           test -S "$XDG_RUNTIME_DIR/wayland-1" && echo "compositor socket present" \
             || echo "NO COMPOSITOR SOCKET — the app cannot connect"
 
-          BUNDLE="$GITHUB_WORKSPACE/examples/dartvel_example/build/elinux/x64/release/bundle"
+          BUNDLE="$GITHUB_WORKSPACE/examples/dartvel_example/build/elinux/x64/debug/bundle"
           echo "=== bundle contents ==="
           find "$BUNDLE" -maxdepth 2
 
           cd "$BUNDLE"
           export WAYLAND_DISPLAY=wayland-1
           export LD_LIBRARY_PATH="$PWD/lib:${LD_LIBRARY_PATH:-}"
+          # There is no GPU on a runner. Without these the client's EGL falls
+          # through to ZINK, fails vkCreateInstance with
+          # VK_ERROR_INCOMPATIBLE_DRIVER, and never gets a context — which
+          # looks like an embedder fault and is not one.
+          export LIBGL_ALWAYS_SOFTWARE=1
+          export GALLIUM_DRIVER=llvmpipe
+          export MESA_LOADER_DRIVER_OVERRIDE=llvmpipe
 
           echo "=== what the client expects ==="
           ./flutter-client --help 2>&1 | head -20 || true
@@ -212,6 +247,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
+      - name: Open the diagnostics directory
+        run: mkdir -p /tmp/diag
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with: { flutter-version: '3.44.5', channel: stable, cache: true }
@@ -223,7 +260,8 @@ jobs:
 
       - name: Build the terminal embedder
         run: |
-          set -euo pipefail
+          set -uo pipefail
+          exec > >(tee -a /tmp/diag/terminal-build.log) 2>&1
           git clone --depth 1 https://github.com/Danroyal001/dartvel_cli_flt.git flt
           cd flt
           mkdir -p third_party/flutter/bin/internal
@@ -238,7 +276,8 @@ jobs:
       # docs/build-targets.md, and it is not what this job is testing.
       - name: Assemble a terminal bundle
         run: |
-          set -euo pipefail
+          set -uo pipefail
+          exec > >(tee -a /tmp/diag/terminal-assemble.log) 2>&1
           cd flt
           ./target/release/dartvel-cli-flt build linux --project sample_app --out ../terminal-out
           find ../terminal-out -maxdepth 2
@@ -299,6 +338,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
+      - name: Open the diagnostics directory
+        run: mkdir -p /tmp/diag
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with: { flutter-version: '3.44.5', channel: stable, cache: true }
@@ -310,11 +351,14 @@ jobs:
           cargo install cbindgen --locked || true
 
       - name: Build for web
-        working-directory: examples/dartvel_example
         run: |
+          set -uo pipefail
+          exec > >(tee -a /tmp/diag/web-build.log) 2>&1
+          cd examples/dartvel_example
           flutter pub get
           dart run dartvel_cli:dartvel routes
           flutter build web --release
+          echo "--- output ---"; ls build/web | head
 
       - name: Serve it and photograph the page
         id: run
