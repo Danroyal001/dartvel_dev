@@ -11,8 +11,13 @@
 /// mis-ordered chunk gives a scrambled one of exactly the right length. Both
 /// fail later, somewhere that does not mention chunks. So every part carries a
 /// hash, the whole artifact carries a hash, and both are checked.
+library;
+
 import 'dart:convert';
 import 'dart:io';
+// BytesBuilder directly, not through dart:io. Reaching it indirectly is
+// deprecated, and CI analyses with --fatal-warnings.
+import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 
