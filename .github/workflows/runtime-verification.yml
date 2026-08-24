@@ -166,7 +166,9 @@ jobs:
           export XDG_RUNTIME_DIR=/tmp/xdg
           export WAYLAND_DISPLAY=wayland-1
           export LD_LIBRARY_PATH="$PWD/lib:$LD_LIBRARY_PATH"
-          ./flutter-client --bundle=./data > /tmp/elinux-app.log 2>&1 &
+          # --bundle is the bundle ROOT — the directory holding data/ and
+          # lib/ — not data/ itself. We are already inside it.
+          ./flutter-client --bundle="$PWD" > /tmp/elinux-app.log 2>&1 &
           APP=$!
           sleep 15
           import -window root /tmp/elinux.png
@@ -229,17 +231,22 @@ jobs:
         continue-on-error: true
         run: |
           set -uo pipefail
-          python3 - <<'PY'
-          import os, pty, select, sys, time
+          # Written to a file rather than piped to python3 from a heredoc: the
+          # heredoc body sits at this block's indentation, so Python received
+          # leading whitespace on every line and refused to parse it.
+          cat > /tmp/pty_capture.py <<'PY'
+          import os, pty, select, time
+
           os.environ['TERM'] = 'xterm-256color'
           pid, fd = pty.fork()
           if pid == 0:
               os.execv('/bin/sh', ['/bin/sh', '-c', './terminal-out/run.sh --simple-output'])
+
           captured = bytearray()
           deadline = time.time() + 25
           while time.time() < deadline:
-              r, _, _ = select.select([fd], [], [], 1.0)
-              if fd in r:
+              ready, _, _ = select.select([fd], [], [], 1.0)
+              if fd in ready:
                   try:
                       chunk = os.read(fd, 65536)
                   except OSError:
@@ -247,13 +254,17 @@ jobs:
                   if not chunk:
                       break
                   captured += chunk
+
           open('/tmp/terminal-output.bin', 'wb').write(bytes(captured))
-          print(f"captured {len(captured)} bytes")
-          # What proves it rendered rather than merely started.
           text = bytes(captured).decode('utf-8', 'replace')
-          print("has escape sequences:", '\x1b[' in text)
-          print("has kitty graphics:", '\x1b_G' in text)
+          print('captured bytes:', len(captured))
+          # Started and rendered are different claims; these separate them.
+          print('has escape sequences:', '\\x1b[' in repr(text))
+          print('has kitty graphics:', '_G' in text)
+          print('vm service line:', 'Dart VM service' in text)
           PY
+          sed -i 's/^          //' /tmp/pty_capture.py
+          python3 /tmp/pty_capture.py
           head -c 400 /tmp/terminal-output.bin | cat -v | head -20
 
       - uses: actions/upload-artifact@v4
@@ -271,8 +282,11 @@ jobs:
       - uses: subosito/flutter-action@v2
         with: { flutter-version: '3.44.5', channel: stable, cache: true }
 
-      - name: Install cbindgen
-        run: cargo install cbindgen --locked || true
+      - name: Install capture dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq imagemagick
+          cargo install cbindgen --locked || true
 
       - name: Build for web
         working-directory: examples/dartvel_example
