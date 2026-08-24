@@ -242,6 +242,29 @@ jobs:
           CHROME_EXECUTABLE: /usr/local/bin/chrome-nosandbox
         run: flutter test --platform chrome test/web_bindings_browser_test.dart
 
+  # The Win32 bindings can only be exercised on Windows, and the clipboard is
+  # the reason it is worth a runner: its global-memory ownership rules mean a
+  # mistake produces a use-after-free or an empty paste, not a compile error.
+  windows-bindings:
+    name: windows bindings
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Resolve dependencies
+        working-directory: packages/dartvel_flutter
+        run: flutter pub get
+
+      - name: Run the Win32 suite
+        working-directory: packages/dartvel_flutter
+        run: flutter test test/windows_bindings_live_test.dart
+
   spec:
     name: spec-status index
     runs-on: ubuntu-latest
