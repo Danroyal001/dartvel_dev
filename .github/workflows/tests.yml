@@ -208,6 +208,40 @@ jobs:
       - name: Check the declared floors
         run: dart test test/unit/sdk_floor_test.dart
 
+  # The browser bindings run in a browser, or they are untested. The VM suite
+  # resolves the stub, so it proves what web claims and nothing about whether
+  # any of it works — screen.geometry returning a fabricated size passes there
+  # and fails here.
+  browser:
+    name: browser bindings
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Chrome without a sandbox
+        run: |
+          # A container cannot use Chrome's sandbox, and without this the test
+          # runner hangs until it is killed rather than reporting anything.
+          printf '#!/bin/sh\nexec /usr/bin/google-chrome --no-sandbox --disable-dev-shm-usage --disable-gpu "$@"\n' \
+            | sudo tee /usr/local/bin/chrome-nosandbox > /dev/null
+          sudo chmod +x /usr/local/bin/chrome-nosandbox
+
+      - name: Resolve dependencies
+        working-directory: packages/dartvel_flutter
+        run: flutter pub get
+
+      - name: Run the browser suite
+        working-directory: packages/dartvel_flutter
+        env:
+          CHROME_EXECUTABLE: /usr/local/bin/chrome-nosandbox
+        run: flutter test --platform chrome test/web_bindings_browser_test.dart
+
   spec:
     name: spec-status index
     runs-on: ubuntu-latest
