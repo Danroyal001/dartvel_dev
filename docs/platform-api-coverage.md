@@ -16,7 +16,7 @@ and misleading about the capability, and the two are easy to conflate.
 | web | **9** — see below |
 | Windows | **7** — see below |
 | macOS | **3** — see below |
-| Android | none |
+| Android | none — **blocked**, see below |
 | iOS | none |
 | Embedded (Tizen, webOS, eLinux, Fuchsia) | none |
 
@@ -175,6 +175,31 @@ Notifications, haptics and window controls are absent: the first needs
 authorisation and a configured app delegate, the second must run on the main
 thread, and the third does not exist — an iOS app does not own a resizable
 window.
+
+## Android is blocked, not merely undone
+
+Nothing is registered, and the reason is specific.
+
+The route is fixed by the native integration rule: JNI through `package:jni`,
+never a platform channel. Everything worth binding — `ClipboardManager`,
+`Vibrator` — is reached through `Context.getSystemService`, so an application
+`Context` is the prerequisite for all of it.
+
+**`package:jni` 1.0.0 does not expose one.** `GetApplicationContext` exists in
+its internal generated bindings and is not part of the public API. Building on
+that would produce a binding that compiles today and breaks on a patch release,
+and the failure would land in a shipped application rather than in CI.
+
+Two ways out, neither taken:
+
+- Have `package:jni` expose the application context. An upstream change, and
+  the right one.
+- Ship a small Android archive with Dartvel that caches the context at startup
+  and hands it to Dart — what a plugin does, minus the platform channel.
+
+Until one of those, every Android binding stays unregistered and throws. That
+is a true statement about what Dartvel can do on Android today; a registered
+no-op would not be.
 
 ## What the framework calls and nothing implements
 
