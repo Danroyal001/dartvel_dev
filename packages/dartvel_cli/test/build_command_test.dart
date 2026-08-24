@@ -893,7 +893,7 @@ void everyBuildPathIsBoundedTests() {
 void planMatchesPreflightTests() {
   group('a build plan runs what preflight checked', () {
     for (final platform in embeddedBuildPlatforms) {
-      test('$platform', () {
+      test(platform, () {
         final plan = resolveEmbeddedBuildPlan(
           platform: platform,
           buildMode: '--release',
