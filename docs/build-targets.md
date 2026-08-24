@@ -327,6 +327,30 @@ real `libtinfo5` package.
 
 ### The three blocked targets share a shape, not a cause
 
+**The engine build works, and the modes Google does not publish are now
+obtainable.** `.github/workflows/engine-build.yml` builds the Flutter engine
+from source on a GitHub runner and splits the result into chunks that clear
+GitHub's 100 MB file limit, so it travels back without Git LFS. Verified for
+`profile` at 3.44.5:
+
+```
+libflutter_engine.so  54.2 MB, exports FlutterEngineRun, carries the
+                      observatory and timeline strings a release build does not
+gen_snapshot          6.1 MB
+flutter_embedder.h
+```
+
+Against the official release engine at 41.7 MB, so it is a genuinely different
+build rather than the same artifact under another name. The chunks were rejoined
+in the development Codespace and the whole-artifact sha256 verified.
+
+Four attempts, all failing on the same thing: where gclient wants its root.
+flutter/flutter contains **both** `engine/src/build` and `engine/src/flutter`,
+and `DEPS` at its root uses gclient-root-relative paths — so the repository root
+*is* the gclient root, and no subdirectory arrangement satisfies both. That is
+readable from `DEPS` and was worth reading before the first attempt rather than
+after the third.
+
 **The eLinux release path no longer goes through `flutter-elinux` at all.** A
 desktop release build already produces every piece an eLinux release bundle
 needs — `data/flutter_assets`, `data/icudtl.dat` and an AOT `lib/libapp.so` for
