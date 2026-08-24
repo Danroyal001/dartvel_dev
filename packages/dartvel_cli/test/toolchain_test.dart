@@ -188,7 +188,7 @@ void main() {
               'forever with no way forward');
       final embedder = requirements.single;
       expect(embedder.installCommand!.join(' '),
-          contains('https://github.com/Danroyal001/dartvel_flt'));
+          contains('https://github.com/Danroyal001/dartvel_cli_flt'));
       expect(embedder.method, InstallMethod.automatic,
           reason: 'an embedder fork is fetchable unattended; only the '
               'licence-gated vendor SDKs are not');
@@ -201,7 +201,7 @@ void main() {
       final embedder =
           toolRequirementsFor('linux-cli', home: '/home/dev').single;
       expect(embedder.executable, startsWith('/home/dev/.dartvel/toolchains/'));
-      expect(embedder.executable, contains('dartvel-flt'));
+      expect(embedder.executable, contains('dartvel-cli-flt'));
     });
 
     test('every terminal target names the same embedder', () {

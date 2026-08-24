@@ -375,7 +375,7 @@ DRM, which this host is not. Assembled and structurally verified is a weaker
 claim than working, and is the one being made.
 
 **Terminal builds and native assets do not currently compose, and that is
-Flutter's constraint rather than Dartvel's.** `dartvel-flt` assembles a bundle
+Flutter's constraint rather than Dartvel's.** `dartvel-cli-flt` assembles a bundle
 from `flutter build bundle`, which is the only Flutter command that emits an
 asset bundle without also building a GUI shell. On Linux, a project with native
 assets — which every Dartvel project has, because the Rust runtime is one —
@@ -392,7 +392,7 @@ configuration from a CMake cache under the *bundle output directory*, and
 writes its cache under `build/linux/x64/<mode>/` instead. So the two are
 mutually exclusive as things stand.
 
-The bundle assembly itself is proven: `dartvel-flt build` against the flt
+The bundle assembly itself is proven: `dartvel-cli-flt build` against the flt
 fork's own `sample_app`, which has no native assets, produces a bundle that
 starts and runs. What is unproven is a *Dartvel* application in a terminal,
 and this is why.
@@ -460,7 +460,7 @@ produced by stock Flutter 3.44.5 plus the artifacts above — `flutter build
 bundle` and `gen_snapshot` — which would let Dartvel assemble the bundle
 directly and never invoke `flutter-elinux` at all.
 
-The terminal embedder was in this group and is not any more. `dartvel_flt`
+The terminal embedder was in this group and is not any more. `dartvel_cli_flt`
 pinned Flutter 3.38.5, below Dartvel's floor — but the prebuilt
 `linux-x64-embedder` artifact **is** published for Dartvel's engine, so the
 re-pin needed four source changes rather than an engine build, and the fork now

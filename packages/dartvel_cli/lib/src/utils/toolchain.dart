@@ -284,19 +284,19 @@ List<ToolRequirement> toolRequirementsFor(String platform, {String home = ''}) {
           // name. A bare name is looked up on PATH, and a plan naming a
           // command that nothing installs is how the Fuchsia target stayed
           // green for weeks while being unbuildable.
-          executable: '$root/dartvel_flt/bin/dartvel-flt',
-          name: 'Dartvel terminal embedder (dartvel_flt)',
+          executable: '$root/dartvel_cli_flt/bin/dartvel-cli-flt',
+          name: 'Dartvel terminal embedder (dartvel_cli_flt)',
           installHint:
-              'cargo install --git https://github.com/Danroyal001/dartvel_flt '
-              '--root $root/dartvel_flt — needs a Rust toolchain.',
+              'cargo install --git https://github.com/Danroyal001/dartvel_cli_flt '
+              '--root $root/dartvel_cli_flt — needs a Rust toolchain.',
           installCommand: <String>[
             'cargo',
             'install',
             '--git',
-            'https://github.com/Danroyal001/dartvel_flt.git',
+            'https://github.com/Danroyal001/dartvel_cli_flt.git',
             '--root',
-            '$root/dartvel_flt',
-            'dartvel-flt',
+            '$root/dartvel_cli_flt',
+            'dartvel-cli-flt',
           ],
         ),
       ];

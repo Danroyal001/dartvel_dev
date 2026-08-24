@@ -971,7 +971,7 @@ void terminalRenderingTests() {
       );
 
       expect(outcome.shouldRun, isFalse);
-      expect(outcome.message, contains('dartvel-flt'));
+      expect(outcome.message, contains('dartvel-cli-flt'));
       expect(outcome.message, isNot(contains('flutter build')),
           reason: 'suggesting the desktop build as a substitute is the bug, '
               'not the remedy');

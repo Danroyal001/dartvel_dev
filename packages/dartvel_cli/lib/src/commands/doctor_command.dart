@@ -23,7 +23,7 @@ final List<String> doctorTargets = <String>[
   ...embeddedBuildPlatforms,
   ...extensionBuildPlatforms,
   ...browserExtensionBuildPlatforms,
-  // Terminal targets need the dartvel_flt embedder, which is no more a plain
+  // Terminal targets need the dartvel_cli_flt embedder, which is no more a plain
   // Flutter SDK than flutter-tizen is. Third time this list drifted.
   ...terminalBuildTargets,
 ];
@@ -246,7 +246,7 @@ class DoctorCommand extends Command<void> {
     }
     Logger.log('[!] $target embedder: ${plan.toolchain} not found on PATH');
     Logger.log(
-      '    Terminal rendering uses the dartvel_flt embedder, which renders '
+      '    Terminal rendering uses the dartvel_cli_flt embedder, which renders '
       'from Rust through the Kitty graphics protocol. `flutter build '
       '${plan.platform}` cannot produce a terminal binary, so this target is '
       'skipped rather than substituted.',
