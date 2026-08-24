@@ -1,0 +1,301 @@
+name: Runtime verification
+
+# Builds each target, RUNS it, and captures what it actually drew.
+#
+# Every target below except `linux` has only ever been verified by inspecting an
+# artifact — that the build compiled and linked. It does not establish that the
+# application starts, and twice now something has compiled and linked while
+# being wrong: `dartvel build linux-cli` produced a GUI binary and reported
+# success, and a Fuchsia plan named a command nothing installs. An artifact
+# check cannot see either.
+#
+# So each job here ends with a screenshot or a captured frame, uploaded as an
+# artifact. A green job with no image is not a pass.
+
+on:
+  workflow_dispatch:
+    inputs:
+      engine:
+        description: Engine revision for the eLinux embedder
+        required: false
+        default: 83675ed27633283e7fc296c8bca22e841224c096
+
+env:
+  FLUTTER_VERSION: 3.44.5
+
+jobs:
+  # The reference: already runs headless, and the only target verified by
+  # running rather than by inspection. It is here so the others have something
+  # known-good to be compared against.
+  linux-gui:
+    name: linux — run and screenshot
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+
+      - name: Install desktop and capture dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ninja-build libgtk-3-dev clang cmake \
+            pkg-config xvfb imagemagick x11-apps
+
+      - name: Install cbindgen
+        run: cargo install cbindgen --locked || true
+
+      - name: Generate and build
+        working-directory: examples/dartvel_example
+        run: |
+          flutter pub get
+          dart run dartvel_cli:dartvel routes
+          flutter build linux --release
+
+      - name: Run it and photograph the window
+        working-directory: examples/dartvel_example
+        run: |
+          set -uo pipefail
+          Xvfb :99 -screen 0 1280x900x24 &
+          sleep 3
+          export DISPLAY=:99
+          ./build/linux/x64/release/bundle/dartvel_example &
+          APP=$!
+          # Long enough for the first frame; a screenshot taken too early
+          # photographs an empty window and looks like a rendering failure.
+          sleep 12
+          import -window root /tmp/linux-gui.png
+          kill $APP 2>/dev/null || true
+          identify /tmp/linux-gui.png
+
+      - uses: actions/upload-artifact@v4
+        with: { name: screenshot-linux-gui, path: /tmp/linux-gui.png }
+
+  # The one asked for. Sony's embedder is a Wayland client, so it needs a
+  # compositor — there is no such thing as running it "headless" on its own.
+  #
+  # Weston on its X11 backend inside Xvfb is the arrangement chosen: it gives a
+  # real Wayland compositor whose output lands on an X display that can be
+  # screenshotted with ordinary tools. Weston's own headless backend would need
+  # the screenshooter protocol wired up, which is more moving parts for the same
+  # picture.
+  elinux:
+    name: sony-elinux — run on a virtual device and screenshot
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+
+      - name: Install the virtual device and build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            cmake ninja-build pkg-config clang \
+            libwayland-dev wayland-protocols libxkbcommon-dev \
+            libgles2-mesa-dev libegl1-mesa-dev libdrm-dev libgbm-dev \
+            libinput-dev libudev-dev libsystemd-dev libx11-dev unzip \
+            weston xvfb imagemagick mesa-utils libgl1-mesa-dri
+          sudo apt-get install -y -qq ninja-build libgtk-3-dev
+
+      - name: Fetch the official engine
+        run: |
+          set -euo pipefail
+          BASE="https://storage.googleapis.com/flutter_infra_release/flutter/${{ inputs.engine }}"
+          mkdir -p engine
+          curl -fsSL -o engine/embedder.zip "$BASE/linux-x64/linux-x64-embedder.zip"
+          curl -fsSL -o engine/artifacts.zip "$BASE/linux-x64/artifacts.zip"
+          unzip -qo engine/embedder.zip -d engine/
+          unzip -qo engine/artifacts.zip -d engine/
+
+      - name: Build Sony's embedder against it
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/sony/flutter-embedded-linux.git elinux-src
+          cd elinux-src
+          cmake -E make_directory build
+          cp ../engine/libflutter_engine.so build/
+          cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release -DUSER_PROJECT_PATH=examples/flutter-wayland-client
+          cmake --build . --config Release
+          ls -la flutter-client
+
+      - name: Install the artifacts where dartvel build expects them
+        run: |
+          set -euo pipefail
+          DEST="$HOME/.dartvel/toolchains/dartvel_elinux/artifacts"
+          mkdir -p "$DEST"
+          cp elinux-src/build/flutter-client "$DEST/"
+          cp engine/libflutter_engine.so engine/icudtl.dat engine/gen_snapshot "$DEST/"
+
+      - name: Install cbindgen
+        run: cargo install cbindgen --locked || true
+
+      - name: Assemble the eLinux bundle
+        working-directory: examples/dartvel_example
+        run: |
+          flutter pub get
+          dart run dartvel_cli:dartvel routes
+          dart run dartvel_cli:dartvel build sony-elinux --arch x64
+          find build/elinux -maxdepth 3 | head -10
+
+      # The virtual device. Weston is the compositor an eLinux board would run;
+      # Xvfb stands in for the display it would drive.
+      - name: Start the virtual eLinux display
+        run: |
+          set -uo pipefail
+          Xvfb :99 -screen 0 1280x720x24 &
+          sleep 3
+          export DISPLAY=:99
+          export XDG_RUNTIME_DIR=/tmp/xdg
+          mkdir -p "$XDG_RUNTIME_DIR" && chmod 700 "$XDG_RUNTIME_DIR"
+          weston --backend=x11-backend.so --width=1280 --height=720 \
+            --socket=wayland-1 --idle-time=0 > /tmp/weston.log 2>&1 &
+          sleep 8
+          echo "--- weston log ---"; cat /tmp/weston.log
+          ls -la "$XDG_RUNTIME_DIR" || true
+
+      - name: Run the eLinux application and photograph it
+        id: run
+        continue-on-error: true
+        working-directory: examples/dartvel_example/build/elinux/x64/release/bundle
+        run: |
+          set -uo pipefail
+          export DISPLAY=:99
+          export XDG_RUNTIME_DIR=/tmp/xdg
+          export WAYLAND_DISPLAY=wayland-1
+          export LD_LIBRARY_PATH="$PWD/lib:$LD_LIBRARY_PATH"
+          ./flutter-client --bundle=./data > /tmp/elinux-app.log 2>&1 &
+          APP=$!
+          sleep 15
+          import -window root /tmp/elinux.png
+          identify /tmp/elinux.png
+          echo "--- application log ---"
+          cat /tmp/elinux-app.log
+          kill $APP 2>/dev/null || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshot-elinux
+          path: |
+            /tmp/elinux.png
+            /tmp/elinux-app.log
+            /tmp/weston.log
+
+  # The terminal embedder draws with escape sequences and Kitty graphics rather
+  # than to a window, so the "screenshot" is the byte stream it writes. Captured
+  # through a pty, because it checks for a terminal and behaves differently
+  # without one.
+  terminal:
+    name: linux-cli — run in a pty and capture the output
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq pkg-config libxkbcommon-dev unzip
+
+      - name: Build the terminal embedder
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/Danroyal001/dartvel_cli_flt.git flt
+          cd flt
+          mkdir -p third_party/flutter/bin/internal
+          echo "${{ inputs.engine }}" > third_party/flutter/bin/internal/engine.version
+          cargo build --release -p flt-cli --bin dartvel-cli-flt
+          ls -la target/release/dartvel-cli-flt
+
+      # sample_app rather than the Dartvel example: a Dartvel project has native
+      # assets, and `flutter build bundle` cannot configure those on Linux —
+      # Flutter derives their compiler settings from a CMake cache that only the
+      # desktop build writes. That is a known gap, recorded in
+      # docs/build-targets.md, and it is not what this job is testing.
+      - name: Assemble a terminal bundle
+        run: |
+          set -euo pipefail
+          cd flt
+          ./target/release/dartvel-cli-flt build linux --project sample_app --out ../terminal-out
+          find ../terminal-out -maxdepth 2
+
+      - name: Run it under a pty and capture what it drew
+        id: run
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          python3 - <<'PY'
+          import os, pty, select, sys, time
+          os.environ['TERM'] = 'xterm-256color'
+          pid, fd = pty.fork()
+          if pid == 0:
+              os.execv('/bin/sh', ['/bin/sh', '-c', './terminal-out/run.sh --simple-output'])
+          captured = bytearray()
+          deadline = time.time() + 25
+          while time.time() < deadline:
+              r, _, _ = select.select([fd], [], [], 1.0)
+              if fd in r:
+                  try:
+                      chunk = os.read(fd, 65536)
+                  except OSError:
+                      break
+                  if not chunk:
+                      break
+                  captured += chunk
+          open('/tmp/terminal-output.bin', 'wb').write(bytes(captured))
+          print(f"captured {len(captured)} bytes")
+          # What proves it rendered rather than merely started.
+          text = bytes(captured).decode('utf-8', 'replace')
+          print("has escape sequences:", '\x1b[' in text)
+          print("has kitty graphics:", '\x1b_G' in text)
+          PY
+          head -c 400 /tmp/terminal-output.bin | cat -v | head -20
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: capture-terminal, path: /tmp/terminal-output.bin }
+
+  # The browser is its own runner; headless Chrome renders and screenshots
+  # without any of the display scaffolding the native targets need.
+  web:
+    name: web — serve, load in a browser and screenshot
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+
+      - name: Install cbindgen
+        run: cargo install cbindgen --locked || true
+
+      - name: Build for web
+        working-directory: examples/dartvel_example
+        run: |
+          flutter pub get
+          dart run dartvel_cli:dartvel routes
+          flutter build web --release
+
+      - name: Serve it and photograph the page
+        id: run
+        continue-on-error: true
+        working-directory: examples/dartvel_example/build/web
+        run: |
+          set -uo pipefail
+          python3 -m http.server 8080 > /tmp/serve.log 2>&1 &
+          sleep 3
+          # CanvasKit downloads and the first frame takes a moment; a shot taken
+          # immediately catches a blank canvas and reads as a failure.
+          google-chrome --headless=new --disable-gpu --no-sandbox \
+            --virtual-time-budget=20000 --window-size=1280,900 \
+            --screenshot=/tmp/web.png http://localhost:8080/ 2>&1 | tail -5
+          identify /tmp/web.png
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: screenshot-web, path: /tmp/web.png }
