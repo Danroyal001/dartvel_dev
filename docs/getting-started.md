@@ -227,7 +227,7 @@ none:
 - **Block-bodied annotated inputs are not supported yet.** Expression bodies
   and a public helper, as above.
 - **Terminal rendering** resolves targets, selects backends and negotiates
-  launch, but the `dartvel_flt` embedder is not built, so
+  launch, but the `dartvel_cli_flt` embedder is not built, so
   `dartvel build linux-cli` skips with a message naming what is missing.
   `dartvel doctor --target linux-cli` reports the same thing. It does not fall
   back to a desktop build — a `-cli` binary that contained a GUI would be the

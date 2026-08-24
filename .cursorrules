@@ -114,7 +114,7 @@ gap.
 | `dartvel build fuchsia` | https://github.com/Danroyal001/dartvel_fuchsia | `fuchsia/flutter-embedder` | Fuchsia |
 | `dartvel build vscode` | https://github.com/Danroyal001/dartvel_vscode | `SlowGen/flutter_vscode` | VS Code |
 | `dartvel build tvos` | https://github.com/Danroyal001/dartvel_tvos | `fluttertv/flutter-tvos` | Apple TV (community) |
-| `dartvel build <desktop>-cli` (TUI) | https://github.com/Danroyal001/dartvel_flt | `jiahaog/flt` | Terminal (community) |
+| `dartvel build <desktop>-cli` (TUI) | https://github.com/Danroyal001/dartvel_cli_flt | `jiahaog/flt` | Terminal (community) |
 | styling (`DVBox`/`DVText`) | https://github.com/Danroyal001/dartvel_mix | `btwld/mix` | — (a dependency, not an embedder) |
 
 - Each fork's README carries a Dartvel banner stating why the fork exists and the verified Flutter version the embedder pins. Keep that banner accurate when pins change; leave upstream docs and license untouched below it.

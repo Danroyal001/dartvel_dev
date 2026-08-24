@@ -174,7 +174,7 @@ TerminalBuildPlan terminalBuildPlan(
     // An absolute path under the toolchain root rather than a bare name,
     // because that is where Dartvel installs it — and a plan naming something
     // nothing installs is the Fuchsia defect.
-    toolchain: '$root/dartvel_flt/bin/dartvel-flt',
+    toolchain: '$root/dartvel_cli_flt/bin/dartvel-cli-flt',
     arguments: <String>[
       'build',
       platform,
@@ -215,7 +215,7 @@ TerminalBuildOutcome terminalBuildOutcome(
   return TerminalBuildOutcome(
     shouldRun: false,
     message: 'Skipping ${plan.platform}-cli: ${plan.toolchain} is not '
-        'installed. Terminal rendering uses the dartvel_flt embedder, which '
+        'installed. Terminal rendering uses the dartvel_cli_flt embedder, which '
         'renders through the Kitty graphics protocol from Rust — there is no '
         'way to produce a terminal binary from the desktop toolchain, so this '
         'target is skipped rather than substituted.',

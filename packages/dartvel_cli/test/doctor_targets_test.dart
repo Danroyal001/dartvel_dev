@@ -32,7 +32,7 @@ void main() {
 
     test('covers the terminal targets, which need an embedder too', () {
       // Same rule, third drift. `dartvel build linux-cli` needs the
-      // dartvel_flt embedder, which is not a plain Flutter SDK, so it must be
+      // dartvel_cli_flt embedder, which is not a plain Flutter SDK, so it must be
       // askable — and it was not, because the derived sets above did not
       // include the terminal ones.
       for (final target in terminalBuildTargets) {
