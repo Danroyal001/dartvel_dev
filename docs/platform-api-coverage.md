@@ -14,15 +14,15 @@ and misleading about the capability, and the two are easy to conflate.
 | --- | --- |
 | Linux | **8** — see below |
 | web | **9** — see below |
+| Windows | **7** — see below |
 | macOS | none |
-| Windows | none |
 | Android | none |
 | iOS | none |
 | Embedded (Tizen, webOS, eLinux, Fuchsia) | none |
 
-`packages/dartvel_flutter/lib/src/platform/` contains two directories, `linux/`
-and `web/`. There is no partial implementation elsewhere waiting to be
-finished — for the other five there is nothing.
+`packages/dartvel_flutter/lib/src/platform/` contains three directories:
+`linux/`, `web/` and `windows/`. For the other four there is nothing —
+not a partial implementation waiting to be finished, nothing.
 
 ## The Linux eight
 
@@ -74,6 +74,48 @@ title, and confirms `tray.show` still throws. It runs in CI as the `browser`
 job. The VM suite resolves the stub, so it proves what web *claims* and nothing
 about whether any of it works — a `screen.geometry` returning a fabricated size
 passes there and fails in the browser, which is how that assertion was checked.
+
+## The Windows seven
+
+| Binding | Backed by |
+| --- | --- |
+| `clipboard.copy`, `clipboard.paste` | user32 clipboard with `CF_UNICODETEXT` |
+| `screen.geometry` | `GetSystemMetrics` |
+| `window.setTitle` | `SetWindowTextW` |
+| `window.maximize`, `.minimize`, `.restore` | `ShowWindow` |
+
+`dart:ffi` against user32 and kernel32 — no platform channels, per the native
+integration rule.
+
+**Notifications are deliberately absent.** A modern toast needs an
+AppUserModelID registered against a real Start Menu shortcut, and the legacy
+`Shell_NotifyIcon` balloon is deprecated and silently ignored under Focus
+Assist. Either would be a binding that reports success and shows nothing, which
+is worse than the "not registered" error because it looks like it worked.
+
+Three details the implementation is careful about, each producing a plausible
+wrong answer rather than an error if got wrong:
+
+- **The clipboard owns the memory it is given.** On success `SetClipboardData`
+  takes the handle, so freeing it is a use-after-free the moment anything
+  pastes.
+- **`CF_UNICODETEXT`, not the ANSI format**, which would mangle anything
+  outside the active code page. The live test copies Japanese and an emoji, so
+  a regression to ANSI fails rather than passing on ASCII.
+- **`ShowWindow` returns the previous visibility**, not success. Reading it as
+  a result makes the first maximise of a fresh window look broken.
+
+`window.*` acts on the process's own top-level window via `GetActiveWindow`,
+which is thread-scoped and returns 0 when the calling thread owns no active
+window. That is a real state, and the bindings report failure rather than
+reaching for another window — guessing is how a binding retitles somebody
+else's application.
+
+Verified on a Windows runner by the `windows-bindings` CI job: a clipboard
+round trip including non-ASCII, an empty-string copy, and a real display
+geometry. The window bindings are not exercised there — a test harness has no
+top-level window, so they correctly return false, and asserting that would be
+asserting the harness.
 
 ## What the framework calls and nothing implements
 
