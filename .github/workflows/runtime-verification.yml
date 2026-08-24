@@ -384,3 +384,168 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: screenshot-web, path: /tmp/diag/, if-no-files-found: warn }
+
+  # An emulator, which needs KVM — the runner has it but not the permissions,
+  # and without the udev rule the emulator falls back to software and times out
+  # rather than failing outright.
+  android:
+    name: android — run on an emulator and screenshot
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - name: Open the diagnostics directory
+        run: mkdir -p /tmp/diag
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Install cbindgen
+        run: cargo install cbindgen --locked || true
+
+      - name: Generate and build the APK
+        run: |
+          set -uo pipefail
+          exec > >(tee -a /tmp/diag/android-build.log) 2>&1
+          cd examples/dartvel_example
+          flutter pub get
+          dart run dartvel_cli:dartvel routes
+          flutter build apk --debug
+          ls -la build/app/outputs/flutter-apk/
+
+      - name: Boot the emulator, install and photograph
+        id: run
+        continue-on-error: true
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: |
+            adb install -r examples/dartvel_example/build/app/outputs/flutter-apk/app-debug.apk
+            adb shell monkey -p com.example.dartvel_example -c android.intent.category.LAUNCHER 1
+            sleep 25
+            adb exec-out screencap -p > /tmp/diag/android.png
+            adb logcat -d -s flutter:* > /tmp/diag/android-logcat.log || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: screenshot-android, path: /tmp/diag/, if-no-files-found: warn }
+
+  # macOS runners bill at ten times the Linux rate, which is why this workflow
+  # is dispatch-only and why the Apple targets share one job rather than three.
+  apple:
+    name: macos and ios — run and screenshot
+    runs-on: macos-latest
+    timeout-minutes: 90
+    steps:
+      - name: Open the diagnostics directory
+        run: mkdir -p /tmp/diag
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+
+      - name: Install cbindgen
+        run: cargo install cbindgen --locked || true
+
+      - name: Generate
+        run: |
+          set -uo pipefail
+          exec > >(tee -a /tmp/diag/apple-generate.log) 2>&1
+          cd examples/dartvel_example
+          flutter pub get
+          dart run dartvel_cli:dartvel routes
+
+      - name: Run on macOS and photograph the screen
+        id: macos
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          exec > >(tee -a /tmp/diag/macos-run.log) 2>&1
+          cd examples/dartvel_example
+          flutter build macos --debug
+          APP=$(find build/macos -name "*.app" -maxdepth 4 | head -1)
+          echo "app: $APP"
+          open "$APP"
+          sleep 20
+          # The whole screen: a runner has no window manager to ask for one
+          # window, and -x keeps the shutter sound out of the log.
+          screencapture -x /tmp/diag/macos.png
+          sips -g pixelWidth -g pixelHeight /tmp/diag/macos.png || true
+
+      - name: Run on an iOS simulator and photograph it
+        id: ios
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          exec > >(tee -a /tmp/diag/ios-run.log) 2>&1
+          cd examples/dartvel_example
+          xcrun simctl list devices available | head -20
+          DEVICE=$(xcrun simctl list devices available | grep -m1 -oE "iPhone [0-9]+[^(]*\(([-A-F0-9]+)\)" | grep -oE "[-A-F0-9]{36}")
+          echo "device: $DEVICE"
+          xcrun simctl boot "$DEVICE" || true
+          flutter build ios --debug --simulator
+          APP=$(find build/ios/iphonesimulator -name "*.app" -maxdepth 2 | head -1)
+          echo "app: $APP"
+          xcrun simctl install "$DEVICE" "$APP"
+          xcrun simctl launch "$DEVICE" com.example.dartvelExample || \
+            xcrun simctl launch "$DEVICE" com.example.dartvel-example || true
+          sleep 25
+          xcrun simctl io "$DEVICE" screenshot /tmp/diag/ios.png
+          ls -la /tmp/diag/ios.png
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: screenshot-apple, path: /tmp/diag/, if-no-files-found: warn }
+
+  windows:
+    name: windows — run and screenshot
+    runs-on: windows-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+
+      - name: Generate and build
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\diag | Out-Null
+          cd examples/dartvel_example
+          flutter pub get 2>&1 | Tee-Object -FilePath C:\diag\windows-build.log
+          dart run dartvel_cli:dartvel routes 2>&1 | Tee-Object -Append -FilePath C:\diag\windows-build.log
+          flutter build windows --debug 2>&1 | Tee-Object -Append -FilePath C:\diag\windows-build.log
+
+      - name: Run it and photograph the desktop
+        id: run
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path examples/dartvel_example/build/windows -Filter dartvel_example.exe -Recurse |
+                 Select-Object -First 1
+          "exe: $($exe.FullName)" | Tee-Object -Append -FilePath C:\diag\windows-run.log
+          Start-Process -FilePath $exe.FullName
+          Start-Sleep -Seconds 20
+          # A runner session has a desktop even with nobody logged in
+          # interactively, so a full-screen grab is the reliable capture.
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+          $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+          $bmp = New-Object System.Drawing.Bitmap $bounds.Width, $bounds.Height
+          $g = [System.Drawing.Graphics]::FromImage($bmp)
+          $g.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
+          $bmp.Save("C:\diag\windows.png")
+          "saved $($bounds.Width)x$($bounds.Height)" | Tee-Object -Append -FilePath C:\diag\windows-run.log
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: screenshot-windows, path: C:\diag\, if-no-files-found: warn }
