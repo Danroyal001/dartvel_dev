@@ -140,51 +140,68 @@ jobs:
           dart run dartvel_cli:dartvel build sony-elinux --arch x64
           find build/elinux -maxdepth 3 | head -10
 
-      # The virtual device. Weston is the compositor an eLinux board would run;
-      # Xvfb stands in for the display it would drive.
-      - name: Start the virtual eLinux display
+      # Display and application in ONE step, deliberately.
+      #
+      # They were two, and the compositor started in the first did not survive
+      # into the second: weston.log showed a healthy compositor and the
+      # application step produced nothing at all. A background process belongs
+      # to its step's process group, so anything the next step needs has to be
+      # started alongside it. The linux job does the same thing and works,
+      # which is what made the difference visible.
+      - name: Run on the virtual eLinux device and photograph it
+        id: run
+        continue-on-error: true
         run: |
           set -uo pipefail
-          Xvfb :99 -screen 0 1280x720x24 &
-          sleep 3
+          mkdir -p /tmp/diag
+          exec > >(tee -a /tmp/diag/elinux-run.log) 2>&1
+
           export DISPLAY=:99
           export XDG_RUNTIME_DIR=/tmp/xdg
           mkdir -p "$XDG_RUNTIME_DIR" && chmod 700 "$XDG_RUNTIME_DIR"
-          weston --backend=x11-backend.so --width=1280 --height=720 \
-            --socket=wayland-1 --idle-time=0 > /tmp/weston.log 2>&1 &
-          sleep 8
-          echo "--- weston log ---"; cat /tmp/weston.log
-          ls -la "$XDG_RUNTIME_DIR" || true
 
-      - name: Run the eLinux application and photograph it
-        id: run
-        continue-on-error: true
-        working-directory: examples/dartvel_example/build/elinux/x64/release/bundle
-        run: |
-          set -uo pipefail
-          export DISPLAY=:99
-          export XDG_RUNTIME_DIR=/tmp/xdg
+          echo "=== starting Xvfb ==="
+          Xvfb :99 -screen 0 1280x720x24 &
+          sleep 3
+
+          echo "=== starting weston (the virtual device's compositor) ==="
+          weston --backend=x11-backend.so --width=1280 --height=720 \
+            --socket=wayland-1 --idle-time=0 > /tmp/diag/weston.log 2>&1 &
+          sleep 10
+          echo "--- wayland sockets ---"
+          ls -la "$XDG_RUNTIME_DIR" || echo "(none)"
+          test -S "$XDG_RUNTIME_DIR/wayland-1" && echo "compositor socket present" \
+            || echo "NO COMPOSITOR SOCKET — the app cannot connect"
+
+          BUNDLE="$GITHUB_WORKSPACE/examples/dartvel_example/build/elinux/x64/release/bundle"
+          echo "=== bundle contents ==="
+          find "$BUNDLE" -maxdepth 2
+
+          cd "$BUNDLE"
           export WAYLAND_DISPLAY=wayland-1
-          export LD_LIBRARY_PATH="$PWD/lib:$LD_LIBRARY_PATH"
-          # --bundle is the bundle ROOT — the directory holding data/ and
-          # lib/ — not data/ itself. We are already inside it.
-          ./flutter-client --bundle="$PWD" > /tmp/elinux-app.log 2>&1 &
+          export LD_LIBRARY_PATH="$PWD/lib:${LD_LIBRARY_PATH:-}"
+
+          echo "=== what the client expects ==="
+          ./flutter-client --help 2>&1 | head -20 || true
+
+          echo "=== running ==="
+          ./flutter-client --bundle="$PWD" > /tmp/diag/elinux-app.log 2>&1 &
           APP=$!
           sleep 15
-          import -window root /tmp/elinux.png
-          identify /tmp/elinux.png
-          echo "--- application log ---"
-          cat /tmp/elinux-app.log
+          if kill -0 $APP 2>/dev/null; then echo "still running"; else echo "EXITED EARLY"; fi
+
+          import -window root /tmp/diag/elinux.png || echo "screenshot failed"
+          identify /tmp/diag/elinux.png || true
+          echo "=== application output ==="
+          cat /tmp/diag/elinux-app.log || true
           kill $APP 2>/dev/null || true
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: screenshot-elinux
-          path: |
-            /tmp/elinux.png
-            /tmp/elinux-app.log
-            /tmp/weston.log
+          path: /tmp/diag/
+          if-no-files-found: warn
 
   # The terminal embedder draws with escape sequences and Kitty graphics rather
   # than to a window, so the "screenshot" is the byte stream it writes. Captured
@@ -264,12 +281,16 @@ jobs:
           print('vm service line:', 'Dart VM service' in text)
           PY
           sed -i 's/^          //' /tmp/pty_capture.py
+          mkdir -p /tmp/diag
+          exec > >(tee -a /tmp/diag/terminal-run.log) 2>&1
+          echo "=== bundle ==="; find terminal-out -maxdepth 2
           python3 /tmp/pty_capture.py
-          head -c 400 /tmp/terminal-output.bin | cat -v | head -20
+          cp /tmp/terminal-output.bin /tmp/diag/ 2>/dev/null || echo "nothing captured"
+          head -c 400 /tmp/diag/terminal-output.bin | cat -v | head -20 || true
 
       - uses: actions/upload-artifact@v4
         if: always()
-        with: { name: capture-terminal, path: /tmp/terminal-output.bin }
+        with: { name: capture-terminal, path: /tmp/diag/, if-no-files-found: warn }
 
   # The browser is its own runner; headless Chrome renders and screenshots
   # without any of the display scaffolding the native targets need.
@@ -305,11 +326,18 @@ jobs:
           sleep 3
           # CanvasKit downloads and the first frame takes a moment; a shot taken
           # immediately catches a blank canvas and reads as a failure.
-          google-chrome --headless=new --disable-gpu --no-sandbox \
+          mkdir -p /tmp/diag
+          exec > >(tee -a /tmp/diag/web-run.log) 2>&1
+          echo "=== which browser is present ==="
+          which google-chrome chromium chromium-browser 2>&1 || true
+          BROWSER=$(command -v google-chrome || command -v chromium || command -v chromium-browser)
+          echo "using: $BROWSER"
+          curl -sI http://localhost:8080/ | head -3
+          "$BROWSER" --headless=new --disable-gpu --no-sandbox \
             --virtual-time-budget=20000 --window-size=1280,900 \
-            --screenshot=/tmp/web.png http://localhost:8080/ 2>&1 | tail -5
-          identify /tmp/web.png
+            --screenshot=/tmp/diag/web.png http://localhost:8080/ 2>&1 | tail -5
+          identify /tmp/diag/web.png || echo "no screenshot produced"
 
       - uses: actions/upload-artifact@v4
         if: always()
-        with: { name: screenshot-web, path: /tmp/web.png }
+        with: { name: screenshot-web, path: /tmp/diag/, if-no-files-found: warn }
