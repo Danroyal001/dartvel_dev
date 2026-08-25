@@ -1611,6 +1611,16 @@ EmbeddedBuildPlan? resolveEmbeddedBuildPlan({
         'tvos',
         simulator ? '--debug' : buildMode,
         if (simulator) '--simulator',
+        // tvOS presents itself to Flutter as iOS — there is no
+        // TargetPlatform.tvOS — so a running app reports `Platform: ios` and,
+        // being a wide screen, `Device: tablet`. A screenshot from a tvOS
+        // simulator showed exactly that.
+        //
+        // Nothing at run time can tell the difference, so the build states it.
+        // DARTVEL_PLATFORM is the override DVPlatform already consults, and
+        // getting this wrong is not cosmetic: an application branching on
+        // deviceType takes the touch path on a device driven by a remote.
+        '--dart-define=DARTVEL_PLATFORM=tvos',
       ];
       if (target != null) args.addAll(<String>['--target', target]);
       return _withScaffold(
