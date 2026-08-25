@@ -38,14 +38,26 @@ jobs:
       - uses: subosito/flutter-action@v2
         with: { flutter-version: '3.44.5', channel: stable, cache: true }
 
-      - name: Install the Android platform jar
+      # The runner ships an Android SDK but sdkmanager is not on PATH, and the
+      # first attempt died on "sdkmanager: command not found" before generating
+      # anything. It also usually has a platform jar already, so this looks
+      # before it installs.
+      - uses: android-actions/setup-android@v3
+
+      - name: Find or install a platform jar
         run: |
           set -euo pipefail
-          # jnigen reads android.jar directly; no emulator and no Gradle
-          # project are involved.
-          yes | sdkmanager --licenses > /dev/null 2>&1 || true
-          sdkmanager "platforms;android-34" > /dev/null
-          ls "$ANDROID_HOME/platforms/android-34/android.jar"
+          SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+          echo "sdk root: ${SDK:-<unset>}"
+          ls "$SDK/platforms" 2>/dev/null || echo "(no platforms yet)"
+
+          if [ ! -f "$SDK/platforms/android-34/android.jar" ]; then
+            echo "installing platforms;android-34"
+            yes | sdkmanager --licenses > /dev/null 2>&1 || true
+            sdkmanager "platforms;android-34" > /dev/null
+          fi
+          # jnigen reads this file directly; no emulator, no Gradle project.
+          ls -la "$SDK/platforms/android-34/android.jar"
 
       - name: Generate
         id: generate
