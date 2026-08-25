@@ -68,7 +68,18 @@ jobs:
           cd packages/dartvel_flutter
           dart pub add --dev jnigen
           dart pub get
-          dart run jnigen --config tool/android_bindings.jnigen.yaml
+
+          # The config carries a placeholder because the SDK path differs
+          # between runner images. Substituted into a copy, so the committed
+          # config stays environment-independent.
+          SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+          JAR="$SDK/platforms/android-34/android.jar"
+          test -f "$JAR"
+          sed "s|ANDROID_JAR_PATH|$JAR|" tool/android_bindings.jnigen.yaml \
+            > /tmp/jnigen.yaml
+          grep -A2 "^classpath:" /tmp/jnigen.yaml
+
+          dart run jnigen --config /tmp/jnigen.yaml
           echo "--- generated ---"
           find lib/src/platform/android/generated -name "*.dart" | head -20
           wc -l lib/src/platform/android/generated/*.dart 2>/dev/null | tail -3
