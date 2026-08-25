@@ -1,0 +1,59 @@
+# jnigen configuration for the Android framework classes Dartvel binds.
+#
+# Generated rather than hand-written, because hand-written JNI is not supported:
+# calling a Java method through package:jni needs ProtectedJniExtensions, which
+# is hidden from the public export and exposed only through
+# package:jni/_internal.dart — a library whose own header says it is "meant for
+# use by generated code only". An earlier hand-written attempt was removed for
+# exactly this reason.
+#
+# Generation needs android.jar from the Android SDK, so it runs on a runner
+# rather than here, and the output is committed. See
+# .github/workflows/android-bindings.yml.
+
+summarizer:
+  backend: asm
+
+android_sdk_config:
+  add_gradle_deps: false
+  # The platform jar carries every class below. No Gradle project is needed,
+  # which keeps generation independent of the example app's build.
+  versions: [34]
+
+output:
+  dart:
+    path: lib/src/platform/android/generated/
+    structure: package_structure
+
+classes:
+  # The way to a Context from Dart with no Activity and no platform channel.
+  #
+  # ActivityThread.currentApplication() is static and returns the Application,
+  # which is a Context. It is how a library reaches Android services when it
+  # has no handle of its own, and it is what unblocks every binding below.
+  #
+  # It is not public SDK. It sits on Android's unsupported-but-tolerated list,
+  # which is where Firebase and LeakCanary read it from too. That is a real
+  # risk and it is written down rather than glossed: if a future Android
+  # blocks it, these bindings stop working and the fallback is an Android
+  # archive that caches the context at startup.
+  - android.app.ActivityThread
+
+  # Clipboard.
+  - android.content.ClipboardManager
+  - android.content.ClipData
+  - android.content.ClipData$Item
+  - android.content.Context
+
+  # Haptics. VibratorManager is the API 31 way in; Vibrator remains for older.
+  - android.os.Vibrator
+  - android.os.VibratorManager
+  - android.os.VibrationEffect
+
+exclude:
+  methods:
+    # Deprecated overloads that generate ambiguous Dart names and that nothing
+    # here calls.
+    - class: android.os.Vibrator
+      method: vibrate
+      descriptor: (J)V
