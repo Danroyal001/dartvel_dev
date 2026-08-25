@@ -2601,7 +2601,11 @@ class DVPlatform {
   bool get isAmazon =>
       currentPlatform == 'fireos' || currentPlatform == 'amazon';
   bool get isAndroidTV => currentPlatform == 'androidtv';
-  bool get isAppleTV => currentPlatform == 'appletv';
+  /// Both spellings, because the build reports `tvos` and this getter has
+  /// always compared against `appletv` — a value nothing produced, so it was
+  /// never true on an actual Apple TV.
+  bool get isAppleTV =>
+      currentPlatform == 'appletv' || currentPlatform == 'tvos';
   bool get isTV =>
       _deviceTypeOverride == 'tv' ||
       isTizen ||
@@ -4806,6 +4810,25 @@ class DvI18n {
 /// window is.
 const Set<String> _dvDesktopPlatforms = <String>{'linux', 'macos', 'windows'};
 
+/// Platforms that are televisions, whatever their screen reports.
+///
+/// A 4K television is wide, so a width-derived answer calls it a desktop — or,
+/// on tvOS, a tablet. It is neither: it is driven by a remote control, and an
+/// application that takes the touch path there has no focus traversal and tap
+/// targets sized for fingers.
+///
+/// `appletv` is here as well as `tvos` because the platform getters compare
+/// against that spelling. Nothing ever produced it, which is part of why a
+/// tvOS build reported itself as an iOS tablet.
+const Set<String> _dvTelevisionPlatforms = <String>{
+  'tvos',
+  'appletv',
+  'androidtv',
+  'tizen',
+  'webos',
+  'fireos',
+};
+
 /// What kind of device this is.
 ///
 /// Separated from [DVPlatform] so it can be asserted on directly, and because
@@ -4833,7 +4856,7 @@ String dvDeviceTypeFor({
   // The explicit kinds first: a television is a television at any width, and
   // calling it a desktop would send an application down the pointer-and-window
   // path on a device driven by a remote control.
-  if (isTV) return 'tv';
+  if (isTV || _dvTelevisionPlatforms.contains(platform)) return 'tv';
   if (isWatch) return 'watch';
   if (isWeb) return 'web';
 
