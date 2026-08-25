@@ -396,10 +396,15 @@ void main() {
       const DVGlobalShortcut(id: 'quick-open', accelerator: 'Ctrl+K'),
     );
     await DV.Platform.Shortcuts.unregister('quick-open');
-    expect(
-      nativeCalls['window.persistState'],
-      <String, String>{'key': 'main'},
-    );
+    // persistState no longer calls a native binding, and that is the point of
+    // the change rather than a regression. It records the window size through
+    // the shared store and puts it back with window.setSize, so the assertion
+    // that mattered — the state survives a round trip — is in
+    // window_state_test.dart.
+    //
+    // What is asserted here is that it stopped requiring a binding no platform
+    // implemented: this call used to throw everywhere.
+    expect(nativeCalls['window.persistState'], isNull);
     expect(nativeCalls['tray.show'], isA<Map<String, Object>>());
     expect(nativeCalls['menus.setApplicationMenu'], isA<Map<String, Object>>());
     expect(

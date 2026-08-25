@@ -249,6 +249,7 @@ export 'src/studio/studio_screen.dart';
 export 'src/windowing/shared_store.dart';
 export 'src/windowing/tab_workspace.dart';
 export 'src/windowing/window.dart';
+export 'src/windowing/window_state.dart';
 
 // ==========================================
 // UI & Styling Primitives (NEW_SPEC.md)

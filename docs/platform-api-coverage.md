@@ -213,6 +213,28 @@ permission; biometrics and NFC need an `Activity` rather than a `Context`;
 window controls do not apply; and `screen.geometry` would add a second answer
 that can disagree with the one Flutter already reports.
 
+### `persistState` and `restoreState` need no binding at all
+
+They were on this list, to be implemented natively on all six platforms. They
+are not, and will not be.
+
+Persisting a window's state means recording its size and putting it back.
+Flutter already knows its own window size, the shared store already keeps state
+between runs, and `window.setSize` is bound where a window can be resized. The
+missing piece was somewhere to keep the value, not a platform capability —
+binding it would have meant the same logic written five times against five
+preference APIs.
+
+Composing it degrades properly too. On macOS, where `window.setSize` is
+deliberately unbound because it needs the main thread, `restoreState` remembers
+the size and quietly declines to apply it rather than throwing at an
+application that only asked to be tidy. It uses `invoke` rather than `require`
+for exactly that.
+
+A stored value that cannot be trusted decodes to null instead of throwing:
+corrupt JSON, a wrong type, or the zero size a crashed or minimised window
+leaves behind — which would otherwise restore a window nobody can find.
+
 ### `window.setSize`, and what it does not promise
 
 Both implementations reject a zero, negative or non-integer size rather than
@@ -241,7 +263,7 @@ These have call sites in `dartvel_flutter` and no registration on any platform:
 | Bluetooth | `bluetooth.isEnabled` |
 | Sharing | `share.text` |
 | Tray | `tray.show`, `tray.hide` |
-| Window | `window.persistState`, `window.restoreState` |
+| Window | *(none — `persistState` and `restoreState` are composed, see below)* |
 
 ## What happens when you call one
 
