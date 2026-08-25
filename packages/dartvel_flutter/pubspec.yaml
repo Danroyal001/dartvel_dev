@@ -27,6 +27,7 @@ dependencies:
   ffi: ^2.1.0
   dartvel_core:
     path: ../dartvel_core
+  jni: ^1.0.3
 dev_dependencies:
   flutter_test:
     sdk: flutter
