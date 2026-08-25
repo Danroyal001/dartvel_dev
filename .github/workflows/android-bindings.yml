@@ -85,8 +85,12 @@ jobs:
           dart run jnigen --config tool/.jnigen.resolved.yaml
           rm -f tool/.jnigen.resolved.yaml
           echo "--- generated ---"
-          find lib/src/platform/android/generated -name "*.dart" | head -20
-          wc -l lib/src/platform/android/generated/*.dart 2>/dev/null | tail -3
+          # No pipe into head: it closes early, find dies on SIGPIPE, and
+          # pipefail turns a successful generation into a failed step. That is
+          # exactly what happened on the run that first produced the bindings.
+          find lib/src/platform/android/generated -name "*.dart" > /tmp/generated.txt || true
+          echo "files: $(wc -l < /tmp/generated.txt)"
+          head -20 /tmp/generated.txt || true
 
       - name: It must have produced something importable
         run: |
