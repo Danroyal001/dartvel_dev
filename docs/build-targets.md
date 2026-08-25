@@ -777,10 +777,19 @@ Unselected matrix entries are gated at the job level rather than in a step,
 because a skipped step still starts a runner: three four-second gated jobs on
 that run billed roughly 22 minutes between them.
 
-**Runner minutes are billed against the repository owner's account.** A public
-repository gets unlimited free Actions minutes on standard runners, which is
-the intended arrangement for this project; a private one bills at the
-multipliers above and will exhaust an allowance quickly if a job hangs.
+**Runner minutes are billed against the repository owner's account, and this
+repository is public — so they are unlimited and free on standard runners,
+Windows and macOS included.** The multipliers above apply only to private
+repositories.
+
+That was assumed the other way round for a while, and the assumption did
+damage worth naming: the macOS binding job was narrowed to a single suite, the
+platform matrix was kept manually triggered, and Apple targets were bundled
+into one job — all to save minutes that were never being spent. Scope was
+rationed against a cost that did not exist.
+
+Wall-clock time is still real, and a hung job still occupies a runner for
+hours. Bound jobs with `timeout-minutes`, not by leaving things out.
 
 ---
 

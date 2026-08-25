@@ -499,8 +499,9 @@ jobs:
         if: always()
         with: { name: screenshot-android, path: /tmp/diag/, if-no-files-found: warn }
 
-  # macOS runners bill at ten times the Linux rate, which is why this workflow
-  # is dispatch-only and why the Apple targets share one job rather than three.
+  # The repository is public, so macOS minutes are free and unlimited. macOS
+  # and iOS share a job because they share a checkout, a Flutter install and a
+  # generation step — splitting them would repeat all three to no purpose.
   apple:
     name: macos and ios — run and screenshot
     runs-on: macos-latest

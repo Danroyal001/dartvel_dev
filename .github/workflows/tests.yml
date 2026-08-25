@@ -269,8 +269,10 @@ jobs:
   # signature does not fail to compile — it corrupts the stack or returns
   # rubbish — so this is the only place the clipboard path is actually checked.
   #
-  # macOS runners bill at ten times the Linux rate, so this runs one small
-  # suite rather than the package's full set.
+  # The repository is public, so macOS minutes are free and unlimited. This
+  # runs one small suite because that is all there is to run here — the rest of
+  # the package is host-independent and already covered by the ubuntu matrix,
+  # not because a macOS job is expensive.
   apple-bindings:
     name: macos bindings
     runs-on: macos-latest
