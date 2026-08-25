@@ -36,7 +36,11 @@ on:
         required: false
         default: x64
         type: choice
-        options: [x64, arm64]
+        # arm is 32-bit, and it is here for webOS. Google publishes
+        # linux-arm64 and linux-x64 embedder engines and no 32-bit arm one, and
+        # webOS televisions run a 32-bit ARM userland — which is the whole
+        # reason that target has no engine to link against.
+        options: [x64, arm64, arm]
 
 jobs:
   engine:
