@@ -72,6 +72,18 @@ jobs:
           kill $APP 2>/dev/null || true
           identify /tmp/diag/linux-gui.png
 
+      # A job that captured nothing is not a pass. The run step above is
+      # continue-on-error so its logs still upload; this is not, so the job
+      # goes red when there is no evidence — which is how tvOS went green while
+      # failing to build at all.
+      - name: There must be a capture
+        run: |
+          test -s /tmp/diag/linux-gui.png || {
+            echo "::error::linux produced no capture; the run step failed"
+            exit 1
+          }
+          echo "linux capture present: $(stat -c%s /tmp/diag/linux-gui.png) bytes"
+
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: screenshot-linux-gui, path: /tmp/diag/, if-no-files-found: warn }
@@ -288,6 +300,18 @@ jobs:
           cat /tmp/diag/elinux-release-app.log || true
           kill $APP 2>/dev/null || true
 
+      # A job that captured nothing is not a pass. The run step above is
+      # continue-on-error so its logs still upload; this is not, so the job
+      # goes red when there is no evidence — which is how tvOS went green while
+      # failing to build at all.
+      - name: There must be a capture
+        run: |
+          test -s /tmp/diag/elinux.png || {
+            echo "::error::sony-elinux produced no capture; the run step failed"
+            exit 1
+          }
+          echo "sony-elinux capture present: $(stat -c%s /tmp/diag/elinux.png) bytes"
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -383,6 +407,18 @@ jobs:
           import -window root /tmp/diag/terminal.png
           identify /tmp/diag/terminal.png
 
+      # A job that captured nothing is not a pass. The run step above is
+      # continue-on-error so its logs still upload; this is not, so the job
+      # goes red when there is no evidence — which is how tvOS went green while
+      # failing to build at all.
+      - name: There must be a capture
+        run: |
+          test -s /tmp/diag/terminal-output.bin || {
+            echo "::error::linux-cli produced no capture; the run step failed"
+            exit 1
+          }
+          echo "linux-cli capture present: $(stat -c%s /tmp/diag/terminal-output.bin) bytes"
+
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: capture-terminal, path: /tmp/diag/, if-no-files-found: warn }
@@ -437,6 +473,18 @@ jobs:
             --virtual-time-budget=20000 --window-size=1280,900 \
             --screenshot=/tmp/diag/web.png http://localhost:8080/ 2>&1 | tail -5
           identify /tmp/diag/web.png || echo "no screenshot produced"
+
+      # A job that captured nothing is not a pass. The run step above is
+      # continue-on-error so its logs still upload; this is not, so the job
+      # goes red when there is no evidence — which is how tvOS went green while
+      # failing to build at all.
+      - name: There must be a capture
+        run: |
+          test -s /tmp/diag/web.png || {
+            echo "::error::web produced no capture; the run step failed"
+            exit 1
+          }
+          echo "web capture present: $(stat -c%s /tmp/diag/web.png) bytes"
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -494,6 +542,18 @@ jobs:
             sleep 25
             adb exec-out screencap -p > /tmp/diag/android.png
             adb logcat -d -s flutter:* > /tmp/diag/android-logcat.log || true
+
+      # A job that captured nothing is not a pass. The run step above is
+      # continue-on-error so its logs still upload; this is not, so the job
+      # goes red when there is no evidence — which is how tvOS went green while
+      # failing to build at all.
+      - name: There must be a capture
+        run: |
+          test -s /tmp/diag/android.png || {
+            echo "::error::android produced no capture; the run step failed"
+            exit 1
+          }
+          echo "android capture present: $(stat -c%s /tmp/diag/android.png) bytes"
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -562,6 +622,18 @@ jobs:
           xcrun simctl io "$DEVICE" screenshot /tmp/diag/ios.png
           ls -la /tmp/diag/ios.png
 
+      # A job that captured nothing is not a pass. The run step above is
+      # continue-on-error so its logs still upload; this is not, so the job
+      # goes red when there is no evidence — which is how tvOS went green while
+      # failing to build at all.
+      - name: There must be a capture
+        run: |
+          test -s /tmp/diag/macos.png || {
+            echo "::error::macos produced no capture; the run step failed"
+            exit 1
+          }
+          echo "macos capture present: $(stat -c%s /tmp/diag/macos.png) bytes"
+
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: screenshot-apple, path: /tmp/diag/, if-no-files-found: warn }
@@ -603,6 +675,16 @@ jobs:
           $g.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
           $bmp.Save("C:\diag\windows.png")
           "saved $($bounds.Width)x$($bounds.Height)" | Tee-Object -Append -FilePath C:\diag\windows-run.log
+
+      # Same rule as the other jobs: no capture is not a pass.
+      - name: There must be a capture
+        shell: pwsh
+        run: |
+          if (-not (Test-Path C:\diag\windows.png) -or (Get-Item C:\diag\windows.png).Length -eq 0) {
+            Write-Error "windows produced no capture; the run step failed"
+            exit 1
+          }
+          "windows capture present: $((Get-Item C:\diag\windows.png).Length) bytes"
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -651,7 +733,13 @@ jobs:
 
           cd examples/dartvel_example
           flutter-tvos pub get
-          flutter-tvos build tvos --simulator --debug 2>&1 | tail -20
+          # Through `dartvel build`, not the embedder directly. The first
+          # attempt called flutter-tvos itself and was told "This project is
+          # not configured for tvOS" — the app has no tvos/ directory, and
+          # generating it is exactly what Dartvel's embedded build path does.
+          # Calling the embedder directly also tests the wrong thing.
+          dart run dartvel_cli:dartvel routes
+          dart run dartvel_cli:dartvel build tvos --device-profile simulator 2>&1 | tail -25
           APP=$(find build/tvos -name "*.app" -maxdepth 3 | head -1)
           echo "app: $APP"
           [ -n "$APP" ] || exit 1
@@ -660,6 +748,18 @@ jobs:
           sleep 25
           xcrun simctl io "$DEVICE" screenshot /tmp/diag/tvos.png
           ls -la /tmp/diag/tvos.png
+
+      # A job that captured nothing is not a pass. The run step above is
+      # continue-on-error so its logs still upload; this is not, so the job
+      # goes red when there is no evidence — which is how tvOS went green while
+      # failing to build at all.
+      - name: There must be a capture
+        run: |
+          test -s /tmp/diag/tvos.png || {
+            echo "::error::tvos produced no capture; the run step failed"
+            exit 1
+          }
+          echo "tvos capture present: $(stat -c%s /tmp/diag/tvos.png) bytes"
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -717,6 +817,18 @@ jobs:
           import -window root /tmp/diag/extension.png
           identify /tmp/diag/extension.png
           echo "--- chrome log ---"; tail -20 /tmp/diag/chrome.log || true
+
+      # A job that captured nothing is not a pass. The run step above is
+      # continue-on-error so its logs still upload; this is not, so the job
+      # goes red when there is no evidence — which is how tvOS went green while
+      # failing to build at all.
+      - name: There must be a capture
+        run: |
+          test -s /tmp/diag/extension.png || {
+            echo "::error::chrome-extension produced no capture; the run step failed"
+            exit 1
+          }
+          echo "chrome-extension capture present: $(stat -c%s /tmp/diag/extension.png) bytes"
 
       - uses: actions/upload-artifact@v4
         if: always()
