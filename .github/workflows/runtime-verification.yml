@@ -607,3 +607,171 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: screenshot-windows, path: C:\diag\, if-no-files-found: warn }
+
+  # tvOS on a simulator. Apple ships no tvOS Flutter embedder, so this rides
+  # the community fluttertv/flutter-tvos CLI, which carries its own Flutter SDK
+  # and origin-signed tvOS engine artifacts. Device builds need a configured
+  # signing team; --simulator --debug is the only unsigned path.
+  tvos:
+    name: tvos — run on a simulator and screenshot
+    runs-on: macos-latest
+    timeout-minutes: 90
+    steps:
+      - name: Open the diagnostics directory
+        run: mkdir -p /tmp/diag
+      - uses: actions/checkout@v4
+
+      - name: Install the tvOS embedder
+        id: embedder
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          exec > >(tee -a /tmp/diag/tvos-setup.log) 2>&1
+          git clone --depth 1 https://github.com/Danroyal001/dartvel_tvos.git "$HOME/dartvel_tvos"
+          echo "$HOME/dartvel_tvos/bin" >> $GITHUB_PATH
+          "$HOME/dartvel_tvos/bin/flutter-tvos" --version 2>&1 | head -5
+
+      - name: Build and run on a tvOS simulator
+        id: run
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          exec > >(tee -a /tmp/diag/tvos-run.log) 2>&1
+          export PATH="$HOME/dartvel_tvos/bin:$PATH"
+
+          echo "=== available tvOS simulators ==="
+          xcrun simctl list devices available | grep -i "apple tv" || echo "(none)"
+          DEVICE=$(xcrun simctl list devices available | grep -i "apple tv" | grep -oE "[-A-F0-9]{36}" | head -1)
+          if [ -z "$DEVICE" ]; then
+            echo "no tvOS simulator on this runner image"
+            exit 1
+          fi
+          echo "device: $DEVICE"
+          xcrun simctl boot "$DEVICE" || true
+
+          cd examples/dartvel_example
+          flutter-tvos pub get
+          flutter-tvos build tvos --simulator --debug 2>&1 | tail -20
+          APP=$(find build/tvos -name "*.app" -maxdepth 3 | head -1)
+          echo "app: $APP"
+          [ -n "$APP" ] || exit 1
+          xcrun simctl install "$DEVICE" "$APP"
+          xcrun simctl launch "$DEVICE" com.example.dartvelExample || true
+          sleep 25
+          xcrun simctl io "$DEVICE" screenshot /tmp/diag/tvos.png
+          ls -la /tmp/diag/tvos.png
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: screenshot-tvos, path: /tmp/diag/, if-no-files-found: warn }
+
+  # The browser extensions are Flutter web output plus a generated manifest, so
+  # "does it run" means Chrome loads the unpacked extension and its page
+  # renders — not that a bundle exists on disk.
+  browser-extension:
+    name: chrome-extension — load in Chrome and screenshot
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Open the diagnostics directory
+        run: mkdir -p /tmp/diag
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+
+      - name: Install capture dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq imagemagick xvfb
+          cargo install cbindgen --locked || true
+
+      - name: Build the extension
+        run: |
+          set -uo pipefail
+          exec > >(tee -a /tmp/diag/extension-build.log) 2>&1
+          cd examples/dartvel_example
+          flutter pub get
+          dart run dartvel_cli:dartvel routes
+          dart run dartvel_cli:dartvel build chrome-extension
+          echo "--- manifest ---"; cat build/chrome-extension/manifest.json | head -20
+
+      - name: Load it in Chrome and photograph the page
+        id: run
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          exec > >(tee -a /tmp/diag/extension-run.log) 2>&1
+          EXT="$GITHUB_WORKSPACE/examples/dartvel_example/build/chrome-extension"
+          # Headless Chrome refuses --load-extension, so this needs a display:
+          # the extension has to be loaded by a real browser process to prove
+          # the manifest is one Chrome accepts.
+          Xvfb :99 -screen 0 1280x900x24 &
+          sleep 3
+          export DISPLAY=:99
+          google-chrome --no-sandbox --disable-gpu \
+            --disable-dev-shm-usage \
+            --load-extension="$EXT" \
+            --user-data-dir=/tmp/chrome-profile \
+            "file://$EXT/index.html" > /tmp/diag/chrome.log 2>&1 &
+          sleep 20
+          import -window root /tmp/diag/extension.png
+          identify /tmp/diag/extension.png
+          echo "--- chrome log ---"; tail -20 /tmp/diag/chrome.log || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: screenshot-extension, path: /tmp/diag/, if-no-files-found: warn }
+
+  # The targets that cannot build here, asserted to fail the way they are
+  # supposed to.
+  #
+  # This is end-to-end verification too, and the kind most often skipped: a
+  # target that is meant to skip cleanly can instead crash, hang, or — as
+  # linux-cli did — build something else entirely and report success. Checking
+  # the refusal is checking behaviour.
+  refusals:
+    name: blocked and gated targets refuse correctly
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Open the diagnostics directory
+        run: mkdir -p /tmp/diag
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+
+      - name: Install cbindgen
+        run: cargo install cbindgen --locked || true
+
+      - name: Each blocked target skips, and says why
+        id: run
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          exec > >(tee -a /tmp/diag/refusals.log) 2>&1
+          cd examples/dartvel_example
+          flutter pub get
+          dart run dartvel_cli:dartvel routes
+
+          failures=0
+          for target in tizen webos sony-elinux fuchsia linux-cli; do
+            echo "::group::$target"
+            out=$(dart run dartvel_cli:dartvel build "$target" --no-auto-install 2>&1)
+            echo "$out" | tail -12
+            # The requirement: it must not claim plain success, and it must name
+            # what is missing. A silent skip is as bad as a false success —
+            # nobody can act on either.
+            if echo "$out" | grep -qiE "skipping|not installed|not found|blocked|cannot"; then
+              echo "PASS: $target refused and said why"
+            else
+              echo "FAIL: $target neither built nor explained itself"
+              failures=$((failures+1))
+            fi
+            echo "::endgroup::"
+          done
+          echo "failures: $failures"
+          exit $failures
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: refusals, path: /tmp/diag/, if-no-files-found: warn }
