@@ -106,15 +106,25 @@ jobs:
             weston xvfb imagemagick mesa-utils libgl1-mesa-dri
           sudo apt-get install -y -qq ninja-build libgtk-3-dev
 
-      - name: Fetch the official engine
+      - name: Fetch both engines
         run: |
           set -euo pipefail
           BASE="https://storage.googleapis.com/flutter_infra_release/flutter/${{ inputs.engine }}"
-          mkdir -p engine
+          mkdir -p engine engine-release
+          # The official standalone engine, which is the JIT build — that is
+          # what it is, established by running it and reading the error rather
+          # than by its size.
           curl -fsSL -o engine/embedder.zip "$BASE/linux-x64/linux-x64-embedder.zip"
           curl -fsSL -o engine/artifacts.zip "$BASE/linux-x64/artifacts.zip"
           unzip -qo engine/embedder.zip -d engine/
           unzip -qo engine/artifacts.zip -d engine/
+
+          # The release engine, built from source by engine-build.yml because
+          # Google publishes no standalone release build.
+          curl -fsSL -o engine-release/engine.tar.gz \
+            https://github.com/Danroyal001/dartvel_elinux/releases/download/engine-83675ed276/elinux-x64-release-engine.tar.gz
+          tar -xzf engine-release/engine.tar.gz -C engine-release/
+          ls -la engine-release/
 
       - name: Build Sony's embedder against it
         run: |
@@ -229,6 +239,53 @@ jobs:
           identify /tmp/diag/elinux.png || true
           echo "=== application output ==="
           cat /tmp/diag/elinux-app.log || true
+          kill $APP 2>/dev/null || true
+
+      # The production path, and the question the debug run cannot answer.
+      #
+      # The debug bundle above pairs a JIT engine with kernel_blob.bin and
+      # works. A release bundle pairs an AOT libapp.so with a release engine,
+      # and nothing has ever run that combination — the engine was built from
+      # source only after the official one turned out to be JIT. Inspecting it
+      # was inconclusive: the JIT error string is present in both builds, so
+      # only running an AOT bundle settles it.
+      - name: Assemble and run a release eLinux bundle
+        id: release
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          exec > >(tee -a /tmp/diag/elinux-release.log) 2>&1
+
+          cd examples/dartvel_example
+          flutter build linux --release
+          OUT=build/elinux/x64/release/bundle
+          mkdir -p "$OUT/lib" "$OUT/data"
+          SRC=build/linux/x64/release/bundle
+          cp -r "$SRC/data/flutter_assets" "$OUT/data/"
+          cp "$SRC/data/icudtl.dat" "$OUT/data/"
+          # The AOT library the desktop release build produced, and the
+          # from-source release engine — the pairing under test.
+          cp "$SRC/lib/libapp.so" "$OUT/lib/"
+          cp "$GITHUB_WORKSPACE/engine-release/libflutter_engine.so" "$OUT/lib/"
+          cp "$HOME/.dartvel/toolchains/dartvel_elinux/artifacts/flutter-client" "$OUT/"
+          echo "--- assembled ---"; find "$OUT" -maxdepth 2
+
+          cd "$OUT"
+          export DISPLAY=:99
+          export XDG_RUNTIME_DIR=/tmp/xdg
+          export WAYLAND_DISPLAY=wayland-1
+          export LD_LIBRARY_PATH="$PWD/lib:${LD_LIBRARY_PATH:-}"
+          export LIBGL_ALWAYS_SOFTWARE=1
+          export GALLIUM_DRIVER=llvmpipe
+          export MESA_LOADER_DRIVER_OVERRIDE=llvmpipe
+
+          ./flutter-client --bundle="$PWD" > /tmp/diag/elinux-release-app.log 2>&1 &
+          APP=$!
+          sleep 15
+          if kill -0 $APP 2>/dev/null; then echo "still running"; else echo "EXITED EARLY"; fi
+          import -window root /tmp/diag/elinux-release.png || echo "screenshot failed"
+          echo "=== application output ==="
+          cat /tmp/diag/elinux-release-app.log || true
           kill $APP 2>/dev/null || true
 
       - uses: actions/upload-artifact@v4
