@@ -26,7 +26,7 @@ local Dartvel `dartvel_vscode` fork added as a dependency.
 | `ios` | ✅ Builds | **Verified on a macOS runner**, not this host: `build/ios/iphoneos/Runner.app` (15.4 MB), artifact directory listed. Run [31554165981](https://github.com/Danroyal001/dartvel/actions/runs/31554165981) |
 | `tvos` | ✅ Builds | **Verified on a macOS runner**: scaffold auto-generated, then `build/tvos/Debug-appletvsimulator/Runner.app`. The `appletvsimulator` path is the proof it is a tvOS app and not the iPhone app an earlier mapping produced. Run [32538073146](https://github.com/Danroyal001/dartvel/actions/runs/32538073146). See [tvOS](#tvos) |
 | `tizen` / `tpk` | ✅ Builds | Signed 9.3MB TPK with engine + assets, built on a laptop with Tizen Studio installed. CI can only ever *skip* it — the SDK is licence-gated and Dartvel must not install it unattended — so the workflow asserts the skip names that reason. See [Tizen](#tizen-samsung) |
-| `sony-elinux` | ⚠️ Builds, **does not start** | The bundle assembles and was run on a virtual device (Weston on Xvfb) in CI. It **fails at `FlutterEngineInitialize`**: the official engine is JIT and the bundle ships an AOT `libapp.so`. Needs a release engine from `engine-build.yml`. See [Sony eLinux](#sony-elinux) |
+| `sony-elinux` | ✅ Builds and **runs** (release) | Runs on a virtual device (Weston on Xvfb) in CI, in **both debug and release**. Release needs the from-source engine, since the official standalone one is JIT. See [Sony eLinux](#sony-elinux) |
 | `webos` | ❌ Blocked | Dart version floor — the embedder ships Dart 3.10.9, `dartvel_mix` needs ≥ 3.12.0; see [webOS](#webos-lg) |
 | `fuchsia` | ❌ Blocked, same class as webOS | The five build-plumbing walls are fixed: `--build-only` in the fork, `postInstall` bootstrap, submodule handling, the bootstrap's workspace variable, and skipping an unfetchable `googletest` pin. It now clones, bootstraps and stages the app — then dies in `pub get` because the fork's bundled Flutter is **older than Dart 3.4**: `dartvel_example requires SDK version >=3.4.0 <4.0.0, version solving failed`. That is not a Dartvel bug and not a `mix` problem; the embedder's Flutter submodule is simply ancient. Unblocking needs the fork re-pinned to a modern Flutter **and its engine rebuilt from source**, because bootstrap.sh warns the engine and the Flutter pin must stay aligned. See [Fuchsia](#fuchsia) |
 | `vscode` | ✅ Builds | `out/src/extension.js`, `out/lib/vscode_api.handlers.js`, `build/web/flutter_bootstrap.js`, `build/web/assets/` |
@@ -339,7 +339,7 @@ exist to catch.
 | --- | --- | --- |
 | `linux` | ✅ | The showcase under Xvfb: platform `linux`, device `desktop`, signal `showcase-ready` |
 | `web` | ✅ | The same page in headless Chrome: platform `web`, device `web` |
-| `sony-elinux` | ✅ | The showcase on a **virtual eLinux device** — Weston on the X11 backend, Sony's Wayland embedder, software GL |
+| `sony-elinux` | ✅ | The showcase on a **virtual eLinux device** — Weston on the X11 backend, Sony's Wayland embedder, software GL. Debug **and release**: the release capture has no DEBUG banner and shows the production backend |
 | `linux-cli` | ✅ | The TUI photographed inside xterm, plus 20,874 true-colour writes captured through a pty |
 
 What running found that building could not:
@@ -357,6 +357,19 @@ What running found that building could not:
 
 Not yet covered: Android, Windows, macOS, iOS and tvOS. Each needs a different
 runner or emulator, and none has been run.
+
+**Release now runs, and the engine question is settled.** The from-source
+release engine built by `engine-build.yml` does run an AOT bundle: the
+runtime-verification workflow assembles one — desktop `libapp.so`, the release
+engine, Sony's embedder — and it renders on the virtual device with no DEBUG
+banner and the production backend, where the debug run shows both.
+
+That had to be settled by running it. Inspecting the binary was inconclusive:
+the `Not running in AOT mode` string is present in the from-source release
+build as well as in the official one, so the string check that first identified
+the official engine as JIT would have given the wrong answer here. The runtime
+error was the real evidence; the string was a coincidence that happened to
+point the same way.
 
 **Correction, established by running the thing rather than inspecting it: the
 official standalone engine is the JIT build, not the release build.** This file
