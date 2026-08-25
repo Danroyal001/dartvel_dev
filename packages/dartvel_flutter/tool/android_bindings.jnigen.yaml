@@ -25,7 +25,10 @@ summarizer:
 #
 # ANDROID_JAR_PATH is substituted by .github/workflows/android-bindings.yml,
 # because the SDK location differs between runner images.
-classpath:
+# The key is class_path. `classpath` is silently ignored — jnigen parses the
+# file, finds no such field, passes no -c to the summarizer, and reports every
+# class as "Not found". Nothing says the field name was wrong.
+class_path:
   - ANDROID_JAR_PATH
 
 output:
