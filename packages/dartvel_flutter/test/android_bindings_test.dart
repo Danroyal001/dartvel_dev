@@ -1,31 +1,64 @@
-// Android platform bindings — none yet, and this records why so the absence
-// stays deliberate rather than becoming something nobody remembers.
+// Android platform bindings.
+//
+// Android was the one platform with nothing, and the reason given was that
+// package:jni exposed no application Context. That was wrong: it exports
+// GetApplicationContext() from its C header, documented as returning exactly
+// that, and reachable with plain dart:ffi.
+//
+// The intended fallback was wrong too, and generation proved it —
+// ActivityThread is hidden and absent from the public android.jar, so jnigen
+// found every other class and reported that one "Not found". The C export is
+// not a workaround for that; it is the better answer.
+//
+// This suite runs anywhere and asserts the capability list and the refusal to
+// register off-Android. The bindings themselves need a device, and the
+// emulator job in runtime-verification is where they are exercised.
+import 'dart:io' show Platform;
+
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('Android claims nothing, and register reports false', () {
-    // The route is fixed by the native integration rule: JNI, never a platform
-    // channel. Everything worth binding is reached through
-    // Context.getSystemService, and package:jni 1.0.0 does not expose an
-    // application Context — GetApplicationContext lives in its internal
-    // generated bindings.
-    //
-    // A binding built on another package's internals compiles today and breaks
-    // on a patch release, in somebody's shipped application rather than here.
-    expect(DVAndroidBindings.implemented, isEmpty);
-    expect(DVAndroidBindings.register(), isFalse);
-    expect(DVAndroidBindings.isRegistered, isFalse);
+  group('capability list', () {
+    test('it claims clipboard and haptics', () {
+      expect(
+        DVAndroidBindings.implemented,
+        <String>{
+          'clipboard.copy',
+          'clipboard.paste',
+          'haptics.vibrate',
+          'haptics.lightVibrate',
+          'haptics.impact',
+        },
+      );
+    });
+
+    test('it is no longer empty, which is the point', () {
+      // It was empty, with a blocker recorded against it. Asserting the
+      // opposite now stops the empty set quietly returning.
+      expect(DVAndroidBindings.implemented, isNotEmpty);
+    });
+
+    test('what needs an Activity is absent', () {
+      // BiometricPrompt attaches to an Activity and NFC dispatch is delivered
+      // to one. A Context is not enough, and pretending otherwise would fail
+      // on a device rather than here.
+      for (final name in <String>[
+        'biometrics.authenticate',
+        'biometrics.canAuthenticate',
+        'nfc.readTag',
+        'notifications.sendLocal',
+      ]) {
+        expect(DVAndroidBindings.implemented, isNot(contains(name)));
+      }
+    });
   });
 
-  test('the other platforms are not empty, so this is a blocker not a pattern',
-      () {
-    // Guards against the empty set being read as "that is just how these
-    // start". Four platforms have bindings; Android is stuck on a specific
-    // missing piece.
-    expect(DVWebBindings.implemented, isNotEmpty);
-    expect(DVWindowsBindings.implemented, isNotEmpty);
-    expect(DVMacosBindings.implemented, isNotEmpty);
-    expect(DVIosBindings.implemented, isNotEmpty);
+  group('registration', () {
+    test('off Android it declines rather than throwing', () {
+      if (Platform.isAndroid) return;
+      expect(DVAndroidBindings.register(), isFalse);
+      expect(DVAndroidBindings.isRegistered, isFalse);
+    });
   });
 }
