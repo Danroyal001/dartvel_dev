@@ -72,6 +72,7 @@ void main() {
         'window.maximize',
         'window.minimize',
         'window.restore',
+        'window.setSize',
       },
     );
     expect(DVLinuxBindings.isRegistered, isTrue);

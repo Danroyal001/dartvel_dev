@@ -57,6 +57,23 @@ void main() {
     expect(geometry['height'] as int, greaterThan(0));
   });
 
+  test('setSize refuses a nonsensical size rather than clamping it', () async {
+    // A resize to zero or a negative is a caller mistake. Clamping hides it
+    // behind a window that is the wrong size for reasons nobody can see, so
+    // the argument is rejected before Win32 is asked.
+    for (final bad in <Map<String, Object?>>[
+      <String, Object?>{'width': 0, 'height': 600},
+      <String, Object?>{'width': 800, 'height': -1},
+      <String, Object?>{'width': 'wide', 'height': 600},
+    ]) {
+      await expectLater(
+        DVNativeBridge.require<bool>('window.setSize', bad),
+        throwsA(isA<ArgumentError>()),
+        reason: '$bad should be refused',
+      );
+    }
+  });
+
   test('an unimplemented binding still throws', () async {
     // Notifications are deliberately absent; see the capability list.
     await expectLater(
