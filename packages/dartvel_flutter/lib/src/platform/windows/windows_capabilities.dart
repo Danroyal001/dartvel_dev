@@ -25,4 +25,7 @@ const Set<String> dvWindowsImplementedBindings = <String>{
   'window.maximize',
   'window.minimize',
   'window.restore',
+
+  // SetWindowPos, moving nothing and reordering nothing.
+  'window.setSize',
 };

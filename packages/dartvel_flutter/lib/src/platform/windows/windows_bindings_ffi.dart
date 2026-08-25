@@ -31,6 +31,10 @@ typedef _SetWindowTextNative = Int32 Function(IntPtr hWnd, Pointer<Utf16> text);
 typedef _SetWindowTextDart = int Function(int hWnd, Pointer<Utf16> text);
 typedef _ShowWindowNative = Int32 Function(IntPtr hWnd, Int32 nCmdShow);
 typedef _ShowWindowDart = int Function(int hWnd, int nCmdShow);
+typedef _SetWindowPosNative = Int32 Function(IntPtr hWnd, IntPtr insertAfter,
+    Int32 x, Int32 y, Int32 cx, Int32 cy, Uint32 flags);
+typedef _SetWindowPosDart = int Function(int hWnd, int insertAfter, int x,
+    int y, int cx, int cy, int flags);
 typedef _GetActiveWindowNative = IntPtr Function();
 typedef _GetActiveWindowDart = int Function();
 
@@ -52,6 +56,12 @@ const int _gmemMoveable = 0x0002;
 
 const int _smCxScreen = 0;
 const int _smCyScreen = 1;
+
+/// `SWP_NOMOVE | SWP_NOZORDER`: change the size and nothing else. Without
+/// these the window jumps to 0,0 and to the front, neither of which was asked
+/// for.
+const int _swpNoMove = 0x0002;
+const int _swpNoZOrder = 0x0004;
 
 const int _swMaximize = 3;
 const int _swMinimize = 6;
@@ -96,6 +106,21 @@ class DVWindowsBindings {
         'window.minimize', (Object? _) => _showWindow(_swMinimize));
     DVNativeBridge.register(
         'window.restore', (Object? _) => _showWindow(_swRestore));
+    DVNativeBridge.register('window.setSize', (Object? arguments) {
+      final map = arguments is Map ? arguments : const <Object?, Object?>{};
+      final width = map['width'];
+      final height = map['height'];
+      // Refused rather than coerced: a resize to a nonsensical size is a
+      // caller mistake, and clamping it hides the mistake behind a window
+      // that is the wrong size for reasons nobody can see.
+      if (width is! int || height is! int || width <= 0 || height <= 0) {
+        throw ArgumentError(
+          'window.setSize needs positive integer width and height, '
+          'got width=$width height=$height.',
+        );
+      }
+      return _setSize(width, height);
+    });
 
     _registered = true;
     return true;
@@ -216,6 +241,19 @@ class DVWindowsBindings {
     } finally {
       calloc.free(pointer);
     }
+  }
+
+  static bool _setSize(int width, int height) {
+    final hWnd = _ownWindow();
+    if (hWnd == 0) return false;
+    final setWindowPos = _user32
+        .lookupFunction<_SetWindowPosNative, _SetWindowPosDart>(
+            'SetWindowPos');
+    // SWP_NOMOVE and SWP_NOZORDER because only the size was asked for. Without
+    // them the window also jumps to 0,0 and to the front.
+    return setWindowPos(hWnd, 0, 0, 0, width, height,
+            _swpNoMove | _swpNoZOrder) !=
+        0;
   }
 
   static bool _showWindow(int command) {

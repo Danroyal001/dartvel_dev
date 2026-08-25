@@ -66,6 +66,8 @@ typedef _GtkWindowGetTitleNative = Pointer<Utf8> Function(Pointer<Void>);
 typedef _GtkWindowGetTitleDart = Pointer<Utf8> Function(Pointer<Void>);
 typedef _GtkWindowActionNative = Void Function(Pointer<Void>);
 typedef _GtkWindowActionDart = void Function(Pointer<Void>);
+typedef _GtkWindowResizeNative = Void Function(Pointer<Void>, Int32, Int32);
+typedef _GtkWindowResizeDart = void Function(Pointer<Void>, int, int);
 
 // --- GDBus (desktop notifications) -------------------------------------------
 
@@ -154,6 +156,7 @@ class DVLinuxBindings {
     'window.maximize',
     'window.minimize',
     'window.restore',
+    'window.setSize',
   };
 
   static DynamicLibrary? _x11;
@@ -196,6 +199,24 @@ class DVLinuxBindings {
       final map = arguments is Map ? arguments : const <Object?, Object?>{};
       return _setWindowTitle('${map['title'] ?? ''}');
     });
+    DVNativeBridge.register(
+      'window.setSize',
+      (Object? arguments) {
+        final map = arguments is Map ? arguments : const <Object?, Object?>{};
+        final width = map['width'];
+        final height = map['height'];
+        // Refused rather than coerced. A resize to a nonsensical size is a
+        // caller mistake, and silently clamping it hides the mistake behind a
+        // window that is the wrong size for reasons nobody can see.
+        if (width is! int || height is! int || width <= 0 || height <= 0) {
+          throw ArgumentError(
+            'window.setSize needs positive integer width and height, '
+            'got width=$width height=$height.',
+          );
+        }
+        return _resize(width, height);
+      },
+    );
     DVNativeBridge.register(
       'window.maximize',
       (Object? _) => _windowAction('gtk_window_maximize'),
@@ -376,6 +397,22 @@ class DVLinuxBindings {
     )(window);
     // GTK owns this string; it must not be freed here.
     return title == nullptr ? null : title.toDartString();
+  }
+
+  /// Resizes the toplevel.
+  ///
+  /// `gtk_window_resize` sets the size the window *requests*; a tiling window
+  /// manager may refuse it, and GTK reports nothing either way. So this
+  /// returns whether the call was made, not whether the window ended up that
+  /// size — a distinction the caller cannot learn from GTK and should not be
+  /// told a guess about.
+  static bool _resize(int width, int height) {
+    final window = _toplevel();
+    if (window == null) return false;
+    _gtk!.lookupFunction<_GtkWindowResizeNative, _GtkWindowResizeDart>(
+      'gtk_window_resize',
+    )(window, width, height);
+    return true;
   }
 
   static bool _windowAction(String symbol) {

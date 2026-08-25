@@ -23,6 +23,7 @@ void main() {
           'window.maximize',
           'window.minimize',
           'window.restore',
+          'window.setSize',
         },
       );
     });

@@ -12,9 +12,9 @@ and misleading about the capability, and the two are easy to conflate.
 
 | Platform | Bindings registered |
 | --- | --- |
-| Linux | **8** — see below |
+| Linux | **9** — see below |
 | web | **9** — see below |
-| Windows | **7** — see below |
+| Windows | **8** — see below |
 | macOS | **3** — see below |
 | Android | none — **blocked**, see below |
 | iOS | none |
@@ -33,6 +33,7 @@ finished, nothing.
 | `screen.geometry` | X11 display dimensions |
 | `notifications.sendLocal` | freedesktop notifications over GDBus |
 | `window.setTitle`, `.maximize`, `.minimize`, `.restore` | the app's GTK toplevel |
+| `window.setSize` | `gtk_window_resize` |
 
 Bound through `dart:ffi` to libX11, libgtk-3 and GDBus — no platform channels,
 per the native integration rule. Verified under Xvfb with a session bus,
@@ -84,6 +85,7 @@ passes there and fails in the browser, which is how that assertion was checked.
 | `screen.geometry` | `GetSystemMetrics` |
 | `window.setTitle` | `SetWindowTextW` |
 | `window.maximize`, `.minimize`, `.restore` | `ShowWindow` |
+| `window.setSize` | `SetWindowPos` with `SWP_NOMOVE \| SWP_NOZORDER` |
 
 `dart:ffi` against user32 and kernel32 — no platform channels, per the native
 integration rule.
@@ -201,6 +203,22 @@ Until one of those, every Android binding stays unregistered and throws. That
 is a true statement about what Dartvel can do on Android today; a registered
 no-op would not be.
 
+### `window.setSize`, and what it does not promise
+
+Both implementations reject a zero, negative or non-integer size rather than
+clamping it. A resize to a nonsensical size is a caller mistake, and clamping
+hides the mistake behind a window that is the wrong size for reasons nobody can
+see.
+
+On Windows the flags matter: `SWP_NOMOVE | SWP_NOZORDER`, because only the size
+was asked for. Without them the window also jumps to 0,0 and to the front.
+
+On Linux the return value is narrower than it looks. `gtk_window_resize` sets
+the size the window *requests*; a tiling window manager may refuse it, and GTK
+reports nothing either way. The binding returns whether the call was made, not
+whether the window ended up that size — a distinction the caller cannot learn
+from GTK and should not be handed a guess about.
+
 ## What the framework calls and nothing implements
 
 These have call sites in `dartvel_flutter` and no registration on any platform:
@@ -213,7 +231,7 @@ These have call sites in `dartvel_flutter` and no registration on any platform:
 | Bluetooth | `bluetooth.isEnabled` |
 | Sharing | `share.text` |
 | Tray | `tray.show`, `tray.hide` |
-| Window | `window.setSize`, `window.persistState`, `window.restoreState` |
+| Window | `window.persistState`, `window.restoreState` |
 
 ## What happens when you call one
 
