@@ -14,15 +14,19 @@
 summarizer:
   backend: asm
 
-android_sdk_config:
-  add_gradle_deps: false
-  # Quoted. jnigen casts these to String, and an unquoted 34 is parsed as an
-  # int — which fails inside Config.parseArgs with a cast error that names
-  # neither the field nor the file.
-  #
-  # The platform jar carries every class below. No Gradle project is needed,
-  # which keeps generation independent of the example app's build.
-  versions: ['34']
+# The platform jar, by explicit classpath rather than through
+# android_sdk_config.
+#
+# That block appends a trailing slash to the jar path — it passed
+# `-c ".../android.jar/"` to the summarizer, which then reported every class as
+# "Not found" because a jar with a slash after it is a directory that does not
+# exist. The error named the classes rather than the path, so the cause was
+# only visible in the command it echoed.
+#
+# ANDROID_JAR_PATH is substituted by .github/workflows/android-bindings.yml,
+# because the SDK location differs between runner images.
+classpath:
+  - ANDROID_JAR_PATH
 
 output:
   dart:
