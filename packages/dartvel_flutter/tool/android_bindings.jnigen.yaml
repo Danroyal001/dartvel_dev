@@ -37,18 +37,18 @@ output:
     structure: package_structure
 
 classes:
-  # The way to a Context from Dart with no Activity and no platform channel.
+  # No ActivityThread here, and the reason is worth keeping.
   #
-  # ActivityThread.currentApplication() is static and returns the Application,
-  # which is a Context. It is how a library reaches Android services when it
-  # has no handle of its own, and it is what unblocks every binding below.
+  # ActivityThread.currentApplication() was the intended way to a Context with
+  # no Activity, and generation proved it cannot be: the class is hidden and is
+  # not in the public android.jar stub. jnigen found the other six and reported
+  # "Not found: [android.app.ActivityThread]".
   #
-  # It is not public SDK. It sits on Android's unsupported-but-tolerated list,
-  # which is where Firebase and LeakCanary read it from too. That is a real
-  # risk and it is written down rather than glossed: if a future Android
-  # blocks it, these bindings stop working and the fallback is an Android
-  # archive that caches the context at startup.
-  - android.app.ActivityThread
+  # It turned out not to be needed. package:jni exports
+  # `GetApplicationContext()` from its own C header, documented as "Returns
+  # application context on Android" — a deliberate C API, reachable with plain
+  # dart:ffi, and neither a hidden Android class nor a Dart internal. That is
+  # what the Dart side uses.
 
   # Clipboard.
   - android.content.ClipboardManager
