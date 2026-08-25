@@ -16,9 +16,13 @@ summarizer:
 
 android_sdk_config:
   add_gradle_deps: false
+  # Quoted. jnigen casts these to String, and an unquoted 34 is parsed as an
+  # int — which fails inside Config.parseArgs with a cast error that names
+  # neither the field nor the file.
+  #
   # The platform jar carries every class below. No Gradle project is needed,
   # which keeps generation independent of the example app's build.
-  versions: [34]
+  versions: ['34']
 
 output:
   dart:
