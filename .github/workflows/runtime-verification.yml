@@ -808,14 +808,33 @@ jobs:
           Xvfb :99 -screen 0 1280x900x24 &
           sleep 3
           export DISPLAY=:99
+          # --no-first-run and --no-default-browser-check are not tidiness.
+          # Without them Chrome opens its "Make Chrome the default browser"
+          # dialog over everything, and the screenshot is of that dialog — an
+          # image that exists, passes an existence check, and shows nothing
+          # about the extension.
           google-chrome --no-sandbox --disable-gpu \
             --disable-dev-shm-usage \
+            --no-first-run --no-default-browser-check \
+            --disable-features=Translate,InfobarScreenshot \
+            --start-maximized \
             --load-extension="$EXT" \
             --user-data-dir=/tmp/chrome-profile \
             "file://$EXT/index.html" > /tmp/diag/chrome.log 2>&1 &
-          sleep 20
+          sleep 25
           import -window root /tmp/diag/extension.png
           identify /tmp/diag/extension.png
+
+          # Existence is not enough, as the first run demonstrated. A capture
+          # that is almost entirely one colour is a blank page or a dialog on
+          # an empty desktop, not a rendered application.
+          colours=$(convert /tmp/diag/extension.png -format %k info:)
+          echo "distinct colours: $colours"
+          if [ "$colours" -lt 50 ]; then
+            echo "::error::the capture has $colours distinct colours; that is a"
+            echo "::error::blank or near-blank screen, not a rendered page"
+            exit 1
+          fi
           echo "--- chrome log ---"; tail -20 /tmp/diag/chrome.log || true
 
       # A job that captured nothing is not a pass. The run step above is
