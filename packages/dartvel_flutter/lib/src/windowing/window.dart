@@ -507,11 +507,44 @@ class DVWindowManager {
     await DVNativeBridge.require<bool>('window.restore');
   }
 
+  /// Remembers this window's size under [key].
+  ///
+  /// Composed rather than bound. `window.persistState` was on the list of names
+  /// to implement natively on every platform, and it does not need to be:
+  /// Flutter knows its own window size, and the shared store already keeps
+  /// state between runs. Binding it would have meant writing the same logic
+  /// five times against five different preference APIs.
   Future<void> persistState(String key) async {
-    await DVNativeBridge.require<bool>('window.persistState', {'key': key});
+    final view = WidgetsBinding.instance.platformDispatcher.views.first;
+    final ratio = view.devicePixelRatio == 0 ? 1.0 : view.devicePixelRatio;
+    final state = DVWindowState(
+      width: (view.physicalSize.width / ratio).round(),
+      height: (view.physicalSize.height / ratio).round(),
+    );
+    await shared.set(dvWindowStateKey(key), DVJsonString(state.encode()));
+    await shared.flush(dvWindowStateKey(key));
   }
 
+  /// Puts back what [persistState] recorded.
+  ///
+  /// Silent when there is nothing stored, when the stored value is unusable, or
+  /// when this platform cannot resize its own window. None of those is an
+  /// error: a first launch has nothing to restore, a stale preference should
+  /// not break startup, and macOS deliberately leaves `window.setSize` unbound
+  /// because it needs the main thread.
+  ///
+  /// `invoke` rather than `require`, so an unbound platform declines instead of
+  /// throwing at an application that only asked to be tidy.
   Future<void> restoreState(String key) async {
-    await DVNativeBridge.require<bool>('window.restoreState', {'key': key});
+    final stored = await shared.get(dvWindowStateKey(key));
+    if (stored is! DVJsonString) return;
+
+    final state = DVWindowState.decode(stored.value);
+    if (state == null) return;
+
+    await DVNativeBridge.invoke<bool>('window.setSize', <String, Object?>{
+      'width': state.width,
+      'height': state.height,
+    });
   }
 }
