@@ -163,9 +163,17 @@
       "stability": "Contract",
       "status": "Partial",
       "evidence": [
-        "packages/dartvel_flutter/test/linux_bindings_test.dart"
+        "packages/dartvel_flutter/test/linux_bindings_test.dart",
+        "packages/dartvel_flutter/test/web_bindings_test.dart",
+        "packages/dartvel_flutter/test/web_bindings_browser_test.dart",
+        "packages/dartvel_flutter/test/windows_bindings_test.dart",
+        "packages/dartvel_flutter/test/windows_bindings_live_test.dart",
+        "packages/dartvel_flutter/test/macos_bindings_test.dart",
+        "packages/dartvel_flutter/test/macos_bindings_live_test.dart",
+        "packages/dartvel_flutter/test/ios_bindings_test.dart",
+        "packages/dartvel_flutter/test/android_bindings_test.dart"
       ],
-      "absent": "35 of 43 binding names on Linux, and all 43 on Android, iOS, macOS, Windows and web"
+      "absent": "21 bindings across Linux (8), web (9), Windows (7), macOS (3) and iOS (2) \u2014 note the overlap, they are not distinct names. Nothing on Android, which is blocked: package:jni 1.0.0 exposes no application Context and everything worth binding needs one. 14 names the framework calls are implemented nowhere: biometrics, haptics outside web, NFC, bluetooth, share outside web, tray, and window setSize/persistState/restoreState. See docs/platform-api-coverage.md"
     },
     {
       "section": "Database",
