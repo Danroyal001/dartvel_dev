@@ -75,11 +75,15 @@ jobs:
           SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
           JAR="$SDK/platforms/android-34/android.jar"
           test -f "$JAR"
+          # Beside the original, not in /tmp. jnigen resolves the output path
+          # relative to the config file, so a config in /tmp wrote the bindings
+          # to /tmp/lib/src/platform/android/generated and reported success.
           sed "s|ANDROID_JAR_PATH|$JAR|" tool/android_bindings.jnigen.yaml \
-            > /tmp/jnigen.yaml
-          grep -A2 "^class_path:" /tmp/jnigen.yaml
+            > tool/.jnigen.resolved.yaml
+          grep -A2 "^class_path:" tool/.jnigen.resolved.yaml
 
-          dart run jnigen --config /tmp/jnigen.yaml
+          dart run jnigen --config tool/.jnigen.resolved.yaml
+          rm -f tool/.jnigen.resolved.yaml
           echo "--- generated ---"
           find lib/src/platform/android/generated -name "*.dart" | head -20
           wc -l lib/src/platform/android/generated/*.dart 2>/dev/null | tail -3
