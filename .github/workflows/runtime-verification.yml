@@ -844,18 +844,43 @@ jobs:
           # column 0, which YAML reads as new top-level keys.
           cat > /tmp/extid.py <<'PYEOF'
           import json
+          import os
           import sys
 
-          wanted = sys.argv[1]
-          prefs = json.load(open('/tmp/chrome-profile/Default/Preferences'))
+          wanted = os.path.realpath(sys.argv[1])
+          path = '/tmp/chrome-profile/Default/Preferences'
+          if not os.path.exists(path):
+              print('NO PREFERENCES FILE', file=sys.stderr)
+              raise SystemExit(0)
+
+          prefs = json.load(open(path))
           settings = prefs.get('extensions', {}).get('settings', {})
+
+          # Everything Chrome recorded, to the log. The first attempt matched
+          # on an exact path string, found nothing, and could not say whether
+          # Chrome had rejected the manifest or the lookup was simply wrong.
           for key, value in settings.items():
-              if value.get('path') == wanted:
+              print(f'  {key} location={value.get("location")} '
+                    f'path={value.get("path")}', file=sys.stderr)
+
+          for key, value in settings.items():
+              recorded = value.get('path')
+              if not recorded:
+                  continue
+              # location 4 is UNPACKED. Chrome may store the path normalised
+              # or relative to the profile, so compare resolved paths and fall
+              # back to the only unpacked entry.
+              if os.path.realpath(recorded) == wanted:
                   print(key)
-                  break
+                  raise SystemExit(0)
+
+          unpacked = [k for k, v in settings.items() if v.get('location') == 4]
+          if len(unpacked) == 1:
+              print(unpacked[0])
           PYEOF
           sed -i 's/^          //' /tmp/extid.py
-          EXT_ID=$(python3 /tmp/extid.py "$EXT" 2>/dev/null)
+          # stderr carries the dump of what Chrome recorded; keep it in the log.
+          EXT_ID=$(python3 /tmp/extid.py "$EXT" 2>>/tmp/diag/extension-run.log)
           echo "extension id: ${EXT_ID:-<not found>}"
           if [ -z "$EXT_ID" ]; then
             echo "::error::Chrome did not install the extension; the manifest"
