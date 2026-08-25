@@ -152,7 +152,7 @@ gap.
 - Prompt an interactive developer before installing; install unattended when CI is detected so a pipeline cannot hang on a prompt. `--auto-install` and `--no-auto-install` override both, and `--no-auto-install` wins even in CI.
 - Tools installed during a run must be added to the PATH handed to child processes, so the build that installed a toolchain can use it without a shell restart.
 - Dartvel-managed toolchains install under `~/.dartvel/toolchains/`.
-- Targets whose host is unavailable locally (Windows, macOS, iOS, tvOS) are verified through the GitHub Actions matrix workflow, which stays manually triggered because this repository is private and macOS runners bill at 10x.
+- Targets whose host is unavailable locally (Windows, macOS, iOS, tvOS) are verified on GitHub Actions. **This repository and every fork except `dartvel_enterprise` are public, so Actions minutes on standard runners are unlimited and free — Windows and macOS included.** Do not ration macOS jobs or keep a workflow manually triggered on cost grounds; that reasoning came from an earlier assumption that the repository was private, and it wrongly narrowed several jobs to a single suite. Time still costs wall-clock, so bound jobs with timeouts rather than with scope.
 - Record verified build status and evidence in `docs/build-targets.md`. "Verified" means the command was run and the artifact inspected — never infer a target works because a sibling target does.
 
 ## Commit Message Rule
