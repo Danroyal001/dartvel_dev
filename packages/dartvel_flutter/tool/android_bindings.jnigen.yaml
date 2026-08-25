@@ -45,8 +45,9 @@ classes:
 
   # Clipboard.
   - android.content.ClipboardManager
+  # ClipData pulls ClipData$Item with it. Listing a nested class separately is
+  # rejected: "Nested classes cannot be specified separately."
   - android.content.ClipData
-  - android.content.ClipData$Item
   - android.content.Context
 
   # Haptics. VibratorManager is the API 31 way in; Vibrator remains for older.
