@@ -33,7 +33,10 @@ class_path:
 
 output:
   dart:
-    path: lib/src/platform/android/generated/
+    # Relative to this file, which lives in tool/ — hence the climb out. A
+    # plain lib/... resolved to tool/lib/..., and jnigen reported success
+    # having written the bindings somewhere nothing imports from.
+    path: ../lib/src/platform/android/generated/
     structure: package_structure
 
 classes:
