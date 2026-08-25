@@ -702,6 +702,12 @@ jobs:
       - name: Open the diagnostics directory
         run: mkdir -p /tmp/diag
       - uses: actions/checkout@v4
+      # A standard SDK for the Dartvel CLI. The tvOS embedder carries its own
+      # Flutter and uses it for the build, but `dart run dartvel_cli:dartvel`
+      # needs a dart on PATH — without this the job dies on "dart: command not
+      # found" after installing the whole embedder.
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: '3.44.5', channel: stable, cache: true }
 
       - name: Install the tvOS embedder
         id: embedder
@@ -808,31 +814,75 @@ jobs:
           Xvfb :99 -screen 0 1280x900x24 &
           sleep 3
           export DISPLAY=:99
+
+          # Chrome is started twice on purpose. The first run only installs the
+          # extension so its generated id can be read back; the second opens
+          # the page at its real chrome-extension:// origin.
+          #
+          # file:// is not a substitute, and the first attempt proved it: the
+          # page loaded, the tab was titled correctly, and it rendered nothing.
+          # Flutter web needs an HTTP-like origin for fetch and the service
+          # worker, and file:// gives neither.
           # --no-first-run and --no-default-browser-check are not tidiness.
           # Without them Chrome opens its "Make Chrome the default browser"
           # dialog over everything, and the screenshot is of that dialog — an
           # image that exists, passes an existence check, and shows nothing
           # about the extension.
-          google-chrome --no-sandbox --disable-gpu \
-            --disable-dev-shm-usage \
+          CHROME_ARGS="--no-sandbox --disable-gpu --disable-dev-shm-usage \
             --no-first-run --no-default-browser-check \
-            --disable-features=Translate,InfobarScreenshot \
-            --start-maximized \
-            --load-extension="$EXT" \
-            --user-data-dir=/tmp/chrome-profile \
-            "file://$EXT/index.html" > /tmp/diag/chrome.log 2>&1 &
-          sleep 25
+            --disable-features=Translate,InfobarScreenshot --start-maximized \
+            --load-extension=$EXT --user-data-dir=/tmp/chrome-profile"
+
+          google-chrome $CHROME_ARGS about:blank > /tmp/diag/chrome-install.log 2>&1 &
+          sleep 15
+          pkill -f "user-data-dir=/tmp/chrome-profile" || true
+          sleep 3
+
+          # The id Chrome derived for the unpacked extension, read from the
+          # profile it just wrote. Written to a file rather than inlined: an
+          # embedded multi-line script inside a YAML block scalar has lines at
+          # column 0, which YAML reads as new top-level keys.
+          cat > /tmp/extid.py <<'PYEOF'
+          import json
+          import sys
+
+          wanted = sys.argv[1]
+          prefs = json.load(open('/tmp/chrome-profile/Default/Preferences'))
+          settings = prefs.get('extensions', {}).get('settings', {})
+          for key, value in settings.items():
+              if value.get('path') == wanted:
+                  print(key)
+                  break
+          PYEOF
+          sed -i 's/^          //' /tmp/extid.py
+          EXT_ID=$(python3 /tmp/extid.py "$EXT" 2>/dev/null)
+          echo "extension id: ${EXT_ID:-<not found>}"
+          if [ -z "$EXT_ID" ]; then
+            echo "::error::Chrome did not install the extension; the manifest"
+            echo "::error::was rejected or the profile was not written"
+            exit 1
+          fi
+
+          google-chrome $CHROME_ARGS \
+            "chrome-extension://$EXT_ID/index.html" > /tmp/diag/chrome.log 2>&1 &
+          sleep 30
           import -window root /tmp/diag/extension.png
           identify /tmp/diag/extension.png
 
           # Existence is not enough, as the first run demonstrated. A capture
           # that is almost entirely one colour is a blank page or a dialog on
           # an empty desktop, not a rendered application.
-          colours=$(convert /tmp/diag/extension.png -format %k info:)
-          echo "distinct colours: $colours"
+          # Cropped below the browser chrome before counting. The tab strip,
+          # URL bar and window frame carry plenty of colours on their own, and
+          # counting the whole screen passed a capture whose page was blank
+          # white — the check measured Chrome, not the application.
+          convert /tmp/diag/extension.png -crop 1060x740+10+160 +repage \
+            /tmp/diag/extension-page.png
+          colours=$(convert /tmp/diag/extension-page.png -format %k info:)
+          echo "distinct colours in the page area: $colours"
           if [ "$colours" -lt 50 ]; then
-            echo "::error::the capture has $colours distinct colours; that is a"
-            echo "::error::blank or near-blank screen, not a rendered page"
+            echo "::error::the page area has $colours distinct colours; that is"
+            echo "::error::a blank page, not a rendered application"
             exit 1
           fi
           echo "--- chrome log ---"; tail -20 /tmp/diag/chrome.log || true
