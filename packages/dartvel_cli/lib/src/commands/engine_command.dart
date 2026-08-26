@@ -69,6 +69,9 @@ class _PlanCommand extends Command<void> {
     _addTargetOptions(argParser);
     argParser.addOption('src-root',
         help: 'Absolute path to engine/src, so paths handed to gn resolve.');
+    argParser.addOption('toolchain-root',
+        help: 'Directory to assemble the custom toolchain in, when one is '
+            'needed.');
     argParser.addFlag('github-output',
         negatable: false,
         help: 'Emit key=value lines for \$GITHUB_OUTPUT instead of prose.');
@@ -80,6 +83,7 @@ class _PlanCommand extends Command<void> {
       arch: _parseArch(argResults!['arch'] as String),
       mode: _parseMode(argResults!['mode'] as String),
       srcRoot: argResults!['src-root'] as String?,
+      toolchainRoot: argResults!['toolchain-root'] as String?,
     );
 
     if (argResults!['github-output'] as bool) {
@@ -90,7 +94,10 @@ class _PlanCommand extends Command<void> {
         ..writeln('sysroot-arch=${plan.sysrootArch ?? ''}')
         ..writeln('engine-path=${plan.enginePath}')
         ..writeln('gen-snapshot-path=${plan.genSnapshotPath}')
-        ..writeln('et-config=host_${plan.mode.name}');
+        ..writeln('et-config=host_${plan.mode.name}')
+        ..writeln('target-triple=${plan.targetTriple ?? ''}')
+        ..writeln('extra-gn-args=${shellRenderGnArgs(plan.extraGnArgs)}')
+        ..writeln('toolchain-links=${plan.toolchainLinks.entries.map((MapEntry<String, String> e) => '${e.key}:${e.value}').join(' ')}');
       stdout.write(out.toString());
       return;
     }
@@ -102,6 +109,7 @@ class _PlanCommand extends Command<void> {
     Logger.log('  engine           ${plan.enginePath}');
     Logger.log('  gen_snapshot     ${plan.genSnapshotPath}');
     Logger.log('  sysroot          ${plan.sysrootArch ?? '(host)'}');
+    Logger.log('  triple           ${plan.targetTriple ?? '(gn decides)'}');
     Logger.log('  expect engine    ${plan.expectedEngineMachine.name}');
     Logger.log('  expect snapshot  ${plan.expectedGenSnapshotMachine.name}');
   }

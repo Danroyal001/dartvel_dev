@@ -193,4 +193,115 @@ void main() {
           contains('/src/build/linux/debian_bullseye_armhf-sysroot'));
     });
   });
+
+  group('the toolchain gn does not configure', () {
+    // build/config/compiler/BUILD.gn emits -march/-mfloat-abi/-mfpu/-mthumb
+    // for current_cpu == "arm", and its Linux target-triple block handles
+    // arm64 and nothing else. So clang is handed ARM flags while still
+    // targeting the host, and refuses them:
+    //
+    //   clang++: error: unsupported option '-mfloat-abi=' for target
+    //            'x86_64-unknown-linux-gnu'
+    //
+    // The engine has a path for this. build/toolchain/custom takes a
+    // toolchain, a sysroot and a triple, and its own comment gives
+    // arm-linux-gnueabihf as the example.
+    test('32-bit arm builds through the custom toolchain', () {
+      final plan = engineBuildPlan(
+        arch: EngineArch.arm,
+        mode: EngineMode.release,
+      );
+
+      expect(plan.usesCustomToolchain, isTrue);
+      expect(plan.targetTriple, 'arm-linux-gnueabihf');
+    });
+
+    test('arm64 and x64 use the stock toolchains', () {
+      expect(
+        engineBuildPlan(arch: EngineArch.arm64, mode: EngineMode.release)
+            .usesCustomToolchain,
+        isFalse,
+      );
+      expect(
+        engineBuildPlan(arch: EngineArch.x64, mode: EngineMode.release)
+            .targetTriple,
+        isNull,
+      );
+    });
+
+    test('the custom toolchain is named to gn with its triple', () {
+      final plan = engineBuildPlan(
+        arch: EngineArch.arm,
+        mode: EngineMode.release,
+        srcRoot: '/src',
+        toolchainRoot: '/tc',
+      );
+
+      expect(plan.gnArgs, containsAllInOrder(<String>[
+        '--target-toolchain', '/tc',
+        '--target-triple', 'arm-linux-gnueabihf',
+      ]));
+    });
+
+    // build/toolchain/custom/BUILD.gn looks for ${triple}-ar, -readelf, -nm
+    // and -strip beside clang. The engine ships llvm-ar and friends under
+    // those names instead, so the toolchain directory has to be assembled.
+    test('the custom toolchain needs triple-prefixed binutils', () {
+      final plan = engineBuildPlan(
+        arch: EngineArch.arm,
+        mode: EngineMode.release,
+      );
+
+      expect(plan.toolchainLinks, containsPair('clang', 'clang'));
+      expect(plan.toolchainLinks, containsPair('clang++', 'clang++'));
+      expect(plan.toolchainLinks,
+          containsPair('arm-linux-gnueabihf-ar', 'llvm-ar'));
+      expect(plan.toolchainLinks,
+          containsPair('arm-linux-gnueabihf-strip', 'llvm-strip'));
+      expect(plan.toolchainLinks,
+          containsPair('arm-linux-gnueabihf-readelf', 'llvm-readelf'));
+      expect(plan.toolchainLinks,
+          containsPair('arm-linux-gnueabihf-nm', 'llvm-nm'));
+    });
+
+    test('a stock build assembles no toolchain', () {
+      expect(
+        engineBuildPlan(arch: EngineArch.x64, mode: EngineMode.release)
+            .toolchainLinks,
+        isEmpty,
+      );
+    });
+
+    // The armhf sysroot is hard-float. arm.gni defaults arm_float_abi to
+    // softfp for armv7, which is a different calling convention: code built
+    // that way links against hard-float libraries and produces a binary that
+    // passes floats in the wrong registers. Nothing fails at build time.
+    test('the float ABI is set to match the armhf sysroot', () {
+      final plan = engineBuildPlan(
+        arch: EngineArch.arm,
+        mode: EngineMode.release,
+      );
+
+      expect(plan.extraGnArgs, contains('arm_float_abi="hard"'));
+    });
+  });
+
+  group('handing gn args through a shell', () {
+    // The workflow interpolates these into a bash command line. gn reads
+    // arm_float_abi=hard as an identifier and errors; it needs the quotes,
+    // and bash eats an unprotected pair of them.
+    test('a string-valued gn arg keeps its quotes through bash', () {
+      final plan = engineBuildPlan(
+        arch: EngineArch.arm,
+        mode: EngineMode.release,
+      );
+
+      expect(shellRenderGnArgs(plan.extraGnArgs),
+          """--gn-args 'arm_float_abi="hard"'""");
+    });
+
+    test('nothing to pass renders as nothing', () {
+      expect(shellRenderGnArgs(const <String>[]), isEmpty);
+    });
+  });
 }
