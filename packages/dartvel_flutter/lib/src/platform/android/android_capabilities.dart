@@ -35,4 +35,27 @@ const Set<String> dvAndroidImplementedBindings = <String>{
   'haptics.vibrate',
   'haptics.lightVibrate',
   'haptics.impact',
+
+  // Intent.ACTION_SEND through a chooser.
+  'share.text',
 };
+
+/// `Intent.FLAG_ACTIVITY_NEW_TASK`.
+///
+/// Starting an activity from the application `Context` rather than from an
+/// `Activity` requires it. Without it Android throws at run time, on the
+/// device: "Calling startActivity() from outside of an Activity context
+/// requires the FLAG_ACTIVITY_NEW_TASK flag".
+const int dvAndroidShareIntentFlags = 0x10000000;
+
+/// Whether the share goes through `Intent.createChooser`.
+///
+/// It does. A bare `ACTION_SEND` resolves to whatever the user last chose, or
+/// to nothing when no default is set; the chooser always resolves.
+const bool dvAndroidShareUsesChooser = true;
+
+/// The MIME type the shared payload is declared as.
+///
+/// An intent with no type is delivered to nothing — resolution matches on the
+/// action and the type together.
+const String dvAndroidShareMimeType = 'text/plain';

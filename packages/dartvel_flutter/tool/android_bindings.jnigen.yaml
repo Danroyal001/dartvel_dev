@@ -60,6 +60,10 @@ classes:
   - android.content.ClipData
   - android.content.Context
 
+  # Sharing. Intent.ACTION_SEND through Intent.createChooser, started on the
+  # application Context with FLAG_ACTIVITY_NEW_TASK -- no Activity required.
+  - android.content.Intent
+
   # Haptics. VibratorManager is the API 31 way in; Vibrator remains for older.
   - android.os.Vibrator
   - android.os.VibratorManager
