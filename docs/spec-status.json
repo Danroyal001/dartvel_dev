@@ -329,8 +329,11 @@
     {
       "section": "Accessibility",
       "stability": "Draft",
-      "status": "Designed",
-      "evidence": []
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_flutter/test/accessibility_test.dart"
+      ],
+      "absent": "generated tables have no keyboard navigation, focus restoration or row/column announcements; nothing fails a release on an accessibility regression; switch control and hardware-key navigation for kiosk and embedded targets are unbuilt. What exists is checked: contrast against WCAG's published ratios, tap targets against Material's minimum, and the semantic modifiers asserted in the semantics tree rather than only stored"
     },
     {
       "section": "Desktop, Embedded, and Qt-Critical Capabilities",
