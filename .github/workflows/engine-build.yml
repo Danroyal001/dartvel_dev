@@ -172,32 +172,23 @@ jobs:
           done
           "$TC/bin/${{ steps.plan.outputs.target-triple }}-ar" --version | head -1
 
-      # build/toolchain/custom expects a complete cross toolchain, one that
-      # ships the target's runtime libraries the way a vendor's does. The
-      # engine's bundled clang is a host toolchain with a sysroot beside it,
-      # and Google builds no arm-unknown-linux-gnueabihf runtime because
-      # 32-bit ARM Linux is not an engine target. Without this the build
-      # compiles all 7060 targets and fails at the first link on a missing
-      # libclang_rt.builtins.a.
-      #
-      # libgcc implements the same __aeabi_* helpers -- the substitution
-      # --rtlib=libgcc makes -- and Ubuntu ships an armhf one in the ordinary
-      # x86-64 archive as part of the cross compiler, so there are no
-      # multiarch sources to add. libc++ and libunwind come from the engine's
-      # own sources instead, via use_custom_libcxx.
-      - name: Provide the target compiler builtins
-        if: steps.plan.outputs.builtins-package != ''
+      # A triple clang has no runtime for produces three link errors --
+      # missing builtins, -lc++, -lunwind -- and produces them after all 7000
+      # targets have compiled. Two seconds here instead.
+      - name: The target runtime must be one clang ships
+        if: steps.plan.outputs.runtime-dir != ''
         run: |
           set -euo pipefail
-          sudo apt-get install -y -qq "${{ steps.plan.outputs.builtins-package }}"
           TC="${{ steps.plan.outputs.toolchain-root }}"
           RESOURCE=$("$TC/bin/clang" -print-resource-dir)
-          DEST="$RESOURCE/lib/${{ steps.plan.outputs.builtins-subdir }}"
-          mkdir -p "$DEST"
-          LIBGCC=$(find /usr/lib/gcc-cross/arm-linux-gnueabihf -name libgcc.a | head -1)
-          test -n "$LIBGCC"
-          cp "$LIBGCC" "$DEST/${{ steps.plan.outputs.builtins-file }}"
-          ls -l "$DEST"
+          DIR="$RESOURCE/lib/${{ steps.plan.outputs.runtime-dir }}"
+          if [ ! -d "$DIR" ]; then
+            echo "::error::clang ships no runtime for ${{ steps.plan.outputs.runtime-dir }}"
+            echo "the triples it does ship:"
+            ls "$RESOURCE/lib"
+            exit 1
+          fi
+          ls "$DIR"
 
       # Not continue-on-error. A build that fails should fail the job: the
       # step after it only checks the file is non-empty, which a stale output
@@ -217,62 +208,6 @@ jobs:
             ${{ steps.plan.outputs.extra-gn-args }} 2>&1 | tail -20
 
           OUT="${{ steps.plan.outputs.out-dir }}"
-          TC="${{ steps.plan.outputs.toolchain-root }}"
-
-          # build/toolchain/custom links with -L<custom_toolchain>/lib and
-          # nothing pointing at the output directory, so a vendor toolchain is
-          # expected to ship the target's C++ runtime. This one does not, and
-          # the requirement cannot be turned off -- use_flutter_cxx gates both
-          # the -lc++ and the target that builds it, and it is a plain
-          # variable rather than a declare_arg.
-          #
-          # The engine builds them for the target regardless. Building them
-          # first and staging them into the toolchain's lib directory costs a
-          # couple of minutes and fails here rather than after the other 7000
-          # targets have compiled.
-          # Where they land is asked, not assumed. A static library goes to
-          # obj/<path>/ rather than the root, and the first attempt at this
-          # guessed the root and got "unknown target 'libc++.so'".
-          ninja -C "$OUT" -t targets all 2>/dev/null | cut -d: -f1 > /tmp/ninja-targets.txt
-          for lib in ${{ steps.plan.outputs.runtime-libraries }}; do
-            staged=0
-            while read -r target; do
-              case "$target" in
-                lib$lib.so|lib$lib.a|*/lib$lib.so|*/lib$lib.a) ;;
-                *) continue ;;
-              esac
-              ninja -C "$OUT" "$target" 2>&1 | tail -3
-              ln -sf "$PWD/$OUT/$target" "$TC/lib/$(basename "$target")"
-              echo "staged $target"
-              staged=1
-            done < /tmp/ninja-targets.txt
-            if [ "$staged" -eq 0 ]; then
-              echo "::error::nothing in this build produces lib$lib"
-              # The link name and the path rarely share a spelling -- "c++"
-              # does not appear anywhere in "third_party/libcxx" -- so this
-              # searches for the shape as well as the name, and says who asks
-              # for the library when nothing supplies it.
-              echo "--- library outputs this build produces ---"
-              grep -E '\.(so|a)$' /tmp/ninja-targets.txt | awk 'NR<=30'
-              echo "--- targets whose path suggests a C++ runtime ---"
-              grep -icE 'libcxx|libc\+\+' /tmp/ninja-targets.txt \
-                | awk '{print "targets matching libcxx: " $0}'
-              echo "--- who asks for -l$lib ---"
-              grep -rhoE '\-l[a-z+_]+|\-L[^ ]+' "$OUT"/toolchain.ninja "$OUT"/build.ninja 2>/dev/null \
-                | sort -u | awk 'NR<=25'
-              echo "--- what the toolchain already has ---"
-              ls "$TC/lib" 2>/dev/null | awk 'NR<=15'
-              echo "--- per-triple runtime directories clang ships ---"
-              ls "$($TC/bin/clang -print-resource-dir)/lib" 2>/dev/null | awk 'NR<=20'
-              find "$($TC/bin/clang -print-resource-dir)/lib" \
-                \( -name "libc++*" -o -name "libunwind*" \) 2>/dev/null | awk 'NR<=15'
-              echo "--- what the armhf sysroot already has ---"
-              find build/linux/debian_bullseye_armhf-sysroot \
-                \( -name "libc++*" -o -name "libstdc++*" -o -name "libunwind*" \) \
-                2>/dev/null | awk 'NR<=15'
-              exit 1
-            fi
-          done
 
           ninja -C "$OUT" 2>&1 | tail -40
           ls -la "$OUT" | head -20
