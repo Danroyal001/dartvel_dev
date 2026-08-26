@@ -303,8 +303,6 @@ void main() {
       // is not what this is about.
       expect(shellRenderGnArgs(plan.extraGnArgs),
           contains("""--gn-args 'arm_float_abi="hard"'"""));
-      expect(shellRenderGnArgs(plan.extraGnArgs),
-          contains("""--gn-args 'use_custom_libcxx=true'"""));
     });
 
     test('nothing to pass renders as nothing', () {
@@ -373,18 +371,37 @@ void main() {
         mode: EngineMode.release,
       );
 
-      // use_custom_libcxx defaults to false, which is what makes the build
-      // pass -lc++ and -lunwind expecting a toolchain to supply them. The
-      // sources are already in the checkout.
-      expect(plan.extraGnArgs, contains('use_custom_libcxx=true'));
+      // use_custom_libcxx is not the switch: it points at
+      // buildtools/third_party/libc++/trunk, a Chromium layout Flutter's
+      // checkout does not have. And use_flutter_cxx, which really does gate
+      // both the -lc++ and the target that builds it, is a plain variable
+      // rather than a declare_arg -- there is no turning it off.
+      expect(plan.extraGnArgs, isNot(contains('use_custom_libcxx=true')));
+
+      // So the libraries have to be where the toolchain looks. custom_lib_flags
+      // is -L<custom_toolchain>/lib, which is what a vendor cross toolchain
+      // ships and this one does not; the engine builds them itself, so they
+      // are staged there between generating and building.
+      expect(plan.runtimeLibraries, containsAll(<String>['c++', 'unwind']));
     });
 
-    test('a host build leaves the stock libc++ alone', () {
-      expect(
-        engineBuildPlan(arch: EngineArch.x64, mode: EngineMode.release)
-            .extraGnArgs,
-        isEmpty,
-      );
+    test('a host build stages nothing, because nothing is missing', () {
+      final plan = engineBuildPlan(arch: EngineArch.x64, mode: EngineMode.release);
+
+      expect(plan.extraGnArgs, isEmpty);
+      expect(plan.runtimeLibraries, isEmpty);
+    });
+
+    test('the staged names are link names, not file names', () {
+      // They are handed to `ninja libc++.so` and to `-l`, and the extension
+      // differs between a static and a shared build of the same library.
+      final plan =
+          engineBuildPlan(arch: EngineArch.arm, mode: EngineMode.release);
+
+      for (final String name in plan.runtimeLibraries) {
+        expect(name, isNot(startsWith('lib')));
+        expect(name, isNot(contains('.')));
+      }
     });
 
     // The compiler builtins are the __aeabi_* helpers clang emits calls to.

@@ -209,12 +209,48 @@ jobs:
           cd engine-root/engine/src
           if [ "${{ steps.plan.outputs.uses-host-config }}" = "true" ]; then
             (cd flutter && ./bin/et build -c "${{ steps.plan.outputs.et-config }}") 2>&1 | tail -40
-          else
-            ./flutter/tools/gn ${{ steps.plan.outputs.gn-args }} \
-              ${{ steps.plan.outputs.extra-gn-args }} 2>&1 | tail -20
-            ninja -C "${{ steps.plan.outputs.out-dir }}" 2>&1 | tail -40
+            ls -la "${{ steps.plan.outputs.out-dir }}" | head -20
+            exit 0
           fi
-          ls -la "${{ steps.plan.outputs.out-dir }}" | head -20
+
+          ./flutter/tools/gn ${{ steps.plan.outputs.gn-args }} \
+            ${{ steps.plan.outputs.extra-gn-args }} 2>&1 | tail -20
+
+          OUT="${{ steps.plan.outputs.out-dir }}"
+          TC="${{ steps.plan.outputs.toolchain-root }}"
+
+          # build/toolchain/custom links with -L<custom_toolchain>/lib and
+          # nothing pointing at the output directory, so a vendor toolchain is
+          # expected to ship the target's C++ runtime. This one does not, and
+          # the requirement cannot be turned off -- use_flutter_cxx gates both
+          # the -lc++ and the target that builds it, and it is a plain
+          # variable rather than a declare_arg.
+          #
+          # The engine builds them for the target regardless. Building them
+          # first and staging them into the toolchain's lib directory costs a
+          # couple of minutes and fails here rather than after the other 7000
+          # targets have compiled.
+          for lib in ${{ steps.plan.outputs.runtime-libraries }}; do
+            ninja -C "$OUT" "lib$lib.so" 2>&1 | tail -5 \
+              || ninja -C "$OUT" "lib$lib.a" 2>&1 | tail -5
+            staged=0
+            for ext in so a; do
+              if [ -f "$OUT/lib$lib.$ext" ]; then
+                ln -sf "$PWD/$OUT/lib$lib.$ext" "$TC/lib/lib$lib.$ext"
+                echo "staged lib$lib.$ext"
+                staged=1
+              fi
+            done
+            if [ "$staged" -eq 0 ]; then
+              echo "::error::the build produces no lib$lib for this target"
+              ninja -C "$OUT" -t targets all 2>/dev/null \
+                | grep -iE "lib$lib" | head -10
+              exit 1
+            fi
+          done
+
+          ninja -C "$OUT" 2>&1 | tail -40
+          ls -la "$OUT" | head -20
 
       - name: Collect the artifact
         run: |

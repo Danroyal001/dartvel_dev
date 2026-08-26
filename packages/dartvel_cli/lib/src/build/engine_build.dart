@@ -110,6 +110,7 @@ class EngineBuildPlan {
     required this.toolchainRoot,
     required this.toolchainLinks,
     required this.extraGnArgs,
+    required this.runtimeLibraries,
     required this.builtinsPackage,
     required this.builtinsRuntimeSubdir,
     required this.expectedEngineMachine,
@@ -156,6 +157,21 @@ class EngineBuildPlan {
 
   /// gn args that have no dedicated `tools/gn` switch.
   final List<String> extraGnArgs;
+
+  /// C++ runtime libraries the custom toolchain expects to already have, by
+  /// link name.
+  ///
+  /// `build/toolchain/custom` passes `-L<custom_toolchain>/lib` and nothing
+  /// pointing at the output directory, so a vendor toolchain is expected to
+  /// ship these. This one does not, and there is no turning the requirement
+  /// off: `use_flutter_cxx` gates both the `-lc++` and the target that builds
+  /// it, and it is a plain variable rather than a declare_arg.
+  ///
+  /// The engine builds them for the target anyway, so they are staged into the
+  /// toolchain's lib directory between generating and building. Link names
+  /// rather than file names, because the extension differs between a static
+  /// and a shared build.
+  final List<String> runtimeLibraries;
 
   /// The apt package carrying a libgcc for the target, or null when clang
   /// already ships compiler builtins for it.
@@ -259,6 +275,7 @@ EngineBuildPlan engineBuildPlan({
       targetSysrootPath: null,
       targetTriple: null,
       toolchainRoot: null,
+      runtimeLibraries: const <String>[],
       builtinsPackage: null,
       builtinsRuntimeSubdir: null,
       toolchainLinks: const <String, String>{},
@@ -316,14 +333,10 @@ EngineBuildPlan engineBuildPlan({
     // different calling convention. Mixing them links and then passes floats
     // in the wrong registers, so nothing fails until the device runs it.
     extraGnArgs: arch == EngineArch.arm
-        ? const <String>[
-            'arm_float_abi="hard"',
-            // Defaults to false, which is what makes the build pass -lc++ and
-            // -lunwind expecting a toolchain to supply them for the target.
-            // The sources are already in the checkout.
-            'use_custom_libcxx=true',
-          ]
+        ? const <String>['arm_float_abi="hard"']
         : const <String>[],
+    runtimeLibraries:
+        arch == EngineArch.arm ? const <String>['c++', 'unwind'] : const <String>[],
     builtinsPackage:
         arch == EngineArch.arm ? 'gcc-arm-linux-gnueabihf' : null,
     builtinsRuntimeSubdir:
