@@ -141,7 +141,6 @@ jobs:
             --arch "${{ inputs.arch }}" --mode "${{ inputs.mode }}" \
             --src-root "$SRC" \
             --github-output >> "$GITHUB_OUTPUT"
-          echo "toolchain-root=$TC" >> "$GITHUB_OUTPUT"
 
       # A cross build needs the target's sysroot, and the gclient hooks fetch
       # only the host's. Without this the build fails deep in a link step with
