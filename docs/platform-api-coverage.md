@@ -1,31 +1,52 @@
 # Platform API coverage
 
-What `DV.Platform` can actually do, per platform. The short answer is that the
-**registration mechanism is complete and the bindings behind it are not**: one
-platform of seven has any, and it implements 8 of the 22 names the framework
-can call.
+What `DV.Platform` can actually do, per platform.
 
-This page exists because "Platform APIs — implemented" is true of the mechanism
-and misleading about the capability, and the two are easy to conflate.
+This page exists because "Platform APIs — implemented" is true of the
+registration mechanism and says nothing about the capability behind it, and
+the two are easy to conflate. It said, correctly at the time, that one
+platform of seven had any bindings at all. Six do now.
 
 ## What is registered, where
 
-| Platform | Bindings registered |
-| --- | --- |
-| Linux | **9** — see below |
-| web | **9** — see below |
-| Windows | **8** — see below |
-| macOS | **3** — see below |
-| Android | **5** — see below |
-| iOS | none |
-| Embedded (Tizen, webOS, eLinux, Fuchsia) | none |
+| Platform | Bindings | Reaching native through |
+| --- | --- | --- |
+| Linux | **9** | `dart:ffi` to libX11, libgtk-3, GDBus |
+| web | **9** | `dart:js_interop` with `package:web` |
+| Windows | **8** | `dart:ffi` to the Win32 API |
+| Android | **6** | jnigen bindings on the Android SDK |
+| iOS | **5** | `dart:ffi` to the Objective-C runtime and AudioToolbox |
+| macOS | **3** | `dart:ffi` to the Objective-C runtime and CoreGraphics |
+| Embedded (Tizen, webOS, eLinux, Fuchsia) | none | — |
 
-`packages/dartvel_flutter/lib/src/platform/` contains four directories:
-`linux/`, `ios/`, `macos/`, `web/` and `windows/`. For Android and the
-embedded targets there is nothing — not a partial implementation waiting to be
-finished, nothing.
+Thirteen distinct names are bound somewhere. No platform channels anywhere, per
+the native integration rule.
 
-## The Linux eight
+**The remaining gaps are constraints, not backlog.** Each platform's
+capability file gives the reason per name, and they are worth reading before
+adding one: `BiometricPrompt` and NFC dispatch need an `Activity` rather than a
+`Context`; `UIScreen.nativeBounds` returns a struct through `objc_msgSend`,
+where the wrong entry point corrupts the stack rather than failing; a tab has
+no system tray and cannot resize its own window; an Android or iOS app owns no
+resizable window at all.
+
+**Two of them turned out not to be constraints on inspection.** iOS haptics
+were recorded as blocked because `UIImpactFeedbackGenerator` must be built and
+called on the main thread while Flutter's root isolate runs on the UI thread —
+true, and it rules out that API rather than the feature.
+`AudioServicesPlaySystemSound` is plain C, thread-safe, and the system sound
+identifiers in the 1519-1521 range are Taptic Engine taps. Android sharing was
+absent for no stated reason at all; `ACTION_SEND` needs a `Context` and not an
+`Activity`, so it was a gap.
+
+**Window state is composed rather than bound.** `persistState` and
+`restoreState` record a window's size and put it back, which is the shared
+store plus `window.setSize` — binding it would have meant the same logic five
+times over five preference APIs. On macOS, where `setSize` is deliberately
+unbound, `restoreState` remembers the size and declines to apply it rather
+than throwing.
+
+## The Linux nine
 
 | Binding | Backed by |
 | --- | --- |
@@ -77,7 +98,7 @@ job. The VM suite resolves the stub, so it proves what web *claims* and nothing
 about whether any of it works — a `screen.geometry` returning a fabricated size
 passes there and fails in the browser, which is how that assertion was checked.
 
-## The Windows seven
+## The Windows eight
 
 | Binding | Backed by |
 | --- | --- |
@@ -153,11 +174,12 @@ called first — `NSPasteboard` rejects writes made without it — and a real
 display geometry. A mistyped Objective-C message does not fail to compile, so
 this is the only place the messaging is actually checked.
 
-## The iOS two
+## The iOS five
 
 | Binding | Backed by |
 | --- | --- |
 | `clipboard.copy`, `clipboard.paste` | `UIPasteboard` through the Objective-C runtime |
+| `haptics.impact`, `.lightVibrate`, `.vibrate` | `AudioServicesPlaySystemSound` in AudioToolbox — plain C, thread-safe, where `UIImpactFeedbackGenerator` is neither |
 
 The runtime is linked into the app on iOS rather than living in a dylib that
 can be opened by path, so the process itself is opened and the lookup of
@@ -178,11 +200,12 @@ authorisation and a configured app delegate, the second must run on the main
 thread, and the third does not exist — an iOS app does not own a resizable
 window.
 
-## The Android five
+## The Android six
 
 | Binding | Backed by |
 | --- | --- |
 | `clipboard.copy`, `clipboard.paste` | `ClipboardManager` via `Context.getSystemService` |
+| `share.text` | `Intent.ACTION_SEND` through `Intent.createChooser`, started on the application `Context` with `FLAG_ACTIVITY_NEW_TASK` |
 | `haptics.vibrate`, `.lightVibrate`, `.impact` | `Vibrator`, or `VibratorManager` from API 31 |
 
 JNI through jnigen-generated bindings, per the native integration rule — never
@@ -255,15 +278,17 @@ from GTK and should not be handed a guess about.
 
 These have call sites in `dartvel_flutter` and no registration on any platform:
 
-| Area | Names |
-| --- | --- |
-| Biometrics | `biometrics.authenticate`, `biometrics.canAuthenticate` |
-| Haptics | `haptics.impact`, `haptics.vibrate`, `haptics.lightVibrate` |
-| NFC | `nfc.isAvailable`, `nfc.readTag` |
-| Bluetooth | `bluetooth.isEnabled` |
-| Sharing | `share.text` |
-| Tray | `tray.show`, `tray.hide` |
-| Window | *(none — `persistState` and `restoreState` are composed, see below)* |
+| Area | Names | Why |
+| --- | --- | --- |
+| Biometrics | `biometrics.authenticate`, `biometrics.canAuthenticate` | `BiometricPrompt` attaches to an `Activity`; `LAContext` is reachable but presents UI from the main thread |
+| NFC | `nfc.isAvailable`, `nfc.readTag` | Android delivers NFC dispatch to an `Activity`; iOS CoreNFC needs an entitlement |
+| Bluetooth | `bluetooth.isEnabled` | a permission and a runtime-granted one since API 31 |
+| Tray | `tray.show`, `tray.hide` | Windows `Shell_NotifyIcon` and macOS `NSStatusBar` are reachable; Linux needs a StatusNotifierItem over DBus, and a tray on one desktop only is worse than none |
+
+Haptics and sharing were on this list and are not any more: haptics is bound on
+Android, iOS and the web, and `share.text` on Android and the web. `window`
+names never belonged here — `persistState` and `restoreState` are composed from
+the shared store and `window.setSize`, not bound.
 
 ## What happens when you call one
 
