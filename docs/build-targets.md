@@ -27,7 +27,7 @@ local Dartvel `dartvel_vscode` fork added as a dependency.
 | `tvos` | ✅ Builds | **Verified on a macOS runner**: scaffold auto-generated, then `build/tvos/Debug-appletvsimulator/Runner.app`. The `appletvsimulator` path is the proof it is a tvOS app and not the iPhone app an earlier mapping produced. Run [32538073146](https://github.com/Danroyal001/dartvel/actions/runs/32538073146). See [tvOS](#tvos) |
 | `tizen` / `tpk` | ✅ Builds | Signed 9.3MB TPK with engine + assets, built on a laptop with Tizen Studio installed. CI can only ever *skip* it — the SDK is licence-gated and Dartvel must not install it unattended — so the workflow asserts the skip names that reason. See [Tizen](#tizen-samsung) |
 | `sony-elinux` | ✅ Builds and **runs** (release) | Runs on a virtual device (Weston on Xvfb) in CI, in **both debug and release**. Release needs the from-source engine, since the official standalone one is JIT. See [Sony eLinux](#sony-elinux) |
-| `webos` | ❌ Blocked, needs a 32-bit ARM engine | Not a vendor secret: LG's engine exports `FlutterEngineRun` and is an ordinary Custom Embedder API build. It is **ELF 32-bit ARM**, and Google publishes `linux-arm64` but no 32-bit `linux-arm`. See [webOS](#webos-lg) |
+| `webos` | ⚠️ Engine built, bundle unattempted | Not a vendor secret: LG's engine exports `FlutterEngineRun` and is an ordinary Custom Embedder API build. It is **ELF 32-bit ARM**, and Google publishes `linux-arm64` but no 32-bit `linux-arm`. See [webOS](#webos-lg) |
 | `fuchsia` | ❌ Blocked, same class as webOS | The five build-plumbing walls are fixed: `--build-only` in the fork, `postInstall` bootstrap, submodule handling, the bootstrap's workspace variable, and skipping an unfetchable `googletest` pin. It now clones, bootstraps and stages the app — then dies in `pub get` because the fork's bundled Flutter is **older than Dart 3.4**: `dartvel_example requires SDK version >=3.4.0 <4.0.0, version solving failed`. That is not a Dartvel bug and not a `mix` problem; the embedder's Flutter submodule is simply ancient. Unblocking needs the fork re-pinned to a modern Flutter **and its engine rebuilt from source**, because bootstrap.sh warns the engine and the Flutter pin must stay aligned. See [Fuchsia](#fuchsia) |
 | `vscode` | ✅ Builds | `out/src/extension.js`, `out/lib/vscode_api.handlers.js`, `build/web/flutter_bootstrap.js`, `build/web/assets/` |
 | `chrome-extension` | ✅ Builds | `build/chrome-extension` (41 MB): MV3 manifest with a `service_worker` background, `index.html`, `main.dart.js`, `background.js`, icons. See [Browser extensions](#browser-extensions) |
@@ -525,6 +525,46 @@ The float ABI is set to `hard` explicitly. `arm.gni` defaults armv7 to
 `softfp`, a different calling convention from the armhf sysroot's; the two
 link without complaint and pass floats in the wrong registers, so nothing
 would fail until a television ran it.
+
+**It builds.** `engine-build.yml` produced a 32-bit ARM release engine on
+2026-08-26 from Flutter 3.44.5, and the artifact was inspected rather than
+inferred from a green check:
+
+```
+libflutter_engine.so   ELF 32-bit LSB shared object, ARM, EABI5
+gen_snapshot           ELF 64-bit LSB pie executable, x86-64
+Tag_CPU_arch: v7   Tag_FP_arch: VFPv3-D16   Tag_ABI_VFP_args: VFP registers
+```
+
+`gen_snapshot` being x86-64 is correct and not an oversight: it runs on the
+builder and emits code for the target, so a cross build produces a host
+snapshotter beside a target engine. `Tag_ABI_VFP_args: VFP registers` is the
+hard-float ABI, which is what makes the `arm_float_abi` argument above
+load-bearing rather than cosmetic. `nm -D` finds `FlutterEngineRun` and its
+neighbours, so it is a Custom Embedder API engine of the same shape as LG's.
+
+**Two more walls fell after the ones above, and the second undid the first.**
+The link stage wanted `libclang_rt.builtins.a`, then `-lc++` and `-lunwind`,
+and each looked like a separate missing package — an armhf libgcc was
+substituted for the builtins, and a two-pass ninja staged libc++ into the
+toolchain. Both were solving a problem that did not exist. clang resolves all
+three by triple, and the directory it ships is
+`armv7-unknown-linux-gnueabihf`; the requested `arm-unknown-linux-gnueabihf`
+does not exist, so nothing inside it did either. One string. The workarounds
+were deleted and the triple is now asserted against clang's own runtime
+directories before a build starts, so a wrong one fails in two seconds with
+the sixteen that do exist printed.
+
+The last of them was smaller: a bare `ninja` builds the default target group,
+which for a Linux cross build is the GTK shell. It linked
+`libflutter_linux_gtk.so`, never touched `libflutter_engine.so`, and reported
+success. The build names the artifacts it collects now.
+
+**What is not established.** The engine has never run on a television. Being
+the right architecture, ABI and API shape is necessary and is not the same as
+working, and there is no webOS device here to settle it. The next step is a
+bundle — the eLinux assembly path applies, since LG's runner template is
+Sony's — and then `ares-install` against a real set or the emulator.
 
 **webOS was checked the same way and is not out of the group.** LG publishes
 artifacts at `lg-flutter-webos/artifacts`, and the newest release is recent —
