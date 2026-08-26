@@ -27,12 +27,16 @@ enum EngineArch {
   /// sysroot" before it compiles a file. The sysroot itself exists --
   /// `sysroots.json` lists `bullseye_armhf` -- so the answer is to name it,
   /// not to patch the engine.
-  arm('arm', debianName: 'armhf', gnDefinesSysroot: false);
+  arm('arm',
+      debianName: 'armhf',
+      gnDefinesSysroot: false,
+      triple: 'arm-linux-gnueabihf');
 
   const EngineArch(
     this.gnName, {
     required this.debianName,
     required this.gnDefinesSysroot,
+    this.triple,
   });
 
   /// What `tools/gn` calls this under `--linux-cpu`.
@@ -45,7 +49,25 @@ enum EngineArch {
 
   /// Whether `sysroot.gni` picks a sysroot for this cpu on its own.
   final bool gnDefinesSysroot;
+
+  /// The target triple, for architectures the stock Linux toolchains do not
+  /// configure. Null means gn sets the triple itself.
+  ///
+  /// `build/config/compiler/BUILD.gn` emits `-march`, `-mfloat-abi`, `-mfpu`
+  /// and `-mthumb` for `current_cpu == "arm"`, and its Linux target-triple
+  /// block covers arm64 only. clang is handed ARM flags while still targeting
+  /// the host and rejects them.
+  final String? triple;
 }
+
+/// What `build/toolchain/custom/BUILD.gn` expects to find beside clang, and
+/// the name the engine's own LLVM build ships it under.
+const Map<String, String> _binutils = <String, String>{
+  'ar': 'llvm-ar',
+  'readelf': 'llvm-readelf',
+  'nm': 'llvm-nm',
+  'strip': 'llvm-strip',
+};
 
 /// Which engine flavour to build.
 enum EngineMode {
@@ -84,6 +106,9 @@ class EngineBuildPlan {
     required this.gnArgs,
     required this.sysrootArch,
     required this.targetSysrootPath,
+    required this.targetTriple,
+    required this.toolchainLinks,
+    required this.extraGnArgs,
     required this.expectedEngineMachine,
     required this.expectedGenSnapshotMachine,
     required this.enginePath,
@@ -111,6 +136,20 @@ class EngineBuildPlan {
   /// The sysroot to name in `--target-sysroot`, relative to `engine/src`, or
   /// null when gn picks one itself. Only 32-bit arm needs this.
   final String? targetSysrootPath;
+
+  /// The triple to build for, or null when gn configures a toolchain for this
+  /// architecture itself.
+  final String? targetTriple;
+
+  /// Whether this goes through `build/toolchain/custom`.
+  bool get usesCustomToolchain => targetTriple != null;
+
+  /// The toolchain directory to assemble, as link name to the engine binary it
+  /// points at. Empty for a stock build.
+  final Map<String, String> toolchainLinks;
+
+  /// gn args that have no dedicated `tools/gn` switch.
+  final List<String> extraGnArgs;
 
   /// What `libflutter_engine.so` must be for this build to have worked.
   final ElfMachine expectedEngineMachine;
@@ -183,6 +222,7 @@ EngineBuildPlan engineBuildPlan({
   required EngineArch arch,
   required EngineMode mode,
   String? srcRoot,
+  String? toolchainRoot,
 }) {
   final isHost = arch == hostArch;
   if (isHost) {
@@ -195,6 +235,9 @@ EngineBuildPlan engineBuildPlan({
       gnArgs: const <String>[],
       sysrootArch: null,
       targetSysrootPath: null,
+      targetTriple: null,
+      toolchainLinks: const <String, String>{},
+      extraGnArgs: const <String>[],
       expectedEngineMachine: _machineForArch[arch]!,
       expectedGenSnapshotMachine: _machineForArch[hostArch]!,
       enginePath: '$out/libflutter_engine.so',
@@ -226,11 +269,29 @@ EngineBuildPlan engineBuildPlan({
       '--linux-cpu',
       arch.gnName,
       if (sysrootPath != null) ...<String>['--target-sysroot', sysrootPath],
+      if (arch.triple != null && toolchainRoot != null)
+        ...<String>['--target-toolchain', toolchainRoot],
+      if (arch.triple != null) ...<String>['--target-triple', arch.triple!],
       '--no-goma',
       '--no-prebuilt-dart-sdk',
     ],
     sysrootArch: arch.gnName,
     targetSysrootPath: relativeSysroot,
+    targetTriple: arch.triple,
+    toolchainLinks: arch.triple == null
+        ? const <String, String>{}
+        : <String, String>{
+            'clang': 'clang',
+            'clang++': 'clang++',
+            for (final MapEntry<String, String> tool in _binutils.entries)
+              '${arch.triple}-${tool.key}': tool.value,
+          },
+    // The armhf sysroot is hard-float; arm.gni defaults armv7 to softfp, a
+    // different calling convention. Mixing them links and then passes floats
+    // in the wrong registers, so nothing fails until the device runs it.
+    extraGnArgs: arch == EngineArch.arm
+        ? const <String>['arm_float_abi="hard"']
+        : const <String>[],
     expectedEngineMachine: _machineForArch[arch]!,
     // Runs on the builder, emits for the target.
     expectedGenSnapshotMachine: _machineForArch[hostArch]!,
@@ -238,3 +299,11 @@ EngineBuildPlan engineBuildPlan({
     genSnapshotPath: '$out/clang_x64/gen_snapshot',
   );
 }
+
+/// Render gn args for a bash command line.
+///
+/// gn needs `arm_float_abi="hard"` with the quotes: without them it reads
+/// `hard` as an identifier and stops. Bash strips an unprotected pair, so the
+/// whole argument is wrapped in single quotes.
+String shellRenderGnArgs(List<String> args) =>
+    args.map((String a) => "--gn-args '$a'").join(' ');

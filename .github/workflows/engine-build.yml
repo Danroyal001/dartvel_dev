@@ -134,11 +134,15 @@ jobs:
           set -euo pipefail
           dart pub get --directory dartvel/packages/dartvel_cli
           SRC="$GITHUB_WORKSPACE/engine-root/engine/src"
+          TC="$GITHUB_WORKSPACE/arm-toolchain"
           dart run dartvel/packages/dartvel_cli/bin/dartvel.dart engine plan \
-            --arch "${{ inputs.arch }}" --mode "${{ inputs.mode }}" --src-root "$SRC"
+            --arch "${{ inputs.arch }}" --mode "${{ inputs.mode }}" \
+            --src-root "$SRC" --toolchain-root "$TC"
           dart run dartvel/packages/dartvel_cli/bin/dartvel.dart engine plan \
-            --arch "${{ inputs.arch }}" --mode "${{ inputs.mode }}" --src-root "$SRC" \
+            --arch "${{ inputs.arch }}" --mode "${{ inputs.mode }}" \
+            --src-root "$SRC" --toolchain-root "$TC" \
             --github-output >> "$GITHUB_OUTPUT"
+          echo "toolchain-root=$TC" >> "$GITHUB_OUTPUT"
 
       # A cross build needs the target's sysroot, and the gclient hooks fetch
       # only the host's. Without this the build fails deep in a link step with
@@ -151,6 +155,23 @@ jobs:
           python3 build/linux/sysroot_scripts/install-sysroot.py \
             --arch="${{ steps.plan.outputs.sysroot-arch }}"
 
+      # build/toolchain/custom looks for ${triple}-ar, -readelf, -nm and
+      # -strip beside clang. The engine ships them as llvm-ar and friends, so
+      # the directory is a set of links rather than a download -- the LLVM
+      # tools are target-agnostic and handle ARM objects as they are.
+      - name: Assemble the custom toolchain
+        if: steps.plan.outputs.toolchain-links != ''
+        run: |
+          set -euo pipefail
+          BIN="$GITHUB_WORKSPACE/engine-root/engine/src/flutter/buildtools/linux-x64/clang/bin"
+          TC="${{ steps.plan.outputs.toolchain-root }}"
+          mkdir -p "$TC/bin" "$TC/lib"
+          for pair in ${{ steps.plan.outputs.toolchain-links }}; do
+            ln -sf "$BIN/${pair#*:}" "$TC/bin/${pair%%:*}"
+          done
+          ls -l "$TC/bin"
+          "$TC/bin/clang" --version | head -1
+
       # Not continue-on-error. A build that fails should fail the job: the
       # step after it only checks the file is non-empty, which a stale output
       # directory from a previous configure can satisfy.
@@ -162,7 +183,8 @@ jobs:
           if [ "${{ steps.plan.outputs.uses-host-config }}" = "true" ]; then
             (cd flutter && ./bin/et build -c "${{ steps.plan.outputs.et-config }}") 2>&1 | tail -40
           else
-            ./flutter/tools/gn ${{ steps.plan.outputs.gn-args }} 2>&1 | tail -20
+            ./flutter/tools/gn ${{ steps.plan.outputs.gn-args }} \
+              ${{ steps.plan.outputs.extra-gn-args }} 2>&1 | tail -20
             ninja -C "${{ steps.plan.outputs.out-dir }}" 2>&1 | tail -40
           fi
           ls -la "${{ steps.plan.outputs.out-dir }}" | head -20
