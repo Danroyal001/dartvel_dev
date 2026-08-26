@@ -20,7 +20,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('capability list', () {
-    test('it claims clipboard and haptics', () {
+    test('it claims clipboard, haptics and sharing', () {
       expect(
         DVAndroidBindings.implemented,
         <String>{
@@ -29,6 +29,7 @@ void main() {
           'haptics.vibrate',
           'haptics.lightVibrate',
           'haptics.impact',
+          'share.text',
         },
       );
     });
@@ -59,6 +60,36 @@ void main() {
       if (Platform.isAndroid) return;
       expect(DVAndroidBindings.register(), isFalse);
       expect(DVAndroidBindings.isRegistered, isFalse);
+    });
+  });
+
+  // share.text needs no Activity. Intent.ACTION_SEND started from the
+  // application Context works as long as FLAG_ACTIVITY_NEW_TASK is set --
+  // without it Android throws "Calling startActivity() from outside of an
+  // Activity context requires the FLAG_ACTIVITY_NEW_TASK flag", at run time,
+  // on the device, with nothing to catch it earlier.
+  group('sharing text', () {
+    test('it is a claimed binding', () {
+      expect(DVAndroidBindings.implemented, contains('share.text'));
+    });
+
+    test('the share intent carries the new-task flag', () {
+      // 0x10000000 is FLAG_ACTIVITY_NEW_TASK. Hard-coded because the
+      // generated Intent bindings expose it as a static field whose value is
+      // fixed by the platform, and a wrong value here throws only on device.
+      expect(dvAndroidShareIntentFlags & 0x10000000, 0x10000000);
+    });
+
+    test('the chooser is used rather than a bare intent', () {
+      // A bare ACTION_SEND resolves to whatever the user last picked, or to
+      // nothing at all if no default is set. The chooser always resolves.
+      expect(dvAndroidShareUsesChooser, isTrue);
+    });
+
+    test('the payload is typed as plain text', () {
+      // An intent with no type is delivered to nothing: resolution matches on
+      // action and MIME type together.
+      expect(dvAndroidShareMimeType, 'text/plain');
     });
   });
 }
