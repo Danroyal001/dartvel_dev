@@ -9,6 +9,7 @@ import 'package:path/path.dart' as p;
 import 'generated/bindings.dart' as gen; // produced by ffigen via build hook
 import 'wintercg.dart';
 import 'router.dart';
+import 'ffi_string.dart';
 import 'header_codec.dart';
 import 'ssr_helper.dart';
 import 'package:ffi/ffi.dart' as pkgffi;
@@ -274,8 +275,8 @@ Future<ServerHandle> serve(
   _configureCompression(api, compression);
 
   if (tls != null) {
-    final certBytes = Uint8List.fromList(tls.certPem.codeUnits);
-    final keyBytes = Uint8List.fromList(tls.keyPem.codeUnits);
+    final certBytes = dvFfiBytes(tls.certPem);
+    final keyBytes = dvFfiBytes(tls.keyPem);
 
     final certPtr = pkgffi.malloc<ffi.Uint8>(certBytes.length)
       ..asTypedList(certBytes.length).setAll(0, certBytes);
@@ -302,7 +303,7 @@ Future<ServerHandle> serve(
     if (rcTls != 0) throw StateError('TLS config failed (code=$rcTls)');
   }
 
-  final hostBytes = Uint8List.fromList(host.codeUnits);
+  final hostBytes = dvFfiBytes(host);
   final hostPtr = pkgffi.malloc<ffi.Uint8>(hostBytes.length)
     ..asTypedList(hostBytes.length).setAll(0, hostBytes);
   final hostFfiPtr = pkgffi.calloc<gen.FfiStr>();
@@ -339,7 +340,7 @@ Future<ServerHandle> serve(
 
 void _configureCors(gen.DartvelShelfBindings api, CorsOptions? cors) {
   final json = cors?.toJsonString() ?? '';
-  final bytes = Uint8List.fromList(json.codeUnits);
+  final bytes = dvFfiBytes(json);
   final strPtr = pkgffi.calloc<gen.FfiStr>();
   ffi.Pointer<ffi.Uint8>? dataPtr;
   if (bytes.isEmpty) {
@@ -368,7 +369,7 @@ void _configureCors(gen.DartvelShelfBindings api, CorsOptions? cors) {
 
 void _configureStatic(gen.DartvelShelfBindings api, String? staticDir) {
   final path = staticDir ?? '';
-  final bytes = Uint8List.fromList(path.codeUnits);
+  final bytes = dvFfiBytes(path);
   final strPtr = pkgffi.calloc<gen.FfiStr>();
   ffi.Pointer<ffi.Uint8>? dataPtr;
 
@@ -398,7 +399,7 @@ void _configureStatic(gen.DartvelShelfBindings api, String? staticDir) {
 
 void _configureSpaRoot(gen.DartvelShelfBindings api, String? spaRoot) {
   final path = spaRoot ?? '';
-  final bytes = Uint8List.fromList(path.codeUnits);
+  final bytes = dvFfiBytes(path);
   final strPtr = pkgffi.calloc<gen.FfiStr>();
   ffi.Pointer<ffi.Uint8>? dataPtr;
 

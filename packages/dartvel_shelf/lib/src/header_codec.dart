@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 Map<String, List<String>> decodeHeaders(Uint8List flat) {
@@ -6,11 +7,15 @@ Map<String, List<String>> decodeHeaders(Uint8List flat) {
   while (i < flat.length) {
     final ke = flat.indexOf(0, i);
     if (ke < 0) break;
-    final key = String.fromCharCodes(flat.sublist(i, ke)).toLowerCase();
+    // Decoded as UTF-8 to match the way they are written. fromCharCodes
+    // reads each byte as a code point, which turns a two-byte sequence into
+    // two wrong characters.
+    final key = utf8.decode(flat.sublist(i, ke), allowMalformed: true)
+        .toLowerCase();
     i = ke + 1;
     final ve = flat.indexOf(0, i);
     if (ve < 0) break;
-    final val = String.fromCharCodes(flat.sublist(i, ve));
+    final val = utf8.decode(flat.sublist(i, ve), allowMalformed: true);
     i = ve + 1;
     (out[key] ??= <String>[]).add(val);
   }
@@ -21,9 +26,9 @@ Uint8List encodeHeaders(Map<String, List<String>> headers) {
   final b = BytesBuilder();
   headers.forEach((k, vs) {
     for (final v in vs) {
-      b.add(k.codeUnits);
+      b.add(utf8.encode(k));
       b.addByte(0);
-      b.add(v.codeUnits);
+      b.add(utf8.encode(v));
       b.addByte(0);
     }
   });
