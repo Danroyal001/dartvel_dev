@@ -27,6 +27,7 @@ import 'android_capabilities.dart';
 import 'generated/android/content/ClipData.dart';
 import 'generated/android/content/ClipboardManager.dart';
 import 'generated/android/content/Context.dart';
+import 'generated/android/content/Intent.dart';
 import 'generated/android/os/VibrationEffect.dart';
 import 'generated/android/os/Vibrator.dart';
 import 'generated/java/lang/CharSequence.dart';
@@ -73,6 +74,13 @@ class DVAndroidBindings {
       final map = arguments is Map ? arguments : const <Object?, Object?>{};
       final duration = map['duration'];
       return _vibrate(duration is int ? duration : 25);
+    });
+
+    DVNativeBridge.register('share.text', (Object? arguments) {
+      final map = arguments is Map ? arguments : const <Object?, Object?>{};
+      final text = '${map['text'] ?? ''}';
+      if (text.isEmpty) return false;
+      return _shareText(text, '${map['title'] ?? 'Share'}');
     });
 
     _registered = true;
@@ -170,6 +178,44 @@ class DVAndroidBindings {
     // positional across Java's five vibrate() signatures, so the number
     // matters and is not guessable.
     service.as(Vibrator.type).vibrate$4(effect);
+    return true;
+  }
+
+  /// Hand text to whatever the user picks to receive it.
+  ///
+  /// Three details decide whether this works, and each of them fails only on
+  /// a device:
+  ///
+  ///   * The flags. Starting an activity from the application `Context`
+  ///     rather than from an `Activity` throws without
+  ///     `FLAG_ACTIVITY_NEW_TASK`.
+  ///   * The chooser. A bare `ACTION_SEND` goes to whatever the user last
+  ///     picked, or nowhere at all when no default is set. `createChooser`
+  ///     always resolves, and the flags go on the chooser rather than on the
+  ///     inner intent — it is the one being started.
+  ///   * The type. Intent resolution matches on the action and the MIME type
+  ///     together, so an untyped intent is delivered to nothing.
+  static bool _shareText(String text, String title) {
+    final context = _context;
+    if (context == null) return false;
+
+    final send = Intent.new$2(Intent.ACTION_SEND);
+    send.setType(dvAndroidShareMimeType.toJString());
+    // putExtra is overloaded five ways over primitives before it reaches
+    // (String, String); the suffix counts positions in the Java class, not
+    // anything about the types.
+    send.putExtra$8(Intent.EXTRA_TEXT, text.toJString());
+
+    // createChooser takes a CharSequence, and the cast has to name that type
+    // rather than JObject or the generic does not line up.
+    final chooser = Intent.createChooser(
+      send,
+      title.toJString().as(CharSequence.type),
+    );
+    if (chooser == null) return false;
+    chooser.addFlags(dvAndroidShareIntentFlags);
+
+    context.startActivity(chooser);
     return true;
   }
 }
