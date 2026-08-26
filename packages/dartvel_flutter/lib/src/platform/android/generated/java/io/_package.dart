@@ -3,3 +3,4 @@ export 'File.dart';
 export 'FileInputStream.dart';
 export 'FileOutputStream.dart';
 export 'InputStream.dart';
+export 'Serializable.dart';
