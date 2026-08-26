@@ -83,7 +83,13 @@ class _PlanCommand extends Command<void> {
       arch: _parseArch(argResults!['arch'] as String),
       mode: _parseMode(argResults!['mode'] as String),
       srcRoot: argResults!['src-root'] as String?,
-      toolchainRoot: argResults!['toolchain-root'] as String?,
+      // The toolchain has to be the engine's own clang directory; see
+      // engineClangDirectory. An override stays available for a checkout
+      // laid out differently.
+      toolchainRoot: (argResults!['toolchain-root'] as String?) ??
+          ((argResults!['src-root'] as String?) == null
+              ? null
+              : engineClangDirectory(argResults!['src-root'] as String)),
     );
 
     if (argResults!['github-output'] as bool) {
@@ -97,6 +103,7 @@ class _PlanCommand extends Command<void> {
         ..writeln('et-config=host_${plan.mode.name}')
         ..writeln('target-triple=${plan.targetTriple ?? ''}')
         ..writeln('extra-gn-args=${shellRenderGnArgs(plan.extraGnArgs)}')
+        ..writeln('toolchain-root=${plan.toolchainRoot ?? ''}')
         ..writeln('toolchain-links=${plan.toolchainLinks.entries.map((MapEntry<String, String> e) => '${e.key}:${e.value}').join(' ')}');
       stdout.write(out.toString());
       return;
@@ -110,6 +117,9 @@ class _PlanCommand extends Command<void> {
     Logger.log('  gen_snapshot     ${plan.genSnapshotPath}');
     Logger.log('  sysroot          ${plan.sysrootArch ?? '(host)'}');
     Logger.log('  triple           ${plan.targetTriple ?? '(gn decides)'}');
+    if (plan.usesCustomToolchain) {
+      Logger.log('  toolchain links  ${plan.toolchainLinks.keys.join(', ')}');
+    }
     Logger.log('  expect engine    ${plan.expectedEngineMachine.name}');
     Logger.log('  expect snapshot  ${plan.expectedGenSnapshotMachine.name}');
   }

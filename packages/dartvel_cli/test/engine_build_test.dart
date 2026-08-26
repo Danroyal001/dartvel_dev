@@ -252,8 +252,11 @@ void main() {
         mode: EngineMode.release,
       );
 
-      expect(plan.toolchainLinks, containsPair('clang', 'clang'));
-      expect(plan.toolchainLinks, containsPair('clang++', 'clang++'));
+      // clang and clang++ are deliberately absent: the toolchain root is
+      // their own directory, so linking them would mean `ln -sf bin/clang
+      // bin/clang` -- a symlink onto itself, which destroys the compiler.
+      expect(plan.toolchainLinks.keys, isNot(contains('clang')));
+      expect(plan.toolchainLinks.keys, isNot(contains('clang++')));
       expect(plan.toolchainLinks,
           containsPair('arm-linux-gnueabihf-ar', 'llvm-ar'));
       expect(plan.toolchainLinks,
@@ -302,6 +305,47 @@ void main() {
 
     test('nothing to pass renders as nothing', () {
       expect(shellRenderGnArgs(const <String>[]), isEmpty);
+    });
+  });
+
+  group('where the custom toolchain has to live', () {
+    // A directory of links to clang did not work. clang finds its own
+    // resource headers -- stddef.h among them -- relative to argv[0], and the
+    // engine compiles with -no-canonical-prefixes, so it does not resolve the
+    // symlink first. It looked for stddef.h beside the links and stopped:
+    //
+    //   flutter/third_party/libcxx/include/stddef.h:38:17:
+    //     fatal error: 'stddef.h' file not found
+    //
+    // So the toolchain root is the engine's own clang directory, where bin,
+    // lib and the resource headers already sit together, and only the
+    // triple-prefixed binutils are added to it.
+    test('the toolchain root is the engine clang directory', () {
+      expect(
+        engineClangDirectory('/w/engine-root/engine/src'),
+        '/w/engine-root/engine/src/flutter/buildtools/linux-x64/clang',
+      );
+    });
+
+    test('a trailing separator does not double up', () {
+      expect(
+        engineClangDirectory('/src/'),
+        '/src/flutter/buildtools/linux-x64/clang',
+      );
+    });
+
+    // If the links pointed into another directory, clang would again be
+    // invoked from somewhere without its resource headers.
+    test('every link resolves within the toolchain root', () {
+      final plan = engineBuildPlan(
+        arch: EngineArch.arm,
+        mode: EngineMode.release,
+      );
+
+      for (final MapEntry<String, String> link in plan.toolchainLinks.entries) {
+        expect(link.value, isNot(contains('/')),
+            reason: '${link.key} points outside the toolchain directory');
+      }
     });
   });
 }

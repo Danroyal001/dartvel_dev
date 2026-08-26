@@ -107,6 +107,7 @@ class EngineBuildPlan {
     required this.sysrootArch,
     required this.targetSysrootPath,
     required this.targetTriple,
+    required this.toolchainRoot,
     required this.toolchainLinks,
     required this.extraGnArgs,
     required this.expectedEngineMachine,
@@ -144,8 +145,11 @@ class EngineBuildPlan {
   /// Whether this goes through `build/toolchain/custom`.
   bool get usesCustomToolchain => targetTriple != null;
 
-  /// The toolchain directory to assemble, as link name to the engine binary it
-  /// points at. Empty for a stock build.
+  /// Where the custom toolchain lives, or null when none is used.
+  final String? toolchainRoot;
+
+  /// The links to add to [toolchainRoot], as link name to the binary beside it
+  /// that it points at. Empty for a stock build.
   final Map<String, String> toolchainLinks;
 
   /// gn args that have no dedicated `tools/gn` switch.
@@ -236,6 +240,7 @@ EngineBuildPlan engineBuildPlan({
       sysrootArch: null,
       targetSysrootPath: null,
       targetTriple: null,
+      toolchainRoot: null,
       toolchainLinks: const <String, String>{},
       extraGnArgs: const <String>[],
       expectedEngineMachine: _machineForArch[arch]!,
@@ -278,11 +283,12 @@ EngineBuildPlan engineBuildPlan({
     sysrootArch: arch.gnName,
     targetSysrootPath: relativeSysroot,
     targetTriple: arch.triple,
+    toolchainRoot: arch.triple == null ? null : toolchainRoot,
     toolchainLinks: arch.triple == null
         ? const <String, String>{}
         : <String, String>{
-            'clang': 'clang',
-            'clang++': 'clang++',
+            // Not clang or clang++: the toolchain root is their directory,
+            // so a link would point at itself and destroy the binary.
             for (final MapEntry<String, String> tool in _binutils.entries)
               '${arch.triple}-${tool.key}': tool.value,
           },
@@ -307,3 +313,14 @@ EngineBuildPlan engineBuildPlan({
 /// whole argument is wrapped in single quotes.
 String shellRenderGnArgs(List<String> args) =>
     args.map((String a) => "--gn-args '$a'").join(' ');
+
+/// The engine's bundled clang, which is also where a custom toolchain has to
+/// be rooted.
+///
+/// clang locates its resource headers relative to `argv[0]`, and the engine
+/// compiles with `-no-canonical-prefixes`, so it does not resolve a symlink
+/// first. A separate directory of links to clang leaves it looking for
+/// `stddef.h` beside the links, where there is none.
+String engineClangDirectory(String srcRoot) =>
+    '${srcRoot.replaceAll(RegExp(r'/+$'), '')}'
+    '/flutter/buildtools/linux-x64/clang';
