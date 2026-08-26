@@ -149,34 +149,8 @@ class DVWebPushVapid {
 
   /// ES256 over [message]: a raw r||s pair, not the DER encoding a general
   /// ECDSA signer emits — JWS specifies the fixed-width concatenation.
-  static Uint8List _sign(List<int> message, Uint8List privateKey) {
-    final domain = ECDomainParameters('prime256v1');
-    // Deterministic k, per RFC 6979: a repeated or predictable k leaks the
-    // private key, and this removes the entropy source from that risk.
-    final signer = ECDSASigner(SHA256Digest(), HMac(SHA256Digest(), 64))
-      ..init(
-        true,
-        PrivateKeyParameter<ECPrivateKey>(
-          ECPrivateKey(_toBigInt(privateKey), domain),
-        ),
-      );
-    final signature =
-        signer.generateSignature(Uint8List.fromList(message)) as ECSignature;
-    return Uint8List.fromList(<int>[
-      ..._fixedWidth(signature.r, 32),
-      ..._fixedWidth(signature.s, 32),
-    ]);
-  }
-
-  static Uint8List _fixedWidth(BigInt value, int length) {
-    final bytes = Uint8List(length);
-    var remaining = value;
-    for (var i = length - 1; i >= 0; i--) {
-      bytes[i] = (remaining & BigInt.from(0xff)).toInt();
-      remaining = remaining >> 8;
-    }
-    return bytes;
-  }
+  static Uint8List _sign(List<int> message, Uint8List privateKey) =>
+      dvWebPushSignEs256(message, privateKey);
 
   static BigInt _toBigInt(List<int> bytes) {
     var result = BigInt.zero;
@@ -185,4 +159,60 @@ class DVWebPushVapid {
     }
     return result;
   }
+}
+
+/// ES256 over [message] with a P-256 [privateKey], as JWS wants it.
+///
+/// A raw, fixed-width `r||s` pair of 64 bytes — not the DER encoding a general
+/// ECDSA signer emits. DER trims leading zero bytes and wraps the pair in a
+/// sequence, so a DER signature is both a different length and a different
+/// shape, and every push service answers one with a 401.
+///
+/// k is derived from the key and the message per RFC 6979 rather than drawn
+/// from an entropy source. That is a security property first: a repeated or
+/// predictable k leaks the private key, and ECDSA has lost keys that way. It
+/// makes the output reproducible second, which is what lets the signature be
+/// pinned to RFC 6979's published vectors instead of only round-tripped
+/// through this library's own verifier.
+///
+/// Public because it is the security-critical primitive under VAPID and is
+/// worth asserting on directly.
+Uint8List dvWebPushSignEs256(List<int> message, Uint8List privateKey) {
+  final domain = ECDomainParameters('prime256v1');
+  final signer = ECDSASigner(SHA256Digest(), HMac(SHA256Digest(), 64))
+    ..init(
+      true,
+      PrivateKeyParameter<ECPrivateKey>(
+        ECPrivateKey(_bigIntFromBytes(privateKey), domain),
+      ),
+    );
+  final signature =
+      signer.generateSignature(Uint8List.fromList(message)) as ECSignature;
+  return Uint8List.fromList(<int>[
+    ..._fixedWidthBytes(signature.r, 32),
+    ..._fixedWidthBytes(signature.s, 32),
+  ]);
+}
+
+/// A big-endian encoding of [value] in exactly [length] bytes.
+///
+/// Left-padded with zeros where the value is short. That padding is the whole
+/// point: RFC 6979's own "test" vector has an s beginning `01`, and an
+/// implementation that emitted the minimal integer would produce 63 bytes.
+Uint8List _fixedWidthBytes(BigInt value, int length) {
+  final bytes = Uint8List(length);
+  var remaining = value;
+  for (var i = length - 1; i >= 0; i--) {
+    bytes[i] = (remaining & BigInt.from(0xff)).toInt();
+    remaining = remaining >> 8;
+  }
+  return bytes;
+}
+
+BigInt _bigIntFromBytes(List<int> bytes) {
+  var result = BigInt.zero;
+  for (final byte in bytes) {
+    result = (result << 8) | BigInt.from(byte);
+  }
+  return result;
 }
