@@ -76,13 +76,13 @@ jobs:
       # continue-on-error so its logs still upload; this is not, so the job
       # goes red when there is no evidence — which is how tvOS went green while
       # failing to build at all.
-      - name: There must be a capture
+      - name: The capture must show the application
         run: |
-          test -s /tmp/diag/linux-gui.png || {
-            echo "::error::linux produced no capture; the run step failed"
-            exit 1
-          }
-          echo "linux capture present: $(stat -c%s /tmp/diag/linux-gui.png) bytes"
+          set -euo pipefail
+          dart pub get --directory "$GITHUB_WORKSPACE/packages/dartvel_cli"
+          dart run "$GITHUB_WORKSPACE/packages/dartvel_cli/bin/dartvel.dart" capture verify \
+            "/tmp/diag/linux-gui.png" --label "linux" \
+            --min-width 320 --min-height 240
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -304,13 +304,16 @@ jobs:
       # continue-on-error so its logs still upload; this is not, so the job
       # goes red when there is no evidence — which is how tvOS went green while
       # failing to build at all.
-      - name: There must be a capture
+      - name: The capture must show the application
         run: |
-          test -s /tmp/diag/elinux.png || {
-            echo "::error::sony-elinux produced no capture; the run step failed"
-            exit 1
-          }
-          echo "sony-elinux capture present: $(stat -c%s /tmp/diag/elinux.png) bytes"
+          set -euo pipefail
+          dart pub get --directory "$GITHUB_WORKSPACE/packages/dartvel_cli"
+          dart run "$GITHUB_WORKSPACE/packages/dartvel_cli/bin/dartvel.dart" capture verify \
+            "/tmp/diag/elinux.png" --label "sony-elinux debug" \
+            --min-width 320 --min-height 240
+          dart run "$GITHUB_WORKSPACE/packages/dartvel_cli/bin/dartvel.dart" capture verify \
+            "/tmp/diag/elinux-release.png" --label "sony-elinux release" \
+            --min-width 320 --min-height 240
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -411,13 +414,27 @@ jobs:
       # continue-on-error so its logs still upload; this is not, so the job
       # goes red when there is no evidence — which is how tvOS went green while
       # failing to build at all.
-      - name: There must be a capture
+      - name: The capture must show a rendered frame
         run: |
-          test -s /tmp/diag/terminal-output.bin || {
+          set -euo pipefail
+          CAP=/tmp/diag/terminal-output.bin
+          test -s "$CAP" || {
             echo "::error::linux-cli produced no capture; the run step failed"
             exit 1
           }
-          echo "linux-cli capture present: $(stat -c%s /tmp/diag/terminal-output.bin) bytes"
+          BYTES=$(stat -c%s "$CAP")
+          # A terminal frame is escape sequences. A process that started
+          # and drew nothing still writes a prompt, so size alone passes.
+          ESC=$(grep -c $'\x1b' "$CAP" || true)
+          echo "linux-cli capture: $BYTES bytes, $ESC lines with escapes"
+          if [ "$ESC" -eq 0 ]; then
+            echo "::error::linux-cli capture has no escape sequences; nothing was drawn"
+            exit 1
+          fi
+          if [ "$BYTES" -lt 512 ]; then
+            echo "::error::linux-cli capture is $BYTES bytes; too small to be a frame"
+            exit 1
+          fi
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -478,13 +495,13 @@ jobs:
       # continue-on-error so its logs still upload; this is not, so the job
       # goes red when there is no evidence — which is how tvOS went green while
       # failing to build at all.
-      - name: There must be a capture
+      - name: The capture must show the application
         run: |
-          test -s /tmp/diag/web.png || {
-            echo "::error::web produced no capture; the run step failed"
-            exit 1
-          }
-          echo "web capture present: $(stat -c%s /tmp/diag/web.png) bytes"
+          set -euo pipefail
+          dart pub get --directory "$GITHUB_WORKSPACE/packages/dartvel_cli"
+          dart run "$GITHUB_WORKSPACE/packages/dartvel_cli/bin/dartvel.dart" capture verify \
+            "/tmp/diag/web.png" --label "web" \
+            --min-width 320 --min-height 240
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -547,13 +564,13 @@ jobs:
       # continue-on-error so its logs still upload; this is not, so the job
       # goes red when there is no evidence — which is how tvOS went green while
       # failing to build at all.
-      - name: There must be a capture
+      - name: The capture must show the application
         run: |
-          test -s /tmp/diag/android.png || {
-            echo "::error::android produced no capture; the run step failed"
-            exit 1
-          }
-          echo "android capture present: $(stat -c%s /tmp/diag/android.png) bytes"
+          set -euo pipefail
+          dart pub get --directory "$GITHUB_WORKSPACE/packages/dartvel_cli"
+          dart run "$GITHUB_WORKSPACE/packages/dartvel_cli/bin/dartvel.dart" capture verify \
+            "/tmp/diag/android.png" --label "android" \
+            --min-width 320 --min-height 240
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -626,13 +643,16 @@ jobs:
       # continue-on-error so its logs still upload; this is not, so the job
       # goes red when there is no evidence — which is how tvOS went green while
       # failing to build at all.
-      - name: There must be a capture
+      - name: The capture must show the application
         run: |
-          test -s /tmp/diag/macos.png || {
-            echo "::error::macos produced no capture; the run step failed"
-            exit 1
-          }
-          echo "macos capture present: $(stat -c%s /tmp/diag/macos.png) bytes"
+          set -euo pipefail
+          dart pub get --directory "$GITHUB_WORKSPACE/packages/dartvel_cli"
+          dart run "$GITHUB_WORKSPACE/packages/dartvel_cli/bin/dartvel.dart" capture verify \
+            "/tmp/diag/macos.png" --label "macos" \
+            --min-width 320 --min-height 240
+          dart run "$GITHUB_WORKSPACE/packages/dartvel_cli/bin/dartvel.dart" capture verify \
+            "/tmp/diag/ios.png" --label "ios" \
+            --min-width 320 --min-height 240
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -677,14 +697,13 @@ jobs:
           "saved $($bounds.Width)x$($bounds.Height)" | Tee-Object -Append -FilePath C:\diag\windows-run.log
 
       # Same rule as the other jobs: no capture is not a pass.
-      - name: There must be a capture
+      - name: The capture must show the application
         shell: pwsh
         run: |
-          if (-not (Test-Path C:\diag\windows.png) -or (Get-Item C:\diag\windows.png).Length -eq 0) {
-            Write-Error "windows produced no capture; the run step failed"
-            exit 1
-          }
-          "windows capture present: $((Get-Item C:\diag\windows.png).Length) bytes"
+          dart pub get --directory "$env:GITHUB_WORKSPACE/packages/dartvel_cli"
+          dart run "$env:GITHUB_WORKSPACE/packages/dartvel_cli/bin/dartvel.dart" capture verify `
+            C:\diag\windows.png --label windows --min-width 320 --min-height 240
+          if ($LASTEXITCODE -ne 0) { exit 1 }
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -759,13 +778,13 @@ jobs:
       # continue-on-error so its logs still upload; this is not, so the job
       # goes red when there is no evidence — which is how tvOS went green while
       # failing to build at all.
-      - name: There must be a capture
+      - name: The capture must show the application
         run: |
-          test -s /tmp/diag/tvos.png || {
-            echo "::error::tvos produced no capture; the run step failed"
-            exit 1
-          }
-          echo "tvos capture present: $(stat -c%s /tmp/diag/tvos.png) bytes"
+          set -euo pipefail
+          dart pub get --directory "$GITHUB_WORKSPACE/packages/dartvel_cli"
+          dart run "$GITHUB_WORKSPACE/packages/dartvel_cli/bin/dartvel.dart" capture verify \
+            "/tmp/diag/tvos.png" --label "tvos" \
+            --min-width 320 --min-height 240
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -956,13 +975,16 @@ jobs:
       # continue-on-error so its logs still upload; this is not, so the job
       # goes red when there is no evidence — which is how tvOS went green while
       # failing to build at all.
-      - name: There must be a capture
+      - name: The capture must show the application
         run: |
-          test -s /tmp/diag/extension.png || {
-            echo "::error::chrome-extension produced no capture; the run step failed"
-            exit 1
-          }
-          echo "chrome-extension capture present: $(stat -c%s /tmp/diag/extension.png) bytes"
+          set -euo pipefail
+          dart pub get --directory "$GITHUB_WORKSPACE/packages/dartvel_cli"
+          dart run "$GITHUB_WORKSPACE/packages/dartvel_cli/bin/dartvel.dart" capture verify \
+            "/tmp/diag/extension.png" --label "chrome-extension popup" \
+            --min-width 320 --min-height 240
+          dart run "$GITHUB_WORKSPACE/packages/dartvel_cli/bin/dartvel.dart" capture verify \
+            "/tmp/diag/extension-page.png" --label "chrome-extension page" \
+            --min-width 320 --min-height 240
 
       - uses: actions/upload-artifact@v4
         if: always()

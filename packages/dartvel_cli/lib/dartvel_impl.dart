@@ -5,6 +5,7 @@ import 'package:args/command_runner.dart';
 import 'src/commands/admin_command.dart';
 import 'src/commands/ai_command.dart';
 import 'src/commands/artifact_command.dart';
+import 'src/commands/capture_command.dart';
 import 'src/commands/engine_command.dart';
 import 'src/commands/build_command.dart';
 import 'src/commands/cache_command.dart';
@@ -40,6 +41,7 @@ Future<void> main(List<String> args) async {
     ..addCommand(RoutesCommand())
     ..addCommand(BuildCommand())
     ..addCommand(ArtifactCommand())
+    ..addCommand(CaptureCommand())
     ..addCommand(EngineCommand())
     ..addCommand(DeployCommand())
     ..addCommand(PreviewCommand())
