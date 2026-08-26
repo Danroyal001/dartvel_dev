@@ -17,16 +17,34 @@ import 'dart:typed_data';
 
 /// An architecture an engine can be built for.
 enum EngineArch {
-  x64('x64'),
-  arm64('arm64'),
+  x64('x64', debianName: 'amd64', gnDefinesSysroot: true),
+  arm64('arm64', debianName: 'arm64', gnDefinesSysroot: true),
 
   /// 32-bit ARM. Here for webOS, and the reason this file is not a constant.
-  arm('arm');
+  ///
+  /// `build/config/sysroot.gni` assigns a default Linux sysroot for x64, arm64
+  /// and riscv64 and nothing else, so gn stops at "Undefined identifier:
+  /// sysroot" before it compiles a file. The sysroot itself exists --
+  /// `sysroots.json` lists `bullseye_armhf` -- so the answer is to name it,
+  /// not to patch the engine.
+  arm('arm', debianName: 'armhf', gnDefinesSysroot: false);
 
-  const EngineArch(this.gnName);
+  const EngineArch(
+    this.gnName, {
+    required this.debianName,
+    required this.gnDefinesSysroot,
+  });
 
   /// What `tools/gn` calls this under `--linux-cpu`.
   final String gnName;
+
+  /// What the sysroot tarball is called. `install-sysroot.py` translates
+  /// `arm` to `armhf` itself; the directory it unpacks to keeps the Debian
+  /// name, which is what gn has to be given.
+  final String debianName;
+
+  /// Whether `sysroot.gni` picks a sysroot for this cpu on its own.
+  final bool gnDefinesSysroot;
 }
 
 /// Which engine flavour to build.
@@ -65,6 +83,7 @@ class EngineBuildPlan {
     required this.outDirectory,
     required this.gnArgs,
     required this.sysrootArch,
+    required this.targetSysrootPath,
     required this.expectedEngineMachine,
     required this.expectedGenSnapshotMachine,
     required this.enginePath,
@@ -88,6 +107,10 @@ class EngineBuildPlan {
   /// The sysroot `install-sysroot.py --arch=` must fetch before a cross build,
   /// or null when the host sysroot suffices.
   final String? sysrootArch;
+
+  /// The sysroot to name in `--target-sysroot`, relative to `engine/src`, or
+  /// null when gn picks one itself. Only 32-bit arm needs this.
+  final String? targetSysrootPath;
 
   /// What `libflutter_engine.so` must be for this build to have worked.
   final ElfMachine expectedEngineMachine;
@@ -159,6 +182,7 @@ const EngineArch hostArch = EngineArch.x64;
 EngineBuildPlan engineBuildPlan({
   required EngineArch arch,
   required EngineMode mode,
+  String? srcRoot,
 }) {
   final isHost = arch == hostArch;
   if (isHost) {
@@ -170,6 +194,7 @@ EngineBuildPlan engineBuildPlan({
       outDirectory: out,
       gnArgs: const <String>[],
       sysrootArch: null,
+      targetSysrootPath: null,
       expectedEngineMachine: _machineForArch[arch]!,
       expectedGenSnapshotMachine: _machineForArch[hostArch]!,
       enginePath: '$out/libflutter_engine.so',
@@ -178,6 +203,16 @@ EngineBuildPlan engineBuildPlan({
   }
 
   final out = 'out/linux_${mode.name}_${arch.gnName}';
+  final relativeSysroot = arch.gnDefinesSysroot
+      ? null
+      : 'build/linux/debian_bullseye_${arch.debianName}-sysroot';
+  // gn resolves a relative path against root_build_dir, which is the output
+  // directory, not the source root. Absolute or not at all.
+  final sysrootPath = relativeSysroot == null
+      ? null
+      : (srcRoot == null
+          ? relativeSysroot
+          : '${srcRoot.replaceAll(RegExp(r'/+$'), '')}/$relativeSysroot');
   return EngineBuildPlan(
     arch: arch,
     mode: mode,
@@ -190,10 +225,12 @@ EngineBuildPlan engineBuildPlan({
       'linux',
       '--linux-cpu',
       arch.gnName,
+      if (sysrootPath != null) ...<String>['--target-sysroot', sysrootPath],
       '--no-goma',
       '--no-prebuilt-dart-sdk',
     ],
     sysrootArch: arch.gnName,
+    targetSysrootPath: relativeSysroot,
     expectedEngineMachine: _machineForArch[arch]!,
     // Runs on the builder, emits for the target.
     expectedGenSnapshotMachine: _machineForArch[hostArch]!,

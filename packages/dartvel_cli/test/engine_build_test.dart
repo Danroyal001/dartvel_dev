@@ -115,4 +115,82 @@ void main() {
       expect(plan.genSnapshotPath, 'out/host_release/gen_snapshot');
     });
   });
+
+  group('the sysroot gn does not define', () {
+    // build/config/sysroot.gni assigns a default Linux sysroot for x64,
+    // arm64 and riscv64 only. For 32-bit arm it assigns nothing, and gn stops
+    // at "Undefined identifier: sysroot" before compiling a file. The sysroot
+    // exists -- sysroots.json lists bullseye_armhf -- so the fix is to name
+    // it rather than to patch the engine.
+    test('32-bit arm must name its sysroot explicitly', () {
+      final plan = engineBuildPlan(
+        arch: EngineArch.arm,
+        mode: EngineMode.release,
+      );
+
+      expect(plan.targetSysrootPath,
+          'build/linux/debian_bullseye_armhf-sysroot');
+      expect(plan.gnArgs, containsAllInOrder(<String>[
+        '--target-sysroot',
+        'build/linux/debian_bullseye_armhf-sysroot',
+      ]));
+    });
+
+    test('arm64 leaves the default alone', () {
+      final plan = engineBuildPlan(
+        arch: EngineArch.arm64,
+        mode: EngineMode.release,
+      );
+
+      expect(plan.targetSysrootPath, isNull);
+      expect(plan.gnArgs, isNot(contains('--target-sysroot')));
+      // Still a cross build on an x86-64 runner, still needs the sysroot
+      // fetched -- just not named, because gn knows where it goes.
+      expect(plan.sysrootArch, 'arm64');
+    });
+
+    test('a host build needs neither', () {
+      final plan = engineBuildPlan(
+        arch: EngineArch.x64,
+        mode: EngineMode.release,
+      );
+
+      expect(plan.targetSysrootPath, isNull);
+      expect(plan.sysrootArch, isNull);
+    });
+  });
+
+  group('naming the sysroot to gn', () {
+    // gn resolves a bare relative path against root_build_dir --
+    // out/linux_release_arm -- not against the source root. The stock
+    // branches avoid this with rebase_path(); a path handed in on the
+    // command line has to be absolute or it points three directories above
+    // where the sysroot is, and the compile fails on missing headers rather
+    // than on a bad argument.
+    test('an absolute sysroot is emitted when the source root is known', () {
+      final plan = engineBuildPlan(
+        arch: EngineArch.arm,
+        mode: EngineMode.release,
+        srcRoot: '/home/runner/work/dartvel/engine-root/engine/src',
+      );
+
+      expect(plan.gnArgs, contains(
+        '/home/runner/work/dartvel/engine-root/engine/src/'
+        'build/linux/debian_bullseye_armhf-sysroot',
+      ));
+      expect(plan.gnArgs, isNot(contains(
+          'build/linux/debian_bullseye_armhf-sysroot')));
+    });
+
+    test('a trailing separator on the source root does not double up', () {
+      final plan = engineBuildPlan(
+        arch: EngineArch.arm,
+        mode: EngineMode.release,
+        srcRoot: '/src/',
+      );
+
+      expect(plan.gnArgs,
+          contains('/src/build/linux/debian_bullseye_armhf-sysroot'));
+    });
+  });
 }
