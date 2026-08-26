@@ -299,8 +299,12 @@ void main() {
         mode: EngineMode.release,
       );
 
+      // Asserting the whole string would pin how many args there are, which
+      // is not what this is about.
       expect(shellRenderGnArgs(plan.extraGnArgs),
-          """--gn-args 'arm_float_abi="hard"'""");
+          contains("""--gn-args 'arm_float_abi="hard"'"""));
+      expect(shellRenderGnArgs(plan.extraGnArgs),
+          contains("""--gn-args 'use_custom_libcxx=true'"""));
     });
 
     test('nothing to pass renders as nothing', () {
@@ -346,6 +350,67 @@ void main() {
         expect(link.value, isNot(contains('/')),
             reason: '${link.key} points outside the toolchain directory');
       }
+    });
+  });
+
+  group('the target runtime libraries', () {
+    // The build compiled every one of its 7060 targets and failed at the
+    // first link:
+    //
+    //   ld.lld: error: unable to find library -lc++
+    //   ld.lld: error: unable to find library -lunwind
+    //   ld.lld: error: cannot open .../clang/23/lib/
+    //           arm-unknown-linux-gnueabihf/libclang_rt.builtins.a
+    //
+    // build/toolchain/custom expects a complete cross toolchain -- one that
+    // ships the target's runtime libraries, as a vendor's does. The engine's
+    // bundled clang is a host toolchain with a sysroot beside it, and Google
+    // builds no arm-unknown-linux-gnueabihf runtime because 32-bit ARM Linux
+    // is not an engine target.
+    test('libc++ is built from source rather than linked from the toolchain', () {
+      final plan = engineBuildPlan(
+        arch: EngineArch.arm,
+        mode: EngineMode.release,
+      );
+
+      // use_custom_libcxx defaults to false, which is what makes the build
+      // pass -lc++ and -lunwind expecting a toolchain to supply them. The
+      // sources are already in the checkout.
+      expect(plan.extraGnArgs, contains('use_custom_libcxx=true'));
+    });
+
+    test('a host build leaves the stock libc++ alone', () {
+      expect(
+        engineBuildPlan(arch: EngineArch.x64, mode: EngineMode.release)
+            .extraGnArgs,
+        isEmpty,
+      );
+    });
+
+    // The compiler builtins are the __aeabi_* helpers clang emits calls to.
+    // libgcc implements the same set -- that substitution is exactly what
+    // --rtlib=libgcc selects -- and Ubuntu ships an armhf libgcc in the
+    // ordinary x86-64 archive as part of the cross compiler, with no
+    // multiarch sources to add.
+    test('the builtins are taken from the armhf cross libgcc', () {
+      final plan = engineBuildPlan(
+        arch: EngineArch.arm,
+        mode: EngineMode.release,
+      );
+
+      expect(plan.builtinsPackage, 'gcc-arm-linux-gnueabihf');
+      expect(plan.builtinsRuntimeSubdir, 'arm-unknown-linux-gnueabihf');
+      expect(plan.builtinsFileName, 'libclang_rt.builtins.a');
+    });
+
+    test('nothing is substituted for an architecture clang covers', () {
+      final plan = engineBuildPlan(
+        arch: EngineArch.x64,
+        mode: EngineMode.release,
+      );
+
+      expect(plan.builtinsPackage, isNull);
+      expect(plan.builtinsRuntimeSubdir, isNull);
     });
   });
 }

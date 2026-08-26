@@ -172,6 +172,33 @@ jobs:
           done
           "$TC/bin/${{ steps.plan.outputs.target-triple }}-ar" --version | head -1
 
+      # build/toolchain/custom expects a complete cross toolchain, one that
+      # ships the target's runtime libraries the way a vendor's does. The
+      # engine's bundled clang is a host toolchain with a sysroot beside it,
+      # and Google builds no arm-unknown-linux-gnueabihf runtime because
+      # 32-bit ARM Linux is not an engine target. Without this the build
+      # compiles all 7060 targets and fails at the first link on a missing
+      # libclang_rt.builtins.a.
+      #
+      # libgcc implements the same __aeabi_* helpers -- the substitution
+      # --rtlib=libgcc makes -- and Ubuntu ships an armhf one in the ordinary
+      # x86-64 archive as part of the cross compiler, so there are no
+      # multiarch sources to add. libc++ and libunwind come from the engine's
+      # own sources instead, via use_custom_libcxx.
+      - name: Provide the target compiler builtins
+        if: steps.plan.outputs.builtins-package != ''
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y -qq "${{ steps.plan.outputs.builtins-package }}"
+          TC="${{ steps.plan.outputs.toolchain-root }}"
+          RESOURCE=$("$TC/bin/clang" -print-resource-dir)
+          DEST="$RESOURCE/lib/${{ steps.plan.outputs.builtins-subdir }}"
+          mkdir -p "$DEST"
+          LIBGCC=$(find /usr/lib/gcc-cross/arm-linux-gnueabihf -name libgcc.a | head -1)
+          test -n "$LIBGCC"
+          cp "$LIBGCC" "$DEST/${{ steps.plan.outputs.builtins-file }}"
+          ls -l "$DEST"
+
       # Not continue-on-error. A build that fails should fail the job: the
       # step after it only checks the file is non-empty, which a stale output
       # directory from a previous configure can satisfy.
