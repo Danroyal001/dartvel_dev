@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 import '../build/browser_extension.dart';
 import '../build/elinux_bundle.dart';
+import '../build/pwa_manifest.dart';
 import '../utils/build_runner.dart';
 import '../utils/logger.dart';
 import '../utils/toolchain.dart';
@@ -722,6 +723,9 @@ class BuildCommand extends Command<void> {
     if (exitCode == null) return _PlatformBuildResult.failed;
 
     if (exitCode == 0) {
+      if (platform == 'web') {
+        _writePwaManifest(Directory.current.path);
+      }
       Logger.log('✅ $platform build successful');
       return _PlatformBuildResult.succeeded;
     } else {
@@ -1147,6 +1151,70 @@ class BuildCommand extends Command<void> {
 
     Logger.log('✅ vscode extension build successful');
     return _PlatformBuildResult.succeeded;
+  }
+
+  /// Write the PWA manifest into a finished web build.
+  ///
+  /// `dartvel.pwa.enabled` was read out of pubspec.yaml and emitted as a
+  /// generated constant for a long time with nothing consuming it. This is
+  /// what consumes it.
+  ///
+  /// Installability problems are printed rather than failing the build: a
+  /// manifest no browser will install is still a web app that runs, and a
+  /// build that refuses to finish over an icon size would be worse than the
+  /// warning.
+  void _writePwaManifest(String root) {
+    final pwa = _dartvelSection(root)['pwa'];
+    final settings = pwa is Map ? pwa : const <Object?, Object?>{};
+    if (settings['enabled'] == false) return;
+
+    final name = '${settings['name'] ?? _packageName(root) ?? 'Dartvel App'}';
+    final result = dvPwaWrite(
+      webBuildDir: p.join(root, 'build', 'web'),
+      manifest: dvPwaManifest(
+        name: name,
+        shortName: settings['shortName'] as String?,
+        display: '${settings['display'] ?? 'standalone'}',
+        themeColor: '${settings['themeColor'] ?? '#000000'}',
+        backgroundColor: '${settings['backgroundColor'] ?? '#FFFFFF'}',
+        description: settings['description'] as String?,
+      ),
+    );
+
+    if (!result.wrote) {
+      Logger.log('   PWA manifest not written: ${result.problems.join(' ')}');
+      return;
+    }
+    Logger.log('   PWA manifest written for "$name"'
+        '${result.linked ? ' and linked from index.html' : ''}.');
+    for (final problem in result.problems) {
+      Logger.log('   ⚠ $problem');
+    }
+  }
+
+  /// The `dartvel:` section of pubspec.yaml, or an empty map.
+  Map<Object?, Object?> _dartvelSection(String root) {
+    final file = File(p.join(root, 'pubspec.yaml'));
+    if (!file.existsSync()) return const <Object?, Object?>{};
+    try {
+      final doc = loadYaml(file.readAsStringSync());
+      final section = doc is Map ? doc['dartvel'] : null;
+      return section is Map ? section : const <Object?, Object?>{};
+    } on Object {
+      return const <Object?, Object?>{};
+    }
+  }
+
+  String? _packageName(String root) {
+    final file = File(p.join(root, 'pubspec.yaml'));
+    if (!file.existsSync()) return null;
+    try {
+      final doc = loadYaml(file.readAsStringSync());
+      final name = doc is Map ? doc['name'] : null;
+      return name is String ? name : null;
+    } on Object {
+      return null;
+    }
   }
 
   /// Waits for [proc], killing it if it stops making progress.
