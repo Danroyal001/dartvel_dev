@@ -553,8 +553,11 @@
     {
       "section": "Web Server Rendering",
       "stability": "Draft",
-      "status": "Designed",
-      "evidence": []
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_shelf/test/ssr_fallback_test.dart"
+      ],
+      "absent": "nothing renders Flutter to HTML on the server. What exists is the fallback that serves the SPA index with prerendered title and semantic content injected into it, which is the SEO half rather than server rendering; a crawler gets markup, a user still waits for the bundle"
     },
     {
       "section": "Embedded, Television, and Extension Build Targets",
