@@ -195,6 +195,18 @@ class EngineBuildPlan {
   String? get builtinsFileName =>
       builtinsPackage == null ? null : 'libclang_rt.builtins.a';
 
+  /// The artifacts to ask ninja for, relative to [outDirectory].
+  ///
+  /// A bare `ninja` builds the default target group, which for a Linux cross
+  /// build is the GTK shell: it links `libflutter_linux_gtk.so` and never
+  /// touches `libflutter_engine.so`, the Custom Embedder API library the
+  /// embedders actually link. Naming them means the build asks for what it is
+  /// going to collect.
+  List<String> get ninjaTargets => <String>[
+        for (final String path in <String>[enginePath, genSnapshotPath])
+          path.substring(outDirectory.length + 1),
+      ];
+
   /// The directory under clang's resource directory that must already hold
   /// this target's runtime libraries, or null when the host's will do.
   ///

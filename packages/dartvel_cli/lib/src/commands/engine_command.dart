@@ -104,6 +104,7 @@ class _PlanCommand extends Command<void> {
         ..writeln('target-triple=${plan.targetTriple ?? ''}')
         ..writeln('extra-gn-args=${shellRenderGnArgs(plan.extraGnArgs)}')
         ..writeln('toolchain-root=${plan.toolchainRoot ?? ''}')
+        ..writeln('ninja-targets=${plan.ninjaTargets.join(' ')}')
         ..writeln('runtime-dir=${plan.requiredRuntimeDirectory ?? ''}')
         ..writeln('builtins-package=${plan.builtinsPackage ?? ''}')
         ..writeln('builtins-subdir=${plan.builtinsRuntimeSubdir ?? ''}')

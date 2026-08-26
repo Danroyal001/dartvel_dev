@@ -390,4 +390,53 @@ void main() {
       );
     });
   });
+
+  group('asking for the artifacts', () {
+    // A bare `ninja` builds the default target group, and for a Linux cross
+    // build that group is the GTK shell. It linked libflutter_linux_gtk.so
+    // and libimpeller.so and never touched libflutter_engine.so, which is
+    // the Custom Embedder API library every embedder here actually links --
+    // so the build reported success and the collect step found nothing.
+    //
+    // The build asks for what it is going to collect.
+    test('the targets are the artifacts, relative to the output directory', () {
+      final plan = engineBuildPlan(
+        arch: EngineArch.arm,
+        mode: EngineMode.release,
+      );
+
+      expect(plan.ninjaTargets, <String>[
+        'libflutter_engine.so',
+        'clang_x64/gen_snapshot',
+      ]);
+    });
+
+    test('each target strips the output directory the paths carry', () {
+      final plan = engineBuildPlan(
+        arch: EngineArch.arm,
+        mode: EngineMode.release,
+      );
+
+      // ninja is invoked with -C "$OUT", so a target still carrying
+      // out/linux_release_arm/ would resolve one level too deep.
+      for (final String target in plan.ninjaTargets) {
+        expect(target, isNot(startsWith(plan.outDirectory)));
+        expect(target, isNot(startsWith('out/')));
+      }
+      expect('${plan.outDirectory}/${plan.ninjaTargets.first}',
+          plan.enginePath);
+      expect('${plan.outDirectory}/${plan.ninjaTargets.last}',
+          plan.genSnapshotPath);
+    });
+
+    test('a host build names them too', () {
+      final plan = engineBuildPlan(
+        arch: EngineArch.x64,
+        mode: EngineMode.release,
+      );
+
+      expect(plan.ninjaTargets,
+          <String>['libflutter_engine.so', 'gen_snapshot']);
+    });
+  });
 }
