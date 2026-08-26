@@ -133,10 +133,11 @@ jobs:
         run: |
           set -euo pipefail
           dart pub get --directory dartvel/packages/dartvel_cli
+          SRC="$GITHUB_WORKSPACE/engine-root/engine/src"
           dart run dartvel/packages/dartvel_cli/bin/dartvel.dart engine plan \
-            --arch "${{ inputs.arch }}" --mode "${{ inputs.mode }}"
+            --arch "${{ inputs.arch }}" --mode "${{ inputs.mode }}" --src-root "$SRC"
           dart run dartvel/packages/dartvel_cli/bin/dartvel.dart engine plan \
-            --arch "${{ inputs.arch }}" --mode "${{ inputs.mode }}" \
+            --arch "${{ inputs.arch }}" --mode "${{ inputs.mode }}" --src-root "$SRC" \
             --github-output >> "$GITHUB_OUTPUT"
 
       # A cross build needs the target's sysroot, and the gclient hooks fetch

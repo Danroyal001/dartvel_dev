@@ -67,6 +67,8 @@ class _PlanCommand extends Command<void> {
 
   _PlanCommand() {
     _addTargetOptions(argParser);
+    argParser.addOption('src-root',
+        help: 'Absolute path to engine/src, so paths handed to gn resolve.');
     argParser.addFlag('github-output',
         negatable: false,
         help: 'Emit key=value lines for \$GITHUB_OUTPUT instead of prose.');
@@ -77,6 +79,7 @@ class _PlanCommand extends Command<void> {
     final plan = engineBuildPlan(
       arch: _parseArch(argResults!['arch'] as String),
       mode: _parseMode(argResults!['mode'] as String),
+      srcRoot: argResults!['src-root'] as String?,
     );
 
     if (argResults!['github-output'] as bool) {
