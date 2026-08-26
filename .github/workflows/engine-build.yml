@@ -253,19 +253,23 @@ jobs:
               # searches for the shape as well as the name, and says who asks
               # for the library when nothing supplies it.
               echo "--- library outputs this build produces ---"
-              grep -E '\.(so|a)$' /tmp/ninja-targets.txt | head -30
+              grep -E '\.(so|a)$' /tmp/ninja-targets.txt | awk 'NR<=30'
               echo "--- targets whose path suggests a C++ runtime ---"
-              grep -iE 'libcxx|libc\+\+|unwind|abi' /tmp/ninja-targets.txt | head -20
+              grep -icE 'libcxx|libc\+\+' /tmp/ninja-targets.txt \
+                | awk '{print "targets matching libcxx: " $0}'
               echo "--- who asks for -l$lib ---"
-              grep -rhoE '[^ ]*-l'"$lib"'[^ ]*|-L[^ ]+' "$OUT"/*.ninja 2>/dev/null \
-                | sort -u | head -20
+              grep -rhoE '\-l[a-z+_]+|\-L[^ ]+' "$OUT"/toolchain.ninja "$OUT"/build.ninja 2>/dev/null \
+                | sort -u | awk 'NR<=25'
               echo "--- what the toolchain already has ---"
-              ls "$TC/lib" 2>/dev/null | head -20
-              find "$TC/lib" -name "libc++*" -o -name "libunwind*" 2>/dev/null | head -10
-              echo "--- what the sysroot already has ---"
-              find "${{ steps.plan.outputs.engine-path }}" -maxdepth 0 2>/dev/null || true
-              find build/linux/debian_bullseye_armhf-sysroot -name "libc++*" \
-                -o -name "libstdc++*" -o -name "libunwind*" 2>/dev/null | head -10
+              ls "$TC/lib" 2>/dev/null | awk 'NR<=15'
+              echo "--- per-triple runtime directories clang ships ---"
+              ls "$($TC/bin/clang -print-resource-dir)/lib" 2>/dev/null | awk 'NR<=20'
+              find "$($TC/bin/clang -print-resource-dir)/lib" \
+                \( -name "libc++*" -o -name "libunwind*" \) 2>/dev/null | awk 'NR<=15'
+              echo "--- what the armhf sysroot already has ---"
+              find build/linux/debian_bullseye_armhf-sysroot \
+                \( -name "libc++*" -o -name "libstdc++*" -o -name "libunwind*" \) \
+                2>/dev/null | awk 'NR<=15'
               exit 1
             fi
           done
