@@ -104,6 +104,9 @@ class _PlanCommand extends Command<void> {
         ..writeln('target-triple=${plan.targetTriple ?? ''}')
         ..writeln('extra-gn-args=${shellRenderGnArgs(plan.extraGnArgs)}')
         ..writeln('toolchain-root=${plan.toolchainRoot ?? ''}')
+        ..writeln('builtins-package=${plan.builtinsPackage ?? ''}')
+        ..writeln('builtins-subdir=${plan.builtinsRuntimeSubdir ?? ''}')
+        ..writeln('builtins-file=${plan.builtinsFileName ?? ''}')
         ..writeln('toolchain-links=${plan.toolchainLinks.entries.map((MapEntry<String, String> e) => '${e.key}:${e.value}').join(' ')}');
       stdout.write(out.toString());
       return;

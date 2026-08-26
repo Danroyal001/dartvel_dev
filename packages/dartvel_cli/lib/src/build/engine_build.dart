@@ -110,6 +110,8 @@ class EngineBuildPlan {
     required this.toolchainRoot,
     required this.toolchainLinks,
     required this.extraGnArgs,
+    required this.builtinsPackage,
+    required this.builtinsRuntimeSubdir,
     required this.expectedEngineMachine,
     required this.expectedGenSnapshotMachine,
     required this.enginePath,
@@ -154,6 +156,22 @@ class EngineBuildPlan {
 
   /// gn args that have no dedicated `tools/gn` switch.
   final List<String> extraGnArgs;
+
+  /// The apt package carrying a libgcc for the target, or null when clang
+  /// already ships compiler builtins for it.
+  ///
+  /// The builtins are the `__aeabi_*` helpers clang emits calls to. libgcc
+  /// implements the same set -- the substitution `--rtlib=libgcc` makes -- and
+  /// Ubuntu ships an armhf libgcc in the ordinary x86-64 archive as part of
+  /// the cross compiler, so no multiarch sources are needed.
+  final String? builtinsPackage;
+
+  /// The directory under clang's resource directory that the linker looks in.
+  final String? builtinsRuntimeSubdir;
+
+  /// What the linker expects the builtins archive to be called.
+  String? get builtinsFileName =>
+      builtinsPackage == null ? null : 'libclang_rt.builtins.a';
 
   /// What `libflutter_engine.so` must be for this build to have worked.
   final ElfMachine expectedEngineMachine;
@@ -241,6 +259,8 @@ EngineBuildPlan engineBuildPlan({
       targetSysrootPath: null,
       targetTriple: null,
       toolchainRoot: null,
+      builtinsPackage: null,
+      builtinsRuntimeSubdir: null,
       toolchainLinks: const <String, String>{},
       extraGnArgs: const <String>[],
       expectedEngineMachine: _machineForArch[arch]!,
@@ -296,8 +316,18 @@ EngineBuildPlan engineBuildPlan({
     // different calling convention. Mixing them links and then passes floats
     // in the wrong registers, so nothing fails until the device runs it.
     extraGnArgs: arch == EngineArch.arm
-        ? const <String>['arm_float_abi="hard"']
+        ? const <String>[
+            'arm_float_abi="hard"',
+            // Defaults to false, which is what makes the build pass -lc++ and
+            // -lunwind expecting a toolchain to supply them for the target.
+            // The sources are already in the checkout.
+            'use_custom_libcxx=true',
+          ]
         : const <String>[],
+    builtinsPackage:
+        arch == EngineArch.arm ? 'gcc-arm-linux-gnueabihf' : null,
+    builtinsRuntimeSubdir:
+        arch == EngineArch.arm ? 'arm-unknown-linux-gnueabihf' : null,
     expectedEngineMachine: _machineForArch[arch]!,
     // Runs on the builder, emits for the target.
     expectedGenSnapshotMachine: _machineForArch[hostArch]!,
