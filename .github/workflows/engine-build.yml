@@ -123,26 +123,70 @@ jobs:
           df -h /
           test -d engine/src/third_party
 
+      # The CLI holds the architecture mapping, so the run and the test
+      # suite read the same source. It used to live in a shell expression
+      # here that put the requested architecture in the artifact filename and
+      # ignored it everywhere else, so a request for 32-bit ARM built x86-64,
+      # uploaded it as `engine-arm-release`, and reported success.
+      - name: Resolve the build
+        id: plan
+        run: |
+          set -euo pipefail
+          dart pub get --directory dartvel/packages/dartvel_cli
+          dart run dartvel/packages/dartvel_cli/bin/dartvel.dart engine plan \
+            --arch "${{ inputs.arch }}" --mode "${{ inputs.mode }}"
+          dart run dartvel/packages/dartvel_cli/bin/dartvel.dart engine plan \
+            --arch "${{ inputs.arch }}" --mode "${{ inputs.mode }}" \
+            --github-output >> "$GITHUB_OUTPUT"
+
+      # A cross build needs the target's sysroot, and the gclient hooks fetch
+      # only the host's. Without this the build fails deep in a link step with
+      # a missing libc rather than at configure time.
+      - name: Install the target sysroot
+        if: steps.plan.outputs.sysroot-arch != ''
+        run: |
+          set -euo pipefail
+          cd engine-root/engine/src
+          python3 build/linux/sysroot_scripts/install-sysroot.py \
+            --arch="${{ steps.plan.outputs.sysroot-arch }}"
+
+      # Not continue-on-error. A build that fails should fail the job: the
+      # step after it only checks the file is non-empty, which a stale output
+      # directory from a previous configure can satisfy.
       - name: Build the engine
         id: build
-        continue-on-error: true
         run: |
-          set -uo pipefail
-          cd engine-root/engine/src/flutter
-          ./bin/et build -c ${{ inputs.mode == 'debug' && 'host_debug' || format('host_{0}', inputs.mode) }} 2>&1 | tail -40
-          echo "et exit=$?"
-          find out -name "libflutter_engine.so" -o -name "gen_snapshot" | head
+          set -euo pipefail
+          cd engine-root/engine/src
+          if [ "${{ steps.plan.outputs.uses-host-config }}" = "true" ]; then
+            (cd flutter && ./bin/et build -c "${{ steps.plan.outputs.et-config }}") 2>&1 | tail -40
+          else
+            ./flutter/tools/gn ${{ steps.plan.outputs.gn-args }} 2>&1 | tail -20
+            ninja -C "${{ steps.plan.outputs.out-dir }}" 2>&1 | tail -40
+          fi
+          ls -la "${{ steps.plan.outputs.out-dir }}" | head -20
 
       - name: Collect the artifact
         run: |
           set -euo pipefail
           mkdir -p out
-          find engine-root -path "*/out/*" -name "libflutter_engine.so" -exec cp {} out/ \; 2>/dev/null || true
-          find engine-root -path "*/out/*" -name "gen_snapshot" -type f -exec cp {} out/ \; 2>/dev/null || true
-          find engine-root -path "*/out/*" -name "flutter_embedder.h" -exec cp {} out/ \; 2>/dev/null || true
-          echo "${{ inputs.flutter_ref }}" > out/flutter.ref
-          ls -la out/
-          test -s out/libflutter_engine.so
+          cd engine-root/engine/src
+          cp "${{ steps.plan.outputs.engine-path }}" "$GITHUB_WORKSPACE/out/"
+          cp "${{ steps.plan.outputs.gen-snapshot-path }}" "$GITHUB_WORKSPACE/out/"
+          find "${{ steps.plan.outputs.out-dir }}" -name "flutter_embedder.h" \
+            -exec cp {} "$GITHUB_WORKSPACE/out/" \; 2>/dev/null || true
+          echo "${{ inputs.flutter_ref }}" > "$GITHUB_WORKSPACE/out/flutter.ref"
+          ls -la "$GITHUB_WORKSPACE/out/"
+
+      # The step that would have caught the mislabelled arm engine. It reads
+      # the ELF header rather than trusting the path the build wrote to, and
+      # it expects a host-architecture gen_snapshot beside a target-architecture
+      # engine, because that is what a correct cross build produces.
+      - name: Verify the architecture
+        run: |
+          set -euo pipefail
+          dart run dartvel/packages/dartvel_cli/bin/dartvel.dart engine verify out \
+            --arch "${{ inputs.arch }}" --mode "${{ inputs.mode }}"
 
       - name: Split into committable chunks
         run: |
@@ -150,7 +194,6 @@ jobs:
           NAME="engine-${{ inputs.arch }}-${{ inputs.mode }}-${{ inputs.flutter_ref }}.tar.gz"
           tar -czf "$NAME" -C out .
           ls -lh "$NAME"
-          dart pub get --directory dartvel/packages/dartvel_cli
           dart run dartvel/packages/dartvel_cli/bin/dartvel.dart artifact split "$NAME" --out chunks
           ls -la chunks/
 
