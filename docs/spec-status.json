@@ -214,9 +214,10 @@
         "packages/dartvel_core/test/push_providers_test.dart",
         "packages/dartvel_core/test/web_push_test.dart",
         "packages/dartvel_core/test/apns_test.dart",
-        "packages/dartvel_core/test/web_push_vapid_test.dart"
+        "packages/dartvel_core/test/web_push_vapid_test.dart",
+        "packages/dartvel_core/test/web_push_es256_test.dart"
       ],
-      "absent": "no provider has been exercised against a real APNS or push service; the native transport they depend on speaks HTTP/2 and HTTP/3 and is verified live, the providers above it are not"
+      "absent": "no provider has been exercised against a real APNS or push service; the native transport they depend on speaks HTTP/2 and HTTP/3 and is verified live, and the VAPID signature is now pinned byte-for-byte to RFC 6979's published P-256 vectors rather than only round-tripped through this library's own verifier -- but a signature a push service would accept is not the same as a request one has accepted"
     },
     {
       "section": "File Storage",
