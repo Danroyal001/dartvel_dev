@@ -230,21 +230,26 @@ jobs:
           # first and staging them into the toolchain's lib directory costs a
           # couple of minutes and fails here rather than after the other 7000
           # targets have compiled.
+          # Where they land is asked, not assumed. A static library goes to
+          # obj/<path>/ rather than the root, and the first attempt at this
+          # guessed the root and got "unknown target 'libc++.so'".
+          ninja -C "$OUT" -t targets all 2>/dev/null | cut -d: -f1 > /tmp/ninja-targets.txt
           for lib in ${{ steps.plan.outputs.runtime-libraries }}; do
-            ninja -C "$OUT" "lib$lib.so" 2>&1 | tail -5 \
-              || ninja -C "$OUT" "lib$lib.a" 2>&1 | tail -5
             staged=0
-            for ext in so a; do
-              if [ -f "$OUT/lib$lib.$ext" ]; then
-                ln -sf "$PWD/$OUT/lib$lib.$ext" "$TC/lib/lib$lib.$ext"
-                echo "staged lib$lib.$ext"
-                staged=1
-              fi
-            done
+            while read -r target; do
+              case "$target" in
+                lib$lib.so|lib$lib.a|*/lib$lib.so|*/lib$lib.a) ;;
+                *) continue ;;
+              esac
+              ninja -C "$OUT" "$target" 2>&1 | tail -3
+              ln -sf "$PWD/$OUT/$target" "$TC/lib/$(basename "$target")"
+              echo "staged $target"
+              staged=1
+            done < /tmp/ninja-targets.txt
             if [ "$staged" -eq 0 ]; then
-              echo "::error::the build produces no lib$lib for this target"
-              ninja -C "$OUT" -t targets all 2>/dev/null \
-                | grep -iE "lib$lib" | head -10
+              echo "::error::nothing in this build produces lib$lib; -l$lib must come from the toolchain"
+              echo "targets mentioning $lib:"
+              grep -iF "$lib" /tmp/ninja-targets.txt | head -20
               exit 1
             fi
           done
