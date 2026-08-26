@@ -4440,12 +4440,11 @@ class DvI18nScope extends InheritedWidget {
     required super.child,
   });
 
-  Locale get locale {
-    final parts = localeTag.replaceAll('_', '-').split('-');
-    if (parts.isEmpty || parts[0].isEmpty) return const Locale('en');
-    if (parts.length == 1) return Locale(parts[0]);
-    return Locale(parts[0], parts[1]);
-  }
+  /// The tag as a [Locale].
+  ///
+  /// Delegates rather than parsing again: this had its own copy, so the same
+  /// tag could resolve one way here and another through [DvI18n].
+  Locale get locale => DvI18n.parseLocale(localeTag);
 
   static DvI18nScope of(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<DvI18nScope>()!;
@@ -4788,12 +4787,54 @@ class DvI18n {
     return allowed.isEmpty ? (tag.isNotEmpty ? tag : fallback) : fallback;
   }
 
+  /// A BCP 47 language tag as a [Locale].
+  ///
+  /// The subtag after the language is not always a region. Four letters make
+  /// it a script -- `zh-Hant`, `sr-Latn` -- while a region is two letters or
+  /// three digits. Reading a script as a region produces a locale whose
+  /// country code is `Hant`, which throws nothing and quietly fails to match
+  /// any supported locale, so the app falls back to its default language
+  /// looking as though it resolved one.
+  ///
+  /// Case is normalised to the conventional spelling because Flutter compares
+  /// locales by exact subtag, so `en-us` has to land where `en-US` does.
   static Locale parseLocale(String tag) {
-    final parts = tag.replaceAll('_', '-').split('-');
-    if (parts.isEmpty || parts[0].isEmpty) return const Locale('en');
-    if (parts.length == 1) return Locale(parts[0]);
-    return Locale(parts[0], parts[1]);
+    final parts = tag
+        .replaceAll('_', '-')
+        .split('-')
+        .where((String part) => part.isNotEmpty)
+        .toList();
+    if (parts.isEmpty) return const Locale('en');
+
+    final language = parts.first.toLowerCase();
+    String? script;
+    String? country;
+
+    for (final String part in parts.skip(1)) {
+      if (script == null && part.length == 4 && _isAlpha(part)) {
+        script = '${part[0].toUpperCase()}${part.substring(1).toLowerCase()}';
+      } else if (country == null &&
+          ((part.length == 2 && _isAlpha(part)) ||
+              (part.length == 3 && _isDigits(part)))) {
+        country = part.toUpperCase();
+      }
+      // Anything else is a variant or extension, which a Locale cannot hold.
+    }
+
+    if (script == null && country == null) return Locale(language);
+    return Locale.fromSubtags(
+      languageCode: language,
+      scriptCode: script,
+      countryCode: country,
+    );
   }
+
+  static bool _isAlpha(String value) =>
+      value.codeUnits.every((int unit) =>
+          (unit >= 0x41 && unit <= 0x5A) || (unit >= 0x61 && unit <= 0x7A));
+
+  static bool _isDigits(String value) =>
+      value.codeUnits.every((int unit) => unit >= 0x30 && unit <= 0x39);
 
   static void updateLang(BuildContext context, String param, String newLang) {
     final router = GoRouter.of(context);

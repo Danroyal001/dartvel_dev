@@ -323,8 +323,11 @@
     {
       "section": "Internationalization and Localization",
       "stability": "Draft",
-      "status": "Designed",
-      "evidence": []
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_flutter/test/i18n_test.dart"
+      ],
+      "absent": "no message catalogue, extraction or pluralisation: there is nothing that collects translatable strings out of pages and models, and no ICU plural or gender selection. What exists is locale tag parsing, the supported-set normalisation, the scope that carries a tag through the tree, and text direction -- now parsed to BCP 47 rather than by splitting on the first separator"
     },
     {
       "section": "Accessibility",
