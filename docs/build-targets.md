@@ -490,8 +490,41 @@ userland, so there is no published engine to link against, and that is the
 whole of the blocker.
 
 It follows that webOS needs the same treatment eLinux needed: an engine built
-from source, for `linux_release_arm`. `engine-build.yml` accepts `arm` now.
-That is a build to run, not a vendor to wait for.
+from source, for `linux_release_arm`. That is a build to run, not a vendor to
+wait for — but "accepts `arm`" was, for a week, only true of the dropdown.
+
+**Three things had to be fixed before that build could compile, and the first
+one was mine.** `engine-build.yml` took an `arch` input, put it in the artifact
+filename, and ran `et build -c host_<mode>` regardless. A request for 32-bit
+ARM produced an x86-64 engine, uploaded it as `engine-arm-release`, and
+reported success — the workflow asserted a name rather than a behaviour, which
+is the defect class this repository has a rule about. `dartvel engine verify`
+now reads the ELF header of what was built and fails the job before the
+upload; run against that artifact it says `libflutter_engine.so is x64,
+expected arm32`.
+
+The other two are in the engine, and both are the same shape: Linux/arm is a
+configuration the stock build does not cover.
+
+* `build/config/sysroot.gni` assigns a default sysroot for x64, arm64 and
+  riscv64 and nothing else, so gn stops at `Undefined identifier: sysroot`.
+  The sysroot exists — `sysroots.json` lists `bullseye_armhf` and
+  `install-sysroot.py` already translates `--arch=arm` to it — so it only has
+  to be named, via `--target-sysroot`, as an absolute path (gn resolves a
+  relative one against the output directory).
+* `build/config/compiler/BUILD.gn` emits `-march`, `-mfloat-abi`, `-mfpu` and
+  `-mthumb` for `current_cpu == "arm"` while its Linux target-triple block
+  covers arm64 only, so clang is handed ARM flags and still targets the host:
+  `unsupported option '-mfloat-abi=' for target 'x86_64-unknown-linux-gnu'`.
+  The answer is `build/toolchain/custom`, which takes a toolchain, a sysroot
+  and a triple and whose own comment gives `arm-linux-gnueabihf` as the
+  example. Its `${triple}-ar`/`-readelf`/`-nm`/`-strip` are assembled as links
+  to the engine's own target-agnostic LLVM tools.
+
+The float ABI is set to `hard` explicitly. `arm.gni` defaults armv7 to
+`softfp`, a different calling convention from the armhf sysroot's; the two
+link without complaint and pass floats in the wrong registers, so nothing
+would fail until a television ran it.
 
 **webOS was checked the same way and is not out of the group.** LG publishes
 artifacts at `lg-flutter-webos/artifacts`, and the newest release is recent —
