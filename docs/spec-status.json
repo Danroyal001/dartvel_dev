@@ -258,8 +258,11 @@
     {
       "section": "PWA",
       "stability": "Draft",
-      "status": "Designed",
-      "evidence": []
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_cli/test/pwa_manifest_test.dart"
+      ],
+      "absent": "no service worker, offline support, install prompt, background sync or icon generation. dartvel build web now writes a manifest from dartvel.pwa and links it, and warns about the things that make a browser silently refuse to install -- a missing icon size, a display mode outside the specification. Flutter's own service worker still ships unmodified and Dartvel adds nothing to it"
     },
     {
       "section": "OTA Updates",
