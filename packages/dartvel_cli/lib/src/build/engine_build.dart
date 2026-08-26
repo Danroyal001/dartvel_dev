@@ -30,7 +30,7 @@ enum EngineArch {
   arm('arm',
       debianName: 'armhf',
       gnDefinesSysroot: false,
-      triple: 'arm-linux-gnueabihf');
+      triple: 'armv7-unknown-linux-gnueabihf');
 
   const EngineArch(
     this.gnName, {
@@ -52,6 +52,12 @@ enum EngineArch {
 
   /// The target triple, for architectures the stock Linux toolchains do not
   /// configure. Null means gn sets the triple itself.
+  ///
+  /// It has to be the spelling clang's own runtime directories use --
+  /// `armv7-unknown-linux-gnueabihf`, not the `arm-linux-gnueabihf` a Debian
+  /// cross toolchain goes by. clang resolves its builtins, libc++ and
+  /// libunwind by triple, so the wrong spelling means three libraries that
+  /// were built and shipped look missing.
   ///
   /// `build/config/compiler/BUILD.gn` emits `-march`, `-mfloat-abi`, `-mfpu`
   /// and `-mthumb` for `current_cpu == "arm"`, and its Linux target-triple
@@ -188,6 +194,14 @@ class EngineBuildPlan {
   /// What the linker expects the builtins archive to be called.
   String? get builtinsFileName =>
       builtinsPackage == null ? null : 'libclang_rt.builtins.a';
+
+  /// The directory under clang's resource directory that must already hold
+  /// this target's runtime libraries, or null when the host's will do.
+  ///
+  /// Asserted before the build. A triple clang has no runtime for produces
+  /// three link errors, and they arrive after every one of the 7000 targets
+  /// has compiled.
+  String? get requiredRuntimeDirectory => targetTriple;
 
   /// What `libflutter_engine.so` must be for this build to have worked.
   final ElfMachine expectedEngineMachine;
@@ -335,12 +349,9 @@ EngineBuildPlan engineBuildPlan({
     extraGnArgs: arch == EngineArch.arm
         ? const <String>['arm_float_abi="hard"']
         : const <String>[],
-    runtimeLibraries:
-        arch == EngineArch.arm ? const <String>['c++', 'unwind'] : const <String>[],
-    builtinsPackage:
-        arch == EngineArch.arm ? 'gcc-arm-linux-gnueabihf' : null,
-    builtinsRuntimeSubdir:
-        arch == EngineArch.arm ? 'arm-unknown-linux-gnueabihf' : null,
+    runtimeLibraries: const <String>[],
+    builtinsPackage: null,
+    builtinsRuntimeSubdir: null,
     expectedEngineMachine: _machineForArch[arch]!,
     // Runs on the builder, emits for the target.
     expectedGenSnapshotMachine: _machineForArch[hostArch]!,

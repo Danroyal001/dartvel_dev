@@ -213,7 +213,9 @@ void main() {
       );
 
       expect(plan.usesCustomToolchain, isTrue);
-      expect(plan.targetTriple, 'arm-linux-gnueabihf');
+      // armv7, not arm. The bundled clang ships a runtime directory per
+      // triple and the one it has is armv7-unknown-linux-gnueabihf.
+      expect(plan.targetTriple, 'armv7-unknown-linux-gnueabihf');
     });
 
     test('arm64 and x64 use the stock toolchains', () {
@@ -239,7 +241,7 @@ void main() {
 
       expect(plan.gnArgs, containsAllInOrder(<String>[
         '--target-toolchain', '/tc',
-        '--target-triple', 'arm-linux-gnueabihf',
+        '--target-triple', 'armv7-unknown-linux-gnueabihf',
       ]));
     });
 
@@ -258,13 +260,13 @@ void main() {
       expect(plan.toolchainLinks.keys, isNot(contains('clang')));
       expect(plan.toolchainLinks.keys, isNot(contains('clang++')));
       expect(plan.toolchainLinks,
-          containsPair('arm-linux-gnueabihf-ar', 'llvm-ar'));
+          containsPair('armv7-unknown-linux-gnueabihf-ar', 'llvm-ar'));
       expect(plan.toolchainLinks,
-          containsPair('arm-linux-gnueabihf-strip', 'llvm-strip'));
+          containsPair('armv7-unknown-linux-gnueabihf-strip', 'llvm-strip'));
       expect(plan.toolchainLinks,
-          containsPair('arm-linux-gnueabihf-readelf', 'llvm-readelf'));
+          containsPair('armv7-unknown-linux-gnueabihf-readelf', 'llvm-readelf'));
       expect(plan.toolchainLinks,
-          containsPair('arm-linux-gnueabihf-nm', 'llvm-nm'));
+          containsPair('armv7-unknown-linux-gnueabihf-nm', 'llvm-nm'));
     });
 
     test('a stock build assembles no toolchain', () {
@@ -350,84 +352,42 @@ void main() {
       }
     });
   });
-
   group('the target runtime libraries', () {
-    // The build compiled every one of its 7060 targets and failed at the
-    // first link:
+    // Three link errors -- a missing libclang_rt.builtins.a, then -lc++ and
+    // -lunwind -- turned out to have one cause between them. clang ships a
+    // runtime directory per target triple, and the one it has is
+    // armv7-unknown-linux-gnueabihf. Asking for arm-unknown-linux-gnueabihf
+    // asked for a directory that does not exist, so nothing inside it did
+    // either, and each missing file read like a package to go and find.
     //
-    //   ld.lld: error: unable to find library -lc++
-    //   ld.lld: error: unable to find library -lunwind
-    //   ld.lld: error: cannot open .../clang/23/lib/
-    //           arm-unknown-linux-gnueabihf/libclang_rt.builtins.a
-    //
-    // build/toolchain/custom expects a complete cross toolchain -- one that
-    // ships the target's runtime libraries, as a vendor's does. The engine's
-    // bundled clang is a host toolchain with a sysroot beside it, and Google
-    // builds no arm-unknown-linux-gnueabihf runtime because 32-bit ARM Linux
-    // is not an engine target.
-    test('libc++ is built from source rather than linked from the toolchain', () {
+    // Nothing is substituted or staged. The libraries were there all along.
+    test('nothing has to be supplied for a triple clang builds for', () {
       final plan = engineBuildPlan(
         arch: EngineArch.arm,
         mode: EngineMode.release,
       );
 
-      // use_custom_libcxx is not the switch: it points at
-      // buildtools/third_party/libc++/trunk, a Chromium layout Flutter's
-      // checkout does not have. And use_flutter_cxx, which really does gate
-      // both the -lc++ and the target that builds it, is a plain variable
-      // rather than a declare_arg -- there is no turning it off.
-      expect(plan.extraGnArgs, isNot(contains('use_custom_libcxx=true')));
-
-      // So the libraries have to be where the toolchain looks. custom_lib_flags
-      // is -L<custom_toolchain>/lib, which is what a vendor cross toolchain
-      // ships and this one does not; the engine builds them itself, so they
-      // are staged there between generating and building.
-      expect(plan.runtimeLibraries, containsAll(<String>['c++', 'unwind']));
-    });
-
-    test('a host build stages nothing, because nothing is missing', () {
-      final plan = engineBuildPlan(arch: EngineArch.x64, mode: EngineMode.release);
-
-      expect(plan.extraGnArgs, isEmpty);
       expect(plan.runtimeLibraries, isEmpty);
+      expect(plan.builtinsPackage, isNull);
     });
 
-    test('the staged names are link names, not file names', () {
-      // They are handed to `ninja libc++.so` and to `-l`, and the extension
-      // differs between a static and a shared build of the same library.
-      final plan =
-          engineBuildPlan(arch: EngineArch.arm, mode: EngineMode.release);
-
-      for (final String name in plan.runtimeLibraries) {
-        expect(name, isNot(startsWith('lib')));
-        expect(name, isNot(contains('.')));
-      }
-    });
-
-    // The compiler builtins are the __aeabi_* helpers clang emits calls to.
-    // libgcc implements the same set -- that substitution is exactly what
-    // --rtlib=libgcc selects -- and Ubuntu ships an armhf libgcc in the
-    // ordinary x86-64 archive as part of the cross compiler, with no
-    // multiarch sources to add.
-    test('the builtins are taken from the armhf cross libgcc', () {
+    test('the runtime directory that must exist is named up front', () {
       final plan = engineBuildPlan(
         arch: EngineArch.arm,
         mode: EngineMode.release,
       );
 
-      expect(plan.builtinsPackage, 'gcc-arm-linux-gnueabihf');
-      expect(plan.builtinsRuntimeSubdir, 'arm-unknown-linux-gnueabihf');
-      expect(plan.builtinsFileName, 'libclang_rt.builtins.a');
+      // So a wrong triple fails on a missing directory in seconds, rather
+      // than at the first link, 35 minutes of compiling later.
+      expect(plan.requiredRuntimeDirectory, 'armv7-unknown-linux-gnueabihf');
     });
 
-    test('nothing is substituted for an architecture clang covers', () {
-      final plan = engineBuildPlan(
-        arch: EngineArch.x64,
-        mode: EngineMode.release,
+    test('a host build needs no separate runtime directory', () {
+      expect(
+        engineBuildPlan(arch: EngineArch.x64, mode: EngineMode.release)
+            .requiredRuntimeDirectory,
+        isNull,
       );
-
-      expect(plan.builtinsPackage, isNull);
-      expect(plan.builtinsRuntimeSubdir, isNull);
     });
   });
 }
