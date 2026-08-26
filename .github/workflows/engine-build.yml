@@ -209,7 +209,10 @@ jobs:
 
           OUT="${{ steps.plan.outputs.out-dir }}"
 
-          ninja -C "$OUT" 2>&1 | tail -40
+          # Named rather than left to the default target group, which for a
+          # Linux cross build is the GTK shell and does not include the
+          # Custom Embedder API library the embedders link.
+          ninja -C "$OUT" ${{ steps.plan.outputs.ninja-targets }} 2>&1 | tail -40
           ls -la "$OUT" | head -20
 
       - name: Collect the artifact
