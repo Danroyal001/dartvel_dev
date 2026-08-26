@@ -9,6 +9,12 @@
 /// corrupts the stack rather than failing — which is why `screen.geometry` is
 /// absent here while macOS has it: macOS can ask CoreGraphics instead, and iOS
 /// has no equivalent C path.
+///
+/// Haptics take the same preference further and skip the Objective-C runtime
+/// altogether. `UIImpactFeedbackGenerator` must be built and called on the
+/// main thread and Flutter's root isolate runs on the UI thread, so the
+/// documented API is the unusable one here; `AudioServicesPlaySystemSound` is
+/// plain C and thread-safe.
 library dartvel_flutter.platform.ios.ffi;
 
 import 'dart:ffi';
@@ -41,12 +47,21 @@ typedef _MsgSendStrNative = Pointer<Void> Function(
 typedef _MsgSendStrDart = Pointer<Void> Function(
     Pointer<Void> receiver, Pointer<Void> selector, Pointer<Utf8> a);
 
+/// `AudioServicesPlaySystemSound(SystemSoundID inSystemSoundID)`.
+///
+/// `SystemSoundID` is a `UInt32`. Plain C, and documented as safe to call from
+/// any thread -- which is the whole reason haptics go through AudioToolbox
+/// here rather than through `UIImpactFeedbackGenerator`.
+typedef _PlaySystemSoundNative = Void Function(Uint32 soundId);
+typedef _PlaySystemSoundDart = void Function(int soundId);
+
 /// Registers the iOS bindings that are genuinely implemented.
 class DVIosBindings {
   const DVIosBindings._();
 
   static bool _registered = false;
   static late DynamicLibrary _objc;
+  static _PlaySystemSoundDart? _playSystemSound;
 
   static bool get isRegistered => _registered;
 
@@ -72,8 +87,42 @@ class DVIosBindings {
     });
     DVNativeBridge.register('clipboard.paste', (Object? _) => _paste());
 
+    // AudioToolbox is opened by path out of the dyld shared cache rather than
+    // assumed to be linked into the app. If it is not there, registration
+    // fails as a whole rather than installing a subset: `implemented` is what
+    // callers check, and a partial install would leave it claiming haptics
+    // that throw on first use.
+    _playSystemSound = _lookupPlaySystemSound();
+    if (_playSystemSound == null) {
+      DVNativeBridge.unregister('clipboard.copy');
+      DVNativeBridge.unregister('clipboard.paste');
+      return false;
+    }
+    for (final name in const <String>[
+      'haptics.impact',
+      'haptics.lightVibrate',
+      'haptics.vibrate',
+    ]) {
+      DVNativeBridge.register(name, (Object? _) {
+        _playSystemSound!(dvIosHapticSoundId(name));
+        return null;
+      });
+    }
+
     _registered = true;
     return true;
+  }
+
+  /// The AudioToolbox entry point, or null when the framework is not present.
+  static _PlaySystemSoundDart? _lookupPlaySystemSound() {
+    try {
+      final audioToolbox = DynamicLibrary.open(
+          '/System/Library/Frameworks/AudioToolbox.framework/AudioToolbox');
+      return audioToolbox.lookupFunction<_PlaySystemSoundNative,
+          _PlaySystemSoundDart>('AudioServicesPlaySystemSound');
+    } on ArgumentError {
+      return null;
+    }
   }
 
   static void unregister() {
