@@ -92,6 +92,40 @@ jobs:
           echo "files: $(wc -l < /tmp/generated.txt)"
           head -20 /tmp/generated.txt || true
 
+      # Counting files does not say whether the classes that were asked for
+      # are among them. jnigen emits a placeholder for a class it knows about
+      # only by reference -- "WARNING: X is a stub. To generate bindings for
+      # this class, include X in your config's classes list" -- and exits
+      # zero. A run whose config change had not landed regenerated an
+      # identical tree, committed nothing, and reported success.
+      - name: Every configured class must be more than a stub
+        run: |
+          set -euo pipefail
+          GEN=packages/dartvel_flutter/lib/src/platform/android/generated
+          CFG=packages/dartvel_flutter/tool/android_bindings.jnigen.yaml
+          missing=0
+          while read -r fqcn; do
+            [ -n "$fqcn" ] || continue
+            path="$GEN/$(echo "$fqcn" | tr '.' '/').dart"
+            if [ ! -f "$path" ]; then
+              echo "::error::$fqcn is configured but was not generated"
+              missing=1
+              continue
+            fi
+            if grep -q "is a stub" "$path"; then
+              echo "::error::$fqcn generated as a stub; the config that named it did not reach this run"
+              missing=1
+              continue
+            fi
+            echo "$fqcn: $(wc -l < "$path") lines"
+          done < <(python3 -c "
+          import yaml, sys
+          cfg = yaml.safe_load(open('$CFG'))
+          for c in cfg.get('classes') or []:
+              print(c)
+          ")
+          [ "$missing" -eq 0 ] || exit 1
+
       - name: It must have produced something importable
         run: |
           # A generation that emits nothing still exits zero, and the failure
