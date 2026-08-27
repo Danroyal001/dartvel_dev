@@ -1,0 +1,12 @@
+# Local development only. pub reads this and never publishes it.
+#
+# The pubspec declares a hosted constraint because pub refuses to publish a
+# package with a path dependency. The list is the full transitive set, not just
+# the direct dependency: dependency_overrides apply only to the package being
+# resolved as root, so overriding dartvel_core does nothing about the hosted
+# dartvel_shelf that dartvel_core itself declares.
+dependency_overrides:
+  dartvel_core:
+    path: ../dartvel_core
+  dartvel_shelf:
+    path: ../dartvel_shelf

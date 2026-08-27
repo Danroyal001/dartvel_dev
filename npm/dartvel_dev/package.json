@@ -1,6 +1,6 @@
 {
   "name": "dartvel_dev",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Dartvel — a batteries-included, AI-native full-stack application platform built around Flutter. This is the npm launcher for the CLI published on pub.dev as dartvel_dev.",
   "main": "./index.js",
   "bin": {
