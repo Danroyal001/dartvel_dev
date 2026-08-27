@@ -148,3 +148,53 @@ WebosPackageLayout webosPackageLayout({
 
   return WebosPackageLayout(root: id, mode: mode, entries: entries);
 }
+
+/// The problems in a package's *contents*, given [info] and the set of
+/// [files] it holds as paths relative to the application root.
+///
+/// [webosPackageProblems] reads the metadata and stops there — it checks that
+/// `main` names something, never that the something exists. The example
+/// shipped for weeks with an appinfo.json naming a `dartvel_app` that was
+/// never built, passing every check, because nothing compared the two.
+///
+/// A television reports a missing entry point as a generic install failure,
+/// hours after the build that caused it and without naming the file.
+List<String> webosPackageContentProblems(
+  Map<String, Object?> info,
+  Set<String> files,
+) {
+  final problems = <String>[];
+
+  // Read from appinfo rather than assumed: checking for the default name
+  // passes whenever the two agree and misses exactly the case where they do
+  // not.
+  final main = '${info['main'] ?? ''}';
+  if (main.isNotEmpty && !files.contains(main)) {
+    problems.add('appinfo.json names "$main" as its main, and the package '
+        'does not contain it. webOS reports this as an install failure that '
+        'names no file.');
+  }
+
+  final icon = '${info['icon'] ?? ''}';
+  if (icon.isNotEmpty && !files.contains(icon)) {
+    problems.add('appinfo.json names "$icon" as its icon, and the package '
+        'does not contain it.');
+  }
+
+  for (final String required in <String>[
+    'lib/libflutter_engine.so',
+    'lib/libapp.so',
+    'data/icudtl.dat',
+  ]) {
+    if (!files.contains(required)) {
+      problems.add('The package is missing $required.');
+    }
+  }
+
+  if (!files.any((String p) => p.startsWith('data/flutter_assets/'))) {
+    problems.add('The package has no data/flutter_assets, so the application '
+        'starts with no assets and draws nothing.');
+  }
+
+  return problems;
+}
