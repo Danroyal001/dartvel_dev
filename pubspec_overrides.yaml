@@ -1,0 +1,21 @@
+# Local development only. pub reads this and never publishes it.
+#
+# The packages declare hosted constraints on each other so they can be
+# published -- pub refuses a path dependency in a published package -- and this
+# root pubspec depends on several of them by path. Without these overrides pub
+# reports the two kinds as irreconcilable: "dartvel_root depends on
+# dartvel_generator from path, version solving failed".
+#
+# The full transitive set, not just the direct dependencies:
+# dependency_overrides apply only to the package being resolved as root, so an
+# override for dartvel_generator does nothing about the hosted dartvel_core it
+# declares.
+dependency_overrides:
+  dartvel_cli:
+    path: packages/dartvel_cli
+  dartvel_core:
+    path: packages/dartvel_core
+  dartvel_generator:
+    path: packages/dartvel_generator
+  dartvel_shelf:
+    path: packages/dartvel_shelf
