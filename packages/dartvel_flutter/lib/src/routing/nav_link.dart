@@ -126,6 +126,7 @@ class _DVNavLinkState extends State<DVNavLink> {
   Timer? _previewTimer;
   OverlayEntry? _previewEntry;
   FocusNode? _ownedFocusNode;
+  bool _focused = false;
 
   FocusNode get _focusNode =>
       widget.focusNode ?? (_ownedFocusNode ??= FocusNode(debugLabel: 'DVNavLink'));
@@ -274,22 +275,51 @@ class _DVNavLinkState extends State<DVNavLink> {
         onExit: _exit,
         child: Listener(
           onPointerDown: _onPointerDown,
-          child: InkWell(
-            // InkWell rather than GestureDetector: it takes keyboard focus,
-            // activates on Enter and Space, and shows a focus ring — all of
-            // which a link has and a tap handler does not.
-            onTap: widget.enabled ? _activate : null,
-            onLongPress: widget.enabled ? _showPreview : null,
+          // FocusableActionDetector rather than InkWell. InkWell gives focus,
+          // Enter/Space and a focus ring, and also requires a Material
+          // ancestor — which a link, being a primitive, cannot demand of the
+          // tree it is dropped into. It threw "No Material widget found" on
+          // every page built without a Scaffold; the widget suite missed it
+          // by wrapping each subject in one.
+          //
+          // FocusableActionDetector is the same behaviour from the widgets
+          // layer: focus, hover, and an Actions map that Enter and Space
+          // already dispatch ActivateIntent into.
+          child: FocusableActionDetector(
+            enabled: widget.enabled,
             focusNode: _focusNode,
-            // Focusable when it does something, and skipped by Tab when it
-            // does not: landing on a disabled link tells a keyboard user
-            // nothing, and they cannot see why nothing happened.
-            canRequestFocus: widget.enabled,
-            // Focus nobody can see is focus nobody can follow. The theme's
-            // own focus colour, so it reads correctly in light and dark.
-            focusColor: Theme.of(context).focusColor,
             autofocus: widget.autofocus,
-            child: Padding(padding: widget.padding, child: widget.child),
+            mouseCursor: widget.enabled
+                ? SystemMouseCursors.click
+                : SystemMouseCursors.basic,
+            onShowFocusHighlight: (bool value) {
+              if (value != _focused && mounted) {
+                setState(() => _focused = value);
+              }
+            },
+            actions: <Type, Action<Intent>>{
+              ActivateIntent: CallbackAction<ActivateIntent>(
+                onInvoke: (ActivateIntent intent) {
+                  _activate();
+                  return null;
+                },
+              ),
+            },
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: widget.enabled ? _activate : null,
+              onLongPress: widget.enabled ? _showPreview : null,
+              child: DecoratedBox(
+                // Focus nobody can see is focus nobody can follow. Drawn here
+                // rather than taken from InkWell's focusColor, and from the
+                // theme's own colour so it reads in light and dark.
+                decoration: BoxDecoration(
+                  color: _focused ? Theme.of(context).focusColor : null,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Padding(padding: widget.padding, child: widget.child),
+              ),
+            ),
           ),
         ),
       ),
