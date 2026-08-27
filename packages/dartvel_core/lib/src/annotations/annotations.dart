@@ -54,6 +54,10 @@ class DVPage {
   final DVPageShellMode shell;
   final bool scaffold;
   final bool showAppBar;
+
+  /// Whether the page's text can be selected. True by default -- a page whose
+  /// text cannot be copied is a defect rather than a style.
+  final bool selectable;
   final bool safeArea;
   final bool centerTitle;
   final bool extendBody;
@@ -68,6 +72,7 @@ class DVPage {
     this.shell = DVPageShellMode.adaptive,
     this.scaffold = true,
     this.showAppBar = false,
+    this.selectable = true,
     this.safeArea = true,
     this.centerTitle = false,
     this.extendBody = false,

@@ -1093,6 +1093,7 @@ class DartvelConfig {
       'centerTitle',
       'extendBody',
       'resizeToAvoidBottomInset',
+      'selectable',
     ]) {
       final value = _namedBoolArg(args, name);
       if (value != null) fields.add('$name: $value');

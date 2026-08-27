@@ -4193,6 +4193,17 @@ class DVPageScaffoldSpec {
   final int? backgroundColor;
   final int? appBarBackgroundColor;
 
+  /// Whether the page's text can be selected.
+  ///
+  /// True, because a page whose text cannot be copied is a defect rather than
+  /// a style: on a website the install command is the one thing a visitor
+  /// needs off the page. Flutter has a widget for this and not using it was
+  /// the bug.
+  ///
+  /// An app with its own drag gestures over text has reason to turn it off,
+  /// which is why the escape hatch exists.
+  final bool selectable;
+
   const DVPageScaffoldSpec({
     this.title,
     this.shell = DVPageShellMode.adaptive,
@@ -4204,6 +4215,7 @@ class DVPageScaffoldSpec {
     this.resizeToAvoidBottomInset = true,
     this.backgroundColor,
     this.appBarBackgroundColor,
+    this.selectable = true,
   });
 }
 
@@ -4266,7 +4278,10 @@ class DVPageShell extends StatelessWidget {
   }
 
   Widget _body(Widget body) {
-    return spec.safeArea ? SafeArea(child: body) : body;
+    // Inside the safe area, not outside it: a SelectionArea above would let a
+    // drag begin in the notch or over the home indicator.
+    final content = spec.selectable ? SelectionArea(child: body) : body;
+    return spec.safeArea ? SafeArea(child: content) : content;
   }
 
   static DVPageShellMode _adaptiveShellMode(BuildContext context) {
