@@ -1,7 +1,8 @@
 name: dartvel_generator
 description: Compile-time generators for readable Dartvel routing and model glue.
 version: 1.0.0
-publish_to: none
+repository: https://github.com/Danroyal001/dartvel_dev
+homepage: https://dartvel.dev
 
 
 environment:

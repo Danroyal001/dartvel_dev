@@ -1,7 +1,11 @@
-name: dartvel
-publish_to: 'none'
-description: Umbrella package for the Dartvel full-stack Flutter platform.
+name: dartvel_dev
+description: >-
+  Dartvel: a batteries-included, AI-native full-stack application platform
+  built around Flutter. Pages, models, backend functions, UI and business
+  logic; everything else is generated, compiled or served.
 version: 0.2.1
+repository: https://github.com/Danroyal001/dartvel_dev
+homepage: https://dartvel.dev
 
 environment:
   # One floor for every Dartvel package, deliberately.
@@ -15,13 +19,13 @@ dependencies:
   flutter:
     sdk: flutter
   dartvel_core:
-    path: ../dartvel_core
+    version: ^0.2.1
   dartvel_flutter:
-    path: ../dartvel_flutter
+    version: ^0.2.1
   dartvel_shelf:
-    path: ../dartvel_shelf
+    version: ^0.3.0
   dartvel_cli:
-    path: ../dartvel_cli
+    version: ^0.2.1
 
 dev_dependencies:
   flutter_test:

@@ -1,6 +1,8 @@
 name: dartvel_shelf
 description: WinterCG-first (Fetch-like) Shelf-style Dart API powered by Actix Web via ffigen-generated FFI. No IPC.
 version: 0.3.0
+repository: https://github.com/Danroyal001/dartvel_dev
+homepage: https://dartvel.dev
 environment:
   # One floor for every Dartvel package, deliberately.
   # Two floors that disagreed is what recorded webOS as merely

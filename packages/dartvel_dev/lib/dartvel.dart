@@ -1,4 +1,4 @@
-library dartvel;
+library dartvel_dev;
 
 export 'package:dartvel_core/dartvel.dart';
 export 'package:dartvel_flutter/dartvel_flutter.dart';
