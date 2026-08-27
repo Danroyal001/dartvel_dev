@@ -53,10 +53,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: subosito/flutter-action@v2
+      # Dart, not Flutter. The CLI's whole dependency chain -- dartvel_cli,
+      # dartvel_core, dartvel_shelf -- is pure Dart, so building the binary
+      # needs no Flutter SDK. That matters beyond tidiness: Flutter publishes
+      # no linux-arm64 SDK, so flutter-action cannot run on an ARM runner at
+      # all, and the arm64 leg failed there before reaching a build step.
+      #
+      # Building an application still needs Flutter. Building this binary does
+      # not.
+      - uses: dart-lang/setup-dart@v1
         with:
-          channel: stable
-          flutter-version: 3.44.5
+          sdk: 3.12.2
 
       # The Rust runtime is compiled by dartvel_shelf's build hook during
       # `dart build`, so the toolchain has to be here before it runs.
