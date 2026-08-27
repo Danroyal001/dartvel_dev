@@ -27,7 +27,7 @@ local Dartvel `dartvel_vscode` fork added as a dependency.
 | `tvos` | ✅ Builds | **Verified on a macOS runner**: scaffold auto-generated, then `build/tvos/Debug-appletvsimulator/Runner.app`. The `appletvsimulator` path is the proof it is a tvOS app and not the iPhone app an earlier mapping produced. Run [32538073146](https://github.com/Danroyal001/dartvel_dev/actions/runs/32538073146). See [tvOS](#tvos) |
 | `tizen` / `tpk` | ✅ Builds | Signed 9.3MB TPK with engine + assets, built on a laptop with Tizen Studio installed. CI can only ever *skip* it — the SDK is licence-gated and Dartvel must not install it unattended — so the workflow asserts the skip names that reason. See [Tizen](#tizen-samsung) |
 | `sony-elinux` | ✅ Builds and **runs** (release) | Runs on a virtual device (Weston on Xvfb) in CI, in **both debug and release**. Release needs the from-source engine, since the official standalone one is JIT. See [Sony eLinux](#sony-elinux) |
-| `webos` | ⚠️ Engine built, bundle unattempted | Not a vendor secret: LG's engine exports `FlutterEngineRun` and is an ordinary Custom Embedder API build. It is **ELF 32-bit ARM**, and Google publishes `linux-arm64` but no 32-bit `linux-arm`. See [webOS](#webos-lg) |
+| `webos` | ⚠️ Package assembles, never run on a television | Not a vendor secret: LG's engine exports `FlutterEngineRun` and is an ordinary Custom Embedder API build. It is **ELF 32-bit ARM**, and Google publishes `linux-arm64` but no 32-bit `linux-arm`. See [webOS](#webos-lg) |
 | `fuchsia` | ❌ Blocked, same class as webOS | The five build-plumbing walls are fixed: `--build-only` in the fork, `postInstall` bootstrap, submodule handling, the bootstrap's workspace variable, and skipping an unfetchable `googletest` pin. It now clones, bootstraps and stages the app — then dies in `pub get` because the fork's bundled Flutter is **older than Dart 3.4**: `dartvel_example requires SDK version >=3.4.0 <4.0.0, version solving failed`. That is not a Dartvel bug and not a `mix` problem; the embedder's Flutter submodule is simply ancient. Unblocking needs the fork re-pinned to a modern Flutter **and its engine rebuilt from source**, because bootstrap.sh warns the engine and the Flutter pin must stay aligned. See [Fuchsia](#fuchsia) |
 | `vscode` | ✅ Builds | `out/src/extension.js`, `out/lib/vscode_api.handlers.js`, `build/web/flutter_bootstrap.js`, `build/web/assets/` |
 | `chrome-extension` | ✅ Builds | `build/chrome-extension` (41 MB): MV3 manifest with a `service_worker` background, `index.html`, `main.dart.js`, `background.js`, icons. See [Browser extensions](#browser-extensions) |
@@ -559,6 +559,32 @@ The last of them was smaller: a bare `ninja` builds the default target group,
 which for a Linux cross build is the GTK shell. It linked
 `libflutter_linux_gtk.so`, never touched `libflutter_engine.so`, and reported
 success. The build names the artifacts it collects now.
+
+**The package assembles.** `runtime-verification.yml` builds one in CI from
+the ARM engine, and the artifact was inspected rather than inferred:
+
+```
+com.dartvel.example/appinfo.json          type: native, com.dartvel.example, 1.0.0
+com.dartvel.example/lib/libflutter_engine.so   ELF 32-bit LSB shared object, ARM, EABI5
+com.dartvel.example/lib/libapp.so              ELF 32-bit LSB shared object, ARM, EABI5
+com.dartvel.example/data/flutter_assets/…
+com.dartvel.example/data/icudtl.dat
+```
+
+Getting `libapp.so` there took three wrong turns worth recording, because each
+looked like the obvious move:
+
+* `flutter build bundle --release` emits no `kernel_blob.bin`. A release bundle
+  is already AOT for the host, so there is nothing for `gen_snapshot` to read.
+* The debug `kernel_blob.bin` holds only the application's code. The platform
+  is supplied separately by the debug engine at run time, so an AOT compiler
+  has no `dart:core` to resolve against and aborts with *"Unable to use class
+  Library:'dart:core' … which is not loaded yet"*.
+* The kernel therefore has to be compiled against the AOT platform, by the
+  frontend server Flutter ships — under `dartaotruntime`, since
+  `frontend_server_aot.dart.snapshot` is an AOT snapshot and refuses the JIT
+  runtime. The patched SDK is kernel and architecture-independent, which is
+  why the host's copy serves a target Flutter has no toolchain for.
 
 **What is not established.** The engine has never run on a television. Being
 the right architecture, ABI and API shape is necessary and is not the same as
