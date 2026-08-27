@@ -77,9 +77,20 @@ class SiteHeader extends StatelessWidget {
       ),
       padding: EdgeInsets.symmetric(
         horizontal: responsive.gutter,
-        vertical: 18,
+        vertical: 14,
       ),
-      child: DVBox.wrapLine(<Widget>[
+      // The same 1040 column as the sections, so the wordmark sits above the
+      // headings rather than out at the window edge.
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1040),
+          // Full width inside the column, so the wordmark sits at the left of
+          // the content rather than in the middle of the window: a Wrap
+          // shrinks to its children, and a shrunken Wrap inside a Center is
+          // centred.
+          child: SizedBox(
+            width: double.infinity,
+            child: DVBox.wrapLine(<Widget>[
         DVText('Dartvel').modifier(
           DVModifier()
               .fontSize(18)
@@ -89,7 +100,10 @@ class SiteHeader extends StatelessWidget {
         NavLink('Docs', '/docs', active: current == '/docs'),
         NavLink('Features', '/features', active: current == '/features'),
         NavLink('Cloud', '/cloud', active: current == '/cloud'),
-      ], spacing: 20),
+            ], spacing: 22),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -109,7 +123,10 @@ class SiteFooter extends StatelessWidget {
         horizontal: responsive.gutter,
         vertical: 32,
       ),
-      child: DVBox.list(<Widget>[
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1040),
+          child: DVBox.list(<Widget>[
         DVBox.wrapLine(<Widget>[
           const ExternalLink('GitHub', 'https://github.com/Danroyal001/dartvel_dev'),
           const ExternalLink('pub.dev', 'https://pub.dev/packages/dartvel_dev'),
@@ -118,7 +135,9 @@ class SiteFooter extends StatelessWidget {
         DVText('MIT licensed. Built with Dartvel.').modifier(
           DVModifier().fontSize(13).color(palette.faint),
         ),
-      ], spacing: 12),
+          ], spacing: 12),
+        ),
+      ),
     );
   }
 }
@@ -141,11 +160,14 @@ class Section extends StatelessWidget {
         horizontal: responsive.gutter,
         vertical: responsive.narrow ? 40 : 64,
       ),
-      child: Align(
-        alignment: Alignment.topLeft,
+      // Centred, not pinned left. A 1040-wide column aligned topLeft on a
+      // 1440 screen leaves 400px of dead margin on one side and none on the
+      // other, which is what made the page look unfinished rather than
+      // spacious.
+      child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 1040),
-          child: DVBox.list(children, spacing: 20),
+          child: DVBox.list(children, spacing: 22),
         ),
       ),
     );

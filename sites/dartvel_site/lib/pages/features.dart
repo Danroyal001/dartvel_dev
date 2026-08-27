@@ -178,7 +178,7 @@ Widget buildFeaturesPage(BuildContext context) => SitePage(
               for (final (String area, String surface, String body) f
                   in _shipped)
                 FeatureRow(area: f.$1, surface: f.$2, body: f.$3),
-            ], spacing: 18),
+            ], spacing: 16),
           ],
         ),
       ],
@@ -202,24 +202,31 @@ class FeatureRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = Palette.of(context);
     return Container(
-      padding: const EdgeInsets.only(bottom: 18),
+      padding: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: palette.rule)),
       ),
       child: DVBox.list(<Widget>[
-        DVBox.wrapLine(<Widget>[
-          DVText(area).modifier(
-            DVModifier()
-                .fontSize(17)
-                .fontWeight(FontWeight.w700)
-                .color(palette.ink),
-          ),
-          Chip_(surface),
-        ], spacing: 10),
-        DVText(body).modifier(
-          DVModifier().fontSize(15).color(palette.muted).height(1.6).width(720),
+        // Baseline-aligned: a chip centred against a 17pt heading rides high
+        // and reads as a separate row.
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: <Widget>[
+            DVText(area).modifier(
+              DVModifier()
+                  .fontSize(17)
+                  .fontWeight(FontWeight.w700)
+                  .color(palette.ink),
+            ),
+            const SizedBox(width: 12),
+            Flexible(child: Chip_(surface)),
+          ],
         ),
-      ], spacing: 8),
+        DVText(body).modifier(
+          DVModifier().fontSize(15).color(palette.muted).height(1.6).width(760),
+        ),
+      ], spacing: 6),
     );
   }
 }
