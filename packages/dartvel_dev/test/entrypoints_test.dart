@@ -1,13 +1,13 @@
-// The spec offers focused entrypoints (`package:dartvel/dartvel_ai.dart` and
+// The spec offers focused entrypoints (`package:dartvel_dev/dartvel_ai.dart` and
 // friends) alongside the umbrella import. Each one re-exports the flutter
 // barrel through a `show` list, so a subsystem's entrypoint can compile while
 // omitting the very types needed to configure it — the facade is reachable but
 // no adapter is. These tests import one entrypoint at a time and construct the
 // pieces an application needs, so an incomplete list fails to compile.
-import 'package:dartvel/dartvel_ai.dart' as ai;
-import 'package:dartvel/dartvel_auth.dart' as auth;
-import 'package:dartvel/dartvel_database.dart' as db;
-import 'package:dartvel/dartvel_storage.dart' as storage;
+import 'package:dartvel_dev/dartvel_ai.dart' as ai;
+import 'package:dartvel_dev/dartvel_auth.dart' as auth;
+import 'package:dartvel_dev/dartvel_database.dart' as db;
+import 'package:dartvel_dev/dartvel_storage.dart' as storage;
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

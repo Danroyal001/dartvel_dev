@@ -30,3 +30,12 @@ dev_dependencies:
   test: ^1.28.0
   build_runner: ^2.4.0
   drift_dev: ^2.14.0
+
+# AWS's own SigV4 documentation test vectors, not a credential. The pair
+# AKIDEXAMPLE / wJalrXUtnFEMI...EXAMPLEKEY is what AWS publishes for verifying
+# a signing implementation, and the signature this suite asserts is only
+# reproducible with them.
+false_secrets:
+  - /test/aws_sigv4_test.dart
+  - /test/file_storage_test.dart
+  - /test/mail_providers_test.dart
