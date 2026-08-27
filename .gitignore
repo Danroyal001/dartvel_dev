@@ -167,3 +167,5 @@ examples/*/tizen/
 # directory. Neither is source; both bloated clones by ~535MB.
 /.pub-cache/
 /.home/
+sites/dartvel_site/build/
+sites/*.zip
