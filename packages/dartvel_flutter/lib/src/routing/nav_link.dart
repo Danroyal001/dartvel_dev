@@ -16,7 +16,6 @@ library dartvel_flutter.routing.nav_link;
 
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -72,6 +71,7 @@ class DVNavLink extends StatefulWidget {
     this.enabled = true,
     this.semanticLabel,
     this.focusNode,
+    this.autofocus = false,
   });
 
   /// Where it goes.
@@ -111,6 +111,10 @@ class DVNavLink extends StatefulWidget {
   /// to it, or read it; otherwise the link owns one.
   final FocusNode? focusNode;
 
+  /// Whether this link takes focus when it appears. For the first link on a
+  /// page a keyboard user has just arrived at.
+  final bool autofocus;
+
   @override
   State<DVNavLink> createState() => _DVNavLinkState();
 }
@@ -131,7 +135,8 @@ class _DVNavLinkState extends State<DVNavLink> {
     super.initState();
     if (widget.preload == DVLinkPreload.immediate) {
       // After the frame: a build must not start work that could rebuild it.
-      WidgetsBinding.instance.addPostFrameCallback((_) => _preload());
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => unawaited(_preload()));
     }
   }
 
@@ -165,7 +170,7 @@ class _DVNavLinkState extends State<DVNavLink> {
 
   void _enter(PointerEnterEvent _) {
     widget.onPreview?.call(widget.to.path);
-    if (widget.preload == DVLinkPreload.hover) _preload();
+    if (widget.preload == DVLinkPreload.hover) unawaited(_preload());
     _schedulePreview();
   }
 
@@ -256,6 +261,11 @@ class _DVNavLinkState extends State<DVNavLink> {
       link: true,
       linkUrl: Uri.tryParse(widget.to.path),
       label: widget.semanticLabel,
+      // An explicit label replaces the child's text rather than being read
+      // before it. Without this a screen reader announces both -- "Read more
+      // about pricing, Read more" -- which is worse than the bare label the
+      // caller was trying to improve on.
+      excludeSemantics: widget.semanticLabel != null,
       child: MouseRegion(
         cursor: widget.enabled
             ? SystemMouseCursors.click
@@ -271,7 +281,14 @@ class _DVNavLinkState extends State<DVNavLink> {
             onTap: widget.enabled ? _activate : null,
             onLongPress: widget.enabled ? _showPreview : null,
             focusNode: _focusNode,
+            // Focusable when it does something, and skipped by Tab when it
+            // does not: landing on a disabled link tells a keyboard user
+            // nothing, and they cannot see why nothing happened.
             canRequestFocus: widget.enabled,
+            // Focus nobody can see is focus nobody can follow. The theme's
+            // own focus colour, so it reads correctly in light and dark.
+            focusColor: Theme.of(context).focusColor,
+            autofocus: widget.autofocus,
             child: Padding(padding: widget.padding, child: widget.child),
           ),
         ),
