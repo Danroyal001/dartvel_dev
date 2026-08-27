@@ -1270,6 +1270,73 @@ jobs:
 
           du -sh "$OUT"
 
+      # The package has never been run. Everything above proves it assembles
+      # and that the parts are ARM; none of it proves the engine starts.
+      #
+      # qemu-user runs 32-bit ARM binaries on this x86-64 runner, so no
+      # television and no ARM runner is needed to find that out — only to find
+      # out whether LG's window and input stack work, which is a different
+      # question and stays open.
+      - name: Install the ARM emulator and cross compiler
+        run: |
+          sudo apt-get install -y -qq qemu-user-static gcc-arm-linux-gnueabihf
+
+      - name: The app must render on ARM
+        run: |
+          set -euo pipefail
+          OUT="$GITHUB_WORKSPACE/examples/dartvel_example/build/webos/com.dartvel.example"
+          cd "$(mktemp -d)"
+
+          # The engine's own header. A hand copy of FlutterRendererConfig is
+          # how the first attempt got kInvalidArguments: it is a union with no
+          # struct_size, and the copy was a struct with one.
+          curl -sSLO https://raw.githubusercontent.com/flutter/flutter/3.44.5/engine/src/flutter/shell/platform/embedder/embedder.h
+          mv embedder.h flutter_embedder.h
+
+          cp "$OUT/lib/"*.so .
+          arm-linux-gnueabihf-gcc -O1 -I. -o render \
+            "$GITHUB_WORKSPACE/tool/webos/render_probe.c" \
+            -L. -lflutter_engine -Wl,-rpath,'$ORIGIN'
+
+          qemu-arm-static -L /usr/arm-linux-gnueabihf ./render \
+            "$OUT/data/flutter_assets" "$OUT/data/icudtl.dat" ./libapp.so
+
+          test -s frame.ppm || {
+            echo "::error::the engine started but presented no frame"
+            exit 1
+          }
+
+          # A crash before the first frame leaves a buffer that is one colour,
+          # and one colour passes every check that only stats the file. This
+          # is the check that does not.
+          python3 -c "
+          import struct, sys, zlib
+          data = open('frame.ppm','rb').read()
+          parts = data.split(b'\n', 3)
+          w, h = map(int, parts[1].split())
+          rows = b''.join(b'\x00' + parts[3][y*w*3:(y+1)*w*3] for y in range(h))
+          def chunk(tag, body):
+              c = tag + body
+              return struct.pack('>I', len(body)) + c + struct.pack('>I', zlib.crc32(c))
+          open('frame.png','wb').write(
+              b'\x89PNG\r\n\x1a\n'
+              + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0))
+              + chunk(b'IDAT', zlib.compress(rows))
+              + chunk(b'IEND', b''))
+          "
+          dart pub get --directory "$GITHUB_WORKSPACE/packages/dartvel_cli"
+          dart run "$GITHUB_WORKSPACE/packages/dartvel_cli/bin/dartvel.dart" \
+            capture verify frame.png --label webos-arm
+
+          cp frame.png frame.ppm /tmp/diag/
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: webos-arm-frame
+          path: /tmp/diag/frame.png
+          if-no-files-found: warn
+
       - uses: actions/upload-artifact@v4
         with:
           name: webos-package
