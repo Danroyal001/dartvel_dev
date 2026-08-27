@@ -26,6 +26,7 @@ Widget buildDocsPage(BuildContext context) => SitePage(
         _pages(),
         _models(),
         _backend(),
+        _links(),
         _signals(),
         _building(),
         _honesty(),
@@ -164,6 +165,47 @@ Widget _backend() => Section(
           'survive a restart is one flag away.',
           width: 660,
         ),
+      ],
+    );
+
+Widget _links() => Section(
+      tint: true,
+      children: const <Widget>[
+        Eyebrow('LINKS'),
+        Heading('A link, not a tap handler.'),
+        CodeBlock(<String>[
+          'DVNavLink(',
+          '  to: DVRoutes.docs,',
+          "  child: const DVText('Documentation'),",
+          ')',
+        ]),
+        Body(
+          'A Flutter app is a canvas, so almost nothing a link normally does '
+          'exists unless the link does it. DVNavLink navigates with its '
+          'padding as part of the hit area, announces itself as a link '
+          'carrying its destination, takes keyboard focus and answers Enter, '
+          'and opens the destination beside this page on a middle or '
+          'modifier click.',
+          width: 660,
+        ),
+        Body(
+          'It also preloads and previews. Pages are deferred, so a hover '
+          'fetches the bundle the click is about to need — the same work, a '
+          'few hundred milliseconds earlier. And resting on a link shows a '
+          'card of where it goes; on a phone, a long press does. That is the '
+          'part iOS gives to Safari and nothing gives to anyone else, and it '
+          'works here because Dartvel built the router and can build the '
+          'destination.',
+          width: 660,
+        ),
+        CodeBlock(<String>[
+          'DVNavLink(',
+          '  to: DVRoutes.report,',
+          '  preload: DVLinkPreload.immediate,  // none | hover | immediate',
+          '  preview: DVLinkPreview.none,       // none | auto',
+          "  child: const DVText('Annual report'),",
+          ')',
+        ]),
       ],
     );
 

@@ -16,6 +16,14 @@ reading the source.
 what ships today.** Where the spec and this README disagree with the code, the
 code wins.
 
+**Published.** Six packages on
+[pub.dev](https://pub.dev/packages/dartvel_dev), an
+[npm launcher](https://www.npmjs.com/package/dartvel_dev), a
+[Homebrew tap](https://github.com/Danroyal001/homebrew-dartvel_dev), and
+self-contained binaries for five platforms. The site at
+[dartvel.dev](https://dartvel.dev) is built with Dartvel, which is how three
+first-hour bugs were found.
+
 **Recently implemented.** These were specified with no code behind them and
 now have runtime implementations and tests:
 
@@ -31,6 +39,9 @@ now have runtime implementations and tests:
 | Native HTTP/2 client | ✅ On the `h2` crate, with 103 Early Hints, verified against a live server |
 | `ApnsPushProvider`, `WebPushProvider` | ✅ Both unblocked by that client; Web Push is RFC 8291 + 8292 |
 | `DV.Platform.surface`, launch negotiation | ✅ Terminal rendering's runtime surface; the backend itself is not built |
+| `DVNavLink` | ✅ Navigation, link semantics, keyboard focus, new-tab clicks, route preloading and cross-platform link previews |
+| `DV.Platform` native bindings | ✅ Six platforms through FFI and jnigen — clipboard, haptics, screen, window, notifications, sharing |
+| Path URLs on the web | ✅ Deep links route; Flutter's hash default silently sent every URL to `/` |
 
 **Implemented, but not equally mature.** The feature table below marks each
 area. Anything flagged ⚠️ Scaffold has an API surface and prebuilt pieces, but
@@ -38,19 +49,29 @@ provider integrations are incomplete — expect to fill gaps yourself.
 
 **How "verified" is used here.** A target marked ✅ had its build run and its
 artifact inspected — the file listed, its type checked. That proves it
-compiles and links; it does not prove the application starts. Exactly one
-target, `linux`, is covered by a test that launches the app and asserts it
-renders, and that test runs in CI on every push. The rest need emulators or
-hardware, and that gap is stated rather than glossed.
+compiles and links; it does not prove the application starts.
 
-**Still maturing:** generated public model pages and static paths now exist,
-but every target must still be verified through `docs/build-targets.md` before
-claiming production readiness for that target.
+Ten targets go further and are run: the app is launched on a virtual device or
+an emulator and screenshotted, and the screenshot is checked for *pixels*
+rather than for existing. That check earned itself. Every job used to end at
+`test -s capture.png`, which a blank screen satisfies — a crash before the
+first frame produces a full-size image of one colour, a few kilobytes on disk,
+and a green build.
+
+**Where it says shipped, a tool agrees.** Per-section status lives in
+[`docs/spec-status.json`](docs/spec-status.json), checked by
+`dart run tool/spec_status_check.dart`, which fails when a section claims to be
+built and the evidence it names does not exist. Each entry carries two labels
+— how much the public surface can still move, and how much is built — so a
+frozen contract that is deliberately unbuilt reads as the scope rule working
+rather than as a gap. Twenty-two sections are shipped; thirty-three are
+partial and say what is missing.
 
 **Build targets** are individually verified with evidence in
-[docs/build-targets.md](docs/build-targets.md); four of them can only be built
-on hosts this project does not develop on, one TV target is blocked upstream,
-and one is not yet demonstrated.
+[docs/build-targets.md](docs/build-targets.md). Thirteen of fifteen build.
+webOS has its engine — a 32-bit ARM build Google does not publish, so Dartvel
+builds it from source — and its bundle is unattempted. Fuchsia is blocked on
+an embedder whose bundled Flutter predates Dart 3.4.
 
 If you hit something that claims to work and does not, that is a bug in these
 docs as much as in the code — please report it.
@@ -74,18 +95,18 @@ Everything else is automatically compiled, generated, or served by the framework
 
 | Feature | Description | Status |
 | :--- | :--- | :--- |
-| **UI Primitives** | `DVBox`, `DVText`, and fluent styling built on `Mix` | ✅ Implemented |
-| **Routing** | File-based pages router with strongly-typed navigation targets, generated onto `go_router` | ✅ Implemented |
+| **UI Primitives** | `DVBox`, `DVText`, `DVNavLink`, and fluent styling built on `Mix` | ✅ Implemented |
+| **Routing** | File-based pages router with strongly-typed navigation targets, generated onto `go_router`. Path URLs on the web, and `DVNavLink` for links that preload and preview | ✅ Implemented |
 | **State Management** | Riverpod-powered signals (`context.signal`, reactive models, `DV.global`) | ✅ Implemented |
 | **Models & Forms** | `@DVModel` annotation + `DVForm<T>` automatic & manual controls | ✅ Implemented |
 | **Backend Runtime** | Axum/Tokio Rust server calling Dart FFI, supporting SSE streams | ✅ Implemented |
-| **Platform APIs** | Runtime platform/screen detection; camera, location, haptics, etc. are scaffolded pending native plugins | ⚠️ Partial |
+| **Platform APIs** | `DV.Platform` on six platforms — Linux, web, Windows, Android, iOS, macOS — through `dart:ffi` and jnigen, never platform channels. Biometrics, NFC, Bluetooth and tray need an `Activity` or a desktop the web has not got; each absence is recorded with its reason | ⚠️ Partial |
 | **Authentication** | Local provider with salted password hashes, plus OAuth2 (PKCE) with Google/GitHub/GitLab/Bitbucket/Microsoft presets; magic links, OTP, LDAP and SAML are not complete | ⚠️ Partial |
 | **Outbound HTTP** | Protocol negotiation with ordered fallback, RFC 8297 early hints, and a native HTTP/2 client on the `h2` crate verified against a live server; HTTP/3 is not complete | ⚠️ Partial |
 | **Terminal rendering** | `-cli`/`-tui` targets resolve, build-time backend selection, `DV.Platform.surface`, launch negotiation. The terminal backend itself is not built | ⚠️ Partial |
 | **Database & Cache** | Real SQLite adapter (file + in-memory, WAL) and a pluggable cache with memory/database-backed adapters; Postgres/MySQL/Redis adapters are not complete | ⚠️ Partial |
 | **Mail & Notifications** | SMTP plus HTTP mail (Resend, SendGrid, Postmark, Mailgun, SES), FCM push, APNS over native HTTP/2, Web Push (RFC 8291/8292), and Twilio SMS | ✅ Implemented |
-| **PWA & SEO** | Automatic PWA manifest/worker & runtime/global SEO injection | ✅ Implemented |
+| **PWA & SEO** | `dartvel build web` writes the PWA manifest, the head tags, per-route HTML, `sitemap.xml` and `robots.txt`, and warns when a manifest will not install | ✅ Implemented |
 | **AI Integration** | HTTP adapters for Claude, OpenAI, Gemini, OpenRouter, and Ollama, plus the deterministic local adapter | ✅ Implemented |
 | **Sensitive Fields** | `@DVModel.sensitiveField()` redacts fields from public serialization, cards, logs, and AI context | ✅ Implemented |
 | **Lifecycle Signals** | Read-only enum signals: `DV.lifecycle.app`/`.build`, `context.lifecycle.page`/`.request`/`.transaction` | ✅ Implemented |
@@ -195,14 +216,67 @@ These embedders download a *vendor-built* Flutter engine per version, so a targe
 
 ## 📦 Getting Started
 
-### 1. Project Initialization
+### 1. Install
+
+The CLI is a single self-contained binary. The Dart runtime and the Rust
+server library are linked into it, so nothing has to be installed first —
+**you do not need Dart or Flutter to run `dartvel`.** You do need Flutter to
+*build* an application, for whichever target you are building.
+
 ```bash
-dartvel init my_app
+# Homebrew — a prebuilt binary
+brew install Danroyal001/dartvel_dev/dartvel_dev
+
+# npm — downloads the same binary
+npx dartvel_dev --help
+
+# pub — if you already have the Dart SDK
+dart pub global activate dartvel_cli
+```
+
+Or take the binary straight from a
+[release](https://github.com/Danroyal001/dartvel_dev/releases): Linux, macOS
+and Windows on x64, Linux and macOS on arm64. Then put it on your PATH:
+
+```bash
+dartvel ensure-path
+```
+
+`dartvel --version` reports the CLI, the Dart SDK, Flutter and Shorebird, so a
+missing toolchain shows up before a build fails on it.
+
+**The published name is `dartvel_dev` and the command is `dartvel`.** They
+differ because `dartvel` was taken on pub.dev on 2026-08-06 by an unrelated
+package. Everything you interact with is called `dartvel`.
+
+### 2. Add it to a project
+
+```yaml
+dependencies:
+  dartvel_dev: ^0.2.1
+```
+
+Or the pieces directly, where you want only some of them:
+[`dartvel_core`](https://pub.dev/packages/dartvel_core) (models, database,
+cache, queues, auth, notifications, AI),
+[`dartvel_flutter`](https://pub.dev/packages/dartvel_flutter) (UI, routing,
+signals, native platform APIs),
+[`dartvel_shelf`](https://pub.dev/packages/dartvel_shelf) (the Rust runtime),
+[`dartvel_cli`](https://pub.dev/packages/dartvel_cli),
+[`dartvel_generator`](https://pub.dev/packages/dartvel_generator).
+
+### 3. Project Initialization
+```bash
+dartvel create my_app
 cd my_app
 dartvel dev
 ```
 
-### 2. Declare Reactive Models
+`dartvel dev` runs generation, the Flutter app and the backend together, and
+reloads only what changed: a page edit hot-reloads Flutter, a backend edit
+restarts the server, a Rust edit rebuilds the native library.
+
+### 4. Declare Reactive Models
 Annotated models automatically generate DB schemas, validation, forms, and serializations:
 ```dart
 // lib/models/user.dart
@@ -217,7 +291,7 @@ class _User {
 }
 ```
 
-### 3. Build Safe Reactive Forms
+### 5. Build Safe Reactive Forms
 Render custom-designed form layouts with auto-generated controls, validation states, and submit triggers:
 ```dart
 // lib/pages/index.page.dart
@@ -243,7 +317,7 @@ Widget _indexPage(BuildContext context) {
 }
 ```
 
-### 4. Create FFI Backend Functions
+### 6. Create FFI Backend Functions
 Write plain Dart functions that are compiled into a high-performance Rust runtime using Axum and FFI:
 ```dart
 // lib/backend/functions/hello.get.dart
@@ -672,6 +746,53 @@ A tool that throws is reported back to the model as an error result so it can
 recover, and is left out of `usedTools`. A loop that never settles fails with
 `DVAIProviderException` after `maxAgentIterations` (8) model turns rather than
 spinning.
+
+---
+
+## 🔗 Links
+
+`DVNavLink` is a link, not a tap handler. That distinction earned itself: the
+dartvel.dev header was hand-rolled twice and shipped dead once, because
+`onTap: () => DV.Navigation.to(target)` compiles, runs and navigates nowhere —
+it builds the callback and never calls it.
+
+```dart
+DVNavLink(
+  to: DVRoutes.docs,
+  child: const DVText('Documentation'),
+)
+```
+
+A Flutter app is a canvas, so almost nothing a link normally does exists
+unless the link does it. Each of these works the same on every platform,
+rather than only where the system happens to provide it:
+
+| | |
+| :--- | :--- |
+| **Navigates** | with its padding as part of the hit area, so a click that looks on-target does not miss |
+| **Announces itself** | as a link carrying its destination, not as tappable text |
+| **Takes keyboard focus** | and answers Enter, with a focus node you can supply |
+| **Middle and modifier click** | open the destination beside this page instead of replacing it |
+| **Preloads** | Dartvel pages are deferred, so a hover fetches the bundle the click is about to need — the same work, a few hundred milliseconds earlier |
+| **Previews** | a card of the destination on a resting pointer, and on a long press where there is no pointer |
+
+Link previews are the part iOS gives to Safari and nothing gives to anyone
+else. Dartvel built the router, so it can build the destination — which is why
+this works on a phone, a television and the web alike.
+
+```dart
+DVNavLink(
+  to: DVRoutes.report,
+  preload: DVLinkPreload.immediate,  // none | hover | immediate
+  preview: DVLinkPreview.none,       // none | auto
+  child: const DVText('Annual report'),
+)
+```
+
+The preview is a picture of a destination, not the destination: it ignores
+pointers, so a stray tap inside cannot activate whatever it is showing.
+Preloading is an optimisation, so a failure is reported and swallowed rather
+than stopping the tap that follows.
 
 ---
 

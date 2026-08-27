@@ -76,6 +76,16 @@ jobs:
       # continue-on-error so its logs still upload; this is not, so the job
       # goes red when there is no evidence — which is how tvOS went green while
       # failing to build at all.
+      # Links, tapped on the device this job is running. A widget test cannot
+      # tell a working link from one whose handler builds a callback and never
+      # calls it -- the dartvel.dev header shipped dead while a widget suite
+      # passed it. Only a running application can.
+      - name: Links must navigate on this platform
+        run: |
+          set -euo pipefail
+          cd examples/dartvel_example
+          flutter test integration_test/link_navigation_test.dart -d linux
+
       - name: The capture must show the application
         run: |
           set -euo pipefail
@@ -564,6 +574,16 @@ jobs:
       # continue-on-error so its logs still upload; this is not, so the job
       # goes red when there is no evidence — which is how tvOS went green while
       # failing to build at all.
+      # Links, tapped on the device this job is running. A widget test cannot
+      # tell a working link from one whose handler builds a callback and never
+      # calls it -- the dartvel.dev header shipped dead while a widget suite
+      # passed it. Only a running application can.
+      - name: Links must navigate on this platform
+        run: |
+          set -euo pipefail
+          cd examples/dartvel_example
+          flutter test integration_test/link_navigation_test.dart -d emulator-5554
+
       - name: The capture must show the application
         run: |
           set -euo pipefail

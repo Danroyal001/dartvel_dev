@@ -17,6 +17,21 @@ Widget _indexPage(BuildContext context) => (() {
           currentLangScope.isEmpty ? 'system' : currentLangScope;
 
       return DVBox.list([
+        // Links, so `dartvel test e2e` can tap them on every platform the
+        // example runs on. A DVNavLink is the primitive; these are here to be
+        // exercised, not decorated.
+        const DVBox.wrapLine(<Widget>[
+          DVNavLink(
+            key: Key('link-about'),
+            to: DVRouteTarget('/about'),
+            child: DVText('About'),
+          ),
+          DVNavLink(
+            key: Key('link-pricing'),
+            to: DVRouteTarget('/pricing'),
+            child: DVText('Pricing'),
+          ),
+        ], spacing: 12),
         ShowcaseHero(
           DV.Platform.currentPlatform,
           DV.Platform.deviceType,
