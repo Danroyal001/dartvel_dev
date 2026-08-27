@@ -7,6 +7,7 @@ import '../build/browser_extension.dart';
 import '../build/elinux_bundle.dart';
 import '../build/pwa_manifest.dart';
 import '../build/seo_head.dart';
+import '../build/static_seo.dart';
 import '../utils/build_runner.dart';
 import '../utils/logger.dart';
 import '../utils/toolchain.dart';
@@ -727,6 +728,7 @@ class BuildCommand extends Command<void> {
       if (platform == 'web') {
         _writePwaManifest(Directory.current.path);
         _writeSeoHead(Directory.current.path);
+        _writeStaticPages(Directory.current.path);
       }
       Logger.log('✅ $platform build successful');
       return _PlatformBuildResult.succeeded;
@@ -1233,6 +1235,107 @@ class BuildCommand extends Command<void> {
     if (after == before) return;
     index.writeAsStringSync(after);
     Logger.log('   SEO head written for "$title".');
+  }
+
+  /// Write per-route HTML, a sitemap and robots.txt into a finished web build.
+  ///
+  /// Without this a static host serves one index.html for every route, which
+  /// is `flutter build web` with extra steps: four URLs, one title, one
+  /// description, one body. Prerendered text is used where `dartvel prerender`
+  /// captured it, and a page still gets its own head tags where it did not.
+  void _writeStaticPages(String root) {
+    final web = Directory(p.join(root, 'build', 'web'));
+    final index = File(p.join(web.path, 'index.html'));
+    if (!index.existsSync()) return;
+
+    final dartvel = _dartvelSection(root);
+    final seo = dartvel['seo'];
+    final settings = seo is Map ? seo : const <Object?, Object?>{};
+    final siteUrl = settings['siteUrl'] as String?;
+
+    final routes = _generatedRoutes(root);
+    if (routes.isEmpty) return;
+
+    final shell = index.readAsStringSync();
+    final baseTitle = dvSeoTitle(settings, _packageName(root) ?? 'Dartvel');
+    // What each page calls itself, which is better than anything derivable
+    // from the path.
+    final declared = dvRouteTitles(_routerSource(root));
+    var written = 0;
+
+    for (final String route in routes) {
+      final target = dvStaticRoutePath(route);
+      // The root is already index.html and carries its head tags from
+      // _writeSeoHead; rewriting it here would undo them.
+      if (target == null || target == 'index.html') continue;
+
+      final meta = _prerendered(web.path, route);
+      final page = dvStaticPage(
+        shell: shell,
+        route: route,
+        title: meta?.title ??
+            declared[route] ??
+            '${_routeLabel(route)} — $baseTitle',
+        description: dvSeoDescription(settings),
+        content: meta?.content,
+        siteUrl: siteUrl,
+        image: settings['image'] as String?,
+        siteName: settings['siteName'] as String? ?? baseTitle,
+      );
+
+      File(p.join(web.path, target))
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(page);
+      written++;
+    }
+
+    if (siteUrl != null && siteUrl.isNotEmpty) {
+      File(p.join(web.path, 'sitemap.xml'))
+          .writeAsStringSync(dvSitemap(routes: routes, siteUrl: siteUrl));
+      File(p.join(web.path, 'robots.txt'))
+          .writeAsStringSync(dvRobots(siteUrl: siteUrl));
+      Logger.log('   Wrote $written route pages, sitemap.xml and robots.txt.');
+    } else {
+      Logger.log('   Wrote $written route pages. Set dartvel.seo.siteUrl for '
+          'a sitemap and robots.txt.');
+    }
+  }
+
+  /// What prerendering captured for a route, if it ran.
+  DVPrerenderedMeta? _prerendered(String webDir, String route) {
+    final clean = route == '/' ? 'index' : route.substring(1);
+    final file = File(p.join(webDir, 'prerender', clean, 'meta.json'));
+    if (!file.existsSync()) return null;
+    return dvPrerenderedMeta(file.readAsStringSync());
+  }
+
+  /// A readable name for a route, for a title when nothing better exists.
+  String _routeLabel(String route) {
+    final parts = route.split('/').where((String s) => s.isNotEmpty);
+    if (parts.isEmpty) return 'Home';
+    final last = parts.last.replaceAll('-', ' ').replaceAll('_', ' ');
+    return last[0].toUpperCase() + last.substring(1);
+  }
+
+  /// The generated router's source, or empty when there is none.
+  String _routerSource(String root) {
+    final router =
+        File(p.join(root, 'lib', 'dartvel_client', 'router.g.dart'));
+    return router.existsSync() ? router.readAsStringSync() : '';
+  }
+
+  /// The routes the generator emitted, read from the generated router.
+  List<String> _generatedRoutes(String root) {
+    final source = _routerSource(root);
+    if (source.isEmpty) return const <String>[];
+    final pattern = RegExp("path: '([^']+)'");
+    return pattern
+        .allMatches(source)
+        .map((RegExpMatch m) => m.group(1)!)
+        .where((String r) => r.startsWith('/'))
+        .toSet()
+        .toList()
+      ..sort();
   }
 
   /// The `dartvel:` section of pubspec.yaml, or an empty map.
