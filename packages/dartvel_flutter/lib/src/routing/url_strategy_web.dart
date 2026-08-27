@@ -2,6 +2,7 @@
 library dartvel_flutter.routing.url_strategy.web;
 
 import 'package:flutter/semantics.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_web_plugins/url_strategy.dart' as web;
 
 /// Switch the browser off the default hash strategy.
@@ -29,4 +30,23 @@ void dvUsePathUrlStrategy() => web.usePathUrlStrategy();
 ///
 /// The cost is the tree itself, which is built anyway the moment anyone with
 /// a reader arrives.
-void dvEnsureSemantics() => SemanticsBinding.instance.ensureSemantics();
+/// The handle is held, not discarded.
+///
+/// `ensureSemantics()` returns a handle that keeps the tree alive; dropping it
+/// releases the request immediately. The first version called it and threw the
+/// handle away, which left the browser showing Flutter's "enable
+/// accessibility" placeholder button instead of the tree — semantics offered,
+/// not switched on, and Tab still landing on the canvas.
+SemanticsHandle? _semanticsHandle;
+
+void dvEnsureSemantics() {
+  if (_semanticsHandle != null) return;
+  // The binding first. createDartvelRouter() is evaluated as an argument to
+  // runApp, so it runs *before* runApp initialises the binding -- asking
+  // SemanticsBinding.instance for anything at that point is asking a binding
+  // that does not exist yet, and the request was quietly lost. The browser
+  // kept showing Flutter's "enable accessibility" placeholder, and the DOM
+  // had zero semantics nodes.
+  WidgetsFlutterBinding.ensureInitialized();
+  _semanticsHandle = SemanticsBinding.instance.ensureSemantics();
+}
