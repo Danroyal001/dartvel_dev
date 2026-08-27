@@ -619,10 +619,25 @@ over through `FlutterEngineCreateAOTData` — without it the engine stops at
 **What is still not established.** A television adds a window, an input stack
 and a GL path, and none of them is exercised by a headless software render.
 None would make a working engine stop working, but that is a prediction rather
-than a measurement. Settling it needs `ares-install` against a real set. LG's
-emulator is worth checking first and worth checking *specifically* — if it is
-x86-based it would not exercise the ARM engine at all, which is the part that
-was in doubt.
+than a measurement. Settling it needs `ares-install` against a real set.
+
+**LG's emulator cannot stand in for one, and this is checked rather than
+assumed.** The webOS TV emulator ships as a VirtualBox appliance, and
+VirtualBox is a virtualiser rather than an emulator: it runs x86 guests on x86
+hosts and cannot execute an ARM guest at all. webOS OSE's QEMU emulator is
+explicit about the same limit — *"the emulator only supports the x86 (x86_64)
+machine architecture"*, built with `--target-list=i386-softmmu`. Neither would
+load the ARM engine this target is built around.
+
+So the emulator is not a cheaper approximation of a television, it is a
+different question. Using it would first require an **x86 webOS engine**,
+which is a second engine build, and what it would then exercise is LG's window
+and input stack — the part that is actually open — while testing none of the
+ARM work. Worth doing for that reason and not for the obvious one; a real set
+tests both at once.
+
+Sources: [webOS OSE QEMU emulator guide](https://www.webosose.org/docs/tools/sdk/emulator/qemu-emulator/qemu-emulator-user-guide/),
+[webOS TV emulator](https://webostv.developer.lge.com/develop/tools/emulator-introduction).
 
 **webOS was checked the same way and is not out of the group.** LG publishes
 artifacts at `lg-flutter-webos/artifacts`, and the newest release is recent —
