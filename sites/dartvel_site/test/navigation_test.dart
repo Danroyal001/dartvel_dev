@@ -21,8 +21,11 @@ GoRouter siteRouter(Widget subject) => GoRouter(
       routes: <RouteBase>[
         GoRoute(
           path: '/',
+          // Wrapped exactly as a real page is: DVPageShell puts every page
+          // inside a SelectionArea. Testing the header bare is what let dead
+          // links pass a suite that taps them.
           builder: (BuildContext context, GoRouterState state) =>
-              Scaffold(body: subject),
+              Scaffold(body: SelectionArea(child: subject)),
         ),
         for (final String path in const <String>['/docs', '/features', '/cloud'])
           GoRoute(

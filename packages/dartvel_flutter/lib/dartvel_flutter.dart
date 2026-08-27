@@ -244,6 +244,7 @@ export 'src/platform/linux/linux_bindings.dart';
 export 'src/platform/macos/macos_bindings.dart';
 export 'src/platform/web/web_bindings.dart';
 export 'src/platform/windows/windows_bindings.dart';
+export 'src/routing/nav_link.dart';
 export 'src/routing/url_strategy.dart';
 export 'src/studio/page_document.dart';
 export 'src/studio/studio_editor.dart';

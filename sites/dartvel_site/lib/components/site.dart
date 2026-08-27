@@ -308,6 +308,8 @@ class CodeBlock extends StatelessWidget {
   }
 }
 
+/// A header link. A DVNavLink with the header's look, rather than a tap
+/// handler wired by hand -- which is what shipped dead twice.
 class NavLink extends StatelessWidget {
   const NavLink(this.label, this.href, {super.key, this.active = false});
   final String label;
@@ -317,23 +319,15 @@ class NavLink extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = Palette.of(context);
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        // A hit area rather than bare glyphs: padding on the container means
-        // the gap between letters is clickable too.
-        behavior: HitTestBehavior.opaque,
-        onTap: DV.Navigation.to(DVRouteTarget(href)),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-              color: active ? palette.accent : palette.muted,
-            ),
-          ),
+    return DVNavLink(
+      to: DVRouteTarget(href),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 15,
+          fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+          color: active ? palette.accent : palette.muted,
         ),
       ),
     );
@@ -346,11 +340,8 @@ class PrimaryLink extends StatelessWidget {
   final String href;
 
   @override
-  Widget build(BuildContext context) => _Button(
-        label: label,
-        href: href,
-        filled: true,
-      );
+  Widget build(BuildContext context) =>
+      _Button(label: label, href: href, filled: true);
 }
 
 class GhostLink extends StatelessWidget {
@@ -359,19 +350,13 @@ class GhostLink extends StatelessWidget {
   final String href;
 
   @override
-  Widget build(BuildContext context) => _Button(
-        label: label,
-        href: href,
-        filled: false,
-      );
+  Widget build(BuildContext context) =>
+      _Button(label: label, href: href, filled: false);
 }
 
-/// A real button: padding on the container, the label centred inside it, and
-/// a cursor that says it is clickable.
-///
-/// The first version put padding on the text's modifier inside a coloured
-/// box, which gave a cramped strip with the label pressed against its edges
-/// and no hit area beyond the glyphs.
+/// A button that is a link: it navigates, previews, preloads, takes keyboard
+/// focus and opens in a new tab on a middle click, because DVNavLink does all
+/// of that and a GestureDetector does none of it.
 class _Button extends StatelessWidget {
   const _Button({
     required this.label,
@@ -386,25 +371,23 @@ class _Button extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = Palette.of(context);
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: DV.Navigation.to(DVRouteTarget(href)),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 15),
-          decoration: BoxDecoration(
-            color: filled ? palette.accent : Colors.transparent,
-            border: filled ? null : Border.all(color: palette.rule, width: 1.5),
-            borderRadius: BorderRadius.circular(9),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              height: 1.2,
-              color: filled ? Colors.white : palette.ink,
-            ),
+    return DVNavLink(
+      to: DVRouteTarget(href),
+      padding: EdgeInsets.zero,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 15),
+        decoration: BoxDecoration(
+          color: filled ? palette.accent : Colors.transparent,
+          border: filled ? null : Border.all(color: palette.rule, width: 1.5),
+          borderRadius: BorderRadius.circular(9),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            height: 1.2,
+            color: filled ? Colors.white : palette.ink,
           ),
         ),
       ),
