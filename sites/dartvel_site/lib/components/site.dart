@@ -323,7 +323,7 @@ class NavLink extends StatelessWidget {
         // A hit area rather than bare glyphs: padding on the container means
         // the gap between letters is clickable too.
         behavior: HitTestBehavior.opaque,
-        onTap: () => DV.Navigation.to(DVRouteTarget(href)),
+        onTap: DV.Navigation.to(DVRouteTarget(href)),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
           child: Text(
@@ -389,7 +389,7 @@ class _Button extends StatelessWidget {
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
-        onTap: () => DV.Navigation.to(DVRouteTarget(href)),
+        onTap: DV.Navigation.to(DVRouteTarget(href)),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 15),
           decoration: BoxDecoration(
