@@ -10,6 +10,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:meta/meta.dart';
 
 // conditional SEO implementation
 import 'src/browser_extension_platform_memory.dart'
@@ -4019,6 +4020,21 @@ class DVNavigation {
 
   /// A callback that navigates to [target], for use directly in handlers:
   /// `DVBox(...).onPressed(DV.Navigation.to(DVPages.users))`.
+  /// A callback that navigates to [target] when called.
+  ///
+  /// Built for the position it is usually written in --
+  /// `onPressed: DV.Navigation.to(target)` -- where the handler wants a
+  /// callback rather than a call.
+  ///
+  /// It does not navigate by itself, and that is the trap. Written as
+  /// `onTap: () => DV.Navigation.to(target)` it compiles, runs, discards the
+  /// callback it built and goes nowhere. The dartvel.dev header shipped
+  /// exactly that: links that looked right and did nothing.
+  ///
+  /// `@useResult` makes the analyzer say so, so the next one is caught at the
+  /// keyboard rather than in a browser. Use [navigate] where you want the
+  /// call itself to move.
+  @useResult
   VoidCallback to(DVRouteTarget target) => () => navigate(target);
 
   /// Navigates to [target] now, replacing the current location.

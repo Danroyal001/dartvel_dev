@@ -35,6 +35,9 @@ dependencies:
   mix: ^2.2.0-beta.5
   flutter_riverpod: ^2.5.1
   ffi: ^2.1.0
+  # For @useResult on DV.Navigation.to, which returns a callback that is
+  # useless if dropped.
+  meta: ^1.15.0
   dartvel_core:
     version: ^0.2.1
   jni: ^1.0.3
