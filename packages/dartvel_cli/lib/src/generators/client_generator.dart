@@ -807,6 +807,17 @@ $generatedPageWidgets
 /// Creates the GoRouter instance for Dartvel routing.
 GoRouter createDartvelRouter() {
   configureDartvelRuntime();
+  // Path URLs on the web, not the hash Flutter defaults to.
+  //
+  // Without this, /docs never reaches the router: the browser asks for the
+  // page, the app boots, and the router sees only "/" -- so every deep link
+  // renders the home page and every URL grows a #. For a site that is fatal
+  // rather than untidy, because a crawler indexes /#/docs as /, and a shared
+  // link opens the wrong page.
+  //
+  // It needs the server to serve index.html for unknown paths, which is what
+  // the .htaccess and dartvel deploy configuration do.
+  dvUsePathUrlStrategy();
   final router = GoRouter(
     routes: [
 $routesSrc
