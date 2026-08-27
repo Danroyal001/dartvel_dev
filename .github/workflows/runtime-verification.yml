@@ -1130,6 +1130,16 @@ jobs:
       - name: Install cbindgen
         run: cargo install cbindgen --locked || true
 
+      # The kernel comes out of a Linux desktop build, and that needs GTK.
+      # Without these, cmake fails in flutter/CMakeLists.txt at
+      # pkg_check_modules, which reads as a Flutter problem and is a missing
+      # apt package.
+      - name: Install the desktop build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ninja-build libgtk-3-dev clang cmake \
+            pkg-config
+
       # The application's Dart, compiled for ARM by the host gen_snapshot that
       # came with the engine. This is the step a static bundle cannot skip:
       # a release engine has no interpreter, so kernel will not run on it.
