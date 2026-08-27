@@ -32,12 +32,10 @@ static bool present(void* user_data, const void* allocation, size_t row_bytes,
    * exits the moment it sees this, and raising it first left it racing the
    * write on the raster thread -- which produced a present callback, a
    * success, and a zero-byte file. */
-  /* The first frame only. The engine keeps presenting, and a later callback
-   * reopening the file with "wb" truncates the good frame and then loses the
-   * race with the exit -- which is how a complete render produced a file
-   * 84% of the right size. */
-  if (frames > 0) return true;
-
+  /* Every frame, each one replacing the last. The first frame is the shell
+   * alone -- a page's content arrives over a deferred load, so a probe that
+   * stops at frame one photographs an app bar above an empty body and calls
+   * it a rendered application. */
   FILE* out = fopen("frame.ppm.part", "wb");
   if (!out) return true;
   const size_t width = row_bytes / 4;
@@ -117,11 +115,18 @@ int main(int argc, char** argv) {
     if (i % 10 == 0) printf("waiting for a frame: %ds\n", i / 10);
     usleep(100000);
   }
-  printf("frames presented: %d\n", frames);
   if (frames == 0) {
+    printf("frames presented: 0\n");
     FlutterEngineShutdown(engine);
     return 1;
   }
+
+  /* Then keep running, so whatever the page loads after its first frame is in
+   * the picture. Each frame replaces the last by rename, so the file on disk
+   * is always the newest whole one. */
+  const int settle = 15;
+  for (int i = 0; i < settle * 10; i++) usleep(100000);
+  printf("frames presented: %d\n", frames);
 
   /* The frame is on disk and it is the whole result. Shutting the engine down
    * means joining threads that an emulated ARM run can leave the probe
