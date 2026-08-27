@@ -1,3 +1,15 @@
+/// The version a scaffolded project asks pub.dev for.
+///
+/// One number for the whole family, because they are released together. It was
+/// three hand-written constraints that nothing kept in step, and when the
+/// packages reached 0.2.1 the template still asked for ^0.1.1 -- a version
+/// never published, so every `dartvel create` outside this repository produced
+/// a project that could not resolve.
+///
+/// A test asserts this admits the version each package declares, so the two
+/// cannot drift again without the suite saying so.
+const String dartvelPackageVersion = '0.2.1';
+
 class ProjectTemplates {
   static String pubspecTemplate({
     required String name,
@@ -14,16 +26,16 @@ publish_to: "none"
 version: 0.0.1
 
 environment:
-  sdk: ">=3.4.0 <4.0.0"
+  sdk: ">=3.12.0 <4.0.0"
 
 dependencies:
   flutter:
     sdk: flutter
   go_router: ^14.2.0
   dio: ^5.5.0
-  dartvel_core: ${localPackagesDir == null ? '^0.1.1' : '\n    path: $localPackagesDir/dartvel_core'}
+  dartvel_core: ${localPackagesDir == null ? '^$dartvelPackageVersion' : '\n    path: $localPackagesDir/dartvel_core'}
   dartvel_shelf: ${localPackagesDir == null ? '^0.3.0' : '\n    path: $localPackagesDir/dartvel_shelf'}
-  dartvel_flutter: ${localPackagesDir == null ? '^0.1.1' : '\n    path: $localPackagesDir/dartvel_flutter'}
+  dartvel_flutter: ${localPackagesDir == null ? '^$dartvelPackageVersion' : '\n    path: $localPackagesDir/dartvel_flutter'}
   ${web ? 'flutter_web_plugins:\n    sdk: flutter' : ''}
 
 dev_dependencies:
@@ -31,7 +43,7 @@ dev_dependencies:
     sdk: flutter
   build_runner: ^2.5.4
   lints: ^4.0.0
-  dartvel_cli: ${localPackagesDir == null ? '^0.1.1' : '\n    path: $localPackagesDir/dartvel_cli'}
+  dartvel_cli: ${localPackagesDir == null ? '^$dartvelPackageVersion' : '\n    path: $localPackagesDir/dartvel_cli'}
 
 
 flutter:
@@ -284,8 +296,8 @@ A new Dartvel project.
 
 ### Prerequisites
 
-- Flutter SDK \u003e= 3.4.0
-- Dart SDK \u003e= 3.4.0
+- Flutter SDK \u003e= 3.44.0
+- Dart SDK \u003e= 3.12.0
 
 ### Installation
 
@@ -328,6 +340,7 @@ Create a new file in `lib/pages/`:
 // lib/pages/about.dart
 import '../dartvel_client/dartvel_client.dart';
 import 'package:flutter/material.dart';
+
 
 @DVPage(
   title: 'About',

@@ -1,0 +1,58 @@
+name: dartvel_site
+description: A new Dartvel project
+publish_to: "none"
+version: 0.0.1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  go_router: ^14.2.0
+  dio: ^5.5.0
+  dartvel_core: 
+    path: /workspaces/dartvel/packages/dartvel_core
+  dartvel_shelf: 
+    path: /workspaces/dartvel/packages/dartvel_shelf
+  dartvel_flutter: 
+    path: /workspaces/dartvel/packages/dartvel_flutter
+  flutter_web_plugins:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  build_runner: ^2.5.4
+  lints: ^4.0.0
+  dartvel_cli: 
+    path: /workspaces/dartvel/packages/dartvel_cli
+
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/
+
+dartvel:
+  backendHost: 0.0.0.0
+  backendPort: 3000
+  devBackendHost: http://localhost:3000
+  prodBackendHost: https://api.dartvel-site.com
+  pagesDir: lib/pages
+  backendDir: lib/backend
+  apiBasePath: /api
+  envFiles: [.env, .env.local]
+  plugins: []
+  webPrerender: false
+  ota: false
+
+  transitions:
+    default: fade
+    durationMs: 200
+    curve: easeInOut
+
+  seo:
+    siteName: dartvel site
+    defaultTitle: Welcome
+    defaultDescription: A Dartvel application
