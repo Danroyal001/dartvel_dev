@@ -4295,9 +4295,22 @@ class _DVPageShellState extends State<DVPageShell> {
         //
         // It shipped that way on macOS, iOS and tvOS because nothing rendered
         // on an Apple platform until the runtime-verification screenshots.
-        child: DefaultTextStyle(
-          style: CupertinoTheme.of(context).textTheme.textStyle,
-          child: _body(child),
+        // Material's widgets assert a Material ancestor, and
+        // CupertinoPageScaffold is not one. Dartvel's own primitives are
+        // built on several of them -- a DVModifier input is a TextField --
+        // so without this a page carrying a form threw "No Material widget
+        // found" before its first frame on macOS, iOS and tvOS, while
+        // working everywhere else.
+        //
+        // Transparency rather than a surface: this supplies the ancestor
+        // those widgets look for without painting anything over the
+        // Cupertino background.
+        child: Material(
+          type: MaterialType.transparency,
+          child: DefaultTextStyle(
+            style: CupertinoTheme.of(context).textTheme.textStyle,
+            child: _body(child),
+          ),
         ),
       );
     }
