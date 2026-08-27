@@ -1,0 +1,205 @@
+name: CLI release
+
+# Self-contained `dartvel` binaries, one per platform.
+#
+# `dart pub global activate` cannot serve as the install path: the umbrella
+# depends on the Flutter SDK, and pub refuses to run a global executable from a
+# package that does. `dart compile exe` cannot either -- dartvel_shelf carries
+# native asset build hooks and compile rejects them outright. `dart build cli`
+# handles both, and emits one executable with the Rust runtime linked in.
+#
+# Dart does not cross-compile, so every target needs its own runner. This
+# repository is public, so all of them are free.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release, without the leading v
+        required: true
+        default: 0.2.1
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.asset }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            asset: dartvel-linux-amd64
+            expect: x86-64
+          - runner: ubuntu-24.04-arm
+            asset: dartvel-linux-arm64
+            expect: aarch64
+          - runner: macos-13
+            asset: dartvel-darwin-amd64
+            expect: x86_64
+          - runner: macos-latest
+            asset: dartvel-darwin-arm64
+            expect: arm64
+          - runner: windows-latest
+            asset: dartvel-windows-amd64.exe
+            expect: x86-64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.44.5
+
+      # The Rust runtime is compiled by dartvel_shelf's build hook during
+      # `dart build`, so the toolchain has to be here before it runs.
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build the executable
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd packages/dartvel_cli
+          dart pub get
+          dart build cli --target bin/dartvel.dart
+
+      # Where `dart build` writes depends on the host, and guessing the
+      # directory is how a release ships an empty archive. This finds it.
+      - name: Locate and stage it
+        id: stage
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUILT=$(find packages/dartvel_cli/build/cli -type f \
+            \( -name dartvel -o -name dartvel.exe \) | head -1)
+          if [ -z "$BUILT" ]; then
+            echo "::error::dart build produced no executable"
+            find packages/dartvel_cli/build -maxdepth 4 || true
+            exit 1
+          fi
+          mkdir -p dist
+          cp "$BUILT" "dist/${{ matrix.asset }}"
+          chmod +x "dist/${{ matrix.asset }}" || true
+          ls -lh dist/
+          echo "path=dist/${{ matrix.asset }}" >> "$GITHUB_OUTPUT"
+
+      # Asserts the binary runs and reports a version, not that a file of the
+      # right name exists. A build that produced the wrong architecture, or an
+      # executable missing its runtime, passes every check that only stats the
+      # path.
+      - name: It must run, and be the architecture it claims
+        shell: bash
+        run: |
+          set -euo pipefail
+          BIN="${{ steps.stage.outputs.path }}"
+
+          if command -v file >/dev/null 2>&1; then
+            DESC=$(file -b "$BIN")
+            echo "$DESC"
+            case "$DESC" in
+              *"${{ matrix.expect }}"*) ;;
+              *) echo "::error::expected ${{ matrix.expect }}, got: $DESC"; exit 1 ;;
+            esac
+          fi
+
+          OUT=$("./$BIN" --version 2>&1 || true)
+          echo "$OUT"
+          echo "$OUT" | grep -qi "Dartvel CLI" || {
+            echo "::error::the binary did not report a version"
+            exit 1
+          }
+
+      # Proves it needs nothing installed. A binary that quietly depends on the
+      # Dart SDK on its build machine is not self-contained, and the only place
+      # that shows is a user's machine.
+      - name: It must not need the SDK that built it
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          BIN="$PWD/${{ steps.stage.outputs.path }}"
+          env -i PATH=/usr/bin:/bin HOME="$HOME" "$BIN" --version 2>&1 | tee /tmp/bare.txt
+          grep -qi "Dartvel CLI" /tmp/bare.txt || {
+            echo "::error::the binary does not run without the Dart SDK on PATH"
+            exit 1
+          }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: dist/${{ matrix.asset }}
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: staging
+
+      - name: Collect, checksum and describe
+        id: collect
+        run: |
+          set -euo pipefail
+          VERSION="${{ inputs.version }}"
+          if [ -z "$VERSION" ]; then VERSION="${GITHUB_REF_NAME#v}"; fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+          mkdir -p dist
+          find staging -type f -exec cp {} dist/ \;
+          chmod +x dist/* || true
+          (cd dist && sha256sum * > SHA256SUMS)
+          cat dist/SHA256SUMS
+
+          # Every platform this release actually carries, so the npm launcher
+          # and the tap resolve a URL instead of constructing one and hoping.
+          python3 - "$VERSION" > dist/latest.json <<'PY'
+          import hashlib, json, os, sys
+          version = sys.argv[1]
+          base = ('https://github.com/Danroyal001/dartvel_dev/releases/download/'
+                  f'v{version}')
+          assets = {}
+          for name in sorted(os.listdir('dist')):
+              if name in ('SHA256SUMS', 'latest.json'):
+                  continue
+              digest = hashlib.sha256(open(f'dist/{name}', 'rb').read()).hexdigest()
+              assets[name] = {'url': f'{base}/{name}', 'sha256': digest}
+          json.dump({'version': version, 'assets': assets}, sys.stdout, indent=2)
+          PY
+          cat dist/latest.json
+
+          COUNT=$(ls dist | grep -c '^dartvel-')
+          echo "built $COUNT platform binaries"
+          # Five targets go in; fewer coming out means a matrix leg failed and
+          # fail-fast: false let the release continue without it.
+          [ "$COUNT" -eq 5 ] || {
+            echo "::error::expected 5 binaries, found $COUNT"
+            exit 1
+          }
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          V="v${{ steps.collect.outputs.version }}"
+          gh release view "$V" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
+            || gh release create "$V" --repo "$GITHUB_REPOSITORY" \
+                 --title "Dartvel $V" \
+                 --notes "Self-contained \`dartvel\` binaries. No Dart or Flutter SDK needed to run the CLI itself; \`dartvel build\` still needs Flutter for the target you are building." \
+                 --verify-tag || \
+               gh release create "$V" --repo "$GITHUB_REPOSITORY" \
+                 --title "Dartvel $V" \
+                 --notes "Self-contained \`dartvel\` binaries."
+          gh release upload "$V" dist/* --repo "$GITHUB_REPOSITORY" --clobber
