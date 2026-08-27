@@ -17,13 +17,18 @@ dependencies:
   go_router: ^14.2.0
   web: ^1.0.0
   seo: ^0.0.10
-  # The Dartvel fork, not pub's mix. mix's SDK constraint sets Dartvel's own
-  # floor — it is the styling layer under DVBox and DVText — so it has to move
-  # with Dartvel rather than with upstream's oldest supported Dart.
-  mix:
-    git:
-      url: https://github.com/Danroyal001/dartvel_mix.git
-      path: packages/mix
+  # Upstream mix from pub.dev, at the version dartvel_mix tracks.
+  #
+  # The fork was depended on by git for its SDK floor, and that reasoning was
+  # backwards: a dependency declaring a *lower* floor cannot lower Dartvel's,
+  # which is whatever Dartvel itself declares. Upstream publishes this exact
+  # version, and pub refuses a git dependency in a published package.
+  #
+  # dartvel_mix still matters, for the reason it was forked: it is a drop-in
+  # replacement still named `mix`, so a project migrating to Dartvel swaps the
+  # dependency and keeps working. That is a migration path, not something this
+  # package needs to build.
+  mix: ^2.2.0-beta.5
   flutter_riverpod: ^2.5.1
   ffi: ^2.1.0
   dartvel_core:
