@@ -1,0 +1,41 @@
+{
+  "name": "dartvel_dev",
+  "version": "0.2.1",
+  "description": "Dartvel — a batteries-included, AI-native full-stack application platform built around Flutter. This is the npm launcher for the CLI published on pub.dev as dartvel_dev.",
+  "main": "./index.js",
+  "bin": {
+    "dartvel": "./bin/dartvel.js",
+    "dartvel_dev": "./bin/dartvel.js"
+  },
+  "files": [
+    "bin/",
+    "index.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": "./index.js"
+  },
+  "scripts": {
+    "test": "node --check index.js && node --check bin/dartvel.js && node test.js"
+  },
+  "keywords": [
+    "dartvel",
+    "flutter",
+    "dart",
+    "full-stack",
+    "framework",
+    "cli"
+  ],
+  "author": "SigmaDev",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Danroyal001/dartvel_dev.git"
+  },
+  "homepage": "https://dartvel.dev",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {}
+}
