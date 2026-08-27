@@ -6,6 +6,7 @@ import 'package:yaml/yaml.dart';
 import '../build/browser_extension.dart';
 import '../build/elinux_bundle.dart';
 import '../build/pwa_manifest.dart';
+import '../build/seo_head.dart';
 import '../utils/build_runner.dart';
 import '../utils/logger.dart';
 import '../utils/toolchain.dart';
@@ -725,6 +726,7 @@ class BuildCommand extends Command<void> {
     if (exitCode == 0) {
       if (platform == 'web') {
         _writePwaManifest(Directory.current.path);
+        _writeSeoHead(Directory.current.path);
       }
       Logger.log('✅ $platform build successful');
       return _PlatformBuildResult.succeeded;
@@ -1190,6 +1192,47 @@ class BuildCommand extends Command<void> {
     for (final problem in result.problems) {
       Logger.log('   ⚠ $problem');
     }
+  }
+
+  /// Write the SEO head tags into a finished web build.
+  ///
+  /// Flutter's template leaves the title as the package name and ships no
+  /// Open Graph tags, above a body that stays empty until JavaScript runs. A
+  /// crawler and a link preview read exactly that, and neither runs the app --
+  /// so the page is perfect in a browser and blank everywhere else.
+  void _writeSeoHead(String root) {
+    final dartvel = _dartvelSection(root);
+    final seo = dartvel['seo'];
+    final settings = seo is Map ? seo : const <Object?, Object?>{};
+    final pwa = dartvel['pwa'];
+    final pwaSettings = pwa is Map ? pwa : const <Object?, Object?>{};
+
+    // The title falls back through what is already configured before reaching
+    // the package name, which is the value that made this worth fixing.
+    final title = dvSeoTitle(
+      settings,
+      '${pwaSettings['name'] ?? _packageName(root) ?? 'Dartvel'}',
+    );
+    final description = dvSeoDescription(settings) ??
+        (pwaSettings['description'] == null
+            ? null
+            : '${pwaSettings['description']}');
+
+    final index = File(p.join(root, 'build', 'web', 'index.html'));
+    if (!index.existsSync()) return;
+
+    final head = dvSeoHead(
+      title: title,
+      description: description,
+      siteUrl: settings['siteUrl'] as String?,
+      image: settings['image'] as String?,
+      siteName: settings['siteName'] as String? ?? title,
+    );
+    final before = index.readAsStringSync();
+    final after = dvSeoApply(before, head);
+    if (after == before) return;
+    index.writeAsStringSync(after);
+    Logger.log('   SEO head written for "$title".');
   }
 
   /// The `dartvel:` section of pubspec.yaml, or an empty map.

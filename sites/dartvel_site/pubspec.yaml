@@ -49,9 +49,15 @@ dartvel:
     curve: easeInOut
 
   seo:
-    siteName: dartvel site
-    defaultTitle: Welcome
-    defaultDescription: A Dartvel application
+    title: "Dartvel — Flutter, full stack"
+    description: >-
+      Write pages, models, backend functions, UI and business logic. Routing,
+      clients, serialization, forms, admin and the server are generated,
+      compiled or served.
+    siteUrl: https://dartvel.dev
+    siteName: Dartvel
+    image: icons/Icon-512.png
+
   pwa:
     enabled: true
     name: Dartvel
