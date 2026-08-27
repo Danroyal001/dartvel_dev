@@ -13,6 +13,14 @@ name: Runtime verification
 # artifact. A green job with no image is not a pass.
 
 on:
+  # Every push, not on request. The repository is public, so Actions minutes on
+  # standard runners are free — including the macOS and Windows jobs here — and
+  # a verification suite nobody remembers to dispatch verifies nothing. Time is
+  # the real cost, which is what the per-job timeouts bound.
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
     inputs:
       engine:
