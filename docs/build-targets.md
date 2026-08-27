@@ -27,7 +27,7 @@ local Dartvel `dartvel_vscode` fork added as a dependency.
 | `tvos` | ✅ Builds | **Verified on a macOS runner**: scaffold auto-generated, then `build/tvos/Debug-appletvsimulator/Runner.app`. The `appletvsimulator` path is the proof it is a tvOS app and not the iPhone app an earlier mapping produced. Run [32538073146](https://github.com/Danroyal001/dartvel_dev/actions/runs/32538073146). See [tvOS](#tvos) |
 | `tizen` / `tpk` | ✅ Builds | Signed 9.3MB TPK with engine + assets, built on a laptop with Tizen Studio installed. CI can only ever *skip* it — the SDK is licence-gated and Dartvel must not install it unattended — so the workflow asserts the skip names that reason. See [Tizen](#tizen-samsung) |
 | `sony-elinux` | ✅ Builds and **runs** (release) | Runs on a virtual device (Weston on Xvfb) in CI, in **both debug and release**. Release needs the from-source engine, since the official standalone one is JIT. See [Sony eLinux](#sony-elinux) |
-| `webos` | ⚠️ Package assembles, never run on a television | Not a vendor secret: LG's engine exports `FlutterEngineRun` and is an ordinary Custom Embedder API build. It is **ELF 32-bit ARM**, and Google publishes `linux-arm64` but no 32-bit `linux-arm`. See [webOS](#webos-lg) |
+| `webos` | ✅ App renders on ARM under emulation; not run on a television | Not a vendor secret: LG's engine exports `FlutterEngineRun` and is an ordinary Custom Embedder API build. It is **ELF 32-bit ARM**, and Google publishes `linux-arm64` but no 32-bit `linux-arm`. See [webOS](#webos-lg) |
 | `fuchsia` | ❌ Blocked, same class as webOS | The five build-plumbing walls are fixed: `--build-only` in the fork, `postInstall` bootstrap, submodule handling, the bootstrap's workspace variable, and skipping an unfetchable `googletest` pin. It now clones, bootstraps and stages the app — then dies in `pub get` because the fork's bundled Flutter is **older than Dart 3.4**: `dartvel_example requires SDK version >=3.4.0 <4.0.0, version solving failed`. That is not a Dartvel bug and not a `mix` problem; the embedder's Flutter submodule is simply ancient. Unblocking needs the fork re-pinned to a modern Flutter **and its engine rebuilt from source**, because bootstrap.sh warns the engine and the Flutter pin must stay aligned. See [Fuchsia](#fuchsia) |
 | `vscode` | ✅ Builds | `out/src/extension.js`, `out/lib/vscode_api.handlers.js`, `build/web/flutter_bootstrap.js`, `build/web/assets/` |
 | `chrome-extension` | ✅ Builds | `build/chrome-extension` (41 MB): MV3 manifest with a `service_worker` background, `index.html`, `main.dart.js`, `background.js`, icons. See [Browser extensions](#browser-extensions) |
@@ -586,11 +586,35 @@ looked like the obvious move:
   runtime. The patched SDK is kernel and architecture-independent, which is
   why the host's copy serves a target Flutter has no toolchain for.
 
-**What is not established.** The engine has never run on a television. Being
-the right architecture, ABI and API shape is necessary and is not the same as
-working, and there is no webOS device here to settle it. The next step is a
-bundle — the eLinux assembly path applies, since LG's runner template is
-Sony's — and then `ares-install` against a real set or the emulator.
+**The app renders on ARM.** `qemu-user` executes 32-bit ARM binaries on an
+x86-64 machine, so the question "does the engine work" does not need a
+television or an ARM runner — only the question "does LG's window and input
+stack work" does. [`tool/webos/render_probe.c`](../tool/webos/render_probe.c)
+starts the engine with the software renderer, sends one window-metrics event
+and writes the first presented frame out. Run against the artifacts the
+`webos` job builds, it produces the Dartvel example: **800x480, 121 distinct
+colours, the app bar reading "Dartvel Demo"**. The `webos` job runs it on
+every push and uploads the frame.
+
+The frame is checked with `dartvel capture verify` rather than `test -s`,
+because a crash before the first frame leaves a buffer that is one colour and
+one colour passes every check that only stats the file.
+
+Two failures on the way there both read as a broken engine and were both a
+missing argument, so they are written down rather than left to be
+rediscovered. `FlutterRendererConfig` is a **union with no `struct_size`**; a
+copy of it made by eye as a struct with one returns `kInvalidArguments`. And a
+release engine has **no interpreter**, so the AOT snapshot has to be handed
+over through `FlutterEngineCreateAOTData` — without it the engine stops at
+*"VM snapshot invalid and could not be inferred from settings"*.
+
+**What is still not established.** A television adds a window, an input stack
+and a GL path, and none of them is exercised by a headless software render.
+None would make a working engine stop working, but that is a prediction rather
+than a measurement. Settling it needs `ares-install` against a real set. LG's
+emulator is worth checking first and worth checking *specifically* — if it is
+x86-based it would not exercise the ARM engine at all, which is the part that
+was in doubt.
 
 **webOS was checked the same way and is not out of the group.** LG publishes
 artifacts at `lg-flutter-webos/artifacts`, and the newest release is recent —
