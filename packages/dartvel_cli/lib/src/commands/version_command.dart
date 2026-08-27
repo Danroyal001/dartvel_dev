@@ -5,6 +5,20 @@ import 'package:yaml/yaml.dart';
 
 import '../utils/logger.dart';
 
+/// The version this build of the CLI is.
+///
+/// A constant rather than something read off disk at run time. Discovery
+/// walked up from the working directory looking for any pubspec.yaml, which is
+/// right when the CLI runs from its own source tree and wrong everywhere else:
+/// a compiled binary invoked inside someone's project finds *their* pubspec
+/// and reports *their* app's version. With nothing above it, it fell back to a
+/// hardcoded number that had already drifted, and the released 0.2.1 binary
+/// announced itself as 0.2.0.
+///
+/// A test asserts this equals what pubspec.yaml declares, so the two cannot
+/// come apart without the suite saying so.
+const String dartvelCliVersion = '0.2.1';
+
 class VersionCommand extends Command<void> {
   @override
   final String name = 'version';
@@ -14,7 +28,7 @@ class VersionCommand extends Command<void> {
 
   @override
   Future<void> run() async {
-    final version = readDartvelCliVersion() ?? '0.2.0';
+    const version = dartvelCliVersion;
 
     Logger.log('Dartvel CLI: $version');
     Logger.log('Dart SDK:    ${Platform.version.split(' ').first}');
