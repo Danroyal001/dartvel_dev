@@ -14,6 +14,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  # For the path URL strategy. Reached only through a conditional import, so
+  # no non-web target pulls it in.
+  flutter_web_plugins:
+    sdk: flutter
   go_router: ^14.2.0
   web: ^1.0.0
   seo: ^0.0.10

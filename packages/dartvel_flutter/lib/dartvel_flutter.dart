@@ -243,6 +243,7 @@ export 'src/platform/linux/linux_bindings.dart';
 export 'src/platform/macos/macos_bindings.dart';
 export 'src/platform/web/web_bindings.dart';
 export 'src/platform/windows/windows_bindings.dart';
+export 'src/routing/url_strategy.dart';
 export 'src/studio/page_document.dart';
 export 'src/studio/studio_editor.dart';
 export 'src/studio/studio_screen.dart';
@@ -4241,7 +4242,11 @@ class DVPageShell extends StatelessWidget {
     if (mode == DVPageShellMode.cupertino) {
       return CupertinoPageScaffold(
         backgroundColor: _color(spec.backgroundColor),
-        navigationBar: spec.showAppBar || spec.title != null
+        // showAppBar alone. The title is what the browser tab and the SEO
+        // head use, so every page has one; treating it as a request for a
+        // bar meant showAppBar: false never took effect, and the site shipped
+        // with a grey strip above its own header.
+        navigationBar: spec.showAppBar
             ? CupertinoNavigationBar(
                 middle: spec.title == null ? null : DVText(spec.title!),
                 backgroundColor: _color(spec.appBarBackgroundColor),
@@ -4263,7 +4268,9 @@ class DVPageShell extends StatelessWidget {
     }
 
     return Scaffold(
-      appBar: spec.showAppBar || spec.title != null
+      // showAppBar alone; see the Cupertino branch above. The condition was
+      // duplicated, so the bug was too.
+      appBar: spec.showAppBar
           ? AppBar(
               title: spec.title == null ? null : DVText(spec.title!),
               centerTitle: spec.centerTitle,
