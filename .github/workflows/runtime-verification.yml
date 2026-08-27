@@ -1085,3 +1085,141 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: refusals, path: /tmp/diag/, if-no-files-found: warn }
+
+  webos:
+    name: webos — assemble a package against the ARM engine
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Open the diagnostics directory
+        run: mkdir -p /tmp/diag
+
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.44.5
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      # The 32-bit ARM engine Google does not publish, built from source and
+      # released on the fork. Everything else about webOS was reachable all
+      # along; this was the whole blocker.
+      - name: Fetch the ARM engine
+        run: |
+          set -euo pipefail
+          mkdir -p engine
+          curl -sSL -o engine.tar.gz \
+            https://github.com/Danroyal001/dartvel_webos/releases/download/engine-arm-3.44.5/engine-linux-arm-release-3.44.5.tar.gz
+          tar -xzf engine.tar.gz -C engine
+          ls -la engine
+
+      # Asserted before anything is built on top of it. An x86-64 engine in
+      # an ARM package installs and then does nothing on the television, and
+      # this project has already shipped an engine named for an architecture
+      # it was not.
+      - name: The engine must be 32-bit ARM
+        run: |
+          set -euo pipefail
+          dart pub get --directory packages/dartvel_cli
+          dart run packages/dartvel_cli/bin/dartvel.dart engine verify engine \
+            --arch arm --mode release
+          readelf -A engine/libflutter_engine.so | grep -E "Tag_CPU_arch:|Tag_ABI_VFP_args"
+
+      - name: Install cbindgen
+        run: cargo install cbindgen --locked || true
+
+      # The application's Dart, compiled for ARM by the host gen_snapshot that
+      # came with the engine. This is the step a static bundle cannot skip:
+      # a release engine has no interpreter, so kernel will not run on it.
+      - name: Compile the app to ARM AOT
+        run: |
+          set -euo pipefail
+          cd examples/dartvel_example
+          flutter pub get
+          dart run dartvel_cli:dartvel routes
+          flutter build bundle --release
+          "$GITHUB_WORKSPACE/engine/gen_snapshot" \
+            --deterministic \
+            --snapshot_kind=app-aot-elf \
+            --elf=libapp.so \
+            --strip \
+            build/flutter_assets/kernel_blob.bin 2>&1 | tail -5 || true
+          ls -l libapp.so
+          file libapp.so
+
+      - name: Assemble the webOS package
+        run: |
+          set -euo pipefail
+          cd examples/dartvel_example
+          OUT=build/webos/com.dartvel.example
+          mkdir -p "$OUT/lib" "$OUT/data"
+          cp -r build/flutter_assets "$OUT/data/"
+          # Release is AOT: kernel would be dead weight and would imply the
+          # app is debuggable when it is not.
+          rm -f "$OUT/data/flutter_assets/kernel_blob.bin"
+          cp "$GITHUB_WORKSPACE/engine/libflutter_engine.so" "$OUT/lib/"
+          cp libapp.so "$OUT/lib/"
+          python3 - "$OUT" <<'PY'
+          import json, sys
+          out = sys.argv[1]
+          json.dump({
+              'id': 'com.dartvel.example',
+              'title': 'Dartvel Example',
+              'version': '1.0.0',
+              'type': 'native',
+              'main': 'dartvel_app',
+              'icon': 'icon.png',
+              'vendor': 'Dartvel',
+          }, open(f'{out}/appinfo.json', 'w'), indent=2)
+          PY
+          find "$OUT" -maxdepth 3 | sort
+
+      # The checks webOS reports only as a generic install failure on the
+      # television, hours after the build that caused them.
+      - name: The package must be one webOS would accept
+        run: |
+          set -euo pipefail
+          cd examples/dartvel_example
+          OUT=build/webos/com.dartvel.example
+          test -f "$OUT/appinfo.json"
+          test -f "$OUT/lib/libflutter_engine.so"
+          test -f "$OUT/lib/libapp.so"
+          test -d "$OUT/data/flutter_assets"
+          test ! -f "$OUT/data/flutter_assets/kernel_blob.bin"
+
+          for lib in libflutter_engine.so libapp.so; do
+            DESC=$(file -b "$OUT/lib/$lib")
+            echo "$lib: $DESC"
+            case "$DESC" in
+              *"ARM"*) ;;
+              *) echo "::error::$lib is not ARM: $DESC"; exit 1 ;;
+            esac
+          done
+
+          python3 - "$OUT" <<'PY'
+          import json, re, sys
+          info = json.load(open(f'{sys.argv[1]}/appinfo.json'))
+          problems = []
+          if '.' not in info['id']:
+              problems.append('id is not reverse-DNS')
+          if info['id'] != info['id'].lower():
+              problems.append('id is not lowercase')
+          if info['type'] != 'native':
+              problems.append('type is not native')
+          if not re.fullmatch(r'\d+\.\d+\.\d+', info['version']):
+              problems.append('version is not three numeric parts')
+          if problems:
+              print('::error::' + '; '.join(problems))
+              raise SystemExit(1)
+          print('appinfo.json is acceptable:', info['id'], info['version'])
+          PY
+
+          du -sh "$OUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: webos-package
+          path: examples/dartvel_example/build/webos
+          if-no-files-found: error
