@@ -1,8 +1,9 @@
 
 name: dartvel_core
-publish_to: 'none'
 description: Core helpers (Res), types, simple CORS hint for dartvel backend
 version: 0.2.1
+repository: https://github.com/Danroyal001/dartvel_dev
+homepage: https://dartvel.dev
 environment:
   # One floor for every Dartvel package, deliberately.
   # Two floors that disagreed is what recorded webOS as merely
@@ -12,7 +13,7 @@ environment:
   sdk: ">=3.12.0 <4.0.0"
 dependencies:
   dartvel_shelf:
-    path: ../dartvel_shelf
+    version: ^0.3.0
   async: ^2.13.1
   crypto: ^3.0.7
   http: ^1.6.0

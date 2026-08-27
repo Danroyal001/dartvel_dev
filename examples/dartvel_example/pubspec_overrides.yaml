@@ -1,0 +1,17 @@
+# Local development only. pub reads this and never publishes it.
+#
+# The Dartvel packages declare hosted constraints on each other so they can be
+# published -- pub refuses a path dependency in a published package. An
+# application that depends on them by path has to override the whole set, or
+# pub reports the two kinds as irreconcilable: "dartvel_flutter from path
+# depends on dartvel_core from hosted and dartvel_example depends on
+# dartvel_core from path".
+dependency_overrides:
+  dartvel_core:
+    path: ../../packages/dartvel_core
+  dartvel_shelf:
+    path: ../../packages/dartvel_shelf
+  dartvel_flutter:
+    path: ../../packages/dartvel_flutter
+  dartvel_cli:
+    path: ../../packages/dartvel_cli

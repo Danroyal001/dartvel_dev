@@ -132,6 +132,21 @@ dependencies:
 dartvel:
   prodBackendHost: https://example.com
 ''');
+    // The Dartvel packages declare hosted constraints on each other so they
+    // can be published; pub refuses a path dependency in a published package.
+    // A probe that depends on them by path therefore has to override the whole
+    // set, or pub reports the two kinds as irreconcilable:
+    // "dartvel_flutter from path depends on dartvel_core from hosted and
+    // generated_client_probe depends on dartvel_core from path".
+    write(p.join(project.path, 'pubspec_overrides.yaml'), '''
+dependency_overrides:
+  dartvel_core:
+    path: ${p.join(root, 'packages', 'dartvel_core')}
+  dartvel_flutter:
+    path: ${p.join(root, 'packages', 'dartvel_flutter')}
+  dartvel_shelf:
+    path: ${p.join(root, 'packages', 'dartvel_shelf')}
+''');
 
     // The orchestrator reads the project from the working directory, which is
     // also why this package pins test concurrency to one.

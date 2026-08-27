@@ -1,8 +1,9 @@
 
 name: dartvel_cli
-publish_to: 'none'
 description: CLI for dartvel v0.1 (routes + web client + backend configs)
 version: 0.2.1
+repository: https://github.com/Danroyal001/dartvel_dev
+homepage: https://dartvel.dev
 environment:
   # One floor for every Dartvel package, deliberately.
   # Two floors that disagreed is what recorded webOS as merely
@@ -21,9 +22,9 @@ dependencies:
   build: ^4.0.0
   puppeteer: ^3.0.0
   dartvel_core:
-    path: ../dartvel_core
+    version: ^0.2.1
   dartvel_shelf:
-    path: ../dartvel_shelf
+    version: ^0.3.0
   crypto: ^3.0.7
 dev_dependencies:
   lints: ^4.0.0
