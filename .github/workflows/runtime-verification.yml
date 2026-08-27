@@ -1151,6 +1151,57 @@ jobs:
             --arch arm --mode release
           readelf -A engine/libflutter_engine.so | grep -E "Tag_CPU_arch:|Tag_ABI_VFP_args"
 
+      # armhf packages come from ports.ubuntu.com, and the existing sources
+      # have to be pinned to amd64 first or every one of them 404s for the new
+      # architecture.
+      - name: Enable armhf packages
+        run: |
+          set -euo pipefail
+          sudo dpkg --add-architecture armhf
+          sudo sed -i 's/^Types: deb$/Types: deb\nArchitectures: amd64/' \
+            /etc/apt/sources.list.d/ubuntu.sources
+          sudo tee /etc/apt/sources.list.d/armhf.sources >/dev/null <<'EOF'
+          Types: deb
+          URIs: http://ports.ubuntu.com/ubuntu-ports
+          Suites: noble noble-updates
+          Components: main universe
+          Architectures: armhf
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+          EOF
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq crossbuild-essential-armhf \
+            libwayland-dev:armhf libxkbcommon-dev:armhf \
+            libegl1-mesa-dev:armhf libgles2-mesa-dev:armhf wayland-protocols
+
+      # The executable appinfo.json names. Sony's Wayland client, because
+      # webOS's runner template is Sony's -- the package shipped for weeks
+      # naming a `dartvel_app` that was never built, so it could not have
+      # launched at all. webos-window.yml is where it is proven to run.
+      - name: Cross-compile the runner for ARM
+        run: |
+          set -euo pipefail
+          git clone --depth 1 \
+            https://github.com/sony/flutter-embedded-linux.git elinux-src
+          cat > /tmp/armhf.cmake <<'EOF'
+          set(CMAKE_SYSTEM_NAME Linux)
+          set(CMAKE_SYSTEM_PROCESSOR arm)
+          set(CMAKE_C_COMPILER arm-linux-gnueabihf-gcc)
+          set(CMAKE_CXX_COMPILER arm-linux-gnueabihf-g++)
+          set(CMAKE_FIND_ROOT_PATH /usr/arm-linux-gnueabihf)
+          set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+          set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+          set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+          set(ENV{PKG_CONFIG_LIBDIR} /usr/lib/arm-linux-gnueabihf/pkgconfig:/usr/share/pkgconfig)
+          EOF
+          cd elinux-src && cmake -E make_directory build
+          cp ../engine/libflutter_engine.so build/
+          cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE=/tmp/armhf.cmake \
+            -DUSER_PROJECT_PATH=examples/flutter-wayland-client
+          cmake --build . --config Release
+          file flutter-client
+
       - name: Install cbindgen
         run: cargo install cbindgen --locked || true
 
@@ -1236,6 +1287,26 @@ jobs:
           rm -f "$OUT/data/flutter_assets/kernel_blob.bin"
           cp "$GITHUB_WORKSPACE/engine/libflutter_engine.so" "$OUT/lib/"
           cp libapp.so "$OUT/lib/"
+          # The two files appinfo.json names and the package never held.
+          cp "$GITHUB_WORKSPACE/elinux-src/build/flutter-client" "$OUT/dartvel_app"
+          chmod +x "$OUT/dartvel_app"
+          python3 - "$OUT/icon.png" <<'PY'
+          import struct, sys, zlib
+          # An 80x80 tile in the example's own purple. webOS shows the icon on
+          # the home screen and refuses the package when appinfo names one that
+          # is not there.
+          w = h = 80
+          px = bytes((0x4B, 0x3B, 0x82))
+          rows = b''.join(b'\x00' + px * w for _ in range(h))
+          def chunk(tag, body):
+              c = tag + body
+              return struct.pack('>I', len(body)) + c + struct.pack('>I', zlib.crc32(c))
+          open(sys.argv[1], 'wb').write(
+              b'\x89PNG\r\n\x1a\n'
+              + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0))
+              + chunk(b'IDAT', zlib.compress(rows))
+              + chunk(b'IEND', b''))
+          PY
           python3 - "$OUT" <<'PY'
           import json, sys
           out = sys.argv[1]
@@ -1291,6 +1362,13 @@ jobs:
               raise SystemExit(1)
           print('appinfo.json is acceptable:', info['id'], info['version'])
           PY
+
+          # Through the CLI's own validator, so the check the build runs and the
+          # check the tests cover are the same one. A second hand-written list
+          # of paths here would drift from it.
+          dart pub get --directory "$GITHUB_WORKSPACE/packages/dartvel_cli"
+          dart run "$GITHUB_WORKSPACE/packages/dartvel_cli/bin/dartvel.dart" \
+            webos verify-package "$OUT"
 
           du -sh "$OUT"
 
