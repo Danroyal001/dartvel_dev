@@ -1,0 +1,209 @@
+name: webOS in a window
+
+# The half the offscreen render cannot reach.
+#
+# `runtime-verification.yml` proves the ARM engine starts, the AOT library
+# loads and the widget tree rasterises, by handing the engine a software
+# surface and photographing it. Nothing in that involves a window, a
+# compositor or an input device, and a television is all three.
+#
+# LG's emulator cannot close that gap: it is a VirtualBox appliance, and
+# VirtualBox runs x86 guests on x86 hosts rather than emulating ARM. webOS
+# OSE's QEMU emulator says the same outright -- x86 (x86_64) only. Neither
+# would load the ARM engine at all.
+#
+# So the arrangement here is the one the sony-elinux job already uses, moved
+# to ARM: Weston on Xvfb is a real Wayland compositor, and qemu-user runs the
+# ARM client against it over an ordinary unix socket. webOS's runner template
+# is Sony's, which is why Sony's client is the one cross-compiled.
+#
+# What this still does not prove is LG's own surface manager and remote-control
+# input. It proves the runner is a real Wayland client on ARM, which is what
+# the package needs and did not have.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  FLUTTER_VERSION: 3.44.5
+  ENGINE_TAG: engine-arm-3.44.5
+
+jobs:
+  window:
+    name: webos — run in a Wayland window on ARM
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - run: mkdir -p /tmp/diag
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+
+      # armhf packages come from ports.ubuntu.com, not the main archive, and
+      # the existing sources have to be pinned to amd64 first or every one of
+      # them 404s for the new architecture.
+      - name: Enable armhf packages
+        run: |
+          set -euo pipefail
+          sudo dpkg --add-architecture armhf
+          sudo sed -i 's/^Types: deb$/Types: deb\nArchitectures: amd64/' \
+            /etc/apt/sources.list.d/ubuntu.sources
+          sudo tee /etc/apt/sources.list.d/armhf.sources >/dev/null <<'EOF'
+          Types: deb
+          URIs: http://ports.ubuntu.com/ubuntu-ports
+          Suites: noble noble-updates
+          Components: main universe
+          Architectures: armhf
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+          EOF
+          sudo apt-get update -qq
+
+      - name: Install the cross toolchain, the emulator and a compositor
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y -qq \
+            crossbuild-essential-armhf qemu-user-static \
+            cmake ninja-build pkg-config \
+            weston xvfb imagemagick \
+            libwayland-dev:armhf libxkbcommon-dev:armhf \
+            libegl1-mesa-dev:armhf libgles2-mesa-dev:armhf \
+            libgl1-mesa-dri:armhf wayland-protocols
+
+      - name: Fetch the ARM engine
+        run: |
+          set -euo pipefail
+          mkdir -p engine
+          curl -sSL -o engine.tar.gz \
+            "https://github.com/Danroyal001/dartvel_webos/releases/download/${ENGINE_TAG}/engine-linux-arm-release-3.44.5.tar.gz"
+          tar -xzf engine.tar.gz -C engine
+          file engine/libflutter_engine.so
+
+      # Sony's Wayland client, cross-compiled. webOS's runner template is
+      # Sony's, so this is the binary a television would launch rather than a
+      # stand-in written for the test.
+      - name: Cross-compile the runner for ARM
+        run: |
+          set -euo pipefail
+          git clone --depth 1 \
+            https://github.com/sony/flutter-embedded-linux.git elinux-src
+
+          cat > /tmp/armhf.cmake <<'EOF'
+          set(CMAKE_SYSTEM_NAME Linux)
+          set(CMAKE_SYSTEM_PROCESSOR arm)
+          set(CMAKE_C_COMPILER arm-linux-gnueabihf-gcc)
+          set(CMAKE_CXX_COMPILER arm-linux-gnueabihf-g++)
+          set(CMAKE_FIND_ROOT_PATH /usr/arm-linux-gnueabihf)
+          set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+          set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+          set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+          set(ENV{PKG_CONFIG_LIBDIR} /usr/lib/arm-linux-gnueabihf/pkgconfig:/usr/share/pkgconfig)
+          EOF
+
+          cd elinux-src
+          cmake -E make_directory build
+          cp ../engine/libflutter_engine.so build/
+          cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE=/tmp/armhf.cmake \
+            -DUSER_PROJECT_PATH=examples/flutter-wayland-client
+          cmake --build . --config Release
+          ls -la flutter-client
+
+      # Asserted rather than assumed: a toolchain file that is silently ignored
+      # produces a working x86-64 binary, which is the failure this whole
+      # target has already shipped once.
+      - name: The runner must be 32-bit ARM
+        run: |
+          set -euo pipefail
+          DESC=$(file -b elinux-src/build/flutter-client)
+          echo "$DESC"
+          case "$DESC" in
+            *"ARM"*) ;;
+            *) echo "::error::the runner is not ARM: $DESC"; exit 1 ;;
+          esac
+
+      - name: It must execute under emulation
+        run: |
+          set -euo pipefail
+          cd elinux-src/build
+          qemu-arm-static -L /usr/arm-linux-gnueabihf ./flutter-client --help \
+            2>&1 | head -20 || true
+
+      - name: Install cbindgen
+        run: cargo install cbindgen --locked || true
+
+      - name: Build the app for ARM
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y -qq libgtk-3-dev clang
+          cd examples/dartvel_example
+          flutter pub get
+          dart run dartvel_cli:dartvel routes
+          flutter build linux --debug
+
+          FR="${FLUTTER_ROOT}"
+          SDK="$FR/bin/cache/artifacts/engine/common/flutter_patched_sdk_product"
+          "$FR/bin/cache/dart-sdk/bin/dartaotruntime" \
+            "$FR/bin/cache/artifacts/engine/linux-x64/frontend_server_aot.dart.snapshot" \
+            --sdk-root "$SDK/" --target=flutter --aot --tfa \
+            --platform "$SDK/platform_strong.dill" \
+            --packages .dart_tool/package_config.json \
+            --output-dill app.dill lib/main.dart 2>&1 | tail -3
+
+          "$GITHUB_WORKSPACE/engine/gen_snapshot" --deterministic \
+            --snapshot_kind=app-aot-elf --elf=libapp.so --strip app.dill
+          file libapp.so
+
+      - name: Assemble the bundle the runner expects
+        run: |
+          set -euo pipefail
+          cd examples/dartvel_example
+          B=$GITHUB_WORKSPACE/bundle
+          mkdir -p "$B/lib" "$B/data"
+          cp -r build/linux/x64/debug/bundle/data/flutter_assets "$B/data/"
+          cp build/linux/x64/debug/bundle/data/icudtl.dat "$B/data/"
+          rm -f "$B/data/flutter_assets/kernel_blob.bin"
+          cp "$GITHUB_WORKSPACE/engine/libflutter_engine.so" "$B/lib/"
+          cp libapp.so "$B/lib/"
+          cp "$GITHUB_WORKSPACE/elinux-src/build/flutter-client" "$B/dartvel_app"
+          find "$B" -maxdepth 2 | sort
+
+      - name: Run it in a window and photograph it
+        run: |
+          set -uo pipefail
+          Xvfb :99 -screen 0 1280x720x24 &
+          sleep 3
+          export DISPLAY=:99
+          weston --backend=x11-backend.so --width=1280 --height=720 \
+            --socket=wayland-1 --idle-time=0 > /tmp/diag/weston.log 2>&1 &
+          sleep 6
+          export XDG_RUNTIME_DIR=/run/user/$(id -u)
+          sudo mkdir -p "$XDG_RUNTIME_DIR" && sudo chown "$(id -u)" "$XDG_RUNTIME_DIR"
+          export WAYLAND_DISPLAY=wayland-1
+          # No GPU on a runner, so the client's GL has to be the software one.
+          export LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe
+
+          cd "$GITHUB_WORKSPACE/bundle"
+          qemu-arm-static -L /usr/arm-linux-gnueabihf ./dartvel_app \
+            --bundle="$PWD" > /tmp/diag/webos-window.log 2>&1 &
+          APP=$!
+          sleep 25
+          import -window root /tmp/diag/webos-window.png
+          kill $APP 2>/dev/null || true
+          echo "=== app log ==="; cat /tmp/diag/webos-window.log || true
+          identify /tmp/diag/webos-window.png || true
+
+      - name: The capture must show the application
+        run: |
+          set -euo pipefail
+          dart pub get --directory packages/dartvel_cli
+          dart run packages/dartvel_cli/bin/dartvel.dart capture verify \
+            /tmp/diag/webos-window.png --label webos-window \
+            --min-width 320 --min-height 240
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: webos-window, path: /tmp/diag/, if-no-files-found: warn }
