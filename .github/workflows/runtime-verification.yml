@@ -1290,6 +1290,10 @@ jobs:
           sudo apt-get install -y -qq qemu-user-static gcc-arm-linux-gnueabihf
 
       - name: The app must render on ARM
+        # It takes about a second. A cap well above that turns a wedged probe
+        # into a failure in minutes rather than one that silently eats the
+        # job's whole budget and reports nothing, which is what it did once.
+        timeout-minutes: 10
         run: |
           set -euo pipefail
           OUT="$GITHUB_WORKSPACE/examples/dartvel_example/build/webos/com.dartvel.example"
@@ -1306,7 +1310,7 @@ jobs:
             "$GITHUB_WORKSPACE/tool/webos/render_probe.c" \
             -L. -lflutter_engine -Wl,-rpath,'$ORIGIN'
 
-          qemu-arm-static -L /usr/arm-linux-gnueabihf ./render \
+          timeout 420 qemu-arm-static -L /usr/arm-linux-gnueabihf ./render \
             "$OUT/data/flutter_assets" "$OUT/data/icudtl.dat" ./libapp.so
 
           test -s frame.ppm || {

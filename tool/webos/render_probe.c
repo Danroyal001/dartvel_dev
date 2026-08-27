@@ -17,16 +17,28 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include <unistd.h>
 
 #include "flutter_embedder.h"
 
-static int frames = 0;
+/* Written on the raster thread, read on the main one. */
+static volatile int frames = 0;
 
 static bool present(void* user_data, const void* allocation, size_t row_bytes,
                     size_t height) {
-  frames++;
-  FILE* out = fopen("frame.ppm", "wb");
+  /* The counter is raised at the end rather than here, so that it means "a
+   * complete frame is on disk" rather than "a frame arrived". The main thread
+   * exits the moment it sees this, and raising it first left it racing the
+   * write on the raster thread -- which produced a present callback, a
+   * success, and a zero-byte file. */
+  /* The first frame only. The engine keeps presenting, and a later callback
+   * reopening the file with "wb" truncates the good frame and then loses the
+   * race with the exit -- which is how a complete render produced a file
+   * 84% of the right size. */
+  if (frames > 0) return true;
+
+  FILE* out = fopen("frame.ppm.part", "wb");
   if (!out) return true;
   const size_t width = row_bytes / 4;
   fprintf(out, "P6\n%zu %zu\n255\n", width, height);
@@ -40,10 +52,19 @@ static bool present(void* user_data, const void* allocation, size_t row_bytes,
     }
   }
   fclose(out);
+  /* Renamed rather than written in place, so the file the caller looks at is
+   * either absent or whole. */
+  rename("frame.ppm.part", "frame.ppm");
+  frames++;
   return true;
 }
 
 int main(int argc, char** argv) {
+  /* Unbuffered, because this runs under CI with stdout on a pipe. Block
+   * buffering there means a probe killed by a timeout reports nothing at all,
+   * and "no output" cannot be told apart from "hung before the first line". */
+  setvbuf(stdout, NULL, _IONBF, 0);
+
   if (argc < 3) {
     printf("usage: render <assets> <icudtl.dat> [libapp.so]\n");
     return 2;
@@ -88,8 +109,23 @@ int main(int argc, char** argv) {
   metrics.pixel_ratio = 1.0;
   FlutterEngineSendWindowMetricsEvent(engine, &metrics);
 
-  for (int i = 0; i < 150 && frames == 0; i++) usleep(100000);
+  /* Emulated ARM is slow and this is a whole Dart isolate starting, so the
+   * wait is generous. It says where it has got to each second: a probe that
+   * is merely slow and one that is wedged look identical from outside. */
+  const int deadline = 300;
+  for (int i = 0; i < deadline * 10 && frames == 0; i++) {
+    if (i % 10 == 0) printf("waiting for a frame: %ds\n", i / 10);
+    usleep(100000);
+  }
   printf("frames presented: %d\n", frames);
-  FlutterEngineShutdown(engine);
-  return frames > 0 ? 0 : 1;
+  if (frames == 0) {
+    FlutterEngineShutdown(engine);
+    return 1;
+  }
+
+  /* The frame is on disk and it is the whole result. Shutting the engine down
+   * means joining threads that an emulated ARM run can leave the probe
+   * waiting on indefinitely, and there is nothing left to learn from it. */
+  fflush(stdout);
+  _exit(0);
 }
