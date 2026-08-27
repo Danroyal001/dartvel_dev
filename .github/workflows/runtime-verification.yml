@@ -30,6 +30,11 @@ on:
 
 env:
   FLUTTER_VERSION: 3.44.5
+  # inputs.* exists only on workflow_dispatch. On a push it is the empty
+  # string, which turned the engine URL into a directory listing and 404'd the
+  # eLinux job the moment this workflow started running on pushes. The default
+  # is the same revision the dispatch input carries.
+  ENGINE_REVISION: ${{ inputs.engine || '83675ed27633283e7fc296c8bca22e841224c096' }}
 
 jobs:
   # The reference: already runs headless, and the only target verified by
@@ -146,7 +151,7 @@ jobs:
       - name: Fetch both engines
         run: |
           set -euo pipefail
-          BASE="https://storage.googleapis.com/flutter_infra_release/flutter/${{ inputs.engine }}"
+          BASE="https://storage.googleapis.com/flutter_infra_release/flutter/$ENGINE_REVISION"
           mkdir -p engine engine-release
           # The official standalone engine, which is the JIT build — that is
           # what it is, established by running it and reading the error rather
@@ -375,7 +380,7 @@ jobs:
           git clone --depth 1 https://github.com/Danroyal001/dartvel_cli_flt.git flt
           cd flt
           mkdir -p third_party/flutter/bin/internal
-          echo "${{ inputs.engine }}" > third_party/flutter/bin/internal/engine.version
+          echo "$ENGINE_REVISION" > third_party/flutter/bin/internal/engine.version
           cargo build --release -p flt-cli --bin dartvel-cli-flt
           ls -la target/release/dartvel-cli-flt
 
