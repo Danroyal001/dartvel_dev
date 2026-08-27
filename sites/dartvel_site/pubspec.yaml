@@ -1,22 +1,19 @@
 name: dartvel_site
-description: A new Dartvel project
+description: The dartvel.dev site, built with Dartvel.
 publish_to: "none"
 version: 0.0.1
 
 environment:
-  sdk: ">=3.4.0 <4.0.0"
+  sdk: ">=3.12.0 <4.0.0"
 
 dependencies:
   flutter:
     sdk: flutter
   go_router: ^14.2.0
   dio: ^5.5.0
-  dartvel_core: 
-    path: /workspaces/dartvel/packages/dartvel_core
-  dartvel_shelf: 
-    path: /workspaces/dartvel/packages/dartvel_shelf
-  dartvel_flutter: 
-    path: /workspaces/dartvel/packages/dartvel_flutter
+  dartvel_core: ^0.2.1
+  dartvel_shelf: ^0.3.0
+  dartvel_flutter: ^0.2.1
   flutter_web_plugins:
     sdk: flutter
 
@@ -25,8 +22,7 @@ dev_dependencies:
     sdk: flutter
   build_runner: ^2.5.4
   lints: ^4.0.0
-  dartvel_cli: 
-    path: /workspaces/dartvel/packages/dartvel_cli
+  dartvel_cli: ^0.2.1
 
 
 flutter:
@@ -56,3 +52,10 @@ dartvel:
     siteName: dartvel site
     defaultTitle: Welcome
     defaultDescription: A Dartvel application
+  pwa:
+    enabled: true
+    name: Dartvel
+    shortName: Dartvel
+    description: Flutter, full stack.
+    themeColor: "#2F6BFF"
+    backgroundColor: "#FFFFFF"

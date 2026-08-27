@@ -1,0 +1,11 @@
+# Local development only. The site is built from the working tree so it always
+# reflects what is about to ship, rather than the last release.
+dependency_overrides:
+  dartvel_core:
+    path: ../../packages/dartvel_core
+  dartvel_shelf:
+    path: ../../packages/dartvel_shelf
+  dartvel_flutter:
+    path: ../../packages/dartvel_flutter
+  dartvel_cli:
+    path: ../../packages/dartvel_cli

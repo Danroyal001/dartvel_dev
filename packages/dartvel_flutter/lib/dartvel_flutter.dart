@@ -490,13 +490,16 @@ class DVBox<T> extends StatelessWidget {
         _items = null,
         _itemBuilder = null;
 
-  const DVBox.list(List<Widget> children, {DVModifier? modifier})
-      : _child = null,
+  const DVBox.list(
+    List<Widget> children, {
+    DVModifier? modifier,
+    double spacing = 8,
+  })  : _child = null,
         _children = children,
         _modifier = modifier,
         _layout = _DVBoxLayout.vertical,
         _columns = 1,
-        _spacing = 8,
+        _spacing = spacing,
         _scrollable = false,
         _items = null,
         _itemBuilder = null;
