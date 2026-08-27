@@ -1139,13 +1139,31 @@ jobs:
           cd examples/dartvel_example
           flutter pub get
           dart run dartvel_cli:dartvel routes
-          flutter build bundle --release
+
+          # A debug desktop build, for its kernel. `flutter build bundle
+          # --release` emits no kernel_blob.bin -- a release bundle is already
+          # AOT for the host, so there is nothing for gen_snapshot to read --
+          # and `--debug` writes into the desktop bundle rather than
+          # build/flutter_assets. This is the path the eLinux job uses for the
+          # same reason.
+          flutter build linux --debug
+          KERNEL=build/linux/x64/debug/bundle/data/flutter_assets/kernel_blob.bin
+          test -f "$KERNEL" || {
+            echo "::error::no kernel to compile; the debug build produced none"
+            find build -name kernel_blob.bin || true
+            exit 1
+          }
+
+          # Compiled by the host gen_snapshot that came with the ARM engine:
+          # it runs here and emits ARM, which is why there is no architecture
+          # argument to get wrong.
           "$GITHUB_WORKSPACE/engine/gen_snapshot" \
             --deterministic \
             --snapshot_kind=app-aot-elf \
             --elf=libapp.so \
             --strip \
-            build/flutter_assets/kernel_blob.bin 2>&1 | tail -5 || true
+            "$KERNEL"
+
           ls -l libapp.so
           file libapp.so
 
@@ -1155,7 +1173,8 @@ jobs:
           cd examples/dartvel_example
           OUT=build/webos/com.dartvel.example
           mkdir -p "$OUT/lib" "$OUT/data"
-          cp -r build/flutter_assets "$OUT/data/"
+          cp -r build/linux/x64/debug/bundle/data/flutter_assets "$OUT/data/"
+          cp build/linux/x64/debug/bundle/data/icudtl.dat "$OUT/data/"
           # Release is AOT: kernel would be dead weight and would imply the
           # app is debuggable when it is not.
           rm -f "$OUT/data/flutter_assets/kernel_blob.bin"
@@ -1187,6 +1206,7 @@ jobs:
           test -f "$OUT/lib/libflutter_engine.so"
           test -f "$OUT/lib/libapp.so"
           test -d "$OUT/data/flutter_assets"
+          test -f "$OUT/data/icudtl.dat"
           test ! -f "$OUT/data/flutter_assets/kernel_blob.bin"
 
           for lib in libflutter_engine.so libapp.so; do
