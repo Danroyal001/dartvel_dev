@@ -4237,7 +4237,7 @@ class DVPageScaffoldSpec {
   });
 }
 
-class DVPageShell extends StatelessWidget {
+class DVPageShell extends StatefulWidget {
   final DVPageScaffoldSpec spec;
   final Widget child;
 
@@ -4246,6 +4246,24 @@ class DVPageShell extends StatelessWidget {
     required this.spec,
     required this.child,
   });
+
+  @override
+  State<DVPageShell> createState() => _DVPageShellState();
+}
+
+class _DVPageShellState extends State<DVPageShell> {
+  /// The selection area's focus node, kept out of the tab order.
+  final FocusNode _selectionFocusNode =
+      FocusNode(skipTraversal: true, debugLabel: 'DVPageShell selection');
+
+  DVPageScaffoldSpec get spec => widget.spec;
+  Widget get child => widget.child;
+
+  @override
+  void dispose() {
+    _selectionFocusNode.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -4304,7 +4322,17 @@ class DVPageShell extends StatelessWidget {
   Widget _body(Widget body) {
     // Inside the safe area, not outside it: a SelectionArea above would let a
     // drag begin in the notch or over the home indicator.
-    final content = spec.selectable ? SelectionArea(child: body) : body;
+    final content = spec.selectable
+        ? SelectionArea(
+            // skipTraversal, because a SelectionArea is focusable and would
+            // otherwise take the first tab stop on every page: the first Tab
+            // went to the page instead of the first link, and every
+            // subsequent one was off by one. It still takes focus when a
+            // selection starts; it is simply not somewhere Tab stops.
+            focusNode: _selectionFocusNode,
+            child: body,
+          )
+        : body;
     return spec.safeArea ? SafeArea(child: content) : content;
   }
 
