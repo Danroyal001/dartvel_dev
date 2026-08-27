@@ -1,7 +1,7 @@
 // A launcher, not a copy of the framework.
 //
 // Dartvel is a Dart toolchain: the `dartvel` command is a Dart executable
-// published on pub.dev as `dartvel_dev`. Vendoring a compiled build of it into
+// published on pub.dev as `dartvel_cli`. Vendoring a compiled build of it into
 // an npm package would ship a second copy that drifts from the one
 // `dart pub global activate` installs, so this finds the real one, installs it
 // on first use, and gets out of the way.
@@ -18,8 +18,17 @@
 
 const { spawn, spawnSync } = require('child_process');
 
-/** The pub.dev package that carries the CLI. */
-const PUB_PACKAGE = 'dartvel_dev';
+/** The pub.dev package that carries the CLI.
+ *
+ * `dartvel_cli`, not `dartvel_dev`. The umbrella depends on the Flutter SDK,
+ * and pub refuses to run a global executable from a package that does:
+ * "dartvel_dev as globally activated requires the Flutter SDK, which is
+ * unsupported for global executables". It activates and then cannot run, which
+ * is the worst arrangement of the two.
+ *
+ * `dartvel_dev` is what an application depends on. `dartvel_cli` is what you
+ * install to get the command, and it is pure Dart. */
+const PUB_PACKAGE = 'dartvel_cli';
 
 /** The command that package installs. */
 const COMMAND = 'dartvel';

@@ -23,8 +23,7 @@ dependencies:
   glob: ^2.1.2
   yaml: ^3.1.2
   path: ^1.9.0
-  dartvel_core:
-    path: ../dartvel_core
+  dartvel_core: ^0.2.1
 
 dev_dependencies:
   lints: ^4.0.0

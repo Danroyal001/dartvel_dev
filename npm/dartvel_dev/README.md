@@ -20,6 +20,12 @@ The same name is used on [pub.dev](https://pub.dev/packages/dartvel_dev) and in
 the [Homebrew tap](https://github.com/Danroyal001/homebrew-dartvel_dev), so
 whichever way you install it, it is called the same thing.
 
+Under the hood this installs
+[`dartvel_cli`](https://pub.dev/packages/dartvel_cli) rather than
+`dartvel_dev`. The umbrella depends on the Flutter SDK and pub will not run a
+global executable from a package that does; the CLI is pure Dart. You depend on
+`dartvel_dev` in an application, and install `dartvel_cli` to get the command.
+
 ## What this package does
 
 It launches the real CLI rather than containing a copy of it.
@@ -30,7 +36,7 @@ copy that drifts from the one `dart pub global activate` installs, and would
 need a release per platform before this package could exist at all.
 
 So on first run this finds `dartvel` on your PATH, and if it is not there,
-installs it with `dart pub global activate dartvel_dev` and runs it through
+installs it with `dart pub global activate dartvel_cli` and runs it through
 `dart pub global run` — which works whether or not `~/.pub-cache/bin` is on
 your PATH.
 
