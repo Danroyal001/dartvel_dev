@@ -674,6 +674,24 @@ ${(() {
         )
         .join(',\n');
 
+    // What each route can fetch and show before you go there. DVNavLink
+    // cannot know how to build a route; the router does, so it says.
+    final routeCapabilities = pageEntries
+        .map((e) {
+          final widgetName = _generatedPageWidgetName(e.publicName);
+          return '''
+  DVRoutePreloaders.register(
+    '${esc(e.route)}',
+    $widgetName.loadLibrary,
+  );
+  DVRoutePreviews.register(
+    '${esc(e.route)}',
+    (BuildContext context) => const $widgetName(),
+  );''';
+        })
+        .toSet()
+        .join('\n');
+
     final generatedPageWidgets = pageEntries.map((e) {
       final buildReturn = e.expressionBody == null
           ? '  return ${e.isFunctional ? 'p${e.importIndex}.${e.publicName}(context)' : 'p${e.importIndex}.${e.publicName}()'};'
@@ -807,6 +825,10 @@ $generatedPageWidgets
 /// Creates the GoRouter instance for Dartvel routing.
 GoRouter createDartvelRouter() {
   configureDartvelRuntime();
+  // What each route can fetch and show before you go there, so DVNavLink can
+  // preload a destination on hover and preview it on a rest. The link cannot
+  // know how to build a route; the router does.
+$routeCapabilities
   // Path URLs on the web, not the hash Flutter defaults to.
   //
   // Without this, /docs never reaches the router: the browser asks for the
