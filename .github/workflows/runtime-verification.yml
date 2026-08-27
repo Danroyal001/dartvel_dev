@@ -92,7 +92,14 @@ jobs:
         run: |
           set -euo pipefail
           cd examples/dartvel_example
-          flutter test integration_test/link_navigation_test.dart -d linux
+          # Under xvfb-run, because the Xvfb started by the step above lives
+          # and dies with that step's shell and DISPLAY went with it. A GTK
+          # app with nowhere to open a window exits immediately, and the
+          # driver reports that as "the log reader stopped unexpectedly, or
+          # never started" -- which reads as a broken app rather than a
+          # missing display.
+          xvfb-run -a flutter test integration_test/link_navigation_test.dart \
+            -d linux
 
       - name: The capture must show the application
         run: |
