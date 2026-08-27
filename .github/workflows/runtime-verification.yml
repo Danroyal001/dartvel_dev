@@ -1149,20 +1149,42 @@ jobs:
           cd examples/dartvel_example
           flutter pub get
           dart run dartvel_cli:dartvel routes
-
-          # A debug desktop build, for its kernel. `flutter build bundle
-          # --release` emits no kernel_blob.bin -- a release bundle is already
-          # AOT for the host, so there is nothing for gen_snapshot to read --
-          # and `--debug` writes into the desktop bundle rather than
-          # build/flutter_assets. This is the path the eLinux job uses for the
-          # same reason.
+          # For the asset bundle and icudtl.dat, which the package needs and
+          # the kernel step does not produce.
           flutter build linux --debug
-          KERNEL=build/linux/x64/debug/bundle/data/flutter_assets/kernel_blob.bin
-          test -f "$KERNEL" || {
-            echo "::error::no kernel to compile; the debug build produced none"
-            find build -name kernel_blob.bin || true
+
+          # An AOT kernel, not a debug one.
+          #
+          # `flutter build bundle --release` emits no kernel_blob.bin -- a
+          # release bundle is already AOT for the host -- and the debug
+          # kernel_blob.bin is only the app's code: the platform comes
+          # separately, so gen_snapshot aborts on it with
+          # "Unable to use class Library:'dart:core' ... which is not loaded
+          # yet".
+          #
+          # So the kernel is compiled here against the AOT platform, by the
+          # frontend server Flutter ships. The patched SDK is kernel and is
+          # architecture-independent, which is why the host's serves a target
+          # Flutter has no toolchain for.
+          FR="${FLUTTER_ROOT}"
+          SDK="$FR/bin/cache/artifacts/engine/common/flutter_patched_sdk_product"
+
+          # dartaotruntime, not dart: frontend_server_aot.dart.snapshot is an
+          # AOT snapshot and refuses to run on the JIT runtime.
+          "$FR/bin/cache/dart-sdk/bin/dartaotruntime" \
+            "$FR/bin/cache/artifacts/engine/linux-x64/frontend_server_aot.dart.snapshot" \
+            --sdk-root "$SDK/" \
+            --target=flutter --aot --tfa \
+            --platform "$SDK/platform_strong.dill" \
+            --packages .dart_tool/package_config.json \
+            --output-dill app.dill \
+            lib/main.dart 2>&1 | tail -3
+
+          test -s app.dill || {
+            echo "::error::the frontend server produced no kernel"
             exit 1
           }
+          ls -lh app.dill
 
           # Compiled by the host gen_snapshot that came with the ARM engine:
           # it runs here and emits ARM, which is why there is no architecture
@@ -1172,7 +1194,7 @@ jobs:
             --snapshot_kind=app-aot-elf \
             --elf=libapp.so \
             --strip \
-            "$KERNEL"
+            app.dill
 
           ls -l libapp.so
           file libapp.so
