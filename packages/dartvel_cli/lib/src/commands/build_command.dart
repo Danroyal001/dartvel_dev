@@ -10,6 +10,7 @@ import '../build/pwa_manifest.dart';
 import '../build/seo_head.dart';
 import '../build/page_text.dart';
 import '../build/static_seo.dart';
+import '../build/web_server.dart';
 import '../utils/build_runner.dart';
 import '../utils/logger.dart';
 import '../utils/toolchain.dart';
@@ -62,6 +63,16 @@ const extensionBuildPlatforms = <String>[
   'vscode',
 ];
 
+/// Web output served by a Dartvel server rather than written to files.
+///
+/// The same pages from the same pieces, decided per request instead of at
+/// build time -- which is the only way a model-backed page or a parameterised
+/// route can be served correctly, because neither can be written to a file
+/// ahead of being asked for.
+const webServerBuildPlatforms = <String>[
+  'web-server',
+];
+
 /// Browser extension bundles. These are Flutter web output plus a generated
 /// manifest and background script, not a separate embedder.
 const browserExtensionBuildPlatforms = <String>[
@@ -84,6 +95,10 @@ const allBuildPlatforms = <String>[
 /// [normalizeBuildTarget] resolves to a base platform.
 const buildPlatformArguments = <String>[
   ...allBuildPlatforms,
+  // Not in allBuildPlatforms: `--platform all` should not produce both a
+  // static web build and a server one, since they are two answers to the
+  // same question and the second would overwrite the first.
+  ...webServerBuildPlatforms,
   'tpk',
   'sony-elinux-iso',
   'sony-elinux-img',
@@ -352,6 +367,7 @@ String? embeddedHostRequirement(String platform) => switch (platform) {
 bool isPlatformAvailableOn(String platform, String hostOs) {
   switch (platform) {
     case 'web':
+    case 'web-server':
     case 'android':
     case 'fireos':
       return true;
@@ -727,10 +743,15 @@ class BuildCommand extends Command<void> {
     if (exitCode == null) return _PlatformBuildResult.failed;
 
     if (exitCode == 0) {
-      if (platform == 'web') {
-        _writePwaManifest(Directory.current.path);
-        _writeSeoHead(Directory.current.path);
-        _writeStaticPages(Directory.current.path);
+      if (platform == 'web' || platform == 'web-server') {
+        final root = Directory.current.path;
+        _writePwaManifest(root);
+        _writeSeoHead(root);
+        if (platform == 'web-server') {
+          _writeWebServerManifest(root);
+        } else {
+          _writeStaticPages(root);
+        }
       }
       Logger.log('✅ $platform build successful');
       return _PlatformBuildResult.succeeded;
@@ -1309,6 +1330,62 @@ class BuildCommand extends Command<void> {
     }
   }
 
+
+
+  /// Write what a Dartvel server needs to build any page on request.
+  ///
+  /// No per-route HTML: the server writes those, which is the point of the
+  /// target. The sitemap and robots stay files, because each is one document
+  /// that does not vary by request and generating them per fetch would be
+  /// work for nothing.
+  void _writeWebServerManifest(String root) {
+    final web = Directory(p.join(root, 'build', 'web'));
+    if (!web.existsSync()) return;
+
+    final settings = _dartvelSection(root)['seo'];
+    final seo = settings is Map ? settings : const <Object?, Object?>{};
+    final siteUrl = seo['siteUrl'] as String?;
+
+    final routes = _generatedRoutes(root);
+    if (routes.isEmpty) return;
+
+    // A previous static build in this directory left a file per route, and a
+    // server that falls through to a file would serve those instead of the
+    // pages it renders. The stale copy shadows the live one, and the symptom
+    // is a page that will not update however often it is deployed.
+    final present = web
+        .listSync(recursive: true)
+        .whereType<File>()
+        .map((File f) => p.relative(f.path, from: web.path))
+        .toList();
+    var removed = 0;
+    for (final String stale in dvWebServerStaleFiles(present: present)) {
+      File(p.join(web.path, stale)).deleteSync();
+      removed++;
+    }
+
+    File(p.join(web.path, 'dartvel_routes.json')).writeAsStringSync(
+      dvWebServerManifest(
+        routes: routes,
+        titles: dvRouteTitles(_routerSource(root)),
+        text: _routeText(root),
+        siteUrl: siteUrl,
+      ),
+    );
+
+    if (siteUrl != null && siteUrl.isNotEmpty) {
+      File(p.join(web.path, 'sitemap.xml'))
+          .writeAsStringSync(dvSitemap(routes: routes, siteUrl: siteUrl));
+      File(p.join(web.path, 'robots.txt'))
+          .writeAsStringSync(dvRobots(siteUrl: siteUrl));
+    }
+    Logger.log('   Wrote dartvel_routes.json for ${routes.length} routes; '
+        'the server renders each page on request.');
+    if (removed > 0) {
+      Logger.log('   Removed $removed stale page(s) from an earlier static '
+          'build, which would have shadowed the rendered ones.');
+    }
+  }
 
   /// The text each route's page contains, written by generation.
   ///
@@ -1921,6 +1998,9 @@ List<String> resolveFlutterBuildArguments({
 }) {
   final command = switch (platform) {
     'android' || 'fireos' => 'apk',
+    // The same Flutter web build. What differs is what Dartvel writes beside
+    // it afterwards: a manifest rather than a file per route.
+    'web-server' => 'web',
     _ => platform,
   };
   final args = <String>['build', command, buildMode];
