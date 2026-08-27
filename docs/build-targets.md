@@ -27,7 +27,7 @@ local Dartvel `dartvel_vscode` fork added as a dependency.
 | `tvos` | ✅ Builds | **Verified on a macOS runner**: scaffold auto-generated, then `build/tvos/Debug-appletvsimulator/Runner.app`. The `appletvsimulator` path is the proof it is a tvOS app and not the iPhone app an earlier mapping produced. Run [32538073146](https://github.com/Danroyal001/dartvel_dev/actions/runs/32538073146). See [tvOS](#tvos) |
 | `tizen` / `tpk` | ✅ Builds | Signed 9.3MB TPK with engine + assets, built on a laptop with Tizen Studio installed. CI can only ever *skip* it — the SDK is licence-gated and Dartvel must not install it unattended — so the workflow asserts the skip names that reason. See [Tizen](#tizen-samsung) |
 | `sony-elinux` | ✅ Builds and **runs** (release) | Runs on a virtual device (Weston on Xvfb) in CI, in **both debug and release**. Release needs the from-source engine, since the official standalone one is JIT. See [Sony eLinux](#sony-elinux) |
-| `webos` | ✅ App renders on ARM under emulation; not run on a television | Not a vendor secret: LG's engine exports `FlutterEngineRun` and is an ordinary Custom Embedder API build. It is **ELF 32-bit ARM**, and Google publishes `linux-arm64` but no 32-bit `linux-arm`. See [webOS](#webos-lg) |
+| `webos` | ✅ App page renders on ARM under emulation; not run on a television | Not a vendor secret: LG's engine exports `FlutterEngineRun` and is an ordinary Custom Embedder API build. It is **ELF 32-bit ARM**, and Google publishes `linux-arm64` but no 32-bit `linux-arm`. See [webOS](#webos-lg) |
 | `fuchsia` | ❌ Blocked, same class as webOS | The five build-plumbing walls are fixed: `--build-only` in the fork, `postInstall` bootstrap, submodule handling, the bootstrap's workspace variable, and skipping an unfetchable `googletest` pin. It now clones, bootstraps and stages the app — then dies in `pub get` because the fork's bundled Flutter is **older than Dart 3.4**: `dartvel_example requires SDK version >=3.4.0 <4.0.0, version solving failed`. That is not a Dartvel bug and not a `mix` problem; the embedder's Flutter submodule is simply ancient. Unblocking needs the fork re-pinned to a modern Flutter **and its engine rebuilt from source**, because bootstrap.sh warns the engine and the Flutter pin must stay aligned. See [Fuchsia](#fuchsia) |
 | `vscode` | ✅ Builds | `out/src/extension.js`, `out/lib/vscode_api.handlers.js`, `build/web/flutter_bootstrap.js`, `build/web/assets/` |
 | `chrome-extension` | ✅ Builds | `build/chrome-extension` (41 MB): MV3 manifest with a `service_worker` background, `index.html`, `main.dart.js`, `background.js`, icons. See [Browser extensions](#browser-extensions) |
@@ -591,14 +591,22 @@ x86-64 machine, so the question "does the engine work" does not need a
 television or an ARM runner — only the question "does LG's window and input
 stack work" does. [`tool/webos/render_probe.c`](../tool/webos/render_probe.c)
 starts the engine with the software renderer, sends one window-metrics event
-and writes the first presented frame out. Run against the artifacts the
-`webos` job builds, it produces the Dartvel example: **800x480, 121 distinct
-colours, the app bar reading "Dartvel Demo"**. The `webos` job runs it on
-every push and uploads the frame.
+and photographs what it draws. Run against the artifacts the `webos` job
+builds, it produces the Dartvel example's own page — the showcase heading, its
+About and Pricing links, and the platform cards — at **800x480, 1,288 colours,
+36.75% dominant**. The `webos` job runs it on every push and uploads the frame.
+
+It photographs the *settled* frame rather than the first one. The first frame
+is the shell alone, because a page's content arrives over a deferred load, so
+stopping there produced an app bar above an empty body — 120 colours, 90.83%
+of them one background — and called it a rendered application. That is the
+difference between checking the engine and checking the app.
 
 The frame is checked with `dartvel capture verify` rather than `test -s`,
 because a crash before the first frame leaves a buffer that is one colour and
-one colour passes every check that only stats the file.
+one colour passes every check that only stats the file. Note what that check
+did *not* catch on its own: an app bar over an empty body is not one colour,
+and it passed.
 
 Two failures on the way there both read as a broken engine and were both a
 missing argument, so they are written down rather than left to be
