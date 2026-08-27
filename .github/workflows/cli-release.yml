@@ -40,7 +40,11 @@ jobs:
           - runner: ubuntu-24.04-arm
             asset: dartvel-linux-arm64
             expect: aarch64
-          - runner: macos-13
+          # macos-13 was GitHub's Intel image and has been retired: a job
+          # asking for it queues forever rather than failing, because an
+          # unmatched label is indistinguishable from a busy pool. Two hours
+          # of that is how this was found.
+          - runner: macos-15-intel
             asset: dartvel-darwin-amd64
             expect: x86_64
           - runner: macos-latest
@@ -187,11 +191,20 @@ jobs:
           cat dist/latest.json
 
           COUNT=$(ls dist | grep -c '^dartvel-')
-          echo "built $COUNT platform binaries"
-          # Five targets go in; fewer coming out means a matrix leg failed and
-          # fail-fast: false let the release continue without it.
-          [ "$COUNT" -eq 5 ] || {
-            echo "::error::expected 5 binaries, found $COUNT"
+          # Read from the workflow's own matrix rather than repeated here, so
+          # adding or dropping a target cannot leave the two disagreeing --
+          # and a release that quietly ships four of five is exactly what
+          # fail-fast: false would otherwise allow.
+          EXPECTED=$(python3 - <<'PY'
+          import re
+          text = open('.github/workflows/cli-release.yml').read()
+          print(len(re.findall(r'^\s+- runner:', text, re.M)))
+          PY
+          )
+          echo "built $COUNT of $EXPECTED platform binaries"
+          [ "$COUNT" -eq "$EXPECTED" ] || {
+            echo "::error::expected $EXPECTED binaries, found $COUNT"
+            ls dist
             exit 1
           }
 
