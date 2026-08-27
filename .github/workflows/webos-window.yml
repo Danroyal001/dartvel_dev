@@ -187,13 +187,36 @@ jobs:
           export LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe
 
           cd "$GITHUB_WORKSPACE/bundle"
+          # The engine sits in lib/, and the runner's own loader is what has to
+          # find it. Without this it exits immediately with "libflutter_engine
+          # .so: cannot open shared object file".
+          export LD_LIBRARY_PATH="$PWD/lib"
+
           qemu-arm-static -L /usr/arm-linux-gnueabihf ./dartvel_app \
             --bundle="$PWD" > /tmp/diag/webos-window.log 2>&1 &
           APP=$!
           sleep 25
           import -window root /tmp/diag/webos-window.png
-          kill $APP 2>/dev/null || true
+
           echo "=== app log ==="; cat /tmp/diag/webos-window.log || true
+
+          # The gates. A screenshot alone cannot carry this step: Weston's
+          # empty desktop is a textured grey with a clock in the corner, which
+          # has plenty of colours and no dominant one, so it passes every
+          # check the capture verifier makes. This job went green on exactly
+          # that picture while the runner had died before drawing anything.
+          if ! kill -0 $APP 2>/dev/null; then
+            echo "::error::the runner exited before it could be photographed"
+            kill $APP 2>/dev/null || true
+            exit 1
+          fi
+          kill $APP 2>/dev/null || true
+
+          if grep -qiE "error while loading shared libraries|symbol lookup error|Segmentation fault|Failed to (create|initialize)" \
+               /tmp/diag/webos-window.log; then
+            echo "::error::the runner reported a startup failure"
+            exit 1
+          fi
           identify /tmp/diag/webos-window.png || true
 
       - name: The capture must show the application
