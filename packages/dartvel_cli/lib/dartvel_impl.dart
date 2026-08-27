@@ -7,6 +7,7 @@ import 'src/commands/ai_command.dart';
 import 'src/commands/artifact_command.dart';
 import 'src/commands/capture_command.dart';
 import 'src/commands/engine_command.dart';
+import 'src/commands/ensure_path_command.dart';
 import 'src/commands/build_command.dart';
 import 'src/commands/cache_command.dart';
 import 'src/commands/db_command.dart';
@@ -43,6 +44,7 @@ Future<void> main(List<String> args) async {
     ..addCommand(ArtifactCommand())
     ..addCommand(CaptureCommand())
     ..addCommand(EngineCommand())
+    ..addCommand(EnsurePathCommand())
     ..addCommand(DeployCommand())
     ..addCommand(PreviewCommand())
     ..addCommand(PrerenderCommand())

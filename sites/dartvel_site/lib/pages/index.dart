@@ -1,177 +1,172 @@
 import 'package:flutter/material.dart';
 import '../dartvel_client/dartvel_client.dart';
+import '../components/site.dart';
 
-const _ink = Color(0xFF0B1020);
-const _muted = Color(0xFF5A6478);
-const _accent = Color(0xFF2F6BFF);
-const _rule = Color(0xFFE3E7EF);
-
-@DVPage(
-  title: 'Dartvel — Flutter, full stack',
-  showAppBar: false,
-)
+@DVPage(title: 'Dartvel — Flutter, full stack', showAppBar: false)
 @pragma('vm:entry-point')
 Widget _indexPage(BuildContext context) => buildIndexPage(context);
 
-Widget buildIndexPage(BuildContext context) => DVBox.list([
-      _hero(),
-      _install(),
-      _whatYouWrite(),
-      _targets(),
-      _honesty(),
-      _footer(),
-    ]).modifier(
-      const DVModifier().padding(0),
+Widget buildIndexPage(BuildContext context) => SitePage(
+      current: '/',
+      children: <Widget>[
+        _hero(context),
+        _proof(context),
+        _pillars(context),
+        _targets(context),
+        _honest(context),
+      ],
     );
 
-Widget _hero() => DVBox.list([
-      const DVText('DARTVEL').modifier(
-        DVModifier()
-            .fontSize(13)
-            .fontWeight(FontWeight.w700)
-            .color(_accent)
-            .letterSpacing(2.4),
-      ),
-      const DVText('Flutter, full stack.').modifier(
-        DVModifier()
-            .fontSize(52)
-            .fontWeight(FontWeight.w800)
-            .color(_ink)
-            .height(1.08),
-      ),
-      const DVText(
-        'You write pages, models, backend functions, UI and business logic. '
-        'Routing, clients, serialization, forms, admin and the server are '
-        'generated, compiled or served.',
-      ).modifier(
-        DVModifier().fontSize(19).color(_muted).height(1.6).width(620),
-      ),
-    ], spacing: 18).modifier(
-      const DVModifier().padding(48).width(1040).align(Alignment.topLeft),
+Widget _hero(BuildContext context) => Section(
+      children: <Widget>[
+        const Eyebrow('A FULL-STACK PLATFORM FOR FLUTTER'),
+        const DVText('Flutter, all the way down.').modifier(
+          DVModifier()
+              .fontSize(Responsive.of(context).heroSize)
+              .fontWeight(FontWeight.w800)
+              .color(Palette.of(context).ink)
+              .height(1.06),
+        ),
+        const DVText(
+          'Write pages, models, backend functions, UI and business logic. '
+          'Routing, typed clients, serialization, forms, admin and the server '
+          'are generated, compiled or served for you.',
+        ).modifier(
+          DVModifier().fontSize(19).color(Palette.of(context).muted).height(1.65).width(640),
+        ),
+        DVBox.wrapLine(<Widget>[
+          PrimaryLink('Get started', '/docs'),
+          GhostLink('Documentation', '/docs'),
+          GhostLink('Cloud', '/cloud'),
+        ], spacing: 12),
+        const DVText(
+          'MIT licensed. Six packages on pub.dev, an npm launcher, a Homebrew '
+          'tap, and self-contained binaries for five platforms.',
+        ).modifier(DVModifier().fontSize(14).color(Palette.of(context).faint).width(560)),
+      ],
     );
 
-Widget _install() => DVBox.list([
-      const DVText('Install').modifier(_sectionLabel()),
-      DVBox.list([
-        _command('brew install Danroyal001/dartvel_dev/dartvel_dev'),
-        _command('npx dartvel_dev --help'),
-        _command('dart pub global activate dartvel_cli'),
-      ], spacing: 10),
-      const DVText(
-        'The CLI is a single self-contained binary. Nothing has to be '
-        'installed to run it. Building an app still needs Flutter, for '
-        'whichever target you are building.',
-      ).modifier(DVModifier().fontSize(15).color(_muted).width(620)),
-    ], spacing: 16).modifier(
-      const DVModifier().padding(48).width(1040),
+Widget _proof(BuildContext context) => Section(
+      tint: true,
+      children: <Widget>[
+        const Eyebrow('WHAT IT LOOKS LIKE'),
+        const Heading('A model is the whole feature.'),
+        const DVText(
+          'One annotated class gives you the typed client, the form with '
+          'validation, the table, the admin surface, the public page and the '
+          'sync. You do not write, or maintain, any of them.',
+        ).modifier(DVModifier().fontSize(17).color(Palette.of(context).muted).height(1.6).width(620)),
+        const CodeBlock(<String>[
+          '@DVModel(generatePublicPages: true)',
+          'class _Post {',
+          '  @DVModel.pageTitle()',
+          '  late String title;',
+          '',
+          '  @DVModel.mainContent()',
+          '  late String body;',
+          '',
+          '  @DVModel.sensitiveField()',
+          '  late String authorEmail;',
+          '}',
+        ]),
+        DVBox.wrapLine(<Widget>[
+          const Chip_('Post.Form(...)'),
+          const Chip_('Post.Page.fromId(...)'),
+          const Chip_('Post.Table(...)'),
+          const Chip_('DV.Admin'),
+        ], spacing: 8),
+        const DVText(
+          'authorEmail is marked sensitive, so it is excluded from logs, AI '
+          'context, traces, analytics, public serialization, search, the '
+          'generated page, the table and the admin by default. It reaches a '
+          'client only when a policy says so.',
+        ).modifier(DVModifier().fontSize(15).color(Palette.of(context).muted).height(1.6).width(620)),
+      ],
     );
 
-Widget _command(String text) => DVText(text).modifier(
-      DVModifier()
-          .fontSize(14)
-          
-          .color(_ink)
-          .backgroundColor(const Color(0xFFF4F6FB))
-          .padding(14)
-          .rounded(8),
-    );
-
-Widget _whatYouWrite() => DVBox.list([
-      const DVText('What you write').modifier(_sectionLabel()),
-      DVBox.wrapLine([
-        _card('Pages', 'A file in lib/pages is a route. Typed navigation, '
-            'loading and error states beside it.'),
-        _card('Models', '@DVModel generates the client, the form, the table, '
-            'the admin surface and the sync.'),
-        _card('Backend functions', 'A Dart function becomes an endpoint. The '
-            'client to call it is generated.'),
-        _card('UI', 'DVBox and DVText with fluent styling, on one layout '
-            'system across every target.'),
-      ], spacing: 16),
-    ], spacing: 16).modifier(
-      const DVModifier().padding(48).width(1040),
-    );
-
-Widget _card(String title, String body) => DVBox.list([
-      DVText(title).modifier(
-        DVModifier().fontSize(17).fontWeight(FontWeight.w700).color(_ink),
-      ),
-      DVText(body).modifier(
-        DVModifier().fontSize(14).color(_muted).height(1.55),
-      ),
-    ], spacing: 8).modifier(
-      DVModifier()
-          .padding(20)
-          .rounded(12)
-          .width(300)
-          .backgroundColor(const Color(0xFFFAFBFD)),
-    );
-
-Widget _targets() => DVBox.list([
-      const DVText('One codebase, fifteen targets').modifier(_sectionLabel()),
-      DVBox.wrapLine([
-        for (final String target in const <String>[
-          'web', 'linux', 'macOS', 'windows', 'android', 'iOS', 'tvOS',
-          'Fire OS', 'Tizen', 'Sony eLinux', 'webOS', 'VS Code',
-          'Chrome', 'Firefox', 'terminal',
-        ])
-          DVText(target).modifier(
-            DVModifier()
-                .fontSize(13)
-                .color(_ink)
-                .backgroundColor(const Color(0xFFF4F6FB))
-                .padding(10)
-                .rounded(999),
+Widget _pillars(BuildContext context) => Section(
+      children: <Widget>[
+        const Eyebrow('WHAT YOU GET'),
+        DVBox.wrapLine(<Widget>[
+          const Card_(
+            'Pages',
+            'A file under lib/pages is a route, with typed navigation and its '
+            'loading and error states beside it.',
           ),
-      ], spacing: 8),
-      const DVText(
-        'Embedded and television targets ride the platform vendor’s own '
-        'Flutter embedder rather than plain flutter build, each pinned in a '
-        'fork so the engine and the Flutter version stay aligned.',
-      ).modifier(DVModifier().fontSize(15).color(_muted).width(620)),
-    ], spacing: 16).modifier(
-      const DVModifier().padding(48).width(1040),
+          const Card_(
+            'Backend functions',
+            'A Dart function becomes an endpoint, and the client that calls it '
+            'is generated with it.',
+          ),
+          const Card_(
+            'Signals',
+            'context.signal, reactive models and DV.global. Operating on '
+            'signals gives you a signal, so derived state composes.',
+          ),
+          const Card_(
+            'A Rust runtime',
+            'Axum and Tokio behind FFI, speaking HTTP/2 and HTTP/3, verified '
+            'against a live server.',
+          ),
+          const Card_(
+            'Native APIs',
+            'DV.Platform on six platforms through FFI and jnigen. No platform '
+            'channels anywhere.',
+          ),
+          const Card_(
+            'One toolkit',
+            'dartvel dev, build, test, db, queue, deploy. Generation runs as '
+            'part of the build.',
+          ),
+        ], spacing: 16),
+      ],
     );
 
-Widget _honesty() => DVBox.list([
-      const DVText('Published early, and stated plainly').modifier(
-        _sectionLabel(),
-      ),
-      const DVText(
-        'Dartvel is not finished. Per-section status lives in the repository '
-        'and is checked by a tool that fails when a section claims to be '
-        'built and the evidence it names does not exist. A frozen public '
-        'contract with nothing behind it yet is marked as such rather than '
-        'implied to work, and what is absent is written down next to what is '
-        'present.',
-      ).modifier(DVModifier().fontSize(16).color(_muted).height(1.6).width(660)),
-      const DVText(
-        'Build status per target says verified only where the command was run '
-        'and the artifact inspected — never because a sibling target works.',
-      ).modifier(DVModifier().fontSize(16).color(_muted).height(1.6).width(660)),
-    ], spacing: 14).modifier(
-      const DVModifier().padding(48).width(1040),
+Widget _targets(BuildContext context) => Section(
+      tint: true,
+      children: <Widget>[
+        const Eyebrow('ONE CODEBASE'),
+        const Heading('Fifteen build targets.'),
+        DVBox.wrapLine(<Widget>[
+          for (final String target in const <String>[
+            'web', 'linux', 'macOS', 'windows', 'android', 'iOS', 'tvOS',
+            'Fire OS', 'Tizen', 'Sony eLinux', 'webOS', 'VS Code',
+            'Chrome', 'Firefox', 'terminal',
+          ])
+            Chip_(target),
+        ], spacing: 8),
+        const DVText(
+          'Embedded and television targets ride the platform vendor’s own '
+          'Flutter embedder rather than plain flutter build, each pinned in a '
+          'fork so the engine and the Flutter version stay aligned. A build '
+          'checks host support and tooling before doing any work, so it never '
+          'starts something it cannot finish.',
+        ).modifier(DVModifier().fontSize(16).color(Palette.of(context).muted).height(1.65).width(640)),
+      ],
     );
 
-Widget _footer() => DVBox.list([
-      DVBox.wrapLine([
-        _link('GitHub', 'github.com/Danroyal001/dartvel_dev'),
-        _link('pub.dev', 'pub.dev/packages/dartvel_dev'),
-        _link('npm', 'npmjs.com/package/dartvel_dev'),
-      ], spacing: 20),
-      const DVText('MIT licensed.').modifier(
-        DVModifier().fontSize(13).color(_muted),
-      ),
-    ], spacing: 12).modifier(
-      const DVModifier().padding(48).width(1040),
+Widget _honest(BuildContext context) => Section(
+      children: <Widget>[
+        const Eyebrow('WHERE IT ACTUALLY IS'),
+        const Heading('Published early, and stated plainly.'),
+        const DVText(
+          'Dartvel is not finished, and the repository says exactly how '
+          'unfinished. Every spec section carries two labels — how much the '
+          'public surface can still move, and how much is built — checked by a '
+          'tool that fails when a section claims to be built and the evidence '
+          'it names does not exist.',
+        ).modifier(DVModifier().fontSize(17).color(Palette.of(context).muted).height(1.65).width(660)),
+        DVBox.wrapLine(<Widget>[
+          const Stat('22', 'sections shipped'),
+          const Stat('33', 'partial, and listed'),
+          const Stat('13', 'targets that build'),
+          const Stat('2', 'verified by running'),
+        ], spacing: 14),
+        const DVText(
+          'A target says verified only where the command was run and the '
+          'artifact inspected — never because a sibling target works.',
+        ).modifier(DVModifier().fontSize(15).color(Palette.of(context).faint).height(1.6).width(620)),
+      ],
     );
 
-Widget _link(String label, String href) => DVText(label).modifier(
-      DVModifier().fontSize(14).color(_accent).fontWeight(FontWeight.w600),
-    );
 
-DVModifier _sectionLabel() => DVModifier()
-    .fontSize(12)
-    .fontWeight(FontWeight.w700)
-    .color(_muted)
-    .letterSpacing(1.6);
