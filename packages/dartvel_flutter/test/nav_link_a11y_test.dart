@@ -168,12 +168,22 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.tab);
       await tester.pump();
 
-      final link = tester.widget<InkWell>(find.descendant(
-        of: find.byType(DVNavLink).first,
-        matching: find.byType(InkWell),
-      ));
-      expect(link.focusColor, isNotNull,
+      // Asserted as a change in what is painted, not as a property on
+      // whatever widget happens to be inside. The previous version of this
+      // read InkWell.focusColor, which stayed non-null even when the link
+      // could not build at all on a page without a Scaffold.
+      Color? highlightOf(int index) => tester
+          .widgetList<DecoratedBox>(find.descendant(
+            of: find.byType(DVNavLink).at(index),
+            matching: find.byType(DecoratedBox),
+          ))
+          .map((DecoratedBox box) => (box.decoration as BoxDecoration).color)
+          .firstWhere((Color? color) => color != null, orElse: () => null);
+
+      expect(highlightOf(0), isNotNull,
           reason: 'a focused link should look focused');
+      expect(highlightOf(1), isNull,
+          reason: 'an unfocused link should not');
     });
   });
 
