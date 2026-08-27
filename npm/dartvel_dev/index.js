@@ -1,110 +1,165 @@
-// A launcher, not a copy of the framework.
+// Fetches the self-contained `dartvel` binary for this platform and runs it.
 //
-// Dartvel is a Dart toolchain: the `dartvel` command is a Dart executable
-// published on pub.dev as `dartvel_cli`. Vendoring a compiled build of it into
-// an npm package would ship a second copy that drifts from the one
-// `dart pub global activate` installs, so this finds the real one, installs it
-// on first use, and gets out of the way.
+// The CLI is a Dart program, but it does not need a Dart SDK to run: `dart
+// build cli` links the Dart runtime and dartvel_shelf's Rust library into one
+// executable. So this package downloads that executable rather than requiring
+// a toolchain.
 //
-// The npm package exists because many people reach for `npx` before anything
-// else, and because the name should belong to the project.
+// It used to run `dart pub global activate` instead, and that could not work.
+// The umbrella depends on the Flutter SDK and pub refuses to run a global
+// executable from a package that does — it activated and then would not run,
+// which looks installed and is not:
 //
-// The package is `dartvel_dev` and the command is `dartvel`. Those differ on
-// purpose: `dartvel` was taken on pub.dev on 2026-08-06 by an unrelated
-// package, so the published name carries the suffix while the thing you type
-// does not.
+//   dartvel_dev as globally activated requires the Flutter SDK, which is
+//   unsupported for global executables
+//
+// Building the CLI still needs Flutter, for whichever target you are building.
+// Running the CLI does not.
 
 'use strict';
 
-const { spawn, spawnSync } = require('child_process');
+const fs = require('fs');
+const https = require('https');
+const os = require('os');
+const path = require('path');
+const crypto = require('crypto');
+const { spawn } = require('child_process');
 
-/** The pub.dev package that carries the CLI.
+const VERSION = require('./package.json').version;
+const REPO = 'Danroyal001/dartvel_dev';
+const RELEASE_BASE = `https://github.com/${REPO}/releases/download/v${VERSION}`;
+
+/**
+ * The release asset for a platform.
  *
- * `dartvel_cli`, not `dartvel_dev`. The umbrella depends on the Flutter SDK,
- * and pub refuses to run a global executable from a package that does:
- * "dartvel_dev as globally activated requires the Flutter SDK, which is
- * unsupported for global executables". It activates and then cannot run, which
- * is the worst arrangement of the two.
- *
- * `dartvel_dev` is what an application depends on. `dartvel_cli` is what you
- * install to get the command, and it is pure Dart. */
-const PUB_PACKAGE = 'dartvel_cli';
+ * Named for the operating system and architecture rather than Node's own
+ * spellings, because the release is what has to be matched.
+ */
+function assetName(platform = process.platform, arch = process.arch) {
+  const osName = { linux: 'linux', darwin: 'darwin', win32: 'windows' }[platform];
+  if (!osName) {
+    throw new Error(
+      `Dartvel has no build for ${platform}. Supported: Linux, macOS, Windows.`
+    );
+  }
 
-/** The command that package installs. */
-const COMMAND = 'dartvel';
+  const archName = { x64: 'amd64', arm64: 'arm64' }[arch];
+  if (!archName) {
+    throw new Error(
+      `Dartvel has no build for ${arch}. Supported: x64, arm64.`
+    );
+  }
 
-/** Where to send someone who has no Dart at all. */
-const INSTALL_DART = 'https://docs.flutter.dev/get-started/install';
+  // Windows on ARM is not published yet, and saying so beats a 404 from a URL
+  // this would otherwise construct confidently.
+  if (osName === 'windows' && archName === 'arm64') {
+    throw new Error(
+      'Dartvel has no Windows on ARM build yet. The x64 build runs under ' +
+        'emulation; install it directly from the releases page.'
+    );
+  }
 
-function which(command) {
-  const probe = spawnSync(
-    process.platform === 'win32' ? 'where' : 'which',
-    [command],
-    { encoding: 'utf8' }
-  );
-  return probe.status === 0 && String(probe.stdout).trim().length > 0;
+  return `dartvel-${osName}-${archName}${osName === 'windows' ? '.exe' : ''}`;
 }
 
-/** Whether the Dartvel CLI is already on the PATH. */
-function hasDartvel() {
-  return which(COMMAND);
+/** Where the downloaded binary is kept, beside this package. */
+function binaryPath() {
+  const name = process.platform === 'win32' ? 'dartvel.exe' : 'dartvel';
+  return path.join(__dirname, 'vendor', name);
 }
 
-/** Whether a Dart SDK is available to install it with. */
-function hasDart() {
-  return which('dart') || which('flutter');
-}
-
-function activate() {
-  // Not silent: this downloads and compiles, and a launcher that appears to
-  // hang is worse than one that says what it is doing.
-  process.stderr.write(
-    `${COMMAND} is not installed yet — running: ` +
-      `dart pub global activate ${PUB_PACKAGE}\n`
-  );
-  const result = spawnSync('dart', ['pub', 'global', 'activate', PUB_PACKAGE], {
-    stdio: 'inherit',
+function download(url, redirectsLeft = 5) {
+  return new Promise((resolve, reject) => {
+    https
+      .get(url, { headers: { 'user-agent': 'dartvel-npm' } }, (response) => {
+        const status = response.statusCode || 0;
+        if (status >= 300 && status < 400 && response.headers.location) {
+          if (redirectsLeft <= 0) {
+            reject(new Error('too many redirects'));
+            return;
+          }
+          response.resume();
+          resolve(download(response.headers.location, redirectsLeft - 1));
+          return;
+        }
+        if (status !== 200) {
+          response.resume();
+          reject(new Error(`HTTP ${status} for ${url}`));
+          return;
+        }
+        const chunks = [];
+        response.on('data', (chunk) => chunks.push(chunk));
+        response.on('end', () => resolve(Buffer.concat(chunks)));
+        response.on('error', reject);
+      })
+      .on('error', reject);
   });
-  return result.status === 0;
 }
 
-/** Run the Dartvel CLI with `args`, resolving to its exit code. */
-function run(args) {
-  if (hasDartvel()) {
-    return spawnThrough(COMMAND, args);
+/**
+ * Fetch the binary if it is not already here.
+ *
+ * The checksum published alongside the release is verified before anything is
+ * made executable. A truncated download otherwise becomes a binary that fails
+ * in a way that looks like a bug in the tool.
+ */
+async function ensureBinary() {
+  const target = binaryPath();
+  if (fs.existsSync(target)) return target;
+
+  const asset = assetName();
+  process.stderr.write(`Fetching ${asset} ${VERSION}…\n`);
+
+  const binary = await download(`${RELEASE_BASE}/${asset}`);
+
+  let expected = null;
+  try {
+    const sums = (await download(`${RELEASE_BASE}/SHA256SUMS`)).toString('utf8');
+    for (const line of sums.split('\n')) {
+      const [digest, name] = line.trim().split(/\s+/);
+      if (name === asset) expected = digest;
+    }
+  } catch {
+    // A release without a checksum file is still installable; say so rather
+    // than refusing, and never claim it was verified.
+    process.stderr.write('No SHA256SUMS published for this release; skipping verification.\n');
   }
 
-  if (!hasDart()) {
-    process.stderr.write(
-      'Dartvel needs the Dart SDK, and there is no `dart` on your PATH.\n' +
-        `Install Flutter, which includes Dart: ${INSTALL_DART}\n`
-    );
-    return Promise.resolve(1);
+  if (expected) {
+    const actual = crypto.createHash('sha256').update(binary).digest('hex');
+    if (actual !== expected) {
+      throw new Error(
+        `Checksum mismatch for ${asset}.\n  expected ${expected}\n  got      ${actual}`
+      );
+    }
   }
 
-  if (!activate()) {
-    process.stderr.write(
-      `Could not install ${PUB_PACKAGE} from pub.dev.\n` +
-        `Try it directly: dart pub global activate ${PUB_PACKAGE}\n`
-    );
-    return Promise.resolve(1);
-  }
-
-  // `pub global activate` installs into ~/.pub-cache/bin, which is on the PATH
-  // only if the user has put it there. Going through `dart pub global run`
-  // works either way.
-  return spawnThrough('dart', ['pub', 'global', 'run', PUB_PACKAGE, ...args]);
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.writeFileSync(target, binary, { mode: 0o755 });
+  return target;
 }
 
-function spawnThrough(command, args) {
+/** Run the CLI with `args`, resolving to its exit code. */
+async function run(args) {
+  let binary;
+  try {
+    binary = await ensureBinary();
+  } catch (error) {
+    process.stderr.write(`${error.message}\n`);
+    process.stderr.write(
+      `Releases: https://github.com/${REPO}/releases/tag/v${VERSION}\n`
+    );
+    return 1;
+  }
+
   return new Promise((resolve) => {
-    const child = spawn(command, args, { stdio: 'inherit' });
+    const child = spawn(binary, args, { stdio: 'inherit' });
     child.on('error', (error) => {
-      process.stderr.write(`Could not run ${command}: ${error.message}\n`);
+      process.stderr.write(`Could not run dartvel: ${error.message}\n`);
       resolve(1);
     });
     child.on('close', (code) => resolve(code === null ? 1 : code));
   });
 }
 
-module.exports = { run, hasDartvel, hasDart, PUB_PACKAGE, COMMAND };
+module.exports = { run, assetName, binaryPath, ensureBinary, VERSION };
