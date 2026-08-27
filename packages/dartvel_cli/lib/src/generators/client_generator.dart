@@ -1,8 +1,11 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:file/local.dart';
 import 'package:glob/glob.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
+
+import '../build/page_text.dart';
 
 import '../utils/helpers.dart';
 import '../utils/logger.dart';
@@ -245,6 +248,10 @@ class ClientGenerator {
           isFunctional: isFunctional,
           expressionBody: pageExpressionBody,
           sourceSymbols: pageSourceSymbols,
+          // From the source this loop already holds. Guessing a filename from
+          // the route name got /docs wrong and /cloud not at all, and would
+          // have been lost on the next rebuild.
+          text: dvPageText(src),
           loadingAlias: loadingAlias,
           errorAlias: errorAlias,
         ),
@@ -676,6 +683,41 @@ ${(() {
 
     // What each route can fetch and show before you go there. DVNavLink
     // cannot know how to build a route; the router does, so it says.
+    // Semantics from the start, not when Flutter guesses a screen reader is
+    // present. On by default, because two things depend on it and both are
+    // broken without it: the browser has no elements to focus, so the first
+    // Tab is spent entering the canvas and every stop after is off by one;
+    // and a screen reader only works once the tree exists, which Flutter
+    // otherwise decides by detection rather than by being told.
+    //
+    // `dartvel: semantics: false` turns it off, for an app that has measured
+    // the tree costing more than it is worth.
+    final semanticsSetting = _dartvelSemantics(root);
+    final semanticsEnabled = semanticsSetting is bool
+        ? semanticsSetting
+        : (semanticsSetting is YamlMap
+            ? (semanticsSetting['enabled'] as bool? ?? true)
+            : true);
+    final semanticsCall = semanticsEnabled
+        ? '  dvEnsureSemantics();'
+        : '  // Semantics off: dartvel.semantics is false in pubspec.yaml.';
+
+    // The text each route's page contains, taken from the source this
+    // generator already has in hand. The build used to guess the file from
+    // the route name and get it wrong: /docs picked up a code sample and
+    // /cloud found nothing, because a route name is not a filename and a
+    // rebuild would lose whatever was patched in by hand.
+    final routeText = <String, List<String>>{};
+    for (final e in pageEntries) {
+      if (e.text.isEmpty) continue;
+      routeText.putIfAbsent(e.route, () => e.text);
+    }
+    // Written on every generation, and generation runs as part of every
+    // build, so it cannot go stale behind a rebuild.
+    File(p.join(root, '.dart_tool', 'dartvel_route_text.json'))
+      ..parent.createSync(recursive: true)
+      ..writeAsStringSync(jsonEncode(routeText));
+
     final routeCapabilities = pageEntries
         .map((e) {
           final widgetName = _generatedPageWidgetName(e.publicName);
@@ -840,6 +882,7 @@ $routeCapabilities
   // It needs the server to serve index.html for unknown paths, which is what
   // the .htaccess and dartvel deploy configuration do.
   dvUsePathUrlStrategy();
+$semanticsCall
   final router = GoRouter(
     routes: [
 $routesSrc
@@ -964,7 +1007,6 @@ ${(() {
     final pwaMap =
         dv['pwa'] is YamlMap ? dv['pwa'] as YamlMap : YamlMap.wrap({});
     final pwaEnabled = asBool(pwaMap['enabled'], true);
-
     final permissionsList = <String>[];
     if (dv['permissions'] is YamlList) {
       for (final p in (dv['permissions'] as YamlList)) {
@@ -1085,6 +1127,23 @@ class DartvelConfig {
       ssgFile.parent.createSync(recursive: true);
     }
     ssgFile.writeAsStringSync(sb.toString());
+  }
+
+
+  /// The `dartvel.semantics` setting, which is either a bool or a map.
+  ///
+  /// Both spellings are accepted because both are the obvious thing to write:
+  /// `semantics: false` and `semantics: {enabled: false}`.
+  static Object? _dartvelSemantics(String root) {
+    final file = File(p.join(root, 'pubspec.yaml'));
+    if (!file.existsSync()) return null;
+    try {
+      final doc = loadYaml(file.readAsStringSync());
+      final dartvel = doc is YamlMap ? doc['dartvel'] : null;
+      return dartvel is YamlMap ? dartvel['semantics'] : null;
+    } on Object {
+      return null;
+    }
   }
 
   static String _generatedPageWidgetName(String functionName) {
@@ -1599,6 +1658,9 @@ class _PageEntry {
   final bool isFunctional;
   final String? expressionBody;
   final Set<String> sourceSymbols;
+
+  /// The prose on this page, for the crawler-visible body.
+  final List<String> text;
   final String? loadingAlias;
   final String? errorAlias;
 
@@ -1613,6 +1675,7 @@ class _PageEntry {
     required this.isFunctional,
     this.expressionBody,
     this.sourceSymbols = const <String>{},
+    this.text = const <String>[],
     this.loadingAlias,
     this.errorAlias,
   });

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
@@ -7,6 +8,7 @@ import '../build/browser_extension.dart';
 import '../build/elinux_bundle.dart';
 import '../build/pwa_manifest.dart';
 import '../build/seo_head.dart';
+import '../build/page_text.dart';
 import '../build/static_seo.dart';
 import '../utils/build_runner.dart';
 import '../utils/logger.dart';
@@ -1231,7 +1233,11 @@ class BuildCommand extends Command<void> {
       siteName: settings['siteName'] as String? ?? title,
     );
     final before = index.readAsStringSync();
-    final after = dvSeoApply(before, head);
+    var after = dvSeoApply(before, head);
+    // The body is empty until JavaScript runs, so a crawler, a link preview
+    // and a reader with scripting off all see nothing. The page's own text
+    // goes in, from its source rather than from a browser.
+    after = dvApplyPageText(after, _routeText(root)['/'] ?? const <String>[]);
     if (after == before) return;
     index.writeAsStringSync(after);
     Logger.log('   SEO head written for "$title".');
@@ -1255,6 +1261,7 @@ class BuildCommand extends Command<void> {
 
     final routes = _generatedRoutes(root);
     if (routes.isEmpty) return;
+    final routeText = _routeText(root);
 
     final shell = index.readAsStringSync();
     final baseTitle = dvSeoTitle(settings, _packageName(root) ?? 'Dartvel');
@@ -1270,6 +1277,7 @@ class BuildCommand extends Command<void> {
       if (target == null || target == 'index.html') continue;
 
       final meta = _prerendered(web.path, route);
+      final text = routeText[route] ?? const <String>[];
       final page = dvStaticPage(
         shell: shell,
         route: route,
@@ -1285,7 +1293,7 @@ class BuildCommand extends Command<void> {
 
       File(p.join(web.path, target))
         ..parent.createSync(recursive: true)
-        ..writeAsStringSync(page);
+        ..writeAsStringSync(dvApplyPageText(page, text));
       written++;
     }
 
@@ -1298,6 +1306,31 @@ class BuildCommand extends Command<void> {
     } else {
       Logger.log('   Wrote $written route pages. Set dartvel.seo.siteUrl for '
           'a sitemap and robots.txt.');
+    }
+  }
+
+
+  /// The text each route's page contains, written by generation.
+  ///
+  /// Read rather than derived. An earlier version guessed the source file
+  /// from the route name -- `/docs` to `docs.dart` -- and got `/docs` wrong
+  /// and `/cloud` not at all, because a route name is not a filename. The
+  /// generator has the source in hand and says what it found; generation runs
+  /// as part of every build, so this cannot go stale behind a rebuild.
+  Map<String, List<String>> _routeText(String root) {
+    final file = File(p.join(root, '.dart_tool', 'dartvel_route_text.json'));
+    if (!file.existsSync()) return const <String, List<String>>{};
+    try {
+      final decoded = jsonDecode(file.readAsStringSync());
+      if (decoded is! Map) return const <String, List<String>>{};
+      return decoded.map((Object? route, Object? lines) => MapEntry<String, List<String>>(
+            '$route',
+            (lines as List<Object?>).map((Object? l) => '$l').toList(),
+          ));
+    } on Object {
+      // A half-written manifest is a page without its text, not a failed
+      // build.
+      return const <String, List<String>>{};
     }
   }
 
