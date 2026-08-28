@@ -174,11 +174,40 @@ Widget buildFeaturesPage(BuildContext context) => SitePage(
         Section(
           tint: true,
           children: <Widget>[
-            DVBox.list(<Widget>[
-              for (final (String area, String surface, String body) f
-                  in _shipped)
-                FeatureRow(area: f.$1, surface: f.$2, body: f.$3),
-            ], spacing: 16),
+            // A grid where there is room. Twenty-two full-width rows
+            // separated by hairlines is a list to scroll past rather than a
+            // set of things to compare, and every one of them looked the
+            // same as the last.
+            LayoutBuilder(
+              builder: (BuildContext context, BoxConstraints constraints) {
+                final int columns = constraints.maxWidth >= 900
+                    ? 2
+                    : 1;
+                if (columns == 1) {
+                  return DVBox.list(<Widget>[
+                    for (final (String area, String surface, String body) f
+                        in _shipped)
+                      FeatureRow(area: f.$1, surface: f.$2, body: f.$3),
+                  ], spacing: 14);
+                }
+                const double gap = 18;
+                final double width =
+                    (constraints.maxWidth - gap * (columns - 1)) / columns;
+                return Wrap(
+                  spacing: gap,
+                  runSpacing: gap,
+                  children: <Widget>[
+                    for (final (String area, String surface, String body) f
+                        in _shipped)
+                      SizedBox(
+                        width: width,
+                        child: FeatureRow(
+                            area: f.$1, surface: f.$2, body: f.$3),
+                      ),
+                  ],
+                );
+              },
+            ),
           ],
         ),
       ],
@@ -202,9 +231,16 @@ class FeatureRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = Palette.of(context);
     return Container(
-      padding: const EdgeInsets.only(bottom: 16),
+      // No height: a Wrap gives its children unbounded height, so
+      // double.infinity here collapsed every card and the section rendered
+      // empty. Cards size to their content instead.
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
       decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: palette.rule)),
+        // page, not surface: the section this sits on is tinted with
+        // surface, so a card in the same colour is an invisible card.
+        color: palette.page,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: palette.rule),
       ),
       child: DVBox.list(<Widget>[
         // Baseline-aligned: a chip centred against a 17pt heading rides high
@@ -224,7 +260,7 @@ class FeatureRow extends StatelessWidget {
           ],
         ),
         DVText(body).modifier(
-          const DVModifier().fontSize(15).color(palette.muted).height(1.6).width(760),
+          const DVModifier().fontSize(15).color(palette.muted).height(1.6),
         ),
       ], spacing: 6),
     );
