@@ -9,12 +9,17 @@ Widget _indexPage(BuildContext context) => buildIndexPage(context);
 
 Widget buildIndexPage(BuildContext context) => SitePage(
       current: '/',
-      children: <Widget>[
-        _hero(context),
-        _proof(context),
-        _pillars(context),
-        _targets(context),
-        _honest(context),
+      children: const <Widget>[],
+      // A deck rather than a scroll. Each of these is a separate claim, and a
+      // landing page that runs them together as one long column asks the
+      // reader to find the boundaries themselves.
+      slides: <(String, Widget)>[
+        ('Overview', _hero(context)),
+        ('Models', _proof(context)),
+        ('What you get', _pillars(context)),
+        ('Targets', _targets(context)),
+        ('Status', _honest(context)),
+        ('Links', const SiteFooter()),
       ],
     );
 

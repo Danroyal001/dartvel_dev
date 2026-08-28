@@ -6,6 +6,7 @@
 // handed white.
 import 'package:flutter/material.dart';
 import '../dartvel_client/dartvel_client.dart';
+import 'deck.dart';
 import 'highlight.dart';
 import 'motion.dart';
 
@@ -43,14 +44,56 @@ class Responsive {
 
 /// The page frame: header, content, footer, on the themed background.
 class SitePage extends StatelessWidget {
-  const SitePage({super.key, required this.current, required this.children});
+  const SitePage({
+    super.key,
+    required this.current,
+    required this.children,
+    this.slides,
+  });
 
   final String current;
   final List<Widget> children;
 
+  /// A deck: one section per screen, snapped, with a rail down the side.
+  ///
+  /// Each entry is the rail's label and the slide. Given this, [children] is
+  /// ignored -- a page is one or the other, and building both would put the
+  /// same content in the semantics tree twice.
+  ///
+  /// Reference pages should not use it. Hijacking the scroll of a page
+  /// somebody is reading to find one paragraph is hostile; a landing page,
+  /// where each section is a separate claim, is what it suits.
+  final List<(String, Widget)>? slides;
+
   @override
   Widget build(BuildContext context) {
     final palette = Palette.of(context);
+    final List<(String, Widget)>? deck = slides;
+
+    if (deck != null) {
+      // The deck is the page's scroll, not a scroll inside it. Putting it
+      // under the header in a Column left two nested scrollables -- the shell
+      // already provides one -- and the inner one never got a gesture, so no
+      // wheel and no arrow key ever moved a slide.
+      //
+      // The header floats over it instead, and each slide clears it with
+      // padding.
+      return Container(
+        color: palette.page,
+        child: Stack(
+          children: <Widget>[
+            Deck(slides: deck, topInset: 65),
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: SiteHeader(current: current),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       color: palette.page,
       child: SingleChildScrollView(
@@ -75,6 +118,9 @@ class SiteHeader extends StatelessWidget {
     final responsive = Responsive.of(context);
     return Container(
       decoration: BoxDecoration(
+        // Opaque. In deck mode the header floats over the slides, and without
+        // its own background the slide scrolled visibly through it.
+        color: palette.page,
         border: Border(bottom: BorderSide(color: palette.rule)),
       ),
       padding: EdgeInsets.symmetric(
