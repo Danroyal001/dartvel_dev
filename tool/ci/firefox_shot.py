@@ -129,6 +129,17 @@ def main():
                 break
             time.sleep(0.5)
 
+        # Always, not only on failure. A page that draws can still be the
+        # wrong page: the application's own 404 has text, colour and layout,
+        # and passed the capture check while the extension opened a route
+        # that did not exist.
+        body = client.send("WebDriver:ExecuteScript", {
+            "script": "return (document.body ? document.body.innerText : '')"
+                      ".slice(0, 300);",
+            "args": [],
+        })
+        print("page text: %r" % ((body or {}).get("value") or ""))
+
         if not drawn:
             # What the page thinks happened, so a blank capture says why. A
             # picture of nothing is the same picture whether the script was

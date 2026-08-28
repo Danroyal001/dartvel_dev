@@ -1220,12 +1220,22 @@ jobs:
             echo "::error::Firefox produced no screenshot, so the page never loaded"
             exit 1
           }
-          # No browser chrome in a --screenshot capture, so the whole image is
+          # Marionette photographs the content area, so the whole image is
           # the page and there is nothing to crop away first.
           dart pub get --directory packages/dartvel_cli
           dart run packages/dartvel_cli/bin/dartvel.dart capture verify \
             /tmp/diag/firefox-extension.png --label firefox-extension \
             --min-width 320 --min-height 240
+
+          # The application's own 404 is a rendered page: it has text, colour
+          # and layout, and it passed the capture check while the extension
+          # opened a route that did not exist. A picture cannot tell those
+          # apart, so this asks the page instead.
+          if grep -qiE "No page at|404" /tmp/diag/firefox.log; then
+            echo "::error::the extension rendered the application's 404 page"
+            grep -iE "No page at|404" /tmp/diag/firefox.log | head -5
+            exit 1
+          fi
 
       - uses: actions/upload-artifact@v4
         if: always()

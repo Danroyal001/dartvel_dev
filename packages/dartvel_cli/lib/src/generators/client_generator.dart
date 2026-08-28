@@ -815,6 +815,16 @@ ${buildReturn.split('\n').map((line) => '        $line').join('\n')}
       'String? _globalRedirect(BuildContext context, GoRouterState state) {',
     );
     sbRedirect.writeln('  final path = state.uri.path;');
+    // A browser extension opens its page as /index.html, and so does anyone
+    // who lands on a static host's file directly. Without this the router
+    // treats it as a route nobody declared and shows its own 404 -- which is
+    // what a Dartvel extension did in Firefox, on top of a working engine.
+    sbRedirect.writeln("  if (path == '/index.html') return '/';");
+    sbRedirect.writeln("  if (path.endsWith('/index.html')) {");
+    sbRedirect.writeln(
+        "    return state.uri.replace(path: path.substring(0, "
+        "path.length - 'index.html'.length - 1)).toString();");
+    sbRedirect.writeln('  }');
     if (notFoundRedirect.isNotEmpty) {
       sbRedirect.writeln(
         "  if (state.error != null) return '${esc(notFoundRedirect)}';",
