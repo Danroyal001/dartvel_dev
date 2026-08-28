@@ -125,6 +125,28 @@ def main():
                 break
             time.sleep(0.5)
 
+        if not drawn:
+            # What the page thinks happened, so a blank capture says why. A
+            # picture of nothing is the same picture whether the script was
+            # blocked, the bundle 404'd, or the application threw.
+            report = client.send("WebDriver:ExecuteScript", {
+                "script": (
+                    "return JSON.stringify({"
+                    "  title: document.title,"
+                    "  readyState: document.readyState,"
+                    "  bodyHtml: (document.body && document.body.innerHTML || "
+                    "    '').slice(0, 400),"
+                    "  scripts: Array.from("
+                    "    document.querySelectorAll('script')"
+                    "  ).map(s => s.src || '(inline)'),"
+                    "  flutterLoader: typeof window._flutter,"
+                    "  errors: window.__dartvelErrors || null"
+                    "});"
+                ),
+                "args": [],
+            })
+            print("page state: %s" % (report or {}).get("value"))
+
         # A moment more for the first frame after layout settles.
         time.sleep(2)
         shot = client.send("WebDriver:TakeScreenshot", {"full": True})
