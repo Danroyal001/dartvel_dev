@@ -95,6 +95,33 @@ void main() {
       expect(linux.gnArgs, isNot(contains('--embedder-for-target')));
     });
 
+    test('builds unoptimised, as the fork does', () {
+      // The fork's build_and_copy_engine_artifacts.sh passes --unopt and
+      // copies out of out/fuchsia_debug_unopt_x64/so.unstripped/. It is the
+      // only configuration of this engine anyone has shipped, and a release
+      // build of it fails at the link on every embedder symbol.
+      expect(plan(mode: EngineMode.debug).gnArgs, contains('--unopt'));
+      expect(plan(mode: EngineMode.debug).outDirectory,
+          'out/fuchsia_debug_unopt_x64');
+    });
+
+    test('the library is taken from so.unstripped', () {
+      // Where an unopt build leaves it, and where the fork copies it from.
+      expect(plan(mode: EngineMode.debug).enginePath,
+          contains('so.unstripped/libflutter_engine.so'));
+    });
+
+    test('linux is still optimised', () {
+      final linux = engineBuildPlan(
+        arch: EngineArch.arm,
+        mode: EngineMode.release,
+        srcRoot: '/src/flutter',
+      );
+
+      expect(linux.gnArgs, isNot(contains('--unopt')));
+      expect(linux.enginePath, isNot(contains('so.unstripped')));
+    });
+
     test('linux builds are unchanged', () {
       // The new argument must default to what every existing caller means.
       final linux = engineBuildPlan(

@@ -99,6 +99,14 @@ enum EngineOs {
   /// The argument this target names its cpu with.
   final String cpuArgument;
 
+  /// Whether this target builds unoptimised.
+  ///
+  /// Fuchsia does. The embedder fork's own engine script passes `--unopt` and
+  /// copies out of `out/fuchsia_debug_unopt_x64/so.unstripped/`, and it is
+  /// the only configuration of this engine anyone has shipped. A release
+  /// build of it fails at the link on every embedder symbol at once.
+  bool get buildsUnoptimised => this == EngineOs.fuchsia;
+
   /// Whether the embedder library must be built for the target rather than
   /// the host. Linux links it today without asking, and adding the flag
   /// everywhere to fix one target is how a working build stops working.
@@ -352,7 +360,9 @@ EngineBuildPlan engineBuildPlan({
     );
   }
 
-  final out = 'out/${os.gnName}_${mode.name}_${arch.gnName}';
+  final out = os.buildsUnoptimised
+      ? 'out/${os.gnName}_${mode.name}_unopt_${arch.gnName}'
+      : 'out/${os.gnName}_${mode.name}_${arch.gnName}';
   final relativeSysroot = (!os.usesDebianSysroot || arch.gnDefinesSysroot)
       ? null
       : 'build/linux/debian_bullseye_${arch.debianName}-sysroot';
@@ -383,6 +393,7 @@ EngineBuildPlan engineBuildPlan({
       //
       // It is the flag the embedder fork's own engine script passes.
       if (os.needsEmbedderForTarget) '--embedder-for-target',
+      if (os.buildsUnoptimised) '--unopt',
       if (sysrootPath != null) ...<String>['--target-sysroot', sysrootPath],
       if (os.usesDebianSysroot && arch.triple != null && toolchainRoot != null)
         ...<String>['--target-toolchain', toolchainRoot],
@@ -415,7 +426,11 @@ EngineBuildPlan engineBuildPlan({
     expectedEngineMachine: _machineForArch[arch]!,
     // Runs on the builder, emits for the target.
     expectedGenSnapshotMachine: _machineForArch[hostArch]!,
-    enginePath: '$out/libflutter_engine.so',
+    // An unoptimised build leaves the library under so.unstripped, which
+    // is where the embedder fork copies it from.
+    enginePath: os.buildsUnoptimised
+        ? '$out/so.unstripped/libflutter_engine.so'
+        : '$out/libflutter_engine.so',
     genSnapshotPath: '$out/clang_x64/gen_snapshot',
   );
 }
