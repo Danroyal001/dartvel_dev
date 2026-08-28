@@ -280,6 +280,9 @@ class DVModifier {
   /// 1 to 6, matching HTML's six heading levels and every platform's
   /// accessibility notion of one.
   final int? semanticHeadingValue;
+
+  /// A Dartvel role, namespaced, travelling as the node's identifier.
+  final String? semanticRoleValue;
   final Size? minimumTapTargetValue;
   final bool inputValue;
   final String? inputLabelValue;
@@ -306,6 +309,7 @@ class DVModifier {
     this.semanticHintValue,
     this.semanticButtonValue,
     this.semanticHeadingValue,
+    this.semanticRoleValue,
     this.minimumTapTargetValue,
     this.inputValue = false,
     this.inputLabelValue,
@@ -333,6 +337,7 @@ class DVModifier {
         semanticHintValue = null,
         semanticButtonValue = null,
         semanticHeadingValue = null,
+        semanticRoleValue = null,
         minimumTapTargetValue = null,
         inputValue = false,
         inputLabelValue = null,
@@ -359,6 +364,7 @@ class DVModifier {
     String? semanticHintValue,
     bool? semanticButtonValue,
     int? semanticHeadingValue,
+    String? semanticRoleValue,
     Size? minimumTapTargetValue,
     bool? inputValue,
     String? inputLabelValue,
@@ -386,6 +392,7 @@ class DVModifier {
       semanticButtonValue: semanticButtonValue ?? this.semanticButtonValue,
       semanticHeadingValue:
           semanticHeadingValue ?? this.semanticHeadingValue,
+      semanticRoleValue: semanticRoleValue ?? this.semanticRoleValue,
       minimumTapTargetValue:
           minimumTapTargetValue ?? this.minimumTapTargetValue,
       inputValue: inputValue ?? this.inputValue,
@@ -458,6 +465,24 @@ class DVModifier {
 
   DVModifier semanticButton([bool value = true]) =>
       _copyWith(semanticButtonValue: value);
+
+  /// Declare what this is, beyond a label and a heading level.
+  ///
+  /// Flutter's `Semantics` has roles for the things every platform agrees on
+  /// and nothing for `code`, so the role travels as the node's identifier.
+  /// Flutter web puts that in the DOM, which is where `dartvel build web`
+  /// reads it to decide between a paragraph and a `<pre><code>`.
+  ///
+  /// Namespaced, because `identifier` is also used for test hooks and
+  /// platform integrations: an unprefixed `code` would be indistinguishable
+  /// from an application's own.
+  ///
+  /// The reason this exists: Flutter renders `SelectableText` as a textarea
+  /// whose value it manages, so a code block was absent from the tree
+  /// entirely -- from the crawler-visible HTML and from what a screen reader
+  /// reads.
+  DVModifier semanticRole(String role) =>
+      _copyWith(semanticRoleValue: 'dartvel:$role');
 
   /// Mark this as a heading at [level].
   ///
@@ -778,12 +803,14 @@ class DVBox<T> extends StatelessWidget {
     if (_modifier?.semanticLabelValue != null ||
         _modifier?.semanticHintValue != null ||
         _modifier?.semanticButtonValue != null ||
-        _modifier?.semanticHeadingValue != null) {
+        _modifier?.semanticHeadingValue != null ||
+        _modifier?.semanticRoleValue != null) {
       result = Semantics(
         label: _modifier?.semanticLabelValue,
         hint: _modifier?.semanticHintValue,
         button: _modifier?.semanticButtonValue,
         headingLevel: _modifier?.semanticHeadingValue,
+        identifier: _modifier?.semanticRoleValue,
         excludeSemantics: _modifier?.semanticLabelValue != null,
         child: result,
       );
@@ -1060,17 +1087,32 @@ class DVText extends StatelessWidget {
         (modifier.semanticLabelValue != null ||
             modifier.semanticHintValue != null ||
             modifier.semanticButtonValue != null ||
-            modifier.semanticHeadingValue != null)) {
-      result = MergeSemantics(
-        child: Semantics(
-          label: modifier.semanticLabelValue,
-          hint: modifier.semanticHintValue,
-          button: modifier.semanticButtonValue,
-          headingLevel: modifier.semanticHeadingValue,
-          excludeSemantics: modifier.semanticLabelValue != null,
-          child: result,
-        ),
+            modifier.semanticHeadingValue != null ||
+            modifier.semanticRoleValue != null)) {
+      // A role has to name the node itself. Merging the text's own node into
+      // it loses the identifier -- Flutter does not carry one through a merge
+      // -- so a role with no explicit label takes the text as its label and
+      // excludes the child. Otherwise the role arrives on a node with nothing
+      // in it, which is how the first version of this reported an empty
+      // identifier.
+      final bool ownsLabel = modifier.semanticRoleValue != null &&
+          modifier.semanticLabelValue == null;
+      result = Semantics(
+        label: ownsLabel ? text : modifier.semanticLabelValue,
+        hint: modifier.semanticHintValue,
+        button: modifier.semanticButtonValue,
+        headingLevel: modifier.semanticHeadingValue,
+        identifier: modifier.semanticRoleValue,
+        excludeSemantics: ownsLabel || modifier.semanticLabelValue != null,
+        child: result,
       );
+      // Merged only when the node does not already own its text. A
+      // MergeSemantics around a node carrying an identifier reports the merged
+      // node instead, and the identifier is not carried through -- which is
+      // how a role that was plainly set arrived as an empty string.
+      if (!ownsLabel && modifier.semanticLabelValue == null) {
+        result = MergeSemantics(child: result);
+      }
     }
 
     return result;

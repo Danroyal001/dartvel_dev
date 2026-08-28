@@ -340,8 +340,16 @@ class CodeBlock extends StatelessWidget {
         color: palette.dark ? const Color(0xFF0E141D) : const Color(0xFF0B1020),
         borderRadius: BorderRadius.circular(10),
       ),
-      child: SelectableText(
-        lines.join('\n'),
+      // Labelled, because Flutter renders SelectableText as a textarea whose
+      // value it manages: without this the code is absent from the semantics
+      // tree entirely, so a crawler never sees the install commands and a
+      // screen reader never reads them.
+      child: Semantics(
+        identifier: 'dartvel:code',
+        label: lines.join('\n'),
+        excludeSemantics: true,
+        child: SelectableText(
+          lines.join('\n'),
         style: TextStyle(
           // Bundled, not named. Flutter web cannot resolve the generic
           // "monospace" family and silently falls back to the body font, so
@@ -354,6 +362,7 @@ class CodeBlock extends StatelessWidget {
           color: palette.dark
               ? const Color(0xFFD7E1F5)
               : const Color(0xFFE8EEFA),
+        ),
         ),
       ),
     );

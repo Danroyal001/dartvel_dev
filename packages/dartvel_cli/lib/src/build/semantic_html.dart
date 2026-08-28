@@ -139,6 +139,13 @@ void _write(StringBuffer out, List<DVSemanticNode> nodes, int depth) {
               '<figcaption>${_text.convert(label)}</figcaption></figure>');
         }
         continue;
+      case 'code':
+        // Preformatted, because in code the line breaks are the content. A
+        // <p> would collapse them and a shell session would become one line.
+        if (hasLabel) {
+          out.writeln('<pre><code>${_text.convert(label)}</code></pre>');
+        }
+        continue;
       case 'button':
         if (hasLabel) out.writeln('<p><strong>${_text.convert(label)}</strong></p>');
         continue;

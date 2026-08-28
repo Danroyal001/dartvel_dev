@@ -46,8 +46,16 @@ const String _extract = r"""() => {
       const heading = /^h([1-6])$/.exec(tag);
       if (tag !== 'a' && tag !== 'flt-semantics' && !heading) continue;
       const aria = child.getAttribute('aria-level');
+      // A Dartvel role travels as the node's identifier, because Flutter's
+      // Semantics has no role for code and SelectableText would otherwise be
+      // a textarea with no readable content at all.
+      const identifier = child.getAttribute('flt-semantics-identifier') || '';
+      const declared = identifier.startsWith('dartvel:')
+        ? identifier.slice('dartvel:'.length)
+        : null;
       const node = {
-        role: child.getAttribute('role') || (tag === 'a' ? 'link' : null),
+        role: declared || child.getAttribute('role')
+              || (tag === 'a' ? 'link' : null),
         level: heading ? parseInt(heading[1], 10)
                        : (aria ? parseInt(aria, 10) : null),
         label: labelOf(child),
