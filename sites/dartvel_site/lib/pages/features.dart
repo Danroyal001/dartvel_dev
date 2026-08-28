@@ -253,7 +253,12 @@ class FeatureRow extends StatelessWidget {
               const DVModifier()
                   .fontSize(17)
                   .fontWeight(FontWeight.w700)
-                  .color(palette.ink),
+                  .color(palette.ink)
+                  // Under the page's h1. Without a level these were
+                  // twenty-two paragraphs, so the page had a title and no
+                  // structure under it -- for a screen reader moving by
+                  // heading and for the crawler-visible HTML alike.
+                  .semanticHeading(3),
             ),
             const SizedBox(width: 12),
             Flexible(child: Chip_(surface)),
