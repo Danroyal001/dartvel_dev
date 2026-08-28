@@ -1145,6 +1145,13 @@ jobs:
                json.dumps(json.dumps({addon_id: uuid}))),
               ('browser.shell.checkDefaultBrowser', 'false'),
               ('toolkit.telemetry.enabled', 'false'),
+              # Otherwise the first run opens a welcome page, which is what
+              # gets photographed instead of the extension.
+              ('browser.startup.homepage_override.mstone', '"ignore"'),
+              ('browser.aboutwelcome.enabled', 'false'),
+              ('datareporting.policy.firstRunURL', '""'),
+              ('datareporting.policy.dataSubmissionEnabled', 'false'),
+              ('trailhead.firstrun.didSeeAboutWelcome', 'true'),
           ]
           with open(profile + '/prefs.js', 'w') as f:
               for name, value in prefs:
@@ -1153,10 +1160,29 @@ jobs:
 
           PAGE="moz-extension://$UUID/index.html"
           echo "photographing $PAGE"
-          xvfb-run -a /opt/firefox/firefox --profile "$PROFILE" --headless \
+          # --screenshot is already headless, and bounded: the first attempt
+          # combined it with --headless under xvfb-run and never returned, so
+          # the job burned its whole budget and reported nothing.
+          timeout 240 /opt/firefox/firefox --profile "$PROFILE" \
             --window-size=1280,900 --screenshot /tmp/diag/firefox-extension.png \
             "$PAGE" > /tmp/diag/firefox.log 2>&1
-          echo "--- firefox log ---"; tail -20 /tmp/diag/firefox.log || true
+          echo "firefox exited $?"
+          echo "--- firefox log ---"; tail -30 /tmp/diag/firefox.log || true
+
+          # What Firefox decided about the add-on, so a page that never loads
+          # can be told apart from an add-on that never installed.
+          if [ -f "$PROFILE/extensions.json" ]; then
+            python3 - "$PROFILE/extensions.json" <<'STATE'
+          import json, sys
+          data = json.load(open(sys.argv[1]))
+          for addon in data.get('addons', []):
+              if addon.get('location') != 'app-global':
+                  print('addon %s: active=%s type=%s' % (
+                      addon.get('id'), addon.get('active'), addon.get('type')))
+          STATE
+          else
+            echo "no extensions.json: Firefox never registered an add-on"
+          fi
           ls -la /tmp/diag/
 
       - name: The capture must show the application
