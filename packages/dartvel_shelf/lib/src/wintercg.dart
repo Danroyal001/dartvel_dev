@@ -120,9 +120,8 @@ class Response {
   final Headers headers;
   final Stream<List<int>>? _body;
   final bool isStream;
-  Response(this.status, {Headers? headers, Stream<List<int>>? body, this.isStream = false})
-      : headers = headers ?? Headers(),
-        _body = body;
+  Response(this.status, {Headers? headers, this._body, this.isStream = false})
+      : headers = headers ?? Headers();
 
   // No `!` here: with the language version this package now declares, a
   // private final field promotes after a null check, so the assertion is

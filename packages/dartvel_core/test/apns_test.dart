@@ -150,7 +150,7 @@ void main() {
         () async {
       // A reason Apple adds later must still reach the log verbatim.
       final response =
-          DVHttpResponse(statusCode: 400, body: '{"reason":"SomethingNew"}');
+          const DVHttpResponse(statusCode: 400, body: '{"reason":"SomethingNew"}');
       expect(apnsFailureReason(response), 'SomethingNew');
     });
 

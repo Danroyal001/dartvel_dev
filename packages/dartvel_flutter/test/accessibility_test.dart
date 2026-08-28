@@ -188,7 +188,7 @@ void main() {
       await tester.pumpWidget(
         Directionality(
           textDirection: TextDirection.ltr,
-          child: DVBox(const DVText('Submit')).modifier(
+          child: const DVBox(DVText('Submit')).modifier(
             const DVModifier()
                 .semanticLabel('Submit order')
                 .semanticHint('Sends the order for processing')
@@ -213,7 +213,7 @@ void main() {
       await tester.pumpWidget(
         Directionality(
           textDirection: TextDirection.ltr,
-          child: DVBox(const DVText('Raw text'))
+          child: const DVBox(DVText('Raw text'))
               .modifier(const DVModifier().semanticLabel('Outer label')),
         ),
       );
@@ -228,9 +228,9 @@ void main() {
       final SemanticsHandle handle = tester.ensureSemantics();
 
       await tester.pumpWidget(
-        Directionality(
+        const Directionality(
           textDirection: TextDirection.ltr,
-          child: DVBox(const DVText('Raw text')),
+          child: DVBox(DVText('Raw text')),
         ),
       );
 

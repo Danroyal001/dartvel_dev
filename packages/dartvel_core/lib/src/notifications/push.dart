@@ -33,8 +33,14 @@ abstract class PushNotificationProvider {
 /// Push notifications manager
 class PushNotifications {
   static PushNotificationProvider? _provider;
+  // Not closed, deliberately. These are process-lifetime broadcast channels
+  // on a static holder: nothing owns them, so nothing is in a position to
+  // close them, and closing one would end delivery for every listener in the
+  // application rather than release anything.
+  // ignore: close_sinks
   static final _messageController =
       StreamController<PushNotification>.broadcast();
+  // ignore: close_sinks
   static final _openedController =
       StreamController<PushNotification>.broadcast();
 
@@ -81,7 +87,11 @@ class PushNotifications {
 
 /// In-memory push provider for local development and tests.
 class LocalPushNotificationProvider implements PushNotificationProvider {
+  // Same lifetime as the provider, which lives as long as the application
+  // that registered it.
+  // ignore: close_sinks
   final _messageController = StreamController<PushNotification>.broadcast();
+  // ignore: close_sinks
   final _openedController = StreamController<PushNotification>.broadcast();
 
   @override

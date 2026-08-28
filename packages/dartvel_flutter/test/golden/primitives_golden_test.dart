@@ -19,7 +19,6 @@ import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
 
 /// A fixed-size surface, so a golden records the widget and not the window.
 Widget frame(Widget child, {Size size = const Size(360, 120)}) => Center(

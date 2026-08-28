@@ -27,7 +27,7 @@ void main() {
     // had nothing to do with binding — a green test asserting the opposite of
     // what it claims.
     await expectLater(
-      serve(emptyRouter(), host: '127.0.0.1', port: blocker.port),
+      serve(emptyRouter().call, host: '127.0.0.1', port: blocker.port),
       throwsA(
         isA<StateError>().having(
           (StateError e) => e.message,
@@ -44,7 +44,7 @@ void main() {
     // The fix for the flakiness rather than a workaround for it: a test that
     // never names a port cannot collide with one. It only works if the handle
     // carries the real port back, since 0 is not an address anyone can call.
-    final server = await serve(emptyRouter(), host: '127.0.0.1', port: 0);
+    final server = await serve(emptyRouter().call, host: '127.0.0.1', port: 0);
     addTearDown(() => server.stop());
 
     expect(server.port, isNot(0),
@@ -68,14 +68,14 @@ void main() {
     // is shared across them, so this is not a hypothetical arrangement — it is
     // what this package's own test run does.
     final first = await serve(
-      Router()..get('/first', (Request req) async => Response.text('first')),
+      (Router()..get('/first', (Request req) async => Response.text('first'))).call,
       host: '127.0.0.1',
       port: 0,
     );
     addTearDown(() => first.stop());
 
     final second = await serve(
-      Router()..get('/second', (Request req) async => Response.text('second')),
+      (Router()..get('/second', (Request req) async => Response.text('second'))).call,
       host: '127.0.0.1',
       port: 0,
     );

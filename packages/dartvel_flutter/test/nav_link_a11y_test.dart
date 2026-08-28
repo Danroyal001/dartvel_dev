@@ -10,7 +10,6 @@ import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
 
 GoRouter routerWith(Widget subject) => GoRouter(
       initialLocation: '/',
@@ -60,9 +59,9 @@ String? focusedLinkPath(WidgetTester tester) {
   return link?.to.path;
 }
 
-Widget threeLinks() => Column(
+Widget threeLinks() => const Column(
       mainAxisSize: MainAxisSize.min,
-      children: const <Widget>[
+      children: <Widget>[
         DVNavLink(to: DVRouteTarget('/one'), child: DVText('One')),
         DVNavLink(to: DVRouteTarget('/two'), child: DVText('Two')),
         DVNavLink(to: DVRouteTarget('/three'), child: DVText('Three')),
@@ -142,9 +141,9 @@ void main() {
         (WidgetTester tester) async {
       // Tabbing onto something that does nothing is worse than not reaching
       // it: the keyboard user cannot tell it is disabled.
-      await pump(tester, Column(
+      await pump(tester, const Column(
         mainAxisSize: MainAxisSize.min,
-        children: const <Widget>[
+        children: <Widget>[
           DVNavLink(
             to: DVRouteTarget('/one'),
             enabled: false,

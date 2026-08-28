@@ -12,7 +12,6 @@
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
 
 GoRouter routerWithPages() => GoRouter(
       initialLocation: '/',

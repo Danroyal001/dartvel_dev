@@ -6,11 +6,9 @@
 // can fetch what it points at before you ask for it.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/semantics.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
 
 GoRouter routerWith(Widget subject) => GoRouter(
       initialLocation: '/',
@@ -99,7 +97,7 @@ void main() {
       // would fail for every action a focusable link legitimately adds.
       expect(
         tester.getSemantics(find.byType(DVNavLink)),
-        containsSemantics(isLink: true, hasTapAction: true),
+        isSemantics(isLink: true, hasTapAction: true),
       );
       handle.dispose();
     });

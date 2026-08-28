@@ -2,6 +2,7 @@ library dartvel_core;
 
 import 'dart:async';
 import 'dart:convert';
+
 // import 'dart:io'; // Removed to avoid breaking web builds
 import 'package:dartvel_shelf/dartvel_shelf.dart' as dv;
 import 'package:http_parser/http_parser.dart';
@@ -11,9 +12,9 @@ import 'src/ai/ai.dart';
 import 'src/database/adapter.dart';
 import 'src/http/aws_sigv4.dart';
 import 'src/http/transport.dart';
+import 'src/mail/smtp.dart';
 import 'src/notifications/web_push.dart';
 import 'src/notifications/web_push_vapid.dart';
-import 'src/mail/smtp.dart';
 
 // Re-export common types so backends can import only dartvel_core.
 export 'package:dartvel_shelf/dartvel_shelf.dart'
@@ -30,23 +31,23 @@ export 'src/auth/tokens.dart';
 export 'src/cache/adapters.dart';
 export 'src/cache/memcached.dart';
 export 'src/cache/redis.dart';
+export 'src/crypto/app_key.dart';
 export 'src/database/adapters.dart';
 export 'src/database/mysql.dart';
 export 'src/database/postgres.dart';
 export 'src/graphql/graphql.dart';
 export 'src/http/aws_sigv4.dart';
-export 'src/http/transport.dart';
 // Conditional, because the native client needs dart:ffi and web has none.
 // Exporting it unconditionally broke the web build with "Dart library
 // 'dart:ffi' is not available on this platform", and nothing noticed because
 // nothing built web afterwards.
 export 'src/http/native_client_web.dart'
     if (dart.library.ffi) 'src/http/native_client.dart';
+export 'src/http/transport.dart';
 export 'src/lifecycle/lifecycle.dart';
 export 'src/mail/smtp.dart';
 export 'src/media/image.dart';
 export 'src/modules/modules.dart';
-export 'src/crypto/app_key.dart';
 export 'src/notifications/web_push.dart';
 export 'src/notifications/web_push_vapid.dart';
 export 'src/platform_config.dart';
