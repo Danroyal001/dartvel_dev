@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../dartvel_client/dartvel_client.dart';
+import '../components/motion.dart';
 import '../components/site.dart';
 
 @DVPage(title: 'Dartvel — Flutter, full stack', showAppBar: false)
@@ -137,65 +138,63 @@ class _HeroTerminal extends StatelessWidget {
             // Coloured the way the terminal actually is. A screenshot of a
             // terminal in one flat grey is a picture of a wall; the prompt,
             // what you type and what it answers are three different things.
-            child: SelectableText.rich(
-              const TextSpan(
-                style: TextStyle(
+            child: Typewriter(
+              style: const TextStyle(
                   fontFamily: 'RobotoMono',
                   fontFamilyFallback: <String>[
                     'Menlo', 'Consolas', 'monospace',
                   ],
-                  fontSize: 12.5,
-                  height: 1.75,
-                  color: Color(0xFFD7E1F5),
-                ),
-                children: <TextSpan>[
-                  TextSpan(
-                    text: '\$ ',
-                    style: TextStyle(color: Color(0xFF9ECE6A)),
-                  ),
-                  TextSpan(text: 'dartvel create shop\n'),
-                  TextSpan(
-                    text: '\$ ',
-                    style: TextStyle(color: Color(0xFF9ECE6A)),
-                  ),
-                  TextSpan(text: 'cd shop && dartvel dev\n\n'),
-                  TextSpan(
-                    text: '  routes      ',
-                    style: TextStyle(color: Color(0xFF7080A8)),
-                  ),
-                  TextSpan(text: '4 pages, typed targets\n'),
-                  TextSpan(
-                    text: '  client      ',
-                    style: TextStyle(color: Color(0xFF7080A8)),
-                  ),
-                  TextSpan(text: 'generated\n'),
-                  TextSpan(
-                    text: '  backend     ',
-                    style: TextStyle(color: Color(0xFF7080A8)),
-                  ),
-                  TextSpan(
-                    text: ':3000',
-                    style: TextStyle(color: Color(0xFF7DCFFF)),
-                  ),
-                  TextSpan(text: '  (axum)\n'),
-                  TextSpan(
-                    text: '  flutter     ',
-                    style: TextStyle(color: Color(0xFF7080A8)),
-                  ),
-                  TextSpan(
-                    text: ':8080',
-                    style: TextStyle(color: Color(0xFF7DCFFF)),
-                  ),
-                  TextSpan(text: '  hot reload\n\n'),
-                  TextSpan(
-                    text: '  ready in 1.9s',
-                    style: TextStyle(
-                      color: Color(0xFF9ECE6A),
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
+                fontSize: 12.5,
+                height: 1.75,
+                color: Color(0xFFD7E1F5),
               ),
+              spans: const <TextSpan>[
+                TextSpan(
+                  text: '\$ ',
+                  style: TextStyle(color: Color(0xFF9ECE6A)),
+                ),
+                TextSpan(text: 'dartvel create shop\n'),
+                TextSpan(
+                  text: '\$ ',
+                  style: TextStyle(color: Color(0xFF9ECE6A)),
+                ),
+                TextSpan(text: 'cd shop && dartvel dev\n\n'),
+                TextSpan(
+                  text: '  routes      ',
+                  style: TextStyle(color: Color(0xFF7080A8)),
+                ),
+                TextSpan(text: '4 pages, typed targets\n'),
+                TextSpan(
+                  text: '  client      ',
+                  style: TextStyle(color: Color(0xFF7080A8)),
+                ),
+                TextSpan(text: 'generated\n'),
+                TextSpan(
+                  text: '  backend     ',
+                  style: TextStyle(color: Color(0xFF7080A8)),
+                ),
+                TextSpan(
+                  text: ':3000',
+                  style: TextStyle(color: Color(0xFF7DCFFF)),
+                ),
+                TextSpan(text: '  (axum)\n'),
+                TextSpan(
+                  text: '  flutter     ',
+                  style: TextStyle(color: Color(0xFF7080A8)),
+                ),
+                TextSpan(
+                  text: ':8080',
+                  style: TextStyle(color: Color(0xFF7DCFFF)),
+                ),
+                TextSpan(text: '  hot reload\n\n'),
+                TextSpan(
+                text: '  ready in 1.9s',
+                  style: TextStyle(
+                    color: Color(0xFF9ECE6A),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
