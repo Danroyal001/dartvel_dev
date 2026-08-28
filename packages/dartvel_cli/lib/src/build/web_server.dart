@@ -13,6 +13,12 @@
 library;
 
 import 'dart:convert';
+import 'dart:io';
+
+import 'package:path/path.dart' as p;
+import 'package:shelf/shelf.dart';
+import 'package:shelf_static/shelf_static.dart';
+
 
 import 'page_text.dart';
 import 'seo_head.dart';
@@ -144,3 +150,98 @@ List<String> dvWebServerStaleFiles({required List<String> present}) =>
         .where((String path) =>
             path.endsWith('/index.html') && path != 'index.html')
         .toList();
+
+/// The server `dartvel build web-server` is for.
+///
+/// The static target prerenders a file per route. This one keeps one shell and
+/// assembles the page when it is asked for, so a route's title, canonical and
+/// crawler-visible text are computed per request rather than baked in.
+///
+/// Written because `dvServeRoute` had no caller: the build wrote a manifest,
+/// deleted the static files it would otherwise have shadowed, and left
+/// nothing that read either. `dartvel preview` fell through to files the same
+/// build had just removed.
+///
+/// Assets are served from disk. Anything that is not a file on disk is a
+/// route, including paths no route matches — a single-page application owns
+/// its own not-found page, and returning the server's would replace it with a
+/// blank one.
+Handler dvWebServerHandler({
+  required String webRoot,
+  String? description,
+  String? image,
+  String? siteName,
+}) {
+  final manifestFile = File(p.join(webRoot, 'dartvel_routes.json'));
+  final shellFile = File(p.join(webRoot, 'index.html'));
+
+  final Map<String, Object?> manifest = manifestFile.existsSync()
+      ? (jsonDecode(manifestFile.readAsStringSync()) as Map)
+          .cast<String, Object?>()
+      : <String, Object?>{};
+  final Map<String, Object?> routeMap =
+      (manifest['routes'] as Map?)?.cast<String, Object?>() ??
+          <String, Object?>{};
+
+  final titles = <String, String>{
+    for (final MapEntry<String, Object?> e in routeMap.entries)
+      if ((e.value as Map?)?['title'] is String)
+        e.key: (e.value as Map)['title'] as String,
+  };
+  final text = <String, List<String>>{
+    for (final MapEntry<String, Object?> e in routeMap.entries)
+      e.key: <String>[
+        for (final Object? line
+            in ((e.value as Map?)?['text'] as List?) ?? const <Object?>[])
+          '$line',
+      ],
+  };
+  final siteUrl = manifest['siteUrl'] as String?;
+
+  // dvServeRoute falls back to the site name and then to the path itself, so
+  // without one a route nobody declared titles the tab with its own URL. The
+  // shell already carries the site's title, written there by the same build.
+  String? shellTitle;
+  if (shellFile.existsSync()) {
+    final match = RegExp(r'<title>(.*?)</title>', dotAll: true)
+        .firstMatch(shellFile.readAsStringSync());
+    shellTitle = match?.group(1)?.trim();
+  }
+
+  final files = createStaticHandler(webRoot);
+
+  return (Request request) async {
+    final path = '/${request.url.path}';
+
+    // A file on disk wins, so main.dart.js and the assets are served as
+    // themselves. index.html does not: it is the shell, and serving it raw
+    // would hand back a page with no route metadata at all.
+    final onDisk = File(p.join(webRoot, request.url.path));
+    if (request.url.path.isNotEmpty && onDisk.existsSync()) {
+      return files(request);
+    }
+
+    if (!shellFile.existsSync()) {
+      return Response.notFound('No index.html in $webRoot.');
+    }
+
+    return Response.ok(
+      dvServeRoute(
+        shell: shellFile.readAsStringSync(),
+        path: path == '/' ? '/' : path.replaceAll(RegExp(r'/+$'), ''),
+        routes: titles,
+        text: text,
+        siteUrl: siteUrl,
+        description: description,
+        image: image,
+        siteName: siteName ?? shellTitle,
+      ),
+      headers: const <String, String>{
+        'content-type': 'text/html; charset=utf-8',
+        // Assembled per request, so a cached copy is the thing this target
+        // exists to avoid.
+        'cache-control': 'no-store',
+      },
+    );
+  };
+}
