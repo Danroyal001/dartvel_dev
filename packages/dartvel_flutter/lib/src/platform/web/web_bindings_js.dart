@@ -9,6 +9,8 @@
 library dartvel_flutter.platform.web.js;
 
 import 'dart:js_interop';
+import 'dart:js_interop_unsafe';
+import 'dart:typed_data';
 
 import 'package:web/web.dart' as web;
 
@@ -107,6 +109,99 @@ class DVWebBindings {
       return true;
     });
 
+    // navigator.bluetooth.getAvailability(), where it exists. Answering
+    // false is the honest result on a browser without Web Bluetooth; it is
+    // not the same as the call being unimplemented, which is what the caller
+    // used to get.
+    DVNativeBridge.register('bluetooth.isEnabled', (Object? _) async {
+      final JSObject? navigator = _property(globalContext, 'navigator');
+      final JSObject? bluetooth =
+          navigator == null ? null : _property(navigator, 'bluetooth');
+      if (bluetooth == null) return false;
+      final JSFunction? available = _method(bluetooth, 'getAvailability');
+      if (available == null) return false;
+      final JSAny? result = available.callAsFunction(bluetooth);
+      if (result.isA<JSPromise<JSAny?>>()) {
+        final JSAny? value = await (result! as JSPromise<JSAny?>).toDart;
+        return value.dartify() == true;
+      }
+      return result.dartify() == true;
+    });
+
+    // NDEFReader is Chrome on Android and nowhere else, so this is false on a
+    // desktop browser -- which is the platform reporting itself rather than
+    // Dartvel guessing.
+    DVNativeBridge.register(
+      'nfc.isAvailable',
+      (Object? _) async => _property(globalContext, 'NDEFReader') != null,
+    );
+
+    // PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().
+    // A browser with no platform authenticator answers false; one without
+    // WebAuthn at all answers false too, because both mean the same thing to
+    // a caller deciding whether to offer the option.
+    DVNativeBridge.register('biometrics.canAuthenticate', (Object? _) async {
+      final JSObject? credential = _property(globalContext, 'PublicKeyCredential');
+      if (credential == null) return false;
+      final JSFunction? probe =
+          _method(credential, 'isUserVerifyingPlatformAuthenticatorAvailable');
+      if (probe == null) return false;
+      final JSAny? result = probe.callAsFunction(credential);
+      if (result.isA<JSPromise<JSAny?>>()) {
+        final JSAny? value = await (result! as JSPromise<JSAny?>).toDart;
+        return value.dartify() == true;
+      }
+      return result.dartify() == true;
+    });
+
+    // WebAuthn with userVerification required: the browser's own platform
+    // biometric prompt. It resolves with an assertion or throws, and there is
+    // no third outcome -- no authenticator, or a person who declines, both
+    // reach the caller as a failure rather than as a quiet false.
+    //
+    // Like every platform's local biometric API this gates the interface and
+    // proves nothing to a server; a passkey sign-in verifies its assertion
+    // server-side and is a different flow.
+    DVNativeBridge.register('biometrics.authenticate', (Object? _) async {
+      final JSObject? navigator = _property(globalContext, 'navigator');
+      final JSObject? credentials =
+          navigator == null ? null : _property(navigator, 'credentials');
+      final JSFunction? get =
+          credentials == null ? null : _method(credentials, 'get');
+      if (credentials == null || get == null) {
+        throw StateError(
+          'This browser has no credentials API, so it cannot authenticate.',
+        );
+      }
+
+      // Random rather than fixed. A constant challenge is a replayable one,
+      // and habits from a local gate end up in flows that are not local.
+      final Uint8List challenge = Uint8List(32);
+      final JSObject? crypto = _property(globalContext, 'crypto');
+      final JSFunction? fill =
+          crypto == null ? null : _method(crypto, 'getRandomValues');
+      if (fill != null) {
+        fill.callAsFunction(crypto, challenge.toJS);
+      }
+
+      final JSObject publicKey = JSObject()
+        ..setProperty('challenge'.toJS, challenge.toJS)
+        ..setProperty('userVerification'.toJS, 'required'.toJS)
+        ..setProperty('timeout'.toJS, 60000.toJS);
+      final JSObject options = JSObject()
+        ..setProperty('publicKey'.toJS, publicKey);
+
+      final JSAny? call = get.callAsFunction(credentials, options);
+      if (!call.isA<JSPromise<JSAny?>>()) {
+        throw StateError('credentials.get did not return a promise.');
+      }
+      final JSAny? assertion = await (call! as JSPromise<JSAny?>).toDart;
+      if (assertion == null) {
+        throw StateError('No assertion was returned.');
+      }
+      return true;
+    });
+
     _registered = true;
     return true;
   }
@@ -120,4 +215,22 @@ class DVWebBindings {
     }
     _registered = false;
   }
+}
+
+/// A property of [object], or null when it is absent or undefined.
+///
+/// Written out rather than reached through a typed binding because these APIs
+/// are the ones browsers most often do not have, and a missing one has to be
+/// an answer rather than a crash.
+JSObject? _property(JSObject object, String name) {
+  if (!object.has(name)) return null;
+  final JSAny? value = object.getProperty(name.toJS);
+  return value.isA<JSObject>() ? value! as JSObject : null;
+}
+
+/// A callable property of [object], or null when it is absent.
+JSFunction? _method(JSObject object, String name) {
+  if (!object.has(name)) return null;
+  final JSAny? value = object.getProperty(name.toJS);
+  return value.isA<JSFunction>() ? value! as JSFunction : null;
 }
