@@ -30,6 +30,13 @@ dev_dependencies:
 
 
 flutter:
+  # Bundled rather than named. Flutter web cannot resolve the generic
+  # "monospace" family -- it falls back to the body font -- so a developer
+  # site rendered every Dart sample in proportional text.
+  fonts:
+    - family: RobotoMono
+      fonts:
+        - asset: fonts/RobotoMono.ttf
   uses-material-design: true
   assets:
     - assets/

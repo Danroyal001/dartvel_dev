@@ -317,7 +317,11 @@ class CodeBlock extends StatelessWidget {
       child: SelectableText(
         lines.join('\n'),
         style: TextStyle(
-          fontFamily: 'monospace',
+          // Bundled, not named. Flutter web cannot resolve the generic
+          // "monospace" family and silently falls back to the body font, so
+          // every Dart sample on this site rendered in proportional text --
+          // on a page whose whole argument is what the code looks like.
+          fontFamily: 'RobotoMono',
           fontFamilyFallback: const <String>['Menlo', 'Consolas', 'monospace'],
           fontSize: 13.5,
           height: 1.65,
