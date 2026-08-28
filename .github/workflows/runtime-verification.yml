@@ -1110,6 +1110,89 @@ jobs:
         if: always()
         with: { name: refusals, path: /tmp/diag/, if-no-files-found: warn }
 
+  # The other web target. `web` prerenders a file per route; this one keeps one
+  # shell and assembles each page when it is asked for, so the thing to verify
+  # is that two different URLs come back different -- which serving the build
+  # as plain files would not do, and did not, for as long as nothing read the
+  # manifest.
+  web-server:
+    name: web-server — render each route on request
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - run: mkdir -p /tmp/diag
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+      - run: cargo install cbindgen --locked || true
+
+      - name: Build the site for a server
+        run: |
+          set -euo pipefail
+          cd sites/dartvel_site
+          flutter pub get
+          dart run dartvel_cli:dartvel build web-server
+          test -f build/web/dartvel_routes.json
+
+          # The static pages must be gone. If they survive, a server that falls
+          # through to files serves yesterday's copy of every route and the
+          # symptom is a page that will not update however often it deploys.
+          for route in docs features cloud; do
+            if [ -f "build/web/$route/index.html" ]; then
+              echo "::error::build/web/$route/index.html survived the web-server build"
+              exit 1
+            fi
+          done
+
+      - name: Every route must be rendered, and rendered differently
+        run: |
+          set -euo pipefail
+          cd sites/dartvel_site
+          dart run dartvel_cli:dartvel preview --port 8097 &
+          SERVER=$!
+          for i in $(seq 1 30); do
+            curl -sf -o /dev/null http://127.0.0.1:8097/ && break
+            sleep 1
+          done
+
+          for route in / /docs /features /cloud; do
+            curl -sf "http://127.0.0.1:8097$route" > "/tmp/diag/page$(echo "$route" | tr '/' '_').html"
+          done
+          kill $SERVER 2>/dev/null || true
+
+          python3 - <<'CHECK'
+          import glob, re, sys
+
+          pages = {}
+          for path in sorted(glob.glob('/tmp/diag/page*.html')):
+              html = open(path).read()
+              title = re.search(r'<title>(.*?)</title>', html, re.S)
+              note = re.search(r'<noscript>(.*?)</noscript>', html, re.S)
+              pages[path] = (
+                  title.group(1).strip() if title else None,
+                  len(note.group(1)) if note else 0,
+              )
+              print('%-34s %-34s noscript:%s' % (path, pages[path][0], pages[path][1]))
+
+          if len(pages) != 4:
+              print('::error::expected four pages, got %d' % len(pages))
+              sys.exit(1)
+
+          titles = [t for t, _ in pages.values()]
+          if len(set(titles)) != len(titles):
+              print('::error::two routes share a title, so they are not being '
+                    'rendered per route: %r' % titles)
+              sys.exit(1)
+
+          if any(n == 0 for _, n in pages.values()):
+              print('::error::a route came back with no crawler-visible text')
+              sys.exit(1)
+          CHECK
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: web-server-pages, path: /tmp/diag/, if-no-files-found: warn }
+
   webos:
     name: webos — assemble a package against the ARM engine
     runs-on: ubuntu-latest
