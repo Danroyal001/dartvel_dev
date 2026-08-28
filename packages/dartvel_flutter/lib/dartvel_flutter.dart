@@ -276,6 +276,10 @@ class DVModifier {
   final String? semanticLabelValue;
   final String? semanticHintValue;
   final bool? semanticButtonValue;
+
+  /// 1 to 6, matching HTML's six heading levels and every platform's
+  /// accessibility notion of one.
+  final int? semanticHeadingValue;
   final Size? minimumTapTargetValue;
   final bool inputValue;
   final String? inputLabelValue;
@@ -301,6 +305,7 @@ class DVModifier {
     this.semanticLabelValue,
     this.semanticHintValue,
     this.semanticButtonValue,
+    this.semanticHeadingValue,
     this.minimumTapTargetValue,
     this.inputValue = false,
     this.inputLabelValue,
@@ -327,6 +332,7 @@ class DVModifier {
         semanticLabelValue = null,
         semanticHintValue = null,
         semanticButtonValue = null,
+        semanticHeadingValue = null,
         minimumTapTargetValue = null,
         inputValue = false,
         inputLabelValue = null,
@@ -352,6 +358,7 @@ class DVModifier {
     String? semanticLabelValue,
     String? semanticHintValue,
     bool? semanticButtonValue,
+    int? semanticHeadingValue,
     Size? minimumTapTargetValue,
     bool? inputValue,
     String? inputLabelValue,
@@ -377,6 +384,8 @@ class DVModifier {
       semanticLabelValue: semanticLabelValue ?? this.semanticLabelValue,
       semanticHintValue: semanticHintValue ?? this.semanticHintValue,
       semanticButtonValue: semanticButtonValue ?? this.semanticButtonValue,
+      semanticHeadingValue:
+          semanticHeadingValue ?? this.semanticHeadingValue,
       minimumTapTargetValue:
           minimumTapTargetValue ?? this.minimumTapTargetValue,
       inputValue: inputValue ?? this.inputValue,
@@ -449,6 +458,28 @@ class DVModifier {
 
   DVModifier semanticButton([bool value = true]) =>
       _copyWith(semanticButtonValue: value);
+
+  /// Mark this as a heading at [level].
+  ///
+  /// A page's structure is carried by its headings: a screen reader user moves
+  /// between them, and a crawler reads the document outline from them. Without
+  /// this there was no way to say a piece of text was one, so the semantics
+  /// tree contained no headings at all and the generated static HTML had
+  /// nothing to build an outline from.
+  ///
+  /// One to six, because that is what HTML has and what every platform's
+  /// accessibility layer can express. A seventh would produce a semantics node
+  /// nothing can represent and an `<h7>` that does not exist.
+  DVModifier semanticHeading(int level) {
+    if (level < 1 || level > 6) {
+      throw ArgumentError.value(
+        level,
+        'level',
+        'A heading level is 1 to 6.',
+      );
+    }
+    return _copyWith(semanticHeadingValue: level);
+  }
 
   DVModifier minimumTapTarget({
     double width = 48,
@@ -746,14 +777,24 @@ class DVBox<T> extends StatelessWidget {
 
     if (_modifier?.semanticLabelValue != null ||
         _modifier?.semanticHintValue != null ||
-        _modifier?.semanticButtonValue != null) {
+        _modifier?.semanticButtonValue != null ||
+        _modifier?.semanticHeadingValue != null) {
       result = Semantics(
         label: _modifier?.semanticLabelValue,
         hint: _modifier?.semanticHintValue,
         button: _modifier?.semanticButtonValue,
+        headingLevel: _modifier?.semanticHeadingValue,
         excludeSemantics: _modifier?.semanticLabelValue != null,
         child: result,
       );
+      if (_modifier?.semanticHeadingValue != null) {
+        // Merged, so one node carries both the level and the text. Left
+        // unmerged, the heading and its words are two nodes: the level lands
+        // on an empty parent, a screen reader announces "heading" and then
+        // the text separately, and anything reading the tree sees a heading
+        // with no name.
+        result = MergeSemantics(child: result);
+      }
     }
 
     return result;
@@ -1005,6 +1046,30 @@ class DVText extends StatelessWidget {
       result = GestureDetector(
         onTap: modifier.onTapCallback,
         child: result,
+      );
+    }
+
+    // Semantics on the text itself, not only on a DVBox wrapping it. A
+    // heading is text, so `DVText(...).modifier(DVModifier().semanticHeading(2))`
+    // is where the call naturally goes -- and it did nothing, because this
+    // build never looked at the semantic fields. Merged so the level and the
+    // words are one node: unmerged, a screen reader announces "heading" and
+    // then the text, and anything reading the tree sees a heading with no
+    // name.
+    if (modifier != null &&
+        (modifier.semanticLabelValue != null ||
+            modifier.semanticHintValue != null ||
+            modifier.semanticButtonValue != null ||
+            modifier.semanticHeadingValue != null)) {
+      result = MergeSemantics(
+        child: Semantics(
+          label: modifier.semanticLabelValue,
+          hint: modifier.semanticHintValue,
+          button: modifier.semanticButtonValue,
+          headingLevel: modifier.semanticHeadingValue,
+          excludeSemantics: modifier.semanticLabelValue != null,
+          child: result,
+        ),
       );
     }
 
