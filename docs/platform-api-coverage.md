@@ -12,7 +12,7 @@ platform of seven had any bindings at all. Six do now.
 | Platform | Bindings | Reaching native through |
 | --- | --- | --- |
 | Linux | **9** | `dart:ffi` to libX11, libgtk-3, GDBus |
-| web | **9** | `dart:js_interop` with `package:web` |
+| web | **5** | `dart:js_interop` with `package:web` |
 | Windows | **8** | `dart:ffi` to the Win32 API |
 | Android | **6** | jnigen bindings on the Android SDK |
 | iOS | **5** | `dart:ffi` to the Objective-C runtime and AudioToolbox |
@@ -280,10 +280,27 @@ These have call sites in `dartvel_flutter` and no registration on any platform:
 
 | Area | Names | Why |
 | --- | --- | --- |
-| Biometrics | `biometrics.authenticate`, `biometrics.canAuthenticate` | `BiometricPrompt` attaches to an `Activity`; `LAContext` is reachable but presents UI from the main thread |
+| Biometrics | `biometrics.authenticate`, `biometrics.canAuthenticate` (bound on the web) | `BiometricPrompt` attaches to an `Activity`; `LAContext` is reachable but presents UI from the main thread |
 | NFC | `nfc.isAvailable`, `nfc.readTag` | Android delivers NFC dispatch to an `Activity`; iOS CoreNFC needs an entitlement |
 | Bluetooth | `bluetooth.isEnabled` | a permission and a runtime-granted one since API 31 |
 | Tray | `tray.show`, `tray.hide` | Windows `Shell_NotifyIcon` and macOS `NSStatusBar` are reachable; Linux needs a StatusNotifierItem over DBus, and a tray on one desktop only is worse than none |
+
+Four more came off it on the web, and the reason is worth stating: the browser
+has first-class APIs for all of them and nobody had looked.
+`PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()` answers
+`biometrics.canAuthenticate`, WebAuthn with `userVerification: 'required'` is
+`biometrics.authenticate` — the browser's own platform biometric prompt —
+`navigator.bluetooth.getAvailability()` answers `bluetooth.isEnabled`, and
+`nfc.isAvailable` is whether `NDEFReader` exists.
+
+Each availability check answers **false** where the API is absent rather than
+throwing, because "Bluetooth is not available in this browser" is a true
+statement and the caller needs it to decide whether to offer the option. That
+is different from a registered no-op: `biometrics.authenticate` still throws
+when there is no authenticator or the person declines, and never reports a
+success it did not get. Like every platform's local biometric API it gates the
+interface and proves nothing to a server; a passkey sign-in verifies its
+assertion server-side and is a separate flow.
 
 Haptics and sharing were on this list and are not any more: haptics is bound on
 Android, iOS and the web, and `share.text` on Android and the web. `window`

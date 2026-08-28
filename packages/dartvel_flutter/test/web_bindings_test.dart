@@ -27,6 +27,17 @@ void main() {
           'haptics.lightVibrate',
           'haptics.impact',
           'window.setTitle',
+
+          // Availability questions the browser can answer through
+          // PublicKeyCredential, navigator.bluetooth and NDEFReader. Each
+          // answers false where the API is absent, which is a fact about the
+          // platform rather than a plausible default.
+          'biometrics.canAuthenticate',
+          'bluetooth.isEnabled',
+          'nfc.isAvailable',
+
+          // WebAuthn with userVerification required.
+          'biometrics.authenticate',
         },
       );
     });
@@ -35,6 +46,10 @@ void main() {
       // Each of these has a call site in the framework and no browser
       // equivalent. Registering a no-op would turn "this platform cannot do
       // that" into "this silently did nothing", which is worse.
+      //
+      // biometrics.authenticate used to be here. WebAuthn is the browser
+      // equivalent and it is bound now; nfc.readTag stays, because NDEFReader
+      // reading a tag is Chrome on Android alone.
       for (final unavailable in <String>[
         'tray.show',
         'tray.hide',
@@ -43,7 +58,6 @@ void main() {
         'window.restore',
         'window.setSize',
         'nfc.readTag',
-        'biometrics.authenticate',
       ]) {
         expect(DVWebBindings.implemented, isNot(contains(unavailable)),
             reason: '$unavailable has no browser equivalent, so it must keep '

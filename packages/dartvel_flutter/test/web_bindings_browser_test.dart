@@ -58,4 +58,55 @@ void main() {
       throwsA(isA<Object>()),
     );
   });
+
+  // The three availability questions a browser can answer honestly. Each has
+  // a real API behind it, and each returns false rather than throwing when
+  // the browser lacks it -- "Bluetooth is not available here" is a true
+  // answer, not a plausible default.
+  group('capability probes', () {
+    test('biometrics.canAuthenticate answers without throwing', () async {
+      final Object? result =
+          await DVNativeBridge.invoke('biometrics.canAuthenticate', null);
+
+      // Headless Chrome has no platform authenticator, so the answer is
+      // false. The assertion is that it is an answer at all: before this the
+      // call threw "not registered", which a caller cannot tell apart from
+      // "this browser cannot".
+      expect(result, isA<bool>());
+    });
+
+    test('bluetooth.isEnabled answers without throwing', () async {
+      final Object? result =
+          await DVNativeBridge.invoke('bluetooth.isEnabled', null);
+
+      expect(result, isA<bool>());
+    });
+
+    test('nfc.isAvailable answers without throwing', () async {
+      final Object? result =
+          await DVNativeBridge.invoke('nfc.isAvailable', null);
+
+      // NDEFReader is Chrome-on-Android only, so this is false on a desktop
+      // runner -- which is the point: it reports the platform rather than
+      // guessing.
+      expect(result, isA<bool>());
+      expect(result, isFalse);
+    });
+
+    test('a probe that says no does not pretend the action works', () async {
+      // The pair that matters. canAuthenticate answering false while
+      // authenticate silently succeeded would be a security hole, which is
+      // why the unregistered ones throw in the first place.
+      final bool can = (await DVNativeBridge.invoke(
+          'biometrics.canAuthenticate', null))! as bool;
+
+      if (!can) {
+        await expectLater(
+          DVNativeBridge.invoke('biometrics.authenticate', null),
+          throwsA(anything),
+          reason: 'no authenticator must fail, never return success',
+        );
+      }
+    });
+  });
 }

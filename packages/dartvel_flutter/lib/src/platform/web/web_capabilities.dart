@@ -36,4 +36,21 @@ const Set<String> dvWebImplementedBindings = <String>{
 
   // document.title.
   'window.setTitle',
+
+  // Three availability questions the browser can answer, through
+  // PublicKeyCredential, navigator.bluetooth and NDEFReader. Each answers
+  // false when the browser lacks the API, which is a true statement about
+  // the platform rather than a plausible default -- the distinction the rest
+  // of this file is about.
+  //
+  // They were unregistered before, so a caller could not tell "this browser
+  // cannot do Bluetooth" from "Dartvel has not implemented Bluetooth".
+  'biometrics.canAuthenticate',
+  'bluetooth.isEnabled',
+  'nfc.isAvailable',
+
+  // WebAuthn with userVerification required, which is the browser's platform
+  // biometric flow. It throws when there is no authenticator or the person
+  // declines; it never reports success it did not get.
+  'biometrics.authenticate',
 };
