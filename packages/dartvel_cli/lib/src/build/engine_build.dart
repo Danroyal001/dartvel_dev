@@ -400,7 +400,13 @@ EngineBuildPlan engineBuildPlan({
       if (os.usesDebianSysroot && arch.triple != null)
         ...<String>['--target-triple', arch.triple!],
       '--no-goma',
-      '--no-prebuilt-dart-sdk',
+      // Linux only. On Fuchsia the embedder fork's own script does not pass
+      // it, and the difference is not cosmetic: forcing the Dart SDK to be
+      // compiled from source is the last remaining difference between the
+      // invocation that fork ships and the one that fails at the link with
+      // "R_X86_64_TPOFF32 against dart::OSThread::current_vm_thread_ cannot
+      // be used with -shared".
+      if (os.usesDebianSysroot) '--no-prebuilt-dart-sdk',
     ],
     sysrootArch: os.usesDebianSysroot ? arch.gnName : null,
     targetSysrootPath: relativeSysroot,

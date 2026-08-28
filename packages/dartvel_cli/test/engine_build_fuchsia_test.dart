@@ -122,6 +122,24 @@ void main() {
       expect(linux.enginePath, isNot(contains('so.unstripped')));
     });
 
+    test('does not force the Dart SDK to be compiled from source', () {
+      // The fork's script does not pass it, and it is the last difference
+      // between that invocation and the one failing at the link.
+      expect(plan(mode: EngineMode.debug).gnArgs,
+          isNot(contains('--no-prebuilt-dart-sdk')));
+    });
+
+    test('linux still builds it from source', () {
+      expect(
+        engineBuildPlan(
+          arch: EngineArch.arm,
+          mode: EngineMode.release,
+          srcRoot: '/src/flutter',
+        ).gnArgs,
+        contains('--no-prebuilt-dart-sdk'),
+      );
+    });
+
     test('linux builds are unchanged', () {
       // The new argument must default to what every existing caller means.
       final linux = engineBuildPlan(
