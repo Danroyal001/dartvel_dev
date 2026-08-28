@@ -658,7 +658,16 @@ ${(() {
           })()}        );
 
         final seoWrapped = DartvelSeo(
-          props: page.buildWebSeo(params, query),
+          // The title the page declared, underneath whatever its own
+          // buildWebSeo returns. dvStaticPage already writes that title into
+          // the prerendered index.html, so a crawler saw it and a person did
+          // not: Flutter boots, DartvelSeo applies SeoProps.empty, and the
+          // project default overwrites the route's own title in the tab.
+          //
+          // Taken from the scaffold spec rather than pasted in as a literal,
+          // so one declaration feeds the app bar, the static file and this.
+          props: SeoProps(title: page.pageScaffold.title)
+              .merge(page.buildWebSeo(params, query)),
           defaults: _defaultSeo,
           child: loaderWrapped,
         );
