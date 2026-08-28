@@ -63,7 +63,7 @@ void main() {
 
     expect(
       tester.getSemantics(find.byType(DVNavLink)),
-      containsSemantics(isLink: true),
+      isSemantics(isLink: true),
     );
     handle.dispose();
   });
