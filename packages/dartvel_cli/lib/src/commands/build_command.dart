@@ -1038,9 +1038,9 @@ class BuildCommand extends Command<void> {
   /// Builds a Chromium or Firefox extension bundle.
   ///
   /// This is Flutter web output plus a generated manifest and background
-  /// script. Two build flags are load-bearing rather than stylistic:
-  /// `--csp`, because manifest V3 forbids `eval`, and `--pwa-strategy=none`,
-  /// because Flutter's service worker fights the extension's own.
+  /// script. The build flags are load-bearing rather than stylistic and live
+  /// in [browserExtensionBuildArguments], where they can be tested -- one of
+  /// them was missing for as long as this target existed.
   Future<_PlatformBuildResult> _buildBrowserExtension(
     String platform,
     String buildMode,
@@ -1063,14 +1063,8 @@ class BuildCommand extends Command<void> {
     }
     final config = BrowserExtensionConfig.fromPubspec(pubspec);
 
-    final arguments = <String>[
-      'build',
-      'web',
-      buildMode,
-      '--csp',
-      '--pwa-strategy=none',
-      if (target != null) ...<String>['-t', target],
-    ];
+    final arguments =
+        browserExtensionBuildArguments(buildMode: buildMode, target: target);
     Logger.log('   flutter ${arguments.join(' ')}');
     final result = await _processRun(
       'flutter',

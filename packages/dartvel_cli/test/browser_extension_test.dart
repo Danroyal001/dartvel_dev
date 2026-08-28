@@ -367,4 +367,46 @@ dartvel:
       });
     }
   });
+
+  group('the web build an extension needs', () {
+    // These arguments were inline in the build command, where nothing could
+    // check them, and one was missing for as long as the target existed.
+    test('the renderer is bundled, not fetched from a CDN', () {
+      // Flutter loads CanvasKit from https://www.gstatic.com by default. An
+      // extension page may not, so the application never started:
+      //
+      //   TypeError: error loading dynamically imported module:
+      //   https://www.gstatic.com/...
+      //
+      // It is also wrong on its own terms. An extension that downloads its
+      // renderer does not work offline, and ships a store review problem.
+      expect(browserExtensionBuildArguments(buildMode: '--release'),
+          contains('--no-web-resources-cdn'));
+    });
+
+    test('manifest v3 forbids eval, so the build is CSP-compliant', () {
+      expect(browserExtensionBuildArguments(buildMode: '--release'),
+          contains('--csp'));
+    });
+
+    test('no service worker, which would fight the extension\'s own', () {
+      expect(browserExtensionBuildArguments(buildMode: '--release'),
+          contains('--pwa-strategy=none'));
+    });
+
+    test('the build mode and entrypoint are passed through', () {
+      final args = browserExtensionBuildArguments(
+          buildMode: '--debug', target: 'lib/other.dart');
+
+      expect(args.first, 'build');
+      expect(args[1], 'web');
+      expect(args, contains('--debug'));
+      expect(args, containsAllInOrder(<String>['-t', 'lib/other.dart']));
+    });
+
+    test('no entrypoint means no -t', () {
+      expect(browserExtensionBuildArguments(buildMode: '--release'),
+          isNot(contains('-t')));
+    });
+  });
 }
