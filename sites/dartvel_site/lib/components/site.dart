@@ -6,6 +6,7 @@
 // handed white.
 import 'package:flutter/material.dart';
 import '../dartvel_client/dartvel_client.dart';
+import 'highlight.dart';
 
 /// The palette, resolved for whichever brightness is in effect.
 class Palette {
@@ -162,10 +163,26 @@ class SiteFooter extends StatelessWidget {
 
 /// A band of content, optionally on the tinted surface.
 class Section extends StatelessWidget {
-  const Section({super.key, required this.children, this.tint = false});
+  const Section({
+    super.key,
+    required this.children,
+    this.tint = false,
+    this.dark = false,
+    this.glow = false,
+  });
 
   final List<Widget> children;
   final bool tint;
+
+  /// Ink-dark, for the one or two bands that should stop the scroll.
+  ///
+  /// A page that is eight shades of the same cream reads as one very long
+  /// section however good the type is.
+  final bool dark;
+
+  /// A soft accent bloom in the corner. The hero, and nothing else -- a page
+  /// where everything glows is a page where nothing does.
+  final bool glow;
 
   @override
   Widget build(BuildContext context) {
@@ -173,7 +190,21 @@ class Section extends StatelessWidget {
     final responsive = Responsive.of(context);
     return Container(
       width: double.infinity,
-      color: tint ? palette.surface : palette.page,
+      decoration: BoxDecoration(
+        color: dark
+            ? const Color(0xFF0B1020)
+            : (tint ? palette.surface : palette.page),
+        gradient: glow
+            ? RadialGradient(
+                center: const Alignment(0.92, -1.1),
+                radius: 1.15,
+                colors: <Color>[
+                  palette.accent.withValues(alpha: palette.dark ? 0.20 : 0.13),
+                  (tint ? palette.surface : palette.page).withValues(alpha: 0),
+                ],
+              )
+            : null,
+      ),
       padding: EdgeInsets.symmetric(
         horizontal: responsive.gutter,
         vertical: responsive.narrow ? 40 : 64,
@@ -193,15 +224,20 @@ class Section extends StatelessWidget {
 }
 
 class Eyebrow extends StatelessWidget {
-  const Eyebrow(this.text, {super.key});
+  const Eyebrow(this.text, {this.onDark = false, super.key});
   final String text;
+
+  /// On an ink band, where the page's own accent sits too dark to read.
+  final bool onDark;
 
   @override
   Widget build(BuildContext context) => DVText(text).modifier(
-        const DVModifier()
+        DVModifier()
             .fontSize(12)
             .fontWeight(FontWeight.w700)
-            .color(Palette.of(context).accent)
+            .color(onDark
+                ? const Color(0xFF7AA2F7)
+                : Palette.of(context).accent)
             .letterSpacing(1.8),
       );
 }
@@ -210,16 +246,19 @@ class Heading extends StatelessWidget {
   /// [level] is the document outline, not the size. A section heading two
   /// thirds of the way down a page is still an h2, and a page has one h1 --
   /// which is why the hero passes 1 and every section leaves the default.
-  const Heading(this.text, {this.level = 2, super.key});
+  const Heading(this.text, {this.level = 2, this.onDark = false, super.key});
   final String text;
   final int level;
+
+  /// On an ink band.
+  final bool onDark;
 
   @override
   Widget build(BuildContext context) => DVText(text).modifier(
         const DVModifier()
             .fontSize(Responsive.of(context).narrow ? 26 : 34)
             .fontWeight(FontWeight.w800)
-            .color(Palette.of(context).ink)
+            .color(onDark ? const Color(0xFFF2F5FC) : Palette.of(context).ink)
             .height(1.15)
             // Declared, so the outline exists for a screen reader moving by
             // heading and for the crawler-visible HTML built from the
@@ -274,8 +313,11 @@ class Card_ extends StatelessWidget {
 }
 
 class Chip_ extends StatelessWidget {
-  const Chip_(this.text, {super.key});
+  const Chip_(this.text, {this.onDark = false, super.key});
   final String text;
+
+  /// On an ink band, where the page's surface and rule colours disappear.
+  final bool onDark;
 
   @override
   Widget build(BuildContext context) {
@@ -283,12 +325,16 @@ class Chip_ extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
-        color: palette.surface,
-        border: Border.all(color: palette.rule),
+        color: onDark ? const Color(0xFF161E33) : palette.surface,
+        border: Border.all(
+          color: onDark ? const Color(0xFF2A3557) : palette.rule,
+        ),
         borderRadius: BorderRadius.circular(999),
       ),
       child: DVText(text).modifier(
-        const DVModifier().fontSize(13).color(palette.ink),
+        DVModifier()
+            .fontSize(13)
+            .color(onDark ? const Color(0xFFD3DCF3) : palette.ink),
       ),
     );
   }
@@ -348,21 +394,24 @@ class CodeBlock extends StatelessWidget {
         identifier: 'dartvel:code',
         label: lines.join('\n'),
         excludeSemantics: true,
-        child: SelectableText(
-          lines.join('\n'),
-        style: TextStyle(
-          // Bundled, not named. Flutter web cannot resolve the generic
-          // "monospace" family and silently falls back to the body font, so
-          // every Dart sample on this site rendered in proportional text --
-          // on a page whose whole argument is what the code looks like.
-          fontFamily: 'RobotoMono',
-          fontFamilyFallback: const <String>['Menlo', 'Consolas', 'monospace'],
-          fontSize: 13.5,
-          height: 1.65,
-          color: palette.dark
-              ? const Color(0xFFD7E1F5)
-              : const Color(0xFFE8EEFA),
-        ),
+        child: SelectableText.rich(
+          TextSpan(
+            // Coloured, because on a framework's site the code is the demo.
+            // One colour on navy is the same amount of information as a
+            // screenshot of a wall, and the annotations -- which are the
+            // whole argument of most of these pages -- read as ordinary text.
+            children: Code.spans(lines.join('\n')),
+          ),
+          style: const TextStyle(
+            // Bundled, not named. Flutter web cannot resolve the generic
+            // "monospace" family and silently falls back to the body font, so
+            // every Dart sample on this site rendered in proportional text --
+            // on a page whose whole argument is what the code looks like.
+            fontFamily: 'RobotoMono',
+            fontFamilyFallback: <String>['Menlo', 'Consolas', 'monospace'],
+            fontSize: 13.5,
+            height: 1.65,
+          ),
         ),
       ),
     );
@@ -522,4 +571,61 @@ class ExternalLink extends StatelessWidget {
               .color(Palette.of(context).accent),
         ),
       );
+}
+
+/// A row of numbers.
+///
+/// Dartvel's are genuinely interesting and were buried in prose: fifteen build
+/// targets, twenty-two shipped sections, six packages. A number set large is
+/// the cheapest visual interest a technical page has, and it is the part
+/// people screenshot.
+class Stats extends StatelessWidget {
+  const Stats(this.items, {this.onDark = false, super.key});
+
+  /// Each entry is the number and what it counts.
+  final List<(String, String)> items;
+
+  /// On an ink band, where the page accent sits too dark to read.
+  final bool onDark;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = Palette.of(context);
+    final responsive = Responsive.of(context);
+    return Wrap(
+      spacing: responsive.narrow ? 28 : 56,
+      runSpacing: 22,
+      children: <Widget>[
+        for (final (String value, String label) item in items)
+          // A Column that shrinks to its content. DVBox.list stretches to the
+          // width it is given, so inside a Wrap every entry took a full line
+          // and four numbers meant to sit in a row stacked into a column.
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              DVText(item.$1).modifier(
+                DVModifier()
+                    .fontSize(responsive.narrow ? 32 : 42)
+                    .fontWeight(FontWeight.w800)
+                    .color(onDark
+                        ? const Color(0xFF7AA2F7)
+                        : palette.accent)
+                    .height(1.05),
+              ),
+              const SizedBox(height: 4),
+              DVText(item.$2).modifier(
+                DVModifier()
+                    .fontSize(13.5)
+                    .fontWeight(FontWeight.w600)
+                    .color(onDark
+                        ? const Color(0xFF98A6C9)
+                        : palette.muted)
+                    .height(1.4),
+              ),
+            ],
+          ),
+      ],
+    );
+  }
 }

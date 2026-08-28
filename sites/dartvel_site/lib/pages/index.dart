@@ -21,6 +21,7 @@ Widget _hero(BuildContext context) {
   final bool narrow = Responsive.of(context).narrow;
   final Widget copy = _heroCopy(context);
   return Section(
+    glow: true,
     children: <Widget>[
       // Two columns where there is room. The hero was one left-aligned
       // column with the right half of the window empty, which reads as a
@@ -131,24 +132,69 @@ class _HeroTerminal extends StatelessWidget {
               ],
             ),
           ),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 14, 16, 18),
-            child: SelectableText(
-              '\$ dartvel create shop\n'
-              '\$ cd shop && dartvel dev\n'
-              '\n'
-              '  routes      4 pages, typed targets\n'
-              '  client      generated\n'
-              '  backend     :3000  (axum)\n'
-              '  flutter     :8080  hot reload\n'
-              '\n'
-              '  ready in 1.9s',
-              style: TextStyle(
-                fontFamily: 'RobotoMono',
-                fontFamilyFallback: <String>['Menlo', 'Consolas', 'monospace'],
-                fontSize: 12.5,
-                height: 1.75,
-                color: Color(0xFFD7E1F5),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
+            // Coloured the way the terminal actually is. A screenshot of a
+            // terminal in one flat grey is a picture of a wall; the prompt,
+            // what you type and what it answers are three different things.
+            child: SelectableText.rich(
+              const TextSpan(
+                style: TextStyle(
+                  fontFamily: 'RobotoMono',
+                  fontFamilyFallback: <String>[
+                    'Menlo', 'Consolas', 'monospace',
+                  ],
+                  fontSize: 12.5,
+                  height: 1.75,
+                  color: Color(0xFFD7E1F5),
+                ),
+                children: <TextSpan>[
+                  TextSpan(
+                    text: '\$ ',
+                    style: TextStyle(color: Color(0xFF9ECE6A)),
+                  ),
+                  TextSpan(text: 'dartvel create shop\n'),
+                  TextSpan(
+                    text: '\$ ',
+                    style: TextStyle(color: Color(0xFF9ECE6A)),
+                  ),
+                  TextSpan(text: 'cd shop && dartvel dev\n\n'),
+                  TextSpan(
+                    text: '  routes      ',
+                    style: TextStyle(color: Color(0xFF7080A8)),
+                  ),
+                  TextSpan(text: '4 pages, typed targets\n'),
+                  TextSpan(
+                    text: '  client      ',
+                    style: TextStyle(color: Color(0xFF7080A8)),
+                  ),
+                  TextSpan(text: 'generated\n'),
+                  TextSpan(
+                    text: '  backend     ',
+                    style: TextStyle(color: Color(0xFF7080A8)),
+                  ),
+                  TextSpan(
+                    text: ':3000',
+                    style: TextStyle(color: Color(0xFF7DCFFF)),
+                  ),
+                  TextSpan(text: '  (axum)\n'),
+                  TextSpan(
+                    text: '  flutter     ',
+                    style: TextStyle(color: Color(0xFF7080A8)),
+                  ),
+                  TextSpan(
+                    text: ':8080',
+                    style: TextStyle(color: Color(0xFF7DCFFF)),
+                  ),
+                  TextSpan(text: '  hot reload\n\n'),
+                  TextSpan(
+                    text: '  ready in 1.9s',
+                    style: TextStyle(
+                      color: Color(0xFF9ECE6A),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -235,17 +281,20 @@ Widget _pillars(BuildContext context) => const Section(
     );
 
 Widget _targets(BuildContext context) => Section(
-      tint: true,
+      // The one band that stops the scroll. A page that is eight shades of
+      // the same cream reads as one very long section however good the type
+      // is, and fifteen chips is the thing on this page worth stopping at.
+      dark: true,
       children: <Widget>[
-        const Eyebrow('ONE CODEBASE'),
-        const Heading('Fifteen build targets.'),
+        const Eyebrow('ONE CODEBASE', onDark: true),
+        const Heading('Fifteen build targets.', onDark: true),
         DVBox.wrapLine(<Widget>[
           for (final String target in const <String>[
             'web', 'linux', 'macOS', 'windows', 'android', 'iOS', 'tvOS',
             'Fire OS', 'Tizen', 'Sony eLinux', 'webOS', 'VS Code',
             'Chrome', 'Firefox', 'terminal',
           ])
-            Chip_(target),
+            Chip_(target, onDark: true),
         ], spacing: 8),
         const DVText(
           'Embedded and television targets ride the platform vendor’s own '
@@ -253,7 +302,17 @@ Widget _targets(BuildContext context) => Section(
           'fork so the engine and the Flutter version stay aligned. A build '
           'checks host support and tooling before doing any work, so it never '
           'starts something it cannot finish.',
-        ).modifier(const DVModifier().fontSize(16).color(Palette.of(context).muted).height(1.65).width(640)),
+        ).modifier(DVModifier().fontSize(16).color(const Color(0xFF9AA6C4)).height(1.65).width(640)),
+        const SizedBox(height: 8),
+        // Breadth only. The section below already counts shipped spec
+        // sections, and two numeric rows a screen apart both saying 22 read
+        // as the same claim made twice.
+        Stats(onDark: true, const <(String, String)>[
+          ('15', 'build targets'),
+          ('6', 'packages on pub.dev'),
+          ('5', 'self-contained binaries'),
+          ('1', 'command to build any of them'),
+        ]),
       ],
     );
 
