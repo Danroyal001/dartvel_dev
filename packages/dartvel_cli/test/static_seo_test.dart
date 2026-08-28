@@ -249,4 +249,51 @@ class FeaturePageGeneratedPage extends DVGeneratedPage {
       expect(titles['/feature'], 'One feature');
     });
   });
+
+  group('the social image on a sub-route', () {
+    // dvStaticPage passes the page's canonical URL as siteUrl, because that is
+    // what the canonical link and og:url need. The image resolver takes the
+    // same value as its base, so a relative image on /docs became
+    // https://example.com/docs/icons/Icon-512.png -- a URL that does not
+    // exist. Every page but the root shipped a broken preview image, and a
+    // broken og:image is invisible until someone shares the link.
+    String pageFor(String route) => dvStaticPage(
+          shell: '<!DOCTYPE html><html><head></head><body></body></html>',
+          route: route,
+          title: 'T',
+          siteUrl: 'https://example.com',
+          image: '/icons/Icon-512.png',
+          siteName: 'Example',
+        );
+
+    test('resolves against the site root, not the page', () {
+      expect(pageFor('/docs'),
+          contains('content="https://example.com/icons/Icon-512.png"'));
+      expect(pageFor('/docs'), isNot(contains('/docs/icons/')));
+    });
+
+    test('a nested route does not nest the image either', () {
+      expect(pageFor('/guides/forms'),
+          contains('content="https://example.com/icons/Icon-512.png"'));
+    });
+
+    test('the canonical is still the page', () {
+      // The value that must stay per-page, and the reason the base was wrong.
+      expect(pageFor('/docs'),
+          contains('<link rel="canonical" href="https://example.com/docs">'));
+    });
+
+    test('an absolute image is left alone', () {
+      final html = dvStaticPage(
+        shell: '<!DOCTYPE html><html><head></head><body></body></html>',
+        route: '/docs',
+        title: 'T',
+        siteUrl: 'https://example.com',
+        image: 'https://cdn.example.net/card.png',
+        siteName: 'Example',
+      );
+
+      expect(html, contains('content="https://cdn.example.net/card.png"'));
+    });
+  });
 }
