@@ -1014,6 +1014,37 @@ jobs:
           fi
           echo "--- chrome log ---"; tail -20 /tmp/diag/chrome.log || true
 
+          # What the page says, not how it looks. The colour check passed this
+          # job green for as long as the extension was broken by a CSP that
+          # forbade Flutter's renderer and a build that fetched CanvasKit from
+          # a CDN -- and passed the application's own 404 in Firefox. A
+          # picture cannot tell a working page from a wrong one.
+          #
+          # innerText reaches the labels because Dartvel enables semantics by
+          # default, so the CanvasKit-rendered UI still has a DOM to read.
+          TEXT=$(timeout 120 google-chrome --headless=new --no-sandbox \
+            --disable-gpu --disable-dev-shm-usage \
+            --user-data-dir=/tmp/chrome-text --load-extension=$EXT \
+            --virtual-time-budget=20000 --dump-dom "$PAGE" 2>/dev/null \
+            | python3 -c "
+          import re, sys
+          html = sys.stdin.read()
+          # Semantics labels carry the visible text for a CanvasKit page.
+          labels = re.findall(r'aria-label=\"([^\"]+)\"', html)
+          print(' | '.join(labels[:20]))
+          ") || TEXT=""
+          echo "page labels: $TEXT"
+
+          if echo "$TEXT" | grep -qiE "No page at|^404"; then
+            echo "::error::the extension rendered the application's 404 page"
+            exit 1
+          fi
+          if [ -z "$TEXT" ]; then
+            echo "::error::the extension page exposed no semantics at all,"
+            echo "::error::so nothing establishes the application rendered"
+            exit 1
+          fi
+
           # Structural manifest checks, independent of whether Chrome would
           # load it. These are the parts a Dartvel bug would break.
           MANIFEST="$EXT/manifest.json"
