@@ -235,4 +235,90 @@ dartvel:
       expect(artifacts.missing, contains('background.js'));
     });
   });
+
+  group('the Firefox add-on identity', () {
+    // Without browser_specific_settings.gecko.id, Firefox generates an ID at
+    // install time and it changes on every reinstall. Everything keyed on the
+    // add-on's identity goes with it: storage.local is emptied, the
+    // moz-extension:// origin moves, and a native-messaging allowlist naming
+    // the old ID stops matching.
+    //
+    // Chromium does not have the problem -- an unpacked extension's ID is
+    // derived from its path and a packed one from its key -- which is why
+    // this was easy to miss while the Chromium target worked.
+
+    BrowserExtensionConfig configFor(String yaml) =>
+        BrowserExtensionConfig.fromPubspec(loadYaml(yaml) as YamlMap);
+
+    test('a Firefox manifest always carries an id', () {
+      final config = configFor('''
+name: my_app
+version: 2.1.0
+''');
+      final manifest =
+          buildExtensionManifest(config, BrowserExtensionTarget.firefox);
+
+      final settings =
+          manifest['browser_specific_settings'] as Map<String, Object?>?;
+      expect(settings, isNotNull,
+          reason: 'an add-on with no id is a different add-on each install');
+      expect((settings!['gecko'] as Map<String, Object?>)['id'], isNotEmpty);
+    });
+
+    test('the id is derived from the package, so it is stable', () {
+      // Same package, same id, on every build and every machine.
+      final first = buildExtensionManifest(
+          configFor('name: my_app\nversion: 1.0.0\n'),
+          BrowserExtensionTarget.firefox);
+      final second = buildExtensionManifest(
+          configFor('name: my_app\nversion: 9.9.9\n'),
+          BrowserExtensionTarget.firefox);
+
+      String idOf(Map<String, Object?> m) =>
+          ((m['browser_specific_settings'] as Map<String, Object?>)['gecko']
+              as Map<String, Object?>)['id']! as String;
+
+      expect(idOf(first), idOf(second),
+          reason: 'a version bump must not move the add-on');
+      expect(idOf(first), contains('my_app'));
+    });
+
+    test('two packages do not share an id', () {
+      String idOf(String name) {
+        final m = buildExtensionManifest(
+            configFor('name: $name\nversion: 1.0.0\n'),
+            BrowserExtensionTarget.firefox);
+        return ((m['browser_specific_settings'] as Map<String, Object?>)['gecko']
+            as Map<String, Object?>)['id']! as String;
+      }
+
+      expect(idOf('one_app'), isNot(idOf('two_app')));
+    });
+
+    test('an explicit id still wins', () {
+      final config = configFor('''
+name: my_app
+version: 1.0.0
+dartvel:
+  extension:
+    geckoId: chosen@example.com
+''');
+      final manifest =
+          buildExtensionManifest(config, BrowserExtensionTarget.firefox);
+
+      expect(
+        ((manifest['browser_specific_settings'] as Map<String, Object?>)['gecko']
+            as Map<String, Object?>)['id'],
+        'chosen@example.com',
+      );
+    });
+
+    test('Chromium gets no gecko settings', () {
+      final manifest = buildExtensionManifest(
+          configFor('name: my_app\nversion: 1.0.0\n'),
+          BrowserExtensionTarget.chromium);
+
+      expect(manifest.containsKey('browser_specific_settings'), isFalse);
+    });
+  });
 }

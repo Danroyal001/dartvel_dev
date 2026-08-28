@@ -83,12 +83,37 @@ class BrowserExtensionConfig {
       description: inherited('description'),
       permissions: declared('permissions'),
       hostPermissions: declared('hostPermissions'),
+      // Defaulted rather than left null. Firefox generates an add-on ID at
+      // install time when the manifest carries none, and it changes on every
+      // reinstall: storage.local is emptied, the moz-extension:// origin
+      // moves, and a native-messaging allowlist naming the old ID stops
+      // matching. Chromium has no such problem -- an unpacked extension's ID
+      // comes from its path -- which is why the Chromium target worked while
+      // this was missing.
+      //
+      // Derived from the package name so it is the same on every build and
+      // every machine, and does not move when the version does.
       geckoId: overrides?['geckoId'] == null
-          ? null
+          ? defaultGeckoId(inherited('name') ?? 'dartvel_app')
           : '${overrides!['geckoId']}',
       usePopup: popup is bool ? popup : true,
     );
   }
+}
+
+/// The add-on ID for [packageName] when the project has not chosen one.
+///
+/// Firefox accepts either a GUID or an email-shaped string; the second is
+/// readable, so a person reading `about:debugging` can tell which add-on this
+/// is. The package name is sanitised because an ID may not contain arbitrary
+/// characters, and an empty result would produce a bare `@dartvel` shared by
+/// every project that hit it.
+String defaultGeckoId(String packageName) {
+  final cleaned = packageName
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^a-z0-9_.-]'), '-')
+      .replaceAll(RegExp(r'^-+|-+$'), '');
+  return '${cleaned.isEmpty ? 'app' : cleaned}@dartvel';
 }
 
 /// Whether the assembled bundle is actually loadable, and what it lacks.
