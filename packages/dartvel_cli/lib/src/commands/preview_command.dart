@@ -2,8 +2,11 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
-import 'package:dartvel_shelf/dartvel_shelf.dart';
 import 'package:path/path.dart' as p;
+import 'package:shelf/shelf_io.dart' as shelf_io;
+import 'package:shelf_static/shelf_static.dart';
+
+import '../build/web_server.dart';
 
 import '../utils/logger.dart';
 
@@ -37,18 +40,33 @@ class PreviewCommand extends Command<void> {
     Logger.log('📦 Serving build/web on http://$host:$port');
     Logger.log('Press Ctrl+C to stop');
 
+    // `dartvel build web-server` writes dartvel_routes.json instead of
+    // prerendering a file per route, and deletes the static pages an earlier
+    // static build left behind so they cannot shadow the live ones. Serving
+    // that build as plain files therefore hands back one shell for every URL,
+    // with no per-route title, canonical or crawler-visible text -- which is
+    // the whole difference between the two targets.
+    final manifest = File(p.join(buildDir.path, 'dartvel_routes.json'));
+    final serverRendered = manifest.existsSync();
+
     try {
-      // Use dartvel_shelf to serve static files at root
-      final server = await serve(
-        (request) async {
-          // Fallback handler - SPA files are handled automatically by spaRoot
-          return Response.text('Not found', status: 404);
-        },
-        host: host,
-        port: port,
-        spaRoot: buildDir.path,
-        compression: true,
-      );
+      final HttpServer server;
+      if (serverRendered) {
+        Logger.log('   Rendering each route on request '
+            '(dartvel_routes.json present).');
+        server = await shelf_io.serve(
+          dvWebServerHandler(webRoot: buildDir.path),
+          host,
+          port,
+        );
+      } else {
+        server = await shelf_io.serve(
+          createStaticHandler(buildDir.path,
+              defaultDocument: 'index.html', listDirectories: false),
+          host,
+          port,
+        );
+      }
 
       Logger.log('✅ Server started successfully');
       Logger.log('');
@@ -57,7 +75,7 @@ class PreviewCommand extends Command<void> {
       await ProcessSignal.sigint.watch().first;
 
       Logger.log('\n🛑 Shutting down server...');
-      unawaited(server.stop());
+      unawaited(server.close());
     } catch (e) {
       Logger.log('❌ Failed to start server: $e');
       exit(1);
