@@ -135,42 +135,61 @@ class PrerenderCommand extends Command<void> {
     final page = await browser.newPage();
     await page.goto('http://localhost:$port$route', wait: Until.networkIdle);
 
-    // Wait for semantics or some indicator
-    // Flutter web semantics can be enabled via flag, but we might need to trigger it.
-    // For now, let's assume we just want to scrape the accessibility tree if available,
-    // or just take a screenshot.
-
-    // Enable semantics if not already
-    await page.evaluate('''() => {
-      // Trigger semantics update if possible in Flutter Web
-      // This is tricky without explicit app support, but let's try to find semantics nodes
-      // flt-semantics-host is usually the tag
-    }''');
-
-    // Extract semantic content (simplified)
-    // Extract semantic content
-    final semanticHtml = await page.evaluate<String>('''() => {
-      // 1. Try flt-semantics-host (Flutter's built-in semantics)
+    // The page's semantics tree, as structure rather than as Flutter's DOM.
+    //
+    // The first version of this took flt-semantics-host's innerHTML whole,
+    // which is Flutter's internals: <flt-semantics> elements carrying inline
+    // transforms and pixel sizes. Injecting that into a page gives a crawler
+    // a wall of positioned divs, not a document.
+    //
+    // What comes out here is role, heading level, label, destination and
+    // children -- the structure the application declared, which is the same
+    // one a screen reader is given. dvSemanticHtml turns it into headings,
+    // anchors and landmarks.
+    final String semanticTree = await page.evaluate<String>(r"""() => {
       const host = document.querySelector('flt-semantics-host');
-      if (host && host.innerText.trim().length > 0) return host.innerHTML;
+      if (!host) return '[]';
 
-      // 2. Try to extract structured content (e.g. from package:seo)
-      // We clone body and remove known non-content elements
-      const clone = document.body.cloneNode(true);
-      
-      // Remove scripts, styles, and Flutter engine internals that don't contain content
-      const toRemove = clone.querySelectorAll('script, style, noscript, flt-glass-pane, .flt-text-editing-host');
-      toRemove.forEach(el => el.remove());
-      
-      // If we have remaining content that looks like HTML tags, return it
-      if (clone.innerHTML.trim().length > 0) {
-        // Optional: Clean up empty divs or spans if needed
-        return clone.innerHTML;
-      }
+      const labelOf = (el) => {
+        const aria = el.getAttribute('aria-label');
+        if (aria) return aria;
+        // This element's own text, not its descendants': Flutter puts a
+        // label in a span, or directly inside an anchor.
+        let text = '';
+        for (const child of el.childNodes) {
+          if (child.nodeType === Node.TEXT_NODE) text += child.textContent;
+          else if (child.tagName === 'SPAN') text += child.textContent;
+        }
+        return text.trim();
+      };
 
-      // 3. Fallback: text content
-      return document.body.innerText;
-    }''');
+      const walk = (el) => {
+        const out = [];
+        for (const child of el.children) {
+          const tag = child.tagName.toLowerCase();
+          if (tag === 'flt-semantics-scroll-overflow') continue;
+          // Flutter emits a heading as a real h1..h6 element rather than as
+          // role="heading", so the tag carries the level.
+          const heading = /^h([1-6])$/.exec(tag);
+          if (tag !== 'a' && tag !== 'flt-semantics' && !heading) continue;
+          const aria = child.getAttribute('aria-level');
+          const node = {
+            role: child.getAttribute('role') || (tag === 'a' ? 'link' : null),
+            level: heading ? parseInt(heading[1], 10)
+                           : (aria ? parseInt(aria, 10) : null),
+            label: labelOf(child),
+            href: child.getAttribute('href'),
+            children: walk(child),
+          };
+          // Nothing to say, nowhere to go, nothing inside.
+          if (!node.label && !node.href && node.children.length === 0) continue;
+          out.push(node);
+        }
+        return out;
+      };
+
+      return JSON.stringify(walk(host));
+    }""");
 
     final title = await page.title;
 
@@ -182,13 +201,26 @@ class PrerenderCommand extends Command<void> {
     final saveDir = Directory(p.join(outDir.path, 'prerender', cleanRoute));
     if (!saveDir.existsSync()) saveDir.createSync(recursive: true);
 
-    final meta = {
+    final meta = <String, Object?>{
       'title': title,
-      'content': semanticHtml,
       'route': route,
     };
 
     File(p.join(saveDir.path, 'meta.json')).writeAsStringSync(jsonEncode(meta));
+
+    // Where `dartvel build web` looks for it, so the crawler-visible HTML is
+    // rebuilt from the tree rather than from string literals in the source.
+    final semanticsDir =
+        Directory(p.join(Directory.current.path, '.dart_tool', 'dartvel_semantics'));
+    semanticsDir.createSync(recursive: true);
+    final name = route == '/'
+        ? 'index'
+        : route.replaceAll(RegExp(r'^/|/$'), '').replaceAll('/', '_');
+    File(p.join(semanticsDir.path, '$name.json'))
+        .writeAsStringSync(semanticTree);
+
+    final nodes = (jsonDecode(semanticTree) as List<Object?>).length;
+    Logger.log('   $route: $nodes top-level semantic nodes');
 
     await page.close();
   }
