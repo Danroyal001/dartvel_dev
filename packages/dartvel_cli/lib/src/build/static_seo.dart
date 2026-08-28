@@ -10,6 +10,7 @@
 library;
 
 import 'dart:convert';
+import 'structured_data.dart';
 
 import 'seo_head.dart';
 
@@ -51,6 +52,22 @@ String dvStaticPage({
   final canonical =
       siteUrl == null ? null : dvStaticCanonical(siteUrl, route);
 
+  // What the page *is*, which OpenGraph cannot say: og:type is "website" for
+  // every page on every site. This is what produces a site name in a result
+  // and a breadcrumb trail under a link.
+  //
+  // Folded into the one head application rather than applied after it.
+  // dvSeoApply writes into a marked region, so a second call replaces the
+  // first call's tags -- which took the title and the canonical with it.
+  final String jsonLd = dvStructuredData(
+    route: route,
+    title: title,
+    siteName: siteName ?? title,
+    description: description,
+    siteUrl: siteUrl,
+    image: dvAbsoluteAsset(image, siteUrl),
+  );
+
   var html = dvSeoApply(
     shell,
     dvSeoHead(
@@ -68,7 +85,7 @@ String dvStaticPage({
       // the link.
       image: dvAbsoluteAsset(image, siteUrl),
       siteName: siteName,
-    ),
+    ) + (jsonLd.isEmpty ? '' : '\n$jsonLd'),
   );
 
   if (content != null && content.trim().isNotEmpty) {
@@ -237,7 +254,7 @@ String dvSitemapStylesheet({
           }
           /* A sitemap opens in whatever the reader has. One hard-coded
              background is unreadable in the other. */
-          \@media (prefers-color-scheme: dark) {
+          @media (prefers-color-scheme: dark) {
             :root {
               --ink: #F3F5F9;
               --surface: #0B1020;

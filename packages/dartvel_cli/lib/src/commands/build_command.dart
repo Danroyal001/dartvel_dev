@@ -12,6 +12,7 @@ import '../build/page_text.dart';
 import '../build/semantic_html.dart';
 import '../build/semantics_capture.dart';
 import '../build/server_config.dart';
+import '../build/structured_data.dart';
 import '../build/static_seo.dart';
 import '../build/web_server.dart';
 import '../utils/build_runner.dart';
@@ -1255,8 +1256,23 @@ class BuildCommand extends Command<void> {
       image: settings['image'] as String?,
       siteName: settings['siteName'] as String? ?? title,
     );
+    // The site's own WebSite block, which belongs on the root and nowhere
+    // else -- repeating it per page tells a crawler the site begins again at
+    // each URL. The root is written here rather than by dvStaticPage, which
+    // is why it had none while every inner page did.
+    final rootJsonLd = dvStructuredData(
+      route: '/',
+      title: title,
+      siteName: settings['siteName'] as String? ?? title,
+      description: description,
+      siteUrl: settings['siteUrl'] as String?,
+      image: dvAbsoluteAsset(
+          settings['image'] as String?, settings['siteUrl'] as String?),
+    );
+
     final before = index.readAsStringSync();
-    var after = dvSeoApply(before, head);
+    var after = dvSeoApply(
+        before, rootJsonLd.isEmpty ? head : '$head\n$rootJsonLd');
     // The body is empty until JavaScript runs, so a crawler, a link preview
     // and a reader with scripting off all see nothing.
     //
