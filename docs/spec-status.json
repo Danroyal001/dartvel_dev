@@ -299,9 +299,12 @@
       "status": "Partial",
       "evidence": [
         "packages/dartvel_cli/test/test_command_test.dart",
-        "examples/dartvel_example/integration_test/app_launch_test.dart"
+        "examples/dartvel_example/integration_test/app_launch_test.dart",
+        "examples/dartvel_example/integration_test/link_navigation_test.dart",
+        "packages/dartvel_flutter/test/golden/primitives_golden_test.dart",
+        ".github/workflows/runtime-verification.yml"
       ],
-      "absent": "e2e beyond a Linux launch test; golden tests; device/browser E2E; dartvel test native and accessibility modes"
+      "absent": "dartvel test native and accessibility modes have no tests to run, so both resolve to a path that does not exist"
     },
     {
       "section": "Search",
@@ -444,9 +447,10 @@
       "status": "Partial",
       "evidence": [
         "packages/dartvel_cli/test/build_command_test.dart",
-        "packages/dartvel_cli/test/doctor_targets_test.dart"
+        "packages/dartvel_cli/test/doctor_targets_test.dart",
+        "packages/dartvel_cli/test/spec_command_test.dart"
       ],
-      "absent": "dartvel inspect, dartvel mcp and dartvel spec status"
+      "absent": "dartvel inspect and dartvel mcp"
     },
     {
       "section": "etc.",
