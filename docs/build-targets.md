@@ -31,7 +31,7 @@ local Dartvel `dartvel_vscode` fork added as a dependency.
 | `fuchsia` | ❌ Blocked, same class as webOS | The five build-plumbing walls are fixed: `--build-only` in the fork, `postInstall` bootstrap, submodule handling, the bootstrap's workspace variable, and skipping an unfetchable `googletest` pin. It now clones, bootstraps and stages the app — then dies in `pub get` because the fork's bundled Flutter is **older than Dart 3.4**: `dartvel_example requires SDK version >=3.4.0 <4.0.0, version solving failed`. That is not a Dartvel bug and not a `mix` problem; the embedder's Flutter submodule is simply ancient. Unblocking needs the fork re-pinned to a modern Flutter **and its engine rebuilt from source**, because bootstrap.sh warns the engine and the Flutter pin must stay aligned. See [Fuchsia](#fuchsia) |
 | `vscode` | ✅ Builds | `out/src/extension.js`, `out/lib/vscode_api.handlers.js`, `build/web/flutter_bootstrap.js`, `build/web/assets/` |
 | `chrome-extension` | ✅ Builds | `build/chrome-extension` (41 MB): MV3 manifest with a `service_worker` background, `index.html`, `main.dart.js`, `background.js`, icons. See [Browser extensions](#browser-extensions) |
-| `firefox-extension` | ✅ Builds | `build/firefox-extension`: the same bundle with an event-page `background.scripts` manifest — verified to differ from the Chromium one, not copy it |
+| `firefox-extension` | ✅ Builds and **runs** | `build/firefox-extension`: the same bundle with an event-page `background.scripts` manifest — verified to differ from the Chromium one, not copy it |
 
 Flutter has **no desktop cross-compilation**. A Windows desktop build requires
 Windows, a Linux desktop build requires Linux, and the Apple targets require
@@ -302,6 +302,49 @@ Verified evidence from the disposable `examples/basic_app` copy:
   `build/web/main.dart.js`, and `build/web/assets/`.
 - Generated extension metadata: `package.json` produced by the Dartvel fork's
   scaffold flow.
+
+#### Running the extension, and the two bugs it found
+
+`firefox-extension` had only ever been built. Loading it turned up two faults
+that a Chromium-only check could not see, and neither announced itself.
+
+**The generated CSP forbade the renderer.** Both extension targets shipped
+`script-src 'self'; object-src 'self'`. Flutter's web renderer compiles
+WebAssembly, which MV3 blocks without `'wasm-unsafe-eval'`.
+
+**The build fetched CanvasKit from a CDN.** Without `--no-web-resources-cdn`,
+Flutter loads it from `https://www.gstatic.com` at run time, and an extension
+page may not:
+
+```
+TypeError: error loading dynamically imported module: https://www.gstatic.com/...
+```
+
+That one is wrong independently of any CSP — an extension that downloads its
+renderer does not work offline, and ships a third-party fetch for a store to
+ask about. The build arguments moved into `browserExtensionBuildArguments`
+because they had been inline in the build command where nothing could check
+them.
+
+**And `/index.html` was not a route.** An extension opens its page at
+`moz-extension://<uuid>/index.html`, so the router rendered its own 404. Anyone
+landing on a static host's file directly hits the same path; the generated
+redirect now resolves it.
+
+**None of this was visible in a screenshot.** Four captures of a white page
+said nothing, because every DOM check passed: the scripts loaded,
+`window._flutter` was defined, WebAssembly compiled, CanvasKit fetched 200.
+The error existed only in the page's console, which is why the job captures it
+now. Then the fixed build produced a *rendered* 404 that passed the colour
+check — the second time in this session a capture check has waved through a
+page that was drawn and wrong. The job reads the page's text as well.
+
+`tool/ci/firefox_shot.py` drives Firefox through Marionette rather than using
+`firefox --screenshot`, which fires on the load event, before a Flutter
+application has started. Reaching a `moz-extension://` URL needs the chrome
+context and `-remote-allow-system-access`; release Firefox will not install an
+unsigned add-on at all, so the job uses Developer Edition and a zipped XPI —
+an unpacked directory in a profile is ignored silently.
 
 ### Tizen (Samsung)
 
