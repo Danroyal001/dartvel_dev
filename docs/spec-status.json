@@ -572,7 +572,7 @@
         "packages/dartvel_cli/test/browser_extension_test.dart",
         "docs/build-targets.md"
       ],
-      "absent": "macOS, Windows, tvOS and Fuchsia builds; webOS and Sony eLinux are blocked by vendor Dart floors"
+      "absent": "tizen and vscode build but have never been run; fuchsia's engine does not build at 3.44.5; webOS and Sony eLinux ship a Dart below the 3.12 floor, so their embedders cannot resolve the example"
     },
     {
       "section": "Mobile",
