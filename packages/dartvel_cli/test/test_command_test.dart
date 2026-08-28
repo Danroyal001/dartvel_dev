@@ -228,4 +228,71 @@ void main() {
       ]);
     });
   });
+
+  group('a mode with nothing to run', () {
+    // `dartvel test golden` looks for test/golden, test/goldens or
+    // test/golden_test.dart, and this repository has none of them. What it
+    // does then is worth pinning, because the harmful answer -- leaving the
+    // path off, which makes the runner take the whole suite -- would report
+    // success for golden tests that do not exist.
+    //
+    // It does not do that. It resolves to its first candidate, so the runner
+    // fails on a path that is not there. That behaviour had no test, which is
+    // why it was worth checking rather than assuming in either direction.
+    late Directory previous;
+    late Directory temp;
+
+    setUp(() {
+      previous = Directory.current;
+      temp = Directory.systemTemp.createTempSync('dartvel_test_missing_mode');
+      Directory.current = temp;
+      Directory(p.join(temp.path, 'test')).createSync();
+    });
+
+    tearDown(() {
+      Directory.current = previous;
+      temp.deleteSync(recursive: true);
+    });
+
+    DartvelTestInvocation resolve(String mode) => DartvelTestInvocation.resolve(
+          mode: mode,
+          forceFlutter: false,
+          forceDart: false,
+          watch: false,
+          reporter: null,
+          totalShards: null,
+          shardIndex: null,
+          isolate: false,
+          updateGoldens: false,
+          forwardedArgs: const <String>[],
+          root: temp,
+        );
+
+    for (final MapEntry<String, String> mode in <String, String>{
+      'golden': 'test/golden',
+      'e2e': 'test/e2e',
+      'native': 'test/native',
+      'accessibility': 'test/accessibility',
+    }.entries) {
+      test('${mode.key} still names its own path', () {
+        expect(resolve(mode.key).arguments, contains(mode.value));
+        // The only bare "test" should be the subcommand. A second one would
+        // be the whole suite standing in for the mode.
+        expect(
+          resolve(mode.key).arguments.where((String a) => a == 'test'),
+          hasLength(1),
+        );
+      });
+    }
+
+    test('unit runs the suite, because that is what it is', () {
+      expect(resolve('unit').arguments, <String>['test', 'test']);
+    });
+
+    test('a mode with its directory present resolves to it', () {
+      Directory(p.join(temp.path, 'test', 'golden')).createSync();
+
+      expect(resolve('golden').arguments, contains('test/golden'));
+    });
+  });
 }
