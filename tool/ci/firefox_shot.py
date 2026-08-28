@@ -63,7 +63,12 @@ def main():
     settle = float(sys.argv[5]) if len(sys.argv) > 5 else 12.0
 
     browser = subprocess.Popen(
+        # -remote-allow-system-access is required for Marionette's chrome
+        # context, which is the only way to reach a moz-extension:// URL.
+        # Firefox says so itself when it is missing: "System access is
+        # required. Start Firefox with -remote-allow-system-access".
         [firefox, "--profile", profile, "--headless", "--marionette",
+         "-remote-allow-system-access",
          "--window-size=1280,900", "about:blank"],
         stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
     try:
