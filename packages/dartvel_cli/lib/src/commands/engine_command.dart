@@ -42,12 +42,24 @@ EngineMode _parseMode(String value) => EngineMode.values.firstWhere(
           'Expected one of: ${EngineMode.values.map((EngineMode m) => m.name).join(', ')}'),
     );
 
+EngineOs _parseOs(String value) => EngineOs.values.firstWhere(
+      (EngineOs os) => os.gnName == value,
+      orElse: () => throw UsageException(
+        'Unknown target os "$value".',
+        'Expected one of: ${EngineOs.values.map((EngineOs o) => o.gnName).join(', ')}',
+      ),
+    );
+
 void _addTargetOptions(ArgParser parser) {
   parser
     ..addOption('arch',
         help: 'Architecture to build for.',
         allowed: EngineArch.values.map((EngineArch a) => a.gnName).toList(),
         defaultsTo: 'x64')
+    ..addOption('os',
+        help: 'Target operating system.',
+        allowed: <String>['linux', 'fuchsia'],
+        defaultsTo: 'linux')
     ..addOption('mode',
         help: 'Engine runtime mode.',
         allowed: EngineMode.values.map((EngineMode m) => m.name).toList(),
@@ -82,6 +94,7 @@ class _PlanCommand extends Command<void> {
     final plan = engineBuildPlan(
       arch: _parseArch(argResults!['arch'] as String),
       mode: _parseMode(argResults!['mode'] as String),
+      os: _parseOs(argResults!['os'] as String),
       srcRoot: argResults!['src-root'] as String?,
       // The toolchain has to be the engine's own clang directory; see
       // engineClangDirectory. An override stays available for a checkout
@@ -155,6 +168,7 @@ class _VerifyCommand extends Command<void> {
     final plan = engineBuildPlan(
       arch: _parseArch(argResults!['arch'] as String),
       mode: _parseMode(argResults!['mode'] as String),
+      os: _parseOs(argResults!['os'] as String),
     );
 
     final failures = <String>[];

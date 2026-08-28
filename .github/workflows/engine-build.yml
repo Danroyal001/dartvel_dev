@@ -31,6 +31,17 @@ on:
         default: profile
         type: choice
         options: [debug, profile, release]
+      target_os:
+        description: Target operating system
+        required: false
+        default: linux
+        type: choice
+        # fuchsia is here for the one target still recorded as blocked. Its
+        # embedder fork bundles a Flutter older than Dart 3.4, and bootstrap.sh
+        # requires the engine and the Flutter pin stay aligned, so moving off
+        # that pin means building the engine rather than downloading one --
+        # Flutter publishes no Fuchsia embedder artifact at any revision.
+        options: [linux, fuchsia]
       arch:
         description: Target CPU
         required: false
@@ -44,7 +55,7 @@ on:
 
 jobs:
   engine:
-    name: engine ${{ inputs.mode }} ${{ inputs.arch }}
+    name: engine ${{ inputs.target_os }} ${{ inputs.mode }} ${{ inputs.arch }}
     runs-on: ubuntu-latest
     # The sync is the long pole and the build is not short. Six hours is the
     # ceiling GitHub allows; a job that reaches it has not "nearly finished".
@@ -114,7 +125,7 @@ jobs:
               "deps_file": "DEPS",
               "custom_vars": {
                 "download_android_deps": False,
-                "download_fuchsia_deps": False,
+                "download_fuchsia_deps": ${{ inputs.target_os == 'fuchsia' && 'True' || 'False' }},
               },
             },
           ]
@@ -136,10 +147,10 @@ jobs:
           SRC="$GITHUB_WORKSPACE/engine-root/engine/src"
           dart run dartvel/packages/dartvel_cli/bin/dartvel.dart engine plan \
             --arch "${{ inputs.arch }}" --mode "${{ inputs.mode }}" \
-            --src-root "$SRC"
+            --os "${{ inputs.target_os }}" --src-root "$SRC"
           dart run dartvel/packages/dartvel_cli/bin/dartvel.dart engine plan \
             --arch "${{ inputs.arch }}" --mode "${{ inputs.mode }}" \
-            --src-root "$SRC" \
+            --os "${{ inputs.target_os }}" --src-root "$SRC" \
             --github-output >> "$GITHUB_OUTPUT"
 
       # A cross build needs the target's sysroot, and the gclient hooks fetch

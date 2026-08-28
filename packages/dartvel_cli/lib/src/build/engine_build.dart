@@ -75,6 +75,36 @@ const Map<String, String> _binutils = <String, String>{
   'strip': 'llvm-strip',
 };
 
+/// Which operating system the engine is built to run on.
+///
+/// This is a separate axis from the architecture and cannot be folded into
+/// it. A Fuchsia x64 engine and a Linux x64 engine are the same cpu and
+/// different builds: gn takes `--fuchsia-cpu` rather than `--linux-cpu`, and
+/// the sysroot comes from the Fuchsia SDK that gclient fetches rather than
+/// from `build/linux/debian_*`.
+enum EngineOs {
+  linux('linux', cpuArgument: '--linux-cpu'),
+
+  /// Fuchsia. The last target still recorded as blocked, and the reason this
+  /// axis exists: unblocking it means re-pinning the embedder fork to a
+  /// modern Flutter, and bootstrap.sh requires the engine and the Flutter pin
+  /// stay aligned, so the engine has to be rebuilt.
+  fuchsia('fuchsia', cpuArgument: '--fuchsia-cpu');
+
+  const EngineOs(this.gnName, {required this.cpuArgument});
+
+  /// What `tools/gn` calls this under `--target-os`.
+  final String gnName;
+
+  /// The argument this target names its cpu with.
+  final String cpuArgument;
+
+  /// Whether the Debian sysroots under `build/linux` apply. They do not on
+  /// Fuchsia, where pointing `--target-sysroot` at one is not a worse build
+  /// but a build gn refuses to configure.
+  bool get usesDebianSysroot => this == EngineOs.linux;
+}
+
 /// Which engine flavour to build.
 enum EngineMode {
   debug('debug'),
@@ -285,10 +315,14 @@ const EngineArch hostArch = EngineArch.x64;
 EngineBuildPlan engineBuildPlan({
   required EngineArch arch,
   required EngineMode mode,
+  EngineOs os = EngineOs.linux,
   String? srcRoot,
   String? toolchainRoot,
 }) {
-  final isHost = arch == hostArch;
+  // The host shortcut is a Linux one. On Fuchsia an x64 engine is still a
+  // cross build from an x86-64 runner, and taking the host config there would
+  // quietly produce a Linux engine that passes an architecture check.
+  final isHost = arch == hostArch && os == EngineOs.linux;
   if (isHost) {
     final out = 'out/host_${mode.name}';
     return EngineBuildPlan(
@@ -313,8 +347,8 @@ EngineBuildPlan engineBuildPlan({
     );
   }
 
-  final out = 'out/linux_${mode.name}_${arch.gnName}';
-  final relativeSysroot = arch.gnDefinesSysroot
+  final out = 'out/${os.gnName}_${mode.name}_${arch.gnName}';
+  final relativeSysroot = (!os.usesDebianSysroot || arch.gnDefinesSysroot)
       ? null
       : 'build/linux/debian_bullseye_${arch.debianName}-sysroot';
   // gn resolves a relative path against root_build_dir, which is the output
@@ -333,17 +367,18 @@ EngineBuildPlan engineBuildPlan({
       '--runtime-mode',
       mode.name,
       '--target-os',
-      'linux',
-      '--linux-cpu',
+      os.gnName,
+      os.cpuArgument,
       arch.gnName,
       if (sysrootPath != null) ...<String>['--target-sysroot', sysrootPath],
-      if (arch.triple != null && toolchainRoot != null)
+      if (os.usesDebianSysroot && arch.triple != null && toolchainRoot != null)
         ...<String>['--target-toolchain', toolchainRoot],
-      if (arch.triple != null) ...<String>['--target-triple', arch.triple!],
+      if (os.usesDebianSysroot && arch.triple != null)
+        ...<String>['--target-triple', arch.triple!],
       '--no-goma',
       '--no-prebuilt-dart-sdk',
     ],
-    sysrootArch: arch.gnName,
+    sysrootArch: os.usesDebianSysroot ? arch.gnName : null,
     targetSysrootPath: relativeSysroot,
     targetTriple: arch.triple,
     toolchainRoot: arch.triple == null ? null : toolchainRoot,
