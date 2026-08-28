@@ -918,6 +918,14 @@ $routesSrc
   // DV.Navigation is used from callbacks with no BuildContext, so it needs the
   // live router rather than looking one up from the widget tree.
   DVNavigation.attach(router);
+
+  // Anchors in the semantics tree are real anchors -- what a crawler follows
+  // and what a screen reader announces -- and also what the browser navigates
+  // natively, tearing the document down and rebuilding the whole application
+  // to move between two routes. Intercepted so an in-app link pushes the
+  // route instead. Anything that is not an in-app link is left to the
+  // browser, which is the only correct default.
+  dvInterceptLinkNavigation(router.go);
   return router;
 }
 

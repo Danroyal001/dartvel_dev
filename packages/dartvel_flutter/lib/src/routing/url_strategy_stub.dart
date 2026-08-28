@@ -9,3 +9,8 @@ library dartvel_flutter.routing.url_strategy.stub;
 void dvUsePathUrlStrategy() {}
 
 void dvEnsureSemantics() {}
+
+/// No-op off the web. There is no document, no anchors and no browser
+/// navigation to intercept: a link on a native platform reaches
+/// [DVNavLink]'s own handler and nothing else.
+void dvInterceptLinkNavigation(void Function(String path) route) {}
