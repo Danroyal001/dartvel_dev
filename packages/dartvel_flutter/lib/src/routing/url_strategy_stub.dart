@@ -14,3 +14,6 @@ void dvEnsureSemantics() {}
 /// navigation to intercept: a link on a native platform reaches
 /// [DVNavLink]'s own handler and nothing else.
 void dvInterceptLinkNavigation(void Function(String path) route) {}
+
+/// No-op off the web, where there is no browser to hand a URL to.
+void dvOpenUrl(String path, {bool newTab = false}) {}

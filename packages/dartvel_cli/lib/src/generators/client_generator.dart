@@ -926,6 +926,11 @@ $routesSrc
   // route instead. Anything that is not an in-app link is left to the
   // browser, which is the only correct default.
   dvInterceptLinkNavigation(router.go);
+
+  // Without this DVLinkOpener has no implementation, so DVNavLink.external
+  // and every middle-click silently do nothing -- which looks exactly like a
+  // link that works.
+  DVLinkOpener.install(dvOpenUrl);
   return router;
 }
 
