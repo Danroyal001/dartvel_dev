@@ -1163,6 +1163,11 @@ jobs:
               ('datareporting.policy.firstRunURL', '""'),
               ('datareporting.policy.dataSubmissionEnabled', 'false'),
               ('trailhead.firstrun.didSeeAboutWelcome', 'true'),
+              # The page's own console, on stdout. Without these a Flutter
+              # start-up error is invisible: the DOM looks the same whether
+              # the application threw or simply has not painted yet.
+              ('devtools.console.stdout.content', 'true'),
+              ('browser.dom.window.dump.enabled', 'true'),
           ]
           with open(profile + '/prefs.js', 'w') as f:
               for name, value in prefs:

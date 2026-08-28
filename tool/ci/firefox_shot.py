@@ -62,6 +62,10 @@ def main():
     firefox, profile, url, out = sys.argv[1:5]
     settle = float(sys.argv[5]) if len(sys.argv) > 5 else 12.0
 
+    # Kept, not discarded. With devtools.console.stdout.content the page's
+    # own console lands here, and that is the only place a Flutter start-up
+    # error appears -- the DOM shows a blank body either way.
+    console = open(out + ".console.log", "wb")
     browser = subprocess.Popen(
         # -remote-allow-system-access is required for Marionette's chrome
         # context, which is the only way to reach a moz-extension:// URL.
@@ -70,7 +74,7 @@ def main():
         [firefox, "--profile", profile, "--headless", "--marionette",
          "-remote-allow-system-access",
          "--window-size=1280,900", "about:blank"],
-        stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+        stdout=console, stderr=subprocess.STDOUT)
     try:
         client = Marionette()
         client.send("WebDriver:NewSession", {"capabilities": {}})
@@ -177,6 +181,15 @@ def main():
             raise SystemExit("the page never laid out a body taller than 100px")
     finally:
         browser.terminate()
+        try:
+            browser.wait(timeout=20)
+        except subprocess.TimeoutExpired:
+            browser.kill()
+        console.close()
+        text = open(out + ".console.log", errors="replace").read()
+        if text.strip():
+            print("--- browser console ---")
+            print(text[-4000:])
 
 
 if __name__ == "__main__":
