@@ -1251,9 +1251,17 @@ class BuildCommand extends Command<void> {
     final before = index.readAsStringSync();
     var after = dvSeoApply(before, head);
     // The body is empty until JavaScript runs, so a crawler, a link preview
-    // and a reader with scripting off all see nothing. The page's own text
-    // goes in, from its source rather than from a browser.
-    after = dvApplyPageText(after, _routeText(root)['/'] ?? const <String>[]);
+    // and a reader with scripting off all see nothing.
+    //
+    // From the semantics tree where there is one, which is the structure the
+    // application declares. The root took the source-literal path while every
+    // other route took the tree, so the home page alone shipped its eyebrow
+    // as an <h1>, its sentences split across three paragraphs, and the string
+    // 'RobotoMono' as a paragraph of its own.
+    final String? semantics = _semanticHtmlFor(root, '/');
+    after = semantics != null
+        ? dvApplyPageHtml(after, semantics)
+        : dvApplyPageText(after, _routeText(root)['/'] ?? const <String>[]);
     if (after == before) return;
     index.writeAsStringSync(after);
     Logger.log('   SEO head written for "$title".');
