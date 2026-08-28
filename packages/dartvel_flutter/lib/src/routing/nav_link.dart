@@ -72,7 +72,42 @@ class DVNavLink extends StatefulWidget {
     this.semanticLabel,
     this.focusNode,
     this.autofocus = false,
-  });
+  })  : externalUrl = null,
+        assert(true);
+
+  /// A link that leaves the site.
+  ///
+  /// Everything a route link is — a real anchor a crawler follows and a
+  /// screen reader announces, keyboard focus, Enter — pointed at another
+  /// address. Without it there was no way to write a link to GitHub or
+  /// pub.dev, and the obvious workaround is styled text that does nothing:
+  /// it looks exactly like a working link and is dead.
+  ///
+  /// It opens rather than routes. The router has no route for another origin,
+  /// and the web interceptor already leaves other origins to the browser, so
+  /// this and that agree by construction.
+  ///
+  /// It does not preload or preview. Both render the destination, and there
+  /// is no destination widget for somebody else's site.
+  const DVNavLink.external(
+    String url, {
+    super.key,
+    required this.child,
+    this.openInNewTab,
+    this.padding = const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+    this.enabled = true,
+    this.semanticLabel,
+    this.focusNode,
+    this.autofocus = false,
+  })  : externalUrl = url,
+        to = const DVRouteTarget('/'),
+        preload = DVLinkPreload.none,
+        preview = DVLinkPreview.none,
+        onPreload = null,
+        onPreview = null;
+
+  /// Where this goes when it leaves the site, or null for a route link.
+  final String? externalUrl;
 
   /// Where it goes.
   final DVRouteTarget to;
@@ -230,14 +265,25 @@ class _DVNavLinkState extends State<DVNavLink> {
   void _openBeside() {
     _previewTimer?.cancel();
     _removePreview();
-    final open = widget.openInNewTab ?? DVLinkOpener.open;
-    open(widget.to.path);
+    final String destination = widget.externalUrl ?? widget.to.path;
+    final void Function(String)? override = widget.openInNewTab;
+    if (override != null) {
+      override(destination);
+    } else {
+      DVLinkOpener.open(destination, newTab: true);
+    }
   }
 
   void _activate() {
     if (!widget.enabled) return;
     _previewTimer?.cancel();
     _removePreview();
+    final String? external = widget.externalUrl;
+    if (external != null) {
+      // Opened, never routed. The router has no route for another origin.
+      DVLinkOpener.open(external);
+      return;
+    }
     if (_wantsNewTab) {
       _openBeside();
       return;
@@ -260,7 +306,7 @@ class _DVNavLinkState extends State<DVNavLink> {
       // A screen reader should hear a link and its destination, not a piece
       // of tappable text.
       link: true,
-      linkUrl: Uri.tryParse(widget.to.path),
+      linkUrl: Uri.tryParse(widget.externalUrl ?? widget.to.path),
       label: widget.semanticLabel,
       // An explicit label replaces the child's text rather than being read
       // before it. Without this a screen reader announces both -- "Read more
@@ -415,13 +461,19 @@ class _DVLinkPreviewCard extends StatelessWidget {
 class DVLinkOpener {
   const DVLinkOpener._();
 
-  static void Function(String path)? _opener;
+  static void Function(String path, {bool newTab})? _opener;
 
   /// Install the platform's way of doing it. Called by the generated router
   /// on the web.
-  static void install(void Function(String path) opener) => _opener = opener;
+  static void install(void Function(String path, {bool newTab}) opener) =>
+      _opener = opener;
 
-  static void open(String path) => _opener?.call(path);
+  /// Open [path], in this tab unless [newTab].
+  ///
+  /// The two are different intentions and were one function: following a
+  /// footer link should replace the page, and a middle click should not.
+  static void open(String path, {bool newTab = false}) =>
+      _opener?.call(path, newTab: newTab);
 
   @visibleForTesting
   static void reset() => _opener = null;

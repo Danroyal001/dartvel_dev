@@ -122,3 +122,19 @@ void dvInterceptLinkNavigation(void Function(String path) route) {
 }
 
 bool _intercepting = false;
+
+/// Open [path] the way a browser does.
+///
+/// Installed by the generated router so `DVNavLink.external` and a
+/// middle-click both reach the browser. Without it `DVLinkOpener` had no
+/// implementation at all and every external link silently did nothing —
+/// which looks exactly like a working link.
+void dvOpenUrl(String path, {bool newTab = false}) {
+  if (newTab) {
+    // noopener, because a page opened with `window.open` can otherwise reach
+    // back through `window.opener` and navigate the page that opened it.
+    web_dom.window.open(path, '_blank', 'noopener,noreferrer');
+    return;
+  }
+  web_dom.window.location.href = path;
+}

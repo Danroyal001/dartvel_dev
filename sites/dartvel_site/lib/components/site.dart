@@ -435,10 +435,16 @@ class ExternalLink extends StatelessWidget {
   final String url;
 
   @override
-  Widget build(BuildContext context) => DVText(label).modifier(
-        DVModifier()
-            .fontSize(14)
-            .fontWeight(FontWeight.w600)
-            .color(Palette.of(context).accent),
+  Widget build(BuildContext context) => DVNavLink.external(
+        url,
+        // It was styled text with no handler: the url argument was never
+        // used, so every footer link was dead and looked exactly like a
+        // working one.
+        child: DVText(label).modifier(
+          DVModifier()
+              .fontSize(14)
+              .fontWeight(FontWeight.w600)
+              .color(Palette.of(context).accent),
+        ),
       );
 }
