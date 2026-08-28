@@ -10,6 +10,7 @@ import '../build/pwa_manifest.dart';
 import '../build/seo_head.dart';
 import '../build/page_text.dart';
 import '../build/semantic_html.dart';
+import '../build/semantics_capture.dart';
 import '../build/static_seo.dart';
 import '../build/web_server.dart';
 import '../utils/build_runner.dart';
@@ -746,6 +747,11 @@ class BuildCommand extends Command<void> {
     if (exitCode == 0) {
       if (platform == 'web' || platform == 'web-server') {
         final root = Directory.current.path;
+        // Before anything reads it. The crawler-visible HTML on every page
+        // comes from these trees, and a build that skipped the capture would
+        // publish whatever the last one produced -- including for a route
+        // that has since stopped rendering.
+        await _captureSemantics(root);
         _writePwaManifest(root);
         _writeSeoHead(root);
         if (platform == 'web-server') {
@@ -1273,6 +1279,28 @@ class BuildCommand extends Command<void> {
   /// is `flutter build web` with extra steps: four URLs, one title, one
   /// description, one body. Prerendered text is used where `dartvel prerender`
   /// captured it, and a page still gets its own head tags where it did not.
+  /// Capture each route's semantics tree from the finished build.
+  ///
+  /// The crawler-visible HTML is built from these. Without the capture the
+  /// pages fall back to reading string literals out of the page source, which
+  /// cannot tell a heading from a sentence and produces no links at all.
+  Future<void> _captureSemantics(String root) async {
+    final web = Directory(p.join(root, 'build', 'web'));
+    if (!web.existsSync()) return;
+    final routes = _generatedRoutes(root);
+    if (routes.isEmpty) return;
+
+    Logger.log('   Reading the semantics tree for ${routes.length} routes...');
+    final int captured = await dvCaptureSemantics(
+      projectRoot: root,
+      webRoot: web.path,
+      routes: routes,
+    );
+    if (captured > 0) {
+      Logger.log('   Captured $captured of ${routes.length}.');
+    }
+  }
+
   /// The crawler-visible HTML for [route], from a semantics dump if the
   /// prerender step wrote one.
   ///
