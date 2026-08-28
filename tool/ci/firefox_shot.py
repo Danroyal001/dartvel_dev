@@ -140,12 +140,33 @@ def main():
                     "    document.querySelectorAll('script')"
                     "  ).map(s => s.src || '(inline)'),"
                     "  flutterLoader: typeof window._flutter,"
+                    "  views: document.querySelectorAll("
+                    "    'flutter-view, flt-glass-pane, flt-scene-host'"
+                    "  ).length,"
                     "  errors: window.__dartvelErrors || null"
                     "});"
                 ),
                 "args": [],
             })
             print("page state: %s" % (report or {}).get("value"))
+
+            probe = client.send("WebDriver:ExecuteAsyncScript", {
+                "script": (
+                    "const done = arguments[arguments.length - 1];"
+                    "const out = {};"
+                    "try {"
+                    "  new WebAssembly.Module(new Uint8Array("
+                    "    [0,97,115,109,1,0,0,0]));"
+                    "  out.wasm = 'ok';"
+                    "} catch (e) { out.wasm = 'blocked: ' + e; }"
+                    "fetch('canvaskit/canvaskit.js')"
+                    "  .then(r => { out.canvaskit = r.status; })"
+                    "  .catch(e => { out.canvaskit = 'failed: ' + e; })"
+                    "  .then(() => done(JSON.stringify(out)));"
+                ),
+                "args": [],
+            })
+            print("capability probe: %s" % (probe or {}).get("value"))
 
         # A moment more for the first frame after layout settles.
         time.sleep(2)
