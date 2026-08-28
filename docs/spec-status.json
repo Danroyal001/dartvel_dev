@@ -184,7 +184,7 @@
         "packages/dartvel_core/test/postgres_adapter_test.dart",
         "packages/dartvel_core/test/mysql_adapter_test.dart"
       ],
-      "absent": "MongoDB, Turso, ClickHouse and BigQuery adapters"
+      "absent": "TLS on the Postgres and MySQL connections, so no managed endpoint (Aurora, Neon, Supabase, PlanetScale, Cloud SQL) can be reached -- they require it and most refuse plaintext. MongoDB, ClickHouse and BigQuery are out of scope by decision, not backlog"
     },
     {
       "section": "APIs",
