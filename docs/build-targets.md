@@ -228,7 +228,44 @@ Fuchsia code is still touched in the engine as recently as the 3.44.0 release
 notes, so this reads as an ownership handover that stalled rather than a clean
 removal. Treat any stronger claim as unverified.
 
-**Status: unproven.** The fork exists; no Dartvel app has been built with it.
+### Building the engine: four attempts, and where it stops
+
+Unblocking Fuchsia needs the fork re-pinned to a modern Flutter, and
+`bootstrap.sh` requires the engine and the Flutter pin stay aligned, so the
+engine has to be rebuilt. Flutter publishes **no Fuchsia embedder artifact at
+any revision** — checked against `flutter_infra_release` for the 3.44.5 engine
+hash, where `linux-x64/artifacts.zip` is 200 and every Fuchsia path is 404 —
+so there is nothing to download instead.
+
+`dartvel engine plan --os fuchsia` describes that build now, and four of them
+have run. Each moved the failure, and the last two are the same failure:
+
+| Attempt | gn arguments | Where it stopped |
+|---|---|---|
+| 1 | `--target-os fuchsia --fuchsia-cpu x64 --runtime-mode release` | Whole tree compiled; link failed on every embedder symbol with `R_X86_64_PC32 … recompile with -fPIC` |
+| 2 | added `--embedder-for-target` | Identical |
+| 3 | `--unopt`, debug, output `fuchsia_debug_unopt_x64` | **Embedder symbols link.** Fails later on `R_X86_64_TPOFF32 against dart::OSThread::current_vm_thread_ cannot be used with -shared` |
+| 4 | dropped `--no-prebuilt-dart-sdk`, matching the fork's script exactly | Identical to 3 |
+
+The last is a thread-local compiled for an executable being linked into a
+shared library: the Dart VM's `current_vm_thread_` under a local-exec TLS
+model. The Linux embedder library links today, so the Linux path configures a
+TLS model that works with `-shared` and the Fuchsia path does not.
+
+Two things were read rather than guessed, after guessing cost the first three
+builds. `tools/gn` defines `--fuchsia` as a plain alias for `--target-os
+fuchsia`, so that spelling was never the difference. The rest of the arguments
+come from the fork's own `build_and_copy_engine_artifacts.sh`, which is the
+only known-working invocation of this build.
+
+**Status: the engine does not build at 3.44.5, and that is where this stops.**
+Attempt 4 matches the fork's invocation exactly and fails, so this is not a
+missing flag. The fork's committed engine is from 2023, Flutter handed
+Flutter-on-Fuchsia maintenance back to the Fuchsia team, and nothing indicates
+this build has been run since. Treat a Fuchsia embedder library as an
+unsupported configuration of a modern engine until someone shows otherwise —
+the next real step is finding which Flutter version last built one, not
+another flag.
 
 ## Extension-host targets
 
