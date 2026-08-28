@@ -7,6 +7,7 @@
 import 'package:flutter/material.dart';
 import '../dartvel_client/dartvel_client.dart';
 import 'highlight.dart';
+import 'motion.dart';
 
 /// The palette, resolved for whichever brightness is in effect.
 class Palette {
@@ -216,7 +217,11 @@ class Section extends StatelessWidget {
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 1040),
-          child: DVBox.list(children, spacing: 22),
+          // Fades and rises as it comes into view. The band's own background
+          // is outside this, so the colour is already painted when the
+          // content arrives -- a section that faded in whole would flash the
+          // page colour behind it.
+          child: Reveal(child: DVBox.list(children, spacing: 22)),
         ),
       ),
     );
@@ -290,24 +295,43 @@ class Card_ extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = Palette.of(context);
-    return Container(
-      width: 300,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        border: Border.all(color: palette.rule),
-        borderRadius: BorderRadius.circular(12),
+    // Lifts under the pointer, and the border takes the accent. Small: a card
+    // that jumps pulls attention off the one being read.
+    return Lift(
+      builder: (BuildContext context, bool hovered) => AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        width: 300,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: palette.page,
+          border: Border.all(
+            color: hovered
+                ? palette.accent.withValues(alpha: 0.5)
+                : palette.rule,
+          ),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: <BoxShadow>[
+            BoxShadow(
+              color: Colors.black
+                  .withValues(alpha: hovered ? (palette.dark ? 0.4 : 0.09) : 0),
+              blurRadius: hovered ? 22 : 0,
+              offset: Offset(0, hovered ? 8 : 0),
+            ),
+          ],
+        ),
+        child: DVBox.list(<Widget>[
+          DVText(title).modifier(
+            DVModifier()
+                .fontSize(17)
+                .fontWeight(FontWeight.w700)
+                .color(palette.ink),
+          ),
+          DVText(body).modifier(
+            DVModifier().fontSize(14).color(palette.muted).height(1.55),
+          ),
+        ], spacing: 8),
       ),
-      child: DVBox.list(<Widget>[
-        DVText(title).modifier(
-          const DVModifier()
-              .fontSize(17)
-              .fontWeight(FontWeight.w700)
-              .color(palette.ink),
-        ),
-        DVText(body).modifier(
-          const DVModifier().fontSize(14).color(palette.muted).height(1.55),
-        ),
-      ], spacing: 8),
     );
   }
 }
@@ -604,14 +628,17 @@ class Stats extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              DVText(item.$1).modifier(
-                DVModifier()
-                    .fontSize(responsive.narrow ? 32 : 42)
-                    .fontWeight(FontWeight.w800)
-                    .color(onDark
-                        ? const Color(0xFF7AA2F7)
-                        : palette.accent)
-                    .height(1.05),
+              // Counts up the first time it is seen. The one animation on
+              // this page that carries meaning rather than decoration: it
+              // says the figure is a count of something.
+              CountUp(
+                item.$1,
+                style: TextStyle(
+                  fontSize: responsive.narrow ? 32 : 42,
+                  fontWeight: FontWeight.w800,
+                  color: onDark ? const Color(0xFF7AA2F7) : palette.accent,
+                  height: 1.05,
+                ),
               ),
               const SizedBox(height: 4),
               DVText(item.$2).modifier(
