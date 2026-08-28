@@ -40,7 +40,12 @@ jobs:
           - { package: dartvel_shelf, runner: dart }
           - { package: dartvel_generator, runner: dart }
           - { package: dartvel_flutter, runner: flutter }
-          - { package: dartvel, runner: flutter }
+          # dartvel_dev, not dartvel. The package was renamed when the name
+          # was taken on pub.dev and this matrix was not, so the job has been
+          # failing on a working directory that does not exist ever since --
+          # bash cannot start, which reads as an infrastructure fault rather
+          # than a stale name.
+          - { package: dartvel_dev, runner: flutter }
 
     steps:
       - uses: actions/checkout@v4
@@ -169,9 +174,20 @@ jobs:
       - name: Run the app and assert it starts
         working-directory: examples/dartvel_example
         run: |
+          set -euo pipefail
           Xvfb :99 -screen 0 1280x900x24 &
           sleep 3
-          DISPLAY=:99 flutter test integration_test -d linux
+          export DISPLAY=:99
+
+          # One file per invocation. `flutter test integration_test` runs them
+          # in a single run and each one launches the application, so the
+          # second start lands while the first is still holding the display
+          # and fails with "the log reader stopped unexpectedly, or never
+          # started" -- which reads as a broken app rather than two of them.
+          for suite in integration_test/*_test.dart; do
+            echo "=== $suite"
+            flutter test "$suite" -d linux
+          done
 
   # The SDK floor is one number across every package, and nothing enforced
   # that. All eight declared >=3.4.0 while dartvel_mix required 3.12, so the
