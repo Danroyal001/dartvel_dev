@@ -284,3 +284,32 @@ BrowserExtensionArtifacts validateExtensionArtifacts(String outputDir) {
       if (!File(p.join(outputDir, name)).existsSync()) name,
   ]);
 }
+
+/// The `flutter build web` arguments a browser extension needs.
+///
+/// Extracted from the build command so they can be checked. Three of these
+/// are load-bearing rather than stylistic, and one was missing for as long as
+/// the target existed:
+///
+///   * `--csp`, because manifest V3 forbids `eval`;
+///   * `--pwa-strategy=none`, because Flutter's service worker fights the
+///     extension's own;
+///   * `--no-web-resources-cdn`, because Flutter otherwise loads CanvasKit
+///     from `https://www.gstatic.com` at run time. An extension page may not
+///     fetch that, so the application never started -- "error loading
+///     dynamically imported module" and a white page. It is also wrong on its
+///     own terms: an extension that downloads its renderer does not work
+///     offline.
+List<String> browserExtensionBuildArguments({
+  required String buildMode,
+  String? target,
+}) =>
+    <String>[
+      'build',
+      'web',
+      buildMode,
+      '--csp',
+      '--pwa-strategy=none',
+      '--no-web-resources-cdn',
+      if (target != null) ...<String>['-t', target],
+    ];
