@@ -71,6 +71,30 @@ void main() {
           isNot(plan(mode: EngineMode.debug).outDirectory));
     });
 
+    test('asks for the embedder built for the target', () {
+      // The flag the fork's own build_and_copy_engine_artifacts.sh passes,
+      // and the one whose absence produced "relocation R_X86_64_PC32 cannot
+      // be used against symbol 'FlutterEngineSendPlatformMessageResponse';
+      // recompile with -fPIC" -- every embedder symbol, at the link, after
+      // the whole engine had compiled.
+      //
+      // Without it gn configures the embedder for the host, so the objects
+      // are not position-independent and the shared library cannot be linked.
+      expect(plan().gnArgs, contains('--embedder-for-target'));
+    });
+
+    test('linux builds do not ask for it', () {
+      // Linux embedder builds link today without it, and adding a flag to
+      // every target to fix one is how a working build stops working.
+      final linux = engineBuildPlan(
+        arch: EngineArch.arm,
+        mode: EngineMode.release,
+        srcRoot: '/src/flutter',
+      );
+
+      expect(linux.gnArgs, isNot(contains('--embedder-for-target')));
+    });
+
     test('linux builds are unchanged', () {
       // The new argument must default to what every existing caller means.
       final linux = engineBuildPlan(
