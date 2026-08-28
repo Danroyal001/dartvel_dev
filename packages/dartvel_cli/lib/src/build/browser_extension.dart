@@ -182,7 +182,20 @@ Map<String, Object?> buildExtensionManifest(
     // No `unsafe-eval` and no `unsafe-inline`: manifest V3 forbids both, which
     // is why the web build is made with `--csp`.
     'content_security_policy': <String, Object?>{
-      'extension_pages': "script-src 'self'; object-src 'self'",
+      // 'wasm-unsafe-eval' because Flutter's web renderer compiles
+      // WebAssembly, and MV3 blocks that on an extension page without it.
+      //
+      // The symptom of leaving it out is not an error. flutter_bootstrap.js
+      // and main.dart.js both load, window._flutter is defined, nothing
+      // throws -- and no view is ever attached, so the page is white. It was
+      // found by opening the built extension in Firefox and asking the page
+      // what it thought had happened.
+      //
+      // Still 'self' for script and object: permitting wasm must not become
+      // permitting remote code, which is what a store rejects and a user
+      // should not trust.
+      'extension_pages':
+          "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'",
     },
     if (config.permissions.isNotEmpty) 'permissions': config.permissions,
     if (config.hostPermissions.isNotEmpty)
