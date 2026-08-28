@@ -1084,10 +1084,16 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq imagemagick libgtk-3-dev clang ninja-build \
             pkg-config libdbus-glib-1-2 libasound2t64
-          # From Mozilla directly. The distribution package is a snap on this
-          # image, and a snap cannot see a profile under /tmp.
+          # Developer Edition, from Mozilla directly. Two reasons, and the
+          # second is the load-bearing one:
+          #
+          #   - the distribution package is a snap on this image, and a snap
+          #     cannot see a profile under /tmp;
+          #   - release Firefox refuses unsigned add-ons outright and ignores
+          #     xpinstall.signatures.required, so an extension built here can
+          #     never install in it. Developer Edition honours the pref.
           curl -sSL -o /tmp/firefox.tar.xz \
-            "https://download.mozilla.org/?product=firefox-latest-ssl&os=linux64&lang=en-US"
+            "https://download.mozilla.org/?product=firefox-devedition-latest-ssl&os=linux64&lang=en-US"
           sudo tar -xJf /tmp/firefox.tar.xz -C /opt
           /opt/firefox/firefox --version
 
@@ -1132,7 +1138,12 @@ jobs:
 
           PROFILE=/tmp/ff-profile
           mkdir -p "$PROFILE/extensions"
-          cp -r "$EXT" "$PROFILE/extensions/$ID"
+          # As an XPI named for the add-on id. Firefox has not loaded unpacked
+          # directories out of a profile's extensions/ for years; it reads
+          # zipped XPIs, and an unpacked directory there is silently ignored --
+          # which is indistinguishable from a page that will not load.
+          (cd "$EXT" && zip -qr "$PROFILE/extensions/$ID.xpi" .)
+          ls -la "$PROFILE/extensions/"
 
           python3 - "$PROFILE" "$ID" "$UUID" <<'PREFS'
           import json, sys
@@ -1163,10 +1174,15 @@ jobs:
           # --screenshot is already headless, and bounded: the first attempt
           # combined it with --headless under xvfb-run and never returned, so
           # the job burned its whole budget and reported nothing.
+          # Tested rather than run bare. Actions runs `run:` under `bash -e`,
+          # which `set -uo pipefail` does not undo, so the first version of
+          # this died the moment timeout returned 124 and printed none of the
+          # diagnostics below -- which are the point of running it at all.
+          FF_STATUS=0
           timeout 240 /opt/firefox/firefox --profile "$PROFILE" \
             --window-size=1280,900 --screenshot /tmp/diag/firefox-extension.png \
-            "$PAGE" > /tmp/diag/firefox.log 2>&1
-          echo "firefox exited $?"
+            "$PAGE" > /tmp/diag/firefox.log 2>&1 || FF_STATUS=$?
+          echo "firefox exited $FF_STATUS"
           echo "--- firefox log ---"; tail -30 /tmp/diag/firefox.log || true
 
           # What Firefox decided about the add-on, so a page that never loads
