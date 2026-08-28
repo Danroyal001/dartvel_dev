@@ -79,6 +79,9 @@ String dvSeoApply(String html, String head) {
 
 /// An Open Graph image has to be absolute: consumers fetch it with no base, so
 /// a relative path resolves against their own host and 404s.
+String? dvAbsoluteAsset(String? image, String? siteUrl) =>
+    _absolute(image, siteUrl);
+
 String? _absolute(String? image, String? siteUrl) {
   if (image == null || image.isEmpty) return null;
   if (image.startsWith('http://') || image.startsWith('https://')) return image;
@@ -127,4 +130,52 @@ String? dvSeoDescription(Map<Object?, Object?> seo) {
   final value = seo['description'] ?? seo['defaultDescription'];
   final text = value == null ? '' : '$value'.trim();
   return text.isEmpty ? null : text;
+}
+
+/// Strip what `flutter build web` leaves behind for the developer, and fill
+/// in what it leaves blank.
+///
+/// The file Flutter writes is a template and it ships as one. Two long
+/// comments address the developer directly — one explaining `--base-href`,
+/// one explaining how to customise `flutter_bootstrap.js` — and both reach
+/// production on every page of every Dartvel site. The
+/// `apple-mobile-web-app-title` carries the Dart package name, which is what
+/// iOS shows under the icon when someone saves the page, and `<html>` declares
+/// no language at all.
+///
+/// The comments are instructions *about* the tags, so only the comments go:
+/// removing `<base href>` or the bootstrap script with them would be a far
+/// worse bug than shipping them.
+String dvCleanShell(
+  String shell, {
+  required String siteName,
+  String locale = 'en',
+}) {
+  var html = shell;
+
+  // Only comments Flutter wrote. An application's own comment in its
+  // index.html is not this function's business.
+  for (final RegExp template in <RegExp>[
+    RegExp(r'\s*<!--\s*\n?\s*If you are serving your web app.*?-->',
+        dotAll: true),
+    RegExp(r'\s*<!--\s*\n?\s*You can customize the "flutter_bootstrap\.js".*?-->',
+        dotAll: true),
+  ]) {
+    html = html.replaceAll(template, '');
+  }
+
+  // A page with no lang is read in the reader's default voice.
+  html = html.replaceFirstMapped(
+    RegExp(r'<html(?![^>]*\blang=)([^>]*)>'),
+    (Match m) => '<html lang="$locale"${m.group(1)}>',
+  );
+
+  final String escaped = const HtmlEscape(HtmlEscapeMode.attribute)
+      .convert(siteName);
+  html = html.replaceFirstMapped(
+    RegExp(r'(<meta name="apple-mobile-web-app-title" content=")[^"]*(")'),
+    (Match m) => '${m.group(1)}$escaped${m.group(2)}',
+  );
+
+  return html;
 }

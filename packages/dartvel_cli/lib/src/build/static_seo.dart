@@ -59,7 +59,14 @@ String dvStaticPage({
       // Its own URL, not the site root. Every page canonicalising to `/` tells
       // a crawler they are the same page, which is worse than no canonical.
       siteUrl: canonical,
-      image: image,
+      // Resolved against the site root here, because dvSeoHead resolves a
+      // relative image against whatever it is given as siteUrl -- and that is
+      // the page's canonical URL, which is what the canonical link and og:url
+      // need. Passing both through one argument put the route into the image:
+      // /docs asked for https://example.com/docs/icons/Icon-512.png, which
+      // does not exist. A broken og:image is invisible until someone shares
+      // the link.
+      image: dvAbsoluteAsset(image, siteUrl),
       siteName: siteName,
     ),
   );

@@ -145,4 +145,80 @@ void main() {
       expect(dvSeoDescription(const <Object?, Object?>{}), isNull);
     });
   });
+
+  group('the shell a page is built from', () {
+    // What `flutter build web` writes is a template, and it ships as one: two
+    // long comments addressed to the developer about --base-href and
+    // customising flutter_bootstrap.js, an apple-mobile-web-app-title carrying
+    // the Dart package name, and no lang on <html>.
+    //
+    // Every one of those reaches production on every Dartvel site.
+    const shell = '''
+<!DOCTYPE html>
+<html>
+<head>
+  <!--
+    If you are serving your web app in a path other than the root, change the
+    href value below to reflect the base path you are serving from.
+
+    This is a placeholder for base href that will be replaced by the value of
+    the `--base-href` argument provided to `flutter build`.
+  -->
+  <base href="/">
+  <meta charset="UTF-8">
+  <meta name="apple-mobile-web-app-title" content="dartvel_site">
+</head>
+<body>
+  <!--
+    You can customize the "flutter_bootstrap.js" script.
+    This is useful to provide a custom configuration to the Flutter loader
+  -->
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>
+''';
+
+    test('the template comments do not ship', () {
+      final cleaned = dvCleanShell(shell, siteName: 'Dartvel');
+
+      expect(cleaned, isNot(contains('--base-href')));
+      expect(cleaned, isNot(contains('You can customize')));
+      expect(cleaned, isNot(contains('placeholder for base href')));
+    });
+
+    test('what the comments described is kept', () {
+      // The comments are instructions about the tags. Removing the tags with
+      // them would be a much worse bug than shipping them.
+      final cleaned = dvCleanShell(shell, siteName: 'Dartvel');
+
+      expect(cleaned, contains('<base href="/">'));
+      expect(cleaned, contains('flutter_bootstrap.js'));
+      expect(cleaned, contains('<meta charset="UTF-8">'));
+    });
+
+    test('the document declares a language', () {
+      // A page with no lang is read in the reader\'s default voice, and
+      // "lang" is the first thing an accessibility audit asks for.
+      expect(dvCleanShell(shell, siteName: 'Dartvel'), contains('<html lang="en">'));
+    });
+
+    test('an explicit language is used instead', () {
+      expect(dvCleanShell(shell, siteName: 'Dartvel', locale: 'fr-CA'),
+          contains('<html lang="fr-CA">'));
+    });
+
+    test('the iOS title is the site, not the Dart package', () {
+      // It is what iOS shows under the icon when someone saves the page.
+      final cleaned = dvCleanShell(shell, siteName: 'Dartvel');
+
+      expect(cleaned, contains('content="Dartvel"'));
+      expect(cleaned, isNot(contains('content="dartvel_site"')));
+    });
+
+    test('a shell that is already clean is left alone', () {
+      final once = dvCleanShell(shell, siteName: 'Dartvel');
+
+      expect(dvCleanShell(once, siteName: 'Dartvel'), once);
+    });
+  });
 }

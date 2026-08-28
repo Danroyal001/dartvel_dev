@@ -1278,8 +1278,14 @@ class BuildCommand extends Command<void> {
     if (routes.isEmpty) return;
     final routeText = _routeText(root);
 
-    final shell = index.readAsStringSync();
     final baseTitle = dvSeoTitle(settings, _packageName(root) ?? 'Dartvel');
+    // The template Flutter wrote, cleaned before anything is built from it:
+    // its two developer-facing comments and its package-name iOS title
+    // otherwise reach production on every page.
+    final shell = dvCleanShell(
+      index.readAsStringSync(),
+      siteName: settings['siteName'] as String? ?? baseTitle,
+    );
     // What each page calls itself, which is better than anything derivable
     // from the path.
     final declared = dvRouteTitles(_routerSource(root));
