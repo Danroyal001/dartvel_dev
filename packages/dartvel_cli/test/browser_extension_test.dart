@@ -113,13 +113,20 @@ dartvel:
       );
     });
 
-    test('the CSP permits no inline script or eval', () {
+    test('the CSP permits no inline script or arbitrary eval', () {
       final manifest =
           buildExtensionManifest(config, BrowserExtensionTarget.chromium);
-      final csp = manifest['content_security_policy']! as Map<String, Object?>;
+      final csp =
+          (manifest['content_security_policy']! as Map<String, Object?>)
+              ['extension_pages']! as String;
 
-      expect(csp['extension_pages'], isNot(contains('unsafe-eval')));
-      expect(csp['extension_pages'], contains("script-src 'self'"));
+      // Matched as a token rather than a substring. 'wasm-unsafe-eval'
+      // contains 'unsafe-eval' and is a different directive: it permits
+      // compiling WebAssembly and not eval(), and Flutter's renderer needs
+      // it. A substring check made adding it look like weakening the policy.
+      expect(csp.split(RegExp(r'[\s;]+')), isNot(contains("'unsafe-eval'")));
+      expect(csp, isNot(contains('unsafe-inline')));
+      expect(csp, contains("script-src 'self'"));
     });
 
     test('no popup means the background script opens the page', () {
@@ -320,5 +327,44 @@ dartvel:
 
       expect(manifest.containsKey('browser_specific_settings'), isFalse);
     });
+  });
+
+  group('the extension content security policy', () {
+    // Flutter's web renderer compiles WebAssembly. MV3 blocks that on an
+    // extension page unless the policy says 'wasm-unsafe-eval', and the
+    // generated policy was "script-src 'self'; object-src 'self'".
+    //
+    // The symptom is not an error. flutter_bootstrap.js and main.dart.js both
+    // load, window._flutter is defined, no exception is recorded -- and the
+    // body never gets a view attached, so the page is white. Found by opening
+    // the built extension in Firefox and asking the page what it thought had
+    // happened.
+    const config = BrowserExtensionConfig(name: 'E', version: '1.0.0');
+
+    for (final BrowserExtensionTarget target in BrowserExtensionTarget.values) {
+      test('$target permits the WebAssembly Flutter needs', () {
+        final manifest = buildExtensionManifest(config, target);
+        final csp = (manifest['content_security_policy']
+            as Map<String, Object?>)['extension_pages']! as String;
+
+        expect(csp, contains("'wasm-unsafe-eval'"),
+            reason: 'without it the renderer cannot start and the page is '
+                'blank with no error');
+      });
+
+      test('$target still refuses remote script', () {
+        // The point of the policy. Allowing wasm must not turn into allowing
+        // anything: an extension that can load a remote script is one a store
+        // will reject and a user should not trust.
+        final manifest = buildExtensionManifest(config, target);
+        final csp = (manifest['content_security_policy']
+            as Map<String, Object?>)['extension_pages']! as String;
+
+        expect(csp, contains("script-src 'self'"));
+        expect(csp, isNot(contains('unsafe-inline')));
+        expect(csp, isNot(contains('http')));
+        expect(csp, contains("object-src 'self'"));
+      });
+    }
   });
 }
