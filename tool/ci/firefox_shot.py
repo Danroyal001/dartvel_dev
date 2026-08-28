@@ -69,7 +69,38 @@ def main():
     try:
         client = Marionette()
         client.send("WebDriver:NewSession", {"capabilities": {}})
-        client.send("WebDriver:Navigate", {"url": url})
+
+        # moz-extension:// is a privileged URL, and Marionette refuses to
+        # navigate to one from content: "Navigation to ... is not allowed in
+        # this context". Opening it from the chrome context with the system
+        # principal is the way in -- the same thing typing it in the address
+        # bar does.
+        before = set(client.send("WebDriver:GetWindowHandles") or [])
+        client.send("Marionette:SetContext", {"value": "chrome"})
+        client.send("WebDriver:ExecuteScript", {
+            "script": (
+                "const [target] = arguments;"
+                "gBrowser.selectedTab = gBrowser.addTab(target, {"
+                "  triggeringPrincipal:"
+                "    Services.scriptSecurityManager.getSystemPrincipal(),"
+                "});"
+            ),
+            "args": [url],
+        })
+        client.send("Marionette:SetContext", {"value": "content"})
+
+        # The tab that appeared, rather than whichever handle is first.
+        deadline = time.time() + 30
+        while time.time() < deadline:
+            handles = set(client.send("WebDriver:GetWindowHandles") or [])
+            fresh = handles - before
+            if fresh:
+                client.send("WebDriver:SwitchToWindow",
+                            {"handle": sorted(fresh)[0]})
+                break
+            time.sleep(0.5)
+        else:
+            raise SystemExit("the extension page never opened a tab")
 
         # The wait the load event does not give. Polled rather than a flat
         # sleep so a page that is ready early does not cost the whole budget,
