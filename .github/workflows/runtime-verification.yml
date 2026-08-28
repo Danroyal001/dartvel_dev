@@ -1174,14 +1174,21 @@ jobs:
           # --screenshot is already headless, and bounded: the first attempt
           # combined it with --headless under xvfb-run and never returned, so
           # the job burned its whole budget and reported nothing.
-          # Tested rather than run bare. Actions runs `run:` under `bash -e`,
-          # which `set -uo pipefail` does not undo, so the first version of
-          # this died the moment timeout returned 124 and printed none of the
-          # diagnostics below -- which are the point of running it at all.
+          # Driven through Marionette rather than `firefox --screenshot`.
+          # That flag fires on the load event, and a Flutter application has
+          # barely started by then -- it bootstraps after load -- so the
+          # capture was a blank white page, indistinguishable from an
+          # extension that failed to install. capture verify rejected it,
+          # correctly, and said nothing about why.
+          #
+          # Tested rather than run bare: Actions runs `run:` under `bash -e`,
+          # which `set -uo pipefail` does not undo, so a failure here would
+          # skip the diagnostics below.
           FF_STATUS=0
-          timeout 240 /opt/firefox/firefox --profile "$PROFILE" \
-            --window-size=1280,900 --screenshot /tmp/diag/firefox-extension.png \
-            "$PAGE" > /tmp/diag/firefox.log 2>&1 || FF_STATUS=$?
+          timeout 300 python3 "$GITHUB_WORKSPACE/tool/ci/firefox_shot.py" \
+            /opt/firefox/firefox "$PROFILE" "$PAGE" \
+            /tmp/diag/firefox-extension.png 60 \
+            > /tmp/diag/firefox.log 2>&1 || FF_STATUS=$?
           echo "firefox exited $FF_STATUS"
           echo "--- firefox log ---"; tail -30 /tmp/diag/firefox.log || true
 
