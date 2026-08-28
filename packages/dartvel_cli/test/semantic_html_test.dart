@@ -151,4 +151,35 @@ void main() {
       expect(DVSemanticNode.listFromJson('{}'), isEmpty);
     });
   });
+
+  group('code', () {
+    // Flutter renders SelectableText as a <textarea> whose value it manages
+    // itself, so every code block on dartvel.dev was invisible: not in the
+    // crawler-visible HTML and not in the tree a screen reader reads. Nine of
+    // them on the docs page alone -- the install commands among them.
+    test('a code role becomes preformatted code', () {
+      expect(
+        dvSemanticHtml(<DVSemanticNode>[
+          node(role: 'code', label: 'brew install dartvel_dev'),
+        ]),
+        '<pre><code>brew install dartvel_dev</code></pre>',
+      );
+    });
+
+    test('newlines survive, because in code they are the content', () {
+      final html = dvSemanticHtml(<DVSemanticNode>[
+        node(role: 'code', label: 'cd shop\ndartvel dev'),
+      ]);
+
+      expect(html, contains('cd shop\ndartvel dev'));
+    });
+
+    test('markup inside code is still escaped', () {
+      final html = dvSemanticHtml(
+          <DVSemanticNode>[node(role: 'code', label: '<script>x</script>')]);
+
+      expect(html, isNot(contains('<script>')));
+      expect(html, contains('&lt;script&gt;'));
+    });
+  });
 }

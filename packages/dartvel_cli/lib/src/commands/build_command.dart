@@ -11,6 +11,7 @@ import '../build/seo_head.dart';
 import '../build/page_text.dart';
 import '../build/semantic_html.dart';
 import '../build/semantics_capture.dart';
+import '../build/server_config.dart';
 import '../build/static_seo.dart';
 import '../build/web_server.dart';
 import '../utils/build_runner.dart';
@@ -1387,6 +1388,30 @@ class BuildCommand extends Command<void> {
           .writeAsStringSync(dvSitemap(routes: routes, siteUrl: siteUrl));
       File(p.join(web.path, 'robots.txt'))
           .writeAsStringSync(dvRobots(siteUrl: siteUrl));
+
+      // The stylesheet the sitemap points at. A bare urlset renders as the
+      // browser's XML tree view, which says nothing about the site; crawlers
+      // ignore XSLT entirely. Written only when absent, so a project that
+      // wants its own keeps it.
+      final stylesheet = File(p.join(web.path, 'sitemap.xsl'));
+      if (!stylesheet.existsSync()) {
+        stylesheet.writeAsStringSync(dvSitemapStylesheet(
+          siteName: settings['siteName'] as String? ?? baseTitle,
+          tagline: dvSeoDescription(settings) ?? '',
+          accent: settings['accent'] as String? ?? '#2563EB',
+          ink: settings['ink'] as String? ?? '#0B1020',
+        ));
+      }
+
+      // Path URLs need the server to answer index.html for a route with no
+      // file behind it -- every parameterised route, and anything added since
+      // the last build. The generated router's own comment claimed this was
+      // written and nothing wrote it, so a build uploaded to Apache answered
+      // the host's 404 page.
+      final htaccess = File(p.join(web.path, '.htaccess'));
+      if (!htaccess.existsSync()) {
+        htaccess.writeAsStringSync(dvApacheConfig());
+      }
       Logger.log('   Wrote $written route pages, sitemap.xml and robots.txt.');
     } else {
       Logger.log('   Wrote $written route pages. Set dartvel.seo.siteUrl for '
@@ -1442,6 +1467,31 @@ class BuildCommand extends Command<void> {
           .writeAsStringSync(dvSitemap(routes: routes, siteUrl: siteUrl));
       File(p.join(web.path, 'robots.txt'))
           .writeAsStringSync(dvRobots(siteUrl: siteUrl));
+
+      // The stylesheet the sitemap points at. A bare urlset renders as the
+      // browser's XML tree view, which says nothing about the site; crawlers
+      // ignore XSLT entirely. Written only when absent, so a project that
+      // wants its own keeps it.
+      final stylesheet = File(p.join(web.path, 'sitemap.xsl'));
+      if (!stylesheet.existsSync()) {
+        stylesheet.writeAsStringSync(dvSitemapStylesheet(
+          siteName: seo['siteName'] as String? ??
+              dvSeoTitle(seo, _packageName(root) ?? 'Dartvel'),
+          tagline: dvSeoDescription(seo) ?? '',
+          accent: seo['accent'] as String? ?? '#2563EB',
+          ink: seo['ink'] as String? ?? '#0B1020',
+        ));
+      }
+
+      // Path URLs need the server to answer index.html for a route with no
+      // file behind it -- every parameterised route, and anything added since
+      // the last build. The generated router's own comment claimed this was
+      // written and nothing wrote it, so a build uploaded to Apache answered
+      // the host's 404 page.
+      final htaccess = File(p.join(web.path, '.htaccess'));
+      if (!htaccess.existsSync()) {
+        htaccess.writeAsStringSync(dvApacheConfig());
+      }
     }
     Logger.log('   Wrote dartvel_routes.json for ${routes.length} routes; '
         'the server renders each page on request.');
