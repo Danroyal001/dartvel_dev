@@ -12,7 +12,7 @@ Widget buildDocsPage(BuildContext context) => SitePage(
         Section(
           children: <Widget>[
             const Eyebrow('DOCUMENTATION'),
-            const Heading('From nothing to a running app.'),
+            const Heading('From nothing to a running app.', level: 1),
             const Body(
               'Dartvel needs the Dart and Flutter SDKs to build an '
               'application. It does not need them to run the CLI: that is a '

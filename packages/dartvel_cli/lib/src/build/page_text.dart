@@ -112,3 +112,32 @@ String dvApplyPageText(String html, List<String> lines) {
 
   return '${cleaned.substring(0, at)}$buffer${cleaned.substring(at)}';
 }
+
+/// Put ready-made semantic HTML into the crawler-visible region.
+///
+/// [dvApplyPageText] escapes what it is given, because it is given plain
+/// strings pulled out of the page source. The semantics tree produces markup
+/// — headings, anchors, landmarks — and passing that through the same path
+/// would ship `&lt;h2&gt;` on every page, which is worse than the paragraphs
+/// it replaces.
+///
+/// Both write into the same marked region, so calling this after the text
+/// extractor replaces its output rather than appending to it.
+String dvApplyPageHtml(String html, String content) {
+  final cleaned =
+      html.replaceAll(RegExp('$_open.*?$_close\n?', dotAll: true), '');
+  if (content.trim().isEmpty) return cleaned;
+
+  final at = cleaned.indexOf('</body>');
+  // No body to put it in. Unchanged beats inventing structure around
+  // someone's template.
+  if (at < 0) return cleaned;
+
+  final buffer = StringBuffer()
+    ..writeln(_open)
+    ..writeln('<noscript>')
+    ..writeln(content.trim())
+    ..writeln('</noscript>')
+    ..writeln(_close);
+  return cleaned.substring(0, at) + buffer.toString() + cleaned.substring(at);
+}

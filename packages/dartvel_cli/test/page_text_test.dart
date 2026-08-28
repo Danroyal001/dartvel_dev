@@ -180,4 +180,50 @@ DVText('A real sentence here.')
           '<html><head></head></html>');
     });
   });
+
+  group('crawler-visible HTML from the semantics tree', () {
+    const shell = '<!DOCTYPE html><html><head></head><body>'
+        '<script src="flutter_bootstrap.js"></script></body></html>';
+
+    test('the markup is inserted as markup', () {
+      // dvApplyPageText escapes what it is given, because it is given plain
+      // strings. Semantic HTML has to arrive as HTML or every tag ships as
+      // &lt;h2&gt; -- which is worse than the paragraphs it replaces.
+      final html = dvApplyPageHtml(shell, '<h1>Docs</h1>\n<a href="/x">X</a>');
+
+      expect(html, contains('<h1>Docs</h1>'));
+      expect(html, contains('<a href="/x">X</a>'));
+      expect(html, isNot(contains('&lt;h1&gt;')));
+    });
+
+    test('it sits inside noscript, where the app is not running', () {
+      final html = dvApplyPageHtml(shell, '<h1>Docs</h1>');
+
+      expect(html, contains('<noscript>'));
+      expect(html.indexOf('<noscript>'), lessThan(html.indexOf('<h1>Docs')));
+      expect(html.indexOf('<h1>Docs'), lessThan(html.indexOf('</noscript>')));
+    });
+
+    test('applying it twice does not stack two copies', () {
+      // The build runs more than once in a working tree, and a page that
+      // accumulated its own content every time would grow without limit.
+      final once = dvApplyPageHtml(shell, '<h1>Docs</h1>');
+
+      expect(dvApplyPageHtml(once, '<h1>Docs</h1>'), once);
+    });
+
+    test('it replaces what the text extractor wrote', () {
+      // Both write into the same marked region, so the better one wins
+      // rather than appearing beneath the worse one.
+      final flat = dvApplyPageText(shell, <String>['Docs', 'Some prose']);
+      final structured = dvApplyPageHtml(flat, '<h1>Docs</h1>');
+
+      expect(structured, contains('<h1>Docs</h1>'));
+      expect(structured, isNot(contains('<p>Some prose</p>')));
+    });
+
+    test('nothing to say leaves the page alone', () {
+      expect(dvApplyPageHtml(shell, '   '), isNot(contains('<noscript>')));
+    });
+  });
 }

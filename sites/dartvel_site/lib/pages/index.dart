@@ -25,7 +25,9 @@ Widget _hero(BuildContext context) => Section(
               .fontSize(Responsive.of(context).heroSize)
               .fontWeight(FontWeight.w800)
               .color(Palette.of(context).ink)
-              .height(1.06),
+              .height(1.06)
+              // The site's one h1.
+              .semanticHeading(1),
         ),
         const DVText(
           'Write pages, models, backend functions, UI and business logic. '

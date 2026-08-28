@@ -155,7 +155,7 @@ Widget buildFeaturesPage(BuildContext context) => SitePage(
         Section(
           children: <Widget>[
             const Eyebrow('WHAT WORKS TODAY'),
-            const Heading('Twenty-two shipped sections.'),
+            const Heading('Twenty-two shipped sections.', level: 1),
             const Body(
               'This list is the repository’s own record of what is built, not '
               'a description of what is planned. A tool checks it and fails '
