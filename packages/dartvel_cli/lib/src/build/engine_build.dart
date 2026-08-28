@@ -99,6 +99,11 @@ enum EngineOs {
   /// The argument this target names its cpu with.
   final String cpuArgument;
 
+  /// Whether the embedder library must be built for the target rather than
+  /// the host. Linux links it today without asking, and adding the flag
+  /// everywhere to fix one target is how a working build stops working.
+  bool get needsEmbedderForTarget => this == EngineOs.fuchsia;
+
   /// Whether the Debian sysroots under `build/linux` apply. They do not on
   /// Fuchsia, where pointing `--target-sysroot` at one is not a worse build
   /// but a build gn refuses to configure.
@@ -370,6 +375,14 @@ EngineBuildPlan engineBuildPlan({
       os.gnName,
       os.cpuArgument,
       arch.gnName,
+      // Fuchsia's embedder library has to be built for the target. Without
+      // this gn configures it for the host, the objects are not
+      // position-independent, and the link fails on every embedder symbol
+      // with "relocation R_X86_64_PC32 ... recompile with -fPIC" -- after the
+      // whole engine has compiled, so it reads as a broken source tree.
+      //
+      // It is the flag the embedder fork's own engine script passes.
+      if (os.needsEmbedderForTarget) '--embedder-for-target',
       if (sysrootPath != null) ...<String>['--target-sysroot', sysrootPath],
       if (os.usesDebianSysroot && arch.triple != null && toolchainRoot != null)
         ...<String>['--target-toolchain', toolchainRoot],

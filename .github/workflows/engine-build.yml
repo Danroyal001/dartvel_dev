@@ -231,7 +231,22 @@ jobs:
           set -euo pipefail
           mkdir -p out
           cd engine-root/engine/src
-          cp "${{ steps.plan.outputs.engine-path }}" "$GITHUB_WORKSPACE/out/"
+          # so.unstripped is where a Fuchsia build leaves the library the
+          # embedder fork's own script copies; other targets have it directly
+          # in the output directory.
+          ENGINE="${{ steps.plan.outputs.engine-path }}"
+          if [ ! -f "$ENGINE" ]; then
+            ALT="${{ steps.plan.outputs.out-dir }}/so.unstripped/libflutter_engine.so"
+            if [ -f "$ALT" ]; then
+              echo "using $ALT"
+              ENGINE="$ALT"
+            else
+              echo "::error::no libflutter_engine.so at $ENGINE or $ALT"
+              find "${{ steps.plan.outputs.out-dir }}" -name 'libflutter_engine.so' || true
+              exit 1
+            fi
+          fi
+          cp "$ENGINE" "$GITHUB_WORKSPACE/out/"
           cp "${{ steps.plan.outputs.gen-snapshot-path }}" "$GITHUB_WORKSPACE/out/"
           find "${{ steps.plan.outputs.out-dir }}" -name "flutter_embedder.h" \
             -exec cp {} "$GITHUB_WORKSPACE/out/" \; 2>/dev/null || true
