@@ -10,7 +10,6 @@
 // build reads it.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -23,7 +22,7 @@ void main() {
       tester,
       // ignore: prefer_const_constructors
       DVText('brew install dartvel_dev')
-          .modifier(DVModifier().semanticRole('code')),
+          .modifier(const DVModifier().semanticRole('code')),
     );
 
     expect(
