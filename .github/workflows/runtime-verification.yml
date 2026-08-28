@@ -1063,6 +1063,120 @@ jobs:
   # target that is meant to skip cleanly can instead crash, hang, or — as
   # linux-cli did — build something else entirely and report success. Checking
   # the refusal is checking behaviour.
+  # The other extension target. `chrome-extension` is loaded and photographed;
+  # this one had only ever been built, so nothing established that Firefox
+  # would accept the manifest Dartvel writes -- and Firefox rejects things
+  # Chromium does not.
+  firefox-extension:
+    name: firefox-extension — load in Firefox and screenshot
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - run: mkdir -p /tmp/diag
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+      - run: cargo install cbindgen --locked || true
+
+      - name: Install Firefox and capture tools
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq imagemagick libgtk-3-dev clang ninja-build \
+            pkg-config libdbus-glib-1-2 libasound2t64
+          # From Mozilla directly. The distribution package is a snap on this
+          # image, and a snap cannot see a profile under /tmp.
+          curl -sSL -o /tmp/firefox.tar.xz \
+            "https://download.mozilla.org/?product=firefox-latest-ssl&os=linux64&lang=en-US"
+          sudo tar -xJf /tmp/firefox.tar.xz -C /opt
+          /opt/firefox/firefox --version
+
+      - name: Build the extension
+        run: |
+          set -euo pipefail
+          cd examples/dartvel_example
+          flutter pub get
+          dart run dartvel_cli:dartvel routes
+          dart run dartvel_cli:dartvel build firefox-extension
+          echo "--- manifest ---"
+          cat build/firefox-extension/manifest.json
+
+      # The add-on has to carry an id, or Firefox invents one per install and
+      # the moz-extension:// origin moves every time -- taking storage.local
+      # and any native-messaging allowlist with it.
+      - name: The manifest must name a stable add-on
+        run: |
+          set -euo pipefail
+          python3 - examples/dartvel_example/build/firefox-extension/manifest.json <<'MF'
+          import json, sys
+          m = json.load(open(sys.argv[1]))
+          gecko = (m.get('browser_specific_settings') or {}).get('gecko') or {}
+          if not gecko.get('id'):
+              print('::error::the Firefox manifest names no add-on id')
+              raise SystemExit(1)
+          if m.get('manifest_version') != 3:
+              print('::error::manifest_version is %r' % m.get('manifest_version'))
+              raise SystemExit(1)
+          print('add-on id:', gecko['id'])
+          open('/tmp/addon-id', 'w').write(gecko['id'])
+          MF
+
+      - name: Load it in Firefox and photograph the page
+        run: |
+          set -uo pipefail
+          EXT="$GITHUB_WORKSPACE/examples/dartvel_example/build/firefox-extension"
+          ID=$(cat /tmp/addon-id)
+          # Fixed, so the page has a URL this job can ask for. Firefox assigns
+          # a random one otherwise and there is no way to know it from outside.
+          UUID="5c6ff8e2-0d3a-4f6d-9c1b-7a2e4b8d1f30"
+
+          PROFILE=/tmp/ff-profile
+          mkdir -p "$PROFILE/extensions"
+          cp -r "$EXT" "$PROFILE/extensions/$ID"
+
+          python3 - "$PROFILE" "$ID" "$UUID" <<'PREFS'
+          import json, sys
+          profile, addon_id, uuid = sys.argv[1], sys.argv[2], sys.argv[3]
+          prefs = [
+              ('xpinstall.signatures.required', 'false'),
+              ('extensions.autoDisableScopes', '0'),
+              ('extensions.enabledScopes', '5'),
+              ('extensions.webextensions.uuids',
+               json.dumps(json.dumps({addon_id: uuid}))),
+              ('browser.shell.checkDefaultBrowser', 'false'),
+              ('toolkit.telemetry.enabled', 'false'),
+          ]
+          with open(profile + '/prefs.js', 'w') as f:
+              for name, value in prefs:
+                  f.write('user_pref("%s", %s);\n' % (name, value))
+          PREFS
+
+          PAGE="moz-extension://$UUID/index.html"
+          echo "photographing $PAGE"
+          xvfb-run -a /opt/firefox/firefox --profile "$PROFILE" --headless \
+            --window-size=1280,900 --screenshot /tmp/diag/firefox-extension.png \
+            "$PAGE" > /tmp/diag/firefox.log 2>&1
+          echo "--- firefox log ---"; tail -20 /tmp/diag/firefox.log || true
+          ls -la /tmp/diag/
+
+      - name: The capture must show the application
+        run: |
+          set -euo pipefail
+          test -s /tmp/diag/firefox-extension.png || {
+            echo "::error::Firefox produced no screenshot, so the page never loaded"
+            exit 1
+          }
+          # No browser chrome in a --screenshot capture, so the whole image is
+          # the page and there is nothing to crop away first.
+          dart pub get --directory packages/dartvel_cli
+          dart run packages/dartvel_cli/bin/dartvel.dart capture verify \
+            /tmp/diag/firefox-extension.png --label firefox-extension \
+            --min-width 320 --min-height 240
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: firefox-extension, path: /tmp/diag/, if-no-files-found: warn }
+
   refusals:
     name: blocked and gated targets refuse correctly
     runs-on: ubuntu-latest
