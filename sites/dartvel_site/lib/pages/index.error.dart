@@ -8,10 +8,10 @@ class IndexPageError extends StatelessWidget {
   Widget build(BuildContext context) {
     return DVBox.list([
       const DVText('ERROR').modifier(
-        DVModifier().fontSize(24).fontWeight(FontWeight.w800).color(Colors.red),
+        const DVModifier().fontSize(24).fontWeight(FontWeight.w800).color(Colors.red),
       ),
       const DVText('Something went wrong'),
-      DVText('Go Back').modifier(
+      const DVText('Go Back').modifier(
         const DVModifier()
             .padding(12)
             .rounded(8)

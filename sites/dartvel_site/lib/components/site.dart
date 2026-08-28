@@ -90,17 +90,35 @@ class SiteHeader extends StatelessWidget {
           // centred.
           child: SizedBox(
             width: double.infinity,
-            child: DVBox.wrapLine(<Widget>[
-        DVText('Dartvel').modifier(
-          DVModifier()
-              .fontSize(18)
-              .fontWeight(FontWeight.w800)
-              .color(palette.ink),
-        ),
-        NavLink('Docs', '/docs', active: current == '/docs'),
-        NavLink('Features', '/features', active: current == '/features'),
-        NavLink('Cloud', '/cloud', active: current == '/cloud'),
-            ], spacing: 22),
+            // A row rather than a wrap, so the site links sit left and the
+            // outbound ones sit right. Everything crammed into the left
+            // quarter was the header reading as a list rather than a bar.
+            child: responsive.narrow
+                ? DVBox.wrapLine(<Widget>[
+                    const _Wordmark(),
+                    NavLink('Docs', '/docs', active: current == '/docs'),
+                    NavLink('Features', '/features',
+                        active: current == '/features'),
+                    NavLink('Cloud', '/cloud', active: current == '/cloud'),
+                  ], spacing: 18)
+                : Row(
+                    children: <Widget>[
+                      const _Wordmark(),
+                      const SizedBox(width: 28),
+                      NavLink('Docs', '/docs', active: current == '/docs'),
+                      const SizedBox(width: 18),
+                      NavLink('Features', '/features',
+                          active: current == '/features'),
+                      const SizedBox(width: 18),
+                      NavLink('Cloud', '/cloud', active: current == '/cloud'),
+                      const Spacer(),
+                      const ExternalLink(
+                          'GitHub', 'https://github.com/Danroyal001/dartvel_dev'),
+                      const SizedBox(width: 18),
+                      const ExternalLink(
+                          'pub.dev', 'https://pub.dev/packages/dartvel_dev'),
+                    ],
+                  ),
           ),
         ),
       ),
@@ -127,13 +145,13 @@ class SiteFooter extends StatelessWidget {
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 1040),
           child: DVBox.list(<Widget>[
-        DVBox.wrapLine(<Widget>[
-          const ExternalLink('GitHub', 'https://github.com/Danroyal001/dartvel_dev'),
-          const ExternalLink('pub.dev', 'https://pub.dev/packages/dartvel_dev'),
-          const ExternalLink('npm', 'https://www.npmjs.com/package/dartvel_dev'),
+        const DVBox.wrapLine(<Widget>[
+          ExternalLink('GitHub', 'https://github.com/Danroyal001/dartvel_dev'),
+          ExternalLink('pub.dev', 'https://pub.dev/packages/dartvel_dev'),
+          ExternalLink('npm', 'https://www.npmjs.com/package/dartvel_dev'),
         ], spacing: 20),
-        DVText('MIT licensed. Built with Dartvel.').modifier(
-          DVModifier().fontSize(13).color(palette.faint),
+        const DVText('MIT licensed. Built with Dartvel.').modifier(
+          const DVModifier().fontSize(13).color(palette.faint),
         ),
           ], spacing: 12),
         ),
@@ -180,7 +198,7 @@ class Eyebrow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => DVText(text).modifier(
-        DVModifier()
+        const DVModifier()
             .fontSize(12)
             .fontWeight(FontWeight.w700)
             .color(Palette.of(context).accent)
@@ -198,7 +216,7 @@ class Heading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => DVText(text).modifier(
-        DVModifier()
+        const DVModifier()
             .fontSize(Responsive.of(context).narrow ? 26 : 34)
             .fontWeight(FontWeight.w800)
             .color(Palette.of(context).ink)
@@ -217,7 +235,7 @@ class Body extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => DVText(text).modifier(
-        DVModifier()
+        const DVModifier()
             .fontSize(17)
             .color(Palette.of(context).muted)
             .height(1.65)
@@ -242,13 +260,13 @@ class Card_ extends StatelessWidget {
       ),
       child: DVBox.list(<Widget>[
         DVText(title).modifier(
-          DVModifier()
+          const DVModifier()
               .fontSize(17)
               .fontWeight(FontWeight.w700)
               .color(palette.ink),
         ),
         DVText(body).modifier(
-          DVModifier().fontSize(14).color(palette.muted).height(1.55),
+          const DVModifier().fontSize(14).color(palette.muted).height(1.55),
         ),
       ], spacing: 8),
     );
@@ -270,7 +288,7 @@ class Chip_ extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
       ),
       child: DVText(text).modifier(
-        DVModifier().fontSize(13).color(palette.ink),
+        const DVModifier().fontSize(13).color(palette.ink),
       ),
     );
   }
@@ -293,13 +311,13 @@ class Stat extends StatelessWidget {
       ),
       child: DVBox.list(<Widget>[
         DVText(value).modifier(
-          DVModifier()
+          const DVModifier()
               .fontSize(30)
               .fontWeight(FontWeight.w800)
               .color(palette.accent),
         ),
         DVText(label).modifier(
-          DVModifier().fontSize(13).color(palette.muted),
+          const DVModifier().fontSize(13).color(palette.muted),
         ),
       ], spacing: 4),
     );
@@ -344,6 +362,54 @@ class CodeBlock extends StatelessWidget {
 
 /// A header link. A DVNavLink with the header's look, rather than a tap
 /// handler wired by hand -- which is what shipped dead twice.
+/// The wordmark: a mark and the name, so the header has something to anchor
+/// on other than a bold word.
+class _Wordmark extends StatelessWidget {
+  const _Wordmark();
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = Palette.of(context);
+    return DVNavLink(
+      to: const DVRouteTarget('/'),
+      padding: EdgeInsets.zero,
+      semanticLabel: 'Dartvel, home',
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Container(
+            width: 22,
+            height: 22,
+            decoration: BoxDecoration(
+              color: palette.accent,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            alignment: Alignment.center,
+            child: const Text(
+              'D',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                height: 1.2,
+              ),
+            ),
+          ),
+          const SizedBox(width: 9),
+          Text(
+            'Dartvel',
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+              color: palette.ink,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class NavLink extends StatelessWidget {
   const NavLink(this.label, this.href, {super.key, this.active = false});
   final String label;
@@ -441,7 +507,7 @@ class ExternalLink extends StatelessWidget {
         // used, so every footer link was dead and looked exactly like a
         // working one.
         child: DVText(label).modifier(
-          DVModifier()
+          const DVModifier()
               .fontSize(14)
               .fontWeight(FontWeight.w600)
               .color(Palette.of(context).accent),

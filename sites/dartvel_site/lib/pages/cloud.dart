@@ -6,21 +6,21 @@ import '../components/site.dart';
 @pragma('vm:entry-point')
 Widget _cloudPage(BuildContext context) => buildCloudPage(context);
 
-Widget buildCloudPage(BuildContext context) => SitePage(
+Widget buildCloudPage(BuildContext context) => const SitePage(
       current: '/cloud',
       children: <Widget>[
         Section(
           children: <Widget>[
-            const Eyebrow('COMING SOON'),
-            const Heading('Dartvel Cloud.', level: 1),
-            const Body(
+            Eyebrow('COMING SOON'),
+            Heading('Dartvel Cloud.', level: 1),
+            Body(
               'Deploy a Dartvel application without assembling the runtime '
               'around it. Nothing here is available yet, and this page says so '
               'rather than collecting sign-ups for something that does not '
               'exist.',
               width: 640,
             ),
-            const Body(
+            Body(
               'Everything Dartvel does today runs on infrastructure you '
               'already have. dartvel build produces the artifact and dartvel '
               'deploy pushes it; Cloud is meant to remove that step, not to '
@@ -32,24 +32,24 @@ Widget buildCloudPage(BuildContext context) => SitePage(
         Section(
           tint: true,
           children: <Widget>[
-            const Eyebrow('WHAT IT IS MEANT TO BE'),
+            Eyebrow('WHAT IT IS MEANT TO BE'),
             DVBox.wrapLine(<Widget>[
-              const Card_(
+              Card_(
                 'One command',
                 'dartvel deploy, with the backend, the database, the queues '
                 'and the static build going out together.',
               ),
-              const Card_(
+              Card_(
                 'The runtime as it is built',
                 'The same Axum and Tokio server the CLI runs locally, rather '
                 'than a different one you discover in production.',
               ),
-              const Card_(
+              Card_(
                 'Durable work included',
                 'Jobs and queues run where the app runs, so background work '
                 'is not a second piece of infrastructure to stand up.',
               ),
-              const Card_(
+              Card_(
                 'Not a lock-in',
                 'Self-hosting stays a supported path. Cloud is the '
                 'convenience, not the requirement.',
@@ -59,23 +59,23 @@ Widget buildCloudPage(BuildContext context) => SitePage(
         ),
         Section(
           children: <Widget>[
-            const Eyebrow('IN THE MEANTIME'),
-            const Heading('It already deploys anywhere.'),
-            const Body(
+            Eyebrow('IN THE MEANTIME'),
+            Heading('It already deploys anywhere.'),
+            Body(
               'dartvel build web produces static output for any host — this '
               'site is that output. The backend builds to a binary with the '
               'Rust runtime linked in, so it runs wherever you can run a '
               'process.',
               width: 640,
             ),
-            const CodeBlock(<String>[
+            CodeBlock(<String>[
               'dartvel build web       # static output',
               'dartvel build linux     # the app, with the runtime linked in',
               'dartvel deploy          # to a host you configure',
             ]),
             DVBox.wrapLine(<Widget>[
-              const GhostLink('Read the docs', '/docs'),
-              const GhostLink('See what works today', '/features'),
+              GhostLink('Read the docs', '/docs'),
+              GhostLink('See what works today', '/features'),
             ], spacing: 12),
           ],
         ),

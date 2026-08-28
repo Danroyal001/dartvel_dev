@@ -9,11 +9,11 @@ Widget _docsPage(BuildContext context) => buildDocsPage(context);
 Widget buildDocsPage(BuildContext context) => SitePage(
       current: '/docs',
       children: <Widget>[
-        Section(
+        const Section(
           children: <Widget>[
-            const Eyebrow('DOCUMENTATION'),
-            const Heading('From nothing to a running app.', level: 1),
-            const Body(
+            Eyebrow('DOCUMENTATION'),
+            Heading('From nothing to a running app.', level: 1),
+            Body(
               'Dartvel needs the Dart and Flutter SDKs to build an '
               'application. It does not need them to run the CLI: that is a '
               'single self-contained binary.',
@@ -33,9 +33,9 @@ Widget buildDocsPage(BuildContext context) => SitePage(
       ],
     );
 
-Widget _install() => Section(
+Widget _install() => const Section(
       tint: true,
-      children: const <Widget>[
+      children: <Widget>[
         Eyebrow('1 — INSTALL'),
         Heading('Three ways, same command.'),
         Body(
@@ -63,8 +63,8 @@ Widget _install() => Section(
       ],
     );
 
-Widget _firstApp() => Section(
-      children: const <Widget>[
+Widget _firstApp() => const Section(
+      children: <Widget>[
         Eyebrow('2 — A NEW APP'),
         Heading('dartvel create.'),
         CodeBlock(<String>[
@@ -82,9 +82,9 @@ Widget _firstApp() => Section(
       ],
     );
 
-Widget _pages() => Section(
+Widget _pages() => const Section(
       tint: true,
-      children: const <Widget>[
+      children: <Widget>[
         Eyebrow('3 — PAGES'),
         Heading('A file is a route.'),
         Body(
@@ -108,8 +108,8 @@ Widget _pages() => Section(
       ],
     );
 
-Widget _models() => Section(
-      children: const <Widget>[
+Widget _models() => const Section(
+      children: <Widget>[
         Eyebrow('4 — MODELS'),
         Heading('One class, the whole feature.'),
         CodeBlock(<String>[
@@ -142,9 +142,9 @@ Widget _models() => Section(
       ],
     );
 
-Widget _backend() => Section(
+Widget _backend() => const Section(
       tint: true,
-      children: const <Widget>[
+      children: <Widget>[
         Eyebrow('5 — BACKEND'),
         Heading('A function is an endpoint.'),
         CodeBlock(<String>[
@@ -168,9 +168,9 @@ Widget _backend() => Section(
       ],
     );
 
-Widget _links() => Section(
+Widget _links() => const Section(
       tint: true,
-      children: const <Widget>[
+      children: <Widget>[
         Eyebrow('LINKS'),
         Heading('A link, not a tap handler.'),
         CodeBlock(<String>[
@@ -209,8 +209,8 @@ Widget _links() => Section(
       ],
     );
 
-Widget _signals() => Section(
-      children: const <Widget>[
+Widget _signals() => const Section(
+      children: <Widget>[
         Eyebrow('6 — STATE'),
         Heading('Signals compose because they are signals.'),
         CodeBlock(<String>[
@@ -230,9 +230,9 @@ Widget _signals() => Section(
       ],
     );
 
-Widget _building() => Section(
+Widget _building() => const Section(
       tint: true,
-      children: const <Widget>[
+      children: <Widget>[
         Eyebrow('7 — BUILDING'),
         Heading('dartvel build.'),
         CodeBlock(<String>[
@@ -258,8 +258,8 @@ Widget _building() => Section(
       ],
     );
 
-Widget _honesty() => Section(
-      children: const <Widget>[
+Widget _honesty() => const Section(
+      children: <Widget>[
         Eyebrow('BEFORE YOU DEPEND ON IT'),
         Heading('Read what is not built.'),
         Body(

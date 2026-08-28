@@ -152,11 +152,11 @@ Widget _featuresPage(BuildContext context) => buildFeaturesPage(context);
 Widget buildFeaturesPage(BuildContext context) => SitePage(
       current: '/features',
       children: <Widget>[
-        Section(
+        const Section(
           children: <Widget>[
-            const Eyebrow('WHAT WORKS TODAY'),
-            const Heading('Twenty-two shipped sections.', level: 1),
-            const Body(
+            Eyebrow('WHAT WORKS TODAY'),
+            Heading('Twenty-two shipped sections.', level: 1),
+            Body(
               'This list is the repository’s own record of what is built, not '
               'a description of what is planned. A tool checks it and fails '
               'when a section claims to be built and the evidence it names '
@@ -164,7 +164,7 @@ Widget buildFeaturesPage(BuildContext context) => SitePage(
               'code.',
               width: 660,
             ),
-            const Body(
+            Body(
               'Thirty-three more sections are partial. They are listed as '
               'partial, with what is absent written next to what is present.',
               width: 660,
@@ -214,7 +214,7 @@ class FeatureRow extends StatelessWidget {
           textBaseline: TextBaseline.alphabetic,
           children: <Widget>[
             DVText(area).modifier(
-              DVModifier()
+              const DVModifier()
                   .fontSize(17)
                   .fontWeight(FontWeight.w700)
                   .color(palette.ink),
@@ -224,7 +224,7 @@ class FeatureRow extends StatelessWidget {
           ],
         ),
         DVText(body).modifier(
-          DVModifier().fontSize(15).color(palette.muted).height(1.6).width(760),
+          const DVModifier().fontSize(15).color(palette.muted).height(1.6).width(760),
         ),
       ], spacing: 6),
     );

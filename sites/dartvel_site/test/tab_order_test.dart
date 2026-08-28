@@ -41,11 +41,11 @@ void main() {
       routes: <RouteBase>[
         GoRoute(
           path: '/',
-          builder: (BuildContext context, GoRouterState state) => DVPageShell(
-            spec: const DVPageScaffoldSpec(title: 'Home'),
+          builder: (BuildContext context, GoRouterState state) => const DVPageShell(
+            spec: DVPageScaffoldSpec(title: 'Home'),
             child: SitePage(
               current: '/',
-              children: const <Widget>[
+              children: <Widget>[
                 Section(children: <Widget>[Heading('Hello')]),
               ],
             ),
