@@ -9,6 +9,7 @@ import '../build/elinux_bundle.dart';
 import '../build/pwa_manifest.dart';
 import '../build/seo_head.dart';
 import '../build/page_text.dart';
+import '../build/semantic_html.dart';
 import '../build/static_seo.dart';
 import '../build/web_server.dart';
 import '../utils/build_runner.dart';
@@ -1264,6 +1265,25 @@ class BuildCommand extends Command<void> {
   /// is `flutter build web` with extra steps: four URLs, one title, one
   /// description, one body. Prerendered text is used where `dartvel prerender`
   /// captured it, and a page still gets its own head tags where it did not.
+  /// The crawler-visible HTML for [route], from a semantics dump if the
+  /// prerender step wrote one.
+  ///
+  /// `dartvel build web --prerender` drives a browser over each route and
+  /// writes `.dart_tool/dartvel_semantics/<route>.json`. Absent that, this
+  /// returns null and the caller falls back to the source-literal extractor,
+  /// so a build with no browser still produces something rather than failing.
+  String? _semanticHtmlFor(String root, String route) {
+    final String name =
+        route == '/' ? 'index' : route.replaceAll(RegExp(r'^/|/$'), '')
+            .replaceAll('/', '_');
+    final file = File(
+        p.join(root, '.dart_tool', 'dartvel_semantics', '$name.json'));
+    if (!file.existsSync()) return null;
+    final String html =
+        dvSemanticHtml(DVSemanticNode.listFromJson(file.readAsStringSync()));
+    return html.trim().isEmpty ? null : html;
+  }
+
   void _writeStaticPages(String root) {
     final web = Directory(p.join(root, 'build', 'web'));
     final index = File(p.join(web.path, 'index.html'));
@@ -1312,9 +1332,17 @@ class BuildCommand extends Command<void> {
         siteName: settings['siteName'] as String? ?? baseTitle,
       );
 
+      // The semantics tree when there is one, the source-literal extractor
+      // when there is not. The tree is the structure the application declares
+      // -- headings, links, landmarks -- and the same one a screen reader is
+      // given; the extractor can only see strings, so it cannot tell a
+      // heading from a sentence and produces no links at all.
+      final String? semantics = _semanticHtmlFor(root, route);
       File(p.join(web.path, target))
         ..parent.createSync(recursive: true)
-        ..writeAsStringSync(dvApplyPageText(page, text));
+        ..writeAsStringSync(semantics != null
+            ? dvApplyPageHtml(page, semantics)
+            : dvApplyPageText(page, text));
       written++;
     }
 

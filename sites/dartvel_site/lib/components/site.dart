@@ -189,8 +189,12 @@ class Eyebrow extends StatelessWidget {
 }
 
 class Heading extends StatelessWidget {
-  const Heading(this.text, {super.key});
+  /// [level] is the document outline, not the size. A section heading two
+  /// thirds of the way down a page is still an h2, and a page has one h1 --
+  /// which is why the hero passes 1 and every section leaves the default.
+  const Heading(this.text, {this.level = 2, super.key});
   final String text;
+  final int level;
 
   @override
   Widget build(BuildContext context) => DVText(text).modifier(
@@ -198,7 +202,11 @@ class Heading extends StatelessWidget {
             .fontSize(Responsive.of(context).narrow ? 26 : 34)
             .fontWeight(FontWeight.w800)
             .color(Palette.of(context).ink)
-            .height(1.15),
+            .height(1.15)
+            // Declared, so the outline exists for a screen reader moving by
+            // heading and for the crawler-visible HTML built from the
+            // semantics tree. Without it every heading was a paragraph.
+            .semanticHeading(level),
       );
 }
 

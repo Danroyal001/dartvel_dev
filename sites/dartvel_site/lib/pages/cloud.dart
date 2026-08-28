@@ -12,7 +12,7 @@ Widget buildCloudPage(BuildContext context) => SitePage(
         Section(
           children: <Widget>[
             const Eyebrow('COMING SOON'),
-            const Heading('Dartvel Cloud.'),
+            const Heading('Dartvel Cloud.', level: 1),
             const Body(
               'Deploy a Dartvel application without assembling the runtime '
               'around it. Nothing here is available yet, and this page says so '
