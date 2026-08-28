@@ -11,6 +11,10 @@ import 'package:crypto/crypto.dart' as crypto;
 import 'adapter.dart';
 import 'postgres_socket_unsupported.dart'
     if (dart.library.io) 'postgres_socket_io.dart';
+import 'postgres_tls.dart';
+
+/// Re-exported so a caller configures the mode without a second import.
+export 'postgres_tls.dart' show DVSslMode;
 
 /// One Postgres connection. Abstracted like the Redis and SMTP transports so
 /// the protocol layer stays testable and web builds get a stub.
@@ -24,6 +28,7 @@ typedef DVPostgresConnect = Future<DVPostgresConnection> Function(
   String host,
   int port,
 );
+
 
 /// Thrown when Postgres reports an error.
 class DVPostgresException implements Exception {
@@ -63,8 +68,16 @@ class DVPostgresDatabaseAdapter implements DVDatabaseAdapter {
     required this.database,
     this.user = 'postgres',
     this.password,
+    // prefer by default: it asks for TLS and carries on without it, which is
+    // right for a local server and wrong for anything public. A managed
+    // endpoint should be given verifyFull -- the only mode that checks the
+    // certificate is for the host asked for.
+    this.sslMode = DVSslMode.prefer,
     DVPostgresConnect? connector,
   }) : _connector = connector;
+
+  /// How much this connection insists on encryption.
+  final DVSslMode sslMode;
 
   // --- protocol plumbing ----------------------------------------------------
 
@@ -74,7 +87,9 @@ class DVPostgresDatabaseAdapter implements DVDatabaseAdapter {
   }
 
   Future<void> _connect() async {
-    final connection = await (_connector ?? dvConnectPostgres)(host, port);
+    final connection = _connector != null
+        ? await _connector(host, port)
+        : await dvConnectPostgres(host, port, sslMode: sslMode);
     _connection = connection;
     connection.input.listen(
       (List<int> chunk) {
