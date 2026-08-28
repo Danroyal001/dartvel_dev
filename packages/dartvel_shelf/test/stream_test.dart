@@ -47,7 +47,7 @@ void main() {
     // because aw_start returned a handle before attempting the bind. The
     // symptom was a connection refused in whichever test drew the short
     // straw, which reads like a streaming bug and is not one.
-    server = await serve(router, host: '127.0.0.1', port: 0);
+    server = await serve(router.call, host: '127.0.0.1', port: 0);
     port = server.port;
     client = HttpClient();
   });

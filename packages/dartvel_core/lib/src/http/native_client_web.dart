@@ -16,7 +16,6 @@ library dartvel_core.http.native_client_web;
 
 import 'dart:convert';
 
-import 'protocol.dart';
 import 'transport.dart';
 
 /// Always throws on web: there is no native library to locate.

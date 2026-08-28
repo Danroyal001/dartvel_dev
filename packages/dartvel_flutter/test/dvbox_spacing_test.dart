@@ -27,7 +27,7 @@ void main() {
   group('DVBox.list spacing', () {
     testWidgets('it defaults to the same gap it always used',
         (WidgetTester tester) async {
-      await tester.pumpWidget(wrap(DVBox.list(const <Widget>[
+      await tester.pumpWidget(wrap(const DVBox.list(<Widget>[
         SizedBox(key: ValueKey<String>('a'), height: 10, width: 10),
         SizedBox(key: ValueKey<String>('b'), height: 10, width: 10),
       ])));
@@ -37,7 +37,7 @@ void main() {
 
     testWidgets('a given spacing is the gap that appears',
         (WidgetTester tester) async {
-      await tester.pumpWidget(wrap(DVBox.list(const <Widget>[
+      await tester.pumpWidget(wrap(const DVBox.list(<Widget>[
         SizedBox(key: ValueKey<String>('a'), height: 10, width: 10),
         SizedBox(key: ValueKey<String>('b'), height: 10, width: 10),
       ], spacing: 24)));
@@ -49,7 +49,7 @@ void main() {
         (WidgetTester tester) async {
       // The case a default-valued parameter gets wrong when it treats 0 as
       // "unset" and substitutes 8.
-      await tester.pumpWidget(wrap(DVBox.list(const <Widget>[
+      await tester.pumpWidget(wrap(const DVBox.list(<Widget>[
         SizedBox(key: ValueKey<String>('a'), height: 10, width: 10),
         SizedBox(key: ValueKey<String>('b'), height: 10, width: 10),
       ], spacing: 0)));

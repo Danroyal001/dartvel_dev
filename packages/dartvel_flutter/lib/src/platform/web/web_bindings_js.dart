@@ -140,19 +140,10 @@ class DVWebBindings {
     // A browser with no platform authenticator answers false; one without
     // WebAuthn at all answers false too, because both mean the same thing to
     // a caller deciding whether to offer the option.
-    DVNativeBridge.register('biometrics.canAuthenticate', (Object? _) async {
-      final JSObject? credential = _property(globalContext, 'PublicKeyCredential');
-      if (credential == null) return false;
-      final JSFunction? probe =
-          _method(credential, 'isUserVerifyingPlatformAuthenticatorAvailable');
-      if (probe == null) return false;
-      final JSAny? result = probe.callAsFunction(credential);
-      if (result.isA<JSPromise<JSAny?>>()) {
-        final JSAny? value = await (result! as JSPromise<JSAny?>).toDart;
-        return value.dartify() == true;
-      }
-      return result.dartify() == true;
-    });
+    DVNativeBridge.register(
+      'biometrics.canAuthenticate',
+      (Object? _) async => _platformAuthenticator(),
+    );
 
     // WebAuthn with userVerification required: the browser's own platform
     // biometric prompt. It resolves with an assertion or throws, and there is
@@ -171,6 +162,18 @@ class DVWebBindings {
       if (credentials == null || get == null) {
         throw StateError(
           'This browser has no credentials API, so it cannot authenticate.',
+        );
+      }
+
+      // Asked first, and refused here. With no platform authenticator
+      // navigator.credentials.get does not reject -- it waits out its own
+      // timeout, a minute of nothing, and the caller cannot tell that from a
+      // person taking their time. The same probe canAuthenticate reports, so
+      // the answer and the behaviour cannot disagree.
+      if (!await _platformAuthenticator()) {
+        throw StateError(
+          'This browser has no platform authenticator, so there is nothing '
+          'to authenticate against.',
         );
       }
 
@@ -233,4 +236,23 @@ JSFunction? _method(JSObject object, String name) {
   if (!object.has(name)) return null;
   final JSAny? value = object.getProperty(name.toJS);
   return value.isA<JSFunction>() ? value! as JSFunction : null;
+}
+
+/// Whether the browser has a user-verifying platform authenticator.
+///
+/// One definition for both `biometrics.canAuthenticate` and the gate in
+/// `biometrics.authenticate`, so the answer a caller is given and the
+/// behaviour it then gets cannot disagree.
+Future<bool> _platformAuthenticator() async {
+  final JSObject? credential = _property(globalContext, 'PublicKeyCredential');
+  if (credential == null) return false;
+  final JSFunction? probe =
+      _method(credential, 'isUserVerifyingPlatformAuthenticatorAvailable');
+  if (probe == null) return false;
+  final JSAny? result = probe.callAsFunction(credential);
+  if (result.isA<JSPromise<JSAny?>>()) {
+    final JSAny? value = await (result! as JSPromise<JSAny?>).toDart;
+    return value.dartify() == true;
+  }
+  return result.dartify() == true;
 }

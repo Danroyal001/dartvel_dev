@@ -41,7 +41,7 @@ void main() {
         (WidgetTester tester) async {
       // ignore: prefer_const_constructors
       await pumpOn(tester, platform,
-          DVText('Email').modifier(DVModifier().input(label: 'Email')));
+          const DVText('Email').modifier(const DVModifier().input(label: 'Email')));
 
       expect(tester.takeException(), isNull,
           reason: 'a form input must build on $platform');

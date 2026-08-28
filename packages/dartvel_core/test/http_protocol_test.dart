@@ -197,7 +197,7 @@ void main() {
 
   group('early hints', () {
     test('parses a preload link', () {
-      final hints = DVEarlyHints(const <String, String>{
+      final hints = const DVEarlyHints(<String, String>{
         'link': '</style.css>; rel=preload; as=style',
       });
       expect(hints.links, hasLength(1));
@@ -209,7 +209,7 @@ void main() {
     test('splits multiple links without splitting inside the URL', () {
       // A comma is legal in a URL. Splitting on every comma is the obvious
       // implementation and it corrupts exactly this case.
-      final hints = DVEarlyHints(const <String, String>{
+      final hints = const DVEarlyHints(<String, String>{
         'link': '</a,b.css>; rel=preload; as=style, </c.js>; rel=preload; '
             'as=script',
       });
@@ -218,7 +218,7 @@ void main() {
     });
 
     test('keeps quoted parameters intact', () {
-      final hints = DVEarlyHints(const <String, String>{
+      final hints = const DVEarlyHints(<String, String>{
         'link': '</f.woff2>; rel="preload"; as="font"; crossorigin="anonymous"',
       });
       final link = hints.links.single;
@@ -230,7 +230,7 @@ void main() {
     test('a malformed hint is skipped, not thrown', () {
       // Early hints are an optimisation. Failing a request over one would make
       // the feature worse than not having it.
-      final hints = DVEarlyHints(const <String, String>{
+      final hints = const DVEarlyHints(<String, String>{
         'link': 'garbage, </ok.css>; rel=preload',
       });
       expect(hints.links.map((l) => l.uri), <String>['/ok.css']);

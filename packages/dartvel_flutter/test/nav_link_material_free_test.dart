@@ -14,7 +14,6 @@ import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
 
 /// A router whose pages are plain widgets. No Material anywhere in the tree.
 GoRouter bareRouter(Widget subject) => GoRouter(
@@ -95,7 +94,7 @@ void main() {
 
     expect(
       tester.getSemantics(find.byType(DVNavLink)),
-      containsSemantics(isLink: true, hasTapAction: true),
+      isSemantics(isLink: true, hasTapAction: true),
     );
     handle.dispose();
   });
