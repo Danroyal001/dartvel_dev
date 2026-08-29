@@ -104,7 +104,7 @@ Everything else is automatically compiled, generated, or served by the framework
 | **Authentication** | Local provider with salted password hashes, plus OAuth2 (PKCE) with Google/GitHub/GitLab/Bitbucket/Microsoft presets; magic links, OTP, LDAP and SAML are not complete | ⚠️ Partial |
 | **Outbound HTTP** | Protocol negotiation with ordered fallback, RFC 8297 early hints, and a native HTTP/2 client on the `h2` crate verified against a live server; HTTP/3 is not complete | ⚠️ Partial |
 | **Terminal rendering** | `-cli`/`-tui` targets resolve, build-time backend selection, `DV.Platform.surface`, launch negotiation. The terminal backend itself is not built | ⚠️ Partial |
-| **Database & Cache** | Real SQLite adapter (file + in-memory, WAL) and a pluggable cache with memory/database-backed adapters; Postgres/MySQL/Redis adapters are not complete | ⚠️ Partial |
+| **Database & Cache** | SQLite (file + in-memory, WAL), PostgreSQL and MySQL adapters, each on its own wire protocol, with TLS on Postgres for managed endpoints; a pluggable cache with memory and database-backed adapters. Redis cache and the remaining queue adapters are not complete | ⚠️ Partial |
 | **Mail & Notifications** | SMTP plus HTTP mail (Resend, SendGrid, Postmark, Mailgun, SES), FCM push, APNS over native HTTP/2, Web Push (RFC 8291/8292), and Twilio SMS | ✅ Implemented |
 | **PWA & SEO** | `dartvel build web` writes the PWA manifest, the head tags, per-route HTML, `sitemap.xml` and `robots.txt`, and warns when a manifest will not install | ✅ Implemented |
 | **AI Integration** | HTTP adapters for Claude, OpenAI, Gemini, OpenRouter, and Ollama, plus the deterministic local adapter | ✅ Implemented |
@@ -439,10 +439,19 @@ SQLite needs `dart:ffi`, so on web `SqliteDVDatabaseAdapter` throws
 degrading to a fake database. The import is conditional, so web and Wasm
 builds do not pull in `dart:ffi` at all.
 
-Postgres, MySQL, MongoDB, Turso, ClickHouse and BigQuery adapters are **not**
-implemented yet.
+Postgres and MySQL adapters ship too, each speaking its own wire protocol, and
+the Postgres one negotiates TLS — which is what a managed endpoint such as
+Aurora, Neon, Supabase or Cloud SQL requires, most of them refusing plaintext
+outright. `sslMode` takes libpq's names, so a connection string copied from a
+provider's console pastes in unchanged.
 
-### Cache
+The supported engines are SQLite, PostgreSQL and MySQL, each with their
+wire-compatible variants. MongoDB, ClickHouse and BigQuery are **out of scope
+by decision**, not waiting in a backlog.
+
+---
+
+## 🧊 Cache
 
 `DV.Cache` runs on a swappable adapter. It defaults to process-local memory;
 point it at a database to survive restarts and share the application's SQLite
@@ -459,7 +468,9 @@ await DV.Cache.revalidateTag('users');
 await DV.Cache.purgeExpired();
 ```
 
-### Durable queues
+---
+
+## 📬 Durable queues
 
 `DV.Queues` defaults to an in-memory adapter, so dispatched jobs are lost on
 restart. Point it at a database to make them durable:
@@ -482,7 +493,9 @@ The in-memory adapter keeps the Dart object and needs no codec.
 
 Redis, SQS, Pub/Sub, RabbitMQ and Kafka adapters are **not** implemented yet.
 
-### File storage
+---
+
+## 🗂️ File storage
 
 `DV.FileStorage` runs on a swappable adapter, defaulting to process-local
 memory. `S3FileStorageAdapter` covers AWS S3 and S3-compatible stores
@@ -512,7 +525,9 @@ Azure Blob and Google Cloud Storage adapters are **not** implemented yet.
 
 ---
 
-### Push notifications
+---
+
+## 🔔 Push notifications
 
 `FirebasePushProvider` sends through FCM's HTTP v1 API. Minting a Google
 access token needs RSA JWT signing, which Dartvel does not bundle, so the token
@@ -532,7 +547,9 @@ A stale device token surfaces as `DVPushProviderException` with
 `isUnregisteredToken == true`, which is the signal to prune the token rather
 than retry it.
 
-### SMTP
+---
+
+## ✉️ SMTP
 
 `SmtpMailProvider` speaks SMTP over a raw socket, so it works against any mail
 server rather than a vendor API:
@@ -558,7 +575,9 @@ conditional, verified by a passing `flutter build web` and Wasm dry run.
 
 ---
 
-### SMS
+---
+
+## 💬 SMS
 
 `TwilioSmsProvider` fills the `sms` notification channel:
 
@@ -596,7 +615,9 @@ looking only at `crypto`.
 
 ---
 
-### Full-text search
+---
+
+## 🔎 Full-text search
 
 `DVSqliteSearchProvider` indexes records with SQLite's FTS5 extension, so
 matching is word-based and results are ranked by relevance:
@@ -749,6 +770,20 @@ spinning.
 
 ---
 
+## 📱 Platform Expo-style Native APIs
+
+Access local hardware or OS APIs using a unified static interface:
+
+```dart
+final photoBytes = await DV.Platform.camera.takePhoto();
+final location = await DV.Platform.location.getCurrentLocation();
+await DV.Platform.haptics.impact();
+```
+
+All permissions are centrally managed under the `dartvel` block in `pubspec.yaml`.
+
+---
+
 ## 🔗 Links
 
 `DVNavLink` is a link, not a tap handler. That distinction earned itself: the
@@ -795,15 +830,3 @@ Preloading is an optimisation, so a failure is reported and swallowed rather
 than stopping the tap that follows.
 
 ---
-
-## 📱 Platform Expo-style Native APIs
-
-Access local hardware or OS APIs using a unified static interface:
-
-```dart
-final photoBytes = await DV.Platform.camera.takePhoto();
-final location = await DV.Platform.location.getCurrentLocation();
-await DV.Platform.haptics.impact();
-```
-
-All permissions are centrally managed under the `dartvel` block in `pubspec.yaml`.
