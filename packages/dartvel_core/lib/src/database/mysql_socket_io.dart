@@ -1,14 +1,19 @@
 /// Socket-backed MySQL connection for platforms with `dart:io`.
+// ignore_for_file: close_sinks
+//
+// The relay controller lives as long as the connection and is closed by the
+// pump's onDone. Every report here is that one controller seen from another
+// method: it cannot be closed where it is created, because the reader
+// subscribes to its stream before the TLS upgrade replaces the socket
+// underneath it.
 library dartvel_core.database.mysql_socket_io;
 
 import 'dart:async';
 import 'dart:io';
 
 import 'mysql.dart';
-import 'postgres_tls.dart' show DVSslMode;
 
 Future<DVMySqlConnection> dvConnectMySql(String host, int port) async {
-  // ignore: close_sinks — ownership passes to the connection, which closes it.
   final socket = await Socket.connect(host, port);
   return _SocketMySqlConnection(socket);
 }

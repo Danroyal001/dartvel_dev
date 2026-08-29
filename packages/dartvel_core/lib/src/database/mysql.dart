@@ -9,13 +9,13 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart' as crypto;
 
 import 'adapter.dart';
+import 'mysql_socket_unsupported.dart'
+    if (dart.library.io) 'mysql_socket_io.dart';
 import 'mysql_tls.dart';
 import 'postgres_tls.dart' show DVSslMode;
 
 /// Re-exported so a caller sets the mode without a second import.
 export 'postgres_tls.dart' show DVSslMode;
-import 'mysql_socket_unsupported.dart'
-    if (dart.library.io) 'mysql_socket_io.dart';
 
 /// One MySQL connection. Abstracted like the Postgres and Redis transports.
 abstract class DVMySqlConnection {
