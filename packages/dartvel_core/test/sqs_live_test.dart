@@ -25,6 +25,12 @@ class HttpSqsTransport implements DVSqsTransport {
   final String endpoint;
   final HttpClient _client = HttpClient();
 
+  /// The queue the last addressed request went to.
+  ///
+  /// DeleteMessage and ChangeMessageVisibility carry a receipt and no queue,
+  /// but the query API still addresses them to the queue's URL.
+  String? _lastQueue;
+
   @override
   Future<Map<String, Object?>> call(
     String action,
@@ -35,8 +41,15 @@ class HttpSqsTransport implements DVSqsTransport {
       'Version': '2012-11-05',
       ...body,
     };
+    _lastQueue = form['QueueUrl'] ?? _lastQueue;
+    // The SQS query API is addressed by queue URL: the request goes *to* the
+    // queue, and QueueUrl is not a parameter. Posting everything at the root
+    // with QueueUrl in the body is the JSON protocol, and against a real
+    // server it silently addressed the wrong thing -- every receive came back
+    // empty and looked like a message that had not arrived.
+    final String? queueUrl = form.remove('QueueUrl');
     final HttpClientRequest request =
-        await _client.postUrl(Uri.parse(endpoint));
+        await _client.postUrl(Uri.parse(queueUrl ?? _lastQueue ?? endpoint));
     request.headers.contentType =
         ContentType('application', 'x-www-form-urlencoded');
     request.write(form.entries

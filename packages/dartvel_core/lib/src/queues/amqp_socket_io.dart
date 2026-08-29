@@ -87,10 +87,25 @@ class DVAmqpSocketChannel implements DVAmqpChannel {
     _socket.add(frame.toBytes());
   }
 
-  Future<_Frame> _next() {
+  /// The next method frame, or an error saying which step went unanswered.
+  ///
+  /// Bounded on purpose. Every wrong byte in this handshake is answered by the
+  /// server closing the connection, so an unbounded wait turns a protocol
+  /// mistake into a job that hangs until CI kills it and reports nothing.
+  Future<_Frame> _next([String step = 'a reply']) {
     final Completer<_Frame> completer = Completer<_Frame>();
     _waiting.add(completer);
-    return completer.future;
+    return completer.future.timeout(
+      const Duration(seconds: 10),
+      onTimeout: () {
+        _waiting.remove(completer);
+        throw StateError(
+          'The AMQP server did not send $step. It closes the connection on a '
+          'malformed frame rather than replying, so this usually means the '
+          'frame before it was wrong.',
+        );
+      },
+    );
   }
 
   Future<void> _handshake(String user, String password, String vhost) async {
@@ -113,7 +128,7 @@ class DVAmqpSocketChannel implements DVAmqpChannel {
     // server sends Connection.Start only after seeing exactly these.
     _socket.add(<int>[0x41, 0x4D, 0x51, 0x50, 0, 0, 9, 1]);
 
-    await _next(); // Connection.Start
+    await _next('Connection.Start'); // Connection.Start
     _send(1, 0, <int>[
       ..._u16(10), ..._u16(11), // Connection.StartOk
       ..._u32(0), // no client properties
@@ -124,11 +139,18 @@ class DVAmqpSocketChannel implements DVAmqpChannel {
       ..._shortString('en_US'),
     ]);
 
-    await _next(); // Connection.Tune
+    // TuneOk must not exceed what the server proposed. Answering 0 for
+    // channel-max means "no limit", which is larger than the 2047 RabbitMQ
+    // offers -- the server closes the connection and the client waits for a
+    // reply that is never coming. That is a twelve-minute hang, not an error.
+    final _Frame tune = await _next('Connection.Tune');
+    final ByteData proposal = tune.payload.buffer.asByteData();
+    final int channelMax = proposal.getUint16(4);
+    final int frameMax = proposal.getUint32(6);
     _send(1, 0, <int>[
       ..._u16(10), ..._u16(31), // Connection.TuneOk
-      ..._u16(0), // no channel limit
-      ..._u32(131072), // frame max
+      ..._u16(channelMax == 0 ? 1 : channelMax),
+      ..._u32(frameMax == 0 ? 131072 : frameMax),
       ..._u16(0), // heartbeats off: this client is request and response only
     ]);
 
@@ -136,10 +158,10 @@ class DVAmqpSocketChannel implements DVAmqpChannel {
       ..._u16(10), ..._u16(40), // Connection.Open
       ..._shortString(vhost), ..._shortString(''), 0,
     ]);
-    await _next(); // Connection.OpenOk
+    await _next('Connection.OpenOk'); // Connection.OpenOk
 
     _send(1, _channel, <int>[..._u16(20), ..._u16(10), ..._shortString('')]);
-    await _next(); // Channel.OpenOk
+    await _next('Channel.OpenOk'); // Channel.OpenOk
   }
 
   @override
@@ -152,7 +174,7 @@ class DVAmqpSocketChannel implements DVAmqpChannel {
       durable ? 0x02 : 0x00,
       ..._u32(0), // no arguments
     ]);
-    await _next(); // Queue.DeclareOk
+    await _next('Queue.DeclareOk'); // Queue.DeclareOk
   }
 
   @override

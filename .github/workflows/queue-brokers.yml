@@ -72,7 +72,9 @@ jobs:
         env:
           DARTVEL_AMQP_HOST: localhost
           DARTVEL_AMQP_PORT: '5672'
-        run: dart test test/amqp_live_test.dart --reporter expanded
+        # Bounded: the previous run spent twelve minutes inside a handshake
+        # that was never going to be answered and reported nothing useful.
+        run: timeout 240 dart test test/amqp_live_test.dart --reporter expanded
 
   sqs:
     name: SQS — send, receive, delete
@@ -114,4 +116,4 @@ jobs:
         working-directory: packages/dartvel_core
         env:
           DARTVEL_SQS_ENDPOINT: http://localhost:9324
-        run: dart test test/sqs_live_test.dart --reporter expanded
+        run: timeout 240 dart test test/sqs_live_test.dart --reporter expanded
