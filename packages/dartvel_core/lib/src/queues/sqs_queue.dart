@@ -55,6 +55,13 @@ class DVSqsQueueAdapter implements DVQueueAdapter {
   /// time a message is handed out, and only the current one can delete it.
   final Map<String, String> _receipts = <String, String>{};
 
+  /// The queue each reserved job came from, so a failure can find its backoff.
+  final Map<String, String> _queues = <String, String>{};
+
+  /// The backoff last enqueued for a queue. SQS carries no per-message
+  /// retry policy, so this is the only place it can live.
+  final Map<String, Duration> _backoffs = <String, Duration>{};
+
   /// The receipt that will delete [jobId], for tests and for diagnostics.
   String? receiptFor(String jobId) => _receipts[jobId];
 
@@ -90,20 +97,15 @@ class DVSqsQueueAdapter implements DVQueueAdapter {
         'payload': codecs.encodeFor<TPayload>(payload),
       }),
     };
-    // SQS caps DelaySeconds at 900. Anything longer is the worker's problem,
-    // not the queue's, and silently clamping would look like it worked.
-    final int delay = backoff.inSeconds;
-    if (delay > 0) {
-      if (delay > 900) {
-        throw ArgumentError.value(
-          backoff,
-          'backoff',
-          'SQS accepts at most 900 seconds of delay.',
-        );
-      }
-      body['DelaySeconds'] = '$delay';
-    }
-
+    // No DelaySeconds. backoff is how long to wait before *retrying*, not how
+    // long to hide a job that has not run yet, and sending it here made every
+    // job invisible for thirty seconds the moment it was enqueued. The unit
+    // test asserted the wrong behaviour and passed; a live broker caught it
+    // on the first run.
+    //
+    // It is remembered instead, and applied where it means something: the
+    // visibility timeout on failure.
+    _backoffs[queue] = backoff;
     await transport.call('SendMessage', body);
     return DVJobEnvelope<TPayload>(
       id: 'sqs-${DateTime.now().microsecondsSinceEpoch}',
@@ -136,6 +138,7 @@ class DVSqsQueueAdapter implements DVQueueAdapter {
 
     final String id = '${first['MessageId']}';
     _receipts[id] = '${first['ReceiptHandle']}';
+    _queues[id] = queue;
 
     // Wrapped for the same reason as the AMQP adapter: jsonDecode throws on
     // malformed input, so one corrupt message would take down the worker
@@ -180,6 +183,7 @@ class DVSqsQueueAdapter implements DVQueueAdapter {
 
   @override
   Future<void> complete(String id) async {
+    _queues.remove(id);
     final String? receipt = _receipts.remove(id);
     // Nothing to delete. Calling SQS with a receipt this process never held
     // would be a guess about someone else's message.
@@ -193,12 +197,14 @@ class DVSqsQueueAdapter implements DVQueueAdapter {
   Future<void> fail(String id, String error, StackTrace stackTrace) async {
     final String? receipt = _receipts.remove(id);
     if (receipt == null) return;
-    // Handed back immediately rather than left to time out. Doing nothing
-    // works eventually and leaves the job invisible for the rest of a
-    // timeout that a failure has already made pointless.
+    // Handed back after the backoff, which is what a backoff is for. Zero
+    // retries a failing job immediately and at full speed; leaving it to the
+    // visibility timeout waits an interval chosen for something else.
+    final Duration backoff = _backoffs[_queues.remove(id)] ?? Duration.zero;
+    final int seconds = backoff.inSeconds.clamp(0, 43200);
     await transport.call('ChangeMessageVisibility', <String, String>{
       'ReceiptHandle': receipt,
-      'VisibilityTimeout': '0',
+      'VisibilityTimeout': '$seconds',
     });
   }
 

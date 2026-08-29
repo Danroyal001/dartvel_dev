@@ -81,14 +81,19 @@ void main() {
       );
     });
 
-    test('a delay becomes DelaySeconds, which SQS understands', () async {
+    test('the backoff does not delay the first delivery', () async {
+      // This test asserted the opposite and passed, because the fake simply
+      // recorded whatever it was given. A live broker caught it on the first
+      // run: backoff is how long to wait before *retrying*, and sending it as
+      // DelaySeconds made every job invisible for thirty seconds the moment
+      // it was enqueued.
       await adapter.enqueue(
         'mail',
         const _Welcome('u1'),
         backoff: const Duration(seconds: 45),
       );
 
-      expect(sqs.calls.single.body['DelaySeconds'], '45');
+      expect(sqs.calls.single.body.containsKey('DelaySeconds'), isFalse);
     });
   });
 
@@ -138,10 +143,11 @@ void main() {
       expect(sqs.calls.last.body['ReceiptHandle'], 'r-1');
     });
 
-    test('failing releases it instead of deleting it', () async {
-      // Setting the visibility timeout to zero hands it straight back. Doing
-      // nothing would work too, eventually, but leaves the job invisible for
-      // the whole timeout after a failure that already happened.
+    test('failing releases it after its backoff', () async {
+      await adapter.enqueue('mail', const _Welcome('u1'));
+      // Not zero: retrying a failing job immediately is a hot loop. Not the
+      // queue's visibility timeout either, which was chosen for how long a
+      // job takes to run rather than how long to wait after one fails.
       sqs.replies.add(<String, Object?>{
         'Messages': <Object?>[
           <String, Object?>{
@@ -155,7 +161,7 @@ void main() {
       await adapter.fail(job.id, 'boom', StackTrace.current);
 
       expect(sqs.calls.last.action, 'ChangeMessageVisibility');
-      expect(sqs.calls.last.body['VisibilityTimeout'], '0');
+      expect(sqs.calls.last.body['VisibilityTimeout'], '30');
     });
 
     test('completing something never reserved does nothing', () async {
