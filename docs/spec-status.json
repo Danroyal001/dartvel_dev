@@ -178,13 +178,15 @@
     {
       "section": "Database",
       "stability": "Contract",
-      "status": "Partial",
+      "status": "Shipped",
       "evidence": [
         "packages/dartvel_core/test/sqlite_adapter_test.dart",
         "packages/dartvel_core/test/postgres_adapter_test.dart",
-        "packages/dartvel_core/test/mysql_adapter_test.dart"
+        "packages/dartvel_core/test/postgres_tls_test.dart",
+        "packages/dartvel_core/test/mysql_adapter_test.dart",
+        "packages/dartvel_core/test/mysql_tls_test.dart"
       ],
-      "absent": "TLS on the Postgres and MySQL connections, so no managed endpoint (Aurora, Neon, Supabase, PlanetScale, Cloud SQL) can be reached -- they require it and most refuse plaintext. MongoDB, ClickHouse and BigQuery are out of scope by decision, not backlog"
+      "absent": "nothing. SQLite, PostgreSQL and MySQL, each with their wire-compatible variants, and TLS on both network engines so managed endpoints are reachable. MongoDB, ClickHouse and BigQuery are out of scope by decision, not backlog"
     },
     {
       "section": "APIs",

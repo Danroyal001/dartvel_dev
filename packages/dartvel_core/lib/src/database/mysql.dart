@@ -9,11 +9,31 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart' as crypto;
 
 import 'adapter.dart';
+import 'mysql_tls.dart';
+import 'postgres_tls.dart' show DVSslMode;
+
+/// Re-exported so a caller sets the mode without a second import.
+export 'postgres_tls.dart' show DVSslMode;
 import 'mysql_socket_unsupported.dart'
     if (dart.library.io) 'mysql_socket_io.dart';
 
 /// One MySQL connection. Abstracted like the Postgres and Redis transports.
 abstract class DVMySqlConnection {
+  /// Wrap this connection in TLS, in place.
+  ///
+  /// MySQL upgrades an existing socket mid-handshake rather than connecting to
+  /// a separate port, so the connection has to be able to replace its own
+  /// transport. A connection that cannot -- a fake in a test, or the web stub
+  /// -- throws, which is the honest answer.
+  Future<void> upgradeToTls({
+    required String host,
+    required DVSslMode sslMode,
+  }) async =>
+      throw UnsupportedError(
+        'This connection cannot be upgraded to TLS. Use sslMode: '
+        'DVSslMode.disable, or connect over a transport that supports it.',
+      );
+
   Stream<List<int>> get input;
   void write(List<int> bytes);
   Future<void> close();
@@ -68,8 +88,30 @@ class DVMySqlDatabaseAdapter implements DVDatabaseAdapter {
     required this.database,
     this.user = 'root',
     this.password = '',
+    // prefer by default: it asks and carries on without, which is right for a
+    // local server and wrong for anything public. A managed endpoint should
+    // be given verifyFull, the only mode that checks the certificate belongs
+    // to the host asked for.
+    this.sslMode = DVSslMode.prefer,
     DVMySqlConnect? connector,
   }) : _connector = connector;
+
+  /// How much this connection insists on encryption.
+  final DVSslMode sslMode;
+
+  /// CLIENT_PROTOCOL_41, LONG_PASSWORD, LONG_FLAG, CONNECT_WITH_DB,
+  /// SECURE_CONNECTION, PLUGIN_AUTH and MULTI_RESULTS.
+  ///
+  /// One definition, because the SSLRequest and the handshake response both
+  /// carry it and the server reads the first to decide how to parse the
+  /// second. Two copies that drifted would make it misread the response.
+  static const int _clientCapabilities = 0x00000001 |
+      0x00000004 |
+      0x00000008 |
+      0x00000200 |
+      0x00008000 |
+      0x00080000 |
+      0x00020000;
 
   // --- connection and handshake ---------------------------------------------
 
@@ -95,10 +137,40 @@ class DVMySqlDatabaseAdapter implements DVDatabaseAdapter {
 
     final greeting = (await _receive()).first;
     final handshake = _readHandshake(greeting.payload);
+
+    // TLS goes here, between the greeting and the response, and the order is
+    // the whole point: sending the handshake response first and upgrading
+    // afterwards puts the password on the wire in the clear on a connection
+    // that then looks encrypted for the rest of its life.
+    var sequence = greeting.sequence + 1;
+    if (dvMySqlShouldRequestTls(sslMode)) {
+      if (dvMySqlServerSupportsTls(handshake.capabilities)) {
+        connection.write(
+          _packet(
+            dvMySqlSslRequest(
+              clientFlags: _clientCapabilities,
+              maxPacket: 16777215,
+              charset: 45,
+            ),
+            sequence,
+          ),
+        );
+        await connection.upgradeToTls(host: host, sslMode: sslMode);
+        sequence++;
+      } else if (dvMySqlRefusalIsFatal(sslMode)) {
+        throw DVMySqlException(
+          2026,
+          'The server does not advertise CLIENT_SSL and sslMode is '
+          '${sslMode.name}. Carrying on would send the password in the clear '
+          'while the connection looked encrypted.',
+        );
+      }
+    }
+
     connection.write(
       _packet(
         _handshakeResponse(handshake),
-        greeting.sequence + 1,
+        sequence,
       ),
     );
     final auth = (await _receive()).first;
@@ -124,7 +196,8 @@ class DVMySqlDatabaseAdapter implements DVDatabaseAdapter {
     _pending.clear();
   }
 
-  ({int sequence, List<int> authData, String plugin}) _readHandshake(
+  ({int sequence, List<int> authData, String plugin, int capabilities})
+      _readHandshake(
     List<int> payload,
   ) {
     var offset = 1; // protocol version
@@ -134,6 +207,13 @@ class DVMySqlDatabaseAdapter implements DVDatabaseAdapter {
     offset += 1 + 4; // server version, connection id
     final authData = <int>[...payload.sublist(offset, offset + 8)];
     offset += 8 + 1; // scramble part 1, filler
+    // Kept, not skipped. The capability flags are split either side of the
+    // charset and status bytes, and CLIENT_SSL lives in the low half -- which
+    // is the only thing that says whether this server will speak TLS at all.
+    final int capabilitiesLow = payload[offset] | (payload[offset + 1] << 8);
+    final int capabilitiesHigh =
+        payload[offset + 5] | (payload[offset + 6] << 8);
+    final int capabilities = capabilitiesLow | (capabilitiesHigh << 16);
     offset += 2 + 1 + 2 + 2 + 1; // capabilities lo, charset, status, caps hi
     final authDataLength = payload[offset - 1];
     offset += 10; // reserved
@@ -147,24 +227,28 @@ class DVMySqlDatabaseAdapter implements DVDatabaseAdapter {
         payload.sublist(offset, end == -1 ? payload.length : end),
       );
     }
-    return (sequence: 0, authData: authData, plugin: plugin);
+    return (
+      sequence: 0,
+      authData: authData,
+      plugin: plugin,
+      capabilities: capabilities,
+    );
   }
 
   List<int> _handshakeResponse(
-    ({int sequence, List<int> authData, String plugin}) handshake,
+    ({int sequence, List<int> authData, String plugin, int capabilities})
+        handshake,
   ) {
-    // CLIENT_PROTOCOL_41 | LONG_PASSWORD | LONG_FLAG | CONNECT_WITH_DB |
-    // SECURE_CONNECTION | PLUGIN_AUTH | MULTI_RESULTS
-    const capabilities = 0x00000001 |
-        0x00000004 |
-        0x00000008 |
-        0x00000200 |
-        0x00008000 |
-        0x00080000 |
-        0x00020000;
     final auth = _nativePassword(handshake.authData);
     return <int>[
-      ..._int32(capabilities),
+      // The same flags the SSLRequest carried. They have to match: the server
+      // reads the first packet's capabilities to decide what the second one
+      // looks like, so two different sets make it parse the response wrongly.
+      ..._int32(_clientCapabilities |
+          (dvMySqlShouldRequestTls(sslMode) &&
+                  dvMySqlServerSupportsTls(handshake.capabilities)
+              ? dvMySqlClientSsl
+              : 0)),
       ..._int32(16 * 1024 * 1024), // max packet
       45, // utf8mb4_general_ci
       ...List<int>.filled(23, 0),
