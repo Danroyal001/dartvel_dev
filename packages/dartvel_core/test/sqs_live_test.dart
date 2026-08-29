@@ -1,0 +1,161 @@
+@Tags(<String>['live'])
+library;
+
+// The SQS adapter against a server that implements the SQS API.
+//
+// The unit tests drive a fake that returns what the protocol says it should.
+// That proves the adapter speaks the protocol it was written against and
+// nothing about whether a server agrees — a fake that shares the author's
+// misunderstanding passes every time. ElasticMQ enforces the real rules.
+//
+// Skipped unless DARTVEL_SQS_ENDPOINT is set, so a developer without a broker
+// still gets a green suite rather than a failure they cannot act on.
+import 'dart:convert';
+import 'dart:io';
+import 'dart:io' as io show Platform;
+
+import 'package:dartvel_core/dartvel.dart';
+import 'package:dartvel_core/src/queues/sqs_queue.dart';
+import 'package:test/test.dart';
+
+/// The SQS query API over plain HTTP, which is what ElasticMQ speaks.
+class HttpSqsTransport implements DVSqsTransport {
+  HttpSqsTransport(this.endpoint);
+
+  final String endpoint;
+  final HttpClient _client = HttpClient();
+
+  @override
+  Future<Map<String, Object?>> call(
+    String action,
+    Map<String, String> body,
+  ) async {
+    final Map<String, String> form = <String, String>{
+      'Action': action,
+      'Version': '2012-11-05',
+      ...body,
+    };
+    final HttpClientRequest request =
+        await _client.postUrl(Uri.parse(endpoint));
+    request.headers.contentType =
+        ContentType('application', 'x-www-form-urlencoded');
+    request.write(form.entries
+        .map((MapEntry<String, String> e) =>
+            '${Uri.encodeQueryComponent(e.key)}='
+            '${Uri.encodeQueryComponent(e.value)}')
+        .join('&'));
+    final HttpClientResponse response = await request.close();
+    final String text = await response.transform(utf8.decoder).join();
+    if (response.statusCode >= 400) {
+      throw StateError('SQS $action failed ${response.statusCode}: $text');
+    }
+    return _parse(action, text);
+  }
+
+  /// Enough of the XML response to drive the adapter.
+  ///
+  /// A full XML parser is a dependency this package does not need for four
+  /// element names, and the responses here are machine-generated and flat.
+  Map<String, Object?> _parse(String action, String xml) {
+    String? tag(String name, [String source = '']) {
+      final RegExpMatch? m =
+          RegExp('<$name>(.*?)</$name>', dotAll: true)
+              .firstMatch(source.isEmpty ? xml : source);
+      return m?.group(1);
+    }
+
+    if (action == 'ReceiveMessage') {
+      final Iterable<RegExpMatch> messages =
+          RegExp('<Message>(.*?)</Message>', dotAll: true).allMatches(xml);
+      return <String, Object?>{
+        'Messages': <Object?>[
+          for (final RegExpMatch m in messages)
+            <String, Object?>{
+              'MessageId': tag('MessageId', m.group(1)!),
+              'ReceiptHandle': tag('ReceiptHandle', m.group(1)!),
+              'Body': tag('Body', m.group(1)!),
+            },
+        ],
+      };
+    }
+    if (action == 'CreateQueue') {
+      return <String, Object?>{'QueueUrl': tag('QueueUrl')};
+    }
+    return <String, Object?>{};
+  }
+}
+
+class LiveWelcome {
+  const LiveWelcome(this.userId);
+  final String userId;
+}
+
+void main() {
+  final String? endpoint = io.Platform.environment['DARTVEL_SQS_ENDPOINT'];
+  if (endpoint == null || endpoint.isEmpty) {
+    // Nothing to talk to. Said out loud rather than passing silently, so a
+    // green run cannot be mistaken for a verified one.
+    test('skipped: DARTVEL_SQS_ENDPOINT is not set', () {}, skip: true);
+    return;
+  }
+
+  late HttpSqsTransport transport;
+  late DVSqsQueueAdapter adapter;
+  final String queue = 'dartvel-live-${DateTime.now().millisecondsSinceEpoch}';
+
+  setUpAll(() async {
+    transport = HttpSqsTransport(endpoint);
+    await transport.call('CreateQueue', <String, String>{'QueueName': queue});
+    adapter = DVSqsQueueAdapter(
+      transport,
+      queueUrl: (String name) => '$endpoint/queue/$name',
+      // Long polling would make every empty read wait; this suite reads
+      // straight after writing.
+      waitTimeSeconds: 1,
+    );
+    const DVJobPayloadCodecs().register(
+      DVJobPayloadCodec<LiveWelcome>(
+        name: 'live_welcome',
+        encode: (LiveWelcome job) => <String, Object?>{'userId': job.userId},
+        decode: (Map<String, Object?> json) =>
+            LiveWelcome(json['userId']! as String),
+      ),
+    );
+  });
+
+  test('a job survives the round trip through a real queue', () async {
+    await adapter.enqueue(queue, const LiveWelcome('u-live'));
+
+    final DVJobEnvelope<DVJobPayload>? job = await adapter.reserve(queue);
+
+    expect(job, isNotNull, reason: 'the message was sent, so it must come back');
+    expect((job!.payload as LiveWelcome).userId, 'u-live');
+  });
+
+  test('completing it removes it, so it is not delivered twice', () async {
+    await adapter.enqueue(queue, const LiveWelcome('u-once'));
+    final DVJobEnvelope<DVJobPayload> job = (await adapter.reserve(queue))!;
+    await adapter.complete(job.id);
+
+    // The visibility timeout would hide it briefly either way, so this is
+    // read after it would have returned had the delete not landed.
+    await Future<void>.delayed(const Duration(seconds: 2));
+    final DVJobEnvelope<DVJobPayload>? again = await adapter.reserve(queue);
+
+    expect(
+      again == null || (again.payload as LiveWelcome).userId != 'u-once',
+      isTrue,
+      reason: 'a completed job must not come back',
+    );
+  });
+
+  test('failing hands it back rather than losing it', () async {
+    await adapter.enqueue(queue, const LiveWelcome('u-retry'));
+    final DVJobEnvelope<DVJobPayload> job = (await adapter.reserve(queue))!;
+    await adapter.fail(job.id, 'boom', StackTrace.current);
+
+    final DVJobEnvelope<DVJobPayload>? again = await adapter.reserve(queue);
+
+    expect(again, isNotNull, reason: 'a failed job must return to the queue');
+  });
+}
