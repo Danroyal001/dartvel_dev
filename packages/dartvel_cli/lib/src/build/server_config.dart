@@ -48,14 +48,17 @@ String dvApacheConfig() => '''
 </IfModule>
 
 <IfModule mod_headers.c>
-  # index.html names the hashed bundles, so a cached copy keeps pointing at
-  # the previous deploy's files.
-  <FilesMatch "index\\.html\$">
+  # Not cached, because Flutter does not content-hash any of these: a build
+  # from today and a build from last year both produce a file called
+  # main.dart.js. A blanket immutable rule over *.js froze the site for every
+  # returning visitor -- no error, no way for them to know, and no way out
+  # from their side once the service worker was cached too.
+  <FilesMatch "^(index\\.html|main\\.dart\\.js|flutter_bootstrap\\.js|flutter_service_worker\\.js|version\\.json|manifest\\.json)\$">
     Header set Cache-Control "no-cache, must-revalidate"
   </FilesMatch>
 
-  # The bundles carry their hash in the name, so they can be kept.
-  <FilesMatch "\\.(js|wasm|woff2|png|jpg|svg)\$">
+  # These do carry a version in their path, and they are the large ones.
+  <FilesMatch "^(canvaskit/|assets/).*\\.(js|wasm|woff2|otf|ttf|png|jpg|svg|json)\$">
     Header set Cache-Control "public, max-age=31536000, immutable"
   </FilesMatch>
 </IfModule>
