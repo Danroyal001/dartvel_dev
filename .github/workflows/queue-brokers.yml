@@ -1,0 +1,117 @@
+# The queue adapters against the real brokers.
+#
+# Every adapter here is tested against a fake that returns what the protocol
+# says it should. That proves the adapter speaks the protocol it was written
+# against; it proves nothing about whether the broker agrees. A fake that
+# shares the author's misunderstanding passes every time.
+#
+# So each adapter also runs against the actual server in a service container:
+# RabbitMQ's own image, and ElasticMQ for SQS, which implements the SQS API.
+name: queue brokers
+
+on:
+  push:
+    paths:
+      - 'packages/dartvel_core/lib/src/queues/**'
+      - 'packages/dartvel_core/test/*queue*'
+      - '.github/workflows/queue-brokers.yml'
+  workflow_dispatch:
+
+jobs:
+  rabbitmq:
+    name: RabbitMQ — publish, consume, acknowledge
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      rabbitmq:
+        image: rabbitmq:3-management-alpine
+        ports:
+          - 5672:5672
+          - 15672:15672
+        # Without this the job races the broker: the container is "started"
+        # long before AMQP is accepting connections.
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
+
+      - name: Resolve
+        working-directory: packages/dartvel_core
+        run: dart pub get
+
+      - name: The broker is actually up
+        run: |
+          set -euo pipefail
+          # The health check gates the job, not the protocol. Ask the
+          # management API so a failure here names the broker rather than
+          # appearing later as a confusing adapter error.
+          for i in $(seq 1 30); do
+            if curl -sf -u guest:guest http://localhost:15672/api/overview \
+                 > /tmp/overview.json; then
+              python3 - <<'PYEOF'
+          import json
+          o = json.load(open('/tmp/overview.json'))
+          print('RabbitMQ', o['rabbitmq_version'], 'on', o['node'])
+          PYEOF
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::RabbitMQ never answered its management API"
+          exit 1
+
+      - name: Round-trip a job through it
+        working-directory: packages/dartvel_core
+        env:
+          DARTVEL_AMQP_HOST: localhost
+          DARTVEL_AMQP_PORT: '5672'
+        run: dart test test/amqp_live_test.dart --reporter expanded
+
+  sqs:
+    name: SQS — send, receive, delete
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      # ElasticMQ implements the SQS API, so the adapter is talking to
+      # something that enforces the same rules rather than to a fake that
+      # agrees with it.
+      sqs:
+        image: softwaremill/elasticmq-native:latest
+        ports:
+          - 9324:9324
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
+
+      - name: Resolve
+        working-directory: packages/dartvel_core
+        run: dart pub get
+
+      - name: The queue service is up
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            if curl -sf "http://localhost:9324/?Action=ListQueues" > /dev/null; then
+              echo "ElasticMQ answering on 9324"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::ElasticMQ never answered"
+          exit 1
+
+      - name: Round-trip a job through it
+        working-directory: packages/dartvel_core
+        env:
+          DARTVEL_SQS_ENDPOINT: http://localhost:9324
+        run: dart test test/sqs_live_test.dart --reporter expanded
