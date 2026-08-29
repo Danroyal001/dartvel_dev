@@ -16,32 +16,21 @@ reading the source.
 what ships today.** Where the spec and this README disagree with the code, the
 code wins.
 
-**Published.** Six packages on
-[pub.dev](https://pub.dev/packages/dartvel_dev), an
-[npm launcher](https://www.npmjs.com/package/dartvel_dev), a
-[Homebrew tap](https://github.com/Danroyal001/homebrew-dartvel_dev), and
-self-contained binaries for five platforms. The site at
-[dartvel.dev](https://dartvel.dev) is built with Dartvel, which is how three
-first-hour bugs were found.
+**Published**, and installable three ways — see
+[Getting Started](#-getting-started) rather than a second copy of it here.
 
-**Recently implemented.** These were specified with no code behind them and
-now have runtime implementations and tests:
+[dartvel.dev](https://dartvel.dev) is built with Dartvel, which is the reason
+several of its worst bugs are fixed: Flutter's hash URLs silently sent every
+deep link to `/`, the semantics tree was never built so no crawler and no
+screen reader saw anything, and links tore the document down and rebuilt the
+whole application instead of routing. None of those show up in a unit test.
 
-| Surface | Status |
-| :--- | :--- |
-| `DV.lifecycle.app` / `.build`, `context.lifecycle.*` | ✅ Read-only enum signals |
-| `DV.Modules.<id>` | ✅ Registry, per-module lifecycle, mount-point independence |
-| `DV.transaction(...)`, `context.afterCommit`, `context.compensate` | ✅ Reverse-order compensation, nesting, isolation |
-| `@DVModel(publicPathsResolver:)` | ✅ Discovered during generation and exported by the generated client barrel |
-| `DVModelPageDataMode` | ✅ Drives generated `Model.Page.async/.signal/.fromId` renderers |
-| `@DVModel(generatePublicPages: true)` | ✅ Emits static-path manifest entries and DB-backed `Model.publicStaticPaths()` resolvers |
-| `DV.AI` provider adapters | ✅ Real HTTP adapters for Claude, OpenAI, Gemini, OpenRouter, and Ollama |
-| Native HTTP/2 client | ✅ On the `h2` crate, with 103 Early Hints, verified against a live server |
-| `ApnsPushProvider`, `WebPushProvider` | ✅ Both unblocked by that client; Web Push is RFC 8291 + 8292 |
-| `DV.Platform.surface`, launch negotiation | ✅ Terminal rendering's runtime surface; the backend itself is not built |
-| `DVNavLink` | ✅ Navigation, link semantics, keyboard focus, new-tab clicks, route preloading and cross-platform link previews |
-| `DV.Platform` native bindings | ✅ Six platforms through FFI and jnigen — clipboard, haptics, screen, window, notifications, sharing |
-| Path URLs on the web | ✅ Deep links route; Flutter's hash default silently sent every URL to `/` |
+**What is actually built** is not listed here, deliberately. A hand-written
+table of recent work is out of date the week after it is written, and this one
+was. [`docs/spec-status.json`](docs/spec-status.json) carries a status per spec
+section and `dart run tool/spec_status_check.dart` fails when a section claims
+to be built and the evidence it names does not exist. `dartvel spec status`
+prints the same thing.
 
 **Implemented, but not equally mature.** The feature table below marks each
 area. Anything flagged ⚠️ Scaffold has an API surface and prebuilt pieces, but
@@ -51,9 +40,11 @@ provider integrations are incomplete — expect to fill gaps yourself.
 artifact inspected — the file listed, its type checked. That proves it
 compiles and links; it does not prove the application starts.
 
-Ten targets go further and are run: the app is launched on a virtual device or
-an emulator and screenshotted, and the screenshot is checked for *pixels*
-rather than for existing. That check earned itself. Every job used to end at
+Eleven targets go further and are run in CI: Linux, Linux in a terminal, the
+web, a web server rendering each route, Android, macOS, iOS, Windows, tvOS,
+Sony eLinux, and both browser extensions. The app is launched on a virtual
+device, an emulator or a real browser and screenshotted, and the screenshot is
+checked for *pixels* rather than for existing. That check earned itself. Every job used to end at
 `test -s capture.png`, which a blank screen satisfies — a crash before the
 first frame produces a full-size image of one colour, a few kilobytes on disk,
 and a green build.
@@ -69,9 +60,12 @@ partial and say what is missing.
 
 **Build targets** are individually verified with evidence in
 [docs/build-targets.md](docs/build-targets.md). Thirteen of fifteen build.
-webOS has its engine — a 32-bit ARM build Google does not publish, so Dartvel
-builds it from source — and its bundle is unattempted. Fuchsia is blocked on
-an embedder whose bundled Flutter predates Dart 3.4.
+webOS builds and runs in a Wayland window on ARM under emulation — its engine
+is a 32-bit ARM build Google does not publish, so Dartvel builds it from
+source — though it has not been run on a television. Fuchsia is blocked on its
+engine, which does not build at Flutter 3.44.5: four attempts are recorded,
+and the last matches the embedder fork's own invocation exactly and still
+fails on a Dart VM thread-local being linked into a shared library.
 
 If you hit something that claims to work and does not, that is a bug in these
 docs as much as in the code — please report it.
@@ -122,8 +116,7 @@ Manage the full-stack lifecycle directly with the Dartvel CLI:
 
 ```bash
 # Project initialization
-dartvel new [name]
-dartvel init
+dartvel create [name]
 dartvel doctor
 dartvel doctor --target tizen      # check one target's toolchain
 
@@ -265,7 +258,8 @@ signals, native platform APIs),
 [`dartvel_cli`](https://pub.dev/packages/dartvel_cli),
 [`dartvel_generator`](https://pub.dev/packages/dartvel_generator).
 
-### 3. Project Initialization
+### 3. Start it
+
 ```bash
 dartvel create my_app
 cd my_app
