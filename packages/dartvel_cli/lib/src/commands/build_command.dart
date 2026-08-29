@@ -1410,7 +1410,7 @@ class BuildCommand extends Command<void> {
       // ignore XSLT entirely. Written only when absent, so a project that
       // wants its own keeps it.
       final stylesheet = File(p.join(web.path, 'sitemap.xsl'));
-      if (!stylesheet.existsSync()) {
+      if (!File(p.join(root, 'web', 'sitemap.xsl')).existsSync()) {
         stylesheet.writeAsStringSync(dvSitemapStylesheet(
           siteName: settings['siteName'] as String? ?? baseTitle,
           tagline: dvSeoDescription(settings) ?? '',
@@ -1425,7 +1425,11 @@ class BuildCommand extends Command<void> {
       // written and nothing wrote it, so a build uploaded to Apache answered
       // the host's 404 page.
       final htaccess = File(p.join(web.path, '.htaccess'));
-      if (!htaccess.existsSync()) {
+      // Overwritten every build: build/web is output, and "only when absent"
+      // meant a fix to the generated file never reached anyone who had built
+      // once -- which is how a bad cache rule survived being fixed. A project
+      // supplies its own by putting the file in web/, which Flutter copies.
+      if (!File(p.join(root, 'web', '.htaccess')).existsSync()) {
         htaccess.writeAsStringSync(dvApacheConfig());
       }
       Logger.log('   Wrote $written route pages, sitemap.xml and robots.txt.');
@@ -1489,7 +1493,7 @@ class BuildCommand extends Command<void> {
       // ignore XSLT entirely. Written only when absent, so a project that
       // wants its own keeps it.
       final stylesheet = File(p.join(web.path, 'sitemap.xsl'));
-      if (!stylesheet.existsSync()) {
+      if (!File(p.join(root, 'web', 'sitemap.xsl')).existsSync()) {
         stylesheet.writeAsStringSync(dvSitemapStylesheet(
           siteName: seo['siteName'] as String? ??
               dvSeoTitle(seo, _packageName(root) ?? 'Dartvel'),
@@ -1505,7 +1509,11 @@ class BuildCommand extends Command<void> {
       // written and nothing wrote it, so a build uploaded to Apache answered
       // the host's 404 page.
       final htaccess = File(p.join(web.path, '.htaccess'));
-      if (!htaccess.existsSync()) {
+      // Overwritten every build: build/web is output, and "only when absent"
+      // meant a fix to the generated file never reached anyone who had built
+      // once -- which is how a bad cache rule survived being fixed. A project
+      // supplies its own by putting the file in web/, which Flutter copies.
+      if (!File(p.join(root, 'web', '.htaccess')).existsSync()) {
         htaccess.writeAsStringSync(dvApacheConfig());
       }
     }
