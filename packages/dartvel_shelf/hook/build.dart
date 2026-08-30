@@ -17,7 +17,7 @@ Future<void> main(List<String> args) async {
     // never link one by default, and no application gets one it did not ask
     // for.
     if (!dvEmbedServerRequested(input.userDefines[dvEmbedServerDefine])) {
-      stdout.writeln(
+      _say(
         'dartvel_shelf hook: no embedded server requested, skipping the '
         'native build. An application that serves sets '
         '`hooks: user_defines: dartvel_shelf: $dvEmbedServerDefine: true` in '
@@ -36,13 +36,13 @@ Future<void> main(List<String> args) async {
       const Duration(minutes: 1),
     );
     if (cargoCheck == null || cargoCheck.exitCode != 0) {
-      stdout.writeln(
+      _say(
           'dartvel_shelf hook: cargo not found on system, skipping Rust compilation.');
       return;
     }
 
     if (!rustDir.existsSync()) {
-      stdout.writeln('dartvel_shelf hook: rust directory missing, skipping.');
+      _say('dartvel_shelf hook: rust directory missing, skipping.');
       return;
     }
 
@@ -60,7 +60,7 @@ Future<void> main(List<String> args) async {
       const Duration(minutes: 1),
     );
     if (cbindgenCheck == null || cbindgenCheck.exitCode != 0) {
-      stdout.writeln(
+      _say(
           'dartvel_shelf hook: cbindgen not found, skipping native build. '
           'Install it with `cargo install cbindgen` to regenerate bindings.');
       return;
@@ -70,7 +70,7 @@ Future<void> main(List<String> args) async {
     final buildAssetTypes = input.config.buildAssetTypes;
     final wantsCodeAsset = buildAssetTypes.contains(codeAssetType);
     if (!wantsCodeAsset) {
-      stdout.writeln(
+      _say(
           'dartvel_shelf hook: target does not support native code assets; skipping.');
       return;
     }
@@ -92,7 +92,7 @@ Future<void> main(List<String> args) async {
 
     final tripleInfo = _resolveTarget(targetOS, targetArch);
     if (tripleInfo == null) {
-      stdout.writeln(
+      _say(
           'dartvel_shelf hook: no native artifact target configured for '
           '$targetOS/$targetArch; skipping.');
       return;
@@ -390,4 +390,18 @@ Future<ProcessResult?> _runBounded(
     };
   }
   return null;
+}
+
+/// Prints a diagnostic, tolerating a stdout that cannot be written to.
+///
+/// `testBuildHook` binds stdout to a stream, and writing to a bound sink
+/// throws `Bad state: StreamSink is bound to a stream`. That turned a hook
+/// that was behaving correctly into a failing test, so the message is dropped
+/// rather than taking the build down: it is a diagnostic, not a result.
+void _say(String message) {
+  try {
+    stdout.writeln(message);
+  } on Object {
+    // Nothing to do about it, and nothing depends on it.
+  }
 }

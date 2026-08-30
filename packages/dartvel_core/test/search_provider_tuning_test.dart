@@ -2,7 +2,6 @@
 // what matches, highlighting shows why, and facet counts say what narrowing is
 // available.
 import 'package:dartvel_core/dartvel.dart';
-import 'package:dartvel_core/src/search/search_tuning.dart';
 import 'package:test/test.dart';
 
 class _Person {
