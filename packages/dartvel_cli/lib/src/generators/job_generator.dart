@@ -1,6 +1,8 @@
 import 'dart:io';
 
 import 'package:file/local.dart';
+import 'symbol_qualifier.dart';
+import 'function_body.dart';
 import 'package:glob/glob.dart';
 import 'package:path/path.dart' as p;
 
@@ -38,10 +40,10 @@ class DiscoveredJobHandler {
   final String publicName;
 
   /// The expression the private input's body evaluates to.
-  final String expressionBody;
+  /// The scanned body, block or expression, with its `async` modifier.
+  final DVFunctionBody body;
 
   /// Whether the handler was declared `async`.
-  final bool isAsync;
 
   /// A `package:`-qualified import for the file declaring the handler.
   final String importPath;
@@ -54,8 +56,7 @@ class DiscoveredJobHandler {
     required this.payloadType,
     required this.parameterName,
     required this.publicName,
-    required this.expressionBody,
-    required this.isAsync,
+    required this.body,
     required this.importPath,
     required this.sourceSymbols,
   });
@@ -198,19 +199,12 @@ class JobGenerator {
         );
       }
 
-      final afterParams = _skipWhitespace(source, closeParen + 1);
-      final isAsync = source.startsWith('async', afterParams);
-      final bodyStart =
-          isAsync ? _skipWhitespace(source, afterParams + 'async'.length) : afterParams;
-
-      final expression = _expressionBodyAt(source, bodyStart);
-      if (expression == null) {
+      final DVFunctionBody? body = dvFunctionBodyAfter(source, closeParen);
+      if (body == null) {
         throw StateError(
-          'Dartvel job handler $declared in $relative must use an expression '
-          'body for this generator pass, for example '
-          'Future<void> $declared(${parameter.$1} job) async => sendMail(job). '
-          'Block-bodied private handlers require generated body lowering, the '
-          'same restriction private pages and backend functions have.',
+          'Dartvel job handler $declared in $relative has no body, for example '
+          'Future<void> $declared(${parameter.$1} job) async => sendMail(job) '
+          'or the same with a block.',
         );
       }
 
@@ -219,8 +213,7 @@ class JobGenerator {
           payloadType: parameter.$1,
           parameterName: parameter.$2,
           publicName: declared.substring(1),
-          expressionBody: expression,
-          isAsync: isAsync,
+          body: body,
           importPath: importPath,
           sourceSymbols: _topLevelSourceSymbols(source),
         ),
@@ -417,19 +410,34 @@ class JobGenerator {
     DiscoveredJobHandler handler,
     String alias,
   ) {
-    final asyncKeyword = handler.isAsync ? ' async' : '';
+    final String asyncKeyword =
+        handler.body.modifier == null ? '' : ' ${handler.body.modifier}';
     // The handler's own parameter must not be rewritten to the alias, even if
     // the file happens to declare a top-level symbol with the same name.
     final symbols = handler.sourceSymbols
         .where((String symbol) => symbol != handler.parameterName)
         .toSet();
-    final body = _qualifySourceSymbols(handler.expressionBody, alias, symbols);
+    final String rendered = _qualifySourceSymbols(
+      handler.body.isBlock
+          ? handler.body.statements!
+          : handler.body.expression!,
+      alias,
+      symbols,
+    );
     sb
       ..writeln('/// Generated public handler for [_${handler.publicName}].')
       ..writeln('Future<void> ${handler.publicName}(')
       ..writeln('  ${handler.payloadType} ${handler.parameterName},')
-      ..writeln(')$asyncKeyword => $body;')
-      ..writeln();
+      ..write(')$asyncKeyword');
+    if (handler.body.isBlock) {
+      sb
+        ..writeln(' {')
+        ..writeln(rendered)
+        ..writeln('}');
+    } else {
+      sb.writeln(' => $rendered;');
+    }
+    sb.writeln();
   }
 
   /// Public top-level symbols a handler's file declares, so a lowered body can
@@ -463,19 +471,8 @@ class JobGenerator {
     String expression,
     String alias,
     Set<String> symbols,
-  ) {
-    var qualified = expression;
-    // Longest first, so a symbol that is a prefix of another cannot claim it.
-    final ordered = symbols.toList()
-      ..sort((String a, String b) => b.length.compareTo(a.length));
-    for (final symbol in ordered) {
-      qualified = qualified.replaceAllMapped(
-        RegExp('(?<![A-Za-z0-9_.])${RegExp.escape(symbol)}(?![A-Za-z0-9_])'),
-        (Match _) => '$alias.$symbol',
-      );
-    }
-    return qualified;
-  }
+  ) =>
+      dvQualifySourceSymbols(expression, alias, symbols);
 
   // --- source parsing -------------------------------------------------------
 
@@ -512,51 +509,6 @@ class JobGenerator {
     final parts = parameters.split(RegExp(r'\s+'));
     if (parts.length != 2) return null;
     return (parts[0], parts[1]);
-  }
-
-  static int _skipWhitespace(String source, int index) {
-    var i = index;
-    while (i < source.length && source[i].trim().isEmpty) {
-      i++;
-    }
-    return i;
-  }
-
-  static String? _expressionBodyAt(String source, int bodyStart) {
-    if (bodyStart + 1 >= source.length ||
-        source[bodyStart] != '=' ||
-        source[bodyStart + 1] != '>') {
-      return null;
-    }
-    final end = _statementEnd(source, bodyStart + 2);
-    if (end == -1) return null;
-    return source.substring(bodyStart + 2, end).trim();
-  }
-
-  /// Finds the `;` that ends an expression body, ignoring semicolons inside
-  /// brackets and string literals.
-  static int _statementEnd(String source, int start) {
-    var depth = 0;
-    String? quote;
-    for (var i = start; i < source.length; i++) {
-      final char = source[i];
-      if (quote != null) {
-        if (char == r'\') {
-          i++;
-        } else if (char == quote) {
-          quote = null;
-        }
-        continue;
-      }
-      if (char == "'" || char == '"') {
-        quote = char;
-        continue;
-      }
-      if (char == '(' || char == '[' || char == '{') depth++;
-      if (char == ')' || char == ']' || char == '}') depth--;
-      if (char == ';' && depth == 0) return i;
-    }
-    return -1;
   }
 
   static String? _stringArg(String args, String name) {
