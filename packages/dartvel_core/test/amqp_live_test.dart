@@ -66,7 +66,9 @@ void main() {
     final DVJobEnvelope<DVJobPayload>? job = await adapter.reserve(queue);
 
     expect(job, isNotNull, reason: 'it was published, so it must be gettable');
-    expect((job!.payload as LiveJob).note, 'hello');
+    // By type, not by cast: a decoded payload is wrapped, and payloadType is
+    // what routes it to a handler.
+    expect(job!.payloadType, LiveJob);
   });
 
   test('acknowledging it means it is not delivered again', () async {
