@@ -13,6 +13,23 @@
 //! all the same kind of thing: something that arrives later. A Dart helper
 //! isolate blocks on `dv_http_next_event` and forwards what it gets.
 
+// Split out of dartvel_shelf so a frontend can have an HTTP client without
+// linking a server. FfiBuf and FfiStr were shared with the server crate; they
+// are ABI plumbing of a dozen lines, so each crate carries its own rather than
+// introducing a third crate to hold them.
+
+#[repr(C)]
+pub struct FfiBuf {
+    pub ptr: *const u8,
+    pub len: usize,
+}
+
+#[repr(C)]
+pub struct FfiStr {
+    pub ptr: *const u8,
+    pub len: usize,
+}
+
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
@@ -30,7 +47,7 @@ use tokio_rustls::TlsConnector;
 use rustls::pki_types::ServerName;
 use rustls::ClientConfig;
 
-use crate::{FfiBuf, FfiStr};
+// FfiBuf and FfiStr are declared above.
 
 // ===== Event kinds crossing the FFI boundary =====
 
@@ -94,7 +111,7 @@ fn requests() -> &'static Mutex<HashMap<u64, PendingRequest>> {
 ///
 /// A second call losing the race is not an error — someone installed a
 /// provider, which is the whole requirement.
-pub(crate) fn ensure_crypto_provider() {
+pub fn ensure_crypto_provider() {
     static INSTALLED: OnceLock<()> = OnceLock::new();
     INSTALLED.get_or_init(|| {
         let _ = rustls::crypto::ring::default_provider().install_default();

@@ -26,9 +26,20 @@ use rustls::{
 };
 use rustls_pemfile::Item;
 
-mod http_client;
 
 // ===== C ABI structs =====
+/// Installs rustls's ring provider once.
+///
+/// Moved here when the HTTP client became its own crate: a second provider
+/// makes rustls panic rather than choose, so each crate installs the same one
+/// exactly once for itself.
+fn ensure_crypto_provider() {
+    static INSTALLED: std::sync::OnceLock<()> = std::sync::OnceLock::new();
+    INSTALLED.get_or_init(|| {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+    });
+}
+
 #[repr(C)]
 pub struct FfiBuf {
     pub ptr: *const u8,
@@ -456,7 +467,7 @@ pub extern "C" fn aw_tls_rustls_from_pem(cert_pem: FfiBuf, key_pem: FfiBuf) -> i
 
     // Same ambiguity as the client: with two rustls providers compiled in,
     // builder() panics unless a process default exists.
-    crate::http_client::ensure_crypto_provider();
+    ensure_crypto_provider();
 
     let cfg = ServerConfig::builder()
         .with_no_client_auth()

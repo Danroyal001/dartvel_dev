@@ -12,13 +12,12 @@ environment:
   # 3.12 is what dartvel_mix pins; 3.9 is only what code_assets needs.
   sdk: ">=3.12.0 <4.0.0"
 dependencies:
-  dartvel_shelf:
-    version: ^0.3.0
   async: ^2.13.1
   crypto: ^3.0.7
   http: ^1.6.0
-  # The native HTTP/2 client is reached through FFI; the library itself is
-  # packaged by dartvel_shelf, which this already depends on.
+  # The native HTTP/2 client is reached through FFI. The library is built from
+  # this package's own rust/ crate now: it used to be packaged by
+  # dartvel_shelf, which meant a frontend acquired a server to get a client.
   ffi: ^2.1.0
   mime: ^1.0.4
   http_parser: ^4.0.2
@@ -26,6 +25,12 @@ dependencies:
   sqlite3: ^2.9.4
   drift: ^2.14.0
   pointycastle: ^4.0.0
+  # The native-asset build hook that compiles this package's rust/ crate.
+  # They belong in dependencies rather than dev_dependencies: the hook runs
+  # for anything that depends on this package, not only when testing it.
+  hooks: ^0.20.1
+  code_assets: ^0.19.7
+
 dev_dependencies:
   test: ^1.28.0
   build_runner: ^2.4.0

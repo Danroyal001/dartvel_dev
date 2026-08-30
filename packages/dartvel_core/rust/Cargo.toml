@@ -1,0 +1,46 @@
+[package]
+name = "dartvel_client_core"
+version = "0.3.0"
+edition = "2021"
+
+# The outbound HTTP client, split out of dartvel_shelf.
+#
+# dartvel_core is on both sides of the wire, and the client belongs with it.
+# dartvel_shelf is the server, which a frontend never needs; keeping the two in
+# one crate meant an application that only calls a remote API linked an Axum
+# runtime, with TLS and a static file handler, to get an HTTP client.
+[lib]
+name = "dartvel_client"
+crate-type = ["cdylib"]
+
+[dependencies]
+bytes = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "net", "io-util"] }
+
+# h2 is used directly rather than through reqwest or hyper because
+# ResponseFuture::poll_informational is the only place in the ecosystem where
+# 103 Early Hints surface; hyper supports them in neither direction.
+h2 = "0.4"
+http = "1"
+
+# ring, not aws-lc-rs: a second provider makes rustls panic rather than choose,
+# and aws-lc is a large C codebase that fails on macOS where cc-rs invokes
+# clang without an -isysroot.
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+rustls-native-certs = "0.7"
+webpki-roots = "0.26"
+
+# HTTP/3: quinn carries QUIC, h3 the HTTP semantics, h3-quinn the adapter.
+# default-features off on quinn so it cannot pull aws-lc-rs back in.
+h3 = "0.0.8"
+h3-quinn = "0.0.10"
+quinn = { version = "0.11", default-features = false, features = ["runtime-tokio", "rustls", "ring"] }
+
+[build-dependencies]
+cbindgen = "0.29"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "net", "io-util"] }

@@ -1,4 +1,5 @@
-import 'wintercg.dart';
+import 'package:dartvel_core/dartvel.dart'
+    show Request, Response, Headers, Body, URLPattern, Router;
 
 /// Server handle for builds where the native FFI server is not linked.
 class ServerHandle {

@@ -1,0 +1,3 @@
+language = "C"
+include_guard = "DARTVEL_CLIENT_H"
+usize_is_size_t = true

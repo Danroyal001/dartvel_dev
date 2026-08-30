@@ -9,7 +9,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dartvel_core/dartvel.dart';
-import 'package:dartvel_shelf/dartvel_shelf.dart' as shelf;
+import 'package:dartvel_core/dartvel.dart' as shelf;
 import 'package:test/test.dart';
 
 const String boundary = 'dvb';
