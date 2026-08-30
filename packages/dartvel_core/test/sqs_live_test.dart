@@ -118,10 +118,18 @@ void main() {
 
   setUpAll(() async {
     transport = HttpSqsTransport(endpoint);
-    await transport.call('CreateQueue', <String, String>{'QueueName': queue});
+    // The URL the server gives back, not one this test builds. ElasticMQ and
+    // SQS itself have changed that path shape more than once, and guessing it
+    // addresses a queue that does not exist -- which reads as an empty queue
+    // rather than as a wrong address.
+    final Map<String, Object?> created =
+        await transport.call('CreateQueue', <String, String>{
+      'QueueName': queue,
+    });
+    final String url = '${created['QueueUrl'] ?? '$endpoint/queue/$queue'}';
     adapter = DVSqsQueueAdapter(
       transport,
-      queueUrl: (String name) => '$endpoint/queue/$name',
+      queueUrl: (String name) => url,
       // Long polling would make every empty read wait; this suite reads
       // straight after writing.
       waitTimeSeconds: 1,
