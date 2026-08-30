@@ -214,15 +214,18 @@ class DVKafkaSocketClient implements DVKafkaClient {
 
     final _Response response = await _call(9, 1, body.bytes); // OffsetFetch v1
     final _Reader read = _Reader(response.body);
-    read.int32();
+    // A group that has never committed comes back with no topics at all, not
+    // with an offset of -1. That is the normal state on a first run, so it is
+    // read as the start of the log rather than walked off the end of the
+    // buffer -- which is what it did, as a RangeError inside a getInt16.
+    if (read.remaining < 4 || read.int32() == 0) return 0;
     read.string();
-    read.int32();
-    read.int32();
+    if (read.remaining < 4 || read.int32() == 0) return 0;
+    read.int32(); // partition
     final int offset = read.int64();
     read.string(); // metadata
     read.int16(); // error
-    // -1 means nothing has been committed for this group yet, which is the
-    // start of the log rather than an error.
+    // -1 means the group exists and has committed nothing for this partition.
     return offset < 0 ? 0 : offset;
   }
 
@@ -399,6 +402,11 @@ class _Reader {
   int _at = 0;
 
   void skip(int count) => _at += count;
+
+  /// Bytes left. Kafka omits whole arrays rather than sending empty ones in
+  /// some responses, so a parser that assumes a fixed shape reads past the
+  /// end instead of finding a zero.
+  int get remaining => _bytes.length - _at;
 
   int int8() => _view.getInt8(_at++);
 
