@@ -69,6 +69,18 @@ void main() {
     expect(job.id, endsWith('@0'), reason: 'the first record is at offset 0');
   });
 
+  test('the broker agrees the record is there', () async {
+    // Printed rather than inferred. Two runs were spent guessing why a fetch
+    // came back empty; whether the log actually holds the record separates a
+    // produce that lied from a fetch that cannot read it.
+    final int end = await client.endOffset(adapter.topicFor(queue));
+    final int at = await client.committed(adapter.topicFor(queue));
+    // ignore: avoid_print
+    print('kafka: endOffset=$end committed=$at');
+
+    expect(end, greaterThan(0), reason: 'the produce claimed offset 0');
+  });
+
   test('it reads back with the type that routes it', () async {
     final DVJobEnvelope<DVJobPayload>? read = await adapter.reserve(queue);
 
