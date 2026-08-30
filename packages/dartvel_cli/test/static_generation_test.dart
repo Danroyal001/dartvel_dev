@@ -101,4 +101,64 @@ void main() {
       );
     });
   });
+
+  group('pages the router will actually serve', () {
+    test('a resolved path whose template is not a route is refused', () {
+      // The manifest derives its route from the model's name, and nothing
+      // checked the router had one. That generated /products/pro-kit at an
+      // address the application 404s on: a crawler follows it, gets HTML, the
+      // app boots and shows its own not-found page.
+      expect(
+        dvServedStaticPaths(
+          <String>['/products/pro-kit', '/blog/7'],
+          declared: <String>['/', '/blog/:id'],
+        ),
+        <String>['/blog/7'],
+      );
+    });
+
+    test('a path matching a declared template is kept', () {
+      expect(
+        dvServedStaticPaths(
+          <String>['/posts/hello'],
+          declared: <String>['/posts/:slug'],
+        ),
+        <String>['/posts/hello'],
+      );
+    });
+
+    test('segment counts have to match', () {
+      // /posts/:slug does not serve /posts/a/b, and generating it would put a
+      // page somewhere the router cannot reach.
+      expect(
+        dvServedStaticPaths(
+          <String>['/posts/a/b'],
+          declared: <String>['/posts/:slug'],
+        ),
+        isEmpty,
+      );
+    });
+
+    test('a literal segment must match literally', () {
+      expect(
+        dvServedStaticPaths(
+          <String>['/pages/hello'],
+          declared: <String>['/posts/:slug'],
+        ),
+        isEmpty,
+      );
+    });
+
+    test('which templates were never served', () {
+      // Reported by name, because a model that generates no pages at all is
+      // the failure this is meant to make visible.
+      expect(
+        dvUnservedTemplates(
+          <String>['/products/:slug', '/blog/:id'],
+          declared: <String>['/', '/blog/:id'],
+        ),
+        <String>['/products/:slug'],
+      );
+    });
+  });
 }

@@ -387,6 +387,33 @@ class ModelGenerator {
           sb.writeln(
             "  static const String publicPageRoute = '/${_pluralRouteSegment(className)}/:$publicPathField';",
           );
+          sb.writeln(
+            "  /// The path parameter [publicPageRoute] carries.",
+          );
+          sb.writeln(
+            "  static const String publicPageParam = '$publicPathField';",
+          );
+          sb.writeln();
+          sb.writeln('  /// The page at [publicPageRoute], ready to route to.');
+          sb.writeln('  ///');
+          sb.writeln('  /// generatePublicPages promised public pages and');
+          sb.writeln('  /// produced only a list of paths: nothing generated a');
+          sb.writeln('  /// route, so every one of those paths led to the');
+          sb.writeln("  /// application's own not-found page. This is what the");
+          sb.writeln('  /// generated router renders for them.');
+          sb.writeln('  static Widget publicPage(String $publicPathField) {');
+          sb.writeln('    return Page.fromId(');
+          sb.writeln('      $publicPathField,');
+          sb.writeln('      findById: (String value) async {');
+          sb.writeln('        final found = await find(value);');
+          sb.writeln('        if (found == null) {');
+          sb.writeln("          throw StateError('No $className for \"'");
+          sb.writeln("              '\$value\".');");
+          sb.writeln('        }');
+          sb.writeln('        return found;');
+          sb.writeln('      },');
+          sb.writeln('    );');
+          sb.writeln('  }');
         }
         sb.writeln();
         sb.writeln('  /// Generated card component for [$className].');

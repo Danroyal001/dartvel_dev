@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
+
+import 'static_paths_generator.dart';
 import 'package:file/local.dart';
 import 'package:glob/glob.dart';
 import 'package:path/path.dart' as p;
@@ -60,6 +62,8 @@ class ClientGenerator {
     required String pagesDir,
     required String pkgName,
     required String buildId,
+    /// Models whose pages Dartvel generates, so the router can serve them.
+    List<StaticPathsProvider> publicPageModels = const <StaticPathsProvider>[],
     required String backendHost,
     required int backendPort,
     required String devBackendHost,
@@ -612,6 +616,32 @@ class DartvelRuntime {
       return '\n      redirect: (context, state) async {\n$calls\n        return null;\n      },\n';
     }
 
+    // A route per model that asked Dartvel to generate its pages. Without
+    // these, generatePublicPages produced a list of paths and nothing that
+    // served them, so every generated page rendered the application's own
+    // not-found screen.
+    final modelRoutesSrc = publicPageModels
+        .map(
+          (m) => '''
+    GoRoute(
+      path: '${m.route}',
+      pageBuilder: (context, state) => NoTransitionPage<void>(
+        child: ${m.className}.publicPage(
+          state.pathParameters['${m.param}'] ?? '',
+        ),
+      ),
+    ),''',
+        )
+        .join('\n');
+
+    // Prefixed with a separator when there are page routes before it. The
+    // page entries are joined without a trailing comma, so appending a route
+    // straight after the last one produces "),\n    GoRoute(" without the
+    // comma -- a syntax error in generated code, which is the worst place for
+    // one because nobody reads it until the compiler complains.
+    final modelRoutes =
+        modelRoutesSrc.isEmpty ? '' : ',\n$modelRoutesSrc';
+
     final routesSrc = pageEntries
         .map(
           (e) => '''
@@ -910,6 +940,7 @@ $semanticsCall
   final router = GoRouter(
     routes: [
 $routesSrc
+$modelRoutes
     ],
     redirect: _globalRedirect,
     // A route with no compiled page may still be a Studio page: builder

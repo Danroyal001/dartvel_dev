@@ -57,11 +57,22 @@ Future<void> generate({bool validateProd = false}) async {
   final ota = config.ota;
 
   // Generate Router (Client)
+  // Discovered before the client is generated, because the router has to
+  // serve the pages these describe. `generatePublicPages: true` produced a
+  // list of paths and no route, so every one of them led to the application's
+  // own not-found page. Discovery only reads; the manifest is still written
+  // further down.
+  final publicPageModels = StaticPathsGenerator.discover(
+    root: root,
+    pkgName: pkgName,
+  ).where((p) => p.route != null && p.generatesPage).toList();
+
   await ClientGenerator.generate(
     root: root,
     pagesDir: pagesDir,
     pkgName: pkgName,
     buildId: buildId,
+    publicPageModels: publicPageModels,
     backendHost: backendHost,
     backendPort: backendPort,
     devBackendHost: devBackendHost,

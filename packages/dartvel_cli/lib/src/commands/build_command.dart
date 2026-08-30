@@ -1318,9 +1318,29 @@ class BuildCommand extends Command<void> {
           'A model page needs generatePublicPages or a publicPathsResolver.');
       return concrete;
     }
+
+    // Only pages a declared route can serve. The manifest derives its route
+    // from the model's name and nothing checked the router had one, so this
+    // was generating /products/pro-kit for an application whose router has no
+    // /products at all: a crawler follows the link, gets HTML, and the app
+    // boots and renders its own not-found page.
+    final List<String> served =
+        dvServedStaticPaths(resolved, declared: declared);
+    final int stranded = resolved.length - served.length;
+    if (stranded > 0) {
+      // generatePublicPages generates its own route, so what lands here is
+      // a publicPathsResolver naming paths for a page the application has
+      // not written. Saying which is the difference between a warning
+      // someone can act on and one they cannot.
+      Logger.log('   $stranded page(s) were not written: no route serves '
+          'them. A publicPathsResolver names the paths for a page you write; '
+          'if you meant Dartvel to write it, use generatePublicPages: true.');
+    }
+    if (served.isEmpty) return concrete;
+
     Logger.log('   $templates parameterised route(s) expanded to '
-        '${resolved.length} page(s).');
-    return <String>{...concrete, ...resolved}.toList()..sort();
+        '${served.length} page(s).');
+    return <String>{...concrete, ...served}.toList()..sort();
   }
 
   /// Capture each route's semantics tree from the finished build.
