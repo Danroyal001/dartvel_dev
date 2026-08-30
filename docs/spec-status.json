@@ -203,12 +203,15 @@
     {
       "section": "APIs",
       "stability": "Contract",
-      "status": "Partial",
+      "status": "Shipped",
       "evidence": [
-        "packages/dartvel_core/test/graphql_test.dart",
-        "packages/dartvel_cli/test/openapi_generator_test.dart"
+        "packages/dartvel_cli/test/openapi_generator_test.dart",
+        "packages/dartvel_core/lib/src/graphql/graphql.dart",
+        "packages/dartvel_core/test/graphql_directives_test.dart",
+        "packages/dartvel_core/test/graphql_subscriptions_test.dart",
+        "packages/dartvel_core/test/graphql_test.dart"
       ],
-      "absent": "GraphQL directives and subscriptions, which error rather than no-op"
+      "absent": null
     },
     {
       "section": "Model Sync and Presence",
