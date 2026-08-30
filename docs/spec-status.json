@@ -115,17 +115,17 @@
     {
       "section": "Queues, Jobs, and Signals",
       "stability": "Contract",
-      "status": "Partial",
+      "status": "Shipped",
       "evidence": [
         "packages/dartvel_core/lib/src/queues/redis_queue.dart",
         "packages/dartvel_core/lib/src/queues/sqs_queue.dart",
         "packages/dartvel_core/lib/src/queues/amqp_queue.dart",
-        "packages/dartvel_core/lib/src/queues/amqp_socket_io.dart",
         "packages/dartvel_core/lib/src/queues/pubsub_queue.dart",
-        "packages/dartvel_core/test/pubsub_queue_test.dart",
+        "packages/dartvel_core/lib/src/queues/kafka_queue.dart",
+        "packages/dartvel_core/lib/src/queues/kafka_socket_io.dart",
         ".github/workflows/queue-brokers.yml"
       ],
-      "absent": "the Kafka adapter. In-memory, database, Redis, SQS, RabbitMQ and Pub/Sub ship; the last three are verified against a real broker in CI rather than only against a fake"
+      "absent": "nothing. Seven adapters -- in-memory, database, Redis, SQS, RabbitMQ, Pub/Sub and Kafka -- and the four network ones are verified against a real broker in CI rather than against a fake"
     },
     {
       "section": "Authorization",
