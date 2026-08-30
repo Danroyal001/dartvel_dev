@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:yaml/yaml.dart';
 import 'package:file/local.dart';
 import 'package:glob/glob.dart';
 import 'package:path/path.dart' as p;
@@ -14,6 +15,7 @@ class ModelGenerator {
     required String pkgName,
     required String buildId,
   }) async {
+    final String searchTuningSrc = _searchTuningSource(root);
     final modelsDir = Directory(p.join(root, 'lib', 'models'));
     final fs = const LocalFileSystem();
     // Always '/': a glob separator is not a host path separator, and a
@@ -1592,6 +1594,20 @@ class ModelGenerator {
           sb.writeln('/// Generated typed search facade for [$className].');
           sb.writeln('class ${className}Search {');
           sb.writeln(
+            '  /// Ranking configured under `dartvel.search` in pubspec.yaml.',
+          );
+          sb.writeln(
+            '  ///',
+          );
+          sb.writeln(
+            '  /// Pass it to a provider that post-processes matches, so the',
+          );
+          sb.writeln(
+            '  /// configuration lives in one place rather than at each call.',
+          );
+          sb.writeln('  static const DVSearchTuning tuning = $searchTuningSrc;');
+          sb.writeln();
+          sb.writeln(
             '  static DVSearchProvider<$className, ${className}SearchFacets> _provider = const DVUnconfiguredSearchProvider<$className, ${className}SearchFacets>();',
           );
           sb.writeln();
@@ -1860,4 +1876,67 @@ class ModelGenerator {
     }
     return '${singular}s';
   }
+
+  /// Renders `dartvel.search` from pubspec.yaml as a const DVSearchTuning.
+  ///
+  /// Ranking is configuration, not code, so it belongs in one declared place
+  /// rather than repeated at every provider construction.
+  static String _searchTuningSource(String root) {
+    Object? search;
+    final File pubspec = File(p.join(root, 'pubspec.yaml'));
+    if (pubspec.existsSync()) {
+      final Object? loaded = loadYaml(pubspec.readAsStringSync());
+      if (loaded is YamlMap) {
+        final Object? dartvel = loaded['dartvel'];
+        if (dartvel is YamlMap) search = dartvel['search'];
+      }
+    }
+
+    final StringBuffer synonyms = StringBuffer();
+    bool typoTolerance = true;
+    String pre = '<mark>';
+    String post = '</mark>';
+
+    if (search is YamlMap) {
+      final Object? declared = search['synonyms'];
+      if (declared is YamlMap) {
+        for (final MapEntry<Object?, Object?> entry in declared.entries) {
+          final Object? values = entry.value;
+          if (values is! YamlList) continue;
+          synonyms.write(
+            "    '${_escapeDart('${entry.key}')}': <String>["
+            '${values.map((Object? v) => "'${_escapeDart('$v')}'").join(', ')}'
+            '],\n',
+          );
+        }
+      }
+      if (search['typoTolerance'] == false) typoTolerance = false;
+      if (search['highlightPre'] is String) {
+        pre = search['highlightPre'] as String;
+      }
+      if (search['highlightPost'] is String) {
+        post = search['highlightPost'] as String;
+      }
+    }
+
+    final String synonymsSrc = synonyms.isEmpty
+        ? 'const <String, List<String>>{}'
+        : '<String, List<String>>{\n$synonyms  }';
+
+    return 'DVSearchTuning(\n'
+        '    synonyms: $synonymsSrc,\n'
+        '    typoTolerance: $typoTolerance,\n'
+        "    highlightPre: '${_escapeDart(pre)}',\n"
+        "    highlightPost: '${_escapeDart(post)}',\n"
+        '  )';
+  }
+
+  /// pubspec is project input, so a quote or backslash in a configured value
+  /// would otherwise close the generated literal and break a file far from the
+  /// line that caused it.
+  static String _escapeDart(String value) => value
+      .replaceAll(r'\', r'\\')
+      .replaceAll(r"'", r"\'")
+      .replaceAll(r'$', r'\$');
+
 }

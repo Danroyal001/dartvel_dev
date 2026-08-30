@@ -52,6 +52,12 @@ flutter:
     - assets/
 
 dartvel:
+  search:
+    synonyms:
+      admin: [administrator, superuser]
+    typoTolerance: true
+    highlightPre: "<mark>"
+    highlightPost: "</mark>"
   backendHost: 0.0.0.0
   backendPort: 3000
   devBackendHost: http://localhost:3000
