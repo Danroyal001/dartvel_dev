@@ -1,10 +1,11 @@
 /// GraphQL support: a document parser, a schema registry, and an executor.
 ///
 /// This is the executable subset a generated API needs — operations,
-/// selection sets, arguments, variables, aliases, fragments, and
-/// introspection. It is not a general GraphQL server library: directives and
-/// subscriptions are not implemented, and asking for them is an error rather
-/// than a silent no-op.
+/// selection sets, arguments, variables, aliases, fragments, subscriptions,
+/// the `@skip` and `@include` directives, and introspection. It is not a
+/// general GraphQL server library: a directive beyond those two is an error
+/// rather than a silent no-op, because ignoring one answers a question the
+/// client did not ask.
 library dartvel_core.graphql;
 
 import 'dart:async';
@@ -184,8 +185,21 @@ class DVGraphQL {
       errors: errors,
     );
     final data = <String, Object?>{};
-    for (final selection
-        in context.expand(operation.selections)) {
+    // Expansion can fail on the request itself -- an unknown fragment, an
+    // unknown directive, a malformed @skip -- and that is a request error, not
+    // a field error: it belongs in `errors` where the client can read it,
+    // rather than escaping as an exception the caller has to catch.
+    final List<_Selection> selections;
+    try {
+      selections = context.expand(operation.selections).toList();
+    } on FormatException catch (error) {
+      return <String, Object?>{
+        'errors': <Object?>[
+          <String, Object?>{'message': error.message},
+        ],
+      };
+    }
+    for (final selection in selections) {
       // Introspection resolves from the registry rather than a resolver, so
       // tooling works against whatever the application registered.
       if (selection.name == '__schema') {
@@ -430,7 +444,58 @@ class DVGraphQL {
       'subscriptionType': _subscriptions.isEmpty
           ? null
           : <String, Object?>{'name': 'Subscription'},
-      'directives': <Object?>[],
+      // A client that reads the schema to decide what it may send must not be
+      // told the server supports none.
+      'directives': <Object?>[
+        <String, Object?>{
+          'name': 'skip',
+          'description':
+              'Omits this selection when the "if" argument is true.',
+          'locations': <String>[
+            'FIELD',
+            'FRAGMENT_SPREAD',
+            'INLINE_FRAGMENT',
+          ],
+          'args': <Object?>[
+            <String, Object?>{
+              'name': 'if',
+              'type': <String, Object?>{
+                'kind': 'NON_NULL',
+                'name': null,
+                'ofType': <String, Object?>{
+                  'kind': 'SCALAR',
+                  'name': 'Boolean',
+                  'ofType': null,
+                },
+              },
+            },
+          ],
+        },
+        <String, Object?>{
+          'name': 'include',
+          'description':
+              'Keeps this selection only when the "if" argument is true.',
+          'locations': <String>[
+            'FIELD',
+            'FRAGMENT_SPREAD',
+            'INLINE_FRAGMENT',
+          ],
+          'args': <Object?>[
+            <String, Object?>{
+              'name': 'if',
+              'type': <String, Object?>{
+                'kind': 'NON_NULL',
+                'name': null,
+                'ofType': <String, Object?>{
+                  'kind': 'SCALAR',
+                  'name': 'Boolean',
+                  'ofType': null,
+                },
+              },
+            },
+          ],
+        },
+      ],
       'types': <Object?>[
         ...objectTypes,
         for (final scalar in scalars)
@@ -522,9 +587,16 @@ class _ExecutionContext {
     required this.errors,
   });
 
-  /// Expands fragment spreads into plain field selections.
+  /// Expands fragment spreads into plain field selections, dropping anything
+  /// `@skip` or `@include` excludes.
+  ///
+  /// This is the one place selections are walked, so it is the one place the
+  /// decision can be made consistently for a field, a fragment spread and an
+  /// inline fragment.
   Iterable<_Selection> expand(List<_Selection> selections) sync* {
     for (final selection in selections) {
+      if (!_included(selection.directives)) continue;
+
       if (selection.fragmentName != null) {
         final fragment = fragments[selection.fragmentName];
         if (fragment == null) {
@@ -533,10 +605,43 @@ class _ExecutionContext {
           );
         }
         yield* expand(fragment);
+      } else if (selection.isInlineFragment) {
+        yield* expand(selection.selections);
       } else {
         yield selection;
       }
     }
+  }
+
+  /// Whether the directives on a selection allow it through.
+  ///
+  /// `@skip` wins over `@include`, as the specification requires, and anything
+  /// other than those two is refused: ignoring a directive answers a question
+  /// the client did not ask.
+  bool _included(List<_Directive> directives) {
+    var included = true;
+    for (final directive in directives) {
+      if (directive.name != 'skip' && directive.name != 'include') {
+        throw FormatException('Unknown directive "@${directive.name}".');
+      }
+      if (!directive.arguments.containsKey('if')) {
+        throw FormatException(
+          '@${directive.name} requires an "if" argument.',
+        );
+      }
+      final condition = _coerce(directive.arguments['if']);
+      if (condition is! bool) {
+        // Coercing "false" or 0 to a boolean is how a field silently
+        // disappears from a response that still parses.
+        throw FormatException(
+          '@${directive.name}(if:) takes a Boolean, not '
+          '${condition.runtimeType}.',
+        );
+      }
+      if (directive.name == 'skip' && condition) return false;
+      if (directive.name == 'include' && !condition) included = false;
+    }
+    return included;
   }
 
   Future<Object?> resolveField(
@@ -671,13 +776,30 @@ class _Selection {
   /// Set instead of [name] for a fragment spread.
   final String? fragmentName;
 
+  /// `@skip` / `@include` written on this selection.
+  final List<_Directive> directives;
+
+  /// An inline fragment: a group of selections that carries directives of its
+  /// own but contributes its children directly to the parent.
+  final bool isInlineFragment;
+
   _Selection({
     this.name = '',
     String? alias,
     this.arguments = const <String, Object?>{},
     this.selections = const <_Selection>[],
     this.fragmentName,
+    this.directives = const <_Directive>[],
+    this.isInlineFragment = false,
   }) : alias = alias ?? name;
+}
+
+/// A directive written on a selection.
+class _Directive {
+  const _Directive(this.name, this.arguments);
+
+  final String name;
+  final Map<String, Object?> arguments;
 }
 
 class _Variable {
@@ -745,13 +867,25 @@ class _Parser {
         _pos += 3;
         _skipIgnored();
         if (_peekWord('on')) {
-          // Inline fragment: the type condition is not enforced, its
-          // selections apply directly.
+          // Inline fragment: the type condition is not enforced, but its
+          // directives govern the whole group, so it stays a node rather than
+          // being flattened at parse time -- a variable cannot be read yet.
           _readWord();
           _readName();
-          selections.addAll(_parseSelectionSet());
+          _skipIgnored();
+          final inlineDirectives = _parseDirectives();
+          selections.add(_Selection(
+            selections: _parseSelectionSet(),
+            directives: inlineDirectives,
+            isInlineFragment: true,
+          ));
         } else {
-          selections.add(_Selection(fragmentName: _readName()));
+          final spread = _readName();
+          _skipIgnored();
+          selections.add(_Selection(
+            fragmentName: spread,
+            directives: _parseDirectives(),
+          ));
         }
         _skipIgnored();
         continue;
@@ -771,6 +905,7 @@ class _Parser {
         arguments = _parseArguments();
         _skipIgnored();
       }
+      final directives = _parseDirectives();
       var subSelections = const <_Selection>[];
       if (_pos < source.length && source[_pos] == '{') {
         subSelections = _parseSelectionSet();
@@ -781,11 +916,29 @@ class _Parser {
         alias: alias,
         arguments: arguments,
         selections: subSelections,
+        directives: directives,
       ));
     }
     _expect('}');
     _skipIgnored();
     return selections;
+  }
+
+  List<_Directive> _parseDirectives() {
+    final directives = <_Directive>[];
+    _skipIgnored();
+    while (_pos < source.length && source[_pos] == '@') {
+      _pos++;
+      final name = _readName();
+      _skipIgnored();
+      var arguments = const <String, Object?>{};
+      if (_pos < source.length && source[_pos] == '(') {
+        arguments = _parseArguments();
+      }
+      directives.add(_Directive(name, arguments));
+      _skipIgnored();
+    }
+    return directives;
   }
 
   Map<String, Object?> _parseArguments() {
