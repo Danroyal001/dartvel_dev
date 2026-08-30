@@ -219,6 +219,23 @@ class ClientGenerator {
       }
 
       pageImports.add("import '$importPath' deferred as p$i;");
+
+      // A lowered body is the page's own code, moved here. It was written
+      // against that file's imports, and this file has none of them -- so
+      // anything the page built out of its own components stopped resolving
+      // the moment its body was inlined rather than called.
+      //
+      // Not deferred: a const expression may not name a type from a deferred
+      // import, and `const Banner(...)` in a page body is ordinary. Only
+      // lowered pages contribute, or every application file would be dragged
+      // into the router and the code splitting the deferred imports exist for
+      // would be undone.
+      if (pageBody != null) {
+        for (final String line in _importsFor(src, rel, pkgName)) {
+          if (!pageImports.contains(line)) pageImports.add(line);
+        }
+      }
+
       String route;
       try {
         route = RouteUtils.routeFor(rel, pagesDir);
@@ -1399,44 +1416,119 @@ class DartvelConfig {
       ..writeln();
 
     for (final entry in entries) {
-      final DVFunctionBody? entryBody = entry.body;
-      if (entryBody != null) {
-        // Symbols that stayed behind in the source file are qualified through
-        // its import: this code runs in another library, where those names do
-        // not exist.
-        final String rendered = entryBody.isBlock
-            ? _qualifySourceSymbols(
-                entryBody.statements!,
-                entry.alias,
-                entry.sourceSymbols,
-              )
-            : _indentGeneratedReturn(
-                _qualifySourceSymbols(
-                  entryBody.expression!,
-                  entry.alias,
-                  entry.sourceSymbols,
-                ),
-              );
-        buffer
-          ..writeln(
-            'Widget ${entry.generatedName}(${entry.parameters})'
-            '${entryBody.modifier == null ? '' : ' ${entryBody.modifier}'} {',
-          )
-          ..writeln(rendered)
-          ..writeln('}')
-          ..writeln();
-      } else {
-        buffer
-          ..writeln('Widget ${entry.generatedName}(${entry.parameters}) {')
-          ..writeln(
-            '  return ${entry.alias}.${entry.sourceName}(${entry.argumentList});',
-          )
-          ..writeln('}')
-          ..writeln();
-      }
+      buffer.writeln(_functionalWidgetClass(entry));
     }
 
     outputFile.writeAsStringSync(buffer.toString());
+  }
+
+
+  /// Renders one `@DVFunctionalWidget` as a widget class.
+  ///
+  /// A widget rather than a function, which is what this used to emit. A
+  /// function has no element: it cannot be const, cannot hold state, cannot be
+  /// rebuilt independently of its parent, and cannot reach a BuildContext
+  /// unless every caller threads one in. "Dartvel decides whether a widget is
+  /// stateless" is not something a function can ever do.
+  ///
+  /// Call sites are unchanged -- `FeatureCard('a', 'b')` reads the same
+  /// against a constructor as against a function -- so this is strictly more
+  /// capable at the same syntax.
+  static String _functionalWidgetClass(_FunctionalWidgetEntry entry) {
+    final List<_WidgetParameter> parameters =
+        _widgetParameters(entry.parameters);
+    // A widget already has a context; asking the caller for one would be the
+    // threading a function forced.
+    final List<_WidgetParameter> fields = parameters
+        .where((_WidgetParameter p) => !p.isBuildContext)
+        .toList(growable: false);
+
+    final List<String> positional = <String>[
+      for (final _WidgetParameter p in fields)
+        if (!p.isNamed) 'this.${p.name}',
+    ];
+    final List<String> named = <String>[
+      for (final _WidgetParameter p in fields)
+        if (p.isNamed)
+          p.defaultValue == null
+              ? (p.isRequired ? 'required this.${p.name}' : 'this.${p.name}')
+              : 'this.${p.name} = ${p.defaultValue}',
+      'super.key',
+    ];
+
+    final DVFunctionBody? body = entry.body;
+    final String rendered;
+    if (body == null) {
+      rendered =
+          '    return ${entry.alias}.${entry.sourceName}(${entry.argumentList});';
+    } else if (body.isBlock) {
+      rendered = _qualifySourceSymbols(
+        body.statements!,
+        entry.alias,
+        entry.sourceSymbols,
+      );
+    } else {
+      rendered = _indentGeneratedReturn(
+        _qualifySourceSymbols(body.expression!, entry.alias, entry.sourceSymbols),
+      );
+    }
+
+    final StringBuffer out = StringBuffer()
+      ..writeln('class ${entry.generatedName} extends StatelessWidget {')
+      ..writeln(
+        '  const ${entry.generatedName}('
+        '${positional.join(', ')}${positional.isEmpty ? '' : ', '}'
+        '{${named.join(', ')}});',
+      );
+    for (final _WidgetParameter p in fields) {
+      out.writeln('  final ${p.type} ${p.name};');
+    }
+    out
+      ..writeln()
+      ..writeln('  @override')
+      ..writeln('  Widget build(BuildContext context) {')
+      ..writeln(rendered)
+      ..writeln('  }')
+      ..writeln('}');
+    return out.toString();
+  }
+
+  /// Splits a parameter list into the pieces a class needs.
+  static List<_WidgetParameter> _widgetParameters(String parameters) {
+    final String trimmed = parameters.trim();
+    if (trimmed.isEmpty) return const <_WidgetParameter>[];
+
+    final List<_WidgetParameter> out = <_WidgetParameter>[];
+    bool named = false;
+    for (String part in _splitTopLevel(trimmed)) {
+      part = part.trim();
+      if (part.startsWith('{')) {
+        named = true;
+        part = part.substring(1).trim();
+      }
+      if (part.endsWith('}')) part = part.substring(0, part.length - 1).trim();
+      if (part.isEmpty) continue;
+
+      String? defaultValue;
+      final int equals = part.indexOf('=');
+      if (equals != -1) {
+        defaultValue = part.substring(equals + 1).trim();
+        part = part.substring(0, equals).trim();
+      }
+      final bool required = part.startsWith('required ');
+      if (required) part = part.substring('required '.length).trim();
+
+      final int space = part.lastIndexOf(' ');
+      if (space == -1) continue;
+      out.add(_WidgetParameter(
+        type: part.substring(0, space).trim(),
+        name: part.substring(space + 1).trim(),
+        isNamed: named,
+        isRequired: required,
+        defaultValue: defaultValue,
+      ));
+    }
+    return out;
   }
 
   static List<_FunctionalWidgetEntry> _functionalWidgetsInSource(
@@ -1642,6 +1734,49 @@ class DartvelConfig {
     return match?.group(1) ?? cleaned;
   }
 
+  /// The imports a lowered body needs, rewritten so they resolve from
+  /// `lib/dartvel_client/`.
+  ///
+  /// A relative import is relative to the *page*, and the generated file is in
+  /// a different directory: copied across as written it resolves to nothing,
+  /// or to something else entirely. Each one becomes a `package:` URI.
+  ///
+  /// Deferred and aliased imports are skipped: an alias the body used is
+  /// already qualified by the lowering, and re-declaring it here would collide.
+  static List<String> _importsFor(String source, String rel, String pkgName) {
+    final List<String> out = <String>[];
+    final String dir = p.dirname(rel).replaceAll('\\', '/');
+
+    for (final RegExpMatch match in RegExp(
+      r"^\s*import\s+'([^']+)'([^;]*);",
+      multiLine: true,
+    ).allMatches(source)) {
+      final String uri = match.group(1)!;
+      final String suffix = (match.group(2) ?? '').trim();
+
+      // dart: and package: come across unchanged; the framework and SDK are
+      // already imported here, and a duplicate import is a compile error the
+      // caller de-duplicates against.
+      if (uri.startsWith('dart:')) continue;
+      if (suffix.contains('deferred')) continue;
+
+      if (uri.startsWith('package:')) {
+        out.add("import '$uri'${suffix.isEmpty ? '' : ' $suffix'};");
+        continue;
+      }
+
+      // Relative: resolve against the page's directory, then express it as a
+      // package URI from lib/.
+      final String resolved =
+          p.normalize(p.join(dir, uri)).replaceAll('\\', '/');
+      final String fromLib = resolved.replaceFirst(RegExp(r'^lib/'), '');
+      out.add(
+        "import 'package:$pkgName/$fromLib'${suffix.isEmpty ? '' : ' $suffix'};",
+      );
+    }
+    return out;
+  }
+
   static String _generatedWidgetName(String functionName) {
     final stripped =
         functionName.startsWith('_') ? functionName.substring(1) : functionName;
@@ -1754,4 +1889,26 @@ class _FunctionalWidgetEntry {
       sourceSymbols: sourceSymbols,
     );
   }
+
+
+}
+
+/// One parameter of a functional widget.
+class _WidgetParameter {
+  const _WidgetParameter({
+    required this.type,
+    required this.name,
+    required this.isNamed,
+    required this.isRequired,
+    this.defaultValue,
+  });
+
+  final String type;
+  final String name;
+  final bool isNamed;
+  final bool isRequired;
+  final String? defaultValue;
+
+  /// A context is handed over by build rather than by the caller.
+  bool get isBuildContext => type == 'BuildContext';
 }
