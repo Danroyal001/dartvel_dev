@@ -59,7 +59,7 @@ const String _imports =
 
 void main() {
   test('a block body reaches the generated widget', () async {
-    final String router = await generateRouterFor(_imports +
+    final String router = await generateRouterFor('$_imports'
         "@DVPage(title: 'Home')\n"
         'Widget _homePage(BuildContext context) {\n'
         '  final int count = 2;\n'
@@ -75,7 +75,7 @@ void main() {
   test('a loop and a conditional survive', () async {
     // The things an expression body cannot express, which is the whole reason
     // this restriction was worth removing.
-    final String router = await generateRouterFor(_imports +
+    final String router = await generateRouterFor('$_imports'
         "@DVPage(title: 'Home')\n"
         'Widget _homePage(BuildContext context) {\n'
         '  final List<Widget> children = <Widget>[];\n'
@@ -96,7 +96,7 @@ void main() {
   test('a map literal does not truncate the body', () async {
     // The brace in a map literal is the one that breaks a scanner counting
     // braces naively, and it would cut the body off mid-statement.
-    final String router = await generateRouterFor(_imports +
+    final String router = await generateRouterFor('$_imports'
         "@DVPage(title: 'Home')\n"
         'Widget _homePage(BuildContext context) {\n'
         "  const Map<String, int> counts = <String, int>{'a': 1, 'b': 2};\n"
