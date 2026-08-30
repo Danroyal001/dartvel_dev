@@ -117,3 +117,45 @@ jobs:
         env:
           DARTVEL_SQS_ENDPOINT: http://localhost:9324
         run: timeout 240 dart test test/sqs_live_test.dart --reporter expanded
+
+  pubsub:
+    name: Pub/Sub — publish, pull, acknowledge
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      # Google's own emulator. It starts empty, so the suite creates its topic
+      # and subscription rather than assuming a fixture.
+      pubsub:
+        image: messagebird/gcloud-pubsub-emulator:latest
+        ports:
+          - 8681:8681
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
+
+      - name: Resolve
+        working-directory: packages/dartvel_core
+        run: dart pub get
+
+      - name: The emulator is up
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            if curl -sf "http://localhost:8681/v1/projects/probe/topics" \
+                 > /dev/null; then
+              echo "Pub/Sub emulator answering on 8681"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::the Pub/Sub emulator never answered"
+          exit 1
+
+      - name: Round-trip a job through it
+        working-directory: packages/dartvel_core
+        env:
+          DARTVEL_PUBSUB_ENDPOINT: http://localhost:8681
+        run: timeout 240 dart test test/pubsub_live_test.dart --reporter expanded
