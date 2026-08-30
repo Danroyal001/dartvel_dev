@@ -35,6 +35,7 @@ export 'src/ai/mcp.dart';
 export 'src/analytics/analytics.dart';
 export 'src/annotations/annotations.dart';
 export 'src/auth/auth.dart';
+export 'src/auth/webauthn.dart';
 export 'src/auth/oauth2.dart';
 export 'src/auth/password.dart';
 export 'src/auth/tokens.dart';
