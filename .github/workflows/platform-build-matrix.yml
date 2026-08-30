@@ -130,13 +130,17 @@ jobs:
         with:
           path: |
             packages/dartvel_shelf/rust/target
+            packages/dartvel_core/rust/target
             ~/.cargo/registry
             ~/.cargo/git
           key: >-
             dartvel-shelf-${{ runner.os }}-${{ runner.arch }}-${{
             hashFiles('packages/dartvel_shelf/rust/Cargo.toml',
                       'packages/dartvel_shelf/rust/Cargo.lock',
-                      'packages/dartvel_shelf/rust/src/**') }}
+                      'packages/dartvel_shelf/rust/src/**',
+                      'packages/dartvel_core/rust/Cargo.toml',
+                      'packages/dartvel_core/rust/Cargo.lock',
+                      'packages/dartvel_core/rust/src/**') }}
           restore-keys: dartvel-shelf-${{ runner.os }}-${{ runner.arch }}-
 
       # Linux desktop needs GTK; the embedders need it too once they reach a
