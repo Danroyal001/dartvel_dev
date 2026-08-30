@@ -332,10 +332,10 @@ Widget _honest(BuildContext context) => Section(
           'it names does not exist.',
         ).modifier(const DVModifier().fontSize(17).color(Palette.of(context).muted).height(1.65).width(660)),
         const DVBox.wrapLine(<Widget>[
-          Stat('22', 'sections shipped'),
-          Stat('33', 'partial, and listed'),
-          Stat('13', 'targets that build'),
-          Stat('2', 'verified by running'),
+          Stat('33', 'sections shipped'),
+          Stat('22', 'partial, and listed'),
+          Stat('14', 'targets that build'),
+          Stat('4', 'verified by running'),
         ], spacing: 14),
         const DVText(
           'A target says verified only where the command was run and the '

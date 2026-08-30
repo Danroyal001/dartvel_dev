@@ -26,16 +26,24 @@ import 'src/notifications/web_push_vapid.dart';
 // owning them is what lets a frontend depend on nothing else -- it used to
 // reach into dartvel_shelf for three type names and acquire a server package
 // along with them.
-export 'src/http/router.dart' show Router;
-export 'src/http/wintercg.dart'
-    show Request, Response, Headers, Body, URLPattern;
+// Three names, which is the surface this barrel has always had. `Body` and
+// `URLPattern` are generic enough that exporting them here collides with
+// application code -- it broke the Dartvel site, which has its own `Body`
+// widget. Server code that wants the full set imports
+// `package:dartvel_core/http.dart`.
+export 'src/http/wintercg.dart' show Request, Response, Headers;
 
 export 'src/ai/ai.dart';
 export 'src/ai/mcp.dart';
 export 'src/analytics/analytics.dart';
 export 'src/annotations/annotations.dart';
 export 'src/auth/auth.dart';
-export 'src/auth/ldap.dart';
+// LDAP is a raw TCP protocol, so a browser cannot speak it. Exported
+// unconditionally this pulls dart:io into every web build, which is what broke
+// the site build -- as a cascade of unrelated type errors in another file
+// rather than as anything mentioning dart:io.
+export 'src/auth/ldap_unsupported.dart'
+    if (dart.library.io) 'src/auth/ldap.dart';
 export 'src/auth/saml.dart';
 export 'src/auth/web3.dart';
 export 'src/auth/webauthn.dart';

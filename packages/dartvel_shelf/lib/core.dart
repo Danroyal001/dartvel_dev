@@ -12,5 +12,4 @@ library dartvel_shelf.core;
 
 // The wire types moved to dartvel_core, which is on both sides of the wire.
 // Re-exported here so anything importing this entrypoint keeps working.
-export 'package:dartvel_core/dartvel.dart'
-    show Request, Response, Headers, Body, URLPattern, Router;
+export 'package:dartvel_core/http.dart';
