@@ -1,0 +1,7 @@
+# Local development only. pub reads this and never publishes it.
+#
+# dartvel_shelf declares a hosted dartvel_core so it can be published; this
+# puts the working tree back.
+dependency_overrides:
+  dartvel_core:
+    path: ../dartvel_core

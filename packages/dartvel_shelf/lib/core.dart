@@ -1,14 +1,16 @@
-/// The half of dartvel_shelf that a frontend may import.
+/// A compatibility re-export of the wire types.
 ///
-/// `dartvel_core` depends on this package for its request and response types,
-/// so every Dartvel application pulls it whether or not it ever serves. Those
-/// types are plain Dart and belong on both sides of the wire; the server is
-/// native, and belongs only on one.
+/// The types themselves now live in `dartvel_core`, which is on both sides of
+/// the wire. That is the direction the dependency should always have run: a
+/// frontend reached into this package for three type names and acquired a
+/// server package along with them.
 ///
-/// Importing this entrypoint cannot reach `dart:ffi` or the server, which is
-/// checked by a test that walks the import graph rather than by convention.
-/// An application that serves imports `package:dartvel_shelf/backend.dart`.
+/// Kept so anything importing this entrypoint keeps working. New code should
+/// import `package:dartvel_core/dartvel.dart`. An application that serves
+/// imports `package:dartvel_shelf/backend.dart`.
 library dartvel_shelf.core;
 
-export 'src/router.dart' show Router;
-export 'src/wintercg.dart' show Request, Response, Headers, Body, URLPattern;
+// The wire types moved to dartvel_core, which is on both sides of the wire.
+// Re-exported here so anything importing this entrypoint keeps working.
+export 'package:dartvel_core/dartvel.dart'
+    show Request, Response, Headers, Body, URLPattern, Router;

@@ -9,7 +9,7 @@ import 'dart:async';
 import 'dart:convert';
 
 // import 'dart:io'; // Removed to avoid breaking web builds
-import 'package:dartvel_shelf/core.dart' as dv;
+import 'src/http/wintercg.dart' as dv;
 import 'package:http_parser/http_parser.dart';
 import 'package:mime/mime.dart';
 
@@ -22,9 +22,13 @@ import 'src/notifications/web_push.dart';
 import 'src/notifications/web_push_vapid.dart';
 
 // Re-export common types so backends can import only dartvel_core.
-// The shared half only. dartvel_core is on both sides of the wire, so it must
-// not be the reason an application that never serves acquires the server.
-export 'package:dartvel_shelf/core.dart' show Request, Response, Headers;
+// The wire types live here now. dartvel_core is on both sides of the wire, so
+// owning them is what lets a frontend depend on nothing else -- it used to
+// reach into dartvel_shelf for three type names and acquire a server package
+// along with them.
+export 'src/http/router.dart' show Router;
+export 'src/http/wintercg.dart'
+    show Request, Response, Headers, Body, URLPattern;
 
 export 'src/ai/ai.dart';
 export 'src/ai/mcp.dart';

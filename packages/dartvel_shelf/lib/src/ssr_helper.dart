@@ -1,7 +1,8 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:path/path.dart' as p;
-import 'wintercg.dart';
+import 'package:dartvel_core/dartvel.dart'
+    show Request, Response, Headers, Body, URLPattern, Router;
 
 /// Serve the single-page app's index, with any prerendered metadata for this
 /// route injected into it.

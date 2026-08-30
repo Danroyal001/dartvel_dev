@@ -1,4 +1,6 @@
 tags:
+  native:
+    # Needs the committed client library for this platform.
   # Suites that need a broker, a database or another service running. They
   # skip themselves loudly when the endpoint is unset rather than failing on a
   # machine that was never going to have one.

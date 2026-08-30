@@ -1,13 +1,5 @@
 # Local development only. pub reads this and never publishes it.
 #
-# The Dartvel packages declare hosted constraints on each other so they can be
-# published -- pub refuses a path dependency in a published package. These put
-# the working tree back.
-#
-# The list is the full transitive set, not just the direct dependencies.
-# dependency_overrides apply only to the package being resolved as root, so a
-# path override for dartvel_core does nothing about the hosted dartvel_shelf
-# that dartvel_core itself declares -- and that one is not on pub.dev yet.
-dependency_overrides:
-  dartvel_shelf:
-    path: ../dartvel_shelf
+# dartvel_core no longer depends on dartvel_shelf: the wire types moved here
+# and the HTTP client is built from this package's own rust/ crate. Nothing to
+# override.

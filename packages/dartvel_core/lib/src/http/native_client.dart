@@ -1,5 +1,5 @@
 /// Native HTTP/2 transport, backed by the Rust client in
-/// `dartvel_shelf/rust/src/http_client.rs`.
+/// `dartvel_core/rust/src/lib.rs`.
 ///
 /// Registered through `dvUseHttpTransport`, so nothing that makes an outbound
 /// request has to know it exists. It claims HTTP/2 only: HTTP/1.1 stays with
@@ -60,14 +60,14 @@ Future<String> resolveNativeLibraryPath() async {
               ? 'windows-arm64'
               : 'windows-x64');
   final libName = Platform.isWindows
-      ? 'dartvel_shelf.dll'
+      ? 'dartvel_client.dll'
       : Platform.isMacOS
-          ? 'libdartvel_shelf.dylib'
-          : 'libdartvel_shelf.so';
+          ? 'libdartvel_client.dylib'
+          : 'libdartvel_client.so';
   final uri = await Isolate.resolvePackageUri(
-      Uri.parse('package:dartvel_shelf/native/$subdir/$libName'));
+      Uri.parse('package:dartvel_core/native/$subdir/$libName'));
   if (uri == null) {
-    throw StateError('Could not resolve the dartvel_shelf native library.');
+    throw StateError('Could not resolve the dartvel_core native library.');
   }
   return uri.toFilePath();
 }

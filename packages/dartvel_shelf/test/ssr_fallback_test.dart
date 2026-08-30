@@ -10,7 +10,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dartvel_shelf/src/ssr_helper.dart';
-import 'package:dartvel_shelf/src/wintercg.dart';
+import 'package:dartvel_core/dartvel.dart'
+    show Request, Response, Headers, Body, URLPattern, Router;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 

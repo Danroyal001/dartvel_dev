@@ -5,7 +5,7 @@ import 'package:dartvel_core/src/notifications/push.dart' as push;
 import 'package:dartvel_core/src/notifications/push_notifications.dart'
     as legacy_push;
 import 'package:dartvel_core/src/websocket/ws.dart' as websocket;
-import 'package:dartvel_shelf/dartvel_shelf.dart' as shelf;
+import 'package:dartvel_core/dartvel.dart' as shelf;
 import 'package:test/test.dart';
 
 void main() {
