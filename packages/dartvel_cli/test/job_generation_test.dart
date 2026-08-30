@@ -161,9 +161,11 @@ Future<void> _handleB(Ping job) async => b(job);
     );
   });
 
-  test('a block-bodied handler names the restriction it hits', () async {
-    await expectLater(
-      generate('''
+  test('a block-bodied handler is lowered into the generated handler', () async {
+    // This used to assert the generator named the restriction it hit. The
+    // restriction is gone; a job handler is exactly where branching and
+    // several awaits belong, so it asserts the lowering instead.
+    final generated = await generate('''
 import 'package:dartvel_core/dartvel.dart';
 
 @DVJob()
@@ -177,15 +179,12 @@ class _Ping {
 Future<void> _handlePing(Ping job) async {
   await run(job);
 }
-'''),
-      throwsA(
-        isA<StateError>().having(
-          (StateError e) => e.message,
-          'message',
-          contains('expression body'),
-        ),
-      ),
-    );
+
+Future<void> run(Ping job) async {}
+''');
+
+    expect(generated, contains('await j0.run(job);'));
+    expect(generated, isNot(contains('_handlePing(')));
   });
 
   test('a project with no jobs still generates a usable file', () async {
