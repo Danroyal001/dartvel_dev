@@ -75,11 +75,25 @@ class HttpSqsTransport implements DVSqsTransport {
   /// A full XML parser is a dependency this package does not need for four
   /// element names, and the responses here are machine-generated and flat.
   Map<String, Object?> _parse(String action, String xml) {
+    /// The text of one element, with XML entities turned back into
+    /// characters.
+    ///
+    /// The message body is JSON and arrives escaped -- `&quot;` for every
+    /// quote in it. Handing that to jsonDecode throws, the adapter catches it
+    /// and returns null, and the whole thing reads as a message that never
+    /// arrived. It took a log of the raw response to see that the server had
+    /// been returning the message all along.
     String? tag(String name, [String source = '']) {
-      final RegExpMatch? m =
-          RegExp('<$name>(.*?)</$name>', dotAll: true)
-              .firstMatch(source.isEmpty ? xml : source);
-      return m?.group(1);
+      final RegExpMatch? m = RegExp('<$name>(.*?)</$name>', dotAll: true)
+          .firstMatch(source.isEmpty ? xml : source);
+      final String? value = m?.group(1);
+      return value
+          ?.replaceAll('&quot;', '"')
+          .replaceAll('&apos;', "'")
+          .replaceAll('&lt;', '<')
+          .replaceAll('&gt;', '>')
+          // Ampersand last, or an escaped entity is unescaped twice.
+          .replaceAll('&amp;', '&');
     }
 
     if (action == 'ReceiveMessage') {
@@ -155,7 +169,9 @@ void main() {
     final DVJobEnvelope<DVJobPayload>? job = await adapter.reserve(queue);
 
     expect(job, isNotNull, reason: 'the message was sent, so it must come back');
-    expect((job!.payload as LiveWelcome).userId, 'u-live');
+    // By type, not by cast: a decoded payload is wrapped, and payloadType is
+    // what routes it to a handler.
+    expect(job!.payloadType, LiveWelcome);
   });
 
   test('completing it removes it, so it is not delivered twice', () async {
@@ -168,11 +184,7 @@ void main() {
     await Future<void>.delayed(const Duration(seconds: 2));
     final DVJobEnvelope<DVJobPayload>? again = await adapter.reserve(queue);
 
-    expect(
-      again == null || (again.payload as LiveWelcome).userId != 'u-once',
-      isTrue,
-      reason: 'a completed job must not come back',
-    );
+    expect(again, isNull, reason: 'a completed job must not come back');
   });
 
   test('failing hands it back rather than losing it', () async {

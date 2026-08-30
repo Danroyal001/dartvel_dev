@@ -175,7 +175,10 @@ class DVAmqpQueueAdapter implements DVQueueAdapter {
     return DVJobEnvelope<DVJobPayload>(
       id: id,
       queue: queue,
-      payloadType: payload.runtimeType,
+      // The registered type, not the wrapper's. Handlers are routed by
+      // payloadType, and a decoded payload is a _DVStoredJobPayload<T> --
+      // so runtimeType here is the wrapper and no handler ever matches.
+      payloadType: codecs.typeNamed('${decoded['type']}') ?? payload.payloadType,
       payload: payload,
       priority: 0,
       maxAttempts: (decoded['maxAttempts'] as num?)?.toInt() ?? 3,
