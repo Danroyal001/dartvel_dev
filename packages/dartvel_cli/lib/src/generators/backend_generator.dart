@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:file/local.dart';
+import 'function_body.dart';
 import 'symbol_qualifier.dart';
 import 'package:glob/glob.dart';
 import 'package:path/path.dart' as p;
@@ -80,15 +81,18 @@ const String dvGenBuildId = '$buildId';
       final src = await File(abs).readAsString();
       final privateExpression = _privateBackendExpression(src, rel);
       final sourceSymbols = _topLevelPublicSourceSymbols(src);
+      // Symbols that stayed in the source file are reached through its
+      // import; the body itself moves into the generated route.
+      final String privateBodySource = privateExpression == null
+          ? ''
+          : (privateExpression.body.isBlock
+              ? privateExpression.body.statements!
+              : privateExpression.body.expression!);
       final qualifiedPrivateExpression = privateExpression == null
           ? ''
-          : _qualifySourceSymbols(
-              privateExpression.expression,
-              'f$i',
-              sourceSymbols,
-            );
+          : _qualifySourceSymbols(privateBodySource, 'f$i', sourceSymbols);
       if (privateExpression == null ||
-          qualifiedPrivateExpression != privateExpression.expression) {
+          qualifiedPrivateExpression != privateBodySource) {
         backendImports.add("import '$importPath' as f$i;");
       }
       // Prefer explicit handler(RequestType/Request) for compatibility
@@ -122,8 +126,14 @@ const String dvGenBuildId = '$buildId';
           typedParams += n;
           typedTypes += t;
         }, onNamed: (v) => tnamed = v);
-        helper =
-            '${privateExpression.returnType} _dvBackendFn$i(${privateExpression.parameters}) => $qualifiedPrivateExpression;';
+        final String modifier = privateExpression.body.modifier == null
+            ? ''
+            : ' ${privateExpression.body.modifier}';
+        // A block keeps its braces; dropping `async` here would make the
+        // helper return a value where the route awaits a Future.
+        helper = privateExpression.body.isBlock
+            ? '${privateExpression.returnType} _dvBackendFn$i(${privateExpression.parameters})$modifier {\n$qualifiedPrivateExpression\n}'
+            : '${privateExpression.returnType} _dvBackendFn$i(${privateExpression.parameters})$modifier => $qualifiedPrivateExpression;';
       } else {
         // 1) Try to find a function whose name matches the sanitized filename
         final regCandidate = RegExp(
@@ -1156,60 +1166,91 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
     String publicName,
     String returnType,
     String parameters,
-    String expression,
+    DVFunctionBody body,
   })? _privateBackendExpression(String source, String rel) {
-    final lines = source.split('\n');
-    for (var index = 0; index < lines.length; index += 1) {
-      if (!lines[index].contains('@DVBackendFunction')) continue;
-      for (var probe = index + 1;
-          probe < lines.length && probe <= index + 6;
-          probe += 1) {
-        final line = lines[probe].trim();
-        if (line.isEmpty || line.startsWith('@')) continue;
-        final match = RegExp(
-          r'^((?:Future<[^>]+>|Future|Stream<[^>]+>|[A-Za-z_][A-Za-z0-9_<>, ?]*))\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*(?:async\s*)?=>\s*(.*);\s*$',
-        ).firstMatch(line);
-        if (match == null) continue;
-        final returnType = match.group(1)!.trim();
-        final name = match.group(2)!;
-        final parameters = match.group(3)!.trim();
-        final expression = match.group(4)!.trim();
-        if (!name.startsWith('_')) return null;
-        return (
-          sourceName: name,
-          publicName: name.substring(1),
-          returnType: returnType,
-          parameters: parameters,
-          expression: expression,
-        );
-      }
-    }
+    // Scanned over indices rather than lines. The old extractor matched a
+    // single line, so a block body was refused and a multi-line expression
+    // body was refused with it.
+    final RegExp declaration = RegExp(
+      r'(Future<[^>]+>|Future|Stream<[^>]+>|[A-Za-z_][A-Za-z0-9_<>, ?]*)'
+      r'\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(',
+    );
 
-    for (var index = 0; index < lines.length; index += 1) {
-      if (!lines[index].contains('@DVBackendFunction')) continue;
-      for (var probe = index + 1;
-          probe < lines.length && probe <= index + 6;
-          probe += 1) {
-        final line = lines[probe].trim();
-        if (line.isEmpty || line.startsWith('@')) continue;
-        final match = RegExp(
-          r'^(?:Future<[^>]+>|Future|Stream<[^>]+>|[A-Za-z_][A-Za-z0-9_<>, ?]*)\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(',
-        ).firstMatch(line);
-        if (match == null) continue;
-        final name = match.group(1)!;
-        if (name.startsWith('_')) {
-          throw StateError(
-            'Dartvel private backend function input $name in $rel must use an '
-            'expression body for this generator pass, for example '
-            'Future<String> $name(String input) async => input. '
-            'Block-bodied private backend functions require generated body '
-            'lowering before they can be emitted without per-source part files.',
-          );
+    int cursor = 0;
+    while (true) {
+      final int annotation = source.indexOf('@DVBackendFunction', cursor);
+      if (annotation == -1) return null;
+
+      // Step past the annotation's own argument list, then any further
+      // annotations or pragmas sitting between it and the declaration.
+      int at = source.indexOf('\n', annotation);
+      if (at == -1) return null;
+      while (at < source.length) {
+        final int lineEnd =
+            source.indexOf('\n', at + 1) == -1 ? source.length : source.indexOf('\n', at + 1);
+        final String line = source.substring(at, lineEnd).trim();
+        if (line.isEmpty || line.startsWith('@')) {
+          at = lineEnd;
+          continue;
         }
         break;
       }
+      if (at >= source.length) return null;
+
+      final Match? match = declaration.matchAsPrefix(source, _firstNonSpace(source, at));
+      if (match == null) {
+        cursor = annotation + 1;
+        continue;
+      }
+
+      final String name = match.group(2)!;
+      final int openParen = match.end - 1;
+      final int closeParen = _matchingParen(source, openParen);
+      if (closeParen == -1) {
+        cursor = annotation + 1;
+        continue;
+      }
+
+      if (!name.startsWith('_')) return null;
+
+      final DVFunctionBody? body = dvFunctionBodyAfter(source, closeParen);
+      if (body == null) {
+        throw StateError(
+          'Dartvel private backend function input $name in $rel has no body. '
+          'It is a function that returns a value, either '
+          'Future<String> $name(String input) async => input or with a block.',
+        );
+      }
+
+      return (
+        sourceName: name,
+        publicName: name.substring(1),
+        returnType: match.group(1)!.trim(),
+        parameters: source.substring(openParen + 1, closeParen).trim(),
+        body: body,
+      );
     }
-    return null;
+  }
+
+  static int _firstNonSpace(String source, int start) {
+    int at = start;
+    while (at < source.length && source[at].trim().isEmpty) {
+      at += 1;
+    }
+    return at;
+  }
+
+  static int _matchingParen(String source, int openParen) {
+    int depth = 0;
+    for (int index = openParen; index < source.length; index++) {
+      final String char = source[index];
+      if (char == '(') depth++;
+      if (char == ')') {
+        depth--;
+        if (depth == 0) return index;
+      }
+    }
+    return -1;
   }
 
   static Set<String> _topLevelPublicSourceSymbols(String source) {

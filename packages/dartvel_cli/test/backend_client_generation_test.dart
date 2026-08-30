@@ -121,7 +121,11 @@ Future<String> buildResponse(String input) async => 'ok \$input';
       );
       expect(
         routes,
-        contains('_dvBackendFn0(String input) => f0.buildResponse(input);'),
+        // `async` is kept. Dropping it, as this once asserted, breaks any
+        // body whose expression is not already a Future.
+        contains(
+          '_dvBackendFn0(String input) async => f0.buildResponse(input);',
+        ),
       );
       expect(routes, contains('Object? result = await _dvBackendFn0('));
       expect(routes, isNot(contains('f0._handler(')));
@@ -132,7 +136,7 @@ Future<String> buildResponse(String input) async => 'ok \$input';
     }
   });
 
-  test('private block-bodied backend functions require body lowering',
+  test('private block-bodied backend functions are lowered into the route',
       () async {
     final root =
         await Directory.systemTemp.createTemp('dartvel_backend_private_test_');
@@ -153,24 +157,23 @@ Future<String> _handler(String input) async {
 }
 ''');
 
-      await expectLater(
-        BackendGenerator.generate(
-          root: root.path,
-          backendDir: 'lib/backend',
-          pkgName: 'backend_client_app',
-          buildId: 'test-build',
-          backendHost: '127.0.0.1',
-          backendPort: 3000,
-          apiBasePath: '/api',
-        ),
-        throwsA(
-          isA<StateError>().having(
-            (error) => error.message,
-            'message',
-            contains('must use an expression body'),
-          ),
-        ),
+      // This used to assert the generator refused a block body. That
+      // restriction is gone, so it asserts what replaced it.
+      await BackendGenerator.generate(
+        root: root.path,
+        backendDir: 'lib/backend',
+        pkgName: 'backend_client_app',
+        buildId: 'test-build',
+        backendHost: '127.0.0.1',
+        backendPort: 3000,
+        apiBasePath: '/api',
       );
+
+      final routes = File(
+        p.join(root.path, '.dart_tool', 'dartvel_backend_routes.g.dart'),
+      ).readAsStringSync();
+      expect(routes, contains(r"return 'ok $input';"));
+      expect(routes, isNot(contains('f0._handler(')));
     } finally {
       root.deleteSync(recursive: true);
     }
