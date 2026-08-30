@@ -3,8 +3,29 @@ import 'dart:io';
 import 'package:code_assets/code_assets.dart';
 import 'package:hooks/hooks.dart';
 
+import 'package:dartvel_shelf/src/build/embed_decision.dart';
+
 Future<void> main(List<String> args) async {
   await build(args, (input, output) async {
+    // Opt-in, checked before any work. dartvel_core depends on this package
+    // for its request and response types, so every Dartvel application pulls
+    // it whether or not it ever serves anything; building regardless put a
+    // full HTTP server, with TLS and a static file handler, inside client
+    // binaries that never listen.
+    //
+    // This is the rule the project already applies to rendering backends:
+    // never link one by default, and no application gets one it did not ask
+    // for.
+    if (!dvEmbedServerRequested(input.userDefines[dvEmbedServerDefine])) {
+      stdout.writeln(
+        'dartvel_shelf hook: no embedded server requested, skipping the '
+        'native build. An application that serves sets '
+        '`hooks: user_defines: dartvel_shelf: $dvEmbedServerDefine: true` in '
+        'its pubspec.yaml.',
+      );
+      return;
+    }
+
     final pkgRoot = Directory.fromUri(input.packageRoot);
     final rustDir = Directory('${pkgRoot.path}/rust');
 

@@ -94,3 +94,12 @@ dartvel:
     defaultDescription: A demo of dartvel pages with SEO + transitions.
     defaultImage: assets/og_default.png
     twitterHandle: "@dartvel_demo"
+
+# This application serves a Dartvel backend, so it asks for the native server
+# to be built into it. Without this the hook skips the Rust build and
+# dartvel_shelf's serve() has no library to open -- which is the point: an
+# application that only calls a remote API should not ship an HTTP server.
+hooks:
+  user_defines:
+    dartvel_shelf:
+      embed_server: true

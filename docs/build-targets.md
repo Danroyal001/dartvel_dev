@@ -15,6 +15,27 @@ Flutter targets were verified against `examples/dartvel_example`; the VS Code
 target was verified against a disposable copy of `examples/basic_app` with the
 local Dartvel `dartvel_vscode` fork added as a dependency.
 
+
+> **The native server is opt-in.** `dartvel_shelf.dll`, `libdartvel_shelf.so`
+> and `dartvel_shelf.framework` in the artifacts below are the Axum runtime,
+> and they are there because the example application serves a Dartvel backend
+> and says so:
+>
+> ```yaml
+> hooks:
+>   user_defines:
+>     dartvel_shelf:
+>       embed_server: true
+> ```
+>
+> `dartvel_core` depends on `dartvel_shelf` for its request and response types,
+> so every Dartvel application pulls the package whether or not it ever serves.
+> The build hook used to compile and bundle the server regardless, which put a
+> full HTTP server -- with TLS and a static file handler -- inside client
+> binaries that never listen, at 6.5-7.2 MB each. An application that only
+> calls a remote API now ships none of it.
+
+
 | Target | Status | Evidence |
 |---|---|---|
 | `web` | ✅ Builds | `build/web` (43 MB) with `flutter_bootstrap.js`, `main.dart.js`, assets, CanvasKit; Wasm dry run passes |
