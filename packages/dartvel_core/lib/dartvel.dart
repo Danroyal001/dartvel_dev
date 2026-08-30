@@ -9,7 +9,7 @@ import 'dart:async';
 import 'dart:convert';
 
 // import 'dart:io'; // Removed to avoid breaking web builds
-import 'package:dartvel_shelf/dartvel_shelf.dart' as dv;
+import 'package:dartvel_shelf/core.dart' as dv;
 import 'package:http_parser/http_parser.dart';
 import 'package:mime/mime.dart';
 
@@ -22,8 +22,9 @@ import 'src/notifications/web_push.dart';
 import 'src/notifications/web_push_vapid.dart';
 
 // Re-export common types so backends can import only dartvel_core.
-export 'package:dartvel_shelf/dartvel_shelf.dart'
-    show Request, Response, Headers;
+// The shared half only. dartvel_core is on both sides of the wire, so it must
+// not be the reason an application that never serves acquires the server.
+export 'package:dartvel_shelf/core.dart' show Request, Response, Headers;
 
 export 'src/ai/ai.dart';
 export 'src/ai/mcp.dart';
