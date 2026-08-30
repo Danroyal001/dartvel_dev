@@ -143,6 +143,51 @@ const List<(String, String, String)> _shipped = <(String, String, String)>[
     'search, generated pages, tables and admin by default. Reaching a client '
     'takes an explicit policy.',
   ),
+  (
+    'Passkeys, SAML, LDAP and Web3',
+    'Four ways in',
+    'WebAuthn assertions, SAML 2.0 built against signature wrapping rather '
+    'than around it, LDAP over BER, and Sign-In with Ethereum bound to a '
+    'nonce, a domain and a clock.',
+  ),
+  (
+    'Distributed Cache',
+    'Rendezvous hashing',
+    'Keys spread across several servers. Adding or removing a node moves only '
+    'that node’s share — with a modulo it moves almost everything, and the '
+    'cache empties without reporting anything.',
+  ),
+  (
+    'Object Storage',
+    'S3, Azure Blob, GCS',
+    'Verified against Azurite and fake-gcs-server in CI, not against fakes. '
+    'Azure signs the encoded path, which only a real server will tell you.',
+  ),
+  (
+    'Hosted Search',
+    'Meilisearch, OpenSearch, Algolia',
+    'With highlights and facet counts, which an engine returns only when the '
+    'query asks. Run against real Meilisearch and OpenSearch in CI.',
+  ),
+  (
+    'Binary Transport',
+    'Flat-buffer envelope',
+    'Form-data whose fields are binary buffers, so an int stays an int. Over '
+    'text multipart the type is gone by the time a parameter is decoded.',
+  ),
+  (
+    'Project Graph',
+    'dartvel inspect, dartvel mcp',
+    'One versioned graph of routes, models, functions and jobs, with the '
+    'source each was derived from. --json is a serialization of it, and '
+    'dartvel mcp serves it to a coding agent.',
+  ),
+  (
+    'Block Bodies',
+    'Every annotation',
+    '@DVPage, @DVFunctionalWidget, @DVBackendFunction and @DVJob.handler all '
+    'take a block body. No more one-line wrappers around a public helper.',
+  ),
 ];
 
 @DVPage(title: 'Features — Dartvel', showAppBar: false)
@@ -155,7 +200,7 @@ Widget buildFeaturesPage(BuildContext context) => SitePage(
         const Section(
           children: <Widget>[
             Eyebrow('WHAT WORKS TODAY'),
-            Heading('Twenty-two shipped sections.', level: 1),
+            Heading('Thirty-three shipped sections.', level: 1),
             Body(
               'This list is the repository’s own record of what is built, not '
               'a description of what is planned. A tool checks it and fails '
@@ -165,7 +210,7 @@ Widget buildFeaturesPage(BuildContext context) => SitePage(
               width: 660,
             ),
             Body(
-              'Thirty-three more sections are partial. They are listed as '
+              'Twenty-two more sections are partial. They are listed as '
               'partial, with what is absent written next to what is present.',
               width: 660,
             ),

@@ -1,5 +1,4 @@
-import 'package:dartvel_core/dartvel.dart'
-    show Request, Response, Headers, Body, URLPattern, Router;
+import 'package:dartvel_core/http.dart';
 
 /// Server handle for builds where the native FFI server is not linked.
 class ServerHandle {

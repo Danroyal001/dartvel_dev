@@ -7,8 +7,7 @@ import 'dart:typed_data';
 import 'package:path/path.dart' as p;
 
 import 'generated/bindings.dart' as gen; // produced by ffigen via build hook
-import 'package:dartvel_core/dartvel.dart'
-    show Request, Response, Headers, Body, URLPattern, Router;
+import 'package:dartvel_core/http.dart';
 
 import 'ffi_string.dart';
 import 'header_codec.dart';

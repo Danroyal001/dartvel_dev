@@ -107,12 +107,12 @@ void main() {
     );
   });
 
-  test('the shared half still carries the types a frontend needs', () {
+  test('the shared half still reaches the types a frontend needs', () {
+    // The types moved to dartvel_core, so this entrypoint re-exports them
+    // rather than declaring them. Naming the types here would only assert that
+    // a comment mentions them; naming the export asserts where they come from.
     final String source = File(p.join('lib', 'core.dart')).readAsStringSync();
 
-    for (final String type in <String>['Request', 'Response', 'Headers']) {
-      expect(source, contains(type),
-          reason: 'dartvel_core re-exports $type from here');
-    }
+    expect(source, contains("package:dartvel_core/http.dart"));
   });
 }
