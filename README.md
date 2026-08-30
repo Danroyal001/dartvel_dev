@@ -95,7 +95,7 @@ Everything else is automatically compiled, generated, or served by the framework
 | **Models & Forms** | `@DVModel` annotation + `DVForm<T>` automatic & manual controls | ✅ Implemented |
 | **Backend Runtime** | Axum/Tokio Rust server calling Dart FFI, supporting SSE streams | ✅ Implemented |
 | **Platform APIs** | `DV.Platform` on six platforms — Linux, web, Windows, Android, iOS, macOS — through `dart:ffi` and jnigen, never platform channels. Biometrics, NFC, Bluetooth and tray need an `Activity` or a desktop the web has not got; each absence is recorded with its reason | ⚠️ Partial |
-| **Authentication** | Local provider with salted password hashes, plus OAuth2 (PKCE) with Google/GitHub/GitLab/Bitbucket/Microsoft presets; magic links, OTP, LDAP and SAML are not complete | ⚠️ Partial |
+| **Authentication** | Local provider with salted password hashes, OAuth2 (PKCE) with Google/GitHub/GitLab/Bitbucket/Microsoft presets, LDAP, SAML 2.0, passkeys (WebAuthn) and Sign-In with Ethereum | ✅ Implemented |
 | **Outbound HTTP** | Protocol negotiation with ordered fallback, RFC 8297 early hints, and a native HTTP/2 client on the `h2` crate verified against a live server; HTTP/3 is not complete | ⚠️ Partial |
 | **Terminal rendering** | `-cli`/`-tui` targets resolve, build-time backend selection, `DV.Platform.surface`, launch negotiation. The terminal backend itself is not built | ⚠️ Partial |
 | **Database** | SQLite (file + in-memory, WAL), PostgreSQL and MySQL, each on its own wire protocol, with TLS on both network engines so Aurora, Neon, Supabase, PlanetScale and Cloud SQL are reachable | ✅ Implemented |

@@ -154,13 +154,23 @@
     {
       "section": "Authentication",
       "stability": "Contract",
-      "status": "Partial",
+      "status": "Shipped",
       "evidence": [
+        ".github/workflows/ldap.yml",
+        "packages/dartvel_core/lib/src/auth/ldap.dart",
+        "packages/dartvel_core/lib/src/auth/saml.dart",
+        "packages/dartvel_core/lib/src/auth/web3.dart",
+        "packages/dartvel_core/lib/src/auth/webauthn.dart",
+        "packages/dartvel_core/lib/src/auth/xml_c14n.dart",
         "packages/dartvel_core/test/auth_credentials_test.dart",
         "packages/dartvel_core/test/auth_tokens_test.dart",
-        "packages/dartvel_core/test/oauth2_test.dart"
+        "packages/dartvel_core/test/ldap_live_test.dart",
+        "packages/dartvel_core/test/oauth2_test.dart",
+        "packages/dartvel_core/test/saml_test.dart",
+        "packages/dartvel_core/test/web3_test.dart",
+        "packages/dartvel_core/test/webauthn_test.dart"
       ],
-      "absent": "LDAP and SAML providers; passkey, biometric and Web3 sign-in"
+      "absent": "Biometric sign-in, which is a device capability rather than a server one and is tracked under Platform bindings. LDAP, SAML, passkey and Web3 ship."
     },
     {
       "section": "Theme",

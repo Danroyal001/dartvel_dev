@@ -36,6 +36,7 @@ export 'src/analytics/analytics.dart';
 export 'src/annotations/annotations.dart';
 export 'src/auth/auth.dart';
 export 'src/auth/ldap.dart';
+export 'src/auth/saml.dart';
 export 'src/auth/web3.dart';
 export 'src/auth/webauthn.dart';
 export 'src/auth/oauth2.dart';
