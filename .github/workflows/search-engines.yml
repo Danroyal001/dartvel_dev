@@ -1,0 +1,126 @@
+# The hosted search adapters against the real engines.
+#
+# MeilisearchProvider, OpenSearchProvider and AlgoliaSearchProvider have all
+# existed for a while and none had ever been run against the thing it talks to.
+# Each carries a behaviour that only the engine can settle:
+#
+#   Meilisearch returns neither highlights nor facet counts unless the query
+#   asks for them, so a provider that only reads the response finds nothing --
+#   an empty facet map that reads as "no matches" rather than "never asked".
+#
+#   OpenSearch aggregates over whatever field it is given. Pointed at an
+#   analysed text field it counts word fragments and returns plausible numbers
+#   for values nobody stored.
+#
+# Algolia has no local server, so its request shape is pinned by unit tests in
+# the ordinary suite instead. That is a weaker guarantee and is stated as one:
+# a request Algolia would reject looks the same to a fake as one it accepts.
+name: search engines
+
+on:
+  push:
+    paths:
+      - 'packages/dartvel_core/lib/dartvel.dart'
+      - 'packages/dartvel_core/lib/src/search/**'
+      - 'packages/dartvel_core/test/meilisearch_live_test.dart'
+      - 'packages/dartvel_core/test/opensearch_live_test.dart'
+      - '.github/workflows/search-engines.yml'
+  workflow_dispatch:
+
+jobs:
+  meilisearch:
+    name: Meilisearch — highlights and facet counts
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      meilisearch:
+        image: getmeili/meilisearch:v1.11
+        ports:
+          - 7700:7700
+        env:
+          # No master key, so the suite needs no credential. The service is
+          # reachable only from this job.
+          MEILI_ENV: development
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
+
+      - name: Resolve
+        working-directory: packages/dartvel_core
+        run: dart pub get
+
+      - name: Meilisearch is actually up
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 40); do
+            if curl -sf http://localhost:7700/health > /tmp/health.json; then
+              cat /tmp/health.json
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::Meilisearch never reported healthy"
+          exit 1
+
+      - name: Query it
+        working-directory: packages/dartvel_core
+        env:
+          DARTVEL_MEILISEARCH: http://localhost:7700
+        run: dart test test/meilisearch_live_test.dart
+
+  opensearch:
+    name: OpenSearch — aggregations over keyword fields
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      opensearch:
+        image: opensearchproject/opensearch:2.17.1
+        ports:
+          - 9200:9200
+        env:
+          discovery.type: single-node
+          # Security off: this is a throwaway single node reachable only from
+          # this job, and TLS trust configuration is not what is under test.
+          DISABLE_SECURITY_PLUGIN: 'true'
+          DISABLE_INSTALL_DEMO_CONFIG: 'true'
+          OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
+        options: >-
+          --health-cmd "curl -sf http://localhost:9200/_cluster/health || exit 1"
+          --health-interval 15s
+          --health-timeout 10s
+          --health-retries 20
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
+
+      - name: Resolve
+        working-directory: packages/dartvel_core
+        run: dart pub get
+
+      - name: OpenSearch is actually up
+        run: |
+          set -euo pipefail
+          # The health check gates the container; this gates the API. A cluster
+          # that answers "red" is up and cannot serve a query yet.
+          for i in $(seq 1 40); do
+            if curl -sf "http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s" \
+                 > /tmp/health.json; then
+              cat /tmp/health.json
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "::error::OpenSearch never reached yellow"
+          exit 1
+
+      - name: Query it
+        working-directory: packages/dartvel_core
+        env:
+          DARTVEL_OPENSEARCH: http://localhost:9200
+        run: dart test test/opensearch_live_test.dart
