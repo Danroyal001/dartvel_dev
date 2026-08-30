@@ -1,0 +1,76 @@
+# The LDAP client against a real OpenLDAP.
+#
+# Nearly every mistake in BER produces a directory that closes the connection
+# with no explanation, so a client that agrees with its own decoder proves
+# almost nothing. The encoding tests pin the bytes; this shows a server accepts
+# them.
+#
+# Two of the assertions matter more than the happy path, because both
+# *authenticate* when the code is wrong: a bind with an empty password, which
+# many directories answer as an anonymous bind and therefore with success, and
+# a username containing filter metacharacters, which rewrites the search rather
+# than failing it.
+name: ldap
+
+on:
+  push:
+    paths:
+      - 'packages/dartvel_core/lib/src/auth/ldap.dart'
+      - 'packages/dartvel_core/test/ldap_*'
+      - '.github/workflows/ldap.yml'
+  workflow_dispatch:
+
+jobs:
+  openldap:
+    name: OpenLDAP — bind, search, and the ways in
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      openldap:
+        image: bitnami/openldap:2.6
+        ports:
+          - 1389:1389
+        env:
+          LDAP_ROOT: dc=example,dc=org
+          LDAP_ADMIN_USERNAME: admin
+          LDAP_ADMIN_PASSWORD: adminpassword
+          # Seeded users. The suite authenticates as ada/lovelace.
+          LDAP_USERS: ada,grace
+          LDAP_PASSWORDS: lovelace,hopper
+          LDAP_USER_DC: users
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
+
+      - name: Resolve
+        working-directory: packages/dartvel_core
+        run: dart pub get
+
+      - name: The directory is actually up
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq && sudo apt-get install -y -qq ldap-utils
+          for i in $(seq 1 30); do
+            if ldapsearch -x -H ldap://localhost:1389 \
+                 -D "cn=admin,dc=example,dc=org" -w adminpassword \
+                 -b "dc=example,dc=org" "(uid=ada)" dn 2>/dev/null | grep -q "uid=ada"; then
+              echo "openldap is serving and ada exists"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "::error::OpenLDAP never answered with the seeded user"
+          exit 1
+
+      - name: Bind and search through the client
+        working-directory: packages/dartvel_core
+        env:
+          DARTVEL_LDAP_HOST: localhost
+          DARTVEL_LDAP_PORT: '1389'
+          DARTVEL_LDAP_BASE: dc=example,dc=org
+          DARTVEL_LDAP_ADMIN: cn=admin,dc=example,dc=org
+          DARTVEL_LDAP_PASSWORD: adminpassword
+        run: dart test test/ldap_live_test.dart
