@@ -187,13 +187,24 @@ void main() {
     expect(again, isNull, reason: 'a completed job must not come back');
   });
 
-  test('failing hands it back rather than losing it', () async {
-    await adapter.enqueue(queue, const LiveWelcome('u-retry'));
+  test('failing hands it back after its backoff, not before', () async {
+    // A short backoff on purpose. The first version of this read straight
+    // after failing and got nothing, which is the adapter working: a failed
+    // job is hidden for its backoff, and the default is thirty seconds.
+    await adapter.enqueue(
+      queue,
+      const LiveWelcome('u-retry'),
+      backoff: const Duration(seconds: 1),
+    );
     final DVJobEnvelope<DVJobPayload> job = (await adapter.reserve(queue))!;
     await adapter.fail(job.id, 'boom', StackTrace.current);
 
-    final DVJobEnvelope<DVJobPayload>? again = await adapter.reserve(queue);
+    expect(await adapter.reserve(queue), isNull,
+        reason: 'it is still inside its backoff');
 
-    expect(again, isNotNull, reason: 'a failed job must return to the queue');
+    await Future<void>.delayed(const Duration(seconds: 3));
+
+    expect(await adapter.reserve(queue), isNotNull,
+        reason: 'a failed job must come back once its backoff has passed');
   });
 }
