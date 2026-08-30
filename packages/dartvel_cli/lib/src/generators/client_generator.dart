@@ -373,6 +373,11 @@ export 'models.g.dart';
 export 'openapi.g.dart';
 export 'router.g.dart';
 export 'schedules.g.dart';
+// The static-path manifest. It was generated and never exported, so the
+// enumeration of a model's public pages was unreachable through the one
+// import application code is told to use -- and unreachable to the build that
+// has to know which pages to write.
+export 'static_paths.g.dart';
 export 'widgets.g.dart';
 ''');
 
