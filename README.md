@@ -100,7 +100,7 @@ Everything else is automatically compiled, generated, or served by the framework
 | **Terminal rendering** | `-cli`/`-tui` targets resolve, build-time backend selection, `DV.Platform.surface`, launch negotiation. The terminal backend itself is not built | ⚠️ Partial |
 | **Database** | SQLite (file + in-memory, WAL), PostgreSQL and MySQL, each on its own wire protocol, with TLS on both network engines so Aurora, Neon, Supabase, PlanetScale and Cloud SQL are reachable | ✅ Implemented |
 | **Queues & Jobs** | `@DVJob` with typed dispatch and handlers on seven adapters -- in-memory, database, Redis, SQS, RabbitMQ, Pub/Sub and Kafka. The four network ones are verified in CI against a real broker | ✅ Implemented |
-| **Cache** | A pluggable cache with memory and database-backed adapters, tags and revalidation; distributed cache beyond Redis and Memcached is not complete | ⚠️ Partial |
+| **Cache** | A pluggable cache with memory, database, Redis, Memcached and multi-node distributed adapters, tags and revalidation | ✅ Implemented |
 | **Mail & Notifications** | SMTP plus HTTP mail (Resend, SendGrid, Postmark, Mailgun, SES), FCM push, APNS over native HTTP/2, Web Push (RFC 8291/8292), and Twilio SMS | ✅ Implemented |
 | **SEO** | `dartvel build web` writes the head tags, JSON-LD, per-route HTML built from the semantics tree, `sitemap.xml` with a styled stylesheet, and `robots.txt` | ✅ Implemented |
 | **PWA** | The manifest is written and validated, and a build warns when one will not install; there is no service worker, offline support, install prompt or background sync | ⚠️ Partial |
@@ -464,6 +464,26 @@ DV.Cache.tag('users:list', <String>['users']);
 await DV.Cache.revalidateTag('users');
 await DV.Cache.purgeExpired();
 ```
+
+Across several servers, keys are placed by rendezvous hashing rather than
+`hash % n`. That is not a detail: with a modulo, adding or removing one node
+remaps almost every key, so the cache misses on nearly everything at once, the
+database takes the full load, and nothing reports an error.
+
+```dart
+DV.Cache.configure(DVDistributedCacheAdapter(
+  nodes: <String, DVCacheAdapter>{
+    'cache-a': DVRedisCacheAdapter(await DVRedisClient.connect(host: 'a')),
+    'cache-b': DVRedisCacheAdapter(await DVRedisClient.connect(host: 'b')),
+  },
+  replicas: 2,   // survive losing one node without losing its keys
+));
+```
+
+A node that cannot be reached costs its own keys and no others: a read from it
+is a miss rather than an exception, because a cache outage should not become an
+application outage. Locks run on the primary alone, so two callers cannot each
+win on a different node.
 
 ---
 
