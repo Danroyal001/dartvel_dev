@@ -59,3 +59,55 @@ List<String> dvStaticPathsFor(Map<String, Object?> entry) {
   }
   return paths.toList();
 }
+
+
+/// Keep only the paths a declared route can serve.
+///
+/// The static-path manifest derives its route from the model's name, and
+/// nothing used to check the router had one. That generated a page at an
+/// address the application 404s on -- a crawler follows the link, gets HTML,
+/// the app boots and renders its own not-found page, which is worse than the
+/// page not existing.
+List<String> dvServedStaticPaths(
+  Iterable<String> paths, {
+  required Iterable<String> declared,
+}) {
+  final List<List<String>> templates = <List<String>>[
+    for (final String route in declared)
+      if (dvIsTemplateRoute(route)) _segments(route),
+  ];
+
+  return <String>[
+    for (final String path in paths)
+      if (templates.any((List<String> t) => _matches(t, _segments(path)))) path,
+  ];
+}
+
+/// Templates that no declared route serves.
+///
+/// Reported by name: a model whose pages all go nowhere is exactly what this
+/// is meant to make visible.
+List<String> dvUnservedTemplates(
+  Iterable<String> templates, {
+  required Iterable<String> declared,
+}) {
+  final Set<String> served = declared.toSet();
+  return <String>[
+    for (final String template in templates)
+      if (!served.contains(template)) template,
+  ];
+}
+
+List<String> _segments(String path) =>
+    path.split('/').where((String s) => s.isNotEmpty).toList();
+
+bool _matches(List<String> template, List<String> path) {
+  // A route with one parameter serves one segment in its place, so a path
+  // with more segments belongs to a different route or to none.
+  if (template.length != path.length) return false;
+  for (int i = 0; i < template.length; i++) {
+    if (template[i].startsWith(':')) continue;
+    if (template[i] != path[i]) return false;
+  }
+  return true;
+}

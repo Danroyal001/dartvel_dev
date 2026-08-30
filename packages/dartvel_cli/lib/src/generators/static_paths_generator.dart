@@ -9,7 +9,23 @@ class StaticPathsProvider {
     required this.importPath,
     String? resolveExpression,
     this.route,
+    this.generatesPage = false,
+    this.className,
+    this.param,
   }) : resolveExpression = resolveExpression ?? functionName;
+
+  /// Whether the model asked Dartvel to generate the page itself.
+  ///
+  /// `generatePublicPages: true` means "make the pages for me", so the router
+  /// has to serve them. `publicPathsResolver:` means "here are the paths for
+  /// the page I wrote", and generating a second route would shadow it.
+  final bool generatesPage;
+
+  /// The generated model class, where one owns this route.
+  final String? className;
+
+  /// The path parameter the route carries.
+  final String? param;
 
   /// The annotated function's name.
   final String functionName;
@@ -126,6 +142,9 @@ class StaticPathsGenerator {
                   : 'package:$pkgName/dartvel_client/dartvel_client.dart',
               resolveExpression: resolver ?? '$className.publicStaticPaths',
               route: '/${_pluralRouteSegment(className)}/:$publicPathField',
+              generatesPage: resolver == null,
+              className: className,
+              param: publicPathField,
             ),
           );
         }
