@@ -82,6 +82,33 @@ void rootGuardTests() {
       }
     });
 
+
+    test('a file is discovered once, however the glob behaves', () async {
+      // The root file is added by name and `**/` is supposed not to match it.
+      // That held locally and did not hold on CI, where the same _guard.dart
+      // came back twice -- a duplicated guard runs twice, and a duplicated
+      // layout wraps the page twice. The invariant is the file, not the glob.
+      final root = await _project({
+        'lib/pages/index.page.dart': 'const x = 1;\n',
+        'lib/pages/_guard.dart': 'class AppGuard {}\n',
+        'lib/pages/_layout.dart': 'class AppLayout {}\n',
+        'lib/pages/blog/_guard.dart': 'class BlogGuard {}\n',
+      });
+      try {
+        for (final List<File> found in <List<File>>[
+          discoverGuards(root: root.path, pagesDir: 'lib/pages'),
+          discoverLayouts(root: root.path, pagesDir: 'lib/pages'),
+        ]) {
+          final List<String> paths =
+              found.map((File f) => f.absolute.path).toList();
+          expect(paths.toSet(), hasLength(paths.length),
+              reason: 'no path may appear twice');
+        }
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    });
+
     test('a root layout is still discovered alongside nested ones', () async {
       final root = await _project({
         'lib/pages/_layout.dart': 'class RootLayout {}\n',
