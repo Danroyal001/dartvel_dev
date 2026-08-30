@@ -314,6 +314,12 @@ Future<Map<String, Object?>> _parseMultipart(
     if (filename != null) {
       final bytes = await part.toList().then((chunks) => chunks.expand((x) => x).toList());
       out[name] = DvMultipartFile(name, filename, headers['content-type'] ?? '', Uint8List.fromList(bytes));
+    } else if (headers['content-type'] == core.dvFlatContentType) {
+      // A field packed as a binary flat buffer. Decoded as text it would reach
+      // a typed parameter as the bytes that spell it, and an int parameter
+      // would quietly become 0 while the request returned 200.
+      final bytes = await part.toList().then((chunks) => chunks.expand((x) => x).toList());
+      out[name] = core.dvFlatDecode(Uint8List.fromList(bytes));
     } else {
       final content = await conv.utf8.decodeStream(part);
       out[name] = content;
