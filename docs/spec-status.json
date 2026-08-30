@@ -331,17 +331,20 @@
     {
       "section": "Search",
       "stability": "Contract",
-      "status": "Partial",
+      "status": "Shipped",
       "evidence": [
+        ".github/workflows/search-engines.yml",
         "packages/dartvel_cli/test/search_tuning_generation_test.dart",
         "packages/dartvel_core/lib/src/search/search_tuning.dart",
         "packages/dartvel_core/test/hosted_search_test.dart",
+        "packages/dartvel_core/test/meilisearch_live_test.dart",
+        "packages/dartvel_core/test/opensearch_live_test.dart",
         "packages/dartvel_core/test/postgres_search_test.dart",
         "packages/dartvel_core/test/search_provider_tuning_test.dart",
         "packages/dartvel_core/test/search_tuning_test.dart",
         "packages/dartvel_core/test/sqlite_search_test.dart"
       ],
-      "absent": "Meilisearch, Algolia and OpenSearch adapters. Ranking, facets, highlighting, typo tolerance and synonyms ship for the local and SQLite providers"
+      "absent": "Algolia is exercised only against a recorded transport: it is a hosted service with no local server, so its request shape is pinned by unit tests rather than by a round trip. Meilisearch and OpenSearch are verified live in CI."
     },
     {
       "section": "Billing",

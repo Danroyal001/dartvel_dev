@@ -626,6 +626,25 @@ class DVSearchProviderException implements Exception {
 /// turns each hit back into the application's model.
 abstract class DVHttpSearchProvider<TModel, TFacets>
     implements DVSearchProvider<TModel, TFacets> {
+  /// Reads facet counts out of an engine-shaped `{facet: {value: count}}`.
+  ///
+  /// The result page declares these, and until now no hosted provider filled
+  /// them: a caller asking for facet counts got an empty map from every hosted
+  /// engine and a populated one from the local provider, which is worse than
+  /// either answer on its own.
+  static Map<String, Map<String, int>> readFacetCounts(Object? source) {
+    if (source is! Map) return const <String, Map<String, int>>{};
+    final counts = <String, Map<String, int>>{};
+    source.forEach((Object? facet, Object? values) {
+      if (values is! Map) return;
+      counts['$facet'] = <String, int>{
+        for (final MapEntry<Object?, Object?> e in values.entries)
+          if (e.value is int) '${e.key}': e.value! as int,
+      };
+    });
+    return Map<String, Map<String, int>>.unmodifiable(counts);
+  }
+
   final Uri baseUrl;
   final String apiKey;
   final String indexName;
@@ -728,7 +747,16 @@ class MeilisearchProvider<TModel, TFacets>
     required super.fromJson,
     super.facetFilter,
     super.transport,
+    this.facetFields = const <String>[],
+    this.tuning = const DVSearchTuning(),
   });
+
+  /// Fields to return counts for. Meilisearch returns counts only for fields
+  /// the query names *and* the index lists as filterable.
+  final List<String> facetFields;
+
+  /// Supplies the highlight markers; the engine does the matching.
+  final DVSearchTuning tuning;
 
   @override
   String get providerName => 'meilisearch';
@@ -751,6 +779,13 @@ class MeilisearchProvider<TModel, TFacets>
           'page': page,
           'hitsPerPage': perPage,
           if (filters.isNotEmpty) 'filter': filters,
+          // Asked for explicitly. Meilisearch returns neither unless the query
+          // requests them, so a provider that only reads the response finds
+          // nothing there and reports no highlights and no counts.
+          'attributesToHighlight': const <String>['*'],
+          'highlightPreTag': tuning.highlightPre,
+          'highlightPostTag': tuning.highlightPost,
+          if (facetFields.isNotEmpty) 'facets': facetFields,
         })),
       );
 
@@ -759,15 +794,38 @@ class MeilisearchProvider<TModel, TFacets>
     Map<String, Object?> payload,
     int page,
     int perPage,
-  ) =>
-      DVSearchResultPage<TModel>(
-        items: readHits(payload, 'hits'),
-        total: payload['totalHits'] is int
-            ? payload['totalHits']! as int
-            : readHits(payload, 'hits').length,
-        page: page,
-        perPage: perPage,
-      );
+  ) {
+    final hits = payload['hits'];
+    final highlights = <String>[];
+    if (hits is List) {
+      for (final Object? hit in hits) {
+        final Object? formatted =
+            hit is Map ? hit['_formatted'] : null;
+        highlights.add(
+          formatted is Map
+              ? formatted.values.whereType<String>().join(' ')
+              : '',
+        );
+      }
+    }
+
+    return DVSearchResultPage<TModel>(
+      items: readHits(payload, 'hits'),
+      // estimatedTotalHits is the default; totalHits appears only when the
+      // query asks to be exhaustive, so both are read.
+      total: payload['totalHits'] is int
+          ? payload['totalHits']! as int
+          : payload['estimatedTotalHits'] is int
+              ? payload['estimatedTotalHits']! as int
+              : readHits(payload, 'hits').length,
+      page: page,
+      perPage: perPage,
+      highlights: List<String>.unmodifiable(highlights),
+      facetCounts: DVHttpSearchProvider.readFacetCounts(
+        payload['facetDistribution'],
+      ),
+    );
+  }
 }
 
 /// Algolia query endpoint.
@@ -778,11 +836,19 @@ class AlgoliaSearchProvider<TModel, TFacets>
     extends DVHttpSearchProvider<TModel, TFacets> {
   final String applicationId;
 
+  /// Attributes to return counts for.
+  final List<String> facetFields;
+
+  /// Supplies the highlight markers; the engine does the matching.
+  final DVSearchTuning tuning;
+
   AlgoliaSearchProvider({
     required this.applicationId,
     required super.apiKey,
     required super.indexName,
     required super.fromJson,
+    this.facetFields = const <String>[],
+    this.tuning = const DVSearchTuning(),
     Uri? baseUrl,
     super.facetFilter,
     super.transport,
@@ -811,6 +877,12 @@ class AlgoliaSearchProvider<TModel, TFacets>
           'page': page - 1,
           'hitsPerPage': perPage,
           if (filters.isNotEmpty) 'filters': filters.join(' AND '),
+          'highlightPreTag': tuning.highlightPre,
+          'highlightPostTag': tuning.highlightPost,
+          if (facetFields.isNotEmpty) 'facets': facetFields,
+          // Only sent when off: on is Algolia's default, and sending the
+          // default back is noise in every request.
+          if (!tuning.typoTolerance) 'typoTolerance': false,
         })),
       );
 
@@ -828,6 +900,20 @@ class AlgoliaSearchProvider<TModel, TFacets>
         // Translate back, so callers always see the page they asked for.
         page: payload['page'] is int ? (payload['page']! as int) + 1 : page,
         perPage: perPage,
+        highlights: List<String>.unmodifiable(<String>[
+          for (final Object? hit
+              in (payload['hits'] is List ? payload['hits']! as List : const []))
+            if (hit is Map && hit['_highlightResult'] is Map)
+              (hit['_highlightResult']! as Map)
+                  .values
+                  .whereType<Map>()
+                  .map((Map v) => v['value'])
+                  .whereType<String>()
+                  .join(' ')
+            else
+              '',
+        ]),
+        facetCounts: DVHttpSearchProvider.readFacetCounts(payload['facets']),
       );
 }
 
@@ -842,6 +928,12 @@ class OpenSearchProvider<TModel, TFacets>
   /// Fields to match against. `['*']` searches every indexed field.
   final List<String> searchFields;
 
+  /// Keyword fields to aggregate on for counts.
+  final List<String> facetFields;
+
+  /// Supplies the highlight markers; the engine does the matching.
+  final DVSearchTuning tuning;
+
   final String? username;
   final String? password;
 
@@ -851,6 +943,8 @@ class OpenSearchProvider<TModel, TFacets>
     required super.fromJson,
     super.apiKey = '',
     this.searchFields = const <String>['*'],
+    this.facetFields = const <String>[],
+    this.tuning = const DVSearchTuning(),
     this.username,
     this.password,
     super.facetFilter,
@@ -910,6 +1004,21 @@ class OpenSearchProvider<TModel, TFacets>
                 ],
             },
           },
+          'highlight': <String, Object?>{
+            'pre_tags': <String>[tuning.highlightPre],
+            'post_tags': <String>[tuning.highlightPost],
+            'fields': <String, Object?>{'*': <String, Object?>{}},
+          },
+          if (facetFields.isNotEmpty)
+            'aggs': <String, Object?>{
+              // A terms aggregation must name a keyword field. Pointed at an
+              // analysed text field it counts word fragments, and returns
+              // plausible numbers for values nobody stored.
+              for (final field in facetFields)
+                field: <String, Object?>{
+                  'terms': <String, Object?>{'field': field},
+                },
+            },
         })),
       );
 
@@ -946,6 +1055,35 @@ class OpenSearchProvider<TModel, TFacets>
       total: _readTotal(envelope, rows.length),
       page: page,
       perPage: perPage,
+      highlights: List<String>.unmodifiable(<String>[
+        for (final Object? row in rows)
+          if (row is Map && row['highlight'] is Map)
+            (row['highlight']! as Map)
+                .values
+                .whereType<List<Object?>>()
+                .expand((List<Object?> l) => l.whereType<String>())
+                .join(' ')
+          else
+            '',
+      ]),
+      facetCounts: <String, Map<String, int>>{
+        // Elasticsearch reports a terms aggregation as a bucket list rather
+        // than as the value/count map every other engine uses.
+        for (final MapEntry<String, Object?> agg
+            in (payload['aggregations'] is Map<String, Object?>
+                    ? payload['aggregations']! as Map<String, Object?>
+                    : const <String, Object?>{})
+                .entries)
+          if (agg.value is Map && (agg.value! as Map)['buckets'] is List)
+            agg.key: <String, int>{
+              for (final Object? bucket
+                  in (agg.value! as Map)['buckets']! as List<Object?>)
+                if (bucket is Map &&
+                    bucket['key'] != null &&
+                    bucket['doc_count'] is int)
+                  '${bucket['key']}': bucket['doc_count']! as int,
+            },
+      },
     );
   }
 
