@@ -39,6 +39,7 @@ export 'src/auth/oauth2.dart';
 export 'src/auth/password.dart';
 export 'src/auth/tokens.dart';
 export 'src/cache/adapters.dart';
+export 'src/cache/distributed.dart';
 export 'src/cache/memcached.dart';
 export 'src/cache/redis.dart';
 export 'src/crypto/app_key.dart';

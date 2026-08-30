@@ -1,0 +1,80 @@
+# The distributed cache over real Redis servers.
+#
+# The unit tests prove the placement maths against fake nodes, which is where
+# that logic lives. What they cannot show is that keys land on separate
+# servers, or that the lock is Redis's SET NX rather than a Dart map: a cache
+# that quietly kept everything on one node would pass every one of them.
+#
+# Two servers, because "distributed" over one proves nothing about
+# distribution -- and the suite asserts it was given more than one.
+name: distributed cache
+
+on:
+  push:
+    paths:
+      - 'packages/dartvel_core/lib/src/cache/**'
+      - 'packages/dartvel_core/test/distributed_cache*'
+      - '.github/workflows/distributed-cache.yml'
+  workflow_dispatch:
+
+jobs:
+  redis-nodes:
+    name: Redis — two nodes, one cache
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      redis-a:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+      redis-b:
+        image: redis:7-alpine
+        ports:
+          - 6380:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
+
+      - name: Resolve
+        working-directory: packages/dartvel_core
+        run: dart pub get
+
+      - name: Both servers are actually up
+        run: |
+          set -euo pipefail
+          # Checked separately: a mapping mistake that pointed both ports at
+          # one container would leave every test passing against a single
+          # server, which is the one thing this job exists to rule out.
+          for port in 6379 6380; do
+            ok=""
+            for i in $(seq 1 20); do
+              if (exec 3<>/dev/tcp/127.0.0.1/$port) 2>/dev/null; then
+                ok=yes; break
+              fi
+              sleep 2
+            done
+            if [ -z "$ok" ]; then
+              echo "::error::nothing listening on $port"
+              exit 1
+            fi
+            echo "redis up on $port"
+          done
+
+      - name: Spread keys across them
+        working-directory: packages/dartvel_core
+        env:
+          DARTVEL_REDIS_NODES: 127.0.0.1:6379,127.0.0.1:6380
+        run: dart test test/distributed_cache_live_test.dart

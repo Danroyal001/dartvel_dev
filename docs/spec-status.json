@@ -253,13 +253,17 @@
     {
       "section": "Cache",
       "stability": "Contract",
-      "status": "Partial",
+      "status": "Shipped",
       "evidence": [
+        ".github/workflows/distributed-cache.yml",
+        "packages/dartvel_core/lib/src/cache/distributed.dart",
         "packages/dartvel_core/test/cache_adapters_test.dart",
+        "packages/dartvel_core/test/distributed_cache_live_test.dart",
+        "packages/dartvel_core/test/distributed_cache_test.dart",
         "packages/dartvel_core/test/redis_cache_test.dart",
         "packages/dartvel_flutter/test/cache_features_test.dart"
       ],
-      "absent": "Distributed cache beyond Redis and Memcached"
+      "absent": null
     },
     {
       "section": "Multi-tenancy",
