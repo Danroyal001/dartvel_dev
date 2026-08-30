@@ -525,11 +525,15 @@
     {
       "section": "Backend Function Request Lifecycle",
       "stability": "Contract",
-      "status": "Partial",
+      "status": "Shipped",
       "evidence": [
+        "packages/dartvel_cli/test/backend_flat_transport_test.dart",
+        "packages/dartvel_core/lib/src/http/flat_buffer.dart",
+        "packages/dartvel_core/test/flat_buffer_test.dart",
+        "packages/dartvel_core/test/flat_transport_test.dart",
         "packages/dartvel_core/test/middleware_test.dart"
       ],
-      "absent": "Flat-buffer envelope encoding; the shipped transport is text multipart"
+      "absent": null
     },
     {
       "section": "Modules",

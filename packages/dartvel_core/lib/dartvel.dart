@@ -1,6 +1,9 @@
 library dartvel_core;
 
+import 'dart:typed_data';
+import 'src/http/flat_buffer.dart';
 import 'src/search/search_tuning.dart';
+export 'src/http/flat_buffer.dart';
 export 'src/search/search_tuning.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -163,6 +166,19 @@ extension RequestFormData on dv.Request {
                 contentType: part.headers['content-type'],
                 bytes: bytes,
               );
+            } else if (part.headers['content-type'] == dvFlatContentType) {
+              // A field packed as a binary flat buffer, which is what the
+              // transport spec asks for: over text multipart every value
+              // arrives as a String and the type is gone by the time a
+              // parameter is decoded.
+              //
+              // A damaged buffer is refused rather than falling back to text.
+              // Handing a parameter the raw bytes of a corrupt envelope is
+              // exactly the plausible-looking wrong value this is meant to
+              // prevent.
+              final bytes =
+                  await part.fold<List<int>>(<int>[], (p, e) => p..addAll(e));
+              data[name] = dvFlatDecode(Uint8List.fromList(bytes));
             } else {
               // It's a field
               final value = await utf8.decodeStream(part);
