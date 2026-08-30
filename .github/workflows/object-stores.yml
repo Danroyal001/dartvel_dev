@@ -1,0 +1,111 @@
+# The object-store adapters against the real services.
+#
+# The signature is the whole Azure adapter: everything else is an HTTP verb. A
+# Shared Key signature can only be checked by something that verifies it the
+# way Azure does, so a test that signs and then verifies with the same code
+# proves nothing at all. Azurite answers a wrong one with 403, which is the
+# assertion worth having -- and it is what caught the real bug here, that Azure
+# signs the *encoded* path. Signing the decoded one works for every ordinary
+# key and fails the moment one contains a space or a plus, which reads like a
+# credentials problem rather than a bug.
+#
+# GCS has its own version of the same trap: an object name is one opaque string
+# that may contain slashes, not a path, so it must be fully percent-encoded.
+# Leave the slashes alone and the request addresses a different object, which
+# usually exists -- so the call succeeds against the wrong thing.
+name: object stores
+
+on:
+  push:
+    paths:
+      - 'packages/dartvel_core/lib/src/storage/**'
+      - 'packages/dartvel_core/test/*_live_test.dart'
+      - '.github/workflows/object-stores.yml'
+  workflow_dispatch:
+
+jobs:
+  azurite:
+    name: Azure Blob — a signature Azurite accepts
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      azurite:
+        image: mcr.microsoft.com/azure-storage/azurite:latest
+        ports:
+          - 10000:10000
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
+
+      - name: Resolve
+        working-directory: packages/dartvel_core
+        run: dart pub get
+
+      - name: Azurite is actually up
+        run: |
+          set -euo pipefail
+          # A 403 is success here: it means the blob endpoint is serving and
+          # demanding a signature. A connection refused is not.
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' \
+              "http://localhost:10000/devstoreaccount1?comp=list" || true)
+            if [ "$code" = "403" ] || [ "$code" = "200" ]; then
+              echo "Azurite answered with HTTP $code"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::Azurite never answered its blob endpoint"
+          exit 1
+
+      - name: Round-trip objects through it
+        working-directory: packages/dartvel_core
+        env:
+          DARTVEL_AZURITE: http://localhost:10000
+        run: dart test test/azure_blob_live_test.dart
+
+  fake-gcs:
+    name: Google Cloud Storage — names, not paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
+
+      - name: Resolve
+        working-directory: packages/dartvel_core
+        run: dart pub get
+
+      # Started as a step rather than a service container: the image defaults
+      # to HTTPS with a self-signed certificate and needs `-scheme http`, and a
+      # service container has nowhere to pass arguments. The adapter is what is
+      # being tested, not TLS trust configuration.
+      - name: Start fake-gcs-server
+        run: |
+          docker run -d --name fake-gcs -p 4443:4443 \
+            fsouza/fake-gcs-server:latest \
+            -scheme http -port 4443 -public-host localhost:4443
+
+      - name: fake-gcs is actually up
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:4443/storage/v1/b > /tmp/buckets.json; then
+              cat /tmp/buckets.json
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::fake-gcs-server never answered the JSON API"
+          exit 1
+
+      - name: Round-trip objects through it
+        working-directory: packages/dartvel_core
+        env:
+          DARTVEL_GCS_ENDPOINT: http://localhost:4443
+        run: dart test test/gcs_live_test.dart
