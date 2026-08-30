@@ -172,6 +172,12 @@ void main() {
     // By type, not by cast: a decoded payload is wrapped, and payloadType is
     // what routes it to a handler.
     expect(job!.payloadType, LiveWelcome);
+
+    // Deleted before leaving. A reserved message returns once its visibility
+    // timeout passes and then appears in a later test as a job that should
+    // not exist -- which reads as a broken delete rather than as a leak from
+    // here. The Pub/Sub suite had the same fault.
+    await adapter.complete(job.id);
   });
 
   test('completing it removes it, so it is not delivered twice', () async {
