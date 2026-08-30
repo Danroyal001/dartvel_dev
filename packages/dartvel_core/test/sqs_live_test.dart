@@ -59,6 +59,11 @@ class HttpSqsTransport implements DVSqsTransport {
         .join('&'));
     final HttpClientResponse response = await request.close();
     final String text = await response.transform(utf8.decoder).join();
+    // Logged, not guessed at. Two runs were spent inferring why a receive came
+    // back empty; the server was saying so all along and nothing printed it.
+    // ignore: avoid_print
+    print('SQS $action -> ${response.statusCode} '
+        '${text.replaceAll(RegExp(r'\s+'), ' ').trim()}');
     if (response.statusCode >= 400) {
       throw StateError('SQS $action failed ${response.statusCode}: $text');
     }

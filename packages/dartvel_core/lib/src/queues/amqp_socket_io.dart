@@ -162,6 +162,14 @@ class DVAmqpSocketChannel implements DVAmqpChannel {
 
     _send(1, _channel, <int>[..._u16(20), ..._u16(10), ..._shortString('')]);
     await _next('Channel.OpenOk'); // Channel.OpenOk
+
+    // Publisher confirms. Basic.Publish is fire-and-forget otherwise, so
+    // enqueue would return before the broker had the message -- and the
+    // spec's guarantee is that a job is persisted before dispatch returns.
+    // It also makes a publish that the broker rejects visible instead of
+    // silently lost.
+    _send(1, _channel, <int>[..._u16(85), ..._u16(10), 0]); // Confirm.Select
+    await _next('Confirm.SelectOk');
   }
 
   @override
@@ -206,8 +214,9 @@ class DVAmqpSocketChannel implements DVAmqpChannel {
       if (priority > 0) priority,
     ]);
     _send(3, _channel, body);
-    // Basic.Publish is not acknowledged unless publisher confirms are on, so
-    // there is nothing to await.
+    // Confirm mode is on, so the broker acknowledges each publish. Waiting
+    // here is what makes "enqueued" mean "the broker has it".
+    await _next('Basic.Ack for the publish');
   }
 
   @override
