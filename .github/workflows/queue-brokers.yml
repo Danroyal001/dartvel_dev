@@ -159,3 +159,59 @@ jobs:
         env:
           DARTVEL_PUBSUB_ENDPOINT: http://localhost:8681
         run: timeout 240 dart test test/pubsub_live_test.dart --reporter expanded
+
+  kafka:
+    name: Kafka — produce, fetch, commit
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      # Apache's own image in KRaft mode, so there is no ZooKeeper to wait for.
+      kafka:
+        image: apache/kafka:3.8.0
+        ports:
+          - 9092:9092
+        env:
+          KAFKA_NODE_ID: 1
+          KAFKA_PROCESS_ROLES: broker,controller
+          KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+          KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: >-
+            CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+          KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+          KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+          # The suite names a fresh topic per run and relies on this.
+          KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+          KAFKA_CLUSTER_ID: 5L6g3nShT-eMCtK--X86sw
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
+
+      - name: Resolve
+        working-directory: packages/dartvel_core
+        run: dart pub get
+
+      - name: The broker is accepting connections
+        run: |
+          set -euo pipefail
+          # A TCP check, because Kafka has no HTTP endpoint to ask.
+          for i in $(seq 1 45); do
+            if timeout 2 bash -c '</dev/tcp/localhost/9092' 2>/dev/null; then
+              echo "Kafka accepting on 9092"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::Kafka never accepted a connection on 9092"
+          exit 1
+
+      - name: Round-trip a job through it
+        working-directory: packages/dartvel_core
+        env:
+          DARTVEL_KAFKA_HOST: localhost
+          DARTVEL_KAFKA_PORT: '9092'
+        run: timeout 300 dart test test/kafka_live_test.dart --reporter expanded
