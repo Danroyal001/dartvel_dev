@@ -2,7 +2,7 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:dartvel_shelf/dartvel_shelf.dart' as dv;
+import 'package:dartvel_shelf/core.dart' as dv;
 
 import '../annotations/annotations.dart' show DVCSRF;
 import '../tenancy/tenants.dart';
