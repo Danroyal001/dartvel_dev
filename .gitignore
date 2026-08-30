@@ -169,3 +169,12 @@ examples/*/tizen/
 /.home/
 sites/dartvel_site/build/
 sites/*.zip
+
+# Client material never belongs in this repository. /.private/ above covers the
+# working directories; these cover an archive or capture dropped at the root,
+# which is outside it and was how an ImmunityBio zip reached a public remote.
+*.zip
+*.tar.gz
+/immunitybio*
+/footlocker*
+/premise*
