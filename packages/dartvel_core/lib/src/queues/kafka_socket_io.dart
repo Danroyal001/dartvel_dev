@@ -147,10 +147,17 @@ class DVKafkaSocketClient implements DVKafkaClient {
   @override
   Future<DVKafkaRecord?> fetchOne(String topic) async {
     final int from = await committed(topic);
+    // Fetch v4. The older versions this started on are the ones modern
+    // brokers deprecate first, and v4 is where isolation_level arrives -- so
+    // the request carries two fields v2 did not and the response carries
+    // three, which is why parsing a v4 reply as a v2 one found a record set
+    // of zero bytes in a log that demonstrably held a record.
     final _Writer body = _Writer()
       ..int32(-1) // replica id: a client, not a broker
       ..int32(500) // max wait
       ..int32(1) // min bytes
+      ..int32(1048576) // max bytes, added in v3
+      ..int8(0) // isolation level: read uncommitted, added in v4
       ..int32(1)
       ..string(topic)
       ..int32(1)
@@ -158,7 +165,7 @@ class DVKafkaSocketClient implements DVKafkaClient {
       ..int64(from)
       ..int32(1048576);
 
-    final _Response response = await _call(1, 2, body.bytes); // Fetch v2
+    final _Response response = await _call(1, 4, body.bytes); // Fetch v4
     final _Reader read = _Reader(response.body);
     read.int32(); // throttle
     read.int32(); // topics
@@ -170,6 +177,12 @@ class DVKafkaSocketClient implements DVKafkaClient {
       throw StateError('Kafka refused the fetch with error $error.');
     }
     read.int64(); // high watermark
+    read.int64(); // last stable offset, v4
+    final int aborted = read.int32(); // aborted transactions, v4
+    for (int i = 0; i < aborted && aborted > 0; i++) {
+      read.int64(); // producer id
+      read.int64(); // first offset
+    }
     final int size = read.int32();
     if (size <= 0) return null;
 
