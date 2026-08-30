@@ -137,15 +137,12 @@ Future<void> main(List<String> args) async {
       throw StateError('cbindgen failed: ${cbindgen?.stderr ?? 'timed out'}');
     }
 
-    final ff = await _runBounded(
-      'dart',
-      <String>['run', 'ffigen', '--config', 'ffigen.yaml'],
-      const Duration(minutes: 5),
-      workingDirectory: pkgRoot.path,
-    );
-    if (ff == null || ff.exitCode != 0) {
-      throw StateError('ffigen failed: ${ff?.stderr ?? 'timed out'}');
-    }
+    // No ffigen step here, unlike dartvel_shelf. This package looks its four
+    // symbols up by hand in native_client.dart and consumes no generated
+    // bindings, so running ffigen would only add a dependency and a failure
+    // mode -- which is exactly what it did when this hook was first copied
+    // across: "Could not find package `ffigen`", on a build that had nothing
+    // to generate.
 
     final nativeDir = Directory('${pkgRoot.path}/lib/native/$subdir')
       ..createSync(recursive: true);
@@ -167,7 +164,6 @@ Future<void> main(List<String> args) async {
     output.dependencies.add(File('${rustDir.path}/cbindgen.toml').uri);
     output.dependencies
         .add(File('${rustDir.path}/include/dartvel_client.h').uri);
-    output.dependencies.add(File('${pkgRoot.path}/ffigen.yaml').uri);
   });
 }
 
