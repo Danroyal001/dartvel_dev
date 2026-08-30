@@ -523,7 +523,7 @@ final pageStyle = const DVModifier();
     }
   });
 
-  test('private block-bodied pages fail until body lowering exists', () async {
+  test('a private block-bodied page is generated, not refused', () async {
     final root = await Directory.systemTemp.createTemp(
       'dartvel_private_page_test_',
     );
@@ -545,8 +545,10 @@ Widget _indexPage(BuildContext context) {
 ''',
       );
 
-      await expectLater(
-        ClientGenerator.generate(
+      // This asserted the opposite until body lowering existed. The
+      // restriction it encoded is gone rather than worked around, so the test
+      // now checks what replaced it: the body reaches the generated widget.
+      await ClientGenerator.generate(
           root: root.path,
           pagesDir: 'lib/pages',
           pkgName: 'private_client_app',
@@ -571,15 +573,12 @@ Widget _indexPage(BuildContext context) {
           webPrerender: false,
           ota: false,
           dv: YamlMap.wrap(<String, Object?>{}),
-        ),
-        throwsA(
-          isA<StateError>().having(
-            (error) => error.message,
-            'message',
-            contains('must use an expression body'),
-          ),
-        ),
       );
+
+      final String router = File(
+        p.join(root.path, 'lib', 'dartvel_client', 'router.g.dart'),
+      ).readAsStringSync();
+      expect(router, contains('return const SizedBox.shrink();'));
     } finally {
       root.deleteSync(recursive: true);
     }

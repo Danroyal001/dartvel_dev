@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'function_body.dart';
 import 'static_paths_generator.dart';
 import 'package:file/local.dart';
 import 'package:glob/glob.dart';
@@ -155,6 +156,7 @@ class ClientGenerator {
       String publicName;
       bool isFunctional = false;
       String? pageExpressionBody;
+      DVFunctionBody? pageBody;
       Set<String> pageSourceSymbols = const <String>{};
       if (m != null) {
         className = m.group(1)!;
@@ -187,17 +189,16 @@ class ClientGenerator {
               'parameter list.',
             );
           }
-          final expressionBody = _expressionBodyAfter(src, closeParen);
-          if (expressionBody == null) {
+          final DVFunctionBody? body = dvFunctionBodyAfter(src, closeParen);
+          if (body == null) {
             throw StateError(
-              'Dartvel private page input $className in $rel must use an '
-              'expression body for this generator pass, for example '
-              'Widget $className(...) => DVBox(...). Block-bodied private '
-              'pages require generated body lowering before they can be '
-              'emitted without per-source part files.',
+              'Dartvel private page input $className in $rel has no body. A '
+              'page is a function that returns a widget, either '
+              'Widget $className(...) => DVBox(...) or with a block.',
             );
           }
-          pageExpressionBody = expressionBody;
+          pageBody = body;
+          pageExpressionBody = body.expression;
           pageSourceSymbols = _topLevelSourceSymbols(src);
         }
         publicName =
@@ -251,6 +252,7 @@ class ClientGenerator {
           directory: dir,
           isFunctional: isFunctional,
           expressionBody: pageExpressionBody,
+          body: pageBody,
           sourceSymbols: pageSourceSymbols,
           // From the source this loop already holds. Guessing a filename from
           // the route name got /docs wrong and /cloud not at all, and would
@@ -779,15 +781,29 @@ ${(() {
         .join('\n');
 
     final generatedPageWidgets = pageEntries.map((e) {
-      final buildReturn = e.expressionBody == null
-          ? '  return ${e.isFunctional ? 'p${e.importIndex}.${e.publicName}(context)' : 'p${e.importIndex}.${e.publicName}()'};'
-          : _indentGeneratedReturn(
-              _qualifySourceSymbols(
-                e.expressionBody!,
-                'p${e.importIndex}',
-                e.sourceSymbols,
-              ),
-            );
+      final DVFunctionBody? pageBody = e.body;
+      final String buildReturn;
+      if (pageBody == null) {
+        buildReturn =
+            '  return ${e.isFunctional ? 'p${e.importIndex}.${e.publicName}(context)' : 'p${e.importIndex}.${e.publicName}()'};';
+      } else if (pageBody.isBlock) {
+        // The statements as written, with references to symbols that stayed
+        // in the source file qualified through its deferred import -- this
+        // code runs in another library, where those names do not exist.
+        buildReturn = _qualifySourceSymbols(
+          pageBody.statements!,
+          'p${e.importIndex}',
+          e.sourceSymbols,
+        );
+      } else {
+        buildReturn = _indentGeneratedReturn(
+          _qualifySourceSymbols(
+            pageBody.expression!,
+            'p${e.importIndex}',
+            e.sourceSymbols,
+          ),
+        );
+      }
       final sourceDoc = e.expressionBody == null
           ? '/// Deferred generated widget wrapper for [p${e.importIndex}.${e.publicName}].'
           : '/// Deferred generated widget wrapper for a private @DVPage input.';
@@ -1519,18 +1535,6 @@ class DartvelConfig {
     return qualified;
   }
 
-  static String? _expressionBodyAfter(String source, int closeParen) {
-    final bodyStart = _skipWhitespace(source, closeParen + 1);
-    if (bodyStart + 1 >= source.length ||
-        source[bodyStart] != '=' ||
-        source[bodyStart + 1] != '>') {
-      return null;
-    }
-    final semicolon = _findStatementEnd(source, bodyStart + 2);
-    if (semicolon == -1) return null;
-    return source.substring(bodyStart + 2, semicolon).trim();
-  }
-
   static void _validateFunctionalWidgetNames(
     List<_FunctionalWidgetEntry> entries,
   ) {
@@ -1725,6 +1729,10 @@ class _PageEntry {
   final String directory;
   final bool isFunctional;
   final String? expressionBody;
+
+  /// The page's body as written, so a block can be lowered rather than
+  /// refused.
+  final DVFunctionBody? body;
   final Set<String> sourceSymbols;
 
   /// The prose on this page, for the crawler-visible body.
@@ -1742,6 +1750,7 @@ class _PageEntry {
     required this.directory,
     required this.isFunctional,
     this.expressionBody,
+    this.body,
     this.sourceSymbols = const <String>{},
     this.text = const <String>[],
     this.loadingAlias,

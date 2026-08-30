@@ -48,9 +48,11 @@
       "stability": "Contract",
       "status": "Partial",
       "evidence": [
-        "packages/dartvel_cli/test/model_page_composition_test.dart"
+        "packages/dartvel_cli/lib/src/generators/function_body.dart",
+        "packages/dartvel_cli/test/page_body_lowering_test.dart",
+        "packages/dartvel_cli/test/page_block_body_generation_test.dart"
       ],
-      "absent": "Full body lowering; block-bodied private page inputs still fail"
+      "absent": "body lowering for @DVFunctionalWidget and @DVBackendFunction inputs, which still require expression bodies. @DVPage accepts a block body"
     },
     {
       "section": "Routing",
