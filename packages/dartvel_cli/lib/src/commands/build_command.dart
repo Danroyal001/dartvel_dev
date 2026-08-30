@@ -14,6 +14,8 @@ import '../build/semantics_capture.dart';
 import '../build/server_config.dart';
 import '../build/structured_data.dart';
 import '../build/static_seo.dart';
+import '../build/static_paths_runner.dart';
+import '../build/static_generation.dart';
 import '../build/web_server.dart';
 import '../utils/build_runner.dart';
 import '../utils/logger.dart';
@@ -759,7 +761,7 @@ class BuildCommand extends Command<void> {
         if (platform == 'web-server') {
           _writeWebServerManifest(root);
         } else {
-          _writeStaticPages(root);
+          await _writeStaticPages(root);
         }
       }
       Logger.log('✅ $platform build successful');
@@ -1296,6 +1298,31 @@ class BuildCommand extends Command<void> {
   /// is `flutter build web` with extra steps: four URLs, one title, one
   /// description, one body. Prerendered text is used where `dartvel prerender`
   /// captured it, and a page still gets its own head tags where it did not.
+  /// Every page this build should produce.
+  ///
+  /// The router's own routes, minus the templates -- `/posts/:slug` is a shape
+  /// that matches at run time and is not a page, and writing it out makes a
+  /// directory with a colon in its name that nothing requests -- plus the
+  /// concrete paths those templates stand for, which only the application can
+  /// enumerate because they come from its database.
+  Future<List<String>> _pagesToGenerate(String root) async {
+    final List<String> declared = _generatedRoutes(root);
+    final List<String> concrete = dvConcreteRoutes(declared);
+    final int templates = declared.length - concrete.length;
+
+    if (templates == 0) return concrete;
+
+    final List<String> resolved = await dvResolveStaticPaths(root);
+    if (resolved.isEmpty) {
+      Logger.log('   $templates parameterised route(s) resolved to no pages. '
+          'A model page needs generatePublicPages or a publicPathsResolver.');
+      return concrete;
+    }
+    Logger.log('   $templates parameterised route(s) expanded to '
+        '${resolved.length} page(s).');
+    return <String>{...concrete, ...resolved}.toList()..sort();
+  }
+
   /// Capture each route's semantics tree from the finished build.
   ///
   /// The crawler-visible HTML is built from these. Without the capture the
@@ -1304,7 +1331,7 @@ class BuildCommand extends Command<void> {
   Future<void> _captureSemantics(String root) async {
     final web = Directory(p.join(root, 'build', 'web'));
     if (!web.existsSync()) return;
-    final routes = _generatedRoutes(root);
+    final routes = await _pagesToGenerate(root);
     if (routes.isEmpty) return;
 
     Logger.log('   Reading the semantics tree for ${routes.length} routes...');
@@ -1337,7 +1364,7 @@ class BuildCommand extends Command<void> {
     return html.trim().isEmpty ? null : html;
   }
 
-  void _writeStaticPages(String root) {
+  Future<void> _writeStaticPages(String root) async {
     final web = Directory(p.join(root, 'build', 'web'));
     final index = File(p.join(web.path, 'index.html'));
     if (!index.existsSync()) return;
@@ -1347,7 +1374,7 @@ class BuildCommand extends Command<void> {
     final settings = seo is Map ? seo : const <Object?, Object?>{};
     final siteUrl = settings['siteUrl'] as String?;
 
-    final routes = _generatedRoutes(root);
+    final routes = await _pagesToGenerate(root);
     if (routes.isEmpty) return;
     final routeText = _routeText(root);
 
