@@ -772,7 +772,11 @@ class MeilisearchProvider<TModel, TFacets>
         url: baseUrl.replace(path: '/indexes/$indexName/search'),
         headers: <String, String>{
           'content-type': 'application/json',
-          'authorization': 'Bearer $apiKey',
+          // Omitted when empty. A Meilisearch with no master key configured
+          // rejects `Bearer ` with "The provided API key is invalid", so an
+          // empty key is worse than no header: it fails every request rather
+          // than none.
+          if (apiKey.isNotEmpty) 'authorization': 'Bearer $apiKey',
         },
         body: utf8.encode(jsonEncode(<String, Object?>{
           'q': query,
