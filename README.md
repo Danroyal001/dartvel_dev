@@ -98,7 +98,8 @@ Everything else is automatically compiled, generated, or served by the framework
 | **Authentication** | Local provider with salted password hashes, plus OAuth2 (PKCE) with Google/GitHub/GitLab/Bitbucket/Microsoft presets; magic links, OTP, LDAP and SAML are not complete | ⚠️ Partial |
 | **Outbound HTTP** | Protocol negotiation with ordered fallback, RFC 8297 early hints, and a native HTTP/2 client on the `h2` crate verified against a live server; HTTP/3 is not complete | ⚠️ Partial |
 | **Terminal rendering** | `-cli`/`-tui` targets resolve, build-time backend selection, `DV.Platform.surface`, launch negotiation. The terminal backend itself is not built | ⚠️ Partial |
-| **Database** | SQLite (file + in-memory, WAL), PostgreSQL and MySQL, each on its own wire protocol, with TLS on both network engines so managed endpoints are reachable | ✅ Implemented |
+| **Database** | SQLite (file + in-memory, WAL), PostgreSQL and MySQL, each on its own wire protocol, with TLS on both network engines so Aurora, Neon, Supabase, PlanetScale and Cloud SQL are reachable | ✅ Implemented |
+| **Queues & Jobs** | `@DVJob` with typed dispatch and handlers on seven adapters -- in-memory, database, Redis, SQS, RabbitMQ, Pub/Sub and Kafka. The four network ones are verified in CI against a real broker | ✅ Implemented |
 | **Cache** | A pluggable cache with memory and database-backed adapters, tags and revalidation; distributed cache beyond Redis and Memcached is not complete | ⚠️ Partial |
 | **Mail & Notifications** | SMTP plus HTTP mail (Resend, SendGrid, Postmark, Mailgun, SES), FCM push, APNS over native HTTP/2, Web Push (RFC 8291/8292), and Twilio SMS | ✅ Implemented |
 | **SEO** | `dartvel build web` writes the head tags, JSON-LD, per-route HTML built from the semantics tree, `sitemap.xml` with a styled stylesheet, and `robots.txt` | ✅ Implemented |
@@ -248,7 +249,7 @@ package. Everything you interact with is called `dartvel`.
 
 ```yaml
 dependencies:
-  dartvel_dev: ^0.2.1
+  dartvel_dev: ^0.3.0
 ```
 
 Or the pieces directly, where you want only some of them:
@@ -487,7 +488,17 @@ codec. Dispatching a type with no codec throws, and so does draining a job
 whose codec is missing from the running process — neither silently drops work.
 The in-memory adapter keeps the Dart object and needs no codec.
 
-Redis, SQS, Pub/Sub, RabbitMQ and Kafka adapters are **not** implemented yet.
+All five network adapters ship: Redis, SQS, RabbitMQ, Pub/Sub and Kafka. The
+four that talk to a hosted service are verified in CI against the real thing --
+ElasticMQ, RabbitMQ's own image, Google's emulator and Apache Kafka -- rather
+than against a fake, which is how nine bugs were found that every unit test
+had passed.
+
+Each is written around what its service actually offers rather than over it.
+SQS and Pub/Sub refuse `pending` instead of returning an empty list, because an
+empty list reads as "there is nothing" when the truth is "I cannot see". Kafka
+is a log, so it has no dead letters, no priority and no out-of-order retry, and
+`lag` gives the honest version of a backlog: a distance, not a list.
 
 ---
 

@@ -53,8 +53,19 @@ List<File> _discover({
     if (file.existsSync()) found.add(file);
   }
 
-  found.sort((a, b) => a.path.compareTo(b.path));
-  return found;
+  // Deduplicated by absolute path, not trusted to be distinct.
+  //
+  // The root file is added by name above because `**/` is supposed to require
+  // at least one directory. That held here and did not hold on CI, where the
+  // same `_guard.dart` came back twice -- and a duplicated guard runs twice
+  // while a duplicated layout wraps the page twice. Whichever way the glob
+  // behaves, a file discovered once is the invariant.
+  final Map<String, File> unique = <String, File>{
+    for (final File file in found) p.canonicalize(file.absolute.path): file,
+  };
+  final List<File> result = unique.values.toList()
+    ..sort((File a, File b) => a.path.compareTo(b.path));
+  return result;
 }
 
 class ClientGenerator {

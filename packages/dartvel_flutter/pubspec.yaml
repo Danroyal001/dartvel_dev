@@ -1,6 +1,6 @@
 name: dartvel_flutter
 description: Flutter helpers for dartvel pages (SEO + transitions + route state)
-version: 0.2.1
+version: 0.3.0
 repository: https://github.com/Danroyal001/dartvel_dev
 homepage: https://dartvel.dev
 environment:
