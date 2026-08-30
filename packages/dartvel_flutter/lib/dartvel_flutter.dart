@@ -263,6 +263,14 @@ class DVModifier {
   final EdgeInsetsGeometry? paddingValue;
   final EdgeInsetsGeometry? marginValue;
   final BorderRadiusGeometry? borderRadius;
+
+  /// A border drawn round the box.
+  ///
+  /// Without this there is no way to draw a rule under a header or a
+  /// hairline round a card, so every one of those reaches for a raw
+  /// Container and a BoxDecoration -- which is how an application ends up
+  /// half Dartvel and half Flutter.
+  final BoxBorder? borderValue;
   final Color? textColor;
   final double? fontSizeValue;
   final FontWeight? fontWeightValue;
@@ -295,6 +303,7 @@ class DVModifier {
     this.paddingValue,
     this.marginValue,
     this.borderRadius,
+    this.borderValue,
     this.textColor,
     this.fontSizeValue,
     this.fontWeightValue,
@@ -323,6 +332,7 @@ class DVModifier {
       : paddingValue = null,
         marginValue = null,
         borderRadius = null,
+        borderValue = null,
         textColor = null,
         fontSizeValue = null,
         fontWeightValue = null,
@@ -350,6 +360,7 @@ class DVModifier {
     EdgeInsetsGeometry? paddingValue,
     EdgeInsetsGeometry? marginValue,
     BorderRadiusGeometry? borderRadius,
+    BoxBorder? borderValue,
     Color? textColor,
     double? fontSizeValue,
     FontWeight? fontWeightValue,
@@ -377,6 +388,7 @@ class DVModifier {
       paddingValue: paddingValue ?? this.paddingValue,
       marginValue: marginValue ?? this.marginValue,
       borderRadius: borderRadius ?? this.borderRadius,
+      borderValue: borderValue ?? this.borderValue,
       textColor: textColor ?? this.textColor,
       fontSizeValue: fontSizeValue ?? this.fontSizeValue,
       fontWeightValue: fontWeightValue ?? this.fontWeightValue,
@@ -412,6 +424,13 @@ class DVModifier {
 
   DVModifier rounded(double value) =>
       _copyWith(borderRadius: BorderRadius.circular(value));
+
+  /// Draws [value] round the box.
+  ///
+  /// `Border.all`, `Border(bottom: ...)` and the rest of Flutter's borders all
+  /// work; this is the one property a rule or a hairline needs and the only
+  /// reason the site still reached for Container.
+  DVModifier border(BoxBorder value) => _copyWith(borderValue: value);
 
   DVModifier color(Color value) => _copyWith(textColor: value);
 
@@ -777,6 +796,7 @@ class DVBox<T> extends StatelessWidget {
       decoration: BoxDecoration(
         color: _modifier?.boxColor,
         borderRadius: _modifier?.borderRadius,
+        border: _modifier?.borderValue,
         boxShadow: _modifier?.shadows,
         image: _modifier?.bgImage,
       ),
