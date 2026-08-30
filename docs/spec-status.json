@@ -555,11 +555,14 @@
     {
       "section": "Static Web Generation",
       "stability": "Draft",
-      "status": "Partial",
+      "status": "Shipped",
       "evidence": [
+        "packages/dartvel_cli/lib/src/build/static_generation.dart",
+        "packages/dartvel_cli/lib/src/build/static_paths_runner.dart",
+        "packages/dartvel_cli/test/static_generation_test.dart",
         "packages/dartvel_cli/test/static_paths_generation_test.dart"
       ],
-      "absent": "The SSG build pipeline itself"
+      "absent": "nothing. `dartvel build web` writes a page per route, expands parameterised routes through the application's own resolvers, and gives each page its head tags, structured data and crawler-visible HTML. A model provider needs its data source reachable at build time, which is how static generation works everywhere; a provider that cannot resolve is named and skipped rather than ending the build"
     },
     {
       "section": "Web Server Rendering",
