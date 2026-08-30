@@ -142,7 +142,6 @@ List<String> _readmeDisagreements(String root, Map<String, Object?> decoded) {
     'Database': 'Database',
     'Cache': 'Cache',
     'Queues & Jobs': 'Queues, Jobs, and Signals',
-    'Queues & Jobs': 'Queues, Jobs, and Signals',
     'Authentication': 'Authentication',
     'Platform APIs': 'Platform',
     'Notifications': 'Mail and Notifications',
