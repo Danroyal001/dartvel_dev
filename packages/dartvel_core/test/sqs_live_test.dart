@@ -200,7 +200,10 @@ void main() {
     await adapter.enqueue(
       queue,
       const LiveWelcome('u-retry'),
-      backoff: const Duration(seconds: 1),
+      // Longer than the receive's own long-poll window. A one-second backoff
+      // against a one-second poll means the poll spans the moment the message
+      // becomes visible again, and the "still hidden" assertion then finds it.
+      backoff: const Duration(seconds: 6),
     );
     final DVJobEnvelope<DVJobPayload> job = (await adapter.reserve(queue))!;
     await adapter.fail(job.id, 'boom', StackTrace.current);
@@ -208,7 +211,7 @@ void main() {
     expect(await adapter.reserve(queue), isNull,
         reason: 'it is still inside its backoff');
 
-    await Future<void>.delayed(const Duration(seconds: 3));
+    await Future<void>.delayed(const Duration(seconds: 8));
 
     expect(await adapter.reserve(queue), isNotNull,
         reason: 'a failed job must come back once its backoff has passed');

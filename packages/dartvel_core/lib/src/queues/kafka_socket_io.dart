@@ -34,6 +34,7 @@ class DVKafkaSocketClient implements DVKafkaClient {
   final String group;
 
   int _correlation = 0;
+  bool _coordinatorFound = false;
 
   static Future<DVKafkaSocketClient> connect({
     String host = 'localhost',
@@ -190,8 +191,48 @@ class DVKafkaSocketClient implements DVKafkaClient {
     return _firstRecord(records, from);
   }
 
+  /// Locate the group's coordinator.
+  ///
+  /// Offset commits and fetches go to the broker that coordinates the group,
+  /// not to any broker in the cluster. Sending them elsewhere is refused with
+  /// error 16, NOT_COORDINATOR -- which reads like a broken commit rather
+  /// than a request delivered to the wrong machine.
+  ///
+  /// Asking also causes a coordinator to be assigned for a group that has
+  /// never been seen, which is every group on its first run.
+  Future<void> _findCoordinator() async {
+    if (_coordinatorFound) return;
+    final _Writer body = _Writer()..string(group);
+    final _Response response = await _call(10, 0, body.bytes);
+    final _Reader read = _Reader(response.body);
+    final int error = read.int16();
+    if (error != 0) {
+      throw StateError(
+        'Kafka could not find a coordinator for group "$group" (error $error).',
+      );
+    }
+    read.int32(); // node id
+    final String host = read.string();
+    final int port = read.int32();
+
+    // One connection, and it says so rather than sending commits to a broker
+    // that will refuse them and calling that a commit failure.
+    final bool sameBroker = port == _socket.remotePort ||
+        host == 'localhost' ||
+        host == _socket.remoteAddress.host;
+    if (!sameBroker) {
+      throw StateError(
+        'The coordinator for group "$group" is $host:$port, and this client '
+        'holds one connection. Connect it to the coordinator, or use a client '
+        'that routes per broker.',
+      );
+    }
+    _coordinatorFound = true;
+  }
+
   @override
   Future<void> commit(String topic, int offset) async {
+    await _findCoordinator();
     final _Writer body = _Writer()
       ..string(group)
       ..int32(-1) // generation: a simple consumer, not a group member
@@ -218,6 +259,7 @@ class DVKafkaSocketClient implements DVKafkaClient {
 
   @override
   Future<int> committed(String topic) async {
+    await _findCoordinator();
     final _Writer body = _Writer()
       ..string(group)
       ..int32(1)
