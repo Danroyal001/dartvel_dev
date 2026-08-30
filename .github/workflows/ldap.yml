@@ -26,19 +26,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
+    # osixia rather than bitnami: Bitnami's images were withdrawn from the
+    # public registry, and `bitnami/openldap:2.6` no longer resolves at all.
     services:
       openldap:
-        image: bitnami/openldap:2.6
+        image: osixia/openldap:1.5.0
         ports:
-          - 1389:1389
+          - 389:389
         env:
-          LDAP_ROOT: dc=example,dc=org
-          LDAP_ADMIN_USERNAME: admin
+          LDAP_ORGANISATION: Dartvel
+          LDAP_DOMAIN: example.org
           LDAP_ADMIN_PASSWORD: adminpassword
-          # Seeded users. The suite authenticates as ada/lovelace.
-          LDAP_USERS: ada,grace
-          LDAP_PASSWORDS: lovelace,hopper
-          LDAP_USER_DC: users
 
     steps:
       - uses: actions/checkout@v4
@@ -54,22 +52,57 @@ jobs:
           set -euo pipefail
           sudo apt-get update -qq && sudo apt-get install -y -qq ldap-utils
           for i in $(seq 1 30); do
-            if ldapsearch -x -H ldap://localhost:1389 \
+            if ldapsearch -x -H ldap://localhost:389 \
                  -D "cn=admin,dc=example,dc=org" -w adminpassword \
-                 -b "dc=example,dc=org" "(uid=ada)" dn 2>/dev/null | grep -q "uid=ada"; then
-              echo "openldap is serving and ada exists"
+                 -b "dc=example,dc=org" -s base dn >/dev/null 2>&1; then
+              echo "openldap is serving"
               exit 0
             fi
             sleep 3
           done
-          echo "::error::OpenLDAP never answered with the seeded user"
+          echo "::error::OpenLDAP never answered"
           exit 1
+
+      # This image seeds no users, so the fixtures are added here. The suite
+      # authenticates as ada/lovelace and needs grace only to prove a search
+      # returns one entry rather than everything.
+      - name: Seed the users the suite expects
+        run: |
+          set -euo pipefail
+          cat > /tmp/seed.ldif <<'LDIF'
+          dn: ou=users,dc=example,dc=org
+          objectClass: organizationalUnit
+          ou: users
+
+          dn: uid=ada,ou=users,dc=example,dc=org
+          objectClass: inetOrgPerson
+          uid: ada
+          cn: Ada Lovelace
+          sn: Lovelace
+          mail: ada@example.org
+          userPassword: lovelace
+
+          dn: uid=grace,ou=users,dc=example,dc=org
+          objectClass: inetOrgPerson
+          uid: grace
+          cn: Grace Hopper
+          sn: Hopper
+          mail: grace@example.org
+          userPassword: hopper
+          LDIF
+          ldapadd -x -H ldap://localhost:389 \
+            -D "cn=admin,dc=example,dc=org" -w adminpassword -f /tmp/seed.ldif
+          # Proves the fixture landed, so a later failure is the client's
+          # rather than the seeding's.
+          ldapsearch -x -H ldap://localhost:389 \
+            -D "cn=admin,dc=example,dc=org" -w adminpassword \
+            -b "dc=example,dc=org" "(uid=ada)" dn | grep "uid=ada"
 
       - name: Bind and search through the client
         working-directory: packages/dartvel_core
         env:
           DARTVEL_LDAP_HOST: localhost
-          DARTVEL_LDAP_PORT: '1389'
+          DARTVEL_LDAP_PORT: '389'
           DARTVEL_LDAP_BASE: dc=example,dc=org
           DARTVEL_LDAP_ADMIN: cn=admin,dc=example,dc=org
           DARTVEL_LDAP_PASSWORD: adminpassword
