@@ -121,11 +121,11 @@
         "packages/dartvel_core/lib/src/queues/sqs_queue.dart",
         "packages/dartvel_core/lib/src/queues/amqp_queue.dart",
         "packages/dartvel_core/lib/src/queues/amqp_socket_io.dart",
-        "packages/dartvel_core/test/sqs_queue_test.dart",
-        "packages/dartvel_core/test/amqp_queue_test.dart",
+        "packages/dartvel_core/lib/src/queues/pubsub_queue.dart",
+        "packages/dartvel_core/test/pubsub_queue_test.dart",
         ".github/workflows/queue-brokers.yml"
       ],
-      "absent": "Pub/Sub and Kafka adapters. In-memory, database, Redis, SQS and RabbitMQ ship; SQS and RabbitMQ are verified against a real broker in CI, not only against a fake"
+      "absent": "the Kafka adapter. In-memory, database, Redis, SQS, RabbitMQ and Pub/Sub ship; the last three are verified against a real broker in CI rather than only against a fake"
     },
     {
       "section": "Authorization",
