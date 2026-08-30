@@ -239,6 +239,7 @@ export 'src/admin/route_info.dart';
 export 'src/admin/telemetry_admin.dart';
 export 'src/media/image_view.dart';
 export 'src/platform/android/android_bindings.dart';
+export 'src/platform/file_bindings.dart';
 export 'src/platform/ios/ios_bindings.dart';
 export 'src/platform/linux/linux_bindings.dart';
 export 'src/platform/macos/macos_bindings.dart';

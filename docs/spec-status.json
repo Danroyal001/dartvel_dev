@@ -185,17 +185,19 @@
       "stability": "Contract",
       "status": "Partial",
       "evidence": [
-        "packages/dartvel_flutter/test/linux_bindings_test.dart",
-        "packages/dartvel_flutter/test/web_bindings_test.dart",
-        "packages/dartvel_flutter/test/web_bindings_browser_test.dart",
-        "packages/dartvel_flutter/test/windows_bindings_test.dart",
-        "packages/dartvel_flutter/test/windows_bindings_live_test.dart",
-        "packages/dartvel_flutter/test/macos_bindings_test.dart",
-        "packages/dartvel_flutter/test/macos_bindings_live_test.dart",
+        "packages/dartvel_flutter/lib/src/platform/file_bindings.dart",
+        "packages/dartvel_flutter/test/android_bindings_test.dart",
+        "packages/dartvel_flutter/test/file_bindings_test.dart",
         "packages/dartvel_flutter/test/ios_bindings_test.dart",
-        "packages/dartvel_flutter/test/android_bindings_test.dart"
+        "packages/dartvel_flutter/test/linux_bindings_test.dart",
+        "packages/dartvel_flutter/test/macos_bindings_live_test.dart",
+        "packages/dartvel_flutter/test/macos_bindings_test.dart",
+        "packages/dartvel_flutter/test/web_bindings_browser_test.dart",
+        "packages/dartvel_flutter/test/web_bindings_test.dart",
+        "packages/dartvel_flutter/test/windows_bindings_live_test.dart",
+        "packages/dartvel_flutter/test/windows_bindings_test.dart"
       ],
-      "absent": "17 bindings across Linux (8), web (5), Windows (7), macOS (3) and iOS (2) — note the overlap, they are not distinct"
+      "absent": "Per-platform native bindings remain unbound where the capability has no host API to reach: measured now rather than estimated, that is 32 names on Linux, 24 on web, 33 on Windows, 33 on macOS and 30 on iOS, many of which are not applicable to the platform at all (NFC and haptics on a desktop). files.readBytes/writeBytes/delete now ship for every platform with a filesystem."
     },
     {
       "section": "Database",
