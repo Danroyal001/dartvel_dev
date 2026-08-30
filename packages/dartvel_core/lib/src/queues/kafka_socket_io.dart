@@ -202,18 +202,38 @@ class DVKafkaSocketClient implements DVKafkaClient {
   /// never been seen, which is every group on its first run.
   Future<void> _findCoordinator() async {
     if (_coordinatorFound) return;
-    final _Writer body = _Writer()..string(group);
-    final _Response response = await _call(10, 0, body.bytes);
-    final _Reader read = _Reader(response.body);
-    final int error = read.int16();
+
+    // Retried, because the first answer for a new group is usually no.
+    // Kafka creates __consumer_offsets lazily on first use, and until those
+    // partitions have a leader the broker answers 15,
+    // COORDINATOR_NOT_AVAILABLE -- a retriable error by definition, and one
+    // every group hits exactly once on a cluster that has never had one.
+    const Set<int> retriable = <int>{15, 16};
+    late int error;
+    String host = '';
+    int port = 0;
+
+    for (int attempt = 0; attempt < 20; attempt++) {
+      final _Writer body = _Writer()..string(group);
+      final _Response response = await _call(10, 0, body.bytes);
+      final _Reader read = _Reader(response.body);
+      error = read.int16();
+      if (error == 0) {
+        read.int32(); // node id
+        host = read.string();
+        port = read.int32();
+        break;
+      }
+      if (!retriable.contains(error)) break;
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+    }
+
     if (error != 0) {
       throw StateError(
-        'Kafka could not find a coordinator for group "$group" (error $error).',
+        'Kafka could not find a coordinator for group "$group" (error $error) '
+        'after twenty attempts.',
       );
     }
-    read.int32(); // node id
-    final String host = read.string();
-    final int port = read.int32();
 
     // One connection, and it says so rather than sending commits to a broker
     // that will refuse them and calling that a commit failure.
