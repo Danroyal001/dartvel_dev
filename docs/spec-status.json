@@ -325,11 +325,15 @@
       "stability": "Contract",
       "status": "Partial",
       "evidence": [
-        "packages/dartvel_core/test/sqlite_search_test.dart",
+        "packages/dartvel_cli/test/search_tuning_generation_test.dart",
+        "packages/dartvel_core/lib/src/search/search_tuning.dart",
+        "packages/dartvel_core/test/hosted_search_test.dart",
         "packages/dartvel_core/test/postgres_search_test.dart",
-        "packages/dartvel_core/test/hosted_search_test.dart"
+        "packages/dartvel_core/test/search_provider_tuning_test.dart",
+        "packages/dartvel_core/test/search_tuning_test.dart",
+        "packages/dartvel_core/test/sqlite_search_test.dart"
       ],
-      "absent": "Facets, highlighting, typo tolerance and synonyms"
+      "absent": "Meilisearch, Algolia and OpenSearch adapters. Ranking, facets, highlighting, typo tolerance and synonyms ship for the local and SQLite providers"
     },
     {
       "section": "Billing",

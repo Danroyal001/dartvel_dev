@@ -1,5 +1,7 @@
 library dartvel_core;
 
+import 'src/search/search_tuning.dart';
+export 'src/search/search_tuning.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -286,7 +288,22 @@ class DVSearchResultPage<TModel> {
     required this.total,
     required this.page,
     required this.perPage,
+    this.highlights = const <String>[],
+    this.facetCounts = const <String, Map<String, int>>{},
   });
+
+  /// One highlighted document per item, in the same order.
+  ///
+  /// Empty when the provider does not highlight; never a different length from
+  /// [items], because a list that drifts attributes one record's snippet to
+  /// another and still renders.
+  final List<String> highlights;
+
+  /// How many results each facet value would leave, keyed by facet then value.
+  ///
+  /// Describes the current query rather than the whole corpus: a count that
+  /// ignores the query offers narrowing that returns nothing.
+  final Map<String, Map<String, int>> facetCounts;
 }
 
 abstract class DVSearchProvider<TModel, TFacets> {
@@ -314,11 +331,23 @@ class DVInMemorySearchProvider<TModel, TFacets>
   final DVSearchDocument<TModel> document;
   final DVSearchFacetMatcher<TModel, TFacets>? facetMatcher;
 
+  /// Facet name to the value a record carries for it, used for counts.
+  final Map<String, String Function(TModel)> facetValues;
+
+  /// Synonyms, typo tolerance and highlight markers.
+  final DVSearchTuning tuning;
+
   DVInMemorySearchProvider({
     required List<TModel> records,
     required this.document,
     this.facetMatcher,
-  }) : records = List<TModel>.unmodifiable(records);
+    // Not a const default: TModel is a type variable, which a const literal
+    // cannot mention.
+    Map<String, String Function(TModel)>? facetValues,
+    this.tuning = const DVSearchTuning(),
+  })  : records = List<TModel>.unmodifiable(records),
+        facetValues =
+            facetValues ?? <String, String Function(TModel)>{};
 
   @override
   Future<DVSearchResultPage<TModel>> query(
@@ -332,24 +361,72 @@ class DVInMemorySearchProvider<TModel, TFacets>
       throw ArgumentError.value(perPage, 'perPage', 'must be positive');
     }
 
-    final needle = query.trim().toLowerCase();
-    final matches = records.where((record) {
-      final textMatches =
-          needle.isEmpty || document(record).toLowerCase().contains(needle);
-      final facetsMatch = facetMatcher?.call(record, facets) ?? true;
-      return textMatches && facetsMatch;
-    }).toList(growable: false);
+    final String needle = query.trim();
+    final List<String> terms = needle.isEmpty
+        ? const <String>[]
+        : tuning.expand(needle);
+
+    bool documentMatches(TModel record) {
+      if (terms.isEmpty) return true;
+      final String text = document(record).toLowerCase();
+      for (final String term in terms) {
+        if (text.contains(term)) return true;
+        // A typo has to be compared word by word: the whole document is never
+        // within an edit or two of a single term.
+        for (final String word in text.split(RegExp(r'[^A-Za-z0-9]+'))) {
+          if (word.isEmpty) continue;
+          if (dvTypoMatches(term, word, enabled: tuning.typoTolerance)) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    // Facet counts describe what the text query found, before the facet
+    // filter narrows it -- otherwise every count but the selected one is zero
+    // and the UI can only ever narrow further.
+    final List<TModel> textMatches =
+        records.where(documentMatches).toList(growable: false);
+
+    final matches = textMatches
+        .where((TModel record) => facetMatcher?.call(record, facets) ?? true)
+        .toList(growable: false);
+
     final start = (page - 1) * perPage;
     final end =
         start + perPage > matches.length ? matches.length : start + perPage;
     final pageItems =
         start >= matches.length ? <TModel>[] : matches.sublist(start, end);
 
+    final Map<String, Map<String, int>> counts =
+        <String, Map<String, int>>{};
+    for (final MapEntry<String, String Function(TModel)> facet
+        in facetValues.entries) {
+      final Map<String, int> byValue = <String, int>{};
+      for (final TModel record in textMatches) {
+        final String value = facet.value(record);
+        byValue[value] = (byValue[value] ?? 0) + 1;
+      }
+      counts[facet.key] = byValue;
+    }
+
     return DVSearchResultPage<TModel>(
       items: List<TModel>.unmodifiable(pageItems),
       total: matches.length,
       page: page,
       perPage: perPage,
+      highlights: List<String>.unmodifiable(
+        pageItems.map(
+          (TModel record) => dvHighlight(
+            document(record),
+            terms,
+            pre: tuning.highlightPre,
+            post: tuning.highlightPost,
+          ),
+        ),
+      ),
+      facetCounts: Map<String, Map<String, int>>.unmodifiable(counts),
     );
   }
 }
