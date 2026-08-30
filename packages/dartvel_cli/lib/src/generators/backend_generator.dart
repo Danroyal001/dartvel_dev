@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:file/local.dart';
+import 'symbol_qualifier.dart';
 import 'package:glob/glob.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
@@ -1234,19 +1235,8 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
     String expression,
     String alias,
     Set<String> symbols,
-  ) {
-    var qualified = expression;
-    final ordered = symbols.toList()..sort((a, b) => b.length - a.length);
-    for (final symbol in ordered) {
-      qualified = qualified.replaceAllMapped(
-        RegExp(
-          '(?<![A-Za-z0-9_\\.])${RegExp.escape(symbol)}(?![A-Za-z0-9_])',
-        ),
-        (_) => '$alias.$symbol',
-      );
-    }
-    return qualified;
-  }
+  ) =>
+      dvQualifySourceSymbols(expression, alias, symbols);
 
   static Future<void> _validateMiddlewareAnnotations(String root) async {
     const supported = <String>{

@@ -387,7 +387,7 @@ Widget _featureCard(String title) => DVText(title).modifier(cardStyle);
   );
 
   test(
-    'private block-bodied functional widgets require body lowering',
+    'private block-bodied functional widgets are lowered into the widget',
     () async {
       final root = await Directory.systemTemp.createTemp(
         'dartvel_private_widget_test_',
@@ -412,41 +412,41 @@ Widget _featureCard(String title) {
 }
 ''');
 
-        await expectLater(
-          ClientGenerator.generate(
-            root: root.path,
-            pagesDir: 'lib/pages',
-            pkgName: 'private_client_app',
-            buildId: 'test-build',
-            backendHost: '127.0.0.1',
-            backendPort: 3000,
-            devBackendHost: 'http://localhost:3000',
-            prodBackendHost: 'https://api.example.test',
-            apiBasePath: '/api',
-            envFiles: const <String>[],
-            seoSiteName: 'Private App',
-            seoTitle: 'Private App',
-            seoDesc: 'Private App',
-            seoImage: '',
-            seoTwitter: '',
-            defaultTransition: 'fade',
-            durationMs: 200,
-            curve: 'easeInOut',
-            normalizeTrailing: true,
-            notFoundRedirect: '',
-            plugins: const <String>[],
-            webPrerender: false,
-            ota: false,
-            dv: YamlMap.wrap(<String, Object?>{}),
-          ),
-          throwsA(
-            isA<StateError>().having(
-              (error) => error.message,
-              'message',
-              contains('must use an expression body'),
-            ),
-          ),
+        // This used to assert the generator refused a block body. The
+        // restriction is gone, so the test asserts what replaced it: the
+        // statements are carried into the generated widget, because the input
+        // is private and there is nothing public left to call.
+        await ClientGenerator.generate(
+          root: root.path,
+          pagesDir: 'lib/pages',
+          pkgName: 'private_client_app',
+          buildId: 'test-build',
+          backendHost: '127.0.0.1',
+          backendPort: 3000,
+          devBackendHost: 'http://localhost:3000',
+          prodBackendHost: 'https://api.example.test',
+          apiBasePath: '/api',
+          envFiles: const <String>[],
+          seoSiteName: 'Private App',
+          seoTitle: 'Private App',
+          seoDesc: 'Private App',
+          seoImage: '',
+          seoTwitter: '',
+          defaultTransition: 'fade',
+          durationMs: 200,
+          curve: 'easeInOut',
+          normalizeTrailing: true,
+          notFoundRedirect: '',
+          plugins: const <String>[],
+          webPrerender: false,
+          ota: false,
+          dv: YamlMap.wrap(<String, Object?>{}),
         );
+
+        final String widgets = File(
+          p.join(root.path, 'lib', 'dartvel_client', 'widgets.g.dart'),
+        ).readAsStringSync();
+        expect(widgets, contains('return DVText(title);'));
       } finally {
         root.deleteSync(recursive: true);
       }

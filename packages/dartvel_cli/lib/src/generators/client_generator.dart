@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'function_body.dart';
+import 'symbol_qualifier.dart';
 import 'static_paths_generator.dart';
 import 'package:file/local.dart';
 import 'package:glob/glob.dart';
@@ -1398,18 +1399,30 @@ class DartvelConfig {
       ..writeln();
 
     for (final entry in entries) {
-      if (entry.expressionBody != null) {
-        buffer
-          ..writeln('Widget ${entry.generatedName}(${entry.parameters}) {')
-          ..writeln(
-            _indentGeneratedReturn(
-              _qualifySourceSymbols(
-                entry.expressionBody!,
+      final DVFunctionBody? entryBody = entry.body;
+      if (entryBody != null) {
+        // Symbols that stayed behind in the source file are qualified through
+        // its import: this code runs in another library, where those names do
+        // not exist.
+        final String rendered = entryBody.isBlock
+            ? _qualifySourceSymbols(
+                entryBody.statements!,
                 entry.alias,
                 entry.sourceSymbols,
-              ),
-            ),
+              )
+            : _indentGeneratedReturn(
+                _qualifySourceSymbols(
+                  entryBody.expression!,
+                  entry.alias,
+                  entry.sourceSymbols,
+                ),
+              );
+        buffer
+          ..writeln(
+            'Widget ${entry.generatedName}(${entry.parameters})'
+            '${entryBody.modifier == null ? '' : ' ${entryBody.modifier}'} {',
           )
+          ..writeln(rendered)
           ..writeln('}')
           ..writeln();
       } else {
@@ -1467,25 +1480,15 @@ class DartvelConfig {
         continue;
       }
       final parameters = source.substring(openParen + 1, closeParen).trim();
-      final bodyStart = _skipWhitespace(source, closeParen + 1);
-      String? expressionBody;
-      if (bodyStart + 1 < source.length &&
-          source[bodyStart] == '=' &&
-          source[bodyStart + 1] == '>') {
-        final semicolon = _findStatementEnd(source, bodyStart + 2);
-        if (semicolon != -1) {
-          expressionBody = source.substring(bodyStart + 2, semicolon).trim();
-        }
-      }
-      if (expressionBody == null) {
+      final DVFunctionBody? body = dvFunctionBodyAfter(source, closeParen);
+      if (body == null) {
         throw StateError(
           'Dartvel private functional widget input $sourceName in $sourcePath '
-          'must use an expression body for this generator pass, for example '
-          'Widget $sourceName(...) => DVText(...). Block-bodied private '
-          'widgets require generated body lowering before they can be emitted '
-          'without per-source part files.',
+          'has no body. A functional widget is a function returning a widget, '
+          'either Widget $sourceName(...) => DVText(...) or with a block.',
         );
       }
+      final String? expressionBody = body.expression;
       entries.add(
         _FunctionalWidgetEntry(
           importPath: importPath,
@@ -1496,6 +1499,7 @@ class DartvelConfig {
           parameters: parameters,
           argumentList: _argumentList(parameters),
           expressionBody: expressionBody,
+          body: body,
           sourceSymbols: _topLevelSourceSymbols(source),
         ),
       );
@@ -1534,17 +1538,8 @@ class DartvelConfig {
     String expression,
     String alias,
     Set<String> symbols,
-  ) {
-    var qualified = expression;
-    final ordered = symbols.toList()..sort((a, b) => b.length - a.length);
-    for (final symbol in ordered) {
-      qualified = qualified.replaceAllMapped(
-        RegExp('(?<![A-Za-z0-9_\\.])${RegExp.escape(symbol)}(?![A-Za-z0-9_])'),
-        (_) => '$alias.$symbol',
-      );
-    }
-    return qualified;
-  }
+  ) =>
+      dvQualifySourceSymbols(expression, alias, symbols);
 
   static void _validateFunctionalWidgetNames(
     List<_FunctionalWidgetEntry> entries,
@@ -1589,58 +1584,6 @@ class DartvelConfig {
       if (char == ')') {
         depth--;
         if (depth == 0) return index;
-      }
-    }
-    return -1;
-  }
-
-  static int _skipWhitespace(String source, int start) {
-    int index = start;
-    while (index < source.length && source[index].trim().isEmpty) {
-      index += 1;
-    }
-    return index;
-  }
-
-  static int _findStatementEnd(String source, int start) {
-    int angleDepth = 0;
-    int parenDepth = 0;
-    int bracketDepth = 0;
-    int braceDepth = 0;
-    String? quote;
-    var escaped = false;
-    for (int index = start; index < source.length; index++) {
-      final char = source[index];
-      if (quote != null) {
-        if (escaped) {
-          escaped = false;
-          continue;
-        }
-        if (char == r'\') {
-          escaped = true;
-          continue;
-        }
-        if (char == quote) quote = null;
-        continue;
-      }
-      if (char == "'" || char == '"') {
-        quote = char;
-        continue;
-      }
-      if (char == '<') angleDepth += 1;
-      if (char == '>' && angleDepth > 0) angleDepth -= 1;
-      if (char == '(') parenDepth += 1;
-      if (char == ')' && parenDepth > 0) parenDepth -= 1;
-      if (char == '[') bracketDepth += 1;
-      if (char == ']' && bracketDepth > 0) bracketDepth -= 1;
-      if (char == '{') braceDepth += 1;
-      if (char == '}' && braceDepth > 0) braceDepth -= 1;
-      if (char == ';' &&
-          angleDepth == 0 &&
-          parenDepth == 0 &&
-          bracketDepth == 0 &&
-          braceDepth == 0) {
-        return index;
       }
     }
     return -1;
@@ -1778,6 +1721,10 @@ class _FunctionalWidgetEntry {
   final String parameters;
   final String argumentList;
   final String? expressionBody;
+
+  /// The scanned body, block or expression. [expressionBody] stays for the
+  /// doc comment that distinguishes a private input from a public one.
+  final DVFunctionBody? body;
   final Set<String> sourceSymbols;
 
   const _FunctionalWidgetEntry({
@@ -1789,6 +1736,7 @@ class _FunctionalWidgetEntry {
     required this.parameters,
     required this.argumentList,
     this.expressionBody,
+    this.body,
     this.sourceSymbols = const <String>{},
   });
 
@@ -1802,6 +1750,7 @@ class _FunctionalWidgetEntry {
       parameters: parameters,
       argumentList: argumentList,
       expressionBody: expressionBody,
+      body: body,
       sourceSymbols: sourceSymbols,
     );
   }
