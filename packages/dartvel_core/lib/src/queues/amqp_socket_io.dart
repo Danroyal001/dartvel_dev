@@ -197,8 +197,11 @@ class DVAmqpSocketChannel implements DVAmqpChannel {
     _send(2, _channel, <int>[
       ..._u16(60), ..._u16(0),
       ..._u64(body.length),
-      // Property flags: bit 12 is delivery-mode, bit 11 is priority.
-      ..._u16(priority > 0 ? 0x0018 : 0x0010),
+      // Property flags, counted from the top: bit 15 is content-type, and
+      // delivery-mode is bit 12 -- 0x1000, not 0x0010. Writing the low
+      // nibble instead sets content-encoding-ish flags the server then reads
+      // the body against, and it closes the connection rather than replying.
+      ..._u16(priority > 0 ? 0x1800 : 0x1000),
       persistent ? 2 : 1,
       if (priority > 0) priority,
     ]);
