@@ -417,8 +417,12 @@ jobs:
           set -uo pipefail
           exec > >(tee -a /tmp/diag/terminal-run.log) 2>&1
           echo "=== bundle ==="; find /tmp/terminal-out -maxdepth 2
-          python3 tool/pty_capture.py /tmp/diag/terminal-output.bin 25 \
-            /tmp/terminal-out/run.sh
+          # The capture is a Dart command now, so the CLI has to resolve
+          # before it can run.
+          dart pub get --directory packages/dartvel_cli
+          dart run dartvel_cli:dartvel capture pty \
+            /tmp/diag/terminal-output.bin --seconds 25 \
+            -- /tmp/terminal-out/run.sh
           echo "=== first bytes, escaped ==="
           head -c 400 /tmp/diag/terminal-output.bin | cat -v | head -20 || true
 
@@ -1207,6 +1211,9 @@ jobs:
 
           PAGE="moz-extension://$UUID/index.html"
           echo "photographing $PAGE"
+          # Resolved here rather than in the verification step below, which
+          # runs after this one and so was too late to be of any use to it.
+          dart pub get --directory packages/dartvel_cli
           # --screenshot is already headless, and bounded: the first attempt
           # combined it with --headless under xvfb-run and never returned, so
           # the job burned its whole budget and reported nothing.
@@ -1221,9 +1228,9 @@ jobs:
           # which `set -uo pipefail` does not undo, so a failure here would
           # skip the diagnostics below.
           FF_STATUS=0
-          timeout 300 python3 "$GITHUB_WORKSPACE/tool/ci/firefox_shot.py" \
-            /opt/firefox/firefox "$PROFILE" "$PAGE" \
-            /tmp/diag/firefox-extension.png 60 \
+          timeout 300 dart run dartvel_cli:dartvel capture firefox \
+            "$PAGE" /tmp/diag/firefox-extension.png \
+            --firefox /opt/firefox/firefox --profile "$PROFILE" --settle 60 \
             > /tmp/diag/firefox.log 2>&1 || FF_STATUS=$?
           echo "firefox exited $FF_STATUS"
           echo "--- firefox log ---"; tail -30 /tmp/diag/firefox.log || true
