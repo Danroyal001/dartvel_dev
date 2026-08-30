@@ -25,6 +25,8 @@ dependencies:
   sqlite3: ^2.9.4
   drift: ^2.14.0
   pointycastle: ^4.0.0
+  # SAML assertions are XML, and their signatures are over canonical XML.
+  xml: ^6.5.0
   # The native-asset build hook that compiles this package's rust/ crate.
   # They belong in dependencies rather than dev_dependencies: the hook runs
   # for anything that depends on this package, not only when testing it.
