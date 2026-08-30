@@ -105,6 +105,13 @@ int main(List<String> arguments) {
 
   if (problems.isNotEmpty) return _fail(problems);
 
+  // The README's feature table makes the same claim in a second place, and a
+  // second place is where a claim goes stale. It said PWA was implemented
+  // while the index recorded it as having no service worker at all -- which
+  // is most of what a PWA is -- and nothing noticed, because nothing checked.
+  problems.addAll(_readmeDisagreements(root, decoded));
+  if (problems.isNotEmpty) return _fail(problems);
+
   final labelled = seen.length - _narrativeCount(decoded);
   stdout.writeln('spec-status: ${seen.length} sections, $labelled labelled, '
       'all evidence present.');
@@ -115,6 +122,65 @@ int _narrativeCount(Map<String, Object?> decoded) => (decoded['sections']! as Li
     .whereType<Map<String, Object?>>()
     .where((e) => e['kind'] == 'narrative')
     .length;
+
+/// Rows in the README's feature table whose badge contradicts the index.
+///
+/// The mapping is explicit rather than inferred from the row's name: a table
+/// for readers and an index for tooling do not have to use the same words, and
+/// guessing at the correspondence would fail in whichever direction is
+/// quietest.
+List<String> _readmeDisagreements(String root, Map<String, Object?> decoded) {
+  final readme = File('$root/README.md');
+  if (!readme.existsSync()) return const <String>[];
+
+  const rowToSection = <String, String>{
+    'UI Primitives': 'UI',
+    'Routing': 'Routing',
+    'State Management': 'State',
+    'Models & Forms': 'Models',
+    'Backend Runtime': 'Backend Functions',
+    'Database': 'Database',
+    'Cache': 'Cache',
+    'Queues & Jobs': 'Queues, Jobs, and Signals',
+    'Authentication': 'Authentication',
+    'Platform APIs': 'Platform',
+    'Notifications': 'Mail and Notifications',
+    'AI Integration': 'AI',
+    'PWA': 'PWA',
+    'SEO': 'SEO',
+  };
+
+  final status = <String, String>{
+    for (final entry
+        in (decoded['sections']! as List).whereType<Map<String, Object?>>())
+      '${entry['section']}': '${entry['status']}',
+  };
+
+  final problems = <String>[];
+  final rowPattern = RegExp(r'^\| \*\*(.+?)\*\* \|.*\| (.+?) \|$', multiLine: true);
+  for (final match in rowPattern.allMatches(readme.readAsStringSync())) {
+    final row = match.group(1)!;
+    final section = rowToSection[row];
+    if (section == null) continue;
+    final recorded = status[section];
+    if (recorded == null) continue;
+
+    final badge = match.group(2)!;
+    final claimed = badge.contains('✅')
+        ? 'Shipped'
+        : badge.contains('⚠️')
+            ? 'Partial'
+            : null;
+    if (claimed == null) continue;
+    if (claimed != recorded) {
+      problems.add(
+        'README feature table says "$row" is $claimed; docs/spec-status.json '
+        'records $section as $recorded.',
+      );
+    }
+  }
+  return problems;
+}
 
 int _fail(List<String> problems) {
   stderr.writeln('spec-status: ${problems.length} problem(s)');

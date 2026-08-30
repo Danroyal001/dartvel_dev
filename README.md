@@ -98,9 +98,11 @@ Everything else is automatically compiled, generated, or served by the framework
 | **Authentication** | Local provider with salted password hashes, plus OAuth2 (PKCE) with Google/GitHub/GitLab/Bitbucket/Microsoft presets; magic links, OTP, LDAP and SAML are not complete | ⚠️ Partial |
 | **Outbound HTTP** | Protocol negotiation with ordered fallback, RFC 8297 early hints, and a native HTTP/2 client on the `h2` crate verified against a live server; HTTP/3 is not complete | ⚠️ Partial |
 | **Terminal rendering** | `-cli`/`-tui` targets resolve, build-time backend selection, `DV.Platform.surface`, launch negotiation. The terminal backend itself is not built | ⚠️ Partial |
-| **Database & Cache** | SQLite (file + in-memory, WAL), PostgreSQL and MySQL adapters, each on its own wire protocol, with TLS on Postgres for managed endpoints; a pluggable cache with memory and database-backed adapters. Redis cache and the remaining queue adapters are not complete | ⚠️ Partial |
+| **Database** | SQLite (file + in-memory, WAL), PostgreSQL and MySQL, each on its own wire protocol, with TLS on both network engines so managed endpoints are reachable | ✅ Implemented |
+| **Cache** | A pluggable cache with memory and database-backed adapters, tags and revalidation; distributed cache beyond Redis and Memcached is not complete | ⚠️ Partial |
 | **Mail & Notifications** | SMTP plus HTTP mail (Resend, SendGrid, Postmark, Mailgun, SES), FCM push, APNS over native HTTP/2, Web Push (RFC 8291/8292), and Twilio SMS | ✅ Implemented |
-| **PWA & SEO** | `dartvel build web` writes the PWA manifest, the head tags, per-route HTML, `sitemap.xml` and `robots.txt`, and warns when a manifest will not install | ✅ Implemented |
+| **SEO** | `dartvel build web` writes the head tags, JSON-LD, per-route HTML built from the semantics tree, `sitemap.xml` with a styled stylesheet, and `robots.txt` | ✅ Implemented |
+| **PWA** | The manifest is written and validated, and a build warns when one will not install; there is no service worker, offline support, install prompt or background sync | ⚠️ Partial |
 | **AI Integration** | HTTP adapters for Claude, OpenAI, Gemini, OpenRouter, and Ollama, plus the deterministic local adapter | ✅ Implemented |
 | **Sensitive Fields** | `@DVModel.sensitiveField()` redacts fields from public serialization, cards, logs, and AI context | ✅ Implemented |
 | **Lifecycle Signals** | Read-only enum signals: `DV.lifecycle.app`/`.build`, `context.lifecycle.page`/`.request`/`.transaction` | ✅ Implemented |
