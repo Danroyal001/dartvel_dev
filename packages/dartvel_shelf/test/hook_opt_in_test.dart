@@ -81,6 +81,9 @@ void main() {
       },
     );
   },
+      // A real cargo build from a cold target directory takes minutes; the
+      // 30-second default made this fail for taking the time it needs.
+      timeout: const Timeout(Duration(minutes: 20)),
       skip: hasCargo
           ? false
           : 'needs a Rust toolchain to produce the code asset');
