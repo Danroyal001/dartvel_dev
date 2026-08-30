@@ -8,7 +8,7 @@
       "kind": "narrative"
     },
     {
-      "section": "Dartvel \u2014 The Complete Vision, to be implemented",
+      "section": "Dartvel — The Complete Vision, to be implemented",
       "kind": "narrative"
     },
     {
@@ -46,13 +46,18 @@
     {
       "section": "Pages",
       "stability": "Contract",
-      "status": "Partial",
+      "status": "Shipped",
       "evidence": [
         "packages/dartvel_cli/lib/src/generators/function_body.dart",
+        "packages/dartvel_cli/lib/src/generators/symbol_qualifier.dart",
+        "packages/dartvel_cli/test/backend_function_block_body_test.dart",
+        "packages/dartvel_cli/test/functional_widget_block_body_test.dart",
+        "packages/dartvel_cli/test/job_handler_block_body_test.dart",
+        "packages/dartvel_cli/test/page_block_body_generation_test.dart",
         "packages/dartvel_cli/test/page_body_lowering_test.dart",
-        "packages/dartvel_cli/test/page_block_body_generation_test.dart"
+        "packages/dartvel_cli/test/symbol_qualifier_test.dart"
       ],
-      "absent": "body lowering for @DVFunctionalWidget and @DVBackendFunction inputs, which still require expression bodies. @DVPage accepts a block body"
+      "absent": null
     },
     {
       "section": "Routing",
@@ -180,7 +185,7 @@
         "packages/dartvel_flutter/test/ios_bindings_test.dart",
         "packages/dartvel_flutter/test/android_bindings_test.dart"
       ],
-      "absent": "17 bindings across Linux (8), web (5), Windows (7), macOS (3) and iOS (2) \u2014 note the overlap, they are not distinct"
+      "absent": "17 bindings across Linux (8), web (5), Windows (7), macOS (3) and iOS (2) — note the overlap, they are not distinct"
     },
     {
       "section": "Database",
