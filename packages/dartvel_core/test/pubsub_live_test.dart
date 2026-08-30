@@ -102,6 +102,12 @@ void main() {
 
     expect(job, isNotNull, reason: 'it was published, so it must pull back');
     expect(job!.payloadType, LivePing);
+
+    // Acknowledged before leaving. An unacknowledged message returns once the
+    // ack deadline passes, and it then turns up in the next test as a job
+    // that was supposed to have been deleted -- which reads as a broken
+    // acknowledgement rather than as a leak from here.
+    await adapter.complete(job.id);
   });
 
   test('acknowledging it means it is not delivered again', () async {
