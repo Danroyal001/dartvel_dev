@@ -458,13 +458,20 @@
     {
       "section": "CLI",
       "stability": "Contract",
-      "status": "Partial",
+      "status": "Shipped",
       "evidence": [
+        "packages/dartvel_cli/lib/src/commands/inspect_command.dart",
+        "packages/dartvel_cli/lib/src/commands/mcp_command.dart",
+        "packages/dartvel_cli/lib/src/graph/project_graph.dart",
+        "packages/dartvel_cli/lib/src/mcp/framework_mcp_server.dart",
         "packages/dartvel_cli/test/build_command_test.dart",
         "packages/dartvel_cli/test/doctor_targets_test.dart",
+        "packages/dartvel_cli/test/inspect_command_test.dart",
+        "packages/dartvel_cli/test/mcp_server_test.dart",
+        "packages/dartvel_cli/test/project_graph_test.dart",
         "packages/dartvel_cli/test/spec_command_test.dart"
       ],
-      "absent": "dartvel inspect and dartvel mcp"
+      "absent": null
     },
     {
       "section": "etc.",
