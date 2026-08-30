@@ -117,10 +117,15 @@
       "stability": "Contract",
       "status": "Partial",
       "evidence": [
-        "packages/dartvel_core/test/queue_adapters_test.dart",
-        "packages/dartvel_cli/test/job_generation_test.dart"
+        "packages/dartvel_core/lib/src/queues/redis_queue.dart",
+        "packages/dartvel_core/lib/src/queues/sqs_queue.dart",
+        "packages/dartvel_core/lib/src/queues/amqp_queue.dart",
+        "packages/dartvel_core/lib/src/queues/amqp_socket_io.dart",
+        "packages/dartvel_core/test/sqs_queue_test.dart",
+        "packages/dartvel_core/test/amqp_queue_test.dart",
+        ".github/workflows/queue-brokers.yml"
       ],
-      "absent": "SQS, Pub/Sub, RabbitMQ and Kafka queue adapters"
+      "absent": "Pub/Sub and Kafka adapters. In-memory, database, Redis, SQS and RabbitMQ ship; SQS and RabbitMQ are verified against a real broker in CI, not only against a fake"
     },
     {
       "section": "Authorization",
