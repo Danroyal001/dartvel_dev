@@ -62,6 +62,8 @@ export 'src/search/postgres_search.dart';
 export 'src/secrets/secrets.dart';
 export 'src/shell/shell.dart';
 export 'src/storage/adapters.dart';
+export 'src/storage/azure_blob.dart';
+export 'src/storage/gcs.dart';
 export 'src/sync/model_sync.dart';
 export 'src/sync/presence.dart';
 export 'src/tenancy/tenants.dart';

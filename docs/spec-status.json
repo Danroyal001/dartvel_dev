@@ -239,11 +239,16 @@
     {
       "section": "File Storage",
       "stability": "Contract",
-      "status": "Partial",
+      "status": "Shipped",
       "evidence": [
-        "packages/dartvel_core/test/file_storage_test.dart"
+        ".github/workflows/object-stores.yml",
+        "packages/dartvel_core/lib/src/storage/azure_blob.dart",
+        "packages/dartvel_core/lib/src/storage/gcs.dart",
+        "packages/dartvel_core/test/azure_blob_live_test.dart",
+        "packages/dartvel_core/test/file_storage_test.dart",
+        "packages/dartvel_core/test/gcs_live_test.dart"
       ],
-      "absent": "Azure Blob and Google Cloud Storage adapters"
+      "absent": null
     },
     {
       "section": "Cache",
