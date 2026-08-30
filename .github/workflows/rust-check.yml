@@ -1,6 +1,11 @@
 name: Rust runtime
 
-# Compiles and tests dartvel_shelf's Rust crate.
+# Compiles and tests both Rust crates.
+#
+# There are two since the client moved: dartvel_core/rust builds the outbound
+# HTTP client (`dv_http_*`), dartvel_shelf/rust builds the Axum server
+# (`aw_*`). They are checked separately because that separation is the point --
+# a dependency creeping from one into the other is what this catches.
 #
 # This exists because the development environment for this project has no
 # cargo and not enough disk for a target directory, so CI is where the Rust
@@ -11,10 +16,12 @@ on:
   push:
     paths:
       - 'packages/dartvel_shelf/rust/**'
+      - 'packages/dartvel_core/rust/**'
       - '.github/workflows/rust-check.yml'
   pull_request:
     paths:
       - 'packages/dartvel_shelf/rust/**'
+      - 'packages/dartvel_core/rust/**'
   workflow_dispatch:
 
 concurrency:
@@ -24,14 +31,20 @@ concurrency:
 
 jobs:
   check:
-    name: cargo check, clippy, test
+    name: ${{ matrix.crate }} — check, clippy, test
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { crate: dartvel_core, dir: packages/dartvel_core/rust }
+          - { crate: dartvel_shelf, dir: packages/dartvel_shelf/rust }
     # A clean build of this crate is minutes, not tens of minutes. Anything
     # approaching this is stuck rather than slow.
     timeout-minutes: 25
     defaults:
       run:
-        working-directory: packages/dartvel_shelf/rust
+        working-directory: ${{ matrix.dir }}
 
     steps:
       - uses: actions/checkout@v4
@@ -53,12 +66,12 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            packages/dartvel_shelf/rust/target
+            ${{ matrix.dir }}/target
           key: >-
-            rust-check-${{ runner.os }}-${{
-            hashFiles('packages/dartvel_shelf/rust/Cargo.toml',
-                      'packages/dartvel_shelf/rust/Cargo.lock') }}
-          restore-keys: rust-check-${{ runner.os }}-
+            rust-check-${{ runner.os }}-${{ matrix.crate }}-${{
+            hashFiles(format('{0}/Cargo.toml', matrix.dir),
+                      format('{0}/Cargo.lock', matrix.dir)) }}
+          restore-keys: rust-check-${{ runner.os }}-${{ matrix.crate }}-
 
       # The crate's build script runs cbindgen, which is not on a runner.
       - name: Install cbindgen
@@ -94,3 +107,36 @@ jobs:
       - name: cargo fmt
         continue-on-error: true
         run: cargo fmt --check
+
+      # The split is the reason these are two crates. A server symbol in the
+      # client library, or the reverse, means they were merged back by
+      # accident -- and the frontend is linking a server again.
+      - name: the crates stayed separate
+        run: |
+          set -euo pipefail
+          cargo build --release
+          lib=$(find target/release -maxdepth 1 -name 'lib*.so' -print -quit)
+          echo "inspecting $lib"
+          server=$(nm -D "$lib" | grep -c ' T aw_' || true)
+          client=$(nm -D "$lib" | grep -c ' T dv_http_' || true)
+          echo "aw_*=$server dv_http_*=$client"
+          case "${{ matrix.crate }}" in
+            dartvel_core)
+              if [ "$server" != "0" ]; then
+                echo "::error::the client library exports $server server symbols"
+                exit 1
+              fi
+              if [ "$client" = "0" ]; then
+                echo "::error::the client library exports no client symbols"
+                exit 1
+              fi ;;
+            dartvel_shelf)
+              if [ "$client" != "0" ]; then
+                echo "::error::the server library exports $client client symbols"
+                exit 1
+              fi
+              if [ "$server" = "0" ]; then
+                echo "::error::the server library exports no server symbols"
+                exit 1
+              fi ;;
+          esac
