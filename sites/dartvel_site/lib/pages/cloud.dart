@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import '../dartvel_client/dartvel_client.dart';
-import '../components/site.dart';
 
 @DVPage(title: 'Cloud — Dartvel', showAppBar: false)
 @pragma('vm:entry-point')
-Widget _cloudPage(BuildContext context) => SingleChildScrollView(
+Widget _cloudPage(BuildContext context) => const SingleChildScrollView(
       child: DVBox.list(<Widget>[
         Section(
           children: <Widget>[
@@ -31,22 +30,22 @@ Widget _cloudPage(BuildContext context) => SingleChildScrollView(
           children: <Widget>[
             Eyebrow('WHAT IT IS MEANT TO BE'),
             DVBox.wrapLine(<Widget>[
-              Card_(
+              SiteCard(
                 'One command',
                 'dartvel deploy, with the backend, the database, the queues '
                 'and the static build going out together.',
               ),
-              Card_(
+              SiteCard(
                 'The runtime as it is built',
                 'The same Axum and Tokio server the CLI runs locally, rather '
                 'than a different one you discover in production.',
               ),
-              Card_(
+              SiteCard(
                 'Durable work included',
                 'Jobs and queues run where the app runs, so background work '
                 'is not a second piece of infrastructure to stand up.',
               ),
-              Card_(
+              SiteCard(
                 'Not a lock-in',
                 'Self-hosting stays a supported path. Cloud is the '
                 'convenience, not the requirement.',
@@ -76,6 +75,6 @@ Widget _cloudPage(BuildContext context) => SingleChildScrollView(
             ], spacing: 12),
           ],
         ),
-        const SiteFooter(),
+        SiteFooter(),
       ], spacing: 0),
     );

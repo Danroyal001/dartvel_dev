@@ -2,7 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import 'motion.dart';
+import '../dartvel_client/dartvel_client.dart';
 import 'site.dart';
 
 /// A page that moves a section at a time, with a rail showing where you are.
@@ -65,7 +65,7 @@ class _DeckState extends State<Deck> {
     if (target == _current) return;
     setState(() => _current = target);
     final double offset = target * _extent;
-    if (Motion.enabled(context)) {
+    if (!context.screen.reducedMotion) {
       _controller.animateTo(
         offset,
         duration: const Duration(milliseconds: 520),
@@ -110,7 +110,7 @@ class _DeckState extends State<Deck> {
 
   @override
   Widget build(BuildContext context) {
-    final Responsive layout = Responsive.of(context);
+    final DVScreenInfo screen = context.screen;
 
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
@@ -174,13 +174,13 @@ class _DeckState extends State<Deck> {
                   ),
                 ),
               ),
-              if (!layout.narrow)
+              if (!screen.isMobile)
                 Positioned(
                   right: 26,
                   top: 0,
                   bottom: 0,
                   child: Center(
-                    child: _Rail(
+                    child: Rail(
                       labels: <String>[
                         for (final (String, Widget) entry in widget.slides)
                           entry.$1,
@@ -199,118 +199,74 @@ class _DeckState extends State<Deck> {
 }
 
 /// The dots down the right, and where you are among them.
-class _Rail extends StatelessWidget {
-  const _Rail({
-    required this.labels,
-    required this.current,
-    required this.onTap,
-  });
+@DVFunctionalWidget()
+Widget _rail(
+  BuildContext context, {
+  required List<String> labels,
+  required int current,
+  required void Function(int index) onTap,
+}) =>
+    DVBox.list(<Widget>[
+      for (int i = 0; i < labels.length; i++)
+        Dot(
+          label: labels[i],
+          active: i == current,
+          onTap: () => onTap(i),
+        ),
+    ], spacing: 0, crossAlign: DVCrossAlign.end);
 
-  final List<String> labels;
-  final int current;
-  final void Function(int index) onTap;
+/// One position on the rail.
+///
+/// The label appears on hover as well as when active, which is a sibling of
+/// the indicator rather than the indicator itself -- so this reads the hover
+/// through DVModifier.onHoverChanged into a signal rather than owning a
+/// State to hold it.
+@DVFunctionalWidget()
+Widget _dot(
+  BuildContext context, {
+  required String label,
+  required bool active,
+  required VoidCallback onTap,
+}) {
+  final Palette palette = Palette.of(context);
+  final DVSignal<bool> over = context.signal(false);
+  final bool show = over.value || active;
 
-  @override
-  Widget build(BuildContext context) {
-    final Palette palette = Palette.of(context);
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-        for (int i = 0; i < labels.length; i++)
-          _Dot(
-            label: labels[i],
-            active: i == current,
-            palette: palette,
-            onTap: () => onTap(i),
-          ),
-      ],
-    );
-  }
-}
-
-class _Dot extends StatefulWidget {
-  const _Dot({
-    required this.label,
-    required this.active,
-    required this.palette,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool active;
-  final Palette palette;
-  final VoidCallback onTap;
-
-  @override
-  State<_Dot> createState() => _DotState();
-}
-
-class _DotState extends State<_Dot> {
-  bool _over = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final Palette palette = widget.palette;
-    final bool show = _over || widget.active;
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _over = true),
-      onExit: (_) => setState(() => _over = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
+  return DVBox(
+    DVBox.row(<Widget>[
+      DVBox(
+        DVText(label).modifier(const DVModifier()
+            .fontSize(11.5)
+            .fontWeight(FontWeight.w700)
+            .letterSpacing(0.6)
+            .color(active ? palette.accent : palette.muted)),
+        const DVModifier().opacity(show ? 1 : 0).paddingOnly(right: 10),
+      ),
+      // A bar rather than a dot when active: it reads as a position on a
+      // track, which is what it is.
+      DVBox(
+        const DVBox(),
+        const DVModifier()
+            .width(active ? 26 : 12)
+            .height(active ? 4 : 3)
+            // rule is the colour of a hairline between sections and is
+            // invisible as a control. An indicator nobody can see is not an
+            // indicator.
+            .backgroundColor(active
+                ? palette.accent
+                : (over.value ? palette.ink : palette.faint))
+            .rounded(999)
+            .animate(const Duration(milliseconds: 220)),
+      ),
+    ], align: DVAlign.end),
+    const DVModifier()
+        .paddingSymmetric(vertical: 7)
+        .onHoverChanged((bool value) => over.value = value)
+        .onTap(onTap)
         // A real label, not a decorative dot: this is how the rail is
         // announced and how it is reached without a mouse.
-        child: Semantics(
-          label: 'Go to ${widget.label}',
-          button: true,
-          selected: widget.active,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 7),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: <Widget>[
-                AnimatedOpacity(
-                  opacity: show ? 1 : 0,
-                  duration: const Duration(milliseconds: 160),
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: 10),
-                    child: Text(
-                      widget.label,
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.6,
-                        color: widget.active
-                            ? palette.accent
-                            : palette.muted,
-                      ),
-                    ),
-                  ),
-                ),
-                // A bar rather than a dot when active: it reads as a position
-                // on a track, which is what it is.
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOut,
-                  width: widget.active ? 26 : 12,
-                  height: widget.active ? 4 : 3,
-                  decoration: BoxDecoration(
-                    // rule is the colour of a hairline between sections and
-                    // is invisible as a control. An indicator nobody can see
-                    // is not an indicator.
-                    color: widget.active
-                        ? palette.accent
-                        : (_over ? palette.ink : palette.faint),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+        .semanticLabel('Go to $label')
+        .semanticButton()
+        .minimumTapTarget(),
+  );
 }
-
-
