@@ -329,16 +329,20 @@
     {
       "section": "Monitoring and Observability",
       "stability": "Draft",
-      "status": "Partial",
+      "status": "Shipped",
       "evidence": [
         "packages/dartvel_core/lib/src/observability/health.dart",
         "packages/dartvel_core/lib/src/observability/metrics.dart",
         "packages/dartvel_core/lib/src/observability/observability.dart",
+        "packages/dartvel_core/lib/src/observability/tracing.dart",
+        "packages/dartvel_core/lib/src/observability/tracing_middleware.dart",
         "packages/dartvel_core/test/health_endpoint_test.dart",
         "packages/dartvel_core/test/observability_test.dart",
+        "packages/dartvel_core/test/tracing_middleware_test.dart",
+        "packages/dartvel_core/test/tracing_test.dart",
         "packages/dartvel_flutter/test/telemetry_admin_test.dart"
       ],
-      "absent": "Distributed tracing spans, context propagation and sampling. Metrics and health checks are built: DVMetrics renders counters, gauges and histograms in Prometheus text exposition format and GET /metrics serves it, and DVHealth runs registered checks concurrently with a per-check deadline so a hung dependency reports down rather than hanging the endpoint. GET /health returned a hardcoded {\"status\":\"ok\"} until this and so could never fail"
+      "absent": "Profiling and performance analysis. Logs, metrics, traces and error reporting are built: DVMetrics renders Prometheus text exposition and GET /metrics serves it, DVHealth backs GET /health with real checks on a deadline, and tracing carries W3C Trace Context across the request boundary with sampling decided from the trace id alone -- a per-process decision samples a four-service request with probability p^4, which reads as tracing being on and finding nothing"
     },
     {
       "section": "Testing",
