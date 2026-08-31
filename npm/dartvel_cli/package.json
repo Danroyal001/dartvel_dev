@@ -1,0 +1,38 @@
+{
+  "name": "dartvel_cli",
+  "version": "0.3.0",
+  "description": "Dartvel CLI \u2014 an alias for dartvel_dev, so `npm i -g dartvel_cli` installs the same CLI. The implementation lives in dartvel_dev; this package only forwards to it.",
+  "bin": {
+    "dartvel": "./bin/dartvel.js",
+    "dartvel_cli": "./bin/dartvel.js"
+  },
+  "files": [
+    "bin/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --check bin/dartvel.js"
+  },
+  "keywords": [
+    "dartvel",
+    "flutter",
+    "dart",
+    "full-stack",
+    "framework",
+    "cli"
+  ],
+  "author": "SigmaDev",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Danroyal001/dartvel_dev.git"
+  },
+  "homepage": "https://dartvel.dev",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "dartvel_dev": "0.3.0"
+  }
+}
