@@ -10,6 +10,7 @@ import '../config/dartvel_config.dart';
 import '../generators/routes_generator.dart';
 import '../utils/build_runner.dart';
 import '../utils/linux_utils.dart';
+import '../build/seo_head.dart';
 import '../utils/logger.dart';
 
 class DevCommand extends Command<void> {
@@ -152,6 +153,16 @@ Future<void> main() async {
     }
     if (deviceOpt != null && deviceOpt.isNotEmpty) {
       flutterArgs.addAll(['-d', deviceOpt]);
+    }
+    // The dev server serves web/index.html straight from the project, so a
+    // build-time fix would leave `dartvel run web` -- the mode a developer is
+    // actually looking at when they check a layout on a phone -- laying out at
+    // 980 CSS pixels and scaling down.
+    if (deviceOpt != null && deviceOpt.contains('web') ||
+        deviceOpt == 'chrome') {
+      if (dvEnsureProjectViewport(Directory.current.path)) {
+        Logger.log('Added a viewport meta to web/index.html.');
+      }
     }
     if (argResults?['release'] == true) flutterArgs.add('--release');
     if (argResults?['profile'] == true) flutterArgs.add('--profile');

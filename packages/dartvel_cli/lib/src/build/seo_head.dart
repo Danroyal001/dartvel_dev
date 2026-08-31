@@ -9,6 +9,9 @@
 library;
 
 import 'dart:convert';
+import 'dart:io';
+
+import 'package:path/path.dart' as p;
 
 /// Head tags for a page.
 ///
@@ -44,6 +47,65 @@ String dvSeoHead({
   return tags.where((String tag) => tag.isNotEmpty).join('\n');
 }
 
+/// The viewport meta a responsive web page cannot do without.
+///
+/// `width=device-width` is the whole point: without it a phone browser lays
+/// the page out at a notional ~980 CSS pixels and scales the result down, so
+/// the app is not narrow, it is a shrunken desktop. Everything downstream of a
+/// width -- Dartvel's own breakpoints included -- then reports "desktop" on a
+/// phone, which makes responsive layout not merely absent but actively wrong.
+///
+/// `viewport-fit=cover` pairs with `DV.Platform.screen.safeAreaBounds`:
+/// without it the safe-area insets a notched phone reports are all zero, so
+/// honouring them does nothing on the one class of device that has them.
+///
+/// Deliberately no `user-scalable=no` and no `maximum-scale`. Some Flutter
+/// templates ship them and they stop a low-vision reader pinching to zoom; a
+/// framework should not decide that on an application's behalf.
+const String dvViewportMeta =
+    '<meta name="viewport" content="width=device-width, initial-scale=1, '
+    'viewport-fit=cover">';
+
+/// Ensure [html] carries a viewport meta.
+///
+/// A page that already declares one is left alone: a developer who wrote their
+/// own meant it, and two viewport metas is not additive -- which one the
+/// browser honours is not something to guess at.
+String dvViewportApply(String html) {
+  if (RegExp(r"""<meta\s+name=["']viewport["']""", caseSensitive: false)
+      .hasMatch(html)) {
+    return html;
+  }
+  final int at = html.indexOf('</head>');
+  // No head to put it in. Returning the page unchanged beats inventing
+  // structure around someone's template.
+  if (at < 0) return html;
+  return '${html.substring(0, at)}  $dvViewportMeta\n${html.substring(at)}';
+}
+
+/// Put a viewport into the project's own `web/index.html`.
+///
+/// Fixing only the built output leaves `dartvel run web` serving the source
+/// template, which is the mode a developer is actually looking at when they
+/// check a layout on a phone -- so the one place it matters most during
+/// development would still be laying out at 980px.
+///
+/// Returns whether the file was changed, so a build can say it did something
+/// to a file the developer owns rather than editing it silently. A project
+/// with no `web/` at all is not an error: mobile-only and server-only projects
+/// are ordinary.
+bool dvEnsureProjectViewport(String root) {
+  final File index = File(p.join(root, 'web', 'index.html'));
+  if (!index.existsSync()) return false;
+
+  final String before = index.readAsStringSync();
+  final String after = dvViewportApply(before);
+  if (after == before) return false;
+
+  index.writeAsStringSync(after);
+  return true;
+}
+
 /// Where the injected block starts and ends.
 ///
 /// Marked so a rebuild replaces it rather than adding a second copy. A build
@@ -71,6 +133,20 @@ String dvSeoApply(String html, String head) {
   out = out.replaceAll(
       RegExp(r'''<meta\s+name=["']description["'][^>]*>''', caseSensitive: false),
       '');
+
+  // Before the block rather than after it, and that ordering is load-bearing
+  // for idempotence: inserting the viewport last would put it after the SEO
+  // block on a first pass and before it on a second, so two applies would not
+  // produce the same page. A build often runs over the previous build's
+  // output.
+  //
+  // Every path that writes a built page -- the web build, the web server, the
+  // static per-route pages -- goes through here, so this is the one place a
+  // viewport cannot be forgotten. Left as a separate call at each of those
+  // three sites it is one new code path away from being missing again, and
+  // when it is missing the failure is silent: the page is perfect in a
+  // desktop browser.
+  out = dvViewportApply(out);
 
   final at = out.indexOf('</head>');
   if (at < 0) return html;

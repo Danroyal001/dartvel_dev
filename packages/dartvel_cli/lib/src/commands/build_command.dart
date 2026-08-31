@@ -726,6 +726,17 @@ class BuildCommand extends Command<void> {
       return _PlatformBuildResult.skipped;
     }
 
+    // Before the build copies web/index.html into the output, so the built
+    // page carries it whether or not it also goes through the SEO pass. A
+    // page without one is laid out by a phone at a notional 980 CSS pixels
+    // and scaled down, which makes every breakpoint report "desktop" on a
+    // phone.
+    if (platform == 'web' || platform == 'web-server') {
+      if (dvEnsureProjectViewport(Directory.current.path)) {
+        Logger.log('   Added a viewport meta to web/index.html.');
+      }
+    }
+
     // Printed before starting, so a log that ends here says exactly what was
     // invoked. A macOS build once stopped at this point and produced nothing
     // for 41 minutes; the log could not even show the command.
