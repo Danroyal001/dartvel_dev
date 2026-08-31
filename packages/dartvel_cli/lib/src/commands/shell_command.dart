@@ -184,20 +184,33 @@ class DartvelShell {
     await process.stdin.close();
     final out = StringBuffer();
     final err = StringBuffer();
-    final outSub = process.stdout.transform(systemEncoding.decoder).listen(
-      (chunk) {
-        out.write(chunk);
-        if (streamOutput) stdout.write(chunk);
-      },
-    );
-    final errSub = process.stderr.transform(systemEncoding.decoder).listen(
-      (chunk) {
-        err.write(chunk);
-        if (streamOutput) stderr.write(chunk);
-      },
-    );
+    // Drained to completion rather than listened-to and cancelled.
+    //
+    // process.exitCode completes when the process exits, which can be before
+    // its output has been delivered to the listener -- the pipes still hold
+    // it. Cancelling the subscriptions at that point discarded whatever had
+    // not arrived, so a command that exits immediately, which is most of
+    // them, could lose its output entirely.
+    //
+    // It is not only about what is printed: stdoutText is what a pipeline
+    // feeds to its next stage, so `a | b` could hand b an empty stdin and
+    // produce nothing at all. And being a race it was intermittent, which
+    // reads as a flaky tool rather than as a bug.
+    final Future<void> outDone =
+        process.stdout.transform(systemEncoding.decoder).forEach((chunk) {
+      out.write(chunk);
+      if (streamOutput) stdout.write(chunk);
+    });
+    final Future<void> errDone =
+        process.stderr.transform(systemEncoding.decoder).forEach((chunk) {
+      err.write(chunk);
+      if (streamOutput) stderr.write(chunk);
+    });
+
     final code = await process.exitCode;
-    await Future.wait(<Future<void>>[outSub.cancel(), errSub.cancel()]);
+    // Both close when the process's pipes close, at or after exit, so this
+    // terminates.
+    await Future.wait(<Future<void>>[outDone, errDone]);
     return DartvelShellResult(
       exitCode: code,
       stdoutText: out.toString(),
