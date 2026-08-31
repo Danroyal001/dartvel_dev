@@ -462,12 +462,13 @@
     {
       "section": "Admin, Devtools, and Scaffolding",
       "stability": "Draft",
-      "status": "Partial",
+      "status": "Shipped",
       "evidence": [
-        "packages/dartvel_flutter/test/model_admin_test.dart",
-        "packages/dartvel_cli/test/admin_command_test.dart"
+        "packages/dartvel_cli/test/admin_command_test.dart",
+        "packages/dartvel_cli/test/inspect_command_test.dart",
+        "packages/dartvel_flutter/test/model_admin_test.dart"
       ],
-      "absent": "The dartvel inspect command family, which is not registered"
+      "absent": "Nothing named. The dartvel inspect family is registered and runs against a real project: verified by running inspect, inspect routes, inspect models, inspect functions and inspect jobs on the site, not by reading the command table"
     },
     {
       "section": "Data Import, Export, and Reporting",
@@ -524,11 +525,12 @@
     {
       "section": ".dartvel.sh",
       "stability": "Draft",
-      "status": "Partial",
+      "status": "Shipped",
       "evidence": [
-        "packages/dartvel_cli/test/shell_command_test.dart"
+        "packages/dartvel_cli/test/shell_command_test.dart",
+        "packages/dartvel_cli/test/shell_output_test.dart"
       ],
-      "absent": "Task runner beyond DV.$ and dartvel sh"
+      "absent": "Nothing named. DV.$, dartvel sh and dartvel task all work, the last reading tasks from dartvel.tasks in pubspec.yaml -- verified by declaring one and running it, which is how the shell was found to be discarding the output of any command that exited quickly"
     },
     {
       "section": "Package Structure",
