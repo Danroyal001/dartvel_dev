@@ -1878,10 +1878,43 @@ extension DVBooleanSignalX on DVReadableSignal<bool> {
       DVDerivedSignal<bool>(() => value ^ _dvBool(other));
 }
 
+/// The Riverpod container backing signals reached through [context].
+///
+/// Riverpod being an implementation detail means the application never has to
+/// know it is there, and that includes not having to mount its scope. This
+/// used to call `ProviderScope.containerOf` directly, which asserts one is
+/// above it -- and nothing in Dartvel puts one there. A generated app is
+/// `runApp(createDartvelApp())` over a MaterialApp.router, so the spec's
+/// headline state primitive, `final counter = context.signal(0)`, threw with
+/// "No ProviderScope found" in the exact application shape Dartvel generates.
+///
+/// An application that does mount its own scope still gets that one: the
+/// fallback must not shadow a real scope, or provider overrides installed for
+/// a test would be silently ignored.
+ProviderContainer dvSignalContainerOf(BuildContext context) {
+  final InheritedElement? scope = context
+      .getElementForInheritedWidgetOfExactType<UncontrolledProviderScope>();
+  if (scope != null) return ProviderScope.containerOf(context);
+  return _dvAmbientContainer ??= ProviderContainer();
+}
+
+/// One container for the whole process when the tree has no scope.
+///
+/// Not per-element: signals are keyed by element already, and a container per
+/// element would make DV.global -- which is keyed by type across the whole
+/// application -- resolve differently in every widget that read it.
+ProviderContainer? _dvAmbientContainer;
+
+/// Drops the ambient container, so a test starts from nothing.
+void dvResetAmbientSignals() {
+  _dvAmbientContainer?.dispose();
+  _dvAmbientContainer = null;
+}
+
 extension DVSignalContextX on BuildContext {
   DVSignal<T> signal<T>(T initialValue) {
     final element = this as Element;
-    final container = ProviderScope.containerOf(this);
+    final container = dvSignalContainerOf(this);
 
     final list = _signalProviders[element] ??= [];
 
@@ -1920,24 +1953,29 @@ extension DVSignalContextX on BuildContext {
 
   T global<T>({String namespace = ''}) {
     final key = _DVGlobalKey(namespace, T);
+    // The registry stores Object?, because one map holds every type. The cast
+    // therefore belongs on the value that comes out, not on the provider:
+    // casting a StateProvider<Object?> to StateProvider<T> is not a widening
+    // Dart permits, so `context.global<Cart>()` threw a TypeError for every T
+    // that was not Object? -- which is every real use of it.
     final provider = _globalProviders.putIfAbsent(
       key,
       () => StateProvider<Object?>((ref) => DV.global<T>(null, namespace)),
-    ) as StateProvider<T>;
+    );
 
-    final container = ProviderScope.containerOf(this);
+    final container = dvSignalContainerOf(this);
     DV.container = container;
     final element = this as Element;
     final listeners = _signalListeners[element] ??= {};
     if (!listeners.containsKey(provider)) {
-      final sub = container.listen<T>(provider, (prev, next) {
+      final sub = container.listen<Object?>(provider, (prev, next) {
         if (element.mounted) {
           element.markNeedsBuild();
         }
       });
       listeners[provider] = sub;
     }
-    return container.read(provider);
+    return container.read(provider) as T;
   }
 }
 
