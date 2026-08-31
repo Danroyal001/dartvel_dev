@@ -43,74 +43,8 @@ class Responsive {
 }
 
 /// The page frame: header, content, footer, on the themed background.
-class SitePage extends StatelessWidget {
-  const SitePage({
-    super.key,
-    required this.current,
-    required this.children,
-    this.slides,
-  });
-
-  final String current;
-  final List<Widget> children;
-
-  /// A deck: one section per screen, snapped, with a rail down the side.
-  ///
-  /// Each entry is the rail's label and the slide. Given this, [children] is
-  /// ignored -- a page is one or the other, and building both would put the
-  /// same content in the semantics tree twice.
-  ///
-  /// Reference pages should not use it. Hijacking the scroll of a page
-  /// somebody is reading to find one paragraph is hostile; a landing page,
-  /// where each section is a separate claim, is what it suits.
-  final List<(String, Widget)>? slides;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = Palette.of(context);
-    final List<(String, Widget)>? deck = slides;
-
-    if (deck != null) {
-      // The deck is the page's scroll, not a scroll inside it. Putting it
-      // under the header in a Column left two nested scrollables -- the shell
-      // already provides one -- and the inner one never got a gesture, so no
-      // wheel and no arrow key ever moved a slide.
-      //
-      // The header floats over it instead, and each slide clears it with
-      // padding.
-      return Container(
-        color: palette.page,
-        child: Stack(
-          children: <Widget>[
-            Deck(slides: deck, topInset: 65),
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: SiteHeader(current: current),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Container(
-      color: palette.page,
-      child: SingleChildScrollView(
-        child: DVBox.list(<Widget>[
-          SiteHeader(current: current),
-          ...children,
-          const SiteFooter(),
-        ], spacing: 0),
-      ),
-    );
-  }
-}
-
 class SiteHeader extends StatelessWidget {
-  const SiteHeader({super.key, required this.current});
-
-  final String current;
+  const SiteHeader({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -144,21 +78,19 @@ class SiteHeader extends StatelessWidget {
             child: responsive.narrow
                 ? DVBox.wrapLine(<Widget>[
                     const _Wordmark(),
-                    NavLink('Docs', '/docs', active: current == '/docs'),
-                    NavLink('Features', '/features',
-                        active: current == '/features'),
-                    NavLink('Cloud', '/cloud', active: current == '/cloud'),
+                    NavLink('Docs', '/docs'),
+                    NavLink('Features', '/features'),
+                    NavLink('Cloud', '/cloud'),
                   ], spacing: 18)
                 : Row(
                     children: <Widget>[
                       const _Wordmark(),
                       const SizedBox(width: 28),
-                      NavLink('Docs', '/docs', active: current == '/docs'),
+                      NavLink('Docs', '/docs'),
                       const SizedBox(width: 18),
-                      NavLink('Features', '/features',
-                          active: current == '/features'),
+                      NavLink('Features', '/features'),
                       const SizedBox(width: 18),
-                      NavLink('Cloud', '/cloud', active: current == '/cloud'),
+                      NavLink('Cloud', '/cloud'),
                       const Spacer(),
                       const ExternalLink(
                           'GitHub', 'https://github.com/Danroyal001/dartvel_dev'),
@@ -539,14 +471,30 @@ class _Wordmark extends StatelessWidget {
 }
 
 class NavLink extends StatelessWidget {
-  const NavLink(this.label, this.href, {super.key, this.active = false});
+  const NavLink(this.label, this.href, {super.key});
   final String label;
   final String href;
-  final bool active;
+
+  /// Whether this link points at the page being shown.
+  ///
+  /// Read from the router rather than passed down. It used to be a `current`
+  /// string threaded from every page -- `SitePage(current: '/features')` --
+  /// which is the route written out by hand in the one place that already
+  /// knows it from the file it lives in. A route repeated as a literal drifts
+  /// the moment the page file moves, and nothing catches it: the nav simply
+  /// stops highlighting.
+  bool _isCurrent(BuildContext context) {
+    final String path = GoRouterState.of(context).uri.path;
+    if (href == '/') return path == '/';
+    // A prefix match, so /docs stays lit on /docs/anything, but compared
+    // segment-wise: /docs must not light up on /docsomething.
+    return path == href || path.startsWith('$href/');
+  }
 
   @override
   Widget build(BuildContext context) {
     final palette = Palette.of(context);
+    final bool active = _isCurrent(context);
     return DVNavLink(
       to: DVRouteTarget(href),
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),

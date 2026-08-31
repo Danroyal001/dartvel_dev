@@ -8,7 +8,10 @@ import '../components/site.dart';
 /// that fails when a section claims to be built and the evidence it names does
 /// not exist. A marketing page that listed more than that would be the first
 /// place the project stopped being honest.
-const List<(String, String, String)> _shipped = <(String, String, String)>[
+/// Public because the page body is lowered into the generated router,
+/// which reaches a page's public symbols through its import and cannot see
+/// a private one at all.
+const List<(String, String, String)> shipped = <(String, String, String)>[
   (
     'UI',
     'DVBox and DVText',
@@ -192,11 +195,8 @@ const List<(String, String, String)> _shipped = <(String, String, String)>[
 
 @DVPage(title: 'Features — Dartvel', showAppBar: false)
 @pragma('vm:entry-point')
-Widget _featuresPage(BuildContext context) => buildFeaturesPage(context);
-
-Widget buildFeaturesPage(BuildContext context) => SitePage(
-      current: '/features',
-      children: <Widget>[
+Widget _featuresPage(BuildContext context) => SingleChildScrollView(
+      child: DVBox.list(<Widget>[
         const Section(
           children: <Widget>[
             Eyebrow('WHAT WORKS TODAY'),
@@ -231,7 +231,7 @@ Widget buildFeaturesPage(BuildContext context) => SitePage(
                 if (columns == 1) {
                   return DVBox.list(<Widget>[
                     for (final (String area, String surface, String body) f
-                        in _shipped)
+                        in shipped)
                       FeatureRow(area: f.$1, surface: f.$2, body: f.$3),
                   ], spacing: 14);
                 }
@@ -243,7 +243,7 @@ Widget buildFeaturesPage(BuildContext context) => SitePage(
                   runSpacing: gap,
                   children: <Widget>[
                     for (final (String area, String surface, String body) f
-                        in _shipped)
+                        in shipped)
                       SizedBox(
                         width: width,
                         child: FeatureRow(
@@ -255,7 +255,8 @@ Widget buildFeaturesPage(BuildContext context) => SitePage(
             ),
           ],
         ),
-      ],
+        const SiteFooter(),
+      ], spacing: 0),
     );
 
 /// One shipped capability: the area, the surface you actually type, and what

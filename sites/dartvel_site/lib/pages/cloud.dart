@@ -4,11 +4,8 @@ import '../components/site.dart';
 
 @DVPage(title: 'Cloud — Dartvel', showAppBar: false)
 @pragma('vm:entry-point')
-Widget _cloudPage(BuildContext context) => buildCloudPage(context);
-
-Widget buildCloudPage(BuildContext context) => const SitePage(
-      current: '/cloud',
-      children: <Widget>[
+Widget _cloudPage(BuildContext context) => SingleChildScrollView(
+      child: DVBox.list(<Widget>[
         Section(
           children: <Widget>[
             Eyebrow('COMING SOON'),
@@ -79,5 +76,6 @@ Widget buildCloudPage(BuildContext context) => const SitePage(
             ], spacing: 12),
           ],
         ),
-      ],
+        const SiteFooter(),
+      ], spacing: 0),
     );

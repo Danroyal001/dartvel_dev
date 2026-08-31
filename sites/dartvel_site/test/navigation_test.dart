@@ -60,7 +60,7 @@ void main() {
   ]) {
     testWidgets('the $label link navigates when tapped',
         (WidgetTester tester) async {
-      await pumpWith(tester, const SiteHeader(current: '/'));
+      await pumpWith(tester, const SiteHeader());
 
       expect(find.text(label), findsOneWidget, reason: '$label is missing');
 
@@ -94,7 +94,7 @@ void main() {
       (WidgetTester tester) async {
     // The header links were bare text: the gaps between letters and the space
     // around them did nothing, so a click that looked on-target missed.
-    await pumpWith(tester, const SiteHeader(current: '/'));
+    await pumpWith(tester, const SiteHeader());
 
     final rect = tester.getRect(find.text('Docs'));
     // Two pixels outside the text box, still inside the link's padding.

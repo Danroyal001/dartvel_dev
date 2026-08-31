@@ -4,11 +4,8 @@ import '../components/site.dart';
 
 @DVPage(title: 'Documentation — Dartvel', showAppBar: false)
 @pragma('vm:entry-point')
-Widget _docsPage(BuildContext context) => buildDocsPage(context);
-
-Widget buildDocsPage(BuildContext context) => SitePage(
-      current: '/docs',
-      children: <Widget>[
+Widget _docsPage(BuildContext context) => SingleChildScrollView(
+      child: DVBox.list(<Widget>[
         const Section(
           children: <Widget>[
             Eyebrow('DOCUMENTATION'),
@@ -21,18 +18,20 @@ Widget buildDocsPage(BuildContext context) => SitePage(
             ),
           ],
         ),
-        _install(),
-        _firstApp(),
-        _pages(),
-        _models(),
-        _backend(),
-        _links(),
-        _signals(),
-        _building(),
-        _honesty(),
-      ],
+        const Install(),
+        const FirstApp(),
+        const Pages(),
+        const Models(),
+        const Backend(),
+        const Links(),
+        const Signals(),
+        const Building(),
+        const Honesty(),
+        const SiteFooter(),
+      ], spacing: 0),
     );
 
+@DVFunctionalWidget()
 Widget _install() => const Section(
       tint: true,
       children: <Widget>[
@@ -63,6 +62,7 @@ Widget _install() => const Section(
       ],
     );
 
+@DVFunctionalWidget()
 Widget _firstApp() => const Section(
       children: <Widget>[
         Eyebrow('2 — A NEW APP'),
@@ -82,6 +82,7 @@ Widget _firstApp() => const Section(
       ],
     );
 
+@DVFunctionalWidget()
 Widget _pages() => const Section(
       tint: true,
       children: <Widget>[
@@ -108,6 +109,7 @@ Widget _pages() => const Section(
       ],
     );
 
+@DVFunctionalWidget()
 Widget _models() => const Section(
       children: <Widget>[
         Eyebrow('4 — MODELS'),
@@ -142,6 +144,7 @@ Widget _models() => const Section(
       ],
     );
 
+@DVFunctionalWidget()
 Widget _backend() => const Section(
       tint: true,
       children: <Widget>[
@@ -168,6 +171,7 @@ Widget _backend() => const Section(
       ],
     );
 
+@DVFunctionalWidget()
 Widget _links() => const Section(
       tint: true,
       children: <Widget>[
@@ -209,6 +213,7 @@ Widget _links() => const Section(
       ],
     );
 
+@DVFunctionalWidget()
 Widget _signals() => const Section(
       children: <Widget>[
         Eyebrow('6 — STATE'),
@@ -230,6 +235,7 @@ Widget _signals() => const Section(
       ],
     );
 
+@DVFunctionalWidget()
 Widget _building() => const Section(
       tint: true,
       children: <Widget>[
@@ -258,6 +264,7 @@ Widget _building() => const Section(
       ],
     );
 
+@DVFunctionalWidget()
 Widget _honesty() => const Section(
       children: <Widget>[
         Eyebrow('BEFORE YOU DEPEND ON IT'),

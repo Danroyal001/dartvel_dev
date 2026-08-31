@@ -212,6 +212,12 @@ class ClientGenerator {
           pageBody = body;
           pageExpressionBody = body.expression;
           pageSourceSymbols = _topLevelSourceSymbols(src);
+          _refusePrivateReferences(
+            body: body.isBlock ? body.statements! : body.expression!,
+            source: src,
+            rel: rel,
+            pageName: className,
+          );
         }
         publicName =
             className.startsWith('_') ? className.substring(1) : className;
@@ -1357,6 +1363,7 @@ class DartvelConfig {
   }) {
     final libDir = Directory(p.join(root, 'lib'));
     final entries = <_FunctionalWidgetEntry>[];
+    final Set<String> sourceImports = <String>{};
     if (libDir.existsSync()) {
       final files = libDir
           .listSync(recursive: true, followLinks: false)
@@ -1378,7 +1385,17 @@ class DartvelConfig {
           RegExp(r'^lib/'),
           'package:$pkgName/',
         );
-        entries.addAll(_functionalWidgetsInSource(source, importPath, rel));
+        final List<_FunctionalWidgetEntry> found =
+            _functionalWidgetsInSource(source, importPath, rel);
+        entries.addAll(found);
+        // A widget's body is lowered here just as a page's is, so it needs the
+        // same imports. Without them a component built out of the
+        // application's own widgets resolved to nothing, and the compiler
+        // reported it as "Not a constant expression" on a string literal --
+        // true, and nowhere near the cause.
+        if (found.any((_FunctionalWidgetEntry e) => e.body != null)) {
+          sourceImports.addAll(_importsFor(source, rel, pkgName));
+        }
       }
     }
 
@@ -1388,6 +1405,7 @@ class DartvelConfig {
       "import 'dart:async';",
       "import 'package:flutter/material.dart';",
       "import 'package:dartvel_flutter/dartvel_flutter.dart';",
+      ...sourceImports,
     ];
     final importAliases = <String, String>{};
     for (final entry in entries) {
@@ -1580,6 +1598,16 @@ class DartvelConfig {
           'either Widget $sourceName(...) => DVText(...) or with a block.',
         );
       }
+      // The same rule as a page: a lowered widget body cannot see a private
+      // top-level symbol from the file it came from, and emitting the
+      // reference anyway produces generated code that does not compile.
+      _refusePrivateReferences(
+        body: body.isBlock ? body.statements! : body.expression!,
+        source: source,
+        rel: sourcePath,
+        pageName: sourceName,
+      );
+
       final String? expressionBody = body.expression;
       entries.add(
         _FunctionalWidgetEntry(
@@ -1600,17 +1628,75 @@ class DartvelConfig {
     return entries;
   }
 
+
+  /// Refuses a lowered body that reaches for a private top-level symbol.
+  ///
+  /// The body is moved into the generated router, where a private symbol from
+  /// the page's own file is not visible. Emitting the reference anyway
+  /// produced generated code that did not compile, and the error named a line
+  /// in a file the developer never wrote.
+  ///
+  /// [declared] is every private top-level name in the source. Locals are not
+  /// included: they move with the body and stay in scope.
+  static void _refusePrivateReferences({
+    required String body,
+    required String source,
+    required String rel,
+    required String pageName,
+  }) {
+    final Set<String> declared = <String>{};
+    for (final RegExp pattern in <RegExp>[
+      // Anchored to column zero. A top-level declaration is never indented,
+      // and without this a local inside the body -- `final String _label =
+      // ...` -- reads as a top-level private symbol and the body is refused
+      // for referring to its own variable.
+      RegExp(r'^(?:final|const|var)[ \t]+(?:[\w<>,()\s?]*?[ \t]+)?(_[A-Za-z0-9_]+)\s*=',
+          multiLine: true),
+      RegExp(r'^(?:[\w<>,()?]+[ \t]+)+(_[A-Za-z0-9_]+)\s*[(=;]',
+          multiLine: true),
+      RegExp(r'^(?:abstract[ \t]+)?class[ \t]+(_[A-Za-z0-9_]+)\b',
+          multiLine: true),
+    ]) {
+      for (final RegExpMatch match in pattern.allMatches(source)) {
+        declared.add(match.group(1)!);
+      }
+    }
+    // The page function itself is private by rule; flagging it would refuse
+    // every page there is.
+    declared.remove(pageName);
+    if (declared.isEmpty) return;
+
+    final Set<String> referenced = <String>{};
+    for (final String name in declared) {
+      if (RegExp('(?<![A-Za-z0-9_.\$])${RegExp.escape(name)}(?![A-Za-z0-9_])')
+          .hasMatch(body)) {
+        referenced.add(name);
+      }
+    }
+    if (referenced.isEmpty) return;
+
+    final List<String> sorted = referenced.toList()..sort();
+    throw StateError(
+      'The body of $pageName in $rel refers to ${sorted.join(', ')}, which '
+      'is private to that file. A lowered body is moved into the generated '
+      'router and cannot see it there.\n'
+      'Annotate a private widget helper with @DVFunctionalWidget() so Dartvel '
+      'generates a public widget for it, or make a private constant public so '
+      'it can be reached through the page import.',
+    );
+  }
+
   static Set<String> _topLevelSourceSymbols(String source) {
     final symbols = <String>{};
     final declarations = RegExp(
-      r'^(?:final|const|var)\s+(?:(?:[A-Za-z_][A-Za-z0-9_<>, ?]*)\s+)?([A-Za-z][A-Za-z0-9_]*)\s*=',
+      r'^(?:final|const|var)\s+(?:(?:[A-Za-z_][A-Za-z0-9_<>,()\s?]*?)\s+)?([A-Za-z][A-Za-z0-9_]*)\s*=',
       multiLine: true,
     );
     for (final match in declarations.allMatches(source)) {
       symbols.add(match.group(1)!);
     }
     final typedVariables = RegExp(
-      r'^(?:[A-Za-z_][A-Za-z0-9_<>, ?]*\s+)+([A-Za-z][A-Za-z0-9_]*)\s*(?:=|;)',
+      r'^(?:[A-Za-z_][A-Za-z0-9_<>,()\s?]*?\s+)+([A-Za-z][A-Za-z0-9_]*)\s*(?:=|;)',
       multiLine: true,
     );
     for (final match in typedVariables.allMatches(source)) {
@@ -1621,6 +1707,17 @@ class DartvelConfig {
       multiLine: true,
     );
     for (final match in functions.allMatches(source)) {
+      symbols.add(match.group(1)!);
+    }
+    // Classes, enums and mixins. A page that declares its own widget class had
+    // that name left unqualified in the lowered body, so it resolved to
+    // nothing in the generated file.
+    final types = RegExp(
+      r'^(?:abstract\s+|sealed\s+|final\s+|base\s+|interface\s+)*'
+      r'(?:class|enum|mixin|extension type)\s+([A-Za-z][A-Za-z0-9_]*)\b',
+      multiLine: true,
+    );
+    for (final match in types.allMatches(source)) {
       symbols.add(match.group(1)!);
     }
     return symbols;
