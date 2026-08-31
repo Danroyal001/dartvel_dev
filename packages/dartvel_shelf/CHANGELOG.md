@@ -1,3 +1,8 @@
+## 0.4.1
+
+- The wire types moved to dartvel_core; this package re-exports them, so
+  existing imports keep working.
+
 ## 0.4.0
 
 Four queue brokers, both network databases reachable over TLS, static

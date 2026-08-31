@@ -1,3 +1,11 @@
+## 0.3.1
+
+- Kept web-compatible: the distributed cache hashes in 32-bit arithmetic, and
+  the LDAP client is behind a conditional export. Both broke `flutter build web`
+  outright.
+- The main barrel exports Request, Response and Headers again; the full wire
+  type set moved to `package:dartvel_core/http.dart`.
+
 ## 0.3.0
 
 Four queue brokers, both network databases reachable over TLS, static

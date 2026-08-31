@@ -1,3 +1,10 @@
+## 0.3.1
+
+- `DVModifier.border` draws a border, so a rule or hairline no longer needs a
+  raw Container and BoxDecoration.
+- `files.readBytes`, `files.writeBytes` and `files.delete` bindings, confined to
+  a root the application names.
+
 ## 0.3.0
 
 Four queue brokers, both network databases reachable over TLS, static
