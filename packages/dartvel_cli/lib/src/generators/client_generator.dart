@@ -1401,12 +1401,18 @@ class DartvelConfig {
 
     _validateFunctionalWidgetNames(entries);
 
-    final imports = <String>[
+    // A set, because the three the generated library always needs are very
+    // often among the source imports carried over too. A repeat compiles only
+    // because duplicate_import is a lint rather than an error, so it breaks
+    // any project that promotes its lints -- which a framework's own output
+    // should survive. Insertion-ordered, so the file reads the same each run
+    // and does not churn in diffs.
+    final imports = <String>{
       "import 'dart:async';",
       "import 'package:flutter/material.dart';",
       "import 'package:dartvel_flutter/dartvel_flutter.dart';",
       ...sourceImports,
-    ];
+    };
     final importAliases = <String, String>{};
     for (final entry in entries) {
       importAliases.putIfAbsent(

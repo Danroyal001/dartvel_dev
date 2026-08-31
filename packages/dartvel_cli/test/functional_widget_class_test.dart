@@ -145,4 +145,58 @@ void main() {
     expect(widgets, contains('for (int i = 0; i < count; i++)'));
     expect(widgets, contains('return DVBox.list(children);'));
   });
+
+  test('a helper declared in the same file still resolves', () async {
+    // The natural shape: a component and the palette or formatter it is built
+    // out of, side by side in one file. The body is lowered into the
+    // generated widget, which carries the source file's imports -- but the
+    // source file does not import itself, so a symbol declared right next to
+    // the widget resolved to nothing.
+    final String widgets = await widgetsFor('$_imports'
+        'class Palette {\n'
+        '  const Palette();\n'
+        '  int get ink => 0xFF000000;\n'
+        '}\n'
+        '@DVFunctionalWidget()\n'
+        'Widget _tinted(String text) => DVText(text);\n'
+        '@DVFunctionalWidget()\n'
+        'Widget _inked(String text) {\n'
+        '  const Palette palette = Palette();\n'
+        '  return DVText(text + palette.ink.toString());\n'
+        '}\n');
+
+    expect(widgets, contains('class Inked extends StatelessWidget'));
+    // The symbol has to be qualified through the alias the generator gave the
+    // source file, or it resolves to nothing in the generated library.
+    expect(widgets, matches(RegExp(r"import 'package:fw_app/widgets\.dart' as (w\d+);")));
+    final String alias = RegExp(r"import 'package:fw_app/widgets\.dart' as (w\d+);")
+        .firstMatch(widgets)!
+        .group(1)!;
+    expect(widgets, contains('const $alias.Palette palette = $alias.Palette();'));
+  });
+
+  test('the generated library imports each URI once', () async {
+    // Two annotated widgets in files that share an import used to emit that
+    // import twice. It compiles, but only because duplicate_import is a lint
+    // rather than an error -- a project that promotes its lints to errors, as
+    // a framework's own generated output should survive, stops building.
+    final String widgets = await widgetsFor('$_imports'
+        '@DVFunctionalWidget()\n'
+        'Widget _one(String text) {\n'
+        '  return DVText(text);\n'
+        '}\n');
+
+    final List<String> imports = RegExp(r"^import [^;]+;", multiLine: true)
+        .allMatches(widgets)
+        .map((RegExpMatch m) => m.group(0)!)
+        .toList();
+    final Set<String> uris = <String>{};
+    for (final String line in imports) {
+      final String uri = RegExp(r"'([^']+)'").firstMatch(line)!.group(1)!;
+      // An aliased import of the same URI is a different thing; a bare repeat
+      // is not.
+      if (line.contains(' as ')) continue;
+      expect(uris.add(uri), isTrue, reason: 'duplicate import of $uri');
+    }
+  });
 }
