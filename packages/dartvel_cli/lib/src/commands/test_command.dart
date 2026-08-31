@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
+import '../utils/logger.dart';
+
 class TestCommand extends Command<void> {
   @override
   final String name = 'test';
@@ -74,6 +76,19 @@ class TestCommand extends Command<void> {
       );
     }
     final forwarded = rest.skip(rest.isEmpty ? 0 : 1).toList(growable: false);
+
+    // Reported before anything runs. Without this the command either failed
+    // on a directory that was never there or, once that was fixed, ran the
+    // whole suite under the name of a mode that has no tests -- and a green
+    // tick that checked nothing is worse than a clear "no tests".
+    final plan = DartvelTestPlan.forMode(mode: mode, root: Directory.current);
+    if (!plan.found && mode != 'unit') {
+      Logger.log(plan.message!);
+      // Not a failure: a project with no native code has no native tests, and
+      // that is not a defect to fail a pipeline over.
+      return;
+    }
+
     final invocation = DartvelTestInvocation.resolve(
       mode: mode,
       forceFlutter: argResults?['flutter'] == true,
@@ -124,6 +139,98 @@ class TestCommand extends Command<void> {
     return value;
   }
 }
+
+
+/// Where a test mode's tests live, and whether there are any.
+///
+/// Split out from the invocation because "there is nothing to run" is a real
+/// answer that the command has to report, not an error and not a silent pass.
+/// It used to fall back to the first candidate path, so `dartvel test native`
+/// in a project with no native tests ran `flutter test test/native` against a
+/// directory that does not exist -- the developer got a tool error about a
+/// missing path rather than being told there are no tests of that kind.
+class DartvelTestPlan {
+  const DartvelTestPlan({
+    required this.mode,
+    required this.path,
+    required this.searched,
+  });
+
+  final String mode;
+
+  /// The path to run, or null when this mode has no tests in this project.
+  final String? path;
+
+  /// Every location that was looked in, so the answer to "where do I put
+  /// them" is in the message rather than in the source.
+  final List<String> searched;
+
+  bool get found => path != null;
+
+  /// Nothing to run is not a failure.
+  ///
+  /// A project with no native code has no native tests, and that is not a
+  /// defect to fail a pipeline over. It must not pass silently either: a green
+  /// tick that checked nothing is worse than a clear "no tests".
+  bool get isFailure => false;
+
+  String? get message => found
+      ? null
+      : 'No $mode tests in this project. Looked in: '
+          '${searched.join(', ')}.';
+
+  static DartvelTestPlan forMode({
+    required String mode,
+    required Directory root,
+  }) {
+    final List<String> candidates = _candidatesForMode(mode);
+    for (final String candidate in candidates) {
+      final String path = '${root.path}${Platform.pathSeparator}$candidate';
+      if (File(path).existsSync() || Directory(path).existsSync()) {
+        return DartvelTestPlan(
+          mode: mode,
+          path: candidate,
+          searched: candidates,
+        );
+      }
+    }
+    return DartvelTestPlan(mode: mode, path: null, searched: candidates);
+  }
+}
+
+List<String> _candidatesForMode(String mode) => switch (mode) {
+      'e2e' => const <String>[
+          'test/e2e',
+          'test/e2e_test.dart',
+          'integration_test',
+        ],
+      'golden' => const <String>[
+          'test/golden',
+          'test/goldens',
+          'test/golden_test.dart',
+        ],
+      'native' => const <String>[
+          'test/native',
+          'test/native_test.dart',
+          'test/ffi',
+          'test/jni',
+        ],
+      'accessibility' => const <String>[
+          'test/accessibility',
+          'test/a11y',
+          'test/accessibility_test.dart',
+          'test/a11y_test.dart',
+        ],
+      'release' => const <String>[
+          'test/release',
+          'test/release_test.dart',
+          'test/e2e',
+          'test/e2e_test.dart',
+          'integration_test',
+          'test',
+        ],
+      _ => const <String>['test'],
+    };
 
 class DartvelTestInvocation {
   final String executable;
@@ -200,46 +307,7 @@ class DartvelTestInvocation {
         content.contains(RegExp(r'^\s*flutter_test\s*:', multiLine: true));
   }
 
-  static String? _pathForMode(String mode, Directory root) {
-    final candidates = switch (mode) {
-      'e2e' => const <String>[
-          'test/e2e',
-          'test/e2e_test.dart',
-          'integration_test',
-        ],
-      'golden' => const <String>[
-          'test/golden',
-          'test/goldens',
-          'test/golden_test.dart',
-        ],
-      'native' => const <String>[
-          'test/native',
-          'test/native_test.dart',
-          'test/ffi',
-          'test/jni',
-        ],
-      'accessibility' => const <String>[
-          'test/accessibility',
-          'test/a11y',
-          'test/accessibility_test.dart',
-          'test/a11y_test.dart',
-        ],
-      'release' => const <String>[
-          'test/release',
-          'test/release_test.dart',
-          'test/e2e',
-          'test/e2e_test.dart',
-          'integration_test',
-          'test',
-        ],
-      _ => const <String>['test'],
-    };
-    for (final candidate in candidates) {
-      final path = '${root.path}${Platform.pathSeparator}$candidate';
-      if (File(path).existsSync() || Directory(path).existsSync()) {
-        return candidate;
-      }
-    }
-    return mode == 'unit' ? null : candidates.first;
-  }
+  static String? _pathForMode(String mode, Directory root) =>
+      DartvelTestPlan.forMode(mode: mode, root: root).path;
+
 }
