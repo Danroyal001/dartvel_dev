@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'src/http/flat_buffer.dart';
 import 'src/search/search_tuning.dart';
 export 'src/http/flat_buffer.dart';
+export 'src/observability/observability.dart';
 export 'src/search/search_tuning.dart';
 import 'dart:async';
 import 'dart:convert';
