@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
+import 'src/commands/update_command.dart';
 import 'src/commands/mcp_command.dart';
 import 'src/commands/inspect_command.dart';
 import 'src/commands/admin_command.dart';
@@ -71,6 +72,7 @@ Future<void> main(List<String> args) async {
     ..addCommand(ShCommand())
     ..addCommand(TaskCommand())
     ..addCommand(TestCommand())
+    ..addCommand(UpdateCommand())
     ..addCommand(VersionCommand());
 
   try {
