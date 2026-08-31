@@ -5,6 +5,7 @@
 // the stop lives in the page around it.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:dartvel_site/components/site.dart';
+import 'package:dartvel_site/pages/_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -41,13 +42,13 @@ void main() {
       routes: <RouteBase>[
         GoRoute(
           path: '/',
-          builder: (BuildContext context, GoRouterState state) => const DVPageShell(
+          // The layout supplies the header, exactly as the generated router
+          // does, so the nav under test is the real one.
+          builder: (BuildContext context, GoRouterState state) =>
+              const DVPageShell(
             spec: DVPageScaffoldSpec(title: 'Home'),
-            child: SitePage(
-              current: '/',
-              children: <Widget>[
-                Section(children: <Widget>[Heading('Hello')]),
-              ],
+            child: Layout(
+              child: Section(children: <Widget>[Heading('Hello')]),
             ),
           ),
         ),

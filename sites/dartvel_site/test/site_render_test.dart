@@ -5,10 +5,6 @@
 // weeks.
 import 'package:dartvel_site/components/site.dart';
 import 'package:dartvel_site/dartvel_client/dartvel_client.dart';
-import 'package:dartvel_site/pages/cloud.dart';
-import 'package:dartvel_site/pages/docs.dart';
-import 'package:dartvel_site/pages/features.dart';
-import 'package:dartvel_site/pages/index.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -18,14 +14,30 @@ Widget host(Widget page, Brightness brightness) => MaterialApp(
     );
 
 void main() {
-  final pages = <String, Widget Function(BuildContext)>{
-    'landing': buildIndexPage,
-    'features': buildFeaturesPage,
-    'docs': buildDocsPage,
-    'cloud': buildCloudPage,
+  // The generated page widgets, which is what the router actually builds.
+  // These used to be public `buildXPage` functions the pages delegated to --
+  // an indirection that existed only because @DVPage once required an
+  // expression body. It does not any more, so the pages are private and this
+  // renders what ships.
+  // Each page with its own loader: loadLibrary is static per generated class,
+  // so it cannot be reached through the DartvelPage the router builds.
+  final pages = <String, (Future<void> Function(), Widget)>{
+    'landing': (
+      IndexPageGeneratedPage.loadLibrary,
+      const IndexPageGeneratedPage()
+    ),
+    'features': (
+      FeaturesPageGeneratedPage.loadLibrary,
+      const FeaturesPageGeneratedPage()
+    ),
+    'docs': (DocsPageGeneratedPage.loadLibrary, const DocsPageGeneratedPage()),
+    'cloud': (
+      CloudPageGeneratedPage.loadLibrary,
+      const CloudPageGeneratedPage()
+    ),
   };
 
-  for (final MapEntry<String, Widget Function(BuildContext)> page
+  for (final MapEntry<String, (Future<void> Function(), Widget)> page
       in pages.entries) {
     for (final Brightness brightness in Brightness.values) {
       testWidgets('${page.key} renders in ${brightness.name}',
@@ -34,11 +46,20 @@ void main() {
         tester.view.devicePixelRatio = 1.0;
         addTearDown(tester.view.reset);
 
-        await tester.pumpWidget(host(
-          Builder(builder: (BuildContext context) => page.value(context)),
-          brightness,
-        ));
+        await tester.pumpWidget(host(page.value.$2, brightness));
+        // The generated page loads its deferred library through a
+        // FutureBuilder, so a single pump only ever sees the loading state.
+        // Fixed frames rather than pumpAndSettle: Reveal retries every frame
+        // until it is on screen, so the tree never goes quiet and settling
+        // times out.
+        // The deferred library resolves on the real event loop, which pump()
+        // does not drain -- without runAsync the page sits on its loading
+        // widget forever and the test reads as "the page renders nothing".
+        await tester.runAsync(() async {
+          await page.value.$1();
+        });
         await tester.pump();
+        await tester.pump(const Duration(seconds: 2));
 
         expect(tester.takeException(), isNull);
         expect(find.byType(DVText), findsWidgets);

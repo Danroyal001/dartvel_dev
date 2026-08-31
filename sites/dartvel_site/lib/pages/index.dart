@@ -1,31 +1,33 @@
 import 'package:flutter/material.dart';
 import '../dartvel_client/dartvel_client.dart';
 import '../components/motion.dart';
+import '../components/deck.dart';
 import '../components/site.dart';
 
 @DVPage(title: 'Dartvel — Flutter, full stack', showAppBar: false)
 @pragma('vm:entry-point')
-Widget _indexPage(BuildContext context) => buildIndexPage(context);
-
-Widget buildIndexPage(BuildContext context) => SitePage(
-      current: '/',
-      children: const <Widget>[],
+Widget _indexPage(BuildContext context) => Deck(
       // A deck rather than a scroll. Each of these is a separate claim, and a
       // landing page that runs them together as one long column asks the
       // reader to find the boundaries themselves.
+      //
+      // The layout gives this the height the header does not take, so the deck
+      // is the page's only scrollable. Nested inside another one it never
+      // received a gesture, and no wheel or arrow key moved a slide.
       slides: <(String, Widget)>[
-        ('Overview', _hero(context)),
-        ('Models', _proof(context)),
-        ('What you get', _pillars(context)),
-        ('Targets', _targets(context)),
-        ('Status', _honest(context)),
+        ('Overview', const HeroSection()),
+        ('Models', const Proof()),
+        ('What you get', const Pillars()),
+        ('Targets', const Targets()),
+        ('Status', const Honest()),
         ('Links', const SiteFooter()),
       ],
     );
 
-Widget _hero(BuildContext context) {
+@DVFunctionalWidget()
+Widget _heroSection(BuildContext context) {
   final bool narrow = Responsive.of(context).narrow;
-  final Widget copy = _heroCopy(context);
+  const Widget copy = HeroCopy();
   return Section(
     glow: true,
     children: <Widget>[
@@ -40,13 +42,14 @@ Widget _hero(BuildContext context) {
           children: <Widget>[
             Expanded(flex: 6, child: copy),
             const SizedBox(width: 48),
-            const Expanded(flex: 5, child: _HeroTerminal()),
+            const Expanded(flex: 5, child: HeroTerminal()),
           ],
         ),
     ],
   );
 }
 
+@DVFunctionalWidget()
 Widget _heroCopy(BuildContext context) => DVBox.list(
       <Widget>[
         const Eyebrow('A FULL-STACK PLATFORM FOR FLUTTER'),
@@ -81,8 +84,8 @@ Widget _heroCopy(BuildContext context) => DVBox.list(
 
 /// A terminal beside the hero, so the right half of the window shows the
 /// product rather than nothing.
-class _HeroTerminal extends StatelessWidget {
-  const _HeroTerminal();
+class HeroTerminal extends StatelessWidget {
+  const HeroTerminal();
 
   @override
   Widget build(BuildContext context) {
@@ -208,6 +211,7 @@ class _HeroTerminal extends StatelessWidget {
   }
 }
 
+@DVFunctionalWidget()
 Widget _proof(BuildContext context) => Section(
       tint: true,
       children: <Widget>[
@@ -246,6 +250,7 @@ Widget _proof(BuildContext context) => Section(
       ],
     );
 
+@DVFunctionalWidget()
 Widget _pillars(BuildContext context) => const Section(
       children: <Widget>[
         Eyebrow('WHAT YOU GET'),
@@ -284,6 +289,7 @@ Widget _pillars(BuildContext context) => const Section(
       ],
     );
 
+@DVFunctionalWidget()
 Widget _targets(BuildContext context) => Section(
       // The one band that stops the scroll. A page that is eight shades of
       // the same cream reads as one very long section however good the type
@@ -320,6 +326,7 @@ Widget _targets(BuildContext context) => Section(
       ],
     );
 
+@DVFunctionalWidget()
 Widget _honest(BuildContext context) => Section(
       children: <Widget>[
         const Eyebrow('WHERE IT ACTUALLY IS'),
