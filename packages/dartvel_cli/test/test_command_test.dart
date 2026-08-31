@@ -236,9 +236,15 @@ void main() {
     // path off, which makes the runner take the whole suite -- would report
     // success for golden tests that do not exist.
     //
-    // It does not do that. It resolves to its first candidate, so the runner
-    // fails on a path that is not there. That behaviour had no test, which is
-    // why it was worth checking rather than assuming in either direction.
+    // It used to resolve to its first candidate, so the runner failed on a
+    // path that is not there. That was pinned here as the lesser of two bad
+    // answers, both of which it was stuck between: invent a path and fail
+    // confusingly, or drop the path and pass vacuously.
+    //
+    // There is now a third answer. The command reports that the mode has no
+    // tests, says where it looked, and returns without running anything --
+    // so the assertions below check the property that actually mattered:
+    // neither a made-up path nor the whole suite standing in for the mode.
     late Directory previous;
     late Directory temp;
 
@@ -274,14 +280,28 @@ void main() {
       'native': 'test/native',
       'accessibility': 'test/accessibility',
     }.entries) {
-      test('${mode.key} still names its own path', () {
-        expect(resolve(mode.key).arguments, contains(mode.value));
+      test('${mode.key} neither invents a path nor takes the whole suite',
+          () {
+        // Not the candidate directory: running against one that is not there
+        // fails on a missing path, which reads as a broken tool.
+        expect(resolve(mode.key).arguments, isNot(contains(mode.value)));
         // The only bare "test" should be the subcommand. A second one would
-        // be the whole suite standing in for the mode.
+        // be the whole suite standing in for the mode, which is the answer
+        // that reports success for tests that do not exist.
         expect(
           resolve(mode.key).arguments.where((String a) => a == 'test'),
           hasLength(1),
         );
+      });
+
+      test('${mode.key} says so, and says where it looked', () {
+        final DartvelTestPlan plan =
+            DartvelTestPlan.forMode(mode: mode.key, root: temp);
+        expect(plan.found, isFalse);
+        expect(plan.message, contains(mode.key));
+        expect(plan.searched, contains(mode.value));
+        // Not a failure: a project with no native code has no native tests.
+        expect(plan.isFailure, isFalse);
       });
     }
 
