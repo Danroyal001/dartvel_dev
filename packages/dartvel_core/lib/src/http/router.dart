@@ -1,3 +1,5 @@
+import '../observability/health.dart';
+import '../observability/observability.dart';
 import 'wintercg.dart';
 
 typedef Handler = Future<Response> Function(Request);
@@ -46,8 +48,26 @@ class Router {
         return route.handler(req);
       }
     }
+    // Reached only when the application registered no route of its own for
+    // it: the built-ins are a fallback, and an application that wants a
+    // deeper check or a different shape must be able to have one.
     if (req.method == 'GET' && req.url.path == '/health') {
-      return Response.json({'status': 'ok'});
+      // It used to return the literal {'status':'ok'}, which checked nothing
+      // and so could not fail. A health check that cannot fail is worse than
+      // none: a load balancer keeps routing to an instance whose database is
+      // gone and the dashboard stays green through the outage.
+      final DVHealthReport report = await DVObservability.health.reportAsync();
+      return Response.json(report.toJson(), status: report.httpStatus);
+    }
+    if (req.method == 'GET' && req.url.path == '/metrics') {
+      return Response.text(
+        DVObservability.render(),
+        headers: Headers()
+          // Not decoration: a scraper sent application/json refuses the
+          // payload, and the version is part of what it negotiates on.
+          ..set('content-type',
+              'text/plain; version=0.0.4; charset=utf-8'),
+      );
     }
     if (req.method == 'GET' &&
         (req.url.path == '/healths' || req.url.path == '/healthz')) {
