@@ -139,4 +139,81 @@ void main() {
           reason: 'without centred() it stays at the left edge');
     });
   });
+  group('cross-axis alignment', () {
+    testWidgets('a list stretches by default', (WidgetTester tester) async {
+      // The existing behaviour, pinned so the new option cannot quietly
+      // change it: a column of cards should fill the column it is given.
+      await show(
+        tester,
+        SizedBox(
+          width: 400,
+          child: DVBox.list(const <Widget>[DVText('a')], spacing: 0),
+        ),
+      );
+      expect(tester.getSize(find.text('a')).width, 400);
+    });
+
+    testWidgets('start shrinks to its content', (WidgetTester tester) async {
+      // Needed wherever a list is laid out by something that measures it --
+      // inside a wrap, a row, or anything unbounded. A stretched column there
+      // takes the whole line, so a row of four figures stacks into a column.
+      await show(
+        tester,
+        SizedBox(
+          width: 400,
+          child: DVBox.list(
+            const <Widget>[DVText('a')],
+            spacing: 0,
+            crossAlign: DVCrossAlign.start,
+          ),
+        ),
+      );
+      expect(tester.getSize(find.text('a')).width, lessThan(400));
+    });
+
+    testWidgets('a stretched list inside a wrap is what start fixes',
+        (WidgetTester tester) async {
+      // The concrete bug. Four figures meant to sit in a row, each a small
+      // column of number over label.
+      await show(
+        tester,
+        SizedBox(
+          width: 600,
+          child: Wrap(
+            children: <Widget>[
+              for (final String n in <String>['1', '2', '3'])
+                DVBox.list(
+                  <Widget>[DVText(n), DVText('label $n')],
+                  spacing: 0,
+                  crossAlign: DVCrossAlign.start,
+                ),
+            ],
+          ),
+        ),
+      );
+
+      // All three on the same line, which is only possible if each shrank.
+      final double first = tester.getTopLeft(find.text('1')).dy;
+      expect(tester.getTopLeft(find.text('2')).dy, first);
+      expect(tester.getTopLeft(find.text('3')).dy, first);
+    });
+
+    testWidgets('centre', (WidgetTester tester) async {
+      await show(
+        tester,
+        SizedBox(
+          width: 400,
+          child: DVBox.list(
+            const <Widget>[DVText('a')],
+            spacing: 0,
+            crossAlign: DVCrossAlign.center,
+          ),
+        ),
+      );
+      final Offset centre = tester.getCenter(find.text('a'));
+      final double boxCentre = tester.getCenter(find.byType(DVBox)).dx;
+      expect((centre.dx - boxCentre).abs(), lessThan(2));
+    });
+  });
+
 }

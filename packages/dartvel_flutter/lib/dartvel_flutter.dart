@@ -782,6 +782,15 @@ enum DVAlign {
   spaceEvenly,
 }
 
+/// How a row or list places its children across its other axis.
+///
+/// [stretch] is the default and is why a DVBox.list always took the width it
+/// was given: useful for a column of cards filling a page, wrong anywhere the
+/// list is measured by its parent -- inside a wrap, a row, or any unbounded
+/// box, where a stretched column takes the whole line and a row of figures
+/// stacks into a column.
+enum DVCrossAlign { stretch, start, center, end }
+
 typedef DVWidgetBuilder<T> = Widget Function(T item);
 
 class DVBox<T> extends StatelessWidget {
@@ -790,6 +799,7 @@ class DVBox<T> extends StatelessWidget {
   final DVModifier? _modifier;
   final _DVBoxLayout _layout;
   final DVAlign _align;
+  final DVCrossAlign _crossAlign;
   final int _columns;
   /// Whether [_columns] is a ceiling that steps down on narrow screens, or an
   /// exact count. True everywhere except where a developer opted out.
@@ -805,6 +815,7 @@ class DVBox<T> extends StatelessWidget {
         _modifier = modifier,
         _layout = _DVBoxLayout.vertical,
         _align = DVAlign.start,
+        _crossAlign = DVCrossAlign.stretch,
         _columns = 1,
         _responsive = true,
         _spacing = 8,
@@ -817,11 +828,13 @@ class DVBox<T> extends StatelessWidget {
     DVModifier? modifier,
     double spacing = 8,
     DVAlign align = DVAlign.start,
+    DVCrossAlign crossAlign = DVCrossAlign.stretch,
   })  : _child = null,
         _children = children,
         _modifier = modifier,
         _layout = _DVBoxLayout.vertical,
         _align = align,
+        _crossAlign = crossAlign,
         _columns = 1,
         _responsive = true,
         _spacing = spacing,
@@ -834,11 +847,13 @@ class DVBox<T> extends StatelessWidget {
     DVModifier? modifier,
     double spacing = 8,
     DVAlign align = DVAlign.start,
+    DVCrossAlign crossAlign = DVCrossAlign.stretch,
   })  : _child = null,
         _children = children,
         _modifier = modifier,
         _layout = _DVBoxLayout.row,
         _align = align,
+        _crossAlign = crossAlign,
         _columns = 1,
         _responsive = true,
         _spacing = spacing,
@@ -860,6 +875,7 @@ class DVBox<T> extends StatelessWidget {
         _modifier = modifier,
         _layout = _DVBoxLayout.vertical,
         _align = DVAlign.start,
+        _crossAlign = DVCrossAlign.stretch,
         _columns = 1,
         _responsive = true,
         _spacing = spacing,
@@ -877,6 +893,7 @@ class DVBox<T> extends StatelessWidget {
         _modifier = modifier,
         _layout = _DVBoxLayout.wrap,
         _align = DVAlign.start,
+        _crossAlign = DVCrossAlign.stretch,
         _columns = 1,
         _responsive = true,
         _spacing = spacing,
@@ -894,6 +911,7 @@ class DVBox<T> extends StatelessWidget {
         _modifier = modifier,
         _layout = _DVBoxLayout.wrap,
         _align = DVAlign.start,
+        _crossAlign = DVCrossAlign.stretch,
         _columns = 1,
         _responsive = true,
         _spacing = spacing,
@@ -907,6 +925,7 @@ class DVBox<T> extends StatelessWidget {
         _modifier = modifier,
         _layout = _DVBoxLayout.stack,
         _align = DVAlign.start,
+        _crossAlign = DVCrossAlign.stretch,
         _columns = 1,
         _responsive = true,
         _spacing = 8,
@@ -925,6 +944,7 @@ class DVBox<T> extends StatelessWidget {
         _modifier = modifier,
         _layout = _DVBoxLayout.grid,
         _align = DVAlign.start,
+        _crossAlign = DVCrossAlign.stretch,
         _columns = columns,
         _responsive = responsive,
         _spacing = spacing,
@@ -941,6 +961,7 @@ class DVBox<T> extends StatelessWidget {
         _modifier = modifier,
         _layout = _DVBoxLayout.horizontalScrollable,
         _align = DVAlign.start,
+        _crossAlign = DVCrossAlign.stretch,
         _columns = 1,
         _responsive = true,
         _spacing = spacing,
@@ -959,6 +980,7 @@ class DVBox<T> extends StatelessWidget {
         _modifier = modifier,
         _layout = _DVBoxLayout.masonry,
         _align = DVAlign.start,
+        _crossAlign = DVCrossAlign.stretch,
         _columns = columns,
         _responsive = responsive,
         _spacing = spacing,
@@ -975,6 +997,7 @@ class DVBox<T> extends StatelessWidget {
     bool responsive = true,
     double spacing = 8,
     DVAlign align = DVAlign.start,
+    DVCrossAlign crossAlign = DVCrossAlign.stretch,
     bool scrollable = false,
     List<T>? items,
     Widget Function(BuildContext, T)? itemBuilder,
@@ -983,6 +1006,7 @@ class DVBox<T> extends StatelessWidget {
         _modifier = modifier,
         _layout = layout,
         _align = align,
+        _crossAlign = crossAlign,
         _columns = columns,
         _responsive = responsive,
         _spacing = spacing,
@@ -1053,6 +1077,7 @@ class DVBox<T> extends StatelessWidget {
     bool? scrollable,
     bool? responsive,
     DVAlign? align,
+    DVCrossAlign? crossAlign,
   }) {
     return DVBox<T>._(
       child: _child,
@@ -1062,6 +1087,7 @@ class DVBox<T> extends StatelessWidget {
       columns: columns ?? _columns,
       responsive: responsive ?? _responsive,
       align: align ?? _align,
+      crossAlign: crossAlign ?? _crossAlign,
       spacing: spacing ?? _spacing,
       scrollable: scrollable ?? _scrollable,
       items: _items,
@@ -1226,7 +1252,7 @@ class DVBox<T> extends StatelessWidget {
     switch (_layout) {
       case _DVBoxLayout.vertical:
         result = Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: _crossAxisAlignment,
           // Only DVAlign.start stays packed to its content. Every other
           // alignment is a statement about space the box does not have unless
           // it takes all of it, and a max-size column that is still
@@ -1240,6 +1266,12 @@ class DVBox<T> extends StatelessWidget {
         result = Row(
           mainAxisSize: _mainAxisSize,
           mainAxisAlignment: _mainAxisAlignment,
+          // A row has no stretch: a full-height row of cards is what
+          // CrossAxisAlignment.stretch would mean here, which is never what a
+          // header or a button pair wants.
+          crossAxisAlignment: _crossAlign == DVCrossAlign.stretch
+              ? CrossAxisAlignment.center
+              : _crossAxisAlignment,
           children: spaced,
         );
         break;
@@ -1372,6 +1404,13 @@ class DVBox<T> extends StatelessWidget {
     }
     return result;
   }
+
+  CrossAxisAlignment get _crossAxisAlignment => switch (_crossAlign) {
+        DVCrossAlign.stretch => CrossAxisAlignment.stretch,
+        DVCrossAlign.start => CrossAxisAlignment.start,
+        DVCrossAlign.center => CrossAxisAlignment.center,
+        DVCrossAlign.end => CrossAxisAlignment.end,
+      };
 
   MainAxisSize get _mainAxisSize =>
       _align == DVAlign.start ? MainAxisSize.min : MainAxisSize.max;
