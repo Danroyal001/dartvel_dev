@@ -276,6 +276,25 @@ class DVModifier {
   final FontWeight? fontWeightValue;
   final double? letterSpacingValue;
   final Color? boxColor;
+
+  /// A gradient behind the box, painted instead of [boxColor] where both are
+  /// set. The one thing a hero band needs that a flat colour cannot give it.
+  final Gradient? gradientValue;
+
+  /// A maximum or minimum the box is laid out within.
+  ///
+  /// Distinct from [widthValue]: a max width lets the box be narrower on a
+  /// phone, where a fixed width overflows. A reading column is a constraint,
+  /// not a size, and writing it as a size is the single most common way a
+  /// desktop layout breaks on mobile.
+  final BoxConstraints? constraintsValue;
+
+  /// How long a change to this box's decoration takes to arrive. Null means
+  /// no animation at all, which is what almost every box wants.
+  final Duration? animateDuration;
+  final Curve animateCurve;
+
+  final double? opacityValue;
   final double? widthValue;
   final double? heightValue;
   final AlignmentGeometry? alignmentValue;
@@ -309,6 +328,11 @@ class DVModifier {
     this.fontWeightValue,
     this.letterSpacingValue,
     this.boxColor,
+    this.gradientValue,
+    this.constraintsValue,
+    this.animateDuration,
+    this.animateCurve = Curves.easeOut,
+    this.opacityValue,
     this.widthValue,
     this.heightValue,
     this.alignmentValue,
@@ -338,6 +362,11 @@ class DVModifier {
         fontWeightValue = null,
         letterSpacingValue = null,
         boxColor = null,
+        gradientValue = null,
+        constraintsValue = null,
+        animateDuration = null,
+        animateCurve = Curves.easeOut,
+        opacityValue = null,
         widthValue = null,
         heightValue = null,
         alignmentValue = null,
@@ -366,6 +395,11 @@ class DVModifier {
     FontWeight? fontWeightValue,
     double? letterSpacingValue,
     Color? boxColor,
+    Gradient? gradientValue,
+    BoxConstraints? constraintsValue,
+    Duration? animateDuration,
+    Curve? animateCurve,
+    double? opacityValue,
     double? widthValue,
     double? heightValue,
     AlignmentGeometry? alignmentValue,
@@ -394,6 +428,11 @@ class DVModifier {
       fontWeightValue: fontWeightValue ?? this.fontWeightValue,
       letterSpacingValue: letterSpacingValue ?? this.letterSpacingValue,
       boxColor: boxColor ?? this.boxColor,
+      gradientValue: gradientValue ?? this.gradientValue,
+      constraintsValue: constraintsValue ?? this.constraintsValue,
+      animateDuration: animateDuration ?? this.animateDuration,
+      animateCurve: animateCurve ?? this.animateCurve,
+      opacityValue: opacityValue ?? this.opacityValue,
       widthValue: widthValue ?? this.widthValue,
       heightValue: heightValue ?? this.heightValue,
       alignmentValue: alignmentValue ?? this.alignmentValue,
@@ -418,6 +457,35 @@ class DVModifier {
 
   DVModifier padding(double value) =>
       _copyWith(paddingValue: EdgeInsets.all(value));
+
+  /// Padding per axis.
+  ///
+  /// A page gutter is never uniform -- 56 across against 64 down is the whole
+  /// shape of a section band -- and [padding] can only say one number, which
+  /// is why every band on the site reached for a Container to say two.
+  DVModifier paddingSymmetric({double horizontal = 0, double vertical = 0}) =>
+      _copyWith(
+        paddingValue: EdgeInsets.symmetric(
+          horizontal: horizontal,
+          vertical: vertical,
+        ),
+      );
+
+  /// Padding on named edges.
+  DVModifier paddingOnly({
+    double left = 0,
+    double top = 0,
+    double right = 0,
+    double bottom = 0,
+  }) =>
+      _copyWith(
+        paddingValue: EdgeInsets.only(
+          left: left,
+          top: top,
+          right: right,
+          bottom: bottom,
+        ),
+      );
 
   DVModifier margin(double value) =>
       _copyWith(marginValue: EdgeInsets.all(value));
@@ -444,6 +512,56 @@ class DVModifier {
   DVModifier backgroundColor(Color value) => _copyWith(boxColor: value);
 
   DVModifier width(double value) => _copyWith(widthValue: value);
+
+  /// The widest this box may be laid out, not the width it takes.
+  ///
+  /// The distinction is the difference between a reading column and an
+  /// overflow: `width(1040)` on a 390pt phone paints 650pt off the side of
+  /// the screen, `maxWidth(1040)` lays out at 390. Prefer this for anything
+  /// whose size follows the window.
+  DVModifier maxWidth(double value) => _constrain(maxWidth: value);
+  DVModifier minWidth(double value) => _constrain(minWidth: value);
+  DVModifier maxHeight(double value) => _constrain(maxHeight: value);
+  DVModifier minHeight(double value) => _constrain(minHeight: value);
+
+  /// Merges one bound into whatever bounds are already set, so the four
+  /// methods above chain instead of overwriting each other.
+  DVModifier _constrain({
+    double? minWidth,
+    double? maxWidth,
+    double? minHeight,
+    double? maxHeight,
+  }) {
+    final BoxConstraints current =
+        constraintsValue ?? const BoxConstraints();
+    return _copyWith(
+      constraintsValue: BoxConstraints(
+        minWidth: minWidth ?? current.minWidth,
+        maxWidth: maxWidth ?? current.maxWidth,
+        minHeight: minHeight ?? current.minHeight,
+        maxHeight: maxHeight ?? current.maxHeight,
+      ),
+    );
+  }
+
+  /// Paints [value] behind the box.
+  DVModifier gradient(Gradient value) => _copyWith(gradientValue: value);
+
+  /// Fades the whole box, children included.
+  DVModifier opacity(double value) => _copyWith(opacityValue: value);
+
+  /// Animates changes to this box's decoration and geometry over [duration].
+  ///
+  /// A card whose border takes the accent on hover snaps without this, which
+  /// reads as a glitch rather than a response. Honours the reader's
+  /// reduced-motion setting: when that is on the box simply takes its new
+  /// appearance, because an animation the reader asked not to see is not a
+  /// nicety to keep.
+  DVModifier animate(
+    Duration duration, {
+    Curve curve = Curves.easeOut,
+  }) =>
+      _copyWith(animateDuration: duration, animateCurve: curve);
 
   DVModifier height(double value) => _copyWith(heightValue: value);
 
@@ -818,21 +936,65 @@ class DVBox<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final content = _buildContent(context);
-    Widget result = Container(
-      width: _modifier?.widthValue,
-      height: _modifier?.heightValue,
-      alignment: _modifier?.alignmentValue,
-      margin: _modifier?.marginValue,
-      padding: _modifier?.paddingValue,
-      decoration: BoxDecoration(
-        color: _modifier?.boxColor,
-        borderRadius: _modifier?.borderRadius,
-        border: _modifier?.borderValue,
-        boxShadow: _modifier?.shadows,
-        image: _modifier?.bgImage,
-      ),
-      child: content,
+    final decoration = BoxDecoration(
+      // Null when a gradient is set: Flutter asserts if a BoxDecoration
+      // carries both, and the gradient is the more specific instruction.
+      color: _modifier?.gradientValue != null ? null : _modifier?.boxColor,
+      gradient: _modifier?.gradientValue,
+      borderRadius: _modifier?.borderRadius,
+      border: _modifier?.borderValue,
+      boxShadow: _modifier?.shadows,
+      image: _modifier?.bgImage,
     );
+
+    // Animated only when asked, and never when the reader has asked for less
+    // movement. An AnimatedContainer on every box would put an implicit
+    // animation controller behind the overwhelming majority of them, which
+    // never change.
+    final Duration? animate = _modifier?.animateDuration;
+    final bool animating = animate != null && !context.screen.reducedMotion;
+
+    Widget result = animating
+        ? AnimatedContainer(
+            duration: animate,
+            curve: _modifier?.animateCurve ?? Curves.easeOut,
+            width: _modifier?.widthValue,
+            height: _modifier?.heightValue,
+            alignment: _modifier?.alignmentValue,
+            margin: _modifier?.marginValue,
+            padding: _modifier?.paddingValue,
+            decoration: decoration,
+            child: content,
+          )
+        : Container(
+            width: _modifier?.widthValue,
+            height: _modifier?.heightValue,
+            alignment: _modifier?.alignmentValue,
+            margin: _modifier?.marginValue,
+            padding: _modifier?.paddingValue,
+            decoration: decoration,
+            child: content,
+          );
+
+    // Outside the box, so padding and decoration are laid out within the
+    // bound rather than added to it -- the same way a max-width column
+    // behaves anywhere else.
+    final BoxConstraints? constraints = _modifier?.constraintsValue;
+    if (constraints != null) {
+      result = ConstrainedBox(constraints: constraints, child: result);
+    }
+
+    final double? opacity = _modifier?.opacityValue;
+    if (opacity != null) {
+      result = Opacity(
+        opacity: opacity,
+        // Kept in the semantics tree. A fade is decoration, and content
+        // should not become unreachable to a screen reader or to the
+        // crawler-visible HTML because it happens to be faded.
+        alwaysIncludeSemantics: true,
+        child: result,
+      );
+    }
 
     if (_modifier?.onTapCallback != null) {
       result = GestureDetector(
