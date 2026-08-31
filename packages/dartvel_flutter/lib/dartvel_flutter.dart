@@ -296,6 +296,9 @@ class DVModifier {
 
   final double? opacityValue;
 
+  /// Whether the box is centred within its parent.
+  final bool centeredValue;
+
   /// Applied on top of this modifier while the pointer is over the box.
   ///
   /// A card that lifts under the pointer is the most common interaction on a
@@ -347,6 +350,7 @@ class DVModifier {
     this.animateDuration,
     this.animateCurve = Curves.easeOut,
     this.opacityValue,
+    this.centeredValue = false,
     this.hoverValue,
     this.revealValue = false,
     this.revealDelay = Duration.zero,
@@ -384,6 +388,7 @@ class DVModifier {
         animateDuration = null,
         animateCurve = Curves.easeOut,
         opacityValue = null,
+        centeredValue = false,
         hoverValue = null,
         revealValue = false,
         revealDelay = Duration.zero,
@@ -420,6 +425,7 @@ class DVModifier {
     Duration? animateDuration,
     Curve? animateCurve,
     double? opacityValue,
+    bool? centeredValue,
     DVModifier? hoverValue,
     bool? revealValue,
     Duration? revealDelay,
@@ -456,6 +462,7 @@ class DVModifier {
       animateDuration: animateDuration ?? this.animateDuration,
       animateCurve: animateCurve ?? this.animateCurve,
       opacityValue: opacityValue ?? this.opacityValue,
+      centeredValue: centeredValue ?? this.centeredValue,
       hoverValue: hoverValue ?? this.hoverValue,
       revealValue: revealValue ?? this.revealValue,
       revealDelay: revealDelay ?? this.revealDelay,
@@ -576,6 +583,13 @@ class DVModifier {
   /// Fades the whole box, children included.
   DVModifier opacity(double value) => _copyWith(opacityValue: value);
 
+  /// Centres the box within its parent.
+  ///
+  /// Different from [align], which places the child inside the box. A
+  /// 400-wide reading column in a full-width tinted band needs this one; with
+  /// [align] it stays pinned to the left of the band.
+  DVModifier centered() => _copyWith(centeredValue: true);
+
   /// Animates changes to this box's decoration and geometry over [duration].
   ///
   /// A card whose border takes the accent on hover snaps without this, which
@@ -627,6 +641,7 @@ class DVModifier {
             ? other.animateCurve
             : animateCurve,
         opacityValue: other.opacityValue ?? opacityValue,
+        centeredValue: other.centeredValue || centeredValue,
         // Not carried over: a hover state describing its own hover state, or
         // re-revealing on every pointer move, is never what was meant.
         widthValue: other.widthValue ?? widthValue,
@@ -750,6 +765,23 @@ enum _DVBoxLayout {
   masonry,
 }
 
+/// How a row or list distributes its children along its own axis.
+///
+/// A header bar -- wordmark and site links at the left, outbound links at the
+/// right -- is the most common layout on any page, and DVBox could not say it:
+/// a row packed to its content with no alignment leaves a Spacer and a raw
+/// Row as the only way.
+enum DVAlign {
+  /// Packed to the content, the default, and the only one that does not take
+  /// the full width available.
+  start,
+  center,
+  end,
+  spaceBetween,
+  spaceAround,
+  spaceEvenly,
+}
+
 typedef DVWidgetBuilder<T> = Widget Function(T item);
 
 class DVBox<T> extends StatelessWidget {
@@ -757,6 +789,7 @@ class DVBox<T> extends StatelessWidget {
   final List<Widget>? _children;
   final DVModifier? _modifier;
   final _DVBoxLayout _layout;
+  final DVAlign _align;
   final int _columns;
   /// Whether [_columns] is a ceiling that steps down on narrow screens, or an
   /// exact count. True everywhere except where a developer opted out.
@@ -771,6 +804,7 @@ class DVBox<T> extends StatelessWidget {
         _children = null,
         _modifier = modifier,
         _layout = _DVBoxLayout.vertical,
+        _align = DVAlign.start,
         _columns = 1,
         _responsive = true,
         _spacing = 8,
@@ -782,10 +816,12 @@ class DVBox<T> extends StatelessWidget {
     List<Widget> children, {
     DVModifier? modifier,
     double spacing = 8,
+    DVAlign align = DVAlign.start,
   })  : _child = null,
         _children = children,
         _modifier = modifier,
         _layout = _DVBoxLayout.vertical,
+        _align = align,
         _columns = 1,
         _responsive = true,
         _spacing = spacing,
@@ -797,10 +833,12 @@ class DVBox<T> extends StatelessWidget {
     List<Widget> children, {
     DVModifier? modifier,
     double spacing = 8,
+    DVAlign align = DVAlign.start,
   })  : _child = null,
         _children = children,
         _modifier = modifier,
         _layout = _DVBoxLayout.row,
+        _align = align,
         _columns = 1,
         _responsive = true,
         _spacing = spacing,
@@ -821,6 +859,7 @@ class DVBox<T> extends StatelessWidget {
         _children = children,
         _modifier = modifier,
         _layout = _DVBoxLayout.vertical,
+        _align = DVAlign.start,
         _columns = 1,
         _responsive = true,
         _spacing = spacing,
@@ -837,6 +876,7 @@ class DVBox<T> extends StatelessWidget {
         _children = children,
         _modifier = modifier,
         _layout = _DVBoxLayout.wrap,
+        _align = DVAlign.start,
         _columns = 1,
         _responsive = true,
         _spacing = spacing,
@@ -853,6 +893,7 @@ class DVBox<T> extends StatelessWidget {
         _children = children,
         _modifier = modifier,
         _layout = _DVBoxLayout.wrap,
+        _align = DVAlign.start,
         _columns = 1,
         _responsive = true,
         _spacing = spacing,
@@ -865,6 +906,7 @@ class DVBox<T> extends StatelessWidget {
         _children = children,
         _modifier = modifier,
         _layout = _DVBoxLayout.stack,
+        _align = DVAlign.start,
         _columns = 1,
         _responsive = true,
         _spacing = 8,
@@ -882,6 +924,7 @@ class DVBox<T> extends StatelessWidget {
         _children = children,
         _modifier = modifier,
         _layout = _DVBoxLayout.grid,
+        _align = DVAlign.start,
         _columns = columns,
         _responsive = responsive,
         _spacing = spacing,
@@ -897,6 +940,7 @@ class DVBox<T> extends StatelessWidget {
         _children = children,
         _modifier = modifier,
         _layout = _DVBoxLayout.horizontalScrollable,
+        _align = DVAlign.start,
         _columns = 1,
         _responsive = true,
         _spacing = spacing,
@@ -914,6 +958,7 @@ class DVBox<T> extends StatelessWidget {
         _children = children,
         _modifier = modifier,
         _layout = _DVBoxLayout.masonry,
+        _align = DVAlign.start,
         _columns = columns,
         _responsive = responsive,
         _spacing = spacing,
@@ -929,6 +974,7 @@ class DVBox<T> extends StatelessWidget {
     int columns = 1,
     bool responsive = true,
     double spacing = 8,
+    DVAlign align = DVAlign.start,
     bool scrollable = false,
     List<T>? items,
     Widget Function(BuildContext, T)? itemBuilder,
@@ -936,6 +982,7 @@ class DVBox<T> extends StatelessWidget {
         _children = children,
         _modifier = modifier,
         _layout = layout,
+        _align = align,
         _columns = columns,
         _responsive = responsive,
         _spacing = spacing,
@@ -958,8 +1005,8 @@ class DVBox<T> extends StatelessWidget {
   DVBox<T> modifier(DVModifier mod) => _copyWith(modifier: mod);
   DVBox<T> styleModifier(DVModifier mod) => modifier(mod);
 
-  DVBox<T> row({double spacing = 8}) =>
-      _copyWith(layout: _DVBoxLayout.row, spacing: spacing);
+  DVBox<T> row({double spacing = 8, DVAlign align = DVAlign.start}) =>
+      _copyWith(layout: _DVBoxLayout.row, spacing: spacing, align: align);
 
   DVBox<T> grid({
     int columns = 2,
@@ -1005,6 +1052,7 @@ class DVBox<T> extends StatelessWidget {
     double? spacing,
     bool? scrollable,
     bool? responsive,
+    DVAlign? align,
   }) {
     return DVBox<T>._(
       child: _child,
@@ -1013,6 +1061,7 @@ class DVBox<T> extends StatelessWidget {
       layout: layout ?? _layout,
       columns: columns ?? _columns,
       responsive: responsive ?? _responsive,
+      align: align ?? _align,
       spacing: spacing ?? _spacing,
       scrollable: scrollable ?? _scrollable,
       items: _items,
@@ -1096,6 +1145,10 @@ class DVBox<T> extends StatelessWidget {
       result = ConstrainedBox(constraints: constraints, child: result);
     }
 
+    if (m?.centeredValue ?? false) {
+      result = Center(child: result);
+    }
+
     final double? opacity = m?.opacityValue;
     if (opacity != null) {
       result = Opacity(
@@ -1174,13 +1227,19 @@ class DVBox<T> extends StatelessWidget {
       case _DVBoxLayout.vertical:
         result = Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
+          // Only DVAlign.start stays packed to its content. Every other
+          // alignment is a statement about space the box does not have unless
+          // it takes all of it, and a max-size column that is still
+          // mainAxisSize.min simply ignores the alignment.
+          mainAxisSize: _mainAxisSize,
+          mainAxisAlignment: _mainAxisAlignment,
           children: spaced,
         );
         break;
       case _DVBoxLayout.row:
         result = Row(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: _mainAxisSize,
+          mainAxisAlignment: _mainAxisAlignment,
           children: spaced,
         );
         break;
@@ -1254,7 +1313,8 @@ class DVBox<T> extends StatelessWidget {
         );
       case _DVBoxLayout.row:
         return Row(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: _mainAxisSize,
+          mainAxisAlignment: _mainAxisAlignment,
           children: _spaced([for (final item in items) builder(context, item)]),
         );
       case _DVBoxLayout.masonry:
@@ -1312,6 +1372,18 @@ class DVBox<T> extends StatelessWidget {
     }
     return result;
   }
+
+  MainAxisSize get _mainAxisSize =>
+      _align == DVAlign.start ? MainAxisSize.min : MainAxisSize.max;
+
+  MainAxisAlignment get _mainAxisAlignment => switch (_align) {
+        DVAlign.start => MainAxisAlignment.start,
+        DVAlign.center => MainAxisAlignment.center,
+        DVAlign.end => MainAxisAlignment.end,
+        DVAlign.spaceBetween => MainAxisAlignment.spaceBetween,
+        DVAlign.spaceAround => MainAxisAlignment.spaceAround,
+        DVAlign.spaceEvenly => MainAxisAlignment.spaceEvenly,
+      };
 
   /// How many columns to actually draw, on this screen, for this many items.
   ///
