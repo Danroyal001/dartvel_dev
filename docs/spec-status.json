@@ -192,12 +192,14 @@
         "packages/dartvel_flutter/test/linux_bindings_test.dart",
         "packages/dartvel_flutter/test/macos_bindings_live_test.dart",
         "packages/dartvel_flutter/test/macos_bindings_test.dart",
+        "packages/dartvel_flutter/test/responsive_collections_test.dart",
+        "packages/dartvel_flutter/test/responsive_screen_test.dart",
         "packages/dartvel_flutter/test/web_bindings_browser_test.dart",
         "packages/dartvel_flutter/test/web_bindings_test.dart",
         "packages/dartvel_flutter/test/windows_bindings_live_test.dart",
         "packages/dartvel_flutter/test/windows_bindings_test.dart"
       ],
-      "absent": "Per-platform native bindings remain unbound where the capability has no host API to reach: measured now rather than estimated, that is 32 names on Linux, 24 on web, 33 on Windows, 33 on macOS and 30 on iOS, many of which are not applicable to the platform at all (NFC and haptics on a desktop). files.readBytes/writeBytes/delete now ship for every platform with a filesystem."
+      "absent": "Per-platform native bindings remain unbound where the capability has no host API to reach: measured now rather than estimated, that is 32 names on Linux, 24 on web, 33 on Windows, 33 on macOS and 30 on iOS, many of which are not applicable to the platform at all (NFC and haptics on a desktop). files.readBytes/writeBytes/delete now ship for every platform with a filesystem.. DV.Platform.screen is now also reachable reactively as context.screen, which reads MediaQuery and so rebuilds on a resize; the plain getters read the raw window and register no dependency, so a widget built on them laid out once at first-frame size and never reflowed"
     },
     {
       "section": "Database",
@@ -298,9 +300,11 @@
       "stability": "Draft",
       "status": "Partial",
       "evidence": [
-        "packages/dartvel_cli/test/pwa_manifest_test.dart"
+        "packages/dartvel_cli/lib/src/build/seo_head.dart",
+        "packages/dartvel_cli/test/pwa_manifest_test.dart",
+        "packages/dartvel_cli/test/viewport_head_test.dart"
       ],
-      "absent": "no service worker, offline support, install prompt, background sync or icon generation. dartvel build web now writes a manifest from dartvel.pwa and links it, and warns about the things that make a browser silently refuse to install -- a missing icon size, a display mode outside the specification. Flutter's own service worker still ships unmodified and Dartvel adds nothing to it"
+      "absent": "no service worker, offline support, install prompt, background sync or icon generation. dartvel build web writes a manifest from dartvel.pwa and links it, warns about the things that make a browser silently refuse to install, and now guarantees a viewport meta -- without one a phone lays the page out at a notional 980 CSS pixels and every breakpoint reports desktop on a phone. Flutter's own service worker still ships unmodified and Dartvel adds nothing to it"
     },
     {
       "section": "OTA Updates",
@@ -327,9 +331,14 @@
       "stability": "Draft",
       "status": "Partial",
       "evidence": [
+        "packages/dartvel_core/lib/src/observability/health.dart",
+        "packages/dartvel_core/lib/src/observability/metrics.dart",
+        "packages/dartvel_core/lib/src/observability/observability.dart",
+        "packages/dartvel_core/test/health_endpoint_test.dart",
+        "packages/dartvel_core/test/observability_test.dart",
         "packages/dartvel_flutter/test/telemetry_admin_test.dart"
       ],
-      "absent": "Distributed tracing spans, context propagation and sampling"
+      "absent": "Distributed tracing spans, context propagation and sampling. Metrics and health checks are built: DVMetrics renders counters, gauges and histograms in Prometheus text exposition format and GET /metrics serves it, and DVHealth runs registered checks concurrently with a per-check deadline so a hung dependency reports down rather than hanging the endpoint. GET /health returned a hardcoded {\"status\":\"ok\"} until this and so could never fail"
     },
     {
       "section": "Testing",
