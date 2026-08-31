@@ -295,6 +295,20 @@ class DVModifier {
   final Curve animateCurve;
 
   final double? opacityValue;
+
+  /// Applied on top of this modifier while the pointer is over the box.
+  ///
+  /// A card that lifts under the pointer is the most common interaction on a
+  /// page, and expressing it needed a StatefulWidget over MouseRegion in
+  /// application code -- which is also where the reduced-motion check had to
+  /// be remembered by hand.
+  final DVModifier? hoverValue;
+
+  /// Fade and rise into view the first time the box is scrolled to.
+  final bool revealValue;
+
+  /// A stagger, so a row of cards does not all arrive at once.
+  final Duration revealDelay;
   final double? widthValue;
   final double? heightValue;
   final AlignmentGeometry? alignmentValue;
@@ -333,6 +347,9 @@ class DVModifier {
     this.animateDuration,
     this.animateCurve = Curves.easeOut,
     this.opacityValue,
+    this.hoverValue,
+    this.revealValue = false,
+    this.revealDelay = Duration.zero,
     this.widthValue,
     this.heightValue,
     this.alignmentValue,
@@ -367,6 +384,9 @@ class DVModifier {
         animateDuration = null,
         animateCurve = Curves.easeOut,
         opacityValue = null,
+        hoverValue = null,
+        revealValue = false,
+        revealDelay = Duration.zero,
         widthValue = null,
         heightValue = null,
         alignmentValue = null,
@@ -400,6 +420,9 @@ class DVModifier {
     Duration? animateDuration,
     Curve? animateCurve,
     double? opacityValue,
+    DVModifier? hoverValue,
+    bool? revealValue,
+    Duration? revealDelay,
     double? widthValue,
     double? heightValue,
     AlignmentGeometry? alignmentValue,
@@ -433,6 +456,9 @@ class DVModifier {
       animateDuration: animateDuration ?? this.animateDuration,
       animateCurve: animateCurve ?? this.animateCurve,
       opacityValue: opacityValue ?? this.opacityValue,
+      hoverValue: hoverValue ?? this.hoverValue,
+      revealValue: revealValue ?? this.revealValue,
+      revealDelay: revealDelay ?? this.revealDelay,
       widthValue: widthValue ?? this.widthValue,
       heightValue: heightValue ?? this.heightValue,
       alignmentValue: alignmentValue ?? this.alignmentValue,
@@ -562,6 +588,67 @@ class DVModifier {
     Curve curve = Curves.easeOut,
   }) =>
       _copyWith(animateDuration: duration, animateCurve: curve);
+
+  /// What this box looks like while the pointer is over it.
+  ///
+  /// [whenHovered] is layered on top rather than replacing: a hover state that
+  /// says only "blue border" keeps the padding and radius the base modifier
+  /// set. Pair it with [animate] so the change arrives rather than snaps.
+  DVModifier hover(DVModifier whenHovered) =>
+      _copyWith(hoverValue: whenHovered);
+
+  /// Fades and rises into view the first time the box is scrolled to.
+  ///
+  /// Honours reduced motion, where the box is simply present from the first
+  /// frame -- and it fails open: if the box never gets a position this can
+  /// read, it appears anyway. Content that a decoration can hide permanently
+  /// is a worse bug than no decoration.
+  DVModifier revealOnScroll({Duration delay = Duration.zero}) =>
+      _copyWith(revealValue: true, revealDelay: delay);
+
+  /// This modifier with [other]'s set fields layered over it.
+  ///
+  /// Every field is nullable and every setter is a copyWith, so "set" means
+  /// non-null. A field [other] never mentions keeps this one's value.
+  DVModifier merge(DVModifier other) => DVModifier(
+        paddingValue: other.paddingValue ?? paddingValue,
+        marginValue: other.marginValue ?? marginValue,
+        borderRadius: other.borderRadius ?? borderRadius,
+        borderValue: other.borderValue ?? borderValue,
+        textColor: other.textColor ?? textColor,
+        fontSizeValue: other.fontSizeValue ?? fontSizeValue,
+        fontWeightValue: other.fontWeightValue ?? fontWeightValue,
+        letterSpacingValue: other.letterSpacingValue ?? letterSpacingValue,
+        boxColor: other.boxColor ?? boxColor,
+        gradientValue: other.gradientValue ?? gradientValue,
+        constraintsValue: other.constraintsValue ?? constraintsValue,
+        animateDuration: other.animateDuration ?? animateDuration,
+        animateCurve: other.animateDuration != null
+            ? other.animateCurve
+            : animateCurve,
+        opacityValue: other.opacityValue ?? opacityValue,
+        // Not carried over: a hover state describing its own hover state, or
+        // re-revealing on every pointer move, is never what was meant.
+        widthValue: other.widthValue ?? widthValue,
+        heightValue: other.heightValue ?? heightValue,
+        alignmentValue: other.alignmentValue ?? alignmentValue,
+        shadows: other.shadows ?? shadows,
+        onTapCallback: other.onTapCallback ?? onTapCallback,
+        bgImage: other.bgImage ?? bgImage,
+        semanticLabelValue: other.semanticLabelValue ?? semanticLabelValue,
+        semanticHintValue: other.semanticHintValue ?? semanticHintValue,
+        semanticButtonValue: other.semanticButtonValue ?? semanticButtonValue,
+        semanticHeadingValue:
+            other.semanticHeadingValue ?? semanticHeadingValue,
+        semanticRoleValue: other.semanticRoleValue ?? semanticRoleValue,
+        minimumTapTargetValue:
+            other.minimumTapTargetValue ?? minimumTapTargetValue,
+        inputValue: other.inputValue || inputValue,
+        inputLabelValue: other.inputLabelValue ?? inputLabelValue,
+        inputHintValue: other.inputHintValue ?? inputHintValue,
+        inputObscureText: other.inputObscureText || inputObscureText,
+        inputChanged: other.inputChanged ?? inputChanged,
+      );
 
   DVModifier height(double value) => _copyWith(heightValue: value);
 
@@ -933,45 +1020,70 @@ class DVBox<T> extends StatelessWidget {
     );
   }
 
-  @override
+    @override
   Widget build(BuildContext context) {
     final content = _buildContent(context);
+    final DVModifier? mod = _modifier;
+
+    Widget result;
+    if (mod?.hoverValue != null) {
+      // A MouseRegion only where one was asked for. Every box on a page
+      // listening for the pointer is a cost nobody asked for, and it makes
+      // hit-testing harder to reason about.
+      result = _DVHoverRegion(
+        builder: (BuildContext context, bool hovered) => _decorate(
+          context,
+          hovered ? mod!.merge(mod.hoverValue!) : mod,
+          content,
+        ),
+      );
+    } else {
+      result = _decorate(context, mod, content);
+    }
+
+    if (mod?.revealValue ?? false) {
+      result = _DVReveal(delay: mod!.revealDelay, child: result);
+    }
+    return result;
+  }
+
+  Widget _decorate(BuildContext context, DVModifier? m, Widget? content) {
     final decoration = BoxDecoration(
       // Null when a gradient is set: Flutter asserts if a BoxDecoration
       // carries both, and the gradient is the more specific instruction.
-      color: _modifier?.gradientValue != null ? null : _modifier?.boxColor,
-      gradient: _modifier?.gradientValue,
-      borderRadius: _modifier?.borderRadius,
-      border: _modifier?.borderValue,
-      boxShadow: _modifier?.shadows,
-      image: _modifier?.bgImage,
+      color: m?.gradientValue != null ? null : m?.boxColor,
+      gradient: m?.gradientValue,
+      borderRadius: m?.borderRadius,
+      border: m?.borderValue,
+      boxShadow: m?.shadows,
+      image: m?.bgImage,
     );
 
     // Animated only when asked, and never when the reader has asked for less
     // movement. An AnimatedContainer on every box would put an implicit
     // animation controller behind the overwhelming majority of them, which
     // never change.
-    final Duration? animate = _modifier?.animateDuration;
+    final Duration? animate = m?.animateDuration;
     final bool animating = animate != null && !context.screen.reducedMotion;
 
     Widget result = animating
         ? AnimatedContainer(
             duration: animate,
-            curve: _modifier?.animateCurve ?? Curves.easeOut,
-            width: _modifier?.widthValue,
-            height: _modifier?.heightValue,
-            alignment: _modifier?.alignmentValue,
-            margin: _modifier?.marginValue,
-            padding: _modifier?.paddingValue,
+            curve: m?.animateCurve ?? Curves.easeOut,
+            width: m?.widthValue,
+            height: m?.heightValue,
+            alignment: m?.alignmentValue,
+            margin: m?.marginValue,
+            padding: m?.paddingValue,
             decoration: decoration,
             child: content,
           )
         : Container(
-            width: _modifier?.widthValue,
-            height: _modifier?.heightValue,
-            alignment: _modifier?.alignmentValue,
-            margin: _modifier?.marginValue,
-            padding: _modifier?.paddingValue,
+            width: m?.widthValue,
+            height: m?.heightValue,
+            alignment: m?.alignmentValue,
+            margin: m?.marginValue,
+            padding: m?.paddingValue,
             decoration: decoration,
             child: content,
           );
@@ -979,12 +1091,12 @@ class DVBox<T> extends StatelessWidget {
     // Outside the box, so padding and decoration are laid out within the
     // bound rather than added to it -- the same way a max-width column
     // behaves anywhere else.
-    final BoxConstraints? constraints = _modifier?.constraintsValue;
+    final BoxConstraints? constraints = m?.constraintsValue;
     if (constraints != null) {
       result = ConstrainedBox(constraints: constraints, child: result);
     }
 
-    final double? opacity = _modifier?.opacityValue;
+    final double? opacity = m?.opacityValue;
     if (opacity != null) {
       result = Opacity(
         opacity: opacity,
@@ -996,14 +1108,14 @@ class DVBox<T> extends StatelessWidget {
       );
     }
 
-    if (_modifier?.onTapCallback != null) {
+    if (m?.onTapCallback != null) {
       result = GestureDetector(
-        onTap: _modifier!.onTapCallback,
+        onTap: m!.onTapCallback,
         child: result,
       );
     }
 
-    final minimumTapTarget = _modifier?.minimumTapTargetValue;
+    final minimumTapTarget = m?.minimumTapTargetValue;
     if (minimumTapTarget != null) {
       result = ConstrainedBox(
         constraints: BoxConstraints(
@@ -1014,21 +1126,21 @@ class DVBox<T> extends StatelessWidget {
       );
     }
 
-    if (_modifier?.semanticLabelValue != null ||
-        _modifier?.semanticHintValue != null ||
-        _modifier?.semanticButtonValue != null ||
-        _modifier?.semanticHeadingValue != null ||
-        _modifier?.semanticRoleValue != null) {
+    if (m?.semanticLabelValue != null ||
+        m?.semanticHintValue != null ||
+        m?.semanticButtonValue != null ||
+        m?.semanticHeadingValue != null ||
+        m?.semanticRoleValue != null) {
       result = Semantics(
-        label: _modifier?.semanticLabelValue,
-        hint: _modifier?.semanticHintValue,
-        button: _modifier?.semanticButtonValue,
-        headingLevel: _modifier?.semanticHeadingValue,
-        identifier: _modifier?.semanticRoleValue,
-        excludeSemantics: _modifier?.semanticLabelValue != null,
+        label: m?.semanticLabelValue,
+        hint: m?.semanticHintValue,
+        button: m?.semanticButtonValue,
+        headingLevel: m?.semanticHeadingValue,
+        identifier: m?.semanticRoleValue,
+        excludeSemantics: m?.semanticLabelValue != null,
         child: result,
       );
-      if (_modifier?.semanticHeadingValue != null) {
+      if (m?.semanticHeadingValue != null) {
         // Merged, so one node carries both the level and the text. Left
         // unmerged, the heading and its words are two nodes: the level lands
         // on an empty parent, a screen reader announces "heading" and then
@@ -1223,6 +1335,143 @@ class DVBox<T> extends StatelessWidget {
     final int columns = forWidth < ceiling ? forWidth : ceiling;
     if (itemCount > 0 && itemCount < columns) return itemCount;
     return columns < 1 ? 1 : columns;
+  }
+}
+
+
+/// Rebuilds its child with whether the pointer is over it.
+///
+/// Framework-internal, and stateful because pointer-over is per-element state
+/// with no other home. Application code does not write one of these; it says
+/// `DVModifier().hover(...)`.
+class _DVHoverRegion extends StatefulWidget {
+  const _DVHoverRegion({required this.builder});
+
+  final Widget Function(BuildContext context, bool hovered) builder;
+
+  @override
+  State<_DVHoverRegion> createState() => _DVHoverRegionState();
+}
+
+class _DVHoverRegionState extends State<_DVHoverRegion> {
+  bool _over = false;
+
+  @override
+  Widget build(BuildContext context) => MouseRegion(
+        onEnter: (_) => setState(() => _over = true),
+        onExit: (_) => setState(() => _over = false),
+        child: widget.builder(context, _over),
+      );
+}
+
+/// Fades and rises its child into view, once.
+///
+/// Laid out at full size from the first frame: only opacity and offset
+/// animate, so nothing reflows and the scrollbar does not jump while the page
+/// settles.
+class _DVReveal extends StatefulWidget {
+  const _DVReveal({required this.child, required this.delay});
+
+  final Widget child;
+  final Duration delay;
+
+  @override
+  State<_DVReveal> createState() => _DVRevealState();
+}
+
+class _DVRevealState extends State<_DVReveal> {
+  bool _shown = false;
+  bool _scheduled = false;
+  Timer? _failsafe;
+  Timer? _stagger;
+
+  void _reveal() {
+    if (_scheduled) return;
+    _scheduled = true;
+    // No timer at all for the common case. A zero delay scheduled through
+    // Future.delayed still leaves a pending timer behind, which outlives a
+    // disposed tree -- it fails a widget test, and in an application it is a
+    // callback holding a State that is already gone.
+    if (widget.delay == Duration.zero) {
+      setState(() => _shown = true);
+      return;
+    }
+    _stagger?.cancel();
+    _stagger = Timer(widget.delay, () {
+      if (mounted) setState(() => _shown = true);
+    });
+  }
+
+  void _check() {
+    if (_shown || _scheduled) return;
+    final RenderObject? box = context.findRenderObject();
+    // No size yet. On web the first frames arrive before layout, so this is
+    // the normal case on load rather than an edge -- and retrying is what
+    // makes it recoverable.
+    if (box is! RenderBox || !box.hasSize) return;
+
+    final double top = box.localToGlobal(Offset.zero).dy;
+    final double height = MediaQuery.sizeOf(context).height;
+    // A little above the bottom edge: any earlier and the animation finishes
+    // before it is on screen, any later and the reader watches it happen
+    // instead of arriving to it already done.
+    if (top < height * 0.88) _reveal();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _check());
+    // Fails open. If the check never gets a usable position -- no scrollable
+    // ancestor, a layout it does not anticipate -- the content appears
+    // anyway. A decoration that can permanently hide a section is a worse bug
+    // than no decoration.
+    _failsafe ??= Timer(const Duration(milliseconds: 1600), () {
+      if (mounted) _reveal();
+    });
+  }
+
+  @override
+  void dispose() {
+    _failsafe?.cancel();
+    _stagger?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Nothing at all when the reader has asked for less movement: no wrapper,
+    // no animation, no delay before the content is there.
+    if (context.screen.reducedMotion) return widget.child;
+
+    if (!_shown) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _check());
+    }
+
+    return NotificationListener<ScrollNotification>(
+      // False: this is watching, not consuming. True would stop the
+      // notification reaching the scrollbar and any reveal above it.
+      onNotification: (ScrollNotification notification) {
+        _check();
+        return false;
+      },
+      child: AnimatedSlide(
+        offset: _shown ? Offset.zero : const Offset(0, 0.26),
+        duration: const Duration(milliseconds: 620),
+        curve: Curves.easeOutCubic,
+        child: AnimatedOpacity(
+          opacity: _shown ? 1 : 0,
+          duration: const Duration(milliseconds: 520),
+          curve: Curves.easeOut,
+          // Load-bearing. Opacity 0 drops its children from the semantics
+          // tree, and a reveal starts every section at 0 -- so the
+          // crawler-visible HTML, which is built from that tree, loses every
+          // section the reader has not reached.
+          alwaysIncludeSemantics: true,
+          child: widget.child,
+        ),
+      ),
+    );
   }
 }
 
