@@ -553,6 +553,9 @@ class DVBox<T> extends StatelessWidget {
   final DVModifier? _modifier;
   final _DVBoxLayout _layout;
   final int _columns;
+  /// Whether [_columns] is a ceiling that steps down on narrow screens, or an
+  /// exact count. True everywhere except where a developer opted out.
+  final bool _responsive;
   final double _spacing;
   final bool _scrollable;
   final List<T>? _items;
@@ -564,6 +567,7 @@ class DVBox<T> extends StatelessWidget {
         _modifier = modifier,
         _layout = _DVBoxLayout.vertical,
         _columns = 1,
+        _responsive = true,
         _spacing = 8,
         _scrollable = false,
         _items = null,
@@ -578,6 +582,7 @@ class DVBox<T> extends StatelessWidget {
         _modifier = modifier,
         _layout = _DVBoxLayout.vertical,
         _columns = 1,
+        _responsive = true,
         _spacing = spacing,
         _scrollable = false,
         _items = null,
@@ -592,6 +597,7 @@ class DVBox<T> extends StatelessWidget {
         _modifier = modifier,
         _layout = _DVBoxLayout.row,
         _columns = 1,
+        _responsive = true,
         _spacing = spacing,
         _scrollable = false,
         _items = null,
@@ -611,6 +617,7 @@ class DVBox<T> extends StatelessWidget {
         _modifier = modifier,
         _layout = _DVBoxLayout.vertical,
         _columns = 1,
+        _responsive = true,
         _spacing = spacing,
         _scrollable = true,
         _items = null,
@@ -626,6 +633,7 @@ class DVBox<T> extends StatelessWidget {
         _modifier = modifier,
         _layout = _DVBoxLayout.wrap,
         _columns = 1,
+        _responsive = true,
         _spacing = spacing,
         _scrollable = false,
         _items = null,
@@ -641,6 +649,7 @@ class DVBox<T> extends StatelessWidget {
         _modifier = modifier,
         _layout = _DVBoxLayout.wrap,
         _columns = 1,
+        _responsive = true,
         _spacing = spacing,
         _scrollable = false,
         _items = null,
@@ -652,6 +661,7 @@ class DVBox<T> extends StatelessWidget {
         _modifier = modifier,
         _layout = _DVBoxLayout.stack,
         _columns = 1,
+        _responsive = true,
         _spacing = 8,
         _scrollable = false,
         _items = null,
@@ -662,11 +672,13 @@ class DVBox<T> extends StatelessWidget {
     DVModifier? modifier,
     int columns = 2,
     double spacing = 8,
+    bool responsive = true,
   })  : _child = null,
         _children = children,
         _modifier = modifier,
         _layout = _DVBoxLayout.grid,
         _columns = columns,
+        _responsive = responsive,
         _spacing = spacing,
         _scrollable = false,
         _items = null,
@@ -681,6 +693,7 @@ class DVBox<T> extends StatelessWidget {
         _modifier = modifier,
         _layout = _DVBoxLayout.horizontalScrollable,
         _columns = 1,
+        _responsive = true,
         _spacing = spacing,
         _scrollable = false,
         _items = null,
@@ -691,11 +704,13 @@ class DVBox<T> extends StatelessWidget {
     DVModifier? modifier,
     int columns = 2,
     double spacing = 8,
+    bool responsive = true,
   })  : _child = null,
         _children = children,
         _modifier = modifier,
         _layout = _DVBoxLayout.masonry,
         _columns = columns,
+        _responsive = responsive,
         _spacing = spacing,
         _scrollable = false,
         _items = null,
@@ -707,6 +722,7 @@ class DVBox<T> extends StatelessWidget {
     DVModifier? modifier,
     _DVBoxLayout layout = _DVBoxLayout.vertical,
     int columns = 1,
+    bool responsive = true,
     double spacing = 8,
     bool scrollable = false,
     List<T>? items,
@@ -716,6 +732,7 @@ class DVBox<T> extends StatelessWidget {
         _modifier = modifier,
         _layout = layout,
         _columns = columns,
+        _responsive = responsive,
         _spacing = spacing,
         _scrollable = scrollable,
         _items = items,
@@ -739,10 +756,16 @@ class DVBox<T> extends StatelessWidget {
   DVBox<T> row({double spacing = 8}) =>
       _copyWith(layout: _DVBoxLayout.row, spacing: spacing);
 
-  DVBox<T> grid({int columns = 2, double spacing = 8}) => _copyWith(
+  DVBox<T> grid({
+    int columns = 2,
+    double spacing = 8,
+    bool responsive = true,
+  }) =>
+      _copyWith(
         layout: _DVBoxLayout.grid,
         columns: columns,
         spacing: spacing,
+        responsive: responsive,
       );
 
   DVBox<T> wrapLine({double spacing = 8}) =>
@@ -756,10 +779,16 @@ class DVBox<T> extends StatelessWidget {
   DVBox<T> horizontalScrollable({double spacing = 8}) =>
       _copyWith(layout: _DVBoxLayout.horizontalScrollable, spacing: spacing);
 
-  DVBox<T> masonry({int columns = 2, double spacing = 8}) => _copyWith(
+  DVBox<T> masonry({
+    int columns = 2,
+    double spacing = 8,
+    bool responsive = true,
+  }) =>
+      _copyWith(
         layout: _DVBoxLayout.masonry,
         columns: columns,
         spacing: spacing,
+        responsive: responsive,
       );
 
   DVBox<T> scrollable() => _copyWith(scrollable: true);
@@ -770,6 +799,7 @@ class DVBox<T> extends StatelessWidget {
     int? columns,
     double? spacing,
     bool? scrollable,
+    bool? responsive,
   }) {
     return DVBox<T>._(
       child: _child,
@@ -777,6 +807,7 @@ class DVBox<T> extends StatelessWidget {
       modifier: modifier ?? _modifier,
       layout: layout ?? _layout,
       columns: columns ?? _columns,
+      responsive: responsive ?? _responsive,
       spacing: spacing ?? _spacing,
       scrollable: scrollable ?? _scrollable,
       items: _items,
@@ -858,11 +889,11 @@ class DVBox<T> extends StatelessWidget {
     final child = _child;
     if (child != null) return _maybeScrollable(child);
     final children = _children;
-    if (children != null) return _buildStaticCollection(children);
+    if (children != null) return _buildStaticCollection(context, children);
     return null;
   }
 
-  Widget _buildStaticCollection(List<Widget> children) {
+  Widget _buildStaticCollection(BuildContext context, List<Widget> children) {
     final spaced = _spaced(children);
     final Widget result;
     switch (_layout) {
@@ -881,7 +912,7 @@ class DVBox<T> extends StatelessWidget {
         break;
       case _DVBoxLayout.grid:
         result = GridView.count(
-          crossAxisCount: _safeColumns,
+          crossAxisCount: _columnsFor(context, children.length),
           mainAxisSpacing: _spacing,
           crossAxisSpacing: _spacing,
           shrinkWrap: true,
@@ -903,7 +934,7 @@ class DVBox<T> extends StatelessWidget {
         );
         break;
       case _DVBoxLayout.masonry:
-        result = _buildMasonry(children);
+        result = _buildMasonry(context, children);
         break;
     }
     return _maybeScrollable(result);
@@ -921,7 +952,7 @@ class DVBox<T> extends StatelessWidget {
           shrinkWrap: !_scrollable,
           physics: _scrollable ? null : const NeverScrollableScrollPhysics(),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: _safeColumns,
+            crossAxisCount: _columnsFor(context, items.length),
             mainAxisSpacing: _spacing,
             crossAxisSpacing: _spacing,
           ),
@@ -954,7 +985,7 @@ class DVBox<T> extends StatelessWidget {
         );
       case _DVBoxLayout.masonry:
         return _buildMasonry(
-            [for (final item in items) builder(context, item)]);
+            context, [for (final item in items) builder(context, item)]);
       case _DVBoxLayout.vertical:
         return ListView.separated(
           itemCount: items.length,
@@ -966,10 +997,11 @@ class DVBox<T> extends StatelessWidget {
     }
   }
 
-  Widget _buildMasonry(List<Widget> children) {
-    final columns = List.generate(_safeColumns, (_) => <Widget>[]);
+  Widget _buildMasonry(BuildContext context, List<Widget> children) {
+    final int count = _columnsFor(context, children.length);
+    final columns = List.generate(count, (_) => <Widget>[]);
     for (int i = 0; i < children.length; i++) {
-      columns[i % _safeColumns].add(children[i]);
+      columns[i % count].add(children[i]);
     }
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1007,7 +1039,29 @@ class DVBox<T> extends StatelessWidget {
     return result;
   }
 
-  int get _safeColumns => _columns < 1 ? 1 : _columns;
+  /// How many columns to actually draw, on this screen, for this many items.
+  ///
+  /// [_columns] is a ceiling rather than a count. Three columns is a good
+  /// desktop layout and a broken phone one, and a primitive that cannot tell
+  /// the difference pushes the measurement out to every call site -- which is
+  /// where responsive layout goes to die, because the call site ships before
+  /// anyone opens it on a phone.
+  ///
+  /// Capped by the number of children as well: two cards in a three-column
+  /// grid should occupy the row, not two thirds of it.
+  int _columnsFor(BuildContext context, int itemCount) {
+    final int ceiling = _columns < 1 ? 1 : _columns;
+    if (!_responsive) return ceiling;
+
+    final int forWidth = context.screen.value<int>(
+      mobile: 1,
+      tablet: 2,
+      desktop: ceiling,
+    );
+    final int columns = forWidth < ceiling ? forWidth : ceiling;
+    if (itemCount > 0 && itemCount < columns) return itemCount;
+    return columns < 1 ? 1 : columns;
+  }
 }
 
 /// The editable form of [DVText], which needs state a stateless widget cannot
@@ -2288,6 +2342,143 @@ class DVPermissions {
       'Native binding "permissions.isGranted" is not registered. Generate and register an FFI/ffigen or JNI/jnigen binding before calling this API.',
     );
   }
+}
+
+/// The width bands Dartvel lays out against.
+///
+/// One ladder for the whole framework. When a grid, a page shell and an
+/// application component each decide "small" for themselves, they disagree at
+/// the edges and the layout comes apart at exactly the widths nobody tests.
+enum DVBreakpoint { mobile, tablet, desktop, wide }
+
+/// The breakpoint a logical [width] falls in.
+DVBreakpoint dvBreakpointFor(double width) {
+  if (width >= 1600) return DVBreakpoint.wide;
+  if (width >= 1200) return DVBreakpoint.desktop;
+  if (width >= 840) return DVBreakpoint.tablet;
+  return DVBreakpoint.mobile;
+}
+
+/// The shape of the surface being drawn on.
+///
+/// Watches are round and embedded panels are often taller than they are wide;
+/// a layout that assumes a landscape rectangle is wrong on both.
+enum DVScreenShape {
+  square,
+  verticalRectangle,
+  horizontalRectangle,
+  round,
+  custom,
+}
+
+/// What the current surface looks like, as a value.
+///
+/// Obtained from `context.screen`, which reads MediaQuery and therefore
+/// registers a dependency: a widget that asks about the screen is rebuilt when
+/// the screen changes. `DV.Platform.screen` answers the same questions without
+/// a context, but it reads the raw window and cannot rebuild anything, so it is
+/// for code that has no context to offer -- not for build methods.
+class DVScreenInfo {
+  const DVScreenInfo({
+    required this.size,
+    required this.safeArea,
+    required this.orientation,
+    required this.reducedMotion,
+    required this.textScale,
+  });
+
+  /// Logical size of the surface, honouring any MediaQuery an ancestor
+  /// narrowed -- a pane or a dialog, not necessarily the whole window.
+  final Size size;
+
+  /// Notches, home indicators, and rounded corners to keep content clear of.
+  final EdgeInsets safeArea;
+
+  final Orientation orientation;
+
+  /// True when the reader has asked for less movement, either through the
+  /// platform setting or an explicit [DVAccessibility.useReducedMotion].
+  final bool reducedMotion;
+
+  final double textScale;
+
+  double get width => size.width;
+  double get height => size.height;
+
+  DVBreakpoint get breakpoint => dvBreakpointFor(size.width);
+
+  /// The spec spelling, as a plain string, matching `DVScreen.breakPoints`.
+  String get breakPoints => breakpoint.name;
+
+  bool get isMobile => breakpoint == DVBreakpoint.mobile;
+  bool get isTablet => breakpoint == DVBreakpoint.tablet;
+  bool get isDesktop =>
+      breakpoint == DVBreakpoint.desktop || breakpoint == DVBreakpoint.wide;
+  bool get isWide => breakpoint == DVBreakpoint.wide;
+
+  /// True from [DVBreakpoint.tablet] upward. The common test: "is there room
+  /// for two columns", which a tablet answers yes to and a phone does not.
+  bool get isAtLeastTablet => !isMobile;
+
+  bool get isPortrait => orientation == Orientation.portrait;
+  bool get isLandscape => orientation == Orientation.landscape;
+
+  DVScreenShape get shape {
+    if (size.width <= 0 || size.height <= 0) return DVScreenShape.custom;
+    final double ratio = size.width / size.height;
+    if ((ratio - 1).abs() <= 0.05) return DVScreenShape.square;
+    return ratio > 1
+        ? DVScreenShape.horizontalRectangle
+        : DVScreenShape.verticalRectangle;
+  }
+
+  /// Safe areas in the map shape `DV.Platform.screen.safeAreaBounds` uses.
+  Map<String, double> get safeAreaBounds => <String, double>{
+        'top': safeArea.top,
+        'bottom': safeArea.bottom,
+        'left': safeArea.left,
+        'right': safeArea.right,
+      };
+
+  /// Picks the value for the current breakpoint.
+  ///
+  /// Only [mobile] is required, and larger breakpoints fall back down the
+  /// ladder to it. Falling *down* rather than up is deliberate: an unset
+  /// tablet value takes the phone's, because laying a phone-sized column out
+  /// with desktop measurements is what overflows, while the reverse merely
+  /// looks roomy.
+  T value<T>({required T mobile, T? tablet, T? desktop, T? wide}) {
+    switch (breakpoint) {
+      case DVBreakpoint.wide:
+        return wide ?? desktop ?? tablet ?? mobile;
+      case DVBreakpoint.desktop:
+        return desktop ?? tablet ?? mobile;
+      case DVBreakpoint.tablet:
+        return tablet ?? mobile;
+      case DVBreakpoint.mobile:
+        return mobile;
+    }
+  }
+}
+
+/// `context.screen` -- the reactive screen surface.
+extension DVScreenContextX on BuildContext {
+  /// What the surface this widget is being built on looks like.
+  ///
+  /// Every field is read through a targeted MediaQuery aspect, so the widget
+  /// depends on size, padding, orientation, animation and text-scale changes
+  /// and is rebuilt when they change. View insets are deliberately not among
+  /// them: depending on the keyboard would rebuild every widget on a page the
+  /// moment a field is focused, which is a heavy default for a value most
+  /// layouts never read.
+  DVScreenInfo get screen => DVScreenInfo(
+        size: MediaQuery.sizeOf(this),
+        safeArea: MediaQuery.paddingOf(this),
+        orientation: MediaQuery.orientationOf(this),
+        reducedMotion: MediaQuery.disableAnimationsOf(this) ||
+            const DVAccessibility().reducedMotion,
+        textScale: MediaQuery.textScalerOf(this).scale(1),
+      );
 }
 
 class DVScreen {
@@ -4924,14 +5115,29 @@ class DVAccessibilityReport {
 }
 
 class DVAccessibility {
-  static bool _reducedMotion = false;
+  /// Null means "no application override", not "off".
+  ///
+  /// This used to be a plain `false`, which made the getter report that the
+  /// reader wanted motion unless the application had remembered to say
+  /// otherwise -- so an operating-system reduce-motion setting was ignored by
+  /// every app that did not explicitly wire it up. The platform is the source
+  /// of truth; an application may override it, and can now take that override
+  /// back off again.
+  static bool? _reducedMotionOverride;
 
   const DVAccessibility();
 
-  bool get reducedMotion => _reducedMotion;
+  bool get reducedMotion =>
+      _reducedMotionOverride ??
+      ui.PlatformDispatcher.instance.accessibilityFeatures.disableAnimations;
 
   void useReducedMotion(bool value) {
-    _reducedMotion = value;
+    _reducedMotionOverride = value;
+  }
+
+  /// Drops the override and goes back to following the platform.
+  void clearReducedMotion() {
+    _reducedMotionOverride = null;
   }
 
   DVContrastCheck contrast({
