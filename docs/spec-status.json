@@ -427,7 +427,7 @@
         "packages/dartvel_flutter/test/render_surface_test.dart",
         "packages/dartvel_flutter/test/launch_negotiation_test.dart"
       ],
-      "absent": "The terminal backend and the dartvel_flt fork; terminal size as a signal; wiring launch negotiation into a generated main()"
+      "absent": "The terminal backend and the dartvel_cli_flt fork; terminal size as a signal; wiring launch negotiation into a generated main()"
     },
     {
       "section": "Multi-Window",
