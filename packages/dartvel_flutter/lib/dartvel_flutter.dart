@@ -299,6 +299,13 @@ class DVModifier {
   /// Whether the box is centred within its parent.
   final bool centeredValue;
 
+  /// Told whether the pointer is over the box.
+  ///
+  /// [hoverValue] restyles this box; revealing a sibling -- a label beside a
+  /// rail indicator, a caption under a card -- needs the fact itself, so
+  /// application code can put it in a signal and build from it.
+  final ValueChanged<bool>? onHoverChangedCallback;
+
   /// Applied on top of this modifier while the pointer is over the box.
   ///
   /// A card that lifts under the pointer is the most common interaction on a
@@ -351,6 +358,7 @@ class DVModifier {
     this.animateCurve = Curves.easeOut,
     this.opacityValue,
     this.centeredValue = false,
+    this.onHoverChangedCallback,
     this.hoverValue,
     this.revealValue = false,
     this.revealDelay = Duration.zero,
@@ -389,6 +397,7 @@ class DVModifier {
         animateCurve = Curves.easeOut,
         opacityValue = null,
         centeredValue = false,
+        onHoverChangedCallback = null,
         hoverValue = null,
         revealValue = false,
         revealDelay = Duration.zero,
@@ -426,6 +435,7 @@ class DVModifier {
     Curve? animateCurve,
     double? opacityValue,
     bool? centeredValue,
+    ValueChanged<bool>? onHoverChangedCallback,
     DVModifier? hoverValue,
     bool? revealValue,
     Duration? revealDelay,
@@ -463,6 +473,8 @@ class DVModifier {
       animateCurve: animateCurve ?? this.animateCurve,
       opacityValue: opacityValue ?? this.opacityValue,
       centeredValue: centeredValue ?? this.centeredValue,
+      onHoverChangedCallback:
+          onHoverChangedCallback ?? this.onHoverChangedCallback,
       hoverValue: hoverValue ?? this.hoverValue,
       revealValue: revealValue ?? this.revealValue,
       revealDelay: revealDelay ?? this.revealDelay,
@@ -611,6 +623,13 @@ class DVModifier {
   DVModifier hover(DVModifier whenHovered) =>
       _copyWith(hoverValue: whenHovered);
 
+  /// Calls [onChanged] when the pointer enters or leaves the box.
+  ///
+  /// For anything hover has to change that is not this box's own appearance.
+  /// Put the value in a `context.signal` and the sibling rebuilds from it.
+  DVModifier onHoverChanged(ValueChanged<bool> onChanged) =>
+      _copyWith(onHoverChangedCallback: onChanged);
+
   /// Fades and rises into view the first time the box is scrolled to.
   ///
   /// Honours reduced motion, where the box is simply present from the first
@@ -642,6 +661,8 @@ class DVModifier {
             : animateCurve,
         opacityValue: other.opacityValue ?? opacityValue,
         centeredValue: other.centeredValue || centeredValue,
+        onHoverChangedCallback:
+            other.onHoverChangedCallback ?? onHoverChangedCallback,
         // Not carried over: a hover state describing its own hover state, or
         // re-revealing on every pointer move, is never what was meant.
         widthValue: other.widthValue ?? widthValue,
@@ -1101,14 +1122,17 @@ class DVBox<T> extends StatelessWidget {
     final DVModifier? mod = _modifier;
 
     Widget result;
-    if (mod?.hoverValue != null) {
+    if (mod?.hoverValue != null || mod?.onHoverChangedCallback != null) {
       // A MouseRegion only where one was asked for. Every box on a page
       // listening for the pointer is a cost nobody asked for, and it makes
       // hit-testing harder to reason about.
       result = _DVHoverRegion(
+        onChanged: mod!.onHoverChangedCallback,
         builder: (BuildContext context, bool hovered) => _decorate(
           context,
-          hovered ? mod!.merge(mod.hoverValue!) : mod,
+          hovered && mod.hoverValue != null
+              ? mod.merge(mod.hoverValue!)
+              : mod,
           content,
         ),
       );
@@ -1456,9 +1480,13 @@ class DVBox<T> extends StatelessWidget {
 /// with no other home. Application code does not write one of these; it says
 /// `DVModifier().hover(...)`.
 class _DVHoverRegion extends StatefulWidget {
-  const _DVHoverRegion({required this.builder});
+  const _DVHoverRegion({required this.builder, this.onChanged});
 
   final Widget Function(BuildContext context, bool hovered) builder;
+
+  /// Told about the change as well as restyling, so one MouseRegion serves
+  /// both and asking for one does not lose the other.
+  final ValueChanged<bool>? onChanged;
 
   @override
   State<_DVHoverRegion> createState() => _DVHoverRegionState();
@@ -1467,10 +1495,16 @@ class _DVHoverRegion extends StatefulWidget {
 class _DVHoverRegionState extends State<_DVHoverRegion> {
   bool _over = false;
 
+  void _set(bool over) {
+    if (_over == over) return;
+    setState(() => _over = over);
+    widget.onChanged?.call(over);
+  }
+
   @override
   Widget build(BuildContext context) => MouseRegion(
-        onEnter: (_) => setState(() => _over = true),
-        onExit: (_) => setState(() => _over = false),
+        onEnter: (_) => _set(true),
+        onExit: (_) => _set(false),
         child: widget.builder(context, _over),
       );
 }

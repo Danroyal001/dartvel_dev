@@ -178,4 +178,57 @@ void main() {
       handle.dispose();
     });
   });
+  group('reporting hover', () {
+    testWidgets('it reports entering and leaving', (WidgetTester tester) async {
+      // hover() restyles the same box. Revealing a sibling -- a label beside
+      // a rail indicator, a caption under a card -- needs the fact itself, so
+      // application code can put it in a signal and build from it.
+      final List<bool> seen = <bool>[];
+
+      await show(
+        tester,
+        DVBox(
+          const DVText('dot'),
+          DVModifier()
+              .backgroundColor(const Color(0xFFFFFFFF))
+              .onHoverChanged(seen.add),
+        ),
+      );
+      expect(seen, isEmpty);
+
+      final TestGesture pointer =
+          await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await pointer.addPointer(location: Offset.zero);
+      addTearDown(pointer.removePointer);
+      await pointer.moveTo(tester.getCenter(find.byType(DVBox)));
+      await tester.pumpAndSettle();
+      expect(seen, <bool>[true]);
+
+      await pointer.moveTo(const Offset(2000, 2000));
+      await tester.pumpAndSettle();
+      expect(seen, <bool>[true, false]);
+    });
+
+    testWidgets('it composes with hover styling', (WidgetTester tester) async {
+      // Both use the same MouseRegion, so asking for one must not lose the
+      // other.
+      final List<bool> seen = <bool>[];
+
+      await show(
+        tester,
+        DVBox(
+          const DVText('dot'),
+          DVModifier()
+              .backgroundColor(const Color(0xFFFFFFFF))
+              .hover(DVModifier().backgroundColor(const Color(0xFF2F6BFF)))
+              .onHoverChanged(seen.add),
+        ),
+      );
+
+      await hoverOver(tester, find.byType(DVBox));
+      expect(seen, <bool>[true]);
+      expect(decorationOf(tester).color, const Color(0xFF2F6BFF));
+    });
+  });
+
 }
