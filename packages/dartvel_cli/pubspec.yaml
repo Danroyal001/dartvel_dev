@@ -1,7 +1,7 @@
 
 name: dartvel_cli
 description: CLI for dartvel v0.1 (routes + web client + backend configs)
-version: 0.3.1
+version: 0.3.2
 repository: https://github.com/Danroyal001/dartvel_dev
 homepage: https://dartvel.dev
 environment:
@@ -22,9 +22,9 @@ dependencies:
   build: ^4.0.0
   puppeteer: ^3.0.0
   dartvel_core:
-    version: ^0.2.1
+    version: ^0.3.2
   dartvel_shelf:
-    version: ^0.3.0
+    version: ^0.4.2
   crypto: ^3.0.7
   shelf: ^1.4.2
   shelf_static: ^1.1.3

@@ -153,6 +153,28 @@ if [[ ${#PUB_TODO[@]} -eq 0 && ${#NPM_TODO[@]} -eq 0 ]]; then
 fi
 
 echo
+echo "── constraints ─────────────────────────────────────────"
+
+# Before the dry run, because the dry run cannot see this. It resolves against
+# pubspec_overrides.yaml, where every sibling points at a local path, so a
+# stale hosted constraint is never exercised -- the dry run is green precisely
+# because it is not testing what a user gets.
+#
+# The 0.3.1 release shipped with dartvel_dev depending on dartvel_core ^0.2.1.
+# A caret on a 0.x version stops at the next minor, so it excluded the 0.3.1
+# published beside it, and anyone installing that set resolved 0.2.x for every
+# sibling.
+constraint_out="$(cd packages/dartvel_cli && dart test test/release_constraints_test.dart 2>&1)"
+if [[ $? -eq 0 ]]; then
+  green "✓ every package accepts the sibling versions being published"
+else
+  echo "$constraint_out" | grep -E 'does not admit' | sed 's/^ */    /' | sort -u
+  echo "$constraint_out" | grep -qE 'does not admit' \
+    || echo "$constraint_out" | tail -15
+  fail "a package names a sibling version that is not the one being published"
+fi
+
+echo
 echo "── dry run ─────────────────────────────────────────────"
 
 # Every package is checked before any is published. A failure found halfway

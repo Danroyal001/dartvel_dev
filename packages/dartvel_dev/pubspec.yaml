@@ -3,7 +3,7 @@ description: >-
   Dartvel: a batteries-included, AI-native full-stack application platform
   built around Flutter. Pages, models, backend functions, UI and business
   logic; everything else is generated, compiled or served.
-version: 0.3.1
+version: 0.3.2
 repository: https://github.com/Danroyal001/dartvel_dev
 homepage: https://dartvel.dev
 
@@ -19,13 +19,13 @@ dependencies:
   flutter:
     sdk: flutter
   dartvel_core:
-    version: ^0.2.1
+    version: ^0.3.2
   dartvel_flutter:
-    version: ^0.2.1
+    version: ^0.3.2
   dartvel_shelf:
-    version: ^0.3.0
+    version: ^0.4.2
   dartvel_cli:
-    version: ^0.2.1
+    version: ^0.3.2
 
 dev_dependencies:
   flutter_test:

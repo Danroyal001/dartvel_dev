@@ -1,3 +1,13 @@
+## 0.4.2
+
+- Corrected the constraints on sibling Dartvel packages, which named the
+  previous release rather than the one published alongside them. A caret on a
+  0.x version stops at the next minor, so `dartvel_core: ^0.2.1` excluded the
+  0.3.1 published beside it -- a user installing the 0.3.1 set resolved 0.2.x
+  for every sibling and got none of what that release contained. `dart pub
+  publish --dry-run` could not see it, because it resolves against
+  pubspec_overrides.yaml and every sibling points at a local path.
+
 ## 0.4.1
 
 - The wire types moved to dartvel_core; this package re-exports them, so
