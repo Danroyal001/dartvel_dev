@@ -77,6 +77,37 @@ List<String> dvPageText(String source) {
   return found;
 }
 
+/// The fallback's own stylesheet.
+///
+/// The crawler-visible block is real semantic HTML -- headings, links, code
+/// blocks -- and it shipped with none. Viewed with scripting off, or by
+/// anything that does not run the app, every line ran the full width of the
+/// window in the browser's default serif.
+///
+/// Inside the noscript block, deliberately. Outside it these rules would
+/// apply to the running application too, and a max-width on body would break
+/// every Dartvel app's own layout.
+///
+/// A reading column, a system font, and the reader's colour scheme. Nothing
+/// decorative: this is the page someone sees when the app cannot run, and it
+/// should look like a document rather than like a broken site.
+const String dvFallbackStyle = '<style>'
+    '.dv-fallback{max-width:44rem;margin:0 auto;padding:2rem 1.25rem;'
+    'font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;'
+    'color:#0b1020;background:#fff}'
+    '.dv-fallback h1{font-size:1.9rem;line-height:1.2;margin:0 0 1rem}'
+    '.dv-fallback h2{font-size:1.35rem;line-height:1.25;margin:2rem 0 .75rem}'
+    '.dv-fallback h3{font-size:1.1rem;margin:1.5rem 0 .5rem}'
+    '.dv-fallback p{margin:0 0 1rem}'
+    '.dv-fallback a{color:#2f6bff}'
+    '.dv-fallback pre{overflow-x:auto;padding:1rem;border-radius:8px;'
+    'background:#0b1020;color:#c0caf5}'
+    '.dv-fallback code{font:13.5px/1.6 ui-monospace,Menlo,Consolas,monospace}'
+    '@media (prefers-color-scheme:dark){'
+    '.dv-fallback{color:#f2f5fa;background:#0a0d13}'
+    '.dv-fallback a{color:#7ba2ff}}'
+    '</style>';
+
 /// Markers, so a rebuild replaces the block rather than adding another.
 const String _open = '<!-- dartvel:text -->';
 const String _close = '<!-- /dartvel:text -->';
@@ -99,7 +130,9 @@ String dvApplyPageText(String html, List<String> lines) {
   const escape = HtmlEscape(HtmlEscapeMode.element);
   final buffer = StringBuffer()
     ..writeln(_open)
-    ..writeln('<noscript>');
+    ..writeln('<noscript>')
+    ..writeln(dvFallbackStyle)
+    ..writeln('<div class="dv-fallback">');
   // The first line is the page's own heading; a document with no h1 reads as
   // a fragment to a crawler.
   buffer.writeln('<h1>${escape.convert(lines.first)}</h1>');
@@ -107,6 +140,7 @@ String dvApplyPageText(String html, List<String> lines) {
     buffer.writeln('<p>${escape.convert(line)}</p>');
   }
   buffer
+    ..writeln('</div>')
     ..writeln('</noscript>')
     ..writeln(_close);
 
@@ -136,7 +170,10 @@ String dvApplyPageHtml(String html, String content) {
   final buffer = StringBuffer()
     ..writeln(_open)
     ..writeln('<noscript>')
+    ..writeln(dvFallbackStyle)
+    ..writeln('<div class="dv-fallback">')
     ..writeln(content.trim())
+    ..writeln('</div>')
     ..writeln('</noscript>')
     ..writeln(_close);
   return cleaned.substring(0, at) + buffer.toString() + cleaned.substring(at);
