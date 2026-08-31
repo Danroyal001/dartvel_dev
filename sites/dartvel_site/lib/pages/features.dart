@@ -261,59 +261,47 @@ Widget _featuresPage(BuildContext context) => SingleChildScrollView(
 
 /// One shipped capability: the area, the surface you actually type, and what
 /// it does.
-class FeatureRow extends StatelessWidget {
-  const FeatureRow({
-    super.key,
-    required this.area,
-    required this.surface,
-    required this.body,
-  });
-
-  final String area;
-  final String surface;
-  final String body;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = Palette.of(context);
-    return Container(
-      // No height: a Wrap gives its children unbounded height, so
-      // double.infinity here collapsed every card and the section rendered
-      // empty. Cards size to their content instead.
-      padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
-      decoration: BoxDecoration(
-        // page, not surface: the section this sits on is tinted with
-        // surface, so a card in the same colour is an invisible card.
-        color: palette.page,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: palette.rule),
+@DVFunctionalWidget()
+Widget _featureRow(
+  BuildContext context, {
+  required String area,
+  required String surface,
+  required String body,
+}) {
+  final Palette palette = Palette.of(context);
+  return DVBox(
+    DVBox.list(<Widget>[
+      // A wrapping line rather than a row. The chip carries an API name and
+      // some of them are long: in a fixed row the pair overflowed its card by
+      // a few pixels at one width and by forty at another, and an overflow
+      // clips in release with nothing to say it did.
+      DVBox.wrapLine(<Widget>[
+        DVText(area).modifier(
+          DVModifier()
+              .fontSize(17)
+              .fontWeight(FontWeight.w700)
+              .color(palette.ink)
+              // Under the page's h1. Without a level these were twenty-two
+              // paragraphs, so the page had a title and no structure under it
+              // -- for a screen reader moving by heading and for the
+              // crawler-visible HTML alike.
+              .semanticHeading(3),
+        ),
+        SiteChip(surface),
+      ], spacing: 10),
+      DVText(body).modifier(
+        DVModifier().fontSize(15).color(palette.muted).height(1.6),
       ),
-      child: DVBox.list(<Widget>[
-        // Baseline-aligned: a chip centred against a 17pt heading rides high
-        // and reads as a separate row.
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.baseline,
-          textBaseline: TextBaseline.alphabetic,
-          children: <Widget>[
-            DVText(area).modifier(
-              const DVModifier()
-                  .fontSize(17)
-                  .fontWeight(FontWeight.w700)
-                  .color(palette.ink)
-                  // Under the page's h1. Without a level these were
-                  // twenty-two paragraphs, so the page had a title and no
-                  // structure under it -- for a screen reader moving by
-                  // heading and for the crawler-visible HTML alike.
-                  .semanticHeading(3),
-            ),
-            const SizedBox(width: 12),
-            Flexible(child: Chip_(surface)),
-          ],
-        ),
-        DVText(body).modifier(
-          const DVModifier().fontSize(15).color(palette.muted).height(1.6),
-        ),
-      ], spacing: 6),
-    );
-  }
+    ], spacing: 6),
+    DVModifier()
+        // No height: a wrap gives its children unbounded height, so
+        // double.infinity here collapsed every card and the section rendered
+        // empty. Cards size to their content instead.
+        .paddingOnly(left: 18, top: 16, right: 18, bottom: 18)
+        // page, not surface: the section this sits on is tinted with surface,
+        // so a card in the same colour is an invisible card.
+        .backgroundColor(palette.page)
+        .rounded(12)
+        .border(Border.all(color: palette.rule)),
+  );
 }

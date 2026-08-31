@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import '../dartvel_client/dartvel_client.dart';
-import '../components/motion.dart';
 import '../components/deck.dart';
 import '../components/site.dart';
 
 @DVPage(title: 'Dartvel — Flutter, full stack', showAppBar: false)
 @pragma('vm:entry-point')
-Widget _indexPage(BuildContext context) => Deck(
+Widget _indexPage(BuildContext context) => const Deck(
       // A deck rather than a scroll. Each of these is a separate claim, and a
       // landing page that runs them together as one long column asks the
       // reader to find the boundaries themselves.
@@ -15,18 +14,18 @@ Widget _indexPage(BuildContext context) => Deck(
       // is the page's only scrollable. Nested inside another one it never
       // received a gesture, and no wheel or arrow key moved a slide.
       slides: <(String, Widget)>[
-        ('Overview', const HeroSection()),
-        ('Models', const Proof()),
-        ('What you get', const Pillars()),
-        ('Targets', const Targets()),
-        ('Status', const Honest()),
-        ('Links', const SiteFooter()),
+        ('Overview', HeroSection()),
+        ('Models', Proof()),
+        ('What you get', Pillars()),
+        ('Targets', Targets()),
+        ('Status', Honest()),
+        ('Links', SiteFooter()),
       ],
     );
 
 @DVFunctionalWidget()
 Widget _heroSection(BuildContext context) {
-  final bool narrow = Responsive.of(context).narrow;
+  final bool narrow = context.screen.isMobile;
   const Widget copy = HeroCopy();
   return Section(
     glow: true,
@@ -37,12 +36,12 @@ Widget _heroSection(BuildContext context) {
       if (narrow)
         copy
       else
-        Row(
+        const Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Expanded(flex: 6, child: copy),
-            const SizedBox(width: 48),
-            const Expanded(flex: 5, child: HeroTerminal()),
+            SizedBox(width: 48),
+            Expanded(flex: 5, child: HeroTerminal()),
           ],
         ),
     ],
@@ -55,7 +54,7 @@ Widget _heroCopy(BuildContext context) => DVBox.list(
         const Eyebrow('A FULL-STACK PLATFORM FOR FLUTTER'),
         const DVText('Flutter, all the way down.').modifier(
           const DVModifier()
-              .fontSize(Responsive.of(context).heroSize)
+              .fontSize(context.screen.value<double>(mobile: 36, desktop: 54))
               .fontWeight(FontWeight.w800)
               .color(Palette.of(context).ink)
               .height(1.06)
@@ -114,9 +113,9 @@ class HeroTerminal extends StatelessWidget {
             child: Row(
               children: <Widget>[
                 for (final Color light in <Color>[
-                  Color(0xFFFF5F57),
-                  Color(0xFFFEBC2E),
-                  Color(0xFF28C840),
+                  const Color(0xFFFF5F57),
+                  const Color(0xFFFEBC2E),
+                  const Color(0xFF28C840),
                 ])
                   Padding(
                     padding: const EdgeInsets.only(right: 7),
@@ -141,13 +140,13 @@ class HeroTerminal extends StatelessWidget {
               ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 14, 16, 18),
             // Coloured the way the terminal actually is. A screenshot of a
             // terminal in one flat grey is a picture of a wall; the prompt,
             // what you type and what it answers are three different things.
             child: Typewriter(
-              style: const TextStyle(
+              style: TextStyle(
                   fontFamily: 'RobotoMono',
                   fontFamilyFallback: <String>[
                     'Menlo', 'Consolas', 'monospace',
@@ -156,7 +155,7 @@ class HeroTerminal extends StatelessWidget {
                 height: 1.75,
                 color: Color(0xFFD7E1F5),
               ),
-              spans: const <TextSpan>[
+              <TextSpan>[
                 TextSpan(
                   text: '\$ ',
                   style: TextStyle(color: Color(0xFF9ECE6A)),
@@ -236,10 +235,10 @@ Widget _proof(BuildContext context) => Section(
           '}',
         ]),
         const DVBox.wrapLine(<Widget>[
-          Chip_('Post.Form(...)'),
-          Chip_('Post.Page.fromId(...)'),
-          Chip_('Post.Table(...)'),
-          Chip_('DV.Admin'),
+          SiteChip('Post.Form(...)'),
+          SiteChip('Post.Page.fromId(...)'),
+          SiteChip('Post.Table(...)'),
+          SiteChip('DV.Admin'),
         ], spacing: 8),
         const DVText(
           'authorEmail is marked sensitive, so it is excluded from logs, AI '
@@ -255,32 +254,32 @@ Widget _pillars(BuildContext context) => const Section(
       children: <Widget>[
         Eyebrow('WHAT YOU GET'),
         DVBox.wrapLine(<Widget>[
-          Card_(
+          SiteCard(
             'Pages',
             'A file under lib/pages is a route, with typed navigation and its '
             'loading and error states beside it.',
           ),
-          Card_(
+          SiteCard(
             'Backend functions',
             'A Dart function becomes an endpoint, and the client that calls it '
             'is generated with it.',
           ),
-          Card_(
+          SiteCard(
             'Signals',
             'context.signal, reactive models and DV.global. Operating on '
             'signals gives you a signal, so derived state composes.',
           ),
-          Card_(
+          SiteCard(
             'A Rust runtime',
             'Axum and Tokio behind FFI, speaking HTTP/2 and HTTP/3, verified '
             'against a live server.',
           ),
-          Card_(
+          SiteCard(
             'Native APIs',
             'DV.Platform on six platforms through FFI and jnigen. No platform '
             'channels anywhere.',
           ),
-          Card_(
+          SiteCard(
             'One toolkit',
             'dartvel dev, build, test, db, queue, deploy. Generation runs as '
             'part of the build.',
@@ -304,7 +303,7 @@ Widget _targets(BuildContext context) => Section(
             'Fire OS', 'Tizen', 'Sony eLinux', 'webOS', 'VS Code',
             'Chrome', 'Firefox', 'terminal',
           ])
-            Chip_(target, onDark: true),
+            SiteChip(target, onDark: true),
         ], spacing: 8),
         const DVText(
           'Embedded and television targets ride the platform vendor’s own '
@@ -312,16 +311,16 @@ Widget _targets(BuildContext context) => Section(
           'fork so the engine and the Flutter version stay aligned. A build '
           'checks host support and tooling before doing any work, so it never '
           'starts something it cannot finish.',
-        ).modifier(DVModifier().fontSize(16).color(const Color(0xFF9AA6C4)).height(1.65).width(640)),
+        ).modifier(const DVModifier().fontSize(16).color(const Color(0xFF9AA6C4)).height(1.65).width(640)),
         const SizedBox(height: 8),
         // Breadth only. The section below already counts shipped spec
         // sections, and two numeric rows a screen apart both saying 22 read
         // as the same claim made twice.
-        Stats(onDark: true, const <(String, String)>[
-          ('15', 'build targets'),
-          ('6', 'packages on pub.dev'),
-          ('5', 'self-contained binaries'),
-          ('1', 'command to build any of them'),
+        const Stats(onDark: true, <Figure>[
+          Figure('15', 'build targets'),
+          Figure('6', 'packages on pub.dev'),
+          Figure('5', 'self-contained binaries'),
+          Figure('1', 'command to build any of them'),
         ]),
       ],
     );

@@ -5107,6 +5107,41 @@ abstract class DVClassWidget extends DartvelPage {
   const DVClassWidget({super.key});
 }
 
+/// Every generated page's cached deferred-library future, so a test can drop
+/// them all.
+///
+/// A generated page caches `loadLibrary()` in a static, which is right in
+/// production -- the library is loaded once. In a widget test each case runs
+/// in its own FakeAsync zone, so the future cached by the first test has its
+/// completion callbacks scheduled in a zone that no longer exists. Every later
+/// test then subscribes to a future that never delivers, the page sits on its
+/// loading state, and the failure reads as "this page renders nothing" rather
+/// than as a stale cache.
+///
+/// The first test passes and every one after it fails, which is the most
+/// misleading shape a test failure has.
+final List<void Function()> _dvDeferredPageResets = <void Function()>[];
+
+/// Registers [reset], returning a function that unregisters it.
+///
+/// Generated pages call this; application code calls [dvResetDeferredPages].
+void Function() dvRegisterDeferredPageReset(void Function() reset) {
+  _dvDeferredPageResets.add(reset);
+  return () => _dvDeferredPageResets.remove(reset);
+}
+
+/// Drops every generated page's cached library future.
+///
+/// Call it in a test `setUp` when widget-testing more than one generated page.
+void dvResetDeferredPages() {
+  // Over a copy: a reset that unregisters itself would otherwise mutate the
+  // list being walked.
+  for (final void Function() reset
+      in List<void Function()>.of(_dvDeferredPageResets)) {
+    reset();
+  }
+}
+
 abstract class DartvelLayout extends StatelessWidget {
   final Widget child;
   const DartvelLayout({super.key, required this.child});

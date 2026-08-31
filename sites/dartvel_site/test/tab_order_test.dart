@@ -3,13 +3,11 @@
 // The browser said the first Tab goes nowhere and the second reaches the first
 // link. A test that pumps only the header cannot see that: whatever is taking
 // the stop lives in the page around it.
-import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:dartvel_site/components/site.dart';
+import 'package:dartvel_site/dartvel_client/dartvel_client.dart';
 import 'package:dartvel_site/pages/_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
 
 String describeFocus() {
   final node = FocusManager.instance.primaryFocus;
@@ -73,7 +71,19 @@ void main() {
       stops.add(describeFocus());
     }
 
-    expect(stops.first, 'link /docs',
-        reason: 'Tab reached $stops — the first stop should be the first link');
+    // The bug this exists for: the first Tab went nowhere, and the second
+    // reached the first link -- something in the page around the header was
+    // taking a stop. So what matters is that the first stop is a link at all,
+    // and that the stops then follow reading order.
+    //
+    // It used to name '/docs' as the first stop, which was over-specific: the
+    // wordmark is a link to home and sits before the nav, so it is the first
+    // link in reading order and should be the first stop. It reaching focus
+    // is an improvement -- a header whose logo cannot be reached by keyboard
+    // is a header with an unreachable link.
+    expect(stops.first, isNot('nothing'),
+        reason: 'Tab reached $stops — the first stop should be a link');
+    expect(stops, <String>['link /', 'link /docs', 'link /features'],
+        reason: 'the header links should be reached in reading order');
   });
 }

@@ -849,7 +849,21 @@ class ${e.generatedWidget} extends DartvelPage {
 
   static Future<void>? _libraryFuture;
 
+  /// Registered so a test can drop the cache.
+  ///
+  /// Caching is right in production: the library loads once. In a widget test
+  /// each case runs in its own FakeAsync zone, so a future cached by the
+  /// first test has its callbacks scheduled in a zone that no longer exists
+  /// -- every later test then waits on a future that never delivers and the
+  /// page sits on its loading state. Call dvResetDeferredPages() in setUp.
+  static final void Function() _resetRegistration =
+      dvRegisterDeferredPageReset(() => _libraryFuture = null);
+
   static Future<void> loadLibrary() {
+    // Touched so the static is initialised: a lazy static in Dart is not
+    // evaluated until it is read, and a registration nothing reads never
+    // happens.
+    _resetRegistration;
     return _libraryFuture ??= p${e.importIndex}.loadLibrary();
   }
 

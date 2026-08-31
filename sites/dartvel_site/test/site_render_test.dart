@@ -3,6 +3,7 @@
 // A build that succeeds proves the code compiled. It does not prove a page
 // draws anything, and a site whose text is unselectable compiled perfectly for
 // weeks.
+import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:dartvel_site/components/site.dart';
 import 'package:dartvel_site/dartvel_client/dartvel_client.dart';
 import 'package:flutter/material.dart';
@@ -14,31 +15,59 @@ Widget host(Widget page, Brightness brightness) => MaterialApp(
     );
 
 void main() {
+  // Deferred pages in a widget test need both halves of this, and neither
+  // alone is enough.
+  //
+  // A testWidgets body runs inside a FakeAsync zone. A library that has never
+  // been loaded cannot finish loading there: pump() advances fake time while
+  // the load waits on the real event loop, so the page sits on its loading
+  // state forever. Calling loadLibrary inside tester.runAsync instead
+  // deadlocks outright -- the suite produced no output at all and was killed
+  // by its timeout, which reads exactly like a slow compile and was blamed on
+  // one for weeks.
+  //
+  // So: load them for real up here, where setUpAll is ordinary async. That is
+  // still not enough on its own, because the generated page caches the future
+  // it created in this zone, and a future handed to a FutureBuilder in a
+  // different zone never delivers -- every page then shows its loading state,
+  // including the ones that loaded fine.
+  //
+  // Dropping the cache before each test makes the page call loadLibrary again
+  // inside its own zone, where the library is by now already loaded, so the
+  // new future completes at once.
+  setUpAll(() async {
+    await IndexPageGeneratedPage.loadLibrary();
+    await FeaturesPageGeneratedPage.loadLibrary();
+    await DocsPageGeneratedPage.loadLibrary();
+    await CloudPageGeneratedPage.loadLibrary();
+  });
+
+  setUp(dvResetDeferredPages);
+
   // The generated page widgets, which is what the router actually builds.
   // These used to be public `buildXPage` functions the pages delegated to --
   // an indirection that existed only because @DVPage once required an
   // expression body. It does not any more, so the pages are private and this
   // renders what ships.
-  // Each page with its own loader: loadLibrary is static per generated class,
-  // so it cannot be reached through the DartvelPage the router builds.
-  final pages = <String, (Future<void> Function(), Widget)>{
-    'landing': (
-      IndexPageGeneratedPage.loadLibrary,
-      const IndexPageGeneratedPage()
-    ),
-    'features': (
-      FeaturesPageGeneratedPage.loadLibrary,
-      const FeaturesPageGeneratedPage()
-    ),
-    'docs': (DocsPageGeneratedPage.loadLibrary, const DocsPageGeneratedPage()),
-    'cloud': (
-      CloudPageGeneratedPage.loadLibrary,
-      const CloudPageGeneratedPage()
-    ),
+  // No loadLibrary here, and that is the fix rather than an omission.
+  //
+  // This used to call it inside tester.runAsync, on the theory that the
+  // deferred library resolves on the real event loop which pump() does not
+  // drain. runAsync around loadLibrary deadlocks: the suite produced no
+  // output at all and was killed by its timeout, which reads exactly like a
+  // slow compile and was blamed on one for weeks.
+  //
+  // It is also unnecessary. The Dart VM does not split deferred libraries, so
+  // in a test they are already loaded and the generated page's FutureBuilder
+  // resolves on the next pump.
+  final pages = <String, Widget>{
+    'landing': const IndexPageGeneratedPage(),
+    'features': const FeaturesPageGeneratedPage(),
+    'docs': const DocsPageGeneratedPage(),
+    'cloud': const CloudPageGeneratedPage(),
   };
 
-  for (final MapEntry<String, (Future<void> Function(), Widget)> page
-      in pages.entries) {
+  for (final MapEntry<String, Widget> page in pages.entries) {
     for (final Brightness brightness in Brightness.values) {
       testWidgets('${page.key} renders in ${brightness.name}',
           (WidgetTester tester) async {
@@ -46,20 +75,22 @@ void main() {
         tester.view.devicePixelRatio = 1.0;
         addTearDown(tester.view.reset);
 
-        await tester.pumpWidget(host(page.value.$2, brightness));
+        await tester.pumpWidget(host(page.value, brightness));
         // The generated page loads its deferred library through a
         // FutureBuilder, so a single pump only ever sees the loading state.
-        // Fixed frames rather than pumpAndSettle: Reveal retries every frame
-        // until it is on screen, so the tree never goes quiet and settling
-        // times out.
-        // The deferred library resolves on the real event loop, which pump()
-        // does not drain -- without runAsync the page sits on its loading
-        // widget forever and the test reads as "the page renders nothing".
-        await tester.runAsync(() async {
-          await page.value.$1();
-        });
-        await tester.pump();
-        await tester.pump(const Duration(seconds: 2));
+        //
+        // Fixed frames rather than pumpAndSettle: a revealed section retries
+        // its position check every frame until it is on screen, so the tree
+        // never goes quiet and settling times out.
+        // Several frames, not two. The deferred library resolves on a timer,
+        // the FutureBuilder needs a frame after that to build its child, and
+        // the reveal needs one more. Two frames happened to be enough for
+        // whichever page ran first and for nothing after it, which is how
+        // this failed: the first test passed and every later one reported
+        // that the page rendered nothing.
+        for (int frame = 0; frame < 6; frame += 1) {
+          await tester.pump(const Duration(seconds: 1));
+        }
 
         expect(tester.takeException(), isNull);
         expect(find.byType(DVText), findsWidgets);

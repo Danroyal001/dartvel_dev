@@ -1,6 +1,15 @@
 include: package:lints/recommended.yaml
 
 analyzer:
+  errors:
+    # Every Dartvel generation input is a private declaration that nothing in
+    # this package calls: @DVPage, @DVFunctionalWidget and @DVBackendFunction
+    # take a private function and generate the public API from it, and a
+    # lowered body is copied into the generated file rather than called. So
+    # "unused" is what a correctly written Dartvel component looks like, and
+    # the diagnostic carries no information in this project.
+    unused_element: ignore
+
   exclude:
     - "lib/dartvel_client/**"
     - ".dart_tool/**"

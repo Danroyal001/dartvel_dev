@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../dartvel_client/dartvel_client.dart';
+import 'site.dart';
 
 /// Colouring Dart, because on a framework's site the code is the demo.
 ///
@@ -159,4 +161,96 @@ class Code {
   }
 
   static bool _isWord(String c) => _isWordStart(c) || _isDigit(c);
+}
+
+
+/// A block of code: coloured, monospaced, selectable, and copyable.
+///
+/// The copy button goes through `DV.Platform.clipboard`, which is bound by
+/// FFI on the desktops, JNI on Android and the browser clipboard API on web --
+/// no Flutter platform channel anywhere. A framework's own site reaching for
+/// one would be the clearest possible argument that the rule is unworkable.
+@DVFunctionalWidget()
+Widget _codeSample(BuildContext context, List<String> lines) {
+  final String source = lines.join('\n');
+  final DVSignal<bool> copied = context.signal(false);
+
+  return DVBox(
+    DVBox.stack(<Widget>[
+      // Labelled, because Flutter renders SelectableText as a textarea whose
+      // value it manages: without this the code is absent from the semantics
+      // tree entirely, so a crawler never sees the install commands and a
+      // screen reader never reads them.
+      Semantics(
+        identifier: 'dartvel:code',
+        label: source,
+        excludeSemantics: true,
+        child: SelectableText.rich(
+          TextSpan(children: Code.spans(source)),
+          style: const TextStyle(
+            // Bundled, not named. Flutter web cannot resolve the generic
+            // "monospace" family and silently falls back to the body font, so
+            // every Dart sample on this site rendered in proportional text --
+            // on a page whose whole argument is what the code looks like.
+            fontFamily: 'RobotoMono',
+            fontFamilyFallback: <String>['Menlo', 'Consolas', 'monospace'],
+            fontSize: 13.5,
+            height: 1.65,
+          ),
+        ),
+      ),
+      DVBox(
+        CopyButton(source, copied),
+        const DVModifier().align(Alignment.topRight),
+      ),
+    ]),
+    const DVModifier()
+        .width(double.infinity)
+        .maxWidth(680)
+        .padding(18)
+        .backgroundColor(Palette.of(context).dark
+            ? const Color(0xFF0E141D)
+            : const Color(0xFF0B1020))
+        .rounded(10),
+  );
+}
+
+/// The copy affordance itself.
+///
+/// [copied] is the caller's signal rather than one of its own, so the label
+/// belongs to the block being copied: two blocks on a page must not both say
+/// "Copied" because one of them was.
+@DVFunctionalWidget()
+Widget _copyButton(BuildContext context, String source, DVSignal<bool> copied) {
+  final bool done = copied.value;
+  return DVBox(
+    DVText(done ? 'Copied' : 'Copy').modifier(
+      const DVModifier()
+          .fontSize(12)
+          .fontWeight(FontWeight.w600)
+          .color(done ? const Color(0xFF9ECE6A) : const Color(0xFF7080A8)),
+    ),
+    const DVModifier()
+        .paddingSymmetric(horizontal: 10, vertical: 6)
+        .rounded(6)
+        .border(Border.all(color: const Color(0xFF222A38)))
+        .animate(const Duration(milliseconds: 140))
+        .hover(const DVModifier().backgroundColor(const Color(0xFF161E33)))
+        .semanticLabel(done ? 'Code copied' : 'Copy code to clipboard')
+        .semanticButton()
+        // 44 square is the smallest target a finger reliably hits, and a
+        // 12pt label is nowhere near it.
+        .minimumTapTarget()
+        .onTap(() async {
+          // Not silent on failure. A browser refuses the clipboard outside a
+          // secure context, and a button that appears to work and does not is
+          // worse than one that says so.
+          try {
+            await DV.Platform.clipboard.copy(source);
+            copied.value = true;
+          } on Object {
+            copied.value = false;
+          }
+        }),
+  );
 }

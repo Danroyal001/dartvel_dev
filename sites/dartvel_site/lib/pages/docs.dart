@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import '../dartvel_client/dartvel_client.dart';
-import '../components/site.dart';
 
 @DVPage(title: 'Documentation — Dartvel', showAppBar: false)
 @pragma('vm:entry-point')
-Widget _docsPage(BuildContext context) => SingleChildScrollView(
+Widget _docsPage(BuildContext context) => const SingleChildScrollView(
       child: DVBox.list(<Widget>[
-        const Section(
+        Section(
           children: <Widget>[
             Eyebrow('DOCUMENTATION'),
             Heading('From nothing to a running app.', level: 1),
@@ -18,16 +17,16 @@ Widget _docsPage(BuildContext context) => SingleChildScrollView(
             ),
           ],
         ),
-        const Install(),
-        const FirstApp(),
-        const Pages(),
-        const Models(),
-        const Backend(),
-        const Links(),
-        const Signals(),
-        const Building(),
-        const Honesty(),
-        const SiteFooter(),
+        Install(),
+        FirstApp(),
+        Pages(),
+        Models(),
+        Backend(),
+        Links(),
+        Signals(),
+        Building(),
+        Honesty(),
+        SiteFooter(),
       ], spacing: 0),
     );
 

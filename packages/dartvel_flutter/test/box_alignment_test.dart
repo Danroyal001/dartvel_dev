@@ -216,4 +216,29 @@ void main() {
     });
   });
 
+  testWidgets('centred does not claim the height it was not given',
+      (WidgetTester tester) async {
+    // Center expands on both axes. In a Column -- where height is unbounded
+    // for a non-flex child -- that means it takes all of it, and the column
+    // overflows by however much the test surface allows. This is the site
+    // header inside the site layout, and it made every page overflow by
+    // roughly 300,000 pixels.
+    await show(
+      tester,
+      Column(
+        children: <Widget>[
+          DVBox(
+            const DVText('header'),
+            const DVModifier().maxWidth(400).centered(),
+          ),
+          const Expanded(child: DVText('page')),
+        ],
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(tester.getSize(find.byType(DVBox)).height, lessThan(100),
+        reason: 'a centred box sizes to its child vertically');
+  });
+
 }
