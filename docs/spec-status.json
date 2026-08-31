@@ -113,11 +113,15 @@
     {
       "section": "Scheduling",
       "stability": "Draft",
-      "status": "Partial",
+      "status": "Shipped",
       "evidence": [
-        "packages/dartvel_cli/test/schedule_generation_test.dart"
+        "packages/dartvel_cli/test/schedule_generation_test.dart",
+        "packages/dartvel_core/lib/src/scheduling/cron.dart",
+        "packages/dartvel_core/lib/src/scheduling/scheduler.dart",
+        "packages/dartvel_core/test/cron_test.dart",
+        "packages/dartvel_core/test/scheduler_test.dart"
       ],
-      "absent": "Client cron (@DVClientCron) generation"
+      "absent": "Nothing named. Both @DVBackendCron and @DVClientCron are collected into generated entries and DVScheduler runs them: the note that client cron generation was missing was wrong, and what was actually missing was any cron evaluator at all -- the schedule travelled from an annotation into a generated list and stopped there"
     },
     {
       "section": "Queues, Jobs, and Signals",
