@@ -304,11 +304,13 @@
       "stability": "Draft",
       "status": "Partial",
       "evidence": [
+        "packages/dartvel_cli/lib/src/build/pwa_service_worker.dart",
         "packages/dartvel_cli/lib/src/build/seo_head.dart",
         "packages/dartvel_cli/test/pwa_manifest_test.dart",
+        "packages/dartvel_cli/test/pwa_service_worker_test.dart",
         "packages/dartvel_cli/test/viewport_head_test.dart"
       ],
-      "absent": "no service worker, offline support, install prompt, background sync or icon generation. dartvel build web writes a manifest from dartvel.pwa and links it, warns about the things that make a browser silently refuse to install, and now guarantees a viewport meta -- without one a phone lays the page out at a notional 980 CSS pixels and every breakpoint reports desktop on a phone. Flutter's own service worker still ships unmodified and Dartvel adds nothing to it"
+      "absent": "Install prompts, background sync and icon generation. dartvel build web writes a manifest from dartvel.pwa and links it, guarantees a viewport meta, and now replaces Flutter’s service worker with one that precaches the routes the build produced and falls back to a self-contained offline page. Flutter’s own cached the app shell and nothing Dartvel knows about, so a site had no offline page, no cached routes and no control over what a stale worker serves after a deploy"
     },
     {
       "section": "OTA Updates",

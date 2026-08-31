@@ -7,6 +7,7 @@ import 'package:yaml/yaml.dart';
 import '../build/browser_extension.dart';
 import '../build/elinux_bundle.dart';
 import '../build/pwa_manifest.dart';
+import '../build/pwa_service_worker.dart';
 import '../build/seo_head.dart';
 import '../build/page_text.dart';
 import '../build/semantic_html.dart';
@@ -1233,6 +1234,59 @@ class BuildCommand extends Command<void> {
     for (final problem in result.problems) {
       Logger.log('   ⚠ $problem');
     }
+
+    _writeServiceWorker(root, name: name, settings: settings);
+  }
+
+  /// Replace Flutter's service worker with one that knows the routes.
+  ///
+  /// Flutter's own caches the app shell and nothing Dartvel knows about, so a
+  /// Dartvel site had no offline page, no cached routes, and no control over
+  /// what a stale worker serves after a deploy.
+  void _writeServiceWorker(
+    String root, {
+    required String name,
+    required Map<Object?, Object?> settings,
+  }) {
+    if (settings['serviceWorker'] == false) return;
+
+    final web = Directory(p.join(root, 'build', 'web'));
+    if (!web.existsSync()) return;
+
+    // The routes this build produced, which is what a Dartvel worker can
+    // precache and Flutter's cannot know.
+    final routes = <String>['/'];
+    for (final entity in web.listSync()) {
+      if (entity is! Directory) continue;
+      final segment = p.basename(entity.path);
+      if (segment.startsWith('.') ||
+          segment == 'assets' ||
+          segment == 'canvaskit' ||
+          segment == 'icons') {
+        continue;
+      }
+      if (File(p.join(entity.path, 'index.html')).existsSync()) {
+        routes.add('/$segment');
+      }
+    }
+
+    const offlinePath = '/offline.html';
+    File(p.join(web.path, 'offline.html'))
+        .writeAsStringSync(dvOfflinePage(title: name));
+
+    // Written over flutter_service_worker.js, which index.html already
+    // registers: adding a second worker would leave two competing for the
+    // same scope, and which one wins is not something to leave to chance.
+    File(p.join(web.path, 'flutter_service_worker.js')).writeAsStringSync(
+      dvServiceWorker(
+        buildId: DateTime.now().toUtc().toIso8601String(),
+        precache: routes,
+        offlinePath: offlinePath,
+      ),
+    );
+
+    Logger.log('   Service worker written: '
+        '${routes.length} route(s) precached, with an offline page.');
   }
 
   /// Write the SEO head tags into a finished web build.
