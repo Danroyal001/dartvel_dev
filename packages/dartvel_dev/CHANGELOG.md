@@ -1,3 +1,7 @@
+## 0.3.1
+
+- Ships the 0.3.1 CLI, which adds `dartvel update`.
+
 ## 0.3.0
 
 Four queue brokers, both network databases reachable over TLS, static

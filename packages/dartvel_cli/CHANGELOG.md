@@ -1,3 +1,15 @@
+## 0.3.1
+
+- `dartvel update` fetches the latest published binary and replaces the running
+  one, verifying its checksum first and keeping the old binary alongside. A
+  no-op when already current.
+- `@DVFunctionalWidget` generates a widget class rather than a function, so a
+  generated component can be const and can reach a BuildContext without every
+  caller threading one.
+- Lowered page and widget bodies carry the imports they were written against,
+  and a body that reaches for a private symbol is refused with a message naming
+  it rather than emitting generated code that does not compile.
+
 ## 0.3.0
 
 Four queue brokers, both network databases reachable over TLS, static
