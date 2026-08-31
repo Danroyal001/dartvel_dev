@@ -1,6 +1,6 @@
 {
   "name": "dartvel_cli",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Dartvel CLI — an alias for dartvel_dev, so `npm i -g dartvel_cli` installs the same CLI. The implementation lives in dartvel_dev; this package only forwards to it.",
   "bin": {
     "dartvel": "bin/dartvel.js",
@@ -33,6 +33,6 @@
     "node": ">=18"
   },
   "dependencies": {
-    "dartvel_dev": "0.3.1"
+    "dartvel_dev": "0.3.2"
   }
 }

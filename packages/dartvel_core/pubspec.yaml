@@ -1,7 +1,7 @@
 
 name: dartvel_core
 description: Core helpers (Res), types, simple CORS hint for dartvel backend
-version: 0.3.1
+version: 0.3.2
 repository: https://github.com/Danroyal001/dartvel_dev
 homepage: https://dartvel.dev
 environment:
