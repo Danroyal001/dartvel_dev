@@ -7,9 +7,12 @@ library dartvel.observability;
 
 import 'health.dart';
 import 'metrics.dart';
+import 'tracing.dart';
 
 export 'health.dart';
 export 'metrics.dart';
+export 'tracing.dart';
+export 'tracing_middleware.dart';
 
 /// `DV.ObservabilityAndLogging` is built on these.
 class DVObservability {
@@ -17,6 +20,26 @@ class DVObservability {
 
   static final DVMetrics metrics = DVMetrics();
   static final DVHealth health = DVHealth();
+
+  /// The process tracer.
+  ///
+  /// Sampling everything by default: a framework that silently drops traces
+  /// out of the box is one where the first thing anybody debugging it does is
+  /// wonder whether tracing is on. Configure a ratio for production.
+  static DVTracer tracer = DVTracer(sampler: DVTraceSampler.always());
+
+  /// Points tracing at [exporter], sampling [ratio] of traces.
+  static void useTracing({
+    required DVTraceExporter exporter,
+    double ratio = 1,
+  }) {
+    tracer = DVTracer(
+      exporter: exporter,
+      sampler: ratio >= 1
+          ? DVTraceSampler.always()
+          : DVTraceSampler.ratio(ratio),
+    );
+  }
 
   /// Seconds this process has been up, as a gauge.
   ///
