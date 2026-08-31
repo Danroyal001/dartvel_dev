@@ -18,18 +18,25 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <!-- Without this a phone lays the page out at a notional 980 CSS pixels and
+       scales the result down: the site is not narrow, it is a shrunken
+       desktop, and every Dartvel breakpoint reports "desktop" on a phone.
+       viewport-fit=cover is what makes safeAreaBounds non-zero on a notched
+       device. No user-scalable=no: pinch-to-zoom is how a low-vision reader
+       reads. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="Flutter's Laravel. A batteries-included, AI-native, full-stack platform for building Flutter applications.">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="dartvel_site">
+  <meta name="apple-mobile-web-app-title" content="Dartvel">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>dartvel_site</title>
+  <title>Dartvel</title>
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
