@@ -63,6 +63,42 @@ live_npm_version() {
     2>/dev/null
 }
 
+echo "── toolchain ───────────────────────────────────────────"
+
+# Found rather than assumed. This Codespace has no system Dart, and the SDK
+# lives on the one volume a rebuild keeps -- so a script that relies on the
+# caller's PATH works for whoever set it up and for nobody else.
+#
+# The Flutter SDK's bin is preferred over a bare Dart, because dartvel_flutter
+# is a Flutter package and resolving it needs the Flutter SDK.
+if [[ -z "${FLUTTER_ROOT:-}" ]]; then
+  for candidate in \
+    /workspaces/.toolchains/flutter \
+    "$HOME/.dartvel/toolchains/flutter" \
+    "$HOME/flutter" \
+    /opt/flutter
+  do
+    if [[ -x "$candidate/bin/dart" ]]; then
+      FLUTTER_ROOT="$candidate"
+      break
+    fi
+  done
+fi
+
+if [[ -n "${FLUTTER_ROOT:-}" && -x "$FLUTTER_ROOT/bin/dart" ]]; then
+  PATH="$FLUTTER_ROOT/bin:$PATH"
+  export PATH
+  green "✓ dart $("$FLUTTER_ROOT/bin/dart" --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1) from $FLUTTER_ROOT"
+elif command -v dart >/dev/null 2>&1; then
+  green "✓ dart $(dart --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1) from $(command -v dart)"
+else
+  fail "no dart on PATH and no Flutter SDK found. Set FLUTTER_ROOT, or add the SDK's bin to PATH."
+fi
+
+command -v node >/dev/null 2>&1 || fail "node is required to read package versions"
+command -v npm  >/dev/null 2>&1 || fail "npm is required to publish the npm packages"
+
+echo
 echo "── credentials ─────────────────────────────────────────"
 
 # Checked before anything is published, not discovered at the last step. The
