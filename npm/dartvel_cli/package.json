@@ -1,10 +1,10 @@
 {
   "name": "dartvel_cli",
   "version": "0.3.1",
-  "description": "Dartvel CLI \u2014 an alias for dartvel_dev, so `npm i -g dartvel_cli` installs the same CLI. The implementation lives in dartvel_dev; this package only forwards to it.",
+  "description": "Dartvel CLI — an alias for dartvel_dev, so `npm i -g dartvel_cli` installs the same CLI. The implementation lives in dartvel_dev; this package only forwards to it.",
   "bin": {
-    "dartvel": "./bin/dartvel.js",
-    "dartvel_cli": "./bin/dartvel.js"
+    "dartvel": "bin/dartvel.js",
+    "dartvel_cli": "bin/dartvel.js"
   },
   "files": [
     "bin/",
