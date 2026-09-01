@@ -29,3 +29,10 @@ jobs:
         with:
           sdk: 3.12.2
       - run: dart run tool/spec_status_check.dart
+
+      # Cheap, and it catches a class of break that reads as flakiness. A
+      # pubspec naming an asset directory that git cannot track builds fine on
+      # every machine that has ever run it and fails on every fresh checkout,
+      # so it shows up as one target failing among twenty rather than as a
+      # broken pubspec.
+      - run: dart run tool/pubspec_paths_check.dart

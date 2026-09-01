@@ -38,8 +38,6 @@ flutter:
       fonts:
         - asset: fonts/RobotoMono.ttf
   uses-material-design: true
-  assets:
-    - assets/
 
 dartvel:
   backendHost: 0.0.0.0
