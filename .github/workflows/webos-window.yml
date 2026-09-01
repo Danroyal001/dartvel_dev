@@ -64,27 +64,47 @@ jobs:
       - name: Install the cross toolchain, the emulator and a compositor
         run: |
           set -uo pipefail
-          # Retried, because this is a multiarch install across two mirrors
-          # that drift. armhf comes from ports.ubuntu.com and amd64 from the
-          # runner's own mirror, and for a window after an update publishes,
-          # one has a version of a shared dependency the other does not --
-          # which apt reports as "you have held broken packages". The same
-          # package list installed cleanly twenty minutes earlier; refreshing
-          # the index and asking again is what actually fixes it.
-          for attempt in 1 2 3; do
+
+          # Host tools and armhf libraries are installed separately, on
+          # purpose. Asked for together, apt has to find one solution
+          # satisfying both architectures at once, and a single unsatisfiable
+          # armhf dependency is reported as "you have held broken packages"
+          # with no indication of which package or which architecture caused
+          # it. Split, a failure names the half it is in.
+          host() {
             sudo apt-get install -y -qq \
               crossbuild-essential-armhf qemu-user-static \
               cmake ninja-build pkg-config \
-              weston xvfb imagemagick \
+              weston xvfb imagemagick wayland-protocols
+          }
+          cross() {
+            sudo apt-get install -y -qq \
               libwayland-dev:armhf libxkbcommon-dev:armhf \
               libegl1-mesa-dev:armhf libgles2-mesa-dev:armhf \
-              libgl1-mesa-dri:armhf wayland-protocols && exit 0
-            echo "apt attempt $attempt failed; refreshing the index"
-            sudo apt-get update -qq || true
-            sleep 20
+              libgl1-mesa-dri:armhf
+          }
+
+          for stage in host cross; do
+            ok=no
+            for attempt in 1 2 3; do
+              if "$stage"; then ok=yes; break; fi
+              echo "$stage apt attempt $attempt failed; refreshing the index"
+              sudo apt-get update -qq || true
+              sleep 20
+            done
+            if [ "$ok" != yes ]; then
+              # Without -qq, so the next person sees which package apt could
+              # not place and against what. Three silent identical failures
+              # said only that something was wrong.
+              echo "::group::apt output for $stage"
+              "$stage" 2>&1 | tail -40 || true
+              sudo apt-get install -y --no-install-recommends -o Debug::pkgProblemResolver=1 \
+                $( [ "$stage" = cross ] && echo libegl1-mesa-dev:armhf || echo weston ) 2>&1 | tail -40 || true
+              echo "::endgroup::"
+              echo "::error::the $stage packages could not be installed after 3 attempts"
+              exit 1
+            fi
           done
-          echo "::error::the cross toolchain could not be installed after 3 attempts"
-          exit 1
 
       - name: Fetch the ARM engine
         run: |
