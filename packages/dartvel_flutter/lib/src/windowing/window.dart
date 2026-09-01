@@ -310,11 +310,16 @@ class DVWindowManager {
   static final ValueNotifier<List<DVDisplay>> _displays =
       ValueNotifier<List<DVDisplay>>(const <DVDisplay>[]);
 
-  /// Display id to the name a device profile gives it.
+  /// A device profile's `displays:` map: a name against the position it names.
   ///
+  /// The shape the specification fixes, `displays: { Customer: { index: 1 } }`.
   /// Kiosk deployments address displays by role -- `byName('Customer')` -- and
   /// the OS name is whatever the panel's EDID says.
-  static Map<String, String> displayNames = const <String, String>{};
+  ///
+  /// Nothing populates this from configuration yet; a device profile's
+  /// displays are not carried into the generated client. Until they are, an
+  /// application that wants profile names sets this itself.
+  static Map<String, int> displayProfile = const <String, int>{};
 
   /// Overridden capability, for tests and for configuration that disables
   /// windowing. Null means detect from the running target.
@@ -330,7 +335,7 @@ class DVWindowManager {
     _windows.clear();
     _all.value = <DVWindow>[];
     _displays.value = const <DVDisplay>[];
-    displayNames = const <String, String>{};
+    displayProfile = const <String, int>{};
     _capabilityOverride = null;
     _shared = null;
   }
@@ -370,7 +375,7 @@ class DVWindowManager {
       final Object? payload = DVNativeBridge.isRegistered('window.displays')
           ? await DVNativeBridge.invoke<Object?>('window.displays')
           : _flutterDisplays();
-      found = DVDisplays.decode(payload, profileNames: displayNames);
+      found = DVDisplays.decode(payload, profile: displayProfile);
     } on Object {
       found = const <DVDisplay>[];
     }

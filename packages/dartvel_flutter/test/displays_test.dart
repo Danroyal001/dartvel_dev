@@ -143,10 +143,38 @@ void main() {
 
     test('a device profile names a display over the OS name', () {
       // Kiosk deployments address displays by role, and the OS name is
-      // whatever the panel's EDID says.
+      // whatever the panel's EDID says. The profile maps a name to a position
+      // -- `displays: { Customer: { index: 1 } }` -- because that is what a
+      // profile author knows about a machine they have not booted yet.
       final List<DVDisplay> displays = DVDisplays.decode(
-        <Object?>[raw(id: '2', name: 'DELL U2412M')],
-        profileNames: <String, String>{'2': 'Customer'},
+        <Object?>[raw(id: '1'), raw(id: '2', name: 'DELL U2412M')],
+        profile: const <String, int>{'Customer': 1},
+      );
+
+      expect(displays.last.name, 'Customer');
+      expect(displays.first.name, isNot('Customer'));
+    });
+
+    test('a profile entry pointing past the end names nothing', () {
+      // A profile written for a two-display kiosk, booted on a machine with
+      // one screen attached. Naming the last display "Customer" would send
+      // customer-facing output to the operator under a name that says it is
+      // safe.
+      final List<DVDisplay> displays = DVDisplays.decode(
+        <Object?>[raw(id: '1')],
+        profile: const <String, int>{'Customer': 1},
+      );
+
+      expect(displays.single.name, isNot('Customer'));
+      expect(DVDisplays.resolve(displays, DVDisplayHint.byName('Customer'))
+          .display, isNull);
+    });
+
+    test('two profile names on one index: the first wins, deterministically',
+        () {
+      final List<DVDisplay> displays = DVDisplays.decode(
+        <Object?>[raw(id: '1')],
+        profile: const <String, int>{'Customer': 0, 'Signage': 0},
       );
 
       expect(displays.single.name, 'Customer');

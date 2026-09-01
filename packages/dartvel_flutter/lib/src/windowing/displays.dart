@@ -138,11 +138,19 @@ final class DVDisplays {
   /// trusted input, and an application that cannot enumerate displays should
   /// fall back to a single-display world rather than fail to start.
   ///
-  /// [profileNames] maps display id to the name a device profile gives it,
-  /// which wins over whatever the panel calls itself.
+  /// [profile] is a device profile's `displays:` map -- a name against the
+  /// position it names, as `displays: { Customer: { index: 1 } }`. A profile
+  /// names displays by position rather than by id because that is what its
+  /// author knows about a machine they have not booted yet, and the name wins
+  /// over whatever the panel's EDID calls itself.
+  ///
+  /// An entry pointing past the end names nothing. A two-display profile
+  /// booted with one screen attached must not name the operator's display
+  /// "Customer", which would send customer-facing output there under a name
+  /// saying it was safe.
   static List<DVDisplay> decode(
     Object? payload, {
-    Map<String, String> profileNames = const <String, String>{},
+    Map<String, int> profile = const <String, int>{},
   }) {
     if (payload is! List) return const <DVDisplay>[];
 
@@ -163,11 +171,18 @@ final class DVDisplays {
     // guess that DVDisplayHint.secondary would then build on.
     final int primary = entries.indexWhere((_Entry e) => e.isPrimary == true);
 
+    // Position to name. Two names on one position would otherwise resolve by
+    // map iteration order; the first written wins, and does so predictably.
+    final Map<int, String> named = <int, String>{};
+    for (final MapEntry<String, int> entry in profile.entries) {
+      named.putIfAbsent(entry.value, () => entry.key);
+    }
+
     return <DVDisplay>[
       for (int i = 0; i < entries.length; i++)
         entries[i].toDisplay(
           isPrimary: i == primary,
-          profileName: profileNames[entries[i].id],
+          profileName: named[i],
           ordinal: i,
         ),
     ];

@@ -19,6 +19,7 @@ class DVWindowingConfig {
     required this.restoreOnLaunch,
     required this.workspacePersist,
     required this.workspaceTearOut,
+    required this.displayNames,
     required this.sources,
     required this.problems,
   });
@@ -34,6 +35,14 @@ class DVWindowingConfig {
 
   /// `auto` | `disabled`.
   final String workspaceTearOut;
+
+  /// Per device profile, the names it gives displays against their positions.
+  ///
+  /// `displays: { Customer: { index: 1 } }` in a profile, which is where the
+  /// specification puts them: a profile author knows a machine's screen layout
+  /// before it boots, and `DVDisplayHint.byName('Customer')` is how a kiosk
+  /// addresses one.
+  final Map<String, Map<String, int>> displayNames;
 
   /// Where each value came from: `pubspec.yaml` or `default`.
   final Map<String, String> sources;
@@ -123,9 +132,67 @@ class DVWindowingConfig {
           fallback: true),
       workspaceTearOut: readEnum(
           workspace, 'tearOut', 'workspace.tearOut', _tearOutModes, 'auto'),
+      displayNames: _displayNames(dartvelSection, problems),
       sources: sources,
       problems: problems,
     );
+  }
+
+  /// Reads `dartvel.deviceProfiles.<id>.displays`.
+  static Map<String, Map<String, int>> _displayNames(
+    Object? dartvelSection,
+    List<String> problems,
+  ) {
+    final Object? profiles =
+        dartvelSection is Map ? dartvelSection['deviceProfiles'] : null;
+    if (profiles == null) return const <String, Map<String, int>>{};
+    if (profiles is! Map) {
+      problems.add('dartvel.deviceProfiles must be a map, but is a '
+          '${profiles.runtimeType}.');
+      return const <String, Map<String, int>>{};
+    }
+
+    final Map<String, Map<String, int>> byProfile = <String, Map<String, int>>{};
+    profiles.forEach((Object? id, Object? body) {
+      final Object? displays = body is Map ? body['displays'] : null;
+      if (displays == null) return;
+      if (displays is! Map) {
+        problems.add('dartvel.deviceProfiles.$id.displays must be a map, but '
+            'is a ${displays.runtimeType}.');
+        return;
+      }
+
+      final Map<String, int> names = <String, int>{};
+      final Map<int, String> takenBy = <int, String>{};
+      displays.forEach((Object? name, Object? entry) {
+        final Object? index = entry is Map ? entry['index'] : null;
+        if (index is! int) {
+          // Never defaulted to zero: index 0 is the operator's own screen on
+          // most machines, which is the one wrong answer that looks plausible.
+          problems.add('dartvel.deviceProfiles.$id.displays.$name needs an '
+              'integer index, e.g. { index: 1 }.');
+          return;
+        }
+        if (index < 0) {
+          problems.add('dartvel.deviceProfiles.$id.displays.$name has index '
+              '$index, which is not a display position.');
+          return;
+        }
+        final String? already = takenBy[index];
+        if (already != null) {
+          // Both are legal alone and the runtime has to pick one, so the
+          // choice belongs in the profile rather than in iteration order.
+          problems.add('dartvel.deviceProfiles.$id.displays gives index '
+              '$index two names, "$already" and "$name".');
+          return;
+        }
+        takenBy[index] = '$name';
+        names['$name'] = index;
+      });
+
+      if (names.isNotEmpty) byProfile['$id'] = names;
+    });
+    return byProfile;
   }
 
   Map<String, Object?> toJson() => <String, Object?>{
@@ -137,6 +204,7 @@ class DVWindowingConfig {
           'persist': workspacePersist,
           'tearOut': workspaceTearOut,
         },
+        'displayNames': displayNames,
         'sources': sources,
         'problems': problems,
       };
