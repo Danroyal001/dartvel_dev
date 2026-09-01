@@ -1624,7 +1624,7 @@ class ModelGenerator {
         sb.writeln(
           "  static DVScheduledReport scheduleMonthly({String cron = '0 0 1 * *', String queue = 'reports', DateTime? scheduledAt, DateTime? periodStart, DateTime? periodEnd, Map<String, String> metadata = const <String, String>{}}) {",
         );
-        sb.writeln('    return DVScheduledReport(');
+        sb.writeln('    final report = DVScheduledReport(');
         sb.writeln("      name: '${className.toLowerCase()}.monthly',");
         sb.writeln("      model: '$className',");
         sb.writeln("      report: 'monthly',");
@@ -1635,6 +1635,11 @@ class ModelGenerator {
         sb.writeln('      periodEnd: periodEnd,');
         sb.writeln('      metadata: metadata,');
         sb.writeln('    );');
+        sb.writeln('    // Parsed here, so an unusable cron fails where the');
+        sb.writeln('    // schedule is declared rather than silently never');
+        sb.writeln('    // running in a worker nobody is watching.');
+        sb.writeln('    report.schedule;');
+        sb.writeln('    return report;');
         sb.writeln('  }');
         sb.writeln();
         sb.writeln(
