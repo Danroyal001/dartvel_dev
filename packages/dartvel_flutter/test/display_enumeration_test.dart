@@ -33,9 +33,11 @@ void main() {
     expect(displays, isNotEmpty,
         reason: 'the test binding always has at least one display');
     expect(displays.first.bounds.width, greaterThan(0));
-    expect(displays.first.isPrimary, isTrue);
     expect(displays.first.hasLayout, isFalse,
         reason: 'Flutter reports no layout origin');
+    expect(displays.first.isPrimary, isFalse,
+        reason: 'Flutter does not say which display is primary, and a guess '
+            'is what DVDisplayHint.secondary would then build on');
   });
 
   test('a registered binding is preferred over Flutter', () async {
@@ -214,14 +216,20 @@ void _openWiring() {
       expect(opens.single['displayId'], 'B');
     });
 
-    test('an unhonoured hint is reported on the window', () async {
+    test('an unhonoured hint opens on no display, and is reported', () async {
+      // Not on the primary display. A projector hint that fell back would put
+      // the output on the operator's own screen, and it would look like it had
+      // worked; letting the OS place the window is the same thing that would
+      // have happened with no hint at all.
       final DVWindow window = await DV.Platform.Window.open(
         const DVRouteTarget('/orders'),
         options: DVWindowOptions(display: DVDisplayHint.byName('Missing')),
       );
 
       expect(window.degradation, DVWindowDegradation.displayUnavailable);
-      expect(opens.single['displayId'], 'A', reason: 'it still opened');
+      expect(opens.single.containsKey('displayId'), isFalse);
+      expect(window.presentation, DVWindowPresentation.window,
+          reason: 'it still opened');
     });
 
     test('no hint sends no display id', () async {
