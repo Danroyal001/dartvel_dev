@@ -8,6 +8,9 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:puppeteer/puppeteer.dart';
+// Prefixed: puppeteer exports its own Request and Response, and importing
+// both unprefixed makes every use of either ambiguous.
+import 'package:shelf/shelf.dart' as shelf;
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_static/shelf_static.dart';
 
@@ -86,6 +89,39 @@ String dvSemanticsPathFor(String projectRoot, String route) {
 /// should fall back to the source-literal extractor rather than ship pages
 /// with no crawler-visible content at all — which is what a build on a
 /// machine with no browser must still do.
+/// Serves a built web directory the way the application's own router expects.
+///
+/// Single-page fallback, and it is the reason the capture works at all. After
+/// `flutter build web` the directory holds one index.html at the root and
+/// nothing else: the per-route index.html files are written later, out of this
+/// very capture. A plain static handler therefore answers 404 for every route
+/// but `/`, the application never boots on those pages, no semantics tree is
+/// built, and the capture reports "1 of 4".
+///
+/// The fallback is limited to paths with no file extension. Routes have none
+/// and assets do, and answering a missing `main.dart.js` with HTML would fail
+/// as though the file were corrupt rather than absent -- Flutter's loader
+/// hangs on that instead of reporting it.
+shelf.Handler dvCaptureHandler(String webRoot) {
+  final shelf.Handler static = createStaticHandler(
+    webRoot,
+    defaultDocument: 'index.html',
+  );
+
+  return (shelf.Request request) async {
+    final shelf.Response response = await static(request);
+    if (response.statusCode != 404) return response;
+
+    final String path = request.url.path;
+    final String last = path.contains('/') ? path.split('/').last : path;
+    if (last.contains('.')) return response;
+
+    return static(
+      shelf.Request('GET', request.requestedUri.replace(path: '/')),
+    );
+  };
+}
+
 Future<int> dvCaptureSemantics({
   required String projectRoot,
   required String webRoot,
@@ -111,7 +147,7 @@ Future<int> dvCaptureSemantics({
   }
 
   final HttpServer server = await shelf_io.serve(
-    createStaticHandler(webRoot, defaultDocument: 'index.html'),
+    dvCaptureHandler(webRoot),
     InternetAddress.loopbackIPv4,
     0,
   );

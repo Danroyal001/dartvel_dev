@@ -35,6 +35,10 @@ dev_dependencies:
   # transitive dependency: pub warns on the undeclared import, which is the
   # same class of mistake the test itself exists to catch.
   pub_semver: ^2.1.0
+  # Used by semantics_capture_server_test to make real requests against the
+  # capture's own handler. Declared rather than leaned on transitively, for
+  # the same reason as pub_semver above.
+  http: ^1.2.0
   test: ^1.25.0  # Downgraded for analyzer compatibility with build package
 executables:
   dartvel: dartvel
