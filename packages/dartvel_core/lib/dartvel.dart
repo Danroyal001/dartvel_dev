@@ -69,6 +69,8 @@ export 'src/http/wintercg.dart' show Request, Response, Headers;
 export 'src/data/import_chunking.dart';
 export 'src/diagnostics/diagnostics.dart';
 export 'src/i18n/plural_rules.dart';
+export 'src/kiosk/policy.dart';
+export 'src/kiosk/runtime.dart';
 export 'src/lifecycle/lifecycle.dart';
 export 'src/mail/smtp.dart';
 export 'src/media/image.dart';
