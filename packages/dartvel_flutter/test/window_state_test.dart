@@ -39,9 +39,18 @@ void main() {
 
   group('storage key', () {
     test('it is namespaced, so an app key cannot collide with another', () {
+      // It used to be 'dartvel.window.', which is not one of the reserved
+      // prefixes -- so this state sat in the application's own namespace and
+      // an application key could legally land on it, which is exactly what
+      // this test claims cannot happen. Being namespaced only means anything
+      // if the namespace is one applications are refused.
       final key = dvWindowStateKey('main');
       expect(key, contains('main'));
-      expect(key, startsWith('dartvel.window.'));
+      expect(DVWindowSharedStore.reservedPrefixes.any(key.startsWith), isTrue,
+          reason: '$key is not in a reserved namespace');
+
+      expect(() => DVWindowSharedStore().set(key, const DVJsonString('x')),
+          throwsA(isA<DVSharedStoreKeyError>()));
     });
 
     test('different windows get different keys', () {

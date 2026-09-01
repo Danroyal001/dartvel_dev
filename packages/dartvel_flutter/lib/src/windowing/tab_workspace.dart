@@ -142,7 +142,8 @@ class DVTabWorkspaceController extends ChangeNotifier {
     final tab = _tabs[index];
     // Written before the window opens: the new engine reads the store on
     // boot, so a slow start loses nothing.
-    await DVWindowManager.shared.flush('workspace.tab.${tab.route.path}');
+    await DVWindowManager.shared
+        .flushReserved('workspace.tab.${tab.route.path}');
     final opened = await DV.Platform.Window.open(tab.route);
     removeAt(index, reason: DVTabExit.tornOut);
     await _closeIfEmptied();

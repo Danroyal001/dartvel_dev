@@ -68,4 +68,4 @@ class DVWindowState {
 ///
 /// Namespaced, because this shares a store with whatever the application keeps
 /// there and a bare "main" is exactly the key someone else will also choose.
-String dvWindowStateKey(String name) => 'dartvel.window.$name';
+String dvWindowStateKey(String name) => 'dv.window.$name';

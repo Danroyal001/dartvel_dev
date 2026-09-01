@@ -115,6 +115,29 @@ class DVAppKeySharedStoreCipher implements DVSharedStoreCipher {
 /// delivery moment: a window opened five seconds later gets nothing, and crash
 /// recovery has nothing to read. A store has no delivery moment — late joiners
 /// read current state on open.
+/// Thrown when application code touches a reserved key namespace.
+///
+/// Typed rather than a bare ArgumentError so an application can catch this one
+/// case -- a plugin composing keys from user input, say -- without swallowing
+/// every other argument fault.
+class DVSharedStoreKeyError extends ArgumentError {
+  DVSharedStoreKeyError(this.key, this.prefix)
+      : super.value(
+          key,
+          'key',
+          'starts with the reserved prefix "$prefix". Keys beginning "dv." or '
+              '"workspace." belong to Dartvel; an application writing one '
+              'would overwrite framework state, and the failure would arrive '
+              'later as a workspace that restores wrong',
+        );
+
+  /// The rejected key.
+  final String key;
+
+  /// The reserved prefix it started with.
+  final String prefix;
+}
+
 class DVWindowSharedStore {
   DVWindowSharedStore({
     DVSharedStoreBackend? backend,
@@ -154,7 +177,28 @@ class DVWindowSharedStore {
   final Map<String, Timer> _pending = <String, Timer>{};
   final Map<String, DVJsonValue?> _latest = <String, DVJsonValue?>{};
 
-  Future<DVJsonValue?> get(String key) async {
+  /// Namespaces an application may not touch.
+  ///
+  /// `workspace.` is DVTabWorkspace's layout state; `dv.` is everything else
+  /// the framework keeps here. A prefix rule, not a substring one:
+  /// `myapp.workspace.name` collides with nothing and stays legal.
+  static const List<String> reservedPrefixes = <String>['dv.', 'workspace.'];
+
+  /// Throws if [key] is in a reserved namespace.
+  static void _reject(String key) {
+    for (final String prefix in reservedPrefixes) {
+      if (key.startsWith(prefix)) throw DVSharedStoreKeyError(key, prefix);
+    }
+  }
+
+  Future<DVJsonValue?> get(String key) {
+    _reject(key);
+    return getReserved(key);
+  }
+
+  /// [get] without the namespace check, for the framework's own state.
+  @internal
+  Future<DVJsonValue?> getReserved(String key) async {
     if (_latest.containsKey(key)) return _latest[key];
     return _resolve(await _backend.read(key));
   }
@@ -183,7 +227,14 @@ class DVWindowSharedStore {
   /// Last write wins, per key. Keys are the conflict unit, so unrelated state
   /// in the same window never contends; state that needs merge semantics is
   /// model state.
-  Future<void> set(String key, DVJsonValue? value) async {
+  Future<void> set(String key, DVJsonValue? value) {
+    _reject(key);
+    return setReserved(key, value);
+  }
+
+  /// [set] without the namespace check, for the framework's own state.
+  @internal
+  Future<void> setReserved(String key, DVJsonValue? value) async {
     _latest[key] = value;
     _publish(key, value);
 
@@ -199,7 +250,14 @@ class DVWindowSharedStore {
 
   /// Writes now, bypassing the debounce. Tear-out uses this: the window is
   /// about to open and the state has to be there when it reads.
-  Future<void> flush(String key) async {
+  Future<void> flush(String key) {
+    _reject(key);
+    return flushReserved(key);
+  }
+
+  /// [flush] without the namespace check, for the framework's own state.
+  @internal
+  Future<void> flushReserved(String key) async {
     _pending.remove(key)?.cancel();
     await _flush(key, _latest[key]);
   }
@@ -231,19 +289,31 @@ class DVWindowSharedStore {
   static String _objectName(String key) =>
       key.replaceAll(RegExp('[^A-Za-z0-9._-]'), '_');
 
-  Stream<DVJsonValue?> watch(String key) => _watchers
+  Stream<DVJsonValue?> watch(String key) {
+    _reject(key);
+    return _watchStream(key);
+  }
+
+  Stream<DVJsonValue?> _watchStream(String key) => _watchers
       .putIfAbsent(key, () => StreamController<DVJsonValue?>.broadcast())
       .stream;
 
   /// A live signal for [key], updated by this window and by any other.
   ValueListenable<DVJsonValue?> signal(String key) {
+    _reject(key);
+    return signalReserved(key);
+  }
+
+  /// [signal] without the namespace check, for the framework's own state.
+  @internal
+  ValueListenable<DVJsonValue?> signalReserved(String key) {
     final existing = _signals[key];
     if (existing != null) return existing;
     final notifier = ValueNotifier<DVJsonValue?>(_latest[key]);
     _signals[key] = notifier;
     // A late joiner reads current state rather than waiting for a change it
     // has already missed — the whole reason this is a store.
-    unawaited(get(key).then((DVJsonValue? value) {
+    unawaited(getReserved(key).then((DVJsonValue? value) {
       if (_signals[key] == notifier) notifier.value = value;
     }));
     return notifier;

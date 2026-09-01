@@ -32,9 +32,9 @@ void main() {
     tearDown(() => store.dispose());
 
     test('a value round-trips', () async {
-      await store.set('workspace.activeTab', const DVJsonString('orders'));
+      await store.set('shop.activeTab', const DVJsonString('orders'));
 
-      final value = await store.get('workspace.activeTab');
+      final value = await store.get('shop.activeTab');
 
       expect(value, isA<DVJsonString>());
       expect((value! as DVJsonString).value, 'orders');
@@ -54,14 +54,14 @@ void main() {
 
     test('nested values survive the wire format', () async {
       await store.set(
-        'workspace.tabs',
+        'shop.tabs',
         const DVJsonList(<DVJsonValue>[
           DVJsonString('orders'),
           DVJsonString('customers'),
         ]),
       );
 
-      final value = await store.get('workspace.tabs');
+      final value = await store.get('shop.tabs');
 
       expect((value! as DVJsonList).value.length, 2);
     });
@@ -73,9 +73,9 @@ void main() {
       addTearDown(store.dispose);
 
       // Written before anyone is watching — a message here would be gone.
-      await store.set('workspace.activeTab', const DVJsonString('reports'));
+      await store.set('shop.activeTab', const DVJsonString('reports'));
 
-      final signal = store.signal('workspace.activeTab');
+      final signal = store.signal('shop.activeTab');
       await Future<void>.delayed(Duration.zero);
 
       expect((signal.value! as DVJsonString).value, 'reports',
@@ -88,8 +88,8 @@ void main() {
           DVWindowSharedStore(backend: backend, debounce: noDebounce);
       addTearDown(store.dispose);
 
-      final signal = store.signal('workspace.activeTab');
-      backend.externalWrite('workspace.activeTab', '"customers"');
+      final signal = store.signal('shop.activeTab');
+      backend.externalWrite('shop.activeTab', '"customers"');
       await Future<void>.delayed(Duration.zero);
 
       expect((signal.value! as DVJsonString).value, 'customers');

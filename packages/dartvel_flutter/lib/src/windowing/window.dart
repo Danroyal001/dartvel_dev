@@ -574,14 +574,14 @@ class DVWindowManager {
           ]),
         }),
     ];
-    await shared.set(_workspaceKey(name), DVJsonList(layout));
-    await shared.flush(_workspaceKey(name));
+    await shared.setReserved(_workspaceKey(name), DVJsonList(layout));
+    await shared.flushReserved(_workspaceKey(name));
   }
 
   /// Restores what [persistWorkspace] saved, or an empty list when nothing is
   /// stored — a first launch is not a failure.
   Future<List<DVTabWorkspaceController>> restoreWorkspace(String name) async {
-    final stored = await shared.get(_workspaceKey(name));
+    final stored = await shared.getReserved(_workspaceKey(name));
     if (stored is! DVJsonList) return <DVTabWorkspaceController>[];
 
     final restored = <DVTabWorkspaceController>[];
@@ -636,8 +636,9 @@ class DVWindowManager {
       width: (view.physicalSize.width / ratio).round(),
       height: (view.physicalSize.height / ratio).round(),
     );
-    await shared.set(dvWindowStateKey(key), DVJsonString(state.encode()));
-    await shared.flush(dvWindowStateKey(key));
+    await shared.setReserved(
+        dvWindowStateKey(key), DVJsonString(state.encode()));
+    await shared.flushReserved(dvWindowStateKey(key));
   }
 
   /// Puts back what [persistState] recorded.
@@ -651,7 +652,7 @@ class DVWindowManager {
   /// `invoke` rather than `require`, so an unbound platform declines instead of
   /// throwing at an application that only asked to be tidy.
   Future<void> restoreState(String key) async {
-    final stored = await shared.get(dvWindowStateKey(key));
+    final stored = await shared.getReserved(dvWindowStateKey(key));
     if (stored is! DVJsonString) return;
 
     final state = DVWindowState.decode(stored.value);
