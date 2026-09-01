@@ -1,14 +1,7 @@
-// Reaches Flutter's windowing API, which is @internal, behind a feature flag,
-// and master-channel only. This file and the host are the only places that do,
-// so the rest of the package -- and all of Dartvel -- stays channel-agnostic.
+// The only place that touches Flutter's windowing API, which is @internal,
+// behind a feature flag, and master-channel only.
 // ignore_for_file: invalid_use_of_internal_member
-import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/src/foundation/_features.dart';
-import 'package:flutter/src/widgets/_window.dart';
-import 'package:flutter/widgets.dart';
-
-import 'window_surfaces.dart';
-import 'windowing.dart';
+part of '../dartvel_windowing.dart';
 
 /// Turns a Dartvel window into a real OS window.
 class DVFlutterWindowSurfaceFactory implements DVWindowSurfaceFactory {
@@ -37,7 +30,7 @@ class DVFlutterWindowSurfaceFactory implements DVWindowSurfaceFactory {
 
   @override
   DVWindowSurface create(DVWindow window, Widget content) {
-    final request = DVWindowing.requestFor(window.nativeId);
+    final request = _DVWindowBindings.requestFor(window.nativeId);
     return _FlutterWindowSurface(
       window,
       content,

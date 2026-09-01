@@ -13,11 +13,11 @@ const operator_ = DVRouteTarget('/operator');
 void main() {
   setUp(() {
     DVWindowManager.reset();
-    DVWindowing.reset();
+    DVWindowHost.debugResetBindings();
   });
   tearDown(() {
     DVWindowManager.reset();
-    DVWindowing.reset();
+    DVWindowHost.debugResetBindings();
   });
 
   test('registering flips the desktop capability', () {
@@ -30,7 +30,7 @@ void main() {
       isFalse,
     );
 
-    DVWindowing.register();
+    DVWindowHost.debugRegisterBindings();
 
     expect(
       DVWindowingCapability.detect(
@@ -43,7 +43,7 @@ void main() {
   });
 
   test('opening a route yields a window rather than a degraded page', () async {
-    DVWindowing.register();
+    DVWindowHost.debugRegisterBindings();
     DVWindowManager.capabilityOverride = const DVWindowingCapability(
       multiWindow: true, sameEngine: true, tearOut: true,
     );
@@ -56,7 +56,7 @@ void main() {
   });
 
   test('carries the requested size and title through to the surface', () async {
-    DVWindowing.register();
+    DVWindowHost.debugRegisterBindings();
     DVWindowManager.capabilityOverride = const DVWindowingCapability(
       multiWindow: true, sameEngine: true, tearOut: true,
     );
@@ -71,14 +71,14 @@ void main() {
 
     // The factory needs these and DVWindow does not carry them, so the binding
     // that received them has to keep them reachable by the id it returned.
-    final request = DVWindowing.requestFor(window.nativeId);
+    final request = DVWindowHost.debugRequestFor(window.nativeId);
     expect(request, isNotNull);
     expect(request!.size, const Size(1920, 1080));
     expect(request.title, 'Projector Output');
   });
 
   test('gives each window its own id', () async {
-    DVWindowing.register();
+    DVWindowHost.debugRegisterBindings();
     DVWindowManager.capabilityOverride = const DVWindowingCapability(
       multiWindow: true, sameEngine: true, tearOut: true,
     );
@@ -92,7 +92,7 @@ void main() {
   });
 
   test('closing a window releases what was held for it', () async {
-    DVWindowing.register();
+    DVWindowHost.debugRegisterBindings();
     DVWindowManager.capabilityOverride = const DVWindowingCapability(
       multiWindow: true, sameEngine: true, tearOut: true,
     );
@@ -101,7 +101,7 @@ void main() {
 
     await window.close();
 
-    expect(DVWindowing.requestFor(id), isNull,
+    expect(DVWindowHost.debugRequestFor(id), isNull,
         reason: 'a long service opens and closes many windows');
   });
 }

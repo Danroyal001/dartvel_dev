@@ -1,12 +1,4 @@
-// ignore_for_file: invalid_use_of_internal_member
-
-import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/foundation.dart';
-import 'package:flutter/widgets.dart';
-
-import 'flutter_window_surface.dart';
-import 'window_surfaces.dart';
-import 'windowing.dart';
+part of '../dartvel_windowing.dart';
 
 /// The application root when the app can open windows.
 ///
@@ -36,6 +28,25 @@ class DVWindowHost extends StatefulWidget {
 
   @override
   State<DVWindowHost> createState() => _DVWindowHostState();
+
+  /// Registers the window bindings without mounting a host.
+  ///
+  /// The registrar is private because the windowing contract says anything
+  /// beyond `DV.Window` and `DVWindow` is private, and Dart privacy is per
+  /// library. Tests still have to reach it, and mounting a real host in a
+  /// headless test would build a window controller and take the process with
+  /// it, so the seam is here rather than in the public API.
+  @visibleForTesting
+  static void debugRegisterBindings() => _DVWindowBindings.register();
+
+  /// Unregisters the bindings and forgets every recorded request.
+  @visibleForTesting
+  static void debugResetBindings() => _DVWindowBindings.reset();
+
+  /// What was asked for when the window with [nativeId] was opened.
+  @visibleForTesting
+  static DVWindowRequest? debugRequestFor(String? nativeId) =>
+      _DVWindowBindings.requestFor(nativeId);
 }
 
 class _DVWindowHostState extends State<DVWindowHost> {
@@ -46,7 +57,7 @@ class _DVWindowHostState extends State<DVWindowHost> {
   void initState() {
     super.initState();
     DVFlutterWindowSurfaceFactory.enable();
-    DVWindowing.register();
+    _DVWindowBindings.register();
 
     _surfaces = DVWindowSurfaces(
       factory: widget.factory,
