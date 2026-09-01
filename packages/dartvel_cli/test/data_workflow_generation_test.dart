@@ -269,4 +269,47 @@ class User {
       root.deleteSync(recursive: true);
     }
   });
+  test('resumable imports chunk against the shared, tested chunker', () async {
+    // The bug this replaced: the generated chunker split every line and
+    // attached none of them to a header. Chunk 0 carried the header row as if
+    // it were a record, and chunks 1..n carried no header at all -- so a
+    // worker had no column order and could not build a record. Resumable CSV
+    // import could not work, and the assertions here only checked the
+    // method's signature.
+    final root = await Directory.systemTemp.createTemp('dartvel_chunker_');
+    addTearDown(() => root.deleteSync(recursive: true));
+
+    Directory(p.join(root.path, 'lib', 'models')).createSync(recursive: true);
+    Directory(p.join(root.path, 'lib', 'dartvel_client'))
+        .createSync(recursive: true);
+    File(p.join(root.path, 'lib', 'models', 'order.dart')).writeAsStringSync("""
+import 'package:dartvel_core/dartvel.dart';
+
+@DVModel()
+class _Order {
+  final String id;
+  const _Order({required this.id});
+}
+""");
+
+    await ModelGenerator.generate(
+      root: root.path,
+      pkgName: 'chunker_app',
+      buildId: 'test-build',
+    );
+
+    final generated = File(
+      p.join(root.path, 'lib', 'dartvel_client', 'models.g.dart'),
+    ).readAsStringSync();
+
+    // CSV has a header; NDJSON does not, so its first line is data.
+    expect(generated, contains('hasHeader: true'));
+    expect(generated, contains('hasHeader: false'));
+    // Carried on every chunk, not only the first.
+    expect(generated, contains('header: chunk.header'));
+    // One implementation, tested in dartvel_core. A copy emitted into every
+    // generated client is a copy nothing exercises.
+    expect(generated, isNot(contains('_chunkImportRows')));
+    expect(generated, contains('dvChunkImportRows'));
+  });
 }

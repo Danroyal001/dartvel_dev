@@ -66,6 +66,7 @@ export 'src/http/transport.dart';
 // widget. Server code that wants the full set imports
 // `package:dartvel_core/http.dart`.
 export 'src/http/wintercg.dart' show Request, Response, Headers;
+export 'src/data/import_chunking.dart';
 export 'src/i18n/plural_rules.dart';
 export 'src/lifecycle/lifecycle.dart';
 export 'src/mail/smtp.dart';
@@ -1273,11 +1274,19 @@ class DVImportChunk {
   final int startRow;
   final List<String> rows;
 
+  /// The header line, for a format that has one.
+  ///
+  /// Carried on every chunk rather than only the first. Without it a worker
+  /// handed chunk 2 of a CSV has no column order and cannot build a record --
+  /// which is why resumable CSV import could not work at all.
+  final String? header;
+
   const DVImportChunk({
     required this.model,
     required this.format,
     required this.startRow,
     required this.rows,
+    this.header,
   });
 }
 

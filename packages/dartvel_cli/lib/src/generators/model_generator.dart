@@ -1292,7 +1292,7 @@ class ModelGenerator {
         sb.writeln('    int chunkSize = 500,');
         sb.writeln('  }) async {');
         sb.writeln(
-          '    final chunks = _chunkImportRows(content, chunkSize: chunkSize);',
+          '    final chunks = dvChunkImportRows(content, chunkSize: chunkSize, hasHeader: true);',
         );
         sb.writeln('    final jobs = <DVJobEnvelope<DVImportChunk>>[];');
         sb.writeln('    for (final chunk in chunks) {');
@@ -1302,8 +1302,9 @@ class ModelGenerator {
         sb.writeln('        DVImportChunk(');
         sb.writeln("          model: '$className',");
         sb.writeln("          format: 'csv',");
-        sb.writeln("          startRow: chunk['startRow'] as int,");
-        sb.writeln("          rows: chunk['rows'] as List<String>,");
+        sb.writeln('          startRow: chunk.startRow,');
+        sb.writeln('          rows: chunk.rows,');
+        sb.writeln('          header: chunk.header,');
         sb.writeln('        ),');
         sb.writeln('        queue: queue,');
         sb.writeln('      ));');
@@ -1353,7 +1354,7 @@ class ModelGenerator {
         sb.writeln('    int chunkSize = 500,');
         sb.writeln('  }) async {');
         sb.writeln(
-          '    final chunks = _chunkImportRows(content, chunkSize: chunkSize);',
+          '    final chunks = dvChunkImportRows(content, chunkSize: chunkSize, hasHeader: false);',
         );
         sb.writeln('    final jobs = <DVJobEnvelope<DVImportChunk>>[];');
         sb.writeln('    for (final chunk in chunks) {');
@@ -1363,8 +1364,9 @@ class ModelGenerator {
         sb.writeln('        DVImportChunk(');
         sb.writeln("          model: '$className',");
         sb.writeln("          format: 'ndjson',");
-        sb.writeln("          startRow: chunk['startRow'] as int,");
-        sb.writeln("          rows: chunk['rows'] as List<String>,");
+        sb.writeln('          startRow: chunk.startRow,');
+        sb.writeln('          rows: chunk.rows,');
+        sb.writeln('          header: chunk.header,');
         sb.writeln('        ),');
         sb.writeln('        queue: queue,');
         sb.writeln('      ));');
@@ -1775,30 +1777,6 @@ class ModelGenerator {
       sb.writeln("      .replaceAll(\"'\", '&apos;');");
       sb.writeln('}');
       sb.writeln();
-      sb.writeln(
-        'List<Map<String, Object>> _chunkImportRows(String content, {required int chunkSize}) {',
-      );
-      sb.writeln('  if (chunkSize < 1) {');
-      sb.writeln(
-        "    throw ArgumentError.value(chunkSize, 'chunkSize', 'chunkSize must be positive.');",
-      );
-      sb.writeln('  }');
-      sb.writeln('  final lines = const convert.LineSplitter()');
-      sb.writeln('      .convert(content)');
-      sb.writeln('      .where((line) => line.trim().isNotEmpty)');
-      sb.writeln('      .toList(growable: false);');
-      sb.writeln('  final chunks = <Map<String, Object>>[];');
-      sb.writeln(
-        '  for (int index = 0; index < lines.length; index += chunkSize) {',
-      );
-      sb.writeln('    final end = math.min(index + chunkSize, lines.length);');
-      sb.writeln('    chunks.add(<String, Object>{');
-      sb.writeln("      'startRow': index + 1,");
-      sb.writeln("      'rows': lines.sublist(index, end),");
-      sb.writeln('    });');
-      sb.writeln('  }');
-      sb.writeln('  return chunks;');
-      sb.writeln('}');
     }
 
     final clientDir = Directory(p.join(root, 'lib', 'dartvel_client'));
