@@ -1,3 +1,6 @@
+import 'package:path/path.dart' as p;
+import '../graph/project_graph.dart';
+import '../deploy/function_deploy.dart';
 import '../secrets/secrets_analysis.dart';
 import 'dart:io';
 import 'package:args/command_runner.dart';
@@ -26,6 +29,14 @@ class DeployCommand extends Command<void> {
           defaultsTo: 'production',
           help: 'Environment to deploy to. Declared secrets required for it '
               'must resolve before anything ships.')
+      ..addFlag('functions',
+          negatable: false,
+          help: 'Function mode: write a deployment artifact per backend '
+              'function instead of deploying the whole build.')
+      ..addOption('function-target',
+          help: 'Where the functions go: '
+              '${dvFunctionDeployTargets.join(', ')}.',
+          defaultsTo: 'container')
       ..addFlag('build', defaultsTo: true, help: 'Build before deploying')
       ..addFlag('verify', defaultsTo: true, help: 'Verify deployment');
   }
@@ -55,6 +66,13 @@ class DeployCommand extends Command<void> {
     // deploy rather than the first request that needs it.
     if (!_secretsResolve(environment)) {
       exitCode = 1;
+      return;
+    }
+
+    if (argResults?['functions'] == true) {
+      await _writeFunctionPlan(
+        target: argResults?['function-target'] as String? ?? 'container',
+      );
       return;
     }
 
@@ -96,6 +114,74 @@ class DeployCommand extends Command<void> {
     if (verify && deployed) {
       Logger.log('✅ Deployment complete!');
     }
+  }
+
+  /// Writes one deployment artifact per backend function.
+  ///
+  /// Calling a cloud needs credentials this command does not have. Producing
+  /// the artifacts does not, and that is the part that is wrong or right
+  /// regardless of who runs it -- a handler name a provider rejects, a port
+  /// the container never listens on, a manifest missing a function.
+  Future<void> _writeFunctionPlan({required String target}) async {
+    final root = Directory.current.path;
+    final graph = await DartvelProjectGraph.build(
+      root: root,
+      pkgName: _packageName(root) ?? 'dartvel-app',
+    );
+
+    if (graph.functions.isEmpty) {
+      Logger.log('No backend functions found. Nothing to deploy in function '
+          'mode.');
+      return;
+    }
+
+    final pubspec = File(p.join(root, 'pubspec.yaml'));
+    final declared = pubspec.existsSync()
+        ? dvParseSecretDeclarations(pubspec.readAsStringSync())
+        : const <String, DVSecretDeclaration>{};
+
+    final DVFunctionDeployPlan plan;
+    try {
+      plan = dvFunctionDeployPlan(
+        functions: <DVDeployableFunction>[
+          for (final fn in graph.functions)
+            DVDeployableFunction(
+              name: fn.name,
+              method: fn.method,
+              path: fn.path,
+              source: fn.source,
+            ),
+        ],
+        target: target,
+        appName: _packageName(root) ?? 'dartvel-app',
+        secretNames: declared.keys.toSet(),
+      );
+    } on ArgumentError catch (error) {
+      Logger.error('   ${error.message}');
+      exitCode = 1;
+      return;
+    }
+
+    final outDir = Directory(p.join(root, 'build', 'deploy'))
+      ..createSync(recursive: true);
+    for (final entry in plan.files.entries) {
+      File(p.join(outDir.path, entry.key)).writeAsStringSync(entry.value);
+    }
+
+    Logger.log('   ${plan.units.length} function(s) for $target:');
+    for (final unit in plan.units) {
+      Logger.log('     ${unit.function.method.padRight(6)} '
+          '${unit.function.path}  →  ${unit.remoteName}');
+    }
+    Logger.log('   Wrote ${plan.files.length} file(s) to build/deploy/');
+  }
+
+  String? _packageName(String root) {
+    final pubspec = File(p.join(root, 'pubspec.yaml'));
+    if (!pubspec.existsSync()) return null;
+    final match = RegExp(r'^name:\s*(\S+)', multiLine: true)
+        .firstMatch(pubspec.readAsStringSync());
+    return match?.group(1);
   }
 
   /// Whether every secret this environment requires actually resolves.
