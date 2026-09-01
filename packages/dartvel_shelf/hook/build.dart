@@ -1,3 +1,4 @@
+import 'package:dartvel_shelf/src/atomic_copy.dart';
 import 'dart:io';
 
 import 'package:code_assets/code_assets.dart';
@@ -169,11 +170,16 @@ Future<void> main(List<String> args) async {
 
     final nativeDir = Directory('${pkgRoot.path}/lib/native/$subdir')
       ..createSync(recursive: true);
+    // Replaced rather than written through. File.copy truncates the
+    // destination, and this file is one that dlopen may have mapped -- in the
+    // same test run, native_symbols_test opens exactly it. Truncating an
+    // inode someone has mapped pulls the backing out from under them, and the
+    // VM aborts at exit with SIGBUS after every test has already passed.
     final nativeOut = File('${nativeDir.path}/$libName');
-    await built.copy(nativeOut.path);
+    await dvAtomicCopy(built, nativeOut.path);
 
     final outFile = input.outputDirectory.resolve(libName);
-    await built.copy(outFile.toFilePath());
+    await dvAtomicCopy(built, outFile.toFilePath());
 
     output.assets.code.add(CodeAsset(
       package: input.packageName,
