@@ -15,6 +15,7 @@ import 'dart:typed_data';
 import 'package:web/web.dart' as web;
 
 import '../../../dartvel_flutter.dart' show DVNativeBridge;
+import '../../pwa/install_prompt.dart';
 import 'web_capabilities.dart';
 
 /// Registers the browser bindings.
@@ -27,8 +28,54 @@ class DVWebBindings {
 
   static const Set<String> implemented = dvWebImplementedBindings;
 
+  /// Listens for the browser's install offer.
+  ///
+  /// `beforeinstallprompt` fires once, at whatever moment the browser decides
+  /// the app qualifies -- which is not first frame -- and only when the app is
+  /// not already installed. preventDefault stops the browser's own mini
+  /// infobar so the application can place the affordance itself, which is the
+  /// entire reason to capture the event rather than leave it alone.
+  static void _wireInstallPrompt() {
+    web.window.addEventListener(
+      'beforeinstallprompt',
+      (web.Event event) {
+        event.preventDefault();
+        _deferred = event;
+        DVInstallPrompt.offer();
+      }.toJS,
+    );
+
+    web.window.addEventListener(
+      'appinstalled',
+      (web.Event _) {
+        _deferred = null;
+        DVInstallPrompt.markInstalled();
+      }.toJS,
+    );
+
+    // Already running as an installed app: display-mode is standalone. The
+    // browser will never fire beforeinstallprompt here, so without this check
+    // canPrompt stays false for the right reason rather than by accident.
+    final web.MediaQueryList standalone =
+        web.window.matchMedia('(display-mode: standalone)');
+    if (standalone.matches) DVInstallPrompt.markInstalled();
+  }
+
+  /// The captured event, kept because prompt() has to be called on it.
+  static web.Event? _deferred;
+
+  /// Shows the browser prompt, from a user gesture.
+  static Future<void> showInstallPrompt() async {
+    final web.Event? event = _deferred;
+    if (event == null) return;
+    _deferred = null;
+    (event as JSObject).callMethod<JSAny?>('prompt'.toJS);
+  }
+
   static bool register() {
     if (_registered) return true;
+
+    _wireInstallPrompt();
 
     DVNativeBridge.register('clipboard.copy', (Object? arguments) async {
       final text = arguments is Map ? '${arguments['text'] ?? ''}' : '';
