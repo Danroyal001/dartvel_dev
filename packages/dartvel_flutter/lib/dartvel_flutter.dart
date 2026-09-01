@@ -258,6 +258,7 @@ export 'src/studio/page_document.dart';
 export 'src/studio/studio_editor.dart';
 export 'src/studio/studio_screen.dart';
 export 'src/table/table.dart';
+export 'src/windowing/displays.dart';
 export 'src/windowing/shared_store.dart';
 export 'src/windowing/tab_workspace.dart';
 export 'src/windowing/window.dart';
