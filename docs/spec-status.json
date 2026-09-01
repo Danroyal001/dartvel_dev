@@ -452,9 +452,18 @@
     {
       "section": "Multi-Window",
       "stability": "Contract",
-      "status": "Designed",
-      "evidence": [],
-      "absent": "The whole section is Designed against the finalized contract: window identity as canonical URL, ownership, main-window and exit policy, modality, deep-link routing, restore, and the single DV.Window namespace. What exists in code predates it."
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_flutter/lib/src/windowing/displays.dart",
+        "packages/dartvel_flutter/test/displays_test.dart",
+        "packages/dartvel_flutter/test/display_enumeration_test.dart",
+        "packages/dartvel_core/lib/src/windowing/single_instance.dart",
+        "packages/dartvel_core/test/single_instance_process_test.dart",
+        "packages/dartvel_flutter/test/shared_store_reserved_keys_test.dart",
+        "packages/dartvel_core/lib/src/diagnostics/diagnostics.dart",
+        "packages/dartvel_cli/lib/src/commands/explain_command.dart"
+      ],
+      "absent": "DV.Window.open still presents in place on every desktop host: capability.multiWindow is false until something registers the window.open binding, and nothing on main does, so every call degrades with DV-WINDOW-001. That binding and the XRandR/Xinerama enumeration behind window.displays are in the dartvel_windowing package on PR #2, unmerged. Without it enumeration falls back to PlatformDispatcher.displays, which reports id, size and pixel ratio and no panel name, primary flag or layout origin -- so DVDisplayHint.primary and .secondary both resolve to null and the projector case cannot work. Built and tested: display decoding and hint resolution (a miss resolves to nothing and never falls back to another display), DV.Window.displays and capability.displays, the single-instance lock with its cross-process suite, the reserved dv./workspace. shared-store namespaces, and the DV-WINDOW/DV-KIOSK diagnostic registry behind dartvel explain, checked against this specification's own tables. Still Designed: ownership and owned window kinds, modality, main-window and exit policy, deep-link routing into a running instance, restore, and tear-out."
     },
     {
       "section": "Tab Workspaces",
