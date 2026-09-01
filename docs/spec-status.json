@@ -494,11 +494,14 @@
     {
       "section": "Data Import, Export, and Reporting",
       "stability": "Draft",
-      "status": "Partial",
+      "status": "Shipped",
       "evidence": [
-        "packages/dartvel_cli/test/sensitive_model_generation_test.dart"
+        "packages/dartvel_cli/test/sensitive_model_generation_test.dart",
+        "packages/dartvel_core/lib/src/data/import_chunking.dart",
+        "packages/dartvel_core/test/import_chunk_test.dart",
+        "packages/dartvel_core/test/scheduled_report_test.dart"
       ],
-      "absent": "Resumable imports and scheduled reports"
+      "absent": "Nothing named. Resumable imports chunk against a shared tested chunker that reads the header once, skips it as a row and attaches it to every chunk -- without which a worker handed chunk 2 of a CSV had no column order and resumable CSV import could not work at all. Scheduled reports parse their cron where the schedule is declared, so an unusable one fails there rather than silently never running"
     },
     {
       "section": "Secrets and Environments",
