@@ -353,16 +353,17 @@
     {
       "section": "Testing",
       "stability": "Draft",
-      "status": "Partial",
+      "status": "Shipped",
       "evidence": [
         ".github/workflows/runtime-verification.yml",
         "examples/dartvel_example/integration_test/app_launch_test.dart",
         "examples/dartvel_example/integration_test/link_navigation_test.dart",
+        "packages/dartvel_cli/test/model_factory_generation_test.dart",
         "packages/dartvel_cli/test/test_command_test.dart",
         "packages/dartvel_cli/test/test_modes_test.dart",
         "packages/dartvel_flutter/test/golden/primitives_golden_test.dart"
       ],
-      "absent": "Generated model factories and generated fixtures for models, forms and policies. Every test mode resolves properly now: a mode with no tests reports that it has none and where it looked, rather than running against a directory that was never there or silently taking the whole suite under the name of a mode that checked nothing"
+      "absent": "Nothing named. Generated factories now carry a sequence, so two create() calls produce two records rather than one repeated identifier, with createMany for list-shaped tests and resetSequence so a snapshot assertion is repeatable. Every test mode resolves, and a mode with no tests reports that it has none and where it looked"
     },
     {
       "section": "Search",
