@@ -319,15 +319,71 @@ class ModelGenerator {
         sb.writeln('  }');
         sb.writeln();
         sb.writeln('  /// Generated grid table component for [$className].');
+        // A real table, not a grid of cards. This used to emit
+        // DVBox.builder(...).grid(columns: 2): no header, no rows, nothing to
+        // arrow between, and nothing a screen reader could announce as
+        // tabular -- while the spec promises sorting, keyboard navigation and
+        // accessibility from it.
+        sb.writeln('  /// A sortable, keyboard-navigable table of [models].');
+        sb.writeln('  ///');
+        sb.writeln('  /// One column per non-sensitive field. Pass [builder]');
+        sb.writeln('  /// to fall back to a card grid instead.');
         sb.writeln('  static Widget Table(');
         sb.writeln('    Iterable<$className> models, {');
         sb.writeln('    int columns = 2,');
         sb.writeln('    Widget Function($className)? builder,');
         sb.writeln('  }) {');
-        sb.writeln('    final itemBuilder = builder ?? Card;');
+        sb.writeln('    if (builder != null) {');
         sb.writeln(
-          '    return DVBox.builder<$className>(models, itemBuilder).grid(columns: columns);',
+          '      return DVBox.builder<$className>(models, builder).grid(columns: columns);',
         );
+        sb.writeln('    }');
+        sb.writeln(
+            '    return DVTable<$className>(');
+        sb.writeln('      models.toList(growable: false),');
+        sb.writeln('      columns: <DVTableColumn<$className>>[');
+        for (final field in fields) {
+          final name = field['name']!;
+          // A sensitive field is excluded from tables by the same rule that
+          // keeps it out of logs and AI context; putting it in a column would
+          // be the widest possible exposure.
+          if (sensitiveFieldNames.contains(name)) continue;
+          final type = baseType(field['type']!);
+          final label = _columnLabel(name);
+          sb.writeln('        DVTableColumn<$className>(');
+          sb.writeln("          label: '$label',");
+          sb.writeln(
+              '          value: (model) => model.$name.toString(),');
+          // Only where the field has an order, and compared in its own type.
+          // Comparing through toString sorts 10 before 9 and 2026-01 before
+          // 2025-12: it looks like it works and orders nothing meaningfully,
+          // which is worse than not offering the control.
+          final String? comparator = switch (type) {
+            'int' || 'double' || 'num' => 'a.$name.compareTo(b.$name)',
+            'String' => 'a.$name.compareTo(b.$name)',
+            'DateTime' => 'a.$name.compareTo(b.$name)',
+            'bool' =>
+              '(a.$name ? 1 : 0).compareTo(b.$name ? 1 : 0)',
+            _ => null,
+          };
+          if (comparator != null) {
+            final bool nullable = field['type']!.trim().endsWith('?');
+            if (nullable) {
+              // A null sorts last rather than throwing. A table that crashes
+              // on a column with one empty cell is a table nobody can sort.
+              sb.writeln('          compare: (a, b) => a.$name == null');
+              sb.writeln('              ? (b.$name == null ? 0 : 1)');
+              sb.writeln('              : b.$name == null');
+              sb.writeln('                  ? -1');
+              sb.writeln('                  : a.$name!.compareTo(b.$name!),');
+            } else {
+              sb.writeln('          compare: (a, b) => $comparator,');
+            }
+          }
+          sb.writeln('        ),');
+        }
+        sb.writeln('      ],');
+        sb.writeln('    );');
         sb.writeln('  }');
         sb.writeln();
         sb.writeln('  /// Generated page component for [$className].');
@@ -1939,4 +1995,23 @@ class ModelGenerator {
       .replaceAll(r"'", r"\'")
       .replaceAll(r'$', r'\$');
 
+}
+
+
+/// A field name as a column heading.
+///
+/// `createdAt` reads as "Created at" rather than as the identifier, because a
+/// table header is shown to a reader and announced to a screen reader.
+String _columnLabel(String field) {
+  final StringBuffer out = StringBuffer();
+  for (int i = 0; i < field.length; i += 1) {
+    final String c = field[i];
+    if (i > 0 && c.toUpperCase() == c && c.toLowerCase() != c) {
+      out.write(' ');
+      out.write(c.toLowerCase());
+    } else {
+      out.write(i == 0 ? c.toUpperCase() : c);
+    }
+  }
+  return out.toString().replaceAll('_', ' ');
 }
