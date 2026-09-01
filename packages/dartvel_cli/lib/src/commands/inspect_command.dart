@@ -145,6 +145,13 @@ class InspectCommand extends Command<void> {
     _emit('  ${'routes'.padRight(20)} ${graph.routes.length}'
         '  (window identity is the route URL)');
 
+    config.displayNames.forEach((String id, Map<String, int> names) {
+      final String pairs = names.entries
+          .map((MapEntry<String, int> e) => '${e.key}=${e.value}')
+          .join(', ');
+      _emit('  ${'displays[$id]'.padRight(20)} $pairs');
+    });
+
     for (final String problem in config.problems) {
       _emit('  ! $problem');
     }

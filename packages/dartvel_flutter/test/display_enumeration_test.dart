@@ -98,7 +98,9 @@ void main() {
   });
 
   test('device profile names win over the panel name', () async {
-    DVWindowManager.displayNames = <String, String>{'B': 'Signage'};
+    // The profile names by position, as the specification's
+    // `displays: { Signage: { index: 0 } }` does.
+    DVWindowManager.displayProfile = <String, int>{'Signage': 0};
     DVNativeBridge.register('window.displays', (Object? _) => <Object?>[
           <String, Object?>{
             'id': 'B',
@@ -148,7 +150,7 @@ void main() {
 
     DVWindowManager.reset();
     expect(manager().displays.value, isEmpty);
-    expect(DVWindowManager.displayNames, isEmpty);
+    expect(DVWindowManager.displayProfile, isEmpty);
   });
 
   _openWiring();
