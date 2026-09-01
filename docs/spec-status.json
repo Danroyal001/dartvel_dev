@@ -459,13 +459,14 @@
     {
       "section": "Tab Workspaces",
       "stability": "Draft",
-      "status": "Partial",
+      "status": "Shipped",
       "evidence": [
         "packages/dartvel_flutter/lib/src/windowing/tab_workspace.dart",
+        "packages/dartvel_flutter/test/tab_drag_test.dart",
         "packages/dartvel_flutter/test/tab_workspace_test.dart",
         "packages/dartvel_flutter/test/window_persistence_test.dart"
       ],
-      "absent": "Drag gestures in the strip, so reorder and tear-out are controller calls rather than drags; cross-window drag hit-testing for re-dock"
+      "absent": "Cross-window drag hit-testing for re-dock, which needs the native window bindings Multi-Window is still waiting on. Reorder and tear-out are drags now rather than controller calls: a tab dropped on another reorders, one dropped where nothing accepts tears out, and tear-out is absent rather than inert where the platform has no windowing"
     },
     {
       "section": "Dartvel Studio",
