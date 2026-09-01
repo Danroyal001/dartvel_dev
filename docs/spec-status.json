@@ -432,6 +432,13 @@
       "absent": "Tray, menus, global shortcuts, multi-window, and every device/fleet API"
     },
     {
+      "section": "Kiosk Mode",
+      "stability": "Contract",
+      "status": "Designed",
+      "evidence": [],
+      "absent": "Everything. Adopted as a contract with two scopes -- device and display -- so a customer display can be a kiosk while the staff terminal beside it is not. No code yet."
+    },
+    {
       "section": "Terminal Rendering",
       "stability": "Draft",
       "status": "Partial",
@@ -444,29 +451,17 @@
     },
     {
       "section": "Multi-Window",
-      "stability": "Draft",
-      "status": "Partial",
-      "evidence": [
-        "packages/dartvel_flutter/lib/src/windowing/window.dart",
-        "packages/dartvel_flutter/lib/src/windowing/shared_store.dart",
-        "packages/dartvel_core/lib/src/crypto/app_key.dart",
-        "packages/dartvel_flutter/test/windowing_test.dart",
-        "packages/dartvel_flutter/test/window_shared_store_test.dart",
-        "packages/dartvel_flutter/test/window_persistence_test.dart"
-      ],
-      "absent": "Native window bindings on every target, so no OS window is created yet and every open() degrades; platform key stores, so the application key is held in memory; preference-store backends, so cross-engine notification is untested against a real OS; the window inspector"
+      "stability": "Contract",
+      "status": "Designed",
+      "evidence": [],
+      "absent": "The whole section is Designed against the finalized contract: window identity as canonical URL, ownership, main-window and exit policy, modality, deep-link routing, restore, and the single DV.Window namespace. What exists in code predates it."
     },
     {
       "section": "Tab Workspaces",
-      "stability": "Draft",
-      "status": "Shipped",
-      "evidence": [
-        "packages/dartvel_flutter/lib/src/windowing/tab_workspace.dart",
-        "packages/dartvel_flutter/test/tab_drag_test.dart",
-        "packages/dartvel_flutter/test/tab_workspace_test.dart",
-        "packages/dartvel_flutter/test/window_persistence_test.dart"
-      ],
-      "absent": "Cross-window drag hit-testing for re-dock, which needs the native window bindings Multi-Window is still waiting on. Reorder and tear-out are drags now rather than controller calls: a tab dropped on another reorders, one dropped where nothing accepts tears out, and tear-out is absent rather than inert where the platform has no windowing"
+      "stability": "Contract",
+      "status": "Designed",
+      "evidence": [],
+      "absent": "The whole section is Designed against the finalized contract: window identity as canonical URL, ownership, main-window and exit policy, modality, deep-link routing, restore, and the single DV.Window namespace. What exists in code predates it."
     },
     {
       "section": "Dartvel Studio",
