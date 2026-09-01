@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 import '../graph/project_graph.dart';
+import '../graph/windowing_config.dart';
 
 /// `dartvel inspect` — what this application is made of.
 ///
@@ -26,7 +27,7 @@ class InspectCommand extends Command<void> {
 
   @override
   String get invocation =>
-      'dartvel inspect [routes|models|model <Name>|functions|function <name>|jobs] [--json]';
+      'dartvel inspect [routes|models|model <Name>|functions|function <name>|jobs|windows] [--json]';
 
   InspectCommand() {
     argParser.addFlag(
@@ -91,6 +92,8 @@ class InspectCommand extends Command<void> {
               .map((DVGraphJob j) => '${j.name}  queue=${j.queue}  ${j.source}'),
           'No @DVJob inputs found.',
         );
+      case 'windows':
+        _emitWindows(root, graph, asJson);
       case 'model':
         _emitModel(graph, rest.length > 1 ? rest[1] : null, asJson);
       case 'function':
@@ -100,6 +103,66 @@ class InspectCommand extends Command<void> {
           'Unknown inspector "${rest.first}".',
           invocation,
         );
+    }
+  }
+
+  /// The static windowing picture: the policy in effect, and where each part
+  /// of it came from.
+  ///
+  /// Not the live window list. That needs a running application to ask, and
+  /// this command reads a directory -- saying so is better than reporting an
+  /// empty list, which would read as "no windows are open".
+  void _emitWindows(String root, DartvelProjectGraph graph, bool asJson) {
+    final DVWindowingConfig config =
+        DVWindowingConfig.parse(_dartvelSection(root));
+
+    if (asJson) {
+      _emit(const JsonEncoder.withIndent('  ').convert(<String, Object?>{
+        'graphVersion': graph.graphVersion,
+        'windowing': config.toJson(),
+        // Window identity is the canonical URL, so every route is a window
+        // that could be opened rather than a separate declaration.
+        'routes': graph.routes.length,
+        'live': null,
+      }));
+      return;
+    }
+
+    _emit('windowing');
+    for (final MapEntry<String, Object?> entry
+        in <String, Object?>{
+      'enabled': config.enabled,
+      'singleInstance': config.singleInstance,
+      'exit': config.exit,
+      'restoreOnLaunch': config.restoreOnLaunch,
+      'workspace.persist': config.workspacePersist,
+      'workspace.tearOut': config.workspaceTearOut,
+    }.entries) {
+      final String source = config.sources[entry.key] ?? 'default';
+      _emit('  ${entry.key.padRight(20)} ${entry.value}'
+          '${source == 'default' ? '  (default)' : ''}');
+    }
+    _emit('  ${'routes'.padRight(20)} ${graph.routes.length}'
+        '  (window identity is the route URL)');
+
+    for (final String problem in config.problems) {
+      _emit('  ! $problem');
+    }
+    _emit('');
+    _emit('The live window list needs a running application to ask.');
+  }
+
+  /// The `dartvel:` section of the project's pubspec, or null.
+  static Object? _dartvelSection(String root) {
+    final File pubspec = File(p.join(root, 'pubspec.yaml'));
+    if (!pubspec.existsSync()) return null;
+    try {
+      final Object? loaded = loadYaml(pubspec.readAsStringSync());
+      return loaded is YamlMap ? loaded['dartvel'] : null;
+    } on Object {
+      // A pubspec that will not parse is the build's problem to report, not
+      // this inspector's to crash on.
+      return null;
     }
   }
 
