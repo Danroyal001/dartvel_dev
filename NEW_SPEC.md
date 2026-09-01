@@ -1085,6 +1085,11 @@ Provides:
     bindings named `display.enterFullscreen`, `display.exitFullscreen`,
     `display.enableKiosk`, and `display.disableKiosk`. Dartvel must not use
     Flutter platform channels for these APIs.
+  - These four remain valid as sugar over `DV.Platform.display.kiosk`. The
+    policy they obey — the two scopes, session reset, exit protection and what
+    each target actually enforces — is specified in
+    [Kiosk Mode](#kiosk-mode); a runtime call never changes policy, only
+    state.
 
 Native APIs, including:
 - Android (DV.Platform.isAndroid)
@@ -1991,8 +1996,10 @@ Desktop APIs are backed by generated native bindings registered under
 binding is missing or rejects the request.
 
 Embedded/device creation:
-- kiosk mode
-- fullscreen mode
+- kiosk mode and fullscreen mode — specified in [Kiosk Mode](#kiosk-mode),
+  which owns the policy, the two scopes, enforcement per target and exit
+  protection. They are named here because they are embedded capabilities, not
+  restated, so there is one place a rule can be wrong
 - boot-to-app packaging
 - hardware capability manifests
 - watchdog/health restart hooks

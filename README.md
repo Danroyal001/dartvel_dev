@@ -33,8 +33,11 @@ to be built and the evidence it names does not exist. `dartvel spec status`
 prints the same thing.
 
 **Implemented, but not equally mature.** The feature table below marks each
-area. Anything flagged ⚠️ Scaffold has an API surface and prebuilt pieces, but
-provider integrations are incomplete — expect to fill gaps yourself.
+area. Anything flagged ⚠️ Partial has an API surface and prebuilt pieces, but
+is incomplete in the way the row names — expect to fill gaps yourself.
+📐 Designed means the contract is settled in NEW_SPEC.md and **no
+implementation exists behind it**; it is listed so the shape is public, not
+because you can use it.
 
 **How "verified" is used here.** A target marked ✅ had its build run and its
 artifact inspected — the file listed, its type checked. That proves it
@@ -103,12 +106,21 @@ Everything else is automatically compiled, generated, or served by the framework
 | **Cache** | A pluggable cache with memory, database, Redis, Memcached and multi-node distributed adapters, tags and revalidation | ✅ Implemented |
 | **Mail & Notifications** | SMTP plus HTTP mail (Resend, SendGrid, Postmark, Mailgun, SES), FCM push, APNS over native HTTP/2, Web Push (RFC 8291/8292), and Twilio SMS | ✅ Implemented |
 | **SEO** | `dartvel build web` writes the head tags, JSON-LD, per-route HTML built from the semantics tree, `sitemap.xml` with a styled stylesheet, and `robots.txt` | ✅ Implemented |
-| **PWA** | The manifest is written and validated, and a build warns when one will not install; there is no service worker, offline support, install prompt or background sync | ⚠️ Partial |
+| **PWA** | Manifest, a viewport meta on every built page, a service worker that precaches the build's routes, a self-contained offline page, and `DV.Platform.install` for the install prompt. Background sync and icon generation are not built | ⚠️ Partial |
 | **AI Integration** | HTTP adapters for Claude, OpenAI, Gemini, OpenRouter, and Ollama, plus the deterministic local adapter | ✅ Implemented |
 | **Sensitive Fields** | `@DVModel.sensitiveField()` redacts fields from public serialization, cards, logs, and AI context | ✅ Implemented |
 | **Lifecycle Signals** | Read-only enum signals: `DV.lifecycle.app`/`.build`, `context.lifecycle.page`/`.request`/`.transaction` | ✅ Implemented |
 | **Modules** | `DV.Modules.<id>` registry with per-module lifecycle and mount-point independence | ✅ Implemented |
 | **Reversible Transactions** | `DV.transaction(...)` with `context.afterCommit(...)` and `context.compensate(...)` | ✅ Implemented |
+| **Observability** | Structured logs, Prometheus metrics on `/metrics`, real health checks on `/health`, and W3C Trace Context propagation with sampling decided from the trace id | ✅ Implemented |
+| **Scheduling** | `@DVBackendCron` and `@DVClientCron` collected into generated entries, a CLDR-correct cron evaluator, and `DVScheduler` to run them | ✅ Implemented |
+| **Testing** | `dartvel test` with unit, e2e, golden, native, accessibility and release modes; generated model factories with per-call sequences | ✅ Implemented |
+| **Deployment** | `dartvel deploy` to Firebase, Vercel, Netlify and Cloudflare, plus function mode writing a per-function artifact for Lambda, Cloud Run, containers, edge, Fly, Railway and bare metal. It refuses to ship an environment whose required secrets do not resolve | ✅ Implemented |
+| **Data workflows** | CSV, NDJSON and Excel import/export, resumable chunked imports through queues, policy-filtered and streamed exports, scheduled reports | ✅ Implemented |
+| **Secrets** | Declared under `dartvel.secrets`; `DV-SECRETS-001` fails the build when a backend-scoped secret is reached from client code. Rotation hooks and platform key stores are not built | ⚠️ Partial |
+| **i18n** | CLDR plural rules, typed translation keys, and `dartvel i18n extract`/`check` over ARB catalogues. No route locale negotiation or localized mail templates yet | ⚠️ Partial |
+| **Accessibility** | Contrast and tap-target checks, semantic modifiers, and `DVTable` with keyboard navigation, focus that survives a sort and per-cell announcements. Nothing fails a release on a regression yet | ⚠️ Partial |
+| **Multi-Window & Kiosk** | Specified as a contract — a window is a route, `open()` never fails, kiosk is a per-device or per-display policy. `DV.Window` degrades correctly on every target; **no native window bindings exist, so no OS window is created yet** | 📐 Designed |
 | **Build Targets** | Mobile, web, desktop, plus TV/embedded via vendor embedders, with toolchain preflight and auto-install | ⚠️ Partial — see [table](#-build-targets) |
 
 ---
@@ -808,6 +820,19 @@ await DV.Platform.haptics.impact();
 ```
 
 All permissions are centrally managed under the `dartvel` block in `pubspec.yaml`.
+
+**How this compares to Expo.** People looking for "Expo for Flutter" usually
+want one of three things, and Dartvel covers them unevenly:
+
+| What Expo gives you | Dartvel today |
+| :--- | :--- |
+| An all-in-one SDK — auth, push, storage, analytics preconfigured | Covered, and then some: these are framework services rather than a starter template you copy once and maintain forever |
+| Over-the-air updates | `dartvel updates release/patch/rollback` drives [Shorebird](https://shorebird.dev), the Flutter code-push framework. The CLI wrapper works; `DV.Updates.check()`/`apply()` has no native binding yet |
+| Zero-config cloud builds, certificates and store submission (Expo Launch) | **Not covered.** Dartvel emits GitHub Actions and Codemagic configuration and `dartvel deploy` ships web and function targets, but it does not manage signing certificates or provisioning profiles, and there is no hosted build service |
+
+The third row is the honest gap. If cloud builds and store submission are what
+you came for, Expo Launch added Flutter support in 2025 and does that job;
+Dartvel is the framework underneath, not the pipeline around it.
 
 ---
 
