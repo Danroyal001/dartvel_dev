@@ -1,7 +1,7 @@
-# Multi-Window on Flutter stable — what actually happens
+# Multi-Window on Flutter — what actually happens on stable, and on master
 
-**Date:** 2026-09-01 · **Flutter:** 3.44.5 stable, engine `d3a3293399` ·
-**Host:** Ubuntu 24.04, Xvfb, Mesa llvmpipe
+**Date:** 2026-09-01 · **Flutter:** 3.44.5 stable (engine `d3a3293399`) and
+master `7ddb90b4` · **Host:** Ubuntu 24.04, Xvfb, Mesa llvmpipe
 
 `docs/proposals/2026-08-multiwindow.md` labels the desktop rows *Experimental*
 because Flutter's windowing API is behind a flag. That label is right, but it
@@ -134,23 +134,78 @@ a result: both windows were placed at `+0+0`, so `import -window` on the lower
 one grabbed the screen region the upper one covered. Moving them apart resolved
 it. Worth recording because it looked exactly like the failure being chased.
 
+## Master does what stable cannot
+
+Everything above is stable. Master was measured second, and it changes the
+answer, so the engine-per-window conclusion below applies to stable only.
+
+Master's API has moved on: `RegularWindowController` is now `WindowController`,
+`RegularWindow` is `Window`, `preferredSize`/`preferredConstraints` are
+`size`/`constraints`, and there are dialog, tooltip, popup and satellite window
+kinds plus a `WindowRegistry` and a `LinuxWindowRegistrar`. `_window.dart` is
+884 diff lines from stable's; code written against one will not compile against
+the other. The feature is still `master: FeatureChannelSetting(available: true)`
+and nothing else, but master adds an `environmentOverride: 'FLUTTER_WINDOWING'`
+that stable has no equivalent for.
+
+**On master, two windows on one engine both render, sharing one widget tree.**
+A `String` held in the root `State` above both windows, changed once by a single
+`setState`, appears in both windows at the same time:
+
+| | operator window | projector window |
+| --- | --- | --- |
+| before | `OPERATOR / BLANK` | `PROJECTOR / BLANK` |
+| after one `setState` | `OPERATOR / AMAZING GRACE` | `PROJECTOR / AMAZING GRACE` |
+
+`FL_IS_COMPOSITOR` failures: **zero**. `BadAccess`: **zero**. The process stays
+alive. The stable measurement's central finding — one view per engine, newest
+wins — does not reproduce on master at all.
+
+## The one rule that holds on both channels
+
+**A window must be created after the first frame, not in `main()` or
+`initState`.** Every early probe built its controller before the engine was up,
+and on both channels that ends the process with a GLX `BadAccess`. On master it
+does so even for a *single* window, which is what makes it look like a broken
+feature rather than a lifecycle mistake: the plain-`runApp` baseline on master
+runs fine, one `Window` built in `initState` dies, and the same one `Window`
+built from `addPostFrameCallback` lives.
+
+That is worth encoding rather than documenting. `DV.Platform.Window.open` should
+own the timing so no application can get it wrong.
+
+## Two capture artefacts that read exactly like failures
+
+Both cost time, and both would cost it again.
+
+**Occlusion.** `import -window <id>` on an unredirected X11 window returns the
+screen region, not the window's own pixels, so capturing a window that another
+one covers yields the *other* window's content — or black. Two separate probes
+looked like "the second window renders and the first is dead" purely because
+both sat at `+0+0`. With no `xdotool` or compositor available, the fix was to
+size the windows so their content does not overlap and take one root capture
+showing both.
+
+**Reading a single sample as a result.** The stable probe that reported the
+process alive had been sampled before the crash. Sampling on a fixed schedule
+until the process exits is what turned that into a real answer.
+
 ## What this means for `DV.Platform.Window.open`
 
-It can be registered on desktop, and it should not be built on Flutter's
-experimental single-engine windowing, which cannot present two views on this
-engine. The unit is an **engine per window**:
+Build it on master's single-engine windowing:
 
-- The runner Dartvel generates creates the windows and their engines.
-- Windows are told apart by entrypoint argument, which maps cleanly onto
-  "a window is a route" — the argument carries the route.
-- State between windows is the existing shared store and signals rather than a
-  shared widget tree, because separate engines mean separate isolates. That is
-  the same boundary `DVWindowingCapability.sameEngine` already describes, and
-  the honest value for this arrangement is `sameEngine: false`.
+- `multiWindow: true` and **`sameEngine: true`** on desktop. One engine, one
+  widget tree, one isolate. Cross-window state is ordinary Dartvel state — a
+  signal read in both windows — not the shared store, and not a sync protocol.
+- The window is still a route, as the proposal already has it.
+- `open` creates the window after the first frame, so the lifecycle trap above
+  cannot reach application code.
 
-The cost is two isolates and no pointer-passing of frames between windows. For
-an operator surface driving a projection surface that is the right boundary
-anyway: the output is a render target, not a widget subtree.
+The cost is the one that matters and it is not technical: **this needs Flutter
+master.** Every embedder fork is pinned to a verified stable, and the
+`docs/build-targets.md` evidence is against those pins. Adopting master for
+windowing means re-verifying each target against it. That is a project decision,
+not a windowing one, and it should be made explicitly rather than arrived at.
 
 ## Reproducing
 
