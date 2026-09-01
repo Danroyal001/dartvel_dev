@@ -54,7 +54,7 @@ jobs:
           sudo tee /etc/apt/sources.list.d/armhf.sources >/dev/null <<'EOF'
           Types: deb
           URIs: http://ports.ubuntu.com/ubuntu-ports
-          Suites: noble noble-updates
+          Suites: noble noble-updates noble-security noble-backports
           Components: main universe
           Architectures: armhf
           Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg

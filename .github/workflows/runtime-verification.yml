@@ -1453,6 +1453,13 @@ jobs:
       # armhf packages come from ports.ubuntu.com, and the existing sources
       # have to be pinned to amd64 first or every one of them 404s for the new
       # architecture.
+      #
+      # Every suite the amd64 side has, security included. A dev package marked
+      # Multi-Arch: same must be the exact same version on both architectures,
+      # so when a security update lands for mesa the runner's amd64 mirror has
+      # a version the armhf sources cannot offer -- and apt reports that as
+      # "you have held broken packages", naming nothing. Leaving noble-security
+      # out is why this job passed for weeks and then failed on unchanged code.
       - name: Enable armhf packages
         run: |
           set -euo pipefail
@@ -1462,7 +1469,7 @@ jobs:
           sudo tee /etc/apt/sources.list.d/armhf.sources >/dev/null <<'EOF'
           Types: deb
           URIs: http://ports.ubuntu.com/ubuntu-ports
-          Suites: noble noble-updates
+          Suites: noble noble-updates noble-security noble-backports
           Components: main universe
           Architectures: armhf
           Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
