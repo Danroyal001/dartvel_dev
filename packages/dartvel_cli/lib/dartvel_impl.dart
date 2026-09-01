@@ -20,6 +20,7 @@ import 'src/commands/deploy_command.dart';
 import 'src/commands/dev_command.dart';
 import 'src/commands/doctor_command.dart';
 import 'src/commands/generate_command.dart';
+import 'src/commands/i18n_command.dart';
 import 'src/commands/init_command.dart';
 import 'src/commands/observability_commands.dart';
 import 'src/commands/plugin_command.dart';
@@ -63,6 +64,7 @@ Future<void> main(List<String> args) async {
     ..addCommand(CacheCommand())
     ..addCommand(DbCommand())
     ..addCommand(GenerateCommand())
+    ..addCommand(I18nCommand())
     ..addCommand(LogsCommand())
     ..addCommand(TracesCommand())
     ..addCommand(MetricsCommand())
