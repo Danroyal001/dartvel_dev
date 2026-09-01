@@ -59,6 +59,15 @@ class _DVWindowBindings {
       return id;
     });
 
+    // Enumeration is a read, so it needs no request bookkeeping. It is
+    // registered here rather than in dartvel_flutter's Linux bindings because
+    // the specification lists window.displays among the *desktop windowing*
+    // bindings, and because a target with no windowing has nothing to enumerate.
+    DVNativeBridge.register(
+      'window.displays',
+      (Object? _) => _DVLinuxDisplays.enumerate(),
+    );
+
     DVNativeBridge.register('window.close', (Object? arguments) {
       final map = arguments is Map ? arguments : const <Object?, Object?>{};
       final id = map['id'];
@@ -76,6 +85,7 @@ class _DVWindowBindings {
   static void reset() {
     DVNativeBridge.unregister('window.open');
     DVNativeBridge.unregister('window.close');
+    DVNativeBridge.unregister('window.displays');
     _requests.clear();
     _sequence = 0;
     _registered = false;
