@@ -116,6 +116,30 @@ class DVWindowingCapability {
 /// What kind of surface was asked for.
 enum DVWindowKind { regular, dialog, popup, tooltip, satellite }
 
+extension DVWindowKindX on DVWindowKind {
+  /// Whether this kind counts towards the exit policy and can be `main`.
+  ///
+  /// Owned kinds -- dialog, popup, tooltip, satellite -- do not. One of them
+  /// anchoring restore would put a restored workspace inside a dialog, and a
+  /// lingering tooltip would hold an application open with nothing on screen.
+  ///
+  /// The specification says "regular or kiosk"; the kiosk kind is not built
+  /// yet, so regular is the whole set today.
+  bool get countsAsPrincipal => this == DVWindowKind.regular;
+}
+
+/// When closing a window ends the process.
+enum DVWindowExitPolicy {
+  /// The last regular window closing ends it. The desktop default.
+  lastWindow,
+
+  /// `main` closing ends it, whatever else is open.
+  mainWindow,
+
+  /// Nothing on a window close ends it -- tray-resident applications.
+  explicit,
+}
+
 /// How the request was actually presented.
 enum DVWindowPresentation { window, page, dialog, overlay }
 
@@ -331,6 +355,16 @@ class DVWindowManager {
   static final ValueNotifier<List<DVWindow>> _all =
       ValueNotifier<List<DVWindow>>(<DVWindow>[]);
 
+  /// When a window close ends the process.
+  ///
+  /// A no-op on targets with no process to exit in this sense -- web, Android
+  /// tasks, iPadOS scenes -- where nothing reads [shouldExit].
+  static DVWindowExitPolicy exitPolicy = DVWindowExitPolicy.lastWindow;
+
+  static final ValueNotifier<DVWindow?> _main =
+      ValueNotifier<DVWindow?>(null);
+  static final ValueNotifier<bool> _shouldExit = ValueNotifier<bool>(false);
+
   static final ValueNotifier<List<DVDisplay>> _displays =
       ValueNotifier<List<DVDisplay>>(const <DVDisplay>[]);
 
@@ -360,13 +394,40 @@ class DVWindowManager {
     _all.value = <DVWindow>[];
     _displays.value = const <DVDisplay>[];
     displayProfile = const <String, int>{};
+    _main.value = null;
+    _shouldExit.value = false;
+    exitPolicy = DVWindowExitPolicy.lastWindow;
     _capabilityOverride = null;
     _shared = null;
   }
 
   static void forget(DVWindow window) {
+    final bool wasMain = identical(_main.value, window);
     _windows.remove(window);
     _all.value = List<DVWindow>.unmodifiable(_windows);
+
+    // Promotion before the exit decision: under exit: mainWindow the answer
+    // depends on whether the window that closed was main, and after promotion
+    // it no longer is.
+    if (wasMain) _promoteMain();
+
+    _shouldExit.value = switch (exitPolicy) {
+      DVWindowExitPolicy.explicit => false,
+      DVWindowExitPolicy.mainWindow => wasMain,
+      DVWindowExitPolicy.lastWindow =>
+        !_windows.any((DVWindow w) => w.kind.countsAsPrincipal),
+    };
+  }
+
+  /// The oldest remaining principal window, or none.
+  static void _promoteMain() {
+    for (final DVWindow window in _windows) {
+      if (window.kind.countsAsPrincipal) {
+        _main.value = window;
+        return;
+      }
+    }
+    _main.value = null;
   }
 
   /// Every window, virtual ones included.
@@ -374,6 +435,20 @@ class DVWindowManager {
 
   /// The window this code is running in.
   DVWindow? get current => _windows.isEmpty ? null : _windows.first;
+
+  /// The main window: the first principal window opened, and the anchor for
+  /// restore and for deep links with no target.
+  ///
+  /// Signal-backed because it is promoted. Code that read it once would keep a
+  /// handle to a closed window.
+  ValueListenable<DVWindow?> get main => _main;
+
+  /// Whether the last window close means the process should end.
+  ///
+  /// A signal rather than a call to exit: whether and how to end a process is
+  /// the embedder's business, and on targets with no process to exit in this
+  /// sense nothing reads it.
+  ValueListenable<bool> get shouldExit => _shouldExit;
 
   /// Every display the application knows of.
   ///
@@ -558,6 +633,15 @@ class DVWindowManager {
     );
     _windows.add(window);
     _all.value = List<DVWindow>.unmodifiable(_windows);
+
+    // The first principal window is main. An owned window opened first -- a
+    // dialog before anything else -- leaves main unset rather than becoming
+    // it, or a restored workspace would land inside a dialog.
+    if (_main.value == null && window.kind.countsAsPrincipal) {
+      _main.value = window;
+    }
+    // Opening a window undoes a previous "the last one closed".
+    if (_shouldExit.value) _shouldExit.value = false;
 
     if (degradation != DVWindowDegradation.none) {
       await _report(window, degradation, options.kind);
