@@ -241,6 +241,38 @@ everything: both captures landed *after* the change, so both windows read
 `AMAZING GRACE` in a way a pair of constants would also produce. The captures
 have to straddle the change.
 
+## What a window manager changes, and what that leaves unproven
+
+Every run above was on a bare X server. Xvfb has no window manager, and every
+desktop this will actually run on does. Installing `openbox` and repeating the
+run changes the outcome:
+
+| run | window manager | outcome |
+| --- | --- | --- |
+| two windows, `DVWindowHost` | none | alive, both render, 0 `BadAccess` |
+| two windows, `DVWindowHost` | openbox | **dies, GLX `BadAccess`** |
+| one window, plain `runApp` | openbox | alive, 0 `BadAccess` |
+
+The control matters: the window manager alone is fine. It is **two windows plus
+a window manager plus llvmpipe** that fails.
+
+**What this does not establish is which of those three is at fault.** The
+plausible reading is that a software GL stack cannot hold two GL contexts for
+windows a WM has reparented, in which case hardware is unaffected. The
+uncomfortable reading is that Flutter's multi-window path breaks under any
+reparenting compositor, in which case it fails on every real desktop. Nothing
+measured here separates them, and `--disable-impeller` is ignored by the built
+binary, so the obvious discriminator did not run.
+
+Until it is run on hardware, **"two windows work" should be read as "two
+windows work on a bare X server"**. That is a weaker claim than the earlier
+sections make, and it is the one the evidence supports.
+
+The same limit applies to fullscreen: `window.setFullscreen` reaches
+`WindowController.setFullscreen`, and whether the window actually goes
+fullscreen could not be observed, because without a WM there is nothing to
+honour the request and with one the process does not survive.
+
 ## Reproducing
 
 The probes are four `flutter create` apps differing only in `lib/main.dart`,

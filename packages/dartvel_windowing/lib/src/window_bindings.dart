@@ -32,6 +32,10 @@ class _DVWindowBindings {
   static final Map<String, DVWindowRequest> _requests =
       <String, DVWindowRequest>{};
   static int _sequence = 0;
+  static DVWindowSurfaces? _surfaces;
+
+  /// Lets the bindings reach the live surfaces. Set by [DVWindowHost].
+  static void useSurfaces(DVWindowSurfaces? surfaces) => _surfaces = surfaces;
   static bool _registered = false;
 
   /// Registers `window.open` and `window.close`.
@@ -68,6 +72,39 @@ class _DVWindowBindings {
       (Object? _) => _DVLinuxDisplays.enumerate(),
     );
 
+    // Fullscreen on a chosen display, which is what a projector output is.
+    // The display is named rather than passed by handle, because the caller
+    // chose it by name and the two lists of displays have to be matched here
+    // rather than by the application.
+    DVNativeBridge.register('window.setFullscreen', (Object? arguments) async {
+      final map = arguments is Map ? arguments : const <Object?, Object?>{};
+      final surface = _surfaces?.forNativeId(map['id'] as String?);
+      if (surface == null) return false;
+
+      final fullscreen = map['fullscreen'] != false;
+      final displayName = map['display'] as String?;
+      DVEngineDisplay? engineDisplay;
+
+      if (fullscreen && displayName != null) {
+        final all = await DVDisplays.query();
+        final target =
+            DVDisplayHint.byName(displayName).resolve(all);
+        // Refused rather than fullscreened somewhere else. A projector output
+        // that lands on the operator's screen is the failure this whole path
+        // exists to avoid, and it is not visible from the desk.
+        if (target == null) return false;
+        engineDisplay = DVDisplays.matchEngineDisplay(
+          target: target,
+          all: all,
+          engine: DVDisplays.engineDisplays(),
+        );
+        if (engineDisplay == null) return false;
+      }
+
+      surface.setFullscreen(fullscreen, on: engineDisplay);
+      return true;
+    });
+
     DVNativeBridge.register('window.close', (Object? arguments) {
       final map = arguments is Map ? arguments : const <Object?, Object?>{};
       final id = map['id'];
@@ -86,6 +123,8 @@ class _DVWindowBindings {
     DVNativeBridge.unregister('window.open');
     DVNativeBridge.unregister('window.close');
     DVNativeBridge.unregister('window.displays');
+    DVNativeBridge.unregister('window.setFullscreen');
+    _surfaces = null;
     _requests.clear();
     _sequence = 0;
     _registered = false;

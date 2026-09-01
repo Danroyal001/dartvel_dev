@@ -35,6 +35,13 @@ class _RecordingSurface implements DVWindowSurface {
   final Widget content;
   final _RecordingFactory _factory;
 
+  /// Records fullscreen requests as "route -> display name or 'default'".
+  final List<String> fullscreened = <String>[];
+
+  @override
+  void setFullscreen(bool fullscreen, {DVEngineDisplay? on}) =>
+      fullscreened.add('${window.route.path}:${on?.id ?? 'default'}');
+
   @override
   void destroy() => _factory.destroyed.add(window.route.path);
 }

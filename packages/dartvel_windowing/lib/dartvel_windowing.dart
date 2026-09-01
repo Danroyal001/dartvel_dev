@@ -12,6 +12,7 @@ library dartvel_windowing;
 
 import 'dart:async';
 import 'dart:ffi' as ffi;
+import 'dart:ui' show Display, PlatformDispatcher;
 
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:ffi/ffi.dart' as ffi;

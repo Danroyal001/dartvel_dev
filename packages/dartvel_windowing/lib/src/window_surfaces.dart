@@ -8,6 +8,13 @@ abstract class DVWindowSurface {
   /// What the window renders.
   Widget get content;
 
+  /// Puts the window fullscreen, on [on] where the platform honours it.
+  ///
+  /// `on` is the engine's display rather than a [DVDisplay] because that is
+  /// what the platform call takes; picking *which* display is a separate
+  /// question, answered before this is reached.
+  void setFullscreen(bool fullscreen, {DVEngineDisplay? on});
+
   /// Releases the OS window. Called when the window leaves the manager's list.
   void destroy();
 }
@@ -91,6 +98,15 @@ class DVWindowSurfaces {
       if (_live.any((s) => identical(s.window, window))) continue;
       _live.add(_factory.create(window, _contentFor(window)));
     }
+  }
+
+  /// The surface presenting the window with this native id, if any.
+  DVWindowSurface? forNativeId(String? nativeId) {
+    if (nativeId == null) return null;
+    for (final surface in _live) {
+      if (surface.window.nativeId == nativeId) return surface;
+    }
+    return null;
   }
 
   /// Destroys every surface. For teardown and for tests.

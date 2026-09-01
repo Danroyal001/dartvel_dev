@@ -67,6 +67,8 @@ class _DVWindowHostState extends State<DVWindowHost> {
       ),
     );
 
+    _DVWindowBindings.useSurfaces(_surfaces);
+
     _windows = DV.Platform.Window.all;
     _windows.addListener(_onWindowsChanged);
 

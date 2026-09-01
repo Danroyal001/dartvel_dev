@@ -87,8 +87,73 @@ class DVDisplays {
     }
   }
 
+  /// Finds the engine's display for [target].
+  ///
+  /// Choosing a projector needs a name and a primary flag, which only the
+  /// window system reports; fullscreening a window on it needs the engine's
+  /// display, which has neither. Nothing links the two lists, so they are
+  /// matched on what both know — size and scale — and by position in OS order
+  /// when that is ambiguous.
+  ///
+  /// Returns null rather than guessing whenever the evidence runs out: a
+  /// mismatched display does not fail loudly, it silently puts the lyrics on
+  /// the wrong screen, and the room is the first to know.
+  /// What the engine reports, in the shape [matchEngineDisplay] compares.
+  static List<DVEngineDisplay> engineDisplays() =>
+      PlatformDispatcher.instance.displays
+          .map((Display d) => DVEngineDisplay(
+                id: d.id,
+                size: d.size / d.devicePixelRatio,
+                devicePixelRatio: d.devicePixelRatio,
+              ))
+          .toList(growable: false);
+
+  static DVEngineDisplay? matchEngineDisplay({
+    required DVDisplay target,
+    required List<DVDisplay> all,
+    required List<DVEngineDisplay> engine,
+  }) {
+    final index = all.indexWhere((d) => d.id == target.id);
+    if (index < 0) return null;
+
+    final sameShape = engine
+        .where((e) =>
+            e.size.width == target.bounds.width &&
+            e.size.height == target.bounds.height &&
+            e.devicePixelRatio == target.devicePixelRatio)
+        .toList(growable: false);
+    if (sameShape.length == 1) return sameShape.single;
+
+    // Ambiguous or unmatched: fall back to OS order, but only when the two
+    // lists are the same length. Different lengths mean the orders cannot be
+    // assumed to correspond, and an index into a list that means something
+    // else is worse than no answer.
+    if (engine.length != all.length) return null;
+    return engine[index];
+  }
+
   static double? _asDouble(Object? value) =>
       value is num ? value.toDouble() : null;
+}
+
+/// A display as the Flutter engine reports it.
+///
+/// The engine knows a display's size, scale and id, and does not know its
+/// name, its position, or whether it is primary. That is the whole reason this
+/// type exists separately from [DVDisplay]: the two have to be matched, and
+/// mirroring `dart:ui`'s `Display` here keeps the matching testable without an
+/// engine.
+@immutable
+class DVEngineDisplay {
+  const DVEngineDisplay({
+    required this.id,
+    required this.size,
+    required this.devicePixelRatio,
+  });
+
+  final int id;
+  final Size size;
+  final double devicePixelRatio;
 }
 
 /// Which display a window should go to.

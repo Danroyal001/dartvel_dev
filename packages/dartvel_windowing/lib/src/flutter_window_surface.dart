@@ -54,5 +54,16 @@ class _FlutterWindowSurface implements DVWindowSurface {
   Widget get content => Window(controller: _controller, child: _child);
 
   @override
+  @override
+  void setFullscreen(bool fullscreen, {DVEngineDisplay? on}) {
+    final Display? display = on == null
+        ? null
+        : PlatformDispatcher.instance.displays
+            .where((Display d) => d.id == on.id)
+            .firstOrNull;
+    _controller.setFullscreen(fullscreen, display: display);
+  }
+
+  @override
   void destroy() => _controller.destroy();
 }
