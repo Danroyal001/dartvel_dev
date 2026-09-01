@@ -68,6 +68,7 @@ export 'src/http/transport.dart';
 export 'src/http/wintercg.dart' show Request, Response, Headers;
 export 'src/data/import_chunking.dart';
 export 'src/diagnostics/diagnostics.dart';
+export 'src/i18n/locale_negotiation.dart';
 export 'src/i18n/plural_rules.dart';
 export 'src/kiosk/enforcement.dart';
 export 'src/kiosk/policy.dart';
