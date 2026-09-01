@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 
 import '../../dartvel_flutter.dart';
@@ -227,21 +229,60 @@ class _DVTabWorkspaceState extends State<DVTabWorkspace> {
     );
   }
 
+  /// The strip, with drag to reorder and drag out to detach.
+  ///
+  /// The controller could already do both; nothing in the strip could ask it
+  /// to, so the spec's "drag within the strip" and "drag beyond the strip"
+  /// were controller calls a test could make and a person could not.
   Widget _strip() {
     final tabs = _controller.tabs;
     return DVBox.row(<Widget>[
-      for (var i = 0; i < tabs.length; i++)
-        GestureDetector(
-          key: ValueKey<String>('dv-tab-${tabs[i].route.path}'),
-          onTap: () => _controller.activate(i),
-          child: DVText(tabs[i].title).modifier(
-            const DVModifier().padding(8).fontWeight(
-                  i == _controller.activeIndex
-                      ? FontWeight.bold
-                      : FontWeight.normal,
-                ),
-          ),
-        ),
+      for (var i = 0; i < tabs.length; i++) _tab(i, tabs[i]),
     ]);
+  }
+
+  Widget _tab(int index, DVTab tab) {
+    final Widget label = DVText(tab.title).modifier(
+      const DVModifier().padding(8).fontWeight(
+            index == _controller.activeIndex
+                ? FontWeight.bold
+                : FontWeight.normal,
+          ),
+    );
+
+    return DragTarget<int>(
+      // A tab is not a drop target for itself: accepting would make a drag
+      // that went nowhere look like a reorder.
+      onWillAcceptWithDetails: (DragTargetDetails<int> details) =>
+          details.data != index,
+      onAcceptWithDetails: (DragTargetDetails<int> details) =>
+          _controller.reorder(details.data, index),
+      builder: (BuildContext context, _, __) => Draggable<int>(
+        data: index,
+        // Dropped where no tab accepted it, which is what "beyond the strip"
+        // means. A DragTarget around the strip cannot see this: a drop below
+        // the strip is outside its hit area entirely, so nothing fires.
+        onDraggableCanceled: (_, __) {
+          // Gated, and absent rather than inert: where tear-out is
+          // unavailable the drop does nothing and the tab stays where it was.
+          if (!DV.Platform.Window.capability.tearOut) return;
+          // Not awaited: the drop callback is synchronous and the tab leaves
+          // the strip as soon as the controller notifies. The window it opens
+          // is the platform's business.
+          unawaited(_controller.tearOut(index));
+        },
+        // Shown under the pointer while dragging. Without it the tab appears
+        // to stay put and the gesture reads as unresponsive. No Material
+        // wrapper: this file is Material-free by design, and DVText carries
+        // its own style.
+        feedback: Opacity(opacity: 0.9, child: label),
+        childWhenDragging: Opacity(opacity: 0.4, child: label),
+        child: GestureDetector(
+          key: ValueKey<String>('dv-tab-${tab.route.path}'),
+          onTap: () => _controller.activate(index),
+          child: label,
+        ),
+      ),
+    );
   }
 }
