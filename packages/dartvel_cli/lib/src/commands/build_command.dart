@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 import '../build/browser_extension.dart';
 import '../build/elinux_bundle.dart';
+import '../build/capture_completeness.dart';
 import '../build/pwa_manifest.dart';
 import '../secrets/secrets_analysis.dart';
 import '../build/pwa_service_worker.dart';
@@ -1482,9 +1483,19 @@ class BuildCommand extends Command<void> {
       webRoot: web.path,
       routes: routes,
     );
-    if (captured > 0) {
+    final verdict =
+        dvVerifyCapture(captured: captured, expected: routes.length);
+    if (verdict.ok) {
       Logger.log('   Captured $captured of ${routes.length}.');
+      return;
     }
+
+    // Fatal rather than a warning. A build that ships most of its SEO and
+    // reports success hides the failure until someone checks a search result
+    // weeks later, and the fix -- rerun it -- costs a minute.
+    Logger.error('   ${verdict.message}');
+    Logger.log('❌ semantics capture incomplete');
+    exit(1);
   }
 
   /// The crawler-visible HTML for [route], from a semantics dump if the
