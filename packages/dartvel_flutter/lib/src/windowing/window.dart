@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui' as ui show Display;
 
+import 'package:dartvel_core/dartvel.dart' show DVDiagnostics;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
@@ -128,37 +129,23 @@ extension DVWindowDegradationX on DVWindowDegradation {
         DVWindowDegradation.displayUnavailable => 'DV-WINDOW-013',
       };
 
-  /// Calibrated to whether the developer can act on it. A phone has no
-  /// windows and the fallback is intended, so warning on every call would
-  /// train people to ignore the channel.
-  String get level => switch (this) {
-        DVWindowDegradation.none => 'debug',
-        DVWindowDegradation.capabilityUnsupported => 'debug',
-        DVWindowDegradation.kioskLocked => 'info',
-        DVWindowDegradation.disabledByConfig => 'info',
-        DVWindowDegradation.gestureRequired => 'warning',
-        DVWindowDegradation.platformRefused => 'warning',
-        // A window that opened on the wrong screen looks like it worked, so
-        // nothing else will report it.
-        DVWindowDegradation.displayUnavailable => 'warning',
-      };
+  /// The level the specification assigns this code.
+  ///
+  /// Read from the registry rather than restated here. It used to be a second
+  /// hand-written switch, and a second copy of a published contract drifts:
+  /// this one had DV-WINDOW-006 at `warning` while the specification had it at
+  /// `error`, and nothing compared them.
+  ///
+  /// Calibrated to whether the developer can act on it. A phone has no windows
+  /// and the fallback is intended, so warning on every call would train people
+  /// to ignore the channel.
+  String get level =>
+      code == null ? 'debug' : DVDiagnostics.find(code!)?.level ?? 'warning';
 
-  String get reason => switch (this) {
-        DVWindowDegradation.none => 'a window was created',
-        DVWindowDegradation.capabilityUnsupported =>
-          'this target has no multi-window capability',
-        DVWindowDegradation.kioskLocked =>
-          'kiosk mode is active; the surface stays locked',
-        DVWindowDegradation.gestureRequired =>
-          'web popup blocked — open() was not called during a user gesture',
-        DVWindowDegradation.platformRefused =>
-          'the platform refused the request',
-        DVWindowDegradation.disabledByConfig =>
-          'windowing.enabled is false in configuration',
-        DVWindowDegradation.displayUnavailable =>
-          'the requested display is not connected; the window opened where '
-              'the OS placed it',
-      };
+  /// What happened, in the specification's own words.
+  String get reason => code == null
+      ? 'a window was created'
+      : DVDiagnostics.find(code!)?.reason ?? 'the window request degraded';
 }
 
 /// The lifecycle of a window, as a read-only signal the runtime owns.
