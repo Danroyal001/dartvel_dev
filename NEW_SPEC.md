@@ -2057,6 +2057,470 @@ JNI/jnigen only, no Flutter platform channels.
 ---
 
 ---
+# Kiosk Mode
+
+Stability: `Contract` · Status: `Designed`
+
+(The `## Bindings` subsection declares Stability `Draft`; every other
+subsection inherits the section labels, per Specification Status.)
+
+Kiosk has two scopes, and everything below applies to both unless a rule says
+which:
+
+- **`device`** — the whole device is the kiosk. One application, one display
+  or all displays, no windows (`open()` presents in place, `DV-WINDOW-002`).
+- **`display`** — one window owns one display in kiosk mode and the
+  application keeps ordinary windows on the others. The window kind is
+  specified in Multi-Window › Kiosk windows; the policy it obeys is specified
+  here.
+
+A kiosk is a device — or a display — that runs one application for whoever
+walks up to it: lobby displays, point-of-sale, self-checkout, ticketing,
+wayfinding, medical intake, factory HMI, the customer-facing screen beside a
+cashier. Kiosk mode is the set of guarantees that make that true — the
+application fills the display, cannot be left by the user, restarts if it dies,
+forgets each user when they walk away, and can be operated and exited by staff
+without a keyboard hanging off the back.
+
+## Kiosk restricts the surface, not the content
+
+Kiosk mode changes what the *device or display* permits — fullscreen, input
+confinement, no OS chrome, no escape, no second window on that surface — and
+nothing about what the *application* permits. Routes still run their
+middleware; policies still apply; tenant and locale resolve normally; a deep
+link that would be refused outside kiosk is refused inside it. Nothing in this
+section is a security boundary for application data; the Authorization and
+Sensitive Model Fields sections are. Kiosk is a boundary for the *user's
+ability to leave*.
+
+## Two ways in
+
+**Declared.** Configuration or a device profile sets the policy, and the built
+artifact starts in kiosk at boot. This is the production path: boot-to-app on
+eLinux images, Android lock-task launchers, Windows assigned access, TV
+single-app profiles. There is no window of unlocked UI at startup.
+
+```yaml
+dartvel:
+  kiosk:
+    enabled: true
+    scope: device
+    home: /welcome
+```
+
+In `display` scope, the declaration names the kiosk windows — the route each
+shows, the display it owns, the policy it obeys — and they open at boot before
+anything else:
+
+```yaml
+dartvel:
+  kiosk:
+    enabled: true
+    scope: display
+    policies:
+      customerDisplay:
+        home: /customer-display
+        routes: { allow: [/customer-display/**] }
+        session: { idleTimeout: 60s, onIdle: reset }
+        exit: { method: adminAuth }
+    windows:
+      customer:
+        route: /customer-display
+        display: Customer            # a display name from the device profile,
+                                     # or primary | secondary | index:N
+        policy: customerDisplay
+```
+
+Named policies are available to code as `DVKioskPolicies.customerDisplay`, so
+a kiosk window opened at runtime (`DV.Window.open(..., kind: kiosk)`) uses a
+declared policy rather than an ad-hoc one. There is no policy that is not in
+the declaration.
+
+**Runtime, under the declared policy.** `DV.Platform.display.kiosk` (device
+scope) and `win.kiosk` (display scope) transition between kiosk and a
+supervised *staff mode* for maintenance, configuration and troubleshooting.
+Neither can enable kiosk where the policy did not declare it, and neither can
+disable kiosk without satisfying the declared exit method. A build with no
+kiosk policy has no kiosk runtime: the calls exist, report `DV-KIOSK-005`, and
+change nothing.
+
+```dart
+DV.Platform.display.kiosk.state       // DVSignal<DVKioskState> — device scope
+DV.Platform.display.kiosk.policy      // DVKioskPolicy, read-only
+DV.Platform.display.kiosk.enforcement // DVKioskEnforcement — what the device honours
+
+await DV.Platform.display.kiosk.exit(DVKioskExitRequest.pin('4821'));
+await DV.Platform.display.kiosk.resume();
+await DV.Platform.display.kiosk.resetSession(reason: DVKioskResetReason.idle);
+
+customer.kiosk!.state                 // the same shape, per window — display scope
+DV.Window.kiosks                      // DVSignal<List<DVWindow>>
+
+enum DVKioskState { off, active, staffMode, resetting, locked, failed }
+```
+
+`enableKiosk()`, `disableKiosk()`, `isKiosk` and `isFullscreen` on
+`DV.Platform.display` remain valid as sugar over `kiosk.resume()`,
+`kiosk.exit(...)`, and `kiosk.state`. `DV.Kiosk` is the alias per the proxy
+pattern. In `display` scope `DV.Platform.display.kiosk` refers to the device,
+which is *not* in kiosk; the windows that are appear in `DV.Window.kiosks`.
+
+## Policy
+
+```yaml
+dartvel:
+  kiosk:
+    enabled: true
+    scope: device                     # device | display
+    home: /welcome                    # attract / idle-return route
+    routes:
+      allow: [/welcome, /order/**, /help]   # default: all application routes
+      external: block                 # block | allowlist
+      externalAllow: []
+    input:
+      systemGestures: block           # edge swipes, home, recents, app switch
+      hardwareKeys: block             # except accessibility keys, always
+      shortcuts: block                # OS and browser shortcuts
+      clipboard: disabled
+      textSelection: disabled
+    session:
+      idleTimeout: 90s
+      idleWarning: 15s                # countdown route/overlay before reset
+      onIdle: reset                   # reset | home | none
+      clearOnReset: [signals, forms, sharedStore, auth, clientCache]
+    display:
+      fullscreen: true
+      hideCursor: auto                # auto (touch-only) | always | never
+      screenDim: 5m                   # burn-in / power; 0 disables
+      wake: onTouch
+    windows: false                    # device scope: no windows (alias of
+                                      # windowing.kiosk.allowWindows); in display
+                                      # scope, `windows:` is the kiosk-window map
+    notifications: suppress           # system-level; in-app inbox still works
+    updates:
+      apply: maintenanceWindow        # immediate | maintenanceWindow | staffMode
+      window: "02:00-04:00"
+    exit:
+      method: pin                     # none | pin | gesture+pin | adminAuth | remote | hardwareCombo
+      pin: secret:KIOSK_EXIT_PIN      # a DV.Secrets reference, never a value
+      gesture: cornerTaps(5)
+      maxAttempts: 5
+      lockoutFor: 10m
+      audit: true
+```
+
+In `display` scope the same keys live under `policies.<name>`, with two
+differences the scope forces: `session.clearOnReset` may not contain `auth` or
+an un-namespaced `sharedStore` (see Sessions), and `input.hardwareKeys`
+defaults to `passthrough` (see Enforcement).
+
+Device profiles may set or override any of this and are where displays get
+their names (`displays: { Customer: { index: 1 } }`). A runtime `exit()` never
+changes policy, only state. `dartvel doctor` validates that the declared
+policy is enforceable on each configured target and that every declared kiosk
+window's display exists in the profile.
+
+## Sessions
+
+A kiosk serves strangers in sequence, so **a session is anonymous and
+disposable by default**. The idle reset — and any explicit `resetSession()` —
+clears everything listed in `clearOnReset` and then navigates to `home`. After
+reset, nothing a previous user typed, viewed, or authenticated is reachable
+from that kiosk.
+
+What a reset may clear depends on scope, and the difference is the point:
+
+| `clearOnReset` entry | `device` scope | `display` scope |
+|---|---|---|
+| `signals` | all page and global signals | the kiosk window's page signals |
+| `forms` | all | the kiosk window's |
+| `sharedStore` | the whole store | keys under `kiosk.<name>.*` only |
+| `auth` | `DV.Auth.signOut()` | **not permitted** — the session is the staff window's |
+| `clientCache` | all | entries tagged to the kiosk window's routes |
+
+A display-scoped policy that lists `auth` or an un-namespaced `sharedStore`
+fails validation: a customer display timing out must not sign the cashier out.
+
+- `idleWarning` presents a generated countdown (built from `DVBox`/`DVText`,
+  restyleable) so a slow user is not cut off without notice.
+- `onIdle: home` returns to the attract route without clearing state — for
+  informational displays with no user data. `dartvel analyze` flags it when
+  models with `sensitiveField` are reachable from allowed routes
+  (`DV-KIOSK-009`).
+- Reset is a transaction over local state: partial resets are not observable.
+- Reset emits `DV.lifecycle.kiosk` transitions (`resetting → active`) — per
+  window in display scope — and an observability event with the reason, never
+  with user data.
+- State a kiosk window shows *from* the staff window (the cart on a customer
+  display) travels through model sync or shared keys the staff window writes
+  under `kiosk.<name>.*`. A reset clears the kiosk side; the staff window's
+  next write repopulates it. The staff window never has to know a reset
+  happened.
+
+## Exit protection
+
+Exit is the one thing kiosk must make hard, and the one thing staff must be
+able to do. The methods are a closed set:
+
+| Method | Meaning | Where it degrades |
+|---|---|---|
+| `none` | device management owns exit; the app never exits itself | — |
+| `pin` | numeric secret from `DV.Secrets` | never |
+| `gesture+pin` | hidden gesture reveals the pin prompt | touchless devices → `pin` via hardware combo |
+| `adminAuth` | `DV.Auth` session passing `DVPolicyAction.exitKiosk` | offline device → `pin` fallback if configured |
+| `remote` | fleet command via `device.fleet.*` | disconnected device → cannot exit remotely |
+| `hardwareCombo` | declared key combination | devices without keys |
+
+Rules:
+
+- Attempts are rate-limited (`maxAttempts`, `lockoutFor`); the lockout is
+  `DVKioskState.locked`, visible on the kiosk and reported.
+- Every attempt, success or failure, is an audit event with actor (if any),
+  method, and outcome. The pin value never appears anywhere.
+- The pin is a `DV.Secrets` reference resolved on device from the secure store;
+  it is not in `pubspec.yaml`, not in the bundle, and rotates through the
+  ordinary rotation hook.
+- Staff mode is a state, not an unlock: the application is still running, still
+  fullscreen by default, with the policy's restrictions lifted and a visible
+  staff banner. `resume()` returns to kiosk and resets the session.
+- In `display` scope, `adminAuth` is the natural method and needs no prompt on
+  the kiosk display: the request comes from a peer window whose authenticated
+  session passes `DVPolicyAction.exitKiosk`. The customer display never shows
+  a pin pad unless its policy says `pin`.
+- Deep links, notifications and OS intents do not constitute an exit path:
+  under kiosk they are honoured only within `routes.allow`.
+
+## Health and fleet
+
+Kiosk composes with the embedded capabilities rather than duplicating them:
+
+- `autostart` and `restartOnFailure` are honoured by the target's supervisor
+  (systemd unit on eLinux images, lock-task launcher on Android, assigned
+  access on Windows).
+- The watchdog is armed on boot with `reason: 'startup'` and heartbeat runs
+  from the application lifecycle; a missed heartbeat restarts the application,
+  and a restart loop (more than `n` in `m` minutes) enters a generated
+  diagnostics screen instead of looping forever (`DV-KIOSK-008`).
+- Fleet commands: `kiosk.reload`, `kiosk.exit`, `kiosk.lock`, `kiosk.staffMode`,
+  `kiosk.resetSession`, `kiosk.screenshot` (policy-gated; never during a
+  visible user session). In display scope each command addresses a named kiosk
+  window.
+- OTA: `updates.apply: maintenanceWindow` defers `DV.Updates.apply()` to the
+  window; `staffMode` applies only when staff are present; `immediate` is for
+  displays with no user session. A forced update outside the window shows the
+  generated update UI and resets the session first.
+
+## Enforcement
+
+What a device can actually enforce is a capability, reported honestly:
+
+```dart
+final e = DV.Platform.display.kiosk.enforcement;   // or customer.kiosk!.enforcement
+e.fullscreen;        // can hold fullscreen
+e.escapeBlocked;     // user cannot reach the OS from the app
+e.systemGestures;    // edge/home/recents intercepted
+e.hardwareKeys;      // power/volume/home intercepted
+e.singleApp;         // OS prevents other apps from surfacing
+e.strength;          // DVKioskStrength: device | supervised | fullscreenOnly
+e.inputScope;        // DVKioskInputScope: device | display — display scope only
+```
+
+`inputScope` exists because a keyboard is a device and a touchscreen is a
+display. Touch on an owned display is confinable per display wherever the OS
+reports which display a touch came from; pointer input is confinable while the
+kiosk window is focused; hardware keys and OS shortcuts are device-wide or
+nothing. A display-scoped policy that blocks `hardwareKeys` therefore either
+blocks them for the whole device — which the staff terminal will notice — or
+not at all, and `enforcement.inputScope` says which (`DV-KIOSK-010`). The
+honest default for display scope is `input.hardwareKeys: passthrough` with
+touch and pointer confinement.
+
+| Target | Mechanism | Strength | Label |
+|---|---|---|---|
+| eLinux (Sony) image / bundle | DRM/EGL fullscreen, no compositor, systemd supervision | `device` | `Supported` |
+| Android (device owner / DPC) | Lock Task Mode, launcher replacement | `device` | `Supported` |
+| Android (no device owner) | screen pinning | `supervised` | `Supported with limitations`¹ |
+| iPadOS / iOS | Single App Mode via MDM; Guided Access | `device` / `supervised` | `Supported with limitations`² |
+| Windows | Assigned Access / shell replacement; fullscreen + key hooks | `device` / `supervised` | `Supported with limitations`³ |
+| macOS | fullscreen + presentation options | `fullscreenOnly` | `Supported with limitations` |
+| Linux desktop | fullscreen; compositor-dependent gesture blocking | `supervised` | `Supported with limitations` |
+| Tizen / webOS | single-app TV model; launcher/boot config | `device` | `Supported with limitations`⁴ |
+| Web / PWA | Fullscreen, Keyboard Lock and Pointer Lock APIs | `fullscreenOnly` | `Supported with limitations`⁵ |
+| Browser extension | not applicable | — | `Unsupported` |
+| Watch | not applicable | — | `Unsupported` |
+| Terminal (`-cli`/`-tui`) | full-screen alternate buffer; escape is the shell's | `fullscreenOnly` | `Supported with limitations` |
+
+Display scope adds a requirement rather than a row: it needs
+`capability.displayKiosk`, which requires multi-window and addressable
+displays — the Windows, macOS and Linux rows (labelled per the Multi-Window
+matrix) and eLinux multi-head configurations, where per-output DRM makes it the
+strongest case. Everywhere else `scope: display` degrades to the in-place
+fullscreen page described in Multi-Window › Kiosk windows.
+
+¹ Screen pinning can be exited by the user with a known gesture; the app
+reports `strength: supervised` and `DV-KIOSK-001`.
+² iOS cannot enter Single App Mode programmatically; the declared policy is
+realized by MDM, and the runtime API can only detect it. Guided Access is
+user-managed and reported as `supervised`.
+³ Assigned Access requires a provisioned account; without it the app is
+fullscreen with key hooks and reports `supervised`.
+⁴ TV platforms are single-app by construction, but exit is the remote's home
+button and is not interceptable on consumer sets; kiosk on TVs means "boot to
+app and return to it", reported as such.
+⁵ The browser reserves `Esc` and cannot be prevented from leaving fullscreen;
+`fullscreenOnly` is the honest label. Dedicated browser kiosk modes (launch
+flags, ChromeOS kiosk apps) raise it to `device` when detected.
+
+`Unsupported` appears here where it does not in the windowing matrix because
+kiosk *is* the capability — there is no "present it another way" fallback for
+locking a watch. The API still exists on those targets and reports
+`DV-KIOSK-004`.
+
+## Diagnostics
+
+```dart
+enum DVKioskDegradation {
+  none, enforcementReduced, exitWeaker, noPolicy, unsupportedTarget,
+  routeBlocked, bindingMissing, lockedOut, inputScopeWidened,
+}
+```
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-KIOSK-001` | requested enforcement reduced (e.g. `device` → `supervised`) | `warning` at boot, once |
+| `DV-KIOSK-002` | exit method degraded (e.g. `gesture+pin` → `pin` on touchless device) | `info` |
+| `DV-KIOSK-003` | exit attempt failed; lockout after `maxAttempts` | `info`, audited |
+| `DV-KIOSK-004` | kiosk requested on a target without kiosk capability | `info` |
+| `DV-KIOSK-005` | runtime kiosk call with no declared policy | `warning` |
+| `DV-KIOSK-006` | route outside `routes.allow` requested and blocked | `debug` |
+| `DV-KIOSK-007` | native kiosk binding missing or refused | `error` |
+| `DV-KIOSK-008` | restart loop detected; diagnostics screen shown | `error` |
+| `DV-KIOSK-009` | `onIdle: home` with sensitive fields reachable from allowed routes | `warning` (analyze) |
+| `DV-KIOSK-010` | display-scoped input confinement is device-wide on this platform | `warning` at boot, once |
+
+`DV-KIOSK-001` and `010` fire once per boot, not per interaction: reduced
+enforcement is a deployment fact the operator needs to know, not a stream.
+`dartvel doctor --target <t>` reports the same findings before the build ships.
+
+## Accessibility under kiosk
+
+Kiosk blocks *escape*, never *access*. Switch control, screen readers,
+hardware-key navigation and high-contrast/reduced-motion settings remain
+available; `input.hardwareKeys: block` explicitly exempts accessibility keys
+and the platform's accessibility shortcut. A generated accessibility toggle
+may be placed on the attract route. `dartvel test accessibility` runs against
+kiosk builds with the policy applied, and an accessibility regression under
+kiosk fails the release gate like any other.
+
+## Interaction with other sections
+
+- **Multi-Window**: in `device` scope `kiosk.windows: false` is canonical and
+  `open()` presents in place (`DV-WINDOW-002`); `windowing.kiosk.allowWindows`
+  remains a compatibility alias. In `display` scope the kiosk window is a
+  window kind that owns its display, specified under Multi-Window › Kiosk
+  windows; this section owns the policy it obeys.
+- **OTA**: governed by `kiosk.updates`; forced updates reset the session first.
+- **Notifications**: system notifications are suppressed on the kiosk surface;
+  in-app inbox and model-sync delivery continue.
+- **Secrets**: the exit pin is a device-resolved secret; kiosk shared keys are
+  encrypted with the application key as elsewhere.
+- **Studio**: a kiosk panel shows fleet state, enforcement per device and per
+  kiosk window, exit audit, session-reset counts, and lets an authorized
+  operator issue fleet commands. Screenshots are policy-gated and never taken
+  during a user session.
+- **i18n**: the attract route may rotate locales; a session reset returns the
+  kiosk to the profile's default locale.
+
+## Configuration precedence
+
+`deviceProfiles.<profile>.kiosk` overrides `dartvel.kiosk`; a `--device-profile`
+build selects the profile. Runtime never changes policy. `dartvel inspect kiosk
+--json` prints the effective policy per target and per kiosk window, with the
+source of each value.
+
+## Bindings
+
+Stability: `Draft` · Status: `Designed`
+
+Generated FFI/ffigen or JNI/jnigen bindings only, per the standing rule:
+
+- `display.enterFullscreen`, `display.exitFullscreen` (existing)
+- `display.kiosk.enable`, `display.kiosk.disable`, `display.kiosk.state`
+  (the existing `display.enableKiosk` / `display.disableKiosk` names remain as
+  aliases) — device scope
+- `window.kiosk.enable`, `window.kiosk.disable`, `window.kiosk.state` —
+  display scope, together with `window.display.assign`, `window.pin` and
+  `window.unpin` from Multi-Window
+- `kiosk.input.lock`, `kiosk.input.unlock` — gestures, keys, shortcuts, with a
+  display argument where the platform can scope them
+- `kiosk.enforcement.query`
+- `kiosk.supervisor.register` — autostart / restart integration
+- android: `kiosk.lockTask.start`, `kiosk.lockTask.stop`
+- windows: `kiosk.assignedAccess.query`
+- web: generated bindings over Fullscreen, Keyboard Lock and Pointer Lock
+- fleet: `device.fleet.command` carries the `kiosk.*` commands above
+
+A missing or refusing binding fails typed (`DV-KIOSK-007`), never silently.
+
+## Testing
+
+```dart
+DV.Test.fakeKiosk(
+  policy: DVKioskPolicies.customerDisplay,
+  enforcement: DVKioskEnforcement.supervised(inputScope: DVKioskInputScope.device),
+);
+
+await customer.kiosk!.exit(DVKioskExitRequest.pin('0000'));
+expect(customer.kiosk!.state.value, DVKioskState.active);       // wrong pin
+expect(DV.Test.kioskAuditEvents.last.outcome, DVKioskExitOutcome.rejected);
+```
+
+Idle reset is testable with a fake clock; the e2e suite runs the attract →
+session → idle → reset loop on eLinux and Android runners, and the
+two-display staff/customer scenario on desktop runners with virtual displays;
+the accessibility suite runs with the policy applied.
+
+## Performance contracts
+
+Measured: boot-to-kiosk-ready time (device) and boot-to-kiosk-window-ready
+(display), idle-reset duration, exit-prompt latency after gesture, watchdog
+heartbeat jitter, restart-loop detection time. Diagnostics: a reset that
+exceeds its budget (user-visible dead time), an attract route that allocates
+per frame (burn-in displays run for years), an allowed route that navigates
+externally, and a kiosk-window reset that touched state outside its namespace.
+
+## Security
+
+- Exit protection is rate-limited and audited; the pin is a device-resolved
+  secret and never logged.
+- Deep links, intents and notifications cannot leave `routes.allow`.
+- Session reset is transactional; in device scope it clears auth, so a
+  walk-away user's identity is unreachable afterwards; in display scope it
+  cannot reach the staff session at all.
+- Remote commands require fleet authentication; `kiosk.exit` remotely is
+  audited with the issuing operator.
+- Enforcement strength and input scope are reported, never overstated: an
+  application on a `fullscreenOnly` target must not be described to an
+  operator as locked.
+
+## Deliberately absent
+
+- **Device-owner / MDM provisioning.** Dartvel integrates with Lock Task,
+  Assigned Access, Single App Mode and TV launchers; it does not replace the
+  device management that provisions them. `dartvel doctor` says which is
+  required.
+- **A custom Android launcher.** Lock Task under a device owner is the
+  supported mechanism; shipping a launcher is a product, not a framework
+  feature.
+- **A promise of screen-capture prevention on web.** The browser does not
+  offer it; the spec does not claim it.
+- **Kiosk as a runtime toggle without a declared policy.** See Two ways in.
+- **Inline per-window policies.** `DVWindowKiosk.policy` names a declared
+  policy, so every kiosk the device can enter is visible in
+  `dartvel inspect kiosk`.
+- **A kiosk manager on `DV.Window`.** Display-scoped kiosk is `win.kiosk` on a
+  window and `DV.Window.kiosks` as a list; there is no `DV.Window.kiosk`
+  manager object, for the same reason there is no `DVWindowManager`.
 
 # Terminal Rendering
 
@@ -2179,7 +2643,7 @@ lossless is worse than one with documented edges:
 
 ## Windows in a terminal
 
-`DVWindowManager.open(...)` is not a special case here. Terminal rendering is a
+`DV.Window.open(...)` is not a special case here. Terminal rendering is a
 surface with a particular set of capabilities, and the windowing model already
 describes what happens when a surface cannot honour a request: it presents the
 route another way and reports why.
@@ -2225,20 +2689,23 @@ Upstream is a research project and does not need to already do everything —
 that is what the fork is for. Producing a distributable binary rather than only
 a development run, and whatever else Dartvel requires, is work the fork carries
 rather than a reason to wait.
-
 # Multi-Window
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Contract` · Status: `Designed`
+
+(The `## Bindings` subsection below declares its own labels — Stability
+`Draft` — because it tracks a flag-gated upstream surface; every other
+subsection inherits the section labels, per Specification Status.)
 
 Desktop-class applications are made of windows. The hard part is not opening
-one: it is defining what a window *means* across targets that disagree about
+one; it is defining what a window *means* across targets that disagree about
 whether windows exist at all.
 
 ## A window is a route
 
-Every Dartvel window hosts exactly one route. This is what makes a single API
-possible across platforms that implement "another window" in four unrelated
-ways:
+Every Dartvel window hosts exactly one route. This is the single decision that
+makes one API possible across platforms that implement "another window" in four
+unrelated ways:
 
 | Platform family | "Open a window" means | Content addressed by |
 |---|---|---|
@@ -2247,28 +2714,35 @@ ways:
 | Android | new task, separate engine | deep link (the route) |
 | iPadOS | new `UIScene`, separate root | scene activation URL (the route) |
 
-Dartvel is already URL-first — static generation, server rendering and
-sitemaps all require every route to map to one canonical URL — so windows
-inherit that for free. The route *is* the serialization of "what this window
-shows", and the platforms that cannot share memory already know how to open a
-URL. No second addressing scheme, and no window-content registry.
+Dartvel is URL-first — static generation, server rendering and sitemaps already
+require every route to map to one canonical URL — so windows inherit that for
+free. The route is the serialization of "what this window shows". Anything a
+window shows is therefore deep-linkable, restorable after a restart, and
+subject to the same middleware, policies, tenant scope and locale as any
+navigated page, because it is one. A window with no route is not expressible.
 
-Anything a window shows is therefore deep-linkable, restorable after a
-restart, and subject to the same middleware, policies, tenant scope and locale
-as any navigated page — because it is one. A window with no route is not
-expressible, which is the point.
+**Identity is the canonical URL.** Route *and* parameters:
+`DVPages.order(id: 1)` and `DVPages.order(id: 2)` are two distinct windows;
+opening `DVPages.order(id: 1)` twice focuses the existing one. Query
+parameters participate in identity only when the page declares them as
+identity (`@DVPage(windowIdentity: [...])`); undeclared query parameters are
+view state and do not create a second window.
 
 ## Surface
 
 `DV.Platform.Window` grows from "the current window" into the window manager,
-with `DV.Window` as its alias per the established proxy pattern. There is no
-separate plural namespace, and the existing `setTitle`/`persistState`/
-`restoreState` members now read as sugar over `DV.Window.current`.
+with `DV.Window` as its alias per the established proxy pattern. There is one
+namespace; the existing `setTitle` / `persistState` / `restoreState` members
+read as sugar over `DV.Window.current` and remain valid.
 
 ```dart
-DV.Window.current                  // DVWindow
+DV.Window.current                  // DVWindow — the window this code runs in
+DV.Window.main                     // DVWindow — see "Main window"
 DV.Window.all                      // DVSignal<List<DVWindow>>
 DV.Window.capability               // DVWindowingCapability
+DV.Window.displays                 // DVSignal<List<DVDisplay>> (read-only)
+DV.Window.kiosks                   // DVSignal<List<DVWindow>> — windows in kiosk mode
+DV.Window.shared                   // DVWindowSharedStore
 
 final win = await DV.Window.open(
   DVPages.orders,
@@ -2276,17 +2750,183 @@ final win = await DV.Window.open(
     size: Size(900, 620),
     constraints: BoxConstraints(minWidth: 480, minHeight: 320),
     title: 'Orders',
-    kind: DVWindowKind.regular,    // regular | dialog | popup | tooltip | satellite
+    kind: DVWindowKind.regular,      // regular | dialog | popup | tooltip | satellite | kiosk
+    owner: null,                     // required for dialog/popup/tooltip/satellite
+    modality: DVWindowModality.none, // none | window | application
+    duplicate: false,                // true: a second window on the same URL
+    display: null,                   // DVDisplayHint — which display, never where on it
+    kiosk: null,                     // DVWindowKiosk — kiosk kind only
   ),
 );
 
-win.route;                         // what it shows
-win.lifecycle;                     // DVSignal<DVWindowLifecycle>
-await win.close();
+final class DVDisplay {
+  final String id;                 // stable for the display's connection
+  final String name;               // from the device profile, else OS-reported
+  final Rect bounds;               // logical pixels
+  final double devicePixelRatio;
+  final bool isPrimary;
+  final DVWindow? kioskOwner;      // set while a kiosk window owns this display
+}
+
+DVDisplayHint.primary
+DVDisplayHint.secondary            // first non-primary, in OS order
+DVDisplayHint.byIndex(1)
+DVDisplayHint.byId(id)
+DVDisplayHint.byName('Customer')   // device profiles name displays; see Kiosk Mode
+
+DV.Window.byRoute(DVPages.orders);   // DVWindow? — existing window for a URL
+await DV.Window.closeAll(except: [DV.Window.main]);
 ```
 
 `DV.Navigation` gains a target rather than a second API:
-`DV.Navigation.to(DVPages.orders, window: DVWindowTarget.newWindow)`.
+
+```dart
+DV.Navigation.to(DVPages.orders, window: DVWindowTarget.newWindow);
+DV.Navigation.to(DVPages.orders, window: DVWindowTarget.current);   // default
+```
+
+### DVWindow
+
+```dart
+win.id;              // stable for the window's life; not persisted
+win.route;           // DVRoute — what it shows, including parameters
+win.kind;            // DVWindowKind
+win.owner;           // DVWindow? — null for regular windows
+win.lifecycle;       // DVSignal<DVWindowLifecycle>
+win.presentation;    // DVWindowPresentation: window | page | dialog | overlay
+win.degradation;     // DVWindowDegradation
+win.isVirtual;       // presentation != window
+win.isMain;
+win.display;         // DVSignal<DVDisplay?> — null for virtual windows
+win.kiosk;           // DVWindowKiosk? — null unless kind == kiosk
+
+win.size;            // DVSignal<Size>
+win.setSize(Size);   // no-op on virtual windows, logged at debug
+win.setTitle(String);// maps to page title on virtual windows
+win.setFullscreen(bool);
+win.minimize(); win.maximize(); win.restore();
+await win.close();   // closes the window, or pops the route — same call
+```
+
+**There is no `activate()` and no `focus()`.** `open()` opens, focuses and
+activates. Bringing an existing window forward is the same verb: opening a URL
+a window already shows focuses that window. `DV.Window.byRoute(r)` exists for
+*reading* whether a window exists; to bring it forward, open its route. One
+verb, idempotent by URL; a deliberate second window says `duplicate: true`.
+
+**Placement is not part of the contract.** There is no `position` and no
+`setPosition`. Wayland forbids app-positioned windows, Flutter's windowing API
+exposes none, and web, Android and iPadOS delegate placement to the OS. The
+only placement input is `DVDisplayHint` — *which display*, never where on it —
+and it is best-effort by name.
+
+## Kinds, ownership and modality
+
+| Kind | Meaning | Owner | Fallback presentation |
+|---|---|---|---|
+| `regular` | top-level peer window | none | pushed page |
+| `dialog` | owned, focus-taking | required | modal route |
+| `popup` | owned, transient, dismiss on outside interaction | required | overlay |
+| `tooltip` | owned, non-interactive, follows anchor | required | overlay |
+| `satellite` | owned, non-modal companion (palette, inspector) | required | overlay |
+| `kiosk` | owns one display; fullscreen, pinned, exit-protected | none | fullscreen page in the current surface |
+
+- Owned windows close when their owner closes, in reverse open order. An owned
+  window cannot outlive its owner; a request with a closed owner fails typed
+  (`DV-WINDOW-007`) rather than adopting `main`.
+- `modality: window` (default for `dialog`) blocks input to the owner only.
+  `modality: application` blocks all windows of the application and is
+  honoured only where the OS supports it; elsewhere it degrades to
+  `window` and reports `DV-WINDOW-008` at `debug`. Nothing is blocked that the
+  platform cannot block — a fake application-modal that leaks input is worse
+  than an honest window-modal.
+- `popup` and `tooltip` on desktop are the native window kinds the Flutter
+  windowing API provides for exactly this purpose, which is why menus and
+  tooltips align to the cursor instead of clipping to the parent window.
+
+## Kiosk windows
+
+A kiosk window is a regular window that owns a display and carries a policy it
+cannot be argued out of. It is how one application serves a customer-facing
+display and a staff terminal at once: the staff window is ordinary; the
+customer window is kiosk. It is also how one process drives a signage wall —
+one kiosk window per display.
+
+```dart
+final customer = await DV.Window.open(
+  DVPages.customerDisplay,
+  options: DVWindowOptions(
+    kind: DVWindowKind.kiosk,
+    display: DVDisplayHint.byName('Customer'),
+    kiosk: DVWindowKiosk(policy: DVKioskPolicies.customerDisplay),
+  ),
+);
+
+customer.kiosk!.state;          // DVSignal<DVKioskState>
+customer.kiosk!.enforcement;    // what this platform honours for one display
+await customer.kiosk!.resetSession();
+
+// From the staff window, already authenticated:
+await customer.kiosk!.exit(DVKioskExitRequest.adminAuth());
+```
+
+Rules:
+
+- **It owns its display.** `DVDisplay.kioskOwner` is set for the window's
+  life. Another window requesting that display is placed on a different one
+  and reports `DV-WINDOW-011`. If the display disconnects, the kiosk window
+  degrades to a fullscreen page in the current surface (`DV-WINDOW-010`) and
+  reclaims the display when it returns — the reclaim is `open()` of the same
+  URL, so it is idempotent.
+- **It is pinned.** Fullscreen, no move, no resize, no minimize; those requests
+  are refused and logged at `debug` (`DV-WINDOW-012`). A user close request is
+  refused. The window closes only through `kiosk.exit(...)` satisfying the
+  policy's exit method, or through application exit.
+- **Its policy is a declared kiosk policy.** `DVWindowKiosk.policy` names a
+  policy from `dartvel.kiosk.policies` (see Kiosk Mode); the window inherits
+  its `routes`, `input`, `session`, `display`, `notifications` and `exit`
+  sections. Input confinement for *one* display is platform-limited — a
+  keyboard is a device, not a display — and `enforcement.inputScope` reports
+  `display` or `device` rather than implying more than is true.
+- **Its session is its own.** A kiosk window's idle reset clears its page
+  signals and the shared keys under `kiosk.<name>.*`; it does not sign out the
+  application or touch other windows. The staff terminal is unaffected by the
+  customer display timing out. (Device-scoped kiosk clears the application
+  session; display-scoped never does. See Kiosk Mode › Sessions.)
+- **Exit can come from a peer.** `adminAuth` is satisfied by any window whose
+  authenticated session passes `DVPolicyAction.exitKiosk`, so staff exit the
+  customer display from the terminal they are already signed into. Every exit
+  is audited with the actor.
+- **It keeps the process alive.** Kiosk windows count as regular windows for
+  the exit policy: closing the staff window does not take the signage down.
+- **Declared kiosk windows open at boot**, from `dartvel.kiosk.windows`, before
+  workspace restore and before `main` presents. They are never part of a
+  persisted workspace; a kiosk window comes from policy, not from state.
+- **Where no display can be owned** — a phone, a single-display desktop with
+  the display already in use, a terminal — `kind: kiosk` degrades like every
+  other kind: the route is presented as a fullscreen page and reported. Device
+  scope is the right tool for a single-display device; display scope is for
+  the second one.
+
+## Main window and process exit
+
+The first window opened is `main`. It is a peer for every purpose except two:
+
+- **Restore anchor.** Workspace restore and deep links with no target land in
+  `main`.
+- **Exit policy.** `exit: lastWindow` (default on desktop) ends the process
+  when the last *regular or kiosk* window closes; owned windows do not count.
+  `exit: mainWindow` ends the process when `main` closes; `exit: explicit`
+  never exits on window close (tray-resident applications).
+
+If `main` closes under `exit: lastWindow` while other regular windows remain,
+the oldest remaining regular window becomes `main`. `DV.Window.main` is a
+signal-backed getter so tray and workspace code follows the promotion.
+
+On targets without a process to exit in this sense (web, Android tasks,
+iPadOS scenes) the policy is a no-op and is reported once by `dartvel doctor`.
+
+## Lifecycle
 
 ```dart
 enum DVWindowLifecycle {
@@ -2296,41 +2936,40 @@ enum DVWindowLifecycle {
 }
 ```
 
-Lifecycle is a generated read-only enum signal per [Lifecycle
-Signals](#lifecycle-signals): the runtime owns transitions and application
-code observes them.
+Lifecycle is a generated read-only enum signal per Lifecycle Signals: the
+runtime owns transitions, application code observes. Guarantees:
 
-**There is no `activate()`.** `open()` opens, focuses and activates, because a
-window that appears unfocused is not behaviour anyone wants. Bringing an
-existing window forward is the same verb: opening a route a window already
-shows focuses that window rather than duplicating it. One verb, idempotent by
-route; a deliberate second window on the same route says
-`DVWindowOptions(duplicate: true)`.
-
-**Placement is not part of the contract.** There is no `position` and no
-`setPosition`. Wayland forbids app-positioned windows, Flutter's desktop API
-exposes none, and web, Android and iPadOS delegate placement to the OS. A
-capability only three targets could honour — one of which refuses — is not a
-capability. If upstream ships placement it arrives as
-`DVWindowPlacementHint`, best-effort by name.
+- `requested → creating → created → ready` occurs exactly once per window.
+  `ready` means the route has resolved and the first frame is presented.
+- `active` / `inactive` track OS focus. Exactly one window is `active` at a
+  time per engine; on separate-engine targets each engine reports its own.
+- `minimized` / `maximized` / `fullscreen` are display states entered from
+  `active` or `inactive` and return there.
+- `closing` is observable and cancellable: a page may register
+  `context.window.onCloseRequest(() async => confirmDiscard())`; returning
+  `false` returns the window to its prior state. The OS "force close" path
+  (process kill) bypasses this and is why the shared store exists.
+- `failed` is terminal and only reachable before `ready`; a window that fails
+  after `ready` is `closed` with a logged reason.
+- Virtual windows run the same states over their route's page lifecycle, so
+  observers do not branch on `isVirtual`.
 
 ## open() never fails
 
-Where a real window cannot be created, `open()` navigates to the route
-instead: `regular` becomes a pushed page, `dialog` a modal route, and
-`popup`, `tooltip` and `satellite` overlays. This is the payoff of a window
-being a route — the fallback is not a consolation prize, it is the same
-content presented the way the platform can present it.
+Where a real window cannot be created, `open()` presents the route the way the
+platform can: `regular` becomes a pushed page, `dialog` a modal route, and
+`popup`, `tooltip` and `satellite` overlays. The returned `DVWindow` is real
+either way, `DV.Window.all` lists virtual windows alongside real ones, and
+`close()` pops the route. **Application code never branches on capability.**
 
-**Failing is removed; reporting is not.** Every fallback carries a stable
-diagnostic code, is written to observability through `DV.log`, and is readable
-on the returned window. A degradation nobody can see is the silent-ignoring
-this specification forbids.
+Failing is removed; reporting is not. Every fallback carries a stable code, is
+written to observability through `DV.log`, and is readable on the window.
 
 ```dart
 enum DVWindowDegradation {
-  none, capabilityUnsupported, kioskLocked,
-  gestureRequired, platformRefused, disabledByConfig,
+  none, capabilityUnsupported, kioskLocked, gestureRequired,
+  platformRefused, disabledByConfig, ownerClosed, modalityReduced,
+  displayUnavailable, displayOwned, pinned,
 }
 ```
 
@@ -2341,167 +2980,218 @@ enum DVWindowDegradation {
 | `DV-WINDOW-003` | web popup blocked — called outside a user gesture | `warning` |
 | `DV-WINDOW-004` | platform refused (OS window limit, task creation denied) | `warning` |
 | `DV-WINDOW-005` | `windowing.enabled: false` in configuration | `info` |
+| `DV-WINDOW-006` | native binding missing or refused the request | `error` |
+| `DV-WINDOW-007` | owned window requested with a closed owner | `warning` |
+| `DV-WINDOW-008` | application modality reduced to window modality | `debug` |
+| `DV-WINDOW-009` | restored route missing, unauthorized, or unresolvable | `info` |
+| `DV-WINDOW-010` | kiosk window's display unavailable; presented in place, fullscreen | `warning` at boot, once |
+| `DV-WINDOW-011` | window requested on a kiosk-owned display; placed elsewhere | `info` |
+| `DV-WINDOW-012` | move/resize/minimize/close refused on a pinned kiosk window | `debug` |
 
 Levels are calibrated to whether the developer can act. A phone has no windows
 and the fallback is the intended behaviour, so warning on every call would
 train people to ignore the channel; a blocked popup and a refused task are
-both fixable, and both mean the application asked for something it could have
-had. `dartvel analyze performance` aggregates these, so a call site that
-always degrades is one finding rather than a thousand log lines.
+fixable. `dartvel analyze performance` aggregates degradations per call site,
+so a site that always degrades is one finding, not a thousand log lines.
 
-```dart
-win.isVirtual;      // true when the route was navigated, not windowed
-win.degradation;    // why, or .none
-win.presentation;   // window | page | dialog | overlay
-await win.close();  // closes the window, or pops the route — same call
-```
+`DV-WINDOW-006` is the one `error`: a binding that is present but refuses is a
+platform integration defect, not a capability limit, and it must not be dressed
+up as graceful degradation. It still degrades — the route is still presented —
+but it is reported as the bug it is.
 
-The returned `DVWindow` is real either way, and `DV.Window.all` lists virtual
-windows alongside real ones, so a tab strip or a close-all command is written
-once and works on a phone. **Application code never branches on capability.**
-
-Honest about what degrades: `setSize` and `constraints` are no-ops on a
-virtual window and log at `debug` rather than vanishing; `setTitle` maps to the
-page title, which is the closest true equivalent rather than a discard; and
-opening N windows on a phone yields N stacked routes, which is what was asked
-for. A workspace UI should still read `capability.multiWindow` when deciding
-whether to *offer* "open in new window" — degrading a call is right,
-advertising a control that surprises is not. Kiosk degradation is not a
-security hole: kiosk restricts the surface, not the content, and the route
-still faces the same middleware and policies.
+Honest about what degrades: `setSize` and `constraints` are no-ops on a virtual
+window and log at `debug`; `setTitle` maps to the page title; opening N windows
+on a phone yields N stacked routes. A workspace UI should still read
+`capability.multiWindow` when deciding whether to *offer* "open in new window"
+— degrading a call is right, advertising a control that surprises is not.
+Kiosk degradation is not a security hole: kiosk restricts the surface, not the
+content, and the route still faces the same middleware and policies.
 
 ## Capability
 
 ```dart
 final cap = DV.Window.capability;
-cap.multiWindow;   // can a second OS-level window exist
-cap.sameEngine;    // do windows share one engine (object handover)
-cap.tearOut;       // can a tab detach into a window
-cap.inPageViews;   // web: in-page multi-view embedding
+cap.multiWindow;        // can a second OS-level window exist
+cap.sameEngine;         // do windows share one engine (object handover)
+cap.tearOut;            // can a tab detach into a window by drag
+cap.inPageViews;        // web: in-page multi-view embedding
+cap.ownedWindows;       // native popup/tooltip/satellite kinds
+cap.applicationModal;   // OS supports app-wide modality
+cap.displays;           // more than one display is addressable
+cap.displayKiosk;       // a window can own one display in kiosk mode
 ```
+
+Capability is a snapshot at process start plus a signal for the two things
+that change at runtime — `displays` and kiosk state — so a workspace can hide a
+"move to display" control the moment the display is unplugged.
+
+## Deep links and external open requests
+
+An OS-level request to open a route — deep link, app link, file association,
+`dartvel://` URL, a second launch of a single-instance desktop application —
+is delivered to `DV.Window.open(route)` with `DVWindowOptions.external`. It is
+therefore idempotent by URL: a link to an order already on screen focuses that
+window; a link to a new order opens one (or navigates, on targets without
+windows). Middleware and policies run before presentation as for any route.
+Single-instance behaviour on desktop is on by default (`singleInstance: true`)
+and is what makes "second launch focuses the running app" true.
 
 ## Shared window state
 
 Two handover modes, chosen automatically from `capability.sameEngine`:
 
 - **sameEngine** (desktop, web in-page views): the moved content is the same
-  Dart object tree, so signals, in-flight requests and scroll positions
-  survive by construction.
+  Dart object tree, so signals, in-flight requests and scroll positions survive
+  by construction.
 - **shared** (web `window.open`, Android tasks, iPadOS scenes): the new window
-  is a separate engine, so state is shared through a watched store — one
-  writer publishes, every other window is notified and its signals update.
+  is a separate engine, so state crosses through a watched store — one writer
+  publishes, every other window is notified and its signals update.
 
-`DV.Window.shared` is a typed, watched key-value store scoped to the
-application, tenant and user. It is one API on every platform, desktop
-included:
+`DV.Window.shared` is a typed, watched key-value store scoped to application,
+tenant and user. One API on every platform, desktop included:
 
 ```dart
 await DV.Window.shared.set('workspace.activeTab', DVJsonString(tab.id));
-final tabId = DV.Window.shared.signal('workspace.activeTab');
+final tabId = DV.Window.shared.signal<DVJsonString>('workspace.activeTab');
 
 // or declared at the signal, with the wiring generated:
 final activeTab = context.signal('', shared: 'workspace.activeTab');
 ```
 
-A watched store rather than message passing, for a reason worth stating: a
-message is delivered once, to whoever is listening at that instant. A window
-opened five seconds later gets nothing, and crash recovery has nothing to
-read. A store has no delivery moment — late joiners read current state on
-open, and the same bytes that sync a running window restore a crashed one.
-This is also why there is **no `DV.Window.broadcast`**: the store publishes
-state, which a late or restarted window can read; a message API would publish
-events, sitting alongside model sync doing a worse version of its job.
+A store rather than message passing: a message is delivered once, to whoever
+is listening at that instant; a window opened five seconds later gets nothing
+and crash recovery has nothing to read. A store has no delivery moment — late
+joiners read current state on open, and the same bytes that sync a running
+window restore a crashed one. This is why there is **no `DV.Window.broadcast`**:
+the store publishes state, which a late or restarted window can read; a message
+API would publish events, sitting alongside model sync doing a worse version of
+its job.
 
 What varies per target is which of the store's two jobs the OS performs:
 
 | Target | Notification | Persistence |
 |---|---|---|
-| Windows / macOS / Linux | in-process — signals | `NSUserDefaults`, or config via `DV.FileStorage` |
+| Windows / macOS / Linux | in-process — signals | platform key-store-backed file via `DV.FileStorage` |
 | Android | `OnSharedPreferenceChangeListener` | `SharedPreferences` |
 | iPadOS | KVO | `NSUserDefaults` |
 | Web | `storage` event | `localStorage` |
 
-Every platform needs persistence — tab order and draft values must survive a
-relaunch on Windows as much as on a phone. Only cross-engine targets need OS
-notification, because desktop windows share an isolate and a signal write
-already reaches every window with no serialization. Separating those two
-columns is what makes the abstraction genuinely uniform rather than
-uniform-looking, and it removes three native watchers Dartvel would otherwise
-have had to write and keep working.
-
 Rules:
 
+- **Keys are namespaced.** `workspace.*` is reserved for `DVTabWorkspace`;
+  application keys must not start with `dv.` or `workspace.`. A violating key
+  is a build error where static, a typed runtime failure otherwise.
 - **Encryption is Dartvel's, not the store's.** Values are encrypted with the
-  application key (see [Secrets and Environments](#secrets-and-environments))
-  before the write, so the backing store is a dumb byte sink on every target —
-  one code path and one threat model, rather than depending on
-  `EncryptedSharedPreferences` on one platform and `localStorage`, which has
-  no encryption story at all, on another. Encryption is on for the whole store
-  rather than per key, because a per-key opt-in means the one key someone
-  forgot is the one that mattered.
+  application key (Secrets and Environments) before the write, so the backing
+  store is a dumb byte sink on every target — one code path, one threat model.
+  Encryption is whole-store, never per key.
 - **Writes are coalesced.** A signal changing per frame must not write per
-  frame; shared writes are debounced and batched per flush.
+  frame; shared writes are debounced and batched per flush (`debounceMs`).
 - **Last write wins, per key.** Keys are the conflict unit. State that needs
   merge semantics is model state — use a model.
-- **Large values spill.** Preference stores are built for small values, so
-  anything over `spillThresholdKb` goes to `DV.FileStorage` with an encrypted
-  pointer left behind. The pointer write triggers the notification and the
-  reader follows it, so no watcher is needed.
-- **The store is not for model data.** Models already converge through model
-  sync, which applies auth, tenant filters and policy checks before delivery;
-  duplicating rows into the shared store would bypass all three. The store
-  holds view state: active tab, tab order, layout, scroll offsets, drafts.
-- **`DV.Secrets` values never reach it**, and the reason is scope rather than
-  confidentiality: a backend-scoped secret on a client is a `DV-SECRETS-001`
-  violation whether or not the bytes are encrypted. That stays a build error.
-- **Entries are ephemeral by contract**, session-scoped and swept by age. A
-  crashed application leaves a readable store — that is the recovery feature —
-  but a stale one is collected rather than kept.
-- **An undecryptable store is discarded, not fatal.** It holds view state, so
-  losing it costs a tab order; a window that refuses to open because a scroll
-  offset would not decrypt is the worse outcome. Reported through `DV.log`,
-  never silently.
+- **Large values spill.** Anything over `spillThresholdKb` goes to
+  `DV.FileStorage` with an encrypted pointer left behind; the pointer write is
+  the notification.
+- **The store is not for model data.** Models converge through model sync,
+  which applies auth, tenant filters and policy checks before delivery;
+  duplicating rows into the store would bypass all three. The store holds view
+  state: active tab, tab order, layout, scroll offsets, drafts.
+- **`DV.Secrets` values never reach it.** A backend-scoped secret on a client
+  is a `DV-SECRETS-001` violation regardless of encryption; that stays a build
+  error.
+- **Entries are ephemeral by contract**, session-scoped and swept by age
+  (`sweepAfter`). A crashed application leaves a readable store — that is the
+  recovery feature — but a stale one is collected rather than kept.
+- **An undecryptable store is discarded, not fatal**, and reported through
+  `DV.log`.
 
-Genuinely separate processes — a second application *instance* rather than a
-second window — fall outside preference listeners, and degrade to polling the
-store at `pollMs`, reported once by `dartvel doctor`. It is narrow enough to be
-a fallback rather than the architecture.
+Genuinely separate processes — a second *instance*, which `singleInstance`
+prevents by default — fall outside preference listeners and degrade to polling
+at `pollMs`, reported once by `dartvel doctor`.
+
+## Persistence and restore
+
+```dart
+await DV.Window.persistWorkspace('default');
+await DV.Window.restoreWorkspace('default');
+```
+
+A persisted workspace is the ordered list of regular windows — each as
+canonical URL, kind, size, display hint and title — plus the `workspace.*`
+shared keys. It is tenant- and user-scoped like all stored state. Owned windows
+are never persisted; they are derived from their owners' pages.
+
+Kiosk windows are excluded from persistence by contract; they open from
+`dartvel.kiosk.windows` before anything else.
+
+`restoreOnLaunch: true` restores `default` at boot, before `main` presents,
+so the user sees their workspace rather than a flash of the home route.
+Restore is defensive: a URL whose route no longer exists, no longer resolves,
+or is no longer authorized for the current user is skipped and reported
+(`DV-WINDOW-009`, `info`) rather than opening an error page in a window.
+If nothing restores, `main` opens the home route.
+
+## Inheritance and scope
+
+A window inherits **theme, locale, tenant, auth session and module scope** from
+the application; none is per-window. The one per-window surface is `title`.
+This is a rule, not a limitation to be lifted: a per-window theme would be the
+first thing a workspace's shared store could not represent, and a per-window
+tenant would be a data-isolation hole with a friendly name.
+
+**Shortcuts** are focus-scoped by default: a page's shortcuts fire only when
+its window is `active`. `DV.Platform.Shortcuts.register` (global shortcuts)
+stays global and fires regardless of focus, as its name says.
+
+**Accessibility**: each real window is its own semantics tree and announces
+its title on `ready` and on focus gain, matching platform convention. Virtual
+windows announce as route changes. `dartvel test accessibility` covers both.
 
 ## Platform matrix
 
-| Target | Multi-window | Mechanism | Handover | Label |
-|---|---|---|---|---|
-| Windows | yes | Flutter windowing | sameEngine | `Experimental`¹ |
-| macOS | yes | Flutter windowing | sameEngine | `Experimental`¹ |
-| Linux | yes | Flutter windowing; Wayland: never placement | sameEngine | `Experimental`¹ |
-| Web | yes | `window.open(route)`; in-page multi-view | shared / sameEngine² | `Supported with limitations` |
-| Android | yes | task-per-window via engine groups | shared | `Supported with limitations` |
-| iPadOS | yes | `UIScene` | shared | `Supported with limitations` |
-| iOS (iPhone) | no | navigation fallback | — | `Supported with limitations`³ |
-| Fuchsia | plausible | view-based compositor | sameEngine | `Experimental` |
-| Tizen / webOS | no | single-fullscreen app model | — | `Supported with limitations`³ |
-| eLinux / embedded | no by policy | kiosk stays locked | — | `Supported with limitations`³ |
-| Watch | no | navigation fallback | — | `Supported with limitations`³ |
+| Target | Multi-window | Mechanism | Handover | Owned kinds | Label |
+|---|---|---|---|---|---|
+| Windows | yes | Flutter windowing (`RegularWindow`, FFI) | sameEngine | yes | `Experimental`¹ |
+| macOS | yes | Flutter windowing | sameEngine | yes | `Experimental`¹ |
+| Linux | yes | Flutter windowing; Wayland: never placement | sameEngine | yes | `Experimental`¹ |
+| Web | yes | `window.open(route)`; in-page multi-view | shared / sameEngine² | overlay only | `Supported with limitations` |
+| Browser extension | in-page only | multi-view tier; `tabsCreate` for routes | sameEngine² | overlay only | `Supported with limitations` |
+| Android | yes | task-per-window via engine groups | shared | no | `Supported with limitations` |
+| iPadOS | yes | `UIScene` | shared | no | `Supported with limitations` |
+| iOS (iPhone) | no | navigation fallback | — | overlay only | `Supported with limitations`³ |
+| Fuchsia | plausible | view-based compositor | sameEngine | tbd | `Experimental` |
+| Tizen / webOS | no | single-fullscreen app model | — | overlay only | `Supported with limitations`³ |
+| eLinux / embedded | no by policy | kiosk stays locked | — | overlay only | `Supported with limitations`³ |
+| Watch | no | navigation fallback | — | overlay only | `Supported with limitations`³ |
+| Terminal (`-cli`/`-tui`) | no | navigation fallback; multiplexer surfaces deferred | — | overlay only | `Supported with limitations`³ |
 
-¹ **Upstream dependency, stated plainly.** Flutter's desktop windowing is
-experimental — main channel, behind `--enable-windowing`, with `@internal`
-APIs that may rename between releases. Dartvel's abstraction is the churn
-absorber: the generated bindings under `window.*` are the only code touching
-that surface, so an upstream rename is a Dartvel point release rather than an
-application change. The desktop rows are labelled `Experimental` for as long
-as that is true, and are the one place this section's own status is gated on
-someone else's.
+¹ **Upstream dependency, stated plainly.** Flutter's desktop windowing API
+(`RegularWindow`, `RegularWindowController`, `WindowRegistry`, window-backed
+dialogs and tooltips) ships behind `flutter config --enable-windowing` and
+still uses framework-internal imports on the application side. Dartvel is the
+churn absorber: the generated bindings under `window.*` are the only code
+touching that surface, so an upstream rename is a Dartvel point release rather
+than an application change. Out-of-tree embedders (the television and
+embedded forks) implement windowing by overriding `createWindowingOwner`, which
+is how a future TV or Fuchsia row could turn on without touching this
+contract. Desktop rows stay `Experimental` for as long as the flag exists.
 
 ² Web is two tiers by design: `window.open` for OS-level windows, and in-page
-multi-view embedding for panels and embedded workspace regions. The second
-tier also serves the browser-extension targets.
+multi-view embedding for panels and workspace regions. The second tier serves
+the browser-extension targets, where `open()` of a regular window maps to
+`DV.Platform.browserExtension.tabsCreate(route)` and an owned kind maps to an
+in-page overlay.
 
 ³ The *capability* is unsupported; the *API* is not. `capability.multiWindow`
-reports false and no OS window is created, but `open()` navigates to the
-route, so application and workspace code compiles and runs unchanged. No
-target is labelled `Unsupported`, because the label describes what an
-application can rely on and every target can rely on `open()` presenting the
-route.
+reports false and no OS window is created, but `open()` presents the route, so
+application and workspace code compiles and runs unchanged. No target is
+labelled `Unsupported`, because the label describes what an application can
+rely on, and every target can rely on `open()` presenting the route.
+
+Display-scoped kiosk (`capability.displayKiosk`) requires `multiWindow` and
+`displays`; it is available on the desktop rows and on eLinux multi-head
+configurations, with per-display enforcement reported as described under
+Kiosk Mode › Enforcement.
 
 ## Configuration
 
@@ -2509,50 +3199,131 @@ route.
 dartvel:
   windowing:
     enabled: true
+    singleInstance: true          # desktop: second launch focuses, not forks
+    exit: lastWindow              # lastWindow | mainWindow | explicit
+    restoreOnLaunch: true
     workspace:
       persist: true
-      tearOut: auto             # auto | disabled
+      tearOut: auto               # auto | disabled
     sharedState:
-      encrypt: true
+      encrypt: true               # informational; cannot be disabled
       debounceMs: 50
       spillThresholdKb: 32
-      pollMs: 250               # separate-process fallback only
+      pollMs: 250                 # separate-process fallback only
       sweepAfter: 24h
     web:
       inPageViews: true
       openInNewWindow: true
     android:
       freeform: auto
-    kiosk:
-      allowWindows: false
+    # kiosk policy lives under dartvel.kiosk (see Kiosk Mode);
+    # windowing.kiosk.allowWindows remains a compatibility alias of
+    # dartvel.kiosk.windows in device scope.
 ```
 
+`sharedState.encrypt` is shown for discoverability and validates as `true`;
+setting `false` is a build error, because a per-project opt-out is how the one
+project that mattered ships plaintext drafts.
+
 ## Bindings
+
+Stability: `Draft` · Status: `Designed`
 
 Generated FFI/ffigen or JNI/jnigen bindings only, per the standing rule:
 
 - desktop: `window.open`, `window.close`, `window.setTitle`, `window.setSize`,
-  `window.observeLifecycle`
+  `window.setFullscreen`, `window.minimize`, `window.maximize`,
+  `window.restore`, `window.observeLifecycle`, `window.displays`,
+  `window.display.assign`, `window.pin`, `window.unpin`,
+  `window.instance.acquire` (single-instance lock)
 - android: `window.task.open`, `window.task.close` (JNI, engine groups)
 - ios: `window.scene.request`, `window.scene.close`
-- web: generated bindings over `window.open`, `localStorage` and the `storage`
-  event, and the multi-view embedder API
+- web: generated bindings over `window.open`, `localStorage`, the `storage`
+  event, and the multi-view embedder API; extension targets add `tabs.create`
 - shared store: `window.shared.get`, `window.shared.set`,
   `window.shared.observe`; desktop needs no `observe`, since notification is
   in-process
 
 A missing or refusing binding fails typed (`DV-WINDOW-006`), never silently.
 
-Windows and tabs are project-graph nodes, so `dartvel inspect windows --json`
-answers like every other inspector, and the devtools window inspector shows the
-live window list, each window's route and lifecycle state, handover mode, and
-the capability report per configured target.
+## Inspection, Studio and the project graph
 
----
+Windows and tabs are project-graph nodes. `dartvel inspect windows --json`
+answers like every other inspector: the static picture (which routes declare
+window identity, workspace pages, configured exit and restore policy) and,
+against a running app, the live window list with route, kind, owner, lifecycle
+state, presentation, degradation, handover mode, and the capability report per
+configured target. Studio's window inspector renders the same data and lets
+an operator close, focus (via open) and inspect a window's shared keys —
+values shown decrypted only to an authorized session, never logged.
+
+## Testing
+
+```dart
+DV.Test.fakeWindowing(
+  const DVWindowingCapability(multiWindow: false),   // simulate a phone
+);
+DV.Test.fakeWindowing(DVWindowingCapability.desktop());
+
+final win = await DV.Window.open(DVPages.orders);
+expect(win.presentation, DVWindowPresentation.page);
+expect(win.degradation, DVWindowDegradation.capabilityUnsupported);
+```
+
+Fakes are explicit; no test passes because windowing was silently absent.
+Golden tests run per window, keyed by route, and `dartvel test e2e` drives
+real tear-out on desktop runners where the flag is available.
+
+## Performance contracts
+
+Measured: time from `open()` to `ready` (real and virtual), tear-out handover
+time on same-engine targets, shared-store write rate and coalescing ratio,
+store size and spill count, and restore-on-launch duration. Diagnostics:
+a call site that always degrades, a shared key written more than once per
+frame before coalescing, a workspace whose restore exceeds the startup budget,
+and owned windows outliving the frame budget on close.
+
+## Security
+
+- A window presents a route, so middleware and policies run before
+  presentation; there is no window-level bypass of auth, tenant or policy.
+- Kiosk keeps the surface locked (`DV-WINDOW-002`); content still presents in
+  place under the same policies.
+- Web `open()` requires a user gesture for real windows; the platform enforces
+  it and Dartvel reports it (`DV-WINDOW-003`) rather than attempting a bypass.
+- The shared store is encrypted with the application key and never holds
+  `DV.Secrets` values or model rows.
+- Restore never opens a route the current user is not authorized for.
+
+## Compatibility
+
+`DV.Platform.Window.setTitle` / `persistState` / `restoreState` continue to
+work as sugar over `DV.Window.current`; `dartvel migrate-code` rewrites them to
+the explicit form on request. No existing surface is removed.
+
+## Deliberately absent
+
+Closed as a list so they are not reopened item by item:
+
+- **A second windowing namespace.** `DV.Window` (= `DV.Platform.Window`) is
+  the whole surface. No `DVWindowManager`, no `DV.Windows`, no `DVWindowing` —
+  not as a public type, not as a documented name, ever. Anything the
+  implementation needs beyond `DV.Window` and `DVWindow` is private.
+- **Window placement / `setPosition`** — three targets could honour it, one
+  refuses; not a capability. Display hint only.
+- **`activate()` / `focus()`** — `open()` is the one verb; idempotent by URL.
+- **`DV.Window.broadcast` / messaging** — the store publishes state; events
+  belong to model sync.
+- **`DVTab.widget(...)`** — a tab without a route cannot tear out on any
+  separate-engine target, cannot deep-link, cannot restore. Make a page.
+- **Per-window theme, locale, tenant or auth** — inheritance is the rule.
+- **Spawning terminal emulators for windows** — requires the window server
+  terminal rendering exists to avoid; multiplexer surfaces deferred.
+- **Store encryption opt-out** — whole-store, always on.
 
 # Tab Workspaces
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Contract` · Status: `Designed`
 
 `DVTabWorkspace` is a generated application component — like `User.Table()`,
 composed from `DVBox` and `DVText`, introducing no new primitive — that owns
@@ -2566,53 +3337,56 @@ Widget _workspacePage(BuildContext context) => DVTabWorkspace(
         DVTab(DVPages.customers),
         DVTab(DVPages.reports),
       ],
+      workspace: 'default',          // persistence name; null disables
     );
 ```
 
-A tab is a route, the same identity a window has, which is what makes tear-out
-navigation rather than surgery:
+A tab is a route — the same identity a window has — which is what makes
+tear-out navigation rather than surgery.
 
-- **Reorder** — drag within the strip. Works on every target, including TV and
-  watch-sized screens where the strip renders as a platform-appropriate
-  switcher. Pure UI; no windowing capability required.
+- **Reorder** — drag within the strip; on TV and watch the strip renders as a
+  platform-appropriate switcher and reorder is a context action. Pure UI; no
+  windowing capability required.
 - **Tear-out** — drag beyond the strip, or a context-menu action where drag is
-  unavailable. Gated on `capability.tearOut`, and executes
-  `DV.Window.open(tab.route)`. Where `tearOut` is false the gesture is absent
-  rather than broken.
-- **Re-dock** — dragging a tab into another window's strip. Same-engine
-  targets hit-test across windows and hand the object over; separate-engine
-  targets re-dock by adoption, the receiving workspace adding the route and
-  the source closing it. Same convergence, two steps.
+  unavailable. Gated on `capability.tearOut`; executes
+  `DV.Window.open(tab.route)`. Where `tearOut` is false the drag gesture is
+  absent rather than broken, and the explicit "open in new window" affordance
+  is shown only where `capability.multiWindow` is true.
+- **Re-dock** — dragging a tab into another window's strip. Same-engine targets
+  hit-test across windows and hand the object over; separate-engine targets
+  re-dock by adoption: the receiving workspace adds the route, the source
+  closes it. Same convergence, two steps.
 - **Empty-window rule** — a workspace window whose last tab leaves closes
-  itself, and its tabs fold into the main window if the OS closes it around
-  them. This is workspace state policy rather than window callbacks, so
-  tear-out, re-dock and cleanup are one transition.
-- **Persistence** — layout, tab order and active tab persist through
-  `DV.Window.persistWorkspace(name)` / `restoreWorkspace(name)`, tenant- and
-  user-scoped like any stored state.
+  itself; if the OS closes a workspace window around its tabs, they fold into
+  `main`. Workspace state policy, not window callbacks, so tear-out, re-dock
+  and cleanup are one transition.
+- **Duplicate tabs** — a route already open as a tab focuses that tab; a
+  deliberate second tab says `DVTab(route, duplicate: true)`, mirroring
+  `open()`.
+- **Persistence** — layout, tab order and active tab persist under the
+  workspace name through `persistWorkspace` / `restoreWorkspace`, tenant- and
+  user-scoped.
 
-Tab strip behaviour is capability-shaped, never capability-broken:
+Capability-shaped, never capability-broken:
 
 ```text
-tearOut: true      → detachable tabs                      (desktop, iPad, ChromeOS)
+tearOut: true       → detachable tabs                        (desktop, iPad)
 tearOut: false,
-  multiWindow: true → tabs plus explicit "open in new window"  (web, Android phones)
-multiWindow: false → tabs only; open() navigates          (iPhone, TV, watch, kiosk)
+  multiWindow: true → tabs plus explicit "open in new window" (web, Android)
+multiWindow: false  → tabs only; open() navigates            (iPhone, TV, watch, kiosk, terminal)
 ```
 
 Web tear-out by drag is false because a drag ending on the desktop cannot open
-a popup without a gesture-attributed call; web gets the explicit affordance
-instead, which satisfies the gesture requirement.
+a popup without a gesture-attributed call; web gets the explicit affordance,
+which satisfies the gesture requirement.
 
-Tear-out on a separate-engine target is: write the tab's shared keys, open the
-window at the route, let the new engine read them on boot. The route carries
-identity and the store carries state, so a slow-starting window loses
-nothing — the state is waiting for it, which is exactly what message passing
-gets wrong.
+Tear-out on a separate-engine target is: write the tab's `workspace.*` shared
+keys, open the window at the route, let the new engine read them on boot. The
+route carries identity and the store carries state, so a slow-starting window
+loses nothing — the state is waiting for it.
 
-A tab is always a route. `DVTab.widget(...)` is deliberately absent: a tab
-without a route cannot tear out on any separate-engine target, and cannot be
-deep-linked or restored. A page is cheap; make one.
+Tear-out never produces a kiosk window: kiosk windows come from policy, not
+from a gesture, and a tab dragged out of a strip is a regular window.
 
 Sharing is always explicit at the signal declaration. A workspace does not
 implicitly share its tabs' page signals, because implicit persisted writes of
