@@ -285,7 +285,7 @@ void main() {
   group('the diagnostic code', () {
     test('displayUnavailable has a stable code and is developer-actionable',
         () {
-      expect(DVWindowDegradation.displayUnavailable.code, 'DV-WINDOW-006');
+      expect(DVWindowDegradation.displayUnavailable.code, 'DV-WINDOW-013');
       expect(DVWindowDegradation.displayUnavailable.level, 'warning');
       expect(DVWindowDegradation.displayUnavailable.reason, isNotEmpty);
     });

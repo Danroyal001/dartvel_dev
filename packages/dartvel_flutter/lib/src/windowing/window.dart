@@ -125,7 +125,7 @@ extension DVWindowDegradationX on DVWindowDegradation {
         DVWindowDegradation.gestureRequired => 'DV-WINDOW-003',
         DVWindowDegradation.platformRefused => 'DV-WINDOW-004',
         DVWindowDegradation.disabledByConfig => 'DV-WINDOW-005',
-        DVWindowDegradation.displayUnavailable => 'DV-WINDOW-006',
+        DVWindowDegradation.displayUnavailable => 'DV-WINDOW-013',
       };
 
   /// Calibrated to whether the developer can act on it. A phone has no
@@ -156,8 +156,8 @@ extension DVWindowDegradationX on DVWindowDegradation {
         DVWindowDegradation.disabledByConfig =>
           'windowing.enabled is false in configuration',
         DVWindowDegradation.displayUnavailable =>
-          'the requested display is not connected; the window opened on the '
-              'primary display instead',
+          'the requested display is not connected; the window opened where '
+              'the OS placed it',
       };
 }
 
