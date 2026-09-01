@@ -1,7 +1,12 @@
 import 'dart:io';
 import 'package:args/command_runner.dart';
+// Shown, not whole: dartvel_core exports a Platform enum that would shadow
+// dart:io's Platform, which this file uses for environment and OS checks.
+import 'package:dartvel_core/dartvel.dart' show DVKioskTarget;
 import 'package:path/path.dart' as p;
+import 'package:yaml/yaml.dart';
 
+import '../doctor/kiosk_check.dart';
 import '../utils/logger.dart';
 import '../utils/toolchain.dart';
 import 'build_command.dart'
@@ -85,6 +90,7 @@ class DoctorCommand extends Command<void> {
     final pubspec = File(p.join(Directory.current.path, 'pubspec.yaml'));
     if (pubspec.existsSync()) {
       await _checkProjectConfig();
+      allGood = _checkKiosk(pubspec) && allGood;
     } else {
       Logger.log('[-] Not in a Dartvel project');
       Logger.log(
@@ -280,6 +286,68 @@ class DoctorCommand extends Command<void> {
       }
     } catch (_) {
       Logger.log('[-] Codemagic CLI: Not installed (optional for CI/CD)');
+    }
+  }
+
+  /// Validates a declared kiosk policy, and says what each target will do
+  /// with it.
+  ///
+  /// Counts towards the verdict because a kiosk that cannot be honoured is not
+  /// a warning: there is no "present it another way" fallback for locking a
+  /// device, so a policy nothing can enforce ships as an application anyone can
+  /// walk out of.
+  bool _checkKiosk(File pubspec) {
+    Object? dartvel;
+    try {
+      final Object? loaded = loadYaml(pubspec.readAsStringSync());
+      dartvel = loaded is YamlMap ? loaded['dartvel'] : null;
+    } on Object {
+      // A pubspec that will not parse is reported by the checks above.
+      return true;
+    }
+
+    final DVKioskCheck check = DVKioskCheck.run(dartvel, _configuredTargets());
+    if (check.lines.isEmpty) return true;
+
+    Logger.log('');
+    for (final String line in check.lines) {
+      Logger.log(line);
+    }
+    return check.ok;
+  }
+
+  /// The kiosk targets this project builds for.
+  ///
+  /// Read from `dartvel.platforms` where it is declared. An empty list still
+  /// validates the policy itself, which is the half that does not depend on
+  /// where it ships.
+  List<DVKioskTarget> _configuredTargets() {
+    const Map<String, DVKioskTarget> known = <String, DVKioskTarget>{
+      'sony-elinux': DVKioskTarget.sonyELinux,
+      'android': DVKioskTarget.androidScreenPinning,
+      'ios': DVKioskTarget.iPadOS,
+      'windows': DVKioskTarget.windows,
+      'macos': DVKioskTarget.macos,
+      'linux': DVKioskTarget.linuxDesktop,
+      'tizen': DVKioskTarget.tizen,
+      'webos': DVKioskTarget.webos,
+      'web': DVKioskTarget.web,
+    };
+
+    try {
+      final Object? loaded = loadYaml(
+          File(p.join(Directory.current.path, 'pubspec.yaml'))
+              .readAsStringSync());
+      final Object? dartvel = loaded is YamlMap ? loaded['dartvel'] : null;
+      final Object? platforms =
+          dartvel is Map ? dartvel['platforms'] : null;
+      if (platforms is! List) return const <DVKioskTarget>[];
+      return <DVKioskTarget>[
+        for (final Object? entry in platforms)
+          if (known['$entry'] != null) known['$entry']!,
+      ];
+    } on Object {
+      return const <DVKioskTarget>[];
     }
   }
 
