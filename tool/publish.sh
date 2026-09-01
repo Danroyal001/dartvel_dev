@@ -164,13 +164,16 @@ echo "── constraints ──────────────────�
 # A caret on a 0.x version stops at the next minor, so it excluded the 0.3.1
 # published beside it, and anyone installing that set resolved 0.2.x for every
 # sibling.
-constraint_out="$(cd packages/dartvel_cli && dart test test/release_constraints_test.dart 2>&1)"
-if [[ $? -eq 0 ]]; then
-  green "✓ every package accepts the sibling versions being published"
+# A standalone script, not the test suite. This ran `dart test` in
+# packages/dartvel_cli, which needs a resolved package config and a warm pub
+# cache -- and when the cache was wiped it failed with "Could not find
+# bin/test.dart in package test", which reads as a broken gate rather than a
+# cold cache. A release check that cannot run is a gate that gets skipped
+# exactly when it matters. check_constraints.dart imports nothing but dart:io.
+if constraint_out="$(dart tool/check_constraints.dart 2>&1)"; then
+  green "✓ $constraint_out"
 else
-  echo "$constraint_out" | grep -E 'does not admit' | sed 's/^ */    /' | sort -u
-  echo "$constraint_out" | grep -qE 'does not admit' \
-    || echo "$constraint_out" | tail -15
+  echo "$constraint_out" | sed 's/^/    /'
   fail "a package names a sibling version that is not the one being published"
 fi
 
