@@ -42,6 +42,22 @@ class DVWindowingCapability {
     this.displays = false,
   });
 
+  /// What a desktop host reports once real windowing is available.
+  ///
+  /// A named thing rather than four booleans at a call site: the combination
+  /// that means "desktop" is not obvious from the flags, and a test that spelt
+  /// it out would go stale the day the combination changed.
+  ///
+  /// [displays] is deliberately not set here. It is the one capability that
+  /// changes while the process runs, and it is read from the live display list
+  /// -- freezing it into a fake would make a "move to display" control
+  /// untestable.
+  factory DVWindowingCapability.desktop() => const DVWindowingCapability(
+        multiWindow: true,
+        sameEngine: true,
+        tearOut: true,
+      );
+
   /// This capability with [displays] recomputed from a display count.
   DVWindowingCapability withDisplayCount(int count) => DVWindowingCapability(
         multiWindow: multiWindow,
