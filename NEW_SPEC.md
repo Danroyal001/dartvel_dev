@@ -2994,6 +2994,7 @@ enum DVWindowDegradation {
 | `DV-WINDOW-010` | kiosk window's display unavailable; presented in place, fullscreen | `warning` at boot, once |
 | `DV-WINDOW-011` | window requested on a kiosk-owned display; placed elsewhere | `info` |
 | `DV-WINDOW-012` | move/resize/minimize/close refused on a pinned kiosk window | `debug` |
+| `DV-WINDOW-013` | `display:` hint matched no connected display; the OS placed the window | `warning` |
 
 Levels are calibrated to whether the developer can act. A phone has no windows
 and the fallback is the intended behaviour, so warning on every call would
