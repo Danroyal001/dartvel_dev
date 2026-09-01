@@ -70,13 +70,19 @@ class _DVWindowHostState extends State<DVWindowHost> {
     _windows = DV.Platform.Window.all;
     _windows.addListener(_onWindowsChanged);
 
-    // Windows are held until a frame has rendered. Creating a window
-    // controller while the engine is still coming up does not throw -- it ends
-    // the process with an X BadAccess, on master even for a single window.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    // Windows are held until the first frame has been **rasterized**, not
+    // merely built. Creating a window controller before the engine is up does
+    // not throw -- it ends the process with an X BadAccess.
+    //
+    // addPostFrameCallback is not enough, and that was measured rather than
+    // reasoned: it fires after build, layout and paint but before the raster
+    // thread has presented anything, and a window created in it still killed
+    // the process. waitUntilFirstFrameRasterized is the signal that the engine
+    // has actually put a frame on screen.
+    unawaited(WidgetsBinding.instance.waitUntilFirstFrameRasterized.then((_) {
       if (!mounted) return;
       setState(_surfaces.markFirstFrame);
-    });
+    }));
   }
 
   void _onWindowsChanged() {
