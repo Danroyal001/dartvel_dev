@@ -111,14 +111,18 @@ final class DVDisplayResolution {
     required this.degradation,
   });
 
-  /// Null only when the application knows of no displays at all.
+  /// The display the hint named, or null when nothing matched it.
+  ///
+  /// Null is never a substitute display. It means the caller should do what it
+  /// would have done with no hint at all -- for a window, let the OS place it.
   final DVDisplay? display;
 
-  /// Whether [display] is the one the hint named.
+  /// Whether the hint was honoured.
   ///
-  /// False means the window still opens, somewhere -- refusing to open is a
-  /// worse answer than opening on the wrong screen -- but the caller must
-  /// report [degradation] rather than let it pass silently.
+  /// False means a hint was given and nothing matched it. The window still
+  /// opens -- refusing to open is a worse answer -- but on no particular
+  /// display, and the caller must report [degradation] rather than let it pass
+  /// silently.
   final bool exact;
 
   final DVWindowDegradation degradation;
@@ -151,11 +155,13 @@ final class DVDisplays {
     }
     if (entries.isEmpty) return const <DVDisplay>[];
 
-    // Exactly one primary, always. Two would make DVDisplayHint.primary
-    // ambiguous and its answer depend on iteration order; none would make it
-    // unanswerable.
-    int primary = entries.indexWhere((_Entry e) => e.isPrimary == true);
-    if (primary < 0) primary = 0;
+    // At most one primary, and never an invented one. Two would make
+    // DVDisplayHint.primary depend on iteration order, so the first reported
+    // wins; none stays none, because a platform that designates no primary --
+    // Xinerama reports none at all, and some X servers set none -- has not
+    // said which screen the operator is looking at, and picking the first is a
+    // guess that DVDisplayHint.secondary would then build on.
+    final int primary = entries.indexWhere((_Entry e) => e.isPrimary == true);
 
     return <DVDisplay>[
       for (int i = 0; i < entries.length; i++)
@@ -169,72 +175,80 @@ final class DVDisplays {
 
   /// Resolves [hint] against [displays].
   ///
-  /// A hint that cannot be honoured falls back to the primary display and says
-  /// so, rather than either throwing or relocating quietly. The quiet version
-  /// is the one that matters: a customer-facing kiosk window appearing on the
-  /// operator's screen because a panel was unplugged is a bug nobody sees
-  /// until a customer does.
+  /// **Never falls back to another display.** A hint naming a projector that
+  /// is unplugged must not resolve to the primary display: the output would
+  /// appear on the operator's own screen, in front of the room, and it would
+  /// look like it had worked. A miss returns a null display and
+  /// [DVWindowDegradation.displayUnavailable], and the caller decides -- which
+  /// for `open()` means letting the OS place the window, exactly as if no hint
+  /// had been given, while still reporting the miss.
   static DVDisplayResolution resolve(
     List<DVDisplay> displays,
     DVDisplayHint? hint,
   ) {
-    if (displays.isEmpty) {
+    // Nothing was asked for, so nothing was missed.
+    if (hint == null) {
+      return const DVDisplayResolution(
+        display: null,
+        exact: true,
+        degradation: DVWindowDegradation.none,
+      );
+    }
+
+    final DVDisplay? found = _match(displays, hint);
+    if (found == null) {
       return const DVDisplayResolution(
         display: null,
         exact: false,
         degradation: DVWindowDegradation.displayUnavailable,
       );
     }
+    return DVDisplayResolution(
+      display: found,
+      exact: true,
+      degradation: DVWindowDegradation.none,
+    );
+  }
 
-    final DVDisplay fallback =
-        displays.firstWhere((DVDisplay d) => d.isPrimary, orElse: () => displays.first);
-
-    if (hint == null) return _exact(fallback);
-
+  static DVDisplay? _match(List<DVDisplay> displays, DVDisplayHint hint) {
+    if (displays.isEmpty) return null;
     switch (hint._kind) {
       case _DVDisplayHintKind.primary:
-        return _exact(fallback);
+        return _firstWhere(displays, (DVDisplay d) => d.isPrimary);
 
       case _DVDisplayHintKind.secondary:
-        for (final DVDisplay display in displays) {
-          if (!display.isPrimary) return _exact(display);
-        }
-        return _degraded(fallback);
+        // "The first non-primary display" only means anything once something
+        // is primary. Where the platform designates none, every display is
+        // nominally non-primary and answering would hand back whichever the
+        // enumeration happened to list first -- the operator's own screen as
+        // readily as the projector.
+        if (!displays.any((DVDisplay d) => d.isPrimary)) return null;
+        return _firstWhere(displays, (DVDisplay d) => !d.isPrimary);
 
       case _DVDisplayHintKind.ordinal:
         final int index = hint._index ?? -1;
-        if (index < 0 || index >= displays.length) return _degraded(fallback);
-        return _exact(displays[index]);
+        return index >= 0 && index < displays.length ? displays[index] : null;
 
       case _DVDisplayHintKind.id:
-        for (final DVDisplay display in displays) {
-          if (display.id == hint._value) return _exact(display);
-        }
-        return _degraded(fallback);
+        return _firstWhere(displays, (DVDisplay d) => d.id == hint._value);
 
       case _DVDisplayHintKind.name:
-        for (final DVDisplay display in displays) {
-          if (display.name == hint._value) return _exact(display);
-        }
-        return _degraded(fallback);
+        return _firstWhere(displays, (DVDisplay d) => d.name == hint._value);
     }
   }
 
-  static DVDisplayResolution _exact(DVDisplay display) => DVDisplayResolution(
-        display: display,
-        exact: true,
-        degradation: DVWindowDegradation.none,
-      );
-
-  static DVDisplayResolution _degraded(DVDisplay display) =>
-      DVDisplayResolution(
-        display: display,
-        exact: false,
-        degradation: DVWindowDegradation.displayUnavailable,
-      );
+  static DVDisplay? _firstWhere(
+    List<DVDisplay> displays,
+    bool Function(DVDisplay) test,
+  ) {
+    for (final DVDisplay display in displays) {
+      if (test(display)) return display;
+    }
+    return null;
+  }
 }
 
-/// One decoded payload entry, before primary selection.
+/// One decoded payload entry, before the primary is picked out.
 final class _Entry {
   const _Entry({
     required this.id,
@@ -265,8 +279,10 @@ final class _Entry {
       return null;
     }
 
-    final double? left = _number(item['left']);
-    final double? top = _number(item['top']);
+    // Both spellings: 'x'/'y' is what the X11 binding reports, 'left'/'top'
+    // reads better in a hand-written payload. One decoder for both.
+    final double? left = _number(item['left']) ?? _number(item['x']);
+    final double? top = _number(item['top']) ?? _number(item['y']);
 
     final double ratio = _number(item['devicePixelRatio']) ?? 1.0;
     return _Entry(

@@ -91,12 +91,14 @@ void main() {
           reason: 'the size is still real');
     });
 
-    test('the first display is primary when nothing says otherwise', () {
+    test('a platform that designates no primary gets none invented', () {
+      // Xinerama reports no primary at all, and some X servers set none.
+      // Picking the first would be a guess, and DVDisplayHint.secondary --
+      // "the first non-primary" -- would then be built on it.
       final List<DVDisplay> displays =
           DVDisplays.decode(<Object?>[raw(id: '1'), raw(id: '2')]);
 
-      expect(displays.first.isPrimary, isTrue);
-      expect(displays.last.isPrimary, isFalse);
+      expect(displays.any((DVDisplay d) => d.isPrimary), isFalse);
     });
 
     test('a platform-reported primary wins over ordering', () {
@@ -109,16 +111,34 @@ void main() {
       expect(displays.last.isPrimary, isTrue);
     });
 
-    test('exactly one display is primary even if the platform says two are',
+    test('at most one display is primary even if the platform says two are',
         () {
       // Two primaries would make DVDisplayHint.primary ambiguous and its
-      // result depend on iteration order.
+      // result depend on iteration order, so the first reported wins.
       final List<DVDisplay> displays = DVDisplays.decode(<Object?>[
         raw(id: '1', isPrimary: true),
         raw(id: '2', isPrimary: true),
       ]);
 
       expect(displays.where((DVDisplay d) => d.isPrimary), hasLength(1));
+      expect(displays.first.isPrimary, isTrue);
+    });
+
+    test('a layout origin is read from x/y as well as left/top', () {
+      // 'x'/'y' is what the X11 binding reports. One decoder for both, or a
+      // real enumeration silently loses its geometry.
+      final DVDisplay display = DVDisplays.decode(<Object?>[
+        <String, Object?>{
+          'id': '1',
+          'width': 1920.0,
+          'height': 1080.0,
+          'x': 1920.0,
+          'y': 0.0,
+        },
+      ]).single;
+
+      expect(display.bounds.left, 1920);
+      expect(display.hasLayout, isTrue);
     });
 
     test('a device profile names a display over the OS name', () {
@@ -170,14 +190,14 @@ void main() {
       raw(id: '3', name: 'Signage'),
     ]);
 
-    test('no hint resolves to the primary display', () {
+    test('no hint asks for no display, and misses nothing', () {
       final DVDisplayResolution result = DVDisplays.resolve(three, null);
-      expect(result.display?.id, '1');
+      expect(result.display, isNull);
       expect(result.exact, isTrue);
       expect(result.degradation, DVWindowDegradation.none);
     });
 
-    test('primary resolves to the primary display', () {
+    test('primary resolves to the display the platform designated', () {
       expect(DVDisplays.resolve(three, DVDisplayHint.primary).display?.id, '1');
     });
 
@@ -186,12 +206,27 @@ void main() {
           DVDisplays.resolve(three, DVDisplayHint.secondary).display?.id, '2');
     });
 
-    test('secondary on a single-display machine falls back and says so', () {
-      final List<DVDisplay> one = DVDisplays.decode(<Object?>[raw(id: '1')]);
+    test('secondary answers nothing when no display is primary', () {
+      // The fault a real X server caught: under Xvfb nothing is designated
+      // primary, so "first non-primary" meant "the first display" and
+      // secondary handed back the operator's own screen -- the exact failure
+      // the hint exists to avoid.
+      final List<DVDisplay> undesignated =
+          DVDisplays.decode(<Object?>[raw(id: '1'), raw(id: '2')]);
+
+      final DVDisplayResolution result =
+          DVDisplays.resolve(undesignated, DVDisplayHint.secondary);
+      expect(result.display, isNull);
+      expect(result.degradation, DVWindowDegradation.displayUnavailable);
+    });
+
+    test('secondary on a single-display machine resolves to nothing', () {
+      final List<DVDisplay> one =
+          DVDisplays.decode(<Object?>[raw(id: '1', isPrimary: true)]);
       final DVDisplayResolution result =
           DVDisplays.resolve(one, DVDisplayHint.secondary);
 
-      expect(result.display?.id, '1');
+      expect(result.display, isNull);
       expect(result.exact, isFalse);
       expect(result.degradation, DVWindowDegradation.displayUnavailable);
     });
@@ -201,10 +236,10 @@ void main() {
           '3');
     });
 
-    test('byIndex past the end falls back to primary and says so', () {
+    test('byIndex past the end resolves to nothing and says so', () {
       final DVDisplayResolution result =
           DVDisplays.resolve(three, DVDisplayHint.byIndex(9));
-      expect(result.display?.id, '1');
+      expect(result.display, isNull);
       expect(result.exact, isFalse);
       expect(result.degradation, DVWindowDegradation.displayUnavailable);
     });
@@ -212,7 +247,7 @@ void main() {
     test('a negative index does not wrap or throw', () {
       final DVDisplayResolution result =
           DVDisplays.resolve(three, DVDisplayHint.byIndex(-1));
-      expect(result.display?.id, '1');
+      expect(result.display, isNull);
       expect(result.exact, isFalse);
     });
 
@@ -227,15 +262,14 @@ void main() {
           '2');
     });
 
-    test('an unplugged named display degrades rather than silently relocating',
-        () {
-      // The kiosk case. A customer-facing window quietly appearing on the
-      // operator's screen with no diagnostic is the failure this exists to
-      // make visible.
+    test('an unplugged named display never resolves to another one', () {
+      // The whole point. A projector hint that fell back to primary would put
+      // the output on the operator's own screen, in front of the room, and it
+      // would look like it had worked.
       final DVDisplayResolution result =
           DVDisplays.resolve(three, DVDisplayHint.byName('Customer2'));
 
-      expect(result.display?.id, '1', reason: 'it still opens somewhere');
+      expect(result.display, isNull);
       expect(result.exact, isFalse);
       expect(result.degradation, DVWindowDegradation.displayUnavailable);
     });
