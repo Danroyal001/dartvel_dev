@@ -308,9 +308,11 @@
         "packages/dartvel_cli/lib/src/build/seo_head.dart",
         "packages/dartvel_cli/test/pwa_manifest_test.dart",
         "packages/dartvel_cli/test/pwa_service_worker_test.dart",
-        "packages/dartvel_cli/test/viewport_head_test.dart"
+        "packages/dartvel_cli/test/viewport_head_test.dart",
+        "packages/dartvel_flutter/lib/src/pwa/install_prompt.dart",
+        "packages/dartvel_flutter/test/install_prompt_test.dart"
       ],
-      "absent": "Install prompts, background sync and icon generation. dartvel build web writes a manifest from dartvel.pwa and links it, guarantees a viewport meta, and now replaces Flutter’s service worker with one that precaches the routes the build produced and falls back to a self-contained offline page. Flutter’s own cached the app shell and nothing Dartvel knows about, so a site had no offline page, no cached routes and no control over what a stale worker serves after a deploy"
+      "absent": "Background sync and icon generation -- generating the required sizes needs a PNG encoder that is not a dependency. Manifest, viewport, service worker, offline page and the install prompt are built: DV.Platform.install captures beforeinstallprompt so an application can place the affordance itself, rather than leaving it in a browser menu most people never open"
     },
     {
       "section": "OTA Updates",

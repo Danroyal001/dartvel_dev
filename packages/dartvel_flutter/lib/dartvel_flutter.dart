@@ -22,6 +22,7 @@ import 'src/display_platform.dart'
 import 'src/seo_platform_memory.dart'
     if (dart.library.html) 'src/seo_platform_web.dart' as seo_platform;
 // DV.Updates.applyPages installs page bundles, which are these types.
+import 'src/pwa/install_prompt.dart';
 import 'src/studio/page_document.dart';
 import 'src/windowing/window.dart';
 
@@ -233,6 +234,7 @@ export 'package:dartvel_core/dartvel.dart'
         registerDVModelSerializer;
 export 'package:go_router/go_router.dart';
 
+export 'src/pwa/install_prompt.dart';
 export 'src/table/table.dart';
 export 'src/admin/cache_admin.dart';
 export 'src/admin/model_admin.dart';
@@ -3638,6 +3640,9 @@ class DVPlatform {
   DVContacts get contacts => const DVContacts();
   DVPermissions get permissions => const DVPermissions();
   DVBrowserExtension get browserExtension => const DVBrowserExtension();
+
+  /// The PWA install prompt, where the platform offers one.
+  DVInstall get install => const DVInstall();
   DVDisplayControls get display => const DVDisplayControls();
 
   // The spec names these device namespaces in capitals, matching `Window`,
