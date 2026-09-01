@@ -454,16 +454,20 @@
       "stability": "Contract",
       "status": "Partial",
       "evidence": [
+        "packages/dartvel_windowing/lib/src/window_bindings.dart",
+        "packages/dartvel_windowing/lib/src/linux_displays_ffi.dart",
+        "packages/dartvel_windowing/test/windowing_registration_test.dart",
         "packages/dartvel_flutter/lib/src/windowing/displays.dart",
         "packages/dartvel_flutter/test/displays_test.dart",
-        "packages/dartvel_flutter/test/display_enumeration_test.dart",
+        "packages/dartvel_flutter/test/owned_windows_test.dart",
+        "packages/dartvel_flutter/test/window_exit_policy_test.dart",
+        "packages/dartvel_flutter/test/external_open_test.dart",
+        "packages/dartvel_flutter/test/workspace_restore_test.dart",
         "packages/dartvel_core/lib/src/windowing/single_instance.dart",
         "packages/dartvel_core/test/single_instance_process_test.dart",
-        "packages/dartvel_flutter/test/shared_store_reserved_keys_test.dart",
-        "packages/dartvel_core/lib/src/diagnostics/diagnostics.dart",
         "packages/dartvel_cli/lib/src/commands/explain_command.dart"
       ],
-      "absent": "DV.Window.open still presents in place on every desktop host: capability.multiWindow is false until something registers the window.open binding, and nothing on main does, so every call degrades with DV-WINDOW-001. That binding and the XRandR/Xinerama enumeration behind window.displays are in the dartvel_windowing package on PR #2, unmerged. Without it enumeration falls back to PlatformDispatcher.displays, which reports id, size and pixel ratio and no panel name, primary flag or layout origin -- so DVDisplayHint.primary and .secondary both resolve to null and the projector case cannot work. Built and tested: display decoding and hint resolution (a miss resolves to nothing and never falls back to another display), DV.Window.displays and capability.displays, the single-instance lock with its cross-process suite, the reserved dv./workspace. shared-store namespaces, and the DV-WINDOW/DV-KIOSK diagnostic registry behind dartvel explain, checked against this specification's own tables. Still Designed: ownership and owned window kinds, modality, main-window and exit policy, deep-link routing into a running instance, restore, and tear-out."
+      "absent": "Built and tested: window identity as canonical URL with idempotent open(), the window.open binding on Linux through dartvel_windowing (which is what flips capability.multiWindow), XRandR/Xinerama display enumeration behind window.displays, DVDisplayHint resolution that never falls back to another display, DV.Window.main with promotion, the exit policy (lastWindow/mainWindow/explicit, owned windows excluded), owned windows closing in reverse order with a closed owner refused rather than reparented, modality that degrades honestly where the OS cannot enforce it, the single-instance lock and external open requests draining into the running application, workspace restore dropping routes that no longer resolve, the reserved dv./workspace. shared-store namespaces, DV.Test.fakeWindowing, dartvel inspect windows, and the DV-WINDOW/DV-KIOSK registry behind dartvel explain, checked against this specification's own tables. Codes 001-005, 007, 008, 009 and 013 have emitters. Still Designed: tear-out, and everything kiosk -- Kiosk Mode itself, capability.displayKiosk, DV-WINDOW-010 to 012 and every DV-KIOSK code -- plus the Studio window inspector and the live window list `dartvel inspect windows` reports as null. Display enumeration is Linux-only: no other platform registers window.displays, so elsewhere it falls back to PlatformDispatcher.displays, which reports no panel name, no primary flag and no layout origin, and DVDisplayHint.primary and .secondary both resolve to null there. Device profile display names are read by the CLI but not carried into the generated client, so DVWindowManager.displayProfile is still set by hand."
     },
     {
       "section": "Tab Workspaces",
