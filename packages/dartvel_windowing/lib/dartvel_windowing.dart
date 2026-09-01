@@ -22,7 +22,6 @@ import 'package:flutter/src/foundation/_features.dart';
 import 'package:flutter/src/widgets/_window.dart';
 import 'package:flutter/widgets.dart';
 
-part 'src/displays.dart';
 part 'src/linux_displays_ffi.dart';
 part 'src/flutter_window_surface.dart';
 part 'src/window_bindings.dart';
