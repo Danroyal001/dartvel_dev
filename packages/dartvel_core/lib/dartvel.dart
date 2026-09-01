@@ -67,6 +67,7 @@ export 'src/http/transport.dart';
 // `package:dartvel_core/http.dart`.
 export 'src/http/wintercg.dart' show Request, Response, Headers;
 export 'src/data/import_chunking.dart';
+export 'src/diagnostics/diagnostics.dart';
 export 'src/i18n/plural_rules.dart';
 export 'src/lifecycle/lifecycle.dart';
 export 'src/mail/smtp.dart';
