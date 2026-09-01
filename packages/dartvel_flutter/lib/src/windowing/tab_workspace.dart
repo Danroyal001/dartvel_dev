@@ -17,7 +17,13 @@ class DVTab {
   /// Shown in the strip. Defaults to the route's last segment.
   final String? label;
 
-  const DVTab(this.route, {this.label});
+  /// Whether this is a deliberate second tab on a route already open.
+  ///
+  /// Mirrors `DVWindowOptions.duplicate`. Without it, adding a route the
+  /// workspace already holds focuses the tab that holds it.
+  final bool duplicate;
+
+  const DVTab(this.route, {this.label, this.duplicate = false});
 
   String get title {
     final given = label;
@@ -78,18 +84,25 @@ class DVTabWorkspaceController extends ChangeNotifier {
   /// Idempotent by route for the same reason `DV.Window.open` is: two tabs
   /// showing one route is not a state anyone asked for.
   void add(DVTab tab, {int? at}) {
-    final existing = _tabs.indexOf(tab);
-    if (existing != -1) {
-      activate(existing);
-      return;
+    if (!tab.duplicate) {
+      // By route, not by object. This used to be _tabs.indexOf(tab), and DVTab
+      // overrides no ==, so it compared by identity: two DVTab objects naming
+      // the same route were never equal and every add appended. A test reusing
+      // one instance -- the natural thing to write -- passed either way.
+      final int existing =
+          _tabs.indexWhere((DVTab t) => t.route.path == tab.route.path);
+      if (existing != -1) {
+        activate(existing);
+        return;
+      }
     }
     final index = at == null ? _tabs.length : at.clamp(0, _tabs.length);
     _tabs.insert(index, tab);
-    if (_activeIndex == -1) {
-      _activeIndex = index;
-    } else if (index <= _activeIndex) {
-      _activeIndex++;
-    }
+    // The tab that was added is the one to look at, exactly as adding a route
+    // that is already open activates the tab holding it. A workspace that
+    // added a tab behind you would be a different rule for the same action,
+    // and a tab dragged in from another window would land out of sight.
+    _activeIndex = index;
     notifyListeners();
   }
 
