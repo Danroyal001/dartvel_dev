@@ -10,8 +10,11 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dartvel_shelf/src/ssr_helper.dart';
-import 'package:dartvel_core/dartvel.dart'
-    show Request, Response, Headers, Body, URLPattern, Router;
+// Three names, which is what this test uses. The show list named Body,
+// URLPattern and Router as well, and the main barrel stopped exporting them
+// when the wire surface moved to http.dart -- so the list was stale and the
+// analyzer said so, while nothing here ever referenced them.
+import 'package:dartvel_core/dartvel.dart' show Request, Response, Headers;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 

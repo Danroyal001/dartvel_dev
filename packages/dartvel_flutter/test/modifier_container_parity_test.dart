@@ -140,7 +140,7 @@ void main() {
             home: Scaffold(
               body: DVBox(
                 const DVText('card'),
-                DVModifier()
+                const DVModifier()
                     .backgroundColor(color)
                     .animate(const Duration(milliseconds: 200)),
               ),

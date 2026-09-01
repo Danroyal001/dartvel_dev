@@ -1,42 +1,24 @@
 library dartvel_core;
 
-import 'dart:typed_data';
-import 'src/scheduling/cron.dart';
-import 'src/http/flat_buffer.dart';
-import 'src/search/search_tuning.dart';
-export 'src/http/flat_buffer.dart';
-export 'src/i18n/plural_rules.dart';
-export 'src/observability/observability.dart';
-export 'src/scheduling/cron.dart';
-export 'src/scheduling/scheduler.dart';
-export 'src/search/search_tuning.dart';
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
-// import 'dart:io'; // Removed to avoid breaking web builds
-import 'src/http/wintercg.dart' as dv;
 import 'package:http_parser/http_parser.dart';
 import 'package:mime/mime.dart';
 
 import 'src/ai/ai.dart';
 import 'src/database/adapter.dart';
 import 'src/http/aws_sigv4.dart';
+import 'src/http/flat_buffer.dart';
 import 'src/http/transport.dart';
+// import 'dart:io'; // Removed to avoid breaking web builds
+import 'src/http/wintercg.dart' as dv;
 import 'src/mail/smtp.dart';
 import 'src/notifications/web_push.dart';
 import 'src/notifications/web_push_vapid.dart';
-
-// Re-export common types so backends can import only dartvel_core.
-// The wire types live here now. dartvel_core is on both sides of the wire, so
-// owning them is what lets a frontend depend on nothing else -- it used to
-// reach into dartvel_shelf for three type names and acquire a server package
-// along with them.
-// Three names, which is the surface this barrel has always had. `Body` and
-// `URLPattern` are generic enough that exporting them here collides with
-// application code -- it broke the Dartvel site, which has its own `Body`
-// widget. Server code that wants the full set imports
-// `package:dartvel_core/http.dart`.
-export 'src/http/wintercg.dart' show Request, Response, Headers;
+import 'src/scheduling/cron.dart';
+import 'src/search/search_tuning.dart';
 
 export 'src/ai/ai.dart';
 export 'src/ai/mcp.dart';
@@ -49,12 +31,12 @@ export 'src/auth/auth.dart';
 // rather than as anything mentioning dart:io.
 export 'src/auth/ldap_unsupported.dart'
     if (dart.library.io) 'src/auth/ldap.dart';
-export 'src/auth/saml.dart';
-export 'src/auth/web3.dart';
-export 'src/auth/webauthn.dart';
 export 'src/auth/oauth2.dart';
 export 'src/auth/password.dart';
+export 'src/auth/saml.dart';
 export 'src/auth/tokens.dart';
+export 'src/auth/web3.dart';
+export 'src/auth/webauthn.dart';
 export 'src/cache/adapters.dart';
 export 'src/cache/distributed.dart';
 export 'src/cache/memcached.dart';
@@ -65,6 +47,7 @@ export 'src/database/mysql.dart';
 export 'src/database/postgres.dart';
 export 'src/graphql/graphql.dart';
 export 'src/http/aws_sigv4.dart';
+export 'src/http/flat_buffer.dart';
 // Conditional, because the native client needs dart:ffi and web has none.
 // Exporting it unconditionally broke the web build with "Dart library
 // 'dart:ffi' is not available on this platform", and nothing noticed because
@@ -72,15 +55,31 @@ export 'src/http/aws_sigv4.dart';
 export 'src/http/native_client_web.dart'
     if (dart.library.ffi) 'src/http/native_client.dart';
 export 'src/http/transport.dart';
+// Re-export common types so backends can import only dartvel_core.
+// The wire types live here now. dartvel_core is on both sides of the wire, so
+// owning them is what lets a frontend depend on nothing else -- it used to
+// reach into dartvel_shelf for three type names and acquire a server package
+// along with them.
+// Three names, which is the surface this barrel has always had. `Body` and
+// `URLPattern` are generic enough that exporting them here collides with
+// application code -- it broke the Dartvel site, which has its own `Body`
+// widget. Server code that wants the full set imports
+// `package:dartvel_core/http.dart`.
+export 'src/http/wintercg.dart' show Request, Response, Headers;
+export 'src/i18n/plural_rules.dart';
 export 'src/lifecycle/lifecycle.dart';
 export 'src/mail/smtp.dart';
 export 'src/media/image.dart';
 export 'src/modules/modules.dart';
 export 'src/notifications/web_push.dart';
 export 'src/notifications/web_push_vapid.dart';
+export 'src/observability/observability.dart';
 export 'src/platform_config.dart';
 export 'src/queues/redis_queue.dart';
+export 'src/scheduling/cron.dart';
+export 'src/scheduling/scheduler.dart';
 export 'src/search/postgres_search.dart';
+export 'src/search/search_tuning.dart';
 export 'src/secrets/secrets.dart';
 export 'src/shell/shell.dart';
 export 'src/storage/adapters.dart';

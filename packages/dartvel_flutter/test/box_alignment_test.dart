@@ -20,8 +20,8 @@ void main() {
         (WidgetTester tester) async {
       await show(
         tester,
-        DVBox.row(
-          const <Widget>[DVText('left'), DVText('right')],
+        const DVBox.row(
+          <Widget>[DVText('left'), DVText('right')],
           align: DVAlign.spaceBetween,
           spacing: 0,
         ),
@@ -40,7 +40,7 @@ void main() {
       // Existing rows must not suddenly spread across the window.
       await show(
         tester,
-        DVBox.row(const <Widget>[DVText('a'), DVText('b')], spacing: 0),
+        const DVBox.row(<Widget>[DVText('a'), DVText('b')], spacing: 0),
       );
 
       // The box itself stays narrow. Measuring the gap between the children
@@ -53,8 +53,8 @@ void main() {
     testWidgets('centre', (WidgetTester tester) async {
       await show(
         tester,
-        DVBox.row(
-          const <Widget>[DVText('mid')],
+        const DVBox.row(
+          <Widget>[DVText('mid')],
           align: DVAlign.center,
           spacing: 0,
         ),
@@ -68,10 +68,10 @@ void main() {
     testWidgets('a list takes the same alignment', (WidgetTester tester) async {
       await show(
         tester,
-        SizedBox(
+        const SizedBox(
           height: 400,
           child: DVBox.list(
-            const <Widget>[DVText('top'), DVText('bottom')],
+            <Widget>[DVText('top'), DVText('bottom')],
             align: DVAlign.spaceBetween,
             spacing: 0,
           ),
@@ -145,9 +145,9 @@ void main() {
       // change it: a column of cards should fill the column it is given.
       await show(
         tester,
-        SizedBox(
+        const SizedBox(
           width: 400,
-          child: DVBox.list(const <Widget>[DVText('a')], spacing: 0),
+          child: DVBox.list(<Widget>[DVText('a')], spacing: 0),
         ),
       );
       expect(tester.getSize(find.text('a')).width, 400);
@@ -159,10 +159,10 @@ void main() {
       // takes the whole line, so a row of four figures stacks into a column.
       await show(
         tester,
-        SizedBox(
+        const SizedBox(
           width: 400,
           child: DVBox.list(
-            const <Widget>[DVText('a')],
+            <Widget>[DVText('a')],
             spacing: 0,
             crossAlign: DVCrossAlign.start,
           ),
@@ -201,10 +201,10 @@ void main() {
     testWidgets('centre', (WidgetTester tester) async {
       await show(
         tester,
-        SizedBox(
+        const SizedBox(
           width: 400,
           child: DVBox.list(
-            const <Widget>[DVText('a')],
+            <Widget>[DVText('a')],
             spacing: 0,
             crossAlign: DVCrossAlign.center,
           ),

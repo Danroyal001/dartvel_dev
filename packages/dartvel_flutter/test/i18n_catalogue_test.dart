@@ -65,7 +65,7 @@ void main() {
     i18n.useLocale(LocaleTag.enUS);
 
     final DVTranslationKey runtime =
-        DVTranslationKey('settings.${'title'}');
+        const DVTranslationKey('settings.${'title'}');
     expect(i18n.t(runtime), 'Settings');
   });
 
