@@ -10,6 +10,7 @@
 /// be private if everything that uses it is part of the same one.
 library dartvel_windowing;
 
+import 'dart:async';
 import 'dart:ffi' as ffi;
 
 import 'package:dartvel_flutter/dartvel_flutter.dart';
