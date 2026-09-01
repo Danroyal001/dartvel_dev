@@ -1,6 +1,7 @@
 library dartvel_core;
 
 import 'dart:typed_data';
+import 'src/scheduling/cron.dart';
 import 'src/http/flat_buffer.dart';
 import 'src/search/search_tuning.dart';
 export 'src/http/flat_buffer.dart';
@@ -1361,6 +1362,35 @@ class DVScheduledReport {
     this.periodEnd,
     this.metadata = const <String, String>{},
   });
+
+  /// The parsed schedule.
+  ///
+  /// The cron used to be stored and never read, so
+  /// `scheduleMonthly(cron: '0 8 1 * *')` and
+  /// `scheduleMonthly(cron: 'every month')` were indistinguishable: both
+  /// produced a payload, both dispatched, and nothing evaluated either.
+  ///
+  /// Throws naming the report as well as the string, because the string alone
+  /// could belong to any of a dozen schedules and the name is what a person
+  /// needs to find the declaration.
+  DVCronSchedule get schedule {
+    try {
+      return DVCronSchedule.parse(cron);
+    } on FormatException catch (error) {
+      throw FormatException(
+        'Scheduled report "$name" has an unparseable cron "$cron": '
+        '${error.message}',
+      );
+    }
+  }
+
+  /// The next time this report is due after [from], or null if never.
+  ///
+  /// Null is a real answer: the 31st of February parses and occurs never, and
+  /// a report scheduled for it should say so rather than be asked forever.
+  DateTime? nextRunAfter(DateTime from) => schedule.nextAfter(from);
+
+  bool isDue(DateTime at) => schedule.matches(at);
 }
 
 class DVJobEnvelope<TPayload> {
