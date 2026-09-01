@@ -4017,6 +4017,22 @@ class DVAuthUser {
 }
 
 extension DVFlutterTestHarness on DVTestHarness {
+  /// Installs [capability] as the windowing capability for this test.
+  ///
+  /// Explicit on purpose. Without it a test asserting that a route presents as
+  /// a page passes on a CI runner for the wrong reason: not because the
+  /// degradation logic works, but because nothing registered `window.open` and
+  /// the capability was false anyway -- the same assertion would pass with
+  /// that logic deleted.
+  ///
+  /// Replaces detection rather than merging with it, so what a test declares
+  /// is all it gets. Cleared by [DVWindowManager.reset], which a test should
+  /// call in tearDown: a capability that survived would make the next test
+  /// pass or fail on this one's setup.
+  void fakeWindowing(DVWindowingCapability capability) {
+    DVWindowManager.capabilityOverride = capability;
+  }
+
   DVAuthUser fakeAuthUser({
     String id = 'test-user',
     String? email = 'test@example.com',
