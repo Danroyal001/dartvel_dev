@@ -26,6 +26,9 @@ class DVWindowingCapability {
   /// Web only: in-page multi-view embedding for panels and workspace regions.
   final bool inPageViews;
 
+  /// Whether the OS supports blocking every window of the application.
+  final bool applicationModal;
+
   /// Whether more than one display is addressable.
   ///
   /// Unlike the others this changes while the process runs -- a display is
@@ -39,6 +42,7 @@ class DVWindowingCapability {
     this.sameEngine = false,
     this.tearOut = false,
     this.inPageViews = false,
+    this.applicationModal = false,
     this.displays = false,
   });
 
@@ -64,6 +68,7 @@ class DVWindowingCapability {
         sameEngine: sameEngine,
         tearOut: tearOut,
         inPageViews: inPageViews,
+        applicationModal: applicationModal,
         displays: count > 1,
       );
 
@@ -126,6 +131,26 @@ extension DVWindowKindX on DVWindowKind {
   /// The specification says "regular or kiosk"; the kiosk kind is not built
   /// yet, so regular is the whole set today.
   bool get countsAsPrincipal => this == DVWindowKind.regular;
+
+  /// Whether this kind belongs to another window.
+  bool get isOwned => this != DVWindowKind.regular;
+
+  /// What this kind blocks when nothing is asked for.
+  DVWindowModality get defaultModality => this == DVWindowKind.dialog
+      ? DVWindowModality.window
+      : DVWindowModality.none;
+}
+
+/// What a window blocks while it is open.
+enum DVWindowModality {
+  /// Blocks nothing.
+  none,
+
+  /// Blocks input to the owner only. The default for a dialog.
+  window,
+
+  /// Blocks every window of the application, where the OS can.
+  application,
 }
 
 /// When closing a window ends the process.
@@ -153,6 +178,8 @@ enum DVWindowDegradation {
   disabledByConfig,
   displayUnavailable,
   restoredRouteUnresolvable,
+  ownerClosed,
+  modalityReduced,
 }
 
 extension DVWindowDegradationX on DVWindowDegradation {
@@ -169,6 +196,8 @@ extension DVWindowDegradationX on DVWindowDegradation {
         DVWindowDegradation.disabledByConfig => 'DV-WINDOW-005',
         DVWindowDegradation.displayUnavailable => 'DV-WINDOW-013',
         DVWindowDegradation.restoredRouteUnresolvable => 'DV-WINDOW-009',
+        DVWindowDegradation.ownerClosed => 'DV-WINDOW-007',
+        DVWindowDegradation.modalityReduced => 'DV-WINDOW-008',
       };
 
   /// The level the specification assigns this code.
@@ -223,6 +252,15 @@ class DVWindowOptions {
   /// moment a monitor was rearranged.
   final DVDisplayHint? display;
 
+  /// The window this one belongs to.
+  ///
+  /// Required for the owned kinds. An owned window cannot outlive its owner,
+  /// so it has to have one.
+  final DVWindow? owner;
+
+  /// What this window blocks while open. Null takes the kind's default.
+  final DVWindowModality? modality;
+
   /// Whether this request came from the OS rather than from the application.
   ///
   /// Named `isExternal` on the instance so the const value below can be
@@ -237,6 +275,8 @@ class DVWindowOptions {
     this.kind = DVWindowKind.regular,
     this.duplicate = false,
     this.display,
+    this.owner,
+    this.modality,
     this.isExternal = false,
   });
 
@@ -262,6 +302,12 @@ class DVWindow {
   /// The native handle, when one exists.
   final String? nativeId;
 
+  /// The window this one belongs to, for an owned kind that got a live owner.
+  final DVWindow? owner;
+
+  /// What this window blocks while it is open.
+  final DVWindowModality modality;
+
   /// Whether the OS handed this route over rather than the application asking.
   ///
   /// A deep link, a file association, a `dartvel://` URL, a second launch of a
@@ -276,6 +322,8 @@ class DVWindow {
     required this.presentation,
     this.degradation = DVWindowDegradation.none,
     this.nativeId,
+    this.owner,
+    this.modality = DVWindowModality.none,
     this.external = false,
   });
 
@@ -314,6 +362,14 @@ class DVWindow {
 
   Future<void> close() async {
     _lifecycle.value = DVWindowLifecycle.closing;
+
+    // Owned windows go first, and in reverse open order: the last opened is
+    // closest to the user, so a palette disappearing before the dialog sitting
+    // on top of it would flash the wrong thing. An owned window cannot outlive
+    // its owner.
+    for (final DVWindow owned in DVWindowManager.ownedBy(this).reversed) {
+      await owned.close();
+    }
     if (!isVirtual) {
       await DVNativeBridge.invoke<bool>(
         'window.close',
@@ -411,6 +467,12 @@ class DVWindowManager {
     _capabilityOverride = null;
     _shared = null;
   }
+
+  /// The windows [owner] owns, in the order they were opened.
+  static List<DVWindow> ownedBy(DVWindow owner) => <DVWindow>[
+        for (final DVWindow window in _windows)
+          if (identical(window.owner, owner)) window,
+      ];
 
   static void forget(DVWindow window) {
     final bool wasMain = identical(_main.value, window);
@@ -605,7 +667,27 @@ class DVWindowManager {
       display = DVDisplays.resolve(_displays.value, options.display);
     }
 
-    if (!cap.multiWindow) {
+    // An owned kind naming an owner that has already closed is refused rather
+    // than reparented. Adopting main would put a dialog on a window the user
+    // was not working in, and block input there.
+    final DVWindow? requestedOwner =
+        options.kind.isOwned ? options.owner : null;
+    final bool ownerGone = requestedOwner != null &&
+        !_windows.contains(requestedOwner);
+
+    // Application modality is honoured only where the OS can enforce it. A
+    // fake application-modal that leaks input is worse than an honest
+    // window-modal: the user finds the gap, and the thing meant to be blocked
+    // happens anyway.
+    DVWindowModality modality =
+        options.modality ?? options.kind.defaultModality;
+    final bool modalityReduced =
+        modality == DVWindowModality.application && !cap.applicationModal;
+    if (modalityReduced) modality = DVWindowModality.window;
+
+    if (ownerGone) {
+      degradation = DVWindowDegradation.ownerClosed;
+    } else if (!cap.multiWindow) {
       degradation = DVWindowDegradation.capabilityUnsupported;
     } else {
       try {
@@ -634,9 +716,15 @@ class DVWindowManager {
     if (degradation == DVWindowDegradation.none && display?.exact == false) {
       degradation = display!.degradation;
     }
+    // Quieter still than the display one: nothing was blocked that the
+    // platform could have blocked.
+    if (degradation == DVWindowDegradation.none && modalityReduced) {
+      degradation = DVWindowDegradation.modalityReduced;
+    }
 
     final presentation = degradation == DVWindowDegradation.none ||
-            degradation == DVWindowDegradation.displayUnavailable
+            degradation == DVWindowDegradation.displayUnavailable ||
+            degradation == DVWindowDegradation.modalityReduced
         ? DVWindowPresentation.window
         : _presentationFor(options.kind);
 
@@ -646,6 +734,8 @@ class DVWindowManager {
       presentation: presentation,
       degradation: degradation,
       nativeId: nativeId,
+      owner: ownerGone ? null : requestedOwner,
+      modality: modality,
       external: options.isExternal,
     );
     _windows.add(window);
