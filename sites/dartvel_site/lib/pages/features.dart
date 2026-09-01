@@ -281,11 +281,14 @@ Widget _featureRow(
               .fontSize(17)
               .fontWeight(FontWeight.w700)
               .color(palette.ink)
-              // Under the page's h1. Without a level these were twenty-two
-              // paragraphs, so the page had a title and no structure under it
-              // -- for a screen reader moving by heading and for the
-              // crawler-visible HTML alike.
-              .semanticHeading(3),
+              // Level 2, not 3: these sit directly under the page's h1 and
+              // nothing on the page is an h2, so 3 skipped a level and a
+              // reader navigating by heading was told they had missed one.
+              // Without any level at all they were twenty-two paragraphs, so
+              // the page had a title and no structure under it -- for a screen
+              // reader moving by heading and for the crawler-visible HTML
+              // alike.
+              .semanticHeading(2),
         ),
         SiteChip(surface),
       ], spacing: 10),
