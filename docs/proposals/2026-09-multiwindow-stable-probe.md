@@ -163,8 +163,19 @@ wins — does not reproduce on master at all.
 
 ## The one rule that holds on both channels
 
-**A window must be created after the first frame, not in `main()` or
-`initState`.** Every early probe built its controller before the engine was up,
+**A window must be created after the first frame has been *rasterized*, not in
+`main()`, not in `initState`, and not in `addPostFrameCallback` either.**
+
+The post-frame form was the first version of this rule and it is wrong.
+`addPostFrameCallback` fires after build, layout and paint, but before the
+raster thread has presented anything, and a window created there still ends the
+process. It was caught by building a real application on the binding: the
+package's own tests passed, and the application died on launch until a two
+second delay was put in front of `open()`. A delay is not a rule, so the signal
+had to be found — `WidgetsBinding.instance.waitUntilFirstFrameRasterized` — and
+the timing moved into `DVWindowHost`, where no application can get it wrong.
+
+The original, weaker statement: Every early probe built its controller before the engine was up,
 and on both channels that ends the process with a GLX `BadAccess`. On master it
 does so even for a *single* window, which is what makes it look like a broken
 feature rather than a lifecycle mistake: the plain-`runApp` baseline on master
