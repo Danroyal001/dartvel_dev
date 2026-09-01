@@ -21,11 +21,10 @@ class DVFlutterWindowSurfaceFactory implements DVWindowSurfaceFactory {
 
   /// Used when a window is opened without a size.
   ///
-  /// `DVWindowOptions.size` is optional and Flutter's `WindowController`
-  /// requires one, so the gap has to be filled somewhere. It is filled here,
-  /// visibly, rather than by making the Dartvel option required: a projector
-  /// window's real size comes from the display it is going to, which is a
-  /// separate question from what a window defaults to.
+  /// `DVWindowOptions.size` is optional, so the gap has to be filled
+  /// somewhere. It is filled here, visibly, rather than by making the Dartvel
+  /// option required: a projector window's real size comes from the display it
+  /// is going to, which is a separate question from what a window defaults to.
   static const Size defaultSize = Size(1280, 720);
 
   @override
@@ -34,8 +33,15 @@ class DVFlutterWindowSurfaceFactory implements DVWindowSurfaceFactory {
     return _FlutterWindowSurface(
       window,
       content,
-      WindowController(
-        size: request?.size ?? defaultSize,
+      // RegularWindowController, and the size is `preferred`: the platform
+      // may not honour either. Named for the window kind rather than generic,
+      // because Flutter has a controller per kind -- dialog, popup, tooltip,
+      // satellite -- and the owned kinds are not wired up yet.
+      // No preferredConstraints: DVWindowOptions.constraints is not carried
+      // in the window.open payload yet, and passing null here would look like
+      // it had been considered.
+      RegularWindowController(
+        preferredSize: request?.size ?? defaultSize,
         title: request?.title,
       ),
     );
@@ -48,10 +54,10 @@ class _FlutterWindowSurface implements DVWindowSurface {
   @override
   final DVWindow window;
   final Widget _child;
-  final WindowController _controller;
+  final RegularWindowController _controller;
 
   @override
-  Widget get content => Window(controller: _controller, child: _child);
+  Widget get content => RegularWindow(controller: _controller, child: _child);
 
   @override
   void destroy() => _controller.destroy();
