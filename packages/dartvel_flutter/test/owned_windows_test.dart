@@ -127,9 +127,12 @@ void main() {
 
     test('application modality is honoured where the OS supports it',
         () async {
+      // ownedWindows too: this opens a dialog, so the fake has to describe a
+      // platform that has owned window kinds at all.
       DV.Test.fakeWindowing(const DVWindowingCapability(
         multiWindow: true,
         sameEngine: true,
+        ownedWindows: true,
         applicationModal: true,
       ));
       final DVWindow owner = await open('/a');
@@ -164,6 +167,74 @@ void main() {
         () {
       expect(DVWindowDegradation.modalityReduced.code, 'DV-WINDOW-008');
       expect(DVWindowDegradation.modalityReduced.level, 'debug');
+    });
+  });
+
+  _ownedCapability();
+}
+
+// Whether the platform has native owned window kinds at all.
+//
+// `cap.ownedWindows` is separate from `multiWindow` because a target can have
+// second windows and no native popup or tooltip kind -- web is exactly that.
+// Opening a tooltip as a plain second window there puts a menu in a browser
+// popup, which is worse than drawing it in-page.
+void _ownedCapability() {
+  group('capability.ownedWindows', () {
+    setUp(DVWindowManager.reset);
+    tearDown(DVWindowManager.reset);
+
+    Future<DVWindow> openKind(DVWindowKind kind, DVWindow owner) =>
+        DV.Platform.Window.open(const DVRouteTarget('/menu'),
+            options: DVWindowOptions(
+                kind: kind, owner: owner, duplicate: true));
+
+    test('desktop has them', () {
+      expect(DVWindowingCapability.desktop().ownedWindows, isTrue);
+    });
+
+    test('an owned kind gets a real window where they exist', () async {
+      DV.Test.fakeWindowing(DVWindowingCapability.desktop());
+      DVNativeBridge.register('window.open', (Object? _) => 'native');
+      addTearDown(() => DVNativeBridge.unregister('window.open'));
+
+      final DVWindow owner =
+          await DV.Platform.Window.open(const DVRouteTarget('/a'));
+      final DVWindow tip = await openKind(DVWindowKind.tooltip, owner);
+
+      expect(tip.presentation, DVWindowPresentation.window);
+    });
+
+    test('and its in-place fallback where they do not', () async {
+      // Not a plain second window: a menu opening as a browser popup is worse
+      // than one drawn in the page.
+      DV.Test.fakeWindowing(const DVWindowingCapability(
+        multiWindow: true,
+        sameEngine: true,
+      ));
+      DVNativeBridge.register('window.open', (Object? _) => 'native');
+      addTearDown(() => DVNativeBridge.unregister('window.open'));
+
+      final DVWindow owner =
+          await DV.Platform.Window.open(const DVRouteTarget('/a'));
+      final DVWindow tip = await openKind(DVWindowKind.tooltip, owner);
+
+      expect(tip.presentation, DVWindowPresentation.overlay);
+      expect(tip.degradation, DVWindowDegradation.capabilityUnsupported);
+    });
+
+    test('a regular window is unaffected by it', () async {
+      DV.Test.fakeWindowing(const DVWindowingCapability(
+        multiWindow: true,
+        sameEngine: true,
+      ));
+      DVNativeBridge.register('window.open', (Object? _) => 'native');
+      addTearDown(() => DVNativeBridge.unregister('window.open'));
+
+      final DVWindow window =
+          await DV.Platform.Window.open(const DVRouteTarget('/a'));
+
+      expect(window.presentation, DVWindowPresentation.window);
     });
   });
 }

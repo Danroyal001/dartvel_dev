@@ -26,6 +26,14 @@ class DVWindowingCapability {
   /// Web only: in-page multi-view embedding for panels and workspace regions.
   final bool inPageViews;
 
+  /// Whether the platform has native popup, tooltip and satellite kinds.
+  ///
+  /// Separate from [multiWindow] because a target can have second windows and
+  /// no owned kinds -- web is exactly that. Opening a tooltip as a plain
+  /// second window there puts a menu in a browser popup, which is worse than
+  /// drawing it in the page.
+  final bool ownedWindows;
+
   /// Whether the OS supports blocking every window of the application.
   final bool applicationModal;
 
@@ -42,6 +50,7 @@ class DVWindowingCapability {
     this.sameEngine = false,
     this.tearOut = false,
     this.inPageViews = false,
+    this.ownedWindows = false,
     this.applicationModal = false,
     this.displays = false,
   });
@@ -60,6 +69,7 @@ class DVWindowingCapability {
         multiWindow: true,
         sameEngine: true,
         tearOut: true,
+        ownedWindows: true,
       );
 
   /// This capability with [displays] recomputed from a display count.
@@ -68,6 +78,7 @@ class DVWindowingCapability {
         sameEngine: sameEngine,
         tearOut: tearOut,
         inPageViews: inPageViews,
+        ownedWindows: ownedWindows,
         applicationModal: applicationModal,
         displays: count > 1,
       );
@@ -94,6 +105,7 @@ class DVWindowingCapability {
         multiWindow: hasNativeWindowBinding,
         sameEngine: hasNativeWindowBinding,
         tearOut: hasNativeWindowBinding,
+        ownedWindows: hasNativeWindowBinding,
       );
     }
     if (isWeb) {
@@ -687,6 +699,10 @@ class DVWindowManager {
 
     if (ownerGone) {
       degradation = DVWindowDegradation.ownerClosed;
+    } else if (options.kind.isOwned && !cap.ownedWindows) {
+      // Its own in-place fallback rather than a plain second window: a menu
+      // opening as a browser popup is worse than one drawn in the page.
+      degradation = DVWindowDegradation.capabilityUnsupported;
     } else if (!cap.multiWindow) {
       degradation = DVWindowDegradation.capabilityUnsupported;
     } else {
