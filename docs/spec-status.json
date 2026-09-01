@@ -396,9 +396,16 @@
       "stability": "Draft",
       "status": "Partial",
       "evidence": [
-        "packages/dartvel_flutter/test/i18n_test.dart"
+        "packages/dartvel_cli/lib/src/commands/i18n_command.dart",
+        "packages/dartvel_cli/lib/src/i18n/extract.dart",
+        "packages/dartvel_cli/test/i18n_extract_test.dart",
+        "packages/dartvel_core/lib/src/i18n/plural_rules.dart",
+        "packages/dartvel_core/test/plural_rules_test.dart",
+        "packages/dartvel_flutter/test/i18n_catalogue_test.dart",
+        "packages/dartvel_flutter/test/i18n_test.dart",
+        "packages/dartvel_flutter/test/plural_forms_test.dart"
       ],
-      "absent": "no message catalogue, extraction or pluralisation: there is nothing that collects translatable strings out of pages and models, and no ICU plural or gender selection. What exists is locale tag parsing, the supported-set normalisation, the scope that carries a tag through the tree, and text direction -- now parsed to BCP 47 rather than by splitting on the first separator"
+      "absent": "Route locale negotiation, per-tenant locale defaults, and localised mail/notification templates. Extraction and pluralisation are built: dartvel i18n extract collects every DVTranslationKey into ARB catalogues without overwriting existing translations, i18n check names untranslated and stale keys per locale, and plural selection follows CLDR rather than English -- French makes 0 singular, Polish and Russian have four categories chosen by the last one or two digits, Arabic six. The catalogue shape the spec documents also did not compile until DVTranslationKey stopped overriding ==, which Dart forbids in a const map key"
     },
     {
       "section": "Accessibility",
