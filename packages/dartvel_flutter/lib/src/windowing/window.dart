@@ -422,12 +422,18 @@ class DVWindowManager {
     // it no longer is.
     if (wasMain) _promoteMain();
 
-    _shouldExit.value = switch (exitPolicy) {
+    final bool exits = switch (exitPolicy) {
       DVWindowExitPolicy.explicit => false,
       DVWindowExitPolicy.mainWindow => wasMain,
       DVWindowExitPolicy.lastWindow =>
         !_windows.any((DVWindow w) => w.kind.countsAsPrincipal),
     };
+    // Latched, not recomputed. Under mainWindow, closing main decides the
+    // process should end, and a stray window closing afterwards would compute
+    // false and cancel an exit the embedder had not got round to acting on --
+    // so nothing would ever exit. Only opening a window clears it, because
+    // then there is something on screen again.
+    if (exits) _shouldExit.value = true;
   }
 
   /// The oldest remaining principal window, or none.
