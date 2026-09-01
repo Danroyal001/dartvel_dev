@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:ui' as ui show Display;
 
-import 'package:dartvel_core/dartvel.dart' show DVDiagnostics;
+import 'package:dartvel_core/dartvel.dart' show DVDiagnostics, DVInstanceLock;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
@@ -197,6 +197,13 @@ class DVWindowOptions {
   /// moment a monitor was rearranged.
   final DVDisplayHint? display;
 
+  /// Whether this request came from the OS rather than from the application.
+  ///
+  /// Named `isExternal` on the instance so the const value below can be
+  /// `DVWindowOptions.external`, which is what the specification writes at a
+  /// call site and the only one of the two names anybody types.
+  final bool isExternal;
+
   const DVWindowOptions({
     this.size,
     this.constraints,
@@ -204,7 +211,15 @@ class DVWindowOptions {
     this.kind = DVWindowKind.regular,
     this.duplicate = false,
     this.display,
+    this.isExternal = false,
   });
+
+  /// An OS-delivered open request.
+  ///
+  /// The contract routes a deep link, a file association and a second launch
+  /// through the same idempotent open() as everything else, so a link to an
+  /// order already on screen focuses that window rather than opening another.
+  static const DVWindowOptions external = DVWindowOptions(isExternal: true);
 }
 
 /// A window, real or virtual.
@@ -221,12 +236,21 @@ class DVWindow {
   /// The native handle, when one exists.
   final String? nativeId;
 
+  /// Whether the OS handed this route over rather than the application asking.
+  ///
+  /// A deep link, a file association, a `dartvel://` URL, a second launch of a
+  /// single-instance application. A route the user navigated to and a route
+  /// the OS delivered are not the same event, and a policy or an analytic that
+  /// cannot tell them apart reports every deep link as navigation.
+  final bool external;
+
   DVWindow({
     required this.route,
     required this.kind,
     required this.presentation,
     this.degradation = DVWindowDegradation.none,
     this.nativeId,
+    this.external = false,
   });
 
   final ValueNotifier<DVWindowLifecycle> _lifecycle =
@@ -426,6 +450,35 @@ class DVWindowManager {
     _shared = store;
   }
 
+  /// Opens whatever a second launch asked for, and clears the queue.
+  ///
+  /// The single-instance lock refuses the second process and queues the route
+  /// it was launched with; this is the other half. Without it the queue filled
+  /// and was never read, so a deep link, a file association or a second launch
+  /// reached a process that then exited and the running application never
+  /// heard about it.
+  ///
+  /// Goes through the same [open] as everything else, so it is idempotent by
+  /// URL: a link to an order already on screen focuses that window rather than
+  /// opening a second one.
+  ///
+  /// Returns how many routes were opened. Only the primary instance has a
+  /// queue to drain -- a secondary that drained would swallow the route it
+  /// just asked for -- so calling this on one is a no-op rather than an error.
+  Future<int> drainExternalOpens(DVInstanceLock lock) async {
+    var opened = 0;
+    for (final String route in lock.takePending()) {
+      // Written by another process, so it is not trusted input. Opening
+      // whatever it says would let a second launch name any route at all.
+      final String path = route.trim();
+      if (path.isEmpty || !path.startsWith('/')) continue;
+
+      await open(DVRouteTarget(path), options: DVWindowOptions.external);
+      opened += 1;
+    }
+    return opened;
+  }
+
   Rect get bounds =>
       Offset.zero & Size(_platform.screenWidth, _platform.screenHeight);
 
@@ -501,6 +554,7 @@ class DVWindowManager {
       presentation: presentation,
       degradation: degradation,
       nativeId: nativeId,
+      external: options.isExternal,
     );
     _windows.add(window);
     _all.value = List<DVWindow>.unmodifiable(_windows);
