@@ -174,14 +174,43 @@ jobs:
       - name: Run it in a window and photograph it
         run: |
           set -uo pipefail
+
+          # Before weston, not after. Weston creates its socket inside
+          # XDG_RUNTIME_DIR, so starting it first meant the socket landed
+          # wherever weston happened to default to while the client, which
+          # exported this, looked somewhere else -- "Failed to connect to the
+          # Wayland display", intermittently, depending on whether
+          # /run/user/$(id -u) already existed on the runner.
+          export XDG_RUNTIME_DIR=/run/user/$(id -u)
+          sudo mkdir -p "$XDG_RUNTIME_DIR"
+          sudo chown "$(id -u)" "$XDG_RUNTIME_DIR"
+          chmod 700 "$XDG_RUNTIME_DIR"
+
           Xvfb :99 -screen 0 1280x720x24 &
-          sleep 3
           export DISPLAY=:99
+          # Waited for rather than slept at. A fixed sleep is a bet on runner
+          # speed that is lost silently: the next step fails with a connection
+          # error that says nothing about what was not ready.
+          for _ in $(seq 1 60); do
+            [ -S /tmp/.X11-unix/X99 ] && break
+            sleep 0.5
+          done
+          if [ ! -S /tmp/.X11-unix/X99 ]; then
+            echo "::error::Xvfb never created its socket"
+            exit 1
+          fi
+
           weston --backend=x11-backend.so --width=1280 --height=720 \
             --socket=wayland-1 --idle-time=0 > /tmp/diag/weston.log 2>&1 &
-          sleep 6
-          export XDG_RUNTIME_DIR=/run/user/$(id -u)
-          sudo mkdir -p "$XDG_RUNTIME_DIR" && sudo chown "$(id -u)" "$XDG_RUNTIME_DIR"
+          for _ in $(seq 1 60); do
+            [ -S "$XDG_RUNTIME_DIR/wayland-1" ] && break
+            sleep 0.5
+          done
+          if [ ! -S "$XDG_RUNTIME_DIR/wayland-1" ]; then
+            echo "::error::weston never created its Wayland socket"
+            cat /tmp/diag/weston.log || true
+            exit 1
+          fi
           export WAYLAND_DISPLAY=wayland-1
           # No GPU on a runner, so the client's GL has to be the software one.
           export LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe
