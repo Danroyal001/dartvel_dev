@@ -91,6 +91,7 @@ export 'src/sync/presence.dart';
 export 'src/tenancy/tenants.dart';
 export 'src/transaction/transaction.dart';
 export 'src/updates/ota.dart';
+export 'src/windowing/single_instance.dart';
 
 typedef RequestType = dv.Request;
 typedef ResponseType = dv.Response;
