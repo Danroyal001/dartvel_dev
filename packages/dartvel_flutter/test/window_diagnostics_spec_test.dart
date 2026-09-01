@@ -12,6 +12,7 @@
 // reads the table.
 import 'dart:io';
 
+import 'package:dartvel_core/dartvel.dart';
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -72,10 +73,48 @@ void main() {
     expect(emitted.toSet(), hasLength(emitted.length));
   });
 
+  _oneSource();
+
   test('every degradation but none carries a reason', () {
     for (final DVWindowDegradation degradation in DVWindowDegradation.values) {
       expect(degradation.reason, isNotEmpty);
       expect(degradation.code == null, degradation == DVWindowDegradation.none);
     }
+  });
+}
+
+// One source for the text, not two.
+//
+// The enum carried its own hand-written reason and level while the registry
+// carried the specification's. Two copies of a published contract drift, and
+// the level half already had: nothing compared them, so the enum was free to
+// call DV-WINDOW-006 a warning while the specification called it an error.
+void _oneSource() {
+  group('the enum and the registry agree', () {
+    test('every degradation reads its level from the registry', () {
+      for (final DVWindowDegradation degradation in DVWindowDegradation.values) {
+        final String? code = degradation.code;
+        if (code == null) continue;
+        expect(degradation.level, DVDiagnostics.find(code)!.level,
+            reason: code);
+      }
+    });
+
+    test('and its reason, in the specification words', () {
+      for (final DVWindowDegradation degradation in DVWindowDegradation.values) {
+        final String? code = degradation.code;
+        if (code == null) continue;
+        expect(degradation.reason, DVDiagnostics.find(code)!.reason,
+            reason: code);
+      }
+    });
+
+    test('none still reads as something, since it has no code', () {
+      // It is the "nothing degraded" case rather than a diagnostic, so it has
+      // no registry entry to read from and must not blow up looking for one.
+      expect(DVWindowDegradation.none.code, isNull);
+      expect(DVWindowDegradation.none.reason, isNotEmpty);
+      expect(DVWindowDegradation.none.level, isNotEmpty);
+    });
   });
 }
