@@ -954,6 +954,24 @@ class ModelGenerator {
         sb.writeln();
         sb.writeln('/// Generated typed test factory for [$className].');
         sb.writeln('class ${className}Factory {');
+        sb.writeln('  /// Varies the identifying fields between calls.');
+        sb.writeln('  ///');
+        sb.writeln('  /// Without it every create() returned the same');
+        sb.writeln('  /// identifier, so a test making two records silently');
+        sb.writeln('  /// got one -- and the failure read as an assertion');
+        sb.writeln('  /// about the wrong record rather than about the');
+        sb.writeln('  /// factory.');
+        sb.writeln('  static int _sequence = 0;');
+        sb.writeln();
+        sb.writeln('  /// Rewinds the sequence, so a test is repeatable.');
+        sb.writeln('  ///');
+        sb.writeln('  /// Otherwise the identifiers depend on how many tests');
+        sb.writeln('  /// ran before this one, which makes a golden or a');
+        sb.writeln('  /// snapshot assertion unrepeatable.');
+        sb.writeln('  static void resetSequence() {');
+        sb.writeln('    _sequence = 0;');
+        sb.writeln('  }');
+        sb.writeln();
         for (final field in fields) {
           final type = field['type']!;
           final name = field['name']!;
@@ -998,6 +1016,7 @@ class ModelGenerator {
         sb.writeln('  }');
         sb.writeln();
         sb.writeln('  $className create() {');
+        sb.writeln('    final n = ++_sequence;');
         sb.writeln('    return $className(');
         for (final field in fields) {
           final type = field['type']!;
@@ -1006,10 +1025,21 @@ class ModelGenerator {
             type: type,
             name: name,
             className: className,
+            sequenced: true,
           );
           sb.writeln('      $name: $name ?? $defaultValue,');
         }
         sb.writeln('    );');
+        sb.writeln('  }');
+        sb.writeln();
+        sb.writeln('  /// [count] models, each with its own identifier.');
+        sb.writeln('  ///');
+        sb.writeln('  /// Every list-shaped test needs this, and writing the');
+        sb.writeln('  /// loop by hand is where people reach for a shared');
+        sb.writeln('  /// instance and reintroduce the duplicate-id bug.');
+        sb.writeln('  List<$className> createMany(int count) {');
+        sb.writeln(
+            '    return List<$className>.generate(count, (_) => create());');
         sb.writeln('  }');
         sb.writeln('}');
 
@@ -1788,17 +1818,38 @@ class ModelGenerator {
     File(p.join(clientDir.path, 'models.g.dart')).writeAsStringSync(content);
   }
 
+  /// A default value for [name].
+  ///
+  /// [sequenced] is only true inside a factory's create(), which declares an
+  /// `n`. The registry and fallback callers build a single instance with no
+  /// sequence in scope, and emitting `$n` there produced generated code that
+  /// did not compile: "Undefined name 'n'".
   static String _factoryDefaultValue({
     required String type,
     required String name,
     required String className,
+    bool sequenced = false,
   }) {
+    final String seq = sequenced ? r'$n' : '1';
     final baseType = type.replaceAll('?', '');
     final lowerName = name.toLowerCase();
     if (type.endsWith('?')) return 'null';
     if (baseType == 'String') {
-      if (lowerName == 'id' || lowerName.endsWith('id')) return "'${name}_1'";
-      if (lowerName.contains('email')) return "'user@example.com'";
+      // Identifying and unique fields carry the sequence; descriptive ones do
+      // not. An email has a unique constraint in most schemas, so two records
+      // sharing one fail to insert -- while varying a display name only makes
+      // test expectations read strangely.
+      if (lowerName == 'id' || lowerName.endsWith('id')) {
+        // The field name is baked in here; only the sequence is interpolated
+        // in the generated code. Escaping both put a literal ${name} into the
+        // output, where it resolved to the factory's own nullable `name`
+        // field and every id came out as "null_1".
+        return "'${name}_$seq'";
+      }
+      if (lowerName.contains('email')) return "'user$seq@example.com'";
+      if (lowerName.contains('slug') || lowerName.contains('username')) {
+        return "'$name-$seq'";
+      }
       if (lowerName.contains('name')) return "'Test User'";
       if (lowerName.contains('status')) return "'active'";
       if (lowerName.contains('role')) return "'user'";
