@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
+import '../build/accessibility_audit.dart';
 import '../build/browser_extension.dart';
 import '../build/elinux_bundle.dart';
 import '../build/capture_completeness.dart';
@@ -1487,6 +1488,7 @@ class BuildCommand extends Command<void> {
         dvVerifyCapture(captured: captured, expected: routes.length);
     if (verdict.ok) {
       Logger.log('   Captured $captured of ${routes.length}.');
+      _auditAccessibility(root, routes);
       return;
     }
 
@@ -1495,6 +1497,38 @@ class BuildCommand extends Command<void> {
     // weeks later, and the fix -- rerun it -- costs a minute.
     Logger.error('   ${verdict.message}');
     Logger.log('❌ semantics capture incomplete');
+    exit(1);
+  }
+
+  /// Fails the build on an accessibility regression.
+  ///
+  /// The captured semantics tree is what a screen reader will actually be
+  /// handed, so it is the right thing to judge -- better than the source, which
+  /// only suggests what the tree might become.
+  ///
+  /// Fatal, for the same reason the capture itself is: an accessibility check
+  /// that warns is a check that gets scrolled past, and nothing else in the
+  /// pipeline fails a release on this.
+  void _auditAccessibility(String root, List<String> routes) {
+    final List<DVA11yFinding> findings = <DVA11yFinding>[];
+    for (final String route in routes) {
+      final File file = File(dvSemanticsPathFor(root, route));
+      if (!file.existsSync()) continue;
+      findings.addAll(dvAuditSemantics(
+        route: route,
+        nodes: DVSemanticNode.listFromJson(file.readAsStringSync()),
+      ));
+    }
+
+    if (findings.isEmpty) {
+      Logger.log('   Accessibility: ${routes.length} route(s), nothing to fix.');
+      return;
+    }
+
+    for (final DVA11yFinding finding in findings) {
+      Logger.error('   $finding');
+    }
+    Logger.log('❌ ${findings.length} accessibility finding(s)');
     exit(1);
   }
 
