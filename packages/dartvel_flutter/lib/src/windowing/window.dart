@@ -152,6 +152,7 @@ enum DVWindowDegradation {
   platformRefused,
   disabledByConfig,
   displayUnavailable,
+  restoredRouteUnresolvable,
 }
 
 extension DVWindowDegradationX on DVWindowDegradation {
@@ -167,6 +168,7 @@ extension DVWindowDegradationX on DVWindowDegradation {
         DVWindowDegradation.platformRefused => 'DV-WINDOW-004',
         DVWindowDegradation.disabledByConfig => 'DV-WINDOW-005',
         DVWindowDegradation.displayUnavailable => 'DV-WINDOW-013',
+        DVWindowDegradation.restoredRouteUnresolvable => 'DV-WINDOW-009',
       };
 
   /// The level the specification assigns this code.
@@ -379,6 +381,14 @@ class DVWindowManager {
   /// application that wants profile names sets this itself.
   static Map<String, int> displayProfile = const <String, int>{};
 
+  /// The routes this application actually has, for validating a restored
+  /// workspace.
+  ///
+  /// Empty means "not known", and restore then keeps everything it stored:
+  /// nothing has told the runtime which routes exist, so dropping tabs on a
+  /// guess would lose a workspace. The generated router is what fills this.
+  static Set<String> knownRoutes = const <String>{};
+
   /// Overridden capability, for tests and for configuration that disables
   /// windowing. Null means detect from the running target.
   static DVWindowingCapability? _capabilityOverride;
@@ -394,6 +404,7 @@ class DVWindowManager {
     _all.value = <DVWindow>[];
     _displays.value = const <DVDisplay>[];
     displayProfile = const <String, int>{};
+    knownRoutes = const <String>{};
     _main.value = null;
     _shouldExit.value = false;
     exitPolicy = DVWindowExitPolicy.lastWindow;
@@ -731,21 +742,80 @@ class DVWindowManager {
     if (stored is! DVJsonList) return <DVTabWorkspaceController>[];
 
     final restored = <DVTabWorkspaceController>[];
+    final dropped = <String>[];
+
     for (final entry in stored.value) {
       if (entry is! DVJsonMap) continue;
       final tabs = entry.value['tabs'];
       if (tabs is! DVJsonList) continue;
+
+      // Kept paths and their old positions together, because the stored active
+      // index counts the tabs that were saved. Dropping one before it and
+      // keeping the number selects a different tab -- silently, since it is
+      // still a valid index.
+      final kept = <String>[];
+      final oldIndexOf = <int>[];
+      for (var i = 0; i < tabs.value.length; i++) {
+        final path = tabs.value[i];
+        if (path is! DVJsonString) continue;
+        if (knownRoutes.isNotEmpty && !knownRoutes.contains(path.value)) {
+          dropped.add(path.value);
+          continue;
+        }
+        kept.add(path.value);
+        oldIndexOf.add(i);
+      }
+
+      // Only when dropping emptied it. A workspace that was saved with no
+      // tabs is a real empty workspace and comes back as one; a workspace
+      // whose every route has since gone comes back not at all, because an
+      // empty one there looks like the user closed everything themselves.
+      if (kept.isEmpty && tabs.value.isNotEmpty) continue;
+
       final controller = DVTabWorkspaceController(
-        tabs: <DVTab>[
-          for (final path in tabs.value)
-            if (path is DVJsonString) DVTab(DVRouteTarget(path.value)),
-        ],
+        tabs: <DVTab>[for (final String path in kept) DVTab(DVRouteTarget(path))],
       );
+
       final active = entry.value['active'];
-      if (active is DVJsonNumber) controller.activate(active.value.toInt());
+      if (active is DVJsonNumber) {
+        final int wanted = active.value.toInt();
+        var index = oldIndexOf.indexOf(wanted);
+        // The tab that was active is gone, so the nearest surviving one.
+        if (index < 0) {
+          index = oldIndexOf.where((int old) => old < wanted).length;
+          if (index >= kept.length) index = kept.length - 1;
+        }
+        controller.activate(index);
+      }
       restored.add(controller);
     }
+
+    if (dropped.isNotEmpty) {
+      // info, not a warning: a page removed between releases is normal, and
+      // the workspace comes back without it rather than not coming back.
+      await _reportRestoreDrop(name, dropped);
+    }
     return restored;
+  }
+
+  Future<void> _reportRestoreDrop(String name, List<String> dropped) async {
+    const DVWindowDegradation degradation =
+        DVWindowDegradation.restoredRouteUnresolvable;
+    try {
+      await DV.log(
+        '${degradation.code}  ${dropped.length} restored route(s) no longer '
+        'resolve; the workspace came back without them.',
+        level: degradation.level,
+        context: <String, Object>{
+          'workspace': name,
+          'routes': dropped.join(', '),
+          'reason': degradation.reason,
+        },
+      );
+    } catch (_) {
+      // Same reason open() swallows its own: a restore must not fail because
+      // an application has no observability wired.
+    }
   }
 
   /// Tenant- and user-scoped like any stored state; the store applies that
