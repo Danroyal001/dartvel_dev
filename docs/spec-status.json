@@ -520,11 +520,14 @@
     {
       "section": "Deployment",
       "stability": "Draft",
-      "status": "Partial",
+      "status": "Shipped",
       "evidence": [
-        "packages/dartvel_cli/test/deploy_command_test.dart"
+        "packages/dartvel_cli/lib/src/deploy/function_deploy.dart",
+        "packages/dartvel_cli/test/deploy_command_test.dart",
+        "packages/dartvel_cli/test/deploy_gate_test.dart",
+        "packages/dartvel_cli/test/function_deploy_test.dart"
       ],
-      "absent": "Function mode across the listed targets"
+      "absent": "Calling the clouds themselves, which needs credentials rather than code. dartvel deploy --functions writes a deployment artifact per backend function for lambda, cloud-run, container, edge, fly, railway and bare-metal, and refuses to ship an environment whose declared required secrets do not resolve"
     },
     {
       "section": "CLI",
