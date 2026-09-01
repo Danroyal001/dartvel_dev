@@ -504,12 +504,14 @@
       "stability": "Draft",
       "status": "Partial",
       "evidence": [
-        "packages/dartvel_core/lib/src/secrets/secrets.dart",
-        "packages/dartvel_core/test/secrets_test.dart",
+        "packages/dartvel_cli/lib/src/secrets/secrets_analysis.dart",
+        "packages/dartvel_cli/test/secrets_analysis_test.dart",
         "packages/dartvel_core/lib/src/crypto/app_key.dart",
-        "packages/dartvel_core/test/app_key_test.dart"
+        "packages/dartvel_core/lib/src/secrets/secrets.dart",
+        "packages/dartvel_core/test/app_key_test.dart",
+        "packages/dartvel_core/test/secrets_test.dart"
       ],
-      "absent": "DV-SECRETS-001 reachability analysis, the pubspec declaration manifest, rotation hooks and deploy-time validation; the platform key stores behind DVAppKeyStore"
+      "absent": "Rotation hooks and the platform key stores behind DVAppKeyStore, so the application key is held in memory. The declaration manifest and DV-SECRETS-001 are built: dartvel build parses dartvel.secrets, refuses a client-scoped secret without the PUBLIC_ prefix, and fails with the file and the remedy when a backend-scoped secret is reached from client code. dvValidateEnvironment answers what deploy needs to check"
     },
     {
       "section": "Deployment",

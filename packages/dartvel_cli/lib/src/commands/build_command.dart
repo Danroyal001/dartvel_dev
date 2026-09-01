@@ -7,6 +7,7 @@ import 'package:yaml/yaml.dart';
 import '../build/browser_extension.dart';
 import '../build/elinux_bundle.dart';
 import '../build/pwa_manifest.dart';
+import '../secrets/secrets_analysis.dart';
 import '../build/pwa_service_worker.dart';
 import '../build/seo_head.dart';
 import '../build/page_text.dart';
@@ -560,6 +561,8 @@ class BuildCommand extends Command<void> {
 
     // Generate Dartvel routes/client/backend artifacts before optional user
     // build_runner builders so they can consume the generated client barrel.
+    _checkSecrets(root);
+
     Logger.log('📝 Generating Dartvel artifacts...');
     final routesResult = await _processRun(
       'dart',
@@ -1207,6 +1210,60 @@ class BuildCommand extends Command<void> {
   /// manifest no browser will install is still a web app that runs, and a
   /// build that refuses to finish over an icon size would be worse than the
   /// warning.
+  /// DV-SECRETS-001, before anything is generated or compiled.
+  ///
+  /// A secret compiled into a client bundle ships to every visitor, and the
+  /// point of compiling both ends from one project is that this can be a
+  /// build error rather than a code-review habit.
+  ///
+  /// Client-reachable means lib/ minus the backend directory. It is an
+  /// approximation -- a value routed through an indirection this cannot
+  /// follow is a false negative -- which is why the structural guarantee is
+  /// elsewhere: only PUBLIC_ values reach the generated env.g.dart at all.
+  void _checkSecrets(String root) {
+    final File pubspec = File(p.join(root, 'pubspec.yaml'));
+    if (!pubspec.existsSync()) return;
+
+    final declared = dvParseSecretDeclarations(pubspec.readAsStringSync());
+    if (declared.isEmpty) return;
+
+    final problems = dvValidateDeclarations(declared);
+    if (problems.isNotEmpty) {
+      for (final problem in problems) {
+        Logger.error('   $problem');
+      }
+      Logger.log('❌ dartvel.secrets is not valid');
+      exit(1);
+    }
+
+    final backendDir = '${_dartvelSection(root)['backendDir'] ?? 'lib/backend'}';
+    final lib = Directory(p.join(root, 'lib'));
+    if (!lib.existsSync()) return;
+
+    final clientFiles = <String, String>{};
+    for (final entity in lib.listSync(recursive: true, followLinks: false)) {
+      if (entity is! File || !entity.path.endsWith('.dart')) continue;
+      final rel = p.relative(entity.path, from: root).replaceAll('\\', '/');
+      // The backend is where a backend-scoped secret belongs, and the
+      // generated client is written from the sources already checked.
+      if (rel.startsWith(backendDir)) continue;
+      if (rel.contains('/dartvel_client/')) continue;
+      clientFiles[rel] = entity.readAsStringSync();
+    }
+
+    final findings = dvAnalyseSecrets(
+      declared: declared,
+      clientFiles: clientFiles,
+    );
+    if (findings.isEmpty) return;
+
+    for (final finding in findings) {
+      Logger.error('   ${finding.code} ${finding.file}: ${finding.message}');
+    }
+    Logger.log('❌ ${findings.length} secret problem(s)');
+    exit(1);
+  }
+
   void _writePwaManifest(String root) {
     final pwa = _dartvelSection(root)['pwa'];
     final settings = pwa is Map ? pwa : const <Object?, Object?>{};
