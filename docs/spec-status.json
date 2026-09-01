@@ -412,9 +412,12 @@
       "stability": "Draft",
       "status": "Partial",
       "evidence": [
-        "packages/dartvel_flutter/test/accessibility_test.dart"
+        "packages/dartvel_cli/test/model_table_generation_test.dart",
+        "packages/dartvel_flutter/lib/src/table/table.dart",
+        "packages/dartvel_flutter/test/accessibility_test.dart",
+        "packages/dartvel_flutter/test/table_test.dart"
       ],
-      "absent": "generated tables have no keyboard navigation, focus restoration or row/column announcements; nothing fails a release on an accessibility regression; switch control and hardware-key navigation for kiosk and embedded targets are unbuilt. What exists is checked: contrast against WCAG's published ratios, tap targets against Material's minimum, and the semantic modifiers asserted in the semantics tree rather than only stored"
+      "absent": "Nothing fails a release on an accessibility regression, and switch control and hardware-key navigation for kiosk and embedded targets are unbuilt. Generated tables now have keyboard navigation, focus that survives a sort, and per-cell announcements naming the column and the row position -- User.Table() used to emit a grid of cards wearing the name, with no header, no rows and nothing a screen reader could announce as tabular. Contrast is checked against WCAG ratios and tap targets against Material’s minimum"
     },
     {
       "section": "Desktop, Embedded, and Qt-Critical Capabilities",

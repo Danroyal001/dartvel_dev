@@ -233,6 +233,7 @@ export 'package:dartvel_core/dartvel.dart'
         registerDVModelSerializer;
 export 'package:go_router/go_router.dart';
 
+export 'src/table/table.dart';
 export 'src/admin/cache_admin.dart';
 export 'src/admin/model_admin.dart';
 export 'src/admin/outbox_admin.dart';
