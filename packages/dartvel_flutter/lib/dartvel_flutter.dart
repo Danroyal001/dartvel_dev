@@ -121,6 +121,10 @@ export 'package:dartvel_core/dartvel.dart'
         DVMiddleware,
         DVMiddlewareKey,
         DVMiddlewares,
+        DVPluralCategory,
+        dvPluralCategoriesFor,
+        dvPluralCategory,
+        dvLanguageOf,
         DVPolicy,
         DVPolicies,
         DVPolicyAction,
@@ -5511,18 +5515,25 @@ class LocaleTag {
   String toString() => value;
 }
 
+/// A translation key, typed rather than a bare string.
+///
+/// No `==` override, and that is load-bearing rather than an omission. Dart
+/// refuses a key without primitive equality in a const map -- "does not have a
+/// primitive equality" -- so overriding it made the catalogue shape the spec
+/// documents impossible to write:
+///
+///     const DVTranslationCatalog(
+///       messages: <DVTranslationKey, String>{AppText.settingsTitle: '...'},
+///     )
+///
+/// Const instances canonicalise, so two `const DVTranslationKey('a')` are
+/// identical and compare equal anyway. Keys built at runtime are matched by
+/// value instead, because the catalogue is indexed by [value] when it is
+/// loaded rather than looked up by object.
 class DVTranslationKey {
   final String value;
 
   const DVTranslationKey(this.value);
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is DVTranslationKey && other.value == value;
-
-  @override
-  int get hashCode => value.hashCode;
 
   @override
   String toString() => value;
@@ -5540,28 +5551,98 @@ class DVTranslationCatalog {
   });
 }
 
+/// The plural forms a message has, in one language.
+///
+/// The CLDR categories, not English's. This used to offer zero/one/other and
+/// select with `count == 1`, so every catalogue was really an English
+/// catalogue: a French app rendered "0 messages" where French writes "0
+/// message", and Polish -- which needs one, few and many chosen by the last
+/// one or two digits -- could not be written correctly at all.
 class DVPluralForms {
+  /// An explicit override for "no messages", not a CLDR category in most
+  /// languages. Left unset, 0 takes whatever the language's rule says.
   final String zero;
+
   final String one;
+  final String two;
+  final String few;
+  final String many;
   final String other;
 
   const DVPluralForms({
     required this.other,
     this.zero = '',
     this.one = '',
+    this.two = '',
+    this.few = '',
+    this.many = '',
   });
 
-  String select(num count) {
+  /// The form for [count] in [locale].
+  ///
+  /// Falls back to [other] when the catalogue has no string for the category
+  /// the language selected. A Polish catalogue written before anyone knew
+  /// about `few` should read awkwardly rather than render nothing --
+  /// [missingFor] is how a build finds that instead.
+  String select(num count, {String locale = 'en'}) {
+    // Checked before the language rule, because it is an override rather than
+    // a category: "no messages" is a nicer English string than "0 messages",
+    // and a catalogue that asks for it means it.
     if (count == 0 && zero.isNotEmpty) return zero;
-    if (count == 1 && one.isNotEmpty) return one;
-    return other;
+
+    final DVPluralCategory category =
+        dvPluralCategory(locale: locale, count: count);
+
+    final String selected = switch (category) {
+      DVPluralCategory.zero => zero,
+      DVPluralCategory.one => one,
+      DVPluralCategory.two => two,
+      DVPluralCategory.few => few,
+      DVPluralCategory.many => many,
+      DVPluralCategory.other => other,
+    };
+    return selected.isNotEmpty ? selected : other;
+  }
+
+  /// The categories [locale] needs that this catalogue does not provide.
+  ///
+  /// So strict mode can fail a build rather than shipping a Polish string that
+  /// silently reads as the wrong word on most numbers.
+  Set<DVPluralCategory> missingFor(String locale) {
+    final Set<DVPluralCategory> missing = <DVPluralCategory>{};
+    for (final DVPluralCategory category in dvPluralCategoriesFor(locale)) {
+      final String form = switch (category) {
+        DVPluralCategory.zero => zero,
+        DVPluralCategory.one => one,
+        DVPluralCategory.two => two,
+        DVPluralCategory.few => few,
+        DVPluralCategory.many => many,
+        DVPluralCategory.other => other,
+      };
+      // `other` is required by the constructor, so it is never missing; every
+      // language uses it, and reporting it would make every catalogue look
+      // incomplete.
+      if (form.isEmpty && category != DVPluralCategory.other) {
+        missing.add(category);
+      }
+    }
+    return missing;
   }
 }
 
 class DVI18n {
   static LocaleTag _currentLocale = LocaleTag.enUS;
-  static final Map<String, DVTranslationCatalog> _catalogs =
-      <String, DVTranslationCatalog>{};
+
+  /// Indexed by the key's string, not by the key object.
+  ///
+  /// DVTranslationKey has no `==` override, so two instances with the same
+  /// string are equal only when both are const. Indexing by value means a key
+  /// read from a config file or a database column resolves like a generated
+  /// one, instead of silently missing every lookup and rendering its own name.
+  static final Map<String, Map<String, String>> _messages =
+      <String, Map<String, String>>{};
+  static final Map<String, Map<String, DVPluralForms>> _plurals =
+      <String, Map<String, DVPluralForms>>{};
 
   const DVI18n();
 
@@ -5575,7 +5656,16 @@ class DVI18n {
   }
 
   void load(DVTranslationCatalog catalog) {
-    _catalogs[catalog.locale.value] = catalog;
+    _messages[catalog.locale.value] = <String, String>{
+      for (final MapEntry<DVTranslationKey, String> entry
+          in catalog.messages.entries)
+        entry.key.value: entry.value,
+    };
+    _plurals[catalog.locale.value] = <String, DVPluralForms>{
+      for (final MapEntry<DVTranslationKey, DVPluralForms> entry
+          in catalog.plurals.entries)
+        entry.key.value: entry.value,
+    };
   }
 
   void loadAll(Iterable<DVTranslationCatalog> catalogs) {
@@ -5591,8 +5681,7 @@ class DVI18n {
     bool strict = false,
   }) {
     final selected = locale ?? _currentLocale;
-    final catalog = _catalogs[selected.value];
-    final template = catalog?.messages[key];
+    final template = _messages[selected.value]?[key.value];
     if (template == null) {
       if (strict) {
         throw StateError(
@@ -5621,8 +5710,7 @@ class DVI18n {
     bool strict = false,
   }) {
     final selected = locale ?? _currentLocale;
-    final catalog = _catalogs[selected.value];
-    final forms = catalog?.plurals[key];
+    final forms = _plurals[selected.value]?[key.value];
     if (forms == null) {
       if (strict) {
         throw StateError(
@@ -5635,7 +5723,12 @@ class DVI18n {
       ...args,
       'count': formatNumber(count, locale: selected),
     };
-    return _interpolate(forms.select(count), pluralArgs);
+    // The locale goes in, or the CLDR rules cannot be applied and every
+    // catalogue falls back to English's one/other.
+    return _interpolate(
+      forms.select(count, locale: selected.value),
+      pluralArgs,
+    );
   }
 
   String formatNumber(num value, {LocaleTag? locale}) {
@@ -5681,7 +5774,8 @@ class DVI18n {
 
   void reset() {
     _currentLocale = LocaleTag.enUS;
-    _catalogs.clear();
+    _messages.clear();
+    _plurals.clear();
   }
 
   String _interpolate(String template, Map<String, String> args) {

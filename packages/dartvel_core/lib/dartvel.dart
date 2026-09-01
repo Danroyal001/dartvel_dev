@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'src/http/flat_buffer.dart';
 import 'src/search/search_tuning.dart';
 export 'src/http/flat_buffer.dart';
+export 'src/i18n/plural_rules.dart';
 export 'src/observability/observability.dart';
 export 'src/scheduling/cron.dart';
 export 'src/scheduling/scheduler.dart';
