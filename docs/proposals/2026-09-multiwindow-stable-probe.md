@@ -207,6 +207,29 @@ master.** Every embedder fork is pinned to a verified stable, and the
 windowing means re-verifying each target against it. That is a project decision,
 not a windowing one, and it should be made explicitly rather than arrived at.
 
+## Verified through Dartvel, not only through Flutter
+
+`packages/dartvel_windowing` registers the binding, and a real application was
+built against it and run under Xvfb:
+
+```
+E2E presentation=DVWindowPresentation.window
+    degradation=DVWindowDegradation.none
+    id=dv-window-1
+```
+
+Two OS windows, `e2e` at 1280x720 and `E2E-PROJECTOR` at 620x420, both
+rendering, process alive, and zero `FL_IS_COMPOSITOR` or `BadAccess` in stderr.
+A `ValueNotifier` declared above both windows and changed once shows in both:
+captured at four seconds both read `BLANK`, captured at twelve both read
+`AMAZING GRACE`. That is the claim `sameEngine: true` is making, tested rather
+than asserted.
+
+The first attempt at that capture proved nothing and looked like it proved
+everything: both captures landed *after* the change, so both windows read
+`AMAZING GRACE` in a way a pair of constants would also produce. The captures
+have to straddle the change.
+
 ## Reproducing
 
 The probes are four `flutter create` apps differing only in `lib/main.dart`,
