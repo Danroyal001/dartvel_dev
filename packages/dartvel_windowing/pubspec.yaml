@@ -1,0 +1,22 @@
+name: dartvel_windowing
+description: Real OS windows for Dartvel desktop apps, backed by Flutter's windowing API
+version: 0.1.0
+repository: https://github.com/Danroyal001/dartvel_dev
+homepage: https://dartvel.dev
+publish_to: none
+environment:
+  # One floor for every Dartvel package, deliberately.
+  sdk: ">=3.12.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  dartvel_flutter:
+    path: ../dartvel_flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
