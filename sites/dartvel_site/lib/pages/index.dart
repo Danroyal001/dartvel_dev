@@ -18,6 +18,7 @@ Widget _indexPage(BuildContext context) => const Deck(
         ('Models', Proof()),
         ('What you get', Pillars()),
         ('Targets', Targets()),
+        ('vs Expo', ExpoComparison()),
         ('Status', Honest()),
         ('Links', SiteFooter()),
       ],
@@ -60,6 +61,19 @@ Widget _heroCopy(BuildContext context) => DVBox.list(
               .height(1.06)
               // The site's one h1.
               .semanticHeading(1),
+        ),
+        // The positioning line. Four comparisons rather than one, because
+        // "Flutter's Laravel" alone reads as "a backend for Flutter" and
+        // undersells the half of it that is the client.
+        DVText("Flutter's Laravel. Flutter's Expo. Flutter's Next.js. "
+                "Flutter's Hasura.")
+            .modifier(
+          DVModifier()
+              .fontSize(context.screen.value<double>(mobile: 17, desktop: 20))
+              .fontWeight(FontWeight.w600)
+              .color(Palette.of(context).accent)
+              .height(1.45)
+              .maxWidth(640),
         ),
         const DVText(
           'Write pages, models, backend functions, UI and business logic. '
@@ -351,3 +365,51 @@ Widget _honest(BuildContext context) => Section(
     );
 
 
+
+
+/// What "Flutter's Expo" covers, and the one part it does not.
+///
+/// People arriving from Expo want one of three things, and claiming the name
+/// without saying which would be the kind of marketing this page is trying not
+/// to be. The third row is the honest gap, and it is on the page rather than
+/// in an issue.
+@DVFunctionalWidget()
+Widget _expoComparison(BuildContext context) => Section(
+      tint: true,
+      children: <Widget>[
+        const Eyebrow('IF YOU CAME LOOKING FOR EXPO'),
+        const Heading('Two of the three, and we say which.'),
+        const Body(
+          'Expo bundles three separate things people mean by its name. Dartvel '
+          'covers two of them outright. The third is a hosted build service, '
+          'and we do not run one.',
+        ),
+        DVBox.wrapLine(<Widget>[
+          const SiteCard(
+            'The SDK',
+            'Auth, push, storage, database, queues, AI and platform APIs are '
+            'framework services, not a starter template you copy once and '
+            'maintain forever.',
+          ),
+          const SiteCard(
+            'Over-the-air updates',
+            'dartvel updates release, patch and rollback drive Shorebird, the '
+            'Flutter code-push framework. The CLI works today; the runtime '
+            'DV.Updates binding does not.',
+          ),
+          const SiteCard(
+            'Cloud builds and store submission',
+            'Not covered. Dartvel writes GitHub Actions and Codemagic config '
+            'and deploys web and function targets. It does not manage signing '
+            'certificates or provisioning profiles, and there is no hosted '
+            'build service. Expo Launch does that job.',
+          ),
+        ], spacing: 16),
+        const Body(
+          'Native folders stay out of your way either way: dartvel build '
+          'targets fifteen platforms, and you never open android/ or ios/ to '
+          'prototype.',
+          width: 640,
+        ),
+      ],
+    );
