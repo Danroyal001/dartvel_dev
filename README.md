@@ -154,7 +154,18 @@ dartvel generate page
 dartvel generate model
 dartvel generate backend-function
 dartvel generate form
+
+# Diagnostics — look up a code the runtime logged
+dartvel explain DV-WINDOW-004      # what it means, and how serious it is
+dartvel explain DV-KIOSK           # every code in a family
+dartvel explain                    # which families exist
 ```
+
+Dartvel degrades rather than throwing where a target cannot do what was asked —
+a phone has no second window, a web popup outside a user gesture is blocked —
+and every degradation carries a stable code that never changes meaning between
+releases. `dartvel explain` is how you read one without searching the
+specification by hand.
 
 ---
 
