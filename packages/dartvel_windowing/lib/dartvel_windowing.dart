@@ -10,7 +10,10 @@
 /// be private if everything that uses it is part of the same one.
 library dartvel_windowing;
 
+import 'dart:ffi' as ffi;
+
 import 'package:dartvel_flutter/dartvel_flutter.dart';
+import 'package:ffi/ffi.dart' as ffi;
 import 'package:flutter/foundation.dart';
 // ignore: invalid_use_of_internal_member
 import 'package:flutter/src/foundation/_features.dart';
@@ -18,6 +21,8 @@ import 'package:flutter/src/foundation/_features.dart';
 import 'package:flutter/src/widgets/_window.dart';
 import 'package:flutter/widgets.dart';
 
+part 'src/displays.dart';
+part 'src/linux_displays_ffi.dart';
 part 'src/flutter_window_surface.dart';
 part 'src/window_bindings.dart';
 part 'src/window_host.dart';
