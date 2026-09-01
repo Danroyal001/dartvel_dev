@@ -1,5 +1,4 @@
-import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/widgets.dart';
+part of '../dartvel_windowing.dart';
 
 /// What an application asked for when it opened a window.
 ///
@@ -27,16 +26,13 @@ class DVWindowRequest {
 /// registered rather than on the API being importable, so this call is what
 /// makes `DV.Platform.Window.open` present a real window instead of degrading
 /// to a page. Nothing else in Dartvel has to change.
-class DVWindowing {
-  const DVWindowing._();
+class _DVWindowBindings {
+  const _DVWindowBindings._();
 
   static final Map<String, DVWindowRequest> _requests =
       <String, DVWindowRequest>{};
   static int _sequence = 0;
   static bool _registered = false;
-
-  /// Whether [register] has run.
-  static bool get isRegistered => _registered;
 
   /// Registers `window.open` and `window.close`.
   ///

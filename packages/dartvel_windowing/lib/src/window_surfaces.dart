@@ -1,5 +1,4 @@
-import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/widgets.dart';
+part of '../dartvel_windowing.dart';
 
 /// One OS surface rendering one window's route.
 abstract class DVWindowSurface {
