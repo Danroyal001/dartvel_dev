@@ -46,6 +46,10 @@ jobs:
           # bash cannot start, which reads as an infrastructure fault rather
           # than a stale name.
           - { package: dartvel_dev, runner: flutter }
+          # Added with the package. A new package whose suite CI never runs is
+          # the same "green means nothing was checked" problem this workflow
+          # was written to fix.
+          - { package: dartvel_windowing, runner: flutter }
 
     steps:
       - uses: actions/checkout@v4
