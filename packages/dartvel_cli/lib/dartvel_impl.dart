@@ -10,6 +10,7 @@ import 'src/commands/ai_command.dart';
 import 'src/commands/artifact_command.dart';
 import 'src/commands/capture_command.dart';
 import 'src/commands/webos_command.dart';
+import 'src/commands/explain_command.dart';
 import 'src/commands/spec_command.dart';
 import 'src/commands/engine_command.dart';
 import 'src/commands/ensure_path_command.dart';
@@ -53,6 +54,7 @@ Future<void> main(List<String> args) async {
     ..addCommand(CaptureCommand())
     ..addCommand(WebosCommand())
     ..addCommand(SpecCommand())
+    ..addCommand(ExplainCommand())
     ..addCommand(EngineCommand())
     ..addCommand(EnsurePathCommand())
     ..addCommand(DeployCommand())
