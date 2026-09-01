@@ -83,32 +83,74 @@ theory and it is wrong: giving the implicit view its own content, so the
 runner's own window is not left empty, does not help. The failure is attached
 to the *new* view, not to the implicit one.
 
-## Options, and which one to take
+## A second view is the wrong unit. A second engine works.
 
-1. **Move Dartvel to Flutter main.** Where the feature is `available: true` and
-   presumably works. It also moves every embedder fork off the version they are
-   pinned and verified against, for one feature.
-2. **Create the second view in the Linux runner, in C.** Dartvel generates the
-   runner, so it could create a second `FlView` and GTK window natively and
-   drive it over FFI. It stays inside the native-integration rule, but it is
-   per-platform work — GTK, Win32 and AppKit — against an engine whose
-   multi-view path is the thing that is broken.
-3. **Two processes, one window each.** The operator app and the output app are
-   separate processes, and the output is full-screen on the chosen display.
-   Nothing experimental is involved: one window per process works on every
-   desktop target Dartvel has verified.
+Two further probes settle it.
 
-**Option 3 is the recommendation**, and not only as a workaround. Dartvel
-already ships the parts that make it work — model sync, presence, signals, and
-the window shared store — so the link between operator and output is a
-first-class Dartvel concern rather than a window-handle detail. It also gets
-something the shared-engine designs cannot: the output can run on a *different
-machine* from the operator, which is how a media desk is often wired in the
-first place.
+**Creating the window after the first frame changes the outcome.** Every probe
+above built its controllers in `main()`, before `runWidget`, when the engine is
+not yet up. Deferring creation to `addPostFrameCallback` produces a real window
+that renders: `MEDIA-BITS-PROJECTOR`, 1280x720, white text on black, and the
+process survives past twenty-five seconds with no `BadAccess` at all.
 
-The cost is honest and worth writing down: two processes mean two engines and
-two copies of any preloaded media, and a video frame cannot be handed between
-them as a pointer.
+It also exposes the actual limit. The **implicit view went black** at the same
+moment. Adding a third view repeats it: with implicit + operator + projector,
+only the projector renders and the other two are black, with two
+`FL_IS_COMPOSITOR` failures rather than one.
+
+| views | renders | black | `FL_IS_COMPOSITOR` |
+| --- | --- | --- | --- |
+| implicit + projector | projector | implicit | 1 |
+| implicit + operator + projector | projector | implicit, operator | 2 |
+
+**Stable's Linux embedder presents one view per engine — the most recent one.**
+Each added view displaces its predecessor and logs one assertion failure. That
+is a property of the compositor, not of window creation, which is why no amount
+of care about ordering or implicit-view content fixes it.
+
+**So give each window its own engine.** The runner creates two `GtkWindow`s,
+each with its own `FlDartProject` and `fl_view_new`, told apart by the Dart
+entrypoint arguments:
+
+```c
+make_window(application, self, "MB8-OPERATOR",  900, 600,   0, 0, "operator");
+make_window(application, self, "MB8-PROJECTOR", 1280, 720, 940, 0, "projector");
+```
+
+```dart
+void main(List<String> args) {
+  final role = args.isNotEmpty ? args.first : 'unknown';
+  runApp(RoleApp(role: role));
+}
+```
+
+Result: **both windows render at once**, in one process, from one binary, on
+one launch. `FL_IS_COMPOSITOR` failures: **zero**. Screenshots of each window
+show its own content — operator black-on-white at 900x600, projector
+white-on-black at 1280x720.
+
+The first capture attempt showed the operator black and it was an artefact, not
+a result: both windows were placed at `+0+0`, so `import -window` on the lower
+one grabbed the screen region the upper one covered. Moving them apart resolved
+it. Worth recording because it looked exactly like the failure being chased.
+
+## What this means for `DV.Platform.Window.open`
+
+It can be registered on desktop, and it should not be built on Flutter's
+experimental single-engine windowing, which cannot present two views on this
+engine. The unit is an **engine per window**:
+
+- The runner Dartvel generates creates the windows and their engines.
+- Windows are told apart by entrypoint argument, which maps cleanly onto
+  "a window is a route" — the argument carries the route.
+- State between windows is the existing shared store and signals rather than a
+  shared widget tree, because separate engines mean separate isolates. That is
+  the same boundary `DVWindowingCapability.sameEngine` already describes, and
+  the honest value for this arrangement is `sameEngine: false`.
+
+The cost is two isolates and no pointer-passing of frames between windows. For
+an operator surface driving a projection surface that is the right boundary
+anyway: the output is a render target, not a widget subtree.
 
 ## Reproducing
 
