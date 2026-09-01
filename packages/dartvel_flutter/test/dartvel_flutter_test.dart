@@ -512,25 +512,25 @@ void main() {
       (WidgetTester tester) async {
     DV.I18n.reset();
     DV.I18n.loadAll(<DVTranslationCatalog>[
-      DVTranslationCatalog(
+      const DVTranslationCatalog(
         locale: LocaleTag.enUS,
         messages: <DVTranslationKey, String>{
           settingsTitle: 'Settings',
         },
         plurals: <DVTranslationKey, DVPluralForms>{
-          inboxCount: const DVPluralForms(
+          inboxCount: DVPluralForms(
             one: '{count} message',
             other: '{count} messages',
           ),
         },
       ),
-      DVTranslationCatalog(
+      const DVTranslationCatalog(
         locale: LocaleTag.frFR,
         messages: <DVTranslationKey, String>{
           settingsTitle: 'Parametres',
         },
         plurals: <DVTranslationKey, DVPluralForms>{
-          inboxCount: const DVPluralForms(
+          inboxCount: DVPluralForms(
             one: '{count} message',
             other: '{count} messages',
           ),

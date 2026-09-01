@@ -1,7 +1,7 @@
 import 'dart:convert';
 
-import 'package:dartvel_core/src/middleware/middleware.dart';
 import 'package:dartvel_core/dartvel.dart' as dv;
+import 'package:dartvel_core/src/middleware/middleware.dart';
 import 'package:test/test.dart';
 
 void main() {

@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:convert' show jsonEncode;
 import 'dart:math' as math;
 import 'dart:ui' as ui;
+
 import 'package:dartvel_core/dartvel.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
@@ -19,10 +20,10 @@ import 'src/browser_extension_platform_memory.dart'
 import 'src/display_platform.dart'
     if (dart.library.js_interop) 'src/display_platform_web.dart'
     as display_platform;
-import 'src/seo_platform_memory.dart'
-    if (dart.library.html) 'src/seo_platform_web.dart' as seo_platform;
 // DV.Updates.applyPages installs page bundles, which are these types.
 import 'src/pwa/install_prompt.dart';
+import 'src/seo_platform_memory.dart'
+    if (dart.library.html) 'src/seo_platform_web.dart' as seo_platform;
 import 'src/studio/page_document.dart';
 import 'src/windowing/window.dart';
 
@@ -234,8 +235,6 @@ export 'package:dartvel_core/dartvel.dart'
         registerDVModelSerializer;
 export 'package:go_router/go_router.dart';
 
-export 'src/pwa/install_prompt.dart';
-export 'src/table/table.dart';
 export 'src/admin/cache_admin.dart';
 export 'src/admin/model_admin.dart';
 export 'src/admin/outbox_admin.dart';
@@ -252,11 +251,13 @@ export 'src/platform/linux/linux_bindings.dart';
 export 'src/platform/macos/macos_bindings.dart';
 export 'src/platform/web/web_bindings.dart';
 export 'src/platform/windows/windows_bindings.dart';
+export 'src/pwa/install_prompt.dart';
 export 'src/routing/nav_link.dart';
 export 'src/routing/url_strategy.dart';
 export 'src/studio/page_document.dart';
 export 'src/studio/studio_editor.dart';
 export 'src/studio/studio_screen.dart';
+export 'src/table/table.dart';
 export 'src/windowing/shared_store.dart';
 export 'src/windowing/tab_workspace.dart';
 export 'src/windowing/window.dart';

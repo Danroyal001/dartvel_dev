@@ -11,7 +11,7 @@ class _Person {
 }
 
 class _Facets {
-  const _Facets({this.role});
+  const _Facets() : role = null;
   final List<String>? role;
 }
 

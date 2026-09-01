@@ -143,7 +143,7 @@ class DVCronSchedule {
   /// hangs the process rather than reporting it.
   DateTime? nextAfter(DateTime from) {
     // Minute resolution, so start at the next whole minute.
-    DateTime candidate = DateTime(
+    var candidate = DateTime(
       from.year,
       from.month,
       from.day,
@@ -274,7 +274,7 @@ class DVCronSchedule {
     final String lower = text.trim().toLowerCase();
     // A name where one is allowed, so JAN and MON read as they do in a
     // crontab; a name in a field that has none is a typo, not a zero.
-    int? value = int.tryParse(lower) ?? names?[lower];
+    final int? value = int.tryParse(lower) ?? names?[lower];
     if (value == null) {
       throw FormatException(
         '"$text" is not a valid $label value.',

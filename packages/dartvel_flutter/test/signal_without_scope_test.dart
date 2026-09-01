@@ -124,7 +124,7 @@ void main() {
       MaterialApp(
         home: Builder(builder: (BuildContext context) {
           seen = context.global<_Cart>();
-          return DVText("${seen.items}");
+          return DVText('${seen.items}');
         }),
       ),
     );
@@ -140,7 +140,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Builder(builder: (BuildContext context) {
-          return DVText("${context.global<_Cart>().items}");
+          return DVText('${context.global<_Cart>().items}');
         }),
       ),
     );

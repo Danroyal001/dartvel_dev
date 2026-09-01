@@ -54,8 +54,8 @@ void main() {
       final Widget card = DVBox(
         const DVText('card'),
         const DVModifier()
-            .backgroundColor(Color(0xFFFFFFFF))
-            .hover(DVModifier().backgroundColor(Color(0xFF2F6BFF))),
+            .backgroundColor(const Color(0xFFFFFFFF))
+            .hover(const DVModifier().backgroundColor(const Color(0xFF2F6BFF))),
       );
 
       await show(tester, card);
@@ -72,8 +72,8 @@ void main() {
         DVBox(
           const DVText('card'),
           const DVModifier()
-              .backgroundColor(Color(0xFFFFFFFF))
-              .hover(DVModifier().backgroundColor(Color(0xFF2F6BFF))),
+              .backgroundColor(const Color(0xFFFFFFFF))
+              .hover(const DVModifier().backgroundColor(const Color(0xFF2F6BFF))),
         ),
       );
 
@@ -100,8 +100,8 @@ void main() {
           const DVText('card'),
           const DVModifier()
               .rounded(12)
-              .backgroundColor(Color(0xFFFFFFFF))
-              .hover(DVModifier().border(Border.fromBorderSide(
+              .backgroundColor(const Color(0xFFFFFFFF))
+              .hover(const DVModifier().border(const Border.fromBorderSide(
                   BorderSide(color: Color(0xFF2F6BFF))))),
         ),
       );
@@ -118,7 +118,7 @@ void main() {
       // Every box on a page listening for the pointer is a cost nobody asked
       // for, and it makes hit-testing harder to reason about.
       await show(tester, DVBox(const DVText('plain'),
-          const DVModifier().backgroundColor(Color(0xFFFFFFFF))));
+          const DVModifier().backgroundColor(const Color(0xFFFFFFFF))));
 
       expect(
         find.descendant(
@@ -189,7 +189,7 @@ void main() {
         tester,
         DVBox(
           const DVText('dot'),
-          DVModifier()
+          const DVModifier()
               .backgroundColor(const Color(0xFFFFFFFF))
               .onHoverChanged(seen.add),
         ),
@@ -218,9 +218,9 @@ void main() {
         tester,
         DVBox(
           const DVText('dot'),
-          DVModifier()
+          const DVModifier()
               .backgroundColor(const Color(0xFFFFFFFF))
-              .hover(DVModifier().backgroundColor(const Color(0xFF2F6BFF)))
+              .hover(const DVModifier().backgroundColor(const Color(0xFF2F6BFF)))
               .onHoverChanged(seen.add),
         ),
       );

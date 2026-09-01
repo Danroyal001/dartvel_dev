@@ -28,6 +28,11 @@ void main() {
   });
 
   test('router falls back to /health', () async {
+    // 'up', not 'ok'. The endpoint used to return a hardcoded
+    // {'status':'ok'} that checked nothing and so could never fail; it now
+    // runs the registered checks and reports one of up, degraded or down --
+    // the three states a load balancer needs to tell apart, since degraded
+    // still serves and down should be taken out of rotation.
     final router = Router();
 
     final req = Request(
@@ -40,7 +45,10 @@ void main() {
     final resp = await router.call(req);
     final body = await resp.body!.jsonDecode() as Map<String, dynamic>;
 
-    print("expect(body['status'], 'ok');");
-    expect(body['status'], 'ok');
+    expect(body['status'], 'up');
+    // The part a machine actually consumes. A monitor reading the body string
+    // is reading a diagnostic; the status code is the contract.
+    expect(resp.status, 200);
+    expect(body.containsKey('uptime'), isTrue);
   });
 }

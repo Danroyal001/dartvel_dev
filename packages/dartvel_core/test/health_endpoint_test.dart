@@ -7,7 +7,6 @@ import 'dart:convert';
 
 import 'package:dartvel_core/src/http/router.dart';
 import 'package:dartvel_core/src/http/wintercg.dart';
-import 'package:dartvel_core/src/observability/health.dart';
 import 'package:dartvel_core/src/observability/observability.dart';
 import 'package:test/test.dart';
 
