@@ -434,9 +434,18 @@
     {
       "section": "Kiosk Mode",
       "stability": "Contract",
-      "status": "Designed",
-      "evidence": [],
-      "absent": "Everything. Adopted as a contract with two scopes -- device and display -- so a customer display can be a kiosk while the staff terminal beside it is not. No code yet."
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_core/lib/src/kiosk/policy.dart",
+        "packages/dartvel_core/lib/src/kiosk/runtime.dart",
+        "packages/dartvel_core/lib/src/kiosk/enforcement.dart",
+        "packages/dartvel_core/test/kiosk_policy_test.dart",
+        "packages/dartvel_core/test/kiosk_runtime_test.dart",
+        "packages/dartvel_core/test/kiosk_enforcement_test.dart",
+        "packages/dartvel_cli/lib/src/doctor/kiosk_check.dart",
+        "packages/dartvel_cli/test/kiosk_doctor_test.dart"
+      ],
+      "absent": "The policy, the state machine and the enforcement matrix are built and validated by dartvel doctor, which fails a build configuration whose policy cannot be honoured. Declared policies parse with their refusals enforced -- a literal exit PIN, `auth` in a display-scope clearOnReset, an idle warning longer than the timeout. Exit attempts count to maxAttempts and lock out for lockoutFor, refusing even the right PIN while locked, and the lockout survives resume(). Enforcement resolves the specification's per-target strengths and reports DV-KIOSK-001, 002, 004 and 010; the runtime reports 003 and 005. What is absent is everything that touches a device: no target enforces fullscreen, input confinement, system-gesture or hardware-key blocking, notification suppression or restart supervision, so nothing is actually held -- the layer says what would be honoured rather than honouring it. Also absent: the idle timer and its countdown route (the reset it would call is built), the clearOnReset actions themselves, kiosk windows in display scope and DVWindowKind.kiosk, capability.displayKiosk, DV.Platform.display.kiosk and win.kiosk, DVKioskPolicies.<name> for declared named policies, DV.lifecycle.kiosk, restart-loop detection (DV-KIOSK-008), the sensitive-field analyze rule (DV-KIOSK-009), and the native bindings (DV-KIOSK-007)."
     },
     {
       "section": "Terminal Rendering",
@@ -472,9 +481,15 @@
     {
       "section": "Tab Workspaces",
       "stability": "Contract",
-      "status": "Designed",
-      "evidence": [],
-      "absent": "The whole section is Designed against the finalized contract: window identity as canonical URL, ownership, main-window and exit policy, modality, deep-link routing, restore, and the single DV.Window namespace. What exists in code predates it."
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_flutter/lib/src/windowing/tab_workspace.dart",
+        "packages/dartvel_flutter/test/tab_workspace_test.dart",
+        "packages/dartvel_flutter/test/tab_drag_test.dart",
+        "packages/dartvel_flutter/test/tab_duplicate_test.dart",
+        "packages/dartvel_flutter/test/workspace_restore_test.dart"
+      ],
+      "absent": "The entry here used to be a copy of Multi-Window's and described the wrong section. Built: the tab strip, reorder, tear-out gated on capability.tearOut with the gesture absent rather than broken where it is false, re-dock by adoption, the empty-window rule, duplicate tabs with DVTab(route, duplicate: true), deduplication by route -- which was by object identity and only worked because const canonicalisation made two literal tabs the same object -- and persistence through persistWorkspace/restoreWorkspace with unresolvable routes dropped. Absent: same-engine hit-testing across windows, so re-dock between two real windows is adoption rather than an object handover; the platform-appropriate switcher for TV and watch; and tenant/user scoping of the persisted layout."
     },
     {
       "section": "Dartvel Studio",
