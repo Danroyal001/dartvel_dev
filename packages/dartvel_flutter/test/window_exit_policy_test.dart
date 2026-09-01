@@ -179,6 +179,40 @@ void main() {
       expect(DV.Platform.Window.all.value, isEmpty);
     });
 
+    test('a later close does not cancel an exit already decided', () async {
+      // shouldExit is a latch, not a running commentary. Under mainWindow,
+      // closing main decides the process should end; a stray window closing
+      // afterwards recomputing it as false would cancel an exit the embedder
+      // had not got round to acting on yet, and nothing would ever exit.
+      // Three windows, because closing main promotes the next one -- so with
+      // only two, the second close is also a main close and the latch is
+      // never tested. It takes a third, non-main window to close afterwards.
+      DVWindowManager.exitPolicy = DVWindowExitPolicy.mainWindow;
+      final DVWindow a = await open('/a');
+      await open('/b');
+      final DVWindow c = await open('/c');
+
+      await a.close();
+      expect(DV.Platform.Window.shouldExit.value, isTrue);
+
+      await c.close();
+      expect(DV.Platform.Window.shouldExit.value, isTrue,
+          reason: 'still exiting; c was not main');
+    });
+
+    test('opening a window clears it, because there is something on screen',
+        () async {
+      // The one thing that should undo it: a deep link arriving between the
+      // last window closing and the embedder acting.
+      DVWindowManager.exitPolicy = DVWindowExitPolicy.lastWindow;
+      final DVWindow a = await open('/a');
+      await a.close();
+      expect(DV.Platform.Window.shouldExit.value, isTrue);
+
+      await open('/b');
+      expect(DV.Platform.Window.shouldExit.value, isFalse);
+    });
+
     test('the default is lastWindow', () {
       expect(DVWindowManager.exitPolicy, DVWindowExitPolicy.lastWindow);
     });
