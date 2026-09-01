@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' as ui show Display;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
@@ -24,12 +25,30 @@ class DVWindowingCapability {
   /// Web only: in-page multi-view embedding for panels and workspace regions.
   final bool inPageViews;
 
+  /// Whether more than one display is addressable.
+  ///
+  /// Unlike the others this changes while the process runs -- a display is
+  /// plugged in or unplugged -- so it is read from the current display list
+  /// rather than detected once at start. A workspace hides its "move to
+  /// display" control on the strength of it.
+  final bool displays;
+
   const DVWindowingCapability({
     this.multiWindow = false,
     this.sameEngine = false,
     this.tearOut = false,
     this.inPageViews = false,
+    this.displays = false,
   });
+
+  /// This capability with [displays] recomputed from a display count.
+  DVWindowingCapability withDisplayCount(int count) => DVWindowingCapability(
+        multiWindow: multiWindow,
+        sameEngine: sameEngine,
+        tearOut: tearOut,
+        inPageViews: inPageViews,
+        displays: count > 1,
+      );
 
   /// The capability of the running target.
   ///
@@ -91,6 +110,7 @@ enum DVWindowDegradation {
   gestureRequired,
   platformRefused,
   disabledByConfig,
+  displayUnavailable,
 }
 
 extension DVWindowDegradationX on DVWindowDegradation {
@@ -105,6 +125,7 @@ extension DVWindowDegradationX on DVWindowDegradation {
         DVWindowDegradation.gestureRequired => 'DV-WINDOW-003',
         DVWindowDegradation.platformRefused => 'DV-WINDOW-004',
         DVWindowDegradation.disabledByConfig => 'DV-WINDOW-005',
+        DVWindowDegradation.displayUnavailable => 'DV-WINDOW-006',
       };
 
   /// Calibrated to whether the developer can act on it. A phone has no
@@ -117,6 +138,9 @@ extension DVWindowDegradationX on DVWindowDegradation {
         DVWindowDegradation.disabledByConfig => 'info',
         DVWindowDegradation.gestureRequired => 'warning',
         DVWindowDegradation.platformRefused => 'warning',
+        // A window that opened on the wrong screen looks like it worked, so
+        // nothing else will report it.
+        DVWindowDegradation.displayUnavailable => 'warning',
       };
 
   String get reason => switch (this) {
@@ -131,6 +155,9 @@ extension DVWindowDegradationX on DVWindowDegradation {
           'the platform refused the request',
         DVWindowDegradation.disabledByConfig =>
           'windowing.enabled is false in configuration',
+        DVWindowDegradation.displayUnavailable =>
+          'the requested display is not connected; the window opened on the '
+              'primary display instead',
       };
 }
 
@@ -160,12 +187,20 @@ class DVWindowOptions {
   /// for a deliberate second window on the same route.
   final bool duplicate;
 
+  /// Which display to open on.
+  ///
+  /// Which display, never where on it: the OS places the window, and an
+  /// application that positioned windows by coordinate would be wrong the
+  /// moment a monitor was rearranged.
+  final DVDisplayHint? display;
+
   const DVWindowOptions({
     this.size,
     this.constraints,
     this.title,
     this.kind = DVWindowKind.regular,
     this.duplicate = false,
+    this.display,
   });
 }
 
@@ -269,6 +304,15 @@ class DVWindowManager {
   static final ValueNotifier<List<DVWindow>> _all =
       ValueNotifier<List<DVWindow>>(<DVWindow>[]);
 
+  static final ValueNotifier<List<DVDisplay>> _displays =
+      ValueNotifier<List<DVDisplay>>(const <DVDisplay>[]);
+
+  /// Display id to the name a device profile gives it.
+  ///
+  /// Kiosk deployments address displays by role -- `byName('Customer')` -- and
+  /// the OS name is whatever the panel's EDID says.
+  static Map<String, String> displayNames = const <String, String>{};
+
   /// Overridden capability, for tests and for configuration that disables
   /// windowing. Null means detect from the running target.
   static DVWindowingCapability? _capabilityOverride;
@@ -282,6 +326,8 @@ class DVWindowManager {
   static void reset() {
     _windows.clear();
     _all.value = <DVWindow>[];
+    _displays.value = const <DVDisplay>[];
+    displayNames = const <String, String>{};
     _capabilityOverride = null;
     _shared = null;
   }
@@ -297,7 +343,58 @@ class DVWindowManager {
   /// The window this code is running in.
   DVWindow? get current => _windows.isEmpty ? null : _windows.first;
 
-  DVWindowingCapability get capability =>
+  /// Every display the application knows of.
+  ///
+  /// Empty until [refreshDisplays] has run: enumeration touches a native
+  /// binding, so it is not done in a getter.
+  ValueListenable<List<DVDisplay>> get displays => _displays;
+
+  /// Re-reads the display list and publishes it to [displays].
+  ///
+  /// Prefers the `window.displays` native binding, which reports what the OS
+  /// knows -- layout origins, panel names, which display is primary. Without
+  /// it, Flutter's own `PlatformDispatcher.displays` still gives size, pixel
+  /// ratio and refresh rate for every display, and unlike the desktop
+  /// windowing API it is stable rather than behind an experimental flag. What
+  /// it cannot give is where the displays sit relative to each other, which
+  /// [DVDisplay.hasLayout] reports rather than invents.
+  ///
+  /// Never throws. Failing to enumerate displays should cost the display list,
+  /// not the launch.
+  Future<List<DVDisplay>> refreshDisplays() async {
+    List<DVDisplay> found = const <DVDisplay>[];
+    try {
+      final Object? payload = DVNativeBridge.isRegistered('window.displays')
+          ? await DVNativeBridge.invoke<Object?>('window.displays')
+          : _flutterDisplays();
+      found = DVDisplays.decode(payload, profileNames: displayNames);
+    } on Object {
+      found = const <DVDisplay>[];
+    }
+    _displays.value = List<DVDisplay>.unmodifiable(found);
+    return _displays.value;
+  }
+
+  /// Flutter's display list, as the same payload shape a binding returns.
+  ///
+  /// No `left`/`top`: Flutter reports no layout origin, and the decoder marks
+  /// the difference rather than defaulting every display to the same corner.
+  static List<Object?> _flutterDisplays() => <Object?>[
+        for (final ui.Display display
+            in WidgetsBinding.instance.platformDispatcher.displays)
+          <String, Object?>{
+            'id': '${display.id}',
+            'width': display.size.width,
+            'height': display.size.height,
+            'devicePixelRatio': display.devicePixelRatio,
+            'refreshRate': display.refreshRate,
+          },
+      ];
+
+  DVWindowingCapability get capability => _detectCapability()
+      .withDisplayCount(_displays.value.length);
+
+  DVWindowingCapability _detectCapability() =>
       _capabilityOverride ??
       DVWindowingCapability.detect(
         isDesktop: _platform.isLinux || _platform.isMacOS || _platform.isWindows,
@@ -346,6 +443,15 @@ class DVWindowManager {
     DVWindowDegradation degradation = DVWindowDegradation.none;
     String? nativeId;
 
+    // Resolved before the platform call, because the display id goes with it.
+    // Enumerate first when a hint was given and nothing has yet, or the first
+    // window of the process would always land on the primary display.
+    DVDisplayResolution? display;
+    if (options.display != null) {
+      if (_displays.value.isEmpty) await refreshDisplays();
+      display = DVDisplays.resolve(_displays.value, options.display);
+    }
+
     if (!cap.multiWindow) {
       degradation = DVWindowDegradation.capabilityUnsupported;
     } else {
@@ -358,6 +464,7 @@ class DVWindowManager {
             'title': options.title,
             'width': options.size?.width,
             'height': options.size?.height,
+            if (display?.display != null) 'displayId': display!.display!.id,
           },
         );
         if (nativeId == null) {
@@ -368,7 +475,15 @@ class DVWindowManager {
       }
     }
 
-    final presentation = degradation == DVWindowDegradation.none
+    // Only when nothing worse happened: a window that could not be created at
+    // all is the more useful report, and "it opened on the wrong screen" would
+    // be untrue as well as less severe.
+    if (degradation == DVWindowDegradation.none && display?.exact == false) {
+      degradation = display!.degradation;
+    }
+
+    final presentation = degradation == DVWindowDegradation.none ||
+            degradation == DVWindowDegradation.displayUnavailable
         ? DVWindowPresentation.window
         : _presentationFor(options.kind);
 
