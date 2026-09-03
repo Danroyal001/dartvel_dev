@@ -528,6 +528,33 @@ jobs:
             --screenshot=/tmp/diag/web.png http://localhost:8080/ 2>&1 | tail -5
           identify /tmp/diag/web.png || echo "no screenshot produced"
 
+          # The mounted module, at the route the parent gives it. The example
+          # mounts one at /notes, and a module whose pages are in the route
+          # index but not in the running application is the failure this
+          # proves absent -- a crawler follows the link, gets HTML, and the
+          # app renders its own not-found page.
+          #
+          # Served with a fallback to index.html, which is what path URLs
+          # need and what deploy configuration writes; the plain file server
+          # above answers 404 for a route with no file.
+          python3 - <<'FALLBACK' > /tmp/serve-fallback.log 2>&1 &
+          import http.server, os, socketserver
+          class App(http.server.SimpleHTTPRequestHandler):
+              def do_GET(self):
+                  path = self.translate_path(self.path)
+                  if not os.path.isfile(path) and not os.path.isdir(path):
+                      self.path = '/index.html'
+                  return super().do_GET()
+          socketserver.TCPServer.allow_reuse_address = True
+          socketserver.TCPServer(('', 8082), App).serve_forever()
+          FALLBACK
+          sleep 3
+          "$BROWSER" --headless=new --disable-gpu --no-sandbox \
+            --virtual-time-budget=20000 --window-size=1280,900 \
+            --dump-dom http://localhost:8082/notes > /tmp/diag/web-module.html 2>/dev/null || true
+          echo "--- the mounted module's page, first 400 bytes ---"
+          head -c 400 /tmp/diag/web-module.html || true
+
       # A job that captured nothing is not a pass. The run step above is
       # continue-on-error so its logs still upload; this is not, so the job
       # goes red when there is no evidence — which is how tvOS went green while
@@ -539,6 +566,20 @@ jobs:
           dart run "$GITHUB_WORKSPACE/packages/dartvel_cli/bin/dartvel.dart" capture verify \
             "/tmp/diag/web.png" --label "web" \
             --min-width 320 --min-height 240
+
+      # A mounted module's screen, in the running application at the route
+      # the parent gives it. Its pages being in the route index and absent
+      # from the application is the failure this rules out -- a crawler
+      # follows the link, gets HTML, and the app renders its own not-found
+      # page. Not continue-on-error: this one is the verdict.
+      - name: The mounted module must render at its route
+        run: |
+          set -euo pipefail
+          if ! grep -q "A module, mounted into the example application" /tmp/diag/web-module.html; then
+            echo "::error::/notes did not render the mounted module's screen"
+            exit 1
+          fi
+          echo "the module's screen rendered at /notes"
 
       - uses: actions/upload-artifact@v4
         if: always()
