@@ -147,49 +147,125 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'takes an explicit policy.',
   ),
   (
-    'Passkeys, SAML, LDAP and Web3',
+    'Authentication',
     'Four ways in',
     'WebAuthn assertions, SAML 2.0 built against signature wrapping rather '
     'than around it, LDAP over BER, and Sign-In with Ethereum bound to a '
     'nonce, a domain and a clock.',
   ),
   (
-    'Distributed Cache',
+    'Cache',
     'Rendezvous hashing',
     'Keys spread across several servers. Adding or removing a node moves only '
     'that node’s share — with a modulo it moves almost everything, and the '
     'cache empties without reporting anything.',
   ),
   (
-    'Object Storage',
+    'File Storage',
     'S3, Azure Blob, GCS',
     'Verified against Azurite and fake-gcs-server in CI, not against fakes. '
     'Azure signs the encoded path, which only a real server will tell you.',
   ),
   (
-    'Hosted Search',
+    'Search',
     'Meilisearch, OpenSearch, Algolia',
     'With highlights and facet counts, which an engine returns only when the '
     'query asks. Run against real Meilisearch and OpenSearch in CI.',
   ),
   (
-    'Binary Transport',
+    'APIs',
     'Flat-buffer envelope',
     'Form-data whose fields are binary buffers, so an int stays an int. Over '
     'text multipart the type is gone by the time a parameter is decoded.',
   ),
   (
-    'Project Graph',
+    'Admin, Devtools, and Scaffolding',
     'dartvel inspect, dartvel mcp',
     'One versioned graph of routes, models, functions and jobs, with the '
     'source each was derived from. --json is a serialization of it, and '
     'dartvel mcp serves it to a coding agent.',
   ),
   (
-    'Block Bodies',
+    'Pages',
     'Every annotation',
     '@DVPage, @DVFunctionalWidget, @DVBackendFunction and @DVJob.handler all '
     'take a block body. No more one-line wrappers around a public helper.',
+  ),
+  (
+    'Scheduling',
+    'Cron on both sides',
+    'Five-field cron parsed the way cron actually reads it, day-of-month OR '
+    'day-of-week, with nextAfter for the next tick and a scheduler that '
+    'dispatches onto the queue rather than running inline.',
+  ),
+  (
+    'Queues, Jobs, and Signals',
+    'DV.Jobs and DVQueues',
+    'Typed job payloads with retries, backoff, dead letters and idempotency '
+    'keys. Signals stay context.signal and reactive models; cross-client '
+    'delivery rides model sync rather than a second event system.',
+  ),
+  (
+    'Database',
+    'SQLite by default',
+    'Zero-config SQLite with WAL for local work and in-memory for tests, the '
+    'same generated migrations against Postgres and MySQL, and one adapter '
+    'API in front of all of them.',
+  ),
+  (
+    'Monitoring and Observability',
+    'DV.log, metrics, traces',
+    'Structured logs that carry trace context, a Prometheus exposition '
+    'endpoint, health checks that report down rather than hang, and W3C '
+    'trace propagation through the Rust runtime.',
+  ),
+  (
+    'Testing',
+    'dartvel test',
+    'Fake auth, queues, mail, storage, AI and windowing, generated model '
+    'factories, and a build that fails on an accessibility regression instead '
+    'of warning about one.',
+  ),
+  (
+    'Data Import, Export, and Reporting',
+    'Order.Import.csv',
+    'Generated CSV, NDJSON and Excel import and export per model. Resumable '
+    'imports are chunked onto the queue with the header carried on every '
+    'chunk, so a worker can always rebuild a row.',
+  ),
+  (
+    'Deployment',
+    'dartvel deploy',
+    'Web and server targets to Firebase, Vercel, Netlify, Cloudflare or a '
+    'custom host from one command, with the backend compiled to its Rust '
+    'runtime and the client to its target.',
+  ),
+  (
+    'CLI',
+    'One tool',
+    'create, dev, build, doctor, inspect, explain, i18n, queue, cache and sh. '
+    'build runs generation for you; doctor says what each target can '
+    'actually do; explain looks up any diagnostic code.',
+  ),
+  (
+    '.dartvel.sh',
+    'DVShell',
+    'A typed shell for project tasks — commands as values, results as '
+    'values — reachable from Dart, from dartvel task and from dartvel sh.',
+  ),
+  (
+    'Backend Function Request Lifecycle',
+    'context.lifecycle.request',
+    'Every call moves through received, decoding, authenticating, validating, '
+    'authorized, executing, committing and encoding as a read-only signal, '
+    'with trace, tenant and idempotency IDs carried the whole way.',
+  ),
+  (
+    'Static Web Generation',
+    'dartvel build web',
+    'Per-route HTML built from the semantics tree a real browser produced, '
+    'sitemap.xml and robots.txt, a service worker and install prompt, and a '
+    'build that fails when a page would ship with nothing to see.',
   ),
 ];
 
@@ -200,7 +276,7 @@ Widget _featuresPage(BuildContext context) => SingleChildScrollView(
         const Section(
           children: <Widget>[
             Eyebrow('WHAT WORKS TODAY'),
-            Heading('Thirty-three shipped sections.', level: 1),
+            Heading('Forty shipped sections.', level: 1),
             Body(
               'This list is the repository’s own record of what is built, not '
               'a description of what is planned. A tool checks it and fails '
@@ -210,7 +286,7 @@ Widget _featuresPage(BuildContext context) => SingleChildScrollView(
               width: 660,
             ),
             Body(
-              'Twenty-two more sections are partial. They are listed as '
+              'Sixteen more sections are partial. They are listed as '
               'partial, with what is absent written next to what is present.',
               width: 660,
             ),
