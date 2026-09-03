@@ -7,6 +7,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:dartvel_cli/src/commands/inspect_command.dart';
+import 'package:dartvel_core/dartvel.dart' show dvLiveWindowsPathFor;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -119,5 +120,58 @@ void main() {
 
     expect(out.toLowerCase(), contains('ghost'));
     expect(out.toLowerCase(), anyOf(contains('not found'), contains('no model')));
+  });
+
+  group('windows, live', () {
+    // A running application writes what it has open beside its lock; the
+    // inspector reads it while it is fresh and says so, and calls a stale
+    // or missing file what it is: no live application.
+    late String livePath;
+    setUp(() {
+      livePath = dvLiveWindowsPathFor('inspect_app');
+      addTearDown(() {
+        final File f = File(livePath);
+        if (f.existsSync()) f.deleteSync();
+      });
+    });
+
+    String live(DateTime at) => jsonEncode(<String, Object?>{
+          'app': 'inspect_app',
+          'at': at.toUtc().toIso8601String(),
+          'windows': <Map<String, Object?>>[
+            <String, Object?>{'route': '/orders', 'kind': 'main', 'presentation': 'window', 'nativeId': 'win-1'},
+            <String, Object?>{'route': '/stock', 'kind': 'secondary', 'presentation': 'window'},
+          ],
+        });
+
+    test('a fresh file is the live list', () async {
+      File(livePath).writeAsStringSync(live(DateTime.now()));
+      final Directory root = projectWith(<String, String>{'lib/pages/index.page.dart': _page});
+      final String json = await runInspect(<String>['windows', '--json'], root);
+      final Map<String, Object?> decoded = (jsonDecode(json) as Map).cast<String, Object?>();
+      final Map<String, Object?> liveOut = (decoded['live']! as Map).cast<String, Object?>();
+      expect((liveOut['windows']! as List).length, 2);
+      expect(((liveOut['windows']! as List).first as Map)['route'], '/orders');
+
+      final String text = await runInspect(<String>['windows'], root);
+      expect(text, contains('/orders'));
+      expect(text, contains('live'));
+    });
+
+    test('a stale file is not live, and says how old it is', () async {
+      File(livePath).writeAsStringSync(live(DateTime.now().subtract(const Duration(minutes: 10))));
+      final Directory root = projectWith(<String, String>{'lib/pages/index.page.dart': _page});
+      final String json = await runInspect(<String>['windows', '--json'], root);
+      final Map<String, Object?> decoded = (jsonDecode(json) as Map).cast<String, Object?>();
+      expect(decoded['live'], isNull);
+      final String text = await runInspect(<String>['windows'], root);
+      expect(text, contains('not running'));
+    });
+
+    test('no file, no live list', () async {
+      final Directory root = projectWith(<String, String>{'lib/pages/index.page.dart': _page});
+      final String json = await runInspect(<String>['windows', '--json'], root);
+      expect((jsonDecode(json) as Map)['live'], isNull);
+    });
   });
 }

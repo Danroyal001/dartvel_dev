@@ -106,6 +106,12 @@ void main() {
     expect(launch, contains('DVAppLaunch.start('));
   });
 
+  test('the primary publishes its open windows for dartvel inspect windows', () {
+    final int start = runtime.indexOf('void startDartvelLaunch(');
+    final String launch = runtime.substring(start, runtime.indexOf('\n}\n', start));
+    expect(launch, contains("publishLiveWindows(dvLiveWindowsPathFor('reg_app'), app: 'reg_app')"));
+  });
+
   test('routes open as external requests, and a secondary process ends', () {
     final int start = runtime.indexOf('void startDartvelLaunch(');
     final String launch = runtime.substring(start, runtime.indexOf('\n}\n', start));

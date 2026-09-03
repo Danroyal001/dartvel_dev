@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:dartvel_core/dartvel.dart' show dvLiveWindowsPathFor;
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
@@ -112,9 +113,40 @@ class InspectCommand extends Command<void> {
   /// Not the live window list. That needs a running application to ask, and
   /// this command reads a directory -- saying so is better than reporting an
   /// empty list, which would read as "no windows are open".
+  /// What a running instance of this app has open, if one wrote it recently.
+  ///
+  /// The app publishes beside its single-instance lock on every change with
+  /// the time it wrote; a file older than [_liveFor] is a stopped app, not
+  /// a live one, and is reported as such rather than as its last state.
+  static const Duration _liveFor = Duration(seconds: 30);
+
+  static ({Map<String, Object?>? live, Duration? age}) _liveWindows(String root) {
+    final File file = File(dvLiveWindowsPathFor(_appName(root)));
+    if (!file.existsSync()) return (live: null, age: null);
+    try {
+      final Object? decoded = jsonDecode(file.readAsStringSync());
+      if (decoded is! Map) return (live: null, age: null);
+      final DateTime? at = DateTime.tryParse('${decoded['at']}');
+      if (at == null) return (live: null, age: null);
+      final Duration age = DateTime.now().toUtc().difference(at.toUtc());
+      if (age > _liveFor) return (live: null, age: age);
+      return (live: decoded.cast<String, Object?>(), age: age);
+    } on FormatException {
+      return (live: null, age: null);
+    }
+  }
+
+  static String _appName(String root) {
+    final File pubspec = File('$root/pubspec.yaml');
+    if (!pubspec.existsSync()) return 'dartvel';
+    final RegExpMatch? m = RegExp(r'^name:\s*([A-Za-z0-9_]+)', multiLine: true).firstMatch(pubspec.readAsStringSync());
+    return m?.group(1) ?? 'dartvel';
+  }
+
   void _emitWindows(String root, DartvelProjectGraph graph, bool asJson) {
     final DVWindowingConfig config =
         DVWindowingConfig.parse(_dartvelSection(root));
+    final ({Map<String, Object?>? live, Duration? age}) live = _liveWindows(root);
 
     if (asJson) {
       _emit(const JsonEncoder.withIndent('  ').convert(<String, Object?>{
@@ -123,7 +155,7 @@ class InspectCommand extends Command<void> {
         // Window identity is the canonical URL, so every route is a window
         // that could be opened rather than a separate declaration.
         'routes': graph.routes.length,
-        'live': null,
+        'live': live.live,
       }));
       return;
     }
@@ -141,6 +173,19 @@ class InspectCommand extends Command<void> {
       final String source = config.sources[entry.key] ?? 'default';
       _emit('  ${entry.key.padRight(20)} ${entry.value}'
           '${source == 'default' ? '  (default)' : ''}');
+    }
+    final Map<String, Object?>? state = live.live;
+    if (state == null) {
+      final Duration? age = live.age;
+      _emit(age == null
+          ? 'live: not running (no instance has published its windows)'
+          : 'live: not running (last seen ${age.inMinutes}m ago)');
+    } else {
+      final List<Object?> windows = state['windows'] is List ? state['windows']! as List<Object?> : const <Object?>[];
+      _emit('live: ${windows.length} window(s) open, as of ${state['at']}');
+      for (final Object? w in windows) {
+        if (w is Map) _emit('  ${w['route']}  kind=${w['kind']}  ${w['nativeId'] ?? ''}');
+      }
     }
     _emit('  ${'routes'.padRight(20)} ${graph.routes.length}'
         '  (window identity is the route URL)');
