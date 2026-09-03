@@ -115,6 +115,9 @@ export 'package:dartvel_core/dartvel.dart'
         // Modules
         DVModule,
         DVModuleRegistry,
+        DVStartupFinding,
+        DVStartupPhase,
+        DVStartupProfile,
         DVUnknownModuleException,
         // Transactions
         DVContext,

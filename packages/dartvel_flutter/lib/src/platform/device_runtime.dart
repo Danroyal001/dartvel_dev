@@ -13,6 +13,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:dartvel_core/dartvel.dart' show DVStartupProfile;
 import 'package:flutter/foundation.dart' show debugPrint;
 
 import '../../dartvel_flutter.dart' show DVNativeBridge;
@@ -287,9 +288,16 @@ class DVDeviceRuntime {
         'manifest': jsonEncode(manifest()),
         'provisioning': p == null ? '' : jsonEncode(p),
         'restarts': _restarts.existsSync() ? _restarts.readAsStringSync() : '',
+        // What startup took, phase by phase. A fleet asking why a device is
+        // slow to come up is asking for this, and a bundle without it sends
+        // somebody to the device to find out.
+        'startup': jsonEncode(DVStartupProfile.current.toJson()),
         'recent': recentLog,
       },
-      'metrics': (h['diagnostics']! as Map<String, String>),
+      'metrics': <String, String>{
+        ...(h['diagnostics']! as Map<String, String>),
+        'startupMicros': '${DVStartupProfile.current.total.inMicroseconds}',
+      },
     };
   }
 }
