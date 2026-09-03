@@ -4,11 +4,13 @@
 /// libX11 and libgtk-3, the libraries a Flutter Linux app already links.
 library dartvel_flutter.platform.linux.ffi;
 
+import 'dart:async';
 import 'dart:ffi';
 
 import 'package:ffi/ffi.dart';
 
 import '../../../dartvel_flutter.dart';
+import 'linux_shortcuts_ffi.dart';
 
 // --- libX11 ------------------------------------------------------------------
 
@@ -157,6 +159,8 @@ class DVLinuxBindings {
     'window.minimize',
     'window.restore',
     'window.setSize',
+    'shortcuts.register',
+    'shortcuts.unregister',
   };
 
   static DynamicLibrary? _x11;
@@ -230,6 +234,11 @@ class DVLinuxBindings {
       (Object? _) => _windowAction('gtk_window_unmaximize'),
     );
 
+    // Global shortcuts: a second X connection on a pump isolate, started on
+    // the first grab rather than here, so an application that never registers
+    // one never opens it.
+    DVLinuxShortcuts.register(DVNativeBridge.register);
+
     _registered = true;
     return true;
   }
@@ -239,6 +248,9 @@ class DVLinuxBindings {
     for (final name in implemented) {
       DVNativeBridge.unregister(name);
     }
+    // Releases every grab. A grab left behind eats the keys for every other
+    // application on the desktop until the process dies.
+    unawaited(DVLinuxShortcuts.unregister());
     _registered = false;
   }
 

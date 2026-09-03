@@ -73,6 +73,8 @@ void main() {
         'window.minimize',
         'window.restore',
         'window.setSize',
+        'shortcuts.register',
+        'shortcuts.unregister',
       },
     );
     expect(DVLinuxBindings.isRegistered, isTrue);
