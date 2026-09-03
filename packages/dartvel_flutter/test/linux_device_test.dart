@@ -172,4 +172,23 @@ void main() {
       expect(d.logs['manifest'], contains('cpu.cores'));
     });
   });
+  startupInDiagnostics();
+}
+
+// A fleet asking why a device is slow to come up is asking for the startup
+// profile; a bundle without it sends somebody to the device to find out.
+void startupInDiagnostics() {
+  test('the diagnostics bundle carries what startup took', () {
+    DVStartupProfile.current
+      ..reset()
+      ..mark('configure')
+      ..mark('first frame');
+
+    final Map<String, Object?> bundle = DVLinuxDevice.diagnostics();
+    final Map<String, String> logs = (bundle['logs']! as Map).cast<String, String>();
+    final Map<String, String> metrics = (bundle['metrics']! as Map).cast<String, String>();
+
+    expect(logs['startup'], contains('first frame'));
+    expect(int.parse(metrics['startupMicros']!), greaterThan(0));
+  });
 }
