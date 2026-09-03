@@ -66,4 +66,12 @@ const Set<String> dvMacosImplementedBindings = <String>{
   'permissions.isGranted',
   'permissions.request',
   'deepLinks.initial',
+
+  // NSOpenPanel, NSSavePanel and NSAlert, run modally on the main thread
+  // and answerable from the modal loop.
+  'dialogs.openFile',
+  'dialogs.saveFile',
+  'dialogs.chooseDirectory',
+  'dialogs.message',
+  'media.pick',
 };
