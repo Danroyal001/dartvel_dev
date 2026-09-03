@@ -25,6 +25,7 @@ import 'src/pwa/install_prompt.dart';
 import 'src/seo_platform_memory.dart'
     if (dart.library.html) 'src/seo_platform_web.dart' as seo_platform;
 import 'src/studio/page_document.dart';
+import 'src/platform/accelerator.dart';
 import 'src/windowing/window.dart';
 
 export 'package:dartvel_core/dartvel.dart'
@@ -3203,17 +3204,63 @@ class DVGlobalShortcut {
 class DVShortcuts {
   const DVShortcuts();
 
-  Future<void> register(DVGlobalShortcut shortcut) async {
+  /// Handlers by shortcut id, given at register time.
+  static final Map<String, void Function()> _handlers = <String, void Function()>{};
+
+  /// Every press, by id, for code that did not register the shortcut.
+  static final StreamController<String> _pressed =
+      StreamController<String>.broadcast();
+
+  /// Presses, by shortcut id.
+  Stream<String> get pressed => _pressed.stream;
+
+  /// The ids currently registered, in registration order.
+  static List<String> get registered => List<String>.unmodifiable(_handlers.keys);
+
+  /// What a native binding calls when a grabbed key is pressed.
+  ///
+  /// An unknown id is ignored rather than an error: a binding can report a
+  /// key it grabbed before the application unregistered it.
+  static void dispatch(String id) {
+    _handlers[id]?.call();
+    if (_handlers.containsKey(id)) _pressed.add(id);
+  }
+
+  /// Drops every handler. Tests use this so one cannot fire another's.
+  static void reset() => _handlers.clear();
+
+  /// Grabs [shortcut] system-wide and runs [onPressed] when it is pressed.
+  ///
+  /// The accelerator is parsed here and the binding receives its canonical
+  /// spelling, so two spellings of one shortcut grab one key and the binding
+  /// does not have to know that. An accelerator that does not parse never
+  /// reaches the binding.
+  Future<void> register(
+    DVGlobalShortcut shortcut, {
+    void Function()? onPressed,
+  }) async {
+    final DVAccelerator accelerator =
+        DVAccelerator.parse(shortcut.accelerator, primaryIsMeta: _primaryIsMeta);
     final handled = await DVNativeBridge.require<bool>(
       'shortcuts.register',
-      shortcut.toMap(),
+      <String, Object>{'id': shortcut.id, 'accelerator': accelerator.canonical},
     );
     if (!handled) {
       throw StateError('Native shortcuts binding rejected register.');
     }
+    // Registered only once the binding has the grab, so a refused shortcut
+    // has no handler waiting for a press that cannot come.
+    if (onPressed != null) {
+      _handlers[shortcut.id] = onPressed;
+    } else {
+      _handlers[shortcut.id] = () {};
+    }
   }
 
+  /// Releases the grab and drops the handler, or a stale closure fires for an
+  /// id the application thinks is gone.
   Future<void> unregister(String id) async {
+    _handlers.remove(id);
     final handled = await DVNativeBridge.require<bool>(
       'shortcuts.unregister',
       {'id': id},
@@ -3222,6 +3269,12 @@ class DVShortcuts {
       throw StateError('Native shortcuts binding rejected unregister.');
     }
   }
+
+  /// CmdOrCtrl means Cmd on Apple platforms and Ctrl everywhere else.
+  static bool get _primaryIsMeta =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.macOS ||
+          defaultTargetPlatform == TargetPlatform.iOS);
 }
 
 class DVFullscreenOptions {
