@@ -143,6 +143,15 @@ class DVLinuxDialogs {
     'dialogs.saveFile',
     'dialogs.chooseDirectory',
     'dialogs.message',
+    'media.pick',
+  };
+
+  /// What the media picker offers, by kind: the open dialog with the
+  /// matching filters. A desktop has no gallery; the file chooser is it.
+  static const Map<String, List<String>> _mediaExtensions = <String, List<String>>{
+    'image': <String>['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'],
+    'video': <String>['mp4', 'webm', 'mkv', 'mov', 'avi'],
+    'audio': <String>['mp3', 'wav', 'ogg', 'flac', 'm4a'],
   };
 
   static DynamicLibrary? _gtk;
@@ -177,6 +186,32 @@ class DVLinuxDialogs {
       final List<Object?> paths = r['paths']! as List<Object?>;
       return <String, Object?>{'path': paths.isEmpty ? null : paths.first};
     });
+    bind('media.pick', (Object? a) {
+      final Map<Object?, Object?> m = a is Map ? a : const <Object?, Object?>{};
+      final String type = '${m['type'] ?? 'image'}';
+      final List<Map<String, Object?>> filters = <Map<String, Object?>>[
+        for (final MapEntry<String, List<String>> e in _mediaExtensions.entries)
+          if (type == 'any' || type == e.key)
+            <String, Object?>{
+              'label': switch (e.key) { 'image' => 'Images', 'video' => 'Videos', _ => 'Audio' },
+              'extensions': e.value,
+            },
+      ];
+      final Map<String, Object?> r = _chooser(
+        <Object?, Object?>{'title': 'Pick ${type == 'any' ? 'a file' : type == 'image' ? 'an image' : 'a $type'}', 'filters': filters},
+        action: _actionOpen,
+        multiple: m['multiple'] == true,
+        button: '_Open',
+      );
+      return <Map<String, Object?>>[
+        for (final Object? p in r['paths']! as List<Object?>)
+          <String, Object?>{
+            'path': '$p',
+            'name': '$p'.split('/').last,
+            'type': _typeOf('$p'),
+          },
+      ];
+    });
     bind('dialogs.message', (Object? a) {
       final Map<Object?, Object?> m = a is Map ? a : const <Object?, Object?>{};
       _message('${m['text'] ?? ''}', title: m['title'] as String?, kind: '${m['kind'] ?? 'info'}');
@@ -187,6 +222,14 @@ class DVLinuxDialogs {
   static void unregister() {
     _automation = null;
     _current = null;
+  }
+
+  static String _typeOf(String path) {
+    final String ext = path.contains('.') ? path.split('.').last.toLowerCase() : '';
+    for (final MapEntry<String, List<String>> e in _mediaExtensions.entries) {
+      if (e.value.contains(ext)) return e.key;
+    }
+    return 'file';
   }
 
   // --- building ------------------------------------------------------------
