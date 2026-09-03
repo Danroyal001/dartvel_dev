@@ -76,6 +76,8 @@ void main() {
         'shortcuts.register',
         'shortcuts.unregister',
         'menus.setApplicationMenu',
+        'kiosk.enforce',
+        'kiosk.release',
       },
     );
     expect(DVLinuxBindings.isRegistered, isTrue);

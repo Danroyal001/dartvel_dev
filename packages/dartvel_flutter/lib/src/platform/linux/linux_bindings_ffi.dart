@@ -10,6 +10,7 @@ import 'dart:ffi';
 import 'package:ffi/ffi.dart';
 
 import '../../../dartvel_flutter.dart';
+import 'linux_kiosk_ffi.dart';
 import 'linux_menus_ffi.dart';
 import 'linux_shortcuts_ffi.dart';
 
@@ -163,6 +164,8 @@ class DVLinuxBindings {
     'shortcuts.register',
     'shortcuts.unregister',
     'menus.setApplicationMenu',
+    'kiosk.enforce',
+    'kiosk.release',
   };
 
   static DynamicLibrary? _x11;
@@ -240,6 +243,11 @@ class DVLinuxBindings {
     // the first grab rather than here, so an application that never registers
     // one never opens it.
     DVLinuxShortcuts.register(DVNativeBridge.register);
+    // Kiosk enforcement rides the same grabs; fullscreen is the GTK window's.
+    DVLinuxKiosk.register(
+      DVNativeBridge.register,
+      fullscreen: () async => _windowAction('gtk_window_fullscreen'),
+    );
     // The application menu, built into the real GTK window.
     DVLinuxMenus.register(_gtk!, _glib!, DVNativeBridge.register);
 
@@ -254,6 +262,7 @@ class DVLinuxBindings {
     }
     // Releases every grab. A grab left behind eats the keys for every other
     // application on the desktop until the process dies.
+    unawaited(DVLinuxKiosk.unregister());
     unawaited(DVLinuxShortcuts.unregister());
     DVLinuxMenus.unregister();
     _registered = false;
