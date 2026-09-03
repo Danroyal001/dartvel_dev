@@ -1204,6 +1204,7 @@ ${(() {
     final configContent = '''
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // Build ID: $buildId
+import 'package:dartvel_flutter/dartvel_flutter.dart' show DVKioskPolicy;
 
 /// Centrally generated Dartvel configuration matching your pubspec.yaml.
 class DartvelConfig {
@@ -1231,6 +1232,8 @@ class DartvelConfig {
   /// List of platform permissions requested.
   static const permissions = <String>[${permissionsList.join(', ')}];
 }
+
+${_kioskPoliciesSource(dv)}
 ''';
 
     File(
@@ -1239,6 +1242,74 @@ class DartvelConfig {
 
     _generateSsgBuilder(pageEntries, pageImports, root);
   }
+
+  /// `DVKioskPolicies.<name>`: every named policy under dartvel.kiosk.policies,
+  /// as the kiosk section's own settings with the named entry's over them,
+  /// parsed by the same parser dartvel doctor checks. There is no policy
+  /// that is not in the declaration, so a kiosk window opened at runtime
+  /// uses a declared one rather than an ad-hoc one.
+  static String _kioskPoliciesSource(YamlMap dv) {
+    final Object? kiosk = dv['kiosk'];
+    final Map<String, Object?> section = kiosk is Map ? _plain(kiosk) as Map<String, Object?> : <String, Object?>{};
+    final Object? declared = section['policies'];
+    final Map<String, Object?> named = declared is Map ? declared.cast<String, Object?>() : <String, Object?>{};
+    final Map<String, Object?> base = <String, Object?>{...section}
+      ..remove('policies')
+      ..remove('windows');
+    final List<String> names = named.keys.where((String n) => RegExp(r'^[a-z][A-Za-z0-9]*$').hasMatch(n)).toList();
+    final StringBuffer out = StringBuffer()
+      ..writeln('/// Named kiosk policies, from dartvel.kiosk.policies in pubspec.yaml.')
+      ..writeln('class DVKioskPolicies {')
+      ..writeln('  DVKioskPolicies._();')
+      ..writeln()
+      ..writeln("  static const List<String> names = <String>[${names.map((String n) => "'$n'").join(', ')}];");
+    for (final String name in names) {
+      final Object? entry = named[name];
+      final Map<String, Object?> merged = <String, Object?>{
+        ...base,
+        if (entry is Map) ...entry.cast<String, Object?>(),
+      };
+      out
+        ..writeln()
+        ..writeln('  static DVKioskPolicy get $name => DVKioskPolicy.parse(<String, Object?>{')
+        ..writeln("    'kiosk': ${_dartLiteral(merged, 2)},")
+        ..writeln('  });');
+    }
+    out.writeln('}');
+    return out.toString();
+  }
+
+  /// YAML nodes as plain Dart values.
+  static Object? _plain(Object? value) {
+    if (value is Map) {
+      return <String, Object?>{for (final MapEntry<Object?, Object?> e in value.entries) '${e.key}': _plain(e.value)};
+    }
+    if (value is List) return <Object?>[for (final Object? v in value) _plain(v)];
+    return value;
+  }
+
+  /// A Dart map/list/scalar literal for [value], indented for reading.
+  static String _dartLiteral(Object? value, int depth) {
+    final String pad = '  ' * (depth + 1);
+    final String close = '  ' * depth;
+    if (value is Map) {
+      if (value.isEmpty) return '<String, Object?>{}';
+      final StringBuffer b = StringBuffer('<String, Object?>{\n');
+      for (final MapEntry<Object?, Object?> e in value.entries) {
+        b.writeln("$pad'${_escape('${e.key}')}': ${_dartLiteral(e.value, depth + 1)},");
+      }
+      return '$b$close}';
+    }
+    if (value is List) {
+      if (value.isEmpty) return '<Object?>[]';
+      return '<Object?>[${value.map((Object? v) => _dartLiteral(v, depth + 1)).join(', ')}]';
+    }
+    if (value is String) return "'${_escape(value)}'";
+    if (value == null || value is num || value is bool) return '$value';
+    return "'${_escape('$value')}'";
+  }
+
+  static String _escape(String s) => s.replaceAll('\\', '\\\\').replaceAll("'", "\\'").replaceAll('\n', '\\n').replaceAll('\$', '\\\$');
 
   static void _generateSsgBuilder(
     List<_PageEntry> entries,
