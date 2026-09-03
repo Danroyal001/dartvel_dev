@@ -100,6 +100,11 @@ class ModelGenerator {
         final generatesPublicPages = modelArgs.contains(
           RegExp(r'\bgeneratePublicPages\s*:\s*true\b'),
         );
+        // The schema.org type the public page is, declared rather than
+        // guessed from the model's name.
+        final schemaType = RegExp(r'''\bschemaType\s*:\s*['"]([A-Za-z0-9_]+)['"]''')
+            .firstMatch(modelArgs)
+            ?.group(1);
         final tableName = '${className.toLowerCase()}s';
         classesGenerated.add(className);
 
@@ -407,6 +412,7 @@ class ModelGenerator {
             "    contentFields: <String>[${mainContentCandidates.map((String n) => "'$n'").join(', ')}],\n"
             "    imageField: ${resolvedFeaturedImage == null ? 'null' : "'$resolvedFeaturedImage'"},\n"
             "    publishedField: ${publishedField == null ? 'null' : "'$publishedField'"},\n"
+            "    schemaType: ${schemaType == null ? 'null' : "'$schemaType'"},\n"
             '  ),',
           );
           sb.writeln();

@@ -23,7 +23,7 @@ Future<Directory> project() async {
     ..writeAsStringSync('''
 import 'package:dartvel_core/dartvel.dart';
 
-@DVModel(generatePublicPages: true)
+@DVModel(generatePublicPages: true, schemaType: 'Person')
 @pragma('vm:entry-point')
 class _User {
   final String slug;
@@ -71,6 +71,9 @@ void main() {
     expect(pages, contains("contentFields: <String>['bio']"));
     expect(pages, contains("imageField: 'avatar'"));
     expect(pages, contains("publishedField: 'published'"));
+    // The schema.org type the model declares, so a search engine is told
+    // what the page is about rather than only that it is about something.
+    expect(pages, contains("schemaType: 'Person'"));
     expect(pages, isNot(contains("model: 'Note'")), reason: 'a model with no public pages has no page to resolve');
   });
 
