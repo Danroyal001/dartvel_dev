@@ -1,12 +1,3 @@
-// The generated runtime registers the platform's native bindings.
-//
-// DVLinuxBindings, DVWindowsBindings, DVMacosBindings and DVIosBindings each
-// have a register() that loads the libraries and wires clipboard, window,
-// notifications and the rest onto DVNativeBridge. Nothing in a generated
-// application called any of them: the only call sites were the framework's
-// own tests. So DV.Platform.Clipboard.copy() on a Linux desktop threw "binding
-// not registered" in every real app, and the platform matrix that reports
-// those bindings as implemented was describing code no application reached.
 import 'dart:io';
 
 import 'package:dartvel_cli/src/generators/client_generator.dart';
@@ -14,44 +5,36 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 
-Future<String> configFor() async {
-  final Directory root = await Directory.systemTemp.createTemp('dartvel_kiosk_');
-  addTearDown(() => root.deleteSync(recursive: true));
-
-  Directory(p.join(root.path, 'lib', 'pages')).createSync(recursive: true);
-  Directory(p.join(root.path, 'lib', 'dartvel_client')).createSync(recursive: true);
-  File(p.join(root.path, 'lib', 'pages', 'index.page.dart')).writeAsStringSync(
-    "import 'package:flutter/widgets.dart';\n"
+const String _page = "import 'package:flutter/widgets.dart';\n"
     "import 'package:dartvel_flutter/dartvel_flutter.dart';\n"
     "@DVPage(title: 'Home')\n"
-    "Widget _homePage(BuildContext context) => const DVText('hi');\n",
-  );
+    "Widget _homePage(BuildContext context) => const DVText('hi');\n";
 
+/// Every generated file for a project with the given `dartvel:` section,
+/// joined: the config and the runtime live apart.
+Future<String> generatedFor(String pkgName, YamlMap dv) async {
+  final Directory root = await Directory.systemTemp.createTemp('dartvel_kiosk_');
+  addTearDown(() => root.deleteSync(recursive: true));
+  Directory(p.join(root.path, 'lib', 'pages')).createSync(recursive: true);
+  Directory(p.join(root.path, 'lib', 'dartvel_client')).createSync(recursive: true);
+  File(p.join(root.path, 'lib', 'pages', 'index.page.dart')).writeAsStringSync(_page);
   await ClientGenerator.generate(
-    root: root.path,
-    pagesDir: 'lib/pages',
-    pkgName: 'reg_app',
-    buildId: 'test-build',
-    backendHost: '127.0.0.1',
-    backendPort: 3000,
-    devBackendHost: 'http://localhost:3000',
-    prodBackendHost: 'https://example.com',
-    apiBasePath: '/api',
-    envFiles: const <String>[],
-    seoSiteName: 'app',
-    seoTitle: 'app',
-    seoDesc: 'app',
-    seoImage: '',
-    seoTwitter: '',
-    defaultTransition: 'none',
-    durationMs: 200,
-    curve: 'linear',
-    normalizeTrailing: true,
-    notFoundRedirect: '/',
-    plugins: const <String>[],
-    webPrerender: false,
-    ota: false,
-    dv: YamlMap.wrap(<String, Object?>{
+    root: root.path, pagesDir: 'lib/pages', pkgName: pkgName, buildId: 'b',
+    backendHost: '127.0.0.1', backendPort: 3000, devBackendHost: 'http://localhost:3000',
+    prodBackendHost: 'https://example.com', apiBasePath: '/api', envFiles: const <String>[],
+    seoSiteName: 'app', seoTitle: 'app', seoDesc: 'app', seoImage: '', seoTwitter: '',
+    defaultTransition: 'none', durationMs: 200, curve: 'linear', normalizeTrailing: true,
+    notFoundRedirect: '/', plugins: const <String>[], webPrerender: false, ota: false, dv: dv,
+  );
+  return Directory(p.join(root.path, 'lib', 'dartvel_client'))
+      .listSync()
+      .whereType<File>()
+      .where((File f) => f.path.endsWith('.dart'))
+      .map((File f) => f.readAsStringSync())
+      .join('\n');
+}
+
+Future<String> configFor() => generatedFor('reg_app', YamlMap.wrap(<String, Object?>{
       'kiosk': <String, Object?>{
         'enabled': true,
         'scope': 'display',
@@ -66,18 +49,25 @@ Future<String> configFor() async {
           'staffTerminal': <String, Object?>{'home': '/staff'},
         },
       },
-    }),
-  );
+    }));
 
-  return File(p.join(root.path, 'lib', 'dartvel_client', 'config.g.dart'))
-      .readAsStringSync();
-}
+Future<String> plainConfig() => generatedFor('plain_app', YamlMap());
+
+Future<String> deviceConfig() => generatedFor('device_app', YamlMap.wrap(<String, Object?>{
+      'kiosk': <String, Object?>{
+        'enabled': true,
+        'scope': 'device',
+        'home': '/welcome',
+        'exit': <String, Object?>{'method': 'pin', 'pin': 'secret:KIOSK_PIN'},
+      },
+    }));
 
 // Named policies are available to code as DVKioskPolicies.<name>, so a kiosk
 // window opened at runtime uses a declared policy rather than an ad-hoc one.
 // There is no policy that is not in the declaration: each is the kiosk
 // section's own settings with the named entry's over them, parsed by the
-// same parser dartvel doctor checks.
+// same parser dartvel doctor checks. The section itself is the device
+// policy, installed at start when its scope is device.
 void main() {
   late String config;
   setUpAll(() async => config = await configFor());
@@ -103,27 +93,20 @@ void main() {
     final String plain = await plainConfig();
     expect(plain, contains('class DVKioskPolicies'));
     expect(plain, contains('static const List<String> names = <String>[];'));
+    expect(plain, isNot(contains('installKioskPolicy')));
   });
-}
 
-Future<String> plainConfig() async {
-  final Directory root = await Directory.systemTemp.createTemp('dartvel_kiosk_plain_');
-  addTearDown(() => root.deleteSync(recursive: true));
-  Directory(p.join(root.path, 'lib', 'pages')).createSync(recursive: true);
-  Directory(p.join(root.path, 'lib', 'dartvel_client')).createSync(recursive: true);
-  File(p.join(root.path, 'lib', 'pages', 'index.page.dart')).writeAsStringSync(
-    "import 'package:flutter/widgets.dart';\n"
-    "import 'package:dartvel_flutter/dartvel_flutter.dart';\n"
-    "@DVPage(title: 'Home')\n"
-    "Widget _homePage(BuildContext context) => const DVText('hi');\n",
-  );
-  await ClientGenerator.generate(
-    root: root.path, pagesDir: 'lib/pages', pkgName: 'plain_app', buildId: 'b',
-    backendHost: '127.0.0.1', backendPort: 3000, devBackendHost: 'http://localhost:3000',
-    prodBackendHost: 'https://example.com', apiBasePath: '/api', envFiles: const <String>[],
-    seoSiteName: 'app', seoTitle: 'app', seoDesc: 'app', seoImage: '', seoTwitter: '',
-    defaultTransition: 'none', durationMs: 200, curve: 'linear', normalizeTrailing: true,
-    notFoundRedirect: '/', plugins: const <String>[], webPrerender: false, ota: false, dv: YamlMap(),
-  );
-  return File(p.join(root.path, 'lib', 'dartvel_client', 'config.g.dart')).readAsStringSync();
+  test('the section itself is the device policy, and the runtime installs it at start', () async {
+    final String withDevice = await deviceConfig();
+    expect(withDevice, contains('static DVKioskPolicy get device'));
+    expect(withDevice, contains("'scope': 'device'"));
+    expect(withDevice, contains('DVPlatform.installKioskPolicy('));
+    expect(withDevice, contains('DVKioskPolicies.device,'));
+    expect(withDevice, contains('startDartvelKiosk()'));
+  });
+
+  test('a display-scope declaration installs no device kiosk', () {
+    expect(config, isNot(contains('installKioskPolicy')));
+    expect(config, isNot(contains('get device')));
+  });
 }
