@@ -935,6 +935,16 @@ jobs:
             --disable-extensions-except=$EXT \
             --load-extension=$EXT --user-data-dir=/tmp/chrome-profile"
 
+          # The same flags with a profile of its own for the render below: the
+          # install run is killed, and a profile it leaves locked makes the
+          # next Chrome exit at once -- a blank root window, indistinguishable
+          # from an application that rendered nothing.
+          RENDER_ARGS="--no-sandbox --disable-gpu --disable-dev-shm-usage \
+            --no-first-run --no-default-browser-check \
+            --disable-features=Translate,InfobarScreenshot --start-maximized \
+            --disable-extensions-except=$EXT \
+            --load-extension=$EXT --user-data-dir=/tmp/chrome-render"
+
           google-chrome $CHROME_ARGS about:blank > /tmp/diag/chrome-install.log 2>&1 &
           sleep 15
           pkill -f "user-data-dir=/tmp/chrome-profile" || true
@@ -1007,9 +1017,20 @@ jobs:
             PAGE="http://localhost:8181/index.html"
           fi
 
-          google-chrome $CHROME_ARGS "$PAGE" > /tmp/diag/chrome.log 2>&1 &
-          sleep 30
-          import -window root /tmp/diag/extension.png
+          google-chrome $RENDER_ARGS "$PAGE" > /tmp/diag/chrome.log 2>&1 &
+
+          # Waited for rather than slept at: a fixed sleep is either slower
+          # than the page or shorter than it, and the second is a failure
+          # nobody can tell from a broken build.
+          for i in $(seq 1 24); do
+            sleep 5
+            import -window root /tmp/diag/extension.png 2>/dev/null || continue
+            convert /tmp/diag/extension.png -crop 1060x740+10+160 +repage \
+              /tmp/diag/extension-page.png 2>/dev/null || continue
+            painted=$(convert /tmp/diag/extension-page.png -format %k info: 2>/dev/null || echo 0)
+            echo "after $((i * 5))s the page area has $painted colours"
+            [ "$painted" -ge 50 ] && break
+          done
           identify /tmp/diag/extension.png
 
           # Existence is not enough, as the first run demonstrated. A capture
