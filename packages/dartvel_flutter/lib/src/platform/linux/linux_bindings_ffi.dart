@@ -199,24 +199,6 @@ class DVLinuxBindings {
     'permissions.request',
   };
 
-  /// What a Linux desktop grants without asking: anything a process may
-  /// do on its own. What needs a system service Dartvel has no Linux
-  /// binding for -- location, bluetooth, contacts, NFC, biometrics -- is
-  /// answered false rather than with a prompt that never comes.
-  static const Set<String> _desktopGranted = <String>{
-    'notifications',
-    'storage',
-    'photos',
-    'files',
-    'camera',
-    'microphone',
-    'clipboard',
-  };
-
-  static bool _desktopPermission(Object? arguments) {
-    final Map<Object?, Object?> map = arguments is Map ? arguments : const <Object?, Object?>{};
-    return _desktopGranted.contains('${map['permission'] ?? ''}'.toLowerCase());
-  }
 
   static DynamicLibrary? _x11;
   static DynamicLibrary? _gtk;
@@ -311,8 +293,8 @@ class DVLinuxBindings {
     // A desktop deep link arrives as a launch argument; the launch keeps
     // the first one. The stream is fed by the launch as well.
     DVNativeBridge.register('deepLinks.initial', (Object? _) => DVAppLaunch.initialLink);
-    DVNativeBridge.register('permissions.isGranted', _desktopPermission);
-    DVNativeBridge.register('permissions.request', _desktopPermission);
+    DVNativeBridge.register('permissions.isGranted', DVDesktopPermissions.answer);
+    DVNativeBridge.register('permissions.request', DVDesktopPermissions.answer);
     // A restart loop the watchdog finds goes to whatever kiosk host is on
     // screen, unless the app wired its own.
     DVLinuxDevice.onRestartLoop ??= DVKioskHost.reportRestartLoop;

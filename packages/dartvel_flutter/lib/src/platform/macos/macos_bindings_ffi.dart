@@ -21,7 +21,8 @@ import 'dart:io' show Platform;
 
 import 'package:ffi/ffi.dart';
 
-import '../../../dartvel_flutter.dart' show DVNativeBridge;
+import '../../../dartvel_flutter.dart' show DVAppLaunch, DVNativeBridge;
+import '../desktop_permissions.dart';
 import '../device_runtime.dart';
 import 'macos_capabilities.dart';
 import 'macos_device_ffi.dart';
@@ -117,6 +118,9 @@ class DVMacosBindings {
     DVMacosMenus.register(DVNativeBridge.register, objc: _objc);
     DVMacosTray.register(DVNativeBridge.register, objc: _objc);
     DVMacosPrinting.register(DVNativeBridge.register);
+    DVNativeBridge.register('deepLinks.initial', (Object? _) => DVAppLaunch.initialLink);
+    DVNativeBridge.register('permissions.isGranted', DVDesktopPermissions.answer);
+    DVNativeBridge.register('permissions.request', DVDesktopPermissions.answer);
     DVDeviceRuntime.probes = const DVMacosDeviceProbes();
     DVDeviceRuntime.register(DVNativeBridge.register);
 

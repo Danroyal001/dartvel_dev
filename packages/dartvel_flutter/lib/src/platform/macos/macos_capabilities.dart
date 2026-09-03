@@ -60,4 +60,10 @@ const Set<String> dvMacosImplementedBindings = <String>{
   // printer are NSPrintOperation's, which needs the application's event
   // loop, so printing.print is not claimed.
   'printing.toFile',
+
+  // What a desktop grants without asking, and the deep link the app was
+  // launched with: the same answers as Linux.
+  'permissions.isGranted',
+  'permissions.request',
+  'deepLinks.initial',
 };

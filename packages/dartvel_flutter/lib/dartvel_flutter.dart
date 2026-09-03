@@ -270,6 +270,7 @@ export 'src/kiosk/kiosk_keys.dart';
 export 'src/media/image_view.dart';
 export 'src/platform/accelerator.dart';
 export 'src/platform/android/android_bindings.dart';
+export 'src/platform/desktop_permissions.dart';
 export 'src/platform/device_runtime.dart';
 export 'src/platform/dialogs.dart';
 export 'src/platform/file_bindings.dart';

@@ -42,6 +42,11 @@ void main() {
           // Shell_NotifyIcon on the process's window, its menu by id.
           'tray.show',
           'tray.hide',
+          // What a desktop grants without asking, and the deep link the app was
+          // launched with.
+          'permissions.isGranted',
+          'permissions.request',
+          'deepLinks.initial',
           // Pictures onto pages: to a PDF through Microsoft Print to PDF, or
           // to the default printer.
           'printing.toFile',
@@ -88,6 +93,9 @@ void main() {
         'tray.hide',
         'printing.toFile',
         'printing.print',
+        'permissions.isGranted',
+        'permissions.request',
+        'deepLinks.initial',
       };
       expect(DVWindowsBindings.implemented.difference(callable), isEmpty);
     });

@@ -37,6 +37,11 @@ void main() {
           // NSStatusBar's status item with its menu, chosen by id.
           'tray.show',
           'tray.hide',
+          // What a desktop grants without asking, and the deep link the app was
+          // launched with.
+          'permissions.isGranted',
+          'permissions.request',
+          'deepLinks.initial',
           // Pictures onto pages, to a PDF.
           'printing.toFile',
         },
