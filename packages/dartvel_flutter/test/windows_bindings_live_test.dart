@@ -195,10 +195,13 @@ void main() {
     tearDown(() => DVNativeBridge.require<bool>('kiosk.release'));
 
     test('an escape combo is held, and the secure attention sequence is not', () async {
+      // Ctrl+Alt+F11 because nothing on a runner holds it; Alt+F4 is what a
+      // kiosk really blocks, and a runner may already have it taken -- in
+      // which case the honest answer is "already registered", not a claim.
       final Map<String, Object?> result = (await DVNativeBridge.require<Map<Object?, Object?>>(
         'kiosk.enforce',
         <String, Object?>{
-          'combos': <String>['Alt+F4', 'Ctrl+Alt+Delete'],
+          'combos': <String>['Ctrl+Alt+F11', 'Alt+F4', 'Ctrl+Alt+Delete'],
           'fullscreen': false,
           'confinePointer': false,
           'suppressNotifications': true,
@@ -207,10 +210,13 @@ void main() {
 
       final Map<Object?, Object?> unenforced = result['unenforced']! as Map<Object?, Object?>;
       if (noInteractiveStation(unenforced)) {
-        markTestSkipped('this session has no interactive window station: ${unenforced['Alt+F4']}');
+        markTestSkipped('this session has no interactive window station: ${unenforced['Ctrl+Alt+F11']}');
         return;
       }
-      expect(result['blocked'], contains('Alt+F4'), reason: 'unenforced: $unenforced');
+      expect(result['blocked'], contains('Ctrl+Alt+F11'), reason: 'unenforced: $unenforced');
+      if (!(result['blocked']! as List).contains('Alt+F4')) {
+        expect('${unenforced['Alt+F4']}', contains('already registered'), reason: 'Alt+F4 neither held nor said to be taken');
+      }
       expect(unenforced.keys, contains('Ctrl+Alt+Delete'));
       expect('${unenforced['Ctrl+Alt+Delete']}', contains('RegisterHotKey'));
       // Focus Assist has no public API; a kiosk must not claim to hold
@@ -240,7 +246,7 @@ void main() {
         final Map<String, Object?> result = (await DVNativeBridge.require<Map<Object?, Object?>>(
           'kiosk.enforce',
           <String, Object?>{
-            'combos': <String>['Alt+F4'],
+            'combos': <String>['Ctrl+Alt+F11'],
             'fullscreen': false,
             'confinePointer': false,
             'suppressNotifications': false,
@@ -248,10 +254,10 @@ void main() {
         )).cast<String, Object?>();
         final Map<Object?, Object?> unenforced = result['unenforced']! as Map<Object?, Object?>;
         if (noInteractiveStation(unenforced)) {
-          markTestSkipped('this session has no interactive window station: ${unenforced['Alt+F4']}');
+          markTestSkipped('this session has no interactive window station: ${unenforced['Ctrl+Alt+F11']}');
           return;
         }
-        expect(result['blocked'], <Object?>['Alt+F4'], reason: 'pass $i, unenforced: $unenforced');
+        expect(result['blocked'], <Object?>['Ctrl+Alt+F11'], reason: 'pass $i, unenforced: $unenforced');
         expect(unenforced, isEmpty, reason: 'pass $i');
       }
     });
