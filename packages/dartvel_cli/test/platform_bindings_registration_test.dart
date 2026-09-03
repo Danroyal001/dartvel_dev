@@ -78,7 +78,7 @@ void main() {
     // Inside configureDartvelRuntime(), which the generated router already
     // calls. A separate function the application had to remember is how this
     // was missing in the first place.
-    final int configure = runtime.indexOf('void configureDartvelRuntime()');
+    final int configure = runtime.indexOf('void configureDartvelRuntime(');
     final int end = runtime.indexOf('\n}\n', configure);
     final String body = runtime.substring(configure, end);
     expect(body, contains('registerPlatformBindings'));
