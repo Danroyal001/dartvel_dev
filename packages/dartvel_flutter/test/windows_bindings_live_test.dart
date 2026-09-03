@@ -14,6 +14,7 @@ library;
 // window, and a test harness has none; they return false by design, and
 // asserting that here would be asserting the harness.
 import 'dart:ffi';
+import 'dart:io' show Directory;
 
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:ffi/ffi.dart';
@@ -270,6 +271,41 @@ void main() {
       await const DVShortcuts().unregister('a');
       await const DVShortcuts().register(const DVGlobalShortcut(id: 'b', accelerator: 'Ctrl+Alt+F10'));
       expect(DVShortcuts.registered, <String>['b']);
+    });
+  });
+
+  group('device', () {
+    // The shared runtime reading through this platform's probes: the numbers
+    // a fleet console shows have to be real ones, from the machine itself.
+    late Directory state;
+    setUp(() {
+      state = Directory.systemTemp.createTempSync('dartvel_device_');
+      DVDeviceRuntime.stateDirectory = state.path;
+    });
+    tearDown(() {
+      DVDeviceRuntime.resetWatchdogForTest();
+      DVDeviceRuntime.stateDirectory = null;
+      state.deleteSync(recursive: true);
+    });
+
+    test('the manifest names this machine and what it can do', () async {
+      final DVHardwareCapabilityManifest manifest = await const DVDeviceControls().capabilityManifest();
+      expect(manifest.deviceId, isNotEmpty);
+      Map<String, String> meta(String id) =>
+          manifest.capabilities.singleWhere((DVHardwareCapability c) => c.id == id).metadata;
+      expect(int.parse(meta('cpu.cores')['count']!), greaterThan(0));
+      expect(int.parse(meta('memory')['totalBytes']!), greaterThan(0));
+      expect(int.parse(meta('memory')['availableBytes']!), greaterThan(0));
+      expect(meta('os')['arch'], anyOf('x64', 'arm64'));
+      expect(manifest.capabilities.singleWhere((DVHardwareCapability c) => c.id == 'display').available, isTrue);
+    });
+
+    test('health is a verdict with real numbers behind it', () async {
+      final DVDeviceHealth health = await const DVDeviceControls().health();
+      expect(health.healthy, isA<bool>());
+      expect(double.parse(health.diagnostics['uptimeSeconds']!), greaterThan(0));
+      expect(int.parse(health.diagnostics['memoryTotalBytes']!), greaterThan(0));
+      expect(int.parse(health.diagnostics['diskFreeBytes']!), greaterThan(0));
     });
   });
 

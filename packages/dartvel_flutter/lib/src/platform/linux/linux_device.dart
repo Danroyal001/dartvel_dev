@@ -17,7 +17,6 @@ import 'package:ffi/ffi.dart';
 
 import '../device_runtime.dart';
 
-export '../device_runtime.dart' show DVDeviceProbes, DVDeviceRuntime;
 
 typedef _SocketN = Int32 Function(Int32, Int32, Int32);
 typedef _SocketD = int Function(int, int, int);

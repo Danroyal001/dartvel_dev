@@ -37,4 +37,13 @@ const Set<String> dvMacosImplementedBindings = <String>{
   // by id from the main run loop; a refusal carries the OSStatus.
   'shortcuts.register',
   'shortcuts.unregister',
+
+  // The shared device runtime -- manifest, health, watchdog, provisioning,
+  // diagnostics -- reading through this platform's probes.
+  'device.capabilityManifest',
+  'device.health',
+  'device.watchdog.arm',
+  'device.watchdog.heartbeat',
+  'device.fleet.provision',
+  'device.diagnostics.collect',
 };

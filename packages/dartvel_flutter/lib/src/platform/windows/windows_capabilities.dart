@@ -39,4 +39,13 @@ const Set<String> dvWindowsImplementedBindings = <String>{
   // delivers WM_HOTKEY; a refusal carries the Win32 error.
   'shortcuts.register',
   'shortcuts.unregister',
+
+  // The shared device runtime -- manifest, health, watchdog, provisioning,
+  // diagnostics -- reading through this platform's probes.
+  'device.capabilityManifest',
+  'device.health',
+  'device.watchdog.arm',
+  'device.watchdog.heartbeat',
+  'device.fleet.provision',
+  'device.diagnostics.collect',
 };
