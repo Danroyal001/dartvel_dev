@@ -18,6 +18,7 @@ import '../device_runtime.dart';
 import 'windows_capabilities.dart';
 import 'windows_device_ffi.dart';
 import 'windows_dialogs_ffi.dart';
+import 'windows_dnd_ffi.dart';
 import 'windows_kiosk_ffi.dart';
 import 'windows_menus_ffi.dart';
 import 'windows_printing_ffi.dart';
@@ -26,6 +27,7 @@ import 'windows_tray_ffi.dart';
 
 export 'windows_device_ffi.dart' show DVWindowsDeviceProbes;
 export 'windows_dialogs_ffi.dart' show DVWindowsDialog, DVWindowsDialogAutomation, DVWindowsDialogSeen, DVWindowsDialogs;
+export 'windows_dnd_ffi.dart' show DVWindowsDragDrop;
 export 'windows_kiosk_ffi.dart' show DVWindowsKiosk;
 export 'windows_menus_ffi.dart' show DVWindowsMenus;
 export 'windows_printing_ffi.dart' show DVWindowsPrinting;
@@ -146,6 +148,7 @@ class DVWindowsBindings {
     DVWindowsTray.register(DVNativeBridge.register, user32: _user32);
     DVWindowsPrinting.register(DVNativeBridge.register);
     DVWindowsDialogs.register(DVNativeBridge.register, user32: _user32);
+    DVWindowsDragDrop.register(DVNativeBridge.register, user32: _user32, kernel32: _kernel32);
     DVNativeBridge.register('deepLinks.initial', (Object? _) => DVAppLaunch.initialLink);
     DVNativeBridge.register('permissions.isGranted', DVDesktopPermissions.answer);
     DVNativeBridge.register('permissions.request', DVDesktopPermissions.answer);
@@ -162,6 +165,7 @@ class DVWindowsBindings {
       DVWindowsMenus.unregister();
       DVWindowsTray.unregister();
       DVWindowsDialogs.unregister();
+      DVWindowsDragDrop.unregister();
       DVDeviceRuntime.unregister();
     }
     for (final name in implemented) {
