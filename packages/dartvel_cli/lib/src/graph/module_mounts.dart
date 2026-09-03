@@ -72,6 +72,7 @@ class DVModuleMount {
     required this.sourcePath,
     required this.deployment,
     required this.routes,
+    this.assets = const <String, String>{},
     this.name,
     this.version,
     this.routeBase = '/',
@@ -95,6 +96,15 @@ class DVModuleMount {
 
   /// Its pages, rebased under [mount].
   final List<DVModuleRoute> routes;
+
+  /// What the module declares as assets, each mapped to the path the parent
+  /// must ask for.
+  ///
+  /// Flutter serves another package's asset under `packages/<name>/`, so the
+  /// path a module uses standing alone is not the path that finds it once it
+  /// is mounted; a module that hard-coded either would be wrong in the other
+  /// place.
+  final Map<String, String> assets;
 
   /// The module's generated client, which is where its pages are.
   String get clientImport => 'package:$packageName/dartvel_client/dartvel_client.dart';
@@ -171,6 +181,15 @@ List<DVModuleMount> dvDiscoverModuleMounts(String root) {
         modulePubspec['name'] is String ? modulePubspec['name']! as String : id;
     final String pagesDir =
         moduleSection['pagesDir'] is String ? moduleSection['pagesDir']! as String : 'lib/pages';
+    final Object? flutterSection = modulePubspec['flutter'];
+    final Object? declaredAssets =
+        flutterSection is Map ? flutterSection['assets'] : null;
+    final Map<String, String> assets = <String, String>{
+      if (declaredAssets is List)
+        for (final Object? asset in declaredAssets)
+          if (asset is String && asset.isNotEmpty) asset: 'packages/$packageName/$asset',
+    };
+
     final Object? routesSection = moduleDeclaration['routes'];
     final String routeBase = routesSection is Map && routesSection['base'] is String
         ? _normalise(routesSection['base']! as String)
@@ -196,6 +215,7 @@ List<DVModuleMount> dvDiscoverModuleMounts(String root) {
       sourcePath: sourcePath,
       deployment: deployment,
       routes: routes,
+      assets: assets,
       name: moduleDeclaration['name'] is String ? moduleDeclaration['name']! as String : null,
       version: moduleDeclaration['version'] == null ? null : '${moduleDeclaration['version']}',
       routeBase: routeBase,

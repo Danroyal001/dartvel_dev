@@ -134,4 +134,31 @@ void main() {
       expect(() => store.config['currency'] = 'USD', throwsUnsupportedError);
     });
   });
+  moduleAssets();
+}
+
+// A module's assets move when it is mounted: Flutter serves another
+// package's asset under packages/<name>/, so the path a module uses on its
+// own is not the path that finds the file once a parent mounts it. Module
+// code asks by its own name, which is what keeps the mount point out of it.
+void moduleAssets() {
+  group('assets', () {
+    test('a mounted module answers with the path that finds the file here', () {
+      final DVModuleRegistry registry = DVModuleRegistry();
+      registry.register(
+        id: 'store',
+        mountPath: '/store',
+        assets: <String, String>{'assets/logo.png': 'packages/store/assets/logo.png'},
+      );
+
+      expect(registry('store').asset('assets/logo.png'), 'packages/store/assets/logo.png');
+    });
+
+    test('a path the module never declared is its own, not a guess', () {
+      final DVModuleRegistry registry = DVModuleRegistry();
+      registry.register(id: 'store', mountPath: '/store');
+
+      expect(registry('store').asset('assets/unknown.png'), 'assets/unknown.png');
+    });
+  });
 }
