@@ -19,6 +19,18 @@ import 'linux_shortcuts_ffi.dart';
 
 // --- libX11 ------------------------------------------------------------------
 
+typedef _VoidPN = Pointer<Void> Function();
+typedef _VoidPD = Pointer<Void> Function();
+typedef _GetChildN = Pointer<Void> Function(Pointer<Void>);
+typedef _GetChildD = Pointer<Void> Function(Pointer<Void>);
+typedef _GetXidN = Uint64 Function(Pointer<Void>);
+typedef _GetXidD = int Function(Pointer<Void>);
+typedef _XGrabPointerN = Int32 Function(Pointer<Void>, Uint64, Int32, Uint32, Int32, Int32, Uint64, Uint64, Uint64);
+typedef _XGrabPointerD = int Function(Pointer<Void>, int, int, int, int, int, int, int, int);
+typedef _XUngrabPointerN = Int32 Function(Pointer<Void>, Uint64);
+typedef _XUngrabPointerD = int Function(Pointer<Void>, int);
+typedef _XFlushN = Int32 Function(Pointer<Void>);
+typedef _XFlushD = int Function(Pointer<Void>);
 typedef _XOpenDisplayNative = Pointer<Void> Function(Pointer<Utf8>);
 typedef _XOpenDisplayDart = Pointer<Void> Function(Pointer<Utf8>);
 typedef _XDisplayIntNative = Int32 Function(Pointer<Void>, Int32);
@@ -263,6 +275,8 @@ class DVLinuxBindings {
     DVLinuxKiosk.register(
       DVNativeBridge.register,
       fullscreen: () async => _windowAction('gtk_window_fullscreen'),
+      confinePointer: _confinePointer,
+      releasePointer: _releasePointer,
     );
     // The application menu, built into the real GTK window.
     DVLinuxMenus.register(_gtk!, _glib!, DVNativeBridge.register);
@@ -466,6 +480,47 @@ class DVLinuxBindings {
       'gtk_window_resize',
     )(window, width, height);
     return true;
+  }
+
+  /// Holds the pointer inside the toplevel: a grab on the application's own
+  /// X connection with the window as the confine-to, so the application
+  /// keeps receiving its events (it is the grabbing client) and the pointer
+  /// cannot leave. Returns why it could not, or null.
+  static String? _confinePointer() {
+    final Pointer<Void>? window = _toplevel();
+    if (window == null) return 'no window to confine the pointer to';
+    final Pointer<Void> gdkWindow = _gtk!
+        .lookupFunction<_GetChildN, _GetChildD>('gtk_widget_get_window')(window);
+    if (gdkWindow == nullptr) return 'the window is not realized yet';
+    final Pointer<Void> gdkDisplay =
+        _gdk!.lookupFunction<_VoidPN, _VoidPD>('gdk_display_get_default')();
+    final Pointer<Void> xDisplay = _gdk!
+        .lookupFunction<_GetChildN, _GetChildD>('gdk_x11_display_get_xdisplay')(gdkDisplay);
+    final int xid =
+        _gdk!.lookupFunction<_GetXidN, _GetXidD>('gdk_x11_window_get_xid')(gdkWindow);
+    // ButtonPress | ButtonRelease | PointerMotion; async modes; confine to
+    // the window itself; no cursor; now.
+    const int mask = 0x4 | 0x8 | 0x40;
+    final int status = _x11!.lookupFunction<_XGrabPointerN, _XGrabPointerD>('XGrabPointer')(
+        xDisplay, xid, 1, mask, 1, 1, xid, 0, 0);
+    _x11!.lookupFunction<_XFlushN, _XFlushD>('XFlush')(xDisplay);
+    return switch (status) {
+      0 => null,
+      1 => 'another client already holds the pointer',
+      2 => 'the grab time was invalid',
+      3 => 'the window is not viewable',
+      4 => 'the pointer is frozen by another grab',
+      _ => 'XGrabPointer returned $status',
+    };
+  }
+
+  static void _releasePointer() {
+    final Pointer<Void> gdkDisplay =
+        _gdk!.lookupFunction<_VoidPN, _VoidPD>('gdk_display_get_default')();
+    final Pointer<Void> xDisplay = _gdk!
+        .lookupFunction<_GetChildN, _GetChildD>('gdk_x11_display_get_xdisplay')(gdkDisplay);
+    _x11!.lookupFunction<_XUngrabPointerN, _XUngrabPointerD>('XUngrabPointer')(xDisplay, 0);
+    _x11!.lookupFunction<_XFlushN, _XFlushD>('XFlush')(xDisplay);
   }
 
   static bool _windowAction(String symbol) {
