@@ -201,9 +201,10 @@
         "packages/dartvel_flutter/test/web_bindings_browser_test.dart",
         "packages/dartvel_flutter/test/web_bindings_test.dart",
         "packages/dartvel_flutter/test/windows_bindings_live_test.dart",
-        "packages/dartvel_flutter/test/windows_bindings_test.dart"
+        "packages/dartvel_flutter/test/windows_bindings_test.dart",
+        "packages/dartvel_cli/test/platform_bindings_registration_test.dart"
       ],
-      "absent": "Per-platform native bindings remain unbound where the capability has no host API to reach: measured now rather than estimated, that is 32 names on Linux, 24 on web, 33 on Windows, 33 on macOS and 30 on iOS, many of which are not applicable to the platform at all (NFC and haptics on a desktop). files.readBytes/writeBytes/delete now ship for every platform with a filesystem.. DV.Platform.screen is now also reachable reactively as context.screen, which reads MediaQuery and so rebuilds on a resize; the plain getters read the raw window and register no dependency, so a widget built on them laid out once at first-frame size and never reflowed"
+      "absent": "Per-platform native bindings remain unbound where the capability has no host API to reach: measured now rather than estimated, that is 32 names on Linux, 24 on web, 33 on Windows, 33 on macOS and 30 on iOS, many of which are not applicable to the platform at all (NFC and haptics on a desktop). files.readBytes/writeBytes/delete now ship for every platform with a filesystem.. DV.Platform.screen is now also reachable reactively as context.screen, which reads MediaQuery and so rebuilds on a resize; the plain getters read the raw window and register no dependency, so a widget built on them laid out once at first-frame size and never reflowed. The generated runtime now registers the running platform's bindings itself; until it did, no generated application called DVLinuxBindings.register() or its siblings, and every platform API on desktop threw \"binding not registered\" in a real app while the matrix reported the bindings as implemented"
     },
     {
       "section": "Database",
@@ -430,9 +431,13 @@
       "stability": "Draft",
       "status": "Partial",
       "evidence": [
-        "packages/dartvel_flutter/test/linux_bindings_test.dart"
+        "packages/dartvel_flutter/test/linux_bindings_test.dart",
+        "packages/dartvel_flutter/lib/src/platform/linux/linux_shortcuts_ffi.dart",
+        "packages/dartvel_flutter/lib/src/platform/accelerator.dart",
+        "packages/dartvel_flutter/test/linux_shortcuts_test.dart",
+        "packages/dartvel_flutter/test/shortcuts_delivery_test.dart"
       ],
-      "absent": "Tray, menus, global shortcuts, multi-window, and every device/fleet API"
+      "absent": "Tray and status icons, native application menus, file associations, drag and drop, printing, system dialogs, and every device and fleet API (capability manifests, watchdog, provisioning, diagnostics) -- all with binding names declared and nothing behind them. Built: global shortcuts, parsed once (DVAccelerator, with CmdOrCtrl decided per platform) and delivered back to Dart through DVShortcuts.dispatch, with the Linux grab bound through XGrabKey on a pump isolate's own X connection and tested under Xvfb with XTest pressing the keys; multi-window and window state persistence, which the Multi-Window entry records. Shortcuts are bound on Linux only: Windows and macOS have the Dart side and no grab"
     },
     {
       "section": "Kiosk Mode",
