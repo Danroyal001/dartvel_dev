@@ -74,4 +74,9 @@ const Set<String> dvMacosImplementedBindings = <String>{
   'dialogs.chooseDirectory',
   'dialogs.message',
   'media.pick',
+
+  // The window's content view as a dragging destination: the file list a
+  // file manager writes, and the text a browser writes.
+  'dragDrop.accept',
+  'dragDrop.stop',
 };

@@ -49,6 +49,9 @@ void main() {
           'dialogs.chooseDirectory',
           'dialogs.message',
           'media.pick',
+          // The content view as a dragging destination.
+          'dragDrop.accept',
+          'dragDrop.stop',
           // Pictures onto pages, to a PDF.
           'printing.toFile',
         },
