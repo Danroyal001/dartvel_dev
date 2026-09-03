@@ -12,6 +12,8 @@ import 'package:dartvel_core/dartvel.dart' show DVKioskReset, DVKioskRuntime;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../dartvel_flutter.dart' show DV;
+
 class DVKioskHost extends StatefulWidget {
   final DVKioskRuntime runtime;
 
@@ -79,12 +81,15 @@ class _DVKioskHostState extends State<DVKioskHost> {
   void _listen(DVKioskRuntime runtime) {
     runtime.countdown.addListener(_changed);
     runtime.state.addListener(_changed);
+    runtime.state.addListener(_mirror);
+    _mirror();
     _resets = runtime.resets.listen((DVKioskReset reset) => widget.onHome(reset.home));
   }
 
   void _unlisten(DVKioskRuntime runtime) {
     runtime.countdown.removeListener(_changed);
     runtime.state.removeListener(_changed);
+    runtime.state.removeListener(_mirror);
     unawaited(_resets?.cancel());
     _resets = null;
   }
@@ -92,6 +97,10 @@ class _DVKioskHostState extends State<DVKioskHost> {
   void _changed() {
     if (mounted) setState(() {});
   }
+
+  /// DV.lifecycle.kiosk follows the runtime on screen, whether or not the
+  /// app handed the runtime the registry itself.
+  void _mirror() => DV.lifecycle.setKiosk(widget.runtime.state.value);
 
   @override
   Widget build(BuildContext context) {
