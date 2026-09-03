@@ -25,4 +25,11 @@ const Set<String> dvMacosImplementedBindings = <String>{
 
   // CoreGraphics, which is plain C and needs no Objective-C messaging.
   'screen.geometry',
+
+  // NSApplication's presentation options: the Dock and menu bar hidden,
+  // process switching, force quit, session termination and hiding disabled.
+  // The one AppKit state the bindings touch, and only from the platform
+  // thread, which is where Flutter runs the root isolate on macOS.
+  'kiosk.enforce',
+  'kiosk.release',
 };
