@@ -10,8 +10,22 @@ import 'job_generator.dart';
 import 'model_generator.dart';
 import 'static_paths_generator.dart';
 
-Future<void> generate({bool validateProd = false}) async {
-  final root = Directory.current.path;
+/// Generates a Dartvel project, and every module it mounts.
+///
+/// [root] is the project, defaulting to the working directory. A mounted
+/// module is generated first: the parent imports the module's own generated
+/// client, so a parent generated against an ungenerated module would import
+/// a library that is not there. [generated] carries what has been done, so a
+/// module mounted twice is generated once and a cycle ends rather than
+/// recurring.
+Future<void> generate({
+  bool validateProd = false,
+  String? root_,
+  Set<String>? generated,
+}) async {
+  final root = root_ ?? Directory.current.path;
+  final Set<String> done = generated ?? <String>{};
+  if (!done.add(File(root).absolute.path)) return;
 
   // Unique build id for this generation (UTC ISO + epoch millis)
   final now = DateTime.now().toUtc();
@@ -75,6 +89,13 @@ Future<void> generate({bool validateProd = false}) async {
   for (final module in modules) {
     for (final problem in module.problems) {
       log('dartvel: $problem');
+    }
+    if (module.sourcePath.isEmpty) continue;
+    // Generated before the parent, because the parent imports its client.
+    final moduleRoot = File('$root/${module.sourcePath}').absolute.path;
+    if (Directory(moduleRoot).existsSync()) {
+      log('dartvel: generating mounted module ${module.id}');
+      await generate(root_: moduleRoot, generated: done);
     }
     if (module.routes.isNotEmpty) {
       log('dartvel: mounted module ${module.id} at ${module.mount} '

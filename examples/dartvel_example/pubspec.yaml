@@ -26,6 +26,10 @@ dependencies:
     path: ../../packages/dartvel_core
   dartvel_shelf:
     path: ../../packages/dartvel_shelf
+  # The module this application mounts. A mounted module is a package like
+  # any other; the mount point is the parent's business, declared below.
+  dartvel_example_notes:
+    path: modules/notes
   dartvel_flutter:
     path: ../../packages/dartvel_flutter
   mime: ^1.0.0
@@ -62,6 +66,15 @@ dartvel:
   backendPort: 3000
   devBackendHost: http://localhost:3000
   prodBackendHost: https://api.example.com
+
+  # A module mounted at /notes: its own /:id answers at /notes/:id here, and
+  # its pages are in this application's route index and sitemap.
+  modules:
+    notes:
+      source:
+        path: modules/notes
+      mount: /notes
+      deployment: embedded
 
   pagesDir: lib/pages
   backendDir: lib/backend

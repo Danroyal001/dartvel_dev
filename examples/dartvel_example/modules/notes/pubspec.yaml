@@ -1,0 +1,34 @@
+name: dartvel_example_notes
+description: A Dartvel module, mounted into the example application at /notes.
+publish_to: none
+version: 1.0.0
+
+environment:
+  sdk: ">=3.12.0 <4.0.0"
+  flutter: ">=3.44.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  dartvel_core:
+    path: ../../../../packages/dartvel_core
+  dartvel_flutter:
+    path: ../../../../packages/dartvel_flutter
+  # The generated router is a GoRouter, so a Dartvel project declares it.
+  go_router: ^14.2.0
+
+dartvel:
+  # A module is a complete Dartvel project: it runs on its own at /, and
+  # mounted it answers under whatever the parent gives it.
+  module:
+    id: notes
+    name: Notes
+    version: 1.0.0
+    routes:
+      base: /
+  pagesDir: lib/pages
+  backendHost: 0.0.0.0
+  backendPort: 3100
+  devBackendHost: http://localhost:3100
+  prodBackendHost: https://notes.example.com
+  apiBasePath: /api
