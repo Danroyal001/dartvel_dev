@@ -515,9 +515,10 @@
         "packages/dartvel_flutter/test/studio_editor_test.dart",
         "packages/dartvel_flutter/test/page_document_test.dart",
         "packages/dartvel_flutter/test/studio_styling_test.dart",
-        "packages/dartvel_flutter/test/page_update_delivery_test.dart"
+        "packages/dartvel_flutter/test/page_update_delivery_test.dart",
+        "packages/dartvel_flutter/test/page_breakpoints_test.dart"
       ],
-      "absent": "Five leaf node types (text, image, button, spacer, divider); no reusable components or patterns, revision history beyond in-session undo, responsive breakpoints, or multi-user editing. The visual backend workflow builder is not absent but Pro: it moved to dartvel_studio_pro in the private enterprise repository and attaches through DVStudioSection, so an open-source build has no Workflows tab. A Figma import -- every top-level frame of a file becomes a DVPageDocument, editable in the builder and exportable as an ordinary @DVPage -- also lives in dartvel_studio_pro, attached the same way, with the frames' auto-layout, fills, text styles and image fills mapped onto the node properties the renderer already paints"
+      "absent": "Five leaf node types (text, image, button, spacer, divider); no reusable components or patterns, revision history beyond in-session undo, or multi-user editing. Responsive breakpoints are built: a node carries mobile-first per-breakpoint overrides, the renderer resolves them against context.screen.breakpoint, and the export switches on the breakpoint rather than flattening to one width. The visual backend workflow builder is not absent but Pro: it moved to dartvel_studio_pro in the private enterprise repository and attaches through DVStudioSection, so an open-source build has no Workflows tab. A Figma import -- every top-level frame of a file becomes a DVPageDocument, editable in the builder and exportable as an ordinary @DVPage -- also lives in dartvel_studio_pro, attached the same way, with the frames' auto-layout, fills, text styles and image fills mapped onto the node properties the renderer already paints"
     },
     {
       "section": "Admin, Devtools, and Scaffolding",
