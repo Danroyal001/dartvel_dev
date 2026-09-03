@@ -235,6 +235,7 @@ class DVWindowSharedStore {
   /// [set] without the namespace check, for the framework's own state.
   @internal
   Future<void> setReserved(String key, DVJsonValue? value) async {
+    DVWindowPerformance.current.recordStoreWrite(key);
     _latest[key] = value;
     _publish(key, value);
 
@@ -265,11 +266,14 @@ class DVWindowSharedStore {
   Future<void> _flush(String key, DVJsonValue? value) async {
     if (value == null) {
       await _backend.write(key, null);
+      DVWindowPerformance.current.recordStoreFlush(key, bytes: null);
       return;
     }
     final encoded = jsonEncode(DVJsonCodec.toJson(value));
     final storage = _spill;
     if (storage != null && encoded.length > spillThresholdBytes) {
+      DVWindowPerformance.current
+          .recordStoreFlush(key, bytes: encoded.length, spilled: true);
       // The pointer write is what triggers the notification, and the reader
       // follows it — so spilling needs no watcher of its own.
       final objectKey = 'dartvel/window-shared/${_objectName(key)}';
@@ -282,6 +286,7 @@ class DVWindowSharedStore {
       return;
     }
     await _backend.write(key, _cipher.encrypt(encoded));
+    DVWindowPerformance.current.recordStoreFlush(key, bytes: encoded.length);
   }
 
   /// A file-safe name for [key]. Deterministic, so a rewrite replaces the
