@@ -82,6 +82,7 @@ export 'src/kiosk/updates.dart';
 export 'src/lifecycle/lifecycle.dart';
 export 'src/mail/smtp.dart';
 export 'src/media/image.dart';
+export 'src/modules/manifest.dart';
 export 'src/modules/modules.dart';
 export 'src/notifications/web_push.dart';
 export 'src/notifications/web_push_vapid.dart';
