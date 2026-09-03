@@ -2292,6 +2292,10 @@ class DVNativeBridge {
     _handlers[method] = handler;
   }
 
+  /// Every binding a handler is registered for, sorted: what this build on
+  /// this platform can actually do, as opposed to the names declared.
+  static List<String> get registered => _handlers.keys.toList()..sort();
+
   static void unregister(String method) {
     _handlers.remove(method);
   }

@@ -84,6 +84,12 @@ void main() {
         'dialogs.saveFile',
         'dialogs.chooseDirectory',
         'dialogs.message',
+        'device.capabilityManifest',
+        'device.health',
+        'device.watchdog.arm',
+        'device.watchdog.heartbeat',
+        'device.fleet.provision',
+        'device.diagnostics.collect',
       },
     );
     expect(DVLinuxBindings.isRegistered, isTrue);

@@ -10,6 +10,7 @@ import 'dart:ffi';
 import 'package:ffi/ffi.dart';
 
 import '../../../dartvel_flutter.dart';
+import 'linux_device.dart';
 import 'linux_dialogs_ffi.dart';
 import 'linux_kiosk_ffi.dart';
 import 'linux_menus_ffi.dart';
@@ -174,6 +175,12 @@ class DVLinuxBindings {
     'dialogs.saveFile',
     'dialogs.chooseDirectory',
     'dialogs.message',
+    'device.capabilityManifest',
+    'device.health',
+    'device.watchdog.arm',
+    'device.watchdog.heartbeat',
+    'device.fleet.provision',
+    'device.diagnostics.collect',
   };
 
   static DynamicLibrary? _x11;
@@ -260,6 +267,7 @@ class DVLinuxBindings {
     DVLinuxMenus.register(_gtk!, _glib!, DVNativeBridge.register);
     DVLinuxPrinting.register(_gtk!, _glib!, DVNativeBridge.register);
     DVLinuxDialogs.register(_gtk!, _glib!, DVNativeBridge.register);
+    DVLinuxDevice.register(DVNativeBridge.register);
 
     _registered = true;
     return true;
@@ -276,6 +284,7 @@ class DVLinuxBindings {
     unawaited(DVLinuxShortcuts.unregister());
     DVLinuxMenus.unregister();
     DVLinuxDialogs.unregister();
+    DVLinuxDevice.unregister();
     _registered = false;
   }
 
