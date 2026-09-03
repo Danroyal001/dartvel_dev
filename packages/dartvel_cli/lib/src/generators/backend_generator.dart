@@ -516,12 +516,14 @@ final core.DVPageDataResolver dartvelPageData = core.dvModelPageResolver(
 
 /// Starts the backend. With [spaRoot], the built site is served beside the
 /// API and each page assembled on request from the web-server manifest and
-/// the model's data.
-Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls, bool h2c = false, dv.CorsOptions? cors, String? spaRoot}) {
+/// the model's data. With [pageStore] -- any cache adapter, so Redis where
+/// the deployment has one -- the assembled pages are kept there rather than
+/// in this process, and a second instance serves what the first resolved.
+Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls, bool h2c = false, dv.CorsOptions? cors, String? spaRoot, core.DVCacheAdapter? pageStore}) {
   final router = buildBackendRouter();
   final bindHost = host ?? cfg.backendHost;
   final bindPort = port ?? cfg.backendPort;
-  return dv.serve(router.call, host: bindHost, port: bindPort, tls: tls, h2c: h2c, cors: cors, spaRoot: spaRoot, pageData: dartvelPageData);
+  return dv.serve(router.call, host: bindHost, port: bindPort, tls: tls, h2c: h2c, cors: cors, spaRoot: spaRoot, pageData: dartvelPageData, pageStore: pageStore);
 }
 ''';
     File(p.join(backendOut.path, 'dartvel_backend_routes.g.dart'))

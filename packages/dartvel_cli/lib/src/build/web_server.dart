@@ -16,7 +16,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:dartvel_core/dartvel.dart' show DVPageData, DVPageDataCache, DVPageDataMode, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVWebServerSettings, dvMatchRoute, dvRenderPage, dvRenderRoute;
+import 'package:dartvel_core/dartvel.dart' show DVCacheAdapter, DVPageData, DVPageDataCache, DVPageDataMode, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVWebServerSettings, dvMatchRoute, dvRenderPage, dvRenderRoute;
 import 'package:path/path.dart' as p;
 import 'package:shelf/shelf.dart';
 import 'package:shelf_static/shelf_static.dart';
@@ -131,7 +131,9 @@ Handler dvWebServerHandler({
   DVPageDataResolver? pageData,
   DVPageDataMode? pageDataMode,
   Duration? cacheTtl,
+  Duration? staleFor,
   bool? streaming,
+  DVCacheAdapter? pageStore,
 }) {
   final manifestFile = File(p.join(webRoot, 'dartvel_routes.json'));
   final shellFile = File(p.join(webRoot, 'index.html'));
@@ -161,8 +163,11 @@ Handler dvWebServerHandler({
   final DVWebServerSettings declared = DVWebServerSettings.parse(manifest['server']);
   final DVPageDataMode mode = pageDataMode ?? declared.pageDataMode;
   final Duration ttl = cacheTtl ?? declared.cacheTtl;
+  final Duration stale = staleFor ?? declared.staleFor;
   final bool stream = streaming ?? declared.streaming;
-  final DVPageDataCache cache = DVPageDataCache(ttl: ttl);
+  // Given a store, the kept pages live there rather than in this process,
+  // so a second server serves what the first resolved.
+  final DVPageDataCache cache = DVPageDataCache(ttl: ttl, staleFor: stale, shared: pageStore);
 
   /// The data for [path], by the mode: resolved, kept, served stale, or not
   /// asked for at all.

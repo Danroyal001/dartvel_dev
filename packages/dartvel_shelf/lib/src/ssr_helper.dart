@@ -2,7 +2,7 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:path/path.dart' as p;
 import 'package:dartvel_core/dartvel.dart'
-    show DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVWebServerSettings, dvMatchRoute, dvRenderPage, dvRenderRoute;
+    show DVCacheAdapter, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVWebServerSettings, dvMatchRoute, dvRenderPage, dvRenderRoute;
 import 'package:dartvel_core/http.dart';
 
 /// Serve the single-page app's index, with any prerendered metadata for this
@@ -23,6 +23,7 @@ Future<Response> handleSsrFallback(
   String spaRoot, {
   DVPageDataResolver? pageData,
   DVPageDataCache? cache,
+  DVCacheAdapter? pageStore,
 }) async {
   final indexFile = File(p.join(spaRoot, 'index.html'));
   if (!await indexFile.exists()) {
@@ -36,7 +37,7 @@ Future<Response> handleSsrFallback(
   // the backend was started with, by the declared mode.
   final manifestFile = File(p.join(spaRoot, 'dartvel_routes.json'));
   if (await manifestFile.exists()) {
-    return _fromManifest(req, html, manifestFile, pageData: pageData, cache: cache ?? _defaultCache);
+    return _fromManifest(req, html, manifestFile, spaRoot: spaRoot, pageData: pageData, cache: cache, pageStore: pageStore);
   }
 
   // Check for prerendered metadata
@@ -80,15 +81,25 @@ Future<Response> handleSsrFallback(
       headers: headers, body: Stream<List<int>>.value(utf8.encode(html)));
 }
 
-/// The kept pages for the process, when the caller keeps none of its own.
-final DVPageDataCache _defaultCache = DVPageDataCache();
+/// The kept pages, one cache per site, built from what that site's manifest
+/// declares: a cache built before the manifest is read would keep every
+/// page for the default sixty seconds however long the declaration says.
+final Map<String, DVPageDataCache> _caches = <String, DVPageDataCache>{};
+
+DVPageDataCache _cacheFor(String spaRoot, DVWebServerSettings settings, DVCacheAdapter? store) =>
+    _caches.putIfAbsent(
+      spaRoot,
+      () => DVPageDataCache(ttl: settings.cacheTtl, staleFor: settings.staleFor, shared: store),
+    );
 
 Future<Response> _fromManifest(
   Request req,
   String shell,
   File manifestFile, {
+  required String spaRoot,
   required DVPageDataResolver? pageData,
-  required DVPageDataCache cache,
+  required DVPageDataCache? cache,
+  required DVCacheAdapter? pageStore,
 }) async {
   Map<String, Object?> manifest;
   try {
@@ -107,7 +118,8 @@ Future<Response> _fromManifest(
   final DVPageRequest? matched = dvMatchRoute(path, routeMap.keys, headers: req.headers.singleValueMap);
   DVPageData? data;
   if (pageData != null && matched != null) {
-    data = await cache.resolve(matched, pageData, settings.pageDataMode);
+    data = await (cache ?? _cacheFor(spaRoot, settings, pageStore))
+        .resolve(matched, pageData, settings.pageDataMode);
   }
 
   final Map<String, Object?>? route = matched == null ? null : (routeMap[matched.pattern] as Map?)?.cast<String, Object?>();

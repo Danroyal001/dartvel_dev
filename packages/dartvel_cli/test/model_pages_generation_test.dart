@@ -95,5 +95,9 @@ void main() {
     expect(routes, contains('String? spaRoot'));
     expect(routes, contains('spaRoot: spaRoot'));
     expect(routes, contains('pageData: dartvelPageData'));
+    // Where the assembled pages are kept, so two instances of the backend
+    // do not each resolve every page.
+    expect(routes, contains('core.DVCacheAdapter? pageStore'));
+    expect(routes, contains('pageStore: pageStore'));
   });
 }
