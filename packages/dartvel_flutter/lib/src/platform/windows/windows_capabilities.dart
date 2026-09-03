@@ -70,4 +70,12 @@ const Set<String> dvWindowsImplementedBindings = <String>{
   'permissions.isGranted',
   'permissions.request',
   'deepLinks.initial',
+
+  // The common dialogs with a hook, the folder browser with its callback,
+  // the message box under a CBT hook: each answerable from its own loop.
+  'dialogs.openFile',
+  'dialogs.saveFile',
+  'dialogs.chooseDirectory',
+  'dialogs.message',
+  'media.pick',
 };

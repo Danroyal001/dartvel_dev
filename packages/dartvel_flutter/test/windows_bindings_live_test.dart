@@ -552,6 +552,89 @@ void main() {
     });
   });
 
+  group('dialogs', () {
+    // The real common dialogs, answered from their own hooks the way a
+    // person would: a path typed, OK or Cancel pressed. What is asserted is
+    // what the dialog showed and what came back.
+    late Directory dir;
+    setUp(() {
+      dir = Directory.systemTemp.createTempSync('dartvel_dialogs_');
+      File('${dir.path}\\notes.txt').writeAsStringSync('hello');
+      File('${dir.path}\\photo.png').writeAsBytesSync(<int>[0x89, 0x50, 0x4E, 0x47]);
+    });
+    tearDown(() {
+      DVWindowsDialogs.automate(null);
+      dir.deleteSync(recursive: true);
+    });
+
+    test('open: the user picks a file and presses Open', () async {
+      late DVWindowsDialogSeen seen;
+      DVWindowsDialogs.automate((DVWindowsDialog dialog) {
+        seen = dialog.inspect();
+        dialog.selectPath('${dir.path}\\notes.txt');
+        dialog.accept();
+      });
+      final List<String> picked = await DV.Platform.Dialogs.openFile(
+        title: 'Pick a note',
+        filters: const <DVFileFilter>[DVFileFilter(label: 'Text', extensions: <String>['txt'])],
+        initialDirectory: dir.path,
+      );
+      expect(picked, <String>['${dir.path}\\notes.txt']);
+      expect(seen.title, 'Pick a note');
+      expect(seen.filterLabels, <String>['Text']);
+      expect(seen.currentFolder?.toLowerCase(), dir.path.toLowerCase());
+    });
+
+    test('open: cancel is no files, not an error', () async {
+      DVWindowsDialogs.automate((DVWindowsDialog dialog) => dialog.cancel());
+      expect(await DV.Platform.Dialogs.openFile(initialDirectory: dir.path), isEmpty);
+    });
+
+    test('save: the suggested name is offered and the chosen path returned', () async {
+      late DVWindowsDialogSeen seen;
+      DVWindowsDialogs.automate((DVWindowsDialog dialog) {
+        seen = dialog.inspect();
+        dialog.accept();
+      });
+      final String? path = await DV.Platform.Dialogs.saveFile(suggestedName: 'report.pdf', initialDirectory: dir.path);
+      expect(seen.currentName, 'report.pdf');
+      expect(path?.toLowerCase(), '${dir.path}\\report.pdf'.toLowerCase());
+    });
+
+    test('choose a directory', () async {
+      DVWindowsDialogs.automate((DVWindowsDialog dialog) {
+        dialog.selectPath(dir.path);
+        dialog.accept();
+      });
+      expect((await DV.Platform.Dialogs.chooseDirectory())?.toLowerCase(), dir.path.toLowerCase());
+    });
+
+    test('a message is shown with its text and dismissed', () async {
+      late DVWindowsDialogSeen seen;
+      DVWindowsDialogs.automate((DVWindowsDialog dialog) {
+        seen = dialog.inspect();
+        dialog.accept();
+      });
+      await DV.Platform.Dialogs.message(title: 'Saved', text: 'Your report was saved.', kind: DVDialogKind.info);
+      expect(seen.title, 'Saved');
+      expect(seen.messageText, contains('Your report was saved.'));
+    });
+
+    test('media.pick is the open dialog with the kind\'s filters', () async {
+      late DVWindowsDialogSeen seen;
+      DVWindowsDialogs.automate((DVWindowsDialog dialog) {
+        seen = dialog.inspect();
+        dialog.selectPath('${dir.path}\\photo.png');
+        dialog.accept();
+      });
+      final List<Map<String, Object?>> picked = await DV.Platform.media.pick(type: 'image');
+      expect(picked.single['path'], '${dir.path}\\photo.png');
+      expect(picked.single['type'], 'image');
+      expect(picked.single['name'], 'photo.png');
+      expect(seen.filterLabels, <String>['Images']);
+    });
+  });
+
   test('an unimplemented binding still throws', () async {
     // Notifications are deliberately absent; see the capability list.
     await expectLater(

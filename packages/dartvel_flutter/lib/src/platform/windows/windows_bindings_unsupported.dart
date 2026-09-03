@@ -66,3 +66,33 @@ class DVWindowsPrinting {
 
   static const Set<String> implemented = <String>{'printing.toFile'};
 }
+
+/// What a Windows dialog showed, unavailable here.
+class DVWindowsDialogSeen {
+  const DVWindowsDialogSeen({this.title, this.filterLabels = const <String>[], this.currentFolder, this.currentName, this.messageText});
+  final String? title;
+  final List<String> filterLabels;
+  final String? currentFolder;
+  final String? currentName;
+  final String? messageText;
+}
+
+/// A Windows dialog, unavailable here.
+class DVWindowsDialog {
+  const DVWindowsDialog._();
+  DVWindowsDialogSeen inspect() => const DVWindowsDialogSeen();
+  void selectPath(String path) {}
+  void accept() {}
+  void cancel() {}
+}
+
+typedef DVWindowsDialogAutomation = void Function(DVWindowsDialog dialog);
+
+/// The Windows dialogs, unavailable here.
+class DVWindowsDialogs {
+  const DVWindowsDialogs._();
+
+  static const Set<String> implemented = <String>{'dialogs.openFile', 'dialogs.saveFile', 'dialogs.chooseDirectory', 'dialogs.message', 'media.pick'};
+  static void automate(DVWindowsDialogAutomation? automation) {}
+  static void unregister() {}
+}
