@@ -665,6 +665,10 @@ jobs:
           # window, and -x keeps the shutter sound out of the log.
           screencapture -x /tmp/diag/macos.png
           sips -g pixelWidth -g pixelHeight /tmp/diag/macos.png || true
+          # Gone before the integration suite launches its own copy; see the
+          # Windows job for why a running instance fails that suite.
+          pkill -f dartvel_example.app || true
+          sleep 2
 
       - name: Run on an iOS simulator and photograph it
         id: ios
@@ -754,6 +758,11 @@ jobs:
           $g.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
           $bmp.Save("C:\diag\windows.png")
           "saved $($bounds.Width)x$($bounds.Height)" | Tee-Object -Append -FilePath C:\diag\windows-run.log
+          # Gone before the integration suite launches its own copy. A running
+          # instance makes the suite's launch a second launch, which hands its
+          # arguments over and exits -- as designed -- and the harness then
+          # reports an app that vanished as "no tests were found".
+          Stop-Process -Name dartvel_example -Force -ErrorAction SilentlyContinue
 
       # Same rule as the other jobs: no capture is not a pass.
       # Links, tapped on the device this job is running. A widget test cannot
