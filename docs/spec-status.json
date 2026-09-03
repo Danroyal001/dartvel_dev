@@ -396,9 +396,11 @@
       "evidence": [
         "packages/dartvel_core/test/billing_grants_test.dart",
         "packages/dartvel_core/lib/src/billing/stripe.dart",
-        "packages/dartvel_core/test/stripe_billing_test.dart"
+        "packages/dartvel_core/test/stripe_billing_test.dart",
+        "packages/dartvel_core/lib/src/billing/paddle.dart",
+        "packages/dartvel_core/test/paddle_billing_test.dart"
       ],
-      "absent": "Paddle, and app-store and Play Billing purchases. Stripe is built: checkout sessions for a plan's configured price, and webhooks that grant and revoke entitlements from subscription status -- believed only when the Stripe-Signature matches in constant time and its timestamp is within five minutes, with the secret key never echoed in an error. Not exercised against Stripe itself; the tests inject the HTTP and the clock"
+      "absent": "App-store and Play Billing purchases, which need the store bindings. Stripe and Paddle are built: checkout for a plan's configured price, and webhooks that grant and revoke entitlements from subscription status -- each believed only when its own signature scheme matches in constant time within five minutes (Stripe's t=/v1= over 't.payload', Paddle's ts=/h1= over 'ts:payload', and each provider refuses the other's), with the key never echoed in an error and a sandbox Paddle key routed to the sandbox host by the key itself. Not exercised against either service; the tests inject the HTTP and the clock"
     },
     {
       "section": "Internationalization and Localization",
