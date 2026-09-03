@@ -24,6 +24,9 @@ import 'src/display_platform.dart'
 import 'src/platform/accelerator.dart';
 import 'src/platform/dialogs.dart';
 import 'src/platform/printing.dart';
+import 'src/platform/terminal_size.dart';
+import 'src/platform/terminal_size_web.dart'
+    if (dart.library.io) 'src/platform/terminal_size_io.dart' as terminal_size;
 // DV.Updates.applyPages installs page bundles, which are these types.
 import 'src/pwa/install_prompt.dart';
 import 'src/seo_platform_memory.dart'
@@ -262,6 +265,7 @@ export 'src/platform/ios/ios_bindings.dart';
 export 'src/platform/linux/linux_bindings.dart';
 export 'src/platform/macos/macos_bindings.dart';
 export 'src/platform/printing.dart';
+export 'src/platform/terminal_size.dart';
 export 'src/platform/web/web_bindings.dart';
 export 'src/platform/windows/windows_bindings.dart';
 export 'src/pwa/install_prompt.dart';
@@ -3560,16 +3564,65 @@ enum DVTerminalGraphics { kitty, ansi }
 ///
 /// Null whenever the surface is a GUI: asking a window for its column count is
 /// a question with no answer, and a fabricated one would be worse than none.
+/// The terminal being drawn into.
+///
+/// [size] is a signal, so a layout responds to a resized terminal through
+/// the same reactive path a resized window uses: the size is read from the
+/// terminal the process is attached to and read again when the terminal
+/// says it changed -- SIGWINCH on POSIX, see [windowChanges].
 class DVTerminalSurface {
-  const DVTerminalSurface({
-    required this.columns,
-    required this.rows,
+  DVTerminalSurface({
     required this.graphics,
-  });
+    required DVTerminalSize Function() read,
+    required Stream<void> resizes,
+  })  : _read = read,
+        size = ValueNotifier<DVTerminalSize>(read()) {
+    _resizes = resizes.listen((_) {
+      final DVTerminalSize next = _read();
+      if (next != size.value) size.value = next;
+    });
+  }
 
-  final int columns;
-  final int rows;
+  /// A terminal whose size never changes. For tests and for backends that
+  /// report no resizes.
+  DVTerminalSurface.fixed({
+    required int columns,
+    required int rows,
+    required this.graphics,
+  })  : _read = (() => DVTerminalSize(columns: columns, rows: rows)),
+        size = ValueNotifier<DVTerminalSize>(DVTerminalSize(columns: columns, rows: rows)),
+        _resizes = null;
+
+  /// The terminal this process is attached to: its size from stdout, its
+  /// resizes from the window-change signal. 80 by 24 where there is none,
+  /// as every terminal program has assumed since there were terminals.
+  factory DVTerminalSurface.attached({required DVTerminalGraphics graphics}) =>
+      DVTerminalSurface(
+        graphics: graphics,
+        read: readAttachedSize,
+        resizes: windowChanges(),
+      );
+
+  static DVTerminalSize readAttachedSize() => terminal_size.dvReadAttachedTerminalSize();
+
+  /// One event per window-change signal; empty where the platform has none.
+  static Stream<void> windowChanges() => terminal_size.dvTerminalWindowChanges();
+
   final DVTerminalGraphics graphics;
+  final DVTerminalSize Function() _read;
+  StreamSubscription<void>? _resizes;
+
+  /// Columns and rows, as a signal.
+  final ValueNotifier<DVTerminalSize> size;
+
+  int get columns => size.value.columns;
+  int get rows => size.value.rows;
+
+  void dispose() {
+    unawaited(_resizes?.cancel());
+    _resizes = null;
+    size.dispose();
+  }
 
   @override
   String toString() =>

@@ -35,7 +35,7 @@ void main() {
     test('terminal details exist when the surface is a terminal', () {
       DV.Platform.useRenderSurface(
         DVRenderSurface.terminal,
-        terminal: const DVTerminalSurface(
+        terminal: DVTerminalSurface.fixed(
           columns: 120,
           rows: 40,
           graphics: DVTerminalGraphics.kitty,
@@ -56,7 +56,7 @@ void main() {
       // rather than inferred from the terminal name.
       DV.Platform.useRenderSurface(
         DVRenderSurface.terminal,
-        terminal: const DVTerminalSurface(
+        terminal: DVTerminalSurface.fixed(
           columns: 80,
           rows: 24,
           graphics: DVTerminalGraphics.ansi,
@@ -71,7 +71,7 @@ void main() {
       // Switching back must not leave a stale terminal describing a window.
       DV.Platform.useRenderSurface(
         DVRenderSurface.terminal,
-        terminal: const DVTerminalSurface(
+        terminal: DVTerminalSurface.fixed(
           columns: 80,
           rows: 24,
           graphics: DVTerminalGraphics.ansi,
