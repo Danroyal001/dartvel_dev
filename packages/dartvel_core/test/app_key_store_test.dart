@@ -9,7 +9,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:dartvel_core/dartvel.dart';
+import 'package:dartvel_core/dartvel.dart' hide Platform;
 import 'package:test/test.dart';
 
 Uint8List key(int seed) => Uint8List.fromList(List<int>.generate(32, (int i) => (i * 7 + seed) & 0xff));
@@ -91,6 +91,32 @@ void main() {
       // Whatever this machine has, the answer is a boolean, not an exception:
       // the store chooser has to be able to ask.
       expect(available, isA<bool>());
+    });
+  });
+
+  group('the store for this machine', () {
+    test('is chosen from what answers here, under the given home', () async {
+      final Directory home = Directory.systemTemp.createTempSync('dv_home_');
+      addTearDown(() => home.deleteSync(recursive: true));
+      final DVAppKeyStore store = await DVAppKeyStores.platform('shop', home: home.path);
+      final bool service = await DVSecretServiceAppKeyStore.isAvailable();
+      if (Platform.isLinux && service) {
+        expect(store, isA<DVSecretServiceAppKeyStore>());
+      } else {
+        expect(store, isA<DVFileAppKeyStore>());
+        expect((store as DVFileAppKeyStore).path, '${home.path}/.dartvel/keys/shop.key');
+      }
+      // Whatever it is, a key can be kept in it: that is the promise a
+      // running application relies on at first start.
+      final Uint8List key = await DVAppKey.ensure(store);
+      expect(await store.read(), key);
+      await store.clear();
+    });
+
+    test('the home defaults to the user\'s', () async {
+      final DVAppKeyStore store = await DVAppKeyStores.platform('shop', secretService: false);
+      final String home = Platform.environment['HOME'] ?? Platform.environment['USERPROFILE']!;
+      expect((store as DVFileAppKeyStore).path, startsWith(home));
     });
   });
 

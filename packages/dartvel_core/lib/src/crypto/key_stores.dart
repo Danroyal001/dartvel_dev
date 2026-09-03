@@ -34,6 +34,24 @@ class DVAppKeyStores {
     return DVFileAppKeyStore('$home/.dartvel/keys/$app.key');
   }
 
+  /// The store for [app] on this machine: the Secret Service when one
+  /// answers, else the file under [home] (the user's by default). This is
+  /// what a running application hands to `DVAppKey.ensure` at first start,
+  /// so the key is generated per install and per user into custody the OS
+  /// protects, and never held only in memory.
+  static Future<DVAppKeyStore> platform(
+    String app, {
+    String? home,
+    bool? secretService,
+  }) async =>
+      choose(
+        app: app,
+        home: home ?? dvHostHome() ?? '.',
+        platform: dvHostOperatingSystem(),
+        secretService:
+            secretService ?? await DVSecretServiceAppKeyStore.isAvailable(),
+      );
+
   /// Where a key in [store] actually is, in words an operator can act on.
   static String describe(DVAppKeyStore store) {
     if (store is DVSecretServiceAppKeyStore) {

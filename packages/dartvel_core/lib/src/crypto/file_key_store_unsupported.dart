@@ -18,3 +18,7 @@ class DVFileAppKeyStore implements DVAppKeyStore {
   @override
   Future<void> clear() async {}
 }
+
+String dvHostOperatingSystem() => 'web';
+
+String? dvHostHome() => null;

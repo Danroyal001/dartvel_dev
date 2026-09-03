@@ -52,3 +52,10 @@ class DVFileAppKeyStore implements DVAppKeyStore {
     await Process.run('chmod', <String>[mode, target]);
   }
 }
+
+/// The host's operating system name, as `Platform.operatingSystem` gives it.
+String dvHostOperatingSystem() => Platform.operatingSystem;
+
+/// The user's home directory, or null when the environment has none.
+String? dvHostHome() =>
+    Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
