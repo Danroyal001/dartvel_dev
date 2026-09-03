@@ -48,4 +48,8 @@ const Set<String> dvWindowsImplementedBindings = <String>{
   'device.watchdog.heartbeat',
   'device.fleet.provision',
   'device.diagnostics.collect',
+
+  // A Win32 menu bar on the process's window, the window subclassed so
+  // WM_COMMAND is dispatched by the item's id.
+  'menus.setApplicationMenu',
 };
