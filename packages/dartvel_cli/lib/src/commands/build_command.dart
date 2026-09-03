@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 import '../build/accessibility_audit.dart';
 import '../build/browser_extension.dart';
+import '../build/desktop_entry.dart';
 import '../build/elinux_bundle.dart';
 import '../build/capture_completeness.dart';
 import '../build/pwa_icons.dart';
@@ -782,6 +783,7 @@ class BuildCommand extends Command<void> {
           await _writeStaticPages(root);
         }
       }
+      if (platform == 'linux') _writeLinuxDesktopFiles(Directory.current.path);
       Logger.log('✅ $platform build successful');
       return _PlatformBuildResult.succeeded;
     } else {
@@ -923,6 +925,20 @@ class BuildCommand extends Command<void> {
   }
 
   /// The architecture this machine builds natively for.
+  /// The desktop entry and MIME info for file associations and app links,
+  /// next to the binary. What a package installs into the system's
+  /// applications and mime directories; what a developer copies there by
+  /// hand to try an association.
+  void _writeLinuxDesktopFiles(String root) {
+    final String bundle = '$root/build/linux/${_hostArchitecture()}/release/bundle';
+    if (!Directory(bundle).existsSync()) return;
+    final DVDesktopWrite result = dvWriteLinuxDesktopFiles(root, bundle);
+    for (final String problem in result.problems) {
+      Logger.log('⚠️  $problem');
+    }
+    Logger.log('   Wrote ${result.written.join(', ')} under the bundle.');
+  }
+
   String _hostArchitecture() {
     final version = Platform.version;
     if (version.contains('arm64') || version.contains('aarch64')) return 'arm64';
