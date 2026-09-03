@@ -12,6 +12,7 @@ import 'package:ffi/ffi.dart';
 import '../../../dartvel_flutter.dart';
 import 'linux_kiosk_ffi.dart';
 import 'linux_menus_ffi.dart';
+import 'linux_printing_ffi.dart';
 import 'linux_shortcuts_ffi.dart';
 
 // --- libX11 ------------------------------------------------------------------
@@ -166,6 +167,8 @@ class DVLinuxBindings {
     'menus.setApplicationMenu',
     'kiosk.enforce',
     'kiosk.release',
+    'printing.toFile',
+    'printing.print',
   };
 
   static DynamicLibrary? _x11;
@@ -250,6 +253,7 @@ class DVLinuxBindings {
     );
     // The application menu, built into the real GTK window.
     DVLinuxMenus.register(_gtk!, _glib!, DVNativeBridge.register);
+    DVLinuxPrinting.register(_gtk!, _glib!, DVNativeBridge.register);
 
     _registered = true;
     return true;

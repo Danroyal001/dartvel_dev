@@ -22,6 +22,7 @@ import 'src/display_platform.dart'
     if (dart.library.js_interop) 'src/display_platform_web.dart'
     as display_platform;
 import 'src/platform/accelerator.dart';
+import 'src/platform/printing.dart';
 // DV.Updates.applyPages installs page bundles, which are these types.
 import 'src/pwa/install_prompt.dart';
 import 'src/seo_platform_memory.dart'
@@ -257,6 +258,7 @@ export 'src/platform/file_bindings.dart';
 export 'src/platform/ios/ios_bindings.dart';
 export 'src/platform/linux/linux_bindings.dart';
 export 'src/platform/macos/macos_bindings.dart';
+export 'src/platform/printing.dart';
 export 'src/platform/web/web_bindings.dart';
 export 'src/platform/windows/windows_bindings.dart';
 export 'src/pwa/install_prompt.dart';
@@ -3734,6 +3736,7 @@ class DVPlatform {
   DVTray get Tray => const DVTray();
   DVMenus get Menus => const DVMenus();
   DVShortcuts get Shortcuts => const DVShortcuts();
+  DVPrinting get Printing => const DVPrinting();
 
   DVCamera get camera => const DVCamera();
   DVMedia get media => const DVMedia();
