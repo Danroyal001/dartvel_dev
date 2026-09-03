@@ -9,6 +9,8 @@
 // A kiosk is also the one place where "your target cannot do what you asked"
 // has to be said out loud rather than degraded around, because there is no
 // other way to lock a device.
+import 'dart:io';
+
 import 'package:dartvel_cli/src/doctor/kiosk_check.dart';
 import 'package:dartvel_core/dartvel.dart';
 import 'package:test/test.dart';
@@ -123,6 +125,99 @@ void main() {
       );
 
       expect(check.ok, isFalse);
+    });
+  });
+
+  group('DV-KIOSK-009: onIdle home with sensitive fields in reach', () {
+    // An informational display returns to the attract route without
+    // clearing anything. If a route the kiosk allows shows a model with a
+    // sensitive field, the next person at the screen can see the last
+    // person's data. A warning, at analyze time, naming the route.
+    late Directory root;
+
+    void model(String name, {required bool sensitive}) {
+      File('${root.path}/lib/models/${name.toLowerCase()}.dart')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('''
+import 'package:dartvel_flutter/dartvel_flutter.dart';
+
+@DVModel()
+class _$name {
+  final String name;
+  ${sensitive ? '@DVModel.sensitiveField()' : ''}
+  final String card;
+  const _$name(this.name, this.card);
+}
+''');
+    }
+
+    void page(String route, String body) {
+      final String rel = route == '/' ? 'index' : route.substring(1);
+      File('${root.path}/lib/pages/$rel.page.dart')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('''
+import 'package:flutter/widgets.dart';
+import 'package:dartvel_flutter/dartvel_flutter.dart';
+import 'package:app/dartvel_client/dartvel_client.dart';
+
+@DVPage(title: 'p')
+Widget _p(BuildContext context) => $body;
+''');
+    }
+
+    setUp(() => root = Directory.systemTemp.createTempSync('dv_kiosk009_'));
+    tearDown(() => root.deleteSync(recursive: true));
+
+    Map<String, Object?> home(List<String> allow) => section(<String, Object?>{
+          'enabled': true,
+          'session': <String, Object?>{'onIdle': 'home'},
+          'routes': <String, Object?>{'allow': allow},
+          'exit': <String, Object?>{'method': 'pin', 'pin': 'secret:PIN'},
+        });
+
+    test('warns, naming the route and the model', () {
+      model('Customer', sensitive: true);
+      page('/orders', "Customer.Table()");
+      page('/attract', "const DVText('hi')");
+
+      final DVKioskCheck check = DVKioskCheck.run(home(<String>['/orders', '/attract']), <DVKioskTarget>[DVKioskTarget.linuxDesktop], root: root.path);
+
+      expect(check.ok, isTrue, reason: 'a warning, not a failure');
+      final String text = check.lines.join('\n');
+      expect(text, contains('DV-KIOSK-009'));
+      expect(text, contains('/orders'));
+      expect(text, contains('Customer'));
+      expect(text, isNot(contains('/attract')));
+    });
+
+    test('a route the kiosk does not allow is not in reach', () {
+      model('Customer', sensitive: true);
+      page('/orders', "Customer.Table()");
+      final DVKioskCheck check = DVKioskCheck.run(home(<String>['/attract']), <DVKioskTarget>[DVKioskTarget.linuxDesktop], root: root.path);
+      expect(check.lines.join('\n'), isNot(contains('DV-KIOSK-009')));
+    });
+
+    test('a model with no sensitive field is fine, and so is onIdle reset', () {
+      model('Product', sensitive: false);
+      page('/catalogue', "Product.Table()");
+      expect(DVKioskCheck.run(home(<String>['/catalogue']), <DVKioskTarget>[DVKioskTarget.linuxDesktop], root: root.path).lines.join('\n'),
+          isNot(contains('DV-KIOSK-009')));
+
+      model('Customer', sensitive: true);
+      page('/orders', "Customer.Table()");
+      final Map<String, Object?> reset = section(<String, Object?>{
+        'enabled': true,
+        'session': <String, Object?>{'onIdle': 'reset', 'clearOnReset': <String>['signals', 'forms']},
+        'routes': <String, Object?>{'allow': <String>['/orders']},
+        'exit': <String, Object?>{'method': 'pin', 'pin': 'secret:PIN'},
+      });
+      expect(DVKioskCheck.run(reset, <DVKioskTarget>[DVKioskTarget.linuxDesktop], root: root.path).lines.join('\n'),
+          isNot(contains('DV-KIOSK-009')));
+    });
+
+    test('with no root there is nothing to scan and nothing is claimed', () {
+      expect(DVKioskCheck.run(home(<String>['/orders']), <DVKioskTarget>[DVKioskTarget.linuxDesktop]).lines.join('\n'),
+          isNot(contains('DV-KIOSK-009')));
     });
   });
 }
