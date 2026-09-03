@@ -31,9 +31,16 @@ class DVAppLaunchResult {
   void stop() {
     _timer?.cancel();
     _timer = null;
-    _lock?.release();
+    final DVInstanceLock? lock = _lock;
+    if (lock != null) {
+      DVAppLaunch._primaries.remove(lock.path);
+      lock.release();
+    }
   }
 }
+
+/// How a lock is taken; the real one, or a test's.
+typedef DVAppLaunchAcquire = DVInstanceLock Function(String path);
 
 class DVAppLaunch {
   DVAppLaunch._();
@@ -89,6 +96,12 @@ class DVAppLaunch {
     return dot > 0 && dot < last.length - 1;
   }
 
+  /// The primary result per lock path in this process. A second start in
+  /// the same process -- a test building the router twice, an app that
+  /// rebuilds it -- is the same application, not a second launch, and gets
+  /// the same result back with its arguments queued.
+  static final Map<String, DVAppLaunchResult> _primaries = <String, DVAppLaunchResult>{};
+
   /// Takes the lock for [appId], or hands [arguments] to the process that
   /// has it. The primary opens its own arguments' routes and, every [poll],
   /// whatever later launches forwarded, through [open].
@@ -99,12 +112,21 @@ class DVAppLaunch {
     String? lockPath,
     String filesRoute = '/open',
     Duration poll = const Duration(milliseconds: 500),
+    DVAppLaunchAcquire acquire = DVSingleInstance.acquire,
   }) async {
     final List<String> routes = <String>[
       for (final String a in arguments)
         if (routeFor(a, filesRoute: filesRoute) case final String r) r,
     ];
-    final DVInstanceLock lock = DVSingleInstance.acquire(lockPath ?? lockPathFor(appId));
+    final String path = lockPath ?? lockPathFor(appId);
+    final DVAppLaunchResult? already = _primaries[path];
+    if (already != null) {
+      for (final String r in routes) {
+        already._lock!.send(r);
+      }
+      return already;
+    }
+    final DVInstanceLock lock = acquire(path);
     if (!lock.isPrimary) {
       for (final String r in routes) {
         lock.send(r);
@@ -118,6 +140,7 @@ class DVAppLaunch {
       lock.send(r);
     }
     final DVAppLaunchResult result = DVAppLaunchResult._(isPrimary: true, forwarded: const <String>[], lock: lock);
+    _primaries[path] = result;
     bool draining = false;
     Future<void> drain() async {
       if (draining) return;
