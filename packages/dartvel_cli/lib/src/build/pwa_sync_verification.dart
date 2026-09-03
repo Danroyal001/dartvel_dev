@@ -84,15 +84,37 @@ Future<DVPwaSyncResult> dvVerifyPwaSync({
 
   try {
     final Page page = await browser.newPage();
-    await page.goto('$base/', wait: Until.networkIdle);
+    // Every wait is bounded: a page that never settles or a worker that
+    // never activates is a finding, not a hang.
+    await page.goto('$base/', wait: Until.load, timeout: const Duration(seconds: 60));
+    // The built worker is what is under test, whether or not the page's own
+    // loader registered it: registered here if it did not, then awaited.
+    const String settle = '''
+      (async () => {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        if (regs.length === 0) {
+          const name = ['/flutter_service_worker.js', '/sw.js'];
+          for (const n of name) {
+            try { await navigator.serviceWorker.register(n); break; } catch (e) {}
+          }
+        }
+        const ready = navigator.serviceWorker.ready.then(() => 'ready');
+        const late = new Promise((r) => setTimeout(() => r('no worker became active'), 20000));
+        return await Promise.race([ready, late]);
+      })()
+    ''';
+    final String state = await page.evaluate<String>(settle);
+    if (state != 'ready') throw StateError('The service worker did not activate: $state.');
     // Registered on first load, controlling from the second: a page the
     // worker did not intercept is a page whose POST never reached it.
-    await page.evaluate<Object?>('navigator.serviceWorker.ready.then(() => true)');
     final bool controlled = await page.evaluate<bool>('!!navigator.serviceWorker.controller');
     if (!controlled) {
-      await page.reload(wait: Until.networkIdle);
-      await page.evaluate<Object?>('navigator.serviceWorker.ready.then(() => true)');
+      await page.reload(wait: Until.load, timeout: const Duration(seconds: 60));
+      final String again = await page.evaluate<String>(settle);
+      if (again != 'ready') throw StateError('The service worker did not activate after reload: $again.');
     }
+    final bool controlling = await page.evaluate<bool>('!!navigator.serviceWorker.controller');
+    if (!controlling) throw StateError('The service worker is active but does not control the page.');
 
     // The network goes away at the transport: the server is closed, so the
     // worker's own fetch fails the way it does when the cable is out.
