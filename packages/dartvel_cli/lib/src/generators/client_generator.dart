@@ -445,7 +445,8 @@ const String dvApiBasePath      = '${esc(apiBasePath)}';
 import 'dart:async' show unawaited;
 import 'package:flutter/foundation.dart' show kReleaseMode, kIsWeb, defaultTargetPlatform, TargetPlatform, debugPrint;
 import 'dart:io' show exit${dv['terminal'] == true ? ', stdin, stdout, stderr, File, Platform, Process, ProcessStartMode' : ''};
-import 'package:dartvel_core/dartvel.dart' show dvLiveWindowsPathFor;
+import 'package:flutter/widgets.dart' show WidgetsBinding;
+import 'package:dartvel_core/dartvel.dart' show DVStartupProfile, dvLiveWindowsPathFor;
 ${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVPageStore,${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''}${_hasDeviceProfileDisplays(dv) ? ' DVWindowManager,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAppLaunch, DVRouteTarget, DVWindowOptions, DVRenderSurface${dv['terminal'] == true ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''};
 import 'dartvel_config.g.dart' as cfg;
 import 'jobs.g.dart' show registerDartvelJobs;
@@ -463,17 +464,21 @@ void configureDartvelRuntime({List<String> arguments = const <String>[]}) {
   // A dispatched job is useless without its codec and handler, so they are
   // registered as part of configuring the runtime rather than left to the
   // application to remember.
+  // Startup, phase by phase: what a device fleet is asked to answer for.
+  DVStartupProfile.current.mark('configure');
   registerDartvelJobs();
   registerDartvelModels();
   // The modules this application mounts, so DV.Modules.<id> is the module
   // the build mounted rather than an unknown id.
   registerDartvelModules();
+  DVStartupProfile.current.mark('generated');
   // The platform's native bindings -- clipboard, window, notifications and
   // the rest. Registered here rather than left to the application, because a
   // separate call the application had to remember is exactly how every real
   // app on Linux was throwing "binding not registered" from
   // DV.Platform.Clipboard.copy().
   registerPlatformBindings();
+  DVStartupProfile.current.mark('bindings');
   // The arguments this process was started with -- a file association, a
   // dartvel:// link, a second launch -- and the launches that come after it.
   startDartvelLaunch(arguments);
@@ -481,6 +486,13 @@ ${_deviceKioskInstallSource(dv)}
   // Reads stored Studio documents into memory so an override resolves during
   // navigation instead of flashing the compiled page first.
   unawaited(DVPageStore.prime());
+
+  // The last phase is the one that matters to whoever is waiting: the frame
+  // they can see. Measured after the frame rather than before it, because a
+  // router that is built is not a screen that is up.
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    DVStartupProfile.current.mark('first frame');
+  });
 }
 
 ${_launchNegotiationSource(dv)}

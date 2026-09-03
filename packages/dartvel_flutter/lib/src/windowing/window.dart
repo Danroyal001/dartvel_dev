@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui show Display;
 
-import 'package:dartvel_core/dartvel.dart' show DVDiagnostics, DVInstanceLock, DVKioskEnforcement, DVKioskExitRequest, DVKioskExitResult, DVKioskPolicy, DVKioskReset, DVKioskResetReason, DVKioskRuntime, DVKioskSignal, DVKioskState, DVKioskTarget, DVTenants;
+import 'package:dartvel_core/dartvel.dart' show DVDiagnostics, DVInstanceLock, DVStartupProfile, DVKioskEnforcement, DVKioskExitRequest, DVKioskExitResult, DVKioskPolicy, DVKioskReset, DVKioskResetReason, DVKioskRuntime, DVKioskSignal, DVKioskState, DVKioskTarget, DVTenants;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
@@ -614,6 +614,10 @@ class DVWindowManager {
             },
         ],
         'performance': performance.toJson(),
+        // What startup took, phase by phase. A kiosk that takes eleven
+        // seconds to show its first screen is a fault somebody has to
+        // answer for, and this is where the answer is.
+        'startup': DVStartupProfile.current.toJson(),
       });
       try {
         final File file = File(path);
