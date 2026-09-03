@@ -439,8 +439,8 @@ const String dvApiBasePath      = '${esc(apiBasePath)}';
     final runtimeDart = """
 import 'dart:async' show unawaited;
 import 'package:flutter/foundation.dart' show kReleaseMode, kIsWeb, defaultTargetPlatform, TargetPlatform, debugPrint;
-import 'dart:io' show exit;
-import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVPageStore, DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAppLaunch, DVRouteTarget, DVWindowOptions;
+import 'dart:io' show exit, stdin, stdout, stderr, File, Platform, Process, ProcessStartMode;
+import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVPageStore, DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAppLaunch, DVRouteTarget, DVWindowOptions, DVRenderSurface, DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor;
 import 'dartvel_config.g.dart' as cfg;
 import 'jobs.g.dart' show registerDartvelJobs;
 import 'models.g.dart' show registerDartvelModels;
@@ -471,6 +471,8 @@ void configureDartvelRuntime({List<String> arguments = const <String>[]}) {
   // navigation instead of flashing the compiled page first.
   unawaited(DVPageStore.prime());
 }
+
+${_launchNegotiationSource(dv)}
 
 /// Takes the single-instance lock and opens what this launch asked for, or
 /// hands it to the process that has the lock and ends this one. Desktop
@@ -1241,6 +1243,72 @@ ${_kioskPoliciesSource(dv)}
     ).writeAsStringSync(configContent);
 
     _generateSsgBuilder(pageEntries, pageImports, root);
+  }
+
+  /// `negotiateDartvelLaunch`, which main awaits before running the app.
+  ///
+  /// A build that did not opt into the terminal has no decision to make and
+  /// links no terminal code: the function is empty. One that did resolves
+  /// from the arguments and the display -- `--tui` starts in the terminal,
+  /// no display with both backends asks -- and a terminal outcome hands the
+  /// process to the terminal runner beside the GUI binary.
+  static String _launchNegotiationSource(YamlMap dv) {
+    final bool terminal = dv['terminal'] == true;
+    if (!terminal) {
+      return '''
+/// The rendering backends this build links. GUI only: there is no decision
+/// to make at launch, and no terminal code to make it with.
+const Set<DVRenderSurface> dartvelLinkedSurfaces = <DVRenderSurface>{DVRenderSurface.gui};
+
+/// Nothing to negotiate in a GUI-only build. Awaited by main so that a
+/// build with the terminal linked can put a decision here.
+Future<void> negotiateDartvelLaunch(List<String> arguments) async {}
+''';
+    }
+    return r'''
+/// The rendering backends this build links: dartvel.terminal is true.
+const Set<DVRenderSurface> dartvelLinkedSurfaces = <DVRenderSurface>{DVRenderSurface.gui, DVRenderSurface.terminal};
+
+/// Decides where this launch renders, and leaves for the terminal runner
+/// when that is the answer. `--tui` starts in the terminal; with no display
+/// and both backends the person is asked, and the terminal runner is the
+/// binary beside this one named -cli.
+Future<void> negotiateDartvelLaunch(List<String> arguments) async {
+  if (kIsWeb) return;
+  final DVLaunchOutcome outcome = resolveLaunchSurface(
+    linked: dartvelLinkedSurfaces,
+    arguments: arguments,
+    displayAvailable: dvDisplayAvailable(),
+    interactive: stdin.hasTerminal,
+  );
+  switch (outcome) {
+    case DVLaunchOutcome.gui:
+      return;
+    case DVLaunchOutcome.askToUseTerminal:
+      stdout.writeln(dvTerminalFallbackPrompt);
+      final String answer = (stdin.readLineSync() ?? '').trim().toLowerCase();
+      if (answer.startsWith('n')) exit(1);
+      await _runTerminal(arguments);
+    case DVLaunchOutcome.terminal:
+      await _runTerminal(arguments);
+  }
+}
+
+Future<void> _runTerminal(List<String> arguments) async {
+  final String runner = dvTerminalRunnerPathFor(Platform.resolvedExecutable);
+  if (!File(runner).existsSync()) {
+    stderr.writeln('dartvel: no terminal runner at $runner; build it with '
+        'dartvel build <desktop>-cli.');
+    exit(1);
+  }
+  final Process process = await Process.start(
+    runner,
+    <String>[for (final String a in arguments) if (a != '--tui') a],
+    mode: ProcessStartMode.inheritStdio,
+  );
+  exit(await process.exitCode);
+}
+''';
   }
 
   /// `DVKioskPolicies.<name>`: every named policy under dartvel.kiosk.policies,
