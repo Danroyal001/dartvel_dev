@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:ui' as ui show Display;
 
-import 'package:dartvel_core/dartvel.dart' show DVDiagnostics, DVInstanceLock;
+import 'package:dartvel_core/dartvel.dart' show DVDiagnostics, DVInstanceLock, DVTenants;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
@@ -932,7 +932,14 @@ class DVWindowManager {
 
   /// Tenant- and user-scoped like any stored state; the store applies that
   /// scoping, so the key only distinguishes one workspace from another.
-  static String _workspaceKey(String name) => 'workspace.layout.$name';
+  /// Tenant- and user-scoped, as the spec says: one person's open tabs are
+  /// not the next person's at the same desk, nor the same person's in
+  /// another tenant. No user is its own scope, not everyone's.
+  static String _workspaceKey(String name) {
+    final String tenant = const DVTenants().currentTenant;
+    final String user = const DVAuth().currentUser?.id ?? '-';
+    return 'workspace.layout.$tenant.$user.$name';
+  }
 
   Future<void> setTitle(String title) async {
     await DVNativeBridge.require<bool>('window.setTitle', {'title': title});
