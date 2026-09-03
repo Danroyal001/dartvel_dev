@@ -46,3 +46,14 @@ class DVMacosMenus {
   static void performAction(int topIndex, int childIndex) {}
   static void unregister() {}
 }
+
+/// The macOS tray icon, unavailable here.
+class DVMacosTray {
+  const DVMacosTray._();
+
+  static const Set<String> implemented = <String>{'tray.show', 'tray.hide'};
+  static bool get shown => false;
+  static List<String> menuTitles() => const <String>[];
+  static void performAction(int index) {}
+  static void unregister() {}
+}

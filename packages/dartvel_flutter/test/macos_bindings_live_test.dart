@@ -291,6 +291,33 @@ void main() {
     });
   });
 
+  group('tray', () {
+    // A status item in the system status bar, its menu read back through
+    // AppKit and an item chosen through AppKit; hide removes it.
+    tearDown(() {
+      DVTray.reset();
+      DVMacosTray.unregister();
+    });
+
+    test('the item is shown with its menu, a chosen item reaches Dart by id, and hide removes it', () async {
+      final List<String> chosen = <String>[];
+      await const DVTray().show(
+        icon: 'no-such-image.png',
+        tooltip: 'Dartvel',
+        menu: const <DVTrayMenuItem>[DVTrayMenuItem(id: 'open', label: 'Open'), DVTrayMenuItem(id: 'quit', label: 'Quit')],
+        onSelected: chosen.add,
+      );
+      expect(DVMacosTray.shown, isTrue);
+      expect(DVMacosTray.menuTitles(), <String>['Open', 'Quit']);
+
+      DVMacosTray.performAction(1);
+      expect(chosen, <String>['quit']);
+
+      await const DVTray().hide();
+      expect(DVMacosTray.shown, isFalse);
+    });
+  });
+
   test('an unimplemented binding still throws', () async {
     await expectLater(
       DVNativeBridge.require<bool>(

@@ -28,11 +28,13 @@ import 'macos_device_ffi.dart';
 import 'macos_kiosk_ffi.dart';
 import 'macos_menus_ffi.dart';
 import 'macos_shortcuts_ffi.dart';
+import 'macos_tray_ffi.dart';
 
 export 'macos_device_ffi.dart' show DVMacosDeviceProbes;
 export 'macos_kiosk_ffi.dart' show DVMacosKiosk;
 export 'macos_menus_ffi.dart' show DVMacosMenus;
 export 'macos_shortcuts_ffi.dart' show DVMacosShortcuts;
+export 'macos_tray_ffi.dart' show DVMacosTray;
 
 // The Objective-C runtime, in libobjc.
 typedef _ObjcGetClassNative = Pointer<Void> Function(Pointer<Utf8> name);
@@ -111,6 +113,7 @@ class DVMacosBindings {
     DVMacosKiosk.register(DVNativeBridge.register, objc: _objc);
     DVMacosShortcuts.register(DVNativeBridge.register);
     DVMacosMenus.register(DVNativeBridge.register, objc: _objc);
+    DVMacosTray.register(DVNativeBridge.register, objc: _objc);
     DVDeviceRuntime.probes = const DVMacosDeviceProbes();
     DVDeviceRuntime.register(DVNativeBridge.register);
 
@@ -122,6 +125,7 @@ class DVMacosBindings {
     if (_registered) {
       DVMacosKiosk.release();
       DVMacosShortcuts.unregister();
+      DVMacosTray.unregister();
       DVMacosMenus.unregister();
       DVDeviceRuntime.unregister();
     }
