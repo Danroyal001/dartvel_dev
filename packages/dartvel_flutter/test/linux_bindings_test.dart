@@ -78,6 +78,8 @@ void main() {
         'menus.setApplicationMenu',
         'kiosk.enforce',
         'kiosk.release',
+        'printing.toFile',
+        'printing.print',
       },
     );
     expect(DVLinuxBindings.isRegistered, isTrue);

@@ -111,7 +111,7 @@ jobs:
         if: matrix.runner == 'flutter'
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq xvfb libxtst6 libgtk-3-0
+          sudo apt-get install -y -qq xvfb libxtst6 libgtk-3-0 poppler-utils
 
       # A Secret Service for the application-key store. The libsecret store
       # skips itself when nothing answers org.freedesktop.secrets, so `dart
