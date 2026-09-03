@@ -441,7 +441,7 @@ import 'dart:async' show unawaited;
 import 'package:flutter/foundation.dart' show kReleaseMode, kIsWeb, defaultTargetPlatform, TargetPlatform, debugPrint;
 import 'dart:io' show exit${dv['terminal'] == true ? ', stdin, stdout, stderr, File, Platform, Process, ProcessStartMode' : ''};
 import 'package:dartvel_core/dartvel.dart' show dvLiveWindowsPathFor;
-import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVPageStore, DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAppLaunch, DVRouteTarget, DVWindowOptions, DVRenderSurface${dv['terminal'] == true ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''};
+${_hasDeviceKiosk(dv) ? "import 'config.g.dart' show DVKioskPolicies;\n" : ''}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVPageStore,${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAppLaunch, DVRouteTarget, DVWindowOptions, DVRenderSurface${dv['terminal'] == true ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''};
 import 'dartvel_config.g.dart' as cfg;
 import 'jobs.g.dart' show registerDartvelJobs;
 import 'models.g.dart' show registerDartvelModels;
@@ -468,6 +468,7 @@ void configureDartvelRuntime({List<String> arguments = const <String>[]}) {
   // The arguments this process was started with -- a file association, a
   // dartvel:// link, a second launch -- and the launches that come after it.
   startDartvelLaunch(arguments);
+${_deviceKioskInstallSource(dv)}
   // Reads stored Studio documents into memory so an override resolves during
   // navigation instead of flashing the compiled page first.
   unawaited(DVPageStore.prime());
@@ -1319,6 +1320,33 @@ Future<void> _runTerminal(List<String> arguments) async {
   /// parsed by the same parser dartvel doctor checks. There is no policy
   /// that is not in the declaration, so a kiosk window opened at runtime
   /// uses a declared one rather than an ad-hoc one.
+  static bool _hasDeviceKiosk(YamlMap dv) {
+    final Object? kiosk = dv['kiosk'];
+    return kiosk is Map && kiosk['enabled'] == true && (kiosk['scope'] ?? 'device') == 'device';
+  }
+
+  /// Installs the declared device-scope kiosk at start; nothing for a build
+  /// that declares none or a display-scope one (those are windows).
+  static String _deviceKioskInstallSource(YamlMap dv) {
+    final Object? kiosk = dv['kiosk'];
+    if (kiosk is! Map || kiosk['enabled'] != true || (kiosk['scope'] ?? 'device') != 'device') {
+      return '';
+    }
+    return '''
+  // The whole application under the declared kiosk policy.
+  startDartvelKiosk();
+}
+
+/// Installs the declared device-scope kiosk policy: DV.Platform.display.kiosk
+/// from then on. The exit PIN is a device-resolved secret, read through
+/// DV.Secrets.
+void startDartvelKiosk() {
+  unawaited(DVPlatform.installKioskPolicy(
+    DVKioskPolicies.device,
+    readSecret: (String name) async => DV.Secrets.maybeGet(name),
+  ));''';
+  }
+
   /// Whether any named policy is declared, so the config only imports the
   /// policy type when something in it is one.
   static bool _hasKioskPolicies(YamlMap dv) {
@@ -1336,12 +1364,23 @@ Future<void> _runTerminal(List<String> arguments) async {
       ..remove('policies')
       ..remove('windows');
     final List<String> names = named.keys.where((String n) => RegExp(r'^[a-z][A-Za-z0-9]*$').hasMatch(n)).toList();
+    final bool device = base['enabled'] == true && (base['scope'] ?? 'device') == 'device';
     final StringBuffer out = StringBuffer()
       ..writeln('/// Named kiosk policies, from dartvel.kiosk.policies in pubspec.yaml.')
       ..writeln('class DVKioskPolicies {')
       ..writeln('  DVKioskPolicies._();')
       ..writeln()
       ..writeln("  static const List<String> names = <String>[${names.map((String n) => "'$n'").join(', ')}];");
+    if (device) {
+      // The section itself is the device policy: what the whole application
+      // runs under, installed at start.
+      out
+        ..writeln()
+        ..writeln('  /// The device-scope policy: the kiosk section itself.')
+        ..writeln('  static DVKioskPolicy get device => DVKioskPolicy.parse(<String, Object?>{')
+        ..writeln("    'kiosk': ${_dartLiteral(base, 2)},")
+        ..writeln('  });');
+    }
     for (final String name in names) {
       final Object? entry = named[name];
       final Map<String, Object?> merged = <String, Object?>{
