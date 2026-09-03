@@ -300,6 +300,76 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
   ),
 ];
 
+/// Half built: what is present and what is absent, in the repository's own
+/// words. The checker holds this list to the index's Partial sections exactly.
+const List<(String, String, String)> partial = <(String, String, String)>[
+  (
+    'Platform',
+    'Runtime APIs everywhere; Linux bindings behind most names',
+    'Present: the platform and screen APIs, FFI/JNI binding registration, and on Linux the bindings for clipboard, window, notifications, shortcuts, menus, printing, dialogs, kiosk keys and the device APIs. Absent: the names with no host API to reach on each platform -- 32 on Linux, 24 on web, 33 on Windows, 33 on macOS, 30 on iOS -- many of which do not apply there at all.',
+  ),
+  (
+    'Mail and Notifications',
+    'Every channel, no live push service yet',
+    'Present: email, in-app, push and web push with a VAPID signature pinned to the published P-256 vectors, local and test providers, and templates rendered in the recipient\'s language. Absent: no provider has been exercised against a real APNS or push service.',
+  ),
+  (
+    'PWA',
+    'Installable and offline; sync not yet watched in a browser',
+    'Present: the manifest, viewport, service worker, offline page, install prompt, icons generated from web/icon.png, and an IndexedDB outbox in the worker that queues failed writes and replays them on sync. Absent: that outbox exercised in a real browser taken offline and back.',
+  ),
+  (
+    'OTA Updates',
+    'Page bundles, not native patches',
+    'Present: page bundles ship as data through DV.Updates and need no native patching. Absent: Shorebird-backed native patch application.',
+  ),
+  (
+    'Billing',
+    'Stripe and Paddle; not the app stores',
+    'Present: checkout for a plan\'s configured price and webhooks that grant and revoke entitlements, each believed only when its own signature matches in constant time within five minutes. Absent: App Store and Play Billing purchases, which need the store bindings.',
+  ),
+  (
+    'Desktop, Embedded, and Qt-Critical Capabilities',
+    'Built on Linux; Windows and macOS behind the same names',
+    'Present on Linux: global shortcuts, the application menu, printing, system dialogs, file associations and app links, and the device and fleet APIs -- manifest, health, watchdog, provisioning, diagnostics. Absent: tray icons (not claimed: no desktop shell runs under Xvfb to watch one), drag and drop, and on Windows and macOS everything Linux has.',
+  ),
+  (
+    'Kiosk Mode',
+    'Policy, clock and Linux key blocking; the rest per target',
+    'Present: the policy, state machine and enforcement matrix checked by dartvel doctor; the session clock with its countdown and reset; hardware-key blocking on Linux that never covers the keys accessibility needs; the screen-side host; restart-loop detection. Absent: other targets\' native enforcement, input confinement and gesture blocking on Linux, display-scope kiosk windows, named policies, DV.lifecycle.kiosk, and the sensitive-field analyze rule.',
+  ),
+  (
+    'Terminal Rendering',
+    'A backend you opt into at build time',
+    'Present: the terminal backend is linked only when asked for, through the dartvel_cli_flt fork. Absent: terminal size as a signal, and launch negotiation wired into a generated main().',
+  ),
+  (
+    'Multi-Window',
+    'Windows, displays and the single-instance launch',
+    'Present: window identity as canonical URL, the Linux open binding, display enumeration, the exit policy, owned windows, honest modality, the single-instance launch that opens what the app was started with and hands a later launch to the first process, workspace restore, and dartvel inspect windows. Absent: tear-out, display-scope kiosk windows, the Studio window inspector, and a live window list; display enumeration is Linux-only.',
+  ),
+  (
+    'Tab Workspaces',
+    'Tabs that tear out, re-dock and persist',
+    'Present: the tab strip, reorder, tear-out gated on capability, re-dock by adoption, the empty-window rule, duplicate tabs, deduplication by route, and persistence that drops routes that no longer resolve. Absent: same-engine hit-testing across windows, the switcher for TV and watch, and tenant or user scoping of the persisted layout.',
+  ),
+  (
+    'Secrets and Environments',
+    'Declared, rotated, and kept in the Linux keyring',
+    'Present: the declaration manifest and its analyze rule, rotation hooks, the application key in the Secret Service on Linux with a file only the user can read as the fallback, and dartvel key generate | rotate | status. Absent: the DPAPI, Keychain, Android Keystore and WebCrypto stores the table names for the other platforms.',
+  ),
+  (
+    'Web Server Rendering',
+    'The SEO half, not the rendering half',
+    'Present: the server serves the SPA index with the prerendered title and semantic content injected, so a crawler gets markup. Absent: rendering Flutter to HTML on the server; a user still waits for the bundle.',
+  ),
+  (
+    'Embedded, Television, and Extension Build Targets',
+    'Builds that exist; devices that have not run them',
+    'Present: tizen and vscode build. Absent: neither has been run; fuchsia\'s engine does not build at Flutter 3.44.5; webOS and Sony eLinux ship a Dart below the 3.12 floor, so their embedders cannot resolve the example.',
+  ),
+];
+
 @DVPage(title: 'Features — Dartvel', showAppBar: false)
 @pragma('vm:entry-point')
 Widget _featuresPage(BuildContext context) => SingleChildScrollView(
@@ -362,6 +432,24 @@ Widget _featuresPage(BuildContext context) => SingleChildScrollView(
             ),
           ],
         ),
+        Section(
+          children: <Widget>[
+            const Eyebrow('HALF BUILT'),
+            const Heading('What is partial, and what is missing from it.',
+                level: 2),
+            const Body(
+              'Each of these has real code behind it and a named gap. The '
+              'gap is written next to the work, in the repository’s words, '
+              'and the same tool holds this list to the index.',
+              width: 660,
+            ),
+            DVBox.list(<Widget>[
+              for (final (String area, String surface, String body) f
+                  in partial)
+                FeatureRow(area: f.$1, surface: f.$2, body: f.$3),
+            ], spacing: 14),
+          ],
+        ),
         const SiteFooter(),
       ], spacing: 0),
     );
@@ -384,7 +472,7 @@ Widget _featureRow(
       // clips in release with nothing to say it did.
       DVBox.wrapLine(<Widget>[
         DVText(area).modifier(
-          DVModifier()
+          const DVModifier()
               .fontSize(17)
               .fontWeight(FontWeight.w700)
               .color(palette.ink)
@@ -400,10 +488,10 @@ Widget _featureRow(
         SiteChip(surface),
       ], spacing: 10),
       DVText(body).modifier(
-        DVModifier().fontSize(15).color(palette.muted).height(1.6),
+        const DVModifier().fontSize(15).color(palette.muted).height(1.6),
       ),
     ], spacing: 6),
-    DVModifier()
+    const DVModifier()
         // No height: a wrap gives its children unbounded height, so
         // double.infinity here collapsed every card and the section rendered
         // empty. Cards size to their content instead.

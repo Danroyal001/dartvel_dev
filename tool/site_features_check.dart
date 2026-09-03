@@ -37,18 +37,34 @@ int main(List<String> arguments) {
   // The first string of each `(area, surface, body)` tuple in the list.
   final RegExp tuple = RegExp(r"^  \(\n    '((?:[^'\\]|\\.)+)',", multiLine: true);
   final String source = page.readAsStringSync();
-  final List<String> listed = <String>[
-    for (final RegExpMatch m in tuple.allMatches(source))
-      m.group(1)!.replaceAll(r"\'", "'"),
-  ];
+  // Two lists, one per status. The page is what is built and what is half
+  // built, and a name in the wrong list is the lie this tool exists to catch.
+  final List<String> listed = _tuplesIn(_listSource(source, 'shipped'), tuple);
+  final List<String> listedPartial =
+      _tuplesIn(_listSource(source, 'partial'), tuple);
   if (listed.isEmpty) {
-    // Without this a reformat that stops the regex matching would report
-    // every shipped section as missing rather than saying the scan broke.
     return _fail(<String>['found no feature tuples in features.dart; the '
         'scan no longer matches the file']);
   }
-
   final List<String> problems = <String>[];
+  final Set<String> partialSections = <String>{
+    for (final Object? entry in decoded['sections']! as List)
+      if (entry is Map && entry['status'] == 'Partial')
+        entry['section']! as String,
+  };
+  if (listedPartial.isEmpty && partialSections.isNotEmpty) {
+    problems.add('the page says partial sections are listed, and lists none');
+  }
+  for (final String section in partialSections) {
+    if (!listedPartial.contains(section)) {
+      problems.add('partial but not on the site: $section');
+    }
+  }
+  for (final String area in listedPartial) {
+    if (!partialSections.contains(area)) {
+      problems.add('listed as partial on the site but not partial: $area');
+    }
+  }
   for (final String section in shipped) {
     if (!listed.contains(section)) {
       problems.add('shipped but not on the site: $section');
@@ -92,6 +108,19 @@ int main(List<String> arguments) {
       '${shipped.length} shipped, in agreement.');
   return 0;
 }
+
+/// The source of the `const List<...> [name] = <...>[ ... ];` literal.
+String _listSource(String source, String name) {
+  final int start = source.indexOf(RegExp('> $name = <[^\\n]*\\[\\n'));
+  if (start < 0) return '';
+  final int end = source.indexOf('\n];', start);
+  return end < 0 ? '' : source.substring(start, end);
+}
+
+List<String> _tuplesIn(String source, RegExp tuple) => <String>[
+      for (final RegExpMatch m in tuple.allMatches(source))
+        m.group(1)!.replaceAll(r"\'", "'"),
+    ];
 
 int _fail(List<String> problems) {
   stderr.writeln('site features: ${problems.length} problem(s)');
