@@ -435,9 +435,12 @@
         "packages/dartvel_flutter/lib/src/platform/linux/linux_shortcuts_ffi.dart",
         "packages/dartvel_flutter/lib/src/platform/accelerator.dart",
         "packages/dartvel_flutter/test/linux_shortcuts_test.dart",
-        "packages/dartvel_flutter/test/shortcuts_delivery_test.dart"
+        "packages/dartvel_flutter/test/shortcuts_delivery_test.dart",
+        "packages/dartvel_flutter/lib/src/platform/linux/linux_menus_ffi.dart",
+        "packages/dartvel_flutter/test/linux_menus_test.dart",
+        "packages/dartvel_flutter/test/menus_delivery_test.dart"
       ],
-      "absent": "Tray and status icons, native application menus, file associations, drag and drop, printing, system dialogs, and every device and fleet API (capability manifests, watchdog, provisioning, diagnostics) -- all with binding names declared and nothing behind them. Built: global shortcuts, parsed once (DVAccelerator, with CmdOrCtrl decided per platform) and delivered back to Dart through DVShortcuts.dispatch, with the Linux grab bound through XGrabKey on a pump isolate's own X connection and tested under Xvfb with XTest pressing the keys; multi-window and window state persistence, which the Multi-Window entry records. Shortcuts are bound on Linux only: Windows and macOS have the Dart side and no grab"
+      "absent": "Tray and status icons -- on Linux that is StatusNotifierItem over D-Bus, and no desktop shell runs under Xvfb to watch one, so it cannot be verified here or in Actions and is not claimed -- file associations, drag and drop, printing, system dialogs, and every device and fleet API (capability manifests, watchdog, provisioning, diagnostics), all with binding names declared and nothing behind them. Built on Linux and tested under Xvfb: global shortcuts, grabbed through XGrabKey on a pump isolate's own X connection with XTest pressing the keys in the test; and the application menu, built as a real GtkMenuBar into the toplevel window with the view reparented beneath it, read back through GTK and activated by id. Both have the Dart side everywhere -- DVAccelerator parsed once, DVShortcuts and DVMenus delivering by id -- and a binding on Linux only; Windows and macOS have nothing behind the names yet. Multi-window and window state persistence are recorded under Multi-Window"
     },
     {
       "section": "Kiosk Mode",
