@@ -331,32 +331,32 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   (
     'Desktop, Embedded, and Qt-Critical Capabilities',
     'Built on Linux; Windows and macOS behind the same names',
-    'Present on Linux: global shortcuts, the application menu, printing, system dialogs, file associations and app links, and the device and fleet APIs -- manifest, health, watchdog, provisioning, diagnostics. Absent: tray icons (not claimed: no desktop shell runs under Xvfb to watch one), drag and drop, and on Windows and macOS everything Linux has.',
+    'Present on Linux: global shortcuts, the application menu, printing, system dialogs, file associations, app links and deep links, the launch that opens what the app was started with, and the device and fleet APIs -- manifest, health, watchdog, provisioning, diagnostics. Absent: tray icons (not claimed: no desktop shell runs under Xvfb to watch one), drag and drop, and on Windows and macOS everything Linux has.',
   ),
   (
     'Kiosk Mode',
-    'Policy, clock and Linux key blocking; the rest per target',
-    'Present: the policy, state machine and enforcement matrix checked by dartvel doctor; the session clock with its countdown and reset; hardware-key blocking on Linux that never covers the keys accessibility needs; the screen-side host; restart-loop detection. Absent: other targets\' native enforcement, input confinement and gesture blocking on Linux, display-scope kiosk windows, named policies, DV.lifecycle.kiosk, and the sensitive-field analyze rule.',
+    'Policy, clock and Linux enforcement; the rest per target',
+    'Present: the policy, state machine and enforcement matrix checked by dartvel doctor; named policies generated as DVKioskPolicies; the session clock with its countdown and reset, on DV.lifecycle.kiosk; on Linux hardware-key blocking that never covers the keys accessibility needs, pointer confinement and notification suppression; the screen-side host with its diagnostics screen; restart-loop detection; the sensitive-field analyze rule. Absent: other targets\' native enforcement and display-scope kiosk windows.',
   ),
   (
     'Terminal Rendering',
     'A backend you opt into at build time',
-    'Present: the terminal backend is linked only when asked for, through the dartvel_cli_flt fork. Absent: terminal size as a signal, and launch negotiation wired into a generated main().',
+    'Present: the terminal backend is linked only when asked for, through the dartvel_cli_flt fork; the terminal\'s size as a signal, read again on every resize; and launch negotiation wired into main -- --tui, no display with both backends, and the hand-off to the terminal runner beside the GUI binary. Absent: the rendering backend itself, Kitty with an ANSI fallback, and a distributable runner.',
   ),
   (
     'Multi-Window',
     'Windows, displays and the single-instance launch',
-    'Present: window identity as canonical URL, the Linux open binding, display enumeration, the exit policy, owned windows, honest modality, the single-instance launch that opens what the app was started with and hands a later launch to the first process, workspace restore, and dartvel inspect windows. Absent: tear-out, display-scope kiosk windows, the Studio window inspector, and a live window list; display enumeration is Linux-only.',
+    'Present: window identity as canonical URL, the Linux open binding, display enumeration, the exit policy, owned windows, honest modality, the single-instance launch that opens what the app was started with and hands a later launch to the first process, workspace restore, and dartvel inspect windows with the live list a running app publishes. Absent: tear-out, display-scope kiosk windows and the Studio window inspector; display enumeration is Linux-only.',
   ),
   (
     'Tab Workspaces',
     'Tabs that tear out, re-dock and persist',
-    'Present: the tab strip, reorder, tear-out gated on capability, re-dock by adoption, the empty-window rule, duplicate tabs, deduplication by route, and persistence that drops routes that no longer resolve. Absent: same-engine hit-testing across windows, the switcher for TV and watch, and tenant or user scoping of the persisted layout.',
+    'Present: the tab strip, reorder, tear-out gated on capability, re-dock by adoption, the empty-window rule, duplicate tabs, deduplication by route, a switcher on TV and watch, and persistence scoped to the tenant and the user that drops routes that no longer resolve. Absent: same-engine hit-testing across windows.',
   ),
   (
     'Secrets and Environments',
-    'Declared, rotated, and kept in the Linux keyring',
-    'Present: the declaration manifest and its analyze rule, rotation hooks, the application key in the Secret Service on Linux with a file only the user can read as the fallback, and dartvel key generate | rotate | status. Absent: the DPAPI, Keychain, Android Keystore and WebCrypto stores the table names for the other platforms.',
+    'Declared, rotated, and kept where the platform keeps keys',
+    'Present: the declaration manifest and its analyze rule, rotation hooks, dartvel key generate | rotate | status, and the application key in the Secret Service on Linux, DPAPI on Windows, the Keychain on macOS and a non-extractable WebCrypto key on the web, with a file only the user can read as the fallback. Absent: the Android Keystore.',
   ),
   (
     'Web Server Rendering',
