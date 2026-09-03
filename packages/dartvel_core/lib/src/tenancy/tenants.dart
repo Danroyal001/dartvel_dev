@@ -68,6 +68,29 @@ class DVTenants {
     _current = trimmed.isEmpty ? defaultTenant : trimmed;
   }
 
+  /// Each tenant's default locale, by tenant id.
+  ///
+  /// A multi-tenant application serves companies whose users mostly share a
+  /// language, and the application's fallback is the wrong answer for a
+  /// French tenant's visitor who sent no Accept-Language. This sits between
+  /// the visitor's own signals and the application's fallback in
+  /// `dvNegotiateLocale`: it never overrides what a person asked for.
+  static final Map<String, String> _localeDefaults = <String, String>{};
+
+  /// Sets [tenant]'s default locale.
+  static void setLocaleDefault(String tenant, String locale) {
+    _localeDefaults[tenant.trim()] = locale.trim();
+  }
+
+  /// Forgets every tenant's default. Tests use this.
+  static void clearLocaleDefaults() => _localeDefaults.clear();
+
+  /// [tenant]'s default locale, or null when it has none.
+  String? localeDefaultFor(String tenant) => _localeDefaults[tenant.trim()];
+
+  /// The current tenant's default locale, or null.
+  String? get currentLocaleDefault => localeDefaultFor(currentTenant);
+
   /// Configures resolution. [resolver] overrides [source] entirely, for hosts
   /// that map tenants some other way (a lookup table, a signed token).
   void configure({
