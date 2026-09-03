@@ -102,7 +102,9 @@ Widget _cloudPage(BuildContext context) => const SingleChildScrollView(
               SiteCard(
                 'Approval',
                 'A page published by an editor waits for an approver before '
-                'it goes live. Planned; not yet built.',
+                'it goes live; approving writes it, rejecting says why, and '
+                'both are in the audit trail. An approver\'s own publish goes '
+                'straight through. Built.',
               ),
               SiteCard(
                 'Enterprise SSO',
