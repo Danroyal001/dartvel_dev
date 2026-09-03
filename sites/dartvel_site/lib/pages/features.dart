@@ -116,7 +116,6 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     '.transaction. Application code observes them; it does not assign them.',
   ),
   (
-  (
     'Generated Model Pages',
     'Model.Page(...)',
     'Public pages from a model, with .async, .signal and .fromId. Static '
