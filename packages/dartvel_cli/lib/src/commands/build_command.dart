@@ -1379,6 +1379,9 @@ class BuildCommand extends Command<void> {
         buildId: DateTime.now().toUtc().toIso8601String(),
         precache: routes,
         offlinePath: offlinePath,
+        // On unless the project says otherwise: a backend call made offline
+        // is queued and replayed, which is the behaviour a PWA promises.
+        backgroundSync: settings['backgroundSync'] != false,
       ),
     );
 

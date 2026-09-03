@@ -17,6 +17,7 @@ String dvServiceWorker({
   required String buildId,
   required List<String> precache,
   String? offlinePath,
+  bool backgroundSync = true,
 }) {
   final List<String> assets = <String>[
     ...precache,
@@ -29,8 +30,128 @@ String dvServiceWorker({
       .replaceAll('__BUILD_ID__', buildId)
       .replaceAll('__PRECACHE__', jsonEncode(assets))
       .replaceAll('__OFFLINE__',
-          offlinePath == null ? 'null' : jsonEncode(offlinePath));
+          offlinePath == null ? 'null' : jsonEncode(offlinePath))
+      // Stripped rather than switched off at runtime, so a worker with sync
+      // disabled carries no outbox code at all and nothing can register the
+      // tag by accident.
+      .replaceAll('__OUTBOX__', backgroundSync ? _outbox : '')
+      .replaceAll('__QUEUE_ON_FAILURE__',
+          backgroundSync ? _queueOnFailure : _noQueue);
 }
+
+/// What a non-GET does when the network refuses it.
+const String _queueOnFailure = r'''
+  // Not a GET: nothing to cache, but something to keep. A backend function
+  // call made while the network is gone is queued and replayed on sync,
+  // instead of failing and leaving the user to retry by hand or not.
+  if (request.method !== 'GET') {
+    event.respondWith(fetch(request.clone()).catch((error) => queueForSync(request).then(() =>
+      new Response(JSON.stringify({ queued: true }), {
+        status: 202,
+        headers: { 'Content-Type': 'application/json', 'X-Dartvel-Queued': '1' },
+      })
+    )));
+    return;
+  }
+''';
+
+const String _noQueue = r'''
+  // A cached POST is a form submission served from disk, and the Cache API
+  // throws on one anyway.
+  if (request.method !== 'GET') return;
+''';
+
+/// The outbox: same-origin requests that are not GETs and could not be sent,
+/// kept in IndexedDB because a worker is killed between events and an
+/// in-memory queue would lose every request the moment the browser reclaimed
+/// it. Replayed in order on `sync`, stopping at the first failure: out of
+/// order, an update replays before the create it depends on, and continuing
+/// past a failure drops that request while sending the ones after it.
+const String _outbox = r'''
+const OUTBOX = 'dartvel-outbox';
+
+function openOutbox() {
+  return new Promise((resolve, reject) => {
+    const open = indexedDB.open(OUTBOX, 1);
+    open.onupgradeneeded = () => open.result.createObjectStore('requests', { autoIncrement: true });
+    open.onsuccess = () => resolve(open.result);
+    open.onerror = () => reject(open.error);
+  });
+}
+
+function withStore(mode, fn) {
+  return openOutbox().then((db) => new Promise((resolve, reject) => {
+    const tx = db.transaction('requests', mode);
+    const result = fn(tx.objectStore('requests'));
+    tx.oncomplete = () => resolve(result);
+    tx.onerror = () => reject(tx.error);
+  }));
+}
+
+function queueForSync(request) {
+  const url = new URL(request.url);
+  // The same two rules the caching path applies, for the same reasons: a GET
+  // is safe to retry through the cache, and a request to another origin is
+  // one the worker cannot inspect or vouch for.
+  if (request.method === 'GET' || url.origin !== self.location.origin) {
+    return Promise.reject(new Error('not queueable'));
+  }
+  return request.clone().arrayBuffer().then((body) => withStore('readwrite', (store) => {
+    store.add({
+      url: request.url,
+      method: request.method,
+      headers: Array.from(request.headers.entries()),
+      body: body,
+      queuedAt: Date.now(),
+    });
+  })).then(() => {
+    if (self.registration && self.registration.sync) {
+      return self.registration.sync.register(OUTBOX).catch(() => undefined);
+    }
+  });
+}
+
+function replayOutbox() {
+  return withStore('readonly', (store) => {
+    const entries = [];
+    const keys = [];
+    return new Promise((resolve) => {
+      const cursor = store.openCursor();
+      cursor.onsuccess = () => {
+        const c = cursor.result;
+        if (!c) return resolve({ entries, keys });
+        entries.push(c.value); keys.push(c.key); c.continue();
+      };
+      cursor.onerror = () => resolve({ entries, keys });
+    });
+  }).then((p) => p).then(async ({ entries, keys }) => {
+    let index = 0;
+    for (const entry of entries) {
+      const response = await fetch(entry.url, {
+        method: entry.method,
+        headers: entry.headers,
+        body: entry.body.byteLength ? entry.body : undefined,
+      }).catch(() => undefined);
+      // Stop at the first failure and leave it, and everything after it, for
+      // the next sync. Sending the later ones would reorder them.
+      if (!response || !response.ok) return;
+      const key = keys[index++];
+      await withStore('readwrite', (store) => store.delete(key));
+    }
+  });
+}
+
+self.addEventListener('sync', (event) => {
+  if (event.tag === OUTBOX) event.waitUntil(replayOutbox());
+});
+
+// A browser without the Background Sync API never fires the event, so the
+// outbox is also replayed when the worker wakes for anything else and the
+// network is back.
+self.addEventListener('message', (event) => {
+  if (event.data === 'dartvel:replay-outbox') event.waitUntil(replayOutbox());
+});
+''';
 
 /// The page shown when a navigation fails and nothing is cached.
 ///
@@ -97,17 +218,16 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+__OUTBOX__
 self.addEventListener('fetch', (event) => {
   const request = event.request;
-
-  // A cached POST is a form submission served from disk, and the Cache API
-  // throws on one anyway.
-  if (request.method !== 'GET') return;
 
   // Fonts, analytics, an API on another host. An opaque response is something
   // the worker can neither inspect nor invalidate.
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+
+__QUEUE_ON_FAILURE__
 
   // Network first for documents. Cache-first on a navigation is the failure
   // that bricks a PWA: the worker serves an index.html naming bundles that no
