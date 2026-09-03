@@ -13,6 +13,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:meta/meta.dart';
 
+import 'src/accessibility/switch_control.dart';
 // conditional SEO implementation
 import 'src/browser_extension_platform_memory.dart'
     if (dart.library.html) 'src/browser_extension_platform_web.dart'
@@ -236,6 +237,7 @@ export 'package:dartvel_core/dartvel.dart'
         registerDVModelSerializer;
 export 'package:go_router/go_router.dart';
 
+export 'src/accessibility/switch_control.dart';
 export 'src/admin/cache_admin.dart';
 export 'src/admin/model_admin.dart';
 export 'src/admin/outbox_admin.dart';
@@ -6108,6 +6110,10 @@ class DVAccessibility {
   bool get reducedMotion =>
       _reducedMotionOverride ??
       ui.PlatformDispatcher.instance.accessibilityFeatures.disableAnimations;
+
+  /// Switch control, on or off, for the whole application. See
+  /// [DVSwitchControl] and [DVAccessibilityToggle].
+  DVSwitchControlState get switchControl => DVAccessibilitySwitchControl.state;
 
   void useReducedMotion(bool value) {
     _reducedMotionOverride = value;
