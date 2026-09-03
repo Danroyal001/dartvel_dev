@@ -109,4 +109,46 @@ void main() {
     expect(config, isNot(contains('installKioskPolicy')));
     expect(config, isNot(contains('get device')));
   });
+
+  profileOverrideTests();
+}
+
+// deviceProfiles.<profile>.kiosk overrides dartvel.kiosk, and the build's
+// --device-profile selects the profile. The override was parsed by nothing:
+// a front-desk profile's home page was ignored and every machine booted to
+// the section's default. Runtime never changes policy, so the choice is a
+// switch on the build's define, not a lookup that could be edited on device.
+Future<String> profiledDeviceConfig() => generatedFor('profiled_kiosk_app', YamlMap.wrap(<String, Object?>{
+      'kiosk': <String, Object?>{
+        'enabled': true,
+        'scope': 'device',
+        'home': '/welcome',
+        'exit': <String, Object?>{'method': 'pin', 'pin': 'secret:KIOSK_PIN'},
+      },
+      'deviceProfiles': <String, Object?>{
+        'frontDesk': <String, Object?>{
+          'kiosk': <String, Object?>{'home': '/front'},
+        },
+        'warehouse': <String, Object?>{'arch': 'arm64'},
+      },
+    }));
+
+void profileOverrideTests() {
+  test('a profile kiosk override is the device policy when that profile is selected', () async {
+    final String out = await profiledDeviceConfig();
+    expect(out, contains('class DVDeviceProfiles'));
+    expect(out, contains("String.fromEnvironment('DARTVEL_DEVICE_PROFILE'"));
+    expect(out, contains('static DVKioskPolicy get device => switch (DVDeviceProfiles.selected) {'));
+    final int start = out.indexOf("'frontDesk' => DVKioskPolicy.parse(");
+    expect(start, greaterThanOrEqualTo(0));
+    final String arm = out.substring(start, out.indexOf('_ => DVKioskPolicy.parse(', start));
+    expect(arm, contains("'home': '/front'"));
+    expect(arm, contains("'method': 'pin'"), reason: 'the section is inherited under the override');
+    expect(out, isNot(contains("'warehouse' =>")), reason: 'a profile with no kiosk entry is the default');
+  });
+
+  test('without profile overrides the device policy is the section alone', () async {
+    final String out = await deviceConfig();
+    expect(out, isNot(contains('switch (DVDeviceProfiles.selected)')));
+  });
 }
