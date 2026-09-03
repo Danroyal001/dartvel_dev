@@ -30,6 +30,7 @@ import 'src/commands/preview_command.dart';
 import 'src/commands/queue_command.dart';
 import 'src/commands/routes_command.dart';
 import 'src/commands/shell_command.dart';
+import 'src/commands/key_command.dart';
 import 'src/commands/test_command.dart';
 import 'src/commands/updates_command.dart';
 import 'src/commands/version_command.dart';
@@ -64,6 +65,7 @@ Future<void> main(List<String> args) async {
     ..addCommand(UpdatesCommand())
     ..addCommand(QueueCommand())
     ..addCommand(CacheCommand())
+    ..addCommand(KeyCommand())
     ..addCommand(DbCommand())
     ..addCommand(GenerateCommand())
     ..addCommand(I18nCommand())
