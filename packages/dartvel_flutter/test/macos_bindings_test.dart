@@ -15,7 +15,14 @@ void main() {
     test('it claims exactly what is bound', () {
       expect(
         DVMacosBindings.implemented,
-        <String>{'clipboard.copy', 'clipboard.paste', 'screen.geometry'},
+        <String>{
+          'clipboard.copy',
+          'clipboard.paste',
+          'screen.geometry',
+          // NSApplication presentation options, for a kiosk.
+          'kiosk.enforce',
+          'kiosk.release',
+        },
       );
     });
 

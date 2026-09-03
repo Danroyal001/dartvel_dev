@@ -17,3 +17,13 @@ class DVMacosBindings {
 
   static void unregister() {}
 }
+
+/// The macOS kiosk enforcement, unavailable here.
+class DVMacosKiosk {
+  const DVMacosKiosk._();
+
+  static const Set<String> implemented = <String>{'kiosk.enforce', 'kiosk.release'};
+  static const int kioskOptions = 0;
+  static int get presentationOptions => 0;
+  static void release() {}
+}
