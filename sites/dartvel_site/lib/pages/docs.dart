@@ -265,6 +265,7 @@ Widget _building() => const Section(
           'dartvel doctor                        # host, tooling, and a kiosk policy that cannot be honoured',
           'dartvel inspect windows               # the declared windowing, and what a running app has open',
           'dartvel analyze performance           # what the running app measured: degradations per call site, timings, findings',
+          'dartvel inspect kiosk                 # the effective kiosk policy per target and per window, each value with its source',
           'dartvel key generate | rotate | status # the application key, in the platform key store',
           'dartvel capture pwa-sync --web build/web  # the worker\'s outbox, in a real browser',
         ]),
