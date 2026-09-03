@@ -26,6 +26,14 @@ class DVPageNode {
   /// A bound action, e.g. `{'type': 'navigate', 'to': '/pricing'}`.
   final Map<String, Object?>? action;
 
+  /// Per-breakpoint overrides of [properties], keyed by [DVBreakpoint] name.
+  ///
+  /// Mobile-first, like every responsive system people already know: the
+  /// base properties are the phone, and an override at a breakpoint applies
+  /// from that width up until a wider breakpoint overrides it again. Empty
+  /// for most nodes, and written to JSON only when it is not.
+  final Map<String, Map<String, Object?>> breakpoints;
+
   final List<DVPageNode> children;
 
   DVPageNode({
@@ -34,10 +42,64 @@ class DVPageNode {
     this.layout = 'list',
     Map<String, Object?>? properties,
     this.action,
+    Map<String, Map<String, Object?>>? breakpoints,
     List<DVPageNode>? children,
   })  : id = id ?? _newId(),
         properties = properties ?? <String, Object?>{},
+        breakpoints = breakpoints ?? <String, Map<String, Object?>>{},
         children = children ?? <DVPageNode>[];
+
+  /// The widths, narrowest first, that [propertiesFor] cascades through.
+  static const List<DVBreakpoint> _cascade = <DVBreakpoint>[
+    DVBreakpoint.mobile,
+    DVBreakpoint.tablet,
+    DVBreakpoint.desktop,
+    DVBreakpoint.wide,
+  ];
+
+  /// The properties in effect at [breakpoint]: the base, then every override
+  /// from the narrowest breakpoint up to and including this one.
+  Map<String, Object?> propertiesFor(DVBreakpoint breakpoint) {
+    if (breakpoints.isEmpty) return properties;
+    final Map<String, Object?> effective = <String, Object?>{...properties};
+    for (final DVBreakpoint step in _cascade) {
+      final Map<String, Object?>? overrides = breakpoints[step.name];
+      if (overrides != null) effective.addAll(overrides);
+      if (step == breakpoint) break;
+    }
+    return effective;
+  }
+
+  /// A copy with [name] overridden at [breakpoint], or the override removed
+  /// when [value] is null. A breakpoint left with no overrides is dropped.
+  DVPageNode withBreakpointProperty(
+    DVBreakpoint breakpoint,
+    String name,
+    Object? value,
+  ) {
+    final Map<String, Map<String, Object?>> next =
+        <String, Map<String, Object?>>{
+      for (final MapEntry<String, Map<String, Object?>> e in breakpoints.entries)
+        e.key: <String, Object?>{...e.value},
+    };
+    final Map<String, Object?> at =
+        next.putIfAbsent(breakpoint.name, () => <String, Object?>{});
+    if (value == null) {
+      at.remove(name);
+    } else {
+      at[name] = value;
+    }
+    if (at.isEmpty) next.remove(breakpoint.name);
+    return DVPageNode(
+      id: id,
+      type: type,
+      layout: layout,
+      properties: properties,
+      action: action,
+      breakpoints: next,
+      children: children,
+    );
+  }
 
   static int _counter = 0;
 
@@ -62,6 +124,7 @@ class DVPageNode {
         layout: layout,
         properties: <String, Object?>{...properties, name: value},
         action: action,
+        breakpoints: breakpoints,
         children: children,
       );
 
@@ -73,6 +136,7 @@ class DVPageNode {
         layout: layout,
         properties: properties,
         action: action,
+        breakpoints: breakpoints,
         children: children,
       );
 
@@ -83,6 +147,7 @@ class DVPageNode {
         layout: layout,
         properties: properties,
         action: action,
+        breakpoints: breakpoints,
         children: children,
       );
 
@@ -93,6 +158,13 @@ class DVPageNode {
         properties:
             (json['properties'] as Map?)?.cast<String, Object?>() ?? {},
         action: (json['action'] as Map?)?.cast<String, Object?>(),
+        breakpoints: <String, Map<String, Object?>>{
+          if (json['breakpoints'] is Map)
+            for (final MapEntry<Object?, Object?> e
+                in (json['breakpoints'] as Map).entries)
+              if (e.value is Map)
+                '${e.key}': (e.value as Map).cast<String, Object?>(),
+        },
         children: <DVPageNode>[
           for (final child in (json['children'] as List?) ?? const <Object?>[])
             DVPageNode.fromJson((child! as Map).cast<String, Object?>()),
@@ -105,6 +177,7 @@ class DVPageNode {
         'layout': layout,
         if (properties.isNotEmpty) 'properties': properties,
         if (action != null) 'action': action,
+        if (breakpoints.isNotEmpty) 'breakpoints': breakpoints,
         if (children.isNotEmpty)
           'children': <Object?>[for (final c in children) c.toJson()],
       };
@@ -198,12 +271,28 @@ class DVPageDocument {
 
     // Actions ride the modifier chain: `.onPressed` lives on DVModifier, not
     // on every widget, which a compile of exported output proved.
-    final modifiers = _modifierSource(node);
-    if (modifiers.isNotEmpty) core = '$core.modifier($modifiers)';
-    return core;
+    if (node.breakpoints.isEmpty) {
+      final modifiers = _modifierSource(node, node.properties);
+      if (modifiers.isNotEmpty) core = '$core.modifier($modifiers)';
+      return core;
+    }
+
+    // Overrides exist, so the export switches on the breakpoint the way a
+    // hand-written page would, rather than flattening to one width. The
+    // Builder is what gives the switch a context to read the screen from.
+    final buffer = StringBuffer()
+      ..writeln('Builder(builder: (BuildContext context) =>')
+      ..writeln('$pad    switch (context.screen.breakpoint) {');
+    for (final DVBreakpoint step in DVPageNode._cascade) {
+      final modifiers = _modifierSource(node, node.propertiesFor(step));
+      final widget = modifiers.isEmpty ? core : '$core.modifier($modifiers)';
+      buffer.writeln('$pad      DVBreakpoint.${step.name} => $widget,');
+    }
+    buffer.write('$pad    })');
+    return buffer.toString();
   }
 
-  String _modifierSource(DVPageNode node) {
+  String _modifierSource(DVPageNode node, Map<String, Object?> properties) {
     var source = 'const DVModifier()';
     var any = false;
     final action = node.action;
@@ -212,12 +301,12 @@ class DVPageDocument {
           "$source.onPressed(DV.Navigation.to(const DVRouteTarget('${_escape('${action['to']}')}')))";
       any = true;
     }
-    final fontSize = node.properties['fontSize'];
+    final fontSize = properties['fontSize'];
     if (fontSize is num) {
       source = '$source.fontSize(${fontSize.toDouble()})';
       any = true;
     }
-    final padding = node.properties['padding'];
+    final padding = properties['padding'];
     if (padding is num) {
       source = '$source.padding(${padding.toDouble()})';
       any = true;
@@ -321,16 +410,31 @@ class DVPageDocumentRenderer extends StatelessWidget {
   const DVPageDocumentRenderer(this.document, {super.key});
 
   @override
-  Widget build(BuildContext context) => _build(document.root);
+  Widget build(BuildContext context) =>
+      _build(document.root, context.screen.breakpoint);
 
-  Widget _build(DVPageNode node) {
+  Widget _build(DVPageNode raw, DVBreakpoint breakpoint) {
+    // The node as it is at this width: the base properties with every
+    // override up to this breakpoint applied. Resolved once here, so the
+    // layout and the modifiers below read the same values.
+    final DVPageNode node = raw.breakpoints.isEmpty
+        ? raw
+        : DVPageNode(
+            id: raw.id,
+            type: raw.type,
+            layout: raw.layout,
+            properties: raw.propertiesFor(breakpoint),
+            action: raw.action,
+            children: raw.children,
+          );
     Widget built;
     final leaf = dvStudioLeafTypeFor(node);
     if (leaf != null) {
       built = leaf.build(node);
     } else {
-        final children =
-            node.children.map(_build).toList(growable: false);
+        final children = node.children
+            .map((DVPageNode c) => _build(c, breakpoint))
+            .toList(growable: false);
         built = switch (node.layout) {
           'row' => DVBox.row(children),
           'grid' => DVBox.grid(
