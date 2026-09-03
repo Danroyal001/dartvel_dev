@@ -42,6 +42,12 @@ final class _Input extends Struct {
 const int _inputKeyboard = 1;
 const int _keyUp = 0x0002;
 
+/// ERROR_REQUIRES_INTERACTIVE_WINDOWSTATION: a hot key cannot be taken in a
+/// session with no interactive desktop, which is a fact about the runner
+/// rather than about the binding, and is said rather than counted as a pass.
+bool noInteractiveStation(Map<Object?, Object?> unenforced) =>
+    unenforced.values.any((Object? reason) => '$reason'.contains('error 1459'));
+
 /// Presses and releases [keys] in order, as the user would.
 void sendKeys(List<int> keys) {
   final user32 = DynamicLibrary.open('user32.dll');
@@ -145,8 +151,12 @@ void main() {
         },
       )).cast<String, Object?>();
 
-      expect(result['blocked'], contains('Alt+F4'));
       final Map<Object?, Object?> unenforced = result['unenforced']! as Map<Object?, Object?>;
+      if (noInteractiveStation(unenforced)) {
+        markTestSkipped('this session has no interactive window station: ${unenforced['Alt+F4']}');
+        return;
+      }
+      expect(result['blocked'], contains('Alt+F4'), reason: 'unenforced: $unenforced');
       expect(unenforced.keys, contains('Ctrl+Alt+Delete'));
       expect('${unenforced['Ctrl+Alt+Delete']}', contains('RegisterHotKey'));
       // Focus Assist has no public API; a kiosk must not claim to hold
@@ -182,8 +192,13 @@ void main() {
             'suppressNotifications': false,
           },
         )).cast<String, Object?>();
-        expect(result['blocked'], <Object?>['Alt+F4'], reason: 'pass $i');
-        expect(result['unenforced'], isEmpty, reason: 'pass $i');
+        final Map<Object?, Object?> unenforced = result['unenforced']! as Map<Object?, Object?>;
+        if (noInteractiveStation(unenforced)) {
+          markTestSkipped('this session has no interactive window station: ${unenforced['Alt+F4']}');
+          return;
+        }
+        expect(result['blocked'], <Object?>['Alt+F4'], reason: 'pass $i, unenforced: $unenforced');
+        expect(unenforced, isEmpty, reason: 'pass $i');
       }
     });
 
@@ -214,10 +229,18 @@ void main() {
 
     test('a pressed shortcut reaches its handler by id', () async {
       var pressed = 0;
-      await const DVShortcuts().register(
-        const DVGlobalShortcut(id: 'capture', accelerator: 'Ctrl+Alt+F9'),
-        onPressed: () => pressed++,
-      );
+      try {
+        await const DVShortcuts().register(
+          const DVGlobalShortcut(id: 'capture', accelerator: 'Ctrl+Alt+F9'),
+          onPressed: () => pressed++,
+        );
+      } on StateError catch (e) {
+        if (e.message.contains('error 1459')) {
+          markTestSkipped('this session has no interactive window station: ${e.message}');
+          return;
+        }
+        rethrow;
+      }
       final Future<String> arrived = const DVShortcuts().pressed.first.timeout(const Duration(seconds: 10));
 
       sendKeys(<int>[0x11, 0x12, 0x78]); // VK_CONTROL, VK_MENU, VK_F9
@@ -235,7 +258,15 @@ void main() {
     });
 
     test('unregister frees the combo for the next registration', () async {
-      await const DVShortcuts().register(const DVGlobalShortcut(id: 'a', accelerator: 'Ctrl+Alt+F10'));
+      try {
+        await const DVShortcuts().register(const DVGlobalShortcut(id: 'a', accelerator: 'Ctrl+Alt+F10'));
+      } on StateError catch (e) {
+        if (e.message.contains('error 1459')) {
+          markTestSkipped('this session has no interactive window station: ${e.message}');
+          return;
+        }
+        rethrow;
+      }
       await const DVShortcuts().unregister('a');
       await const DVShortcuts().register(const DVGlobalShortcut(id: 'b', accelerator: 'Ctrl+Alt+F10'));
       expect(DVShortcuts.registered, <String>['b']);
