@@ -419,6 +419,7 @@ class DVModelPageSpec {
     this.contentFields = const <String>[],
     this.imageField,
     this.publishedField,
+    this.schemaType,
   });
 
   final String model;
@@ -430,6 +431,11 @@ class DVModelPageSpec {
   final List<String> contentFields;
   final String? imageField;
   final String? publishedField;
+
+  /// The schema.org type the page is, from `@DVModel(schemaType:)`. Null is
+  /// `Thing`: honestly general beats a guess from the model's name, which a
+  /// search engine would act on.
+  final String? schemaType;
 }
 
 /// The page data a model row is: the title field, the longest content
@@ -458,7 +464,7 @@ DVPageData dvModelPageData(DVModelPageSpec spec, Map<String, Object?> row) {
     text: <String>[title, if (content != null && content != title) content],
     structuredData: <String, Object?>{
       '@context': 'https://schema.org',
-      '@type': 'Thing',
+      '@type': spec.schemaType ?? 'Thing',
       'name': title,
       if (content != null) 'description': content,
       if (image != null) 'image': image,

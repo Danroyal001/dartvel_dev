@@ -127,6 +127,25 @@ void main() {
       expect(data.visibility, DVPageVisibility.public);
     });
 
+    test('the schema.org type is the one the model declares, and Thing when it declares none', () {
+      // A search engine acts on the label. A Person labelled a Product
+      // because the model is called Customer is worse than the honest
+      // general type, so it is declared rather than guessed from the name.
+      const DVModelPageSpec typed = DVModelPageSpec(
+        model: 'Product',
+        route: '/products/:slug',
+        param: 'slug',
+        table: 'products',
+        keyField: 'slug',
+        titleField: 'name',
+        schemaType: 'Product',
+      );
+      expect(dvModelPageData(typed, <String, Object?>{'slug': 'lamp', 'name': 'Desk lamp'}).structuredData,
+          containsPair('@type', 'Product'));
+      expect(dvModelPageData(spec, <String, Object?>{'slug': 'lamp', 'name': 'Desk lamp'}).structuredData,
+          containsPair('@type', 'Thing'));
+    });
+
     test('an unpublished row is hidden', () {
       final DVPageData data = dvModelPageData(spec, <String, Object?>{'slug': 'x', 'name': 'Draft', 'published': 0});
       expect(data.visibility, DVPageVisibility.hidden);

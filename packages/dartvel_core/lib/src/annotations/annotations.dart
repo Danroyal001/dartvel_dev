@@ -190,6 +190,15 @@ class DVModel {
   /// `@DVModel.pageOrder(n)`. Lower comes first.
   final int? pageOrderIndex;
 
+  /// The schema.org type this model's public page is, such as `Product`,
+  /// `Article` or `Person`.
+  ///
+  /// Null means `Thing`, which says a page is about something and nothing
+  /// more. It is declared rather than guessed from the model's name: a
+  /// `Person` labelled a `Product` because it is called `Customer` is worse
+  /// than the honest general type, and search engines act on the label.
+  final String? schemaType;
+
   const DVModel({
     this.searchable = false,
     this.billable = false,
@@ -197,6 +206,7 @@ class DVModel {
     this.pageDataMode = DVModelPageDataMode.auto,
     this.generatePublicPages = false,
     this.publicPathsResolver,
+    this.schemaType,
   })  : encrypted = false,
         showInForms = false,
         showInAdmin = false,
@@ -222,7 +232,8 @@ class DVModel {
         generatePublicPages = false,
         publicPathsResolver = null,
         pageRole = null,
-        pageOrderIndex = null;
+        pageOrderIndex = null,
+        schemaType = null;
 
   /// Marks a model field for generated search indexing:
   /// `@DVModel.searchableField()`.
@@ -237,7 +248,8 @@ class DVModel {
         showInForms = false,
         showInAdmin = false,
         pageRole = null,
-        pageOrderIndex = null;
+        pageOrderIndex = null,
+        schemaType = null;
 
   /// Marks the field a generated model page uses as its featured image:
   /// `@DVModel.featuredImage()`.
@@ -284,7 +296,8 @@ class DVModel {
         publicPathsResolver = null,
         encrypted = false,
         showInForms = false,
-        showInAdmin = false;
+        showInAdmin = false,
+        schemaType = null;
 }
 
 /// Marks a model property for generated search indexing.
