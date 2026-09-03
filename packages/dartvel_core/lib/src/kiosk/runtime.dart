@@ -98,16 +98,108 @@ class DVKioskRuntime {
     this.policy, {
     Future<String?> Function(String name)? readSecret,
     DateTime Function()? clock,
+    Future<void> Function(Set<DVKioskClearable> what)? clear,
+    this.tickEvery = const Duration(seconds: 1),
   })  : _readSecret = readSecret ?? _noSecrets,
         _clock = clock ?? DateTime.now,
-        state = DVKioskSignal<DVKioskState>(DVKioskState.off);
+        _clear = clear ?? _nothingToClear,
+        state = DVKioskSignal<DVKioskState>(DVKioskState.off),
+        countdown = DVKioskSignal<Duration?>(null);
 
   final DVKioskPolicy policy;
   final Future<String?> Function(String name) _readSecret;
   final DateTime Function() _clock;
 
+  /// Performs the policy's clearOnReset: the application knows its signals,
+  /// forms and stores; the runtime knows when. Called with what to clear,
+  /// never with an empty set.
+  final Future<void> Function(Set<DVKioskClearable> what) _clear;
+
+  /// How often the idle clock is checked while active.
+  final Duration tickEvery;
+
   /// Observed, never assigned from outside.
   final DVKioskSignal<DVKioskState> state;
+
+  /// Time left before the idle action, while the warning is showing; null
+  /// otherwise. Drive the countdown route from this.
+  final DVKioskSignal<Duration?> countdown;
+
+  // Synchronous: the app's "go home" runs inside reset(), before the runtime
+  // reports active again, so nothing is drawn against a half-cleared session.
+  final StreamController<DVKioskReset> _resets =
+      StreamController<DVKioskReset>.broadcast(sync: true);
+
+  /// Every reset, idle or explicit, as it happens: what was cleared and
+  /// where to go. The app navigates to [DVKioskReset.home] on each.
+  Stream<DVKioskReset> get resets => _resets.stream;
+
+  DateTime? _lastActivity;
+  Timer? _timer;
+
+  static Future<void> _nothingToClear(Set<DVKioskClearable> _) async {}
+
+  /// Records that someone is here. Call on every pointer, key or touch.
+  void touch() {
+    _lastActivity = _clock();
+    countdown._set(null);
+  }
+
+  /// Checks the idle clock once. The periodic timer calls this; a test can.
+  Future<void> tick() async {
+    if (state.value != DVKioskState.active) return;
+    if (policy.onIdle == DVKioskIdleAction.none) return;
+    final DateTime? last = _lastActivity;
+    if (last == null) return;
+    final Duration idle = _clock().difference(last);
+    if (idle >= policy.idleTimeout) {
+      countdown._set(null);
+      if (policy.onIdle == DVKioskIdleAction.reset) {
+        await reset(DVKioskResetReason.idle);
+      } else {
+        // Home only: nothing cleared, the clock restarts.
+        touch();
+        _resets.add(DVKioskReset(
+          cleared: const <DVKioskClearable>{},
+          home: policy.home,
+          reason: DVKioskResetReason.idle,
+        ));
+      }
+      return;
+    }
+    final Duration left = policy.idleTimeout - idle;
+    countdown._set(left <= policy.idleWarning ? left : null);
+  }
+
+  /// Resets the session now: clears what the policy says, tells the app to
+  /// go home, and starts the clock again. A clear that fails leaves the
+  /// kiosk [DVKioskState.failed] and rethrows -- a half-cleared session
+  /// presented as fresh is the one outcome worse than a visible failure.
+  Future<DVKioskReset> reset(DVKioskResetReason reason) async {
+    state._set(DVKioskState.resetting);
+    countdown._set(null);
+    try {
+      if (policy.clearOnReset.isNotEmpty) await _clear(policy.clearOnReset);
+    } catch (_) {
+      state._set(DVKioskState.failed);
+      rethrow;
+    }
+    final DVKioskReset result = DVKioskReset(
+      cleared: Set<DVKioskClearable>.unmodifiable(policy.clearOnReset),
+      home: policy.home,
+      reason: reason,
+    );
+    touch();
+    state._set(DVKioskState.active);
+    _resets.add(result);
+    return result;
+  }
+
+  /// Stops the idle clock. Call when the kiosk runtime is torn down.
+  void stop() {
+    _timer?.cancel();
+    _timer = null;
+  }
 
   int _failedAttempts = 0;
   DateTime? _lockedUntil;
@@ -128,6 +220,8 @@ class DVKioskRuntime {
   Future<void> resume() async {
     if (!policy.enabled) return;
     state._set(DVKioskState.active);
+    touch();
+    _timer ??= Timer.periodic(tickEvery, (_) => unawaited(tick()));
   }
 
   /// Attempts to leave kiosk mode.
