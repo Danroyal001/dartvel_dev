@@ -323,8 +323,8 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   ),
   (
     'OTA Updates',
-    'Page bundles, not native patches',
-    'Present: page bundles ship as data through DV.Updates and need no native patching. Absent: Shorebird-backed native patch application.',
+    'Staged across a fleet, but not native patches',
+    'Present: page bundles ship as data through DV.Updates and need no native patching, on named channels, and a staged rollout decides from the device and the version rather than at random -- so a device asked twice is answered the same, and one held back can say that it was. Absent: Shorebird-backed native patch application.',
   ),
   (
     'Billing',

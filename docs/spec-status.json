@@ -8,7 +8,7 @@
       "kind": "narrative"
     },
     {
-      "section": "Dartvel — The Complete Vision, to be implemented",
+      "section": "Dartvel \u2014 The Complete Vision, to be implemented",
       "kind": "narrative"
     },
     {
@@ -327,7 +327,9 @@
       "evidence": [
         "packages/dartvel_flutter/test/seo_ota_test.dart",
         "packages/dartvel_cli/test/updates_command_test.dart",
-        "packages/dartvel_flutter/test/page_update_delivery_test.dart"
+        "packages/dartvel_flutter/test/page_update_delivery_test.dart",
+        "packages/dartvel_core/test/update_rollout_test.dart",
+        "packages/dartvel_flutter/test/update_rollout_gate_test.dart"
       ],
       "absent": "Shorebird-backed native patch application; page bundles ship as data and do not need it"
     },
