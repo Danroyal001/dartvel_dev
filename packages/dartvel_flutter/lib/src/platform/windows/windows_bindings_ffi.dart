@@ -19,11 +19,13 @@ import 'windows_device_ffi.dart';
 import 'windows_kiosk_ffi.dart';
 import 'windows_menus_ffi.dart';
 import 'windows_shortcuts_ffi.dart';
+import 'windows_tray_ffi.dart';
 
 export 'windows_device_ffi.dart' show DVWindowsDeviceProbes;
 export 'windows_kiosk_ffi.dart' show DVWindowsKiosk;
 export 'windows_menus_ffi.dart' show DVWindowsMenus;
 export 'windows_shortcuts_ffi.dart' show DVWindowsShortcuts;
+export 'windows_tray_ffi.dart' show DVWindowsTray;
 
 // user32
 typedef _OpenClipboardNative = Int32 Function(IntPtr hWndNewOwner);
@@ -136,6 +138,7 @@ class DVWindowsBindings {
     DVWindowsShortcuts.register(DVNativeBridge.register);
     DVWindowsKiosk.register(DVNativeBridge.register, user32: _user32, kernel32: _kernel32);
     DVWindowsMenus.register(DVNativeBridge.register, user32: _user32);
+    DVWindowsTray.register(DVNativeBridge.register, user32: _user32);
     DVDeviceRuntime.probes = const DVWindowsDeviceProbes();
     DVDeviceRuntime.register(DVNativeBridge.register);
 
@@ -147,6 +150,7 @@ class DVWindowsBindings {
     if (_registered) {
       unawaited(DVWindowsKiosk.release().then((_) => DVWindowsShortcuts.unregister()));
       DVWindowsMenus.unregister();
+      DVWindowsTray.unregister();
       DVDeviceRuntime.unregister();
     }
     for (final name in implemented) {

@@ -458,6 +458,48 @@ void main() {
     });
   });
 
+  group('tray', () {
+    // Shell_NotifyIcon against the runner's own notification area, the
+    // window subclassed for the icon's messages, and the menu's item chosen
+    // through WM_COMMAND as Win32 sends it. A session without a shell has no
+    // notification area; the binding says so, and so does the test.
+    late TestWindow window;
+    setUp(() => window = TestWindow.create());
+    tearDown(() {
+      DVTray.reset();
+      DVWindowsTray.unregister();
+      window.destroy();
+    });
+
+    test('the icon is shown with its menu, an item chosen reaches Dart by id, and hide removes it', () async {
+      final List<String> chosen = <String>[];
+      try {
+        await const DVTray().show(
+          icon: 'no-such-icon.ico',
+          tooltip: 'Dartvel',
+          menu: const <DVTrayMenuItem>[DVTrayMenuItem(id: 'open', label: 'Open'), DVTrayMenuItem(id: 'quit', label: 'Quit')],
+          onSelected: chosen.add,
+        );
+      } on StateError {
+        if ('${DVWindowsTray.lastError}'.contains('no notification area')) {
+          markTestSkipped('this session has no notification area: ${DVWindowsTray.lastError}');
+          return;
+        }
+        rethrow;
+      }
+      expect(DVWindowsTray.shown, isTrue);
+
+      window.send(0x0111, DVWindowsTray.debugCommandFor('quit')!, 0);
+      expect(chosen, <String>['quit']);
+
+      await const DVTray().hide();
+      expect(DVWindowsTray.shown, isFalse);
+      // A command after hide reaches nobody.
+      window.send(0x0111, DVWindowsTray.debugCommandFor('open') ?? 0x1000, 0);
+      expect(chosen, <String>['quit']);
+    });
+  });
+
   test('an unimplemented binding still throws', () async {
     // Notifications are deliberately absent; see the capability list.
     await expectLater(
