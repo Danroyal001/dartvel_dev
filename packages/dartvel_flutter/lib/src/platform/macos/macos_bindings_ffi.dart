@@ -24,8 +24,10 @@ import 'package:ffi/ffi.dart';
 import '../../../dartvel_flutter.dart' show DVNativeBridge;
 import 'macos_capabilities.dart';
 import 'macos_kiosk_ffi.dart';
+import 'macos_shortcuts_ffi.dart';
 
 export 'macos_kiosk_ffi.dart' show DVMacosKiosk;
+export 'macos_shortcuts_ffi.dart' show DVMacosShortcuts;
 
 // The Objective-C runtime, in libobjc.
 typedef _ObjcGetClassNative = Pointer<Void> Function(Pointer<Utf8> name);
@@ -102,13 +104,17 @@ class DVMacosBindings {
     DVNativeBridge.register('screen.geometry', (Object? _) => _geometry());
 
     DVMacosKiosk.register(DVNativeBridge.register, objc: _objc);
+    DVMacosShortcuts.register(DVNativeBridge.register);
 
     _registered = true;
     return true;
   }
 
   static void unregister() {
-    if (_registered) DVMacosKiosk.release();
+    if (_registered) {
+      DVMacosKiosk.release();
+      DVMacosShortcuts.unregister();
+    }
     for (final name in implemented) {
       DVNativeBridge.unregister(name);
     }

@@ -22,6 +22,9 @@ void main() {
           // NSApplication presentation options, for a kiosk.
           'kiosk.enforce',
           'kiosk.release',
+          // Carbon RegisterEventHotKey, delivered by id from the run loop.
+          'shortcuts.register',
+          'shortcuts.unregister',
         },
       );
     });

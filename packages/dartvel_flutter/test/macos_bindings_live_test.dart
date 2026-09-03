@@ -8,8 +8,41 @@ library;
 // an Objective-C message with a mistyped signature does not fail to compile —
 // it corrupts the stack or returns rubbish, so this has to run where the
 // runtime is.
+import 'dart:async' show unawaited;
+import 'dart:ffi';
+
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+final DynamicLibrary _cg = DynamicLibrary.open('/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics');
+final DynamicLibrary _appServices =
+    DynamicLibrary.open('/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices');
+
+/// Whether this process may synthesise input: CGEventPost is silently dropped
+/// without the Accessibility grant, which a runner may or may not hold.
+bool get trusted =>
+    _appServices.lookupFunction<Bool Function(), bool Function()>('AXIsProcessTrusted')();
+
+/// Presses and releases [keyCode] with [flags], through the HID event tap.
+void postKey(int keyCode, int flags) {
+  final create = _cg.lookupFunction<
+      Pointer<Void> Function(Pointer<Void>, Uint16, Bool),
+      Pointer<Void> Function(Pointer<Void>, int, bool)>('CGEventCreateKeyboardEvent');
+  final setFlags = _cg.lookupFunction<
+      Void Function(Pointer<Void>, Uint64),
+      void Function(Pointer<Void>, int)>('CGEventSetFlags');
+  final post = _cg.lookupFunction<
+      Void Function(Uint32, Pointer<Void>),
+      void Function(int, Pointer<Void>)>('CGEventPost');
+  final release = DynamicLibrary.open('/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation')
+      .lookupFunction<Void Function(Pointer<Void>), void Function(Pointer<Void>)>('CFRelease');
+  for (final bool down in <bool>[true, false]) {
+    final Pointer<Void> event = create(nullptr, keyCode, down);
+    setFlags(event, flags);
+    post(0, event); // kCGHIDEventTap
+    release(event);
+  }
+}
 
 void main() {
   setUpAll(() {
@@ -85,6 +118,61 @@ void main() {
       expect(DVMacosKiosk.presentationOptions, isNot(0));
       expect(await DVNativeBridge.require<bool>('kiosk.release'), isTrue);
       expect(DVMacosKiosk.presentationOptions, 0);
+    });
+  });
+
+  group('global shortcuts', () {
+    // Carbon's RegisterEventHotKey, with the press delivered from the run
+    // loop by id. The harness runs no loop, so the test pumps it; the press
+    // itself is synthesised through the HID tap, which macOS drops without
+    // the Accessibility grant -- a runner without it proves registration
+    // and refusal and says why delivery was not proven.
+    tearDown(() async {
+      for (final String id in DVShortcuts.registered) {
+        await const DVShortcuts().unregister(id);
+      }
+    });
+
+    test('a registration is taken, and the same combo twice is refused with the reason', () async {
+      await const DVShortcuts().register(const DVGlobalShortcut(id: 'capture', accelerator: 'Ctrl+Option+F9'));
+      expect(DVShortcuts.registered, contains('capture'));
+
+      await expectLater(
+        const DVShortcuts().register(const DVGlobalShortcut(id: 'again', accelerator: 'Ctrl+Option+F9')),
+        throwsA(isA<StateError>().having((StateError e) => e.message, 'message', contains('RegisterEventHotKey'))),
+      );
+      expect(DVShortcuts.registered, isNot(contains('again')));
+    });
+
+    test('a pressed shortcut reaches its handler by id', () async {
+      var pressed = 0;
+      await const DVShortcuts().register(
+        const DVGlobalShortcut(id: 'capture', accelerator: 'Ctrl+Option+F9'),
+        onPressed: () => pressed++,
+      );
+      if (!trusted) {
+        markTestSkipped('this process has no Accessibility grant, so a synthesised press is dropped before it reaches anyone');
+        return;
+      }
+      String? arrived;
+      unawaited(const DVShortcuts().pressed.first.then((String id) => arrived = id));
+
+      postKey(0x65, 0x40000 | 0x80000); // kVK_F9 with control and option
+      final Stopwatch clock = Stopwatch()..start();
+      while (arrived == null && clock.elapsed < const Duration(seconds: 5)) {
+        DVMacosShortcuts.pump(const Duration(milliseconds: 50));
+        await Future<void>.delayed(Duration.zero);
+      }
+
+      expect(arrived, 'capture');
+      expect(pressed, 1);
+    });
+
+    test('unregister frees the combo for the next registration', () async {
+      await const DVShortcuts().register(const DVGlobalShortcut(id: 'a', accelerator: 'Ctrl+Option+F10'));
+      await const DVShortcuts().unregister('a');
+      await const DVShortcuts().register(const DVGlobalShortcut(id: 'b', accelerator: 'Ctrl+Option+F10'));
+      expect(DVShortcuts.registered, <String>['b']);
     });
   });
 
