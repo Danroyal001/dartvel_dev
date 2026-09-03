@@ -219,7 +219,10 @@ Future<Map<String, Object?>> handler(
   static const String mainTemplate = '''import 'package:flutter/material.dart';
 import 'dartvel_client/dartvel_client.dart';
 
-void main(List<String> arguments) {
+void main(List<String> arguments) async {
+  // Where this launch renders: nothing to decide unless the build opted into
+  // the terminal, in which case a launch with no display may leave for it.
+  await negotiateDartvelLaunch(arguments);
   runApp(createDartvelApp(arguments: arguments));
 }
 
