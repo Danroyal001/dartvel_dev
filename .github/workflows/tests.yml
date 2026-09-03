@@ -366,9 +366,25 @@ jobs:
         working-directory: packages/dartvel_flutter
         run: flutter pub get
 
+      # The suite reports every test passing and `flutter test` still exits
+      # 1, which means the tester process died on its way out rather than a
+      # test failing -- an AppKit exception raised after the reporter has
+      # already printed its summary. There is no macOS to reproduce that on
+      # outside this runner, so the suite is run in parts and each part's
+      # exit code printed: a part that exits 1 with everything green names
+      # the group whose teardown is killing the process.
       - name: Run the macOS suite
         working-directory: packages/dartvel_flutter
-        run: flutter test test/macos_bindings_live_test.dart
+        run: |
+          set +e
+          flutter test test/macos_bindings_live_test.dart --plain-name dialogs
+          dialogs=$?
+          flutter test test/macos_bindings_live_test.dart --plain-name 'drag and drop'
+          dnd=$?
+          flutter test test/macos_bindings_live_test.dart
+          whole=$?
+          echo "exit codes -- dialogs: $dialogs, drag and drop: $dnd, whole suite: $whole"
+          [ "$whole" -eq 0 ]
       # window.displays through CGGetActiveDisplayList, against the runner's
       # own display: at least one, a main, a real size in points.
       - name: Display enumeration
