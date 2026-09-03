@@ -4,6 +4,7 @@ import 'package:args/command_runner.dart';
 
 import 'src/commands/update_command.dart';
 import 'src/commands/mcp_command.dart';
+import 'src/commands/modules_command.dart';
 import 'src/commands/analyze_command.dart';
 import 'src/commands/inspect_command.dart';
 import 'src/commands/admin_command.dart';
@@ -64,6 +65,7 @@ Future<void> main(List<String> args) async {
     ..addCommand(PreviewCommand())
     ..addCommand(PrerenderCommand())
     ..addCommand(PluginCommand())
+    ..addCommand(ModulesCommand())
     ..addCommand(UpdatesCommand())
     ..addCommand(QueueCommand())
     ..addCommand(CacheCommand())
