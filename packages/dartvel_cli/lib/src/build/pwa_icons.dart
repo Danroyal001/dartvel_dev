@@ -400,3 +400,44 @@ List<String> dvGeneratePwaIcons({
   }
   return written;
 }
+
+// ---------------------------------------------------------------------------
+// Finding the source, and the background colour
+
+/// The PNG the icon set is generated from, or null when the project has none.
+///
+/// `dartvel.pwa.icon` wins; then `web/icon.png`, then `assets/icon.png`. A
+/// configured path that does not exist is an error rather than a fallback,
+/// because falling back would quietly ship a different image from the one the
+/// project named. Nothing anywhere is null: a project with no icon gets no
+/// icons and a plain message, not a build failure and not a placeholder that
+/// ships to a store.
+File? dvPwaIconSource(String root, Map<Object?, Object?> pwaSettings) {
+  final Object? configured = pwaSettings['icon'];
+  if (configured is String && configured.trim().isNotEmpty) {
+    final File file = File('$root/${configured.trim()}');
+    if (!file.existsSync()) {
+      throw DVPngError('dartvel.pwa.icon names ${configured.trim()}, which '
+          'does not exist.');
+    }
+    return file;
+  }
+  for (final String candidate in <String>['web/icon.png', 'assets/icon.png']) {
+    final File file = File('$root/$candidate');
+    if (file.existsSync()) return file;
+  }
+  return null;
+}
+
+/// `#RRGGBB` or `#RGB` as opaque ARGB. Anything else is white.
+///
+/// The manifest already tolerates a bad colour; the icon background should
+/// not be the one place it becomes fatal.
+int dvHexToArgb(String hex) {
+  String h = hex.trim();
+  if (h.startsWith('#')) h = h.substring(1);
+  if (h.length == 3) h = h.split('').map((String c) => '$c$c').join();
+  if (h.length != 6) return 0xFFFFFFFF;
+  final int? value = int.tryParse(h, radix: 16);
+  return value == null ? 0xFFFFFFFF : 0xFF000000 | value;
+}

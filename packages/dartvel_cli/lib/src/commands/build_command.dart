@@ -8,6 +8,7 @@ import '../build/accessibility_audit.dart';
 import '../build/browser_extension.dart';
 import '../build/elinux_bundle.dart';
 import '../build/capture_completeness.dart';
+import '../build/pwa_icons.dart';
 import '../build/pwa_manifest.dart';
 import '../secrets/secrets_analysis.dart';
 import '../build/pwa_service_worker.dart';
@@ -1294,7 +1295,44 @@ class BuildCommand extends Command<void> {
       Logger.log('   ⚠ $problem');
     }
 
+    _writePwaIcons(root, settings);
     _writeServiceWorker(root, name: name, settings: settings);
+  }
+
+  /// Generates the four icons the manifest names, from the project's icon.
+  ///
+  /// The manifest pointed at files nothing produced, and Chrome refuses to
+  /// install without them, so every fresh project was uninstallable until
+  /// someone exported four PNGs by hand. Skipped, and said, when the project
+  /// has no icon; fatal when it names one that cannot be read, because that is
+  /// a mistake the developer can fix in a minute and would otherwise ship.
+  void _writePwaIcons(String root, Map<Object?, Object?> settings) {
+    final File? source;
+    try {
+      source = dvPwaIconSource(root, settings);
+    } on DVPngError catch (error) {
+      Logger.error('   ${error.message}');
+      Logger.log('❌ PWA icon');
+      exit(1);
+    }
+    if (source == null) {
+      Logger.log('   No PWA icons generated: add web/icon.png (or set '
+          'dartvel.pwa.icon) and the 192 and 512 sizes will be built from it.');
+      return;
+    }
+    try {
+      final List<String> written = dvGeneratePwaIcons(
+        source: source,
+        into: Directory(p.join(root, 'build', 'web')),
+        background: dvHexToArgb('${settings['backgroundColor'] ?? '#FFFFFF'}'),
+      );
+      Logger.log('   PWA icons written from ${p.relative(source.path, from: root)}: '
+          '${written.length}.');
+    } on DVPngError catch (error) {
+      Logger.error('   ${error.message}');
+      Logger.log('❌ PWA icon');
+      exit(1);
+    }
   }
 
   /// Replace Flutter's service worker with one that knows the routes.
