@@ -440,6 +440,7 @@ const String dvApiBasePath      = '${esc(apiBasePath)}';
 import 'dart:async' show unawaited;
 import 'package:flutter/foundation.dart' show kReleaseMode, kIsWeb, defaultTargetPlatform, TargetPlatform, debugPrint;
 import 'dart:io' show exit, stdin, stdout, stderr, File, Platform, Process, ProcessStartMode;
+import 'package:dartvel_core/dartvel.dart' show dvLiveWindowsPathFor;
 import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVPageStore, DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAppLaunch, DVRouteTarget, DVWindowOptions, DVRenderSurface, DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor;
 import 'dartvel_config.g.dart' as cfg;
 import 'jobs.g.dart' show registerDartvelJobs;
@@ -494,6 +495,9 @@ void startDartvelLaunch(List<String> arguments) {
     // A second launch has done its job once its arguments are handed over;
     // staying open would be a second window of the same application.
     if (!result.isPrimary) exit(0);
+    // The one that stays publishes what it has open beside its lock, for
+    // `dartvel inspect windows` to read while it runs.
+    DV.Platform.Window.publishLiveWindows(dvLiveWindowsPathFor('$pkgName'), app: '$pkgName');
   }));
 }
 
