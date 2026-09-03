@@ -85,10 +85,17 @@ Widget _cloudPage(BuildContext context) => const SingleChildScrollView(
                 'still style on its own. Built.',
               ),
               SiteCard(
+                'Revision history',
+                'Every save of every page kept, numbered, timestamped and '
+                'attributed, and any of them restorable with one tap — the '
+                'restore is a revision too, so history never loses a state. '
+                'Built.',
+              ),
+              SiteCard(
                 'Collaboration and governance',
-                'Multi-user editing with presence, revision history and '
-                'approval, role-based editor permissions and an audit trail. '
-                'Planned; not yet built.',
+                'Multi-user editing with presence and approval, role-based '
+                'editor permissions and an audit trail. Planned; not yet '
+                'built.',
               ),
               SiteCard(
                 'Enterprise SSO',

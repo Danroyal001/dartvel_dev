@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 
 import '../../dartvel_flutter.dart';
@@ -23,10 +25,39 @@ class DVStudioEditorController extends ChangeNotifier {
   /// so a long edit cannot grow without limit.
   final int historyLimit;
 
-  DVStudioEditorController(DVPageDocument document, {this.historyLimit = 100})
-      : _document = document;
+  /// A read-only controller refuses local mutations with a [StateError] but
+  /// still applies edits from elsewhere: a viewer's screen follows the
+  /// editors without getting to type. Settable, because the screen creates
+  /// the controller and whatever attaches to it decides who may edit.
+  bool readOnly;
+
+  DVStudioEditorController(
+    DVPageDocument document, {
+    this.historyLimit = 100,
+    this.readOnly = false,
+  }) : _document = document;
 
   DVPageDocument get document => _document;
+
+  final StreamController<DVStudioEdit> _edits =
+      StreamController<DVStudioEdit>.broadcast();
+
+  /// Every mutation this controller performs, as data another controller can
+  /// [apply]. Edits applied from elsewhere are not republished, or two
+  /// collaborators would echo each other forever.
+  Stream<DVStudioEdit> get edits => _edits.stream;
+
+  /// Performs an edit made elsewhere.
+  ///
+  /// Outside local undo: undoing would otherwise revert a collaborator's
+  /// change, which is not what the person pressing undo meant. Throws
+  /// [ArgumentError] when the edit cannot apply, leaving the document as it
+  /// was.
+  void apply(DVStudioEdit edit) {
+    edit.applyTo(_editor);
+    _dropDanglingSelection();
+    notifyListeners();
+  }
 
   /// The selected node, or null when nothing is selected.
   String? get selectedId => _selectedId;
@@ -50,6 +81,7 @@ class DVStudioEditorController extends ChangeNotifier {
   /// A mutation that throws — dropping a container into itself, say — leaves
   /// no history entry, so undo cannot replay a change that never happened.
   void _mutate(void Function(DVPageDocumentEditor editor) mutate) {
+    if (readOnly) throw StateError('This editor is read-only.');
     final snapshot = _document.toJson();
     try {
       mutate(_editor);
@@ -67,6 +99,7 @@ class DVStudioEditorController extends ChangeNotifier {
     _mutate((DVPageDocumentEditor editor) {
       editor.insert(node, parent: parent, index: index);
     });
+    _edits.add(DVStudioEdit.insert(node, parent: parent, index: index));
     select(node.id);
   }
 
@@ -75,6 +108,7 @@ class DVStudioEditorController extends ChangeNotifier {
     _mutate((DVPageDocumentEditor editor) {
       editor.move(id, parent: parent, index: index);
     });
+    _edits.add(DVStudioEdit.move(id, parent: parent, index: index));
   }
 
   /// Replaces a node. This is the property inspector.
@@ -82,6 +116,7 @@ class DVStudioEditorController extends ChangeNotifier {
     _mutate((DVPageDocumentEditor editor) {
       editor.update(id, transform);
     });
+    _edits.add(DVStudioEdit.update(id, _editor.find(id)!));
   }
 
   /// Sets one property on the selected node — the inspector's common case.
@@ -98,6 +133,7 @@ class DVStudioEditorController extends ChangeNotifier {
     _mutate((DVPageDocumentEditor editor) {
       editor.remove(id);
     });
+    _edits.add(DVStudioEdit.remove(id));
     if (_selectedId == id) _selectedId = null;
   }
 
@@ -105,6 +141,7 @@ class DVStudioEditorController extends ChangeNotifier {
     if (_undo.isEmpty) return;
     _redo.add(_document.toJson());
     _document = DVPageDocument.fromJson(_undo.removeLast());
+    _edits.add(DVStudioEdit.replace(_document));
     _dropDanglingSelection();
     notifyListeners();
   }
@@ -113,6 +150,7 @@ class DVStudioEditorController extends ChangeNotifier {
     if (_redo.isEmpty) return;
     _undo.add(_document.toJson());
     _document = DVPageDocument.fromJson(_redo.removeLast());
+    _edits.add(DVStudioEdit.replace(_document));
     _dropDanglingSelection();
     notifyListeners();
   }
@@ -128,6 +166,12 @@ class DVStudioEditorController extends ChangeNotifier {
 
   /// Persists the document, which publishes it.
   Future<void> save() => const DVPageStore().save(_document);
+
+  @override
+  void dispose() {
+    unawaited(_edits.close());
+    super.dispose();
+  }
 }
 
 /// What the palette drags and the canvas accepts.

@@ -25,11 +25,16 @@ class DVStudioScreen extends StatefulWidget {
   /// that opens onto nothing.
   final List<DVStudioSection> sections;
 
+  /// Attached to each editor the Pages tab opens, detached when it closes.
+  /// The seam collaboration and permissions attach through.
+  final List<DVStudioEditorHook> editorHooks;
+
   const DVStudioScreen({
     super.key,
     this.store = const DVPageStore(),
     this.palette = const <DVStudioPaletteItem>[],
     this.sections = const <DVStudioSection>[],
+    this.editorHooks = const <DVStudioEditorHook>[],
   });
 
   @override
@@ -72,6 +77,7 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
             key: const ValueKey<String>('dv-studio-pages'),
             store: widget.store,
             palette: widget.palette,
+            editorHooks: widget.editorHooks,
           ),
         ),
         ...widget.sections,
@@ -117,11 +123,13 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
 class _DVStudioPagesSection extends StatefulWidget {
   final DVPageStore store;
   final List<DVStudioPaletteItem> palette;
+  final List<DVStudioEditorHook> editorHooks;
 
   const _DVStudioPagesSection({
     super.key,
     required this.store,
     required this.palette,
+    required this.editorHooks,
   });
 
   @override
@@ -143,10 +151,22 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
     unawaited(_loadRoutes());
   }
 
+  /// What each hook handed back for the current editor, called when it goes.
+  List<VoidCallback> _detach = const <VoidCallback>[];
+
   @override
   void dispose() {
-    _controller?.dispose();
+    _closeEditor();
     super.dispose();
+  }
+
+  void _closeEditor() {
+    for (final VoidCallback detach in _detach) {
+      detach();
+    }
+    _detach = const <VoidCallback>[];
+    _controller?.dispose();
+    _controller = null;
   }
 
   Future<void> _loadRoutes() async {
@@ -177,8 +197,14 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
 
   void _select(DVPageDocument document) {
     setState(() {
-      _controller?.dispose();
-      _controller = DVStudioEditorController(document);
+      _closeEditor();
+      final DVStudioEditorController controller =
+          DVStudioEditorController(document);
+      _controller = controller;
+      _detach = <VoidCallback>[
+        for (final DVStudioEditorHook hook in widget.editorHooks)
+          hook(controller),
+      ];
       _showingCode = false;
     });
   }
@@ -216,10 +242,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
     if (controller == null) return;
     await widget.store.delete(controller.document.route);
     if (!mounted) return;
-    setState(() {
-      _controller?.dispose();
-      _controller = null;
-    });
+    setState(_closeEditor);
     await _loadRoutes();
   }
 
