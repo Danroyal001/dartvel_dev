@@ -44,6 +44,7 @@ dependencies:
   dartvel_core:
     version: ^0.3.2
   jni: ^1.0.3
+  dbus: ^0.7.15
 dev_dependencies:
   flutter_test:
     sdk: flutter

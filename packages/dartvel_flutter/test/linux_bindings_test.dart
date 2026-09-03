@@ -97,6 +97,9 @@ void main() {
         'media.pick',
         'permissions.isGranted',
         'permissions.request',
+        // The tray, as a StatusNotifierItem on the session bus.
+        'tray.show',
+        'tray.hide',
       },
     );
     expect(DVLinuxBindings.isRegistered, isTrue);
