@@ -8,11 +8,15 @@ library;
 import 'app_key.dart';
 import 'file_key_store_unsupported.dart'
     if (dart.library.io) 'file_key_store_io.dart';
+import 'platform_key_stores_unsupported.dart'
+    if (dart.library.ffi) 'platform_key_stores_io.dart';
 import 'secret_service_key_store_unsupported.dart'
     if (dart.library.ffi) 'secret_service_key_store_io.dart';
 
 export 'file_key_store_unsupported.dart'
     if (dart.library.io) 'file_key_store_io.dart';
+export 'platform_key_stores_unsupported.dart'
+    if (dart.library.ffi) 'platform_key_stores_io.dart';
 export 'secret_service_key_store_unsupported.dart'
     if (dart.library.ffi) 'secret_service_key_store_io.dart';
 
@@ -30,6 +34,15 @@ class DVAppKeyStores {
   }) {
     if (platform == 'linux' && secretService) {
       return DVSecretServiceAppKeyStore(service: 'dartvel/$app', account: app);
+    }
+    if (platform == 'windows') {
+      // The blob is sealed to the user, so where it sits matters less than
+      // that it sits in the user's own profile.
+      final String sep = home.contains('\\') ? '\\' : '/';
+      return DVDpapiAppKeyStore('$home${sep}AppData${sep}Local${sep}dartvel${sep}keys$sep$app.key');
+    }
+    if (platform == 'macos') {
+      return DVKeychainAppKeyStore(service: 'dartvel/$app', account: app);
     }
     return DVFileAppKeyStore('$home/.dartvel/keys/$app.key');
   }
@@ -56,6 +69,12 @@ class DVAppKeyStores {
   static String describe(DVAppKeyStore store) {
     if (store is DVSecretServiceAppKeyStore) {
       return 'the Secret Service (libsecret), keyring-backed, as ${store.service}';
+    }
+    if (store is DVDpapiAppKeyStore) {
+      return 'a DPAPI-protected blob, sealed to this user on this machine, at ${store.path}';
+    }
+    if (store is DVKeychainAppKeyStore) {
+      return 'the Keychain, as ${store.service} for ${store.account}';
     }
     if (store is DVFileAppKeyStore) {
       return 'a file only this user can read, ${store.path} -- no platform '
