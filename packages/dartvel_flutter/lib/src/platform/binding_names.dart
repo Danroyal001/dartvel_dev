@@ -74,6 +74,16 @@ const Set<String> dvNativeBindingNames = <String>{
   'menus.setApplicationMenu',
   'shortcuts.register',
   'shortcuts.unregister',
+  'printing.toFile',
+  'printing.print',
+  'dialogs.openFile',
+  'dialogs.saveFile',
+  'dialogs.chooseDirectory',
+  'dialogs.message',
+
+  // Kiosk enforcement: hold the policy on the device, and let go.
+  'kiosk.enforce',
+  'kiosk.release',
 
   // Desktop windowing. Registered by the dartvel_windowing package rather than
   // by a platform binding file here: depending on that package is what opts an
