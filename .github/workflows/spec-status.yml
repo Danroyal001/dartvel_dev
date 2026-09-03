@@ -36,3 +36,8 @@ jobs:
       # so it shows up as one target failing among twenty rather than as a
       # broken pubspec.
       - run: dart run tool/pubspec_paths_check.dart
+
+      # The site's feature page says of itself that it lists every section the
+      # index records as Shipped and nothing else. It listed 29 of 40 under a
+      # heading that said thirty-three, because nothing compared them.
+      - run: dart run tool/site_features_check.dart
