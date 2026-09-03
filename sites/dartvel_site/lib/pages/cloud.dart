@@ -92,10 +92,17 @@ Widget _cloudPage(BuildContext context) => const SingleChildScrollView(
                 'Built.',
               ),
               SiteCard(
-                'Collaboration and governance',
-                'Multi-user editing with presence and approval, role-based '
-                'editor permissions and an audit trail. Planned; not yet '
-                'built.',
+                'Multi-user editing',
+                'Two people on one page see each other\'s edits as they '
+                'happen, with who is here and what they have selected shown '
+                'as presence. Viewers follow and cannot type; editors edit; '
+                'every change is written to an audit trail with who did it. '
+                'Built.',
+              ),
+              SiteCard(
+                'Approval',
+                'A page published by an editor waits for an approver before '
+                'it goes live. Planned; not yet built.',
               ),
               SiteCard(
                 'Enterprise SSO',
