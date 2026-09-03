@@ -538,9 +538,10 @@
         "packages/dartvel_core/lib/src/crypto/app_key.dart",
         "packages/dartvel_core/lib/src/secrets/secrets.dart",
         "packages/dartvel_core/test/app_key_test.dart",
-        "packages/dartvel_core/test/secrets_test.dart"
+        "packages/dartvel_core/test/secrets_test.dart",
+        "packages/dartvel_core/test/secrets_rotation_test.dart"
       ],
-      "absent": "Rotation hooks and the platform key stores behind DVAppKeyStore, so the application key is held in memory. The declaration manifest and DV-SECRETS-001 are built: dartvel build parses dartvel.secrets, refuses a client-scoped secret without the PUBLIC_ prefix, and fails with the file and the remedy when a backend-scoped secret is reached from client code. dvValidateEnvironment answers what deploy needs to check"
+      "absent": "The platform key stores behind DVAppKeyStore -- DPAPI, Keychain, libsecret, Android Keystore, a non-extractable WebCrypto key -- and `dartvel key generate|rotate|status`, so the application key is still held in memory. Built: rotation hooks (DV.Secrets.onRotate fires when a resolver reports a new value, every hook runs even if one throws, the same value fires nothing) and DV.Test.withSecrets, which restores values and hooks after a test, on a throw too. The declaration manifest and DV-SECRETS-001 are built: dartvel build parses dartvel.secrets, refuses a client-scoped secret without the PUBLIC_ prefix, and fails with the file and the remedy when a backend-scoped secret is reached from client code. dvValidateEnvironment answers what deploy needs to check"
     },
     {
       "section": "Deployment",
