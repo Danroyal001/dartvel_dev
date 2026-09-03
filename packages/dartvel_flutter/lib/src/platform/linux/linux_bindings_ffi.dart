@@ -10,6 +10,7 @@ import 'dart:ffi';
 import 'package:ffi/ffi.dart';
 
 import '../../../dartvel_flutter.dart';
+import 'linux_menus_ffi.dart';
 import 'linux_shortcuts_ffi.dart';
 
 // --- libX11 ------------------------------------------------------------------
@@ -161,6 +162,7 @@ class DVLinuxBindings {
     'window.setSize',
     'shortcuts.register',
     'shortcuts.unregister',
+    'menus.setApplicationMenu',
   };
 
   static DynamicLibrary? _x11;
@@ -238,6 +240,8 @@ class DVLinuxBindings {
     // the first grab rather than here, so an application that never registers
     // one never opens it.
     DVLinuxShortcuts.register(DVNativeBridge.register);
+    // The application menu, built into the real GTK window.
+    DVLinuxMenus.register(_gtk!, _glib!, DVNativeBridge.register);
 
     _registered = true;
     return true;
@@ -251,6 +255,7 @@ class DVLinuxBindings {
     // Releases every grab. A grab left behind eats the keys for every other
     // application on the desktop until the process dies.
     unawaited(DVLinuxShortcuts.unregister());
+    DVLinuxMenus.unregister();
     _registered = false;
   }
 

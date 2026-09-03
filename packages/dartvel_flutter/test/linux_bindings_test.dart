@@ -75,6 +75,7 @@ void main() {
         'window.setSize',
         'shortcuts.register',
         'shortcuts.unregister',
+        'menus.setApplicationMenu',
       },
     );
     expect(DVLinuxBindings.isRegistered, isTrue);
