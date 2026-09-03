@@ -1754,3 +1754,31 @@ jobs:
           name: webos-package
           path: examples/dartvel_example/build/webos
           if-no-files-found: error
+
+  # The generated worker's outbox, in a real browser. `dart test` cannot run
+  # a service worker, so the generator's tests held the outbox at the source;
+  # this loads the site's built worker in Chrome, takes the server away,
+  # makes a POST, brings the server back and expects the POST to arrive.
+  pwa-sync:
+    name: pwa — queue offline and replay in Chrome
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+      - run: cargo install cbindgen --locked || true
+      - name: Build the site as a PWA
+        run: |
+          set -euo pipefail
+          cd sites/dartvel_site
+          flutter pub get
+          dart run dartvel_cli:dartvel build web
+          test -f build/web/sw.js
+          grep -q "dartvel-outbox" build/web/sw.js
+      - name: A POST made offline is queued and replayed once online
+        run: |
+          set -euo pipefail
+          cd sites/dartvel_site
+          google-chrome --version
+          dart run dartvel_cli:dartvel capture pwa-sync --web build/web --chrome "$(command -v google-chrome)"
