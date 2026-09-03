@@ -26,6 +26,7 @@ export 'src/ai/mcp.dart';
 export 'src/analytics/analytics.dart';
 export 'src/annotations/annotations.dart';
 export 'src/auth/auth.dart';
+export 'src/billing/stripe.dart';
 // LDAP is a raw TCP protocol, so a browser cannot speak it. Exported
 // unconditionally this pulls dart:io into every web build, which is what broke
 // the site build -- as a cascade of unrelated type errors in another file
