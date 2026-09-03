@@ -441,7 +441,7 @@ import 'dart:async' show unawaited;
 import 'package:flutter/foundation.dart' show kReleaseMode, kIsWeb, defaultTargetPlatform, TargetPlatform, debugPrint;
 import 'dart:io' show exit${dv['terminal'] == true ? ', stdin, stdout, stderr, File, Platform, Process, ProcessStartMode' : ''};
 import 'package:dartvel_core/dartvel.dart' show dvLiveWindowsPathFor;
-${_hasDeviceKiosk(dv) ? "import 'config.g.dart' show DVKioskPolicies;\n" : ''}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVPageStore,${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAppLaunch, DVRouteTarget, DVWindowOptions, DVRenderSurface${dv['terminal'] == true ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''};
+${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVPageStore,${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''}${_hasDeviceProfileDisplays(dv) ? ' DVWindowManager,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAppLaunch, DVRouteTarget, DVWindowOptions, DVRenderSurface${dv['terminal'] == true ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''};
 import 'dartvel_config.g.dart' as cfg;
 import 'jobs.g.dart' show registerDartvelJobs;
 import 'models.g.dart' show registerDartvelModels;
@@ -480,7 +480,7 @@ ${_launchNegotiationSource(dv)}
 /// hands it to the process that has the lock and ends this one. Desktop
 /// only: elsewhere a launch has no arguments and no second process.
 void startDartvelLaunch(List<String> arguments) {
-  if (kIsWeb) return;
+${_deviceProfileInstallSource(dv)}  if (kIsWeb) return;
   final bool desktop = switch (defaultTargetPlatform) {
     TargetPlatform.linux || TargetPlatform.windows || TargetPlatform.macOS => true,
     _ => false,
@@ -1239,7 +1239,7 @@ class DartvelConfig {
   static const permissions = <String>[${permissionsList.join(', ')}];
 }
 
-${_kioskPoliciesSource(dv)}
+${_kioskPoliciesSource(dv)}${_deviceProfilesSource(dv)}
 ''';
 
     File(
@@ -1345,6 +1345,78 @@ void startDartvelKiosk() {
     DVKioskPolicies.device,
     readSecret: (String name) async => DV.Secrets.maybeGet(name),
   ));''';
+  }
+
+  /// What the runtime file takes from config.g.dart: only what this build
+  /// declares, so an unused import is not an analyzer finding in every app.
+  static String _configImportSource(YamlMap dv) {
+    final List<String> names = <String>[
+      if (_hasDeviceKiosk(dv)) 'DVKioskPolicies',
+      if (_hasDeviceProfileDisplays(dv)) 'DVDeviceProfiles',
+    ];
+    if (names.isEmpty) return '';
+    return "import 'config.g.dart' show ${names.join(', ')};\n";
+  }
+
+  /// `dartvel.deviceProfiles.<id>.displays.<name>.index`, per profile that
+  /// names any. The same reading as the CLI's windowing config, so what
+  /// `dartvel inspect windows` lists is what the app resolves by.
+  static Map<String, Map<String, int>> _deviceProfileDisplays(YamlMap dv) {
+    final Object? profiles = dv['deviceProfiles'];
+    if (profiles is! Map) return const <String, Map<String, int>>{};
+    final Map<String, Map<String, int>> out = <String, Map<String, int>>{};
+    profiles.forEach((Object? id, Object? body) {
+      final Object? displays = body is Map ? body['displays'] : null;
+      if (displays is! Map) return;
+      final Map<String, int> names = <String, int>{};
+      displays.forEach((Object? name, Object? entry) {
+        final Object? index = entry is Map ? entry['index'] : null;
+        if (index is int) names['$name'] = index;
+      });
+      if (names.isNotEmpty) out['$id'] = names;
+    });
+    return out;
+  }
+
+  static bool _hasDeviceProfileDisplays(YamlMap dv) => _deviceProfileDisplays(dv).isNotEmpty;
+
+  /// `DVDeviceProfiles`: the display names each profile declares, and the
+  /// one the build selected. `--device-profile` becomes the
+  /// DARTVEL_DEVICE_PROFILE define; nothing at run time can tell which
+  /// machine it is on, so the build states it.
+  static String _deviceProfilesSource(YamlMap dv) {
+    final Map<String, Map<String, int>> profiles = _deviceProfileDisplays(dv);
+    if (profiles.isEmpty) return '';
+    final StringBuffer out = StringBuffer()
+      ..writeln()
+      ..writeln('/// Device profiles, from dartvel.deviceProfiles in pubspec.yaml.')
+      ..writeln('class DVDeviceProfiles {')
+      ..writeln('  DVDeviceProfiles._();')
+      ..writeln()
+      ..writeln('  /// The profile this build was made for, from `dartvel build --device-profile`.')
+      ..writeln("  static const String selected = String.fromEnvironment('DARTVEL_DEVICE_PROFILE', defaultValue: '');")
+      ..writeln()
+      ..writeln('  /// Display names by profile, each to the display index it names.')
+      ..writeln('  static const Map<String, Map<String, int>> displays = <String, Map<String, int>>{');
+    profiles.forEach((String id, Map<String, int> names) {
+      final String body = names.entries.map((MapEntry<String, int> e) => "'${e.key}': ${e.value}").join(', ');
+      out.writeln("    '$id': <String, int>{$body},");
+    });
+    out
+      ..writeln('  };')
+      ..writeln()
+      ..writeln('  /// The selected profile\'s display names; empty when the build named')
+      ..writeln('  /// no profile, so DVDisplayHint.byName then matches only OS names.')
+      ..writeln('  static Map<String, int> get displayNames => displays[selected] ?? const <String, int>{};')
+      ..writeln('}');
+    return out.toString();
+  }
+
+  /// Installs the selected profile\'s display names before any window opens,
+  /// so DVDisplayHint.byName resolves through the declaration.
+  static String _deviceProfileInstallSource(YamlMap dv) {
+    if (!_hasDeviceProfileDisplays(dv)) return '';
+    return '  DVWindowManager.displayProfile = DVDeviceProfiles.displayNames;\n';
   }
 
   /// Whether any named policy is declared, so the config only imports the

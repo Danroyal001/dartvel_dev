@@ -27,6 +27,20 @@ void main() {
       expect(args, isNot(contains('--web-renderer')));
     });
 
+    test('--device-profile reaches the app as DARTVEL_DEVICE_PROFILE', () {
+      // Nothing at run time can tell which machine a desktop build is on;
+      // the build states it, and DVDeviceProfiles.selected reads it.
+      final args = resolveFlutterBuildArguments(
+        platform: 'linux',
+        buildMode: '--release',
+        deviceProfile: 'frontDesk',
+      );
+      expect(args, contains('--dart-define=DARTVEL_DEVICE_PROFILE=frontDesk'));
+
+      final plain = resolveFlutterBuildArguments(platform: 'linux', buildMode: '--release');
+      expect(plain.where((String a) => a.contains('DARTVEL_DEVICE_PROFILE')), isEmpty);
+    });
+
     test('maps Android-family platforms to apk builds', () {
       expect(
         resolveFlutterBuildArguments(

@@ -676,6 +676,7 @@ class BuildCommand extends Command<void> {
                       buildName: buildName,
                       obfuscate: obfuscate && isRelease,
                       treeShakeIcons: treeShakeIcons,
+                      deviceProfile: deviceProfile,
                     );
       switch (result) {
         case _PlatformBuildResult.succeeded:
@@ -712,6 +713,7 @@ class BuildCommand extends Command<void> {
     bool obfuscate = false,
     bool treeShakeIcons = false,
     Duration? timeout,
+    String? deviceProfile,
   }) async {
     Logger.log('');
     Logger.log('🔨 Building for $platform...');
@@ -725,6 +727,7 @@ class BuildCommand extends Command<void> {
       buildName: buildName,
       obfuscate: obfuscate,
       treeShakeIcons: treeShakeIcons,
+      deviceProfile: deviceProfile,
     );
 
     // Check if platform is available
@@ -2466,6 +2469,7 @@ List<String> resolveFlutterBuildArguments({
   String? buildName,
   bool obfuscate = false,
   bool treeShakeIcons = false,
+  String? deviceProfile,
 }) {
   final command = switch (platform) {
     'android' || 'fireos' => 'apk',
@@ -2495,6 +2499,13 @@ List<String> resolveFlutterBuildArguments({
 
   if (treeShakeIcons) {
     args.add('--tree-shake-icons');
+  }
+
+  // The selected device profile, for DVDeviceProfiles.selected: display
+  // names and the kiosk override are per profile, and nothing at run time
+  // can tell which machine the build is on.
+  if (deviceProfile != null && deviceProfile.isNotEmpty) {
+    args.add('--dart-define=DARTVEL_DEVICE_PROFILE=$deviceProfile');
   }
 
   if (platform == 'android' && splitPerAbi) {
