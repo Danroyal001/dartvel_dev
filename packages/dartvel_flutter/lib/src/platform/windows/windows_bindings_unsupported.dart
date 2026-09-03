@@ -93,6 +93,8 @@ class DVWindowsDialogs {
   const DVWindowsDialogs._();
 
   static const Set<String> implemented = <String>{'dialogs.openFile', 'dialogs.saveFile', 'dialogs.chooseDirectory', 'dialogs.message', 'media.pick'};
+  static String? lastError;
+  static Duration automationTimeout = const Duration(seconds: 8);
   static void automate(DVWindowsDialogAutomation? automation) {}
   static void unregister() {}
 }

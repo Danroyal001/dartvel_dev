@@ -579,7 +579,7 @@ void main() {
         filters: const <DVFileFilter>[DVFileFilter(label: 'Text', extensions: <String>['txt'])],
         initialDirectory: dir.path,
       );
-      expect(picked, <String>['${dir.path}\\notes.txt']);
+      expect(picked, <String>['${dir.path}\\notes.txt'], reason: 'dialog: ${DVWindowsDialogs.lastError}');
       expect(seen.title, 'Pick a note');
       expect(seen.filterLabels, <String>['Text']);
       expect(seen.currentFolder?.toLowerCase(), dir.path.toLowerCase());

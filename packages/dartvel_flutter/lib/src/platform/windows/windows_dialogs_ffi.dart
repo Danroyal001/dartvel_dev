@@ -82,6 +82,7 @@ final class _NmHdr extends Struct {
 typedef _HookProcNative = UintPtr Function(IntPtr hdlg, Uint32 message, UintPtr wParam, IntPtr lParam);
 typedef _BrowseCallbackNative = Int32 Function(IntPtr hwnd, Uint32 message, IntPtr lParam, IntPtr data);
 typedef _CbtProcNative = IntPtr Function(Int32 code, UintPtr wParam, IntPtr lParam);
+typedef _TimerProcNative = Void Function(IntPtr hWnd, Uint32 message, UintPtr id, Uint32 time);
 
 const int _ofnExplorer = 0x00080000;
 const int _ofnEnableHook = 0x00000020;
@@ -164,6 +165,53 @@ class DVWindowsDialogs {
   static List<String> _filterLabels = const <String>[];
   static bool _answered = false;
 
+  /// The dialog on screen, once its hook has seen it.
+  static int _dialogWindow = 0;
+
+  /// Why the last dialog ended without an answer, for the operator and the
+  /// test.
+  static String? lastError;
+
+  /// Under automation, how long a dialog may stay unanswered before it is
+  /// cancelled: an automation that never answers must fail the test, not
+  /// hang the process.
+  static Duration automationTimeout = const Duration(seconds: 8);
+
+  static NativeCallable<_TimerProcNative>? _watchdogProc;
+  static int _watchdog = 0;
+
+  /// Arms the watchdog for the dialog about to run. A thread timer: the
+  /// dialog's own loop dispatches WM_TIMER, so the procedure runs inside it.
+  static void _armWatchdog() {
+    _dialogWindow = 0;
+    lastError = null;
+    if (_automation == null) return;
+    final NativeCallable<_TimerProcNative> proc = NativeCallable<_TimerProcNative>.isolateLocal(_onWatchdog);
+    _watchdogProc = proc;
+    _watchdog = _user32.lookupFunction<
+        UintPtr Function(IntPtr, UintPtr, Uint32, Pointer<NativeFunction<_TimerProcNative>>),
+        int Function(int, int, int, Pointer<NativeFunction<_TimerProcNative>>)>('SetTimer')(
+      0, 0, automationTimeout.inMilliseconds, proc.nativeFunction);
+  }
+
+  static void _disarmWatchdog() {
+    if (_watchdog != 0) {
+      _user32.lookupFunction<Int32 Function(IntPtr, UintPtr), int Function(int, int)>('KillTimer')(0, _watchdog);
+      _watchdog = 0;
+    }
+    _watchdogProc?.close();
+    _watchdogProc = null;
+  }
+
+  static void _onWatchdog(int hWnd, int message, int id, int time) {
+    if (_answered && _dialogWindow != 0) return;
+    final int target = _dialogWindow != 0 ? _dialogWindow : _user32.lookupFunction<IntPtr Function(), int Function()>('GetActiveWindow')();
+    lastError = _dialogWindow == 0
+        ? 'the dialog was never seen by its hook within ${automationTimeout.inSeconds}s'
+        : 'the automation did not answer the dialog within ${automationTimeout.inSeconds}s';
+    if (target != 0) _post(target, _idCancel);
+  }
+
   /// For tests: called from the dialog's own hook once it is up, with the
   /// dialog, to answer it. Null restores the person.
   static void automate(DVWindowsDialogAutomation? automation) => _automation = automation;
@@ -245,6 +293,7 @@ class DVWindowsDialogs {
     final Pointer<_OpenFileName> ofn = calloc<_OpenFileName>();
     final NativeCallable<_HookProcNative> hook = NativeCallable<_HookProcNative>.isolateLocal(_fileHook, exceptionalReturn: 0);
     _answered = false;
+    _armWatchdog();
     try {
       ofn.ref
         ..lStructSize = sizeOf<_OpenFileName>()
@@ -259,6 +308,7 @@ class DVWindowsDialogs {
       if (get(ofn) == 0) return const <String>[];
       return _pathsFrom(file, multiple: multiple, fileOffset: ofn.ref.nFileOffset);
     } finally {
+      _disarmWatchdog();
       hook.close();
       calloc.free(ofn);
       calloc.free(file);
@@ -291,11 +341,10 @@ class DVWindowsDialogs {
       final _NmHdr header = Pointer<_NmHdr>.fromAddress(lParam).ref;
       if (header.code == _cdnInitDone) {
         _answered = true;
+        final int parent = _user32.lookupFunction<IntPtr Function(IntPtr), int Function(int)>('GetParent')(hdlg);
+        _dialogWindow = parent;
         final DVWindowsDialogAutomation? run = _automation;
-        if (run != null) {
-          final int parent = _user32.lookupFunction<IntPtr Function(IntPtr), int Function(int)>('GetParent')(hdlg);
-          run(DVWindowsDialog._(parent, _DialogKind.file));
-        }
+        if (run != null) run(DVWindowsDialog._(parent, _DialogKind.file));
       }
     }
     return 0;
@@ -315,6 +364,7 @@ class DVWindowsDialogs {
     final Pointer<_BrowseInfo> info = calloc<_BrowseInfo>();
     final NativeCallable<_BrowseCallbackNative> callback = NativeCallable<_BrowseCallbackNative>.isolateLocal(_browseCallback, exceptionalReturn: 0);
     _answered = false;
+    _armWatchdog();
     try {
       info.ref
         ..pszDisplayName = display.cast()
@@ -332,6 +382,7 @@ class DVWindowsDialogs {
         calloc.free(path);
       }
     } finally {
+      _disarmWatchdog();
       callback.close();
       calloc.free(info);
       calloc.free(display);
@@ -342,6 +393,7 @@ class DVWindowsDialogs {
   static int _browseCallback(int hwnd, int message, int lParam, int data) {
     if (message == _bffmInitialized && !_answered) {
       _answered = true;
+      _dialogWindow = hwnd;
       final DVWindowsDialogAutomation? run = _automation;
       if (run != null) run(DVWindowsDialog._(hwnd, _DialogKind.folder));
     }
@@ -369,6 +421,7 @@ class DVWindowsDialogs {
       final NativeCallable<_CbtProcNative> proc = NativeCallable<_CbtProcNative>.isolateLocal(_onCbt, exceptionalReturn: 0);
       _cbtProc = proc;
       _answered = false;
+      _armWatchdog();
       final int thread = DynamicLibrary.open('kernel32.dll').lookupFunction<Uint32 Function(), int Function()>('GetCurrentThreadId')();
       _cbtHook = _user32.lookupFunction<
           IntPtr Function(Int32, Pointer<NativeFunction<_CbtProcNative>>, IntPtr, Uint32),
@@ -379,6 +432,7 @@ class DVWindowsDialogs {
           Int32 Function(IntPtr, Pointer<Utf16>, Pointer<Utf16>, Uint32),
           int Function(int, Pointer<Utf16>, Pointer<Utf16>, int)>('MessageBoxW')(0, textPtr, titlePtr, _mbOk | icon);
     } finally {
+      _disarmWatchdog();
       if (_cbtHook != 0) {
         _user32.lookupFunction<Int32 Function(IntPtr), int Function(int)>('UnhookWindowsHookEx')(_cbtHook);
         _cbtHook = 0;
@@ -393,6 +447,7 @@ class DVWindowsDialogs {
   static int _onCbt(int code, int wParam, int lParam) {
     if (code == _hcbtActivate && !_answered) {
       _answered = true;
+      _dialogWindow = wParam;
       final DVWindowsDialogAutomation? run = _automation;
       if (run != null) run(DVWindowsDialog._(wParam, _DialogKind.message));
     }
