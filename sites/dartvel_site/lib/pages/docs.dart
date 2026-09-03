@@ -260,6 +260,20 @@ Widget _building() => const Section(
           'instead.',
           width: 660,
         ),
+        Heading('The rest of the toolkit.', level: 3),
+        CodeBlock(<String>[
+          'dartvel doctor                        # host, tooling, and a kiosk policy that cannot be honoured',
+          'dartvel inspect windows               # the declared windowing, and what a running app has open',
+          'dartvel key generate | rotate | status # the application key, in the platform key store',
+          'dartvel capture pwa-sync --web build/web  # the worker\'s outbox, in a real browser',
+        ]),
+        Body(
+          'Each is the same rule as build: it says what it found and what it '
+          'could not do, and never reports a step it skipped as done. The '
+          'key store is whichever the platform has custody for -- the Secret '
+          'Service, DPAPI, the Keychain -- and the command says which.',
+          width: 660,
+        ),
       ],
     );
 
