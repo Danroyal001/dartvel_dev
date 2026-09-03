@@ -335,7 +335,7 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   (
     'Desktop, Embedded, and Qt-Critical Capabilities',
     'Built on Linux, and most of it on Windows and macOS',
-    'Present on Linux: global shortcuts, the application menu, printing, system dialogs, file associations, app links and deep links, the launch that opens what the app was started with, and the device and fleet APIs -- manifest, health, watchdog, provisioning, diagnostics. Present on Windows and macOS, each proven on its own runner: global shortcuts delivered by id, the application menu, the tray icon with its menu, and the device APIs. Drag and drop is present: a window takes the files or the text the desktop drops on it, and says where it landed. Absent: the tray on Linux (not claimed: no desktop shell runs under Xvfb to watch one), the native drag-and-drop halves on Windows and macOS, and the launch handover there.',
+    'Present on Linux: global shortcuts, the application menu, printing, system dialogs, file associations, app links and deep links, the launch that opens what the app was started with, and the device and fleet APIs -- manifest, health, watchdog, provisioning, diagnostics. Present on Windows and macOS, each proven on its own runner: global shortcuts delivered by id, the application menu, the tray icon with its menu, and the device APIs. Drag and drop is present: a window takes the files or the text the desktop drops on it, and says where it landed. The tray is present on all three: on Linux as a StatusNotifierItem and its menu on the session bus, which is how a modern desktop is told about one. Absent: the native drag-and-drop halves on Windows and macOS, and the launch handover there.',
   ),
   (
     'Kiosk Mode',
