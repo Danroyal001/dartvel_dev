@@ -10,6 +10,7 @@ import 'dart:ffi';
 import 'dart:io';
 
 import 'package:dartvel_flutter/dartvel_flutter.dart';
+import 'package:dartvel_flutter/src/platform/linux/linux_kiosk_ffi.dart';
 import 'package:ffi/ffi.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -141,5 +142,22 @@ void main() {
     final DVKioskEnforced result = await DVKiosk.enforce(policy(scope: 'display'));
     expect(result.blocked, isEmpty);
     await DVKiosk.release();
+  });
+
+  test('while enforced, system notifications are suppressed; the in-app inbox is not this binding', () async {
+    // The spec: system notifications are suppressed on the kiosk surface;
+    // in-app inbox and model-sync delivery continue. The freedesktop
+    // notification is what this binding sends, so while the kiosk holds it
+    // sends nothing and counts what it held back.
+    final DVKioskEnforced result = await DVKiosk.enforce(policy());
+    expect(result.notificationsSuppressed, isTrue);
+    final int before = DVLinuxKiosk.suppressedNotifications;
+    final Object? id = await DVNativeBridge.invoke<Object?>('notifications.sendLocal', <String, Object?>{'title': 'Hi', 'body': 'there'});
+    expect(id, isNull);
+    expect(DVLinuxKiosk.suppressedNotifications, before + 1);
+
+    await DVKiosk.release();
+    await DVNativeBridge.invoke<Object?>('notifications.sendLocal', <String, Object?>{'title': 'Hi', 'body': 'again'});
+    expect(DVLinuxKiosk.suppressedNotifications, before + 1, reason: 'released, nothing more is held back');
   });
 }

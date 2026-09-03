@@ -26,11 +26,15 @@ class DVKioskEnforced {
   /// Whether the pointer is held inside the kiosk's window.
   final bool confined;
 
+  /// Whether system notifications the framework would send are held back.
+  final bool notificationsSuppressed;
+
   const DVKioskEnforced({
     required this.blocked,
     this.unenforced = const <String, String>{},
     this.fullscreen = false,
     this.confined = false,
+    this.notificationsSuppressed = false,
   });
 
   factory DVKioskEnforced.fromMap(Map<Object?, Object?> map) => DVKioskEnforced(
@@ -42,6 +46,7 @@ class DVKioskEnforced {
         },
         fullscreen: map['fullscreen'] == true,
         confined: map['confined'] == true,
+        notificationsSuppressed: map['notificationsSuppressed'] == true,
       );
 }
 
@@ -68,6 +73,7 @@ class DVKiosk {
       // A kiosk keeps the pointer inside its window: input confinement, per
       // the enforcement table, wherever the platform can hold it.
       'confinePointer': policy.enabled,
+      'suppressNotifications': policy.enabled,
     });
     if (result is Map) return DVKioskEnforced.fromMap(result);
     return DVKioskEnforced(

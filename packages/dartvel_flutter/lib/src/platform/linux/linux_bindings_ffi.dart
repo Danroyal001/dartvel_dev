@@ -228,6 +228,9 @@ class DVLinuxBindings {
     DVNativeBridge.register('screen.geometry', (Object? _) => _geometry());
 
     DVNativeBridge.register('notifications.sendLocal', (Object? arguments) {
+      // Not while a kiosk holds the screen: the in-app inbox continues, the
+      // desktop banner does not.
+      if (DVLinuxKiosk.suppressNotification()) return null;
       final map = arguments is Map ? arguments : const <Object?, Object?>{};
       return _notify('${map['title'] ?? ''}', '${map['body'] ?? ''}');
     });

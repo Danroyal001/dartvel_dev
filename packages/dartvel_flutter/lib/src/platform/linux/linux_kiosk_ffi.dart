@@ -30,6 +30,21 @@ class DVLinuxKiosk {
   static bool _confined = false;
   static void Function()? _releasePointer;
 
+  /// Whether the kiosk is holding system notifications back, and how many
+  /// it has held: the spec says system notifications are suppressed on the
+  /// kiosk surface while the in-app inbox continues, and the freedesktop
+  /// notification is what the Linux binding sends.
+  static bool notificationsSuppressed = false;
+  static int suppressedNotifications = 0;
+
+  /// For the notification binding: true when the notification must not be
+  /// sent, counted.
+  static bool suppressNotification() {
+    if (!notificationsSuppressed) return false;
+    suppressedNotifications++;
+    return true;
+  }
+
   static void register(
     void Function(String, FutureOr<Object?> Function(Object?)) bind, {
     required Future<bool> Function() fullscreen,
@@ -64,11 +79,13 @@ class DVLinuxKiosk {
         confined = lastConfineError == null;
         _confined = confined;
       }
+      notificationsSuppressed = map['suppressNotifications'] == true;
       return <String, Object?>{
         'blocked': blocked,
         'unenforced': unenforced,
         'fullscreen': wentFullscreen,
         'confined': confined,
+        'notificationsSuppressed': notificationsSuppressed,
       };
     });
 
@@ -83,6 +100,7 @@ class DVLinuxKiosk {
       await const DVShortcuts().unregister('$_prefix$combo');
     }
     _held.clear();
+    notificationsSuppressed = false;
     if (_confined) {
       _releasePointer?.call();
       _confined = false;
