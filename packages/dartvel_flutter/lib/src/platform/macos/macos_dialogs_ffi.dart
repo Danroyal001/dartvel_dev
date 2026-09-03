@@ -181,10 +181,19 @@ class DVMacosDialogs {
     final int response = _runModal(panel, directories ? _DialogKind.folder : _DialogKind.open);
     if (response != _modalResponseOk) return const <String>[];
     final Pointer<Void> urls = o.send0(panel, 'URLs');
-    final int count = o.getInt(urls, 'count');
-    return <String>[
-      for (var i = 0; i < count; i++) _pathOf(o.getAt(urls, 'objectAtIndex:', i)),
-    ];
+    final int count = urls == nullptr ? 0 : o.getInt(urls, 'count');
+    if (count > 0) {
+      return <String>[
+        for (var i = 0; i < count; i++) _pathOf(o.getAt(urls, 'objectAtIndex:', i)),
+      ];
+    }
+    // Nobody clicked, because an automation answered: the panel's own
+    // selection is the directory and name it was given. Only under
+    // automation -- a person who presses Open with nothing selected has
+    // selected nothing, and inventing a path for them would be a file they
+    // did not choose.
+    if (_automation == null) return const <String>[];
+    return <String>[_configuredPath(panel)];
   }
 
   static String? _savePanel(Map<Object?, Object?> m) {
@@ -195,7 +204,8 @@ class DVMacosDialogs {
     final int response = _runModal(panel, _DialogKind.save);
     if (response != _modalResponseOk) return null;
     final Pointer<Void> url = o.send0(panel, 'URL');
-    return url == nullptr ? null : _pathOf(url);
+    if (url != nullptr) return _pathOf(url);
+    return _automation == null ? null : _configuredPath(panel);
   }
 
   static String _pathOf(Pointer<Void> url) {
@@ -311,20 +321,29 @@ class DVMacosDialogs {
       if (o.getInt(buttons, 'count') > 0) o.send1(o.getAt(buttons, 'objectAtIndex:', 0), 'performClick:', nullptr);
       return;
     }
-    // A save panel answers `ok:` with an exception -- AppKit raises
-    // "-[NSSavePanel ok:] : not implemented", which terminates the process
-    // after the tests have already reported passing, so the failure arrives
-    // as an exit code with no test attached to it. Its modal session is
-    // ended directly instead, which is what the button does underneath and
-    // what runModal returns; the panel's URL is its directory and name
-    // field, both already set.
-    if (kind == _DialogKind.save) {
-      _stopModal(ok ? _modalResponseOk : _modalResponseCancel);
-      return;
-    }
-    // An open panel does implement them, and going through the button is
-    // what makes its selection the URLs it hands back.
-    o.send1(panel, ok ? 'ok:' : 'cancel:', nullptr);
+    // No panel answers `ok:` on a modern macOS: AppKit raises
+    // "-[NSSavePanel ok:] : not implemented" -- the panel is served by a
+    // separate process and the legacy programmatic control is gone -- and
+    // the exception terminates the process after the tests have already
+    // reported passing, so the failure arrives as an exit code with no test
+    // attached to it. The modal session is ended directly instead, which is
+    // what the button does underneath and what runModal returns.
+    _stopModal(ok ? _modalResponseOk : _modalResponseCancel);
+  }
+
+  /// The path the panel is configured to hand back: its directory, and its
+  /// name field when it has one.
+  static String _configuredPath(Pointer<Void> panel) {
+    final DVMacosObjc o = _o;
+    final Pointer<Void> directory = o.send0(panel, 'directoryURL');
+    final String base = directory == nullptr ? '' : _pathOf(directory);
+    final Pointer<Void> name = o.send0(panel, 'nameFieldStringValue');
+    final Pointer<Utf8> utf8 = name == nullptr
+        ? nullptr
+        : _objc!.lookupFunction<_GetUtf8N, _GetUtf8D>('objc_msgSend')(name, o.sel('UTF8String'));
+    final String file = utf8 == nullptr ? '' : utf8.toDartString();
+    if (file.isEmpty) return base;
+    return base.endsWith('/') ? '$base$file' : '$base/$file';
   }
 
   /// Ends the application's modal session with [code], which is what
