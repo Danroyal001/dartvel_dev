@@ -303,7 +303,7 @@
     {
       "section": "PWA",
       "stability": "Draft",
-      "status": "Partial",
+      "status": "Shipped",
       "evidence": [
         "packages/dartvel_cli/lib/src/build/pwa_service_worker.dart",
         "packages/dartvel_cli/lib/src/build/seo_head.dart",
@@ -314,9 +314,11 @@
         "packages/dartvel_flutter/test/install_prompt_test.dart",
         "packages/dartvel_cli/lib/src/build/pwa_icons.dart",
         "packages/dartvel_cli/test/pwa_icons_test.dart",
-        "packages/dartvel_cli/test/pwa_background_sync_test.dart"
+        "packages/dartvel_cli/test/pwa_background_sync_test.dart",
+        "packages/dartvel_cli/lib/src/build/pwa_sync_verification.dart",
+        "packages/dartvel_cli/test/pwa_sync_verification_test.dart"
       ],
-      "absent": "Exercising background sync in a real browser: the generated worker keeps an IndexedDB outbox of same-origin non-GET requests that could not be sent, answers the caller with a 202 and X-Dartvel-Queued, and replays the outbox in order on `sync`, stopping at the first failure -- but this is held at the generator, since a worker cannot run under dart test, and runtime verification does not yet take the site offline and back. Everything else the section lists is built: manifest, viewport, service worker, offline page, install prompt, and icon generation from web/icon.png through the CLI's own PNG codec"
+      "absent": "Nothing this section lists is unbuilt. Background sync is exercised in a real browser: the generated worker keeps an IndexedDB outbox of same-origin non-GET requests that could not be sent, answers the caller with a 202 and X-Dartvel-Queued, and replays the outbox in order when the network is back, stopping at the first failure and one replay at a time (a sync event and the client's replay message arriving together sent everything twice until they shared one in-flight promise). dartvel capture pwa-sync loads the built worker in Chrome, takes the server away, makes a POST, brings the server back and expects the POST to arrive; the Runtime verification workflow runs it against the site's own build on every push, and it is what found the double replay. Everything else the section lists is built: manifest, viewport, service worker, offline page, install prompt, and icon generation from web/icon.png through the CLI's own PNG codec"
     },
     {
       "section": "OTA Updates",

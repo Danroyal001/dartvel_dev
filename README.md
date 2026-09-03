@@ -106,7 +106,7 @@ Everything else is automatically compiled, generated, or served by the framework
 | **Cache** | A pluggable cache with memory, database, Redis, Memcached and multi-node distributed adapters, tags and revalidation | ✅ Implemented |
 | **Mail & Notifications** | SMTP plus HTTP mail (Resend, SendGrid, Postmark, Mailgun, SES), FCM push, APNS over native HTTP/2, Web Push (RFC 8291/8292), and Twilio SMS | ✅ Implemented |
 | **SEO** | `dartvel build web` writes the head tags, JSON-LD, per-route HTML built from the semantics tree, `sitemap.xml` with a styled stylesheet, and `robots.txt` | ✅ Implemented |
-| **PWA** | Manifest, a viewport meta on every built page, a service worker that precaches the build's routes, a self-contained offline page, and `DV.Platform.install` for the install prompt. Background sync and icon generation are not built | ⚠️ Partial |
+| **PWA** | Manifest, a viewport meta on every built page, icons generated from web/icon.png, a service worker that precaches the build's routes and keeps an outbox of writes made offline, replayed in order once the network is back -- verified in a real Chrome on every push -- a self-contained offline page, and `DV.Platform.install` for the install prompt | ✅ Shipped |
 | **AI Integration** | HTTP adapters for Claude, OpenAI, Gemini, OpenRouter, and Ollama, plus the deterministic local adapter | ✅ Implemented |
 | **Sensitive Fields** | `@DVModel.sensitiveField()` redacts fields from public serialization, cards, logs, and AI context | ✅ Implemented |
 | **Lifecycle Signals** | Read-only enum signals: `DV.lifecycle.app`/`.build`, `context.lifecycle.page`/`.request`/`.transaction` | ✅ Implemented |
