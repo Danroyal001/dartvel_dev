@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../dartvel_flutter.dart';
@@ -194,6 +195,21 @@ class DVTabWorkspaceController extends ChangeNotifier {
 ///
 /// A generated application component in the same sense as `User.Table()`: no
 /// new primitive, and every behaviour worth testing lives on the controller.
+/// How the tabs are shown.
+///
+/// A strip with drag on anything with a pointer; on a TV a row of tiles the
+/// D-pad moves between; on a watch a stack of tiles to tap. On the
+/// switchers there is no drag -- moving or closing a tab is an action on
+/// the tab's menu, opened with the remote's menu key or a long press.
+enum DVTabPresentation { auto, strip, tv, watch }
+
+/// The presentation for a device.
+DVTabPresentation dvTabPresentationFor({required bool isTV, required bool isWatch}) {
+  if (isTV) return DVTabPresentation.tv;
+  if (isWatch) return DVTabPresentation.watch;
+  return DVTabPresentation.strip;
+}
+
 class DVTabWorkspace extends StatefulWidget {
   final List<DVTab> initialTabs;
   final DVTabWorkspaceController? controller;
@@ -202,11 +218,15 @@ class DVTabWorkspace extends StatefulWidget {
   /// useful before any page exists.
   final Widget Function(BuildContext context, DVTab tab)? builder;
 
+  /// [DVTabPresentation.auto] follows the device.
+  final DVTabPresentation presentation;
+
   const DVTabWorkspace({
     super.key,
     this.initialTabs = const <DVTab>[],
     this.controller,
     this.builder,
+    this.presentation = DVTabPresentation.auto,
   });
 
   @override
@@ -230,7 +250,11 @@ class _DVTabWorkspaceState extends State<DVTabWorkspace> {
       builder: (BuildContext context, Widget? _) {
         final active = _controller.active;
         return DVBox.list(<Widget>[
-          _strip(),
+          switch (_presentation) {
+            DVTabPresentation.tv => _switcher(horizontal: true),
+            DVTabPresentation.watch => _switcher(horizontal: false),
+            _ => _strip(),
+          },
           if (active == null)
             const DVText('No tabs open.')
           else
@@ -248,6 +272,123 @@ class _DVTabWorkspaceState extends State<DVTabWorkspace> {
   /// The controller could already do both; nothing in the strip could ask it
   /// to, so the spec's "drag within the strip" and "drag beyond the strip"
   /// were controller calls a test could make and a person could not.
+  /// The tile the D-pad is on, and the tile whose actions are open.
+  int _focused = 0;
+  int? _actionsFor;
+
+  DVTabPresentation get _presentation => widget.presentation == DVTabPresentation.auto
+      ? dvTabPresentationFor(isTV: DV.Platform.isTV, isWatch: DV.Platform.isWatch)
+      : widget.presentation;
+
+  // --- the switcher ---------------------------------------------------------
+
+  KeyEventResult _onSwitcherKey(FocusNode node, KeyEvent event) {
+    if (event is KeyUpEvent) return KeyEventResult.ignored;
+    final int count = _controller.tabs.length;
+    if (count == 0) return KeyEventResult.ignored;
+    final LogicalKeyboardKey key = event.logicalKey;
+    if (key == LogicalKeyboardKey.arrowRight || key == LogicalKeyboardKey.arrowDown) {
+      setState(() => _focused = (_focused + 1) % count);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowLeft || key == LogicalKeyboardKey.arrowUp) {
+      setState(() => _focused = (_focused - 1 + count) % count);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.select ||
+        key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.gameButtonA) {
+      _controller.activate(_focused);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.contextMenu) {
+      setState(() => _actionsFor = _focused);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.escape || key == LogicalKeyboardKey.goBack) {
+      if (_actionsFor == null) return KeyEventResult.ignored;
+      setState(() => _actionsFor = null);
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  Widget _switcher({required bool horizontal}) {
+    final List<DVTab> tabs = _controller.tabs;
+    if (_focused >= tabs.length) _focused = tabs.isEmpty ? 0 : tabs.length - 1;
+    final List<Widget> tiles = <Widget>[
+      for (int i = 0; i < tabs.length; i++) _tile(i, tabs[i], horizontal: horizontal),
+    ];
+    final Widget laid = horizontal ? DVBox.row(tiles, spacing: 8) : DVBox.list(tiles, spacing: 8);
+    final int? actionsFor = _actionsFor;
+    return Focus(
+      autofocus: horizontal,
+      onKeyEvent: _onSwitcherKey,
+      child: DVBox.list(<Widget>[
+        laid,
+        if (actionsFor != null && actionsFor < tabs.length) _actions(actionsFor),
+      ], spacing: 8),
+    );
+  }
+
+  Widget _tile(int index, DVTab tab, {required bool horizontal}) {
+    final bool active = index == _controller.activeIndex;
+    final bool focused = horizontal && index == _focused;
+    return GestureDetector(
+      key: ValueKey<String>('dv-tab-tile-$index'),
+      behavior: HitTestBehavior.opaque,
+      onTap: () => _controller.activate(index),
+      onLongPress: () => setState(() => _actionsFor = index),
+      child: DVText(tab.title).modifier(
+        const DVModifier()
+            .padding(12)
+            .fontSize(horizontal ? 18 : 16)
+            .fontWeight(active ? FontWeight.bold : FontWeight.normal)
+            .backgroundColor(focused ? const Color(0x336C4BF4) : const Color(0x00000000)),
+      ),
+    );
+  }
+
+  /// Move and close, as actions: the switchers have no drag.
+  Widget _actions(int index) {
+    final int count = _controller.tabs.length;
+    Widget action(String key, String label, VoidCallback? onTap) => GestureDetector(
+          key: ValueKey<String>(key),
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: DVText(label).modifier(const DVModifier().padding(10)),
+        );
+    return KeyedSubtree(
+      key: const ValueKey<String>('dv-tab-actions'),
+      child: DVBox.row(<Widget>[
+      // The menu follows the tab it moved, so moving twice is two taps.
+      action('dv-tab-move-left', 'Move left', index == 0 ? null : () {
+        _controller.reorder(index, index - 1);
+        setState(() {
+          _actionsFor = index - 1;
+          _focused = index - 1;
+        });
+      }),
+      action('dv-tab-move-right', 'Move right', index >= count - 1 ? null : () {
+        _controller.reorder(index, index + 1);
+        setState(() {
+          _actionsFor = index + 1;
+          _focused = index + 1;
+        });
+      }),
+      action('dv-tab-close', 'Close', () {
+        _controller.removeAt(index);
+        setState(() {
+          _actionsFor = null;
+          if (_focused >= _controller.tabs.length && _focused > 0) _focused--;
+        });
+      }),
+    ], spacing: 4),
+    );
+  }
+
+  // --- the strip --------------------------------------------------------------
+
   Widget _strip() {
     final tabs = _controller.tabs;
     return DVBox.row(<Widget>[
