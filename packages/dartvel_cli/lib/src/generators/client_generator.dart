@@ -445,7 +445,7 @@ const String dvApiBasePath      = '${esc(apiBasePath)}';
 import 'dart:async' show unawaited;
 import 'package:flutter/foundation.dart' show kReleaseMode, kIsWeb, defaultTargetPlatform, TargetPlatform, debugPrint;
 import 'dart:io' show exit${dv['terminal'] == true ? ', stdin, stdout, stderr, File, Platform, Process, ProcessStartMode' : ''};
-import 'package:flutter/widgets.dart' show WidgetsBinding;
+import 'package:flutter/widgets.dart' show WidgetsFlutterBinding;
 import 'package:dartvel_core/dartvel.dart' show DVStartupProfile, dvLiveWindowsPathFor;
 ${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVPageStore,${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''}${_hasDeviceProfileDisplays(dv) ? ' DVWindowManager,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAppLaunch, DVRouteTarget, DVWindowOptions, DVRenderSurface${dv['terminal'] == true ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''};
 import 'dartvel_config.g.dart' as cfg;
@@ -490,7 +490,14 @@ ${_deviceKioskInstallSource(dv)}
   // The last phase is the one that matters to whoever is waiting: the frame
   // they can see. Measured after the frame rather than before it, because a
   // router that is built is not a screen that is up.
-  WidgetsBinding.instance.addPostFrameCallback((_) {
+  //
+  // The binding is ensured rather than assumed. This runs from the router's
+  // constructor, before runApp, so on a real launch there is no binding yet
+  // and `WidgetsBinding.instance` throws on a null check -- which took the
+  // application down at startup rather than reporting a bad measurement. It
+  // is idempotent and returns whatever binding is already installed, so a
+  // test binding stays the one in use.
+  WidgetsFlutterBinding.ensureInitialized().addPostFrameCallback((_) {
     DVStartupProfile.current.mark('first frame');
   });
 }
