@@ -5034,7 +5034,7 @@ class DV {
   static final DVLifecycleRegistry lifecycle = DVLifecycleRegistry();
 
   /// Mounted Dartvel modules. The generator emits typed `DV.Modules.<id>`
-  /// accessors on top of this registry.
+  /// accessors on top of this registry, and `<id>Routes` for its pages.
   static final DVModuleRegistry Modules = DVModuleRegistry();
 
   static final DVTransactionRunner _transactionRunner = DVTransactionRunner();
@@ -6471,4 +6471,23 @@ String dvDeviceTypeFor({
   if (breakpoint == 'desktop' || breakpoint == 'tablet') return 'tablet';
   if (isFoldable) return 'foldable';
   return 'phone';
+}
+
+/// A module's own `DV.global` registry.
+///
+/// The specification gives modules scoped globals and adds no separate
+/// dependency-injection primitive: a module's registry is the application's,
+/// under the module's namespace. Two modules that each keep a Cart keep two
+/// carts, which is what the namespace is for.
+///
+/// An extension rather than a method on DVModule: the registry lives in
+/// dartvel_flutter and the module type in dartvel_core, and a core type
+/// reaching up into the framework would be the dependency the other way
+/// round.
+extension DVModuleGlobals on DVModule {
+  /// Registers [instance] in this module's namespace, or reads what is
+  /// there. Reading something never registered throws, as it does for the
+  /// application's own globals: a null that spreads is worse than a mistake
+  /// seen where it is made.
+  T global<T>([T? instance]) => DV.global<T>(instance, id);
 }
