@@ -4,6 +4,7 @@ import 'dart:ffi' as ffi;
 import 'dart:isolate';
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:dartvel_core/dartvel.dart' show DVPageDataResolver;
 import 'package:path/path.dart' as p;
 
 import 'generated/bindings.dart' as gen; // produced by ffigen via build hook
@@ -100,6 +101,7 @@ Future<ServerHandle> serve(
   CorsOptions? cors,
   String? staticDir, // Path to static files directory
   String? spaRoot, // Path to SPA root (e.g. build/web) for SSR injection
+  DVPageDataResolver? pageData, // The route's data on request, for the page pipeline
   bool compression = true, // Enable/disable compression
 }) async {
   final subdir = Platform.isMacOS
@@ -142,7 +144,7 @@ Future<ServerHandle> serve(
       // 2. Fall back to normal handler or SPA index
       final resp = await handler(req);
       if (resp.status == 404 && req.method == 'GET') {
-        return handleSsrFallback(req, spaRoot);
+        return handleSsrFallback(req, spaRoot, pageData: pageData);
       }
       return resp;
     };
