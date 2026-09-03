@@ -504,9 +504,12 @@
       "evidence": [
         "packages/dartvel_cli/test/build_command_test.dart",
         "packages/dartvel_flutter/test/render_surface_test.dart",
-        "packages/dartvel_flutter/test/launch_negotiation_test.dart"
+        "packages/dartvel_flutter/test/launch_negotiation_test.dart",
+        "packages/dartvel_flutter/test/terminal_size_test.dart",
+        "packages/dartvel_flutter/test/launch_helpers_test.dart",
+        "packages/dartvel_cli/test/launch_negotiation_wiring_test.dart"
       ],
-      "absent": "The terminal backend and the dartvel_cli_flt fork; terminal size as a signal; wiring launch negotiation into a generated main()"
+      "absent": "The terminal backend itself and the dartvel_cli_flt fork: rendering through the Kitty protocol with an ANSI fallback, and a distributable runner. Built: terminal size as a signal (DV.Platform.terminal.size, read from the attached terminal and again on SIGWINCH), and launch negotiation wired into the generated main -- a GUI-only build links no decision, a build with the terminal linked resolves from the arguments and the display, asks with the spec's wording when there is no display, and hands a terminal outcome to the runner beside the GUI binary"
     },
     {
       "section": "Multi-Window",
