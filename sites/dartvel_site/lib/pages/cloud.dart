@@ -55,6 +55,44 @@ Widget _cloudPage(BuildContext context) => const SingleChildScrollView(
         ),
         Section(
           children: <Widget>[
+            Eyebrow('ADVANCED STUDIO — IN PRO'),
+            Heading('Design in Figma. Ship as Dart.'),
+            Body(
+              'Studio\'s page builder is free forever. Pro adds what only '
+              'starts mattering when more than one person touches the '
+              'application — and one thing that matters on day one: import.',
+              width: 640,
+            ),
+            DVBox.wrapLine(<Widget>[
+              SiteCard(
+                'Figma import',
+                'Paste a file URL. Every top-level frame becomes a page you '
+                'can open in the builder and export as an ordinary @DVPage — '
+                'auto-layout to rows and lists, fills to colours, text styles '
+                'to text, image fills resolved. Built.',
+              ),
+              SiteCard(
+                'Workflow builder',
+                'Backend functions composed visually as a step tree that runs '
+                'directly and exports to a plain @DVBackendFunction, so the '
+                'builder can be dropped at any time. Built.',
+              ),
+              SiteCard(
+                'Collaboration and governance',
+                'Multi-user editing with presence, revision history and '
+                'approval, role-based editor permissions and an audit trail. '
+                'Planned; not yet built.',
+              ),
+              SiteCard(
+                'Enterprise SSO',
+                'SAML, SCIM provisioning and directory sync for your team, '
+                'enforced org-wide. Planned; not yet built.',
+              ),
+            ], spacing: 16),
+          ],
+        ),
+        Section(
+          children: <Widget>[
             Eyebrow('IN THE MEANTIME'),
             Heading('It already deploys anywhere.'),
             Body(
