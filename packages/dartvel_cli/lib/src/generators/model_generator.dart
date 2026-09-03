@@ -37,6 +37,8 @@ class ModelGenerator {
     }
 
     final sb = StringBuffer();
+    // The public pages' specs, for the backend that cannot import this file.
+    final List<String> pageSpecs = <String>[];
     sb.writeln("import 'dart:async';");
     sb.writeln("import 'dart:convert' as convert;");
     sb.writeln("import 'dart:core';");
@@ -394,6 +396,19 @@ class ModelGenerator {
         if (generatesPublicPages) {
           final publicPathField = _publicPathField(fields);
           final publishedField = _publishedField(fields);
+          pageSpecs.add(
+            '  DVModelPageSpec(\n'
+            "    model: '$className',\n"
+            "    route: '/${_pluralRouteSegment(className)}/:$publicPathField',\n"
+            "    param: '$publicPathField',\n"
+            "    table: '$tableName',\n"
+            "    keyField: '$publicPathField',\n"
+            "    titleField: ${resolvedPageTitle == null ? 'null' : "'$resolvedPageTitle'"},\n"
+            "    contentFields: <String>[${mainContentCandidates.map((String n) => "'$n'").join(', ')}],\n"
+            "    imageField: ${resolvedFeaturedImage == null ? 'null' : "'$resolvedFeaturedImage'"},\n"
+            "    publishedField: ${publishedField == null ? 'null' : "'$publishedField'"},\n"
+            '  ),',
+          );
           sb.writeln();
           sb.writeln(
             '  static FutureOr<Iterable<String>> Function()? _publicStaticPathsResolver;',
@@ -1799,6 +1814,18 @@ class ModelGenerator {
             'void registerDartvelModels() {}\n'
         : '$generatedHeader\n${sb.toString()}';
     File(p.join(clientDir.path, 'models.g.dart')).writeAsStringSync(content);
+
+    // Pure Dart, no Flutter: what the backend renders a public page from.
+    File(p.join(clientDir.path, 'model_pages.g.dart')).writeAsStringSync(
+      '${generatedHeader}library dartvel_client_model_pages;\n\n'
+      "import 'package:dartvel_core/dartvel.dart' show DVModelPageSpec;\n\n"
+      '/// Where each public model page\'s rows are and which fields carry its\n'
+      '/// title, content, image and published flag. The backend resolves a\n'
+      '/// page\'s data from these on request.\n'
+      'const List<DVModelPageSpec> dartvelModelPages = <DVModelPageSpec>[\n'
+      '${pageSpecs.join('\n')}${pageSpecs.isEmpty ? '' : '\n'}'
+      '];\n',
+    );
   }
 
   /// A default value for [name].
