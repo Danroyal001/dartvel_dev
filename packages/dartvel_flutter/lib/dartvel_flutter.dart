@@ -3175,7 +3175,54 @@ class DVApplicationMenu {
 class DVMenus {
   const DVMenus();
 
-  Future<void> setApplicationMenu(DVApplicationMenu menu) async {
+  /// The ids of the menu currently set, and the handler given with it.
+  static Set<String> _ids = const <String>{};
+  static void Function(String id)? _onSelected;
+  static final StreamController<String> _selected =
+      StreamController<String>.broadcast();
+
+  /// Selections, by item id, for code that did not set the menu.
+  Stream<String> get selected => _selected.stream;
+
+  /// What a native binding calls when an item is chosen.
+  ///
+  /// An id that is not in the current menu is ignored rather than an error:
+  /// a binding can report an item from a menu that has since been replaced.
+  static void dispatch(String id) {
+    if (!_ids.contains(id)) return;
+    _onSelected?.call(id);
+    _selected.add(id);
+  }
+
+  /// Drops the menu and its handler. Tests use this so one cannot receive
+  /// another's selections.
+  static void reset() {
+    _ids = const <String>{};
+    _onSelected = null;
+  }
+
+  /// Installs [menu] as the application menu and runs [onSelected] with the
+  /// id of whatever the user chooses.
+  ///
+  /// Every id in the tree must be unique -- two items with one id and a
+  /// selection cannot say which was chosen -- and that is checked before the
+  /// binding sees anything. The handler is stored only once the binding has
+  /// the menu, so a refused menu leaves nothing waiting for a click that
+  /// cannot come.
+  Future<void> setApplicationMenu(
+    DVApplicationMenu menu, {
+    void Function(String id)? onSelected,
+  }) async {
+    final Set<String> ids = <String>{};
+    void collect(DVMenuItem item) {
+      if (!ids.add(item.id)) {
+        throw ArgumentError.value(
+            item.id, 'id', 'appears more than once in the application menu');
+      }
+      item.children.forEach(collect);
+    }
+    menu.items.forEach(collect);
+
     final handled = await DVNativeBridge.require<bool>(
       'menus.setApplicationMenu',
       menu.toMap(),
@@ -3183,6 +3230,8 @@ class DVMenus {
     if (!handled) {
       throw StateError('Native menus binding rejected setApplicationMenu.');
     }
+    _ids = ids;
+    _onSelected = onSelected;
   }
 }
 
