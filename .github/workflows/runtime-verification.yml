@@ -76,12 +76,15 @@ jobs:
           Xvfb :99 -screen 0 1280x900x24 &
           sleep 3
           export DISPLAY=:99
-          ./build/linux/x64/release/bundle/dartvel_example &
+          # Its own output kept: a blank screenshot with nothing else to
+          # read is a mystery, and the app's first lines are the answer.
+          ./build/linux/x64/release/bundle/dartvel_example > /tmp/diag/linux-app.log 2>&1 &
           APP=$!
           # Long enough for the first frame; a screenshot taken too early
           # photographs an empty window and looks like a rendering failure.
           sleep 12
           import -window root /tmp/diag/linux-gui.png
+          echo "--- application output ---"; cat /tmp/diag/linux-app.log || true
           kill $APP 2>/dev/null || true
           identify /tmp/diag/linux-gui.png
 
