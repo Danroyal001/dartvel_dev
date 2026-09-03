@@ -394,9 +394,11 @@
       "stability": "Draft",
       "status": "Partial",
       "evidence": [
-        "packages/dartvel_core/test/billing_grants_test.dart"
+        "packages/dartvel_core/test/billing_grants_test.dart",
+        "packages/dartvel_core/lib/src/billing/stripe.dart",
+        "packages/dartvel_core/test/stripe_billing_test.dart"
       ],
-      "absent": "Stripe and Paddle providers; app-store and Play Billing purchases"
+      "absent": "Paddle, and app-store and Play Billing purchases. Stripe is built: checkout sessions for a plan's configured price, and webhooks that grant and revoke entitlements from subscription status -- believed only when the Stripe-Signature matches in constant time and its timestamp is within five minutes, with the secret key never echoed in an error. Not exercised against Stripe itself; the tests inject the HTTP and the clock"
     },
     {
       "section": "Internationalization and Localization",
