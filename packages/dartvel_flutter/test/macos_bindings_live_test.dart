@@ -13,6 +13,7 @@ import 'dart:ffi';
 import 'dart:io' show Directory;
 
 import 'package:dartvel_flutter/dartvel_flutter.dart';
+import 'package:ffi/ffi.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 final DynamicLibrary _cg = DynamicLibrary.open('/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics');
@@ -23,6 +24,28 @@ final DynamicLibrary _appServices =
 /// whose run loop Carbon delivers hot-key events to.
 bool get onMainThread =>
     DynamicLibrary.process().lookupFunction<Int32 Function(), int Function()>('pthread_main_np')() != 0;
+
+/// Whether NSApplication's event loop is running, which is what carries a
+/// Carbon hot-key event to its handler; a test harness runs no such loop.
+bool get applicationRunning {
+  final objc = DynamicLibrary.open('/usr/lib/libobjc.A.dylib');
+  Pointer<Void> sel(String name) {
+    final p = name.toNativeUtf8();
+    try {
+      return objc.lookupFunction<Pointer<Void> Function(Pointer<Utf8>), Pointer<Void> Function(Pointer<Utf8>)>('sel_registerName')(p);
+    } finally {
+      calloc.free(p);
+    }
+  }
+  final Pointer<Utf8> name = 'NSApplication'.toNativeUtf8();
+  try {
+    final cls = objc.lookupFunction<Pointer<Void> Function(Pointer<Utf8>), Pointer<Void> Function(Pointer<Utf8>)>('objc_getClass')(name);
+    final app = objc.lookupFunction<Pointer<Void> Function(Pointer<Void>, Pointer<Void>), Pointer<Void> Function(Pointer<Void>, Pointer<Void>)>('objc_msgSend')(cls, sel('sharedApplication'));
+    return objc.lookupFunction<Bool Function(Pointer<Void>, Pointer<Void>), bool Function(Pointer<Void>, Pointer<Void>)>('objc_msgSend')(app, sel('isRunning'));
+  } finally {
+    calloc.free(name);
+  }
+}
 
 /// Whether this process may synthesise input: CGEventPost is silently dropped
 /// without the Accessibility grant, which a runner may or may not hold.
@@ -162,6 +185,10 @@ void main() {
       }
       if (!trusted) {
         markTestSkipped('this process has no Accessibility grant, so a synthesised press is dropped before it reaches anyone');
+        return;
+      }
+      if (!applicationRunning) {
+        markTestSkipped('NSApplication is not running its event loop here, and Carbon delivers hot keys only through it; registration and refusal above are what this host proves');
         return;
       }
       String? arrived;
