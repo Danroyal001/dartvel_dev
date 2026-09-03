@@ -12,6 +12,8 @@ import 'dart:io';
 
 import 'package:dartvel_core/dartvel.dart' show DVInstanceLock, DVSingleInstance;
 
+import '../../dartvel_flutter.dart' show DVDeepLinks;
+
 /// What [DVAppLaunch.start] decided.
 class DVAppLaunchResult {
   /// True for the process that owns the application; false for one that
@@ -44,6 +46,22 @@ typedef DVAppLaunchAcquire = DVInstanceLock Function(String path);
 
 class DVAppLaunch {
   DVAppLaunch._();
+
+  /// The first link -- an argument with a scheme, `dartvel://orders/7` or an
+  /// https app link -- this process was launched with, or null. What
+  /// `deepLinks.initial` answers on desktop; every link argument is also
+  /// delivered on `DV.Platform.DeepLinking.getLinkStream()`.
+  static String? get initialLink => _initialLink;
+  static String? _initialLink;
+
+  /// Forgets the initial link. For tests.
+  static void resetForTest() => _initialLink = null;
+
+  /// Whether [argument] is a link rather than a route, a file or a flag.
+  static bool isLink(String argument) {
+    final Uri? uri = Uri.tryParse(argument.trim());
+    return uri != null && uri.hasScheme && uri.scheme != 'file' && !argument.trim().startsWith('/');
+  }
 
   /// Where the lock lives for [appId]: the session's runtime directory
   /// where there is one, else the temp directory.
@@ -118,6 +136,11 @@ class DVAppLaunch {
       for (final String a in arguments)
         if (routeFor(a, filesRoute: filesRoute) case final String r) r,
     ];
+    for (final String a in arguments) {
+      if (!isLink(a) || routeFor(a, filesRoute: filesRoute) == null) continue;
+      _initialLink ??= a.trim();
+      const DVDeepLinks().dispatch(a.trim());
+    }
     final String path = lockPath ?? lockPathFor(appId);
     final DVAppLaunchResult? already = _primaries[path];
     if (already != null) {

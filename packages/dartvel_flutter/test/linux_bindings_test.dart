@@ -90,6 +90,7 @@ void main() {
         'device.watchdog.heartbeat',
         'device.fleet.provision',
         'device.diagnostics.collect',
+        'deepLinks.initial',
       },
     );
     expect(DVLinuxBindings.isRegistered, isTrue);

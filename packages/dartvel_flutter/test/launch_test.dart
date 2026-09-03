@@ -9,6 +9,7 @@
 // maps to a route by a rule that never trusts it as a route outright; the
 // primary opens its own arguments and then everything a secondary forwards;
 // a secondary knows it is one; stopping stops.
+import 'dart:async';
 import 'dart:io';
 
 import 'package:dartvel_core/dartvel.dart' show DVSingleInstance;
@@ -155,6 +156,46 @@ void main() {
       File('${dir.path}/shop.lock.requests').writeAsStringSync('["orders/1", "//evil", "/fine"]');
       await Future<void>.delayed(const Duration(milliseconds: 100));
       expect(opened, <String>['/fine']);
+    });
+  });
+
+  group('deep links', () {
+    late Directory dir;
+    setUp(() {
+      dir = Directory.systemTemp.createTempSync('dv_launch_links_');
+      DVAppLaunch.resetForTest();
+    });
+    tearDown(() {
+      DVAppLaunch.resetForTest();
+      dir.deleteSync(recursive: true);
+    });
+
+    test('a link the app was launched with is the initial link, and is delivered as one', () async {
+      final List<String> links = <String>[];
+      final StreamSubscription<String> sub = DV.Platform.DeepLinking.getLinkStream().listen(links.add);
+      addTearDown(sub.cancel);
+      final DVAppLaunchResult r = await DVAppLaunch.start(
+        appId: 'shop',
+        arguments: <String>['--verbose', 'dartvel://orders/7', '/home/ada/report.pdf'],
+        lockPath: '${dir.path}/shop.lock',
+        open: (String _) async {},
+        poll: const Duration(milliseconds: 20),
+      );
+      addTearDown(r.stop);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(DVAppLaunch.initialLink, 'dartvel://orders/7', reason: 'the first link, not the file and not the flag');
+      expect(links, <String>['dartvel://orders/7']);
+    });
+
+    test('with no link, there is no initial link', () async {
+      final DVAppLaunchResult r = await DVAppLaunch.start(
+        appId: 'shop',
+        arguments: <String>['/orders'],
+        lockPath: '${dir.path}/shop.lock',
+        open: (String _) async {},
+      );
+      addTearDown(r.stop);
+      expect(DVAppLaunch.initialLink, isNull);
     });
   });
 }
