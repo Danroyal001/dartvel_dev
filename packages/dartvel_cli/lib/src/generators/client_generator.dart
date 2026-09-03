@@ -1380,13 +1380,32 @@ void startDartvelKiosk() {
 
   static bool _hasDeviceProfileDisplays(YamlMap dv) => _deviceProfileDisplays(dv).isNotEmpty;
 
+  /// `dartvel.deviceProfiles.<id>.kiosk`, per profile that declares one: the
+  /// entry that goes over the kiosk section when that profile is built.
+  static Map<String, Map<String, Object?>> _deviceProfileKiosks(YamlMap dv) {
+    final Object? profiles = dv['deviceProfiles'];
+    if (profiles is! Map) return const <String, Map<String, Object?>>{};
+    final Map<String, Map<String, Object?>> out = <String, Map<String, Object?>>{};
+    profiles.forEach((Object? id, Object? body) {
+      final Object? kiosk = body is Map ? body['kiosk'] : null;
+      if (kiosk is Map) out['$id'] = (_plain(kiosk) as Map).cast<String, Object?>();
+    });
+    return out;
+  }
+
+  /// Whether the config needs a DVDeviceProfiles at all: a profile that names
+  /// a display or overrides the kiosk. Profiles that only describe hardware
+  /// are the build's business, not the app's.
+  static bool _hasDeviceProfiles(YamlMap dv) =>
+      _hasDeviceProfileDisplays(dv) || _deviceProfileKiosks(dv).isNotEmpty;
+
   /// `DVDeviceProfiles`: the display names each profile declares, and the
   /// one the build selected. `--device-profile` becomes the
   /// DARTVEL_DEVICE_PROFILE define; nothing at run time can tell which
   /// machine it is on, so the build states it.
   static String _deviceProfilesSource(YamlMap dv) {
+    if (!_hasDeviceProfiles(dv)) return '';
     final Map<String, Map<String, int>> profiles = _deviceProfileDisplays(dv);
-    if (profiles.isEmpty) return '';
     final StringBuffer out = StringBuffer()
       ..writeln()
       ..writeln('/// Device profiles, from dartvel.deviceProfiles in pubspec.yaml.')
@@ -1445,13 +1464,37 @@ void startDartvelKiosk() {
       ..writeln("  static const List<String> names = <String>[${names.map((String n) => "'$n'").join(', ')}];");
     if (device) {
       // The section itself is the device policy: what the whole application
-      // runs under, installed at start.
-      out
-        ..writeln()
-        ..writeln('  /// The device-scope policy: the kiosk section itself.')
-        ..writeln('  static DVKioskPolicy get device => DVKioskPolicy.parse(<String, Object?>{')
-        ..writeln("    'kiosk': ${_dartLiteral(base, 2)},")
-        ..writeln('  });');
+      // runs under, installed at start. A profile's kiosk entry goes over it
+      // when that profile is the one built -- chosen by the build's define,
+      // because runtime never changes policy.
+      final Map<String, Map<String, Object?>> overrides = _deviceProfileKiosks(dv);
+      out.writeln();
+      if (overrides.isEmpty) {
+        out
+          ..writeln('  /// The device-scope policy: the kiosk section itself.')
+          ..writeln('  static DVKioskPolicy get device => DVKioskPolicy.parse(<String, Object?>{')
+          ..writeln("    'kiosk': ${_dartLiteral(base, 2)},")
+          ..writeln('  });');
+      } else {
+        out
+          ..writeln('  /// The device-scope policy: the kiosk section, with the built')
+          ..writeln("  /// profile's kiosk entry over it (dartvel build --device-profile).")
+          ..writeln('  static DVKioskPolicy get device => switch (DVDeviceProfiles.selected) {');
+        overrides.forEach((String id, Map<String, Object?> entry) {
+          final Map<String, Object?> merged = <String, Object?>{...base, ...entry}
+            ..remove('policies')
+            ..remove('windows');
+          out
+            ..writeln("        '$id' => DVKioskPolicy.parse(<String, Object?>{")
+            ..writeln("          'kiosk': ${_dartLiteral(merged, 5)},")
+            ..writeln('        }),');
+        });
+        out
+          ..writeln('        _ => DVKioskPolicy.parse(<String, Object?>{')
+          ..writeln("          'kiosk': ${_dartLiteral(base, 5)},")
+          ..writeln('        }),')
+          ..writeln('      };');
+      }
     }
     for (final String name in names) {
       final Object? entry = named[name];
