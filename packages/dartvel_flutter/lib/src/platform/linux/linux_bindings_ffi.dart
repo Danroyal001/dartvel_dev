@@ -17,6 +17,7 @@ import 'linux_kiosk_ffi.dart';
 import 'linux_menus_ffi.dart';
 import 'linux_printing_ffi.dart';
 import 'linux_shortcuts_ffi.dart';
+import 'linux_tray_dbus.dart';
 
 // --- libX11 ------------------------------------------------------------------
 
@@ -190,6 +191,10 @@ class DVLinuxBindings {
     'dialogs.message',
     'dragDrop.accept',
     'dragDrop.stop',
+    // A StatusNotifierItem on the session bus, which is how a modern Linux
+    // desktop is told about a tray icon.
+    'tray.show',
+    'tray.hide',
     'device.capabilityManifest',
     'device.health',
     'device.watchdog.arm',
@@ -293,6 +298,9 @@ class DVLinuxBindings {
     DVLinuxPrinting.register(_gtk!, _glib!, DVNativeBridge.register);
     DVLinuxDialogs.register(_gtk!, _glib!, DVNativeBridge.register);
     DVLinuxDragDrop.register(_gtk!, _glib!, _gdk!, DVNativeBridge.register);
+    // Needs a session bus rather than X11, and says so when there is none:
+    // an item nothing can watch is not a failure of the other bindings.
+    DVLinuxTray.register(DVNativeBridge.register);
     DVLinuxDevice.register(DVNativeBridge.register);
     // A desktop deep link arrives as a launch argument; the launch keeps
     // the first one. The stream is fed by the launch as well.
@@ -315,6 +323,9 @@ class DVLinuxBindings {
     // Releases every grab. A grab left behind eats the keys for every other
     // application on the desktop until the process dies.
     unawaited(DVLinuxKiosk.unregister());
+    // And takes the tray item off the bus, so a shell is not left drawing
+    // an icon for a process that has gone.
+    unawaited(DVLinuxTray.unregister());
     unawaited(DVLinuxShortcuts.unregister());
     DVLinuxMenus.unregister();
     DVLinuxDialogs.unregister();

@@ -111,7 +111,11 @@ jobs:
         if: matrix.runner == 'flutter'
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq xvfb libxtst6 libgtk-3-0 poppler-utils
+          # dbus-x11 for a session bus and dunst to answer on it: the tray is
+          # a StatusNotifierItem and a notification is a D-Bus call, so both
+          # suites skipped themselves under `flutter test` alone -- passing
+          # while never running a line.
+          sudo apt-get install -y -qq xvfb libxtst6 libgtk-3-0 poppler-utils dbus-x11 dunst
 
       # A Secret Service for the application-key store. The libsecret store
       # skips itself when nothing answers org.freedesktop.secrets, so `dart
@@ -128,7 +132,10 @@ jobs:
         working-directory: packages/${{ matrix.package }}
         run: |
           if [ "${{ matrix.runner }}" = "flutter" ]; then
-            xvfb-run -a flutter test
+            # A display and a session bus: the tray exports a
+            # StatusNotifierItem and the notification binding calls the
+            # daemon, and both skip themselves without one.
+            xvfb-run -a dbus-run-session -- bash -c 'dunst >/dev/null 2>&1 & sleep 1; flutter test'
           elif [ "${{ matrix.package }}" = "dartvel_core" ]; then
             dbus-run-session -- bash -c 'eval "$(echo -n ci-keyring | gnome-keyring-daemon --unlock --components=secrets)"; sleep 1; dart test'
           else
