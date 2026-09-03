@@ -12,7 +12,7 @@
 library dartvel.i18n.locale_negotiation;
 
 /// Where a chosen locale came from.
-enum DVLocaleSource { path, preference, header, fallback }
+enum DVLocaleSource { path, preference, header, tenant, fallback }
 
 /// The locale to answer in, and the route with any locale prefix removed.
 class DVLocaleChoice {
@@ -34,17 +34,22 @@ class DVLocaleChoice {
 
 /// Picks a locale from a path prefix, a stored preference and Accept-Language.
 ///
-/// Precedence is path, then preference, then header, then [fallback]. The path
-/// wins because it is in the URL the user shared, so it has to survive being
-/// opened by someone whose browser prefers another language. A stored
-/// preference beats the header because the user chose it, where
-/// Accept-Language is whatever their OS was installed as.
+/// Precedence is path, then preference, then header, then [tenantDefault],
+/// then [fallback]. The path wins because it is in the URL the user shared, so
+/// it has to survive being opened by someone whose browser prefers another
+/// language. A stored preference beats the header because the user chose it,
+/// where Accept-Language is whatever their OS was installed as. A tenant's
+/// default never overrides what a person asked for; it is what they get when
+/// they asked for nothing, and it is skipped when the application does not
+/// support it, or a tenant configured for a removed catalogue would pin every
+/// visitor to a locale nothing can render.
 DVLocaleChoice dvNegotiateLocale({
   required List<String> supported,
   required String fallback,
   String? path,
   String? acceptLanguage,
   String? preferred,
+  String? tenantDefault,
 }) {
   final String route = (path == null || path.isEmpty) ? '/' : path;
 
@@ -84,6 +89,17 @@ DVLocaleChoice dvNegotiateLocale({
       source: DVLocaleSource.header,
       path: route,
     );
+  }
+
+  if (tenantDefault != null) {
+    final String? matched = _best(supported, tenantDefault);
+    if (matched != null) {
+      return DVLocaleChoice(
+        locale: matched,
+        source: DVLocaleSource.tenant,
+        path: route,
+      );
+    }
   }
 
   return DVLocaleChoice(
