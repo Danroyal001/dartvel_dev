@@ -339,8 +339,8 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   ),
   (
     'Kiosk Mode',
-    'Policy, clock, windows and Linux enforcement; the rest per target',
-    'Present: the policy, state machine and enforcement matrix checked by dartvel doctor; named policies generated as DVKioskPolicies, with a device profile\'s kiosk entry over the section when dartvel build --device-profile selects it; the device-scope kiosk installed at start as DV.Platform.display.kiosk; display-scope kiosk windows pinned to a display; the session clock with its countdown and reset, on DV.lifecycle.kiosk; on Linux hardware-key blocking that never covers the keys accessibility needs, pointer confinement and notification suppression; the screen-side host with its diagnostics screen; restart-loop detection; the sensitive-field analyze rule; and dartvel inspect kiosk, the effective policy per target and per window with each value\'s source. Absent: other targets\' native enforcement.',
+    'Policy, clock, windows and desktop enforcement; mobile and embedded per target',
+    'Present: the policy, state machine and enforcement matrix checked by dartvel doctor; named policies generated as DVKioskPolicies, with a device profile\'s kiosk entry over the section when dartvel build --device-profile selects it; the device-scope kiosk installed at start as DV.Platform.display.kiosk; display-scope kiosk windows pinned to a display; the session clock with its countdown and reset, on DV.lifecycle.kiosk; on Linux hardware-key blocking that never covers the keys accessibility needs, pointer confinement and notification suppression, on Windows hot keys and pointer confinement with what Win32 refuses reported unenforced, on macOS the presentation options that disable process switching and force quit; the screen-side host with its diagnostics screen; restart-loop detection; the sensitive-field analyze rule; and dartvel inspect kiosk, the effective policy per target and per window with each value\'s source. Absent: native enforcement on Android, iPadOS and the embedded targets.',
   ),
   (
     'Terminal Rendering',
