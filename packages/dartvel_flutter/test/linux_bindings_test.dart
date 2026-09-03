@@ -91,6 +91,9 @@ void main() {
         'device.fleet.provision',
         'device.diagnostics.collect',
         'deepLinks.initial',
+        'media.pick',
+        'permissions.isGranted',
+        'permissions.request',
       },
     );
     expect(DVLinuxBindings.isRegistered, isTrue);
@@ -229,5 +232,24 @@ void main() {
         ),
       ),
     );
+  });
+
+  group('permissions on a desktop', () {
+    // No permission prompt exists here: what any process may do is granted,
+    // and what needs a service Dartvel has no Linux binding for is not --
+    // said as false rather than as a prompt that never comes.
+    test('what any process may do is granted, without a prompt', () async {
+      for (final String p in <String>['notifications', 'storage', 'photos', 'camera', 'microphone']) {
+        expect(await DV.Platform.permissions.isGranted(p), isTrue, reason: p);
+        expect(await DV.Platform.permissions.request(p), isTrue, reason: p);
+      }
+    });
+
+    test('what needs a service there is no binding for is not', () async {
+      for (final String p in <String>['location', 'bluetooth', 'contacts', 'nfc', 'biometrics']) {
+        expect(await DV.Platform.permissions.isGranted(p), isFalse, reason: p);
+        expect(await DV.Platform.permissions.request(p), isFalse, reason: p);
+      }
+    });
   });
 }

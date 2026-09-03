@@ -125,4 +125,45 @@ void main() {
       expect(seen.messageText, contains('Your report was saved.'));
     });
   });
+
+  group('media.pick, through the file chooser', () {
+    late Directory dir;
+    setUpAll(() {
+      expect(DVLinuxBindings.register(), isTrue);
+      dir = Directory.systemTemp.createTempSync('dv_media_');
+      File('${dir.path}/photo.png').writeAsBytesSync(<int>[0x89, 0x50, 0x4E, 0x47]);
+      File('${dir.path}/clip.mp4').writeAsBytesSync(<int>[0, 0, 0, 0x18]);
+    });
+    tearDownAll(() {
+      DVLinuxDialogs.automate(null);
+      DVLinuxBindings.unregister();
+      dir.deleteSync(recursive: true);
+    });
+    tearDown(() => DVLinuxDialogs.automate(null));
+
+    test('picking an image is the open dialog with image filters, and answers path, name and type', () async {
+      late DVLinuxDialogSeen seen;
+      DVLinuxDialogs.automate((DVLinuxDialog dialog) {
+        seen = dialog.inspect();
+        dialog.selectPath('${dir.path}/photo.png');
+        dialog.accept();
+      });
+      final List<Map<String, Object?>> picked = await DV.Platform.media.pick(type: 'image');
+      expect(seen.filterLabels, contains('Images'));
+      expect(picked, hasLength(1));
+      expect(picked.single['path'], '${dir.path}/photo.png');
+      expect(picked.single['name'], 'photo.png');
+      expect(picked.single['type'], 'image');
+    });
+
+    test('video asks for videos; cancel is nothing picked', () async {
+      late DVLinuxDialogSeen seen;
+      DVLinuxDialogs.automate((DVLinuxDialog dialog) {
+        seen = dialog.inspect();
+        dialog.cancel();
+      });
+      expect(await DV.Platform.media.pick(type: 'video'), isEmpty);
+      expect(seen.filterLabels, contains('Videos'));
+    });
+  });
 }
