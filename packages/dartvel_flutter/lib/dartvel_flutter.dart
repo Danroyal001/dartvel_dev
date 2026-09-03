@@ -20,12 +20,12 @@ import 'src/browser_extension_platform_memory.dart'
 import 'src/display_platform.dart'
     if (dart.library.js_interop) 'src/display_platform_web.dart'
     as display_platform;
+import 'src/platform/accelerator.dart';
 // DV.Updates.applyPages installs page bundles, which are these types.
 import 'src/pwa/install_prompt.dart';
 import 'src/seo_platform_memory.dart'
     if (dart.library.html) 'src/seo_platform_web.dart' as seo_platform;
 import 'src/studio/page_document.dart';
-import 'src/platform/accelerator.dart';
 import 'src/windowing/window.dart';
 
 export 'package:dartvel_core/dartvel.dart'
@@ -245,6 +245,7 @@ export 'src/admin/route_admin.dart';
 export 'src/admin/route_info.dart';
 export 'src/admin/telemetry_admin.dart';
 export 'src/media/image_view.dart';
+export 'src/platform/accelerator.dart';
 export 'src/platform/android/android_bindings.dart';
 export 'src/platform/file_bindings.dart';
 export 'src/platform/ios/ios_bindings.dart';
@@ -259,7 +260,6 @@ export 'src/studio/page_document.dart';
 export 'src/studio/studio_editor.dart';
 export 'src/studio/studio_screen.dart';
 export 'src/table/table.dart';
-export 'src/platform/accelerator.dart';
 export 'src/windowing/displays.dart';
 export 'src/windowing/shared_store.dart';
 export 'src/windowing/tab_workspace.dart';

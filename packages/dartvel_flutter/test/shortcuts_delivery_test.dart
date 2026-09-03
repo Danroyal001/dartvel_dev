@@ -9,8 +9,6 @@
 // handler given at register time and onto a stream. Unregistering drops the
 // handler as well as the grab, or a stale closure fires for an id the
 // application thinks is gone.
-import 'dart:async';
-
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
