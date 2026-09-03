@@ -164,8 +164,20 @@ class DVStudioEditorController extends ChangeNotifier {
     }
   }
 
-  /// Persists the document, which publishes it.
-  Future<void> save() => const DVPageStore().save(_document);
+  /// Where [save] sends the document, when not the page store.
+  ///
+  /// Settable by whatever attaches to the editor -- an approval step that
+  /// holds the page for review is the case -- so the Pages tab's Publish
+  /// button does not need to know. Null means the page store, as before.
+  Future<void> Function(DVPageDocument document)? publisher;
+
+  /// Persists the document, which publishes it -- or hands it to
+  /// [publisher], which decides.
+  Future<void> save() {
+    final Future<void> Function(DVPageDocument document)? publish = publisher;
+    if (publish != null) return publish(_document);
+    return const DVPageStore().save(_document);
+  }
 
   @override
   void dispose() {
