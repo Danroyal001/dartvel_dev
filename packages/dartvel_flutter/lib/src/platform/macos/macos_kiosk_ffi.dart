@@ -59,15 +59,19 @@ class DVMacosKiosk {
       disableSessionTermination |
       disableHideApplication;
 
-  /// Which option covers which escape combo, by canonical spelling.
-  static const Map<String, int> _coveredBy = <String, int>{
-    'Meta+Tab': disableProcessSwitching,
-    'Shift+Meta+Tab': disableProcessSwitching,
-    'Alt+Meta+Escape': disableForceQuit,
-    'Meta+H': disableHideApplication,
-    'Alt+Meta+H': disableHideApplication,
-    'Shift+Meta+Q': disableSessionTermination,
-    'Alt+Shift+Meta+Q': disableSessionTermination,
+  /// Which option covers which escape combo, keyed by the accelerator's
+  /// canonical spelling so a caller's own spelling of the same combo matches.
+  static final Map<String, int> _coveredBy = <String, int>{
+    for (final MapEntry<String, int> e in <String, int>{
+      'Cmd+Tab': disableProcessSwitching,
+      'Cmd+Shift+Tab': disableProcessSwitching,
+      'Cmd+Option+Escape': disableForceQuit,
+      'Cmd+H': disableHideApplication,
+      'Cmd+Option+H': disableHideApplication,
+      'Cmd+Shift+Q': disableSessionTermination,
+      'Cmd+Option+Shift+Q': disableSessionTermination,
+    }.entries)
+      DVAccelerator.parse(e.key, primaryIsMeta: true).canonical: e.value,
   };
 
   static bool _held = false;
@@ -92,7 +96,7 @@ class DVMacosKiosk {
         }
         final int? option = _coveredBy[canonical];
         if (option == null) {
-          unenforced[text] = canonical == 'Meta+Q'
+          unenforced[text] = canonical == DVAccelerator.parse('Cmd+Q', primaryIsMeta: true).canonical
               ? 'no presentation option covers Cmd+Q; refuse it in the terminate delegate'
               : 'no presentation option covers $text';
         } else if (inEffect & option == option) {
