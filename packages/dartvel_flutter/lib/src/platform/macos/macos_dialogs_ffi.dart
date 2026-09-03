@@ -30,6 +30,9 @@ typedef _GetUtf8D = Pointer<Utf8> Function(Pointer<Void>, Pointer<Void>);
 
 const int _modalResponseOk = 1;
 
+/// `NSModalResponseCancel`.
+const int _modalResponseCancel = 0;
+
 /// What the dialog showed, for a test.
 class DVMacosDialogSeen {
   const DVMacosDialogSeen({this.title, this.filterLabels = const <String>[], this.currentFolder, this.currentName, this.messageText});
@@ -308,8 +311,29 @@ class DVMacosDialogs {
       if (o.getInt(buttons, 'count') > 0) o.send1(o.getAt(buttons, 'objectAtIndex:', 0), 'performClick:', nullptr);
       return;
     }
-    // ok: validates and ends the session as the button would; cancel: ends it.
+    // A save panel answers `ok:` with an exception -- AppKit raises
+    // "-[NSSavePanel ok:] : not implemented", which terminates the process
+    // after the tests have already reported passing, so the failure arrives
+    // as an exit code with no test attached to it. Its modal session is
+    // ended directly instead, which is what the button does underneath and
+    // what runModal returns; the panel's URL is its directory and name
+    // field, both already set.
+    if (kind == _DialogKind.save) {
+      _stopModal(ok ? _modalResponseOk : _modalResponseCancel);
+      return;
+    }
+    // An open panel does implement them, and going through the button is
+    // what makes its selection the URLs it hands back.
     o.send1(panel, ok ? 'ok:' : 'cancel:', nullptr);
+  }
+
+  /// Ends the application's modal session with [code], which is what
+  /// `runModal` then returns.
+  static void _stopModal(int code) {
+    final DVMacosObjc o = _o;
+    final Pointer<Void> app = o.send0(o.cls('NSApplication'), 'sharedApplication');
+    if (app == nullptr) return;
+    o.sendInt(app, 'stopModalWithCode:', code);
   }
 
   static void unregister() {
