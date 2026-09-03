@@ -276,6 +276,16 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'notification templates render in the recipient\'s language, and every '
     'prerendered page carries hreflang.',
   ),
+  (
+    'Dartvel Studio',
+    'Visual builder, exports to code',
+    'Pages are built from the same widgets the app renders, with drag-and-drop, '
+    'an inspector, undo, mobile-first breakpoints and one-click export to an '
+    'ordinary @DVPage. Every mutation is also an edit another editor can apply. '
+    'Pro adds what only matters with more than one person: Figma import, '
+    'reusable components, revision history, multi-user editing with presence, '
+    'roles, an audit trail and approval before a page goes live.',
+  ),
 ];
 
 @DVPage(title: 'Features — Dartvel', showAppBar: false)
@@ -285,7 +295,7 @@ Widget _featuresPage(BuildContext context) => SingleChildScrollView(
         const Section(
           children: <Widget>[
             Eyebrow('WHAT WORKS TODAY'),
-            Heading('Forty-one shipped sections.', level: 1),
+            Heading('Forty-two shipped sections.', level: 1),
             Body(
               'This list is the repository’s own record of what is built, not '
               'a description of what is planned. A tool checks it and fails '
@@ -295,7 +305,7 @@ Widget _featuresPage(BuildContext context) => SingleChildScrollView(
               width: 660,
             ),
             Body(
-              'Fifteen more sections are partial. They are listed as '
+              'Fourteen more sections are partial. They are listed as '
               'partial, with what is absent written next to what is present.',
               width: 660,
             ),
