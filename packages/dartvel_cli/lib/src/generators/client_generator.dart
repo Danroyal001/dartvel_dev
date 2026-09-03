@@ -439,14 +439,15 @@ const String dvApiBasePath      = '${esc(apiBasePath)}';
     final runtimeDart = """
 import 'dart:async' show unawaited;
 import 'package:flutter/foundation.dart' show kReleaseMode, kIsWeb, defaultTargetPlatform, TargetPlatform, debugPrint;
-import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVPageStore, DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings;
+import 'dart:io' show exit;
+import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVPageStore, DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAppLaunch, DVRouteTarget, DVWindowOptions;
 import 'dartvel_config.g.dart' as cfg;
 import 'jobs.g.dart' show registerDartvelJobs;
 import 'models.g.dart' show registerDartvelModels;
 
 /// Wires the generated runtime into the short `DV.baseUrl` / `DV.api(...)` API.
 /// Called automatically during app/router initialization.
-void configureDartvelRuntime() {
+void configureDartvelRuntime({List<String> arguments = const <String>[]}) {
   DV.registerRuntime(
     baseUrl: () => DartvelRuntime.baseUrl,
     apiBasePath: () => DartvelRuntime.apiBasePath,
@@ -463,9 +464,35 @@ void configureDartvelRuntime() {
   // app on Linux was throwing "binding not registered" from
   // DV.Platform.Clipboard.copy().
   registerPlatformBindings();
+  // The arguments this process was started with -- a file association, a
+  // dartvel:// link, a second launch -- and the launches that come after it.
+  startDartvelLaunch(arguments);
   // Reads stored Studio documents into memory so an override resolves during
   // navigation instead of flashing the compiled page first.
   unawaited(DVPageStore.prime());
+}
+
+/// Takes the single-instance lock and opens what this launch asked for, or
+/// hands it to the process that has the lock and ends this one. Desktop
+/// only: elsewhere a launch has no arguments and no second process.
+void startDartvelLaunch(List<String> arguments) {
+  if (kIsWeb) return;
+  final bool desktop = switch (defaultTargetPlatform) {
+    TargetPlatform.linux || TargetPlatform.windows || TargetPlatform.macOS => true,
+    _ => false,
+  };
+  if (!desktop) return;
+  unawaited(DVAppLaunch.start(
+    appId: '$pkgName',
+    arguments: arguments,
+    open: (String route) async {
+      await DV.Platform.Window.open(DVRouteTarget(route), options: DVWindowOptions.external);
+    },
+  ).then((result) {
+    // A second launch has done its job once its arguments are handed over;
+    // staying open would be a second window of the same application.
+    if (!result.isPrimary) exit(0);
+  }));
 }
 
 /// Loads the running platform's native libraries and wires its bindings.
@@ -1011,8 +1038,8 @@ ${sbRedirect.toString()}
 $generatedPageWidgets
 
 /// Creates the GoRouter instance for Dartvel routing.
-GoRouter createDartvelRouter() {
-  configureDartvelRuntime();
+GoRouter createDartvelRouter({List<String> arguments = const <String>[]}) {
+  configureDartvelRuntime(arguments: arguments);
   // What each route can fetch and show before you go there, so DVNavLink can
   // preload a destination on hover and preview it on a rest. The link cannot
   // know how to build a route; the router does.

@@ -219,18 +219,20 @@ Future<Map<String, Object?>> handler(
   static const String mainTemplate = '''import 'package:flutter/material.dart';
 import 'dartvel_client/dartvel_client.dart';
 
-void main() {
-  runApp(createDartvelApp());
+void main(List<String> arguments) {
+  runApp(createDartvelApp(arguments: arguments));
 }
 
-Widget createDartvelApp() {
+// The arguments are what a file association, an app link or a second
+// launch hands a desktop application; the router opens them.
+Widget createDartvelApp({List<String> arguments = const <String>[]}) {
   return MaterialApp.router(
     title: 'Dartvel App',
     theme: ThemeData(
       colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
       useMaterial3: true,
     ),
-    routerConfig: createDartvelRouter(),
+    routerConfig: createDartvelRouter(arguments: arguments),
   );
 }
 ''';
