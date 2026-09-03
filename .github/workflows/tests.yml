@@ -313,6 +313,13 @@ jobs:
       - name: Run the Win32 suite
         working-directory: packages/dartvel_flutter
         run: flutter test test/windows_bindings_live_test.dart
+      # window.displays through EnumDisplayMonitors, against the runner's own
+      # desktop session: at least one display, a primary, a real size.
+      - name: Display enumeration
+        working-directory: packages/dartvel_windowing
+        run: |
+          flutter pub get
+          flutter test test/displays_live_test.dart
       # The application key sealed with DPAPI: the store the spec's table
       # names for Windows, exercised on Windows rather than skipped.
       - name: The DPAPI key store
@@ -348,6 +355,13 @@ jobs:
       - name: Run the macOS suite
         working-directory: packages/dartvel_flutter
         run: flutter test test/macos_bindings_live_test.dart
+      # window.displays through CGGetActiveDisplayList, against the runner's
+      # own display: at least one, a main, a real size in points.
+      - name: Display enumeration
+        working-directory: packages/dartvel_windowing
+        run: |
+          flutter pub get
+          flutter test test/displays_live_test.dart
       # The application key in the Keychain: the store the spec's table names
       # for macOS, exercised on macOS rather than skipped.
       - name: The Keychain key store
