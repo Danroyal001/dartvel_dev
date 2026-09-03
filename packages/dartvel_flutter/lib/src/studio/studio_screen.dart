@@ -80,6 +80,15 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
             editorHooks: widget.editorHooks,
           ),
         ),
+        // Every window the application has open, with a way to close one.
+        // Free: what is open is not a Pro secret.
+        DVStudioSection(
+          id: 'windows',
+          label: 'Windows',
+          build: (BuildContext context) => const _DVStudioWindowsSection(
+            key: ValueKey<String>('dv-studio-windows'),
+          ),
+        ),
         ...widget.sections,
       ];
 
@@ -393,4 +402,39 @@ Widget _action(String label, VoidCallback? onTap,
     onTap: onTap,
     child: DVText(label),
   );
+}
+
+/// The window inspector: the window manager's list, live, each with a
+/// close.
+class _DVStudioWindowsSection extends StatelessWidget {
+  const _DVStudioWindowsSection({super.key});
+
+  static String _idOf(DVWindow w) => w.nativeId ?? w.route.path;
+
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder<List<DVWindow>>(
+        valueListenable: DV.Platform.Window.all,
+        builder: (BuildContext context, List<DVWindow> windows, Widget? _) {
+          if (windows.isEmpty) return const DVText('No windows open.');
+          return DVBox.list(<Widget>[
+            for (final DVWindow w in windows)
+              KeyedSubtree(
+                key: ValueKey<String>('dv-studio-window-${_idOf(w)}'),
+                child: DVBox.row(<Widget>[
+                Expanded(
+                  child: DVText(
+                    '${w.route.path}  ${w.kind.name}  ${w.presentation.name}'
+                    '${w.nativeId != null ? '  ${w.nativeId}' : ''}',
+                  ),
+                ),
+                GestureDetector(
+                  key: ValueKey<String>('dv-studio-window-close-${_idOf(w)}'),
+                  onTap: () => unawaited(w.close()),
+                  child: const DVText('Close').modifier(const DVModifier().padding(6)),
+                ),
+              ]),
+              ),
+          ], spacing: 6);
+        },
+      );
 }
