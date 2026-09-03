@@ -2883,8 +2883,111 @@ class DVDeviceDiagnosticsBundle {
   }
 }
 
+/// A serial port this machine has.
+///
+/// [path] is what to open. [name] is the stable name udev keeps for it, which
+/// is what an installation writes down: `ttyUSB0` is whichever adapter was
+/// plugged in first, and changes when somebody unplugs two and puts them back
+/// in the other order.
+class DVSerialPort {
+  const DVSerialPort({required this.path, this.name});
+
+  final String path;
+  final String? name;
+
+  factory DVSerialPort.fromMap(Map<Object?, Object?> map) => DVSerialPort(
+        path: '${map['path']}',
+        name: map['name']?.toString(),
+      );
+}
+
+/// An open serial port.
+class DVSerialConnection {
+  const DVSerialConnection(this.handle, this.path);
+
+  /// The binding's handle for this port.
+  final int handle;
+
+  /// The device this port was opened on.
+  final String path;
+
+  /// Writes [bytes] and returns how many the device took.
+  ///
+  /// Fewer than were given is not an error: a serial device has a buffer and
+  /// it can be full. The caller decides whether to wait and send the rest,
+  /// because only the caller knows whether the protocol allows a pause in
+  /// the middle of a frame.
+  Future<int> write(Uint8List bytes) => DVNativeBridge.require<int>(
+        'device.serial.write',
+        <String, Object?>{'handle': handle, 'bytes': bytes},
+      );
+
+  /// Waits up to [timeout] for bytes and returns what arrived.
+  ///
+  /// Empty means the timeout passed with the device quiet, which is a normal
+  /// thing for a device to do and not a failure. A port that has been closed
+  /// throws instead: no bytes from a shut port and no bytes from a silent
+  /// device are the same observation and different faults.
+  Future<Uint8List> read({
+    int max = 4096,
+    Duration timeout = const Duration(seconds: 1),
+  }) async {
+    final List<Object?> bytes = await DVNativeBridge.require<List<Object?>>(
+      'device.serial.read',
+      <String, Object?>{
+        'handle': handle,
+        'max': max,
+        'timeoutMs': timeout.inMilliseconds,
+      },
+    );
+    return Uint8List.fromList(<int>[
+      for (final Object? b in bytes)
+        if (b is int) b,
+    ]);
+  }
+
+  Future<void> close() async {
+    await DVNativeBridge.require<bool>(
+      'device.serial.close',
+      <String, Object?>{'handle': handle},
+    );
+  }
+}
+
+/// The serial ports, under `DV.Platform.device.serial`.
+class DVSerial {
+  const DVSerial();
+
+  /// The serial ports this machine has.
+  Future<List<DVSerialPort>> ports() async {
+    final List<Object?> found =
+        await DVNativeBridge.require<List<Object?>>('device.serial.ports');
+    return <DVSerialPort>[
+      for (final Object? port in found)
+        if (port is Map) DVSerialPort.fromMap(port),
+    ];
+  }
+
+  /// Opens [path] at [baud], in raw mode.
+  ///
+  /// Raw is not an option here. A serial line left in a terminal's default
+  /// mode turns carriage returns into newlines and stops at the first 0x1a,
+  /// so a text protocol works and the first binary frame arrives short --
+  /// which is the sort of fault that is blamed on the device for a week.
+  Future<DVSerialConnection> open(String path, {int baud = 9600}) async {
+    final int handle = await DVNativeBridge.require<int>(
+      'device.serial.open',
+      <String, Object?>{'path': path, 'baud': baud},
+    );
+    return DVSerialConnection(handle, path);
+  }
+}
+
 class DVDeviceControls {
   const DVDeviceControls();
+
+  /// The serial ports, and what is on them.
+  DVSerial get serial => const DVSerial();
 
   Future<DVHardwareCapabilityManifest> capabilityManifest() async {
     final result = await DVNativeBridge.require<Map<Object?, Object?>>(

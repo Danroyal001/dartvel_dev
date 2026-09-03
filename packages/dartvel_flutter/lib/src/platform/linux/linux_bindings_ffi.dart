@@ -16,6 +16,7 @@ import 'linux_dnd_ffi.dart';
 import 'linux_kiosk_ffi.dart';
 import 'linux_menus_ffi.dart';
 import 'linux_printing_ffi.dart';
+import 'linux_serial_ffi.dart';
 import 'linux_shortcuts_ffi.dart';
 import 'linux_tray_dbus.dart';
 
@@ -201,6 +202,11 @@ class DVLinuxBindings {
     'device.watchdog.heartbeat',
     'device.fleet.provision',
     'device.diagnostics.collect',
+    'device.serial.ports',
+    'device.serial.open',
+    'device.serial.write',
+    'device.serial.read',
+    'device.serial.close',
     'deepLinks.initial',
     'media.pick',
     'permissions.isGranted',
@@ -302,6 +308,7 @@ class DVLinuxBindings {
     // an item nothing can watch is not a failure of the other bindings.
     DVLinuxTray.register(DVNativeBridge.register);
     DVLinuxDevice.register(DVNativeBridge.register);
+    DVLinuxSerial.register(DVNativeBridge.register);
     // A desktop deep link arrives as a launch argument; the launch keeps
     // the first one. The stream is fed by the launch as well.
     DVNativeBridge.register('deepLinks.initial', (Object? _) => DVAppLaunch.initialLink);

@@ -69,6 +69,13 @@ const Set<String> dvNativeBindingNames = <String>{
   'device.fleet.provision',
   'device.watchdog.arm',
   'device.watchdog.heartbeat',
+  // The serial port: the one bus an embedded device is most likely to have,
+  // and the one a Flutter application has had no way to reach.
+  'device.serial.ports',
+  'device.serial.open',
+  'device.serial.write',
+  'device.serial.read',
+  'device.serial.close',
 
   // Desktop shell integration, beyond the window itself.
   'menus.setApplicationMenu',
