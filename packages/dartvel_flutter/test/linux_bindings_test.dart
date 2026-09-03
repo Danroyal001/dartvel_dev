@@ -80,6 +80,10 @@ void main() {
         'kiosk.release',
         'printing.toFile',
         'printing.print',
+        'dialogs.openFile',
+        'dialogs.saveFile',
+        'dialogs.chooseDirectory',
+        'dialogs.message',
       },
     );
     expect(DVLinuxBindings.isRegistered, isTrue);
