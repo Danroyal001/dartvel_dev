@@ -14,6 +14,7 @@ library;
 
 import 'dart:io';
 
+import 'package:dartvel_core/dartvel.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
@@ -77,6 +78,7 @@ class DVModuleMount {
     this.version,
     this.routeBase = '/',
     this.inSitemap = true,
+    this.location,
     this.problems = const <String>[],
   });
 
@@ -121,6 +123,21 @@ class DVModuleMount {
   /// Whether the parent's sitemap lists this module's pages.
   final bool inSitemap;
 
+  /// Where a federated module answers from, out of its verified manifest.
+  ///
+  /// Null for a module the parent builds itself, which answers from the
+  /// parent.
+  final String? location;
+
+  /// Whether the parent compiles this module's pages into its own artifact.
+  ///
+  /// False for a federated module. Its source may be sitting beside the
+  /// parent and it is not what will answer: the deployed module is, and
+  /// building a second copy from source would work right up until the two
+  /// versions differed, which is the point at which nobody would think to
+  /// look at the build.
+  bool get compiledIntoParent => deployment != DVModuleDeployment.federated;
+
   /// What is wrong with the declaration, reported rather than thrown: a
   /// build says what it could not mount and carries on with the rest.
   final List<String> problems;
@@ -138,9 +155,26 @@ List<DVModuleMount> dvDiscoverModuleMounts(String root) {
     final List<String> problems = <String>[];
 
     final String mount = _mountOf(body, problems);
-    final String? sourcePath = _sourceOf(body, problems, id);
     final DVModuleDeployment deployment = _deploymentOf(body, problems, id);
     final bool inSitemap = '${body['sitemap'] ?? 'include'}' != 'exclude';
+
+    if (deployment == DVModuleDeployment.federated) {
+      // A federated module is deployed by somebody else. The source beside
+      // the parent is not what will answer, so nothing is read from it: the
+      // verified manifest is the only description of the deployed module,
+      // and if it cannot be verified there is nothing to mount.
+      mounts.add(_federated(
+        root: root,
+        id: id,
+        body: body,
+        mount: mount,
+        inSitemap: inSitemap,
+        problems: problems,
+      ));
+      return;
+    }
+
+    final String? sourcePath = _sourceOf(body, problems, id);
 
     if (sourcePath == null) {
       mounts.add(DVModuleMount(
@@ -225,6 +259,99 @@ List<DVModuleMount> dvDiscoverModuleMounts(String root) {
   });
   mounts.sort((DVModuleMount a, DVModuleMount b) => a.id.compareTo(b.id));
   return mounts;
+}
+
+/// A federated mount: what the manifest says, once the manifest is trusted.
+DVModuleMount _federated({
+  required String root,
+  required String id,
+  required Map<Object?, Object?> body,
+  required String mount,
+  required bool inSitemap,
+  required List<String> problems,
+}) {
+  DVModuleMount refused() => DVModuleMount(
+        id: id,
+        packageName: id,
+        mount: mount,
+        sourcePath: '${body['source'] is Map ? (body['source']! as Map)['path'] ?? '' : ''}',
+        deployment: DVModuleDeployment.federated,
+        routes: const <DVModuleRoute>[],
+        inSitemap: inSitemap,
+        problems: problems,
+      );
+
+  final Object? manifestPath = body['manifest'];
+  if (manifestPath is! String || manifestPath.isEmpty) {
+    problems.add('dartvel.modules.$id is federated and declares no manifest. '
+        'There is nothing to verify, so there is nothing to mount -- reading '
+        'the source instead would quietly make it an embedded module.');
+    return refused();
+  }
+
+  final File file = File(p.normalize(p.join(root, manifestPath)));
+  if (!file.existsSync()) {
+    problems.add('dartvel.modules.$id names the manifest "$manifestPath", '
+        'and there is no file there.');
+    return refused();
+  }
+
+  final Object? trustSection = body['trust'];
+  final Map<String, String> trusted = <String, String>{
+    if (trustSection is Map)
+      for (final MapEntry<Object?, Object?> e in trustSection.entries)
+        '${e.key}': '${e.value}',
+  };
+  if (trusted.isEmpty) {
+    problems.add('dartvel.modules.$id is federated and trusts no signing '
+        'key, so no manifest can be accepted. Declare trust.<keyId>.');
+    return refused();
+  }
+
+  final DVModuleTrust trust = dvVerifyModuleManifest(
+    file.readAsStringSync(),
+    trustedKeys: trusted,
+    expectedId: id,
+    mountPath: mount,
+  );
+  if (!trust.accepted) {
+    problems.add('dartvel.modules.$id: ${trust.reason}');
+    return refused();
+  }
+
+  final DVModuleManifest manifest = trust.manifest!;
+  final String? location = manifest.location;
+  if (location == null || location.isEmpty) {
+    // Verified, trusted, and no address to send anybody to: the routes would
+    // be in the parent's sitemap and lead nowhere.
+    problems.add('dartvel.modules.$id verified, and its manifest names no '
+        'location, so there is nowhere for its routes to answer from.');
+    return refused();
+  }
+
+  return DVModuleMount(
+    id: id,
+    packageName: id,
+    mount: mount,
+    sourcePath: '${body['source'] is Map ? (body['source']! as Map)['path'] ?? '' : ''}',
+    deployment: DVModuleDeployment.federated,
+    routes: <DVModuleRoute>[
+      for (final String route in manifest.routes)
+        DVModuleRoute(
+          standalone: route,
+          mounted: _join(mount, route),
+          // Nothing to import: this module is not compiled in.
+          import: '',
+          file: '',
+          widget: '',
+        ),
+    ],
+    assets: manifest.assets,
+    version: manifest.version,
+    inSitemap: inSitemap,
+    location: location,
+    problems: problems,
+  );
 }
 
 /// The module's pages, as the parent will serve them.

@@ -21,13 +21,26 @@ class DVRouteInfo {
   /// module's pages as the parent's.
   final String? module;
 
+  /// Where a federated module's route answers from, or null for a route this
+  /// application serves itself.
+  ///
+  /// A federated module is deployed elsewhere and its pages are not in this
+  /// artifact. A sitemap or route explorer that listed them as local would
+  /// point a crawler at a path this application answers with its own
+  /// not-found page.
+  final String? location;
+
   const DVRouteInfo({
     required this.path,
     required this.page,
     required this.directory,
     this.parameters = const <String>[],
     this.module,
+    this.location,
   });
+
+  /// Whether this application serves the route itself.
+  bool get isLocal => location == null;
 
   /// Whether the route takes parameters, which is what makes it a pattern
   /// rather than a page you can simply open.
