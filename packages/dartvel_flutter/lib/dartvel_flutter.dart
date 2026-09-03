@@ -21,6 +21,7 @@ import 'src/browser_extension_platform_memory.dart'
 import 'src/display_platform.dart'
     if (dart.library.js_interop) 'src/display_platform_web.dart'
     as display_platform;
+import 'src/kiosk/device_kiosk.dart';
 import 'src/platform/accelerator.dart';
 import 'src/platform/dialogs.dart';
 import 'src/platform/printing.dart';
@@ -71,8 +72,17 @@ export 'package:dartvel_core/dartvel.dart'
         DVFormControlsFactory,
         DVHttpAIAdapter,
         DVJsonCodec,
+        DVKioskEnforcement,
+        DVKioskExitRequest,
+        DVKioskExitResult,
         DVKioskPolicy,
+        DVKioskReset,
+        DVKioskResetReason,
+        DVKioskRuntime,
         DVKioskScope,
+        DVKioskSignal,
+        DVKioskState,
+        DVKioskTarget,
         DVMemoryAppKeyStore,
         DVMemoryFileStorageAdapter,
         DVOAuth2Authorization,
@@ -253,6 +263,7 @@ export 'src/admin/queue_admin.dart';
 export 'src/admin/route_admin.dart';
 export 'src/admin/route_info.dart';
 export 'src/admin/telemetry_admin.dart';
+export 'src/kiosk/device_kiosk.dart';
 export 'src/kiosk/kiosk.dart';
 export 'src/kiosk/kiosk_host.dart';
 export 'src/kiosk/kiosk_keys.dart';
@@ -3398,6 +3409,10 @@ class DVDisplayState {
 class DVDisplayControls {
   const DVDisplayControls();
 
+  /// The device-scope kiosk under the declared policy, or null when this
+  /// build declares none. Installed by the generated runtime at start.
+  DVDeviceKiosk? get kiosk => DVPlatform._deviceKiosk;
+
   static bool _isFullscreen = false;
   static bool _isKiosk = false;
 
@@ -3636,6 +3651,33 @@ bool dvDisplayAvailable() => terminal_size.dvDisplayAvailable();
 
 class DVPlatform {
   const DVPlatform();
+
+  static DVDeviceKiosk? _deviceKiosk;
+
+  /// Installs the declared device-scope kiosk policy: makes the kiosk,
+  /// enters it and asks the platform to hold it. A disabled policy installs
+  /// nothing. Called by the generated runtime at start.
+  static Future<DVDeviceKiosk?> installKioskPolicy(
+    DVKioskPolicy policy, {
+    Future<String?> Function(String name)? readSecret,
+  }) async {
+    await uninstallKioskPolicy();
+    if (!policy.enabled) return null;
+    final DVDeviceKiosk kiosk = DVDeviceKiosk(
+      runtime: DVKioskRuntime(policy, readSecret: readSecret, lifecycle: DV.lifecycle),
+      target: DVWindowManager.kioskTargetHere(),
+    );
+    _deviceKiosk = kiosk;
+    await kiosk.resume();
+    return kiosk;
+  }
+
+  /// Stops and releases the installed kiosk, if any. For tests and shutdown.
+  static Future<void> uninstallKioskPolicy() async {
+    final DVDeviceKiosk? current = _deviceKiosk;
+    _deviceKiosk = null;
+    await current?.dispose();
+  }
 
   static DVRenderSurface? _surfaceOverride;
   static DVTerminalSurface? _terminal;

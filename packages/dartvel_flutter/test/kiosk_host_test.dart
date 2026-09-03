@@ -7,7 +7,6 @@
 // the runtime is warning and says how long is left; a reset calls the
 // app's go-home once, after the clear; and the diagnostics screen replaces
 // the page when the watchdog reports a loop.
-import 'package:dartvel_core/dartvel.dart' show DVKioskPolicy, DVKioskRuntime, DVKioskResetReason, DVKioskState;
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';

@@ -872,7 +872,7 @@ class DVWindowManager {
       if (spec == null) {
         throw ArgumentError('A kiosk window needs DVWindowOptions.kiosk with its declared policy.');
       }
-      window.kiosk = DVWindowKioskHandle._(window, spec.policy, target: _kioskTargetHere());
+      window.kiosk = DVWindowKioskHandle._(window, spec.policy, target: kioskTargetHere());
       await window.kiosk!._runtime.resume();
       if (!kioskInPlace && display?.display != null) {
         _kioskOwners[display!.display!.id] = window;
@@ -915,7 +915,7 @@ class DVWindowManager {
 
   /// The kiosk target this process is: what the enforcement matrix is
   /// resolved against for a kiosk window.
-  static DVKioskTarget _kioskTargetHere() {
+  static DVKioskTarget kioskTargetHere() {
     if (kIsWeb) return DVKioskTarget.web;
     return switch (defaultTargetPlatform) {
       TargetPlatform.linux => DVKioskTarget.linuxDesktop,
