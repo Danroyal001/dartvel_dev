@@ -72,10 +72,7 @@ class _DVWindowBindings {
     // registered here rather than in dartvel_flutter's Linux bindings because
     // the specification lists window.displays among the *desktop windowing*
     // bindings, and because a target with no windowing has nothing to enumerate.
-    DVNativeBridge.register(
-      'window.displays',
-      (Object? _) => _DVLinuxDisplays.enumerate(),
-    );
+    DVNativeBridge.register('window.displays', (Object? _) => enumerateDisplays());
 
     DVNativeBridge.register('window.close', (Object? arguments) {
       final map = arguments is Map ? arguments : const <Object?, Object?>{};
@@ -83,6 +80,16 @@ class _DVWindowBindings {
       if (id is String) _requests.remove(id);
       return true;
     });
+  }
+
+  /// The displays the running desktop reports, in the shared decoder's
+  /// spelling: XRandR or Xinerama on Linux, EnumDisplayMonitors on Windows,
+  /// CGGetActiveDisplayList on macOS. Empty where there is no desktop.
+  static List<Map<String, Object?>> enumerateDisplays() {
+    if (Platform.isWindows) return _DVWindowsDisplays.enumerate();
+    if (Platform.isMacOS) return _DVMacosDisplays.enumerate();
+    if (Platform.isLinux) return _DVLinuxDisplays.enumerate();
+    return const <Map<String, Object?>>[];
   }
 
   /// What was asked for when the window with [nativeId] was opened.

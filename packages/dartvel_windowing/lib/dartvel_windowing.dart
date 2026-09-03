@@ -12,6 +12,7 @@ library dartvel_windowing;
 
 import 'dart:async';
 import 'dart:ffi' as ffi;
+import 'dart:io' show Platform;
 
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:ffi/ffi.dart' as ffi;
@@ -23,6 +24,8 @@ import 'package:flutter/src/widgets/_window.dart';
 import 'package:flutter/widgets.dart';
 
 part 'src/linux_displays_ffi.dart';
+part 'src/macos_displays_ffi.dart';
+part 'src/windows_displays_ffi.dart';
 part 'src/flutter_window_surface.dart';
 part 'src/window_bindings.dart';
 part 'src/window_host.dart';
