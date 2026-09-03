@@ -78,6 +78,13 @@ Widget _cloudPage(BuildContext context) => const SingleChildScrollView(
                 'builder can be dropped at any time. Built.',
               ),
               SiteCard(
+                'Reusable components',
+                'Save any node on a page as a named component, place it on '
+                'other pages, and push a change to every instance across '
+                'every page — each instance stays an ordinary node you can '
+                'still style on its own. Built.',
+              ),
+              SiteCard(
                 'Collaboration and governance',
                 'Multi-user editing with presence, revision history and '
                 'approval, role-based editor permissions and an audit trail. '
