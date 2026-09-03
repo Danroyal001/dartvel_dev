@@ -50,6 +50,42 @@ void main() {
     expect(geometry, isTrue);
   });
 
+  // The browser's kiosk row: Fullscreen, Keyboard Lock and Pointer Lock. All
+  // three need a user gesture, and a test has none -- so what is verified is
+  // the honesty: nothing is claimed held, each refusal carries the browser's
+  // reason, and release still leaves the page as it found it.
+  group('kiosk', () {
+    tearDown(() => DVNativeBridge.require<bool>('kiosk.release'));
+
+    test('without a gesture nothing is claimed, and every refusal has a reason', () async {
+      final Map<String, Object?> result = (await DVNativeBridge.require<Map<Object?, Object?>>(
+        'kiosk.enforce',
+        <String, Object?>{
+          'combos': <String>['Alt+Tab', 'Ctrl+W', 'Meta+D'],
+          'fullscreen': true,
+          'confinePointer': true,
+          'suppressNotifications': true,
+        },
+      )).cast<String, Object?>();
+
+      expect(result['fullscreen'], isFalse);
+      expect('${result['fullscreenError']}', isNotEmpty);
+      expect(result['blocked'], isEmpty);
+      final Map<Object?, Object?> unenforced = result['unenforced']! as Map<Object?, Object?>;
+      expect(unenforced.keys, containsAll(<String>['Alt+Tab', 'Ctrl+W', 'Meta+D']));
+      for (final Object? reason in unenforced.values) {
+        expect('$reason', isNotEmpty);
+      }
+      expect(result['confined'], isFalse);
+      expect(result['notificationsSuppressed'], isFalse);
+      expect(result['browserKiosk'], isA<bool>());
+    });
+
+    test('release resolves even when nothing was held', () async {
+      expect(await DVNativeBridge.require<bool>('kiosk.release'), isTrue);
+    });
+  });
+
   test('an unimplemented binding still throws', () async {
     // The design, verified where it matters: a tab has no system tray, and
     // registering a no-op would have turned that into a silent nothing.

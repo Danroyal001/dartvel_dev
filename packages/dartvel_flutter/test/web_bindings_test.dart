@@ -38,6 +38,11 @@ void main() {
 
           // WebAuthn with userVerification required.
           'biometrics.authenticate',
+
+          // Fullscreen, Keyboard Lock and Pointer Lock, each needing a user
+          // gesture and reported refused when it is absent.
+          'kiosk.enforce',
+          'kiosk.release',
         },
       );
     });
@@ -92,6 +97,8 @@ void main() {
         'bluetooth.isEnabled',
         'biometrics.authenticate',
         'biometrics.canAuthenticate',
+        'kiosk.enforce',
+        'kiosk.release',
       };
       expect(DVWebBindings.implemented.difference(callable), isEmpty);
     });
