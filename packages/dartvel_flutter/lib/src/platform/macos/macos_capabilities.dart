@@ -32,4 +32,9 @@ const Set<String> dvMacosImplementedBindings = <String>{
   // thread, which is where Flutter runs the root isolate on macOS.
   'kiosk.enforce',
   'kiosk.release',
+
+  // Carbon RegisterEventHotKey, the one system-wide hot key API, delivered
+  // by id from the main run loop; a refusal carries the OSStatus.
+  'shortcuts.register',
+  'shortcuts.unregister',
 };

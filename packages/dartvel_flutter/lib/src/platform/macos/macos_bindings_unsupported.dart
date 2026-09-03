@@ -27,3 +27,12 @@ class DVMacosKiosk {
   static int get presentationOptions => 0;
   static void release() {}
 }
+
+/// The macOS global shortcuts, unavailable here.
+class DVMacosShortcuts {
+  const DVMacosShortcuts._();
+
+  static const Set<String> implemented = <String>{'shortcuts.register', 'shortcuts.unregister'};
+  static void pump(Duration slice) {}
+  static void unregister() {}
+}
