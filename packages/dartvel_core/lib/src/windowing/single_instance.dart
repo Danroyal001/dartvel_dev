@@ -149,3 +149,13 @@ class DVSingleInstance {
     }
   }
 }
+
+/// The session's runtime directory where there is one, else the temp
+/// directory: where a single-instance lock and what sits beside it live.
+String dvRuntimeDirectory() =>
+    Platform.environment['XDG_RUNTIME_DIR'] ?? Directory.systemTemp.path;
+
+/// Where a running application writes its open windows, for
+/// `dartvel inspect windows`: beside its lock, per app.
+String dvLiveWindowsPathFor(String appId) =>
+    '${dvRuntimeDirectory()}/dartvel-$appId.windows.json';

@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'dart:ui' as ui show Display;
 
 import 'package:dartvel_core/dartvel.dart' show DVDiagnostics, DVInstanceLock, DVTenants;
@@ -523,6 +525,40 @@ class DVWindowManager {
 
   /// Every window, virtual ones included.
   ValueListenable<List<DVWindow>> get all => _all;
+
+  /// Writes what is open to [path] now and on every change, with [app] and
+  /// the time, for `dartvel inspect windows` to read while it is fresh.
+  /// Returns what stops it.
+  void Function() publishLiveWindows(String path, {required String app}) {
+    void write() {
+      final List<DVWindow> windows = _all.value;
+      final String json = const JsonEncoder.withIndent('  ').convert(<String, Object?>{
+        'app': app,
+        'at': DateTime.now().toUtc().toIso8601String(),
+        'windows': <Map<String, Object?>>[
+          for (final DVWindow w in windows)
+            <String, Object?>{
+              'route': w.route.path,
+              'kind': w.kind.name,
+              'presentation': w.presentation.name,
+              if (w.nativeId != null) 'nativeId': w.nativeId,
+              'external': w.external,
+            },
+        ],
+      });
+      try {
+        final File file = File(path);
+        file.parent.createSync(recursive: true);
+        file.writeAsStringSync(json, flush: true);
+      } on FileSystemException {
+        // A runtime directory that vanished is not the app's problem.
+      }
+    }
+
+    write();
+    _all.addListener(write);
+    return () => _all.removeListener(write);
+  }
 
   /// The window this code is running in.
   DVWindow? get current => _windows.isEmpty ? null : _windows.first;
