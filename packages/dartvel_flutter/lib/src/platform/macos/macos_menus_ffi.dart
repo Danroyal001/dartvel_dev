@@ -48,6 +48,59 @@ typedef _ReplaceMethodD = Pointer<Void> Function(Pointer<Void>, Pointer<Void>, P
 typedef _RegisterClassN = Void Function(Pointer<Void>);
 typedef _RegisterClassD = void Function(Pointer<Void>);
 
+/// objc_msgSend, typed per call shape, over one runtime handle.
+class DVMacosObjc {
+  const DVMacosObjc(this.objc);
+  final DynamicLibrary objc;
+
+  Pointer<Void> cls(String name) {
+    final Pointer<Utf8> p = name.toNativeUtf8();
+    try {
+      return objc.lookupFunction<_GetClassN, _GetClassD>('objc_getClass')(p);
+    } finally {
+      calloc.free(p);
+    }
+  }
+
+  Pointer<Void> sel(String name) {
+    final Pointer<Utf8> p = name.toNativeUtf8();
+    try {
+      return objc.lookupFunction<_SelN, _SelD>('sel_registerName')(p);
+    } finally {
+      calloc.free(p);
+    }
+  }
+
+  Pointer<Void> nsString(String value) {
+    final Pointer<Utf8> p = value.toNativeUtf8();
+    try {
+      return objc.lookupFunction<_SendStrN, _SendStrD>('objc_msgSend')(cls('NSString'), sel('stringWithUTF8String:'), p);
+    } finally {
+      calloc.free(p);
+    }
+  }
+
+  Pointer<Void> send0(Pointer<Void> r, String s) => objc.lookupFunction<_Send0N, _Send0D>('objc_msgSend')(r, sel(s));
+  Pointer<Void> send1(Pointer<Void> r, String s, Pointer<Void> a) =>
+      objc.lookupFunction<_Send1N, _Send1D>('objc_msgSend')(r, sel(s), a);
+  Pointer<Void> send3(Pointer<Void> r, String s, Pointer<Void> a, Pointer<Void> b, Pointer<Void> c) =>
+      objc.lookupFunction<_Send3N, _Send3D>('objc_msgSend')(r, sel(s), a, b, c);
+  void sendInt(Pointer<Void> r, String s, int a) => objc.lookupFunction<_SendIntN, _SendIntD>('objc_msgSend')(r, sel(s), a);
+  void sendBool(Pointer<Void> r, String s, bool a) => objc.lookupFunction<_SendBoolN, _SendBoolD>('objc_msgSend')(r, sel(s), a);
+  int getInt(Pointer<Void> r, String s) => objc.lookupFunction<_GetIntN, _GetIntD>('objc_msgSend')(r, sel(s));
+  Pointer<Void> getAt(Pointer<Void> r, String s, int i) => objc.lookupFunction<_GetAtN, _GetAtD>('objc_msgSend')(r, sel(s), i);
+
+  /// The titles of [menu]'s items.
+  List<String> titlesOf(Pointer<Void> menu) {
+    if (menu == nullptr) return const <String>[];
+    final int count = getInt(menu, 'numberOfItems');
+    return <String>[
+      for (var i = 0; i < count; i++)
+        objc.lookupFunction<_GetUtf8N, _GetUtf8D>('objc_msgSend')(send0(getAt(menu, 'itemAtIndex:', i), 'title'), sel('UTF8String')).toDartString(),
+    ];
+  }
+}
+
 class DVMacosMenus {
   const DVMacosMenus._();
 
@@ -111,7 +164,8 @@ class DVMacosMenus {
   static Pointer<Void> get _app => _send0(_class('NSApplication'), 'sharedApplication');
 
   /// The one target every item points at, its class defined on first use.
-  static Pointer<Void> _ensureTarget() {
+  /// The tray's items share it, under an action of their own.
+  static Pointer<Void> ensureTarget() {
     final Pointer<Void>? existing = _target;
     if (existing != null) return existing;
 
@@ -150,7 +204,7 @@ class DVMacosMenus {
     final Pointer<Void> app = _app;
     if (app == nullptr) return false;
     _idsByTag.clear();
-    final Pointer<Void> target = _ensureTarget();
+    final Pointer<Void> target = ensureTarget();
     final Pointer<Void> main = _send1(_send0(_class('NSMenu'), 'alloc'), 'initWithTitle:', _nsString('MainMenu'));
     for (final Object? raw in items) {
       if (raw is! Map) continue;

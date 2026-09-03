@@ -34,6 +34,9 @@ void main() {
           'device.diagnostics.collect',
           // NSMenu as the application's main menu, activated by id.
           'menus.setApplicationMenu',
+          // NSStatusBar's status item with its menu, chosen by id.
+          'tray.show',
+          'tray.hide',
         },
       );
     });

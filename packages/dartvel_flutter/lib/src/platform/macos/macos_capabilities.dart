@@ -50,4 +50,9 @@ const Set<String> dvMacosImplementedBindings = <String>{
   // NSMenu as the application's main menu, every item's target one object
   // defined at runtime, activated by id.
   'menus.setApplicationMenu',
+
+  // NSStatusBar's status item: the icon or a title, the tooltip, an NSMenu
+  // whose chosen item is dispatched by id.
+  'tray.show',
+  'tray.hide',
 };
