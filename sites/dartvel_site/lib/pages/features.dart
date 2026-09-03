@@ -116,11 +116,6 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     '.transaction. Application code observes them; it does not assign them.',
   ),
   (
-    'Modules',
-    'DV.Modules.<id>',
-    'A module is a whole Dartvel application boundary, mounted by a parent. '
-    'Module code never hard-codes its mount point.',
-  ),
   (
     'Generated Model Pages',
     'Model.Page(...)',
@@ -313,6 +308,11 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
 /// words. The checker holds this list to the index's Partial sections exactly.
 const List<(String, String, String)> partial = <(String, String, String)>[
   (
+    'Modules',
+    'Mounted, with their routes; the deployment modes are not built',
+    'Present: a module is a whole Dartvel application a parent mounts. The build finds it, takes its own route base off and puts the mount point on -- /products/:id standalone is /store/products/:id mounted -- generates the module before the parent, and serves its pages from the parent\'s router; they are in the route index and sitemap, tagged with the module they came from, and DV.Modules.<id> is the module the build mounted. Absent: the split-backend and federated deployment modes with their signed manifests, the shell, auth, theme and data modes, scoped module globals, asset rewriting on mount, and typed navigation helpers.',
+  ),
+  (
     'Platform',
     'Runtime APIs everywhere; Linux bindings behind most names',
     'Present: the platform and screen APIs, FFI/JNI binding registration, and on Linux the bindings for clipboard, window, notifications, shortcuts, menus, printing, dialogs, kiosk keys and the device APIs. Absent: the names with no host API to reach on each platform -- 32 on Linux, 24 on web, 33 on Windows, 33 on macOS, 30 on iOS -- many of which do not apply there at all.',
@@ -381,7 +381,7 @@ Widget _featuresPage(BuildContext context) => SingleChildScrollView(
         const Section(
           children: <Widget>[
             Eyebrow('WHAT WORKS TODAY'),
-            Heading('Forty-four shipped sections.', level: 1),
+            Heading('Forty-three shipped sections.', level: 1),
             Body(
               'This list is the repository’s own record of what is built, not '
               'a description of what is planned. A tool checks it and fails '
@@ -391,7 +391,7 @@ Widget _featuresPage(BuildContext context) => SingleChildScrollView(
               width: 660,
             ),
             Body(
-              'Twelve more sections are partial. They are listed as '
+              'Thirteen more sections are partial. They are listed as '
               'partial, with what is absent written next to what is present.',
               width: 660,
             ),
