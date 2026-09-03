@@ -11,6 +11,7 @@
 // a secondary knows it is one; stopping stops.
 import 'dart:io';
 
+import 'package:dartvel_core/dartvel.dart' show DVSingleInstance;
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -62,6 +63,11 @@ void main() {
     });
 
     test('a later launch is secondary, hands over, and the primary opens it', () async {
+      // The second process is stood in for by a lock that reports it lost:
+      // the cross-process behaviour of the lock itself is proven in
+      // dartvel_core's process test, and this package cannot spawn a Flutter
+      // process from a test. What is held to here is what each side does
+      // with the answer.
       final List<String> opened = <String>[];
       final DVAppLaunchResult primary = await DVAppLaunch.start(
         appId: 'shop',
@@ -75,7 +81,8 @@ void main() {
       final DVAppLaunchResult second = await DVAppLaunch.start(
         appId: 'shop',
         arguments: <String>['dartvel://orders/7'],
-        lockPath: '${dir.path}/shop.lock',
+        lockPath: '${dir.path}/other-process.lock',
+        acquire: (String path) => DVSingleInstance.acquire('${dir.path}/shop.lock'),
         open: (String route) async => fail('a secondary opens nothing itself'),
       );
       expect(second.isPrimary, isFalse);
@@ -83,6 +90,31 @@ void main() {
 
       await Future<void>.delayed(const Duration(milliseconds: 100));
       expect(opened, <String>['/orders/7']);
+    });
+
+    test('a second start in the same process is the same application', () async {
+      // A test that builds the router twice, or an app that rebuilds it, is
+      // not a second launch. Exiting would take the running app down -- which
+      // is exactly what happened to the example's integration test.
+      final List<String> opened = <String>[];
+      final DVAppLaunchResult first = await DVAppLaunch.start(
+        appId: 'shop',
+        arguments: const <String>[],
+        lockPath: '${dir.path}/shop.lock',
+        open: (String route) async => opened.add(route),
+        poll: const Duration(milliseconds: 20),
+      );
+      addTearDown(first.stop);
+      final DVAppLaunchResult again = await DVAppLaunch.start(
+        appId: 'shop',
+        arguments: <String>['/orders/3'],
+        lockPath: '${dir.path}/shop.lock',
+        open: (String route) async => fail('opened through the first'),
+      );
+      expect(again.isPrimary, isTrue);
+      expect(identical(again, first), isTrue);
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      expect(opened, <String>['/orders/3']);
     });
 
     test('stopped, the primary opens nothing more', () async {
