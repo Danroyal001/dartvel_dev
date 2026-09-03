@@ -80,7 +80,7 @@ class DVMacosDialogs {
   };
 
   static DynamicLibrary? _objc;
-  static DynamicLibrary? _foundation;
+  static DynamicLibrary get _appKit => DynamicLibrary.open('/System/Library/Frameworks/AppKit.framework/AppKit');
   static DVMacosDialogAutomation? _automation;
   static NativeCallable<_ActionN>? _timerAction;
   static Pointer<Void>? _current;
@@ -95,7 +95,6 @@ class DVMacosDialogs {
 
   static void register(void Function(String, FutureOr<Object?> Function(Object?)) bind, {required DynamicLibrary objc}) {
     _objc = objc;
-    _foundation = DynamicLibrary.open('/System/Library/Frameworks/Foundation.framework/Foundation');
     bind('dialogs.openFile', (Object? a) {
       final Map<Object?, Object?> m = a is Map ? a : const <Object?, Object?>{};
       return <String, Object?>{'paths': _openPanel(m, directories: false, multiple: m['multiple'] == true)};
@@ -266,7 +265,9 @@ class DVMacosDialogs {
     final Pointer<Void> timer = _objc!.lookupFunction<_TimerN, _TimerD>('objc_msgSend')(
       o.cls('NSTimer'), o.sel('timerWithTimeInterval:target:selector:userInfo:repeats:'), 0.1, target, o.sel('dartvelDialogTimer:'), nullptr, false);
     final Pointer<Void> loop = o.send0(o.cls('NSRunLoop'), 'currentRunLoop');
-    final Pointer<Void> mode = _foundation!.lookup<Pointer<Void>>('NSModalPanelRunLoopMode').value;
+    // AppKit's, not Foundation's: the mode name is declared beside the
+    // panels that run in it.
+    final Pointer<Void> mode = _appKit.lookup<Pointer<Void>>('NSModalPanelRunLoopMode').value;
     _objc!.lookupFunction<_Send2N, _Send2D>('objc_msgSend')(loop, o.sel('addTimer:forMode:'), timer, mode);
   }
 
