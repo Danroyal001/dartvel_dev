@@ -26,10 +26,12 @@ import '../device_runtime.dart';
 import 'macos_capabilities.dart';
 import 'macos_device_ffi.dart';
 import 'macos_kiosk_ffi.dart';
+import 'macos_menus_ffi.dart';
 import 'macos_shortcuts_ffi.dart';
 
 export 'macos_device_ffi.dart' show DVMacosDeviceProbes;
 export 'macos_kiosk_ffi.dart' show DVMacosKiosk;
+export 'macos_menus_ffi.dart' show DVMacosMenus;
 export 'macos_shortcuts_ffi.dart' show DVMacosShortcuts;
 
 // The Objective-C runtime, in libobjc.
@@ -108,6 +110,7 @@ class DVMacosBindings {
 
     DVMacosKiosk.register(DVNativeBridge.register, objc: _objc);
     DVMacosShortcuts.register(DVNativeBridge.register);
+    DVMacosMenus.register(DVNativeBridge.register, objc: _objc);
     DVDeviceRuntime.probes = const DVMacosDeviceProbes();
     DVDeviceRuntime.register(DVNativeBridge.register);
 
@@ -119,6 +122,7 @@ class DVMacosBindings {
     if (_registered) {
       DVMacosKiosk.release();
       DVMacosShortcuts.unregister();
+      DVMacosMenus.unregister();
       DVDeviceRuntime.unregister();
     }
     for (final name in implemented) {

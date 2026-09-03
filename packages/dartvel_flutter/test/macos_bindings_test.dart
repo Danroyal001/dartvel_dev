@@ -32,6 +32,8 @@ void main() {
           'device.watchdog.heartbeat',
           'device.fleet.provision',
           'device.diagnostics.collect',
+          // NSMenu as the application's main menu, activated by id.
+          'menus.setApplicationMenu',
         },
       );
     });

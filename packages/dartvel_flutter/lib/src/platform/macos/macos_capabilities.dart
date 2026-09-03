@@ -46,4 +46,8 @@ const Set<String> dvMacosImplementedBindings = <String>{
   'device.watchdog.heartbeat',
   'device.fleet.provision',
   'device.diagnostics.collect',
+
+  // NSMenu as the application's main menu, every item's target one object
+  // defined at runtime, activated by id.
+  'menus.setApplicationMenu',
 };
