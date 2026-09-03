@@ -48,3 +48,14 @@ class DVWindowsMenus {
   static List<String> menuTitles(int hWnd) => const <String>[];
   static void unregister() {}
 }
+
+/// The Windows tray icon, unavailable here.
+class DVWindowsTray {
+  const DVWindowsTray._();
+
+  static const Set<String> implemented = <String>{'tray.show', 'tray.hide'};
+  static String? lastError;
+  static bool get shown => false;
+  static int? debugCommandFor(String id) => null;
+  static void unregister() {}
+}

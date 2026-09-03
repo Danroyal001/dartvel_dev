@@ -39,6 +39,9 @@ void main() {
           'device.diagnostics.collect',
           // A Win32 menu bar on the process's window, WM_COMMAND by id.
           'menus.setApplicationMenu',
+          // Shell_NotifyIcon on the process's window, its menu by id.
+          'tray.show',
+          'tray.hide',
         },
       );
     });

@@ -52,4 +52,10 @@ const Set<String> dvWindowsImplementedBindings = <String>{
   // A Win32 menu bar on the process's window, the window subclassed so
   // WM_COMMAND is dispatched by the item's id.
   'menus.setApplicationMenu',
+
+  // Shell_NotifyIcon on the process's window: the icon, its tooltip, a
+  // popup menu on click, the item chosen dispatched by id. Refused where the
+  // session has no notification area.
+  'tray.show',
+  'tray.hide',
 };

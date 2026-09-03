@@ -3154,22 +3154,56 @@ class DVTrayMenuItem {
 class DVTray {
   const DVTray();
 
+  static Set<String> _ids = const <String>{};
+  static void Function(String id)? _onSelected;
+  static final StreamController<String> _selected =
+      StreamController<String>.broadcast();
+
+  /// Every tray menu item chosen, by id.
+  Stream<String> get selected => _selected.stream;
+
+  /// For platform bindings: an item of the shown menu was chosen. An id the
+  /// menu does not have -- a stale command after hide -- reaches nobody.
+  static void dispatch(String id) {
+    if (!_ids.contains(id)) return;
+    _onSelected?.call(id);
+    _selected.add(id);
+  }
+
+  static void reset() {
+    _ids = const <String>{};
+    _onSelected = null;
+  }
+
+  /// Shows the icon with [menu], and runs [onSelected] with the id of any
+  /// item chosen from it.
   Future<void> show({
     required String icon,
     String? tooltip,
     List<DVTrayMenuItem> menu = const <DVTrayMenuItem>[],
+    void Function(String id)? onSelected,
   }) async {
+    final Set<String> ids = <String>{};
+    for (final DVTrayMenuItem item in menu) {
+      if (!ids.add(item.id)) {
+        throw ArgumentError.value(item.id, 'id', 'appears more than once in the tray menu');
+      }
+    }
     final handled = await DVNativeBridge.require<bool>('tray.show', {
       'icon': icon,
       if (tooltip != null) 'tooltip': tooltip,
       'menu': menu.map((item) => item.toMap()).toList(growable: false),
     });
     if (!handled) throw StateError('Native tray binding rejected show.');
+    _ids = ids;
+    _onSelected = onSelected;
   }
 
   Future<void> hide() async {
     final handled = await DVNativeBridge.require<bool>('tray.hide');
     if (!handled) throw StateError('Native tray binding rejected hide.');
+    _ids = const <String>{};
+    _onSelected = null;
   }
 }
 
