@@ -8,6 +8,7 @@ import 'package:http_parser/http_parser.dart';
 import 'package:mime/mime.dart';
 
 import 'src/ai/ai.dart';
+import 'src/secrets/secrets.dart';
 import 'src/database/adapter.dart';
 import 'src/http/aws_sigv4.dart';
 import 'src/http/flat_buffer.dart';
@@ -3130,6 +3131,25 @@ class DVCacheTags {
 
 class DVTestHarness {
   const DVTestHarness();
+
+  /// Supplies [secrets] for the duration of [body], then puts everything
+  /// back -- values that were there before, values that were not, and any
+  /// rotation hook the body registered.
+  ///
+  /// So a suite never depends on the developer's environment, and a forgotten
+  /// override cannot leak into the next test. Restores on a throw too.
+  Future<T> withSecrets<T>(
+    Map<String, String> secrets,
+    FutureOr<T> Function() body,
+  ) async {
+    final DVSecretsState before = DVSecrets.captureState();
+    DVSecrets.configure(secrets);
+    try {
+      return await body();
+    } finally {
+      DVSecrets.restoreState(before);
+    }
+  }
 
   DVInMemoryQueueAdapter fakeQueue() {
     final adapter = DVInMemoryQueueAdapter();
