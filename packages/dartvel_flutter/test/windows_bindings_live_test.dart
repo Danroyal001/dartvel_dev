@@ -13,8 +13,60 @@ library;
 // maximize, minimize and restore all act on the process's own top-level
 // window, and a test harness has none; they return false by design, and
 // asserting that here would be asserting the harness.
+import 'dart:ffi';
+
 import 'package:dartvel_flutter/dartvel_flutter.dart';
+import 'package:ffi/ffi.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+// INPUT with a KEYBDINPUT, laid out as Win32 x64 has it: the union is 32
+// bytes, so the struct is 40.
+final class _Input extends Struct {
+  @Uint32()
+  external int type;
+  @Uint32()
+  external int pad;
+  @Uint16()
+  external int wVk;
+  @Uint16()
+  external int wScan;
+  @Uint32()
+  external int dwFlags;
+  @Uint32()
+  external int time;
+  external Pointer<Void> dwExtraInfo;
+  @Uint64()
+  external int pad2;
+}
+
+const int _inputKeyboard = 1;
+const int _keyUp = 0x0002;
+
+/// Presses and releases [keys] in order, as the user would.
+void sendKeys(List<int> keys) {
+  final user32 = DynamicLibrary.open('user32.dll');
+  final sendInput = user32.lookupFunction<
+      Uint32 Function(Uint32, Pointer<_Input>, Int32),
+      int Function(int, Pointer<_Input>, int)>('SendInput');
+  final int count = keys.length * 2;
+  final Pointer<_Input> inputs = calloc<_Input>(count);
+  try {
+    for (var i = 0; i < keys.length; i++) {
+      inputs[i]
+        ..type = _inputKeyboard
+        ..wVk = keys[i]
+        ..dwFlags = 0;
+      inputs[count - 1 - i]
+        ..type = _inputKeyboard
+        ..wVk = keys[i]
+        ..dwFlags = _keyUp;
+    }
+    expect(sendInput(count, inputs, sizeOf<_Input>()), count,
+        reason: 'SendInput must accept every event');
+  } finally {
+    calloc.free(inputs);
+  }
+}
 
 void main() {
   setUpAll(() {
@@ -146,6 +198,47 @@ void main() {
         },
       )).cast<String, Object?>();
       expect(result['fullscreen'], isFalse);
+    });
+  });
+
+  group('global shortcuts', () {
+    // The hot key lives on a pump thread of its own, which is where Win32
+    // delivers WM_HOTKEY for a RegisterHotKey made there; SendInput presses
+    // the combo the way a user would, and the press has to arrive at the
+    // handler registered under the id.
+    tearDown(() async {
+      for (final String id in DVShortcuts.registered) {
+        await const DVShortcuts().unregister(id);
+      }
+    });
+
+    test('a pressed shortcut reaches its handler by id', () async {
+      var pressed = 0;
+      await const DVShortcuts().register(
+        const DVGlobalShortcut(id: 'capture', accelerator: 'Ctrl+Alt+F9'),
+        onPressed: () => pressed++,
+      );
+      final Future<String> arrived = const DVShortcuts().pressed.first.timeout(const Duration(seconds: 10));
+
+      sendKeys(<int>[0x11, 0x12, 0x78]); // VK_CONTROL, VK_MENU, VK_F9
+
+      expect(await arrived, 'capture');
+      expect(pressed, 1);
+    });
+
+    test('a combo Win32 refuses is refused with its reason, not registered', () async {
+      await expectLater(
+        const DVShortcuts().register(const DVGlobalShortcut(id: 'sas', accelerator: 'Ctrl+Alt+Delete')),
+        throwsA(isA<StateError>().having((StateError e) => e.message, 'message', contains('RegisterHotKey'))),
+      );
+      expect(DVShortcuts.registered, isNot(contains('sas')));
+    });
+
+    test('unregister frees the combo for the next registration', () async {
+      await const DVShortcuts().register(const DVGlobalShortcut(id: 'a', accelerator: 'Ctrl+Alt+F10'));
+      await const DVShortcuts().unregister('a');
+      await const DVShortcuts().register(const DVGlobalShortcut(id: 'b', accelerator: 'Ctrl+Alt+F10'));
+      expect(DVShortcuts.registered, <String>['b']);
     });
   });
 

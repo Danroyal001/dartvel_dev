@@ -6,6 +6,7 @@
 /// application can call it unconditionally at startup.
 library dartvel_flutter.platform.windows.ffi;
 
+import 'dart:async' show unawaited;
 import 'dart:ffi';
 import 'dart:io' show Platform;
 
@@ -14,8 +15,10 @@ import 'package:ffi/ffi.dart';
 import '../../../dartvel_flutter.dart' show DVNativeBridge;
 import 'windows_capabilities.dart';
 import 'windows_kiosk_ffi.dart';
+import 'windows_shortcuts_ffi.dart';
 
 export 'windows_kiosk_ffi.dart' show DVWindowsKiosk;
+export 'windows_shortcuts_ffi.dart' show DVWindowsShortcuts;
 
 // user32
 typedef _OpenClipboardNative = Int32 Function(IntPtr hWndNewOwner);
@@ -126,13 +129,17 @@ class DVWindowsBindings {
     });
 
     DVWindowsKiosk.register(DVNativeBridge.register, user32: _user32, kernel32: _kernel32);
+    DVWindowsShortcuts.register(DVNativeBridge.register);
 
     _registered = true;
     return true;
   }
 
   static void unregister() {
-    if (_registered) DVWindowsKiosk.release();
+    if (_registered) {
+      DVWindowsKiosk.release();
+      unawaited(DVWindowsShortcuts.unregister());
+    }
     for (final name in implemented) {
       DVNativeBridge.unregister(name);
     }
