@@ -98,3 +98,14 @@ class DVWindowsDialogs {
   static void automate(DVWindowsDialogAutomation? automation) {}
   static void unregister() {}
 }
+
+/// The Windows drop target, unavailable here.
+class DVWindowsDragDrop {
+  const DVWindowsDragDrop._();
+
+  static const Set<String> implemented = <String>{'dragDrop.accept', 'dragDrop.stop'};
+  static String? lastError;
+  static bool get accepting => false;
+  static void debugDrop(Object? data, {int x = 0, int y = 0}) {}
+  static void unregister() {}
+}

@@ -54,6 +54,9 @@ void main() {
           'dialogs.chooseDirectory',
           'dialogs.message',
           'media.pick',
+          // An OLE drop target on the process's window.
+          'dragDrop.accept',
+          'dragDrop.stop',
           // Pictures onto pages: to a PDF through Microsoft Print to PDF, or
           // to the default printer.
           'printing.toFile',
@@ -108,6 +111,8 @@ void main() {
         'dialogs.chooseDirectory',
         'dialogs.message',
         'media.pick',
+        'dragDrop.accept',
+        'dragDrop.stop',
       };
       expect(DVWindowsBindings.implemented.difference(callable), isEmpty);
     });

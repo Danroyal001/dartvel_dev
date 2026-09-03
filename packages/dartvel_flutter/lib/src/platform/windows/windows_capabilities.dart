@@ -78,4 +78,9 @@ const Set<String> dvWindowsImplementedBindings = <String>{
   'dialogs.chooseDirectory',
   'dialogs.message',
   'media.pick',
+
+  // An OLE drop target on the process's window: CF_HDROP for the files a
+  // file manager drags, CF_UNICODETEXT for a browser's text.
+  'dragDrop.accept',
+  'dragDrop.stop',
 };

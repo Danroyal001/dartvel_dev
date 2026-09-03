@@ -99,6 +99,73 @@ class TestWindow {
       DynamicLibrary.open('user32.dll').lookupFunction<Int32 Function(IntPtr), int Function(int)>('DestroyWindow')(hWnd);
 }
 
+/// DROPFILES, as Win32 lays it out: the offset the names start at, the
+/// point of the drop, and two flags -- the second says the names are wide.
+final class _DropFiles extends Struct {
+  @Uint32()
+  external int pFiles;
+  @Int32()
+  external int x;
+  @Int32()
+  external int y;
+  @Int32()
+  external int fNC;
+  @Int32()
+  external int fWide;
+}
+
+/// Puts [paths] on the clipboard as CF_HDROP, the way a file manager does.
+void putFilesOnClipboard(List<String> paths) {
+  final user32 = DynamicLibrary.open('user32.dll');
+  final kernel32 = DynamicLibrary.open('kernel32.dll');
+  final List<int> units = <int>[
+    for (final String path in paths) ...path.codeUnits, 0,
+    0,
+  ];
+  const int header = 20;
+  final int bytes = header + units.length * 2;
+  final int handle = kernel32.lookupFunction<IntPtr Function(Uint32, IntPtr), int Function(int, int)>('GlobalAlloc')(
+      0x0002 /* GMEM_MOVEABLE */, bytes);
+  expect(handle, isNot(0));
+  final Pointer<Void> locked =
+      kernel32.lookupFunction<Pointer<Void> Function(IntPtr), Pointer<Void> Function(int)>('GlobalLock')(handle);
+  expect(locked, isNot(nullptr));
+  final Pointer<_DropFiles> drop = locked.cast<_DropFiles>();
+  drop.ref
+    ..pFiles = header
+    ..x = 0
+    ..y = 0
+    ..fNC = 0
+    ..fWide = 1;
+  final Pointer<Uint16> names = (locked.cast<Uint8>() + header).cast<Uint16>();
+  for (var i = 0; i < units.length; i++) {
+    names[i] = units[i];
+  }
+  kernel32.lookupFunction<Int32 Function(IntPtr), int Function(int)>('GlobalUnlock')(handle);
+
+  expect(user32.lookupFunction<Int32 Function(IntPtr), int Function(int)>('OpenClipboard')(0), isNot(0));
+  user32.lookupFunction<Int32 Function(), int Function()>('EmptyClipboard')();
+  user32.lookupFunction<IntPtr Function(Uint32, IntPtr), int Function(int, int)>('SetClipboardData')(
+      15 /* CF_HDROP */, handle);
+  user32.lookupFunction<Int32 Function(), int Function()>('CloseClipboard')();
+}
+
+/// The clipboard's contents as an IDataObject, which is the same interface
+/// OLE hands a drop target.
+Pointer<Void> clipboardDataObject() {
+  final ole32 = DynamicLibrary.open('ole32.dll');
+  ole32.lookupFunction<Int32 Function(Pointer<Void>), int Function(Pointer<Void>)>('OleInitialize')(nullptr);
+  final Pointer<Pointer<Void>> out = calloc<Pointer<Void>>();
+  try {
+    final int hr = ole32.lookupFunction<Int32 Function(Pointer<Pointer<Void>>), int Function(Pointer<Pointer<Void>>)>(
+        'OleGetClipboard')(out);
+    expect(hr, 0, reason: 'OleGetClipboard must hand back the clipboard as a data object');
+    return out.value;
+  } finally {
+    calloc.free(out);
+  }
+}
+
 /// ERROR_REQUIRES_INTERACTIVE_WINDOWSTATION: a hot key cannot be taken in a
 /// session with no interactive desktop, which is a fact about the runner
 /// rather than about the binding, and is said rather than counted as a pass.
@@ -632,6 +699,66 @@ void main() {
       expect(picked.single['type'], 'image');
       expect(picked.single['name'], 'photo.png');
       expect(seen.filterLabels, <String>['Images']);
+    });
+  });
+
+  group('drag and drop', () {
+    // A drop arrives through COM: OLE calls the registered IDropTarget with
+    // an IDataObject holding what is being dragged. The data object here is
+    // a real one -- the clipboard's, which is the same interface Explorer
+    // hands over -- and it is given to the target the way OLE gives it. What
+    // a runner cannot do is drag from another application, so the drag
+    // itself is not exercised; everything the drop does is.
+    late TestWindow window;
+    setUp(() => window = TestWindow.create());
+    tearDown(() async {
+      await const DVDragDrop().stop();
+      DVDragDrop.reset();
+      window.destroy();
+    });
+
+    test('the window registers as a drop target, and stops being one', () async {
+      await const DVDragDrop().accept();
+      expect(DVWindowsDragDrop.accepting, isTrue, reason: DVWindowsDragDrop.lastError);
+
+      await const DVDragDrop().stop();
+      expect(DVWindowsDragDrop.accepting, isFalse);
+    });
+
+    test('dropped files reach Dart as paths, where they landed', () async {
+      final List<DVDropEvent> got = <DVDropEvent>[];
+      await const DVDragDrop().accept(onDrop: got.add);
+      putFilesOnClipboard(<String>[r'C:\Users\ada\notes.txt', r'C:\Users\ada\photo.png']);
+
+      DVWindowsDragDrop.debugDrop(clipboardDataObject(), x: 40, y: 60);
+
+      expect(got.single.paths, <String>[r'C:\Users\ada\notes.txt', r'C:\Users\ada\photo.png']);
+      expect(got.single.x, 40);
+      expect(got.single.y, 60);
+    });
+
+    test('dropped text reaches Dart as text', () async {
+      final List<DVDropEvent> got = <DVDropEvent>[];
+      await const DVDragDrop().accept(onDrop: got.add);
+      // The clipboard binding writes CF_UNICODETEXT, which is what a
+      // browser puts on a drag.
+      await DVNativeBridge.require<bool>('clipboard.copy', <String, Object?>{'text': 'https://dartvel.dev'});
+
+      DVWindowsDragDrop.debugDrop(clipboardDataObject());
+
+      expect(got.single.text, 'https://dartvel.dev');
+      expect(got.single.paths, isEmpty);
+    });
+
+    test('a drop after stop reaches nobody', () async {
+      final List<DVDropEvent> got = <DVDropEvent>[];
+      await const DVDragDrop().accept(onDrop: got.add);
+      putFilesOnClipboard(<String>[r'C:\late.txt']);
+      await const DVDragDrop().stop();
+
+      DVWindowsDragDrop.debugDrop(clipboardDataObject());
+
+      expect(got, isEmpty);
     });
   });
 
