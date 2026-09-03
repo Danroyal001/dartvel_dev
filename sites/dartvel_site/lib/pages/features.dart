@@ -298,6 +298,15 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'remote\'s D-pad, and a kiosk\'s key block never covers the keys '
     'accessibility needs.',
   ),
+  (
+    'PWA',
+    'Installable, offline, and it keeps your writes',
+    'dartvel build web writes the manifest, the icons from web/icon.png, the '
+    'offline page and a service worker that caches assets and keeps an '
+    'outbox: a write made while the network is gone is answered 202 and '
+    'replayed, in order, once it is back. That last part is proven in a '
+    'real Chrome on every push, not read off the generator.',
+  ),
 ];
 
 /// Half built: what is present and what is absent, in the repository's own
@@ -312,11 +321,6 @@ const List<(String, String, String)> partial = <(String, String, String)>[
     'Mail and Notifications',
     'Every channel, no live push service yet',
     'Present: email, in-app, push and web push with a VAPID signature pinned to the published P-256 vectors, local and test providers, and templates rendered in the recipient\'s language. Absent: no provider has been exercised against a real APNS or push service.',
-  ),
-  (
-    'PWA',
-    'Installable and offline; sync not yet watched in a browser',
-    'Present: the manifest, viewport, service worker, offline page, install prompt, icons generated from web/icon.png, and an IndexedDB outbox in the worker that queues failed writes and replays them on sync. Absent: that outbox exercised in a real browser taken offline and back.',
   ),
   (
     'OTA Updates',
@@ -377,7 +381,7 @@ Widget _featuresPage(BuildContext context) => SingleChildScrollView(
         const Section(
           children: <Widget>[
             Eyebrow('WHAT WORKS TODAY'),
-            Heading('Forty-three shipped sections.', level: 1),
+            Heading('Forty-four shipped sections.', level: 1),
             Body(
               'This list is the repository’s own record of what is built, not '
               'a description of what is planned. A tool checks it and fails '
@@ -387,7 +391,7 @@ Widget _featuresPage(BuildContext context) => SingleChildScrollView(
               width: 660,
             ),
             Body(
-              'Thirteen more sections are partial. They are listed as '
+              'Twelve more sections are partial. They are listed as '
               'partial, with what is absent written next to what is present.',
               width: 660,
             ),
