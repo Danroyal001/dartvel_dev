@@ -5,6 +5,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
+import '../graph/kiosk_inspection.dart';
 import '../graph/live_windows.dart';
 import '../graph/project_graph.dart';
 import '../graph/windowing_config.dart';
@@ -28,13 +29,18 @@ class InspectCommand extends Command<void> {
 
   @override
   String get invocation =>
-      'dartvel inspect [routes|models|model <Name>|functions|function <name>|jobs|windows] [--json]';
+      'dartvel inspect [routes|models|model <Name>|functions|function <name>|jobs|windows|kiosk] [--json] [--device-profile <id>]';
 
   InspectCommand() {
     argParser.addFlag(
       'json',
       negatable: false,
       help: 'Emit the graph as JSON. The shape is versioned by graphVersion.',
+    );
+    argParser.addOption(
+      'device-profile',
+      help: 'For kiosk: the device profile a build would select, whose kiosk '
+          'entry goes over the section.',
     );
   }
 
@@ -95,6 +101,8 @@ class InspectCommand extends Command<void> {
         );
       case 'windows':
         _emitWindows(root, graph, asJson);
+      case 'kiosk':
+        _emitKiosk(root, asJson);
       case 'model':
         _emitModel(graph, rest.length > 1 ? rest[1] : null, asJson);
       case 'function':
@@ -113,6 +121,21 @@ class InspectCommand extends Command<void> {
   /// Not the live window list. That needs a running application to ask, and
   /// this command reads a directory -- saying so is better than reporting an
   /// empty list, which would read as "no windows are open".
+  /// The effective kiosk policy: per target, per kiosk window, each value
+  /// with its source. Read from the declaration, not from a running app --
+  /// runtime never changes policy, so the declaration is the whole answer.
+  void _emitKiosk(String root, bool asJson) {
+    final DVKioskInspection inspection = DVKioskInspection.of(
+      _dartvelSection(root),
+      profile: argResults!['device-profile'] as String?,
+    );
+    if (asJson) {
+      _emit(const JsonEncoder.withIndent('  ').convert(inspection.toJson()));
+      return;
+    }
+    inspection.lines().forEach(_emit);
+  }
+
   void _emitWindows(String root, DartvelProjectGraph graph, bool asJson) {
     final DVWindowingConfig config =
         DVWindowingConfig.parse(_dartvelSection(root));
