@@ -423,6 +423,12 @@ jobs:
       - name: Resolve dependencies
         working-directory: sites/dartvel_site
         run: flutter pub get
+      # The client is generated and not committed, so analysing without
+      # generating first reports the whole site as undefined names rather
+      # than as the one thing that is actually wrong.
+      - name: Generate the client
+        working-directory: sites/dartvel_site
+        run: dart run dartvel_cli:dartvel routes
       - name: Analyze
         working-directory: sites/dartvel_site
         run: flutter analyze lib
