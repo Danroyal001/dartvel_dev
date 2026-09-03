@@ -7,7 +7,7 @@
 // the runtime is warning and says how long is left; a reset calls the
 // app's go-home once, after the clear; and the diagnostics screen replaces
 // the page when the watchdog reports a loop.
-import 'package:dartvel_core/dartvel.dart' show DVKioskPolicy, DVKioskRuntime, DVKioskResetReason;
+import 'package:dartvel_core/dartvel.dart' show DVKioskPolicy, DVKioskRuntime, DVKioskResetReason, DVKioskState;
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -111,5 +111,22 @@ void main() {
     ));
     expect(find.text('Plain'), findsOneWidget);
     expect(find.byKey(const ValueKey<String>('dv-kiosk-countdown')), findsNothing);
+  });
+
+  testWidgets('the host mirrors the runtime into DV.lifecycle.kiosk', (WidgetTester tester) async {
+    // A runtime the app built without the registry still shows up on the
+    // lifecycle signal once a host is on screen: pages observe the kiosk the
+    // way they observe the app.
+    DV.lifecycle.resetForTesting();
+    await tester.pumpWidget(host());
+    expect(DV.lifecycle.kiosk.value, DVKioskState.off);
+    await runtime.resume();
+    await tester.pump();
+    expect(DV.lifecycle.kiosk.value, DVKioskState.active);
+    await runtime.reset(DVKioskResetReason.explicit);
+    await tester.pump();
+    expect(DV.lifecycle.kiosk.value, DVKioskState.active);
+    runtime.stop();
+    DV.lifecycle.resetForTesting();
   });
 }
