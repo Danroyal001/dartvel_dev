@@ -130,7 +130,7 @@ class DVLinuxMenus {
 
     // The box the bar lives in. Made once: the window's existing child -- the
     // Flutter view in a real app -- is moved into it below the bar.
-    Pointer<Void> child = binGetChild(window);
+    final Pointer<Void> child = binGetChild(window);
     Pointer<Void> box;
     if (child != nullptr && typeName(child).toDartString() == 'GtkBox' && _bar != null) {
       box = child;
