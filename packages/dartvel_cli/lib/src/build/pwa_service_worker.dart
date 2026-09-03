@@ -111,7 +111,18 @@ function queueForSync(request) {
   });
 }
 
+// One replay at a time. A sync event and the client's replay message can
+// arrive together when the network returns, and two replays reading the
+// outbox before either has deleted from it send every request twice.
+let replaying = null;
+
 function replayOutbox() {
+  if (replaying) return replaying;
+  replaying = replayOnce().finally(() => { replaying = null; });
+  return replaying;
+}
+
+function replayOnce() {
   return withStore('readonly', (store) => {
     const entries = [];
     const keys = [];
