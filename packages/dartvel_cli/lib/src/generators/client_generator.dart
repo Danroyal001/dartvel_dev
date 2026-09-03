@@ -668,7 +668,11 @@ class DartvelRuntime {
       // One import per mounted module: its pages are its own generated
       // widgets, under an alias so two modules cannot collide.
       for (final DVModuleMount m in modules)
-        if (m.routes.isNotEmpty) "import '${m.clientImport}' as ${_moduleAlias(m.id)};",
+        // Federated modules are deployed elsewhere and are not compiled in;
+        // importing one would build a second copy of an application that is
+        // already running somewhere else.
+        if (m.routes.isNotEmpty && m.compiledIntoParent)
+          "import '${m.clientImport}' as ${_moduleAlias(m.id)};",
     ]).join('\n');
 
     // Parse routingRedirects
@@ -915,7 +919,8 @@ ${(() {
     // not-found page for every one of them.
     final moduleRoutesSrc = <String>[
       for (final DVModuleMount m in modules)
-        for (final DVModuleRoute r in m.routes)
+        if (m.compiledIntoParent)
+          for (final DVModuleRoute r in m.routes)
           '''
     GoRoute(
       path: '${esc(r.mounted)}',
@@ -1229,6 +1234,12 @@ ${(() {
           sbRoutes.writeln("    directory: '${m.sourcePath}',");
           sbRoutes.writeln('    parameters: <String>[$params],');
           sbRoutes.writeln("    module: '${m.id}',");
+          if (m.location != null) {
+            // A federated module's pages are not in this artifact. Listed
+            // without saying where they are, a sitemap would point a crawler
+            // at a path this application answers with its own not-found page.
+            sbRoutes.writeln("    location: '${m.location}',");
+          }
           sbRoutes.writeln('  ),');
         }
       }
