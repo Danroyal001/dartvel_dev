@@ -16,11 +16,17 @@ class DVRouteInfo {
   /// The path parameters, in the order they appear.
   final List<String> parameters;
 
+  /// The mounted module whose page this is, or null for the application's
+  /// own. A route explorer that could not tell them apart would show a
+  /// module's pages as the parent's.
+  final String? module;
+
   const DVRouteInfo({
     required this.path,
     required this.page,
     required this.directory,
     this.parameters = const <String>[],
+    this.module,
   });
 
   /// Whether the route takes parameters, which is what makes it a pattern

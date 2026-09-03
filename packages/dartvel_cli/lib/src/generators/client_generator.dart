@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'function_body.dart';
+import '../graph/module_mounts.dart';
+import 'page_names.dart';
 import 'symbol_qualifier.dart';
 import 'static_paths_generator.dart';
 import 'package:file/local.dart';
@@ -77,6 +79,9 @@ class ClientGenerator {
     required String buildId,
     /// Models whose pages Dartvel generates, so the router can serve them.
     List<StaticPathsProvider> publicPageModels = const <StaticPathsProvider>[],
+    /// Modules this application mounts, with their pages already rebased
+    /// under the mount point.
+    List<DVModuleMount> modules = const <DVModuleMount>[],
     required String backendHost,
     required int backendPort,
     required String devBackendHost,
@@ -637,6 +642,10 @@ class DartvelRuntime {
       ...pageImports,
       ...layoutImports,
       ...guardImports,
+      // One import per mounted module: its pages are its own generated
+      // widgets, under an alias so two modules cannot collide.
+      for (final DVModuleMount m in modules)
+        if (m.routes.isNotEmpty) "import '${m.clientImport}' as ${_moduleAlias(m.id)};",
     ]).join('\n');
 
     // Parse routingRedirects
@@ -739,6 +748,23 @@ class DartvelRuntime {
     // one because nobody reads it until the compiler complains.
     final modelRoutes =
         modelRoutesSrc.isEmpty ? '' : ',\n$modelRoutesSrc';
+
+    // A route per page of every mounted module, serving the module's own
+    // generated page at the mounted path. Without these the routes would be
+    // in the index and the sitemap while the application answered its own
+    // not-found page for every one of them.
+    final moduleRoutesSrc = <String>[
+      for (final DVModuleMount m in modules)
+        for (final DVModuleRoute r in m.routes)
+          '''
+    GoRoute(
+      path: '${esc(r.mounted)}',
+      pageBuilder: (context, state) => NoTransitionPage<void>(
+        child: const ${_moduleAlias(m.id)}.${r.widget}(),
+      ),
+    ),''',
+    ].join('\n');
+    final moduleRoutes = moduleRoutesSrc.isEmpty ? '' : ',\n$moduleRoutesSrc';
 
     final routesSrc = pageEntries
         .map(
@@ -1067,6 +1093,7 @@ $semanticsCall
     routes: [
 $routesSrc
 $modelRoutes
+$moduleRoutes
     ],
     redirect: _globalRedirect,
     // A route with no compiled page may still be a Studio page: builder
@@ -1155,6 +1182,24 @@ ${(() {
         sbRoutes.writeln("    directory: '${e.directory}',");
         sbRoutes.writeln('    parameters: <String>[$params],');
         sbRoutes.writeln('  ),');
+      }
+      // A mounted module's pages are the parent's routes too: a sitemap, a
+      // route explorer and the web server's manifest all read this list, and
+      // a route missing from it is a page nothing knows the parent serves.
+      for (final DVModuleMount m in modules) {
+        for (final DVModuleRoute r in m.routes) {
+          final params = RegExp(r':([A-Za-z0-9_]+)')
+              .allMatches(r.mounted)
+              .map((match) => "'${match.group(1)!}'")
+              .join(', ');
+          sbRoutes.writeln('  DVRouteInfo(');
+          sbRoutes.writeln("    path: '${r.mounted}',");
+          sbRoutes.writeln("    page: '${r.widget}',");
+          sbRoutes.writeln("    directory: '${m.sourcePath}',");
+          sbRoutes.writeln('    parameters: <String>[$params],');
+          sbRoutes.writeln("    module: '${m.id}',");
+          sbRoutes.writeln('  ),');
+        }
       }
       sbRoutes.writeln('];');
       return sbRoutes.toString();
@@ -1637,17 +1682,15 @@ void startDartvelKiosk() {
     }
   }
 
-  static String _generatedPageWidgetName(String functionName) {
-    final words = RegExp(r'[A-Za-z0-9]+')
-        .allMatches(functionName)
-        .map((match) => match.group(0)!)
-        .where((word) => word.isNotEmpty)
-        .toList();
-    final pascalName =
-        words.map((word) => word[0].toUpperCase() + word.substring(1)).join();
-    final baseName = pascalName.isEmpty ? 'Generated' : pascalName;
-    return '${baseName}GeneratedPage';
-  }
+  /// A short alias for a mounted module's import, so two modules cannot
+  /// collide in the parent's router.
+  static String _moduleAlias(String id) =>
+      'm_${id.replaceAll(RegExp(r'[^A-Za-z0-9_]'), '_')}';
+
+  /// One definition, shared with the module mounts: a parent naming a
+  /// mounted module's generated page has to arrive at the same class name.
+  static String _generatedPageWidgetName(String functionName) =>
+      dvGeneratedPageWidgetName(functionName);
 
   static String _pageScaffoldSpec(String source) {
     final match = RegExp(

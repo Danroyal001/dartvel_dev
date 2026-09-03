@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import '../config/dartvel_config.dart';
+import '../graph/module_mounts.dart';
 import '../utils/logger.dart';
 import 'backend_generator.dart';
 import 'client_generator.dart';
@@ -67,12 +68,27 @@ Future<void> generate({bool validateProd = false}) async {
     pkgName: pkgName,
   ).where((p) => p.route != null && p.generatesPage).toList();
 
+  // Modules this application mounts. Their pages become the parent's routes
+  // under the mount point, so the route index, the sitemap, static
+  // generation and the web server all know about them.
+  final modules = dvDiscoverModuleMounts(root);
+  for (final module in modules) {
+    for (final problem in module.problems) {
+      log('dartvel: $problem');
+    }
+    if (module.routes.isNotEmpty) {
+      log('dartvel: mounted module ${module.id} at ${module.mount} '
+          '(${module.routes.length} route(s))');
+    }
+  }
+
   await ClientGenerator.generate(
     root: root,
     pagesDir: pagesDir,
     pkgName: pkgName,
     buildId: buildId,
     publicPageModels: publicPageModels,
+    modules: modules,
     backendHost: backendHost,
     backendPort: backendPort,
     devBackendHost: devBackendHost,
