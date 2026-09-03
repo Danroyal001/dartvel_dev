@@ -167,6 +167,24 @@ void main() {
       expect(modulesFile(), contains("DVModule get store =>"));
     });
 
+    test('the module\'s routes are typed targets, named as the module names them', () async {
+      await generateParent();
+      final String generated = modulesFile();
+
+      // Named for the route inside the module, not for the mount: the same
+      // module mounted elsewhere is the same page, and a name carrying the
+      // mount point would change with it.
+      expect(generated, contains('class StoreModuleRoutes'));
+      expect(generated, contains("DVRouteTarget products({required String id}) => DVRouteTarget('/store/products/\$id');"));
+      expect(generated, contains('StoreModuleRoutes get storeRoutes'));
+    });
+
+    test('a module mounted elsewhere keeps the names and moves the paths', () async {
+      await generateParent(mount: '/shop');
+
+      expect(modulesFile(), contains("DVRouteTarget products({required String id}) => DVRouteTarget('/shop/products/\$id');"));
+    });
+
     test('a backend-only module is registered too: it has no pages, not no existence', () async {
       await generateParent(deployment: 'backend-only');
 
