@@ -26,6 +26,8 @@ typedef _Send1N = Pointer<Void> Function(Pointer<Void>, Pointer<Void>, Pointer<V
 typedef _Send1D = Pointer<Void> Function(Pointer<Void>, Pointer<Void>, Pointer<Void>);
 typedef _SendStrN = Pointer<Void> Function(Pointer<Void>, Pointer<Void>, Pointer<Utf8>);
 typedef _SendStrD = Pointer<Void> Function(Pointer<Void>, Pointer<Void>, Pointer<Utf8>);
+typedef _Send2N = Pointer<Void> Function(Pointer<Void>, Pointer<Void>, Pointer<Void>, Pointer<Void>);
+typedef _Send2D = Pointer<Void> Function(Pointer<Void>, Pointer<Void>, Pointer<Void>, Pointer<Void>);
 typedef _Send3N = Pointer<Void> Function(Pointer<Void>, Pointer<Void>, Pointer<Void>, Pointer<Void>, Pointer<Void>);
 typedef _Send3D = Pointer<Void> Function(Pointer<Void>, Pointer<Void>, Pointer<Void>, Pointer<Void>, Pointer<Void>);
 typedef _SendIntN = Void Function(Pointer<Void>, Pointer<Void>, Int64);
@@ -83,6 +85,8 @@ class DVMacosObjc {
   Pointer<Void> send0(Pointer<Void> r, String s) => objc.lookupFunction<_Send0N, _Send0D>('objc_msgSend')(r, sel(s));
   Pointer<Void> send1(Pointer<Void> r, String s, Pointer<Void> a) =>
       objc.lookupFunction<_Send1N, _Send1D>('objc_msgSend')(r, sel(s), a);
+  Pointer<Void> send2(Pointer<Void> r, String s, Pointer<Void> a, Pointer<Void> b) =>
+      objc.lookupFunction<_Send2N, _Send2D>('objc_msgSend')(r, sel(s), a, b);
   Pointer<Void> send3(Pointer<Void> r, String s, Pointer<Void> a, Pointer<Void> b, Pointer<Void> c) =>
       objc.lookupFunction<_Send3N, _Send3D>('objc_msgSend')(r, sel(s), a, b, c);
   void sendInt(Pointer<Void> r, String s, int a) => objc.lookupFunction<_SendIntN, _SendIntD>('objc_msgSend')(r, sel(s), a);

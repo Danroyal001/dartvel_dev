@@ -15,6 +15,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:dartvel_flutter/dartvel_flutter.dart';
+import 'package:dartvel_flutter/src/platform/macos/macos_menus_ffi.dart' show DVMacosObjc;
 import 'package:ffi/ffi.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -448,6 +449,66 @@ void main() {
       expect(picked.single['name'], 'photo.png');
       expect(picked.single['type'], 'image');
       expect(seen.filterLabels, <String>['Images']);
+    });
+  });
+
+  group('drag and drop', () {
+    // AppKit delivers a drop to the view under the pointer, which reads what
+    // was dragged off the dragging pasteboard. The pasteboard reading is the
+    // part with the bugs in it -- a file manager writes a list of paths, a
+    // browser writes text, and taking the first of one as the other turns a
+    // drop of three files into one wrong path -- and it is checked here
+    // against a real pasteboard. Registering the view needs a window, which
+    // a runner with no run loop does not have.
+    tearDown(() {
+      DVDragDrop.reset();
+      DVMacosDragDrop.unregister();
+    });
+
+    DVMacosObjc objc() => DVMacosObjc(DynamicLibrary.open('/usr/lib/libobjc.A.dylib'));
+
+    /// The general pasteboard, which is the one a test can fill; a drop
+    /// reads the dragging pasteboard, which is the same kind of object.
+    Pointer<Void> pasteboard() {
+      final DVMacosObjc o = objc();
+      return o.send0(o.cls('NSPasteboard'), 'generalPasteboard');
+    }
+
+    void writeFileList(List<String> paths) {
+      final DVMacosObjc o = objc();
+      final Pointer<Void> board = pasteboard();
+      final Pointer<Void> types = o.send0(o.cls('NSMutableArray'), 'array');
+      o.send1(types, 'addObject:', o.nsString('NSFilenamesPboardType'));
+      o.send2(board, 'declareTypes:owner:', types, nullptr);
+      final Pointer<Void> list = o.send0(o.cls('NSMutableArray'), 'array');
+      for (final String path in paths) {
+        o.send1(list, 'addObject:', o.nsString(path));
+      }
+      o.send2(board, 'setPropertyList:forType:', list, o.nsString('NSFilenamesPboardType'));
+    }
+
+    test('with no window there is nothing to take drops, and it says so', () async {
+      await expectLater(const DVDragDrop().accept(), throwsA(isA<StateError>()));
+      expect(DVMacosDragDrop.lastError, contains('no window'));
+      expect(DVMacosDragDrop.accepting, isFalse);
+    });
+
+    test('a pasteboard of files reads as every one of them', () {
+      writeFileList(<String>['/Users/ada/notes.txt', '/Users/ada/photo.png']);
+
+      final DVDropEvent event = DVMacosDragDrop.eventFrom(pasteboard());
+
+      expect(event.paths, <String>['/Users/ada/notes.txt', '/Users/ada/photo.png']);
+      expect(event.text, isNull);
+    });
+
+    test('a pasteboard of text reads as text', () async {
+      await DVNativeBridge.require<bool>('clipboard.copy', <String, Object?>{'text': 'https://dartvel.dev'});
+
+      final DVDropEvent event = DVMacosDragDrop.eventFrom(pasteboard());
+
+      expect(event.text, 'https://dartvel.dev');
+      expect(event.paths, isEmpty);
     });
   });
 

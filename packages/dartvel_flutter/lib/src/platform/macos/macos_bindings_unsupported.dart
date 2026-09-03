@@ -1,6 +1,8 @@
 /// Stand-in for builds without `dart:ffi` — the web.
 library dartvel_flutter.platform.macos.unsupported;
 
+import '../drag_drop.dart';
+
 import 'macos_capabilities.dart';
 
 /// The macOS bindings, unavailable here.
@@ -92,5 +94,16 @@ class DVMacosDialogs {
 
   static const Set<String> implemented = <String>{'dialogs.openFile', 'dialogs.saveFile', 'dialogs.chooseDirectory', 'dialogs.message', 'media.pick'};
   static void automate(DVMacosDialogAutomation? automation) {}
+  static void unregister() {}
+}
+
+/// The macOS dragging destination, unavailable here.
+class DVMacosDragDrop {
+  const DVMacosDragDrop._();
+
+  static const Set<String> implemented = <String>{'dragDrop.accept', 'dragDrop.stop'};
+  static String? lastError;
+  static bool get accepting => false;
+  static DVDropEvent eventFrom(Object? pasteboard, {double x = 0, double y = 0}) => const DVDropEvent();
   static void unregister() {}
 }

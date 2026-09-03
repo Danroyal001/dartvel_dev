@@ -27,6 +27,7 @@ import '../device_runtime.dart';
 import 'macos_capabilities.dart';
 import 'macos_device_ffi.dart';
 import 'macos_dialogs_ffi.dart';
+import 'macos_dnd_ffi.dart';
 import 'macos_kiosk_ffi.dart';
 import 'macos_menus_ffi.dart';
 import 'macos_printing_ffi.dart';
@@ -35,6 +36,7 @@ import 'macos_tray_ffi.dart';
 
 export 'macos_device_ffi.dart' show DVMacosDeviceProbes;
 export 'macos_dialogs_ffi.dart' show DVMacosDialog, DVMacosDialogAutomation, DVMacosDialogSeen, DVMacosDialogs;
+export 'macos_dnd_ffi.dart' show DVMacosDragDrop;
 export 'macos_kiosk_ffi.dart' show DVMacosKiosk;
 export 'macos_menus_ffi.dart' show DVMacosMenus;
 export 'macos_printing_ffi.dart' show DVMacosPrinting;
@@ -121,6 +123,7 @@ class DVMacosBindings {
     DVMacosTray.register(DVNativeBridge.register, objc: _objc);
     DVMacosPrinting.register(DVNativeBridge.register);
     DVMacosDialogs.register(DVNativeBridge.register, objc: _objc);
+    DVMacosDragDrop.register(DVNativeBridge.register, objc: _objc);
     DVNativeBridge.register('deepLinks.initial', (Object? _) => DVAppLaunch.initialLink);
     DVNativeBridge.register('permissions.isGranted', DVDesktopPermissions.answer);
     DVNativeBridge.register('permissions.request', DVDesktopPermissions.answer);
@@ -136,6 +139,7 @@ class DVMacosBindings {
       DVMacosKiosk.release();
       DVMacosShortcuts.unregister();
       DVMacosDialogs.unregister();
+      DVMacosDragDrop.unregister();
       DVMacosTray.unregister();
       DVMacosMenus.unregister();
       DVDeviceRuntime.unregister();
