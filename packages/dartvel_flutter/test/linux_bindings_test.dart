@@ -84,6 +84,9 @@ void main() {
         'dialogs.saveFile',
         'dialogs.chooseDirectory',
         'dialogs.message',
+        // The window takes drops of files and of text.
+        'dragDrop.accept',
+        'dragDrop.stop',
         'device.capabilityManifest',
         'device.health',
         'device.watchdog.arm',
