@@ -8,6 +8,9 @@
 /// runtime and `dartvel doctor` have to agree about what a policy says.
 library dartvel.kiosk.policy;
 
+import 'runtime.dart' show DVKioskState;
+import 'updates.dart';
+
 /// Whether the whole device is the kiosk, or one display of it.
 enum DVKioskScope {
   /// One application, no windows. `open()` presents in place.
@@ -50,6 +53,8 @@ class DVKioskPolicy {
     required this.maxAttempts,
     required this.lockoutFor,
     required this.audit,
+    required this.updatesApply,
+    required this.updatesWindow,
     required this.problems,
   });
 
@@ -83,6 +88,30 @@ class DVKioskPolicy {
   final int maxAttempts;
   final Duration lockoutFor;
   final bool audit;
+
+  /// When this kiosk may apply an update it has found.
+  final DVKioskUpdateApply updatesApply;
+
+  /// The span of the day [DVKioskUpdateApply.maintenanceWindow] waits for.
+  final DVMaintenanceWindow? updatesWindow;
+
+  /// What this kiosk should do with [update], under its declared policy.
+  ///
+  /// [state] decides a staff-mode policy and [now] a windowed one; a required
+  /// update overrides both, resetting whatever session is on screen rather
+  /// than landing on top of it.
+  DVKioskUpdateDecision decideUpdate({
+    required DVUpdateOffer update,
+    required DVKioskState state,
+    required DateTime now,
+  }) =>
+      dvDecideKioskUpdate(
+        apply: updatesApply,
+        window: updatesWindow,
+        update: update,
+        state: state,
+        now: now,
+      );
 
   /// Declarations that cannot be honoured, in the specification's terms.
   final List<String> problems;
@@ -147,6 +176,34 @@ class DVKioskPolicy {
     final Map<Object?, Object?> session = _map(k['session']);
     final Map<Object?, Object?> display = _map(k['display']);
     final Map<Object?, Object?> exit = _map(k['exit']);
+    final Map<Object?, Object?> updates = _map(k['updates']);
+
+    final DVKioskUpdateApply updatesApply = _enum<DVKioskUpdateApply>(
+      updates['apply'],
+      const <String, DVKioskUpdateApply>{
+        'immediate': DVKioskUpdateApply.immediate,
+        'maintenanceWindow': DVKioskUpdateApply.maintenanceWindow,
+        'staffMode': DVKioskUpdateApply.staffMode,
+      },
+      DVKioskUpdateApply.immediate,
+      'dartvel.kiosk.updates.apply',
+      problems,
+    );
+    final DVMaintenanceWindow? updatesWindow =
+        DVMaintenanceWindow.parse(updates['window']);
+    if (updates['window'] != null && updatesWindow == null) {
+      problems.add('dartvel.kiosk.updates.window is "${updates['window']}", '
+          'which is not a span such as "02:00-04:00".');
+    }
+    if (updatesApply == DVKioskUpdateApply.maintenanceWindow &&
+        updatesWindow == null) {
+      // A window policy with no window defers for ever, and a kiosk that
+      // never installs anything looks exactly like a kiosk with nothing to
+      // install.
+      problems.add('dartvel.kiosk.updates.apply is "maintenanceWindow" but '
+          'no updates.window is declared, so no update would ever be '
+          'applied.');
+    }
 
     final Duration idleTimeout = _duration(
         session['idleTimeout'], const Duration(seconds: 90),
@@ -252,6 +309,8 @@ class DVKioskPolicy {
       lockoutFor: _duration(exit['lockoutFor'], const Duration(minutes: 10),
           'dartvel.kiosk.exit.lockoutFor', problems),
       audit: exit['audit'] != false,
+      updatesApply: updatesApply,
+      updatesWindow: updatesWindow,
       problems: problems,
     );
   }
