@@ -1299,6 +1299,30 @@ class BuildCommand extends Command<void> {
     _writeServiceWorker(root, name: name, settings: settings);
   }
 
+  /// The hreflang set for [route], and its x-default, when the site is built
+  /// for more than one language and has a siteUrl to build them on.
+  ///
+  /// Empty otherwise: a single-language site declaring itself as one
+  /// alternate of itself reads as a misconfiguration. The locale declaration
+  /// itself is validated, fatally, where the root head is written.
+  (Map<String, String>, String?) _alternatesFor(String root, String route) {
+    final dartvel = _dartvelSection(root);
+    final seo = dartvel['seo'];
+    final settings = seo is Map ? seo : const <Object?, Object?>{};
+    final String? siteUrl = settings['siteUrl'] as String?;
+    final DVI18nLocales locales = DVI18nLocales.parse(dartvel);
+    if (siteUrl == null || siteUrl.isEmpty || !locales.multilingual) {
+      return (const <String, String>{}, null);
+    }
+    final Map<String, String> alternates = dvSeoAlternatesFor(
+      siteUrl: siteUrl,
+      route: route,
+      locales: locales.locales,
+      defaultLocale: locales.defaultLocale,
+    );
+    return (alternates, alternates[locales.defaultLocale]);
+  }
+
   /// Generates the four icons the manifest names, from the project's icon.
   ///
   /// The manifest pointed at files nothing produced, and Chrome refuses to
@@ -1416,12 +1440,27 @@ class BuildCommand extends Command<void> {
     final index = File(p.join(root, 'build', 'web', 'index.html'));
     if (!index.existsSync()) return;
 
+    // hreflang, when the site is built for more than one language. A default
+    // locale the site does not have is refused rather than written, because
+    // it sends x-default to a 404.
+    final DVI18nLocales locales = DVI18nLocales.parse(dartvel);
+    for (final String problem in locales.problems) {
+      Logger.error('   $problem');
+    }
+    if (locales.problems.isNotEmpty) {
+      Logger.log('❌ i18n locales');
+      exit(1);
+    }
+    final (Map<String, String> rootAlternates, String? rootDefault) =
+        _alternatesFor(root, '/');
     final head = dvSeoHead(
       title: title,
       description: description,
       siteUrl: settings['siteUrl'] as String?,
       image: settings['image'] as String?,
       siteName: settings['siteName'] as String? ?? title,
+      alternates: rootAlternates,
+      defaultAlternate: rootDefault,
     );
     // The site's own WebSite block, which belongs on the root and nowhere
     // else -- repeating it per page tells a crawler the site begins again at
@@ -1659,6 +1698,8 @@ class BuildCommand extends Command<void> {
         siteUrl: siteUrl,
         image: settings['image'] as String?,
         siteName: settings['siteName'] as String? ?? baseTitle,
+        alternates: _alternatesFor(root, route).$1,
+        defaultAlternate: _alternatesFor(root, route).$2,
       );
 
       // The semantics tree when there is one, the source-literal extractor

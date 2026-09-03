@@ -48,6 +48,8 @@ String dvStaticPage({
   String? siteUrl,
   String? image,
   String? siteName,
+  Map<String, String> alternates = const <String, String>{},
+  String? defaultAlternate,
 }) {
   final canonical =
       siteUrl == null ? null : dvStaticCanonical(siteUrl, route);
@@ -85,6 +87,8 @@ String dvStaticPage({
       // the link.
       image: dvAbsoluteAsset(image, siteUrl),
       siteName: siteName,
+      alternates: alternates,
+      defaultAlternate: defaultAlternate,
     ) + (jsonLd.isEmpty ? '' : '\n$jsonLd'),
   );
 
