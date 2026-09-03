@@ -14,6 +14,11 @@ library dartvel_flutter.platform.web.capabilities;
 /// registered no-op would turn "this cannot be done here" into "this silently
 /// did nothing", which is the harder bug to find.
 const Set<String> dvWebImplementedBindings = <String>{
+  // Fullscreen, Keyboard Lock and Pointer Lock, each needing a user gesture
+  // and reported refused, with the browser's reason, when it is absent.
+  'kiosk.enforce',
+  'kiosk.release',
+
   // navigator.clipboard, which needs a secure context and a user gesture for
   // reads — the failure is reported rather than swallowed.
   'clipboard.copy',

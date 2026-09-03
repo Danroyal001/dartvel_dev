@@ -8,6 +8,7 @@
 /// `web_capabilities.dart` for why the rest is left throwing.
 library dartvel_flutter.platform.web.js;
 
+import 'dart:async' show unawaited;
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 import 'dart:typed_data';
@@ -17,6 +18,7 @@ import 'package:web/web.dart' as web;
 import '../../../dartvel_flutter.dart' show DVNativeBridge;
 import '../../pwa/install_prompt.dart';
 import 'web_capabilities.dart';
+import 'web_kiosk_js.dart';
 
 /// Registers the browser bindings.
 class DVWebBindings {
@@ -252,6 +254,8 @@ class DVWebBindings {
       return true;
     });
 
+    DVWebKiosk.register(DVNativeBridge.register);
+
     _registered = true;
     return true;
   }
@@ -260,6 +264,7 @@ class DVWebBindings {
       web.window.navigator.vibrate(milliseconds.toJS);
 
   static void unregister() {
+    unawaited(DVWebKiosk.release());
     for (final name in implemented) {
       DVNativeBridge.unregister(name);
     }
