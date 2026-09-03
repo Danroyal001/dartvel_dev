@@ -8,7 +8,7 @@ part of '../dartvel_windowing.dart';
 /// that window is built.
 @immutable
 class DVWindowRequest {
-  const DVWindowRequest({this.size, this.title, this.route});
+  const DVWindowRequest({this.size, this.title, this.route, this.kind, this.displayId});
 
   /// The size asked for, or null to let the platform choose.
   final Size? size;
@@ -18,6 +18,13 @@ class DVWindowRequest {
 
   /// The route the window presents.
   final String? route;
+
+  /// The window kind's name -- `regular`, `kiosk`, ... -- as the manager
+  /// asked for it. A kiosk is sized to its display.
+  final String? kind;
+
+  /// The display the manager resolved, if it asked for one.
+  final String? displayId;
 }
 
 /// Registers the desktop window bindings.
@@ -55,6 +62,8 @@ class _DVWindowBindings {
             : null,
         title: map['title'] as String?,
         route: map['route'] as String?,
+        kind: map['kind'] as String?,
+        displayId: map['displayId'] as String?,
       );
       return id;
     });

@@ -27,6 +27,17 @@ class DVFlutterWindowSurfaceFactory implements DVWindowSurfaceFactory {
   /// is going to, which is a separate question from what a window defaults to.
   static const Size defaultSize = Size(1280, 720);
 
+  /// The size a window is asked for: a kiosk covers the display it owns,
+  /// anything else gets what it asked for or the default.
+  static Size preferredSizeFor(DVWindowRequest? request, List<DVDisplay> displays) {
+    if (request?.kind == 'kiosk' && request?.displayId != null) {
+      for (final DVDisplay d in displays) {
+        if (d.id == request!.displayId) return d.bounds.size;
+      }
+    }
+    return request?.size ?? defaultSize;
+  }
+
   @override
   DVWindowSurface create(DVWindow window, Widget content) {
     final request = _DVWindowBindings.requestFor(window.nativeId);
@@ -41,7 +52,7 @@ class DVFlutterWindowSurfaceFactory implements DVWindowSurfaceFactory {
       // in the window.open payload yet, and passing null here would look like
       // it had been considered.
       RegularWindowController(
-        preferredSize: request?.size ?? defaultSize,
+        preferredSize: preferredSizeFor(request, DV.Platform.Window.displays.value),
         title: request?.title,
       ),
     );
