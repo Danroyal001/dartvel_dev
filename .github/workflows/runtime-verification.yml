@@ -581,6 +581,19 @@ jobs:
           fi
           echo "the module's screen rendered at /notes"
 
+          # And its asset is in the bundle under the package path, which is
+          # where Flutter serves another package's files from. The module
+          # asks for its own path and the registry answers with this one; if
+          # the build did not carry the file here, that answer points at
+          # nothing.
+          cd examples/dartvel_example
+          if ! grep -rq "packages/dartvel_example_notes/assets/logo.png" build/web/assets/; then
+            echo "::error::the mounted module's asset is not in the bundle"
+            ls build/web/assets | head
+            exit 1
+          fi
+          echo "the module's asset is bundled under its package path"
+
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: screenshot-web, path: /tmp/diag/, if-no-files-found: warn }

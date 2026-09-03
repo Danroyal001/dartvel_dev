@@ -13,8 +13,10 @@ class DVModule {
     required this.id,
     required String mountPath,
     Map<String, Object?> config = const <String, Object?>{},
+    Map<String, String> assets = const <String, String>{},
   })  : _mountPath = mountPath,
-        config = Map.unmodifiable(config);
+        config = Map.unmodifiable(config),
+        assets = Map.unmodifiable(assets);
 
   /// The module identifier, matching the generated `DV.Modules.<id>`.
   final String id;
@@ -26,6 +28,19 @@ class DVModule {
 
   /// Configuration the parent passed at mount time.
   final Map<String, Object?> config;
+
+  /// The module's own asset paths, each mapped to the path that finds it
+  /// once the module is mounted.
+  ///
+  /// Flutter serves another package's asset under `packages/<name>/`, so a
+  /// module standing alone and the same module mounted ask for the same
+  /// file by different names. Module code asks by its own name and gets
+  /// the right one, which is what keeps the mount point out of the code.
+  final Map<String, String> assets;
+
+  /// Where [path] is served from now: the mounted path when this module was
+  /// mounted, and [path] itself when it is running on its own.
+  String asset(String path) => assets[path] ?? path;
 
   final _lifecycle = DVMutableLifecycleSignal<DVModuleLifecycle>(
     DVModuleLifecycle.discovered,
@@ -112,8 +127,9 @@ class DVModuleRegistry {
     required String id,
     required String mountPath,
     Map<String, Object?> config = const <String, Object?>{},
+    Map<String, String> assets = const <String, String>{},
   }) {
-    final module = DVModule(id: id, mountPath: mountPath, config: config);
+    final module = DVModule(id: id, mountPath: mountPath, config: config, assets: assets);
     _modules[id] = module;
     return module;
   }

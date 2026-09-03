@@ -17,6 +17,13 @@ dependencies:
   # The generated router is a GoRouter, so a Dartvel project declares it.
   go_router: ^14.2.0
 
+# The module's own asset, which a parent serves under
+# packages/dartvel_example_notes/ once it is mounted. Module code asks for
+# it by its own name and DV.Modules.notes.asset() gives the right one.
+flutter:
+  assets:
+    - assets/logo.png
+
 dartvel:
   # A module is a complete Dartvel project: it runs on its own at /, and
   # mounted it answers under whatever the parent gives it.

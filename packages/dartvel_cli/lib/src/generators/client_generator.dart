@@ -1736,9 +1736,18 @@ void startDartvelKiosk() {
         ..writeln("      'routes': ${m.routes.length},");
       if (m.name != null) out.writeln("      'name': '${m.name}',");
       if (m.version != null) out.writeln("      'version': '${m.version}',");
-      out
-        ..writeln('    },')
-        ..writeln('  );');
+      out.writeln('    },');
+      if (m.assets.isNotEmpty) {
+        // The module's own paths to the ones that find the files here, so
+        // module code asks by its own name and the mount point stays out
+        // of it.
+        out.writeln('    assets: const <String, String>{');
+        m.assets.forEach((String own, String mounted) {
+          out.writeln("      '$own': '$mounted',");
+        });
+        out.writeln('    },');
+      }
+      out.writeln('  );');
     }
     out
       ..writeln('}')

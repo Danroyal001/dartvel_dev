@@ -53,6 +53,9 @@ dartvel:
   final Directory module = Directory(p.join(root.path, 'modules', 'store'))..createSync(recursive: true);
   File(p.join(module.path, 'pubspec.yaml')).writeAsStringSync('''
 name: store
+flutter:
+  assets:
+    - assets/logo.png
 dartvel:
   module:
     id: store
@@ -148,6 +151,13 @@ void main() {
       expect(generated, contains('void registerDartvelModules()'));
       expect(generated, contains("id: 'store'"));
       expect(generated, contains("mountPath: '/store'"));
+    });
+
+    test('the module\'s assets are registered as the paths that find them here', () async {
+      await generateParent();
+
+      expect(modulesFile(), contains("assets: const <String, String>{"));
+      expect(modulesFile(), contains("'assets/logo.png': 'packages/store/assets/logo.png',"));
     });
 
     test('a typed accessor reaches it, so DV.Modules.store is the module', () async {

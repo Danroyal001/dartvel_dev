@@ -49,6 +49,10 @@ dartvel:
   final Directory module = Directory(p.join(root.path, 'modules', 'store'))..createSync(recursive: true);
   File(p.join(module.path, 'pubspec.yaml')).writeAsStringSync('''
 name: store
+flutter:
+  assets:
+    - assets/logo.png
+    - assets/icons/
 dartvel:
   pagesDir: lib/pages
   module:
@@ -136,6 +140,36 @@ void main() {
 
     expect(mount.routes.map((DVModuleRoute r) => r.mounted), <String>['/store']);
     expect(mount.problems.single, contains('broken.page.dart'));
+  });
+
+  test('the module\'s assets are named as the parent must ask for them', () {
+    // Flutter serves another package's asset under packages/<name>/, so the
+    // path a module uses standing alone is not the path that finds it once
+    // it is mounted. A module that hard-coded either would be wrong in the
+    // other place.
+    final DVModuleMount mount = dvDiscoverModuleMounts(workspace().path).single;
+
+    expect(mount.assets, <String, String>{
+      'assets/logo.png': 'packages/store/assets/logo.png',
+      'assets/icons/': 'packages/store/assets/icons/',
+    });
+  });
+
+  test('a module that declares no assets has none', () {
+    final Directory root = Directory.systemTemp.createTempSync('dartvel_modules_noassets_');
+    addTearDown(() => root.deleteSync(recursive: true));
+    File(p.join(root.path, 'pubspec.yaml')).writeAsStringSync('''
+name: shopfront
+dartvel:
+  modules:
+    store:
+      source: { path: modules/store }
+      mount: /store
+''');
+    final Directory module = Directory(p.join(root.path, 'modules', 'store'))..createSync(recursive: true);
+    File(p.join(module.path, 'pubspec.yaml')).writeAsStringSync('name: store\n');
+
+    expect(dvDiscoverModuleMounts(root.path).single.assets, isEmpty);
   });
 
   test('a backend-only module contributes no routes', () {
