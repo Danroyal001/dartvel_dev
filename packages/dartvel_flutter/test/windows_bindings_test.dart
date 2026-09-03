@@ -47,6 +47,13 @@ void main() {
           'permissions.isGranted',
           'permissions.request',
           'deepLinks.initial',
+          // The common dialogs and the folder browser, answered from their own
+          // hooks under automation.
+          'dialogs.openFile',
+          'dialogs.saveFile',
+          'dialogs.chooseDirectory',
+          'dialogs.message',
+          'media.pick',
           // Pictures onto pages: to a PDF through Microsoft Print to PDF, or
           // to the default printer.
           'printing.toFile',
@@ -96,6 +103,11 @@ void main() {
         'permissions.isGranted',
         'permissions.request',
         'deepLinks.initial',
+        'dialogs.openFile',
+        'dialogs.saveFile',
+        'dialogs.chooseDirectory',
+        'dialogs.message',
+        'media.pick',
       };
       expect(DVWindowsBindings.implemented.difference(callable), isEmpty);
     });
