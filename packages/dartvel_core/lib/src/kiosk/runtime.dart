@@ -11,6 +11,7 @@ library dartvel.kiosk.runtime;
 
 import 'dart:async';
 
+import '../lifecycle/lifecycle.dart' show DVLifecycleRegistry;
 import 'policy.dart';
 
 /// Where a kiosk is.
@@ -100,6 +101,7 @@ class DVKioskRuntime {
     DateTime Function()? clock,
     Future<void> Function(Set<DVKioskClearable> what)? clear,
     this.tickEvery = const Duration(seconds: 1),
+    this.lifecycle,
   })  : _readSecret = readSecret ?? _noSecrets,
         _clock = clock ?? DateTime.now,
         _clear = clear ?? _nothingToClear,
@@ -117,6 +119,16 @@ class DVKioskRuntime {
 
   /// How often the idle clock is checked while active.
   final Duration tickEvery;
+
+  /// Where `DV.lifecycle.kiosk` lives, when the application wired one: every
+  /// state this runtime enters is mirrored there, so pages observe the
+  /// kiosk the way they observe the app.
+  final DVLifecycleRegistry? lifecycle;
+
+  void _enter(DVKioskState next) {
+    state._set(next);
+    lifecycle?.setKiosk(next);
+  }
 
   /// Observed, never assigned from outside.
   final DVKioskSignal<DVKioskState> state;
@@ -176,12 +188,12 @@ class DVKioskRuntime {
   /// kiosk [DVKioskState.failed] and rethrows -- a half-cleared session
   /// presented as fresh is the one outcome worse than a visible failure.
   Future<DVKioskReset> reset(DVKioskResetReason reason) async {
-    state._set(DVKioskState.resetting);
+    _enter(DVKioskState.resetting);
     countdown._set(null);
     try {
       if (policy.clearOnReset.isNotEmpty) await _clear(policy.clearOnReset);
     } catch (_) {
-      state._set(DVKioskState.failed);
+      _enter(DVKioskState.failed);
       rethrow;
     }
     final DVKioskReset result = DVKioskReset(
@@ -190,7 +202,7 @@ class DVKioskRuntime {
       reason: reason,
     );
     touch();
-    state._set(DVKioskState.active);
+    _enter(DVKioskState.active);
     _resets.add(result);
     return result;
   }
@@ -219,7 +231,7 @@ class DVKioskRuntime {
   /// the declared method.
   Future<void> resume() async {
     if (!policy.enabled) return;
-    state._set(DVKioskState.active);
+    _enter(DVKioskState.active);
     touch();
     _timer ??= Timer.periodic(tickEvery, (_) => unawaited(tick()));
   }
@@ -249,7 +261,7 @@ class DVKioskRuntime {
       _lockedUntil = null;
       _failedAttempts = 0;
       if (state.value == DVKioskState.locked) {
-        state._set(DVKioskState.active);
+        _enter(DVKioskState.active);
       }
     }
 
@@ -278,14 +290,14 @@ class DVKioskRuntime {
       // lock a kiosk out for no reason anyone can see.
       _failedAttempts = 0;
       _lockedUntil = null;
-      state._set(DVKioskState.staffMode);
+      _enter(DVKioskState.staffMode);
       return const DVKioskExitResult(granted: true, message: 'Staff mode.');
     }
 
     _failedAttempts++;
     if (_failedAttempts >= policy.maxAttempts) {
       _lockedUntil = _clock().add(policy.lockoutFor);
-      state._set(DVKioskState.locked);
+      _enter(DVKioskState.locked);
       return const DVKioskExitResult(
         granted: false,
         message: 'Too many attempts. Try again later.',
@@ -343,13 +355,13 @@ class DVKioskRuntime {
       );
     }
 
-    state._set(DVKioskState.resetting);
+    _enter(DVKioskState.resetting);
     final DVKioskReset reset = DVKioskReset(
       cleared: Set<DVKioskClearable>.unmodifiable(policy.clearOnReset),
       home: policy.home,
       reason: reason,
     );
-    state._set(DVKioskState.active);
+    _enter(DVKioskState.active);
     return reset;
   }
 }
