@@ -212,6 +212,49 @@ void main() {
     });
   });
 
+  group('application menu', () {
+    // NSMenu as NSApp's main menu, read back through AppKit and activated
+    // through AppKit, so what is asserted is what a user would see and
+    // click rather than what Dart remembers asking for.
+    tearDown(DVMenus.reset);
+
+    test('the menu ends up as the main menu, with the items asked for', () async {
+      await const DVMenus().setApplicationMenu(const DVApplicationMenu(<DVMenuItem>[
+        DVMenuItem(id: 'file', label: 'File', children: <DVMenuItem>[
+          DVMenuItem(id: 'open', label: 'Open'),
+          DVMenuItem(id: 'export', label: 'Export', enabled: false),
+        ]),
+        DVMenuItem(id: 'help', label: 'Help', children: <DVMenuItem>[DVMenuItem(id: 'about', label: 'About')]),
+      ]));
+
+      expect(DVMacosMenus.mainMenuTitles(), <String>['File', 'Help']);
+    });
+
+    test('activating an item reaches Dart by id', () async {
+      final List<String> selected = <String>[];
+      await const DVMenus().setApplicationMenu(
+        const DVApplicationMenu(<DVMenuItem>[
+          DVMenuItem(id: 'file', label: 'File', children: <DVMenuItem>[DVMenuItem(id: 'open', label: 'Open')]),
+        ]),
+        onSelected: selected.add,
+      );
+
+      DVMacosMenus.performAction(0, 0);
+
+      expect(selected, <String>['open']);
+    });
+
+    test('a second menu replaces the first rather than stacking', () async {
+      await const DVMenus().setApplicationMenu(const DVApplicationMenu(<DVMenuItem>[
+        DVMenuItem(id: 'a', label: 'A', children: <DVMenuItem>[DVMenuItem(id: 'a1', label: 'A1')]),
+      ]));
+      await const DVMenus().setApplicationMenu(const DVApplicationMenu(<DVMenuItem>[
+        DVMenuItem(id: 'b', label: 'B', children: <DVMenuItem>[DVMenuItem(id: 'b1', label: 'B1')]),
+      ]));
+      expect(DVMacosMenus.mainMenuTitles(), <String>['B']);
+    });
+  });
+
   test('an unimplemented binding still throws', () async {
     await expectLater(
       DVNativeBridge.require<bool>(

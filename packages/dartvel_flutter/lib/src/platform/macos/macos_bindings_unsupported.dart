@@ -36,3 +36,13 @@ class DVMacosShortcuts {
   static void pump(Duration slice) {}
   static void unregister() {}
 }
+
+/// The macOS application menu, unavailable here.
+class DVMacosMenus {
+  const DVMacosMenus._();
+
+  static const Set<String> implemented = <String>{'menus.setApplicationMenu'};
+  static List<String> mainMenuTitles() => const <String>[];
+  static void performAction(int topIndex, int childIndex) {}
+  static void unregister() {}
+}
