@@ -13,10 +13,13 @@ import 'dart:io' show Platform;
 import 'package:ffi/ffi.dart';
 
 import '../../../dartvel_flutter.dart' show DVNativeBridge;
+import '../device_runtime.dart';
 import 'windows_capabilities.dart';
+import 'windows_device_ffi.dart';
 import 'windows_kiosk_ffi.dart';
 import 'windows_shortcuts_ffi.dart';
 
+export 'windows_device_ffi.dart' show DVWindowsDeviceProbes;
 export 'windows_kiosk_ffi.dart' show DVWindowsKiosk;
 export 'windows_shortcuts_ffi.dart' show DVWindowsShortcuts;
 
@@ -130,6 +133,8 @@ class DVWindowsBindings {
 
     DVWindowsKiosk.register(DVNativeBridge.register, user32: _user32, kernel32: _kernel32);
     DVWindowsShortcuts.register(DVNativeBridge.register);
+    DVDeviceRuntime.probes = const DVWindowsDeviceProbes();
+    DVDeviceRuntime.register(DVNativeBridge.register);
 
     _registered = true;
     return true;
@@ -139,6 +144,7 @@ class DVWindowsBindings {
     if (_registered) {
       DVWindowsKiosk.release();
       unawaited(DVWindowsShortcuts.unregister());
+      DVDeviceRuntime.unregister();
     }
     for (final name in implemented) {
       DVNativeBridge.unregister(name);

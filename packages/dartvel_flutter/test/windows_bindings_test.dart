@@ -30,6 +30,13 @@ void main() {
           // RegisterHotKey on a pump thread of its own, delivering WM_HOTKEY.
           'shortcuts.register',
           'shortcuts.unregister',
+          // The shared device runtime, reading through this platform's probes.
+          'device.capabilityManifest',
+          'device.health',
+          'device.watchdog.arm',
+          'device.watchdog.heartbeat',
+          'device.fleet.provision',
+          'device.diagnostics.collect',
         },
       );
     });
@@ -58,6 +65,12 @@ void main() {
         'kiosk.release',
         'shortcuts.register',
         'shortcuts.unregister',
+        'device.capabilityManifest',
+        'device.health',
+        'device.watchdog.arm',
+        'device.watchdog.heartbeat',
+        'device.fleet.provision',
+        'device.diagnostics.collect',
         'window.persistState',
         'window.restoreState',
         'notifications.sendLocal',

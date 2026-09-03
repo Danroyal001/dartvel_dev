@@ -22,10 +22,13 @@ import 'dart:io' show Platform;
 import 'package:ffi/ffi.dart';
 
 import '../../../dartvel_flutter.dart' show DVNativeBridge;
+import '../device_runtime.dart';
 import 'macos_capabilities.dart';
+import 'macos_device_ffi.dart';
 import 'macos_kiosk_ffi.dart';
 import 'macos_shortcuts_ffi.dart';
 
+export 'macos_device_ffi.dart' show DVMacosDeviceProbes;
 export 'macos_kiosk_ffi.dart' show DVMacosKiosk;
 export 'macos_shortcuts_ffi.dart' show DVMacosShortcuts;
 
@@ -105,6 +108,8 @@ class DVMacosBindings {
 
     DVMacosKiosk.register(DVNativeBridge.register, objc: _objc);
     DVMacosShortcuts.register(DVNativeBridge.register);
+    DVDeviceRuntime.probes = const DVMacosDeviceProbes();
+    DVDeviceRuntime.register(DVNativeBridge.register);
 
     _registered = true;
     return true;
@@ -114,6 +119,7 @@ class DVMacosBindings {
     if (_registered) {
       DVMacosKiosk.release();
       DVMacosShortcuts.unregister();
+      DVDeviceRuntime.unregister();
     }
     for (final name in implemented) {
       DVNativeBridge.unregister(name);
