@@ -1758,6 +1758,52 @@ void startDartvelKiosk() {
         ..writeln('extension DartvelModules on DVModuleRegistry {}');
       return out.toString();
     }
+    // Typed targets per module, named for the route inside the module
+    // rather than for the mount: the same module mounted elsewhere is the
+    // same page, and a name carrying the mount point would change with it.
+    for (final DVModuleMount m in modules) {
+      if (m.routes.isEmpty) continue;
+      final String className = '${_moduleClass(m.id)}ModuleRoutes';
+      out
+        ..writeln('/// Typed routes for the `${m.id}` module, as this')
+        ..writeln('/// application mounts it.')
+        ..writeln('class $className {')
+        ..writeln('  const $className();')
+        ..writeln();
+      final Map<String, String> claimed = <String, String>{};
+      for (final DVModuleRoute route in m.routes) {
+        final String within = _withinModule(route.mounted, m.mount);
+        final String clean = within.replaceAll(RegExp(r'/:[A-Za-z0-9_]+'), '');
+        final String name = _routeTargetName(clean);
+        final String? previous = claimed[name];
+        if (previous != null && previous != route.mounted) {
+          throw StateError(
+            'Routes $previous and ${route.mounted} both generate '
+            '$className.$name. Rename one of the module\'s page directories '
+            'so the typed targets differ.',
+          );
+        }
+        claimed[name] = route.mounted;
+        final List<String> params = RegExp(r':([A-Za-z0-9_]+)')
+            .allMatches(route.mounted)
+            .map((RegExpMatch match) => match.group(1)!)
+            .toList();
+        if (params.isEmpty) {
+          out.writeln("  DVRouteTarget get $name => const DVRouteTarget('${route.mounted}');");
+        } else {
+          final String signature = params.map((String p) => 'required String $p').join(', ');
+          var interpolated = route.mounted;
+          for (final String p in params) {
+            interpolated = interpolated.replaceFirst(':$p', '\$$p');
+          }
+          out.writeln("  DVRouteTarget $name({$signature}) => DVRouteTarget('$interpolated');");
+        }
+      }
+      out
+        ..writeln('}')
+        ..writeln();
+    }
+
     out
       ..writeln('/// The modules this application mounts, by name.')
       ..writeln('extension DartvelModules on DVModuleRegistry {');
@@ -1767,9 +1813,29 @@ void startDartvelKiosk() {
         ..writeln('  /// The `${m.id}` module, mounted at `${m.mount}`.')
         ..writeln("  DVModule get $getter => this('${m.id}');")
         ..writeln();
+      if (m.routes.isNotEmpty) {
+        out
+          ..writeln('  /// The `${m.id}` module\'s pages, as typed targets.')
+          ..writeln("  ${_moduleClass(m.id)}ModuleRoutes get ${getter}Routes =>")
+          ..writeln('      const ${_moduleClass(m.id)}ModuleRoutes();')
+          ..writeln();
+      }
     }
     out.writeln('}');
     return out.toString();
+  }
+
+  /// [mounted] with the mount point taken off: the route inside the module.
+  static String _withinModule(String mounted, String mount) {
+    if (mount == '/' || !mounted.startsWith(mount)) return mounted;
+    final String within = mounted.substring(mount.length);
+    return within.isEmpty ? '/' : within;
+  }
+
+  /// A class name for a module id.
+  static String _moduleClass(String id) {
+    final String getter = _moduleGetter(id);
+    return getter.isEmpty ? 'Module' : getter[0].toUpperCase() + getter.substring(1);
   }
 
   /// A Dart identifier for a module id.
