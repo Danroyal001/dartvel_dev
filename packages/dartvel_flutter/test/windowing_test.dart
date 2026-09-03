@@ -131,13 +131,16 @@ void main() {
     test('a refusing platform degrades rather than throwing', () async {
       DVWindowManager.capabilityOverride =
           const DVWindowingCapability(multiWindow: true);
+      // A throw is the binding breaking, not the OS declining: the OS's no
+      // arrives as a null answer, tested below. It used to be filed under
+      // platformRefused, which dressed a broken binding up as a full desktop.
       DVNativeBridge.register('window.open', (Object? args) {
-        throw StateError('OS window limit reached');
+        throw StateError('ffi symbol missing');
       });
 
       final win = await manager().open(orders);
 
-      expect(win.degradation, DVWindowDegradation.platformRefused);
+      expect(win.degradation, DVWindowDegradation.bindingRefused);
       expect(win.presentation, DVWindowPresentation.page);
     });
 
