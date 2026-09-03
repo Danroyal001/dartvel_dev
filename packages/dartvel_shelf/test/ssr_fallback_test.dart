@@ -14,7 +14,8 @@ import 'package:dartvel_shelf/src/ssr_helper.dart';
 // URLPattern and Router as well, and the main barrel stopped exporting them
 // when the wire surface moved to http.dart -- so the list was stale and the
 // analyzer said so, while nothing here ever referenced them.
-import 'package:dartvel_core/dartvel.dart' show DVPageData, DVPageDataCache, DVPageRequest, DVPageVisibility, Headers, Request, Response;
+import 'package:dartvel_core/dartvel.dart'
+    show DVCacheAdapter, DVPageData, DVPageDataCache, DVPageRequest, DVPageVisibility, Headers, Request, Response;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -165,6 +166,7 @@ void main() {
     });
   });
   manifestTests();
+  sharedAndDeclaredTests();
 }
 
 // With a web-server manifest beside the shell, the fallback is the page
@@ -233,6 +235,89 @@ void manifestTests() {
       final response = await handleSsrFallback(get('/products/1'), root.path, pageData: resolver, cache: cache);
       expect(asked, 1);
       expect(utf8.decode(await bytesOf(response)), contains('<title>Product 1</title>'));
+    });
+  });
+}
+
+/// One store two backends share, standing in for redis.
+class SharedStore implements DVCacheAdapter {
+  final Map<String, Object?> values = <String, Object?>{};
+
+  @override
+  Future<Object?> read(String key) async => values[key];
+
+  @override
+  Future<void> write(String key, Object? value, Duration? ttl) async => values[key] = value;
+
+  @override
+  Future<void> remove(String key) async => values.remove(key);
+
+  @override
+  Future<void> clear() async => values.clear();
+
+  @override
+  Future<int> purgeExpired() async => 0;
+}
+
+// The manifest says how long a page is kept and where. Both were ignored
+// here: the fallback built one cache with the default ttl and kept every
+// page in the process, so two backends resolved everything twice and a
+// declaration of five minutes lasted sixty seconds.
+void sharedAndDeclaredTests() {
+  group('the kept pages', () {
+    late Directory root;
+    setUp(() {
+      root = Directory.systemTemp.createTempSync('dartvel-ssr-shared-');
+      File(p.join(root.path, 'index.html'))
+          .writeAsStringSync('<html><head><title>Default</title></head><body><div id="app"></div></body></html>');
+      File(p.join(root.path, 'dartvel_routes.json')).writeAsStringSync(jsonEncode(<String, Object?>{
+        'server': <String, Object?>{'pageDataMode': 'cache', 'cacheTtlSeconds': 300},
+        'routes': <String, Object?>{'/products/:id': <String, Object?>{'title': 'A product', 'text': <String>[]}},
+      }));
+    });
+    tearDown(() => root.deleteSync(recursive: true));
+
+    test('a second backend serves what the first kept', () async {
+      final SharedStore store = SharedStore();
+      var asked = 0;
+      Future<DVPageData?> resolver(DVPageRequest r) async {
+        asked++;
+        return DVPageData(title: 'Product $asked');
+      }
+
+      final response = await handleSsrFallback(get('/products/1'), root.path,
+          pageData: resolver, pageStore: store, cache: DVPageDataCache(ttl: const Duration(minutes: 5), shared: store));
+      expect(utf8.decode(await bytesOf(response)), contains('<title>Product 1</title>'));
+
+      // A different backend: its own cache object, the same store.
+      final second = await handleSsrFallback(get('/products/1'), root.path,
+          pageData: resolver, pageStore: store, cache: DVPageDataCache(ttl: const Duration(minutes: 5), shared: store));
+      expect(utf8.decode(await bytesOf(second)), contains('<title>Product 1</title>'));
+      expect(asked, 1, reason: 'the second backend found the page in the shared store');
+    });
+
+    test('the declaration says how long a page is kept, not the default', () async {
+      // Kept for five minutes by the manifest. A cache built with the
+      // default sixty seconds would resolve again at two minutes.
+      final SharedStore store = SharedStore();
+      var asked = 0;
+      Future<DVPageData?> resolver(DVPageRequest r) async {
+        asked++;
+        return DVPageData(title: 'Product $asked');
+      }
+
+      await handleSsrFallback(get('/products/1'), root.path, pageData: resolver, pageStore: store);
+      final Map<String, Object?> kept =
+          jsonDecode('${store.values.values.first}') as Map<String, Object?>;
+      // Written back an hour ago: still fresh under a five-minute ttl only
+      // if the declaration was read.
+      kept['at'] = DateTime.now().toUtc().subtract(const Duration(minutes: 2)).toIso8601String();
+      store.values.updateAll((String key, Object? value) => jsonEncode(kept));
+
+      final response = await handleSsrFallback(get('/products/1'), root.path, pageData: resolver, pageStore: store);
+
+      expect(utf8.decode(await bytesOf(response)), contains('<title>Product 1</title>'));
+      expect(asked, 1);
     });
   });
 }

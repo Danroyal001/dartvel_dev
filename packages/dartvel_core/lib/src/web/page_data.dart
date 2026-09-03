@@ -10,6 +10,7 @@ library;
 import 'dart:async';
 import 'dart:convert';
 
+import '../cache/adapters.dart';
 import 'page_text.dart';
 import 'seo_head.dart';
 
@@ -33,12 +34,21 @@ class DVWebServerSettings {
   const DVWebServerSettings({
     this.pageDataMode = DVPageDataMode.await_,
     this.cacheTtl = const Duration(seconds: 60),
+    Duration? staleFor,
     this.streaming = false,
     this.cache,
-  });
+  }) : _staleFor = staleFor;
 
   final DVPageDataMode pageDataMode;
   final Duration cacheTtl;
+
+  final Duration? _staleFor;
+
+  /// How long past the ttl a kept page may still be served while it is
+  /// refreshed behind the response. The ttl again unless the declaration
+  /// says otherwise: a stale window of nothing makes
+  /// stale-while-revalidate mean the same as awaiting.
+  Duration get staleFor => _staleFor ?? cacheTtl;
 
   /// The head first, the text after: a crawler and a person both see the
   /// title before the data is done.
@@ -61,9 +71,11 @@ class DVWebServerSettings {
   static DVWebServerSettings parse(Object? section) {
     final Map<Object?, Object?> m = section is Map ? section : const <Object?, Object?>{};
     final Object? ttl = m['cacheTtlSeconds'];
+    final Object? stale = m['staleForSeconds'];
     return DVWebServerSettings(
       pageDataMode: _modes['${m['pageDataMode'] ?? 'await'}'] ?? DVPageDataMode.await_,
       cacheTtl: ttl is num ? Duration(seconds: ttl.toInt()) : const Duration(seconds: 60),
+      staleFor: stale is num ? Duration(seconds: stale.toInt()) : null,
       streaming: m['streaming'] == true,
       cache: m['cache'] is String ? m['cache']! as String : null,
     );
@@ -72,6 +84,7 @@ class DVWebServerSettings {
   Map<String, Object?> toJson() => <String, Object?>{
         'pageDataMode': _name(pageDataMode),
         'cacheTtlSeconds': cacheTtl.inSeconds,
+        'staleForSeconds': staleFor.inSeconds,
         'streaming': streaming,
         if (cache != null) 'cache': cache,
       };
@@ -117,6 +130,41 @@ class DVPageData {
   /// JSON-LD, written as the page's structured data.
   final Map<String, Object?>? structuredData;
   final DVPageVisibility visibility;
+
+  /// The page as JSON, for a cache shared between servers.
+  Map<String, Object?> toJson() => <String, Object?>{
+        'title': title,
+        if (description != null) 'description': description,
+        if (image != null) 'image': image,
+        if (favicon != null) 'favicon': favicon,
+        if (text.isNotEmpty) 'text': text,
+        if (structuredData != null) 'structuredData': structuredData,
+        if (visibility != DVPageVisibility.public) 'visibility': visibility.name,
+      };
+
+  /// A page from what [toJson] wrote. Throws [FormatException] for anything
+  /// that is not one, so a cache holding something else is ignored rather
+  /// than served as a page with no title.
+  factory DVPageData.fromJson(Map<String, Object?> json) {
+    final Object? title = json['title'];
+    if (title is! String) {
+      throw const FormatException('a kept page has no title, so it is not a page');
+    }
+    return DVPageData(
+      title: title,
+      description: json['description'] as String?,
+      image: json['image'] as String?,
+      favicon: json['favicon'] as String?,
+      text: <String>[for (final Object? line in (json['text'] as List?) ?? const <Object?>[]) '$line'],
+      structuredData: json['structuredData'] is Map
+          ? (json['structuredData']! as Map).cast<String, Object?>()
+          : null,
+      visibility: DVPageVisibility.values.firstWhere(
+        (DVPageVisibility v) => v.name == json['visibility'],
+        orElse: () => DVPageVisibility.public,
+      ),
+    );
+  }
 }
 
 typedef DVPageDataResolver = FutureOr<DVPageData?> Function(DVPageRequest request);
@@ -231,19 +279,60 @@ String dvApplyPageExtras(String html, DVPageData data) {
 }
 
 class _Kept {
-  _Kept(this.data, this.at);
+  const _Kept(this.data, this.at);
   final DVPageData? data;
   final DateTime at;
-  bool refreshing = false;
+
+  Map<String, Object?> toJson() => <String, Object?>{
+        'at': at.toUtc().toIso8601String(),
+        'data': data?.toJson(),
+      };
+
+  static _Kept fromJson(Map<String, Object?> json) {
+    final DateTime? at = DateTime.tryParse('${json['at']}');
+    if (at == null) throw const FormatException('a kept page does not say when it was kept');
+    final Object? data = json['data'];
+    return _Kept(data is Map ? DVPageData.fromJson(data.cast<String, Object?>()) : null, at);
+  }
 }
 
 /// The kept pages the modes work on: one per path, with when it was kept.
+///
+/// In this process by default. Given a [shared] store -- any DVCacheAdapter,
+/// so redis on a deployment that has one -- the pages go there instead, and
+/// the next server serves what this one kept rather than resolving every
+/// page for itself. A page is fresh for [ttl] and servable stale for
+/// [staleFor] after that; past both it is gone rather than served as a page
+/// from an hour ago.
 class DVPageDataCache {
-  DVPageDataCache({this.ttl = const Duration(seconds: 60), DateTime Function()? now}) : _now = now ?? DateTime.now;
+  DVPageDataCache({
+    this.ttl = const Duration(seconds: 60),
+    Duration? staleFor,
+    DateTime Function()? now,
+    this.shared,
+    this.prefix = 'dv:page:',
+  })  : staleFor = staleFor ?? ttl,
+        _now = now ?? DateTime.now;
 
   final Duration ttl;
+
+  /// How long past [ttl] a page may still be served while it is refreshed.
+  final Duration staleFor;
+
+  /// Where the pages are kept, when they are not kept in this process.
+  final DVCacheAdapter? shared;
+
+  /// What the shared store's keys begin with, so pages cannot collide with
+  /// whatever else the application keeps there.
+  final String prefix;
+
   final DateTime Function() _now;
   final Map<String, _Kept> _kept = <String, _Kept>{};
+
+  /// Paths this process is already refreshing, so one server does not ask
+  /// the database twice for the same stale page. Two servers may each
+  /// refresh once, which costs one query and no correctness.
+  final Set<String> _refreshing = <String>{};
 
   /// The data for [request] by [mode]: resolved, kept, served stale, or not
   /// asked for at all.
@@ -252,26 +341,66 @@ class DVPageDataCache {
     if (mode == DVPageDataMode.await_) return resolver(request);
 
     final String key = request.path;
-    final _Kept? have = _kept[key];
-    final bool fresh = have != null && _now().difference(have.at) <= ttl;
-    if (have != null && fresh) return have.data;
+    final _Kept? have = await _read(key);
+    if (have != null && _now().difference(have.at) <= ttl) return have.data;
     if (mode == DVPageDataMode.staleWhileRevalidate && have != null) {
-      if (!have.refreshing) {
-        have.refreshing = true;
-        unawaited(Future<DVPageData?>.value(resolver(request)).then((DVPageData? data) {
-          _kept[key] = _Kept(data, _now());
-        }).catchError((Object _) {
-          have.refreshing = false;
-        }));
+      if (_refreshing.add(key)) {
+        unawaited(Future<DVPageData?>.value(resolver(request)).then((DVPageData? data) async {
+          await _write(key, data);
+        }).whenComplete(() => _refreshing.remove(key)));
       }
       return have.data;
     }
     final DVPageData? data = await resolver(request);
-    _kept[key] = _Kept(data, _now());
+    await _write(key, data);
     return data;
   }
 
-  void clear() => _kept.clear();
+  /// The kept page for [key], or null when there is none, when it is too
+  /// old even to be stale, or when what is there is not a page.
+  Future<_Kept?> _read(String key) async {
+    final DVCacheAdapter? store = shared;
+    _Kept? kept;
+    if (store == null) {
+      kept = _kept[key];
+    } else {
+      final Object? raw = await store.read('$prefix$key');
+      if (raw == null) return null;
+      try {
+        final Object? decoded = jsonDecode('$raw');
+        if (decoded is! Map) return null;
+        kept = _Kept.fromJson(decoded.cast<String, Object?>());
+      } on FormatException {
+        // Something else is under this key. Ignored rather than served.
+        return null;
+      }
+    }
+    if (kept == null) return null;
+    return _now().difference(kept.at) > ttl + staleFor ? null : kept;
+  }
+
+  Future<void> _write(String key, DVPageData? data) async {
+    final _Kept kept = _Kept(data, _now());
+    final DVCacheAdapter? store = shared;
+    if (store == null) {
+      _kept[key] = kept;
+      return;
+    }
+    // Kept past the ttl so it can be served stale while it is refreshed;
+    // an entry that expired on the ttl would leave nothing to serve.
+    //
+    // A lifetime of nothing is a page that cannot be kept, and a store is
+    // entitled to refuse one -- Redis answers "invalid expire time" -- so
+    // it is not written rather than written wrong.
+    final Duration lifetime = ttl + staleFor;
+    if (lifetime <= Duration.zero) return;
+    await store.write('$prefix$key', jsonEncode(kept.toJson()), lifetime);
+  }
+
+  void clear() {
+    _kept.clear();
+    _refreshing.clear();
+  }
 }
 
 /// What a generated model's public page is made from: where its rows are

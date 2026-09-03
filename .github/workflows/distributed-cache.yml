@@ -78,3 +78,11 @@ jobs:
         env:
           DARTVEL_REDIS_NODES: 127.0.0.1:6379,127.0.0.1:6380
         run: dart test test/distributed_cache_live_test.dart
+
+      # The web server's kept pages, in Redis rather than in one process.
+      # Two connections stand in for two servers behind one address: the
+      # second must serve the page the first resolved, whole, and let it go
+      # when its ttl and stale window are past.
+      - name: The shared page cache
+        working-directory: packages/dartvel_core
+        run: dart test test/web/page_cache_redis_live_test.dart

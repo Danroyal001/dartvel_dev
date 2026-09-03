@@ -11,6 +11,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dartvel_cli/src/build/web_server.dart';
+import 'package:dartvel_core/dartvel.dart' show DVCacheAdapter;
 import 'package:path/path.dart' as p;
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:test/test.dart';
@@ -52,6 +53,7 @@ void main() {
     required DVPageDataResolver resolver,
     DVPageDataMode mode = DVPageDataMode.await_,
     Duration cacheTtl = const Duration(seconds: 60),
+    Duration? staleFor,
     bool streaming = false,
   }) async {
     server = await shelf_io.serve(
@@ -63,6 +65,7 @@ void main() {
         },
         pageDataMode: mode,
         cacheTtl: cacheTtl,
+        staleFor: staleFor,
         streaming: streaming,
       ),
       InternetAddress.loopbackIPv4,
@@ -169,6 +172,9 @@ void main() {
         resolver: (DVPageRequest r) async => DVPageData(title: 'v${++version}'),
         mode: DVPageDataMode.staleWhileRevalidate,
         cacheTtl: Duration.zero,
+        // Stale at once, and servable stale while it is refreshed. A stale
+        // window of nothing is a page that cannot be kept at all.
+        staleFor: const Duration(minutes: 5),
       );
       expect(await get('/products/1'), contains('<title>v1</title>'));
       // Stale now; served as v1 while v2 is resolved.
@@ -202,9 +208,86 @@ void main() {
       siteUrl: null,
       server: const DVWebServerSettings(pageDataMode: DVPageDataMode.staleWhileRevalidate, cacheTtl: Duration(seconds: 30), streaming: true),
     )) as Map<String, Object?>;
-    expect(manifest['server'], <String, Object?>{'pageDataMode': 'stale-while-revalidate', 'cacheTtlSeconds': 30, 'streaming': true});
+    expect(manifest['server'], <String, Object?>{
+      'pageDataMode': 'stale-while-revalidate',
+      'cacheTtlSeconds': 30,
+      'staleForSeconds': 30,
+      'streaming': true,
+    });
     final DVWebServerSettings parsed = DVWebServerSettings.parse(<String, Object?>{'pageDataMode': 'cache', 'cache': 'redis', 'streaming': false});
     expect(parsed.pageDataMode, DVPageDataMode.cache);
     expect(parsed.cache, 'redis');
+  });
+  sharedPagesTests();
+}
+
+/// One store two servers share, standing in for redis.
+class SharedStore implements DVCacheAdapter {
+  final Map<String, Object?> values = <String, Object?>{};
+
+  @override
+  Future<Object?> read(String key) async => values[key];
+
+  @override
+  Future<void> write(String key, Object? value, Duration? ttl) async => values[key] = value;
+
+  @override
+  Future<void> remove(String key) async => values.remove(key);
+
+  @override
+  Future<void> clear() async => values.clear();
+
+  @override
+  Future<int> purgeExpired() async => 0;
+}
+
+// Two servers behind one address is the ordinary deployment, and each was
+// resolving every page for itself: `cache: redis` in the declaration was
+// carried into the manifest and then ignored. Given a store, the second
+// server serves what the first kept.
+void sharedPagesTests() {
+  test('a second server serves the page the first kept', () async {
+    final Directory root = await Directory.systemTemp.createTemp('dartvel_shared_pages_');
+    addTearDown(() => root.deleteSync(recursive: true));
+    File(p.join(root.path, 'index.html')).writeAsStringSync(_shell);
+    File(p.join(root.path, 'dartvel_routes.json')).writeAsStringSync(_manifest);
+
+    final SharedStore store = SharedStore();
+    var asked = 0;
+    Future<DVPageData?> resolver(DVPageRequest r) async {
+      asked++;
+      return DVPageData(title: 'Product $asked');
+    }
+
+    final List<HttpServer> servers = <HttpServer>[];
+    for (var i = 0; i < 2; i++) {
+      servers.add(await shelf_io.serve(
+        dvWebServerHandler(
+          webRoot: root.path,
+          pageData: resolver,
+          pageDataMode: DVPageDataMode.cache,
+          pageStore: store,
+        ),
+        InternetAddress.loopbackIPv4,
+        0,
+      ));
+    }
+    addTearDown(() async {
+      for (final HttpServer s in servers) {
+        await s.close(force: true);
+      }
+    });
+
+    Future<String> fetchFrom(HttpServer server) async {
+      final HttpClient client = HttpClient();
+      final HttpClientRequest request =
+          await client.getUrl(Uri.parse('http://${server.address.host}:${server.port}/products/9'));
+      final HttpClientResponse response = await request.close();
+      return response.transform(utf8.decoder).join();
+    }
+
+    expect(await fetchFrom(servers.first), contains('<title>Product 1</title>'));
+    expect(await fetchFrom(servers.last), contains('<title>Product 1</title>'));
+    expect(asked, 1, reason: 'the second server found the page in the shared store');
   });
 }
