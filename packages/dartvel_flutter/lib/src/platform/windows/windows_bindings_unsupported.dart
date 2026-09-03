@@ -26,7 +26,7 @@ class DVWindowsKiosk {
   static bool confined = false;
   static const Set<String> implemented = <String>{'kiosk.enforce', 'kiosk.release'};
   static List<String> get held => const <String>[];
-  static void release() {}
+  static Future<void> release() async {}
 }
 
 /// The Windows global shortcuts, unavailable here.
@@ -34,5 +34,7 @@ class DVWindowsShortcuts {
   const DVWindowsShortcuts._();
 
   static const Set<String> implemented = <String>{'shortcuts.register', 'shortcuts.unregister'};
+  static int? get debugPumpThread => null;
+  static int? debugNumericId(String id) => null;
   static Future<void> unregister() async {}
 }

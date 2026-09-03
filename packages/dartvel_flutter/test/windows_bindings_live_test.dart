@@ -228,20 +228,42 @@ void main() {
       }
     });
 
-    test('a pressed shortcut reaches its handler by id', () async {
+    test('WM_HOTKEY on the pump\'s queue reaches the handler by id', () async {
+      // What Win32 does when the combo is pressed: a WM_HOTKEY carrying the
+      // hot-key id, on the queue of the thread that registered it. Posted
+      // here, so the dispatch path is proven whether or not the session can
+      // synthesise input.
       var pressed = 0;
-      try {
-        await const DVShortcuts().register(
-          const DVGlobalShortcut(id: 'capture', accelerator: 'Ctrl+Alt+F9'),
-          onPressed: () => pressed++,
-        );
-      } on StateError catch (e) {
-        if (e.message.contains('error 1459')) {
-          markTestSkipped('this session has no interactive window station: ${e.message}');
-          return;
-        }
-        rethrow;
+      await const DVShortcuts().register(
+        const DVGlobalShortcut(id: 'capture', accelerator: 'Ctrl+Alt+F9'),
+        onPressed: () => pressed++,
+      );
+      final Future<String> arrived = const DVShortcuts().pressed.first.timeout(const Duration(seconds: 10));
+
+      final postThreadMessage = DynamicLibrary.open('user32.dll').lookupFunction<
+          Int32 Function(Uint32, Uint32, IntPtr, IntPtr),
+          int Function(int, int, int, int)>('PostThreadMessageW');
+      expect(
+        postThreadMessage(DVWindowsShortcuts.debugPumpThread!, 0x0312, DVWindowsShortcuts.debugNumericId('capture')!, 0),
+        isNot(0),
+      );
+
+      expect(await arrived, 'capture');
+      expect(pressed, 1);
+    });
+
+    test('a synthesised press reaches the handler, where the session can take input', () async {
+      final int foreground =
+          DynamicLibrary.open('user32.dll').lookupFunction<IntPtr Function(), int Function()>('GetForegroundWindow')();
+      if (foreground == 0) {
+        markTestSkipped('no foreground window: this session cannot deliver synthesised input, so only the queue path above is proven');
+        return;
       }
+      var pressed = 0;
+      await const DVShortcuts().register(
+        const DVGlobalShortcut(id: 'capture', accelerator: 'Ctrl+Alt+F9'),
+        onPressed: () => pressed++,
+      );
       final Future<String> arrived = const DVShortcuts().pressed.first.timeout(const Duration(seconds: 10));
 
       sendKeys(<int>[0x11, 0x12, 0x78]); // VK_CONTROL, VK_MENU, VK_F9

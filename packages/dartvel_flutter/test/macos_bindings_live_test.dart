@@ -19,6 +19,11 @@ final DynamicLibrary _cg = DynamicLibrary.open('/System/Library/Frameworks/CoreG
 final DynamicLibrary _appServices =
     DynamicLibrary.open('/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices');
 
+/// Whether the isolate runs on the process's main thread, which is the one
+/// whose run loop Carbon delivers hot-key events to.
+bool get onMainThread =>
+    DynamicLibrary.process().lookupFunction<Int32 Function(), int Function()>('pthread_main_np')() != 0;
+
 /// Whether this process may synthesise input: CGEventPost is silently dropped
 /// without the Accessibility grant, which a runner may or may not hold.
 bool get trusted =>
@@ -151,6 +156,10 @@ void main() {
         const DVGlobalShortcut(id: 'capture', accelerator: 'Ctrl+Option+F9'),
         onPressed: () => pressed++,
       );
+      if (!onMainThread) {
+        markTestSkipped('the test isolate is not on the main thread, so the run loop pumped here is not the one Carbon delivers hot keys to; registration and refusal above are what this host proves');
+        return;
+      }
       if (!trusted) {
         markTestSkipped('this process has no Accessibility grant, so a synthesised press is dropped before it reaches anyone');
         return;

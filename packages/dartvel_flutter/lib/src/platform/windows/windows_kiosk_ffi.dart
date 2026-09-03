@@ -4,22 +4,24 @@
 ///
 /// A registered hot key is routed to its owner as WM_HOTKEY instead of
 /// reaching the shell, which is what blocking Alt+F4 or Ctrl+Esc means. The
-/// system refuses some: Ctrl+Alt+Delete is the secure attention sequence and
-/// Win+L is reserved, so those come back unenforced with Win32's reason
-/// rather than as a claim -- reduced enforcement is a fact for the operator.
-/// Focus Assist has no public API, so notifications are never claimed held.
+/// combos ride the same pump the global shortcuts use, under ids of their
+/// own, because Win32 delivers WM_HOTKEY to the registering thread's queue
+/// and refuses a registration from a thread that has none. The system
+/// refuses some: Ctrl+Alt+Delete is the secure attention sequence and Win+L
+/// is reserved, so those come back unenforced with Win32's reason rather
+/// than as a claim -- reduced enforcement is a fact for the operator. Focus
+/// Assist has no public API, so notifications are never claimed held.
 library;
 
+import 'dart:async';
 import 'dart:ffi';
 
 import 'package:ffi/ffi.dart';
 
+import '../../../dartvel_flutter.dart' show DVGlobalShortcut, DVShortcuts;
+import '../../kiosk/kiosk.dart' show DVKiosk;
 import '../accelerator.dart';
 
-typedef _RegisterHotKeyNative = Int32 Function(IntPtr hWnd, Int32 id, Uint32 modifiers, Uint32 vk);
-typedef _RegisterHotKeyDart = int Function(int hWnd, int id, int modifiers, int vk);
-typedef _UnregisterHotKeyNative = Int32 Function(IntPtr hWnd, Int32 id);
-typedef _UnregisterHotKeyDart = int Function(int hWnd, int id);
 typedef _ClipCursorNative = Int32 Function(Pointer<_Rect> rect);
 typedef _ClipCursorDart = int Function(Pointer<_Rect> rect);
 typedef _GetWindowRectNative = Int32 Function(IntPtr hWnd, Pointer<_Rect> rect);
@@ -64,12 +66,8 @@ const int _wsVisible = 0x10000000;
 const int _swpFrameChanged = 0x0020;
 const int _swpShowWindow = 0x0040;
 
-/// Hot-key ids are per thread and 0x0000-0xBFFF are the application's; the
-/// kiosk takes a block of its own so a global shortcut's id cannot collide.
-const int _firstId = 0x9000;
-
-/// `ERROR_HOTKEY_ALREADY_REGISTERED`.
-const int _errorAlreadyRegistered = 1409;
+/// The shortcut ids the kiosk holds its combos under.
+const String _prefix = 'dv.kiosk:';
 
 class DVWindowsKiosk {
   const DVWindowsKiosk._();
@@ -77,9 +75,8 @@ class DVWindowsKiosk {
   static late DynamicLibrary _user32;
   static late DynamicLibrary _kernel32;
 
-  /// Hot-key id per combo held.
-  static final Map<String, int> _held = <String, int>{};
-  static int _nextId = _firstId;
+  /// The combos held, canonical.
+  static final List<String> _held = <String>[];
 
   /// Why the last pointer confinement was refused, for the operator and the
   /// test.
@@ -144,20 +141,20 @@ class DVWindowsKiosk {
   }
 
   static void register(
-    void Function(String, Object? Function(Object?)) bind, {
+    void Function(String, FutureOr<Object?> Function(Object?)) bind, {
     required DynamicLibrary user32,
     required DynamicLibrary kernel32,
   }) {
     _user32 = user32;
     _kernel32 = kernel32;
-    bind('kiosk.enforce', (Object? arguments) {
+    bind('kiosk.enforce', (Object? arguments) async {
       final Map<Object?, Object?> map = arguments is Map ? arguments : const <Object?, Object?>{};
-      release();
+      await release();
       final List<String> blocked = <String>[];
       final Map<String, String> unenforced = <String, String>{};
       for (final Object? raw in (map['combos'] as List?) ?? const <Object?>[]) {
         final String text = '$raw';
-        final String? refusal = _hold(text);
+        final String? refusal = await _hold(text);
         if (refusal == null) {
           blocked.add(text);
         } else {
@@ -179,34 +176,32 @@ class DVWindowsKiosk {
         'notificationsSuppressed': false,
       };
     });
-    bind('kiosk.release', (Object? _) {
-      release();
+    bind('kiosk.release', (Object? _) async {
+      await release();
       return true;
     });
   }
 
-  /// Holds [text] as a hot key. Null when held; else why not.
-  static String? _hold(String text) {
+  /// Holds [text] as a hot key on the shortcut pump. Null when held; else
+  /// why not.
+  static Future<String?> _hold(String text) async {
     final DVAccelerator combo;
     try {
       combo = DVAccelerator.parse(text);
     } on FormatException catch (e) {
       return e.message;
     }
-    final int? vk = virtualKeyFor(combo.key);
-    if (vk == null) return 'no Win32 virtual key named "${combo.key}"';
     final String canonical = combo.canonical;
-    if (_held.containsKey(canonical)) return null;
-
-    final registerHotKey =
-        _user32.lookupFunction<_RegisterHotKeyNative, _RegisterHotKeyDart>('RegisterHotKey');
-    final int id = _nextId++;
-    if (registerHotKey(0, id, modifiersFor(combo), vk) == 0) {
-      final int error = _lastError();
-      return 'RegisterHotKey refused (Win32 error $error'
-          '${error == _errorAlreadyRegistered ? ', already registered by another window' : ''})';
+    if (_held.contains(canonical)) return null;
+    try {
+      await const DVShortcuts().register(
+        DVGlobalShortcut(id: '$_prefix$canonical', accelerator: canonical),
+        onPressed: () => DVKiosk.reportBlocked(text),
+      );
+    } on StateError catch (e) {
+      return e.message;
     }
-    _held[canonical] = id;
+    _held.add(canonical);
     return null;
   }
 
@@ -263,11 +258,9 @@ class DVWindowsKiosk {
   }
 
   /// Lets go of every hot key and the pointer.
-  static void release() {
-    final unregisterHotKey =
-        _user32.lookupFunction<_UnregisterHotKeyNative, _UnregisterHotKeyDart>('UnregisterHotKey');
-    for (final int id in _held.values) {
-      unregisterHotKey(0, id);
+  static Future<void> release() async {
+    for (final String canonical in List<String>.of(_held)) {
+      await const DVShortcuts().unregister('$_prefix$canonical');
     }
     _held.clear();
     if (confined) {
@@ -277,5 +270,5 @@ class DVWindowsKiosk {
   }
 
   /// Every combo currently held, canonical.
-  static List<String> get held => List<String>.unmodifiable(_held.keys);
+  static List<String> get held => List<String>.unmodifiable(_held);
 }
