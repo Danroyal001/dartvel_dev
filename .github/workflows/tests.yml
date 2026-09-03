@@ -313,6 +313,13 @@ jobs:
       - name: Run the Win32 suite
         working-directory: packages/dartvel_flutter
         run: flutter test test/windows_bindings_live_test.dart
+      # The application key sealed with DPAPI: the store the spec's table
+      # names for Windows, exercised on Windows rather than skipped.
+      - name: The DPAPI key store
+        working-directory: packages/dartvel_core
+        run: |
+          dart pub get
+          dart test test/app_key_store_test.dart
 
   # The Objective-C bindings can only be exercised on macOS. A mistyped message
   # signature does not fail to compile — it corrupts the stack or returns
@@ -341,6 +348,13 @@ jobs:
       - name: Run the macOS suite
         working-directory: packages/dartvel_flutter
         run: flutter test test/macos_bindings_live_test.dart
+      # The application key in the Keychain: the store the spec's table names
+      # for macOS, exercised on macOS rather than skipped.
+      - name: The Keychain key store
+        working-directory: packages/dartvel_core
+        run: |
+          dart pub get
+          dart test test/app_key_store_test.dart
 
   spec:
     name: spec-status index

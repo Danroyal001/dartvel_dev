@@ -6,6 +6,7 @@
 // key round-trips, clears, and is not readable by anyone else; the Secret
 // Service store keeps accounts apart; and the choice between them is made
 // on what actually answers, not on what the platform is called.
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -134,11 +135,65 @@ void main() {
       expect(DVAppKeyStores.describe(without), contains('/home/ada/.dartvel/keys/shop.key'));
     });
 
-    test('other platforms fall back to the file store, and say so', () {
+    test('Windows is DPAPI and macOS is the Keychain, whatever else answers', () {
+      final DVAppKeyStore windows = DVAppKeyStores.choose(
+          app: 'shop', home: r'C:\Users\ada', platform: 'windows', secretService: false);
+      expect(windows, isA<DVDpapiAppKeyStore>());
+      expect(DVAppKeyStores.describe(windows), contains('DPAPI'));
+      final DVAppKeyStore mac = DVAppKeyStores.choose(
+          app: 'shop', home: '/Users/ada', platform: 'macos', secretService: true);
+      expect(mac, isA<DVKeychainAppKeyStore>());
+      expect(DVAppKeyStores.describe(mac), contains('Keychain'));
+    });
+
+    test('platforms with no custody of their own fall back to the file store, and say so', () {
       final DVAppKeyStore store = DVAppKeyStores.choose(
-          app: 'shop', home: '/Users/ada', platform: 'macos', secretService: false);
+          app: 'shop', home: '/home/ada', platform: 'fuchsia', secretService: false);
       expect(store, isA<DVFileAppKeyStore>());
       expect(DVAppKeyStores.describe(store), contains('file'));
     });
+  });
+
+  group('the DPAPI store', () {
+    test('round-trips, clears, and keeps nothing readable on disk', () async {
+      if (!Platform.isWindows) {
+        markTestSkipped('DPAPI is Windows');
+        return;
+      }
+      final Directory dir = Directory.systemTemp.createTempSync('dv_dpapi_');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final DVDpapiAppKeyStore store = DVDpapiAppKeyStore('${dir.path}\\app.key');
+      expect(await store.read(), isNull);
+      await store.write(key(7));
+      expect(await store.read(), key(7));
+      final List<int> onDisk = File('${dir.path}\\app.key').readAsBytesSync();
+      expect(onDisk, isNot(equals(key(7))), reason: 'the blob is protected, not the key');
+      expect(String.fromCharCodes(onDisk), isNot(contains(base64Encode(key(7)))));
+      await store.clear();
+      expect(await store.read(), isNull);
+    }, testOn: 'windows');
+  });
+
+  group('the Keychain store', () {
+    test('round-trips, clears, and keeps accounts apart', () async {
+      if (!Platform.isMacOS) {
+        markTestSkipped('the Keychain is macOS');
+        return;
+      }
+      final DVKeychainAppKeyStore a = DVKeychainAppKeyStore(service: 'dartvel-test', account: 'a-$pid');
+      final DVKeychainAppKeyStore b = DVKeychainAppKeyStore(service: 'dartvel-test', account: 'b-$pid');
+      addTearDown(a.clear);
+      addTearDown(b.clear);
+      expect(await a.read(), isNull);
+      await a.write(key(8));
+      await b.write(key(9));
+      expect(await a.read(), key(8));
+      expect(await b.read(), key(9));
+      await a.write(key(10));
+      expect(await a.read(), key(10), reason: 'writing again replaces');
+      await a.clear();
+      expect(await a.read(), isNull);
+      expect(await b.read(), key(9));
+    }, testOn: 'mac-os');
   });
 }
