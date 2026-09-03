@@ -389,6 +389,28 @@ jobs:
         working-directory: packages/dartvel_core
         run: dart test test/single_instance_process_test.dart
 
+  # The site is a Flutter application like any other, and nothing analysed
+  # it: a syntax error in it reached CI as a failed *runtime* job twenty
+  # minutes in, having built the whole world first. This is the same fault in
+  # two minutes.
+  site:
+    name: site
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Resolve dependencies
+        working-directory: sites/dartvel_site
+        run: flutter pub get
+      - name: Analyze
+        working-directory: sites/dartvel_site
+        run: flutter analyze lib
+
   spec:
     name: spec-status index
     runs-on: ubuntu-latest
