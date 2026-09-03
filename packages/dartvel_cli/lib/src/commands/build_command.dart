@@ -1561,15 +1561,36 @@ class BuildCommand extends Command<void> {
       ));
     }
 
-    if (findings.isEmpty) {
-      Logger.log('   Accessibility: ${routes.length} route(s), nothing to fix.');
+    // A documented waiver sets a finding aside; a waiver with no reason, or
+    // one naming a rule the audit does not have, is refused as configuration.
+    final DVA11yWaivers waivers = DVA11yWaivers.parse(_dartvelSection(root));
+    for (final String problem in waivers.problems) {
+      Logger.error('   $problem');
+    }
+    if (waivers.problems.isNotEmpty) {
+      Logger.log('❌ accessibility waivers');
+      exit(1);
+    }
+    final DVA11yVerdict verdict = waivers.apply(findings);
+
+    for (final DVA11yFinding finding in verdict.waived) {
+      Logger.log('   waived: $finding');
+    }
+    for (final DVA11yWaiver waiver in verdict.unused) {
+      // Either a typo or a finding since fixed; either way not for ever.
+      Logger.log('   ⚠ waiver matched nothing: ${waiver.route} ${waiver.rule} '
+          '(${waiver.reason})');
+    }
+    if (verdict.ok) {
+      Logger.log('   Accessibility: ${routes.length} route(s), '
+          '${verdict.waived.isEmpty ? 'nothing to fix' : '${verdict.waived.length} waived'}.');
       return;
     }
 
-    for (final DVA11yFinding finding in findings) {
+    for (final DVA11yFinding finding in verdict.failing) {
       Logger.error('   $finding');
     }
-    Logger.log('❌ ${findings.length} accessibility finding(s)');
+    Logger.log('❌ ${verdict.failing.length} accessibility finding(s)');
     exit(1);
   }
 
