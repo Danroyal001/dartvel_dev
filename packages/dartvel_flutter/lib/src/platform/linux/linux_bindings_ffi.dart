@@ -12,6 +12,7 @@ import 'package:ffi/ffi.dart';
 import '../../../dartvel_flutter.dart';
 import 'linux_device.dart';
 import 'linux_dialogs_ffi.dart';
+import 'linux_dnd_ffi.dart';
 import 'linux_kiosk_ffi.dart';
 import 'linux_menus_ffi.dart';
 import 'linux_printing_ffi.dart';
@@ -187,6 +188,8 @@ class DVLinuxBindings {
     'dialogs.saveFile',
     'dialogs.chooseDirectory',
     'dialogs.message',
+    'dragDrop.accept',
+    'dragDrop.stop',
     'device.capabilityManifest',
     'device.health',
     'device.watchdog.arm',
@@ -289,6 +292,7 @@ class DVLinuxBindings {
     DVLinuxMenus.register(_gtk!, _glib!, DVNativeBridge.register);
     DVLinuxPrinting.register(_gtk!, _glib!, DVNativeBridge.register);
     DVLinuxDialogs.register(_gtk!, _glib!, DVNativeBridge.register);
+    DVLinuxDragDrop.register(_gtk!, _glib!, _gdk!, DVNativeBridge.register);
     DVLinuxDevice.register(DVNativeBridge.register);
     // A desktop deep link arrives as a launch argument; the launch keeps
     // the first one. The stream is fed by the launch as well.

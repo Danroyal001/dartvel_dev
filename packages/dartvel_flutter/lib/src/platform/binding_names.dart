@@ -81,6 +81,11 @@ const Set<String> dvNativeBindingNames = <String>{
   'dialogs.chooseDirectory',
   'dialogs.message',
 
+  // Drag and drop: the window takes drops of the kinds it says it takes,
+  // and each one arrives as what was dropped and where.
+  'dragDrop.accept',
+  'dragDrop.stop',
+
   // Kiosk enforcement: hold the policy on the device, and let go.
   'kiosk.enforce',
   'kiosk.release',
