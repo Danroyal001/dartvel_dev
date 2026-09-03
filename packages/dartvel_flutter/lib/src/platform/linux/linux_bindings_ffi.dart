@@ -268,6 +268,9 @@ class DVLinuxBindings {
     DVLinuxPrinting.register(_gtk!, _glib!, DVNativeBridge.register);
     DVLinuxDialogs.register(_gtk!, _glib!, DVNativeBridge.register);
     DVLinuxDevice.register(DVNativeBridge.register);
+    // A restart loop the watchdog finds goes to whatever kiosk host is on
+    // screen, unless the app wired its own.
+    DVLinuxDevice.onRestartLoop ??= DVKioskHost.reportRestartLoop;
 
     _registered = true;
     return true;
