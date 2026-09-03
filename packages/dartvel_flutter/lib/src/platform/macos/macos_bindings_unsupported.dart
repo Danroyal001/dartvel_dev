@@ -57,3 +57,10 @@ class DVMacosTray {
   static void performAction(int index) {}
   static void unregister() {}
 }
+
+/// Printing, unavailable here.
+class DVMacosPrinting {
+  const DVMacosPrinting._();
+
+  static const Set<String> implemented = <String>{'printing.toFile'};
+}

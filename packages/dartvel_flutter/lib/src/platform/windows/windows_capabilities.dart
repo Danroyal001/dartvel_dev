@@ -58,4 +58,9 @@ const Set<String> dvWindowsImplementedBindings = <String>{
   // session has no notification area.
   'tray.show',
   'tray.hide',
+
+  // GDI: pictures onto pages, to a PDF through Microsoft Print to PDF with
+  // the output named so no dialog asks, or to the default printer.
+  'printing.toFile',
+  'printing.print',
 };

@@ -14,10 +14,13 @@ library;
 // window, and a test harness has none; they return false by design, and
 // asserting that here would be asserting the harness.
 import 'dart:ffi';
-import 'dart:io' show Directory;
+import 'dart:io' show Directory, File, Platform;
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:ffi/ffi.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 // INPUT with a KEYBDINPUT, laid out as Win32 x64 has it: the union is 32
@@ -126,6 +129,22 @@ void sendKeys(List<int> keys) {
   } finally {
     calloc.free(inputs);
   }
+}
+
+
+/// A coloured page with a line of text, as PNG bytes.
+Future<Uint8List> page(Color colour, String text) async {
+  final ui.PictureRecorder recorder = ui.PictureRecorder();
+  final Canvas canvas = Canvas(recorder);
+  canvas.drawRect(const Rect.fromLTWH(0, 0, 600, 800), Paint()..color = colour);
+  final ui.ParagraphBuilder builder = ui.ParagraphBuilder(ui.ParagraphStyle(fontSize: 40))
+    ..pushStyle(ui.TextStyle(color: const Color(0xFF000000)))
+    ..addText(text);
+  final ui.Paragraph paragraph = builder.build()..layout(const ui.ParagraphConstraints(width: 560));
+  canvas.drawParagraph(paragraph, const Offset(20, 20));
+  final ui.Image image = await recorder.endRecording().toImage(600, 800);
+  final ByteData? bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+  return bytes!.buffer.asUint8List();
 }
 
 void main() {
@@ -497,6 +516,39 @@ void main() {
       // A command after hide reaches nobody.
       window.send(0x0111, DVWindowsTray.debugCommandFor('open') ?? 0x1000, 0);
       expect(chosen, <String>['quit']);
+    });
+  });
+
+
+  group('printing', () {
+    // Pictures onto pages, to a PDF the platform writes itself: the file has
+    // to exist, be a PDF, and report as many pages as were sent. A page that
+    // is not a picture is refused with no file left behind.
+    late Directory dir;
+    setUp(() => dir = Directory.systemTemp.createTempSync('dartvel_print_'));
+    tearDown(() => dir.deleteSync(recursive: true));
+
+    test('two pictures become a two-page PDF', () async {
+      final String path = '${dir.path}${Platform.pathSeparator}out.pdf';
+      final DVPrintResult result = await DV.Platform.Printing.toFile(
+        path,
+        pages: <Uint8List>[await page(const Color(0xFFFFEEDD), 'Page one'), await page(const Color(0xFFDDEEFF), 'Page two')],
+      );
+      expect(result.pages, 2);
+      final File pdf = File(path);
+      expect(pdf.existsSync(), isTrue);
+      final Uint8List bytes = pdf.readAsBytesSync();
+      expect(String.fromCharCodes(bytes.take(5)), '%PDF-');
+      expect(bytes.length, greaterThan(1000));
+    });
+
+    test('a page that is not a picture is refused, and no file is written', () async {
+      final String path = '${dir.path}${Platform.pathSeparator}bad.pdf';
+      await expectLater(
+        DV.Platform.Printing.toFile(path, pages: <Uint8List>[Uint8List.fromList(<int>[1, 2, 3])]),
+        throwsA(isA<StateError>()),
+      );
+      expect(File(path).existsSync(), isFalse);
     });
   });
 

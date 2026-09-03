@@ -55,4 +55,9 @@ const Set<String> dvMacosImplementedBindings = <String>{
   // whose chosen item is dispatched by id.
   'tray.show',
   'tray.hide',
+
+  // CoreGraphics: pictures onto the pages of a PDF. The dialog and the
+  // printer are NSPrintOperation's, which needs the application's event
+  // loop, so printing.print is not claimed.
+  'printing.toFile',
 };

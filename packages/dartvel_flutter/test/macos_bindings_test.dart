@@ -37,6 +37,8 @@ void main() {
           // NSStatusBar's status item with its menu, chosen by id.
           'tray.show',
           'tray.hide',
+          // Pictures onto pages, to a PDF.
+          'printing.toFile',
         },
       );
     });
