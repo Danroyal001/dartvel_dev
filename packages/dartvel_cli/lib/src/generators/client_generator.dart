@@ -439,9 +439,9 @@ const String dvApiBasePath      = '${esc(apiBasePath)}';
     final runtimeDart = """
 import 'dart:async' show unawaited;
 import 'package:flutter/foundation.dart' show kReleaseMode, kIsWeb, defaultTargetPlatform, TargetPlatform, debugPrint;
-import 'dart:io' show exit, stdin, stdout, stderr, File, Platform, Process, ProcessStartMode;
+import 'dart:io' show exit${dv['terminal'] == true ? ', stdin, stdout, stderr, File, Platform, Process, ProcessStartMode' : ''};
 import 'package:dartvel_core/dartvel.dart' show dvLiveWindowsPathFor;
-import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVPageStore, DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAppLaunch, DVRouteTarget, DVWindowOptions, DVRenderSurface, DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor;
+import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVPageStore, DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAppLaunch, DVRouteTarget, DVWindowOptions, DVRenderSurface${dv['terminal'] == true ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''};
 import 'dartvel_config.g.dart' as cfg;
 import 'jobs.g.dart' show registerDartvelJobs;
 import 'models.g.dart' show registerDartvelModels;
@@ -1210,8 +1210,7 @@ ${(() {
     final configContent = '''
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // Build ID: $buildId
-import 'package:dartvel_flutter/dartvel_flutter.dart' show DVKioskPolicy;
-
+${_hasKioskPolicies(dv) ? "import 'package:dartvel_flutter/dartvel_flutter.dart' show DVKioskPolicy;\n" : ''}
 /// Centrally generated Dartvel configuration matching your pubspec.yaml.
 class DartvelConfig {
   /// The database provider (e.g. sqlite, postgres, mysql).
@@ -1320,6 +1319,14 @@ Future<void> _runTerminal(List<String> arguments) async {
   /// parsed by the same parser dartvel doctor checks. There is no policy
   /// that is not in the declaration, so a kiosk window opened at runtime
   /// uses a declared one rather than an ad-hoc one.
+  /// Whether any named policy is declared, so the config only imports the
+  /// policy type when something in it is one.
+  static bool _hasKioskPolicies(YamlMap dv) {
+    final Object? kiosk = dv['kiosk'];
+    final Object? policies = kiosk is Map ? kiosk['policies'] : null;
+    return policies is Map && policies.isNotEmpty;
+  }
+
   static String _kioskPoliciesSource(YamlMap dv) {
     final Object? kiosk = dv['kiosk'];
     final Map<String, Object?> section = kiosk is Map ? _plain(kiosk) as Map<String, Object?> : <String, Object?>{};
