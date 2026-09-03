@@ -2,6 +2,7 @@
 // a display, and where the terminal runner is.
 import 'dart:io';
 
+import 'package:dartvel_core/dartvel.dart' show DVAppKeyStore, DVAppKeyStores;
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -22,5 +23,11 @@ void main() {
 
   test('the process reads its own environment', () {
     expect(dvDisplayAvailable(), dvDisplayAvailableIn(Platform.environment, os: Platform.operatingSystem));
+  });
+
+  test('the store for an app off the web is what the platform has custody for', () async {
+    final DVAppKeyStore store = await dvAppKeyStoreFor('shop');
+    expect(store, isNot(isA<DVWebCryptoAppKeyStore>()));
+    expect(DVAppKeyStores.describe(store), isNotEmpty);
   });
 }
