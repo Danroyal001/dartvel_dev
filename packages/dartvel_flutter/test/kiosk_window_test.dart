@@ -9,7 +9,6 @@
 // satisfies the declared method; its policy is a declared one; with its
 // display gone it presents in place, fullscreen (DV-WINDOW-010); and it
 // counts as a principal window, like a regular one.
-import 'package:dartvel_core/dartvel.dart' show DVKioskExitRequest, DVKioskPolicy, DVKioskResetReason, DVKioskState;
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
