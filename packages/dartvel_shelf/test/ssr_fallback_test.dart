@@ -14,7 +14,7 @@ import 'package:dartvel_shelf/src/ssr_helper.dart';
 // URLPattern and Router as well, and the main barrel stopped exporting them
 // when the wire surface moved to http.dart -- so the list was stale and the
 // analyzer said so, while nothing here ever referenced them.
-import 'package:dartvel_core/dartvel.dart' show Request, Response, Headers;
+import 'package:dartvel_core/dartvel.dart' show DVPageData, DVPageDataCache, DVPageRequest, DVPageVisibility, Headers, Request, Response;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -162,6 +162,77 @@ void main() {
           await handleSsrFallback(get('/../secret'), root.path)));
 
       expect(html, isNot(contains('LEAKED')));
+    });
+  });
+  manifestTests();
+}
+
+// With a web-server manifest beside the shell, the fallback is the page
+// pipeline: the route's title and text from the manifest, and the page's
+// data from the resolver the backend was started with, by the declared
+// mode. The prerender path stays for builds that wrote one.
+void manifestTests() {
+  group('with a manifest', () {
+    late Directory root;
+    setUp(() {
+      root = Directory.systemTemp.createTempSync('dartvel-ssr-manifest-');
+      File(p.join(root.path, 'index.html')).writeAsStringSync(
+          '<html><head><title>Default</title></head><body><div id="app"></div></body></html>');
+      File(p.join(root.path, 'dartvel_routes.json')).writeAsStringSync(jsonEncode(<String, Object?>{
+        'siteUrl': 'https://example.com',
+        'server': <String, Object?>{'pageDataMode': 'await'},
+        'routes': <String, Object?>{
+          '/': <String, Object?>{'title': 'Home', 'text': <String>['Welcome']},
+          '/products/:id': <String, Object?>{'title': 'A product', 'text': <String>[]},
+        },
+      }));
+    });
+    tearDown(() => root.deleteSync(recursive: true));
+
+    test('a manifest route is served with its title and text', () async {
+      final response = await handleSsrFallback(get('/'), root.path);
+      final String html = utf8.decode(await bytesOf(response));
+      expect(html, contains('<title>Home</title>'));
+      expect(html, contains('Welcome'));
+      expect(html, contains('<link rel="canonical" href="https://example.com">'));
+    });
+
+    test('a route with data is the page from the data', () async {
+      final response = await handleSsrFallback(
+        get('/products/7'),
+        root.path,
+        pageData: (DVPageRequest r) async => DVPageData(title: 'Product ${r.params['id']}', text: const <String>['In stock']),
+      );
+      final String html = utf8.decode(await bytesOf(response));
+      expect(html, contains('<title>Product 7</title>'));
+      expect(html, contains('In stock'));
+    });
+
+    test('hidden data is 404 without the data', () async {
+      final response = await handleSsrFallback(
+        get('/products/7'),
+        root.path,
+        pageData: (DVPageRequest r) async => const DVPageData(title: 'Secret', visibility: DVPageVisibility.hidden),
+      );
+      expect(response.status, 404);
+      expect(utf8.decode(await bytesOf(response)), isNot(contains('Secret')));
+    });
+
+    test('the declared cache mode keeps the page between requests', () async {
+      File(p.join(root.path, 'dartvel_routes.json')).writeAsStringSync(jsonEncode(<String, Object?>{
+        'server': <String, Object?>{'pageDataMode': 'cache', 'cacheTtlSeconds': 60},
+        'routes': <String, Object?>{'/products/:id': <String, Object?>{'title': 'A product', 'text': <String>[]}},
+      }));
+      var asked = 0;
+      final DVPageDataCache cache = DVPageDataCache(ttl: const Duration(seconds: 60));
+      Future<DVPageData?> resolver(DVPageRequest r) async {
+        asked++;
+        return DVPageData(title: 'Product $asked');
+      }
+      await handleSsrFallback(get('/products/1'), root.path, pageData: resolver, cache: cache);
+      final response = await handleSsrFallback(get('/products/1'), root.path, pageData: resolver, cache: cache);
+      expect(asked, 1);
+      expect(utf8.decode(await bytesOf(response)), contains('<title>Product 1</title>'));
     });
   });
 }
