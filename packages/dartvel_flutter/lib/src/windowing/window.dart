@@ -198,6 +198,7 @@ enum DVWindowDegradation {
   kioskLocked,
   gestureRequired,
   platformRefused,
+  bindingRefused,
   disabledByConfig,
   displayUnavailable,
   restoredRouteUnresolvable,
@@ -216,6 +217,7 @@ extension DVWindowDegradationX on DVWindowDegradation {
         DVWindowDegradation.kioskLocked => 'DV-WINDOW-002',
         DVWindowDegradation.gestureRequired => 'DV-WINDOW-003',
         DVWindowDegradation.platformRefused => 'DV-WINDOW-004',
+        DVWindowDegradation.bindingRefused => 'DV-WINDOW-006',
         DVWindowDegradation.disabledByConfig => 'DV-WINDOW-005',
         DVWindowDegradation.displayUnavailable => 'DV-WINDOW-013',
         DVWindowDegradation.restoredRouteUnresolvable => 'DV-WINDOW-009',
@@ -828,6 +830,12 @@ class DVWindowManager {
       degradation = DVWindowDegradation.capabilityUnsupported;
     } else if (!cap.multiWindow) {
       degradation = DVWindowDegradation.capabilityUnsupported;
+    } else if (!DVNativeBridge.isRegistered('window.open')) {
+      // The capability was claimed and nothing is there to honour it. That is
+      // an integration defect (DV-WINDOW-006, error), not the platform
+      // declining -- the bridge would answer null for a missing binding, and
+      // that read as an OS refusal.
+      degradation = DVWindowDegradation.bindingRefused;
     } else {
       try {
         nativeId = await DVNativeBridge.invoke<String>(
@@ -841,11 +849,14 @@ class DVWindowManager {
             if (display?.display != null) 'displayId': display!.display!.id,
           },
         );
+        // Null is the binding's designed way of saying the platform said no:
+        // a window limit, a denied task. An exception is not designed; it is
+        // the binding breaking, and is reported as the bug it is.
         if (nativeId == null) {
           degradation = DVWindowDegradation.platformRefused;
         }
       } catch (_) {
-        degradation = DVWindowDegradation.platformRefused;
+        degradation = DVWindowDegradation.bindingRefused;
       }
     }
 
