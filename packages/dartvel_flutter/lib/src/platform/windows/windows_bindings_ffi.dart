@@ -131,8 +131,8 @@ class DVWindowsBindings {
       return _setSize(width, height);
     });
 
-    DVWindowsKiosk.register(DVNativeBridge.register, user32: _user32, kernel32: _kernel32);
     DVWindowsShortcuts.register(DVNativeBridge.register);
+    DVWindowsKiosk.register(DVNativeBridge.register, user32: _user32, kernel32: _kernel32);
     DVDeviceRuntime.probes = const DVWindowsDeviceProbes();
     DVDeviceRuntime.register(DVNativeBridge.register);
 
@@ -142,8 +142,7 @@ class DVWindowsBindings {
 
   static void unregister() {
     if (_registered) {
-      DVWindowsKiosk.release();
-      unawaited(DVWindowsShortcuts.unregister());
+      unawaited(DVWindowsKiosk.release().then((_) => DVWindowsShortcuts.unregister()));
       DVDeviceRuntime.unregister();
     }
     for (final name in implemented) {

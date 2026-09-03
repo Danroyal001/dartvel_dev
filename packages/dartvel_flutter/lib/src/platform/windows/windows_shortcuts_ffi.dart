@@ -138,6 +138,12 @@ class DVWindowsShortcuts {
     _pumpThread = await ready.future;
   }
 
+  /// The pump thread's id, for a test that posts to its queue.
+  static int? get debugPumpThread => _pumpThread;
+
+  /// The hot-key id [id] was registered under, for a test.
+  static int? debugNumericId(String id) => _ids[id];
+
   /// Lets go of everything and stops the pump. For tests and shutdown.
   static Future<void> unregister() async {
     for (final String id in List<String>.of(_ids.keys)) {
