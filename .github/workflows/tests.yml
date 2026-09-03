@@ -334,6 +334,13 @@ jobs:
         run: |
           dart pub get
           dart test test/app_key_store_test.dart
+      # The single-instance lock between two real processes. It is what a
+      # second launch of a desktop application meets, and file locking is
+      # the part of it that differs most between operating systems -- so
+      # running it only on Linux proved it only there.
+      - name: The single-instance lock, between processes
+        working-directory: packages/dartvel_core
+        run: dart test test/single_instance_process_test.dart
 
   # The Objective-C bindings can only be exercised on macOS. A mistyped message
   # signature does not fail to compile — it corrupts the stack or returns
@@ -376,6 +383,11 @@ jobs:
         run: |
           dart pub get
           dart test test/app_key_store_test.dart
+      # The single-instance lock between two real processes; see the Windows
+      # job for why it is not enough to run it on one operating system.
+      - name: The single-instance lock, between processes
+        working-directory: packages/dartvel_core
+        run: dart test test/single_instance_process_test.dart
 
   spec:
     name: spec-status index
