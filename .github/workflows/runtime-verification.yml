@@ -1783,8 +1783,9 @@ jobs:
           cd sites/dartvel_site
           flutter pub get
           dart run dartvel_cli:dartvel build web
-          test -f build/web/sw.js
-          grep -q "dartvel-outbox" build/web/sw.js
+          # Written over Flutter's own worker, which index.html registers.
+          test -f build/web/flutter_service_worker.js
+          grep -q "dartvel-outbox" build/web/flutter_service_worker.js
       - name: A POST made offline is queued and replayed once online
         run: |
           set -euo pipefail

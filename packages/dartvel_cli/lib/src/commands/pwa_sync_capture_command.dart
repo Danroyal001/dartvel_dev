@@ -33,8 +33,10 @@ class PwaSyncCaptureCommand extends Command<void> {
   @override
   Future<void> run() async {
     final String web = argResults!['web'] as String;
-    if (!File('$web/sw.js').existsSync()) {
-      usageException('$web has no sw.js; build the web target first.');
+    // A Dartvel build writes its worker over Flutter's flutter_service_worker.js,
+    // which index.html registers; a hand-made page may call it sw.js.
+    if (!File('$web/flutter_service_worker.js').existsSync() && !File('$web/sw.js').existsSync()) {
+      usageException('$web has no service worker; build the web target first.');
     }
     final DVPwaSyncResult result = await dvVerifyPwaSync(
       webRoot: web,
