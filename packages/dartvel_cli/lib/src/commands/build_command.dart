@@ -1840,6 +1840,11 @@ class BuildCommand extends Command<void> {
         titles: dvRouteTitles(_routerSource(root)),
         text: _routeText(root),
         siteUrl: siteUrl,
+        // dartvel.web.server: how page data is waited for, and whether the
+        // head goes out ahead of the body.
+        server: DVWebServerSettings.parse(
+          (_dartvelSection(root)['web'] is Map ? (_dartvelSection(root)['web']! as Map)['server'] : null),
+        ),
       ),
     );
 
