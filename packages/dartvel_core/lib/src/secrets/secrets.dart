@@ -1,5 +1,16 @@
+import 'dart:async';
+
 import 'secrets_unsupported.dart'
     if (dart.library.io) 'secrets_io.dart' as env;
+
+/// What [DVSecrets.captureState] hands back, for [DVSecrets.restoreState].
+///
+/// Opaque on purpose: the point is that a test cannot restore half of it.
+class DVSecretsState {
+  const DVSecretsState._(this._overrides, this._hooks);
+  final Map<String, String> _overrides;
+  final Map<String, List<FutureOr<void> Function(String)>> _hooks;
+}
 
 /// Thrown when a secret is asked for and no source provides it.
 class DVSecretNotFoundException implements Exception {
@@ -33,9 +44,76 @@ class DVSecrets {
     _overrides.addAll(secrets);
   }
 
-  /// Drops everything [configure] registered.
+  /// Hooks to run when a secret rotates, by key, in registration order.
+  static final Map<String, List<FutureOr<void> Function(String)>> _hooks =
+      <String, List<FutureOr<void> Function(String)>>{};
+
+  /// Drops everything [configure] registered, and every rotation hook.
+  ///
+  /// Hooks too, or one test's hook fires in another's rotation.
   static void reset() {
     _overrides.clear();
+    _hooks.clear();
+  }
+
+  /// Runs [hook] with the new value whenever [key] rotates.
+  ///
+  /// For a long-lived client holding something built from the secret -- a
+  /// payment gateway, a broker connection -- so it can rebuild without a
+  /// restart. A secret with no hook is simply re-read on next access. Returns
+  /// a function that removes the hook.
+  void Function() onRotate(String key, FutureOr<void> Function(String value) hook) {
+    final List<FutureOr<void> Function(String)> hooks =
+        _hooks.putIfAbsent(key, () => <FutureOr<void> Function(String)>[]);
+    hooks.add(hook);
+    return () => hooks.remove(hook);
+  }
+
+  /// Reports that [key] now resolves to [value], and runs its hooks.
+  ///
+  /// What a resolver calls when it learns of a new value. The same value
+  /// fires nothing: re-reporting must not rebuild every connection. Every
+  /// hook runs even if an earlier one throws -- one connection failing to
+  /// rebuild must not leave the rest on the old secret -- and the first
+  /// error is rethrown once they all have.
+  Future<void> rotate(String key, String value) async {
+    if (maybeGet(key) == value) return;
+    _overrides[key] = value;
+
+    Object? firstError;
+    StackTrace? firstTrace;
+    for (final FutureOr<void> Function(String) hook
+        in List<FutureOr<void> Function(String)>.of(_hooks[key] ?? const [])) {
+      try {
+        await hook(value);
+      } on Object catch (error, trace) {
+        firstError ??= error;
+        firstTrace ??= trace;
+      }
+    }
+    if (firstError != null) {
+      Error.throwWithStackTrace(firstError, firstTrace!);
+    }
+  }
+
+  /// Everything a test could change, for putting back afterwards.
+  static DVSecretsState captureState() => DVSecretsState._(
+        Map<String, String>.of(_overrides),
+        <String, List<FutureOr<void> Function(String)>>{
+          for (final MapEntry<String, List<FutureOr<void> Function(String)>> e
+              in _hooks.entries)
+            e.key: List<FutureOr<void> Function(String)>.of(e.value),
+        },
+      );
+
+  /// Puts back what [captureState] took.
+  static void restoreState(DVSecretsState state) {
+    _overrides
+      ..clear()
+      ..addAll(state._overrides);
+    _hooks
+      ..clear()
+      ..addAll(state._hooks);
   }
 
   /// Whether [key] resolves to a non-empty value.
