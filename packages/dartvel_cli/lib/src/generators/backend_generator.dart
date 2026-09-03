@@ -282,6 +282,7 @@ import 'package:dartvel_core/dartvel.dart' as core;
 import 'package:dartvel_shelf/dartvel_shelf.dart' as dv;
 import 'package:mime/mime.dart';
 import 'dartvel_backend.g.dart' as cfg;
+import 'package:$pkgName/dartvel_client/model_pages.g.dart' show dartvelModelPages;
 ${backendImports.join('\n')}
 
 // The generated OpenAPI document, served at cfg.apiBasePath + '/openapi.json'.
@@ -506,11 +507,21 @@ $requestPrelude
 
 dv.Router buildBackend() => buildBackendRouter();
 
-Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls, bool h2c = false, dv.CorsOptions? cors}) {
+/// A public model page's data on request: the row named by the route's
+/// parameter, read from the application's database.
+final core.DVPageDataResolver dartvelPageData = core.dvModelPageResolver(
+  dartvelModelPages,
+  (String sql, List<Object?> params) => const core.DVDatabase().query(sql, params),
+);
+
+/// Starts the backend. With [spaRoot], the built site is served beside the
+/// API and each page assembled on request from the web-server manifest and
+/// the model's data.
+Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls, bool h2c = false, dv.CorsOptions? cors, String? spaRoot}) {
   final router = buildBackendRouter();
   final bindHost = host ?? cfg.backendHost;
   final bindPort = port ?? cfg.backendPort;
-  return dv.serve(router.call, host: bindHost, port: bindPort, tls: tls, h2c: h2c, cors: cors);
+  return dv.serve(router.call, host: bindHost, port: bindPort, tls: tls, h2c: h2c, cors: cors, spaRoot: spaRoot, pageData: dartvelPageData);
 }
 ''';
     File(p.join(backendOut.path, 'dartvel_backend_routes.g.dart'))
