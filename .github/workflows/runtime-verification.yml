@@ -85,6 +85,11 @@ jobs:
           sleep 12
           import -window root /tmp/diag/linux-gui.png
           echo "--- application output ---"; cat /tmp/diag/linux-app.log || true
+          # What the running application published beside its lock: the
+          # windows it has open and what its startup took. Copied out before
+          # the process ends, because the file goes with it.
+          cp "${XDG_RUNTIME_DIR:-/tmp}"/dartvel-dartvel_example.windows.json \
+            /tmp/diag/linux-live.json 2>/dev/null || true
           kill $APP 2>/dev/null || true
           identify /tmp/diag/linux-gui.png
 
@@ -108,6 +113,31 @@ jobs:
           # missing display.
           xvfb-run -a flutter test integration_test/link_navigation_test.dart \
             -d linux
+
+      # Startup, phase by phase, from the application that just ran. A
+      # profile the framework never fills is a number nobody can answer for,
+      # and every phase here is one the generated runtime marks.
+      - name: Startup is measured
+        run: |
+          set -euo pipefail
+          if [ ! -f /tmp/diag/linux-live.json ]; then
+            echo "::error::the application published nothing beside its lock"
+            exit 1
+          fi
+          python3 - <<'CHECK'
+          import json, sys
+          live = json.load(open('/tmp/diag/linux-live.json'))
+          startup = live.get('startup') or {}
+          phases = [p['name'] for p in startup.get('phases', [])]
+          print('startup phases:', phases, 'total:', startup.get('totalMicros'))
+          for expected in ('configure', 'generated', 'bindings', 'first frame'):
+              if expected not in phases:
+                  print(f'::error::startup never marked "{expected}"')
+                  sys.exit(1)
+          if not startup.get('totalMicros'):
+              print('::error::startup measured nothing')
+              sys.exit(1)
+          CHECK
 
       - name: The capture must show the application
         run: |
