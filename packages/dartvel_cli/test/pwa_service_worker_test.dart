@@ -151,4 +151,14 @@ void main() {
       expect(dvOfflinePage(title: 'Dartvel'), contains('prefers-color-scheme'));
     });
   });
+
+  test('one replay at a time: a sync event and the replay message arriving together send once', () {
+    // Found in Chrome on CI: both arrived when the network came back, both
+    // read the outbox before either had deleted from it, and the server got
+    // every request twice. The browser suite holds the behaviour; this holds
+    // the guard in the source it generates.
+    final String worker = dvServiceWorker(buildId: 'b', precache: const <String>[], backgroundSync: true);
+    expect(worker, contains('if (replaying) return replaying;'));
+    expect(worker, contains("replaying = replayOnce().finally(() => { replaying = null; });"));
+  });
 }
