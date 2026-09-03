@@ -350,7 +350,7 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   (
     'Multi-Window',
     'Windows, displays and the single-instance launch',
-    'Present: window identity as canonical URL, the Linux open binding, display enumeration, the exit policy, owned windows, honest modality, the single-instance launch that opens what the app was started with and hands a later launch to the first process, workspace restore, tear-out, display-scope kiosk windows, the Studio window inspector, dartvel inspect windows with the live list a running app publishes, and the performance contract: open-to-ready, tear-out handover, shared-store coalescing, size and spills, and restore duration are measured, the four diagnostics are findings, and dartvel analyze performance reads them. Absent: display enumeration is Linux-only, and display profile names are not yet carried into the generated client.',
+    'Present: window identity as canonical URL, the Linux open binding, display enumeration, the exit policy, owned windows, honest modality, the single-instance launch that opens what the app was started with and hands a later launch to the first process, workspace restore, tear-out, display-scope kiosk windows, the Studio window inspector, dartvel inspect windows with the live list a running app publishes, and the performance contract: open-to-ready, tear-out handover, shared-store coalescing, size and spills, and restore duration are measured, the four diagnostics are findings, and dartvel analyze performance reads them. Device profile display names reach the generated client through dartvel build --device-profile, and every DV-WINDOW code has an emitter. Absent: display enumeration is Linux-only.',
   ),
   (
     'Tab Workspaces',
