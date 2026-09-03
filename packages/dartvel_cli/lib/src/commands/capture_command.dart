@@ -6,6 +6,7 @@ import '../build/capture_verification.dart';
 import '../utils/logger.dart';
 import 'firefox_capture_command.dart';
 import 'pty_capture_command.dart';
+import 'pwa_sync_capture_command.dart';
 
 /// `dartvel capture verify` — proving a runtime-verification screenshot shows
 /// the application.
@@ -25,6 +26,7 @@ class CaptureCommand extends Command<void> {
     addSubcommand(_VerifyCaptureCommand());
     addSubcommand(PtyCaptureCommand());
     addSubcommand(FirefoxCaptureCommand());
+    addSubcommand(PwaSyncCaptureCommand());
   }
 }
 
