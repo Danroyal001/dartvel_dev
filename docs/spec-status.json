@@ -410,9 +410,11 @@
         "packages/dartvel_core/test/plural_rules_test.dart",
         "packages/dartvel_flutter/test/i18n_catalogue_test.dart",
         "packages/dartvel_flutter/test/i18n_test.dart",
-        "packages/dartvel_flutter/test/plural_forms_test.dart"
+        "packages/dartvel_flutter/test/plural_forms_test.dart",
+        "packages/dartvel_core/lib/src/i18n/locale_negotiation.dart",
+        "packages/dartvel_core/test/locale_negotiation_test.dart"
       ],
-      "absent": "Route locale negotiation, per-tenant locale defaults, and localised mail/notification templates. Extraction and pluralisation are built: dartvel i18n extract collects every DVTranslationKey into ARB catalogues without overwriting existing translations, i18n check names untranslated and stale keys per locale, and plural selection follows CLDR rather than English -- French makes 0 singular, Polish and Russian have four categories chosen by the last one or two digits, Arabic six. The catalogue shape the spec documents also did not compile until DVTranslationKey stopped overriding ==, which Dart forbids in a const map key"
+      "absent": "Per-tenant locale defaults and localised mail/notification templates. Route locale negotiation is built: path prefix, then a stored preference, then Accept-Language with q-values ordering the choice and q=0 never served, then the fallback, matched by BCP 47 lookup on whole subtags so fr-CA finds fr and a bare de finds de-DE. Extraction and pluralisation are built: dartvel i18n extract collects every DVTranslationKey into ARB catalogues without overwriting existing translations, i18n check names untranslated and stale keys per locale, and plural selection follows CLDR rather than English -- French makes 0 singular, Polish and Russian have four categories chosen by the last one or two digits, Arabic six"
     },
     {
       "section": "Accessibility",
@@ -422,9 +424,11 @@
         "packages/dartvel_cli/test/model_table_generation_test.dart",
         "packages/dartvel_flutter/lib/src/table/table.dart",
         "packages/dartvel_flutter/test/accessibility_test.dart",
-        "packages/dartvel_flutter/test/table_test.dart"
+        "packages/dartvel_flutter/test/table_test.dart",
+        "packages/dartvel_cli/lib/src/build/accessibility_audit.dart",
+        "packages/dartvel_cli/test/accessibility_audit_test.dart"
       ],
-      "absent": "Nothing fails a release on an accessibility regression, and switch control and hardware-key navigation for kiosk and embedded targets are unbuilt. Generated tables now have keyboard navigation, focus that survives a sort, and per-cell announcements naming the column and the row position -- User.Table() used to emit a grid of cards wearing the name, with no header, no rows and nothing a screen reader could announce as tabular. Contrast is checked against WCAG ratios and tap targets against Material’s minimum"
+      "absent": "Switch control and hardware-key navigation for kiosk and embedded targets, and a documented waiver for a regression that is accepted on purpose. The release gate is built: dartvel build web audits the semantics tree a real browser produced -- what a screen reader is actually handed -- and fails on a link or control with no accessible name, an empty heading, a page with no headings or no level 1, and a heading level skipped going down; on its first run against the site it found /features going h1 to h3. Generated tables have keyboard navigation, focus that survives a sort, and per-cell announcements naming the column and the row position. Contrast is checked against WCAG ratios and tap targets against Material's minimum"
     },
     {
       "section": "Desktop, Embedded, and Qt-Critical Capabilities",
