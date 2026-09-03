@@ -306,7 +306,7 @@ class DoctorCommand extends Command<void> {
       return true;
     }
 
-    final DVKioskCheck check = DVKioskCheck.run(dartvel, _configuredTargets());
+    final DVKioskCheck check = DVKioskCheck.run(dartvel, _configuredTargets(), root: Directory.current.path);
     if (check.lines.isEmpty) return true;
 
     Logger.log('');
