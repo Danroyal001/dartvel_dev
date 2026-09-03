@@ -267,6 +267,15 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'sitemap.xml and robots.txt, a service worker and install prompt, and a '
     'build that fails when a page would ship with nothing to see.',
   ),
+  (
+    'Internationalization and Localization',
+    'Typed keys, CLDR plurals',
+    'Translation keys are typed and extracted to ARB; plurals follow CLDR, '
+    'not English. Locale negotiation reads the path, a stored preference and '
+    'Accept-Language in that order, with a per-tenant default; mail and '
+    'notification templates render in the recipient\'s language, and every '
+    'prerendered page carries hreflang.',
+  ),
 ];
 
 @DVPage(title: 'Features — Dartvel', showAppBar: false)
@@ -276,7 +285,7 @@ Widget _featuresPage(BuildContext context) => SingleChildScrollView(
         const Section(
           children: <Widget>[
             Eyebrow('WHAT WORKS TODAY'),
-            Heading('Forty shipped sections.', level: 1),
+            Heading('Forty-one shipped sections.', level: 1),
             Body(
               'This list is the repository’s own record of what is built, not '
               'a description of what is planned. A tool checks it and fails '
@@ -286,7 +295,7 @@ Widget _featuresPage(BuildContext context) => SingleChildScrollView(
               width: 660,
             ),
             Body(
-              'Sixteen more sections are partial. They are listed as '
+              'Fifteen more sections are partial. They are listed as '
               'partial, with what is absent written next to what is present.',
               width: 660,
             ),
