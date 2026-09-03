@@ -309,7 +309,7 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   (
     'Modules',
     'Mounted, with their routes; the deployment modes are not built',
-    'Present: a module is a whole Dartvel application a parent mounts. The build finds it, takes its own route base off and puts the mount point on -- /products/:id standalone is /store/products/:id mounted -- generates the module before the parent, and serves its pages from the parent\'s router; they are in the route index and sitemap, tagged with the module they came from, and DV.Modules.<id> is the module the build mounted. Absent: the split-backend and federated deployment modes with their signed manifests, the shell, auth, theme and data modes, scoped module globals, asset rewriting on mount, and typed navigation helpers.',
+    'Present: a module is a whole Dartvel application a parent mounts. The build finds it, takes its own route base off and puts the mount point on -- /products/:id standalone is /store/products/:id mounted -- generates the module before the parent, and serves its pages from the parent\'s router; they are in the route index and sitemap, tagged with the module they came from, and DV.Modules.<id> is the module the build mounted. Its assets are the paths that find them in the parent, and its pages are typed targets that keep their names wherever it is mounted. Absent: the split-backend and federated deployment modes with their signed manifests, the shell, auth, theme and data modes, and scoped module globals.',
   ),
   (
     'Platform',
