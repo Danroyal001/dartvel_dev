@@ -334,8 +334,8 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   ),
   (
     'Desktop, Embedded, and Qt-Critical Capabilities',
-    'Built on Linux; Windows and macOS behind the same names',
-    'Present on Linux: global shortcuts, the application menu, printing, system dialogs, file associations, app links and deep links, the launch that opens what the app was started with, and the device and fleet APIs -- manifest, health, watchdog, provisioning, diagnostics. Absent: tray icons (not claimed: no desktop shell runs under Xvfb to watch one), drag and drop, and on Windows and macOS everything Linux has.',
+    'Built on Linux, and most of it on Windows and macOS',
+    'Present on Linux: global shortcuts, the application menu, printing, system dialogs, file associations, app links and deep links, the launch that opens what the app was started with, and the device and fleet APIs -- manifest, health, watchdog, provisioning, diagnostics. Present on Windows and macOS, each proven on its own runner: global shortcuts delivered by id, the application menu, the tray icon with its menu, and the device APIs. Absent: the tray on Linux (not claimed: no desktop shell runs under Xvfb to watch one), drag and drop, and on Windows and macOS the system dialogs, file associations and the launch handover.',
   ),
   (
     'Kiosk Mode',
@@ -350,7 +350,7 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   (
     'Multi-Window',
     'Windows, displays and the single-instance launch',
-    'Present: window identity as canonical URL, the Linux open binding, display enumeration, the exit policy, owned windows, honest modality, the single-instance launch that opens what the app was started with and hands a later launch to the first process, workspace restore, tear-out, display-scope kiosk windows, the Studio window inspector, dartvel inspect windows with the live list a running app publishes, and the performance contract: open-to-ready, tear-out handover, shared-store coalescing, size and spills, and restore duration are measured, the four diagnostics are findings, and dartvel analyze performance reads them. Device profile display names reach the generated client through dartvel build --device-profile, and every DV-WINDOW code has an emitter. Absent: display enumeration is Linux-only.',
+    'Present: window identity as canonical URL, the Linux open binding, display enumeration, the exit policy, owned windows, honest modality, the single-instance launch that opens what the app was started with and hands a later launch to the first process, workspace restore, tear-out, display-scope kiosk windows, the Studio window inspector, dartvel inspect windows with the live list a running app publishes, and the performance contract: open-to-ready, tear-out handover, shared-store coalescing, size and spills, and restore duration are measured, the four diagnostics are findings, and dartvel analyze performance reads them. Device profile display names reach the generated client through dartvel build --device-profile, and every DV-WINDOW code has an emitter. Display enumeration works on all three desktops.',
   ),
   (
     'Tab Workspaces',
