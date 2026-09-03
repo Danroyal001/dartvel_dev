@@ -3629,6 +3629,9 @@ class DVTerminalSurface {
       'DVTerminalSurface(${columns}x$rows, ${graphics.name})';
 }
 
+/// Whether this process can open a window. See [dvDisplayAvailableIn].
+bool dvDisplayAvailable() => terminal_size.dvDisplayAvailable();
+
 class DVPlatform {
   const DVPlatform();
 
