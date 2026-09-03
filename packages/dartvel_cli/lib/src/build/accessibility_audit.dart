@@ -117,3 +117,128 @@ List<DVA11yFinding> dvAuditSemantics({
 
   return findings;
 }
+
+// ---------------------------------------------------------------------------
+// Waivers
+
+/// The rules the audit can report, so a waiver can be checked against them.
+const Set<String> dvA11yRules = <String>{
+  'link-name',
+  'control-name',
+  'heading-name',
+  'page-heading',
+  'heading-order',
+};
+
+/// One documented exception: this rule, on this route, for this reason.
+class DVA11yWaiver {
+  const DVA11yWaiver({required this.route, required this.rule, required this.reason});
+  final String route;
+
+  /// A rule name, or `*` for every rule on the route.
+  final String rule;
+  final String reason;
+
+  bool matches(DVA11yFinding finding) =>
+      finding.route == route && (rule == '*' || finding.rule == rule);
+}
+
+/// What the gate decides once waivers are applied.
+class DVA11yVerdict {
+  const DVA11yVerdict({required this.failing, required this.waived, required this.unused});
+
+  /// Findings nothing waived. These fail the build.
+  final List<DVA11yFinding> failing;
+
+  /// Findings a waiver set aside. Printed, not failed.
+  final List<DVA11yFinding> waived;
+
+  /// Waivers that matched nothing: a typo, or a finding since fixed. Printed,
+  /// so they do not sit in the file forever.
+  final List<DVA11yWaiver> unused;
+
+  bool get ok => failing.isEmpty;
+}
+
+/// The waivers a project declares under `dartvel.accessibility.waivers`.
+///
+/// A waiver needs a route, a rule the audit actually has, and a reason. No
+/// reason, no waiver: "waived" with nothing after it is exactly the silent
+/// exception the gate exists to prevent.
+class DVA11yWaivers {
+  const DVA11yWaivers({required this.entries, required this.problems});
+
+  final List<DVA11yWaiver> entries;
+
+  /// Declarations that could not be accepted, in the developer's terms.
+  final List<String> problems;
+
+  static DVA11yWaivers parse(Object? dartvelSection) {
+    final Object? section =
+        dartvelSection is Map ? dartvelSection['accessibility'] : null;
+    final Object? raw = section is Map ? section['waivers'] : null;
+    final List<DVA11yWaiver> entries = <DVA11yWaiver>[];
+    final List<String> problems = <String>[];
+    if (raw == null) return DVA11yWaivers(entries: entries, problems: problems);
+    if (raw is! List) {
+      problems.add('dartvel.accessibility.waivers must be a list.');
+      return DVA11yWaivers(entries: entries, problems: problems);
+    }
+    for (var i = 0; i < raw.length; i++) {
+      final Object? item = raw[i];
+      if (item is! Map) {
+        problems.add('dartvel.accessibility.waivers[$i] must be a map with '
+            'route, rule and reason.');
+        continue;
+      }
+      final String route = '${item['route'] ?? ''}'.trim();
+      final String rule = '${item['rule'] ?? ''}'.trim();
+      final String reason = '${item['reason'] ?? ''}'.trim();
+      if (route.isEmpty) {
+        problems.add('dartvel.accessibility.waivers[$i] names no route.');
+        continue;
+      }
+      if (rule != '*' && !dvA11yRules.contains(rule)) {
+        problems.add('dartvel.accessibility.waivers[$i] names rule "$rule", '
+            'which the audit does not have; it is one of '
+            '${dvA11yRules.join(', ')} or *.');
+        continue;
+      }
+      if (reason.isEmpty) {
+        problems.add('dartvel.accessibility.waivers[$i] ($route, $rule) has '
+            'no reason; a waiver has to say why the finding is accepted.');
+        continue;
+      }
+      entries.add(DVA11yWaiver(route: route, rule: rule, reason: reason));
+    }
+    return DVA11yWaivers(entries: entries, problems: problems);
+  }
+
+  /// Splits [findings] into what fails, what is waived, and which waivers
+  /// did nothing.
+  DVA11yVerdict apply(List<DVA11yFinding> findings) {
+    final List<DVA11yFinding> failing = <DVA11yFinding>[];
+    final List<DVA11yFinding> waived = <DVA11yFinding>[];
+    final Set<DVA11yWaiver> used = <DVA11yWaiver>{};
+    for (final DVA11yFinding f in findings) {
+      DVA11yWaiver? by;
+      for (final DVA11yWaiver w in entries) {
+        if (w.matches(f)) {
+          by = w;
+          break;
+        }
+      }
+      if (by == null) {
+        failing.add(f);
+      } else {
+        waived.add(f);
+        used.add(by);
+      }
+    }
+    return DVA11yVerdict(
+      failing: failing,
+      waived: waived,
+      unused: <DVA11yWaiver>[for (final DVA11yWaiver w in entries) if (!used.contains(w)) w],
+    );
+  }
+}
