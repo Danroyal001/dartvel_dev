@@ -28,3 +28,11 @@ class DVWindowsKiosk {
   static List<String> get held => const <String>[];
   static void release() {}
 }
+
+/// The Windows global shortcuts, unavailable here.
+class DVWindowsShortcuts {
+  const DVWindowsShortcuts._();
+
+  static const Set<String> implemented = <String>{'shortcuts.register', 'shortcuts.unregister'};
+  static Future<void> unregister() async {}
+}

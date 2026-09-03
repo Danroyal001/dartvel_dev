@@ -27,6 +27,9 @@ void main() {
           // RegisterHotKey, ClipCursor and the window style, for a kiosk.
           'kiosk.enforce',
           'kiosk.release',
+          // RegisterHotKey on a pump thread of its own, delivering WM_HOTKEY.
+          'shortcuts.register',
+          'shortcuts.unregister',
         },
       );
     });
@@ -53,6 +56,8 @@ void main() {
         'window.setSize',
         'kiosk.enforce',
         'kiosk.release',
+        'shortcuts.register',
+        'shortcuts.unregister',
         'window.persistState',
         'window.restoreState',
         'notifications.sendLocal',

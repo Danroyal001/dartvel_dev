@@ -34,4 +34,9 @@ const Set<String> dvWindowsImplementedBindings = <String>{
   // Assist has no public API.
   'kiosk.enforce',
   'kiosk.release',
+
+  // RegisterHotKey on a pump thread of its own, which is where Win32
+  // delivers WM_HOTKEY; a refusal carries the Win32 error.
+  'shortcuts.register',
+  'shortcuts.unregister',
 };
