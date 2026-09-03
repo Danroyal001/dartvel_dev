@@ -43,6 +43,59 @@ final class _Input extends Struct {
 const int _inputKeyboard = 1;
 const int _keyUp = 0x0002;
 
+/// A real top-level window owned by the test thread, so the bindings that
+/// act on the process's own window have one. Registered once; a class
+/// registered twice is an error.
+class TestWindow {
+  TestWindow._(this.hWnd);
+
+  final int hWnd;
+  static bool _classRegistered = false;
+
+  static TestWindow create() {
+    final user32 = DynamicLibrary.open('user32.dll');
+    final Pointer<Utf16> className = 'DartvelTestWindow'.toNativeUtf16();
+    final Pointer<Utf16> title = 'Dartvel'.toNativeUtf16();
+    try {
+      if (!_classRegistered) {
+        // WNDCLASSW: style, lpfnWndProc, cbClsExtra, cbWndExtra, hInstance,
+        // hIcon, hCursor, hbrBackground, lpszMenuName, lpszClassName.
+        final Pointer<Uint8> wc = calloc<Uint8>(72);
+        try {
+          final Pointer<Void> defProc = user32.lookup<NativeFunction<Void Function()>>('DefWindowProcW').cast();
+          (wc.cast<IntPtr>() + 1).value = defProc.address;
+          (wc.cast<IntPtr>() + 8).value = className.address;
+          final int atom = user32.lookupFunction<Uint16 Function(Pointer<Uint8>), int Function(Pointer<Uint8>)>('RegisterClassW')(wc);
+          expect(atom, isNot(0), reason: 'RegisterClassW must take the class');
+          _classRegistered = true;
+        } finally {
+          calloc.free(wc);
+        }
+      }
+      final int hWnd = user32.lookupFunction<
+          IntPtr Function(Uint32, Pointer<Utf16>, Pointer<Utf16>, Uint32, Int32, Int32, Int32, Int32, IntPtr, IntPtr, IntPtr, Pointer<Void>),
+          int Function(int, Pointer<Utf16>, Pointer<Utf16>, int, int, int, int, int, int, int, int, Pointer<Void>)>('CreateWindowExW')(
+        0, className, title, 0x00CF0000 /* WS_OVERLAPPEDWINDOW */, 0, 0, 400, 300, 0, 0, 0, nullptr);
+      expect(hWnd, isNot(0), reason: 'CreateWindowExW must make a window');
+      user32.lookupFunction<IntPtr Function(IntPtr), int Function(int)>('SetActiveWindow')(hWnd);
+      return TestWindow._(hWnd);
+    } finally {
+      calloc.free(className);
+      calloc.free(title);
+    }
+  }
+
+  /// Sends [message] the way Win32 would, synchronously, through the
+  /// window's procedure chain.
+  int send(int message, int wParam, int lParam) =>
+      DynamicLibrary.open('user32.dll').lookupFunction<
+          IntPtr Function(IntPtr, Uint32, IntPtr, IntPtr),
+          int Function(int, int, int, int)>('SendMessageW')(hWnd, message, wParam, lParam);
+
+  void destroy() =>
+      DynamicLibrary.open('user32.dll').lookupFunction<Int32 Function(IntPtr), int Function(int)>('DestroyWindow')(hWnd);
+}
+
 /// ERROR_REQUIRES_INTERACTIVE_WINDOWSTATION: a hot key cannot be taken in a
 /// session with no interactive desktop, which is a fact about the runner
 /// rather than about the binding, and is said rather than counted as a pass.
@@ -328,6 +381,74 @@ void main() {
       expect(double.parse(health.diagnostics['uptimeSeconds']!), greaterThan(0));
       expect(int.parse(health.diagnostics['memoryTotalBytes']!), greaterThan(0));
       expect(int.parse(health.diagnostics['diskFreeBytes']!), greaterThan(0));
+    });
+  });
+
+  group('application menu', () {
+    // A Win32 menu bar on the process's window, read back through Win32
+    // and activated through WM_COMMAND -- the message Win32 sends for a
+    // chosen item -- so what is asserted is what a user would see and click.
+    late TestWindow window;
+    setUp(() => window = TestWindow.create());
+    tearDown(() {
+      DVMenus.reset();
+      DVWindowsMenus.unregister();
+      window.destroy();
+    });
+
+    test('without a window the menu is refused rather than lost', () async {
+      window.destroy();
+      window = TestWindow.create();
+      DynamicLibrary.open('user32.dll').lookupFunction<IntPtr Function(IntPtr), int Function(int)>('SetActiveWindow')(0);
+      // GetActiveWindow answers 0 for a thread whose active window was
+      // just cleared; only then is refusal the right answer.
+      final int active = DynamicLibrary.open('user32.dll').lookupFunction<IntPtr Function(), int Function()>('GetActiveWindow')();
+      if (active != 0) {
+        markTestSkipped('the thread still has an active window; refusal cannot be provoked here');
+        return;
+      }
+      await expectLater(
+        const DVMenus().setApplicationMenu(const DVApplicationMenu(<DVMenuItem>[DVMenuItem(id: 'a', label: 'A')])),
+        throwsA(isA<StateError>()),
+      );
+    });
+
+    test('the bar ends up on the window, with the items asked for', () async {
+      await const DVMenus().setApplicationMenu(const DVApplicationMenu(<DVMenuItem>[
+        DVMenuItem(id: 'file', label: 'File', children: <DVMenuItem>[
+          DVMenuItem(id: 'open', label: 'Open'),
+          DVMenuItem(id: 'export', label: 'Export', enabled: false),
+        ]),
+        DVMenuItem(id: 'help', label: 'Help', children: <DVMenuItem>[DVMenuItem(id: 'about', label: 'About')]),
+      ]));
+
+      expect(DVWindowsMenus.menuTitles(window.hWnd), <String>['File', 'Help']);
+    });
+
+    test('choosing an item reaches Dart by id', () async {
+      final List<String> selected = <String>[];
+      await const DVMenus().setApplicationMenu(
+        const DVApplicationMenu(<DVMenuItem>[
+          DVMenuItem(id: 'file', label: 'File', children: <DVMenuItem>[DVMenuItem(id: 'open', label: 'Open')]),
+        ]),
+        onSelected: selected.add,
+      );
+
+      // WM_COMMAND with the command id in the low word and 0 (a menu) in the
+      // high word: File is command 1, Open command 2.
+      window.send(0x0111, 2, 0);
+
+      expect(selected, <String>['open']);
+    });
+
+    test('a second menu replaces the first rather than stacking', () async {
+      await const DVMenus().setApplicationMenu(const DVApplicationMenu(<DVMenuItem>[
+        DVMenuItem(id: 'a', label: 'A', children: <DVMenuItem>[DVMenuItem(id: 'a1', label: 'A1')]),
+      ]));
+      await const DVMenus().setApplicationMenu(const DVApplicationMenu(<DVMenuItem>[
+        DVMenuItem(id: 'b', label: 'B', children: <DVMenuItem>[DVMenuItem(id: 'b1', label: 'B1')]),
+      ]));
+      expect(DVWindowsMenus.menuTitles(window.hWnd), <String>['B']);
     });
   });
 

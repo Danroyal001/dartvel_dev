@@ -17,10 +17,12 @@ import '../device_runtime.dart';
 import 'windows_capabilities.dart';
 import 'windows_device_ffi.dart';
 import 'windows_kiosk_ffi.dart';
+import 'windows_menus_ffi.dart';
 import 'windows_shortcuts_ffi.dart';
 
 export 'windows_device_ffi.dart' show DVWindowsDeviceProbes;
 export 'windows_kiosk_ffi.dart' show DVWindowsKiosk;
+export 'windows_menus_ffi.dart' show DVWindowsMenus;
 export 'windows_shortcuts_ffi.dart' show DVWindowsShortcuts;
 
 // user32
@@ -133,6 +135,7 @@ class DVWindowsBindings {
 
     DVWindowsShortcuts.register(DVNativeBridge.register);
     DVWindowsKiosk.register(DVNativeBridge.register, user32: _user32, kernel32: _kernel32);
+    DVWindowsMenus.register(DVNativeBridge.register, user32: _user32);
     DVDeviceRuntime.probes = const DVWindowsDeviceProbes();
     DVDeviceRuntime.register(DVNativeBridge.register);
 
@@ -143,6 +146,7 @@ class DVWindowsBindings {
   static void unregister() {
     if (_registered) {
       unawaited(DVWindowsKiosk.release().then((_) => DVWindowsShortcuts.unregister()));
+      DVWindowsMenus.unregister();
       DVDeviceRuntime.unregister();
     }
     for (final name in implemented) {

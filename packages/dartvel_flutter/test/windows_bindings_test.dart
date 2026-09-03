@@ -37,6 +37,8 @@ void main() {
           'device.watchdog.heartbeat',
           'device.fleet.provision',
           'device.diagnostics.collect',
+          // A Win32 menu bar on the process's window, WM_COMMAND by id.
+          'menus.setApplicationMenu',
         },
       );
     });
@@ -71,6 +73,7 @@ void main() {
         'device.watchdog.heartbeat',
         'device.fleet.provision',
         'device.diagnostics.collect',
+        'menus.setApplicationMenu',
         'window.persistState',
         'window.restoreState',
         'notifications.sendLocal',

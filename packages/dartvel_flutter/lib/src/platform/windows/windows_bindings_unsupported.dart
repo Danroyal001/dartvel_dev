@@ -38,3 +38,13 @@ class DVWindowsShortcuts {
   static int? debugNumericId(String id) => null;
   static Future<void> unregister() async {}
 }
+
+/// The Windows application menu, unavailable here.
+class DVWindowsMenus {
+  const DVWindowsMenus._();
+
+  static const Set<String> implemented = <String>{'menus.setApplicationMenu'};
+  static int? get debugWindow => null;
+  static List<String> menuTitles(int hWnd) => const <String>[];
+  static void unregister() {}
+}
