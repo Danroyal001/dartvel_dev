@@ -24,6 +24,8 @@ String dvSeoHead({
   String? siteUrl,
   String? image,
   String? siteName,
+  Map<String, String> alternates = const <String, String>{},
+  String? defaultAlternate,
   String type = 'website',
 }) {
   final tags = <String>[
@@ -31,6 +33,18 @@ String dvSeoHead({
     _meta('name', 'description', description),
     if (siteUrl != null && siteUrl.isNotEmpty)
       '<link rel="canonical" href="${_escapeAttribute(siteUrl)}">',
+    // hreflang, one link per language this page exists in. Without them a
+    // site with /fr/pricing and /de/pricing shows a crawler three unrelated
+    // pages with the same content, which engines treat as duplicates rather
+    // than translations. Written only when there is more than one: a lone
+    // hreflang reads as a misconfiguration.
+    if (alternates.length > 1)
+      for (final MapEntry<String, String> alternate in alternates.entries)
+        '<link rel="alternate" hreflang="${_escapeAttribute(alternate.key)}" '
+            'href="${_escapeAttribute(alternate.value)}">',
+    if (alternates.length > 1 && defaultAlternate != null)
+      '<link rel="alternate" hreflang="x-default" '
+          'href="${_escapeAttribute(defaultAlternate)}">',
     _meta('property', 'og:title', title),
     _meta('property', 'og:description', description),
     _meta('property', 'og:type', type),
@@ -254,4 +268,37 @@ String dvCleanShell(
   );
 
   return html;
+}
+
+
+/// One URL per locale for [route]: the default locale unprefixed, every
+/// other under its own path prefix, on [siteUrl].
+///
+/// A route that already carries a locale prefix -- the prerender walks
+/// /fr/pricing as well as /pricing -- gets the same set as its unprefixed
+/// form, so the prefix is never doubled. A single locale yields nothing, so
+/// no lone hreflang is written.
+Map<String, String> dvSeoAlternatesFor({
+  required String siteUrl,
+  required String route,
+  required List<String> locales,
+  required String defaultLocale,
+}) {
+  if (locales.length < 2) return const <String, String>{};
+  final String base = siteUrl.endsWith('/') ? siteUrl.substring(0, siteUrl.length - 1) : siteUrl;
+
+  // Strip a leading locale segment, whichever locale it is.
+  List<String> segments = route.split('/').where((String s) => s.isNotEmpty).toList();
+  if (segments.isNotEmpty &&
+      locales.any((String l) => l.toLowerCase() == segments.first.toLowerCase())) {
+    segments = segments.sublist(1);
+  }
+  final String bare = segments.isEmpty ? '/' : '/${segments.join('/')}';
+
+  return <String, String>{
+    for (final String locale in locales)
+      locale: locale == defaultLocale
+          ? '$base$bare'
+          : '$base/${locale.toLowerCase()}$bare',
+  };
 }
