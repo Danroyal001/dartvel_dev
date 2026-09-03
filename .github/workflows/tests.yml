@@ -102,9 +102,25 @@ jobs:
         working-directory: packages/${{ matrix.package }}
         run: ${{ matrix.runner }} analyze --fatal-warnings lib test
 
+      # Under an X server for the Flutter packages. The Linux native bindings
+      # -- clipboard, window, and the global-shortcut grab -- skip themselves
+      # when there is no DISPLAY, so `flutter test` alone was reporting those
+      # suites as passing while never running a line of them. Xvfb makes the
+      # skip guard false; libXtst is what the shortcut suite presses keys with.
+      - name: Headless display for the native binding suites
+        if: matrix.runner == 'flutter'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libxtst6 libgtk-3-0
+
       - name: Test
         working-directory: packages/${{ matrix.package }}
-        run: ${{ matrix.runner }} test
+        run: |
+          if [ "${{ matrix.runner }}" = "flutter" ]; then
+            xvfb-run -a flutter test
+          else
+            dart test
+          fi
 
   # The only test in this repository that runs the application rather than a
   # widget in isolation. It exists because unit tests on one platform cannot
