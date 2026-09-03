@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../kiosk/runtime.dart' show DVKioskState;
 
 /// Application-level lifecycle states.
 enum DVAppLifecycle {
@@ -178,6 +179,7 @@ class DVLifecycleRegistry {
   final _build = DVMutableLifecycleSignal<DVBuildLifecycle>(
     DVBuildLifecycle.idle,
   );
+  final _kiosk = DVMutableLifecycleSignal<DVKioskState>(DVKioskState.off);
 
   /// Application lifecycle: `DV.lifecycle.app`.
   DVLifecycleSignal<DVAppLifecycle> get app => _app;
@@ -191,9 +193,16 @@ class DVLifecycleRegistry {
   /// Framework-only: advances build state.
   void setBuild(DVBuildLifecycle state) => _build.set(state);
 
+  /// The kiosk's state -- off, active, staffMode, resetting, locked, failed
+  /// -- as the runtime drives it. Reset shows as `resetting -> active`.
+  DVLifecycleSignal<DVKioskState> get kiosk => _kiosk;
+
+  void setKiosk(DVKioskState state) => _kiosk.set(state);
+
   /// Test-only: returns both signals to their initial states.
   void resetForTesting() {
     _app.set(DVAppLifecycle.uninitialized);
     _build.set(DVBuildLifecycle.idle);
+    _kiosk.set(DVKioskState.off);
   }
 }
