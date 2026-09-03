@@ -717,6 +717,9 @@ class BuildCommand extends Command<void> {
   }) async {
     Logger.log('');
     Logger.log('🔨 Building for $platform...');
+    // Before Xcode packages the bundle: the document and URL types live in
+    // its Info.plist.
+    if (platform == 'macos') _writeMacosDesktopEntries(Directory.current.path);
 
     final args = resolveFlutterBuildArguments(
       platform: platform,
@@ -787,6 +790,7 @@ class BuildCommand extends Command<void> {
         }
       }
       if (platform == 'linux') _writeLinuxDesktopFiles(Directory.current.path);
+      if (platform == 'windows') _writeWindowsDesktopFiles(Directory.current.path);
       Logger.log('✅ $platform build successful');
       return _PlatformBuildResult.succeeded;
     } else {
@@ -940,6 +944,27 @@ class BuildCommand extends Command<void> {
       Logger.log('⚠️  $problem');
     }
     Logger.log('   Wrote ${result.written.join(', ')} under the bundle.');
+  }
+
+  /// The document and URL types into the macOS runner's Info.plist.
+  void _writeMacosDesktopEntries(String root) {
+    final DVDesktopWrite result = dvWriteMacosDesktopEntries(root);
+    for (final String problem in result.problems) {
+      Logger.log('⚠️  $problem');
+    }
+    if (result.written.isNotEmpty) Logger.log('   Wrote ${result.written.join(', ')}.');
+  }
+
+  /// The registry script for file associations and app links, beside the
+  /// Windows binary. Only an installer or the person may write those keys.
+  void _writeWindowsDesktopFiles(String root) {
+    final String bundle = '$root/build/windows/x64/runner/Release';
+    if (!Directory(bundle).existsSync()) return;
+    final DVDesktopWrite result = dvWriteWindowsDesktopFiles(root, bundle);
+    for (final String problem in result.problems) {
+      Logger.log('⚠️  $problem');
+    }
+    if (result.written.isNotEmpty) Logger.log('   Wrote ${result.written.join(', ')} under the bundle.');
   }
 
   String _hostArchitecture() {
