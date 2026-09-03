@@ -792,9 +792,12 @@
       "stability": "Draft",
       "status": "Partial",
       "evidence": [
-        "packages/dartvel_shelf/test/ssr_fallback_test.dart"
+        "packages/dartvel_shelf/test/ssr_fallback_test.dart",
+        "packages/dartvel_cli/lib/src/build/web_server.dart",
+        "packages/dartvel_cli/test/web_server_page_data_test.dart",
+        "packages/dartvel_cli/test/web_server_serve_test.dart"
       ],
-      "absent": "nothing renders Flutter to HTML on the server. What exists is the fallback that serves the SPA index with prerendered title and semantic content injected into it, which is the SEO half rather than server rendering; a crawler gets markup, a user still waits for the bundle"
+      "absent": "The pipeline the section describes is built for a request, given a resolver for the route's data: route resolved against the manifest's patterns with its parameters, page data resolved by the declared mode (awaited; cached for a ttl; served stale and refreshed behind the response; deferred to the client), visibility checked (hidden is 404, unauthorized 401, each the shell without the data), the head generated from the data (title, description, image, canonical), structured data written as JSON-LD, the page's favicon selected, the crawler-visible text generated from the data, the Flutter bootstrap kept, and, with streaming on, the head sent as its own chunk. dartvel.web.server (pageDataMode, cacheTtlSeconds, streaming, cache) travels in the manifest. Absent: the resolver the generated server would supply from the application's models, so today a route's data comes from whoever mounts dvWebServerHandler with one; a shared cache (cache: redis) is declared and carried but the kept pages live in the process; and rendering Flutter widgets to HTML, which the section does not ask for -- it asks for the SEO, semantic text and bootstrap, which are here."
     },
     {
       "section": "Embedded, Television, and Extension Build Targets",

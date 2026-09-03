@@ -364,8 +364,8 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   ),
   (
     'Web Server Rendering',
-    'The SEO half, not the rendering half',
-    'Present: the server serves the SPA index with the prerendered title and semantic content injected, so a crawler gets markup. Absent: rendering Flutter to HTML on the server; a user still waits for the bundle.',
+    'Pages assembled on request, from the route\'s data',
+    'Present: the request pipeline the spec describes, given a resolver for the route\'s data -- route resolved with its parameters, page data resolved by the declared mode (awaited, cached, stale-while-revalidate, or deferred to the client), visibility checked with 404 and 401, the head and JSON-LD structured data generated from the data, the page\'s favicon, crawler-visible text, the Flutter bootstrap, and streaming that sends the head first. Absent: the resolver the generated server would supply from the application\'s models, and a shared cache; the kept pages live in the process.',
   ),
   (
     'Embedded, Television, and Extension Build Targets',
