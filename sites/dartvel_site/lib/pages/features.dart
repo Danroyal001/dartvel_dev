@@ -286,6 +286,18 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'reusable components, revision history, multi-user editing with presence, '
     'roles, an audit trail and approval before a page goes live.',
   ),
+  (
+    'Accessibility',
+    'Audited at release, driveable by a switch',
+    'dartvel build web audits the semantics tree a real browser produced and '
+    'fails on a nameless control, an empty heading or a skipped level, unless '
+    'waived with a written reason. Generated tables navigate by keyboard and '
+    'announce cells; contrast and tap targets are checked against published '
+    'minimums; motion follows the platform\'s reduced-motion setting. Kiosk '
+    'and embedded pages are driveable by one or two switches, auto-scan, or a '
+    'remote\'s D-pad, and a kiosk\'s key block never covers the keys '
+    'accessibility needs.',
+  ),
 ];
 
 @DVPage(title: 'Features — Dartvel', showAppBar: false)
@@ -295,7 +307,7 @@ Widget _featuresPage(BuildContext context) => SingleChildScrollView(
         const Section(
           children: <Widget>[
             Eyebrow('WHAT WORKS TODAY'),
-            Heading('Forty-two shipped sections.', level: 1),
+            Heading('Forty-three shipped sections.', level: 1),
             Body(
               'This list is the repository’s own record of what is built, not '
               'a description of what is planned. A tool checks it and fails '
@@ -305,7 +317,7 @@ Widget _featuresPage(BuildContext context) => SingleChildScrollView(
               width: 660,
             ),
             Body(
-              'Fourteen more sections are partial. They are listed as '
+              'Thirteen more sections are partial. They are listed as '
               'partial, with what is absent written next to what is present.',
               width: 660,
             ),

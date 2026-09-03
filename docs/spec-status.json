@@ -427,7 +427,7 @@
     {
       "section": "Accessibility",
       "stability": "Draft",
-      "status": "Partial",
+      "status": "Shipped",
       "evidence": [
         "packages/dartvel_cli/test/model_table_generation_test.dart",
         "packages/dartvel_flutter/lib/src/table/table.dart",
@@ -435,9 +435,11 @@
         "packages/dartvel_flutter/test/table_test.dart",
         "packages/dartvel_cli/lib/src/build/accessibility_audit.dart",
         "packages/dartvel_cli/test/accessibility_audit_test.dart",
-        "packages/dartvel_cli/test/accessibility_waivers_test.dart"
+        "packages/dartvel_cli/test/accessibility_waivers_test.dart",
+        "packages/dartvel_flutter/lib/src/accessibility/switch_control.dart",
+        "packages/dartvel_flutter/test/switch_control_test.dart"
       ],
-      "absent": "Switch control and hardware-key navigation for kiosk and embedded targets. Waivers are built: dartvel.accessibility.waivers names a route, a rule the audit has (or * for the page) and a reason -- no reason, no waiver -- and a waiver that matches nothing is reported so it does not sit in the file for ever. The release gate is built: dartvel build web audits the semantics tree a real browser produced -- what a screen reader is actually handed -- and fails on a link or control with no accessible name, an empty heading, a page with no headings or no level 1, and a heading level skipped going down; on its first run against the site it found /features going h1 to h3. Generated tables have keyboard navigation, focus that survives a sort, and per-cell announcements naming the column and the row position. Contrast is checked against WCAG ratios and tap targets against Material's minimum"
+      "absent": "Nothing this section asks for is unbuilt. Switch control and hardware-key navigation are built: DVSwitchControl steps focus through a page with one key and activates with another, wrapping, with auto-scan for a single-switch user; DVHardwareKeys maps a remote's D-pad and select onto focus and activation; DVAccessibilityToggle is the attract-route toggle behind DV.Accessibility.switchControl; DVAccessibilityKeys.isExempt names the keys a kiosk hardware-key block must let through, which is the rule Kiosk Mode's native enforcement consults when it exists (that enforcement is Kiosk Mode's gap, not this section's). Waivers are built: dartvel.accessibility.waivers names a route, a rule the audit has (or * for the page) and a reason -- no reason, no waiver -- and a waiver that matches nothing is reported so it does not sit in the file for ever. The release gate is built: dartvel build web audits the semantics tree a real browser produced -- what a screen reader is actually handed -- and fails on a link or control with no accessible name, an empty heading, a page with no headings or no level 1, and a heading level skipped going down; on its first run against the site it found /features going h1 to h3. Generated tables have keyboard navigation, focus that survives a sort, and per-cell announcements naming the column and the row position. Contrast is checked against WCAG ratios and tap targets against Material's minimum"
     },
     {
       "section": "Desktop, Embedded, and Qt-Critical Capabilities",
