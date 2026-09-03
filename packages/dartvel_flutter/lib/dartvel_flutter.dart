@@ -271,6 +271,7 @@ export 'src/studio/studio_edit.dart';
 export 'src/studio/studio_editor.dart';
 export 'src/studio/studio_screen.dart';
 export 'src/table/table.dart';
+export 'src/windowing/app_launch.dart';
 export 'src/windowing/displays.dart';
 export 'src/windowing/shared_store.dart';
 export 'src/windowing/tab_workspace.dart';
