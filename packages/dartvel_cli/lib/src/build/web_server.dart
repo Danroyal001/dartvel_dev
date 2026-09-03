@@ -16,14 +16,14 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:dartvel_core/dartvel.dart' show DVPageData, DVPageDataCache, DVPageDataMode, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVWebServerSettings, dvMatchRoute, dvRenderPage, dvRenderRoute;
 import 'package:path/path.dart' as p;
 import 'package:shelf/shelf.dart';
 import 'package:shelf_static/shelf_static.dart';
 
+export 'package:dartvel_core/dartvel.dart' show DVPageData, DVPageDataCache, DVPageDataMode, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVWebServerSettings, dvMatchRoute, dvRenderPage, dvRenderRoute, dvRouteParams;
 
-import 'page_text.dart';
-import 'seo_head.dart';
-import 'static_seo.dart';
+
 
 /// What a web-server build writes, as against a static one.
 class DVWebServerPlan {
@@ -78,165 +78,6 @@ String dvWebServerManifest({
       },
     });
 
-/// How page data is waited for on a request.
-enum DVPageDataMode {
-  /// Resolved on every request, before the page is sent.
-  await_,
-
-  /// Resolved once and kept for the ttl.
-  cache,
-
-  /// A kept page is sent at once, stale or not, and refreshed behind it.
-  staleWhileRevalidate,
-
-  /// Never resolved on the server; the client renders the data.
-  defer,
-}
-
-/// `dartvel.web.server` in pubspec.yaml.
-class DVWebServerSettings {
-  const DVWebServerSettings({
-    this.pageDataMode = DVPageDataMode.await_,
-    this.cacheTtl = const Duration(seconds: 60),
-    this.streaming = false,
-    this.cache,
-  });
-
-  final DVPageDataMode pageDataMode;
-  final Duration cacheTtl;
-
-  /// The head first, the text after: a crawler and a person both see the
-  /// title before the data is done.
-  final bool streaming;
-
-  /// Where a cache lives when it is shared -- `redis` -- and null for this
-  /// process's memory.
-  final String? cache;
-
-  static const Map<String, DVPageDataMode> _modes = <String, DVPageDataMode>{
-    'await': DVPageDataMode.await_,
-    'cache': DVPageDataMode.cache,
-    'stale-while-revalidate': DVPageDataMode.staleWhileRevalidate,
-    'defer': DVPageDataMode.defer,
-  };
-
-  static String _name(DVPageDataMode mode) =>
-      _modes.entries.firstWhere((MapEntry<String, DVPageDataMode> e) => e.value == mode).key;
-
-  static DVWebServerSettings parse(Object? section) {
-    final Map<Object?, Object?> m = section is Map ? section : const <Object?, Object?>{};
-    final Object? ttl = m['cacheTtlSeconds'];
-    return DVWebServerSettings(
-      pageDataMode: _modes['${m['pageDataMode'] ?? 'await'}'] ?? DVPageDataMode.await_,
-      cacheTtl: ttl is num ? Duration(seconds: ttl.toInt()) : const Duration(seconds: 60),
-      streaming: m['streaming'] == true,
-      cache: m['cache'] is String ? m['cache']! as String : null,
-    );
-  }
-
-  Map<String, Object?> toJson() => <String, Object?>{
-        'pageDataMode': _name(pageDataMode),
-        'cacheTtlSeconds': cacheTtl.inSeconds,
-        'streaming': streaming,
-        if (cache != null) 'cache': cache,
-      };
-}
-
-/// What a request resolved to: the route pattern it matched and the
-/// parameters the path filled in.
-class DVPageRequest {
-  const DVPageRequest({required this.path, required this.pattern, required this.params, this.headers = const <String, String>{}});
-
-  final String path;
-  final String pattern;
-  final Map<String, String> params;
-
-  /// The request's headers, for a resolver that checks who is asking.
-  final Map<String, String> headers;
-}
-
-enum DVPageVisibility { public, hidden, unauthorized }
-
-/// A page's data, resolved on request: what the head, the structured data
-/// and the crawler-visible text are made from. Every value is untrusted --
-/// a title is whatever is in the database -- and escaped where it lands.
-class DVPageData {
-  const DVPageData({
-    required this.title,
-    this.description,
-    this.image,
-    this.favicon,
-    this.text = const <String>[],
-    this.structuredData,
-    this.visibility = DVPageVisibility.public,
-  });
-
-  final String title;
-  final String? description;
-  final String? image;
-
-  /// A favicon for this page, replacing the shell's.
-  final String? favicon;
-  final List<String> text;
-
-  /// JSON-LD, written as the page's structured data.
-  final Map<String, Object?>? structuredData;
-  final DVPageVisibility visibility;
-}
-
-typedef DVPageDataResolver = FutureOr<DVPageData?> Function(DVPageRequest request);
-
-class _Kept {
-  _Kept(this.data, this.at);
-  final DVPageData? data;
-  final DateTime at;
-  bool refreshing = false;
-}
-
-/// The path's parameters under [pattern], or null when it does not match.
-Map<String, String>? dvRouteParams(String pattern, String path) {
-  if (pattern == path) return const <String, String>{};
-  if (!pattern.contains(':')) return null;
-  final patternParts = pattern.split('/');
-  final pathParts = path.split('/');
-  if (patternParts.length != pathParts.length) return null;
-  final Map<String, String> params = <String, String>{};
-  for (var i = 0; i < patternParts.length; i++) {
-    final String segment = patternParts[i];
-    if (segment.startsWith(':')) {
-      params[segment.substring(1)] = Uri.decodeComponent(pathParts[i]);
-    } else if (segment != pathParts[i]) {
-      return null;
-    }
-  }
-  return params;
-}
-
-/// [html] with the page's structured data and favicon in its head.
-String dvApplyPageExtras(String html, DVPageData data) {
-  var out = html.replaceAll(RegExp(r'<!--dv:ld-->.*?<!--/dv:ld-->\n?', dotAll: true), '');
-  if (data.favicon != null) {
-    final String href = const HtmlEscape(HtmlEscapeMode.attribute).convert(data.favicon!);
-    final RegExp icon = RegExp(r'<link[^>]*rel="(?:shortcut )?icon"[^>]*>');
-    out = icon.hasMatch(out)
-        ? out.replaceAll(icon, '<link rel="icon" href="$href">')
-        : out.replaceFirst('</head>', '<link rel="icon" href="$href">\n</head>');
-  }
-  final Map<String, Object?>? ld = data.structuredData;
-  if (ld != null) {
-    // `</` cannot appear inside the script: a value of `</script>` would
-    // end it, so the slash is escaped the way JSON allows.
-    final String json = jsonEncode(ld).replaceAll('</', '<\\/');
-    out = out.replaceFirst('</head>', '<!--dv:ld--><script type="application/ld+json">$json</script><!--/dv:ld-->\n</head>');
-  }
-  return out;
-}
-
-/// Build the page for [path].
-///
-/// The canonical is the URL that was asked for rather than the pattern that
-/// matched it: `/post/hello-world` canonicalises to itself, not to
-/// `/post/:id`, which is not a URL anyone can visit.
 String dvServeRoute({
   required String shell,
   required String path,
@@ -247,61 +88,20 @@ String dvServeRoute({
   String? image,
   String? siteName,
 }) {
-  final matched = _match(path, routes.keys);
-  final title = (matched == null ? null : routes[matched]) ?? siteName ?? path;
-
-  final html = dvSeoApply(
-    shell,
-    dvSeoHead(
-      title: title,
-      description: description,
-      siteUrl: siteUrl == null ? null : dvStaticCanonical(siteUrl, path),
-      image: image,
-      siteName: siteName,
-    ),
+  final DVPageRequest? matched = dvMatchRoute(path, routes.keys);
+  final String title = (matched == null ? null : routes[matched.pattern]) ?? siteName ?? path;
+  return dvRenderRoute(
+    shell: shell,
+    path: path,
+    title: title,
+    text: matched == null ? const <String>[] : (text[matched.pattern] ?? const <String>[]),
+    siteUrl: siteUrl,
+    description: description,
+    image: image,
+    siteName: siteName,
   );
-
-  final lines = matched == null ? const <String>[] : (text[matched] ?? const <String>[]);
-  return dvApplyPageText(html, lines);
 }
 
-/// The route pattern that covers [path], preferring an exact match.
-///
-/// Exact first, because `/post/new` should reach a real `/post/new` route
-/// rather than being read as an id.
-String? _match(String path, Iterable<String> patterns) {
-  if (patterns.contains(path)) return path;
-
-  for (final String pattern in patterns) {
-    if (!pattern.contains(':')) continue;
-    final patternParts = pattern.split('/');
-    final pathParts = path.split('/');
-    if (patternParts.length != pathParts.length) continue;
-
-    var matches = true;
-    for (var i = 0; i < patternParts.length; i++) {
-      final segment = patternParts[i];
-      if (segment.startsWith(':')) continue;
-      if (segment != pathParts[i]) {
-        matches = false;
-        break;
-      }
-    }
-    if (matches) return pattern;
-  }
-  return null;
-}
-
-/// Per-route HTML left behind by a previous static build.
-///
-/// A directory that held one still has `/docs/index.html` in it, and a server
-/// that falls through to a file serves that instead of the page it just
-/// rendered. The stale copy shadows the live one, and the symptom is a page
-/// that will not update however many times it is deployed.
-///
-/// The root `index.html` is kept: it is the shell the server renders into.
-/// Nothing else is touched, because deleting more than the pages would take
-/// the application with them.
 List<String> dvWebServerStaleFiles({required List<String> present}) =>
     present
         .where((String path) =>
@@ -362,44 +162,16 @@ Handler dvWebServerHandler({
   final DVPageDataMode mode = pageDataMode ?? declared.pageDataMode;
   final Duration ttl = cacheTtl ?? declared.cacheTtl;
   final bool stream = streaming ?? declared.streaming;
-  final Map<String, _Kept> kept = <String, _Kept>{};
+  final DVPageDataCache cache = DVPageDataCache(ttl: ttl);
 
   /// The data for [path], by the mode: resolved, kept, served stale, or not
   /// asked for at all.
   Future<DVPageData?> resolve(String path, Map<String, String> headers) async {
     final DVPageDataResolver? resolver = pageData;
-    if (resolver == null || mode == DVPageDataMode.defer) return null;
-    String? pattern;
-    Map<String, String>? params;
-    for (final String candidate in routeMap.keys) {
-      params = dvRouteParams(candidate, path);
-      if (params != null) {
-        pattern = candidate;
-        break;
-      }
-    }
-    if (pattern == null) return null;
-    final DVPageRequest request = DVPageRequest(path: path, pattern: pattern, params: params!, headers: headers);
-
-    if (mode == DVPageDataMode.await_) return resolver(request);
-
-    final _Kept? have = kept[path];
-    final bool fresh = have != null && DateTime.now().difference(have.at) <= ttl;
-    if (have != null && fresh) return have.data;
-    if (mode == DVPageDataMode.staleWhileRevalidate && have != null) {
-      if (!have.refreshing) {
-        have.refreshing = true;
-        unawaited(Future<DVPageData?>.value(resolver(request)).then((DVPageData? data) {
-          kept[path] = _Kept(data, DateTime.now());
-        }).catchError((Object _) {
-          have.refreshing = false;
-        }));
-      }
-      return have.data;
-    }
-    final DVPageData? data = await resolver(request);
-    kept[path] = _Kept(data, DateTime.now());
-    return data;
+    if (resolver == null) return null;
+    final DVPageRequest? request = dvMatchRoute(path, routeMap.keys, headers: headers);
+    if (request == null) return null;
+    return cache.resolve(request, resolver, mode);
   }
 
   // dvServeRoute falls back to the site name and then to the path itself, so
@@ -465,18 +237,14 @@ Handler dvWebServerHandler({
             image: image,
             siteName: siteName ?? shellTitle,
           )
-        : dvApplyPageExtras(
-            dvServeRoute(
-              shell: shell,
-              path: cleanPath,
-              routes: <String, String>{cleanPath: data.title},
-              text: <String, List<String>>{cleanPath: data.text},
-              siteUrl: siteUrl,
-              description: data.description ?? description,
-              image: data.image ?? image,
-              siteName: siteName ?? shellTitle,
-            ),
-            data,
+        : dvRenderPage(
+            shell: shell,
+            path: cleanPath,
+            data: data,
+            siteUrl: siteUrl,
+            siteName: siteName ?? shellTitle,
+            description: description,
+            image: image,
           );
 
     if (!stream) return Response.ok(page, headers: htmlHeaders);
