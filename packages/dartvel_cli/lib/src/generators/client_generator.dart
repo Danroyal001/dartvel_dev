@@ -439,7 +439,7 @@ const String dvApiBasePath      = '${esc(apiBasePath)}';
     final runtimeDart = """
 import 'dart:async' show unawaited;
 import 'package:flutter/foundation.dart' show kReleaseMode, kIsWeb, defaultTargetPlatform, TargetPlatform, debugPrint;
-import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVPageStore;
+import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVPageStore, DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings;
 import 'dartvel_config.g.dart' as cfg;
 import 'jobs.g.dart' show registerDartvelJobs;
 import 'models.g.dart' show registerDartvelModels;
@@ -457,9 +457,36 @@ void configureDartvelRuntime() {
   // application to remember.
   registerDartvelJobs();
   registerDartvelModels();
+  // The platform's native bindings -- clipboard, window, notifications and
+  // the rest. Registered here rather than left to the application, because a
+  // separate call the application had to remember is exactly how every real
+  // app on Linux was throwing "binding not registered" from
+  // DV.Platform.Clipboard.copy().
+  registerPlatformBindings();
   // Reads stored Studio documents into memory so an override resolves during
   // navigation instead of flashing the compiled page first.
   unawaited(DVPageStore.prime());
+}
+
+/// Loads the running platform's native libraries and wires its bindings.
+///
+/// One switch over the platform, not four ifs that could each be true on a
+/// mis-detected host. A platform whose libraries are missing -- a headless
+/// container without X11 -- is reported and carried on from, because an app
+/// that cannot copy to the clipboard is still an app.
+void registerPlatformBindings() {
+  if (kIsWeb) return;
+  final bool registered = switch (defaultTargetPlatform) {
+    TargetPlatform.linux => DVLinuxBindings.register(),
+    TargetPlatform.windows => DVWindowsBindings.register(),
+    TargetPlatform.macOS => DVMacosBindings.register(),
+    TargetPlatform.iOS => DVIosBindings.register(),
+    _ => true,
+  };
+  if (!registered) {
+    debugPrint('[dartvel] native bindings for \$defaultTargetPlatform did not '
+        'load; platform APIs will report themselves unbound.');
+  }
 }
 
 class DartvelRuntime {
