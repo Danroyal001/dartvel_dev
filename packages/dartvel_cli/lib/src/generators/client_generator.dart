@@ -450,6 +450,7 @@ ${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' 
 import 'dartvel_config.g.dart' as cfg;
 import 'jobs.g.dart' show registerDartvelJobs;
 import 'models.g.dart' show registerDartvelModels;
+import 'modules.g.dart' show registerDartvelModules;
 
 /// Wires the generated runtime into the short `DV.baseUrl` / `DV.api(...)` API.
 /// Called automatically during app/router initialization.
@@ -464,6 +465,9 @@ void configureDartvelRuntime({List<String> arguments = const <String>[]}) {
   // application to remember.
   registerDartvelJobs();
   registerDartvelModels();
+  // The modules this application mounts, so DV.Modules.<id> is the module
+  // the build mounted rather than an unknown id.
+  registerDartvelModules();
   // The platform's native bindings -- clipboard, window, notifications and
   // the rest. Registered here rather than left to the application, because a
   // separate call the application had to remember is exactly how every real
@@ -1209,6 +1213,13 @@ ${(() {
       p.join(libClientDir.path, 'router.g.dart'),
     ).writeAsStringSync('// BUILD: $buildId\n$router');
 
+    // The mounted modules, as the registry DV.Modules reads and a typed
+    // accessor per module. Written even when there are none: the generated
+    // runtime imports and calls it unconditionally.
+    File(p.join(libClientDir.path, 'modules.g.dart')).writeAsStringSync(
+      _modulesSource(buildId: buildId, modules: modules),
+    );
+
     _generateFunctionalWidgets(
       root: root,
       pkgName: pkgName,
@@ -1680,6 +1691,79 @@ void startDartvelKiosk() {
     } on Object {
       return null;
     }
+  }
+
+  /// `modules.g.dart`: the mounted modules as the registry sees them, and a
+  /// typed accessor for each.
+  ///
+  /// An extension rather than static members: DV.Modules is a registry the
+  /// framework owns, and generated code cannot add statics to it -- but an
+  /// extension getter reads exactly as the specification writes it,
+  /// `DV.Modules.store`.
+  static String _modulesSource({required String buildId, required List<DVModuleMount> modules}) {
+    final StringBuffer out = StringBuffer()
+      ..writeln('// BUILD: $buildId')
+      ..writeln('// GENERATED CODE - DO NOT MODIFY BY HAND')
+      ..writeln('library dartvel_client_modules;')
+      ..writeln()
+      ..writeln("import 'package:dartvel_core/dartvel.dart';")
+      ..writeln()
+      ..writeln('/// Registers every module this application mounts.')
+      ..writeln('///')
+      ..writeln('/// Called by the generated runtime, so DV.Modules.<id> is the')
+      ..writeln('/// module the build mounted rather than an unknown id.')
+      ..writeln('void registerDartvelModules() {');
+    for (final DVModuleMount m in modules) {
+      out
+        ..writeln('  DV.Modules.register(')
+        ..writeln("    id: '${m.id}',")
+        ..writeln("    mountPath: '${m.mount}',")
+        ..writeln('    config: const <String, Object?>{')
+        ..writeln("      'deployment': '${m.deployment.name}',")
+        ..writeln("      'sitemap': ${m.inSitemap},")
+        ..writeln("      'package': '${m.packageName}',")
+        ..writeln("      'routes': ${m.routes.length},");
+      if (m.name != null) out.writeln("      'name': '${m.name}',");
+      if (m.version != null) out.writeln("      'version': '${m.version}',");
+      out
+        ..writeln('    },')
+        ..writeln('  );');
+    }
+    out
+      ..writeln('}')
+      ..writeln();
+    if (modules.isEmpty) {
+      out
+        ..writeln('/// This application mounts no modules.')
+        ..writeln('extension DartvelModules on DVModuleRegistry {}');
+      return out.toString();
+    }
+    out
+      ..writeln('/// The modules this application mounts, by name.')
+      ..writeln('extension DartvelModules on DVModuleRegistry {');
+    for (final DVModuleMount m in modules) {
+      final String getter = _moduleGetter(m.id);
+      out
+        ..writeln('  /// The `${m.id}` module, mounted at `${m.mount}`.')
+        ..writeln("  DVModule get $getter => this('${m.id}');")
+        ..writeln();
+    }
+    out.writeln('}');
+    return out.toString();
+  }
+
+  /// A Dart identifier for a module id.
+  static String _moduleGetter(String id) {
+    final List<String> words = RegExp(r'[A-Za-z0-9]+')
+        .allMatches(id)
+        .map((RegExpMatch m) => m.group(0)!)
+        .toList();
+    if (words.isEmpty) return 'module';
+    final String first = words.first;
+    return <String>[
+      first[0].toLowerCase() + first.substring(1),
+      ...words.skip(1).map((String w) => w[0].toUpperCase() + w.substring(1)),
+    ].join();
   }
 
   /// A short alias for a mounted module's import, so two modules cannot

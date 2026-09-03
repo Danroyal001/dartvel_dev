@@ -31,8 +31,11 @@ Widget _productPage(BuildContext context) => const DVText('product');
 ''';
 
 /// A parent with one page and a module mounted at /store.
+Directory? lastParent;
+
 Future<String> generateParent({String mount = '/store', String deployment = 'embedded'}) async {
   final Directory root = Directory.systemTemp.createTempSync('dartvel_module_router_');
+  lastParent = root;
   addTearDown(() => root.deleteSync(recursive: true));
   Directory(p.join(root.path, 'lib', 'pages')).createSync(recursive: true);
   Directory(p.join(root.path, 'lib', 'dartvel_client')).createSync(recursive: true);
@@ -128,5 +131,44 @@ void main() {
 
     expect(router, isNot(contains('package:store/dartvel_client')));
     expect(router, isNot(contains('/store/products')));
+  });
+
+  group('the module registry', () {
+    // DV.Modules is documented as having typed <id> accessors the generator
+    // emits, and nothing emitted them: the registry was empty in every
+    // application, so DV.Modules.store threw for a module the build had
+    // just mounted.
+    String modulesFile() =>
+        File(p.join(lastParent!.path, 'lib', 'dartvel_client', 'modules.g.dart')).readAsStringSync();
+
+    test('each mounted module is registered with its id and mount point', () async {
+      await generateParent();
+      final String generated = modulesFile();
+
+      expect(generated, contains('void registerDartvelModules()'));
+      expect(generated, contains("id: 'store'"));
+      expect(generated, contains("mountPath: '/store'"));
+    });
+
+    test('a typed accessor reaches it, so DV.Modules.store is the module', () async {
+      await generateParent();
+
+      expect(modulesFile(), contains('extension DartvelModules on DVModuleRegistry'));
+      expect(modulesFile(), contains("DVModule get store =>"));
+    });
+
+    test('a backend-only module is registered too: it has no pages, not no existence', () async {
+      await generateParent(deployment: 'backend-only');
+
+      expect(modulesFile(), contains("id: 'store'"));
+    });
+
+    test('the runtime registers them, rather than leaving it to the application', () async {
+      await generateParent();
+      final String runtime =
+          File(p.join(lastParent!.path, 'lib', 'dartvel_client', 'dartvel_runtime.dart')).readAsStringSync();
+
+      expect(runtime, contains('registerDartvelModules()'));
+    });
   });
 }
