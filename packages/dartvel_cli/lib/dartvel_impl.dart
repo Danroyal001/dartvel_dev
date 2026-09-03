@@ -4,6 +4,7 @@ import 'package:args/command_runner.dart';
 
 import 'src/commands/update_command.dart';
 import 'src/commands/mcp_command.dart';
+import 'src/commands/analyze_command.dart';
 import 'src/commands/inspect_command.dart';
 import 'src/commands/admin_command.dart';
 import 'src/commands/ai_command.dart';
@@ -49,6 +50,7 @@ Future<void> main(List<String> args) async {
     // run and start are aliases in DevCommand
     ..addCommand(RoutesCommand())
     ..addCommand(InspectCommand())
+    ..addCommand(AnalyzeCommand())
     ..addCommand(McpCommand())
     ..addCommand(BuildCommand())
     ..addCommand(ArtifactCommand())
