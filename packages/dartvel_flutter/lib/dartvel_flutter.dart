@@ -5771,6 +5771,42 @@ class DVMailTemplate {
   final DVTranslationKey? html;
 }
 
+/// A notification as translation keys, rendered per recipient locale.
+///
+/// The other channels' half of localised templates: in-app, push and the
+/// rest, where DV.Notifications.send took a finished title and body and a
+/// French user got whatever the developer wrote in English.
+class DVNotificationTemplate {
+  const DVNotificationTemplate({required this.title, required this.body});
+
+  final DVTranslationKey title;
+  final DVTranslationKey body;
+}
+
+/// Rendering a [DVNotificationTemplate] through [DV.I18n].
+extension DVNotificationTemplating on DVNotificationsService {
+  /// Sends [template] to [recipient], rendered in [locale] (the current one
+  /// when null) with [args] interpolated. Strict: a missing translation is an
+  /// error rather than a notification whose title is a key name.
+  Future<void> sendTemplate(
+    String recipient,
+    DVNotificationTemplate template, {
+    LocaleTag? locale,
+    Map<String, String> args = const <String, String>{},
+    Map<String, String> data = const <String, String>{},
+    List<DVNotificationChannel> channels = const <DVNotificationChannel>[DVNotificationChannel.inApp],
+  }) async {
+    final DVI18n i18n = DV.I18n;
+    final DVNotificationMessage message = DVNotificationMessage(
+      title: i18n.t(template.title, args: args, locale: locale, strict: true),
+      body: i18n.t(template.body, args: args, locale: locale, strict: true),
+      data: data,
+      channels: channels,
+    );
+    await send(recipient, message);
+  }
+}
+
 /// Rendering a [DVMailTemplate] through [DV.I18n].
 ///
 /// Lives here rather than in dartvel_core because the catalogue does. Strict:
