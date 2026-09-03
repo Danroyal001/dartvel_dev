@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui show Display;
 
-import 'package:dartvel_core/dartvel.dart' show DVDiagnostics, DVInstanceLock, DVTenants;
+import 'package:dartvel_core/dartvel.dart' show DVDiagnostics, DVInstanceLock, DVKioskEnforcement, DVKioskExitRequest, DVKioskExitResult, DVKioskPolicy, DVKioskReset, DVKioskResetReason, DVKioskRuntime, DVKioskSignal, DVKioskState, DVKioskTarget, DVTenants;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
@@ -55,7 +55,14 @@ class DVWindowingCapability {
     this.ownedWindows = false,
     this.applicationModal = false,
     this.displays = false,
+    this.displayKiosk = false,
   });
+
+  /// Whether a window can own a display as a kiosk: pinned, fullscreen, its
+  /// policy running. True where real windows and display enumeration are
+  /// both available; the pinning itself is what the OS honours, reported
+  /// through the kiosk window's enforcement.
+  final bool displayKiosk;
 
   /// What a desktop host reports once real windowing is available.
   ///
@@ -83,6 +90,9 @@ class DVWindowingCapability {
         ownedWindows: ownedWindows,
         applicationModal: applicationModal,
         displays: count > 1,
+        // Kept when declared: a test or a host that said a display can be
+        // pinned is not overruled by a count read before enumeration ran.
+        displayKiosk: displayKiosk || (multiWindow && count > 1),
       );
 
   /// The capability of the running target.
@@ -133,7 +143,7 @@ class DVWindowingCapability {
 }
 
 /// What kind of surface was asked for.
-enum DVWindowKind { regular, dialog, popup, tooltip, satellite }
+enum DVWindowKind { regular, dialog, popup, tooltip, satellite, kiosk }
 
 extension DVWindowKindX on DVWindowKind {
   /// Whether this kind counts towards the exit policy and can be `main`.
@@ -142,12 +152,11 @@ extension DVWindowKindX on DVWindowKind {
   /// anchoring restore would put a restored workspace inside a dialog, and a
   /// lingering tooltip would hold an application open with nothing on screen.
   ///
-  /// The specification says "regular or kiosk"; the kiosk kind is not built
-  /// yet, so regular is the whole set today.
-  bool get countsAsPrincipal => this == DVWindowKind.regular;
+  /// The specification says "regular or kiosk".
+  bool get countsAsPrincipal => this == DVWindowKind.regular || this == DVWindowKind.kiosk;
 
   /// Whether this kind belongs to another window.
-  bool get isOwned => this != DVWindowKind.regular;
+  bool get isOwned => this != DVWindowKind.regular && this != DVWindowKind.kiosk;
 
   /// What this kind blocks when nothing is asked for.
   DVWindowModality get defaultModality => this == DVWindowKind.dialog
@@ -282,6 +291,9 @@ class DVWindowOptions {
   /// call site and the only one of the two names anybody types.
   final bool isExternal;
 
+  /// For [DVWindowKind.kiosk]: the declared policy the window obeys.
+  final DVWindowKiosk? kiosk;
+
   const DVWindowOptions({
     this.size,
     this.constraints,
@@ -292,6 +304,7 @@ class DVWindowOptions {
     this.owner,
     this.modality,
     this.isExternal = false,
+    this.kiosk,
   });
 
   /// An OS-delivered open request.
@@ -341,6 +354,26 @@ class DVWindow {
     this.external = false,
   });
 
+  /// The DV-WINDOW codes this window has reported, in order: what was
+  /// degraded, refused or placed elsewhere, readable after the fact.
+  final List<String> codes = <String>[];
+
+  /// The kiosk this window is, or null for an ordinary window.
+  DVWindowKioskHandle? kiosk;
+
+  void _code(String code, String detail) {
+    codes.add(code);
+    unawaited(_logCode(code, detail));
+  }
+
+  Future<void> _logCode(String code, String detail) async {
+    try {
+      await DV.log('$code  $detail', level: 'debug', context: <String, Object>{'route': route.path});
+    } catch (_) {
+      // Logging is not what the window is for.
+    }
+  }
+
   final ValueNotifier<DVWindowLifecycle> _lifecycle =
       ValueNotifier<DVWindowLifecycle>(DVWindowLifecycle.requested);
 
@@ -375,6 +408,14 @@ class DVWindow {
   }
 
   Future<void> close() async {
+    // Pinned: a kiosk window closes only through kiosk.exit satisfying the
+    // policy's exit method, or with the application. A user close is
+    // refused and said so at debug, as the spec has it.
+    final DVWindowKioskHandle? pinned = kiosk;
+    if (pinned != null && !pinned.exited) {
+      _code('DV-WINDOW-012', 'close refused on a pinned kiosk window');
+      return;
+    }
     _lifecycle.value = DVWindowLifecycle.closing;
 
     // Owned windows go first, and in reverse open order: the last opened is
@@ -472,6 +513,7 @@ class DVWindowManager {
   static void reset() {
     _windows.clear();
     _all.value = <DVWindow>[];
+    _kioskOwners.clear();
     _displays.value = const <DVDisplay>[];
     displayProfile = const <String, int>{};
     knownRoutes = const <String>{};
@@ -491,6 +533,8 @@ class DVWindowManager {
   static void forget(DVWindow window) {
     final bool wasMain = identical(_main.value, window);
     _windows.remove(window);
+    _kioskOwners.removeWhere((String _, DVWindow w) => identical(w, window));
+    window.kiosk?._runtime.stop();
     _all.value = List<DVWindow>.unmodifiable(_windows);
 
     // Promotion before the exit decision: under exit: mainWindow the answer
@@ -525,6 +569,12 @@ class DVWindowManager {
 
   /// Every window, virtual ones included.
   ValueListenable<List<DVWindow>> get all => _all;
+
+  /// Display id to the kiosk window that owns it, for the window's life.
+  static final Map<String, DVWindow> _kioskOwners = <String, DVWindow>{};
+
+  /// The kiosk window owning [displayId], if any.
+  DVWindow? kioskOwnerOf(String displayId) => _kioskOwners[displayId];
 
   /// Writes what is open to [path] now and on every change, with [app] and
   /// the time, for `dartvel inspect windows` to read while it is fresh.
@@ -714,6 +764,22 @@ class DVWindowManager {
       if (_displays.value.isEmpty) await refreshDisplays();
       display = DVDisplays.resolve(_displays.value, options.display);
     }
+    final List<String> codes = <String>[];
+    // A kiosk-owned display is spoken for: another window asking for it is
+    // placed on a different one, and told (DV-WINDOW-011).
+    if (options.kind != DVWindowKind.kiosk && display?.display != null &&
+        _kioskOwners.containsKey(display!.display!.id)) {
+      final DVDisplay? elsewhere = _displays.value
+          .where((DVDisplay d) => !_kioskOwners.containsKey(d.id))
+          .fold<DVDisplay?>(null, (DVDisplay? best, DVDisplay d) => best == null || d.isPrimary ? d : best);
+      display = DVDisplayResolution(display: elsewhere, exact: false, degradation: DVWindowDegradation.none);
+      codes.add('DV-WINDOW-011');
+    }
+    // A kiosk window needs real windows, the capability to pin one to a
+    // display, and its display present; anything less and it presents in
+    // place, fullscreen, with its policy still running (DV-WINDOW-010).
+    final bool kioskInPlace = options.kind == DVWindowKind.kiosk &&
+        (!cap.multiWindow || !cap.displayKiosk || display?.display == null);
 
     // An owned kind naming an owner that has already closed is refused rather
     // than reparented. Adopting main would put a dialog on a window the user
@@ -733,7 +799,10 @@ class DVWindowManager {
         modality == DVWindowModality.application && !cap.applicationModal;
     if (modalityReduced) modality = DVWindowModality.window;
 
-    if (ownerGone) {
+    if (kioskInPlace) {
+      degradation = DVWindowDegradation.displayUnavailable;
+      codes.add('DV-WINDOW-010');
+    } else if (ownerGone) {
       degradation = DVWindowDegradation.ownerClosed;
     } else if (options.kind.isOwned && !cap.ownedWindows) {
       // Its own in-place fallback rather than a plain second window: a menu
@@ -774,11 +843,13 @@ class DVWindowManager {
       degradation = DVWindowDegradation.modalityReduced;
     }
 
-    final presentation = degradation == DVWindowDegradation.none ||
-            degradation == DVWindowDegradation.displayUnavailable ||
-            degradation == DVWindowDegradation.modalityReduced
-        ? DVWindowPresentation.window
-        : _presentationFor(options.kind);
+    final presentation = kioskInPlace
+        ? DVWindowPresentation.page
+        : degradation == DVWindowDegradation.none ||
+                degradation == DVWindowDegradation.displayUnavailable ||
+                degradation == DVWindowDegradation.modalityReduced
+            ? DVWindowPresentation.window
+            : _presentationFor(options.kind);
 
     final window = DVWindow(
       route: route,
@@ -790,6 +861,23 @@ class DVWindowManager {
       modality: modality,
       external: options.isExternal,
     );
+    window.codes.addAll(codes);
+    for (final String code in codes) {
+      unawaited(window._logCode(code, code == 'DV-WINDOW-011'
+          ? 'display ${options.display} is kiosk-owned; placed elsewhere'
+          : 'kiosk window presented in place, fullscreen'));
+    }
+    if (options.kind == DVWindowKind.kiosk) {
+      final DVWindowKiosk? spec = options.kiosk;
+      if (spec == null) {
+        throw ArgumentError('A kiosk window needs DVWindowOptions.kiosk with its declared policy.');
+      }
+      window.kiosk = DVWindowKioskHandle._(window, spec.policy, target: _kioskTargetHere());
+      await window.kiosk!._runtime.resume();
+      if (!kioskInPlace && display?.display != null) {
+        _kioskOwners[display!.display!.id] = window;
+      }
+    }
     _windows.add(window);
     _all.value = List<DVWindow>.unmodifiable(_windows);
 
@@ -822,7 +910,22 @@ class DVWindowManager {
         DVWindowKind.tooltip ||
         DVWindowKind.satellite =>
           DVWindowPresentation.overlay,
+        DVWindowKind.kiosk => DVWindowPresentation.page,
       };
+
+  /// The kiosk target this process is: what the enforcement matrix is
+  /// resolved against for a kiosk window.
+  static DVKioskTarget _kioskTargetHere() {
+    if (kIsWeb) return DVKioskTarget.web;
+    return switch (defaultTargetPlatform) {
+      TargetPlatform.linux => DVKioskTarget.linuxDesktop,
+      TargetPlatform.windows => DVKioskTarget.windows,
+      TargetPlatform.macOS => DVKioskTarget.macos,
+      TargetPlatform.android => DVKioskTarget.androidScreenPinning,
+      TargetPlatform.iOS => DVKioskTarget.iPadOS,
+      _ => DVKioskTarget.linuxDesktop,
+    };
+  }
 
   /// Reports a degradation without being able to cause one.
   ///
@@ -1033,5 +1136,55 @@ class DVWindowManager {
       'width': state.width,
       'height': state.height,
     });
+  }
+}
+
+/// A kiosk window's policy, as [DVWindowOptions.kiosk]. Names a declared
+/// policy -- `DVKioskPolicies.<name>` -- so a kiosk window opened at runtime
+/// obeys one the declaration knows.
+class DVWindowKiosk {
+  final DVKioskPolicy policy;
+
+  const DVWindowKiosk({required this.policy});
+}
+
+/// What a kiosk window can be asked: its state, what this platform honours
+/// for one display, a session reset, and the one way out.
+class DVWindowKioskHandle {
+  final DVWindow _window;
+  final DVKioskPolicy policy;
+  final DVKioskRuntime _runtime;
+  final DVKioskEnforcement enforcement;
+  DVKioskReset? _lastReset;
+  bool _exited = false;
+
+  DVWindowKioskHandle._(this._window, this.policy, {required DVKioskTarget target})
+      : _runtime = DVKioskRuntime(policy, tickEvery: const Duration(seconds: 1)),
+        enforcement = DVKioskEnforcement.resolve(policy: policy, target: target);
+
+  /// The kiosk's state, as a signal.
+  DVKioskSignal<DVKioskState> get state => _runtime.state;
+
+  /// The runtime behind this window, for a host to drive activity into.
+  DVKioskRuntime get runtime => _runtime;
+
+  DVKioskReset? get lastReset => _lastReset;
+
+  /// Whether the declared exit method has been satisfied: the window may
+  /// close now.
+  bool get exited => _exited;
+
+  /// Resets this window's session: its own, not the staff window's.
+  Future<DVKioskReset> resetSession() async => _lastReset = await _runtime.reset(DVKioskResetReason.explicit);
+
+  /// Leaves kiosk mode through the declared exit method and closes the
+  /// window, releasing its display. False, and nothing changes, when the
+  /// request does not satisfy the policy.
+  Future<bool> exit(DVKioskExitRequest request) async {
+    final DVKioskExitResult result = await _runtime.exit(request);
+    if (!result.granted) return false;
+    _exited = true;
+    await _window.close();
+    return true;
   }
 }
