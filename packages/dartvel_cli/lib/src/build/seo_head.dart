@@ -302,3 +302,54 @@ Map<String, String> dvSeoAlternatesFor({
           : '$base/${locale.toLowerCase()}$bare',
   };
 }
+
+/// The locales a site is built for, from `dartvel.i18n`.
+///
+/// `locales` lists them and `defaultLocale` names the unprefixed one. No
+/// section means one implicit locale, which writes no hreflang at all: a
+/// single-language site declaring itself as one alternate of itself reads as
+/// a misconfiguration.
+class DVI18nLocales {
+  const DVI18nLocales({required this.locales, required this.defaultLocale, required this.problems});
+
+  final List<String> locales;
+  final String defaultLocale;
+  final List<String> problems;
+
+  /// Whether there is anything to write hreflang about.
+  bool get multilingual => locales.length > 1;
+
+  static DVI18nLocales parse(Object? dartvelSection) {
+    final Object? section = dartvelSection is Map ? dartvelSection['i18n'] : null;
+    final List<String> problems = <String>[];
+    if (section == null) {
+      return const DVI18nLocales(locales: <String>['en'], defaultLocale: 'en', problems: <String>[]);
+    }
+    if (section is! Map) {
+      problems.add('dartvel.i18n must be a map.');
+      return DVI18nLocales(locales: const <String>['en'], defaultLocale: 'en', problems: problems);
+    }
+    final Object? raw = section['locales'];
+    final List<String> locales = <String>[
+      if (raw is List)
+        for (final Object? l in raw)
+          if (l is String && l.trim().isNotEmpty) l.trim(),
+    ];
+    if (raw != null && raw is! List) {
+      problems.add('dartvel.i18n.locales must be a list of locale tags.');
+    }
+    if (locales.isEmpty) locales.add('en');
+    final Object? configured = section['defaultLocale'];
+    String defaultLocale = locales.first;
+    if (configured is String && configured.trim().isNotEmpty) {
+      if (locales.contains(configured.trim())) {
+        defaultLocale = configured.trim();
+      } else {
+        // A default the site does not have sends x-default to a 404.
+        problems.add('dartvel.i18n.defaultLocale is "${configured.trim()}", which is not '
+            'one of the locales (${locales.join(', ')}).');
+      }
+    }
+    return DVI18nLocales(locales: locales, defaultLocale: defaultLocale, problems: problems);
+  }
+}
