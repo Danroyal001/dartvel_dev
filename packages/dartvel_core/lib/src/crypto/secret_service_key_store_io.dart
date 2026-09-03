@@ -108,7 +108,7 @@ class DVSecretServiceAppKeyStore implements DVAppKeyStore {
   static String _errorMessage(Pointer<Pointer<Void>> error) {
     if (error.value == nullptr) return 'unknown error';
     // GError: GQuark domain @0, gint code @4, gchar* message @8.
-    final Pointer<Utf8> message = error.value.cast<Uint8>().elementAt(8).cast<Pointer<Utf8>>().value;
+    final Pointer<Utf8> message = (error.value.cast<Uint8>() + 8).cast<Pointer<Utf8>>().value;
     return message == nullptr ? 'unknown error' : message.toDartString();
   }
 
@@ -121,11 +121,11 @@ class DVSecretServiceAppKeyStore implements DVAppKeyStore {
   Pointer<Void> _schema(Pointer<Utf8> name, Pointer<Utf8> attr1, Pointer<Utf8> attr2) {
     final Pointer<Uint8> raw = calloc<Uint8>(1024);
     raw.cast<Pointer<Utf8>>().value = name;
-    raw.elementAt(8).cast<Int32>().value = 0; // SECRET_SCHEMA_NONE
-    raw.elementAt(16).cast<Pointer<Utf8>>().value = attr1;
-    raw.elementAt(24).cast<Int32>().value = 0; // SECRET_SCHEMA_ATTRIBUTE_STRING
-    raw.elementAt(32).cast<Pointer<Utf8>>().value = attr2;
-    raw.elementAt(40).cast<Int32>().value = 0;
+    (raw + 8).cast<Int32>().value = 0; // SECRET_SCHEMA_NONE
+    (raw + 16).cast<Pointer<Utf8>>().value = attr1;
+    (raw + 24).cast<Int32>().value = 0; // SECRET_SCHEMA_ATTRIBUTE_STRING
+    (raw + 32).cast<Pointer<Utf8>>().value = attr2;
+    (raw + 40).cast<Int32>().value = 0;
     return raw.cast<Void>();
   }
 
