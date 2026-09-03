@@ -63,4 +63,11 @@ const Set<String> dvWindowsImplementedBindings = <String>{
   // the output named so no dialog asks, or to the default printer.
   'printing.toFile',
   'printing.print',
+
+  // What a desktop grants without asking, and the deep link the app was
+  // launched with: the same answers as Linux, being facts about a desktop
+  // process rather than about the desktop.
+  'permissions.isGranted',
+  'permissions.request',
+  'deepLinks.initial',
 };

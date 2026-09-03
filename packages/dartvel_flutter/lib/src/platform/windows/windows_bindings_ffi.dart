@@ -12,7 +12,8 @@ import 'dart:io' show Platform;
 
 import 'package:ffi/ffi.dart';
 
-import '../../../dartvel_flutter.dart' show DVNativeBridge;
+import '../../../dartvel_flutter.dart' show DVAppLaunch, DVNativeBridge;
+import '../desktop_permissions.dart';
 import '../device_runtime.dart';
 import 'windows_capabilities.dart';
 import 'windows_device_ffi.dart';
@@ -142,6 +143,9 @@ class DVWindowsBindings {
     DVWindowsMenus.register(DVNativeBridge.register, user32: _user32);
     DVWindowsTray.register(DVNativeBridge.register, user32: _user32);
     DVWindowsPrinting.register(DVNativeBridge.register);
+    DVNativeBridge.register('deepLinks.initial', (Object? _) => DVAppLaunch.initialLink);
+    DVNativeBridge.register('permissions.isGranted', DVDesktopPermissions.answer);
+    DVNativeBridge.register('permissions.request', DVDesktopPermissions.answer);
     DVDeviceRuntime.probes = const DVWindowsDeviceProbes();
     DVDeviceRuntime.register(DVNativeBridge.register);
 
