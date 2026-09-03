@@ -113,11 +113,24 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq xvfb libxtst6 libgtk-3-0
 
+      # A Secret Service for the application-key store. The libsecret store
+      # skips itself when nothing answers org.freedesktop.secrets, so `dart
+      # test` alone would pass without storing a single key; a private session
+      # bus with an unlocked GNOME keyring makes the skip guard false. The
+      # password is the keyring's, on a runner that is discarded afterwards.
+      - name: Secret Service for the key-store suite
+        if: matrix.package == 'dartvel_core'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gnome-keyring dbus-x11 libsecret-1-0
+
       - name: Test
         working-directory: packages/${{ matrix.package }}
         run: |
           if [ "${{ matrix.runner }}" = "flutter" ]; then
             xvfb-run -a flutter test
+          elif [ "${{ matrix.package }}" = "dartvel_core" ]; then
+            dbus-run-session -- bash -c 'eval "$(echo -n ci-keyring | gnome-keyring-daemon --unlock --components=secrets)"; sleep 1; dart test'
           else
             dart test
           fi
