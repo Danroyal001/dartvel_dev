@@ -32,9 +32,11 @@ void main() {
     test('the file is readable by its owner alone', () async {
       final DVFileAppKeyStore store = DVFileAppKeyStore('${dir.path}/nested/app.key');
       await store.write(key(2));
-      final ProcessResult stat = await Process.run('stat', <String>['-c', '%a', '${dir.path}/nested/app.key']);
+      // GNU stat and BSD stat spell the mode flag differently.
+      final List<String> mode = Platform.isMacOS ? <String>['-f', '%Lp'] : <String>['-c', '%a'];
+      final ProcessResult stat = await Process.run('stat', <String>[...mode, '${dir.path}/nested/app.key']);
       expect('${stat.stdout}'.trim(), '600');
-      final ProcessResult dirStat = await Process.run('stat', <String>['-c', '%a', '${dir.path}/nested']);
+      final ProcessResult dirStat = await Process.run('stat', <String>[...mode, '${dir.path}/nested']);
       expect('${dirStat.stdout}'.trim(), '700');
     }, testOn: 'linux || mac-os');
 
@@ -101,7 +103,11 @@ void main() {
       addTearDown(() => home.deleteSync(recursive: true));
       final DVAppKeyStore store = await DVAppKeyStores.platform('shop', home: home.path);
       final bool service = await DVSecretServiceAppKeyStore.isAvailable();
-      if (Platform.isLinux && service) {
+      if (Platform.isWindows) {
+        expect(store, isA<DVDpapiAppKeyStore>());
+      } else if (Platform.isMacOS) {
+        expect(store, isA<DVKeychainAppKeyStore>());
+      } else if (Platform.isLinux && service) {
         expect(store, isA<DVSecretServiceAppKeyStore>());
       } else {
         expect(store, isA<DVFileAppKeyStore>());
@@ -114,10 +120,12 @@ void main() {
       await store.clear();
     });
 
-    test('the home defaults to the user\'s', () async {
+    test('the home defaults to the user\'s, where the store is under the home', () async {
       final DVAppKeyStore store = await DVAppKeyStores.platform('shop', secretService: false);
       final String home = Platform.environment['HOME'] ?? Platform.environment['USERPROFILE']!;
-      expect((store as DVFileAppKeyStore).path, startsWith(home));
+      if (store is DVFileAppKeyStore) expect(store.path, startsWith(home));
+      if (store is DVDpapiAppKeyStore) expect(store.path, startsWith(home));
+      if (store is DVKeychainAppKeyStore) expect(store.account, 'shop');
     });
   });
 
