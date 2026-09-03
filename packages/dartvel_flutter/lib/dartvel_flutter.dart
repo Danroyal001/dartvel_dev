@@ -277,6 +277,7 @@ export 'src/platform/ios/ios_bindings.dart';
 export 'src/platform/linux/linux_bindings.dart';
 export 'src/platform/macos/macos_bindings.dart';
 export 'src/platform/printing.dart';
+export 'src/platform/raster.dart';
 export 'src/platform/terminal_size.dart';
 export 'src/platform/web/web_bindings.dart';
 export 'src/platform/webcrypto_key_store_io.dart'

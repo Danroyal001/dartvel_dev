@@ -18,12 +18,14 @@ import 'windows_capabilities.dart';
 import 'windows_device_ffi.dart';
 import 'windows_kiosk_ffi.dart';
 import 'windows_menus_ffi.dart';
+import 'windows_printing_ffi.dart';
 import 'windows_shortcuts_ffi.dart';
 import 'windows_tray_ffi.dart';
 
 export 'windows_device_ffi.dart' show DVWindowsDeviceProbes;
 export 'windows_kiosk_ffi.dart' show DVWindowsKiosk;
 export 'windows_menus_ffi.dart' show DVWindowsMenus;
+export 'windows_printing_ffi.dart' show DVWindowsPrinting;
 export 'windows_shortcuts_ffi.dart' show DVWindowsShortcuts;
 export 'windows_tray_ffi.dart' show DVWindowsTray;
 
@@ -139,6 +141,7 @@ class DVWindowsBindings {
     DVWindowsKiosk.register(DVNativeBridge.register, user32: _user32, kernel32: _kernel32);
     DVWindowsMenus.register(DVNativeBridge.register, user32: _user32);
     DVWindowsTray.register(DVNativeBridge.register, user32: _user32);
+    DVWindowsPrinting.register(DVNativeBridge.register);
     DVDeviceRuntime.probes = const DVWindowsDeviceProbes();
     DVDeviceRuntime.register(DVNativeBridge.register);
 

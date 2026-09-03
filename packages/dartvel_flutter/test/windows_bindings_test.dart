@@ -42,6 +42,10 @@ void main() {
           // Shell_NotifyIcon on the process's window, its menu by id.
           'tray.show',
           'tray.hide',
+          // Pictures onto pages: to a PDF through Microsoft Print to PDF, or
+          // to the default printer.
+          'printing.toFile',
+          'printing.print',
         },
       );
     });
@@ -82,6 +86,8 @@ void main() {
         'notifications.sendLocal',
         'tray.show',
         'tray.hide',
+        'printing.toFile',
+        'printing.print',
       };
       expect(DVWindowsBindings.implemented.difference(callable), isEmpty);
     });

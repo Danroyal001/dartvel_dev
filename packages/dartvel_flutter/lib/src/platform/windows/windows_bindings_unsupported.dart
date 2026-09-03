@@ -59,3 +59,10 @@ class DVWindowsTray {
   static int? debugCommandFor(String id) => null;
   static void unregister() {}
 }
+
+/// Printing, unavailable here.
+class DVWindowsPrinting {
+  const DVWindowsPrinting._();
+
+  static const Set<String> implemented = <String>{'printing.toFile'};
+}

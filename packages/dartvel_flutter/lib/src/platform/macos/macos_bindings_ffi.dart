@@ -27,12 +27,14 @@ import 'macos_capabilities.dart';
 import 'macos_device_ffi.dart';
 import 'macos_kiosk_ffi.dart';
 import 'macos_menus_ffi.dart';
+import 'macos_printing_ffi.dart';
 import 'macos_shortcuts_ffi.dart';
 import 'macos_tray_ffi.dart';
 
 export 'macos_device_ffi.dart' show DVMacosDeviceProbes;
 export 'macos_kiosk_ffi.dart' show DVMacosKiosk;
 export 'macos_menus_ffi.dart' show DVMacosMenus;
+export 'macos_printing_ffi.dart' show DVMacosPrinting;
 export 'macos_shortcuts_ffi.dart' show DVMacosShortcuts;
 export 'macos_tray_ffi.dart' show DVMacosTray;
 
@@ -114,6 +116,7 @@ class DVMacosBindings {
     DVMacosShortcuts.register(DVNativeBridge.register);
     DVMacosMenus.register(DVNativeBridge.register, objc: _objc);
     DVMacosTray.register(DVNativeBridge.register, objc: _objc);
+    DVMacosPrinting.register(DVNativeBridge.register);
     DVDeviceRuntime.probes = const DVMacosDeviceProbes();
     DVDeviceRuntime.register(DVNativeBridge.register);
 
