@@ -28,4 +28,10 @@ const Set<String> dvWindowsImplementedBindings = <String>{
 
   // SetWindowPos, moving nothing and reordering nothing.
   'window.setSize',
+
+  // RegisterHotKey for the escape combos, ClipCursor for the pointer, the
+  // window style for fullscreen. Notifications are never claimed held: Focus
+  // Assist has no public API.
+  'kiosk.enforce',
+  'kiosk.release',
 };

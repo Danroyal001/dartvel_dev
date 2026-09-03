@@ -17,3 +17,14 @@ class DVWindowsBindings {
 
   static void unregister() {}
 }
+
+/// The Windows kiosk enforcement, unavailable here.
+class DVWindowsKiosk {
+  const DVWindowsKiosk._();
+
+  static String? lastConfineError;
+  static bool confined = false;
+  static const Set<String> implemented = <String>{'kiosk.enforce', 'kiosk.release'};
+  static List<String> get held => const <String>[];
+  static void release() {}
+}
