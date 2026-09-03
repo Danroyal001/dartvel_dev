@@ -24,6 +24,9 @@ void main() {
           'window.minimize',
           'window.restore',
           'window.setSize',
+          // RegisterHotKey, ClipCursor and the window style, for a kiosk.
+          'kiosk.enforce',
+          'kiosk.release',
         },
       );
     });
@@ -48,6 +51,8 @@ void main() {
         'window.minimize',
         'window.restore',
         'window.setSize',
+        'kiosk.enforce',
+        'kiosk.release',
         'window.persistState',
         'window.restoreState',
         'notifications.sendLocal',

@@ -13,6 +13,9 @@ import 'package:ffi/ffi.dart';
 
 import '../../../dartvel_flutter.dart' show DVNativeBridge;
 import 'windows_capabilities.dart';
+import 'windows_kiosk_ffi.dart';
+
+export 'windows_kiosk_ffi.dart' show DVWindowsKiosk;
 
 // user32
 typedef _OpenClipboardNative = Int32 Function(IntPtr hWndNewOwner);
@@ -122,11 +125,14 @@ class DVWindowsBindings {
       return _setSize(width, height);
     });
 
+    DVWindowsKiosk.register(DVNativeBridge.register, user32: _user32, kernel32: _kernel32);
+
     _registered = true;
     return true;
   }
 
   static void unregister() {
+    if (_registered) DVWindowsKiosk.release();
     for (final name in implemented) {
       DVNativeBridge.unregister(name);
     }
