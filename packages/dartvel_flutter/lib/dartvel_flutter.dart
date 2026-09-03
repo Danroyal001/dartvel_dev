@@ -5757,6 +5757,97 @@ class DVPluralForms {
   }
 }
 
+/// A mail message as translation keys, rendered per recipient locale.
+///
+/// The i18n section promises localised mail and notification templates and
+/// the mail layer took a finished subject and body, so every application
+/// either sent English to everyone or built its own per-locale rendering
+/// beside the catalogue that already held the translations.
+class DVMailTemplate {
+  const DVMailTemplate({required this.subject, required this.text, this.html});
+
+  final DVTranslationKey subject;
+  final DVTranslationKey text;
+  final DVTranslationKey? html;
+}
+
+/// Rendering a [DVMailTemplate] through [DV.I18n].
+///
+/// Lives here rather than in dartvel_core because the catalogue does. Strict:
+/// a missing translation for the recipient's locale is an error, because the
+/// silent alternative is an email whose subject is the key name.
+extension DVMailTemplating on DVNotificationMail {
+  /// Sends [template] to [to], rendered in [locale] (the current locale when
+  /// null) with [args] interpolated the way a page's strings are.
+  Future<void> sendTemplate(
+    DVMailTemplate template, {
+    required DVMailAddress from,
+    required List<DVMailAddress> to,
+    LocaleTag? locale,
+    Map<String, String> args = const <String, String>{},
+    DVMailPriority priority = DVMailPriority.normal,
+    Map<String, String> headers = const <String, String>{},
+  }) async {
+    // async, so a missing translation is a failed future a caller awaits and
+    // catches, rather than a synchronous throw from inside the argument list
+    // of whatever awaited it.
+    final DVI18n i18n = DV.I18n;
+    final DVMailMessage message = DVMailMessage(
+      from: from,
+      to: to,
+      subject: i18n.t(template.subject, args: args, locale: locale, strict: true),
+      text: i18n.t(template.text, args: args, locale: locale, strict: true),
+      html: template.html == null
+          ? null
+          : i18n.t(template.html!, args: args, locale: locale, strict: true),
+      priority: priority,
+      headers: headers,
+    );
+    await send(message);
+  }
+
+  /// Sends [template] to recipients who read different languages: one
+  /// message per locale, addressed to everyone in it, rather than one per
+  /// recipient or one for everyone.
+  Future<void> sendTemplateTo(
+    DVMailTemplate template, {
+    required DVMailAddress from,
+    required Map<DVMailAddress, LocaleTag> recipients,
+    Map<String, String> args = const <String, String>{},
+    DVMailPriority priority = DVMailPriority.normal,
+    Map<String, String> headers = const <String, String>{},
+  }) async {
+    final Map<String, List<DVMailAddress>> byLocale = <String, List<DVMailAddress>>{};
+    final Map<String, LocaleTag> tags = <String, LocaleTag>{};
+    for (final MapEntry<DVMailAddress, LocaleTag> e in recipients.entries) {
+      byLocale.putIfAbsent(e.value.value, () => <DVMailAddress>[]).add(e.key);
+      tags[e.value.value] = e.value;
+    }
+    // Rendered for every locale before anything is sent, so a missing
+    // translation for one group does not leave the others half-delivered.
+    final List<Future<void> Function()> sends = <Future<void> Function()>[];
+    for (final MapEntry<String, List<DVMailAddress>> group in byLocale.entries) {
+      final LocaleTag locale = tags[group.key]!;
+      final DVI18n i18n = DV.I18n;
+      final DVMailMessage message = DVMailMessage(
+        from: from,
+        to: group.value,
+        subject: i18n.t(template.subject, args: args, locale: locale, strict: true),
+        text: i18n.t(template.text, args: args, locale: locale, strict: true),
+        html: template.html == null
+            ? null
+            : i18n.t(template.html!, args: args, locale: locale, strict: true),
+        priority: priority,
+        headers: headers,
+      );
+      sends.add(() => send(message));
+    }
+    for (final Future<void> Function() s in sends) {
+      await s();
+    }
+  }
+}
+
 class DVI18n {
   static LocaleTag _currentLocale = LocaleTag.enUS;
 
