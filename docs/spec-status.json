@@ -501,7 +501,7 @@
         "packages/dartvel_flutter/test/studio_styling_test.dart",
         "packages/dartvel_flutter/test/page_update_delivery_test.dart"
       ],
-      "absent": "Five leaf node types (text, image, button, spacer, divider); no reusable components or patterns, revision history beyond in-session undo, responsive breakpoints, or multi-user editing. The visual backend workflow builder is not absent but Pro: it moved to dartvel_studio_pro in the private enterprise repository and attaches through DVStudioSection, so an open-source build has no Workflows tab"
+      "absent": "Five leaf node types (text, image, button, spacer, divider); no reusable components or patterns, revision history beyond in-session undo, responsive breakpoints, or multi-user editing. The visual backend workflow builder is not absent but Pro: it moved to dartvel_studio_pro in the private enterprise repository and attaches through DVStudioSection, so an open-source build has no Workflows tab. A Figma import -- every top-level frame of a file becomes a DVPageDocument, editable in the builder and exportable as an ordinary @DVPage -- also lives in dartvel_studio_pro, attached the same way, with the frames' auto-layout, fills, text styles and image fills mapped onto the node properties the renderer already paints"
     },
     {
       "section": "Admin, Devtools, and Scaffolding",
