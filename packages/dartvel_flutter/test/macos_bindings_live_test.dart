@@ -390,6 +390,11 @@ void main() {
       expect(await DV.Platform.Dialogs.openFile(initialDirectory: dir.path), isEmpty);
     });
 
+    // An open panel is served by another process and its URLs are read-only,
+    // so no automation can put a selection into one: the path here is the
+    // automation's, and this test proves the plumbing around it -- the title
+    // and filters the panel was given, and that a chosen file comes back as
+    // a list of one -- rather than proving AppKit's file chooser.
     test('open: the user picks a file and presses Open', () async {
       late DVMacosDialogSeen seen;
       DVMacosDialogs.automate((DVMacosDialog dialog) {

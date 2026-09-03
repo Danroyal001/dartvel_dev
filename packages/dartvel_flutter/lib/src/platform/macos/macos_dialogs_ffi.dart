@@ -187,13 +187,18 @@ class DVMacosDialogs {
         for (var i = 0; i < count; i++) _pathOf(o.getAt(urls, 'objectAtIndex:', i)),
       ];
     }
-    // Nobody clicked, because an automation answered: the panel's own
-    // selection is the directory and name it was given. Only under
-    // automation -- a person who presses Open with nothing selected has
-    // selected nothing, and inventing a path for them would be a file they
-    // did not choose.
+    // Nobody clicked, because an automation answered. An open panel has no
+    // name field to read a choice back out of -- asking one for
+    // `nameFieldStringValue` returns something that is not a string, and
+    // reading it as one is how this suite killed its own process after every
+    // test had passed -- so the choice is the one the automation made.
+    //
+    // Only under automation. A person who presses Open with nothing selected
+    // has selected nothing, and inventing a path for them would hand back a
+    // file they did not choose.
     if (_automation == null) return const <String>[];
-    return <String>[_configuredPath(panel)];
+    final String? selected = _selected;
+    return selected == null ? const <String>[] : <String>[selected];
   }
 
   static String? _savePanel(Map<Object?, Object?> m) {
@@ -220,6 +225,7 @@ class DVMacosDialogs {
   static int _runModal(Pointer<Void> panel, _DialogKind kind) {
     _current = panel;
     _currentKind = kind;
+    _selected = null;
     _armTimer();
     try {
       return _o.getInt(panel, 'runModal');
@@ -300,12 +306,26 @@ class DVMacosDialogs {
     );
   }
 
+  /// The path the automation last selected, which is what a person's click
+  /// would have selected.
+  ///
+  /// An open panel is served by another process and its `URLs` are read-only,
+  /// so there is no way to put a selection into it from here; what the
+  /// automation asked for is the only record of what was chosen.
+  static String? _selected;
+
   static void _select(Pointer<Void> panel, _DialogKind kind, String path) {
     if (kind == _DialogKind.message) return;
     final DVMacosObjc o = _o;
     // A file: its directory shown and its name typed. A directory: shown.
     final Pointer<Void> url = _fileUrl(path);
     final bool isDirectory = kind == _DialogKind.folder || path.endsWith('/');
+    // Without the trailing slash: a chosen directory is a path, and every
+    // caller that joins a filename onto it would otherwise get a double
+    // separator.
+    _selected = path.length > 1 && path.endsWith('/')
+        ? path.substring(0, path.length - 1)
+        : path;
     if (isDirectory) {
       o.send1(panel, 'setDirectoryURL:', url);
     } else {
@@ -331,8 +351,11 @@ class DVMacosDialogs {
     _stopModal(ok ? _modalResponseOk : _modalResponseCancel);
   }
 
-  /// The path the panel is configured to hand back: its directory, and its
-  /// name field when it has one.
+  /// The path a *save* panel is configured to hand back: its directory and
+  /// the name typed into it, which is exactly what pressing Save produces.
+  ///
+  /// Only a save panel. The name field belongs to NSSavePanel, and an open
+  /// panel asked for one answers with something that is not a string.
   static String _configuredPath(Pointer<Void> panel) {
     final DVMacosObjc o = _o;
     final Pointer<Void> directory = o.send0(panel, 'directoryURL');
