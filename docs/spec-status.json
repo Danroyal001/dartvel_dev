@@ -310,9 +310,11 @@
         "packages/dartvel_cli/test/pwa_service_worker_test.dart",
         "packages/dartvel_cli/test/viewport_head_test.dart",
         "packages/dartvel_flutter/lib/src/pwa/install_prompt.dart",
-        "packages/dartvel_flutter/test/install_prompt_test.dart"
+        "packages/dartvel_flutter/test/install_prompt_test.dart",
+        "packages/dartvel_cli/lib/src/build/pwa_icons.dart",
+        "packages/dartvel_cli/test/pwa_icons_test.dart"
       ],
-      "absent": "Background sync and icon generation -- generating the required sizes needs a PNG encoder that is not a dependency. Manifest, viewport, service worker, offline page and the install prompt are built: DV.Platform.install captures beforeinstallprompt so an application can place the affordance itself, rather than leaving it in a browser menu most people never open"
+      "absent": "Background sync. Icon generation is built: dartvel build web resizes web/icon.png (or assets/icon.png, or dartvel.pwa.icon) to the 192 and 512 sizes Chrome requires, plain and maskable with the safe-zone inset, through a PNG codec of the CLI's own -- the decoder is checked against a PNG an independent encoder wrote, because a round trip through one predictor cannot see a bug in it. Manifest, viewport, service worker, offline page and the install prompt are built: DV.Platform.install captures beforeinstallprompt so an application can place the affordance itself, rather than leaving it in a browser menu most people never open"
     },
     {
       "section": "OTA Updates",
