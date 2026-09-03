@@ -118,6 +118,7 @@ export 'package:dartvel_core/dartvel.dart'
         DVStartupFinding,
         DVStartupPhase,
         DVStartupProfile,
+        DVUpdateRollout,
         DVUnknownModuleException,
         // Transactions
         DVContext,
@@ -2447,27 +2448,78 @@ class DVUpdateInfo {
   final bool required;
   final Map<String, String> metadata;
 
+  /// The share of the fleet this release has been let out to, 0 to 100.
+  ///
+  /// A server that names no rollout is offering the release to everyone, so
+  /// this is 100 unless it says otherwise.
+  final int rolloutPercent;
+
+  /// Whether this device would have been offered the release but for the
+  /// staged rollout.
+  ///
+  /// [available] is false in that case, and without this an operator cannot
+  /// tell a device whose turn has not come from one the server has nothing
+  /// for -- which is the difference between waiting and investigating.
+  final bool heldBackByRollout;
+
   const DVUpdateInfo({
     required this.available,
     this.version,
     this.patchId,
     this.required = false,
     this.metadata = const <String, String>{},
+    this.rolloutPercent = 100,
+    this.heldBackByRollout = false,
   });
+
+  /// The same release, decided against this device's place in the rollout.
+  ///
+  /// A release marked [required] is not staged: the fleet is broken without
+  /// it, and withholding it on a hash would be the framework overruling the
+  /// person who marked it.
+  DVUpdateInfo forDevice(String? deviceId) {
+    if (!available || required || rolloutPercent >= 100) return this;
+    final bool reached = DVUpdateRollout.includes(
+      deviceId: deviceId ?? '',
+      version: version ?? '',
+      percent: rolloutPercent,
+    );
+    if (reached) return this;
+    return DVUpdateInfo(
+      available: false,
+      version: version,
+      patchId: patchId,
+      required: required,
+      metadata: metadata,
+      rolloutPercent: rolloutPercent,
+      heldBackByRollout: true,
+    );
+  }
 
   factory DVUpdateInfo.fromMap(Map<Object?, Object?> map) {
     final rawMetadata = map['metadata'];
+    final Map<String, String> metadata = rawMetadata is Map
+        ? rawMetadata.map(
+            (key, value) => MapEntry(key.toString(), value.toString()),
+          )
+        : const <String, String>{};
     return DVUpdateInfo(
       available: map['available'] == true,
       version: map['version']?.toString(),
       patchId: map['patchId']?.toString(),
       required: map['required'] == true,
-      metadata: rawMetadata is Map
-          ? rawMetadata.map(
-              (key, value) => MapEntry(key.toString(), value.toString()),
-            )
-          : const <String, String>{},
+      metadata: metadata,
+      rolloutPercent: _percentOf(map['rollout'] ?? metadata['rollout']),
     );
+  }
+
+  /// A rollout percentage as the server sent it, which may be a number, a
+  /// string, or absent. Anything unreadable means the release is not staged,
+  /// because a rollout nobody can parse must not silently withhold an update.
+  static int _percentOf(Object? raw) {
+    if (raw == null) return 100;
+    if (raw is num) return raw.round();
+    return int.tryParse(raw.toString().trim()) ?? 100;
   }
 }
 
@@ -2481,8 +2533,35 @@ class DVUpdates {
       'updates.check',
       {'channel': channel.name},
     );
-    return DVUpdateInfo.fromMap(result);
+    return DVUpdateInfo.fromMap(result).forDevice(_deviceId);
   }
+
+  static String? _deviceId;
+
+  /// Names this device, so a staged rollout can decide the same way every
+  /// time it is asked.
+  ///
+  /// The name has to be stable across restarts -- a hardware serial, a
+  /// provisioning id, anything the device keeps. One generated at startup
+  /// would put the device in a different place in the queue on every launch,
+  /// which is the flapping a staged rollout exists to avoid. Pass null to
+  /// forget it, in which case rollouts include the device rather than
+  /// leaving it behind unnamed.
+  static void identifyDevice(String? deviceId) => _deviceId = deviceId;
+
+  /// The name this device answers a rollout by, if it has been given one.
+  static String? get deviceIdentity => _deviceId;
+
+  /// Where this device falls in the queue for [version], 0 to 99.
+  ///
+  /// A release reaches the buckets below its percentage, so this is also the
+  /// rollout percentage at which the device starts being offered [version]:
+  /// the number to look at when a device has not updated and nobody can say
+  /// whether that is a fault or simply its turn not yet coming.
+  static int rolloutBucket(String version) => DVUpdateRollout.bucketOf(
+        deviceId: _deviceId ?? '',
+        version: version,
+      );
 
   Future<void> apply({
     DVUpdateChannel channel = DVUpdateChannel.production,

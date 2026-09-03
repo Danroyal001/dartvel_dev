@@ -101,6 +101,7 @@ export 'src/sync/presence.dart';
 export 'src/tenancy/tenants.dart';
 export 'src/transaction/transaction.dart';
 export 'src/updates/ota.dart';
+export 'src/updates/rollout.dart';
 export 'src/web/page_data.dart';
 export 'src/web/page_text.dart';
 export 'src/web/seo_head.dart';
