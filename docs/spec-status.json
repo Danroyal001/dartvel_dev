@@ -405,7 +405,7 @@
     {
       "section": "Internationalization and Localization",
       "stability": "Draft",
-      "status": "Partial",
+      "status": "Shipped",
       "evidence": [
         "packages/dartvel_cli/lib/src/commands/i18n_command.dart",
         "packages/dartvel_cli/lib/src/i18n/extract.dart",
@@ -420,9 +420,9 @@
         "packages/dartvel_core/test/tenant_locale_default_test.dart",
         "packages/dartvel_flutter/test/mail_template_test.dart",
         "packages/dartvel_flutter/test/notification_template_test.dart",
-        "packages/dartvel_cli/test/seo_alternates_test.dart"
-      ],
-      "absent": "Wiring hreflang alternates into the prerender for every generated route -- dvSeoHead writes them and dvSeoAlternatesFor builds the set, but dartvel build web does not yet pass a route's set in. Localised notification templates are built for every channel: DVNotificationTemplate renders strictly through DV.I18n like the mail one. Mail templates are built: DVMailTemplate is translation keys, rendered strictly through DV.I18n for the recipient's locale -- a missing translation is an error, not a subject line that is a key name -- and sendTemplateTo sends one message per language. Per-tenant locale defaults are built: DVTenants.setLocaleDefault sits between a visitor's own signals and the application fallback in negotiation, never overriding what was asked for and skipped when the application lacks the catalogue. Route locale negotiation is built: path prefix, then a stored preference, then Accept-Language with q-values ordering the choice and q=0 never served, then the fallback, matched by BCP 47 lookup on whole subtags so fr-CA finds fr and a bare de finds de-DE. Extraction and pluralisation are built: dartvel i18n extract collects every DVTranslationKey into ARB catalogues without overwriting existing translations, i18n check names untranslated and stale keys per locale, and plural selection follows CLDR rather than English -- French makes 0 singular, Polish and Russian have four categories chosen by the last one or two digits, Arabic six"
+        "packages/dartvel_cli/test/seo_alternates_test.dart",
+        "packages/dartvel_cli/test/seo_locales_wiring_test.dart"
+      ]
     },
     {
       "section": "Accessibility",
