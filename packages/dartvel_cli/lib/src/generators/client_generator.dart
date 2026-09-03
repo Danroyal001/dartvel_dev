@@ -753,22 +753,6 @@ class DartvelRuntime {
     final modelRoutes =
         modelRoutesSrc.isEmpty ? '' : ',\n$modelRoutesSrc';
 
-    // A route per page of every mounted module, serving the module's own
-    // generated page at the mounted path. Without these the routes would be
-    // in the index and the sitemap while the application answered its own
-    // not-found page for every one of them.
-    final moduleRoutesSrc = <String>[
-      for (final DVModuleMount m in modules)
-        for (final DVModuleRoute r in m.routes)
-          '''
-    GoRoute(
-      path: '${esc(r.mounted)}',
-      pageBuilder: (context, state) => NoTransitionPage<void>(
-        child: const ${_moduleAlias(m.id)}.${r.widget}(),
-      ),
-    ),''',
-    ].join('\n');
-    final moduleRoutes = moduleRoutesSrc.isEmpty ? '' : ',\n$moduleRoutesSrc';
 
     final routesSrc = pageEntries
         .map(
@@ -905,6 +889,30 @@ ${(() {
         })
         .toSet()
         .join('\n');
+
+    // A route per page of every mounted module, serving the module's own
+    // generated page at the mounted path. Without these the routes would be
+    // in the index and the sitemap while the application answered its own
+    // not-found page for every one of them.
+    final moduleRoutesSrc = <String>[
+      for (final DVModuleMount m in modules)
+        for (final DVModuleRoute r in m.routes)
+          '''
+    GoRoute(
+      path: '${esc(r.mounted)}',
+      pageBuilder: (context, state) => NoTransitionPage<void>(
+        child: const ${_moduleAlias(m.id)}.${r.widget}(),
+      ),
+    ),''',
+    ].join('\n');
+    // A separator only where one is missing. The page entries are joined
+    // without a trailing comma and the model routes end with one, so a
+    // comma added unconditionally produced `),` followed by `,` -- a syntax
+    // error in generated code, which is the worst place for one because
+    // nobody reads it until the compiler complains.
+    final beforeModules = modelRoutes.isEmpty ? routesSrc : modelRoutes;
+    final moduleSeparator = beforeModules.trimRight().endsWith(',') ? '\n' : ',\n';
+    final moduleRoutes = moduleRoutesSrc.isEmpty ? '' : '$moduleSeparator$moduleRoutesSrc';
 
     final generatedPageWidgets = pageEntries.map((e) {
       final DVFunctionBody? pageBody = e.body;
@@ -1706,7 +1714,10 @@ void startDartvelKiosk() {
       ..writeln('// GENERATED CODE - DO NOT MODIFY BY HAND')
       ..writeln('library dartvel_client_modules;')
       ..writeln()
-      ..writeln("import 'package:dartvel_core/dartvel.dart';")
+      // DV lives in dartvel_flutter, which re-exports the module types the
+      // registry is made of; importing only core left DV undefined in every
+      // generated application that mounts one.
+      ..writeln("import 'package:dartvel_flutter/dartvel_flutter.dart';")
       ..writeln()
       ..writeln('/// Registers every module this application mounts.')
       ..writeln('///')
