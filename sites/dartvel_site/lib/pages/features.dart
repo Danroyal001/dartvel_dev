@@ -365,7 +365,7 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   (
     'Web Server Rendering',
     'Pages assembled on request, from the route\'s data',
-    'Present: the request pipeline the spec describes, given a resolver for the route\'s data -- route resolved with its parameters, page data resolved by the declared mode (awaited, cached, stale-while-revalidate, or deferred to the client), visibility checked with 404 and 401, the head and JSON-LD structured data generated from the data, the page\'s favicon, crawler-visible text, the Flutter bootstrap, and streaming that sends the head first. Absent: the resolver the generated server would supply from the application\'s models, and a shared cache; the kept pages live in the process.',
+    'Present: the request pipeline the spec describes, given a resolver for the route\'s data -- route resolved with its parameters, page data resolved by the declared mode (awaited, cached, stale-while-revalidate, or deferred to the client), visibility checked with 404 and 401, the head and JSON-LD structured data generated from the data, the page\'s favicon, crawler-visible text, the Flutter bootstrap, and streaming that sends the head first. The resolver is generated from the application\'s models: a public model page is its row\'s title, content, image and published flag, read from the database when the page is asked for, hidden when unpublished. Absent: a shared cache; the kept pages live in the process.',
   ),
   (
     'Embedded, Television, and Extension Build Targets',
