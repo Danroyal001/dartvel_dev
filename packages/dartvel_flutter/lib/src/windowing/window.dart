@@ -422,8 +422,17 @@ class DVWindow {
     // closest to the user, so a palette disappearing before the dialog sitting
     // on top of it would flash the wrong thing. An owned window cannot outlive
     // its owner.
-    for (final DVWindow owned in DVWindowManager.ownedBy(this).reversed) {
-      await owned.close();
+    final List<DVWindow> ownedWindows = DVWindowManager.ownedBy(this);
+    if (ownedWindows.isNotEmpty) {
+      final int started = DVWindowManager.performance.mark();
+      for (final DVWindow owned in ownedWindows.reversed) {
+        await owned.close();
+      }
+      DVWindowManager.performance.recordOwnedCloseFrom(
+        started,
+        owner: route.path,
+        owned: ownedWindows.length,
+      );
     }
     if (!isVirtual) {
       await DVNativeBridge.invoke<bool>(
@@ -511,6 +520,7 @@ class DVWindowManager {
   /// Clears every window and any override. Tests use this so one test cannot
   /// see another's windows.
   static void reset() {
+    performance = DVWindowPerformance();
     _windows.clear();
     _all.value = <DVWindow>[];
     _kioskOwners.clear();
@@ -522,6 +532,12 @@ class DVWindowManager {
     exitPolicy = DVWindowExitPolicy.lastWindow;
     _capabilityOverride = null;
     _shared = null;
+  }
+
+  /// What the windowing layer measures. See [DVWindowPerformance].
+  static DVWindowPerformance get performance => DVWindowPerformance.current;
+  static set performance(DVWindowPerformance value) {
+    DVWindowPerformance.current = value;
   }
 
   /// The windows [owner] owns, in the order they were opened.
@@ -595,6 +611,7 @@ class DVWindowManager {
               'external': w.external,
             },
         ],
+        'performance': performance.toJson(),
       });
       try {
         final File file = File(path);
@@ -751,6 +768,7 @@ class DVWindowManager {
         if (existing.route.path == route.path) return existing;
       }
     }
+    final int started = performance.mark();
 
     final cap = capability;
     DVWindowDegradation degradation = DVWindowDegradation.none;
@@ -896,6 +914,12 @@ class DVWindowManager {
     }
 
     window.setLifecycle(DVWindowLifecycle.ready);
+    performance.recordOpenFrom(
+      started,
+      route: route.path,
+      virtual: window.isVirtual,
+      code: degradation == DVWindowDegradation.none ? null : degradation.code,
+    );
     return window;
   }
 
@@ -989,6 +1013,7 @@ class DVWindowManager {
   /// Restores what [persistWorkspace] saved, or an empty list when nothing is
   /// stored — a first launch is not a failure.
   Future<List<DVTabWorkspaceController>> restoreWorkspace(String name) async {
+    final int started = performance.mark();
     final stored = await shared.getReserved(_workspaceKey(name));
     if (stored is! DVJsonList) return <DVTabWorkspaceController>[];
 
@@ -1046,6 +1071,11 @@ class DVWindowManager {
       // the workspace comes back without it rather than not coming back.
       await _reportRestoreDrop(name, dropped);
     }
+    performance.recordRestoreFrom(
+      started,
+      name: name,
+      tabs: restored.fold(0, (int n, DVTabWorkspaceController w) => n + w.tabs.length),
+    );
     return restored;
   }
 
