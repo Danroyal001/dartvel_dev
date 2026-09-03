@@ -181,6 +181,7 @@ class DVLinuxBindings {
     'device.watchdog.heartbeat',
     'device.fleet.provision',
     'device.diagnostics.collect',
+    'deepLinks.initial',
   };
 
   static DynamicLibrary? _x11;
@@ -268,6 +269,9 @@ class DVLinuxBindings {
     DVLinuxPrinting.register(_gtk!, _glib!, DVNativeBridge.register);
     DVLinuxDialogs.register(_gtk!, _glib!, DVNativeBridge.register);
     DVLinuxDevice.register(DVNativeBridge.register);
+    // A desktop deep link arrives as a launch argument; the launch keeps
+    // the first one. The stream is fed by the launch as well.
+    DVNativeBridge.register('deepLinks.initial', (Object? _) => DVAppLaunch.initialLink);
     // A restart loop the watchdog finds goes to whatever kiosk host is on
     // screen, unless the app wired its own.
     DVLinuxDevice.onRestartLoop ??= DVKioskHost.reportRestartLoop;
