@@ -69,7 +69,10 @@ Widget _cloudPage(BuildContext context) => const SingleChildScrollView(
                 'Paste a file URL. Every top-level frame becomes a page you '
                 'can open in the builder and export as an ordinary @DVPage — '
                 'auto-layout to rows and lists, fills to colours, text styles '
-                'to text, image fills resolved. Built.',
+                'to text, image fills resolved. Every Figma component becomes '
+                'a reusable component and every instance stays an instance of '
+                'it, so a change pushed from the component reaches the pages. '
+                'Built.',
               ),
               SiteCard(
                 'Workflow builder',
