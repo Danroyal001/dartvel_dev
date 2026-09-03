@@ -23,10 +23,14 @@ class DVKioskEnforced {
 
   final bool fullscreen;
 
+  /// Whether the pointer is held inside the kiosk's window.
+  final bool confined;
+
   const DVKioskEnforced({
     required this.blocked,
     this.unenforced = const <String, String>{},
     this.fullscreen = false,
+    this.confined = false,
   });
 
   factory DVKioskEnforced.fromMap(Map<Object?, Object?> map) => DVKioskEnforced(
@@ -37,6 +41,7 @@ class DVKioskEnforced {
             '${e.key}': '${e.value}',
         },
         fullscreen: map['fullscreen'] == true,
+        confined: map['confined'] == true,
       );
 }
 
@@ -60,6 +65,9 @@ class DVKiosk {
     final Object? result = await DVNativeBridge.invoke<Object?>('kiosk.enforce', <String, Object?>{
       'combos': <String>[for (final DVAccelerator c in combos) c.canonical],
       'fullscreen': policy.fullscreen,
+      // A kiosk keeps the pointer inside its window: input confinement, per
+      // the enforcement table, wherever the platform can hold it.
+      'confinePointer': policy.enabled,
     });
     if (result is Map) return DVKioskEnforced.fromMap(result);
     return DVKioskEnforced(

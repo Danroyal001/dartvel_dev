@@ -24,10 +24,19 @@ class DVLinuxKiosk {
     'kiosk.release',
   };
 
+  /// Why the last pointer grab was refused, for the operator and the test.
+  static String? lastConfineError;
+
+  static bool _confined = false;
+  static void Function()? _releasePointer;
+
   static void register(
     void Function(String, FutureOr<Object?> Function(Object?)) bind, {
     required Future<bool> Function() fullscreen,
+    required String? Function() confinePointer,
+    required void Function() releasePointer,
   }) {
+    _releasePointer = releasePointer;
     bind('kiosk.enforce', (Object? arguments) async {
       final Map<Object?, Object?> map =
           arguments is Map ? arguments : const <Object?, Object?>{};
@@ -49,10 +58,17 @@ class DVLinuxKiosk {
       }
       final bool wentFullscreen =
           map['fullscreen'] == true ? await fullscreen() : false;
+      bool confined = false;
+      if (map['confinePointer'] == true) {
+        lastConfineError = confinePointer();
+        confined = lastConfineError == null;
+        _confined = confined;
+      }
       return <String, Object?>{
         'blocked': blocked,
         'unenforced': unenforced,
         'fullscreen': wentFullscreen,
+        'confined': confined,
       };
     });
 
@@ -67,6 +83,10 @@ class DVLinuxKiosk {
       await const DVShortcuts().unregister('$_prefix$combo');
     }
     _held.clear();
+    if (_confined) {
+      _releasePointer?.call();
+      _confined = false;
+    }
   }
 
   /// Releases the kiosk's grabs. For tests and shutdown.
