@@ -370,6 +370,87 @@ void main() {
     });
   });
 
+  group('dialogs', () {
+    // The real panels, answered from their own modal loop the way a person
+    // would. What is asserted is what the panel showed and what came back.
+    late Directory dir;
+    setUp(() {
+      dir = Directory.systemTemp.createTempSync('dartvel_dialogs_');
+      File('${dir.path}/notes.txt').writeAsStringSync('hello');
+      File('${dir.path}/photo.png').writeAsBytesSync(<int>[0x89, 0x50, 0x4E, 0x47]);
+    });
+    tearDown(() {
+      DVMacosDialogs.automate(null);
+      dir.deleteSync(recursive: true);
+    });
+
+    test('open: cancel is no files, not an error', () async {
+      DVMacosDialogs.automate((DVMacosDialog dialog) => dialog.cancel());
+      expect(await DV.Platform.Dialogs.openFile(initialDirectory: dir.path), isEmpty);
+    });
+
+    test('open: the user picks a file and presses Open', () async {
+      late DVMacosDialogSeen seen;
+      DVMacosDialogs.automate((DVMacosDialog dialog) {
+        seen = dialog.inspect();
+        dialog.selectPath('${dir.path}/notes.txt');
+        dialog.accept();
+      });
+      final List<String> picked = await DV.Platform.Dialogs.openFile(
+        title: 'Pick a note',
+        filters: const <DVFileFilter>[DVFileFilter(label: 'Text', extensions: <String>['txt'])],
+        initialDirectory: dir.path,
+      );
+      expect(picked.map((String p) => p.split('/').last), <String>['notes.txt']);
+      expect(seen.title, 'Pick a note');
+      expect(seen.filterLabels, <String>['Text']);
+      expect(seen.currentFolder?.split('/').last, dir.path.split('/').last);
+    });
+
+    test('save: the suggested name is offered and the chosen path returned', () async {
+      late DVMacosDialogSeen seen;
+      DVMacosDialogs.automate((DVMacosDialog dialog) {
+        seen = dialog.inspect();
+        dialog.accept();
+      });
+      final String? path = await DV.Platform.Dialogs.saveFile(suggestedName: 'report.pdf', initialDirectory: dir.path);
+      expect(seen.currentName, 'report.pdf');
+      expect(path?.split('/').last, 'report.pdf');
+    });
+
+    test('choose a directory', () async {
+      DVMacosDialogs.automate((DVMacosDialog dialog) {
+        dialog.selectPath('${dir.path}/');
+        dialog.accept();
+      });
+      expect((await DV.Platform.Dialogs.chooseDirectory())?.split('/').last, dir.path.split('/').last);
+    });
+
+    test('a message is shown with its text and dismissed', () async {
+      late DVMacosDialogSeen seen;
+      DVMacosDialogs.automate((DVMacosDialog dialog) {
+        seen = dialog.inspect();
+        dialog.accept();
+      });
+      await DV.Platform.Dialogs.message(title: 'Saved', text: 'Your report was saved.', kind: DVDialogKind.info);
+      expect(seen.title, 'Saved');
+      expect(seen.messageText, contains('Your report was saved.'));
+    });
+
+    test('media.pick is the open panel with the kind\'s filters', () async {
+      late DVMacosDialogSeen seen;
+      DVMacosDialogs.automate((DVMacosDialog dialog) {
+        seen = dialog.inspect();
+        dialog.selectPath('${dir.path}/photo.png');
+        dialog.accept();
+      });
+      final List<Map<String, Object?>> picked = await DV.Platform.media.pick(type: 'image');
+      expect(picked.single['name'], 'photo.png');
+      expect(picked.single['type'], 'image');
+      expect(seen.filterLabels, <String>['Images']);
+    });
+  });
+
   test('an unimplemented binding still throws', () async {
     await expectLater(
       DVNativeBridge.require<bool>(

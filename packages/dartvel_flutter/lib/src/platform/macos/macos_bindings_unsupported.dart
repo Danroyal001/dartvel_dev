@@ -64,3 +64,33 @@ class DVMacosPrinting {
 
   static const Set<String> implemented = <String>{'printing.toFile'};
 }
+
+/// What a macOS dialog showed, unavailable here.
+class DVMacosDialogSeen {
+  const DVMacosDialogSeen({this.title, this.filterLabels = const <String>[], this.currentFolder, this.currentName, this.messageText});
+  final String? title;
+  final List<String> filterLabels;
+  final String? currentFolder;
+  final String? currentName;
+  final String? messageText;
+}
+
+/// A macOS dialog, unavailable here.
+class DVMacosDialog {
+  const DVMacosDialog._();
+  DVMacosDialogSeen inspect() => const DVMacosDialogSeen();
+  void selectPath(String path) {}
+  void accept() {}
+  void cancel() {}
+}
+
+typedef DVMacosDialogAutomation = void Function(DVMacosDialog dialog);
+
+/// The macOS dialogs, unavailable here.
+class DVMacosDialogs {
+  const DVMacosDialogs._();
+
+  static const Set<String> implemented = <String>{'dialogs.openFile', 'dialogs.saveFile', 'dialogs.chooseDirectory', 'dialogs.message', 'media.pick'};
+  static void automate(DVMacosDialogAutomation? automation) {}
+  static void unregister() {}
+}

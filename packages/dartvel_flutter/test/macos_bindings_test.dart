@@ -42,6 +42,13 @@ void main() {
           'permissions.isGranted',
           'permissions.request',
           'deepLinks.initial',
+          // NSOpenPanel, NSSavePanel and NSAlert, answered from the modal loop
+          // under automation.
+          'dialogs.openFile',
+          'dialogs.saveFile',
+          'dialogs.chooseDirectory',
+          'dialogs.message',
+          'media.pick',
           // Pictures onto pages, to a PDF.
           'printing.toFile',
         },
