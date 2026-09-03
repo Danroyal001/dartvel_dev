@@ -19,6 +19,7 @@ import '../build/semantic_html.dart';
 import '../build/semantics_capture.dart';
 import '../build/server_config.dart';
 import '../build/structured_data.dart';
+import '../build/supervisor_unit.dart';
 import '../build/static_seo.dart';
 import '../build/static_paths_runner.dart';
 import '../build/static_generation.dart';
@@ -926,8 +927,24 @@ class BuildCommand extends Command<void> {
       file.copySync(destination);
     }
 
+    // Boot-to-app: the declaration says the target's supervisor starts the
+    // application, and on an eLinux image that supervisor is systemd. Without
+    // the unit the image boots to a console.
+    final DVSupervisorWrite supervisor = dvWriteSupervisorUnit(
+      root,
+      outDir,
+      executable: backend.executable,
+    );
+    for (final String problem in supervisor.problems) {
+      Logger.log('⚠️  $problem');
+    }
+
     Logger.log('✅ sony-elinux bundle assembled at $outDir');
     Logger.log('   ${backend.executable} + engine + libapp.so, no GUI stack');
+    if (supervisor.written.isNotEmpty) {
+      Logger.log('   ${supervisor.written.join(', ')}: install under '
+          '/etc/systemd/system and enable it.');
+    }
     return _PlatformBuildResult.succeeded;
   }
 

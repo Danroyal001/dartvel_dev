@@ -1,0 +1,245 @@
+/// Boot-to-app: the unit that starts the application and keeps it started.
+///
+/// `autostart` and `restartOnFailure` are declaration keys the specification
+/// says the target's supervisor honours -- a systemd unit on eLinux images, a
+/// lock-task launcher on Android, assigned access on Windows. Nothing read
+/// them, so an image built from a declaration that said `autostart: true`
+/// booted to a login prompt, which is the one thing a kiosk image is for.
+///
+/// This is the systemd half. It is generated rather than shipped as a
+/// template because two of its lines depend on the rest of the declaration in
+/// ways that are quiet when they are wrong: `Type=notify` on an application
+/// that never sends a readiness notification leaves systemd waiting until the
+/// unit times out, and a `WatchdogSec` shorter than the application's own
+/// heartbeat restarts a healthy application for ever while looking exactly
+/// like a crash loop.
+library;
+
+import 'dart:io';
+
+import 'package:yaml/yaml.dart';
+
+/// What a target declares about being supervised.
+class DVSupervisorDeclaration {
+  const DVSupervisorDeclaration({
+    required this.autostart,
+    required this.restartOnFailure,
+    required this.kiosk,
+    required this.watchdog,
+    required this.problems,
+  });
+
+  /// Whether the image should start the application at boot.
+  final bool autostart;
+
+  /// Whether the supervisor should start it again when it stops.
+  final bool restartOnFailure;
+
+  /// Whether it starts as a kiosk, which changes what it has to wait for.
+  final bool kiosk;
+
+  /// How long the supervisor waits for a heartbeat before restarting.
+  ///
+  /// Null means it is not watching for one, which is the right default: an
+  /// application the supervisor watches must actually send the heartbeat.
+  final Duration? watchdog;
+
+  /// Declarations that cannot be honoured, in the specification's terms.
+  final List<String> problems;
+
+  /// Reads `dartvel.targets.<target>`.
+  ///
+  /// The specification writes these keys at the top of the target in the
+  /// bundle example and under `application:` in the image example. Both are
+  /// in the document, so both are read here; honouring one would leave the
+  /// other silently not booting.
+  static DVSupervisorDeclaration parse(
+    Object? dartvelSection, {
+    required String target,
+  }) {
+    final List<String> problems = <String>[];
+    final Map<Object?, Object?> targets = _map(
+      dartvelSection is Map ? dartvelSection['targets'] : null,
+    );
+    final Map<Object?, Object?> section = _map(targets[target]);
+    final Map<Object?, Object?> application = _map(section['application']);
+
+    Object? key(String name) => application[name] ?? section[name];
+
+    final bool restart = key('restartOnFailure') == true;
+    final Object? rawWatchdog = key('watchdog');
+    final Duration? watchdog = _duration(
+      rawWatchdog,
+      'dartvel.targets.$target.application.watchdog',
+      problems,
+    );
+    if (watchdog != null && !restart) {
+      // The watchdog's only action is a restart. With restarts off, a missed
+      // heartbeat stops the application and nothing starts it again: the
+      // device is dark until somebody walks up to it.
+      problems.add('dartvel.targets.$target declares a watchdog but '
+          'restartOnFailure is false, so a missed heartbeat would stop the '
+          'application and leave it stopped.');
+    }
+
+    return DVSupervisorDeclaration(
+      autostart: key('autostart') == true,
+      restartOnFailure: restart,
+      kiosk: key('kiosk') == true,
+      watchdog: watchdog,
+      problems: problems,
+    );
+  }
+
+  static Map<Object?, Object?> _map(Object? value) =>
+      value is Map ? value : const <Object?, Object?>{};
+
+  static Duration? _duration(Object? value, String key, List<String> problems) {
+    if (value == null) return null;
+    final RegExpMatch? m =
+        RegExp(r'^(\d+)(ms|s|m|h)$').firstMatch('$value'.trim());
+    if (m == null) {
+      problems.add('$key is "$value", which is not a duration such as "30s" '
+          'or "2m".');
+      return null;
+    }
+    final int n = int.parse(m.group(1)!);
+    return switch (m.group(2)) {
+      'ms' => Duration(milliseconds: n),
+      's' => Duration(seconds: n),
+      'm' => Duration(minutes: n),
+      _ => Duration(hours: n),
+    };
+  }
+}
+
+/// The systemd unit that boots [appName] into the application.
+///
+/// [installDir] is where the image puts the bundle, and [executable] the
+/// embedder binary inside it -- which one depends on the display backend, so
+/// it is passed rather than assumed.
+String dvSystemdUnit({
+  required String appName,
+  required String executable,
+  required String installDir,
+  required DVSupervisorDeclaration declaration,
+  String? user,
+}) {
+  final Duration? watchdog = declaration.watchdog;
+  final StringBuffer unit = StringBuffer()
+    ..writeln('# Generated by dartvel build. Edit the declaration, not this '
+        'file.')
+    ..writeln('[Unit]')
+    ..writeln('Description=$appName');
+
+  if (declaration.kiosk) {
+    // A DRM embedder that starts before udev has settled finds no card and
+    // exits. With Restart=always that is a boot loop, and on a device with no
+    // keyboard it is a brick.
+    unit.writeln('After=systemd-udev-settle.service');
+    unit.writeln('Wants=systemd-udev-settle.service');
+  } else {
+    unit.writeln('After=network.target');
+  }
+
+  unit
+    ..writeln()
+    ..writeln('[Service]')
+    ..writeln(watchdog == null ? 'Type=simple' : 'Type=notify')
+    ..writeln('ExecStart=$installDir/$executable')
+    ..writeln('WorkingDirectory=$installDir');
+
+  if (user != null && user.isNotEmpty) unit.writeln('User=$user');
+
+  if (watchdog != null) {
+    // The application heartbeats through sd_notify. systemd's own guidance is
+    // that the application pings at half the interval, so the interval is
+    // what was declared and the application's arming has to be at or under
+    // half of it -- a shorter interval here restarts a healthy application.
+    unit.writeln('WatchdogSec=${_systemdSeconds(watchdog)}');
+    unit.writeln('NotifyAccess=main');
+  }
+
+  unit.writeln(declaration.restartOnFailure ? 'Restart=always' : 'Restart=no');
+  if (declaration.restartOnFailure) unit.writeln('RestartSec=2');
+
+  if (declaration.autostart) {
+    // Without this section there is nothing for `systemctl enable` to link,
+    // so the unit starts by hand and never at boot -- which on an image
+    // nobody logs into means the device shows a console for ever.
+    unit
+      ..writeln()
+      ..writeln('[Install]')
+      ..writeln('WantedBy=multi-user.target');
+  }
+
+  return unit.toString();
+}
+
+String _systemdSeconds(Duration d) {
+  if (d.inMilliseconds % 1000 != 0) return '${d.inMilliseconds}ms';
+  return '${d.inSeconds}s';
+}
+
+/// What [dvWriteSupervisorUnit] wrote, and what it could not honour.
+class DVSupervisorWrite {
+  const DVSupervisorWrite({required this.written, required this.problems});
+
+  final List<String> written;
+  final List<String> problems;
+}
+
+/// Reads `dartvel.targets.<target>` from the pubspec at [root] and writes the
+/// supervisor unit into [bundle].
+///
+/// Nothing is written when nothing was declared. An image that installs a
+/// unit nobody asked for starts the application at boot on a device meant to
+/// boot to a desktop, and that is harder to notice than a missing file.
+///
+/// Problems come back rather than stopping the write: the unit is still the
+/// closest thing to what was declared, and a build that silently dropped it
+/// would leave the device with no supervisor at all.
+DVSupervisorWrite dvWriteSupervisorUnit(
+  String root,
+  String bundle, {
+  required String executable,
+  String target = 'sony-elinux',
+  String? installDir,
+}) {
+  final File pubspec = File('$root/pubspec.yaml');
+  Object? doc;
+  if (pubspec.existsSync()) {
+    try {
+      doc = loadYaml(pubspec.readAsStringSync());
+    } on Object {
+      doc = null;
+    }
+  }
+  final Map<Object?, Object?> top =
+      doc is Map ? doc : const <Object?, Object?>{};
+  final String app =
+      top['name'] is String ? top['name']! as String : 'dartvel_app';
+  final DVSupervisorDeclaration declaration = DVSupervisorDeclaration.parse(
+    top['dartvel'],
+    target: target,
+  );
+
+  if (!declaration.autostart && !declaration.restartOnFailure) {
+    return DVSupervisorWrite(
+      written: const <String>[],
+      problems: declaration.problems,
+    );
+  }
+
+  final String name = '$app.service';
+  File('$bundle/$name').writeAsStringSync(dvSystemdUnit(
+    appName: app,
+    executable: executable,
+    installDir: installDir ?? '/opt/$app',
+    declaration: declaration,
+  ));
+  return DVSupervisorWrite(
+    written: <String>[name],
+    problems: declaration.problems,
+  );
+}
