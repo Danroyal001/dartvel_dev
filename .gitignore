@@ -11,6 +11,12 @@
 # It also un-breaks the Rust cache key in .github/workflows/tests.yml, which
 # hashes this file and was hashing something not in the repository.
 !packages/dartvel_shelf/rust/Cargo.lock
+# The same for dartvel_core's crate, and for the same reason twice over:
+# tinyvec 1.13.0 does not compile at all ("cannot find macro `vec`"), and an
+# unpinned resolution picked it up the day it was published and failed every
+# runtime job. The cache key in platform-build-matrix.yml already hashed
+# this file, which was not in the repository.
+!packages/dartvel_core/rust/Cargo.lock
 *.log
 *.pyc
 *.swp
