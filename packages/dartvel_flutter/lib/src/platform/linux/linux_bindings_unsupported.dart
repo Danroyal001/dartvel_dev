@@ -14,6 +14,11 @@ class DVLinuxBindings {
 
   static bool register() => false;
 
+  /// Nothing here: there is no libc serial port, no sysfs and no system bus.
+  /// Both branches of the conditional import must expose the same surface,
+  /// or code that compiles on Linux fails to compile everywhere else.
+  static void registerDeviceBindings() {}
+
   static void unregister() {}
 
   /// Null here: there is no GTK window to report a title for. Both branches

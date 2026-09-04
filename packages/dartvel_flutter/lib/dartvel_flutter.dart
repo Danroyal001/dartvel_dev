@@ -2537,10 +2537,10 @@ class DVUpdates {
   /// declaration forbids is a bug, and a call that does nothing is how it
   /// stays one. Called with nothing, it applies whatever the channel offers,
   /// which is the shape the specification's own example uses.
-  Future<void> apply([
+  Future<void> apply({
     DVUpdateInfo? update,
     DVUpdateChannel channel = DVUpdateChannel.production,
-  ]) async {
+  }) async {
     final DVUpdateInfo decided = update == null ? await check(channel: channel) : update;
     final DVUpdateHold? hold = decided.hold;
     if (hold != null) {

@@ -149,7 +149,7 @@ void main() {
       final DVUpdateInfo update = await const DVUpdates().check();
 
       await expectLater(
-        const DVUpdates().apply(update),
+        const DVUpdates().apply(update: update),
         throwsA(predicate((Object e) => '$e'.contains('02:00-04:00'))),
       );
       expect(applied, isFalse, reason: 'it must not reach the binding');
@@ -172,7 +172,7 @@ void main() {
       DV.Platform.display.kiosk!.runtime.resets.listen((_) => order.add('reset'));
 
       final DVUpdateInfo update = await const DVUpdates().check();
-      await const DVUpdates().apply(update);
+      await const DVUpdates().apply(update: update);
 
       expect(order, <String>['reset', 'apply']);
     });
@@ -185,7 +185,7 @@ void main() {
         return true;
       });
 
-      await const DVUpdates().apply(await const DVUpdates().check());
+      await const DVUpdates().apply(update: await const DVUpdates().check());
 
       expect(applied, isTrue);
     });
