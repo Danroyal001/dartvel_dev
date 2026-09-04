@@ -17,6 +17,7 @@ Widget _indexPage(BuildContext context) => const Deck(
         ('Overview', HeroSection()),
         ('Models', Proof()),
         ('What you get', Pillars()),
+        ('Design', FromDesign()),
         ('Targets', Targets()),
         ('vs Expo', ExpoComparison()),
         ('Status', Honest()),
@@ -81,6 +82,15 @@ Widget _heroCopy(BuildContext context) => DVBox.list(
           'are generated, compiled or served for you.',
         ).modifier(
           const DVModifier().fontSize(19).color(Palette.of(context).muted).height(1.65).width(640),
+        ),
+        // The two things people do not expect a Flutter framework to do, at
+        // the top of the page rather than three slides down where they were.
+        const DVText(
+          'Import a Figma file and get pages you can edit and export as '
+          'ordinary Dart. Build the same application for a terminal, with no '
+          'GUI code linked in.',
+        ).modifier(
+          const DVModifier().fontSize(17).color(Palette.of(context).muted).height(1.6).width(600),
         ),
         const DVBox.wrapLine(<Widget>[
           PrimaryLink('Get started', '/docs'),
@@ -302,6 +312,72 @@ Widget _pillars(BuildContext context) => const Section(
       ],
     );
 
+// The strongest thing on this site and it was on the cloud page only, where
+// somebody has to go looking for it.
+@DVFunctionalWidget()
+Widget _fromDesign(BuildContext context) => const Section(
+      children: <Widget>[
+        Eyebrow('FROM A FIGMA FILE'),
+        Heading('A design, not a picture of one.'),
+        Body(
+          'Paste a file URL. Every top-level frame becomes a page you can '
+          'open in the builder, edit, and export as an ordinary @DVPage — '
+          'files you own, in your repository, with the images in them.',
+          width: 660,
+        ),
+        DVBox.wrapLine(<Widget>[
+          SiteCard(
+            'It arrives as layout',
+            'Auto-layout becomes rows and lists with the designer\'s own '
+            'spacing and alignment. Padding keeps all four sides. A frame '
+            'placed by hand keeps its coordinates, relative to the frame it '
+            'sits in rather than to the artboard it was drawn on.',
+          ),
+          SiteCard(
+            'And as the design',
+            'Typefaces, line heights, shadows, gradients, corners that '
+            'differ, how each image fills its frame, how many lines a title '
+            'gets. A node keeps the size it was drawn at only where the '
+            'designer fixed it, so the result is not pinned to the width of '
+            'the artboard.',
+          ),
+          SiteCard(
+            'Icons too',
+            'An icon is vector paths and carries no image, so Figma is asked '
+            'to render each one and the picture is kept. That is the '
+            'difference between a design that arrives with everything but its '
+            'icons and one that arrives.',
+          ),
+          SiteCard(
+            'Nothing expires',
+            'Figma\'s image URLs are temporary. Every image is downloaded '
+            'and kept, so a design imported today does not show broken '
+            'pictures a fortnight from now.',
+          ),
+          SiteCard(
+            'A screen that scrolls',
+            'Almost every screen is taller than the phone it was drawn on. '
+            'Figma places everything absolutely, so the import measures that '
+            'rather than guessing, and the page scrolls instead of showing '
+            'the overflow stripe.',
+          ),
+          SiteCard(
+            'Or a project on disk',
+            'The pages go live in the running application without a rebuild, '
+            'or come out as a Flutter project: each page the file its route '
+            'names, each image an asset, with the pubspec lines that make it '
+            'build.',
+          ),
+        ], spacing: 16),
+        Body(
+          'Figma import is a Studio Pro feature. The page builder underneath '
+          'it — drag and drop, an inspector, undo, breakpoints, one-click '
+          'export — is free.',
+          width: 660,
+        ),
+      ],
+    );
+
 @DVFunctionalWidget()
 Widget _targets(BuildContext context) => Section(
       // The one band that stops the scroll. A page that is eight shades of
@@ -325,6 +401,20 @@ Widget _targets(BuildContext context) => Section(
           'fork so the engine and the Flutter version stay aligned. A build '
           'checks host support and tooling before doing any work, so it never '
           'starts something it cannot finish.',
+        ).modifier(const DVModifier().fontSize(16).color(const Color(0xFF9AA6C4)).height(1.65).width(640)),
+        const SizedBox(height: 8),
+        // The last chip in that row is the one worth a sentence: a Flutter
+        // application drawing in a terminal is not a thing people expect to
+        // be on the list.
+        const DVText(
+          'The last of those is a terminal. `dartvel build linux-cli` links '
+          'the terminal backend and no GUI code; the desktop build links the '
+          'GUI and no terminal code; an application that asks for both '
+          'resolves at launch — --tui, or the prompt when there is no '
+          'display. Nothing pays for a mode it will never use. CI runs it '
+          'inside a pty and counts the escape sequences, because a build that '
+          'produced a GUI binary and called it a TUI is exactly what happened '
+          'once.',
         ).modifier(const DVModifier().fontSize(16).color(const Color(0xFF9AA6C4)).height(1.65).width(640)),
         const SizedBox(height: 8),
         // Breadth only. The section below already counts shipped spec

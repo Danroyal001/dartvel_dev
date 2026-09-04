@@ -67,12 +67,41 @@ Widget _cloudPage(BuildContext context) => const SingleChildScrollView(
               SiteCard(
                 'Figma import',
                 'Paste a file URL. Every top-level frame becomes a page you '
-                'can open in the builder and export as an ordinary @DVPage — '
-                'auto-layout to rows and lists, fills to colours, text styles '
-                'to text, image fills resolved. Every Figma component becomes '
-                'a reusable component and every instance stays an instance of '
-                'it, so a change pushed from the component reaches the pages. '
-                'Built.',
+                'can open in the builder and export as an ordinary @DVPage. '
+                'Auto-layout keeps its spacing and alignment, padding keeps '
+                'all four sides, corners that differ stay different, and a '
+                'node keeps the size it was drawn at only where the designer '
+                'fixed it — so the result is an application rather than a '
+                'picture of one. Typefaces, line heights, shadows, gradients, '
+                'text line limits and how each image fills its frame all come '
+                'across. Every Figma component becomes a reusable component '
+                'and every instance stays an instance of it. Built.',
+              ),
+              SiteCard(
+                'Icons, and images that keep working',
+                'An icon is vector paths and carries no image, so Figma is '
+                'asked to render each one and the picture is kept — the '
+                'difference between a design that arrives with everything but '
+                'its icons and one that arrives. Every image is downloaded '
+                'rather than linked, because Figma\'s URLs expire and a '
+                'design imported today would show broken pictures a fortnight '
+                'from now. Built.',
+              ),
+              SiteCard(
+                'Screens that behave',
+                'A frame placed by hand keeps its coordinates, relative to '
+                'the frame it sits in rather than the artboard it was drawn '
+                'on. A screen taller than the phone it was drawn on scrolls, '
+                'measured from Figma\'s own absolute positions rather than '
+                'guessed at. Built.',
+              ),
+              SiteCard(
+                'Or a project on disk',
+                'The imported pages go live in the running application '
+                'without a rebuild — or come out as a Flutter project you '
+                'own: each page the file its route names, each image an asset '
+                'in the repository, with the pubspec lines that make it '
+                'build. Built.',
               ),
               SiteCard(
                 'Workflow builder',
