@@ -827,8 +827,15 @@ final List<DVStudioProperty> dvStudioProperties = <DVStudioProperty>[
       (m, v, p) => _number(m, v, (m, v) => m.height(v)),
       source: (v, p) => _numberSource('height', v)),
   DVStudioProperty('rounded', DVStudioPropertyKind.number,
-      (m, v, p) => _number(m, v, (m, v) => m.rounded(v)),
-      source: (v, p) => _numberSource('rounded', v)),
+      (m, v, p) => _corners(m, p),
+      source: (v, p) => _hasCorner(p) ? null : _numberSource('rounded', v)),
+  // Four corners, because a sheet rounded at the top and square at the
+  // bottom is in every design system and a document that could say one
+  // number turned one into a floating rounded rectangle.
+  for (final String corner in _cornerNames)
+    DVStudioProperty(corner, DVStudioPropertyKind.number,
+        (m, v, p) => _corners(m, p),
+        source: (v, p) => _cornerSource(corner, p)),
   // A shadow is one decision made of five values, so the colour owns it and
   // the rest are its companions: applied separately, whichever ran last
   // would hold defaults for the other four.
@@ -1093,6 +1100,59 @@ String dvStudioPlaceSource(Map<String, Object?> properties, String source) {
         '$edge: ${(properties[edge]! as num).toDouble()}',
   ];
   return 'Positioned(${named.join(', ')}, child: $source)';
+}
+
+
+/// The corners, in the order [BorderRadius.only] takes them.
+const List<String> _cornerNames = <String>[
+  'roundedTopLeft',
+  'roundedTopRight',
+  'roundedBottomLeft',
+  'roundedBottomRight',
+];
+
+/// Whether any single corner is named.
+bool _hasCorner(Map<String, Object?> properties) =>
+    _cornerNames.any((String corner) => properties[corner] is num);
+
+double _corner(Map<String, Object?> properties, String corner) {
+  final Object? own = properties[corner];
+  if (own is num) return own.toDouble();
+  final Object? all = properties['rounded'];
+  return all is num ? all.toDouble() : 0;
+}
+
+/// Applies the whole radius, whichever corner asked.
+///
+/// Each corner applies all four for the same reason each padding edge
+/// does: a modifier replaces the radius it is given, so four of them would
+/// leave only the last.
+DVModifier? _corners(DVModifier modifier, Map<String, Object?> properties) {
+  if (!_hasCorner(properties)) {
+    final Object? all = properties['rounded'];
+    return all is num ? modifier.rounded(all.toDouble()) : null;
+  }
+  return modifier.radius(BorderRadius.only(
+    topLeft: Radius.circular(_corner(properties, 'roundedTopLeft')),
+    topRight: Radius.circular(_corner(properties, 'roundedTopRight')),
+    bottomLeft: Radius.circular(_corner(properties, 'roundedBottomLeft')),
+    bottomRight: Radius.circular(_corner(properties, 'roundedBottomRight')),
+  ));
+}
+
+/// The exported call, written once by the first corner that is named.
+String? _cornerSource(String corner, Map<String, Object?> properties) {
+  if (!_hasCorner(properties)) return null;
+  final String first =
+      _cornerNames.firstWhere((String c) => properties[c] is num);
+  if (corner != first) return null;
+  final String args = <String>[
+    for (final String name in _cornerNames)
+      '${name.substring('rounded'.length)[0].toLowerCase()}'
+          '${name.substring('rounded'.length + 1)}: '
+          'Radius.circular(${_corner(properties, name)})',
+  ].join(', ');
+  return '.radius(BorderRadius.only($args))';
 }
 
 /// The parts of a shadow that are not its colour.
