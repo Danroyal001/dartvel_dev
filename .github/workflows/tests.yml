@@ -416,6 +416,13 @@ jobs:
               echo
             done
             [ "$found" -eq 0 ] && echo "none: the tester did not crash"
+            # And the run again with the ordinary reporter, verbatim. The
+            # tests have been failing with no error attached and the process
+            # does not crash, so the remaining suspect is the reporting in
+            # between: this takes it out of the question by putting what
+            # package:test actually says into the log.
+            echo "--- the same suite, plain reporter ---"
+            flutter test test/macos_dialogs_live_test.dart --reporter expanded 2>&1 | tail -60
           fi
           exit $code
       # window.displays through CGGetActiveDisplayList, against the runner's
