@@ -180,6 +180,13 @@ class DVMacosDialogs {
     _configure(panel, m);
     final int response = _runModal(panel, directories ? _DialogKind.folder : _DialogKind.open);
     if (response != _modalResponseOk) return const <String>[];
+    // Under automation the choice is the automation's, and it is taken before
+    // the panel is asked. The panel is served by another process, its `URLs`
+    // are read-only and `setDirectoryURL:` does not always reach it, so what
+    // it answers is its own default -- the user's Documents folder -- which
+    // is a real path to a real directory nobody chose.
+    final String? selected = _selected;
+    if (_automation != null && selected != null) return <String>[selected];
     final Pointer<Void> urls = o.send0(panel, 'URLs');
     final int count = urls == nullptr ? 0 : o.getInt(urls, 'count');
     if (count > 0) {
@@ -187,18 +194,13 @@ class DVMacosDialogs {
         for (var i = 0; i < count; i++) _pathOf(o.getAt(urls, 'objectAtIndex:', i)),
       ];
     }
-    // Nobody clicked, because an automation answered. An open panel has no
-    // name field to read a choice back out of -- asking one for
-    // `nameFieldStringValue` returns something that is not a string, and
-    // reading it as one is how this suite killed its own process after every
-    // test had passed -- so the choice is the one the automation made.
-    //
-    // Only under automation. A person who presses Open with nothing selected
-    // has selected nothing, and inventing a path for them would hand back a
-    // file they did not choose.
-    if (_automation == null) return const <String>[];
-    final String? selected = _selected;
-    return selected == null ? const <String>[] : <String>[selected];
+    // Open with nothing selected. Not a path: a person who presses Open
+    // having selected nothing has selected nothing, and inventing one would
+    // hand back a file they did not choose. An open panel has no name field
+    // to compose one out of either -- asking one for nameFieldStringValue
+    // answers with something that is not a string, and reading it as one is
+    // how this suite killed its own process after every test had passed.
+    return const <String>[];
   }
 
   static String? _savePanel(Map<Object?, Object?> m) {
@@ -230,6 +232,11 @@ class DVMacosDialogs {
     try {
       return _o.getInt(panel, 'runModal');
     } finally {
+      // A panel whose modal session was stopped from code is still an open
+      // window: it stays on screen, and it stays in the application's window
+      // list, where the next thing to ask "does this application have a
+      // window?" gets the wrong answer.
+      _o.send0(panel, 'close');
       _current = null;
     }
   }
@@ -250,6 +257,10 @@ class DVMacosDialogs {
     try {
       o.getInt(alert, 'runModal');
     } finally {
+      // The alert's window, not the alert: NSAlert is not a window and does
+      // not answer `close`.
+      final Pointer<Void> window = o.send0(alert, 'window');
+      if (window != nullptr) o.send0(window, 'close');
       _current = null;
     }
   }
