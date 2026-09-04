@@ -24,12 +24,15 @@ Future<String> _reindex(String term) async => term.toUpperCase();
 ''';
 
 /// A parent that mounts `store`, with whatever the test wants in each.
-Future<String> generatedRoutes({
+///
+/// Returns the project root; the generated files are read from it.
+Future<Directory> generate({
   String deployment = 'embedded',
   Map<String, String> moduleFunctions = const <String, String>{
     'reindex.post.dart': _reindex,
   },
   Map<String, String> parentFunctions = const <String, String>{},
+  Map<String, String> moduleLib = const <String, String>{},
 }) async {
   final Directory root =
       Directory.systemTemp.createTempSync('dartvel_module_backend_');
@@ -68,6 +71,11 @@ dartvel:
     File(p.join(module.path, 'lib', 'backend', 'functions', name))
         .writeAsStringSync(source);
   });
+  moduleLib.forEach((String name, String source) {
+    File(p.join(module.path, 'lib', name))
+      ..createSync(recursive: true)
+      ..writeAsStringSync(source);
+  });
 
   await BackendGenerator.generate(
     root: root.path,
@@ -79,9 +87,26 @@ dartvel:
     apiBasePath: '/api',
   );
 
-  return File(p.join(root.path, '.dart_tool', 'dartvel_backend_routes.g.dart'))
-      .readAsStringSync();
+  return root;
 }
+
+Future<String> generatedRoutes({
+  String deployment = 'embedded',
+  Map<String, String> moduleFunctions = const <String, String>{
+    'reindex.post.dart': _reindex,
+  },
+  Map<String, String> parentFunctions = const <String, String>{},
+}) async =>
+    File(p.join(
+      (await generate(
+        deployment: deployment,
+        moduleFunctions: moduleFunctions,
+        parentFunctions: parentFunctions,
+      ))
+          .path,
+      '.dart_tool',
+      'dartvel_backend_routes.g.dart',
+    )).readAsStringSync();
 
 void main() {
   test('an embedded module\'s function is served by the parent', () async {
@@ -146,5 +171,76 @@ Response handler(Request request) => Response(200);
       throwsA(isA<StateError>().having((StateError e) => e.message, 'message',
           allOf(contains('store'), contains('/reindex')))),
     );
+  });
+
+  test('a module\'s cron function is in the parent\'s schedule', () async {
+    // A backend-only module contributes cron functions in the specification's
+    // own list. The schedule was generated from the parent's lib alone, so a
+    // module's never ran and nothing said so.
+    final Directory root = await generate(
+      deployment: 'backend-only',
+      moduleFunctions: const <String, String>{},
+      moduleLib: const <String, String>{
+        'jobs/nightly.dart': '''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVBackendCron('0 3 * * *')
+Future<void> reindexNightly() async {}
+''',
+      },
+    );
+
+    final String schedules = File(p.join(
+            root.path, 'lib', 'dartvel_client', 'schedules.g.dart'))
+        .readAsStringSync();
+
+    expect(schedules, contains("name: 'reindexNightly'"));
+    expect(schedules, contains("cron: '0 3 * * *'"));
+    // Imported from the module, not from a parent path that has no such file.
+    expect(schedules, contains("importUri: 'package:store/jobs/nightly.dart'"));
+  });
+
+  test('a module\'s AI tool is in the parent\'s tools', () async {
+    final Directory root = await generate(
+      deployment: 'backend-only',
+      moduleFunctions: const <String, String>{},
+      moduleLib: const <String, String>{
+        'ai/lookup.dart': '''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVAITool(description: 'Look a product up')
+Future<String> lookUpProduct(String sku) async => sku;
+''',
+      },
+    );
+
+    final String tools =
+        File(p.join(root.path, 'lib', 'dartvel_client', 'ai_tools.g.dart'))
+            .readAsStringSync();
+
+    expect(tools, contains("'lookUpProduct'"));
+    expect(tools, contains('package:store/ai/lookup.dart'));
+  });
+
+  test('a federated module contributes neither', () async {
+    // It runs its own schedule in its own deployment. Running it here too
+    // would do the work twice, which for a cron job is the failure.
+    final Directory root = await generate(
+      deployment: 'federated',
+      moduleFunctions: const <String, String>{},
+      moduleLib: const <String, String>{
+        'jobs/nightly.dart': '''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVBackendCron('0 3 * * *')
+Future<void> reindexNightly() async {}
+''',
+      },
+    );
+
+    expect(
+        File(p.join(root.path, 'lib', 'dartvel_client', 'schedules.g.dart'))
+            .readAsStringSync(),
+        isNot(contains('reindexNightly')));
   });
 }

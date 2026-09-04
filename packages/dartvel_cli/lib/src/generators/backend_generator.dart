@@ -1018,6 +1018,7 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
         .writeAsStringSync(await _generateSchedules(
       root: root,
       pkgName: pkgName,
+      backendDir: backendDir,
     ));
     File(p.join(libClientDir.path, 'ai_tools.g.dart'))
         .writeAsStringSync(await _generateAITools(
@@ -1054,25 +1055,15 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
   static Future<String> _generateSchedules({
     required String root,
     required String pkgName,
+    required String backendDir,
   }) async {
-    final fs = const LocalFileSystem();
-    final files = <File>[];
-    for (final entity in Glob('lib/**.dart')
-        .listFileSystemSync(fs, root: root, followLinks: false)) {
-      if (entity is! File) continue;
-      final normalized = entity.path.replaceAll('\\', '/');
-      if (normalized.contains('/lib/dartvel_client/')) continue;
-      files.add(File(entity.path));
-    }
-    files.sort((a, b) => a.path.compareTo(b.path));
-
     final entries = <_CronEntry>[];
-    for (final file in files) {
+    for (final (project, file) in _mergedLibFiles(root, pkgName, backendDir)) {
       final source = await file.readAsString();
       final relativePath =
-          p.relative(file.path, from: root).replaceAll('\\', '/');
-      final importUri =
-          relativePath.replaceFirst(RegExp(r'^lib/'), 'package:$pkgName/');
+          p.relative(file.path, from: project.root).replaceAll('\\', '/');
+      final importUri = relativePath.replaceFirst(
+          RegExp(r'^lib/'), 'package:${project.packageName}/');
       _collectCronEntries(
         source: source,
         relativePath: relativePath,
@@ -1130,32 +1121,22 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
     required String pkgName,
     required String backendDir,
   }) async {
-    final fs = const LocalFileSystem();
-    final files = <File>[];
-    for (final entity in Glob('lib/**.dart')
-        .listFileSystemSync(fs, root: root, followLinks: false)) {
-      if (entity is! File) continue;
-      final normalized = entity.path.replaceAll('\\', '/');
-      if (normalized.contains('/lib/dartvel_client/')) continue;
-      files.add(File(entity.path));
-    }
-    files.sort((a, b) => a.path.compareTo(b.path));
-
     final exposeBackendFunctions = _shouldExposeBackendFunctionsAsAITools(root);
     final entriesByName = <String, _AIToolEntry>{};
-    for (final file in files) {
+    for (final (project, file) in _mergedLibFiles(root, pkgName, backendDir)) {
       final source = await file.readAsString();
       final relativePath =
-          p.relative(file.path, from: root).replaceAll('\\', '/');
-      final importUri =
-          relativePath.replaceFirst(RegExp(r'^lib/'), 'package:$pkgName/');
+          p.relative(file.path, from: project.root).replaceAll('\\', '/');
+      final importUri = relativePath.replaceFirst(
+          RegExp(r'^lib/'), 'package:${project.packageName}/');
       _collectAIToolEntries(
         source: source,
         relativePath: relativePath,
         importUri: importUri,
         entriesByName: entriesByName,
       );
-      if (exposeBackendFunctions && relativePath.startsWith('$backendDir/')) {
+      if (exposeBackendFunctions &&
+          relativePath.startsWith('${project.backendDir}/')) {
         _collectBackendFunctionAIToolEntries(
           source: source,
           relativePath: relativePath,
@@ -1642,4 +1623,67 @@ String dvProjectBackendDir(String projectRoot) {
   } catch (_) {
     return 'lib/backend';
   }
+}
+
+/// A project whose `lib` this application's generated schedule, AI tools and
+/// backend router are built from: its own, and every module it merges.
+class _DVMergedProject {
+  const _DVMergedProject(this.root, this.packageName, this.backendDir);
+
+  final String root;
+  final String packageName;
+  final String backendDir;
+}
+
+/// The application's own project, then every module it merges.
+///
+/// Embedded and backend-only run inside the parent, so what they contribute
+/// is the parent's to run. A split-backend or federated module runs its own,
+/// in its own deployment: running its schedule here as well would do the
+/// night's work twice.
+List<_DVMergedProject> _mergedProjects(
+  String root,
+  String pkgName,
+  String backendDir,
+) {
+  final List<_DVMergedProject> projects = <_DVMergedProject>[
+    _DVMergedProject(root, pkgName, backendDir),
+  ];
+  for (final DVModuleMount mount in dvDiscoverModuleMounts(root)) {
+    if (!mount.mounted) continue;
+    if (mount.deployment != DVModuleDeployment.embedded &&
+        mount.deployment != DVModuleDeployment.backendOnly) {
+      continue;
+    }
+    final String projectRoot = p.join(root, mount.sourcePath);
+    projects.add(_DVMergedProject(
+        projectRoot, mount.packageName, dvProjectBackendDir(projectRoot)));
+  }
+  return projects;
+}
+
+/// Every mergeable project's lib files, each with the project it came from.
+List<(_DVMergedProject, File)> _mergedLibFiles(
+  String root,
+  String pkgName,
+  String backendDir,
+) =>
+    <(_DVMergedProject, File)>[
+      for (final project in _mergedProjects(root, pkgName, backendDir))
+        for (final file in _libFilesOf(project.root)) (project, file),
+    ];
+
+/// Every Dart file under a project's `lib`, minus its own generated client.
+List<File> _libFilesOf(String projectRoot) {
+  const LocalFileSystem fs = LocalFileSystem();
+  final List<File> files = <File>[];
+  for (final entity in Glob('lib/**.dart')
+      .listFileSystemSync(fs, root: projectRoot, followLinks: false)) {
+    if (entity is! File) continue;
+    if (entity.path.replaceAll(r'\', '/').contains('/lib/dartvel_client/')) {
+      continue;
+    }
+    files.add(File(entity.path));
+  }
+  return files..sort((File a, File b) => a.path.compareTo(b.path));
 }
