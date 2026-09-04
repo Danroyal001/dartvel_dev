@@ -110,6 +110,38 @@ void main() {
     expect(mount.location, 'https://store.example.com');
   });
 
+  test('the parent knows where each federated route answers', () {
+    // The parent generates no page for these, so they are not in the router
+    // source the route index and sitemap are built from. The specification
+    // still asks for them to appear in both, which they cannot do unless the
+    // build can say, for each mounted path, the address that answers it.
+    final Map<String, String> answered =
+        dvFederatedRoutes(workspace(manifestDocument: signedManifest()).path);
+
+    expect(answered, <String, String>{
+      '/store': 'https://store.example.com',
+      '/store/products/:id': 'https://store.example.com/products/:id',
+    });
+  });
+
+  test('an embedded module contributes no federated route', () {
+    // It is compiled in, so the parent answers those paths itself. Listing
+    // them as somewhere else to go would send readers off a site that has
+    // the page.
+    final Directory root = workspace(manifestDocument: signedManifest());
+    File(p.join(root.path, 'pubspec.yaml')).writeAsStringSync('''
+name: shopfront
+dartvel:
+  modules:
+    store:
+      source: { path: modules/store }
+      mount: /store
+      deployment: embedded
+''');
+
+    expect(dvFederatedRoutes(root.path), isEmpty);
+  });
+
   test('its pages are not compiled into the parent', () {
     // The whole difference between federated and embedded. An import of the
     // module's source would build a second copy of a module that is already

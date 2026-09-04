@@ -26,6 +26,7 @@ import '../build/static_seo.dart';
 import '../build/static_paths_runner.dart';
 import '../build/static_generation.dart';
 import '../build/web_server.dart';
+import '../graph/module_mounts.dart';
 import '../utils/build_runner.dart';
 import '../utils/logger.dart';
 import '../utils/toolchain.dart';
@@ -1812,7 +1813,11 @@ class BuildCommand extends Command<void> {
 
     if (siteUrl != null && siteUrl.isNotEmpty) {
       File(p.join(web.path, 'sitemap.xml'))
-          .writeAsStringSync(dvSitemap(routes: routes, siteUrl: siteUrl));
+          .writeAsStringSync(dvSitemap(
+            routes: routes,
+            siteUrl: siteUrl,
+            federated: dvFederatedRoutes(root).keys.toList(),
+          ));
       File(p.join(web.path, 'robots.txt'))
           .writeAsStringSync(dvRobots(siteUrl: siteUrl));
 
@@ -1886,6 +1891,7 @@ class BuildCommand extends Command<void> {
 
     File(p.join(web.path, 'dartvel_routes.json')).writeAsStringSync(
       dvWebServerManifest(
+        federated: dvFederatedRoutes(root),
         routes: routes,
         titles: dvRouteTitles(_routerSource(root)),
         text: _routeText(root),
@@ -1900,7 +1906,11 @@ class BuildCommand extends Command<void> {
 
     if (siteUrl != null && siteUrl.isNotEmpty) {
       File(p.join(web.path, 'sitemap.xml'))
-          .writeAsStringSync(dvSitemap(routes: routes, siteUrl: siteUrl));
+          .writeAsStringSync(dvSitemap(
+            routes: routes,
+            siteUrl: siteUrl,
+            federated: dvFederatedRoutes(root).keys.toList(),
+          ));
       File(p.join(web.path, 'robots.txt'))
           .writeAsStringSync(dvRobots(siteUrl: siteUrl));
 

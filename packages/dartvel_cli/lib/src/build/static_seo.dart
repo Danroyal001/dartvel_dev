@@ -125,7 +125,11 @@ String _injectContent(String html, String content) {
 }
 
 /// A sitemap listing every route that is a page.
-String dvSitemap({required List<String> routes, required String siteUrl}) {
+String dvSitemap({
+  required List<String> routes,
+  required String siteUrl,
+  List<String> federated = const <String>[],
+}) {
   final buffer = StringBuffer()
     ..writeln('<?xml version="1.0" encoding="UTF-8"?>')
     // Before the root element, or it is ignored and the page renders as the
@@ -134,7 +138,12 @@ String dvSitemap({required List<String> routes, required String siteUrl}) {
     ..writeln('<?xml-stylesheet type="text/xsl" href="/sitemap.xsl"?>')
     ..writeln('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">');
 
-  for (final String route in routes) {
+  // A federated module's routes are listed under the parent, because that is
+  // the URL a reader has and the one the parent answers -- it redirects, and
+  // the module serves its own HTML from there. A cross-domain entry would be
+  // ignored by crawlers, which would make mounting a micro-site under a
+  // parent's domain pointless.
+  for (final String route in <String>[...routes, ...federated]) {
     // Same filter as the writer: a route with no file behind it has no URL to
     // advertise, and a crawler following one gets a 404 from the sitemap that
     // was meant to help it.
