@@ -504,7 +504,8 @@ Object? _parseProperty(DVStudioProperty property, String input) {
     DVStudioPropertyKind.number => num.tryParse(text),
     DVStudioPropertyKind.flag => text.toLowerCase() == 'true',
     DVStudioPropertyKind.colour ||
-    DVStudioPropertyKind.choice =>
+    DVStudioPropertyKind.choice ||
+    DVStudioPropertyKind.text =>
       text,
   };
 }

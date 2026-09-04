@@ -330,6 +330,14 @@ class DVModifier {
   final double? fontSizeValue;
   final FontWeight? fontWeightValue;
   final double? letterSpacingValue;
+
+  /// The typeface, by the family name a design names it by.
+  final String? fontFamilyValue;
+
+  /// Line height as a multiple of the font size, which is how Flutter reads
+  /// it. A design says it in points; the multiple is what survives a change
+  /// of size.
+  final double? lineHeightValue;
   final Color? boxColor;
 
   /// A gradient behind the box, painted instead of [boxColor] where both are
@@ -406,6 +414,8 @@ class DVModifier {
     this.fontSizeValue,
     this.fontWeightValue,
     this.letterSpacingValue,
+    this.fontFamilyValue,
+    this.lineHeightValue,
     this.boxColor,
     this.gradientValue,
     this.constraintsValue,
@@ -445,6 +455,8 @@ class DVModifier {
         fontSizeValue = null,
         fontWeightValue = null,
         letterSpacingValue = null,
+        fontFamilyValue = null,
+        lineHeightValue = null,
         boxColor = null,
         gradientValue = null,
         constraintsValue = null,
@@ -483,6 +495,8 @@ class DVModifier {
     double? fontSizeValue,
     FontWeight? fontWeightValue,
     double? letterSpacingValue,
+    String? fontFamilyValue,
+    double? lineHeightValue,
     Color? boxColor,
     Gradient? gradientValue,
     BoxConstraints? constraintsValue,
@@ -521,6 +535,8 @@ class DVModifier {
       fontSizeValue: fontSizeValue ?? this.fontSizeValue,
       fontWeightValue: fontWeightValue ?? this.fontWeightValue,
       letterSpacingValue: letterSpacingValue ?? this.letterSpacingValue,
+      fontFamilyValue: fontFamilyValue ?? this.fontFamilyValue,
+      lineHeightValue: lineHeightValue ?? this.lineHeightValue,
       boxColor: boxColor ?? this.boxColor,
       gradientValue: gradientValue ?? this.gradientValue,
       constraintsValue: constraintsValue ?? this.constraintsValue,
@@ -608,6 +624,15 @@ class DVModifier {
 
   DVModifier letterSpacing(double value) =>
       _copyWith(letterSpacingValue: value);
+
+  /// The typeface, by family name.
+  DVModifier fontFamily(String value) => _copyWith(fontFamilyValue: value);
+
+  /// Line height as a multiple of the font size.
+  ///
+  /// Flutter's own unit, and the one that survives a change of size: a
+  /// design says 24 on a 16 and means one and a half.
+  DVModifier lineHeight(double value) => _copyWith(lineHeightValue: value);
 
   DVModifier backgroundColor(Color value) => _copyWith(boxColor: value);
 
@@ -707,6 +732,8 @@ class DVModifier {
         fontSizeValue: other.fontSizeValue ?? fontSizeValue,
         fontWeightValue: other.fontWeightValue ?? fontWeightValue,
         letterSpacingValue: other.letterSpacingValue ?? letterSpacingValue,
+        fontFamilyValue: other.fontFamilyValue ?? fontFamilyValue,
+        lineHeightValue: other.lineHeightValue ?? lineHeightValue,
         boxColor: other.boxColor ?? boxColor,
         gradientValue: other.gradientValue ?? gradientValue,
         constraintsValue: other.constraintsValue ?? constraintsValue,
@@ -1749,6 +1776,8 @@ class DVText extends StatelessWidget {
           fontSize: modifier?.fontSizeValue,
           fontWeight: modifier?.fontWeightValue,
           letterSpacing: modifier?.letterSpacingValue,
+          fontFamily: modifier?.fontFamilyValue,
+          height: modifier?.lineHeightValue,
         ),
       );
     }

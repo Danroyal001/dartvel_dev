@@ -28,6 +28,7 @@ Object? sampleFor(DVStudioProperty property) => switch (property.name) {
           DVStudioPropertyKind.colour => '#112233',
           DVStudioPropertyKind.choice => property.choices.first,
           DVStudioPropertyKind.flag => true,
+          DVStudioPropertyKind.text => 'Inter',
         },
     };
 
@@ -187,6 +188,7 @@ void main() {
         DVStudioPropertyKind.colour => '#112233',
         DVStudioPropertyKind.choice => property.choices.first,
         DVStudioPropertyKind.flag => true,
+        DVStudioPropertyKind.text => 'Inter',
       };
 
       expect(

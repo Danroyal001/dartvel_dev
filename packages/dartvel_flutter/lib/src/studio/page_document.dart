@@ -698,7 +698,9 @@ Color? parseDocumentColor(Object? value) {
 /// Renderer and inspector both read this list, so a property cannot be
 /// applied but uneditable, or offered but ignored — which is exactly what had
 /// happened: `padding` rendered while the inspector offered no control for it.
-enum DVStudioPropertyKind { number, colour, choice, flag }
+/// What kind of value a property takes, which is what the inspector offers
+/// and how a typed value is read back.
+enum DVStudioPropertyKind { number, colour, choice, flag, text }
 
 class DVStudioProperty {
   final String name;
@@ -774,6 +776,17 @@ final List<DVStudioProperty> dvStudioProperties = <DVStudioProperty>[
   DVStudioProperty('letterSpacing', DVStudioPropertyKind.number,
       (m, v, p) => _number(m, v, (m, v) => m.letterSpacing(v)),
       source: (v, p) => _numberSource('letterSpacing', v)),
+  // The two a designer sets on nearly every text layer and the document had
+  // nowhere to put: an import wrote the family and nothing read it, so every
+  // screen came out in the default font, and paragraphs came out at the
+  // font's own leading rather than the design's.
+  DVStudioProperty('fontFamily', DVStudioPropertyKind.text,
+      (m, v, p) => v is String && v.isNotEmpty ? m.fontFamily(v) : null,
+      source: (v, p) =>
+          v is String && v.isNotEmpty ? ".fontFamily('${_escapeSource(v)}')" : null),
+  DVStudioProperty('lineHeight', DVStudioPropertyKind.number,
+      (m, v, p) => _number(m, v, (m, v) => m.lineHeight(v)),
+      source: (v, p) => _numberSource('lineHeight', v)),
   DVStudioProperty('padding', DVStudioPropertyKind.number,
       (m, v, p) => _padding(m, p),
       source: (v, p) => _hasEdgePadding(p) ? null : _numberSource('padding', v)),
@@ -1011,6 +1024,10 @@ String? _paddingEdgeSource(String side, Map<String, Object?> properties) {
   ].join(', ');
   return '.paddingOnly($args)';
 }
+
+/// A single-quoted Dart literal's contents.
+String _escapeSource(String value) =>
+    value.replaceAll(r'\', r'\\').replaceAll("'", r"\'");
 
 String? _numberSource(String name, Object? value) =>
     value is num ? '.$name(${value.toDouble()})' : null;
