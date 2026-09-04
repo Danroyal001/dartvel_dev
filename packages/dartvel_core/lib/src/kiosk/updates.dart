@@ -1,3 +1,4 @@
+import '../updates/update_info.dart';
 import 'runtime.dart' show DVKioskState;
 
 /// When a kiosk is allowed to apply an update it has found.
@@ -92,24 +93,6 @@ class DVMaintenanceWindow {
       '${(minutes % 60).toString().padLeft(2, '0')}';
 }
 
-/// An update a kiosk has been offered.
-///
-/// The kiosk decision is made in core, where the update runtime is not, so
-/// this is the little of an offer the decision actually turns on.
-class DVUpdateOffer {
-  const DVUpdateOffer({
-    required this.version,
-    this.available = true,
-    this.required = false,
-  });
-
-  final String? version;
-  final bool available;
-
-  /// A minimum supported version, not a new one. It does not wait.
-  final bool required;
-}
-
 /// What a kiosk should do with an update it has found.
 enum DVKioskUpdateAction {
   /// Nothing was offered.
@@ -152,7 +135,7 @@ class DVKioskUpdateDecision {
 DVKioskUpdateDecision dvDecideKioskUpdate({
   required DVKioskUpdateApply apply,
   required DVMaintenanceWindow? window,
-  required DVUpdateOffer update,
+  required DVUpdateInfo update,
   required DVKioskState state,
   required DateTime now,
 }) {

@@ -331,7 +331,7 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   (
     'OTA Updates',
     'Staged across a fleet, but not native patches',
-    'Present: page bundles ship as data through DV.Updates and need no native patching, on named channels, and a staged rollout decides from the device and the version rather than at random -- so a device asked twice is answered the same, and one held back can say that it was. Absent: Shorebird-backed native patch application.',
+    'Present: page bundles ship as data through DV.Updates and need no native patching, on named channels, and a staged rollout decides from the device and the version rather than at random -- so a device asked twice is answered the same. One question is asked and answered in one place: the channel\'s offer, the device\'s place in the rollout, a pinned version, a skipped one and a kiosk\'s maintenance window, so a check says whether to apply now, why not when not, and when it will be, and applying something the check held back is refused with the reason rather than quietly skipped. Absent: Shorebird-backed native patch application.',
   ),
   (
     'Billing',
