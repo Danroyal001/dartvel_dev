@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 import '../doctor/kiosk_check.dart';
+import '../doctor/module_check.dart';
 import '../utils/logger.dart';
 import '../utils/toolchain.dart';
 import 'build_command.dart'
@@ -307,13 +308,25 @@ class DoctorCommand extends Command<void> {
     }
 
     final DVKioskCheck check = DVKioskCheck.run(dartvel, _configuredTargets(), root: Directory.current.path);
-    if (check.lines.isEmpty) return true;
-
-    Logger.log('');
-    for (final String line in check.lines) {
-      Logger.log(line);
+    if (check.lines.isNotEmpty) {
+      Logger.log('');
+      for (final String line in check.lines) {
+        Logger.log(line);
+      }
     }
-    return check.ok;
+
+    // The modules the project declares. A declaration to mount something the
+    // build cannot mount is the same kind of promise as a kiosk policy that
+    // cannot be honoured, and was being carried on from with a log line.
+    final DVModuleCheck modules = DVModuleCheck.run(Directory.current.path);
+    if (modules.lines.isNotEmpty) {
+      Logger.log('');
+      for (final String line in modules.lines) {
+        Logger.log(line);
+      }
+    }
+
+    return check.ok && modules.ok;
   }
 
   /// The kiosk targets this project builds for.
