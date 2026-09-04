@@ -164,20 +164,35 @@ void main() {
     // in the exporter, which is the same drift with a different name: a
     // property added to the one list and forgotten in the other renders and
     // does not export.
-    for (final DVStudioLayoutProperty property in dvStudioLayoutProperties) {
+    // Asked as "does it change the export", not "does it add an argument":
+    // a flag can change which constructor is written -- a scrolling row is
+    // DVBox.horizontalScrollable -- and a check that insisted on an argument
+    // would refuse a correct export.
+    String sourceOf(Map<String, Object?> properties) {
       final DVPageDocument document = DVPageDocument(route: '/laid-out');
       final DVPageDocumentEditor editor = DVPageDocumentEditor(document);
-      final DVPageNode box = DVPageNode.box(layout: 'row').withProperty(
-        property.name,
-        property.kind == DVStudioPropertyKind.number ? 24 : property.choices.first,
-      );
+      DVPageNode box = DVPageNode.box(layout: 'row');
+      properties.forEach((String name, Object? value) {
+        box = box.withProperty(name, value);
+      });
       editor.insert(box, parent: document.root.id);
       editor.insert(DVPageNode.text('one'), parent: box.id);
+      return document.toDartSource();
+    }
+
+    final String plain = sourceOf(const <String, Object?>{});
+    for (final DVStudioLayoutProperty property in dvStudioLayoutProperties) {
+      final Object? sample = switch (property.kind) {
+        DVStudioPropertyKind.number => 24,
+        DVStudioPropertyKind.colour => '#112233',
+        DVStudioPropertyKind.choice => property.choices.first,
+        DVStudioPropertyKind.flag => true,
+      };
 
       expect(
-        document.toDartSource(),
-        contains(RegExp(r'DVBox\.row\(\[[^\]]*\],\s*\w+:')),
-        reason: '${property.name} exported no argument',
+        sourceOf(<String, Object?>{property.name: sample}),
+        isNot(plain),
+        reason: '${property.name} exported nothing',
       );
     }
   });
