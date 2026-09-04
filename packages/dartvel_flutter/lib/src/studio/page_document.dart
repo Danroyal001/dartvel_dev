@@ -265,6 +265,12 @@ class DVPageDocument {
     return out.toString();
   }
 
+  /// Just the spacing, for the constructors that take no alignment.
+  String _spacingArgumentSource(Map<String, Object?> properties) {
+    final Object? spacing = properties['spacing'];
+    return spacing is num ? ', spacing: ${_tidySource(spacing)}' : '';
+  }
+
   static String _tidySource(num value) =>
       value == value.roundToDouble() ? '${value.toInt()}' : '$value';
 
@@ -281,7 +287,10 @@ class DVPageDocument {
             .join();
         final childList = children.isEmpty ? '[]' : '[$children\n$pad]';
         final String layoutArgs = _layoutArgumentSource(node.properties);
+        final bool scrolls = node.properties['scroll'] == true;
         core = switch (node.layout) {
+          'row' when scrolls =>
+            'DVBox.horizontalScrollable($childList${_spacingArgumentSource(node.properties)})',
           'row' => 'DVBox.row($childList$layoutArgs)',
           'grid' =>
             'DVBox.grid($childList, columns: ${node.properties['columns'] ?? 2})',
@@ -289,7 +298,9 @@ class DVPageDocument {
           'single' => node.children.isEmpty
               ? 'DVBox(const SizedBox.shrink())'
               : 'DVBox(${_nodeSource(node.children.first, depth + 1)})',
-          _ => 'DVBox.list($childList$layoutArgs)',
+          _ => scrolls
+              ? 'DVBox.list($childList$layoutArgs).scrollable()'
+              : 'DVBox.list($childList$layoutArgs)',
         };
     }
 
@@ -466,7 +477,13 @@ class DVPageDocumentRenderer extends StatelessWidget {
         final DVAlign main = dvStudioAlignOf(node.properties['mainAxis']);
         final DVCrossAlign cross =
             dvStudioCrossAlignOf(node.properties['crossAxis']);
+        // Whether the box scrolls its own axis. Almost every screen in a
+        // design is taller than the device, and a document that could not
+        // say so rendered the overflow stripe on the first screen.
+        final bool scrolls = node.properties['scroll'] == true;
         built = switch (node.layout) {
+          'row' when scrolls =>
+            DVBox.horizontalScrollable(children, spacing: spacing),
           'row' => DVBox.row(children,
               spacing: spacing, align: main, crossAlign: cross),
           'grid' => DVBox.grid(
@@ -477,8 +494,12 @@ class DVPageDocumentRenderer extends StatelessWidget {
           'single' => children.isEmpty
               ? const DVBox(SizedBox.shrink())
               : DVBox(children.first),
-          _ => DVBox.list(children,
-              spacing: spacing, align: main, crossAlign: cross),
+          _ => scrolls
+              ? DVBox.list(children,
+                      spacing: spacing, align: main, crossAlign: cross)
+                  .scrollable()
+              : DVBox.list(children,
+                  spacing: spacing, align: main, crossAlign: cross),
         };
     }
 
@@ -1022,6 +1043,9 @@ final List<DVStudioLayoutProperty> dvStudioLayoutProperties =
       choices: dvStudioAlignNames),
   const DVStudioLayoutProperty('crossAxis', DVStudioPropertyKind.choice,
       choices: dvStudioCrossAlignNames),
+  // Whether the box scrolls its own axis: a list down, a row across. Almost
+  // every screen in a design is taller than the device it runs on.
+  const DVStudioLayoutProperty('scroll', DVStudioPropertyKind.flag),
 ];
 
 /// The image a node describes.
