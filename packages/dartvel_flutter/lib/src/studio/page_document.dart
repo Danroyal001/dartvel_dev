@@ -325,14 +325,13 @@ class DVPageDocument {
           "$source.onPressed(DV.Navigation.to(const DVRouteTarget('${_escape('${action['to']}')}')))";
       any = true;
     }
-    final fontSize = properties['fontSize'];
-    if (fontSize is num) {
-      source = '$source.fontSize(${fontSize.toDouble()})';
-      any = true;
-    }
-    final padding = properties['padding'];
-    if (padding is num) {
-      source = '$source.padding(${padding.toDouble()})';
+    // Every style, from the table the renderer applies. Written out here as
+    // two of them were, an export drops whatever nobody remembered to add.
+    for (final DVStudioProperty property in dvStudioProperties) {
+      final String? call =
+          property.source(properties[property.name], properties);
+      if (call == null) continue;
+      source = '$source$call';
       any = true;
     }
     return any ? source : '';
@@ -497,8 +496,11 @@ class DVPageDocumentRenderer extends StatelessWidget {
     var modified = false;
 
     for (final property in dvStudioProperties) {
-      final applied =
-          property.apply(modifier, node.properties[property.name]);
+      final applied = property.apply(
+        modifier,
+        node.properties[property.name],
+        node.properties,
+      );
       if (applied != null) {
         modifier = applied;
         modified = true;
@@ -679,16 +681,46 @@ class DVStudioProperty {
   /// Applies this property's [value] to [modifier]. Returns null when the
   /// value is missing or unusable, so a typo renders unstyled rather than
   /// guessed at.
-  final DVModifier? Function(DVModifier modifier, Object? value) apply;
+  ///
+  /// The node's whole property map comes too, because some styles are one
+  /// decision made of two values: a border's colour and its width apply
+  /// through one call, and applied separately whichever ran last would hold
+  /// a default for the other.
+  final DVModifier? Function(
+    DVModifier modifier,
+    Object? value,
+    Map<String, Object?> properties,
+  ) apply;
+
+  /// The modifier call an export writes for [value], or null when there is
+  /// nothing to write.
+  ///
+  /// Here rather than in the exporter so a style cannot be rendered and not
+  /// exported. That had already happened: the export wrote two of the twelve
+  /// styles the renderer applied, so a page left the builder as an unstyled
+  /// skeleton that compiled.
+  final String? Function(Object? value, Map<String, Object?> properties)
+      source;
 
   /// The accepted values, for [DVStudioPropertyKind.choice].
   final List<String> choices;
+
+  /// The property this one is part of, when a style is one decision made of
+  /// two values.
+  ///
+  /// `borderWidth` is `borderColor`'s: the two apply through one call and are
+  /// exported once, by the one they belong to. Named here rather than left
+  /// implicit so that "every style the renderer applies is exported" can be
+  /// checked without a special case written into the check.
+  final String? companionOf;
 
   const DVStudioProperty(
     this.name,
     this.kind,
     this.apply, {
+    required this.source,
     this.choices = const <String>[],
+    this.companionOf,
   });
 }
 
@@ -711,44 +743,125 @@ DVModifier? _colour(
 /// Every styling control the page builder offers.
 final List<DVStudioProperty> dvStudioProperties = <DVStudioProperty>[
   DVStudioProperty('fontSize', DVStudioPropertyKind.number,
-      (m, v) => _number(m, v, (m, v) => m.fontSize(v))),
+      (m, v, p) => _number(m, v, (m, v) => m.fontSize(v)),
+      source: (v, p) => _numberSource('fontSize', v)),
   DVStudioProperty('letterSpacing', DVStudioPropertyKind.number,
-      (m, v) => _number(m, v, (m, v) => m.letterSpacing(v))),
+      (m, v, p) => _number(m, v, (m, v) => m.letterSpacing(v)),
+      source: (v, p) => _numberSource('letterSpacing', v)),
   DVStudioProperty('padding', DVStudioPropertyKind.number,
-      (m, v) => _number(m, v, (m, v) => m.padding(v))),
+      (m, v, p) => _number(m, v, (m, v) => m.padding(v)),
+      source: (v, p) => _numberSource('padding', v)),
   DVStudioProperty('margin', DVStudioPropertyKind.number,
-      (m, v) => _number(m, v, (m, v) => m.margin(v))),
+      (m, v, p) => _number(m, v, (m, v) => m.margin(v)),
+      source: (v, p) => _numberSource('margin', v)),
   DVStudioProperty('width', DVStudioPropertyKind.number,
-      (m, v) => _number(m, v, (m, v) => m.width(v))),
+      (m, v, p) => _number(m, v, (m, v) => m.width(v)),
+      source: (v, p) => _numberSource('width', v)),
   DVStudioProperty('height', DVStudioPropertyKind.number,
-      (m, v) => _number(m, v, (m, v) => m.height(v))),
+      (m, v, p) => _number(m, v, (m, v) => m.height(v)),
+      source: (v, p) => _numberSource('height', v)),
   DVStudioProperty('rounded', DVStudioPropertyKind.number,
-      (m, v) => _number(m, v, (m, v) => m.rounded(v))),
+      (m, v, p) => _number(m, v, (m, v) => m.rounded(v)),
+      source: (v, p) => _numberSource('rounded', v)),
   DVStudioProperty('color', DVStudioPropertyKind.colour,
-      (m, v) => _colour(m, v, (m, v) => m.color(v))),
+      (m, v, p) => _colour(m, v, (m, v) => m.color(v)),
+      source: (v, p) => _colourSource('color', v)),
   DVStudioProperty('backgroundColor', DVStudioPropertyKind.colour,
-      (m, v) => _colour(m, v, (m, v) => m.backgroundColor(v))),
+      (m, v, p) => _colour(m, v, (m, v) => m.backgroundColor(v)),
+      source: (v, p) => _colourSource('backgroundColor', v)),
   DVStudioProperty(
     'fontWeight',
     DVStudioPropertyKind.choice,
-    (m, v) {
+    (m, v, p) {
       final weight = _fontWeights[v];
       return weight == null ? null : m.fontWeight(weight);
     },
     choices: _fontWeights.keys.cast<String>().toList(growable: false),
+    source: (v, p) =>
+        _fontWeights.containsKey(v) ? '.fontWeight(FontWeight.$v)' : null,
   ),
   DVStudioProperty(
     'align',
     DVStudioPropertyKind.choice,
-    (m, v) {
+    (m, v, p) {
       final alignment = _alignments[v];
       return alignment == null ? null : m.align(alignment);
     },
     choices: _alignments.keys.cast<String>().toList(growable: false),
+    source: (v, p) =>
+        _alignments.containsKey(v) ? '.align(Alignment.$v)' : null,
+  ),
+  // A border is two values making one decision, which is why apply is given
+  // the whole property map. A width with no colour is a border nobody can
+  // see, and applying the colour and the width as two independent modifiers
+  // would leave whichever ran last holding a default for the other.
+  DVStudioProperty(
+    'borderColor',
+    DVStudioPropertyKind.colour,
+    (m, v, p) {
+      final colour = parseDocumentColor(v);
+      if (colour == null) return null;
+      return m.border(Border.all(color: colour, width: _borderWidthOf(p)));
+    },
+    source: (v, p) {
+      final colour = parseDocumentColor(v);
+      if (colour == null) return null;
+      return '.border(Border.all(color: Color(0x${_hex(colour)}), '
+          'width: ${_borderWidthOf(p)}))';
+    },
+  ),
+  // Declared so the inspector offers it and the table stays the one place a
+  // style is defined. The colour above draws it: a width alone is a border
+  // nobody chose a colour for, and choosing one would put a line in the
+  // design that nobody asked for.
+  DVStudioProperty(
+    'borderWidth',
+    DVStudioPropertyKind.number,
+    (m, v, p) {
+      final colour = parseDocumentColor(p['borderColor']);
+      if (colour == null || v is! num) return null;
+      return m.border(Border.all(color: colour, width: v.toDouble()));
+    },
+    source: (v, p) => null,
+    companionOf: 'borderColor',
+  ),
+  DVStudioProperty(
+    'opacity',
+    DVStudioPropertyKind.number,
+    (m, v, p) {
+      // Flutter asserts on anything outside 0..1, and a document can carry
+      // any number at all: a page that will not render because of one value
+      // is worse than one drawn at full strength.
+      if (v is! num || v < 0 || v > 1) return null;
+      return m.opacity(v.toDouble());
+    },
+    source: (v, p) =>
+        v is num && v >= 0 && v <= 1 ? '.opacity(${v.toDouble()})' : null,
   ),
   DVStudioProperty('card', DVStudioPropertyKind.flag,
-      (m, v) => v == true ? m.card() : null),
+      (m, v, p) => v == true ? m.card() : null,
+      source: (v, p) => v == true ? '.card()' : null),
 ];
+
+/// The border width a document asks for, defaulting to one point.
+///
+/// A designer who set a colour and left the width alone means a hairline, not
+/// nothing.
+double _borderWidthOf(Map<String, Object?> properties) {
+  final Object? width = properties['borderWidth'];
+  return width is num ? width.toDouble() : 1;
+}
+
+String _hex(Color colour) =>
+    (colour.toARGB32() & 0xFFFFFFFF).toRadixString(16).padLeft(8, '0').toUpperCase();
+
+String? _numberSource(String name, Object? value) =>
+    value is num ? '.$name(${value.toDouble()})' : null;
+
+String? _colourSource(String name, Object? value) {
+  final Color? colour = parseDocumentColor(value);
+  return colour == null ? null : '.$name(Color(0x${_hex(colour)}))';
+}
 
 /// A property that is an argument to the box rather than a modifier on it.
 ///

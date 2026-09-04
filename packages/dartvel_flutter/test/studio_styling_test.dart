@@ -34,7 +34,7 @@ void main() {
         containsAll(<String>[
           'fontSize', 'padding', 'margin', 'width', 'height', 'rounded',
           'color', 'backgroundColor', 'fontWeight', 'align', 'card',
-          'letterSpacing',
+          'letterSpacing', 'borderColor', 'borderWidth', 'opacity',
         ]),
       );
     });
@@ -47,10 +47,13 @@ void main() {
         'width': 100, 'height': 50, 'rounded': 6, 'color': 0xFF112233,
         'backgroundColor': '#445566', 'fontWeight': 'bold',
         'align': 'center', 'card': true,
+        // A border is one decision made of two values, so the width is only
+        // usable with the colour it belongs to; opacity is a fraction.
+        'borderColor': '#112233', 'borderWidth': 2, 'opacity': 0.5,
       };
       for (final property in dvStudioProperties) {
         expect(
-          property.apply(const DVModifier(), sample[property.name]),
+          property.apply(const DVModifier(), sample[property.name], sample),
           isNotNull,
           reason: '${property.name} is offered but applies nothing',
         );
@@ -60,7 +63,8 @@ void main() {
     test('a value it cannot use is ignored rather than guessed at', () {
       for (final property in dvStudioProperties) {
         expect(
-          property.apply(const DVModifier(), 'not-a-valid-value-for-anything'),
+          property.apply(const DVModifier(), 'not-a-valid-value-for-anything',
+              const <String, Object?>{}),
           isNull,
           reason: '${property.name} accepted nonsense',
         );
