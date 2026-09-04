@@ -14,7 +14,6 @@ library;
 // "binding not registered". None of them touches X11: they are libc, sysfs
 // and the system bus.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:dartvel_flutter/src/platform/linux/linux_bindings_ffi.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
