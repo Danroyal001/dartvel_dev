@@ -1763,7 +1763,16 @@ void startDartvelKiosk() {
         ..writeln("      'deployment': '${m.deployment.name}',")
         ..writeln("      'sitemap': ${m.inSitemap},")
         ..writeln("      'package': '${m.packageName}',")
-        ..writeln("      'routes': ${m.routes.length},");
+        ..writeln("      'routes': ${m.routes.length},")
+        // The four modes, so a module can ask what it was mounted as rather
+        // than assume. A module that inherits the parent's theme and one
+        // that owns its own are different applications on screen, and the
+        // difference is decided by the parent's declaration.
+        ..writeln("      'shell': '${m.shell}',")
+        ..writeln("      'auth': '${m.auth}',")
+        ..writeln("      'theme': '${m.theme}',")
+        ..writeln("      'data': '${m.data}',");
+      if (m.location != null) out.writeln("      'location': '${m.location}',");
       if (m.name != null) out.writeln("      'name': '${m.name}',");
       if (m.version != null) out.writeln("      'version': '${m.version}',");
       out.writeln('    },');
