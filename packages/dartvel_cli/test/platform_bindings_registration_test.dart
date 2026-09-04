@@ -68,6 +68,12 @@ void main() {
       'DVWindowsBindings.register()',
       'DVMacosBindings.register()',
       'DVIosBindings.register()',
+      // Android was absent, and the switch's default reported success for
+      // it -- so every Android binding Dartvel has, clipboard and haptics
+      // and sharing, was dead in every real application while the capability
+      // list claimed them. The one platform where the bindings existed and
+      // nothing called them.
+      'DVAndroidBindings.register()',
     ]) {
       expect(runtime, contains(binding), reason: binding);
     }
@@ -82,6 +88,24 @@ void main() {
     final int end = runtime.indexOf('\n}\n', configure);
     final String body = runtime.substring(configure, end);
     expect(body, contains('registerPlatformBindings'));
+  });
+
+  test('every class it calls is one it imported', () {
+    // The call and the show clause are written in two different places, and
+    // a name in one and not the other is generated code that does not
+    // compile -- found by whoever runs the app, not by whoever generated it.
+    final int show = runtime.indexOf("show DV,");
+    final int end = runtime.indexOf(';', show);
+    final String imported = runtime.substring(show, end);
+    for (final String name in <String>[
+      'DVLinuxBindings',
+      'DVWindowsBindings',
+      'DVMacosBindings',
+      'DVIosBindings',
+      'DVAndroidBindings',
+    ]) {
+      expect(imported, contains(name), reason: name);
+    }
   });
 
   test('the web never sees it', () {
@@ -99,6 +123,7 @@ void main() {
     expect(runtime, contains('TargetPlatform.windows'));
     expect(runtime, contains('TargetPlatform.macOS'));
     expect(runtime, contains('TargetPlatform.iOS'));
+    expect(runtime, contains('TargetPlatform.android'));
   });
 
   test('a platform whose libraries are missing is not a crash', () {
