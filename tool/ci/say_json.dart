@@ -15,7 +15,13 @@ library;
 import 'dart:convert';
 import 'dart:io';
 
-int main(List<String> arguments) {
+void main(List<String> arguments) {
+  exitCode = _run(arguments);
+}
+
+/// The verdict, as an exit code. Returned rather than exited on so the
+/// whole of it is one function with one way out.
+int _run(List<String> arguments) {
   if (arguments.isEmpty) {
     stderr.writeln('usage: say_json.dart <file.json> [word|field ...]');
     return 2;
