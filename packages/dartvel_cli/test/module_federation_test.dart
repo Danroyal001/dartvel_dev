@@ -14,7 +14,6 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dartvel_cli/src/generators/client_generator.dart';
-import 'package:dartvel_cli/src/graph/module_manifest.dart';
 import 'package:dartvel_cli/src/graph/module_mounts.dart';
 import 'package:dartvel_core/dartvel.dart';
 import 'package:path/path.dart' as p;

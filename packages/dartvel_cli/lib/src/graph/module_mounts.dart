@@ -79,6 +79,10 @@ class DVModuleMount {
     this.routeBase = '/',
     this.inSitemap = true,
     this.location,
+    this.shell = 'inherit',
+    this.auth = 'inherit',
+    this.theme = 'inherit',
+    this.data = 'shared',
     this.problems = const <String>[],
   });
 
@@ -138,6 +142,21 @@ class DVModuleMount {
   /// look at the build.
   bool get compiledIntoParent => deployment != DVModuleDeployment.federated;
 
+  /// How much of the parent's shell the module's pages sit inside:
+  /// `inherit`, `extend`, `override` or `none`.
+  final String shell;
+
+  /// Where the module's sessions come from: `inherit` (the parent's
+  /// DV.Auth), `independent`, `federated` (an identity exchanged between
+  /// deployments) or `public`.
+  final String auth;
+
+  /// `inherit`, `extend`, `override` or `isolated`.
+  final String theme;
+
+  /// `shared`, `schema-isolated`, `database-isolated` or `remote`.
+  final String data;
+
   /// What is wrong with the declaration, reported rather than thrown: a
   /// build says what it could not mount and carries on with the rest.
   final List<String> problems;
@@ -157,6 +176,7 @@ List<DVModuleMount> dvDiscoverModuleMounts(String root) {
     final String mount = _mountOf(body, problems);
     final DVModuleDeployment deployment = _deploymentOf(body, problems, id);
     final bool inSitemap = '${body['sitemap'] ?? 'include'}' != 'exclude';
+    final _DVModuleModes modes = _modesOf(body, deployment, problems, id);
 
     if (deployment == DVModuleDeployment.federated) {
       // A federated module is deployed by somebody else. The source beside
@@ -169,6 +189,7 @@ List<DVModuleMount> dvDiscoverModuleMounts(String root) {
         body: body,
         mount: mount,
         inSitemap: inSitemap,
+        modes: modes,
         problems: problems,
       ));
       return;
@@ -185,6 +206,10 @@ List<DVModuleMount> dvDiscoverModuleMounts(String root) {
         deployment: deployment,
         routes: const <DVModuleRoute>[],
         inSitemap: inSitemap,
+        shell: modes.shell,
+        auth: modes.auth,
+        theme: modes.theme,
+        data: modes.data,
         problems: problems,
       ));
       return;
@@ -201,6 +226,10 @@ List<DVModuleMount> dvDiscoverModuleMounts(String root) {
         deployment: deployment,
         routes: const <DVModuleRoute>[],
         inSitemap: inSitemap,
+        shell: modes.shell,
+        auth: modes.auth,
+        theme: modes.theme,
+        data: modes.data,
         problems: problems,
       ));
       return;
@@ -254,6 +283,10 @@ List<DVModuleMount> dvDiscoverModuleMounts(String root) {
       version: moduleDeclaration['version'] == null ? null : '${moduleDeclaration['version']}',
       routeBase: routeBase,
       inSitemap: inSitemap,
+      shell: modes.shell,
+      auth: modes.auth,
+      theme: modes.theme,
+      data: modes.data,
       problems: problems,
     ));
   });
@@ -268,6 +301,7 @@ DVModuleMount _federated({
   required Map<Object?, Object?> body,
   required String mount,
   required bool inSitemap,
+  required _DVModuleModes modes,
   required List<String> problems,
 }) {
   DVModuleMount refused() => DVModuleMount(
@@ -278,6 +312,10 @@ DVModuleMount _federated({
         deployment: DVModuleDeployment.federated,
         routes: const <DVModuleRoute>[],
         inSitemap: inSitemap,
+        shell: modes.shell,
+        auth: modes.auth,
+        theme: modes.theme,
+        data: modes.data,
         problems: problems,
       );
 
@@ -482,4 +520,85 @@ Map<Object?, Object?> _pubspec(String root) {
 Map<Object?, Object?> _dartvelSection(String root) {
   final Object? section = _pubspec(root)['dartvel'];
   return section is Map ? section : const <Object?, Object?>{};
+}
+
+/// The four per-module modes, as declared.
+class _DVModuleModes {
+  const _DVModuleModes(this.shell, this.auth, this.theme, this.data);
+
+  final String shell;
+  final String auth;
+  final String theme;
+  final String data;
+}
+
+/// Reads `shell`, `auth`, `theme` and `data`, and refuses the combinations
+/// that the deployment cannot honour.
+///
+/// The refusals are the point. A federated module runs in its own deployment,
+/// so there is no shared process to inherit a session from and no shared
+/// database to share -- which is precisely why the specification gives
+/// federated auth a mode of its own. A declaration that says otherwise is not
+/// a preference a build can honour; it is a module that quietly has no
+/// session, and that reads as a login bug for as long as anybody is willing
+/// to look for one.
+_DVModuleModes _modesOf(
+  Map<Object?, Object?> body,
+  DVModuleDeployment deployment,
+  List<String> problems,
+  String id,
+) {
+  String mode(String key, String fallback, List<String> allowed) {
+    final Object? raw = body[key];
+    if (raw == null) return fallback;
+    final String value = '$raw';
+    if (allowed.contains(value)) return value;
+    problems.add('dartvel.modules.$id.$key is "$value"; it is one of '
+        '${allowed.join(', ')}.');
+    return fallback;
+  }
+
+  // The defaults are the ones the deployment can actually honour. A module
+  // compiled into the parent inherits its session and shares its database
+  // because both are right there; a federated module is in another
+  // deployment, where neither exists to inherit or share, so its defaults are
+  // the federated ones. Defaulting everything to `inherit` and then refusing
+  // it would make every federated module report two problems nobody wrote.
+  final bool federated = deployment == DVModuleDeployment.federated;
+  final String shell =
+      mode('shell', 'inherit', const <String>['inherit', 'extend', 'override', 'none']);
+  final String auth = mode('auth', federated ? 'federated' : 'inherit',
+      const <String>['inherit', 'independent', 'federated', 'public']);
+  final String theme = mode('theme', federated ? 'isolated' : 'inherit',
+      const <String>['inherit', 'extend', 'override', 'isolated']);
+  final String data = mode('data', federated ? 'remote' : 'shared',
+      const <String>['shared', 'schema-isolated', 'database-isolated', 'remote']);
+
+  if (federated) {
+    // Explicitly, not by default: what is refused here is somebody having
+    // written it down.
+    if (body['auth'] != null && auth == 'inherit') {
+      problems.add('dartvel.modules.$id is federated and declares '
+          'auth: inherit. A federated module runs in its own deployment, so '
+          'there is no parent session to inherit -- it would run with none. '
+          'Use federated, independent or public.');
+    }
+    if (body['data'] != null && data == 'shared') {
+      problems.add('dartvel.modules.$id is federated and declares '
+          'data: shared. A federated module has no access to the parent\'s '
+          'database. Use remote, or one of the isolated modes.');
+    }
+  }
+
+  if (deployment == DVModuleDeployment.backendOnly) {
+    for (final String key in const <String>['shell', 'theme']) {
+      if (body[key] != null) {
+        problems.add('dartvel.modules.$id is backend-only and declares '
+            '$key. It contributes no pages, so there is nothing for a $key '
+            'mode to apply to.');
+      }
+    }
+  }
+
+  return _DVModuleModes(shell, auth, theme, data);
 }
