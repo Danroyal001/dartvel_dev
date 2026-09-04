@@ -2490,7 +2490,10 @@ class DVUpdates {
     return switch (decision.action) {
       DVKioskUpdateAction.apply => staged,
       DVKioskUpdateAction.resetThenApply => staged.afterReset(),
-      DVKioskUpdateAction.none => staged.heldBack(DVUpdateHold.rollout),
+      // Only reachable if the policy disagreed with the check above about
+      // whether anything is on offer, which it cannot: an update nobody is
+      // offering was returned unchanged before any of this.
+      DVKioskUpdateAction.none => staged,
       DVKioskUpdateAction.defer => staged.heldBack(
           policy.updatesApply == DVKioskUpdateApply.staffMode
               ? DVUpdateHold.staffMode
