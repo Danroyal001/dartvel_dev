@@ -10,6 +10,7 @@ import '../build/desktop_entry.dart';
 import '../build/elinux_bundle.dart';
 import '../build/capture_completeness.dart';
 import '../build/declaration_check.dart';
+import '../build/device_profile_check.dart';
 import '../build/pwa_icons.dart';
 import '../build/pwa_manifest.dart';
 import '../secrets/secrets_analysis.dart';
@@ -543,6 +544,22 @@ class BuildCommand extends Command<void> {
     // SDK, the embedder -- and a declaration the build cannot honour is the
     // same thing one layer up. Both were checked by `dartvel doctor` alone,
     // so a pipeline that runs a build and not a doctor shipped them.
+    // And whether the device being built for can run what is being built.
+    // The specification names device-profile compatibility among the things
+    // a build validates before it starts; the decision existed in the module
+    // manifest verifier and no caller ever passed it a target, so an image
+    // built happily around a module that cannot run on it.
+    final DVDeviceProfileCheck profileCheck =
+        DVDeviceProfileCheck.run(root, profile: deviceProfile);
+    if (!profileCheck.ok) {
+      Logger.log('❌ DV-ELINUX-004: the selected device profile cannot run '
+          'this application:');
+      for (final String line in profileCheck.lines) {
+        Logger.log(line);
+      }
+      exit(78); // EX_CONFIG
+    }
+
     final DVDeclarationCheck declarations = DVDeclarationCheck.run(root);
     if (!declarations.ok) {
       Logger.log('❌ The project declares something this build cannot honour:');
