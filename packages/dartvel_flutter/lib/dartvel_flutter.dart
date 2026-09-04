@@ -2718,6 +2718,11 @@ class DVPageUpdateResult {
 
 class DVBluetooth {
   const DVBluetooth();
+
+  /// Whether any adapter's radio is on.
+  ///
+  /// The first question when a paired peripheral stops answering, and the
+  /// one nobody thinks to ask.
   Future<bool> isEnabled() async =>
       DVNativeBridge.require<bool>('bluetooth.isEnabled');
 
@@ -2725,6 +2730,29 @@ class DVBluetooth {
     final devices =
         await DVNativeBridge.require<List<Object?>>('bluetooth.scanDevices');
     yield devices.cast<String>();
+  }
+
+  /// The adapters this machine has.
+  Future<List<DVBluetoothAdapter>> adapters() async {
+    final List<Object?> found =
+        await DVNativeBridge.require<List<Object?>>('bluetooth.adapters');
+    return <DVBluetoothAdapter>[
+      for (final Object? adapter in found)
+        if (adapter is Map<Object?, Object?>) DVBluetoothAdapter.fromMap(adapter),
+    ];
+  }
+
+  /// Every device the machine knows about: paired, connected, or seen.
+  ///
+  /// Not a scan. This is what is already known, which is what answers "is the
+  /// card reader still paired" without turning the radio on and waiting.
+  Future<List<DVBluetoothDevice>> devices() async {
+    final List<Object?> found =
+        await DVNativeBridge.require<List<Object?>>('bluetooth.devices');
+    return <DVBluetoothDevice>[
+      for (final Object? device in found)
+        if (device is Map<Object?, Object?>) DVBluetoothDevice.fromMap(device),
+    ];
   }
 }
 
@@ -2999,6 +3027,94 @@ class DVUsbDevice {
 
   static String _hex(int value) =>
       value.toRadixString(16).padLeft(4, '0');
+}
+
+/// A Bluetooth adapter on this machine.
+class DVBluetoothAdapter {
+  const DVBluetoothAdapter({
+    required this.path,
+    required this.address,
+    this.name,
+    this.powered = false,
+    this.discovering = false,
+  });
+
+  /// BlueZ's object path: `/org/bluez/hci0`.
+  final String path;
+  final String address;
+  final String? name;
+
+  /// Whether the radio is on. The first question when a paired peripheral
+  /// stops answering.
+  final bool powered;
+  final bool discovering;
+
+  Map<String, Object?> toMap() => <String, Object?>{
+        'path': path,
+        'address': address,
+        if (name != null) 'name': name,
+        'powered': powered,
+        'discovering': discovering,
+      };
+
+  static DVBluetoothAdapter fromMap(Map<Object?, Object?> map) =>
+      DVBluetoothAdapter(
+        path: '${map['path']}',
+        address: '${map['address']}',
+        name: map['name']?.toString(),
+        powered: map['powered'] == true,
+        discovering: map['discovering'] == true,
+      );
+}
+
+/// A Bluetooth device this machine knows about: paired, connected, or seen.
+class DVBluetoothDevice {
+  const DVBluetoothDevice({
+    required this.path,
+    required this.address,
+    this.name,
+    this.paired = false,
+    this.connected = false,
+    this.rssi,
+    this.adapter,
+  });
+
+  final String path;
+  final String address;
+
+  /// Null for a device that has never said its name -- one out of range
+  /// advertises an address and nothing else.
+  final String? name;
+
+  final bool paired;
+  final bool connected;
+
+  /// Signal strength in dBm, when it has been heard recently.
+  final int? rssi;
+
+  /// The adapter that knows it.
+  final String? adapter;
+
+  Map<String, Object?> toMap() => <String, Object?>{
+        'path': path,
+        'address': address,
+        if (name != null) 'name': name,
+        'paired': paired,
+        'connected': connected,
+        if (rssi != null) 'rssi': rssi,
+        if (adapter != null) 'adapter': adapter,
+      };
+
+  static DVBluetoothDevice fromMap(Map<Object?, Object?> map) =>
+      DVBluetoothDevice(
+        path: '${map['path']}',
+        address: '${map['address']}',
+        name: map['name']?.toString(),
+        paired: map['paired'] == true,
+        connected: map['connected'] == true,
+        rssi: map['rssi'] is int ? map['rssi']! as int : null,
+        adapter: map['adapter']?.toString(),
+      );
 }
 
 /// The USB bus, under `DV.Platform.device.usb`.

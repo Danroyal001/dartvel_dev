@@ -78,6 +78,9 @@ const Set<String> dvNativeBindingNames = <String>{
   'device.serial.close',
   // What is plugged in, which sysfs already answers.
   'device.usb.devices',
+  // Bluetooth, which BlueZ already knows about.
+  'bluetooth.adapters',
+  'bluetooth.devices',
 
   // Desktop shell integration, beyond the window itself.
   'menus.setApplicationMenu',
