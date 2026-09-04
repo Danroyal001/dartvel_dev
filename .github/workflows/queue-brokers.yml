@@ -55,11 +55,8 @@ jobs:
           for i in $(seq 1 30); do
             if curl -sf -u guest:guest http://localhost:15672/api/overview \
                  > /tmp/overview.json; then
-              python3 - <<'PYEOF'
-          import json
-          o = json.load(open('/tmp/overview.json'))
-          print('RabbitMQ', o['rabbitmq_version'], 'on', o['node'])
-          PYEOF
+              dart tool/ci/say_json.dart /tmp/overview.json \
+                'RabbitMQ' rabbitmq_version 'on' node
               exit 0
             fi
             sleep 2
