@@ -82,6 +82,8 @@ class DVModuleMount {
     this.backend,
     this.requires = const <String>[],
     this.mounted = true,
+    this.exportedGlobals = const <String>[],
+    this.inheritedGlobals = const <String>[],
     this.shell = 'inherit',
     this.auth = 'inherit',
     this.theme = 'inherit',
@@ -165,6 +167,22 @@ class DVModuleMount {
   /// say so rather than shipping an application without the section.
   final bool mounted;
 
+  /// The globals the module shares, from `dartvel.module.globals.export` in
+  /// its own pubspec.
+  ///
+  /// Empty by default, which is the specification's default: module globals
+  /// are isolated and sharing is written down. The parent reads this rather
+  /// than deciding for itself what a module exposes -- what a module keeps
+  /// private is the module's to say.
+  final List<String> exportedGlobals;
+
+  /// The application globals the module may read, from
+  /// `dartvel.modules.<id>.globals.inherit` in this project's pubspec.
+  ///
+  /// The other direction, and the parent's to decide: it is handing its own
+  /// state down.
+  final List<String> inheritedGlobals;
+
   /// How much of the parent's shell the module's pages sit inside:
   /// `inherit`, `extend`, `override` or `none`.
   final String shell;
@@ -221,6 +239,7 @@ List<DVModuleMount> dvDiscoverModuleMounts(String root) {
     final DVModuleDeployment deployment = _deploymentOf(body, problems, id);
     final bool inSitemap = '${body['sitemap'] ?? 'include'}' != 'exclude';
     final _DVModuleModes modes = _modesOf(body, deployment, problems, id);
+    final List<String> inheritedGlobals = _globalNamesOf(body, 'inherit');
     final List<String> requires = <String>[
       for (final Object? need in body['requires'] is List
           ? body['requires']! as List<Object?>
@@ -241,6 +260,7 @@ List<DVModuleMount> dvDiscoverModuleMounts(String root) {
         inSitemap: inSitemap,
         modes: modes,
         requires: requires,
+        inheritedGlobals: inheritedGlobals,
         problems: problems,
       ));
       return;
@@ -260,6 +280,7 @@ List<DVModuleMount> dvDiscoverModuleMounts(String root) {
         inSitemap: inSitemap,
         backend: modes.backend,
       requires: requires,
+        inheritedGlobals: inheritedGlobals,
         shell: modes.shell,
         auth: modes.auth,
         theme: modes.theme,
@@ -283,6 +304,7 @@ List<DVModuleMount> dvDiscoverModuleMounts(String root) {
         inSitemap: inSitemap,
         backend: modes.backend,
       requires: requires,
+        inheritedGlobals: inheritedGlobals,
         shell: modes.shell,
         auth: modes.auth,
         theme: modes.theme,
@@ -342,6 +364,8 @@ List<DVModuleMount> dvDiscoverModuleMounts(String root) {
       inSitemap: inSitemap,
       backend: modes.backend,
       requires: requires,
+      exportedGlobals: _globalNamesOf(moduleDeclaration, 'export'),
+      inheritedGlobals: inheritedGlobals,
       shell: modes.shell,
       auth: modes.auth,
       theme: modes.theme,
@@ -353,6 +377,21 @@ List<DVModuleMount> dvDiscoverModuleMounts(String root) {
   return mounts;
 }
 
+/// The names under `globals.export` or `globals.inherit` in [declaration].
+///
+/// Names rather than types, which is how the specification writes them and
+/// how anyone would: `export: [cart]` for a `Cart`.
+List<String> _globalNamesOf(Map<Object?, Object?> declaration, String key) {
+  final Object? globals = declaration['globals'];
+  if (globals is! Map) return const <String>[];
+  final Object? names = globals[key];
+  if (names is! List) return const <String>[];
+  return <String>[
+    for (final Object? name in names)
+      if ('$name'.trim().isNotEmpty) '$name'.trim(),
+  ];
+}
+
 /// A federated mount: what the manifest says, once the manifest is trusted.
 DVModuleMount _federated({
   required String root,
@@ -362,6 +401,7 @@ DVModuleMount _federated({
   required bool inSitemap,
   required _DVModuleModes modes,
   required List<String> requires,
+  required List<String> inheritedGlobals,
   required List<String> problems,
 }) {
   DVModuleMount refused() => DVModuleMount(
@@ -375,6 +415,7 @@ DVModuleMount _federated({
         inSitemap: inSitemap,
         backend: modes.backend,
       requires: requires,
+        inheritedGlobals: inheritedGlobals,
         shell: modes.shell,
         auth: modes.auth,
         theme: modes.theme,
