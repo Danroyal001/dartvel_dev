@@ -53,3 +53,23 @@ final class $Drawable$Type$ extends jni$_.JType<Drawable> {
   @core$_.override
   String get signature => r'Landroid/graphics/drawable/Drawable;';
 }
+
+/// from: `android.graphics.drawable.Drawable$Callback`
+///
+/// WARNING: Drawable$$Callback is a stub. To generate bindings for this class, include
+/// android.graphics.drawable.Drawable$Callback in your config's classes list.
+///
+extension type Drawable$$Callback._(jni$_.JObject _$this)
+    implements jni$_.JObject {
+  static const jni$_.JType<Drawable$$Callback> type =
+      $Drawable$$Callback$Type$();
+}
+
+final class $Drawable$$Callback$Type$ extends jni$_.JType<Drawable$$Callback> {
+  @jni$_.internal
+  const $Drawable$$Callback$Type$();
+
+  @jni$_.internal
+  @core$_.override
+  String get signature => r'Landroid/graphics/drawable/Drawable$Callback;';
+}
