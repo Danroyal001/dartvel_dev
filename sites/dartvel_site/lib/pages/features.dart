@@ -282,7 +282,8 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'It says its padding on each of four sides, casts a shadow, and scrolls '
     'its own axis -- a card padded 24 across and 32 down is drawn that way, '
     'an elevated card is elevated, and a screen taller than the phone it runs '
-    'on scrolls instead of showing the overflow stripe. '
+    'on scrolls instead of showing the overflow stripe. A text node names its '
+    'typeface and its line height, and a box can be painted with a gradient. '
     'An image can be one the application holds rather than one it points at -- a key in file storage, read once however many times the page draws it -- so an imported design does not depend on somebody else\'s URL still working. Everything the page draws is in the exported source, which is handed to '
     'the analyzer in CI -- an export that compiles and looks wrong is found by '
     'whoever pressed export. Every mutation is also an edit another editor '
@@ -299,7 +300,11 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'the result is not pinned to the width of the artboard. Padding arrives on '
     'all four sides, shadows arrive, and a screen whose content runs past its '
     'own frame scrolls: Figma positions everything absolutely, so the import '
-    'can measure that rather than guess at it.',
+    'can measure that rather than guess at it. Typefaces, line heights and '
+    'gradients arrive, and so do the icons -- vector paths carry no image '
+    'fill, so Figma is asked to render each one and the picture is kept, '
+    'which is the difference between a design that arrives with everything '
+    'but its icons and one that arrives.',
   ),
   (
     'Accessibility',
