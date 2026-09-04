@@ -11,4 +11,5 @@ export 'android_capabilities.dart'
     show
         dvAndroidShareIntentFlags,
         dvAndroidShareMimeType,
-        dvAndroidShareUsesChooser;
+        dvAndroidShareUsesChooser,
+        dvAndroidLaunchRoute;

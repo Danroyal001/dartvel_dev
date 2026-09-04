@@ -45,6 +45,9 @@ const Set<String> dvAndroidImplementedBindings = <String>{
   // an Activity's.
   'kiosk.enforce',
   'kiosk.release',
+
+  // The launch Intent's URI, which is the Activity's and so arrived with it.
+  'deepLinks.initial',
 };
 
 /// `Intent.FLAG_ACTIVITY_NEW_TASK`.
@@ -66,3 +69,25 @@ const bool dvAndroidShareUsesChooser = true;
 /// An intent with no type is delivered to nothing — resolution matches on the
 /// action and the type together.
 const String dvAndroidShareMimeType = 'text/plain';
+
+/// The route an application was launched at, from the URI it was given.
+///
+/// A home widget's tap is a deep link to the route Dartvel generated for it,
+/// which is the whole of "home widgets can launch and navigate to pages
+/// within the app" on Android. App links arrive the same way, so this reads
+/// the path out of whatever scheme it was given rather than only the widget
+/// one.
+///
+/// Null for a launch with no link. Answering `/` would make every cold start
+/// look like a deep link to the home page, and the caller has to be able to
+/// tell those apart.
+String? dvAndroidLaunchRoute(String? uri) {
+  if (uri == null || uri.isEmpty) return null;
+  final Uri? parsed = Uri.tryParse(uri);
+  if (parsed == null || parsed.path.isEmpty) return null;
+  // A path that is not a path is not a route. `Uri.tryParse` accepts a good
+  // deal that is not an address, and a route built out of it would be a
+  // not-found page on launch.
+  if (!parsed.path.startsWith('/')) return null;
+  return parsed.hasQuery ? '${parsed.path}?${parsed.query}' : parsed.path;
+}

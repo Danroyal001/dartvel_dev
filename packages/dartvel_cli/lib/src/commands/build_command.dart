@@ -5,6 +5,9 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 import '../build/accessibility_audit.dart';
+import 'package:dartvel_core/dartvel.dart' show DVHomeWidgetSpec;
+
+import '../build/android_home_widget.dart';
 import '../build/android_kiosk_manifest.dart';
 import '../build/browser_extension.dart';
 import '../build/desktop_entry.dart';
@@ -31,6 +34,7 @@ import '../build/static_generation.dart';
 import '../build/web_server.dart';
 import '../graph/module_mounts.dart';
 import '../utils/build_runner.dart';
+import '../generators/client_generator.dart' show ClientGenerator;
 import '../utils/logger.dart';
 import '../utils/toolchain.dart';
 
@@ -785,6 +789,7 @@ class BuildCommand extends Command<void> {
     // in it, and neither can be added at run time.
     if (platform == 'android' || platform == 'fireos') {
       _writeAndroidKioskFiles(Directory.current.path);
+      _writeAndroidHomeWidgets(Directory.current.path);
     }
 
     final args = resolveFlutterBuildArguments(
@@ -1122,6 +1127,59 @@ class BuildCommand extends Command<void> {
     policy.writeAsStringSync(dvAndroidDeviceAdminPolicy());
     Logger.log('   Kiosk: the application is the home screen, with a '
         'device-admin receiver for dpm set-device-owner.');
+  }
+
+  /// A provider, its metadata and its layout for every `@DVHomeWidget`.
+  ///
+  /// The Dart half generates the page and the route. Without this the
+  /// annotation says "home widget" and Android is never told the application
+  /// has one, so there is nothing to put on a home screen.
+  void _writeAndroidHomeWidgets(String root) {
+    final List<DVHomeWidgetSpec> widgets = ClientGenerator.homeWidgetsIn(root);
+    final File manifest =
+        File(p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'));
+    if (!manifest.existsSync()) {
+      if (widgets.isNotEmpty) {
+        Logger.log('⚠️  android/app/src/main/AndroidManifest.xml is not there, '
+            'so the home widgets reach nothing. Run flutter create . to add '
+            'the Android runner.');
+      }
+      return;
+    }
+
+    final String before = manifest.readAsStringSync();
+    final String after = dvAndroidHomeWidgetManifest(before, widgets);
+    if (after != before) manifest.writeAsStringSync(after);
+    if (widgets.isEmpty) return;
+
+    final String? package = _androidPackage(root, before);
+    if (package == null) {
+      Logger.log('⚠️  Could not read the Android package name, so the home '
+          'widget providers were not written.');
+      return;
+    }
+
+    for (final DVHomeWidgetSpec widget in widgets) {
+      final String resource = dvAndroidWidgetResource(widget.id);
+      File(p.joinAll(<String>[
+        root, 'android', 'app', 'src', 'main', 'java',
+        ...package.split('.'),
+        '${widget.name}Provider.java',
+      ]))
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(
+            dvAndroidHomeWidgetProviderSource(package, widget));
+      File(p.join(root, 'android', 'app', 'src', 'main', 'res', 'xml',
+          '$resource.xml'))
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(dvAndroidHomeWidgetMetadata(widget));
+      File(p.join(root, 'android', 'app', 'src', 'main', 'res', 'layout',
+          '$resource.xml'))
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(dvAndroidHomeWidgetLayout(widget));
+    }
+    Logger.log('   Home widgets: ${widgets.length} provider(s) the launcher '
+        'can offer, each opening the page it was generated for.');
   }
 
   /// The application id Gradle builds under.

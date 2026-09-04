@@ -25,6 +25,7 @@ import 'package:jni/jni.dart';
 import '../../../dartvel_flutter.dart' show DVNativeBridge;
 import 'android_capabilities.dart';
 import 'android_kiosk_jni.dart';
+import 'generated/android/app/Activity.dart';
 import 'generated/android/app/Application.dart';
 import 'generated/android/content/ClipData.dart';
 import 'generated/android/content/ClipboardManager.dart';
@@ -66,6 +67,19 @@ class DVAndroidBindings {
     // one throws here rather than at the first callback.
     DVAndroidActivities.watch(context.as(Application.type));
     DVAndroidKiosk.register(DVNativeBridge.register);
+
+    // What the application was opened with. The launch Intent belongs to the
+    // Activity, so this was unanswerable until the Activity was -- and a
+    // home widget's tap is a deep link, so without it a widget opened the
+    // application's home route: a shortcut, not a widget.
+    DVNativeBridge.register('deepLinks.initial', (Object? _) {
+      final Activity? activity = DVAndroidActivities.current;
+      if (activity == null) return null;
+      final Intent? intent = activity.intent;
+      if (intent == null) return null;
+      final JString? data = intent.dataString;
+      return dvAndroidLaunchRoute(data?.toDartString(releaseOriginal: true));
+    });
 
     DVNativeBridge.register('clipboard.copy', (Object? arguments) {
       final text = arguments is Map ? '${arguments['text'] ?? ''}' : '';
