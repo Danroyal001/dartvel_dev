@@ -22,8 +22,9 @@ DVKioskPolicy policyWith(Map<String, Object?> updates) => DVKioskPolicy.parse(
 DateTime at(int hour, [int minute = 0]) =>
     DateTime(2026, 9, 3, hour, minute);
 
-const DVUpdateOffer offer = DVUpdateOffer(version: '1.4.0');
-const DVUpdateOffer forced = DVUpdateOffer(version: '1.4.0', required: true);
+const DVUpdateInfo offer = DVUpdateInfo(available: true, version: '1.4.0');
+const DVUpdateInfo forced =
+    DVUpdateInfo(available: true, version: '1.4.0', required: true);
 
 void main() {
   group('the declaration', () {
@@ -154,7 +155,7 @@ void main() {
       expect(
         window
             .decideUpdate(
-                update: const DVUpdateOffer(version: null, available: false),
+                update: const DVUpdateInfo(available: false),
                 state: DVKioskState.active,
                 now: at(3))
             .action,

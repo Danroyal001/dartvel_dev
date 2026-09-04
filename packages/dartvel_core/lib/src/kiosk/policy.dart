@@ -8,6 +8,7 @@
 /// runtime and `dartvel doctor` have to agree about what a policy says.
 library dartvel.kiosk.policy;
 
+import '../updates/update_info.dart';
 import 'runtime.dart' show DVKioskState;
 import 'updates.dart';
 
@@ -101,7 +102,7 @@ class DVKioskPolicy {
   /// update overrides both, resetting whatever session is on screen rather
   /// than landing on top of it.
   DVKioskUpdateDecision decideUpdate({
-    required DVUpdateOffer update,
+    required DVUpdateInfo update,
     required DVKioskState state,
     required DateTime now,
   }) =>

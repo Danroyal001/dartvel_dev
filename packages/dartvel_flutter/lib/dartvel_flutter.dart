@@ -118,6 +118,9 @@ export 'package:dartvel_core/dartvel.dart'
         DVStartupFinding,
         DVStartupPhase,
         DVStartupProfile,
+        DVUpdateChannel,
+        DVUpdateHold,
+        DVUpdateInfo,
         DVUpdateRollout,
         DVUnknownModuleException,
         // Transactions
@@ -2434,95 +2437,6 @@ class DVNotifications {
   List<Map<String, String>> get sentNotifications => List.unmodifiable(_sent);
 }
 
-enum DVUpdateChannel {
-  production,
-  beta,
-  staging,
-  development,
-}
-
-class DVUpdateInfo {
-  final bool available;
-  final String? version;
-  final String? patchId;
-  final bool required;
-  final Map<String, String> metadata;
-
-  /// The share of the fleet this release has been let out to, 0 to 100.
-  ///
-  /// A server that names no rollout is offering the release to everyone, so
-  /// this is 100 unless it says otherwise.
-  final int rolloutPercent;
-
-  /// Whether this device would have been offered the release but for the
-  /// staged rollout.
-  ///
-  /// [available] is false in that case, and without this an operator cannot
-  /// tell a device whose turn has not come from one the server has nothing
-  /// for -- which is the difference between waiting and investigating.
-  final bool heldBackByRollout;
-
-  const DVUpdateInfo({
-    required this.available,
-    this.version,
-    this.patchId,
-    this.required = false,
-    this.metadata = const <String, String>{},
-    this.rolloutPercent = 100,
-    this.heldBackByRollout = false,
-  });
-
-  /// The same release, decided against this device's place in the rollout.
-  ///
-  /// A release marked [required] is not staged: the fleet is broken without
-  /// it, and withholding it on a hash would be the framework overruling the
-  /// person who marked it.
-  DVUpdateInfo forDevice(String? deviceId) {
-    if (!available || required || rolloutPercent >= 100) return this;
-    final bool reached = DVUpdateRollout.includes(
-      deviceId: deviceId ?? '',
-      version: version ?? '',
-      percent: rolloutPercent,
-    );
-    if (reached) return this;
-    return DVUpdateInfo(
-      available: false,
-      version: version,
-      patchId: patchId,
-      required: required,
-      metadata: metadata,
-      rolloutPercent: rolloutPercent,
-      heldBackByRollout: true,
-    );
-  }
-
-  factory DVUpdateInfo.fromMap(Map<Object?, Object?> map) {
-    final rawMetadata = map['metadata'];
-    final Map<String, String> metadata = rawMetadata is Map
-        ? rawMetadata.map(
-            (key, value) => MapEntry(key.toString(), value.toString()),
-          )
-        : const <String, String>{};
-    return DVUpdateInfo(
-      available: map['available'] == true,
-      version: map['version']?.toString(),
-      patchId: map['patchId']?.toString(),
-      required: map['required'] == true,
-      metadata: metadata,
-      rolloutPercent: _percentOf(map['rollout'] ?? metadata['rollout']),
-    );
-  }
-
-  /// A rollout percentage as the server sent it, which may be a number, a
-  /// string, or absent. Anything unreadable means the release is not staged,
-  /// because a rollout nobody can parse must not silently withhold an update.
-  static int _percentOf(Object? raw) {
-    if (raw == null) return 100;
-    if (raw is num) return raw.round();
-    return int.tryParse(raw.toString().trim()) ?? 100;
-  }
-}
-
 class DVUpdates {
   const DVUpdates();
 
@@ -2533,7 +2447,57 @@ class DVUpdates {
       'updates.check',
       {'channel': channel.name},
     );
-    return DVUpdateInfo.fromMap(result).forDevice(_deviceId);
+    return decide(DVUpdateInfo.fromMap(result));
+  }
+
+  /// The clock the timing rules are read against. For tests.
+  static DateTime Function() now = DateTime.now;
+
+  /// Every rule with a say in [update], in one answer.
+  ///
+  /// The staged rollout, the version this application pinned, the version
+  /// somebody skipped, and -- when this application is a kiosk -- the hours
+  /// its declaration allows it to restart in. These were separate decisions
+  /// joined nowhere, and the kiosk's was a function nobody called, so a
+  /// kiosk that declared a maintenance window updated at midday like
+  /// anything else and the declaration was a sentence in a file.
+  DVUpdateInfo decide(DVUpdateInfo update) {
+    if (!update.available) return update;
+
+    final DVUpdateInfo staged = update.forDevice(_deviceId);
+    if (!staged.available) return staged;
+
+    // A required update is a minimum supported version rather than a new
+    // one: a pin and a skip are preferences, and this is not.
+    if (!update.required) {
+      final String? version = update.version;
+      if (_lockedVersion != null && version != _lockedVersion) {
+        return staged.heldBack(DVUpdateHold.versionLock);
+      }
+      if (_skippedVersion != null && version == _skippedVersion) {
+        return staged.heldBack(DVUpdateHold.skipped);
+      }
+    }
+
+    final DVKioskPolicy? policy = DV.Platform.display.kiosk?.policy;
+    if (policy == null || !policy.enabled) return staged;
+
+    final DVKioskUpdateDecision decision = policy.decideUpdate(
+      update: staged,
+      state: DV.Platform.display.kiosk!.state.value,
+      now: now(),
+    );
+    return switch (decision.action) {
+      DVKioskUpdateAction.apply => staged,
+      DVKioskUpdateAction.resetThenApply => staged.afterReset(),
+      DVKioskUpdateAction.none => staged.heldBack(DVUpdateHold.rollout),
+      DVKioskUpdateAction.defer => staged.heldBack(
+          policy.updatesApply == DVKioskUpdateApply.staffMode
+              ? DVUpdateHold.staffMode
+              : DVUpdateHold.maintenanceWindow,
+          notBefore: decision.notBefore,
+        ),
+    };
   }
 
   static String? _deviceId;
@@ -2563,9 +2527,31 @@ class DVUpdates {
         version: version,
       );
 
-  Future<void> apply({
+  /// Applies [update], or refuses it and says why.
+  ///
+  /// [update] is what [check] answered. Passing one it held back is refused
+  /// rather than quietly skipped: an application applying an update its own
+  /// declaration forbids is a bug, and a call that does nothing is how it
+  /// stays one. Called with nothing, it applies whatever the channel offers,
+  /// which is the shape the specification's own example uses.
+  Future<void> apply([
+    DVUpdateInfo? update,
     DVUpdateChannel channel = DVUpdateChannel.production,
-  }) async {
+  ]) async {
+    final DVUpdateInfo decided = update == null ? await check(channel: channel) : update;
+    final DVUpdateHold? hold = decided.hold;
+    if (hold != null) {
+      throw StateError(_refusal(decided, hold));
+    }
+    if (!decided.available) {
+      throw StateError('There is no update to apply.');
+    }
+    // Before, not after: the specification says a forced update resets the
+    // session first, and the reason is the order -- landing it on top of a
+    // half-finished order is the thing being avoided.
+    if (decided.resetsSession) {
+      await DV.Platform.display.kiosk?.resetSession();
+    }
     final handled = await DVNativeBridge.require<bool>(
       'updates.apply',
       {'channel': channel.name},
@@ -2573,6 +2559,30 @@ class DVUpdates {
     if (!handled) {
       throw StateError('Native update binding rejected the update request.');
     }
+  }
+
+  /// Why an update was refused, in terms somebody can act on.
+  String _refusal(DVUpdateInfo update, DVUpdateHold hold) {
+    final String version = update.version ?? 'the update';
+    final DVKioskPolicy? policy = DV.Platform.display.kiosk?.policy;
+    final String when = update.notBefore == null
+        ? ''
+        : ' It will be applied from ${update.notBefore}.';
+    return switch (hold) {
+      DVUpdateHold.rollout =>
+        'This device is not in the ${update.rolloutPercent}% of the fleet '
+            '$version has been let out to yet.',
+      DVUpdateHold.versionLock =>
+        'This application is pinned to $_lockedVersion, and $version is not '
+            'it. Call unlockVersion() to accept another.',
+      DVUpdateHold.skipped => '$version was skipped.',
+      DVUpdateHold.staffMode =>
+        'This kiosk applies updates only while staff are present.',
+      DVUpdateHold.maintenanceWindow =>
+        'This kiosk applies updates inside '
+            '${policy?.updatesWindow ?? 'its maintenance window'} and it is '
+            'shut.$when',
+    };
   }
 
   Future<void> rollback({
@@ -2609,19 +2619,12 @@ class DVUpdates {
     _skippedVersion = version.trim().isEmpty ? null : version.trim();
   }
 
-  /// Whether [update] should be applied under the current lock and skip
-  /// state. The generated update UI consults this before prompting.
-  bool shouldApply(DVUpdateInfo update) {
-    if (!update.available) return false;
-    final version = update.version;
-    if (_lockedVersion != null && version != _lockedVersion) return false;
-    if (_skippedVersion != null && version == _skippedVersion) {
-      // A required update overrides a user's skip; a skip is a preference,
-      // a minimum supported version is not.
-      return update.required;
-    }
-    return true;
-  }
+  /// Whether [update] should be applied now.
+  ///
+  /// The same answer [check] gives, as a boolean, for a caller holding an
+  /// update it read earlier. One implementation, because two that could
+  /// disagree is how the kiosk policy came to be enforced in neither.
+  bool shouldApply(DVUpdateInfo update) => decide(update).available;
 
   /// What [applyPages] did, so a caller can report it rather than guess.
   ///
