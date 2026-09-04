@@ -93,6 +93,7 @@ String read(Directory root, String name) =>
     File(p.join(root.path, 'lib', 'dartvel_client', name)).readAsStringSync();
 
 void main() {
+  _theTheme();
   _theServerCalls();
   group('the registration a server can load', () {
     test('the registration itself imports no Flutter', () async {
@@ -178,5 +179,53 @@ void _theServerCalls() {
         lessThan(routes.indexOf('final router = buildBackendRouter()')),
       );
     });
+  });
+}
+
+// Appended: the theme mode reaching the router.
+//
+// A mode that only the registry knows is a mode nothing applies. The router
+// is where a module's pages are built, so it is where the parent's `theme:`
+// declaration has to be honoured -- and only there, because the parent's own
+// pages must not be wrapped in a module's look.
+void _theTheme() {
+  group('a module with a theme mode of its own', () {
+    Directory themed(String mode) {
+      final Directory root = workspace();
+      final File pubspec = File(p.join(root.path, 'pubspec.yaml'));
+      pubspec.writeAsStringSync(
+        pubspec.readAsStringSync().replaceFirst(
+              '      data: schema-isolated',
+              '      data: schema-isolated\n      theme: $mode',
+            ),
+      );
+      return root;
+    }
+
+    test('its pages are wrapped, and the parent\'s are not', () async {
+      final Directory root = themed('override');
+      await generate(root);
+
+      final String router = read(root, 'router.g.dart');
+      expect(router, contains("dvModuleTheme(context, 'store'"));
+      // One wrap per module page, and nothing else: the count is what says
+      // the parent's own pages were left alone.
+      expect(
+        RegExp(RegExp.escape("dvModuleTheme(context, 'store'"))
+            .allMatches(router)
+            .length,
+        1,
+      );
+    });
+
+    test('an inheriting module is not wrapped at all', () async {
+      final Directory root = themed('inherit');
+      await generate(root);
+
+      // Wrapping and then resolving to the parent's theme would work and
+      // would put a widget in the tree of every module page for nothing.
+      expect(read(root, 'router.g.dart'), isNot(contains('dvModuleTheme')));
+    });
+
   });
 }
