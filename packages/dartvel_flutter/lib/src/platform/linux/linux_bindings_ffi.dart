@@ -16,6 +16,7 @@ import 'linux_dialogs_ffi.dart';
 import 'linux_dnd_ffi.dart';
 import 'linux_kiosk_ffi.dart';
 import 'linux_menus_ffi.dart';
+import 'linux_nfc.dart';
 import 'linux_printing_ffi.dart';
 import 'linux_serial_ffi.dart';
 import 'linux_shortcuts_ffi.dart';
@@ -215,6 +216,9 @@ class DVLinuxBindings {
     'bluetooth.scanDevices',
     'bluetooth.adapters',
     'bluetooth.devices',
+    // neard: whether there is a reader, and what is on it.
+    'nfc.isAvailable',
+    'nfc.readTag',
     'deepLinks.initial',
     'media.pick',
     'permissions.isGranted',
@@ -319,6 +323,7 @@ class DVLinuxBindings {
     DVLinuxSerial.register(DVNativeBridge.register);
     DVLinuxUsb.register(DVNativeBridge.register);
     DVLinuxBluetooth.register(DVNativeBridge.register);
+    DVLinuxNfc.register(DVNativeBridge.register);
     // A desktop deep link arrives as a launch argument; the launch keeps
     // the first one. The stream is fed by the launch as well.
     DVNativeBridge.register('deepLinks.initial', (Object? _) => DVAppLaunch.initialLink);
