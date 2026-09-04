@@ -660,10 +660,38 @@ jobs:
           set -uo pipefail
           exec > >(tee -a /tmp/diag/android-build.log) 2>&1
           cd examples/dartvel_example
+
+          # A kiosk, declared here rather than in the repository. The example
+          # is the demo every other job runs, and a kiosk that owns the whole
+          # device is not what a demo should be -- but a lock-task launcher
+          # is only built for a project that asks for one, so the project has
+          # to ask. This is the deployment being tested, in the checkout this
+          # job owns.
+          # Under dartvel:, not at the end of the file. Appending put it
+          # under whatever the last top-level key happens to be -- hooks: as
+          # it stands -- and the declaration then reached nothing, which is
+          # what the guards below exist to catch.
+          #
+          # sed rather than a heredoc: a heredoc's body sits at its own
+          # indentation, and a line indented less than this block scalar ends
+          # the scalar, which YAML reads as new top-level keys.
+          sed -i 's|^dartvel:$|dartvel:\n  kiosk:\n    enabled: true\n    scope: device\n    home: /|' \
+            pubspec.yaml
+          sed -n '/^dartvel:/,/^    home:/p' pubspec.yaml
+
           flutter pub get
           dart run dartvel_cli:dartvel routes
           flutter build apk --debug
           ls -la build/app/outputs/flutter-apk/
+
+          # What the kiosk declaration was supposed to write. A build that
+          # silently skipped it would leave dpm set-device-owner with nothing
+          # to point at, and the failure would arrive as a confusing adb
+          # error rather than as this.
+          test -f android/app/src/main/java/com/example/dartvel_example/DartvelDeviceAdminReceiver.java
+          test -f android/app/src/main/res/xml/dartvel_device_admin.xml
+          grep -q "android.intent.category.HOME" android/app/src/main/AndroidManifest.xml
+          echo "the kiosk declaration reached the manifest and the receiver"
 
       - name: Boot the emulator, install and photograph
         id: run
@@ -691,6 +719,35 @@ jobs:
             (cd examples/dartvel_example &&
               flutter test integration_test/link_navigation_test.dart \
                 -d emulator-5554)
+
+            # Kiosk enforcement, which needs the Activity that JNI could not
+            # reach until Application.registerActivityLifecycleCallbacks was
+            # bound. The test asserts what the platform did; dumpsys is the
+            # second opinion, because a Dart-side bool that lied would pass a
+            # test that only read it back.
+            #
+            # Device owner first: without it, startLockTask shows the "pin
+            # this screen?" dialog and waits for somebody who is not there.
+            # This is also how a kiosk is actually provisioned, so the test
+            # exercises the deployment rather than a shortcut.
+            adb shell dpm set-device-owner \
+              com.example.dartvel_example/.DartvelDeviceAdminReceiver \
+              > /tmp/diag/android-device-owner.log 2>&1 || {
+                echo "could not set device owner; lock task will need the dialog"
+                cat /tmp/diag/android-device-owner.log
+              }
+
+            (cd examples/dartvel_example &&
+              flutter test integration_test/kiosk_lock_task_test.dart \
+                -d emulator-5554)
+
+            # And what Android itself says. LOCK_TASK_MODE_LOCKED is the
+            # device-owner path; PINNED is the dialog one. Either is lock
+            # task held; NONE after a test that reported it held is the
+            # disagreement worth failing on.
+            adb shell dumpsys activity activities \
+              | grep -iE "mLockTaskMode|LockTaskController" \
+              | tee /tmp/diag/android-lock-task.log || true
 
       # A job that captured nothing is not a pass. The run step above is
       # continue-on-error so its logs still upload; this is not, so the job
