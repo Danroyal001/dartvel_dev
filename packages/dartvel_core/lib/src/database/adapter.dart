@@ -106,6 +106,13 @@ class DVDatabase {
   Future<int> execute(String sql, [List<Object?>? params]) =>
       _configuredAdapter.execute(sql, params);
 
+  /// The configured adapter.
+  ///
+  /// Public because a module that shares the application's database needs
+  /// the same connection rather than a second one: two adapters over one
+  /// SQLite file is two write locks over one file.
+  DVDatabaseAdapter get adapter => _configuredAdapter;
+
   static DVDatabaseAdapter get _configuredAdapter {
     final adapter = _adapter;
     if (adapter == null) {
