@@ -101,7 +101,24 @@ class DVStartupProfile {
       _phases.add(phase);
     }
     _last = at;
+    for (final void Function() listener
+        in List<void Function()>.of(_listeners)) {
+      listener();
+    }
   }
+
+  final List<void Function()> _listeners = <void Function()>[];
+
+  /// Calls [listener] whenever a phase is marked.
+  ///
+  /// Anything that publishes the profile needs this. The last phase -- the
+  /// first frame -- is marked after the application has started, which is
+  /// after anything watching startup has already written what it had, so a
+  /// published profile without this stops one phase short of the only one
+  /// the person waiting can see.
+  void addListener(void Function() listener) => _listeners.add(listener);
+
+  void removeListener(void Function() listener) => _listeners.remove(listener);
 
   /// Everything that went over its budget: each phase over [phaseBudget]
   /// when one is given, and the whole startup over [budget].

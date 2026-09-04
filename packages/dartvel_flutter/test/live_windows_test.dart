@@ -67,4 +67,37 @@ void main() {
     await DV.Platform.Window.open(const DVRouteTarget('/stock'));
     expect(File(path).readAsStringSync(), before);
   });
+
+  test('a phase measured after the file was written is written too', () async {
+    // The first frame is marked after the application has started, which is
+    // after the publisher wrote its first file. Left there, the published
+    // profile would stop at the phase before the one that matters -- and the
+    // one that matters is the frame somebody can see.
+    final String path = '${dir.path}/shop.windows.json';
+    final void Function() stop =
+        DV.Platform.Window.publishLiveWindows(path, app: 'shop');
+    addTearDown(stop);
+
+    DVStartupProfile.current.mark('first frame');
+
+    final Map<String, Object?> startup =
+        read(path)['startup']! as Map<String, Object?>;
+    expect(
+      (startup['phases']! as List<Object?>)
+          .map((Object? p) => (p! as Map<Object?, Object?>)['name']),
+      contains('first frame'),
+    );
+  });
+
+  test('stopped, a later phase is not written either', () async {
+    final String path = '${dir.path}/shop.windows.json';
+    final void Function() stop =
+        DV.Platform.Window.publishLiveWindows(path, app: 'shop');
+    final String before = File(path).readAsStringSync();
+
+    stop();
+    DVStartupProfile.current.mark('too late');
+
+    expect(File(path).readAsStringSync(), before);
+  });
 }
