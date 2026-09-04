@@ -65,6 +65,7 @@ String dvWebServerManifest({
   required Map<String, List<String>> text,
   required String? siteUrl,
   DVWebServerSettings server = const DVWebServerSettings(),
+  Map<String, String> federated = const <String, String>{},
 }) =>
     const JsonEncoder.withIndent('  ').convert(<String, Object?>{
       'siteUrl': siteUrl,
@@ -75,6 +76,14 @@ String dvWebServerManifest({
             'title': titles[route],
             'text': text[route] ?? const <String>[],
           },
+        // A federated module's routes, and where each answers. The
+        // specification asks for a micro-site that serves its own HTML while
+        // still appearing in the parent's index and sitemap, so the parent
+        // answers the path and sends the reader on rather than rendering a
+        // page it does not have. The presence of a location is what says so,
+        // which is why the parent's own routes carry none.
+        for (final MapEntry<String, String> mounted in federated.entries)
+          mounted.key: <String, Object?>{'location': mounted.value},
       },
     });
 

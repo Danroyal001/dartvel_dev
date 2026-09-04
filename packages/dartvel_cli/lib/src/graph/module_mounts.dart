@@ -185,6 +185,27 @@ class DVModuleMount {
   final List<String> problems;
 }
 
+/// The routes a federated module answers, and the address that answers them.
+///
+/// A federated module is deployed elsewhere and serves its own HTML, so the
+/// parent generates no page for these paths and they are absent from the
+/// router source its route index and sitemap are built from. They belong in
+/// both all the same, which needs the pairing this returns: the path the
+/// parent lists, and where a reader asking for it is sent.
+Map<String, String> dvFederatedRoutes(String root) {
+  final Map<String, String> answered = <String, String>{};
+  for (final DVModuleMount mount in dvDiscoverModuleMounts(root)) {
+    final String? location = mount.location;
+    if (location == null || !mount.mounted || mount.compiledIntoParent) continue;
+    final String base = location.replaceAll(RegExp(r'/+$'), '');
+    for (final DVModuleRoute route in mount.routes) {
+      final String own = route.standalone == '/' ? '' : route.standalone;
+      answered[route.mounted] = '$base$own';
+    }
+  }
+  return answered;
+}
+
 /// The modules the project at [root] mounts.
 List<DVModuleMount> dvDiscoverModuleMounts(String root) {
   final Object? section = _dartvelSection(root)['modules'];
