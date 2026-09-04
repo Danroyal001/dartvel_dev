@@ -15,9 +15,32 @@ it just is not the tests failing.
 """
 
 import json
+import os
 import shutil
 import subprocess
 import sys
+import tempfile
+
+def _kill_tree(pid: int) -> None:
+    """Ends the tester as well as the tool that started it.
+
+    `flutter` is a launcher: killing it leaves flutter_tester running, and a
+    tester that is still running is exactly the thing being timed out.
+    """
+    if os.name == "nt":
+        subprocess.run(
+            ["taskkill", "/F", "/T", "/PID", str(pid)],
+            capture_output=True,
+            check=False,
+        )
+        return
+    subprocess.run(["pkill", "-9", "-P", str(pid)], capture_output=True, check=False)
+    try:
+        os.kill(pid, 9)
+    except ProcessLookupError:
+        pass
+    subprocess.run(["pkill", "-9", "-f", "flutter_tester"], capture_output=True, check=False)
+
 
 def main() -> int:
     command = sys.argv[1:]
@@ -31,24 +54,34 @@ def main() -> int:
     # "flutter is not installed" on a runner that has just used it.
     executable = shutil.which(command[0]) or command[0]
 
-    # Read with a cap, and keep what was read. The tester emits its verdict
-    # and then, on these suites, does not exit; waiting for it to would burn
-    # the job's whole allowance and be cancelled, which throws away the
-    # verdict that had already arrived. Killed at the cap, the output up to
-    # that point still says what every test did.
-    process = subprocess.Popen(
-        [executable] + command[1:] + ["--machine"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    hung = False
-    try:
-        stdout, stderr = process.communicate(timeout=600)
-    except subprocess.TimeoutExpired:
-        hung = True
-        process.kill()
-        stdout, stderr = process.communicate()
+    # Written to a file rather than to a pipe. `flutter` spawns the tester,
+    # and killing the parent leaves the child holding the pipe open, so
+    # anything reading it waits for a process nobody is waiting for -- which
+    # is how the cap that exists to stop this suite hanging the job hung the
+    # job.
+    with tempfile.TemporaryDirectory() as workspace:
+        out_path = os.path.join(workspace, "machine.jsonl")
+        err_path = os.path.join(workspace, "stderr.txt")
+        hung = False
+        with open(out_path, "w") as out, open(err_path, "w") as err:
+            process = subprocess.Popen(
+                [executable] + command[1:] + ["--machine"],
+                stdout=out,
+                stderr=err,
+            )
+            try:
+                process.wait(timeout=600)
+            except subprocess.TimeoutExpired:
+                hung = True
+                _kill_tree(process.pid)
+                try:
+                    process.wait(timeout=60)
+                except subprocess.TimeoutExpired:
+                    pass
+        with open(out_path, errors="replace") as out:
+            stdout = out.read()
+        with open(err_path, errors="replace") as err:
+            stderr = err.read()
 
     names: dict[int, str] = {}
     failures: list[str] = []
