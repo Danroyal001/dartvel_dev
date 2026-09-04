@@ -394,9 +394,30 @@ jobs:
         working-directory: packages/dartvel_flutter
         run: python3 ../../tool/ci/live_suite.py flutter test test/macos_bindings_live_test.dart
 
+      # And, when they fail, what macOS thought of it. The panels have been
+      # failing with no diagnostics at all -- tests marked failed with no
+      # error attached, which is what package:test does when the process
+      # underneath it goes away -- so the crash report is the only thing left
+      # that knows why. If there is none, that is worth knowing too: it means
+      # nothing crashed and the process left another way.
       - name: Run the macOS panels
         working-directory: packages/dartvel_flutter
-        run: python3 ../../tool/ci/live_suite.py flutter test test/macos_dialogs_live_test.dart
+        run: |
+          set +e
+          python3 ../../tool/ci/live_suite.py flutter test test/macos_dialogs_live_test.dart
+          code=$?
+          if [ "$code" -ne 0 ]; then
+            echo "--- crash reports written while that ran ---"
+            found=0
+            for report in $(ls -t ~/Library/Logs/DiagnosticReports/*.ips 2>/dev/null | head -3); do
+              found=1
+              echo "== $report"
+              head -c 4000 "$report"
+              echo
+            done
+            [ "$found" -eq 0 ] && echo "none: the tester did not crash"
+          fi
+          exit $code
       # window.displays through CGGetActiveDisplayList, against the runner's
       # own display: at least one, a main, a real size in points.
       - name: Display enumeration
