@@ -64,6 +64,26 @@ classes:
   # application Context with FLAG_ACTIVITY_NEW_TASK -- no Activity required.
   - android.content.Intent
 
+  # Kiosk. Lock task mode is an Activity's, and an Activity is what a JNI
+  # binding cannot reach from the application Context that package:jni's
+  # GetApplicationContext() hands back.
+  #
+  # Application.registerActivityLifecycleCallbacks is the public way to it:
+  # the callback is a Java interface, jnigen generates an `implement` for it,
+  # and package:jni builds the proxy. So the running Activity arrives at Dart
+  # without a platform channel, which is what the native integration rule
+  # asks for and what stopped this being built until now.
+  #
+  # ActivityLifecycleCallbacks is nested inside Application and comes with
+  # it. Listing a nested class separately is rejected.
+  - android.app.Activity
+  - android.app.Application
+
+  # Immersive mode: the other half of a kiosk. Lock task blocks the buttons;
+  # this hides the bars they are drawn on.
+  - android.view.View
+  - android.view.Window
+
   # Haptics. VibratorManager is the API 31 way in; Vibrator remains for older.
   - android.os.Vibrator
   - android.os.VibratorManager
