@@ -413,7 +413,13 @@ jobs:
           # The names as written, up to the first quote -- a name containing
           # an escaped apostrophe comes out truncated, which is still a
           # substring and is what --plain-name matches on.
-          names=$(grep -oE "test\('[^']+" "$file" | sed "s/^test('//")
+          # Up to the first quote, and without the backslash that escapes
+          # it: a name written with an apostrophe comes out truncated, which
+          # is still a substring and is what --plain-name matches on -- but
+          # with the backslash still on the end it matches nothing at all,
+          # and a filter that matches nothing used to report a green step for
+          # a test nobody ran.
+          names=$(grep -oE "test\('[^']+" "$file" | sed "s/^test('//;s/\\\\$//")
           failed=0
           while IFS= read -r name; do
             [ -z "$name" ] && continue
