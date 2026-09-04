@@ -155,6 +155,24 @@ gap.
 - Targets whose host is unavailable locally (Windows, macOS, iOS, tvOS) are verified on GitHub Actions. **This repository and every fork except `dartvel_enterprise` are public, so Actions minutes on standard runners are unlimited and free — Windows and macOS included.** Do not ration macOS jobs or keep a workflow manually triggered on cost grounds; that reasoning came from an earlier assumption that the repository was private, and it wrongly narrowed several jobs to a single suite. Time still costs wall-clock, so bound jobs with timeouts rather than with scope.
 - Record verified build status and evidence in `docs/build-targets.md`. "Verified" means the command was run and the artifact inspected — never infer a target works because a sibling target does.
 
+## One Language Rule
+
+- Dartvel is a Dart monorepo, and everything in it is written in Dart —
+  including the tooling. Do not add a `.py` file, and do not put a `python3`
+  heredoc or `python3 -c` into a workflow. Write a small Dart program under
+  `tool/ci/` and call it with `dart tool/ci/<name>.dart`.
+- `dart run tool/...` needs the root package resolved; `dart tool/...` does
+  not, as long as the program imports only `dart:` libraries. That is the
+  usual reason a workflow reached for Python, and it is not a reason.
+- `dart:io` has zlib for writing a PNG, an `HttpServer` for what
+  `python3 -m http.server` was doing, and `Process.run` for the rest. There
+  has not yet been a CI job here that needed more.
+- The exception is a third-party build system running its own scripts: the
+  Flutter engine build invokes Chromium's `install-sysroot.py`, which is
+  upstream's and not ours to rewrite.
+- `dart run tool/ci/no_python_check.dart` fails when a tracked `.py` file or
+  an inline `python3` appears, because a rule nothing checks drifts back.
+
 ## Commit Message Rule
 
 - Commit messages carry no AI attribution. Do not append `Co-Authored-By:
