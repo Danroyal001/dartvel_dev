@@ -215,7 +215,7 @@ class DVPageDocument {
     final buffer = StringBuffer()
       ..writeln("import 'package:flutter/widgets.dart';")
       ..writeln()
-      ..writeln("import '../dartvel_client/dartvel_client.dart';")
+      ..writeln("import '${'../' * _depth}dartvel_client/dartvel_client.dart';")
       ..writeln()
       ..writeln('// Exported from Dartvel Studio. Ordinary page source: edit')
       ..writeln('// freely, the builder is no longer involved.')
@@ -225,6 +225,17 @@ class DVPageDocument {
       ..writeln('    ${_nodeSource(root, 2)};');
     return buffer.toString();
   }
+
+  /// How far below `lib` the exported file sits, which is how many levels
+  /// the import to the generated client has to climb.
+  ///
+  /// A page at the top is `lib/pages/pricing.page.dart` and climbs one; a
+  /// nested one is `lib/pages/products/[id].page.dart` and climbs two. It
+  /// climbed one whatever the route was, so every nested page the builder
+  /// exported reached lib/pages/dartvel_client, which does not exist -- and
+  /// the whole point of the export is that the result is ordinary code
+  /// somebody can keep.
+  int get _depth => dvStudioPagePath(route).split('/').length - 2;
 
   String _pageFunctionName() {
     final parts = route
@@ -1102,6 +1113,21 @@ String dvStudioPlaceSource(Map<String, Object?> properties, String source) {
   return 'Positioned(${named.join(', ')}, child: $source)';
 }
 
+
+/// The file an exported page belongs in, by the pages router's own rule.
+///
+/// `/` is `index`, a parameter is a bracketed segment, and the file ends
+/// `.page.dart` -- so a page dropped into a project is served at the route
+/// it was exported from.
+String dvStudioPagePath(String route) {
+  final List<String> parts = <String>[
+    for (final String part in route.split('/'))
+      if (part.isNotEmpty)
+        part.startsWith(':') ? '[${part.substring(1)}]' : part,
+  ];
+  if (parts.isEmpty) return 'lib/pages/index.page.dart';
+  return 'lib/pages/${parts.join('/')}.page.dart';
+}
 
 /// The corners, in the order [BorderRadius.only] takes them.
 const List<String> _cornerNames = <String>[
