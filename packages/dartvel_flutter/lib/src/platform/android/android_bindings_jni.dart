@@ -126,20 +126,62 @@ class DVAndroidBindings {
   /// Null rather than throwing: [register] is called unconditionally at
   /// startup, and an application that cannot reach a Context should keep
   /// running with the bindings unregistered rather than fail to start.
+  /// Why [register] last returned false, or null when it has not.
+  ///
+  /// Registration failing was one line in the log saying it had. Which of the
+  /// two ways it can fail -- the symbol not being reachable, or Android
+  /// answering with no Context -- is the whole question, and guessing at it
+  /// from a device that has already been torn down is not debugging.
+  static String? lastFailure;
+
   static Context? _applicationContext() {
+    // package:jni loads its own helper as `libdartjni.so`, lazily, the first
+    // time anything touches Jni. Nothing had, so the symbol was not in the
+    // process yet and DynamicLibrary.process() could not find it: the lookup
+    // threw, this returned null, and every Android binding was dead in every
+    // real application while the log said only that they had not loaded.
+    //
+    // Opening it by name is what package:jni itself does, and opening a
+    // library that is already open returns the same handle.
+    DynamicLibrary? library;
     try {
-      final lookup = DynamicLibrary.process().lookupFunction<
-          _GetApplicationContextNative, _GetApplicationContextDart>(
-        'GetApplicationContext',
-      );
-      final pointer = lookup();
-      if (pointer == nullptr) return null;
-      return JObject.fromReference(JGlobalReference(pointer)).as(Context.type);
-    } on ArgumentError {
-      // The symbol is absent, which means package:jni's native library is not
-      // linked into this build.
+      library = DynamicLibrary.open('libdartjni.so');
+    } on Object catch (error) {
+      try {
+        // A build that links it statically, or one where something else has
+        // already pulled it in.
+        library = DynamicLibrary.process();
+      } on Object {
+        lastFailure = 'libdartjni.so could not be opened ($error), and this '
+            'process exports no JNI symbols of its own. package:jni is a '
+            'dependency of dartvel_flutter, so the library should be in the '
+            'APK.';
+        return null;
+      }
+    }
+
+    final _GetApplicationContextDart lookup;
+    try {
+      lookup = library.lookupFunction<_GetApplicationContextNative,
+          _GetApplicationContextDart>('GetApplicationContext');
+    } on ArgumentError catch (error) {
+      lastFailure = 'GetApplicationContext is not exported by the JNI helper '
+          'this build links ($error).';
       return null;
     }
+
+    final Pointer<Void> pointer = lookup();
+    if (pointer == nullptr) {
+      // Android answers with the Application context once the process has
+      // one. Null means this ran before that, which is a startup-order
+      // problem rather than a linking one -- and the two need different
+      // fixes, so they say different things.
+      lastFailure = 'Android has no application Context yet. Registration ran '
+          'before the Application was created.';
+      return null;
+    }
+    lastFailure = null;
+    return JObject.fromReference(JGlobalReference(pointer)).as(Context.type);
   }
 
   /// A system service, or null when the platform does not offer it.

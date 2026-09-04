@@ -24,6 +24,7 @@ const String _none = '''
 ''';
 
 void main() {
+  _spellings();
   _samples();
   group('what the platform said', () {
     test('device owner holding the task reads as locked', () {
@@ -137,6 +138,36 @@ void _samples() {
 
     test('nothing sampled at all is unknown', () {
       expect(dvStrongest(<DVLockTaskState>[]), DVLockTaskState.unknown);
+    });
+  });
+}
+
+// Appended: the other spelling.
+//
+// Sixty readings on an API 34 emulator all came back `unknown`, which means
+// the parser found nothing to read -- so the second opinion was no opinion at
+// all while looking like a working check. dumpsys does not always print the
+// LOCK_TASK_MODE_ prefix: on several API levels the line is
+// `mLockTaskModeState=LOCKED`. A parser that knows one spelling is a parser
+// that silently abstains on every device that uses the other.
+void _spellings() {
+  group('however dumpsys spells it', () {
+    test('the short spelling is read', () {
+      expect(dvLockTaskState('  mLockTaskModeState=LOCKED\n'),
+          DVLockTaskState.locked);
+      expect(dvLockTaskState('  mLockTaskModeState=PINNED\n'),
+          DVLockTaskState.pinned);
+      expect(dvLockTaskState('  mLockTaskModeState=NONE\n'),
+          DVLockTaskState.none);
+    });
+
+    test('a word that merely contains one of them is not a reading', () {
+      // `mLockTaskPackages[0]={com.example.locked}` is not a state, and a
+      // substring match would read it as one.
+      expect(
+        dvLockTaskState('  mLockTaskPackages[0]={com.example.locked}\n'),
+        DVLockTaskState.unknown,
+      );
     });
   });
 }

@@ -15,5 +15,9 @@ class DVAndroidBindings {
 
   static bool register() => false;
 
+  /// Never set: this build has no JNI at all, which is why register() is a
+  /// constant false rather than something that can fail for a reason.
+  static String? get lastFailure => null;
+
   static void unregister() {}
 }
