@@ -10,6 +10,7 @@ import 'dart:ffi';
 import 'package:ffi/ffi.dart';
 
 import '../../../dartvel_flutter.dart';
+import 'linux_bluetooth.dart';
 import 'linux_device.dart';
 import 'linux_dialogs_ffi.dart';
 import 'linux_dnd_ffi.dart';
@@ -209,6 +210,11 @@ class DVLinuxBindings {
     'device.serial.read',
     'device.serial.close',
     'device.usb.devices',
+    // BlueZ, on the system bus: what adapters there are and what they know.
+    'bluetooth.isEnabled',
+    'bluetooth.scanDevices',
+    'bluetooth.adapters',
+    'bluetooth.devices',
     'deepLinks.initial',
     'media.pick',
     'permissions.isGranted',
@@ -312,6 +318,7 @@ class DVLinuxBindings {
     DVLinuxDevice.register(DVNativeBridge.register);
     DVLinuxSerial.register(DVNativeBridge.register);
     DVLinuxUsb.register(DVNativeBridge.register);
+    DVLinuxBluetooth.register(DVNativeBridge.register);
     // A desktop deep link arrives as a launch argument; the launch keeps
     // the first one. The stream is fed by the launch as well.
     DVNativeBridge.register('deepLinks.initial', (Object? _) => DVAppLaunch.initialLink);
