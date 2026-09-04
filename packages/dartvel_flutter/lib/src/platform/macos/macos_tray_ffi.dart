@@ -157,7 +157,10 @@ class DVMacosTray {
 
   static void unregister() {
     _hide();
-    _action?.close();
-    _action = null;
+    // Not closed. Its function pointer was installed on an Objective-C class
+    // with class_addMethod, and a method cannot be removed from a class: the
+    // class points at this trampoline for the life of the process, so freeing
+    // it leaves the next message to that selector jumping into freed memory.
+    // One trampoline per process is the correct price for that.
   }
 }

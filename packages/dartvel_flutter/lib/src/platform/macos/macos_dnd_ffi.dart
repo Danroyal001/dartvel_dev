@@ -141,7 +141,7 @@ class DVMacosDragDrop {
   /// The view is the engine's, so the methods go on its class: that is
   /// where a method can be added to an instance this code did not create.
   static void _install(Pointer<Void> view) {
-    if (_perform != null) return;
+    if (isInstalled) return;
     final DVMacosObjc o = _o;
 
     int onEntered(Pointer<Void> self, Pointer<Void> cmd, Pointer<Void> sender) {
@@ -224,11 +224,18 @@ class DVMacosDragDrop {
     return utf8 == nullptr ? null : utf8.toDartString();
   }
 
+  /// Whether the dragging-destination methods are on the view's class.
+  ///
+  /// The trampolines behind them are kept for the life of the process, so
+  /// this is asked once and answered forever.
+  static bool get isInstalled => _entered != null && _perform != null;
+
   static void unregister() {
     _stop();
-    _perform?.close();
-    _entered?.close();
-    _perform = null;
-    _entered = null;
+    // Not closed. Its function pointer was installed on an Objective-C class
+    // with class_addMethod, and a method cannot be removed from a class: the
+    // class points at these trampolines for the life of the process, so freeing
+    // them leaves the next message to that selector jumping into freed memory.
+    // Two trampolines per process are the correct price for that.
   }
 }

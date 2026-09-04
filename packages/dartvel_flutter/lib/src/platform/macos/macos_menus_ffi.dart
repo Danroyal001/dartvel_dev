@@ -196,14 +196,18 @@ class DVMacosMenus {
         _objc!.lookupFunction<_AddMethodN, _AddMethodD>('class_addMethod')(
             cls, _sel('dartvelMenuItemSelected:'), action.nativeFunction, types);
         _objc!.lookupFunction<_RegisterClassN, _RegisterClassD>('objc_registerClassPair')(cls);
-      } else {
-        // The class outlives a registration; the callable does not. Point
-        // the method at this one.
+      } else if (_action == null) {
+        // The class outlives every registration and so, now, does the
+        // callable behind its method: a method cannot be removed from a
+        // class, so pointing it at a trampoline that is later freed leaves
+        // the next click jumping into freed memory. Replaced only when there
+        // is nothing installed yet -- a class registered by an earlier run
+        // of this process.
         _objc!.lookupFunction<_ReplaceMethodN, _ReplaceMethodD>('class_replaceMethod')(
             cls, _sel('dartvelMenuItemSelected:'), action.nativeFunction, types);
       }
       final Pointer<Void> instance = _send0(_send0(cls, 'alloc'), 'init');
-      _action = action;
+      _action ??= action;
       _target = instance;
       return instance;
     } finally {
@@ -280,7 +284,10 @@ class DVMacosMenus {
   static void unregister() {
     _idsByTag.clear();
     _target = null;
-    _action?.close();
-    _action = null;
+    // Not closed. Its function pointer was installed on an Objective-C class
+    // with class_addMethod, and a method cannot be removed from a class: the
+    // class points at this trampoline for the life of the process, so freeing
+    // it leaves the next message to that selector jumping into freed memory.
+    // One trampoline per process is the correct price for that.
   }
 }
