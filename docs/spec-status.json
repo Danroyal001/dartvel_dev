@@ -744,7 +744,16 @@
     },
     {
       "section": "Home Widgets",
-      "kind": "narrative"
+      "stability": "Draft",
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_core/lib/src/widgets/home_widget.dart",
+        "packages/dartvel_cli/lib/src/generators/client_generator.dart",
+        "packages/dartvel_cli/test/home_widget_generation_test.dart",
+        "packages/dartvel_cli/lib/src/build/home_widget_check.dart",
+        "packages/dartvel_cli/test/home_widget_target_test.dart"
+      ],
+      "absent": "Built: the half of a home widget that is Dart. @DVHomeWidget on any widget generates the page the specification describes -- a route at /widgets/<id> that centres the widget's content, which is what lets the widget launch the application at itself and a page navigate back to it -- and the application's list of them beside the router, for the packaging that puts them on a home screen. The annotation existed and nothing read it, so a developer could write it, build, run, and find no widget anywhere and no message saying why. The identifier is the class name in kebab case without the trailing Widget, one rule in one place, because a widget somebody has already put on their screen is found again by it and two spellings of the route is a tap that opens the not-found page; two widgets under one identifier are refused. dartvel build honours the specification's sentence about unsupported targets: excluded by default and said, with the names left out and the target that has nowhere to put them, or refused with DV-WIDGET-001 when dartvel.homeWidgets.onUnsupported is fail. A value that is neither is refused rather than read as one of them. Absent: the native packaging -- a Jetpack Glance widget on Android, a WidgetKit extension on iOS and macOS -- and with it the shell properties a home widget shares with a page, and sharing the widget tree and state with the parent application."
     },
     {
       "section": "CSRF Protection",
