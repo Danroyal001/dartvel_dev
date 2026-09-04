@@ -9,6 +9,7 @@ import '../build/browser_extension.dart';
 import '../build/desktop_entry.dart';
 import '../build/elinux_bundle.dart';
 import '../build/capture_completeness.dart';
+import '../build/home_widget_check.dart';
 import '../build/declaration_check.dart';
 import '../build/device_profile_check.dart';
 import '../build/pwa_icons.dart';
@@ -649,6 +650,21 @@ class BuildCommand extends Command<void> {
 
     var failures = 0;
     for (final p in buildablePlatforms) {
+      // What this target can do with the home widgets the application
+      // declares. Per target rather than once, because a single command
+      // builds several and the answer differs: an Android build carries
+      // them and a web build cannot.
+      final DVHomeWidgetCheck homeWidgets =
+          DVHomeWidgetCheck.run(root, target: p);
+      if (!homeWidgets.ok) {
+        Logger.log('❌ The project declares home widgets this build cannot '
+            'carry:');
+      }
+      for (final String line in homeWidgets.lines) {
+        Logger.log(line);
+      }
+      if (!homeWidgets.ok) exit(78); // EX_CONFIG
+
       if (terminalOnly) {
         final plan = terminalBuildPlan(p, buildMode: buildMode);
         final outcome = terminalBuildOutcome(
