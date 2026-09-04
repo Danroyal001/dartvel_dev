@@ -35,6 +35,7 @@ void main() {
           'fontSize', 'padding', 'margin', 'width', 'height', 'rounded',
           'color', 'backgroundColor', 'fontWeight', 'align', 'card',
           'letterSpacing', 'borderColor', 'borderWidth', 'opacity',
+          'fontFamily', 'lineHeight',
           'paddingLeft', 'paddingTop', 'paddingRight', 'paddingBottom',
           'shadowColor', 'shadowX', 'shadowY', 'shadowBlur', 'shadowSpread',
         ]),
@@ -59,6 +60,7 @@ void main() {
         'shadowBlur': 12, 'shadowSpread': 0,
         'paddingLeft': 8, 'paddingTop': 8, 'paddingRight': 8,
         'paddingBottom': 8,
+        'fontFamily': 'Inter', 'lineHeight': 1.5,
       };
       for (final property in dvStudioProperties) {
         expect(
@@ -71,6 +73,10 @@ void main() {
 
     test('a value it cannot use is ignored rather than guessed at', () {
       for (final property in dvStudioProperties) {
+        // A free-text property has no nonsense: every non-empty string is a
+        // font family somewhere, and refusing one would refuse a real
+        // typeface for looking unusual.
+        if (property.kind == DVStudioPropertyKind.text) continue;
         expect(
           property.apply(const DVModifier(), 'not-a-valid-value-for-anything',
               const <String, Object?>{}),
