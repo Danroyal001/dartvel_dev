@@ -32,6 +32,10 @@ void main() {
           'share.text',
           'kiosk.enforce',
           'kiosk.release',
+          // The launch Intent's URI. It belongs to the Activity, so it
+          // arrived with the Activity -- and a home widget's tap is a deep
+          // link, so without it a widget opened the application's home route.
+          'deepLinks.initial',
         },
       );
     });

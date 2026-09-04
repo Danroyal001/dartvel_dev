@@ -2091,6 +2091,14 @@ void startDartvelKiosk() {
   /// beside `@DVFunctionalWidget()`, and the input is private like every
   /// other generation input -- so the name the page builds is the public one
   /// the generator made.
+  /// Every `@DVHomeWidget()` in the project at [root].
+  ///
+  /// Public because the Android build needs the same list to write a
+  /// provider per widget, and two scans that could disagree about what a
+  /// home widget is would be a widget on the home screen opening a route
+  /// the router does not have.
+  static List<DVHomeWidgetSpec> homeWidgetsIn(String root) => _homeWidgetsIn(root);
+
   static List<DVHomeWidgetSpec> _homeWidgetsIn(String root) {
     final Directory libDir = Directory(p.join(root, 'lib'));
     if (!libDir.existsSync()) return const <DVHomeWidgetSpec>[];
