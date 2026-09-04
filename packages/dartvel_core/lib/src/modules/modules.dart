@@ -23,6 +23,29 @@ enum DVModuleDataMode {
   remote,
 }
 
+
+/// How a module's own look combines with the application's.
+///
+/// `dartvel.modules.<id>.theme` in the parent's pubspec. The parent's theme
+/// is its MaterialApp's, which is application code; the module's is whatever
+/// the module declares. The mode is therefore a rule for combining two
+/// things rather than a switch on one.
+enum DVModuleThemeMode {
+  /// The application's theme. The module contributes nothing. The default.
+  inherit,
+
+  /// The application's theme with the module's own decisions applied over
+  /// it: what the module did not say, the application still says.
+  extend,
+
+  /// The module's theme, in place of the application's.
+  override,
+
+  /// The module's theme, and no path back to the application's -- not even
+  /// through the values the module left at their defaults.
+  isolated,
+}
+
 /// A mounted Dartvel module.
 ///
 /// A module is a full Dartvel application boundary configured under
@@ -126,6 +149,27 @@ class DVModule {
     return '$base$suffix';
   }
 
+
+
+  /// How this module's look combines with the application's.
+  ///
+  /// Defaults to [DVModuleThemeMode.inherit]. An unrecognised value is
+  /// refused rather than falling back, for the same reason [dataMode] refuses
+  /// one: a typo in a pubspec should not quietly become a decision.
+  DVModuleThemeMode get themeMode {
+    final Object? declared = config['theme'];
+    if (declared == null) return DVModuleThemeMode.inherit;
+    return switch ('$declared'.trim()) {
+      '' || 'inherit' => DVModuleThemeMode.inherit,
+      'extend' => DVModuleThemeMode.extend,
+      'override' => DVModuleThemeMode.override,
+      'isolated' => DVModuleThemeMode.isolated,
+      final String other => throw StateError(
+          'Module "$id" declares theme mode "$other", which is not one of '
+          'inherit, extend, override or isolated.',
+        ),
+    };
+  }
 
   /// Where this module's data lives, as the parent declared it.
   ///
