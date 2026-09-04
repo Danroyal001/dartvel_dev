@@ -375,8 +375,16 @@ class DVMacosDialogs {
         : path;
     if (isDirectory) {
       o.send1(panel, 'setDirectoryURL:', url);
-    } else {
-      o.send1(panel, 'setDirectoryURL:', o.send0(url, 'URLByDeletingLastPathComponent'));
+      return;
+    }
+    o.send1(panel, 'setDirectoryURL:', o.send0(url, 'URLByDeletingLastPathComponent'));
+    // The name field belongs to NSSavePanel. An open panel inherits the
+    // selector and has no field behind it -- reading one already answers
+    // with something that is not a string, which is why [_inspect] asks only
+    // a save panel -- and writing one reaches the panel service, which is a
+    // different process and is under no obligation to survive being told to
+    // type into a field it does not have.
+    if (kind == _DialogKind.save) {
       o.send1(panel, 'setNameFieldStringValue:', o.send0(url, 'lastPathComponent'));
     }
   }
