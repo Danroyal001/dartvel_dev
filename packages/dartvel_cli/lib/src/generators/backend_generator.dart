@@ -6,6 +6,7 @@ import 'package:glob/glob.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
+import '../graph/module_mounts.dart';
 import '../utils/helpers.dart';
 import '../utils/logger.dart';
 import 'openapi_generator.dart';
@@ -38,16 +39,18 @@ const String apiBasePath = '${esc(apiBasePath)}';
 const String dvGenBuildId = '$buildId';
 ''');
 
-    // Backend routes (functions)
-    final functionsDir = Directory(p.join(root, backendDir, 'functions'));
-    final fnFiles = functionsDir.existsSync()
-        ? functionsDir
-            .listSync(recursive: true, followLinks: false)
-            .whereType<File>()
-            .where((file) => file.path.endsWith('.dart'))
-            .toList()
-        : <File>[]
-      ..sort((a, b) => a.path.compareTo(b.path));
+    // Backend routes (functions): the application's own, and every mounted
+    // module whose functions this backend is the one that answers them.
+    final List<_DVBackendFunctionFile> fnFiles = <_DVBackendFunctionFile>[
+      ..._functionFilesIn(
+        projectRoot: root,
+        backendDir: backendDir,
+        packageName: pkgName,
+        owner: null,
+      ),
+      ..._moduleFunctionFiles(root),
+    ];
+    _refuseShadowedRoutes(fnFiles);
 
     final methodSet = {
       'get',
@@ -63,8 +66,12 @@ const String dvGenBuildId = '$buildId';
     final backendEntries = <Map<String, String>>[]; // {i, method, path}
 
     for (var i = 0; i < fnFiles.length; i++) {
-      final abs = fnFiles[i].path;
-      final rel = p.relative(abs, from: root).replaceAll(r'\', '/');
+      final abs = fnFiles[i].file.path;
+      // Relative to the project the file belongs to, which for a mounted
+      // module is the module: its import and its route are its own, and
+      // measuring either from the parent would name a package that does not
+      // contain it and a path its client never asks for.
+      final rel = fnFiles[i].relative;
       final pathRel = rel;
       // detect method from filename
       final base = p.basenameWithoutExtension(rel); // removes .dart
@@ -74,9 +81,9 @@ const String dvGenBuildId = '$buildId';
       if (!methodSet.contains(method)) {
         method = 'post';
       }
-      final importPath =
-          rel.replaceFirst(RegExp(r'^lib/'), 'package:$pkgName/');
-      final urlPath = RouteUtils.routeFromRel(pathRel, backendDir);
+      final importPath = rel.replaceFirst(
+          RegExp(r'^lib/'), 'package:${fnFiles[i].packageName}/');
+      final urlPath = RouteUtils.routeFromRel(pathRel, fnFiles[i].backendDir);
       // Detect typed function name from file (based on sanitized base name)
       final src = await File(abs).readAsString();
       final privateExpression = _privateBackendExpression(src, rel);
@@ -1509,4 +1516,130 @@ class _AIToolEntry {
     required this.importUri,
     required this.relativePath,
   });
+}
+
+/// A backend function file, with the project it belongs to.
+///
+/// The application's own functions and a mounted module's are generated into
+/// one router, and everything about a file that the generator needs -- the
+/// package that imports it, the backend directory its route is measured from
+/// -- is its own project's rather than the parent's.
+class _DVBackendFunctionFile {
+  const _DVBackendFunctionFile({
+    required this.file,
+    required this.relative,
+    required this.packageName,
+    required this.backendDir,
+    required this.owner,
+  });
+
+  final File file;
+
+  /// The path from its own project root, with forward slashes.
+  final String relative;
+
+  final String packageName;
+  final String backendDir;
+
+  /// The module id this came from, or null for the application's own.
+  final String? owner;
+}
+
+List<_DVBackendFunctionFile> _functionFilesIn({
+  required String projectRoot,
+  required String backendDir,
+  required String packageName,
+  required String? owner,
+}) {
+  final Directory functions = Directory(p.join(projectRoot, backendDir, 'functions'));
+  if (!functions.existsSync()) return const <_DVBackendFunctionFile>[];
+  final List<File> files = functions
+      .listSync(recursive: true, followLinks: false)
+      .whereType<File>()
+      .where((File file) => file.path.endsWith('.dart'))
+      .toList()
+    ..sort((File a, File b) => a.path.compareTo(b.path));
+  return <_DVBackendFunctionFile>[
+    for (final File file in files)
+      _DVBackendFunctionFile(
+        file: file,
+        relative: p.relative(file.path, from: projectRoot).replaceAll(r'\', '/'),
+        packageName: packageName,
+        backendDir: backendDir,
+        owner: owner,
+      ),
+  ];
+}
+
+/// The functions of every module this application's backend answers for.
+///
+/// Embedded and backend-only: both run inside the parent, so the parent is
+/// what serves them. Not split-backend or federated, whose functions are
+/// deployed as their own service -- building a second copy from the source
+/// beside the parent would answer with something nobody deployed, and would
+/// go on answering after the deployed one moved on.
+List<_DVBackendFunctionFile> _moduleFunctionFiles(String root) {
+  final List<_DVBackendFunctionFile> files = <_DVBackendFunctionFile>[];
+  for (final DVModuleMount mount in dvDiscoverModuleMounts(root)) {
+    if (!mount.mounted) continue;
+    if (mount.deployment != DVModuleDeployment.embedded &&
+        mount.deployment != DVModuleDeployment.backendOnly) {
+      continue;
+    }
+    final String projectRoot = p.join(root, mount.sourcePath);
+    files.addAll(_functionFilesIn(
+      projectRoot: projectRoot,
+      backendDir: dvProjectBackendDir(projectRoot),
+      packageName: mount.packageName,
+      owner: mount.id,
+    ));
+  }
+  return files;
+}
+
+/// Refuses two functions that would answer the same request.
+///
+/// A module's client asks for the module's own paths, because it was
+/// generated against its own project and knows nothing about a mount, so a
+/// module and the parent can both claim `/reindex`. One router can only have
+/// one of them: whichever lost would be a 404, or -- worse, because nothing
+/// looks wrong -- the other application's answer.
+void _refuseShadowedRoutes(List<_DVBackendFunctionFile> files) {
+  final Map<String, _DVBackendFunctionFile> claimed =
+      <String, _DVBackendFunctionFile>{};
+  for (final _DVBackendFunctionFile file in files) {
+    final String base = p.basenameWithoutExtension(file.relative);
+    final int dot = base.lastIndexOf('.');
+    final String method = dot == -1 ? 'post' : base.substring(dot + 1).toLowerCase();
+    final String path = RouteUtils.routeFromRel(file.relative, file.backendDir);
+    final String key = '$method $path';
+    final _DVBackendFunctionFile? first = claimed[key];
+    if (first == null) {
+      claimed[key] = file;
+      continue;
+    }
+    String name(_DVBackendFunctionFile f) =>
+        f.owner == null ? 'the application' : 'module ${f.owner}';
+    throw StateError(
+      'dartvel: ${name(first)} and ${name(file)} both answer '
+      '${method.toUpperCase()} $path. A mounted module keeps its own paths, '
+      'so one of them has to move: rename the function, or give the module '
+      'a route base of its own.',
+    );
+  }
+}
+
+/// The backend directory a project declares, or the default.
+String dvProjectBackendDir(String projectRoot) {
+  final File pubspec = File(p.join(projectRoot, 'pubspec.yaml'));
+  if (!pubspec.existsSync()) return 'lib/backend';
+  try {
+    final Object? doc = loadYaml(pubspec.readAsStringSync());
+    final Object? dartvel = doc is Map ? doc['dartvel'] : null;
+    final Object? declared = dartvel is Map ? dartvel['backendDir'] : null;
+    if (declared == null || '$declared'.trim().isEmpty) return 'lib/backend';
+    return '$declared'.trim();
+  } catch (_) {
+    return 'lib/backend';
+  }
 }
