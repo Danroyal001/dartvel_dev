@@ -31,7 +31,24 @@ void main() {
         reason: 'libobjc, AppKit and CoreGraphics must open on macOS');
   });
 
-  tearDownAll(DVMacosBindings.unregister);
+  // Instrumented, because this teardown fails on about one run in five with
+  // no error attached to it and nothing on stderr. If the body throws, this
+  // says so; if it does not, the failure is something the harness noticed at
+  // that point rather than anything unregister did, and the silence is the
+  // answer.
+  tearDownAll(() {
+    // ignore: avoid_print
+    print('tearDownAll: unregistering');
+    try {
+      DVMacosBindings.unregister();
+    } catch (error, stack) {
+      // ignore: avoid_print
+      print('tearDownAll: unregister threw $error\n$stack');
+      rethrow;
+    }
+    // ignore: avoid_print
+    print('tearDownAll: unregistered');
+  });
 
   group('dialogs', () {
     // The real panels, answered from their own modal loop the way a person
