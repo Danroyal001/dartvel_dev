@@ -5498,7 +5498,7 @@ class DV {
 
   /// Mounted Dartvel modules. The generator emits typed `DV.Modules.<id>`
   /// accessors on top of this registry, and `<id>Routes` for its pages.
-  static final DVModuleRegistry Modules = DVModuleRegistry();
+  static final DVModuleRegistry Modules = dvModuleRegistry;
 
   static final DVTransactionRunner _transactionRunner = DVTransactionRunner();
 
