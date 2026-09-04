@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 
 import 'file_image_unsupported.dart'
     if (dart.library.io) 'file_image_io.dart';
+import 'stored_image.dart';
 
 /// Renders a [DVImage] model field.
 ///
@@ -64,6 +65,8 @@ class DVImageView extends StatelessWidget {
         return AssetImage(image.reference);
       case DVImageSource.file:
         return fileImageProvider(image.reference);
+      case DVImageSource.stored:
+        return DVStoredImage(image.reference);
     }
   }
 }

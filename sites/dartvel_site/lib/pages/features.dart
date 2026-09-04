@@ -279,7 +279,7 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'between them and how they align along each axis -- so a design with '
     'twenty-four points between cards is drawn with twenty-four, not with the '
     'framework\'s default eight, and a bordered, faded box is drawn as one. '
-    'Everything the page draws is in the exported source, which is handed to '
+    'An image can be one the application holds rather than one it points at -- a key in file storage, read once however many times the page draws it -- so an imported design does not depend on somebody else\'s URL still working. Everything the page draws is in the exported source, which is handed to '
     'the analyzer in CI -- an export that compiles and looks wrong is found by '
     'whoever pressed export. Every mutation is also an edit another editor '
     'can apply. '
