@@ -225,16 +225,20 @@
       "status": "Shipped",
       "evidence": [
         "packages/dartvel_cli/lib/src/commands/import_command.dart",
+        "packages/dartvel_cli/lib/src/import/import_names.dart",
         "packages/dartvel_cli/lib/src/import/openapi_import.dart",
+        "packages/dartvel_cli/lib/src/import/postman_import.dart",
         "packages/dartvel_cli/test/import_command_test.dart",
+        "packages/dartvel_cli/test/import_names_test.dart",
         "packages/dartvel_cli/test/openapi_generator_test.dart",
         "packages/dartvel_cli/test/openapi_import_test.dart",
+        "packages/dartvel_cli/test/postman_import_test.dart",
         "packages/dartvel_core/lib/src/graphql/graphql.dart",
         "packages/dartvel_core/test/graphql_directives_test.dart",
         "packages/dartvel_core/test/graphql_subscriptions_test.dart",
         "packages/dartvel_core/test/graphql_test.dart"
       ],
-      "absent": "Built since: Dartvel reads an OpenAPI document as well as writing one. `dartvel import openapi <file|url>` turns a specification into ordinary source -- a private @DVModel per schema under lib/models/, a function per operation under lib/api/ with path parameters interpolated -- which is the direction people actually start from: an API exists, somebody hands you its spec, and the work is transcribing it by hand. A field the specification does not list in `required` is nullable, which is the difference between a model that matches the API and one that throws the first time a field is absent. A schema the importer cannot map is reported and skipped rather than emitted as `dynamic`: a guess that compiles is found at run time, and a line of output naming the schema is found now. Files already on disk are left alone unless --overwrite is passed, because an import that silently replaced an edited file is an import that gets run once."
+      "absent": "Built since: Dartvel reads an OpenAPI document as well as writing one. `dartvel import openapi <file|url>` turns a specification into ordinary source -- a private @DVModel per schema under lib/models/, a function per operation under lib/api/ with path parameters interpolated -- which is the direction people actually start from: an API exists, somebody hands you its spec, and the work is transcribing it by hand. A field the specification does not list in `required` is nullable, which is the difference between a model that matches the API and one that throws the first time a field is absent. A schema the importer cannot map is reported and skipped rather than emitted as `dynamic`: a guess that compiles is found at run time, and a line of output naming the schema is found now. Files already on disk are left alone unless --overwrite is passed, because an import that silently replaced an edited file is an import that gets run once. A Postman collection reads in too, because an OpenAPI document is the tidy case and what people are handed is very often somebody's export of the requests their team already makes. Requests become functions, folders are walked through, `:id` becomes a parameter that reaches the path, and Postman's {{baseUrl}} does not survive: the generated client knows where the API is, and left in it produces a request to a literal \"{{baseUrl}}/books\" that fails at run time and reads as a network problem. A collection carries no types, which is said once rather than discovered by looking in lib/models and finding nothing. Both importers share the writing half of the command and the naming rules -- two copies of the overwrite rule would be two chances to destroy somebody's edited file."
     },
     {
       "section": "Model Sync and Presence",

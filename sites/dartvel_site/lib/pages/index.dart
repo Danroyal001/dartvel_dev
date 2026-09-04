@@ -306,7 +306,8 @@ Widget _pillars(BuildContext context) => const Section(
           SiteCard(
             'Somebody else\'s API',
             'dartvel import openapi turns a specification into models and '
-            'typed calls, as ordinary files in your repository. A field the '
+            'typed calls, as ordinary files in your repository. Or import '
+            'postman, for the collection your team already has. A field the '
             'spec does not require comes out nullable.',
           ),
           SiteCard(
