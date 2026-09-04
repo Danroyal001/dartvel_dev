@@ -372,7 +372,12 @@ void main() {
     });
   });
 
-  group('dialogs', () {
+  // Tagged, and run as its own step. AppKit's panels are served by another
+  // process, and on a runner without a full window server session that
+  // process sometimes takes this one with it: the tester exits mid-run and
+  // package:test marks every test after it as failed, which is twenty
+  // results that say nothing. Isolated, a death here costs only these.
+  group('dialogs', tags: <String>['panels'], () {
     // The real panels, answered from their own modal loop the way a person
     // would. What is asserted is what the panel showed and what came back.
     late Directory dir;
