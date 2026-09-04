@@ -93,6 +93,12 @@ void main() {
         'device.watchdog.heartbeat',
         'device.fleet.provision',
         'device.diagnostics.collect',
+        // The serial port: opened, read with a timeout, written, closed.
+        'device.serial.ports',
+        'device.serial.open',
+        'device.serial.write',
+        'device.serial.read',
+        'device.serial.close',
         'deepLinks.initial',
         'media.pick',
         'permissions.isGranted',
