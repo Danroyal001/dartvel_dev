@@ -417,6 +417,24 @@ class DVStudioInspector extends StatelessWidget {
                 _parseProperty(property, value),
               ),
             ),
+          // How the box lays its children out. Not modifiers, so not in the
+          // list above; offered here for the same reason that one exists.
+          if (dvStudioLeafTypeFor(node) == null)
+            for (final property in dvStudioLayoutProperties)
+              _DVStudioField(
+                label: property.name,
+                hint: property.choices.isEmpty
+                    ? null
+                    : property.choices.join(' / '),
+                value: '${node.properties[property.name] ?? ''}',
+                onChanged: (String value) => controller.setProperty(
+                  node.id,
+                  property.name,
+                  property.kind == DVStudioPropertyKind.number
+                      ? num.tryParse(value)
+                      : (value.isEmpty ? null : value),
+                ),
+              ),
           _DVStudioField(
             label: 'navigate to',
             value: '${node.action?['to'] ?? ''}',

@@ -245,6 +245,29 @@ class DVPageDocument {
   static String _escape(String value) =>
       value.replaceAll(r'\', r'\\').replaceAll("'", r"\'");
 
+  /// The spacing and alignment arguments an exported box carries.
+  ///
+  /// Only what the document actually says. An export that wrote every
+  /// default out would turn a page nobody had styled into source full of
+  /// decisions nobody made.
+  String _layoutArgumentSource(Map<String, Object?> properties) {
+    final StringBuffer out = StringBuffer();
+    final Object? spacing = properties['spacing'];
+    if (spacing is num) out.write(', spacing: ${_tidySource(spacing)}');
+    final Object? main = properties['mainAxis'];
+    if (main is String && dvStudioAlignNames.contains(main)) {
+      out.write(', align: DVAlign.$main');
+    }
+    final Object? cross = properties['crossAxis'];
+    if (cross is String && dvStudioCrossAlignNames.contains(cross)) {
+      out.write(', crossAlign: DVCrossAlign.$cross');
+    }
+    return out.toString();
+  }
+
+  static String _tidySource(num value) =>
+      value == value.roundToDouble() ? '${value.toInt()}' : '$value';
+
   String _nodeSource(DVPageNode node, int depth) {
     final pad = '  ' * depth;
     String core;
@@ -257,15 +280,16 @@ class DVPageDocument {
             .map((DVPageNode c) => '\n$pad  ${_nodeSource(c, depth + 1)},')
             .join();
         final childList = children.isEmpty ? '[]' : '[$children\n$pad]';
+        final String layoutArgs = _layoutArgumentSource(node.properties);
         core = switch (node.layout) {
-          'row' => 'DVBox.row($childList)',
+          'row' => 'DVBox.row($childList$layoutArgs)',
           'grid' =>
             'DVBox.grid($childList, columns: ${node.properties['columns'] ?? 2})',
           'stack' => 'DVBox.stack($childList)',
           'single' => node.children.isEmpty
               ? 'DVBox(const SizedBox.shrink())'
               : 'DVBox(${_nodeSource(node.children.first, depth + 1)})',
-          _ => 'DVBox.list($childList)',
+          _ => 'DVBox.list($childList$layoutArgs)',
         };
     }
 
@@ -435,8 +459,17 @@ class DVPageDocumentRenderer extends StatelessWidget {
         final children = node.children
             .map((DVPageNode c) => _build(c, breakpoint))
             .toList(growable: false);
+        // How the children sit together, which a box could describe and not
+        // render: every list and row came out with the framework's default
+        // gap, packed to the start and stretched across, whatever the
+        // document said.
+        final double spacing = dvStudioSpacingOf(node.properties);
+        final DVAlign main = dvStudioAlignOf(node.properties['mainAxis']);
+        final DVCrossAlign cross =
+            dvStudioCrossAlignOf(node.properties['crossAxis']);
         built = switch (node.layout) {
-          'row' => DVBox.row(children),
+          'row' => DVBox.row(children,
+              spacing: spacing, align: main, crossAlign: cross),
           'grid' => DVBox.grid(
               children,
               columns: (node.properties['columns'] as num?)?.toInt() ?? 2,
@@ -445,7 +478,8 @@ class DVPageDocumentRenderer extends StatelessWidget {
           'single' => children.isEmpty
               ? const DVBox(SizedBox.shrink())
               : DVBox(children.first),
-          _ => DVBox.list(children),
+          _ => DVBox.list(children,
+              spacing: spacing, align: main, crossAlign: cross),
         };
     }
 
@@ -715,6 +749,83 @@ final List<DVStudioProperty> dvStudioProperties = <DVStudioProperty>[
   DVStudioProperty('card', DVStudioPropertyKind.flag,
       (m, v) => v == true ? m.card() : null),
 ];
+
+/// A property that is an argument to the box rather than a modifier on it.
+///
+/// These cannot live in [dvStudioProperties]: every entry there has to apply
+/// to a [DVModifier], and spacing is not something a modifier can express --
+/// it is how [DVBox] lays its children out. They are a list of their own
+/// rather than nothing, because a property the renderer honours and the
+/// inspector cannot offer is exactly the drift that list exists to prevent.
+class DVStudioLayoutProperty {
+  const DVStudioLayoutProperty(this.name, this.kind, {this.choices = const <String>[]});
+
+  final String name;
+  final DVStudioPropertyKind kind;
+  final List<String> choices;
+}
+
+/// How a box lays its children out, as the inspector offers it.
+final List<DVStudioLayoutProperty> dvStudioLayoutProperties =
+    <DVStudioLayoutProperty>[
+  const DVStudioLayoutProperty('spacing', DVStudioPropertyKind.number),
+  const DVStudioLayoutProperty('mainAxis', DVStudioPropertyKind.choice,
+      choices: dvStudioAlignNames),
+  const DVStudioLayoutProperty('crossAxis', DVStudioPropertyKind.choice,
+      choices: dvStudioCrossAlignNames),
+];
+
+/// The names [DVAlign] answers to in a page document.
+const List<String> dvStudioAlignNames = <String>[
+  'start',
+  'center',
+  'end',
+  'spaceBetween',
+  'spaceAround',
+  'spaceEvenly',
+];
+
+/// The names [DVCrossAlign] answers to.
+const List<String> dvStudioCrossAlignNames = <String>[
+  'stretch',
+  'start',
+  'center',
+  'end',
+];
+
+/// The gap a box leaves between its children.
+///
+/// Eight when unset, which is the framework's default and what every page
+/// rendered before this was read. Zero when the document says zero: a design
+/// with no gaps is a real design, and reading a deliberate zero as "unset" is
+/// the fallback that swallows it.
+double dvStudioSpacingOf(Map<String, Object?> properties) {
+  final Object? spacing = properties['spacing'];
+  return spacing is num ? spacing.toDouble() : 8;
+}
+
+/// [DVAlign] by name, defaulting to start.
+///
+/// A name that is not an alignment falls back rather than throwing.
+/// Documents are data: they are edited by hand and they arrive from imports,
+/// and a page that will not render because one word is misspelled is worse
+/// than a page laid out to the start.
+DVAlign dvStudioAlignOf(Object? name) => switch (name) {
+      'center' => DVAlign.center,
+      'end' => DVAlign.end,
+      'spaceBetween' => DVAlign.spaceBetween,
+      'spaceAround' => DVAlign.spaceAround,
+      'spaceEvenly' => DVAlign.spaceEvenly,
+      _ => DVAlign.start,
+    };
+
+/// [DVCrossAlign] by name, defaulting to stretch.
+DVCrossAlign dvStudioCrossAlignOf(Object? name) => switch (name) {
+      'start' => DVCrossAlign.start,
+      'center' => DVCrossAlign.center,
+      'end' => DVCrossAlign.end,
+      _ => DVCrossAlign.stretch,
+    };
 
 /// Stores documents through `DV.Database`, WordPress-style: page content is
 /// data, so saving is publishing.

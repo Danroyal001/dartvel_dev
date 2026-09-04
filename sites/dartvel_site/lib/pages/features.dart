@@ -275,7 +275,11 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'Visual builder, exports to code',
     'Pages are built from the same widgets the app renders, with drag-and-drop, '
     'an inspector, undo, mobile-first breakpoints and one-click export to an '
-    'ordinary @DVPage. Every mutation is also an edit another editor can apply. '
+    'ordinary @DVPage. A box carries how its children sit in it -- the gap '
+    'between them and how they align along each axis -- so a design with '
+    'twenty-four points between cards is drawn with twenty-four, not with the '
+    'framework\'s default eight. Every mutation is also an edit another editor '
+    'can apply. '
     'Pro adds what only matters with more than one person: Figma import, '
     'reusable components, revision history, multi-user editing with presence, '
     'roles, an audit trail and approval before a page goes live.',
