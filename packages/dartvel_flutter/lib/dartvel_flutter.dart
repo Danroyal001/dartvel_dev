@@ -22,6 +22,7 @@ import 'src/display_platform.dart'
     if (dart.library.js_interop) 'src/display_platform_web.dart'
     as display_platform;
 import 'src/kiosk/device_kiosk.dart';
+import 'src/modules/module_shell.dart';
 import 'src/platform/accelerator.dart';
 import 'src/platform/dialogs.dart';
 import 'src/platform/drag_drop.dart';
@@ -278,6 +279,7 @@ export 'src/kiosk/kiosk_host.dart';
 export 'src/kiosk/kiosk_keys.dart';
 export 'src/media/image_view.dart';
 export 'src/media/stored_image.dart';
+export 'src/modules/module_shell.dart';
 export 'src/modules/module_theme.dart';
 export 'src/platform/accelerator.dart';
 export 'src/platform/android/android_bindings.dart';
@@ -5972,7 +5974,13 @@ class _DVPageShellState extends State<DVPageShell> {
 
   @override
   Widget build(BuildContext context) {
-    if (!spec.scaffold || spec.shell == DVPageShellMode.none) {
+    // The module this page belongs to may have replaced its chrome or taken
+    // it away. Read here rather than passed in: the page widget between the
+    // router and this one is generated from the module's own project and
+    // knows nothing about being mounted.
+    if (!spec.scaffold ||
+        spec.shell == DVPageShellMode.none ||
+        !DVPageChrome.of(context)) {
       return _body(child);
     }
 

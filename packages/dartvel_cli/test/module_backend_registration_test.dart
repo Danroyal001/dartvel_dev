@@ -93,6 +93,7 @@ String read(Directory root, String name) =>
     File(p.join(root.path, 'lib', 'dartvel_client', name)).readAsStringSync();
 
 void main() {
+  _theShell();
   _theTheme();
   _theServerCalls();
   group('the registration a server can load', () {
@@ -227,5 +228,59 @@ void _theTheme() {
       expect(read(root, 'router.g.dart'), isNot(contains('dvModuleTheme')));
     });
 
+  });
+}
+
+// Appended: the shell mode reaching the router, the same way the theme does.
+void _theShell() {
+  group('a module with a shell mode of its own', () {
+    Directory withMode(String key, String mode) {
+      final Directory root = workspace();
+      final File pubspec = File(p.join(root.path, 'pubspec.yaml'));
+      pubspec.writeAsStringSync(
+        pubspec.readAsStringSync().replaceFirst(
+              '      data: schema-isolated',
+              '      data: schema-isolated\n      $key: $mode',
+            ),
+      );
+      return root;
+    }
+
+    test('its pages are wrapped', () async {
+      final Directory root = withMode('shell', 'none');
+      await generate(root);
+
+      expect(read(root, 'router.g.dart'),
+          contains("dvModuleShell(context, 'store'"));
+    });
+
+    test('an inheriting module is not wrapped', () async {
+      final Directory root = withMode('shell', 'inherit');
+      await generate(root);
+
+      expect(read(root, 'router.g.dart'), isNot(contains('dvModuleShell')));
+    });
+
+    test('both modes wrap, and in an order that puts the theme outside',
+        () async {
+      final Directory root = workspace();
+      final File pubspec = File(p.join(root.path, 'pubspec.yaml'));
+      pubspec.writeAsStringSync(
+        pubspec.readAsStringSync().replaceFirst(
+              '      data: schema-isolated',
+              '      data: schema-isolated\n      shell: override\n'
+                  '      theme: override',
+            ),
+      );
+      await generate(root);
+
+      final String router = read(root, 'router.g.dart');
+      // The module's chrome is built with the module's theme, which it can
+      // only be if the theme is the outer of the two. The other order gives
+      // a module a header painted in the application's colours above a page
+      // painted in its own.
+      expect(router.indexOf('dvModuleTheme'),
+          lessThan(router.indexOf('dvModuleShell')));
+    });
   });
 }

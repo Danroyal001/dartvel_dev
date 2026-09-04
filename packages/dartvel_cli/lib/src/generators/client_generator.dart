@@ -963,15 +963,21 @@ ${(() {
     // Independent and federated have their own session elsewhere, so the
     // parent's guard is not theirs to apply either.
     final String inheritedGuard = guardRedirectFor(pagesDir);
-    // The theme a module's pages render in, where the parent asked for one
-    // that is not its own. Only here: wrapping the parent's own pages in a
-    // module's look would be the mode applying to the wrong half of the
-    // application. Inherit emits nothing, because resolving to the parent's
-    // theme is what not wrapping already does, and a widget in the tree of
-    // every module page for that is a widget for nothing.
+    // The theme and the chrome a module's pages render in, where the parent
+    // asked for either. Only here: wrapping the parent's own pages would be
+    // the mode applying to the wrong half of the application. Inherit emits
+    // nothing, because that is what not wrapping already does.
+    //
+    // The theme is outside the chrome, and the order matters: the module's
+    // header is built with the module's theme only if the theme is the outer
+    // of the two. The other way round gives a module a header painted in the
+    // application's colours above a page painted in its own.
     String themed(DVModuleMount m, String child) => m.theme == 'inherit'
         ? child
         : "dvModuleTheme(context, '${esc(m.id)}', $child)";
+    String shelled(DVModuleMount m, String child) => m.shell == 'inherit'
+        ? child
+        : "dvModuleShell(context, '${esc(m.id)}', $child)";
     final moduleRoutesSrc = <String>[
       for (final DVModuleMount m in modules)
         if (m.compiledIntoParent)
@@ -980,7 +986,7 @@ ${(() {
     GoRoute(
       path: '${esc(r.mounted)}',
 ${m.auth == 'inherit' ? inheritedGuard : ''}      pageBuilder: (context, state) => NoTransitionPage<void>(
-        child: ${themed(m, 'const ${_moduleAlias(m.id)}.${r.widget}()')},
+        child: ${themed(m, shelled(m, 'const ${_moduleAlias(m.id)}.${r.widget}()'))},
       ),
     ),''',
     ].join('\n');

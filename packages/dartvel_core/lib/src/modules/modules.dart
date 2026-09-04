@@ -46,6 +46,27 @@ enum DVModuleThemeMode {
   isolated,
 }
 
+
+/// How a module's chrome combines with the application's.
+///
+/// `dartvel.modules.<id>.shell` in the parent's pubspec. Four different
+/// pictures on screen: the application's chrome, the module's inside it, the
+/// module's instead of the page's, or none -- which is what a kiosk screen or
+/// an embedded panel actually wants.
+enum DVModuleShellMode {
+  /// The page's own chrome, and nothing added. The default.
+  inherit,
+
+  /// The module's chrome around the page, keeping the page's own inside it.
+  extend,
+
+  /// The module's chrome in place of the page's.
+  override,
+
+  /// No chrome at all: the page's body and nothing around it.
+  none,
+}
+
 /// A mounted Dartvel module.
 ///
 /// A module is a full Dartvel application boundary configured under
@@ -150,6 +171,27 @@ class DVModule {
   }
 
 
+
+
+  /// How this module's chrome combines with the application's.
+  ///
+  /// Defaults to [DVModuleShellMode.inherit]. An unrecognised value is
+  /// refused rather than falling back, for the same reason [dataMode] and
+  /// [themeMode] refuse one.
+  DVModuleShellMode get shellMode {
+    final Object? declared = config['shell'];
+    if (declared == null) return DVModuleShellMode.inherit;
+    return switch ('$declared'.trim()) {
+      '' || 'inherit' => DVModuleShellMode.inherit,
+      'extend' => DVModuleShellMode.extend,
+      'override' => DVModuleShellMode.override,
+      'none' => DVModuleShellMode.none,
+      final String other => throw StateError(
+          'Module "$id" declares shell mode "$other", which is not one of '
+          'inherit, extend, override or none.',
+        ),
+    };
+  }
 
   /// How this module's look combines with the application's.
   ///
