@@ -53,6 +53,7 @@ Future<void> show(
 }
 
 void main() {
+  _onAPhone();
   group('what it renders', () {
     testWidgets('a header and every row', (WidgetTester tester) async {
       await show(tester);
@@ -214,6 +215,74 @@ void main() {
 
       expect(stateOf(tester).focusedRow, isNotNull,
           reason: 'a sort must not drop the keyboard position');
+    });
+  });
+}
+
+// Appended: the header on a phone.
+//
+// A header cell is Expanded, so on a narrow screen every column gets an equal
+// and small share of it. The label and the sort arrow sat in a Row that could
+// not shrink, so a column named anything longer than the share overflowed --
+// the yellow-and-black stripe, on the framework's own generated table. It
+// took down an Android integration suite about links, because integration_test
+// counts a layout error as a test failure, and nothing in the widget suite
+// had ever pumped a table narrower than the binding's 800x600 default.
+void _onAPhone() {
+  group('a header narrower than its label', () {
+    /// Sortable, so the arrow is there competing for the width, and long
+    /// enough that no phone column fits it.
+    List<DVTableColumn<Person>> columns() => <DVTableColumn<Person>>[
+          DVTableColumn<Person>(
+            label: 'Registered account holder',
+            value: (Person p) => p.name,
+            compare: (Person a, Person b) => a.name.compareTo(b.name),
+          ),
+          DVTableColumn<Person>(
+            label: 'Age at last birthday',
+            value: (Person p) => '${p.age}',
+            compare: (Person a, Person b) => a.age.compareTo(b.age),
+          ),
+        ];
+
+    testWidgets('ellipsises rather than overflowing',
+        (WidgetTester tester) async {
+      tester.view
+        ..physicalSize = const Size(1080, 2400)
+        ..devicePixelRatio = 2.625;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(body: DVTable<Person>(_people, columns: columns())),
+      ));
+      await tester.pumpAndSettle();
+
+      // A layout error arrives through FlutterError rather than by throwing
+      // where it happened, so this is how a test sees the stripe.
+      expect(tester.takeException(), isNull);
+      // And the header is still there: clipping it away entirely would pass
+      // this and leave a table with unlabelled columns.
+      expect(find.text('Registered account holder'), findsOneWidget);
+    });
+
+    testWidgets('and the sort arrow is not what got dropped',
+        (WidgetTester tester) async {
+      // The label shrinking must not push the arrow out: a sorted column
+      // whose direction is invisible is worse than an unsorted one.
+      tester.view
+        ..physicalSize = const Size(1080, 2400)
+        ..devicePixelRatio = 2.625;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(body: DVTable<Person>(_people, columns: columns())),
+      ));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Registered account holder'));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.byIcon(Icons.arrow_upward), findsOneWidget);
     });
   });
 }
