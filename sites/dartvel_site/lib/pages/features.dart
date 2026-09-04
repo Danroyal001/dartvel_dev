@@ -279,6 +279,10 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'between them and how they align along each axis -- so a design with '
     'twenty-four points between cards is drawn with twenty-four, not with the '
     'framework\'s default eight, and a bordered, faded box is drawn as one. '
+    'It says its padding on each of four sides, casts a shadow, and scrolls '
+    'its own axis -- a card padded 24 across and 32 down is drawn that way, '
+    'an elevated card is elevated, and a screen taller than the phone it runs '
+    'on scrolls instead of showing the overflow stripe. '
     'An image can be one the application holds rather than one it points at -- a key in file storage, read once however many times the page draws it -- so an imported design does not depend on somebody else\'s URL still working. Everything the page draws is in the exported source, which is handed to '
     'the analyzer in CI -- an export that compiles and looks wrong is found by '
     'whoever pressed export. Every mutation is also an edit another editor '
@@ -292,7 +296,10 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'alignment, strokes and fades and centred text survive, images are '
     'downloaded and kept rather than linked to URLs that expire, and a node '
     'keeps the size it was drawn at only where the designer fixed it -- so '
-    'the result is not pinned to the width of the artboard.',
+    'the result is not pinned to the width of the artboard. Padding arrives on '
+    'all four sides, shadows arrive, and a screen whose content runs past its '
+    'own frame scrolls: Figma positions everything absolutely, so the import '
+    'can measure that rather than guess at it.',
   ),
   (
     'Accessibility',
