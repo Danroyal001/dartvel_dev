@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
 
@@ -846,6 +847,42 @@ final List<DVStudioProperty> dvStudioProperties = <DVStudioProperty>[
       source: (v, p) => null,
       companionOf: 'shadowColor',
     ),
+  // A gradient is one decision made of three values: two colours and a
+  // direction. The first colour owns it, the way a border's colour owns its
+  // width -- applied separately, whichever ran last would paint a gradient
+  // from a colour to a default.
+  DVStudioProperty(
+    'gradientFrom',
+    DVStudioPropertyKind.colour,
+    (m, v, p) {
+      final LinearGradient? gradient = _gradientOf(v, p);
+      return gradient == null ? null : m.gradient(gradient);
+    },
+    source: (v, p) {
+      final LinearGradient? gradient = _gradientOf(v, p);
+      if (gradient == null) return null;
+      final Alignment begin = gradient.begin as Alignment;
+      final Alignment end = gradient.end as Alignment;
+      return '.gradient(LinearGradient('
+          'begin: Alignment(${begin.x}, ${begin.y}), '
+          'end: Alignment(${end.x}, ${end.y}), '
+          'colors: <Color>[Color(0x${_hex(gradient.colors.first)}), '
+          'Color(0x${_hex(gradient.colors.last)})]))';
+    },
+  ),
+  for (final String part in _gradientParts)
+    DVStudioProperty(
+      part,
+      part == 'gradientTo'
+          ? DVStudioPropertyKind.colour
+          : DVStudioPropertyKind.number,
+      (m, v, p) {
+        final LinearGradient? gradient = _gradientOf(p['gradientFrom'], p);
+        return gradient == null ? null : m.gradient(gradient);
+      },
+      source: (v, p) => null,
+      companionOf: 'gradientFrom',
+    ),
   DVStudioProperty('color', DVStudioPropertyKind.colour,
       (m, v, p) => _colour(m, v, (m, v) => m.color(v)),
       source: (v, p) => _colourSource('color', v)),
@@ -939,6 +976,36 @@ String _hex(Color colour) =>
     (colour.toARGB32() & 0xFFFFFFFF).toRadixString(16).padLeft(8, '0').toUpperCase();
 
 
+
+
+/// The parts of a gradient that are not the colour it starts from.
+const List<String> _gradientParts = <String>['gradientTo', 'gradientAngle'];
+
+/// The gradient [from] and [properties] describe, or null when there is not
+/// one.
+///
+/// Two colours or nothing: a gradient from a colour to a default is not
+/// something a designer drew, and painting one would replace the flat
+/// background of every box that named a single colour by mistake.
+///
+/// The angle is degrees clockwise from the top, which is how a design tool
+/// states it: nothing runs the gradient down the box, ninety runs it left to
+/// right.
+LinearGradient? _gradientOf(Object? from, Map<String, Object?> properties) {
+  final Color? start = parseDocumentColor(from);
+  final Color? end = parseDocumentColor(properties['gradientTo']);
+  if (start == null || end == null) return null;
+  final Object? declared = properties['gradientAngle'];
+  final double radians =
+      (declared is num ? declared.toDouble() : 0) * math.pi / 180;
+  final double dx = math.sin(radians);
+  final double dy = math.cos(radians);
+  return LinearGradient(
+    begin: Alignment(-dx, -dy),
+    end: Alignment(dx, dy),
+    colors: <Color>[start, end],
+  );
+}
 
 /// The parts of a shadow that are not its colour.
 const List<String> _shadowParts = <String>[
