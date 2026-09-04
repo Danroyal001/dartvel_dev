@@ -384,9 +384,19 @@ jobs:
       # with nothing failing in it, which says the wrong thing about the code
       # and hides the run where something really does fail. A test failing
       # still fails the step; a process that will not exit is a warning.
+      # In two steps, and the panels are the second. They are served by
+      # another process, and on a runner without a full window server session
+      # that process sometimes takes the tester with it -- package:test then
+      # marks every test after it as failed, so a wobble in the file chooser
+      # threw away twenty results about the clipboard, the tray, printing and
+      # the serial port. Isolated, it costs only its own.
       - name: Run the macOS suite
         working-directory: packages/dartvel_flutter
-        run: python3 ../../tool/ci/live_suite.py flutter test test/macos_bindings_live_test.dart
+        run: python3 ../../tool/ci/live_suite.py flutter test test/macos_bindings_live_test.dart --exclude-tags panels
+
+      - name: Run the macOS panels
+        working-directory: packages/dartvel_flutter
+        run: python3 ../../tool/ci/live_suite.py flutter test test/macos_bindings_live_test.dart --tags panels
       # window.displays through CGGetActiveDisplayList, against the runner's
       # own display: at least one, a main, a real size in points.
       - name: Display enumeration
