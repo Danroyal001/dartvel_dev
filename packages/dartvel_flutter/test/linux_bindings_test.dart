@@ -106,6 +106,9 @@ void main() {
         'bluetooth.scanDevices',
         'bluetooth.adapters',
         'bluetooth.devices',
+        // neard: the reader, and the tag on it.
+        'nfc.isAvailable',
+        'nfc.readTag',
         'deepLinks.initial',
         'media.pick',
         'permissions.isGranted',
