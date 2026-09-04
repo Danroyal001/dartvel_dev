@@ -80,6 +80,7 @@ class DVModuleMount {
     this.inSitemap = true,
     this.location,
     this.backend,
+    this.mounted = true,
     this.shell = 'inherit',
     this.auth = 'inherit',
     this.theme = 'inherit',
@@ -147,6 +148,15 @@ class DVModuleMount {
   /// parent's: the `backend` a split-backend module declares.
   final String? backend;
 
+  /// Whether the parent could honour the declaration at all.
+  ///
+  /// False when there is no project at the source path, or when a federated
+  /// module's manifest is missing or will not verify. Distinct from having
+  /// no routes: a backend-only module has none by design and is mounted.
+  /// The declaration said to mount this, and a build that could not must
+  /// say so rather than shipping an application without the section.
+  final bool mounted;
+
   /// How much of the parent's shell the module's pages sit inside:
   /// `inherit`, `extend`, `override` or `none`.
   final String shell;
@@ -209,6 +219,7 @@ List<DVModuleMount> dvDiscoverModuleMounts(String root) {
         mount: mount,
         sourcePath: '',
         deployment: deployment,
+        mounted: false,
         routes: const <DVModuleRoute>[],
         inSitemap: inSitemap,
         backend: modes.backend,
@@ -230,6 +241,7 @@ List<DVModuleMount> dvDiscoverModuleMounts(String root) {
         mount: mount,
         sourcePath: sourcePath,
         deployment: deployment,
+        mounted: false,
         routes: const <DVModuleRoute>[],
         inSitemap: inSitemap,
         backend: modes.backend,
@@ -318,6 +330,7 @@ DVModuleMount _federated({
         mount: mount,
         sourcePath: '${body['source'] is Map ? (body['source']! as Map)['path'] ?? '' : ''}',
         deployment: DVModuleDeployment.federated,
+        mounted: false,
         routes: const <DVModuleRoute>[],
         inSitemap: inSitemap,
         backend: modes.backend,
