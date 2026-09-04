@@ -232,11 +232,12 @@ class DVMacosDialogs {
     try {
       return _o.getInt(panel, 'runModal');
     } finally {
-      // A panel whose modal session was stopped from code is still an open
-      // window: it stays on screen, and it stays in the application's window
-      // list, where the next thing to ask "does this application have a
-      // window?" gets the wrong answer.
-      _o.send0(panel, 'close');
+      // A panel whose modal session was stopped from code is still on
+      // screen, and still a visible window of this application. Ordered out
+      // rather than closed: closing a panel served by another process is not
+      // something to do from under its own modal loop, and ordering it out is
+      // what AppKit's own documentation says to do once runModal returns.
+      _o.send1(panel, 'orderOut:', nullptr);
       _current = null;
     }
   }
@@ -260,7 +261,7 @@ class DVMacosDialogs {
       // The alert's window, not the alert: NSAlert is not a window and does
       // not answer `close`.
       final Pointer<Void> window = o.send0(alert, 'window');
-      if (window != nullptr) o.send0(window, 'close');
+      if (window != nullptr) o.send1(window, 'orderOut:', nullptr);
       _current = null;
     }
   }

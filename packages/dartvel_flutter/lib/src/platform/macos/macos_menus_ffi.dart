@@ -35,6 +35,8 @@ typedef _SendIntD = void Function(Pointer<Void>, Pointer<Void>, int);
 typedef _SendBoolN = Void Function(Pointer<Void>, Pointer<Void>, Bool);
 typedef _SendBoolD = void Function(Pointer<Void>, Pointer<Void>, bool);
 typedef _GetIntN = Int64 Function(Pointer<Void>, Pointer<Void>);
+typedef _GetBoolN = Bool Function(Pointer<Void>, Pointer<Void>);
+typedef _GetBoolD = bool Function(Pointer<Void>, Pointer<Void>);
 typedef _GetIntD = int Function(Pointer<Void>, Pointer<Void>);
 typedef _GetAtN = Pointer<Void> Function(Pointer<Void>, Pointer<Void>, Int64);
 typedef _GetAtD = Pointer<Void> Function(Pointer<Void>, Pointer<Void>, int);
@@ -92,6 +94,12 @@ class DVMacosObjc {
   void sendInt(Pointer<Void> r, String s, int a) => objc.lookupFunction<_SendIntN, _SendIntD>('objc_msgSend')(r, sel(s), a);
   void sendBool(Pointer<Void> r, String s, bool a) => objc.lookupFunction<_SendBoolN, _SendBoolD>('objc_msgSend')(r, sel(s), a);
   int getInt(Pointer<Void> r, String s) => objc.lookupFunction<_GetIntN, _GetIntD>('objc_msgSend')(r, sel(s));
+
+  /// A BOOL-returning message. Read as a byte, because that is what the
+  /// runtime returns and reading it as an int picks up whatever is in the
+  /// rest of the register.
+  bool getBool(Pointer<Void> r, String s) =>
+      objc.lookupFunction<_GetBoolN, _GetBoolD>('objc_msgSend')(r, sel(s));
   Pointer<Void> getAt(Pointer<Void> r, String s, int i) => objc.lookupFunction<_GetAtN, _GetAtD>('objc_msgSend')(r, sel(s), i);
 
   /// The titles of [menu]'s items.

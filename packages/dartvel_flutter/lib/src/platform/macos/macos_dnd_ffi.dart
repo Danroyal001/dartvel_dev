@@ -90,8 +90,20 @@ class DVMacosDragDrop {
     Pointer<Void> window = o.send0(app, 'mainWindow');
     if (window == nullptr) {
       final Pointer<Void> windows = o.send0(app, 'windows');
-      if (windows == nullptr || o.getInt(windows, 'count') == 0) return null;
-      window = o.getAt(windows, 'objectAtIndex:', 0);
+      final int count = windows == nullptr ? 0 : o.getInt(windows, 'count');
+      window = nullptr;
+      for (var i = 0; i < count; i++) {
+        final Pointer<Void> candidate = o.getAt(windows, 'objectAtIndex:', i);
+        // Visible, because a drop lands on something the pointer is over.
+        // The first window of any kind is not that: a panel that has been
+        // ordered out, or a status item's window, is in this list and cannot
+        // be dropped on.
+        if (candidate != nullptr && o.getBool(candidate, 'isVisible')) {
+          window = candidate;
+          break;
+        }
+      }
+      if (window == nullptr) return null;
     }
     final Pointer<Void> view = o.send0(window, 'contentView');
     return view == nullptr ? null : view;
