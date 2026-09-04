@@ -15,7 +15,7 @@ class DVWindowsBindings {
 
   static bool register() => false;
 
-  static void unregister() {}
+  static Future<void> unregister() async {}
 }
 
 /// The Windows kiosk enforcement, unavailable here.

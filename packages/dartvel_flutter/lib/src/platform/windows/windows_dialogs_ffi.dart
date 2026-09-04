@@ -475,7 +475,13 @@ class DVWindowsDialogs {
   static String _commDlgText(int hwnd, int message) {
     final Pointer<Uint16> buffer = calloc<Uint16>(_maxPath);
     try {
-      _send(hwnd, message, _maxPath, buffer.address);
+      // CDM_ messages go to the dialog box, and the window a hook procedure
+      // is handed is the child dialog inside it. Sent to the child they are
+      // answered with nothing -- which reads as "the dialog is showing no
+      // folder" rather than as a message that went to the wrong window.
+      final int parent = _user32.lookupFunction<IntPtr Function(IntPtr),
+          int Function(int)>('GetParent')(hwnd);
+      _send(parent == 0 ? hwnd : parent, message, _maxPath, buffer.address);
       return buffer.cast<Utf16>().toDartString();
     } finally {
       calloc.free(buffer);

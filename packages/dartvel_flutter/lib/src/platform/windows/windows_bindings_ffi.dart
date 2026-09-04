@@ -6,7 +6,7 @@
 /// application can call it unconditionally at startup.
 library dartvel_flutter.platform.windows.ffi;
 
-import 'dart:async' show unawaited;
+
 import 'dart:ffi';
 import 'dart:io' show Platform;
 
@@ -159,9 +159,16 @@ class DVWindowsBindings {
     return true;
   }
 
-  static void unregister() {
+  /// Lets go of everything this platform holds.
+  ///
+  /// Awaited rather than fired off, because the shortcut pump is an isolate
+  /// with an open port: left running, it keeps the Dart VM alive, and a test
+  /// process that has finished its tests and cannot exit looks exactly like
+  /// one that hung in a test.
+  static Future<void> unregister() async {
     if (_registered) {
-      unawaited(DVWindowsKiosk.release().then((_) => DVWindowsShortcuts.unregister()));
+      await DVWindowsKiosk.release();
+      await DVWindowsShortcuts.unregister();
       DVWindowsMenus.unregister();
       DVWindowsTray.unregister();
       DVWindowsDialogs.unregister();
