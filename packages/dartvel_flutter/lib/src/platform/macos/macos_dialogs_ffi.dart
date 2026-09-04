@@ -238,6 +238,7 @@ class DVMacosDialogs {
       // something to do from under its own modal loop, and ordering it out is
       // what AppKit's own documentation says to do once runModal returns.
       _o.send1(panel, 'orderOut:', nullptr);
+      _disarmTimer();
       _current = null;
     }
   }
@@ -262,6 +263,7 @@ class DVMacosDialogs {
       // not answer `close`.
       final Pointer<Void> window = o.send0(alert, 'window');
       if (window != nullptr) o.send1(window, 'orderOut:', nullptr);
+      _disarmTimer();
       _current = null;
     }
   }
@@ -270,7 +272,28 @@ class DVMacosDialogs {
 
   /// A one-shot timer in the modal panel mode, targeting the menu's object
   /// under an action that hands the current dialog to the automation.
+  /// The timer armed for the dialog now running, so it can be taken off the
+  /// run loop when that dialog is done with.
+  static Pointer<Void>? _timer;
+
+  /// Takes the armed timer off the run loop.
+  ///
+  /// Every panel armed one and none of them were ever invalidated, so they
+  /// accumulated in the modal-panel run-loop mode and every one of them fired
+  /// during the *next* dialog -- each calling an automation written for a
+  /// dialog that had already been answered. A closure expecting an open panel
+  /// inspecting a save panel, or answering a modal session that had already
+  /// ended, is an Objective-C exception, and it takes the process with it
+  /// after the tests have reported passing.
+  static void _disarmTimer() {
+    final Pointer<Void>? timer = _timer;
+    if (timer == null) return;
+    _o.send0(timer, 'invalidate');
+    _timer = null;
+  }
+
   static void _armTimer() {
+    _disarmTimer();
     if (_automation == null) return;
     final DVMacosObjc o = _o;
     final Pointer<Void> target = DVMacosMenus.ensureTarget();
@@ -300,6 +323,7 @@ class DVMacosDialogs {
     // panels that run in it.
     final Pointer<Void> mode = _appKit.lookup<Pointer<Void>>('NSModalPanelRunLoopMode').value;
     _objc!.lookupFunction<_Send2N, _Send2D>('objc_msgSend')(loop, o.sel('addTimer:forMode:'), timer, mode);
+    _timer = timer;
   }
 
   static DVMacosDialogSeen _inspect(Pointer<Void> panel, _DialogKind kind) {
@@ -391,6 +415,7 @@ class DVMacosDialogs {
   }
 
   static void unregister() {
+    _disarmTimer();
     _automation = null;
   }
 }
