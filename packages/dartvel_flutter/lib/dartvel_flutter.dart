@@ -6873,9 +6873,42 @@ String dvDeviceTypeFor({
 /// reaching up into the framework would be the dependency the other way
 /// round.
 extension DVModuleGlobals on DVModule {
-  /// Registers [instance] in this module's namespace, or reads what is
-  /// there. Reading something never registered throws, as it does for the
+  /// Registers [instance] in this module's namespace, or reads what the
+  /// module shares.
+  ///
+  /// This accessor is the view from outside the module, so what it can read
+  /// is what the declarations say crosses the boundary: a global the module
+  /// exports, out of the module's own registry, or one the parent lets it
+  /// inherit, out of the application's. Anything else throws naming the
+  /// declaration that would allow it -- module code reading its own private
+  /// globals asks its own registry directly.
+  ///
+  /// Reading something never registered throws too, as it does for the
   /// application's own globals: a null that spreads is worse than a mistake
   /// seen where it is made.
-  T global<T>([T? instance]) => DV.global<T>(instance, id);
+  T global<T>([T? instance]) {
+    if (instance != null) return DV.global<T>(instance, id);
+    final String name = dvGlobalName(T);
+    if (exportedGlobals.contains(name)) return DV.global<T>(null, id);
+    // What is inherited comes from the parent by definition; a module's own
+    // value of that type is not what the declaration asked for.
+    if (inheritedGlobals.contains(name)) return DV.global<T>(null);
+    throw StateError(
+      'Global $name of type $T is not shared by module $id. A module\'s '
+      'globals are its own: add globals: { export: [$name] } under '
+      'dartvel.module in the module\'s pubspec.yaml to share it, or '
+      'globals: { inherit: [$name] } under dartvel.modules.$id in this '
+      'application\'s pubspec.yaml to hand this one down to it.',
+    );
+  }
+}
+
+/// The name a global is declared by: the lowerCamel form of its type.
+///
+/// `export: [cart]` names `Cart`, which is how the declaration reads in the
+/// specification and how anyone would write it down.
+String dvGlobalName(Type type) {
+  final String name = type.toString().split('<').first.trim();
+  if (name.isEmpty) return name;
+  return name[0].toLowerCase() + name.substring(1);
 }
