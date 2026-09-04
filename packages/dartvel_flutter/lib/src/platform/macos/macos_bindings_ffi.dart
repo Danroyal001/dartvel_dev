@@ -24,6 +24,7 @@ import 'package:ffi/ffi.dart';
 import '../../../dartvel_flutter.dart' show DVAppLaunch, DVNativeBridge;
 import '../desktop_permissions.dart';
 import '../device_runtime.dart';
+import 'macos_associations_ffi.dart';
 import 'macos_capabilities.dart';
 import 'macos_device_ffi.dart';
 import 'macos_dialogs_ffi.dart';
@@ -35,6 +36,7 @@ import 'macos_serial.dart';
 import 'macos_shortcuts_ffi.dart';
 import 'macos_tray_ffi.dart';
 
+export 'macos_associations_ffi.dart' show DVMacosAssociations;
 export 'macos_device_ffi.dart' show DVMacosDeviceProbes;
 export 'macos_dialogs_ffi.dart' show DVMacosDialog, DVMacosDialogAutomation, DVMacosDialogSeen, DVMacosDialogs;
 export 'macos_dnd_ffi.dart' show DVMacosDragDrop;
@@ -125,6 +127,21 @@ class DVMacosBindings {
     DVMacosPrinting.register(DVNativeBridge.register);
     DVMacosDialogs.register(DVNativeBridge.register, objc: _objc);
     DVMacosDragDrop.register(DVNativeBridge.register, objc: _objc);
+    // CoreFoundation for the strings and the bundle, LaunchServices (inside
+    // CoreServices) for the handler calls.
+    try {
+      DVMacosAssociations.register(
+        DVNativeBridge.register,
+        coreFoundation: DynamicLibrary.open(
+            '/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation'),
+        services: DynamicLibrary.open(
+            '/System/Library/Frameworks/CoreServices.framework/CoreServices'),
+      );
+    } on ArgumentError {
+      // A macOS without CoreServices is not a macOS, but a binding that
+      // could not open its framework is better unregistered than registered
+      // and throwing on the first call.
+    }
     DVNativeBridge.register('deepLinks.initial', (Object? _) => DVAppLaunch.initialLink);
     DVNativeBridge.register('permissions.isGranted', DVDesktopPermissions.answer);
     DVNativeBridge.register('permissions.request', DVDesktopPermissions.answer);

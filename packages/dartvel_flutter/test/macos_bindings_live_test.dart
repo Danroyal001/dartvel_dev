@@ -537,4 +537,49 @@ void main() {
       throwsA(isA<Object>()),
     );
   });
+
+  group('file associations', () {
+    // LaunchServices, for real. A tester is not an application bundle, so
+    // what can be proved here is the reading -- which type macOS knows an
+    // extension by, and which application it hands it to -- and that asking
+    // to register from a process with no bundle is refused with a reason
+    // rather than answered yes.
+    setUp(DVMacosAssociations.reset);
+
+    test('the desktop is asked who opens a type, and answers', () async {
+      // Every macOS has a handler for plain text. A null here would mean the
+      // extension never became a type, or the copy came back empty -- both
+      // of which look identical to "nothing is registered" from Dart.
+      final String? handler = await DV.Platform.associations.handlerFor('txt');
+
+      expect(handler, isNotNull);
+      expect(handler, contains('.'),
+          reason: 'a handler is a bundle identifier, e.g. com.apple.TextEdit');
+    });
+
+    test('an extension nothing has ever claimed has no handler', () async {
+      expect(
+          await DV.Platform.associations.handlerFor('dartvelnotathing'), isNull);
+    });
+
+    test('a process with no bundle is refused, and says why', () async {
+      // The failure this guards is the opposite: an application that
+      // believes it registered and opens nothing. flutter_test runs as a
+      // plain process, so there is no bundle for LaunchServices to point at.
+      expect(DVMacosAssociations.bundleIdentifier, isNull,
+          reason: 'the tester is not an application bundle');
+
+      final bool registered = await DV.Platform.associations.register(
+        const <DVFileType>[
+          DVFileType(
+            mimeType: 'application/x-dartvel-live-test',
+            extensions: <String>['dartvellive'],
+          ),
+        ],
+      );
+
+      expect(registered, isFalse);
+      expect(DVMacosAssociations.lastError, contains('bundle'));
+    });
+  });
 }

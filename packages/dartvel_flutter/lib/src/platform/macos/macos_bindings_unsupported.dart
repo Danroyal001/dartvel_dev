@@ -107,3 +107,19 @@ class DVMacosDragDrop {
   static DVDropEvent eventFrom(Object? pasteboard, {double x = 0, double y = 0}) => const DVDropEvent();
   static void unregister() {}
 }
+
+/// The macOS file associations, unavailable here.
+class DVMacosAssociations {
+  const DVMacosAssociations._();
+
+  static const Set<String> implemented = <String>{
+    'associations.register',
+    'associations.unregister',
+    'associations.handlerFor',
+  };
+
+  static String? lastError;
+  static String? get bundleIdentifier => null;
+  static String? handlerFor(String extension) => null;
+  static void reset() {}
+}
