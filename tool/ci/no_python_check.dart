@@ -49,7 +49,11 @@ void main(List<String> arguments) {
     if (!file.existsSync()) continue;
     final List<String> lines = file.readAsLinesSync();
     for (int i = 0; i < lines.length; i++) {
-      if (!lines[i].contains('python3')) continue;
+      final String line = lines[i];
+      // A comment is prose, and the rule itself has to be able to name the
+      // thing it forbids. A command never lives in one.
+      if (line.trimLeft().startsWith('#')) continue;
+      if (!line.contains('python3')) continue;
       problems.add('$path:${i + 1} runs python3. Write a Dart program under '
           'tool/ci/ and call it with `dart tool/ci/<name>.dart`.');
     }
