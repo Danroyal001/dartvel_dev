@@ -99,6 +99,8 @@ void main() {
         'device.serial.write',
         'device.serial.read',
         'device.serial.close',
+        // What is plugged into the bus.
+        'device.usb.devices',
         'deepLinks.initial',
         'media.pick',
         'permissions.isGranted',

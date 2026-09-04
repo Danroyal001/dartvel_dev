@@ -19,6 +19,7 @@ import 'linux_printing_ffi.dart';
 import 'linux_serial_ffi.dart';
 import 'linux_shortcuts_ffi.dart';
 import 'linux_tray_dbus.dart';
+import 'linux_usb.dart';
 
 // --- libX11 ------------------------------------------------------------------
 
@@ -207,6 +208,7 @@ class DVLinuxBindings {
     'device.serial.write',
     'device.serial.read',
     'device.serial.close',
+    'device.usb.devices',
     'deepLinks.initial',
     'media.pick',
     'permissions.isGranted',
@@ -309,6 +311,7 @@ class DVLinuxBindings {
     DVLinuxTray.register(DVNativeBridge.register);
     DVLinuxDevice.register(DVNativeBridge.register);
     DVLinuxSerial.register(DVNativeBridge.register);
+    DVLinuxUsb.register(DVNativeBridge.register);
     // A desktop deep link arrives as a launch argument; the launch keeps
     // the first one. The stream is fed by the launch as well.
     DVNativeBridge.register('deepLinks.initial', (Object? _) => DVAppLaunch.initialLink);
