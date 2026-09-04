@@ -141,8 +141,16 @@ void main() {
     // emits, and nothing emitted them: the registry was empty in every
     // application, so DV.Modules.store threw for a module the build had
     // just mounted.
+    // Both files: the registration is in modules_data.g.dart, which imports
+    // core alone so the backend can load it, and the typed accessors stay in
+    // modules.g.dart, which is Flutter because a route target is.
     String modulesFile() =>
-        File(p.join(lastParent!.path, 'lib', 'dartvel_client', 'modules.g.dart')).readAsStringSync();
+        File(p.join(lastParent!.path, 'lib', 'dartvel_client',
+                'modules_data.g.dart'))
+            .readAsStringSync() +
+        File(p.join(lastParent!.path, 'lib', 'dartvel_client',
+                'modules.g.dart'))
+            .readAsStringSync();
 
     test('each mounted module is registered with its id and mount point', () async {
       await generateParent();

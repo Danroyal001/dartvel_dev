@@ -92,8 +92,13 @@ Future<String> generatedRegistry(Directory root) async {
     ota: false,
     dv: YamlMap(),
   );
-  return File(p.join(root.path, 'lib', 'dartvel_client', 'modules.g.dart'))
-      .readAsStringSync();
+  // Both files: the registration is in modules_data.g.dart, which imports
+  // core alone so the backend can load it, and the typed accessors stay in
+  // modules.g.dart, which is Flutter because a route target is.
+  return File(p.join(root.path, 'lib', 'dartvel_client', 'modules_data.g.dart'))
+          .readAsStringSync() +
+      File(p.join(root.path, 'lib', 'dartvel_client', 'modules.g.dart'))
+          .readAsStringSync();
 }
 
 void main() {
