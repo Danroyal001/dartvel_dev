@@ -276,6 +276,7 @@ export 'src/kiosk/kiosk.dart';
 export 'src/kiosk/kiosk_host.dart';
 export 'src/kiosk/kiosk_keys.dart';
 export 'src/media/image_view.dart';
+export 'src/media/stored_image.dart';
 export 'src/platform/accelerator.dart';
 export 'src/platform/android/android_bindings.dart';
 export 'src/platform/desktop_permissions.dart';

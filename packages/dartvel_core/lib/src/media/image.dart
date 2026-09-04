@@ -8,6 +8,16 @@ enum DVImageSource {
 
   /// A path on the local filesystem. Not available on the web.
   file,
+
+  /// A key in `DV.FileStorage`: bytes the application holds itself.
+  ///
+  /// The other three name something outside the application -- an address, a
+  /// bundled file, a path on a disk. This one does not, which is what an
+  /// imported design needs: a Figma import writes the URL Figma hands back,
+  /// those expire, and a page that looked right on the day it was imported
+  /// shows broken images a fortnight later. Stored bytes have nothing to
+  /// expire, need no build step, and work wherever the storage adapter does.
+  stored,
 }
 
 /// An image held by a model field.
@@ -80,6 +90,19 @@ class DVImage {
           height: height,
         );
 
+  const DVImage.stored(
+    String key, {
+    String? alt,
+    int? width,
+    int? height,
+  }) : this(
+          source: DVImageSource.stored,
+          reference: key,
+          alt: alt,
+          width: width,
+          height: height,
+        );
+
   /// Reads an image from a model's JSON.
   ///
   /// A bare string is accepted and read as a network URL, because that is what
@@ -111,7 +134,6 @@ class DVImage {
     final source = DVImageSource.values.where(
       (DVImageSource value) => value.name == sourceName,
     );
-
     return DVImage(
       source: source.isEmpty ? DVImageSource.network : source.first,
       reference: reference,
