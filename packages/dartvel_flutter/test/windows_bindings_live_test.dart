@@ -220,7 +220,14 @@ void main() {
         reason: 'user32 and kernel32 must open on Windows');
   });
 
-  tearDownAll(DVWindowsBindings.unregister);
+  tearDownAll(() async {
+    await DVWindowsBindings.unregister();
+    // Printed because the alternative diagnosis -- a suite that reported
+    // every test passing and then sat until the step's cap -- looks the same
+    // whether the teardown ran or not.
+    // ignore: avoid_print
+    print('the Win32 bindings were released');
+  });
 
   test('a clipboard round trip survives non-ASCII text', () async {
     // The point of CF_UNICODETEXT over the ANSI format: anything outside the

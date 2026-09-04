@@ -53,6 +53,7 @@ class DVWindowsShortcuts {
   static const Set<String> implemented = <String>{'shortcuts.register', 'shortcuts.unregister'};
 
   static ReceivePort? _fromPump;
+  static Isolate? _pump;
   static int? _pumpThread;
   static int _nextId = _firstId;
   static final Map<String, int> _ids = <String, int>{};
@@ -134,7 +135,8 @@ class DVWindowsShortcuts {
       }
     });
     _fromPump = fromPump;
-    await Isolate.spawn(_pumpMain, fromPump.sendPort, debugName: 'dartvel-shortcuts');
+    _pump = await Isolate.spawn(_pumpMain, fromPump.sendPort,
+        debugName: 'dartvel-shortcuts');
     _pumpThread = await ready.future;
   }
 
@@ -156,6 +158,13 @@ class DVWindowsShortcuts {
           int Function(int, int, int, int)>('PostThreadMessageW')(thread, _wmQuit, 0, 0);
     }
     _pumpThread = null;
+    // And killed, not merely asked. A live isolate keeps the process alive
+    // whatever its ports are doing, and PostThreadMessage can be refused --
+    // a thread with no message queue yet has nowhere to put WM_QUIT -- so an
+    // application that let go of its shortcuts could still be unable to
+    // exit, which from the outside is indistinguishable from a hang.
+    _pump?.kill(priority: Isolate.immediate);
+    _pump = null;
     _fromPump?.close();
     _fromPump = null;
   }
