@@ -38,6 +38,13 @@ const Set<String> dvAndroidImplementedBindings = <String>{
 
   // Intent.ACTION_SEND through a chooser.
   'share.text',
+
+  // Lock task mode, held on the running Activity. Reached through
+  // Application.registerActivityLifecycleCallbacks, because the application
+  // Context that package:jni hands back is not an Activity and lock task is
+  // an Activity's.
+  'kiosk.enforce',
+  'kiosk.release',
 };
 
 /// `Intent.FLAG_ACTIVITY_NEW_TASK`.
