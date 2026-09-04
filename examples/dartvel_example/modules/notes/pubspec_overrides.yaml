@@ -1,0 +1,17 @@
+# Local development only. pub reads this and never publishes it.
+#
+# A module is a complete Dartvel project: the specification says it runs on
+# its own at `/` and answers under whatever the parent gives it when mounted.
+# Without this it did neither on its own -- `pub get` inside the module failed
+# with "dartvel_flutter from path depends on dartvel_core from hosted", so the
+# one module in the repository could not be resolved, run, or asked for its
+# own manifest except through its parent.
+dependency_overrides:
+  dartvel_core:
+    path: ../../../../packages/dartvel_core
+  dartvel_flutter:
+    path: ../../../../packages/dartvel_flutter
+  dartvel_cli:
+    path: ../../../../packages/dartvel_cli
+  dartvel_shelf:
+    path: ../../../../packages/dartvel_shelf
