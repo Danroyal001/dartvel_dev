@@ -283,9 +283,16 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'the analyzer in CI -- an export that compiles and looks wrong is found by '
     'whoever pressed export. Every mutation is also an edit another editor '
     'can apply. '
-    'Pro adds what only matters with more than one person: Figma import, '
-    'reusable components, revision history, multi-user editing with presence, '
-    'roles, an audit trail and approval before a page goes live.',
+    'Pro adds what only matters with more than one person: reusable '
+    'components, revision history, multi-user editing with presence, roles, '
+    'an audit trail and approval before a page goes live. And Figma import, '
+    'which is a design becoming an application rather than a picture of one: '
+    'frames become pages and prototype links between them become navigation, '
+    'components become components, auto-layout keeps its spacing and '
+    'alignment, strokes and fades and centred text survive, images are '
+    'downloaded and kept rather than linked to URLs that expire, and a node '
+    'keeps the size it was drawn at only where the designer fixed it -- so '
+    'the result is not pinned to the width of the artboard.',
   ),
   (
     'Accessibility',
