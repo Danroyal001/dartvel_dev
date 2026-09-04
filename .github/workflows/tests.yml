@@ -400,31 +400,41 @@ jobs:
       # underneath it goes away -- so the crash report is the only thing left
       # that knows why. If there is none, that is worth knowing too: it means
       # nothing crashed and the process left another way.
+      # One process per test, because the failure being chased kills the
+      # process: package:test then reports every test after it as "did not
+      # complete", so one bad panel hid which panel it was and threw away the
+      # results of the four after it. Run one at a time, each says for itself
+      # whether it passed, and the one that takes the tester with it is named.
       - name: Run the macOS panels
         working-directory: packages/dartvel_flutter
         run: |
           set +e
-          python3 ../../tool/ci/live_suite.py flutter test test/macos_dialogs_live_test.dart
-          code=$?
-          if [ "$code" -ne 0 ]; then
-            echo "--- crash reports written while that ran ---"
-            found=0
-            for report in $(ls -t ~/Library/Logs/DiagnosticReports/*.ips 2>/dev/null | head -3); do
-              found=1
-              echo "== $report"
-              head -c 4000 "$report"
-              echo
-            done
-            [ "$found" -eq 0 ] && echo "none: the tester did not crash"
-            # And the run again with the ordinary reporter, verbatim. The
-            # tests have been failing with no error attached and the process
-            # does not crash, so the remaining suspect is the reporting in
-            # between: this takes it out of the question by putting what
-            # package:test actually says into the log.
-            echo "--- the same suite, plain reporter ---"
-            flutter test test/macos_dialogs_live_test.dart --reporter expanded 2>&1 | tail -60
-          fi
-          exit $code
+          file=test/macos_dialogs_live_test.dart
+          # The names as written, up to the first quote -- a name containing
+          # an escaped apostrophe comes out truncated, which is still a
+          # substring and is what --plain-name matches on.
+          names=$(grep -oE "test\('[^']+" "$file" | sed "s/^test('//")
+          failed=0
+          while IFS= read -r name; do
+            [ -z "$name" ] && continue
+            echo "--- $name"
+            python3 ../../tool/ci/live_suite.py flutter test "$file" --plain-name "$name"
+            if [ $? -ne 0 ]; then
+              failed=1
+              echo "FAILED: $name"
+              # What macOS thought of it. No crash report means the process
+              # left another way, which is worth knowing too.
+              found=0
+              for report in $(ls -t ~/Library/Logs/DiagnosticReports/*.ips 2>/dev/null | head -2); do
+                found=1
+                echo "== $report"
+                head -c 3000 "$report"
+                echo
+              done
+              [ "$found" -eq 0 ] && echo "none: the tester did not crash"
+            fi
+          done <<< "$names"
+          exit $failed
       # window.displays through CGGetActiveDisplayList, against the runner's
       # own display: at least one, a main, a real size in points.
       - name: Display enumeration
