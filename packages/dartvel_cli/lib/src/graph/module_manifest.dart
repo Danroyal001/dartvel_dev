@@ -155,6 +155,8 @@ class DVModuleManifestWrite {
     required this.path,
     required this.signed,
     required this.manifest,
+    this.publicKey,
+    this.keyId,
   });
 
   final String path;
@@ -166,6 +168,25 @@ class DVModuleManifestWrite {
   final bool signed;
 
   final DVModuleManifest manifest;
+
+  /// The public key of the pair this was signed with, and the name it was
+  /// signed under.
+  ///
+  /// A parent trusts a key by id and public key, and there was no way to
+  /// learn the public key short of writing Dart: the command could sign a
+  /// manifest and could not tell anybody how to accept one.
+  final String? publicKey;
+  final String? keyId;
+
+  /// What the parent adds to its own declaration to trust this publisher.
+  ///
+  /// Null when the manifest is unsigned, because there is nothing to trust.
+  String? get trustDeclaration {
+    final String? key = publicKey;
+    final String? id = keyId;
+    if (key == null || id == null) return null;
+    return 'trust:\n        $id: $key';
+  }
 }
 
 /// Writes the manifest for the module at [moduleRoot] to [out].
@@ -193,5 +214,7 @@ DVModuleManifestWrite dvWriteModuleManifest(
     path: file.path,
     signed: signed,
     manifest: manifest,
+    publicKey: signed ? dvModuleSigningPublicKey(privateKey) : null,
+    keyId: signed ? keyId : null,
   );
 }

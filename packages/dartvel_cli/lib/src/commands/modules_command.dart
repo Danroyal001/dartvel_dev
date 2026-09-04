@@ -113,6 +113,14 @@ class _ModulesManifestCommand extends Command<void> {
 
     Logger.log('${result.manifest.id} ${result.manifest.version}: '
         '${result.manifest.routes.length} route(s) → ${result.path}');
+    final String? trust = result.trustDeclaration;
+    if (trust != null) {
+      // What the parent has to add to accept it. Signing without a way to
+      // learn the public key leaves the publisher with a manifest nobody
+      // can be told to trust.
+      Logger.log('   The parent trusts this publisher with:');
+      Logger.log('     dartvel.modules.${result.manifest.id}.$trust');
+    }
     if (!result.signed) {
       // Said every time, because an unsigned manifest that reaches a parent
       // is refused, and finding that out at mount time is finding it out on

@@ -174,4 +174,34 @@ void main() {
       expect(trust.accepted, isTrue, reason: trust.reason);
     });
   });
+
+  test('signing tells the publisher what to give the parent', () {
+    // The parent trusts a key by id and public key, and there was no way to
+    // learn the public key short of writing Dart: the command could sign a
+    // manifest and could not tell anybody how to accept one.
+    final Directory root = moduleProject();
+    final Uint8List key =
+        Uint8List.fromList(List<int>.generate(32, (int i) => i + 1));
+
+    final DVModuleManifestWrite result = dvWriteModuleManifest(
+      root.path,
+      out: p.join(root.path, 'manifest.json'),
+      privateKey: key,
+      keyId: 'publisher',
+    );
+
+    expect(result.publicKey, dvModuleSigningPublicKey(key));
+    expect(result.trustDeclaration, contains('publisher'));
+    expect(result.trustDeclaration, contains(dvModuleSigningPublicKey(key)));
+  });
+
+  test('an unsigned manifest has no key to hand over', () {
+    final Directory root = moduleProject();
+
+    final DVModuleManifestWrite result =
+        dvWriteModuleManifest(root.path, out: p.join(root.path, 'manifest.json'));
+
+    expect(result.publicKey, isNull);
+    expect(result.trustDeclaration, isNull);
+  });
 }
