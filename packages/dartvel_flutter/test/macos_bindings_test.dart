@@ -32,6 +32,12 @@ void main() {
           'device.watchdog.heartbeat',
           'device.fleet.provision',
           'device.diagnostics.collect',
+          // The serial port, through POSIX in macOS's own shape.
+          'device.serial.ports',
+          'device.serial.open',
+          'device.serial.write',
+          'device.serial.read',
+          'device.serial.close',
           // NSMenu as the application's main menu, activated by id.
           'menus.setApplicationMenu',
           // NSStatusBar's status item with its menu, chosen by id.

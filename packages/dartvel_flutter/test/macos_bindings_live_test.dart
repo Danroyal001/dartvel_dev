@@ -16,6 +16,7 @@ import 'dart:ui' as ui;
 
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:dartvel_flutter/src/platform/macos/macos_menus_ffi.dart' show DVMacosObjc;
+import 'package:dartvel_flutter/src/platform/macos/macos_serial.dart';
 import 'package:ffi/ffi.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -454,6 +455,99 @@ void main() {
       expect(picked.single['name'], 'photo.png');
       expect(picked.single['type'], 'image');
       expect(seen.filterLabels, <String>['Images']);
+    });
+  });
+
+  // The serial port. A pseudo-terminal is not a UART, but it is a real
+  // character device with real termios state, so opening it, putting the line
+  // in raw mode, setting the speed, waiting with a timeout, writing and
+  // closing all happen for real -- and macOS's termios is not Linux's. Its
+  // flag words are eight bytes rather than four, its control array is twenty
+  // rather than thirty-two, and its speeds are the numbers themselves rather
+  // than small indices, so a struct copied across would read the wrong fields
+  // and set a speed nobody asked for.
+  group('serial', () {
+    late int master;
+    late String slave;
+
+    setUp(() {
+      final DynamicLibrary libc = DynamicLibrary.process();
+      master = libc.lookupFunction<Int32 Function(Int32), int Function(int)>(
+          'posix_openpt')(2 | 0x00000004);
+      expect(master, greaterThan(0), reason: 'posix_openpt failed');
+      libc.lookupFunction<Int32 Function(Int32), int Function(int)>('grantpt')(master);
+      libc.lookupFunction<Int32 Function(Int32), int Function(int)>('unlockpt')(master);
+      slave = libc.lookupFunction<Pointer<Utf8> Function(Int32),
+          Pointer<Utf8> Function(int)>('ptsname')(master).toDartString();
+    });
+
+    tearDown(() {
+      DVMacosSerial.closeAll();
+      DynamicLibrary.process()
+          .lookupFunction<Int32 Function(Int32), int Function(int)>('close')(master);
+    });
+
+    test('a port that is not there is refused with the reason', () async {
+      await expectLater(
+        const DVSerial().open('/dev/cu.NotHere'),
+        throwsA(predicate((Object e) => '$e'.contains('/dev/cu.NotHere'))),
+      );
+    });
+
+    test('bytes written to the device arrive at the port, unaltered', () async {
+      final DVSerialConnection port =
+          await const DVSerial().open(slave, baud: 115200);
+      addTearDown(port.close);
+
+      final Pointer<Uint8> buffer = calloc<Uint8>(5);
+      try {
+        buffer.asTypedList(5).setAll(0, <int>[0x01, 0x1a, 0x0d, 0x0a, 0xff]);
+        DynamicLibrary.process().lookupFunction<
+            IntPtr Function(Int32, Pointer<Uint8>, IntPtr),
+            int Function(int, Pointer<Uint8>, int)>('write')(master, buffer, 5);
+      } finally {
+        calloc.free(buffer);
+      }
+
+      final Uint8List got = await port.read(timeout: const Duration(seconds: 2));
+
+      // 0x1a ends a cooked terminal and 0x0d becomes 0x0a: in cooked mode
+      // this frame arrives short and altered, and a text protocol on the
+      // same port would never notice.
+      expect(got, <int>[0x01, 0x1a, 0x0d, 0x0a, 0xff]);
+    });
+
+    test('the speed asked for is the speed the line is set to', () async {
+      final DVSerialConnection port =
+          await const DVSerial().open(slave, baud: 115200);
+      addTearDown(port.close);
+
+      expect(DVMacosSerial.speedOf(master), 115200);
+    });
+
+    test('a read with nothing to read comes back empty at the timeout', () async {
+      final DVSerialConnection port = await const DVSerial().open(slave);
+      addTearDown(port.close);
+
+      final Stopwatch clock = Stopwatch()..start();
+      final Uint8List got =
+          await port.read(timeout: const Duration(milliseconds: 200));
+      clock.stop();
+
+      expect(got, isEmpty);
+      expect(clock.elapsedMilliseconds, greaterThanOrEqualTo(150));
+      expect(clock.elapsedMilliseconds, lessThan(2000));
+    });
+
+    test('the ports it lists are ports that exist', () async {
+      // A pty is not a serial port and must not be listed as one.
+      final List<DVSerialPort> ports = await const DVSerial().ports();
+
+      expect(ports.map((DVSerialPort p) => p.path), isNot(contains(slave)));
+      for (final DVSerialPort port in ports) {
+        expect(File(port.path).existsSync(), isTrue,
+            reason: '${port.path} was listed and is not there');
+      }
     });
   });
 
