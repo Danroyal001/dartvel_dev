@@ -902,13 +902,20 @@ final List<DVStudioLayoutProperty> dvStudioLayoutProperties =
 /// or `asset` means -- including the leniency, which is deliberate there: a
 /// page that will not render because one word is misspelled is worse than one
 /// that tries the address.
-DVImage dvStudioImageOf(Map<String, Object?> properties) =>
-    DVImage.fromJson(<String, Object?>{
-      'reference': '${properties['src'] ?? ''}',
-      if (properties['source'] != null) 'source': properties['source'],
-      if (properties['alt'] != null) 'alt': properties['alt'],
-    }) ??
-    const DVImage.network('');
+DVImage dvStudioImageOf(Map<String, Object?> properties) {
+  final String reference = '${properties['src'] ?? ''}';
+  // An image with no source yet: one just dropped onto the canvas, or one an
+  // import could not resolve. A normal state, and a common one -- the reader
+  // refuses an empty reference, which is right for a model field and would
+  // take a page down here over a picture nobody has chosen.
+  if (reference.isEmpty) return const DVImage.network('');
+  return DVImage.fromJson(<String, Object?>{
+        'reference': reference,
+        if (properties['source'] != null) 'source': properties['source'],
+        if (properties['alt'] != null) 'alt': properties['alt'],
+      }) ??
+      const DVImage.network('');
+}
 
 /// The names [DVAlign] answers to in a page document.
 const List<String> dvStudioAlignNames = <String>[

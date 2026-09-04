@@ -99,4 +99,23 @@ void main() {
 
     expect(network, contains("DVImage.network('https://example.com/a.png')"));
   });
+
+  testWidgets('a node with no image yet draws nothing, and does not throw',
+      (WidgetTester tester) async {
+    // One just dropped onto the canvas, or one an import could not resolve.
+    // Both are normal states; the reader refuses an empty reference, which
+    // is right for a model field and would take the page down here.
+    await tester.pumpWidget(MaterialApp(
+      home: DVPageDocumentRenderer(pageWith(const <String, Object?>{'src': ''})),
+    ));
+
+    expect(tester.takeException(), isNull);
+  });
+
+  test('and it exports without throwing either', () {
+    // The export walks the same nodes, so a page with an unresolved image
+    // could not leave the builder at all.
+    expect(pageWith(const <String, Object?>{'src': ''}).toDartSource(),
+        contains('DVImageView'));
+  });
 }
