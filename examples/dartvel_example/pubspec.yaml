@@ -75,6 +75,11 @@ dartvel:
         path: modules/notes
       mount: /notes
       deployment: embedded
+      # Schema-isolated: the module's tables are in this application's
+      # database under the module's own name. Its models resolve the name
+      # at run time and dartvel db migrate creates it, and the point of
+      # declaring it here is that the two have to agree.
+      data: schema-isolated
 
   pagesDir: lib/pages
   backendDir: lib/backend

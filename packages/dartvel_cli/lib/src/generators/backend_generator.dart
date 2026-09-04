@@ -290,6 +290,7 @@ import 'package:dartvel_shelf/dartvel_shelf.dart' as dv;
 import 'package:mime/mime.dart';
 import 'dartvel_backend.g.dart' as cfg;
 import 'package:$pkgName/dartvel_client/model_pages.g.dart' show dartvelModelPages;
+import 'package:$pkgName/dartvel_client/modules_data.g.dart' show registerDartvelModules;
 ${backendImports.join('\n')}
 
 // The generated OpenAPI document, served at cfg.apiBasePath + '/openapi.json'.
@@ -527,6 +528,13 @@ final core.DVPageDataResolver dartvelPageData = core.dvModelPageResolver(
 /// the deployment has one -- the assembled pages are kept there rather than
 /// in this process, and a second instance serves what the first resolved.
 Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls, bool h2c = false, dv.CorsOptions? cors, String? spaRoot, core.DVCacheAdapter? pageStore}) {
+  // The modules this application mounts, before anything is served. The
+  // registry decides where a schema-isolated module's tables are and which
+  // database its models use, and a backend that registered nothing saw
+  // every module as unmounted: its models resolved the plain table name in
+  // a database where nothing had created it. Backend functions are where
+  // model queries actually run.
+  registerDartvelModules();
   final router = buildBackendRouter();
   final bindHost = host ?? cfg.backendHost;
   final bindPort = port ?? cfg.backendPort;

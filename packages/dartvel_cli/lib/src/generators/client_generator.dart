@@ -1296,9 +1296,15 @@ ${(() {
       p.join(libClientDir.path, 'router.g.dart'),
     ).writeAsStringSync('// BUILD: $buildId\n$router');
 
-    // The mounted modules, as the registry DV.Modules reads and a typed
-    // accessor per module. Written even when there are none: the generated
-    // runtime imports and calls it unconditionally.
+    // The mounted modules, in two files for one reason: the registration
+    // has to be loadable by the backend, which is a pure Dart server with
+    // no dart:ui, and the typed route targets are DVRouteTarget, which is
+    // a Flutter type. Both are written even when there are no modules,
+    // because the generated runtime and the generated server both call
+    // the registration unconditionally.
+    File(p.join(libClientDir.path, 'modules_data.g.dart')).writeAsStringSync(
+      _moduleRegistrationSource(buildId: buildId, modules: modules),
+    );
     File(p.join(libClientDir.path, 'modules.g.dart')).writeAsStringSync(
       _modulesSource(buildId: buildId, modules: modules),
     );
@@ -1822,25 +1828,44 @@ void startDartvelKiosk() {
   /// framework owns, and generated code cannot add statics to it -- but an
   /// extension getter reads exactly as the specification writes it,
   /// `DV.Modules.store`.
-  static String _modulesSource({required String buildId, required List<DVModuleMount> modules}) {
+  /// The registration alone, importing core and nothing else.
+  ///
+  /// Split from the typed accessors because the backend has to run this. The
+  /// registry decides where a schema-isolated module's tables are and which
+  /// database its models use, and a backend process that never registered
+  /// anything saw every module as unmounted -- so its models resolved the
+  /// plain table name in the application's database, which nothing had
+  /// created. Backend functions are where model queries actually run.
+  ///
+  /// The backend is a pure Dart server with no dart:ui, so this file cannot
+  /// import dartvel_flutter. DV.Modules is core's registry, so it does not
+  /// need to.
+  static String _moduleRegistrationSource({
+    required String buildId,
+    required List<DVModuleMount> modules,
+  }) {
     final StringBuffer out = StringBuffer()
       ..writeln('// BUILD: $buildId')
       ..writeln('// GENERATED CODE - DO NOT MODIFY BY HAND')
-      ..writeln('library dartvel_client_modules;')
+      ..writeln('library dartvel_client_modules_data;')
       ..writeln()
-      // DV lives in dartvel_flutter, which re-exports the module types the
-      // registry is made of; importing only core left DV undefined in every
-      // generated application that mounts one.
-      ..writeln("import 'package:dartvel_flutter/dartvel_flutter.dart';")
+      // Only when there is something to register: an application
+      // that mounts no modules would otherwise generate a file whose
+      // single import is unused, and the generated project is
+      // required to analyze clean.
+      ..write(modules.isEmpty
+          ? ''
+          : "import 'package:dartvel_core/dartvel.dart';\n")
       ..writeln()
       ..writeln('/// Registers every module this application mounts.')
       ..writeln('///')
-      ..writeln('/// Called by the generated runtime, so DV.Modules.<id> is the')
-      ..writeln('/// module the build mounted rather than an unknown id.')
+      ..writeln('/// Called by the generated runtime and by the generated')
+      ..writeln('/// server, so DV.Modules.<id> is the module the build')
+      ..writeln('/// mounted in both processes rather than an unknown id.')
       ..writeln('void registerDartvelModules() {');
     for (final DVModuleMount m in modules) {
       out
-        ..writeln('  DV.Modules.register(')
+        ..writeln('  dvModuleRegistry.register(')
         ..writeln("    id: '${m.id}',")
         ..writeln("    mountPath: '${m.mount}',")
         ..writeln('    config: const <String, Object?>{')
@@ -1892,8 +1917,25 @@ void startDartvelKiosk() {
       }
       out.writeln('  );');
     }
-    out
-      ..writeln('}')
+    out.writeln('}');
+    return out.toString();
+  }
+
+  /// The typed accessors, which are Flutter: a route target is DVRouteTarget.
+  static String _modulesSource({
+    required String buildId,
+    required List<DVModuleMount> modules,
+  }) {
+    final StringBuffer out = StringBuffer()
+      ..writeln('// BUILD: $buildId')
+      ..writeln('// GENERATED CODE - DO NOT MODIFY BY HAND')
+      ..writeln('library dartvel_client_modules;')
+      ..writeln()
+      ..writeln("import 'package:dartvel_flutter/dartvel_flutter.dart';")
+      ..writeln()
+      // Re-exported so everything that used to import this file for the
+      // registration still finds it, the generated runtime included.
+      ..writeln("export 'modules_data.g.dart' show registerDartvelModules;")
       ..writeln();
     if (modules.isEmpty) {
       out
