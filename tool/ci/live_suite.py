@@ -236,6 +236,24 @@ def _run(command: list[str]) -> Run:
             for detail in errors.get(test_id, []):
                 rendered.append(f"           {detail}")
     rendered.extend(f"  error: {d}" for d in loose)
+    # Anything that was reported and belongs to nothing that was printed. An
+    # error attached to an id that never produced a result -- a synthesised
+    # (tearDownAll), a load failure -- was collected and then dropped, which
+    # left a FAILED line with no reason under it: exactly the shape this
+    # tool exists to replace.
+    printed = {test_id for _, _, test_id in result.lines}
+    for test_id, details in errors.items():
+        if test_id in printed or test_id is None:
+            continue
+        for detail in details:
+            rendered.append(f"  error ({names.get(test_id, test_id)}): {detail}")
+    # And the case with no explanation at all, said rather than left blank.
+    if result.failures and not errors:
+        rendered.append(
+            "  the reporter failed these and attached no error to any of "
+            "them, so there is nothing here to read; the stderr below is "
+            "everything the process said"
+        )
     result.lines = rendered
 
     if "Shell subprocess ended" in (stderr or ""):
