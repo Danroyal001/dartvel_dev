@@ -86,7 +86,22 @@ class DVTableHeaderCell extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Text(label, style: theme.textTheme.labelLarge),
+            // Flexible, because a header cell is Expanded: on a phone every
+            // column gets an equal and small share of the width, and a label
+            // longer than its share used to overflow -- the yellow-and-black
+            // stripe, on the framework's own table. Ellipsis rather than
+            // wrapping, so the header stays one line tall whatever it says.
+            Flexible(
+              child: Text(
+                label,
+                style: theme.textTheme.labelLarge,
+                overflow: TextOverflow.ellipsis,
+                softWrap: false,
+              ),
+            ),
+            // Outside the Flexible on purpose: the arrow is 14 pixels and it
+            // is the only thing saying which way the data is sorted, so it is
+            // the label that gives way, never the direction.
             if (sortDirection != null)
               Icon(
                 sortDirection! ? Icons.arrow_upward : Icons.arrow_downward,
