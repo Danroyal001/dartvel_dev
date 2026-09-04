@@ -472,9 +472,13 @@ void main() {
 
     setUp(() {
       final DynamicLibrary libc = DynamicLibrary.process();
+      // O_RDWR | O_NOCTTY, and nothing else. posix_openpt takes those two on
+      // macOS and refuses anything more; O_NONBLOCK, which Linux ignores
+      // here, comes back as a failure to allocate a terminal at all.
       master = libc.lookupFunction<Int32 Function(Int32), int Function(int)>(
-          'posix_openpt')(2 | 0x00000004);
-      expect(master, greaterThan(0), reason: 'posix_openpt failed');
+          'posix_openpt')(0x0002 | 0x20000);
+      expect(master, greaterThan(0),
+          reason: 'posix_openpt refused to allocate a pseudo-terminal');
       libc.lookupFunction<Int32 Function(Int32), int Function(int)>('grantpt')(master);
       libc.lookupFunction<Int32 Function(Int32), int Function(int)>('unlockpt')(master);
       slave = libc.lookupFunction<Pointer<Utf8> Function(Int32),
