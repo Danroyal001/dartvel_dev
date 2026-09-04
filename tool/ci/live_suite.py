@@ -168,6 +168,8 @@ def _run(command: list[str]) -> Run:
 
     names: dict[int, str] = {}
     errors: dict[int, list[str]] = {}
+    failed: list[tuple[str, object]] = []
+    loose: list[str] = []
 
     for line in (stdout or "").splitlines():
         line = line.strip()
@@ -187,15 +189,19 @@ def _run(command: list[str]) -> Run:
                 continue
             if event.get("skipped"):
                 result.skipped += 1
-                result.lines.append(f"  skipped  {name}")
+                result.lines.append(("skipped", name, None))
             elif event.get("result") == "success":
                 result.passed += 1
-                result.lines.append(f"  ok       {name}")
+                result.lines.append(("ok", name, None))
             else:
                 result.failures.append(name)
-                result.lines.append(f"  FAILED   {name}")
-                for detail in errors.get(event.get("testID"), []):
-                    result.lines.append(f"           {detail}")
+                # Recorded, not printed: package:test emits a test's errors
+                # after its result as often as before it, so printing here
+                # named the failing test and said nothing about it -- which
+                # is most of the way back to reading the raw log this exists
+                # to replace.
+                failed.append((name, event.get("testID")))
+                result.lines.append(("FAILED", name, event.get("testID")))
         elif kind == "error":
             # Kept against the test it belongs to and printed with it: an
             # error printed on its own, before the result it explains, is a
@@ -210,10 +216,20 @@ def _run(command: list[str]) -> Run:
                 result.tester_left = True
             errors.setdefault(event.get("testID"), []).extend(detail_lines[:6])
             if event.get("testID") is None:
-                for d in detail_lines[:6]:
-                    result.lines.append(f"  error: {d}")
+                loose.extend(detail_lines[:6])
         elif kind == "done":
             result.verdict = event.get("success")
+
+    # Now that every event has been read, each result can be printed with the
+    # errors that belong to it.
+    rendered: list[str] = []
+    for status, name, test_id in result.lines:
+        rendered.append(f"  {status:<8} {name}")
+        if status == "FAILED":
+            for detail in errors.get(test_id, []):
+                rendered.append(f"           {detail}")
+    rendered.extend(f"  error: {d}" for d in loose)
+    result.lines = rendered
 
     if "Shell subprocess ended" in (stderr or ""):
         result.tester_left = True
