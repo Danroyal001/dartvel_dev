@@ -54,16 +54,22 @@ class Run:
         self.hung = False
         self.returncode = 0
         self.stderr = ""
+        self.tester_left = False
 
     @property
     def died_partway(self) -> bool:
         """Whether the tester ended without finishing what it started.
 
-        Distinct from a suite that failed: no verdict, not stopped by the cap,
-        and something had already reported -- so the process went away while
-        the run was still going.
+        Two shapes, both meaning the process went away mid-run rather than a
+        test failing. It can leave no verdict at all; or the harness notices
+        first, says so in its own words -- 'Shell subprocess ended cleanly.
+        Did main() call exit()?' -- and marks everything left as failed, which
+        arrives looking exactly like a suite in which fourteen things broke
+        at once.
         """
-        return self.verdict is None and not self.hung and self.passed > 0
+        if self.verdict is None and not self.hung and self.passed > 0:
+            return True
+        return self.tester_left
 
 
 def main() -> int:
@@ -79,7 +85,10 @@ def main() -> int:
     # accident, not a fault.
     run = _run(command)
     if run.died_partway:
-        print("  the tester went away mid-run; running the suite again")
+        print(
+            "  the tester went away mid-run, so the results after it say "
+            "nothing; running the suite again"
+        )
         run = _run(command)
         if run.died_partway:
             for line in run.lines:
@@ -197,6 +206,8 @@ def _run(command: list[str]) -> Run:
             trace = str(event.get("stackTrace", "")).splitlines()
             if trace:
                 detail_lines.append(trace[0].strip())
+            if any("Shell subprocess ended" in d for d in detail_lines):
+                result.tester_left = True
             errors.setdefault(event.get("testID"), []).extend(detail_lines[:6])
             if event.get("testID") is None:
                 for d in detail_lines[:6]:
@@ -204,6 +215,8 @@ def _run(command: list[str]) -> Run:
         elif kind == "done":
             result.verdict = event.get("success")
 
+    if "Shell subprocess ended" in (stderr or ""):
+        result.tester_left = True
     result.hung = hung
     result.returncode = process.returncode or 0
     result.stderr = stderr or ""
