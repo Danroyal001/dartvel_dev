@@ -268,6 +268,7 @@ Widget _building() => const Section(
           'dartvel inspect kiosk                 # the effective kiosk policy per target and per window, each value with its source',
           'dartvel key generate | rotate | status # the application key, in the platform key store',
           'dartvel capture pwa-sync --web build/web  # the worker\'s outbox, in a real browser',
+          'dartvel publish play                  # a built app to a store, refused before the upload rather than during',
         ]),
         Body(
           'Each is the same rule as build: it says what it found and what it '
@@ -293,7 +294,7 @@ Widget _honesty() => const Section(
           width: 660,
         ),
         Body(
-          'Fourteen sections are a frozen public contract with an unfinished '
+          'Eight sections are a frozen public contract with an unfinished '
           'implementation behind them. They are marked that way rather than '
           'implied to work.',
           width: 660,
