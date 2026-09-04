@@ -64,6 +64,23 @@ void main() {
       });
     });
 
+    test('an Android SDK is found where Flutter finds it', () {
+      // The check was `sdkmanager` on PATH, and an Android SDK usually has
+      // it somewhere else: a runner ships one and does not put it on PATH,
+      // and Android Studio installs one that only its own shell knows about.
+      // So `dartvel build android` refused on machines that build Android
+      // perfectly well, which is a refusal nobody can act on -- the hint
+      // says install the SDK, and the SDK is installed.
+      //
+      // ANDROID_HOME and ANDROID_SDK_ROOT are where Flutter looks, so they
+      // are where this looks.
+      final ToolRequirement sdk = toolRequirementsFor('android')
+          .firstWhere((ToolRequirement r) => r.name == 'Android SDK');
+
+      expect(sdk.probe, isNotNull,
+          reason: 'PATH alone does not answer whether an SDK is installed');
+    });
+
     test('linux desktop requires its native build dependencies', () {
       final executables =
           toolRequirementsFor('linux').map((r) => r.executable).toList();
