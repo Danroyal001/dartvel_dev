@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'android_sdk.dart';
 
 import 'logger.dart';
 
@@ -120,6 +121,12 @@ List<ToolRequirement> toolRequirementsFor(String platform, {String home = ''}) {
         ToolRequirement(
           executable: 'sdkmanager',
           name: 'Android SDK',
+          // PATH alone does not answer this. A runner ships an SDK without
+          // sdkmanager on PATH, and Android Studio installs one that only
+          // its own shell knows about -- so the build refused on machines
+          // that build Android perfectly well, telling the person to install
+          // the SDK they already had.
+          probe: dvAndroidSdkInstalled,
           installHint:
               'Install the Android SDK (Android Studio, or the command-line '
               'tools) and set ANDROID_HOME. See '
