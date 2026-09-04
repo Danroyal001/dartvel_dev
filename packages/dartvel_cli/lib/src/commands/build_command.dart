@@ -9,6 +9,7 @@ import '../build/browser_extension.dart';
 import '../build/desktop_entry.dart';
 import '../build/elinux_bundle.dart';
 import '../build/capture_completeness.dart';
+import '../build/declaration_check.dart';
 import '../build/pwa_icons.dart';
 import '../build/pwa_manifest.dart';
 import '../secrets/secrets_analysis.dart';
@@ -534,6 +535,21 @@ class BuildCommand extends Command<void> {
       );
     } on FormatException catch (error) {
       Logger.log('❌ ${error.message}');
+      exit(78); // EX_CONFIG
+    }
+
+    // What the project declares, before anything is generated. Never start a
+    // build that cannot finish reads as being about tools -- the host, the
+    // SDK, the embedder -- and a declaration the build cannot honour is the
+    // same thing one layer up. Both were checked by `dartvel doctor` alone,
+    // so a pipeline that runs a build and not a doctor shipped them.
+    final DVDeclarationCheck declarations = DVDeclarationCheck.run(root);
+    if (!declarations.ok) {
+      Logger.log('❌ The project declares something this build cannot honour:');
+      for (final String line in declarations.lines) {
+        Logger.log(line);
+      }
+      Logger.log('   Run `dartvel doctor` for the whole picture.');
       exit(78); // EX_CONFIG
     }
 
