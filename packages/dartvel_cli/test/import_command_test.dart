@@ -41,6 +41,7 @@ const String _document = '''
 ''';
 
 void main() {
+  _postman();
   group('dartvel import openapi', () {
     late Directory project;
     late Directory previous;
@@ -123,6 +124,74 @@ void main() {
       await runner.run(<String>['import', 'openapi', 'nowhere.json']);
 
       expect(exitCode, isNot(0));
+    });
+  });
+}
+
+// Appended: the Postman subcommand, which shares everything but the parsing.
+//
+// The shared half is what these check on its behalf: the same overwrite rule,
+// the same dry run, the same exit codes. Two copies of the overwrite rule
+// would be two chances to destroy somebody's edited file.
+void _postman() {
+  group('dartvel import postman', () {
+    late Directory project;
+    late Directory previous;
+    late CommandRunner<void> runner;
+    late File collection;
+
+    setUp(() {
+      previous = Directory.current;
+      project = Directory.systemTemp.createTempSync('dartvel_postman_');
+      Directory.current = project;
+      collection = File('${project.path}/catalog.json')
+        ..writeAsStringSync('''
+{
+  "info": {"name": "Catalog API"},
+  "item": [
+    {
+      "name": "List books",
+      "request": {"method": "GET", "url": {"path": ["books"]}}
+    }
+  ]
+}
+''');
+      runner = CommandRunner<void>('dartvel', 'Test runner')
+        ..addCommand(ImportCommand());
+      exitCode = 0;
+    });
+
+    tearDown(() {
+      Directory.current = previous;
+      project.deleteSync(recursive: true);
+      exitCode = 0;
+    });
+
+    test('writes the calls under the project', () async {
+      await runner.run(<String>['import', 'postman', collection.path]);
+
+      final File calls = File('${project.path}/lib/api/catalog_api.dart');
+      expect(calls.existsSync(), isTrue);
+      expect(calls.readAsStringSync(), contains('listBooks'));
+      expect(exitCode, 0);
+    });
+
+    test('--dry-run writes nothing', () async {
+      await runner
+          .run(<String>['import', 'postman', collection.path, '--dry-run']);
+
+      expect(Directory('${project.path}/lib').existsSync(), isFalse);
+    });
+
+    test('a collection with nothing in it fails rather than writing an empty '
+        'file', () async {
+      final File empty = File('${project.path}/empty.json')
+        ..writeAsStringSync('{"info": {"name": "Empty"}, "item": []}');
+
+      await runner.run(<String>['import', 'postman', empty.path]);
+
+      expect(exitCode, isNot(0));
+      expect(Directory('${project.path}/lib').existsSync(), isFalse);
     });
   });
 }

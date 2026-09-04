@@ -13,6 +13,8 @@ library;
 
 import 'dart:convert';
 
+import 'import_names.dart';
+
 /// What an import produced.
 class DVOpenApiImport {
   const DVOpenApiImport({required this.sources, required this.problems});
@@ -48,8 +50,8 @@ DVOpenApiImport dvImportOpenApi(String document) {
 
   for (final MapEntry<String, Object?> entry in schemas.entries) {
     if (entry.value is! Map) continue;
-    final String name = _className(entry.key);
-    sources['lib/models/${_fileName(entry.key)}.dart'] = _modelSource(
+    final String name = dvImportClassName(entry.key);
+    sources['lib/models/${dvImportFileName(entry.key)}.dart'] = _modelSource(
       name,
       entry.value! as Map<Object?, Object?>,
       schemas,
@@ -61,7 +63,7 @@ DVOpenApiImport dvImportOpenApi(String document) {
   final String title = info is Map ? '${info['title'] ?? 'api'}' : 'api';
   final Object? paths = decoded['paths'];
   if (paths is Map) {
-    sources['lib/api/${_fileName(title)}.dart'] =
+    sources['lib/api/${dvImportFileName(title)}.dart'] =
         _clientSource(title, paths.cast<String, Object?>(), schemas, problems);
   }
 
@@ -109,7 +111,7 @@ String _modelSource(
     final String? type = _dartType(definition, schemas, problems,
         where: '$name.$property');
     if (type == null) return;
-    final String field = _fieldName(property);
+    final String field = dvImportFieldName(property);
     // A field the API may omit and the model insists on is a parse that
     // throws on the first response that leaves it out.
     final String declared = required.contains(property) ? type : '$type?';
@@ -147,8 +149,8 @@ String _clientSource(
       if (!_methods.contains(verb) || operation is! Map) return;
 
       final String name = operation['operationId'] is String
-          ? _methodName('${operation['operationId']}')
-          : _methodName('$verb ${path.replaceAll(RegExp('[{}]'), '')}');
+          ? dvImportMethodName('${operation['operationId']}')
+          : dvImportMethodName('$verb ${path.replaceAll(RegExp('[{}]'), '')}');
       final String returns =
           _responseType(operation, schemas, problems, where: name) ?? 'void';
 
@@ -161,7 +163,7 @@ String _clientSource(
         final String type = schema is Map
             ? _dartType(schema, schemas, problems, where: name) ?? 'String'
             : 'String';
-        arguments.add('$type ${_fieldName('${raw['name']}')}');
+        arguments.add('$type ${dvImportFieldName('${raw['name']}')}');
       }
 
       // The path with its parameters interpolated. A generated call that
@@ -169,7 +171,7 @@ String _clientSource(
       // failure this avoids.
       final String interpolated =
           path.replaceAllMapped(RegExp(r'\{([^}]+)\}'), (Match m) {
-        return '\$${_fieldName(m.group(1)!)}';
+        return '\$${dvImportFieldName(m.group(1)!)}';
       });
 
       out
@@ -214,7 +216,7 @@ String? _dartType(
           'defines no such schema.');
       return null;
     }
-    return _className(name);
+    return dvImportClassName(name);
   }
 
   final String type = '${schema['type'] ?? ''}';
@@ -268,36 +270,3 @@ String? _responseType(
   return null;
 }
 
-/// `order-line` as `OrderLine`.
-String _className(String name) {
-  final List<String> parts = name
-      .split(RegExp('[^A-Za-z0-9]'))
-      .where((String part) => part.isNotEmpty)
-      .toList();
-  if (parts.isEmpty) return 'Model';
-  return parts
-      .map((String part) => part[0].toUpperCase() + part.substring(1))
-      .join();
-}
-
-/// `order-line` as `order_line`.
-String _fileName(String name) {
-  final String cleaned = _className(name);
-  final StringBuffer out = StringBuffer();
-  for (int i = 0; i < cleaned.length; i++) {
-    final String character = cleaned[i];
-    final String lower = character.toLowerCase();
-    if (character != lower && out.isNotEmpty) out.write('_');
-    out.write(lower);
-  }
-  return out.toString();
-}
-
-/// `line-total` as `lineTotal`.
-String _fieldName(String name) {
-  final String upper = _className(name);
-  return upper[0].toLowerCase() + upper.substring(1);
-}
-
-/// `get /health` as `getHealth`.
-String _methodName(String name) => _fieldName(name);
