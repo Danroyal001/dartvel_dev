@@ -310,7 +310,10 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'the icons -- vector paths carry no image '
     'fill, so Figma is asked to render each one and the picture is kept, '
     'which is the difference between a design that arrives with everything '
-    'but its icons and one that arrives.',
+    'but its icons and one that arrives. And the import is not only live '
+    'pages: it becomes a project somebody can keep, each page the file its '
+    'route names and each image an asset in the repository with the pubspec '
+    'lines that make it build.',
   ),
   (
     'Accessibility',
