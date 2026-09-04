@@ -61,8 +61,45 @@ void main() {
           // to the default printer.
           'printing.toFile',
           'printing.print',
+          // What this application opens, written into the user's own half of
+          // the registry rather than left to an installer.
+          'associations.register',
+          'associations.unregister',
+          'associations.handlerFor',
         },
       );
+    });
+
+    test('a ProgId is a name Windows will accept', () {
+      // Alphanumerics and periods, at most 39 characters, never starting
+      // with a digit. A key Windows refuses is a registration that reports
+      // success and associates nothing.
+      for (final String mimeType in <String>[
+        'application/x-shop-order',
+        'text/vnd.dartvel+order',
+        'application/x-very-long-vendor-specific-type-name-that-keeps-going',
+        // Trimmed to length exactly where the subtype begins, so a rule that
+        // cut blindly would hand Windows a name starting with a period.
+        'appl/${'a' * 35}',
+        // And one whose tail is a digit, which a ProgId may not start with.
+        'application/${'1' * 40}',
+      ]) {
+        final String progId = DVWindowsAssociations.progIdFor(mimeType);
+
+        expect(progId.length, lessThanOrEqualTo(39), reason: mimeType);
+        // Every period separates two parts; none of them is empty. "DV..x"
+        // is what a rule that trimmed by counting characters produces, and
+        // it is not a name.
+        expect(progId, matches(RegExp(r'^[A-Za-z][A-Za-z0-9]*(\.[A-Za-z0-9]+)*$')),
+            reason: mimeType);
+      }
+    });
+
+    test('two types do not share a ProgId', () {
+      // They would take each other's extensions, and the second registration
+      // would silently rewrite the first application's command.
+      expect(DVWindowsAssociations.progIdFor('application/x-shop-order'),
+          isNot(DVWindowsAssociations.progIdFor('application/x-shop-invoice')));
     });
 
     test('notifications are deliberately absent', () {
@@ -113,6 +150,9 @@ void main() {
         'media.pick',
         'dragDrop.accept',
         'dragDrop.stop',
+        'associations.register',
+        'associations.unregister',
+        'associations.handlerFor',
       };
       expect(DVWindowsBindings.implemented.difference(callable), isEmpty);
     });

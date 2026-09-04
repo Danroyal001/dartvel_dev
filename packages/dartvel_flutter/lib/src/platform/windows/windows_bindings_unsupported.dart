@@ -18,6 +18,25 @@ class DVWindowsBindings {
   static Future<void> unregister() async {}
 }
 
+/// The Windows file associations, unavailable here.
+///
+/// The ProgId rule is a fact about Windows rather than about where this code
+/// is running, so it answers anywhere: a test can check the name a type maps
+/// to without a Windows to run on.
+class DVWindowsAssociations {
+  const DVWindowsAssociations._();
+
+  static const Set<String> implemented = <String>{
+    'associations.register',
+    'associations.unregister',
+    'associations.handlerFor',
+  };
+
+  static String progIdFor(String mimeType) => dvWindowsProgIdFor(mimeType);
+
+  static String? handlerFor(String extension) => null;
+}
+
 /// The Windows kiosk enforcement, unavailable here.
 class DVWindowsKiosk {
   const DVWindowsKiosk._();

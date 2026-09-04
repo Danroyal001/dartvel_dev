@@ -229,6 +229,62 @@ void main() {
     print('the Win32 bindings were released');
   });
 
+  group('file associations', () {
+    // The per-user half of the registry, written and read back through the
+    // real advapi32. The build's .reg script says the same thing and nobody
+    // runs it; this is the application saying it for the user in front of
+    // it, which is the half that was missing.
+    const List<DVFileType> types = <DVFileType>[
+      DVFileType(
+        mimeType: 'application/x-dartvel-live-test',
+        extensions: <String>['dartvellive'],
+        description: 'Dartvel live test document',
+      ),
+    ];
+
+    tearDown(() async {
+      await DV.Platform.associations.unregister(types, schemes: <String>['dartvellive']);
+    });
+
+    test('a type this application registers is the one that opens it', () async {
+      expect(DV.Platform.associations.supported, isTrue);
+
+      // Nothing opens it before: the extension is one nothing else on earth
+      // claims, so a handler here would mean the read is answering from
+      // somewhere it should not.
+      expect(await DV.Platform.associations.handlerFor('dartvellive'), isNull);
+
+      expect(await DV.Platform.associations.register(types), isTrue);
+
+      expect(await DV.Platform.associations.handlerFor('dartvellive'),
+          DVWindowsAssociations.progIdFor('application/x-dartvel-live-test'));
+    });
+
+    test('unregistering gives the extension back', () async {
+      await DV.Platform.associations.register(types);
+      expect(await DV.Platform.associations.unregister(types), isTrue);
+
+      expect(await DV.Platform.associations.handlerFor('dartvellive'), isNull);
+    });
+
+    test('a leading dot is the same extension', () async {
+      await DV.Platform.associations.register(types);
+
+      expect(await DV.Platform.associations.handlerFor('.dartvellive'),
+          isNotNull);
+    });
+
+    test('a URL scheme is registered as one', () async {
+      // The empty "URL Protocol" value is what makes the key a protocol
+      // handler; without it Windows treats the key as an ordinary class and
+      // the link opens nothing.
+      expect(
+          await DV.Platform.associations
+              .register(types, schemes: <String>['dartvellive']),
+          isTrue);
+    });
+  });
+
   test('a clipboard round trip survives non-ASCII text', () async {
     // The point of CF_UNICODETEXT over the ANSI format: anything outside the
     // active code page would come back mangled, and a plain-ASCII test would

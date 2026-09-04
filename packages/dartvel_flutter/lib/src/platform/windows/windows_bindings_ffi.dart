@@ -15,6 +15,7 @@ import 'package:ffi/ffi.dart';
 import '../../../dartvel_flutter.dart' show DVAppLaunch, DVNativeBridge;
 import '../desktop_permissions.dart';
 import '../device_runtime.dart';
+import 'windows_associations_ffi.dart';
 import 'windows_capabilities.dart';
 import 'windows_device_ffi.dart';
 import 'windows_dialogs_ffi.dart';
@@ -25,6 +26,7 @@ import 'windows_printing_ffi.dart';
 import 'windows_shortcuts_ffi.dart';
 import 'windows_tray_ffi.dart';
 
+export 'windows_associations_ffi.dart' show DVWindowsAssociations;
 export 'windows_device_ffi.dart' show DVWindowsDeviceProbes;
 export 'windows_dialogs_ffi.dart' show DVWindowsDialog, DVWindowsDialogAutomation, DVWindowsDialogSeen, DVWindowsDialogs;
 export 'windows_dnd_ffi.dart' show DVWindowsDragDrop;
@@ -149,6 +151,19 @@ class DVWindowsBindings {
     DVWindowsPrinting.register(DVNativeBridge.register);
     DVWindowsDialogs.register(DVNativeBridge.register, user32: _user32);
     DVWindowsDragDrop.register(DVNativeBridge.register, user32: _user32, kernel32: _kernel32);
+    // Its own libraries: the registry is advapi32's and telling Explorer is
+    // shell32's, and neither is opened for anything else here.
+    try {
+      DVWindowsAssociations.register(
+        DVNativeBridge.register,
+        advapi32: DynamicLibrary.open('advapi32.dll'),
+        shell32: DynamicLibrary.open('shell32.dll'),
+      );
+    } on ArgumentError {
+      // A Windows without advapi32 is not a Windows, but a binding that
+      // could not open its library is better unregistered than registered
+      // and throwing on the first call.
+    }
     DVNativeBridge.register('deepLinks.initial', (Object? _) => DVAppLaunch.initialLink);
     DVNativeBridge.register('permissions.isGranted', DVDesktopPermissions.answer);
     DVNativeBridge.register('permissions.request', DVDesktopPermissions.answer);
