@@ -663,7 +663,19 @@ ${_moduleBackendSource(dv)}    final url = kReleaseMode ? cfg.dvProdBackendHost 
     ).writeAsStringSync(sbEnv.toString());
 
     // Router
-    final imports = ([
+    //
+    // Deduplicated by whole line. The fixed imports above and the ones read
+    // out of the page files overlap -- a page that imports
+    // package:dartvel_flutter, which most do, made the router import it
+    // twice. That is a warning, and a Flutter package's CI runs `flutter
+    // analyze`, which fails on warnings: a build going red in somebody's
+    // project through no fault of theirs, in a file they are told not to
+    // edit.
+    //
+    // By line rather than by URI, because two aliases for one library are
+    // two different imports and both are wanted. A Set keeps insertion
+    // order, so the header stays at the top.
+    final imports = <String>{
       "import 'dart:async';",
       "import 'package:flutter/material.dart';",
       "import 'package:go_router/go_router.dart';",
@@ -686,7 +698,7 @@ ${_moduleBackendSource(dv)}    final url = kReleaseMode ? cfg.dvProdBackendHost 
         // already running somewhere else.
         if (m.routes.isNotEmpty && m.compiledIntoParent)
           "import '${m.clientImport}' as ${_moduleAlias(m.id)};",
-    ]).join('\n');
+    }.join('\n');
 
     // Parse routingRedirects
     final redirects = <Map<String, String>>[];
@@ -1148,7 +1160,7 @@ ${buildReturn.split('\n').map((line) => '        $line').join('\n')}
 
     final router = '''
 // GENERATED – do not edit.
-// ignore_for_file: unnecessary_import, unused_import
+// ignore_for_file: unnecessary_import, unused_import, prefer_const_constructors
 $imports
 
 const _defaultSeo = SeoProps(

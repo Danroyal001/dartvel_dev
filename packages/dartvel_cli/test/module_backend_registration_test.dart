@@ -93,6 +93,7 @@ String read(Directory root, String name) =>
     File(p.join(root.path, 'lib', 'dartvel_client', name)).readAsStringSync();
 
 void main() {
+  _cleanRouter();
   _theShell();
   _theTheme();
   _theServerCalls();
@@ -282,5 +283,30 @@ void _theShell() {
       expect(router.indexOf('dvModuleTheme'),
           lessThan(router.indexOf('dvModuleShell')));
     });
+  });
+}
+
+// Appended: the generated router has to be clean Dart.
+//
+// A duplicate import is a warning, and a Flutter package's CI runs
+// `flutter analyze`, which fails on warnings. So a generated file with one is
+// a build that goes red in somebody's project through no fault of theirs, in
+// a file they are told not to edit.
+void _cleanRouter() {
+  test('no import is written twice', () async {
+    final Directory root = workspace();
+    await generate(root);
+
+    final List<String> imports = read(root, 'router.g.dart')
+        .split('\n')
+        .where((String line) => line.startsWith('import '))
+        // The alias is what makes two imports of one library legal, so only
+        // the plain ones can collide.
+        .where((String line) => !line.contains(' as ') && !line.contains(' deferred '))
+        .toList();
+
+    expect(imports.toSet().length, imports.length,
+        reason: 'these are written twice: '
+            '${imports.where((String i) => imports.where((String o) => o == i).length > 1).toSet()}');
   });
 }

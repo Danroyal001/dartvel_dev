@@ -139,12 +139,12 @@ Widget _indexPage(BuildContext context) => (() {
         ]),
         ShowcaseSection('Generated Config, Env, PWA & SEO', [
           DVBox.grid([
-            ShowcaseMetric('Database', DartvelConfig.databaseProvider),
-            ShowcaseMetric('Storage', DartvelConfig.storageProvider),
+            const ShowcaseMetric('Database', DartvelConfig.databaseProvider),
+            const ShowcaseMetric('Storage', DartvelConfig.storageProvider),
             ShowcaseMetric(
                 'Auth providers', DartvelConfig.authProviders.join(',')),
-            ShowcaseMetric('AI provider', DartvelConfig.aiProvider),
-            ShowcaseMetric('PWA', DartvelConfig.pwaEnabled ? 'enabled' : 'off'),
+            const ShowcaseMetric('AI provider', DartvelConfig.aiProvider),
+            const ShowcaseMetric('PWA', DartvelConfig.pwaEnabled ? 'enabled' : 'off'),
             ShowcaseMetric('Public env', Env.PUBLIC_GREETING),
           ], columns: 2),
           DVText('Runtime backend: ${DV.baseUrl}'),
@@ -604,7 +604,7 @@ Widget _indexPage(BuildContext context) => (() {
           ]),
         ]),
         ShowcaseSection('Collection Layouts', [
-          DVBox.grid([
+          const DVBox.grid([
             FeatureCard('Vertical', 'Default list layout'),
             FeatureCard('Row', 'Inline collection mode'),
             FeatureCard('Wrap', 'Chip and tag layouts'),
@@ -637,7 +637,7 @@ Widget _indexPage(BuildContext context) => (() {
             ['Story 1', 'Story 2', 'Story 3'],
             (story) => DVBox(DVText(story)).modifier(storyStyle),
           ).horizontalScrollable().modifier(const DVModifier().height(120)),
-          DVBox.masonry([
+          const DVBox.masonry([
             FeatureCard('Masonry A', 'Short'),
             FeatureCard('Masonry B', 'Taller generated-card style content'),
             FeatureCard('Masonry C', 'Medium content'),
