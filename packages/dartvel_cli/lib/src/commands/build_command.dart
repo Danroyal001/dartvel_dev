@@ -8,6 +8,7 @@ import '../build/accessibility_audit.dart';
 import 'package:dartvel_core/dartvel.dart' show DVHomeWidgetSpec;
 
 import '../build/android_home_widget.dart';
+import '../build/android_context_provider.dart';
 import '../build/android_kiosk_manifest.dart';
 import '../build/browser_extension.dart';
 import '../build/desktop_entry.dart';
@@ -788,6 +789,9 @@ class BuildCommand extends Command<void> {
     // Before Gradle reads the manifest: a lock-task launcher is two things
     // in it, and neither can be added at run time.
     if (platform == 'android' || platform == 'fireos') {
+      // Before the kiosk block, so a manifest that gets both keeps them in
+      // a stable order and the diff stays readable.
+      _writeAndroidContextProvider(Directory.current.path);
       _writeAndroidKioskFiles(Directory.current.path);
       _writeAndroidHomeWidgets(Directory.current.path);
     }
@@ -1087,6 +1091,32 @@ class BuildCommand extends Command<void> {
   /// leave, and a device-admin receiver for `dpm set-device-owner` to point
   /// at so lock task is silent rather than a dialog nobody is there to
   /// answer.
+  /// The provider that holds the application Context for the JNI bindings.
+  ///
+  /// Written for every Android build rather than for kiosks alone: every
+  /// binding Dartvel has on Android -- clipboard, haptics, sharing,
+  /// notifications, the kiosk -- reaches the platform through a Context, and
+  /// without this there is none to reach it through. That is not a theory:
+  /// they were all dead on a real device, because they were written against
+  /// a package:jni symbol that is declared in a header and never defined.
+  void _writeAndroidContextProvider(String root) {
+    final File manifest = File(
+        p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'));
+    if (!manifest.existsSync()) {
+      Logger.log('⚠️  android/app/src/main/AndroidManifest.xml is not there, '
+          'so the platform bindings will have no Context. Run flutter '
+          'create . to add the Android runner.');
+      return;
+    }
+    final String before = manifest.readAsStringSync();
+    final String after = dvAndroidContextProviderManifest(before);
+    if (after != before) manifest.writeAsStringSync(after);
+
+    final File source = File(p.join(root, dvAndroidContextProviderPath));
+    source.parent.createSync(recursive: true);
+    source.writeAsStringSync(dvAndroidContextProviderSource());
+  }
+
   void _writeAndroidKioskFiles(String root) {
     final DVAndroidKiosk kiosk = DVAndroidKiosk.of(root);
     final File manifest =

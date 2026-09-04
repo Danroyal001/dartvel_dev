@@ -3,21 +3,30 @@
 /// JNI through `package:jni` and jnigen-generated bindings, per the native
 /// integration rule — never a platform channel.
 ///
-/// The piece that made this possible is the application `Context`. Everything
-/// worth binding is reached through `Context.getSystemService`, and Dart has no
-/// Activity to ask. `package:jni` exports `GetApplicationContext()` from its C
-/// header — "Returns application context on Android" — which is a deliberate C
-/// API and reachable with plain `dart:ffi`.
+/// The piece everything rests on is the application `Context`: everything
+/// worth binding is reached through `Context.getSystemService`, and Dart has
+/// no Activity to ask.
 ///
-/// It is worth recording what that replaced. The intended route was
-/// `ActivityThread.currentApplication()`, the trick libraries normally use.
-/// Generation proved it impossible: the class is hidden and absent from the
-/// public `android.jar`, so jnigen reported it "Not found" while finding every
-/// other class. The C export is not a workaround for that — it is a better
-/// answer, being neither a hidden Android API nor a Dart internal.
+/// This file used to say that `package:jni` exports `GetApplicationContext()`
+/// from its C header, "which is a deliberate C API and reachable with plain
+/// dart:ffi". The declaration is in `dartjni.h`; there is no definition
+/// behind it in `dartjni.c`. Every Android binding was therefore dead in
+/// every real application — clipboard, haptics, sharing, the kiosk — while
+/// the capability list claimed them, and it took running the application on
+/// an emulator to find out: "undefined symbol: GetApplicationContext".
+///
+/// The route now is a ContentProvider that `dartvel build android` writes
+/// into the application. Android creates every declared provider before
+/// `Application.onCreate` returns and hands it a Context, which is earlier
+/// than any Activity and earlier than the Flutter engine. It is what
+/// androidx.startup is built on.
+///
+/// The other route, `ActivityThread.currentApplication()`, is the trick
+/// libraries normally use and is not available here: the class is hidden and
+/// absent from the public `android.jar`, so jnigen reported it "Not found"
+/// while finding every other class.
 library dartvel_flutter.platform.android.jni;
 
-import 'dart:ffi';
 import 'dart:io' show Platform;
 
 import 'package:jni/jni.dart';
@@ -35,9 +44,13 @@ import 'generated/android/os/VibrationEffect.dart';
 import 'generated/android/os/Vibrator.dart';
 import 'generated/java/lang/CharSequence.dart';
 
-/// `GetApplicationContext` as declared in package:jni's `dartjni.h`.
-typedef _GetApplicationContextNative = Pointer<Void> Function();
-typedef _GetApplicationContextDart = Pointer<Void> Function();
+/// The class that holds the application Context, written by
+/// `dartvel build android`.
+///
+/// JNI's slash-separated form, and the same string the CLI writes -- a
+/// constant in both places rather than one, because the Flutter package
+/// cannot depend on the CLI. A test in the CLI asserts they agree.
+const String _contextHolder = 'dev/dartvel/jni/DartvelContext';
 
 /// Registers the Android bindings that are genuinely implemented.
 class DVAndroidBindings {
@@ -128,60 +141,56 @@ class DVAndroidBindings {
   /// running with the bindings unregistered rather than fail to start.
   /// Why [register] last returned false, or null when it has not.
   ///
-  /// Registration failing was one line in the log saying it had. Which of the
-  /// two ways it can fail -- the symbol not being reachable, or Android
-  /// answering with no Context -- is the whole question, and guessing at it
-  /// from a device that has already been torn down is not debugging.
+  /// Registration failing was one line in the log saying it had, which is not
+  /// debugging. The ways it can fail need different fixes, so they say
+  /// different things.
   static String? lastFailure;
 
   static Context? _applicationContext() {
-    // package:jni loads its own helper as `libdartjni.so`, lazily, the first
-    // time anything touches Jni. Nothing had, so the symbol was not in the
-    // process yet and DynamicLibrary.process() could not find it: the lookup
-    // threw, this returned null, and every Android binding was dead in every
-    // real application while the log said only that they had not loaded.
+    // Through the provider `dartvel build android` writes, not through
+    // package:jni's GetApplicationContext. That symbol is declared in
+    // dartjni.h and never defined -- an emulator run said so in the end,
+    // "undefined symbol: GetApplicationContext" -- so every Android binding
+    // was dead in every real application while the capability list claimed
+    // them. Reading a header without checking there was a body behind it is
+    // the whole mistake.
     //
-    // Opening it by name is what package:jni itself does, and opening a
-    // library that is already open returns the same handle.
-    DynamicLibrary? library;
+    // Android creates every declared ContentProvider before
+    // Application.onCreate returns and hands it a Context, which is earlier
+    // than any Activity and earlier than the engine. No hidden API and no
+    // ActivityThread, which is absent from the public android.jar and is why
+    // jnigen could not bind it in the first place.
+    final JClass holder;
     try {
-      library = DynamicLibrary.open('libdartjni.so');
+      holder = JClass.forName(_contextHolder);
     } on Object catch (error) {
-      try {
-        // A build that links it statically, or one where something else has
-        // already pulled it in.
-        library = DynamicLibrary.process();
-      } on Object {
-        lastFailure = 'libdartjni.so could not be opened ($error), and this '
-            'process exports no JNI symbols of its own. package:jni is a '
-            'dependency of dartvel_flutter, so the library should be in the '
-            'APK.';
+      lastFailure = 'the class $_contextHolder is not in this application '
+          '($error). It is written by `dartvel build android`; an APK built '
+          'with plain `flutter build` does not have it, and the platform '
+          'bindings have no Context without it.';
+      return null;
+    }
+
+    try {
+      final JStaticMethodId method =
+          holder.staticMethodId('context', '()Landroid/content/Context;');
+      // callNullable, because the honest answer before Android has created
+      // the provider is null, and treating that as a failure to link would
+      // send whoever reads the log looking in the wrong place.
+      final Context? held =
+          method.callNullable(holder, Context.type, const <dynamic>[]);
+      if (held == null) {
+        lastFailure = 'the Context provider has not been created yet. '
+            'Registration ran before Android brought the application up.';
         return null;
       }
-    }
-
-    final _GetApplicationContextDart lookup;
-    try {
-      lookup = library.lookupFunction<_GetApplicationContextNative,
-          _GetApplicationContextDart>('GetApplicationContext');
-    } on ArgumentError catch (error) {
-      lastFailure = 'GetApplicationContext is not exported by the JNI helper '
-          'this build links ($error).';
+      lastFailure = null;
+      return held;
+    } on Object catch (error) {
+      lastFailure = '$_contextHolder is present but did not answer with a '
+          'Context ($error).';
       return null;
     }
-
-    final Pointer<Void> pointer = lookup();
-    if (pointer == nullptr) {
-      // Android answers with the Application context once the process has
-      // one. Null means this ran before that, which is a startup-order
-      // problem rather than a linking one -- and the two need different
-      // fixes, so they say different things.
-      lastFailure = 'Android has no application Context yet. Registration ran '
-          'before the Application was created.';
-      return null;
-    }
-    lastFailure = null;
-    return JObject.fromReference(JGlobalReference(pointer)).as(Context.type);
   }
 
   /// A system service, or null when the platform does not offer it.
