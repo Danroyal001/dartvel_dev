@@ -579,9 +579,22 @@ jobs:
           socketserver.TCPServer(('', 8082), App).serve_forever()
           FALLBACK
           sleep 3
-          "$BROWSER" --headless=new --disable-gpu --no-sandbox \
-            --virtual-time-budget=20000 --window-size=1280,900 \
-            --dump-dom http://localhost:8082/notes > /tmp/diag/web-module.html 2>/dev/null || true
+          # Dumped until the module's screen is in it, not once and hoped.
+          # A single dump is a race against the first paint: the engine boots,
+          # the router resolves, and on a runner that is stalling on
+          # ReadPixels that can land after the dump, which reads as "the
+          # module did not render" and is nothing of the kind.
+          for attempt in 1 2 3 4 5 6 7 8; do
+            "$BROWSER" --headless=new --disable-gpu --no-sandbox \
+              --virtual-time-budget=20000 --window-size=1280,900 \
+              --dump-dom http://localhost:8082/notes > /tmp/diag/web-module.html 2>/dev/null || true
+            if grep -q "A module, mounted into the example application" /tmp/diag/web-module.html; then
+              echo "the module's screen was in the DOM on attempt $attempt"
+              break
+            fi
+            echo "attempt $attempt: not painted yet"
+            sleep 3
+          done
           echo "--- the mounted module's page, first 400 bytes ---"
           head -c 400 /tmp/diag/web-module.html || true
 

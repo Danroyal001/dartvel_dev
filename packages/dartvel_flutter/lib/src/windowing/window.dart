@@ -630,7 +630,15 @@ class DVWindowManager {
 
     write();
     _all.addListener(write);
-    return () => _all.removeListener(write);
+    // And on every startup phase. The first frame is marked after the
+    // application is up, which is after this has already written what it
+    // had; without this the published profile stops one phase short of the
+    // only one whoever was waiting actually saw.
+    DVStartupProfile.current.addListener(write);
+    return () {
+      _all.removeListener(write);
+      DVStartupProfile.current.removeListener(write);
+    };
   }
 
   /// The window this code is running in.
