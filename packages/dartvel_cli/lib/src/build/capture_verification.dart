@@ -72,7 +72,8 @@ CaptureVerdict verifyCapture(
   final image = _decodePng(bytes);
   if (image == null) {
     return _rejected(
-        'Not a PNG this can read: expected an 8-bit greyscale, truecolour, '
+        'Not a PNG this can read: expected 8 bits a channel and a greyscale, '
+        'truecolour, '
         'palette or truecolour-alpha image.');
   }
 
@@ -178,6 +179,10 @@ _Image? _decodePng(List<int> bytes) {
     offset += 12 + length;
   }
 
+  // Eight bits a channel. A capture tool that found two colours in a blank
+  // window may write one or four bits a pixel instead, which is a valid PNG
+  // and not one this reads -- so the message says what it wanted rather than
+  // calling the file corrupt.
   if (width == null || height == null || bitDepth != 8 || colourType == null) {
     return null;
   }

@@ -80,10 +80,20 @@ jobs:
           # read is a mystery, and the app's first lines are the answer.
           ./build/linux/x64/release/bundle/dartvel_example > /tmp/diag/linux-app.log 2>&1 &
           APP=$!
-          # Long enough for the first frame; a screenshot taken too early
-          # photographs an empty window and looks like a rendering failure.
-          sleep 12
-          import -window root /tmp/diag/linux-gui.png
+          # Photographed when there is something to photograph. A fixed wait
+          # is a race the runner sometimes loses, and losing it produces a
+          # blank image that reads as a rendering failure -- the one thing
+          # this job exists to detect, reported for the wrong reason. The
+          # window is captured until it has more than a couple of colours in
+          # it, or until the patience runs out and the blank one is kept as
+          # the evidence it is.
+          for attempt in $(seq 1 20); do
+            sleep 3
+            import -window root /tmp/diag/linux-gui.png || continue
+            colours=$(identify -format '%k' /tmp/diag/linux-gui.png 2>/dev/null || echo 0)
+            echo "attempt $attempt: $colours colours"
+            if [ "${colours:-0}" -gt 8 ]; then break; fi
+          done
           echo "--- application output ---"; cat /tmp/diag/linux-app.log || true
           # What the running application published beside its lock: the
           # windows it has open and what its startup took. Copied out before
