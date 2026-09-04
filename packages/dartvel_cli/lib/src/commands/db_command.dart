@@ -180,8 +180,17 @@ class DartvelDbTable {
 DartvelDbSchema discoverLocalSchema(String root) {
   final tables = <DartvelDbTable>[
     ..._tablesIn(root, module: null),
-    for (final DVModuleMount mount in _modulesSharingTheDatabase(root))
-      ..._tablesIn(p.join(root, mount.sourcePath), module: mount.id),
+    for (final DVModuleMount mount in _modulesInThisDatabase(root))
+      ..._tablesIn(
+        p.join(root, mount.sourcePath),
+        module: mount.id,
+        // Schema-isolated means the parent's database and the module's own
+        // tables within it, so the name carries the module id. This has to
+        // be the same rule DVModule.table applies at run time: the day the
+        // migration and the query disagree is the day the table is created
+        // and never read.
+        prefix: mount.data == 'schema-isolated' ? '${mount.id}_' : '',
+      ),
   ];
   final claimed = <String, DartvelDbTable>{};
   for (final DartvelDbTable table in tables) {
@@ -208,19 +217,25 @@ DartvelDbSchema discoverLocalSchema(String root) {
 /// The modules whose tables live in this application's database.
 ///
 /// Only the ones compiled into it -- a federated or split-backend module runs
-/// its own -- and only where the module's data mode says shared. A module
-/// with its own schema, its own database or a remote one keeps its tables
-/// there; creating empty copies here would look like its data had been lost.
-List<DVModuleMount> _modulesSharingTheDatabase(String root) =>
+/// its own -- and only where the module's data mode puts its tables here.
+/// Shared puts them here under the model's own name; schema-isolated puts
+/// them here under the module's. A module with its own database or a remote
+/// one keeps its tables there, and creating empty copies here would look
+/// like its data had been lost.
+List<DVModuleMount> _modulesInThisDatabase(String root) =>
     dvDiscoverModuleMounts(root)
         .where((DVModuleMount mount) =>
             mount.mounted &&
-            mount.data == 'shared' &&
+            (mount.data == 'shared' || mount.data == 'schema-isolated') &&
             (mount.deployment == DVModuleDeployment.embedded ||
                 mount.deployment == DVModuleDeployment.backendOnly))
         .toList(growable: false);
 
-List<DartvelDbTable> _tablesIn(String root, {required String? module}) {
+List<DartvelDbTable> _tablesIn(
+  String root, {
+  required String? module,
+  String prefix = '',
+}) {
   final glob = Glob('lib/models/**.dart');
   const fs = LocalFileSystem();
   final tables = <DartvelDbTable>[];
@@ -247,7 +262,7 @@ List<DartvelDbTable> _tablesIn(String root, {required String? module}) {
       final model = sourceClassName.substring(1);
       tables.add(
         DartvelDbTable(
-          name: '${model.toLowerCase()}s',
+          name: '$prefix${model.toLowerCase()}s',
           model: model,
           source: p.relative(sourceFile.path, from: root).replaceAll(r'\', '/'),
           module: module,
