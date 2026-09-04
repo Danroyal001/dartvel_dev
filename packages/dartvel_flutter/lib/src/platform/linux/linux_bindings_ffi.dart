@@ -240,6 +240,9 @@ class DVLinuxBindings {
   /// than half-registered.
   static bool register() {
     if (_registered) return true;
+    // First, and outside the try: a device with no desktop still has a
+    // serial port, and what follows gives up when GTK is missing.
+    registerDeviceBindings();
     try {
       _x11 = DynamicLibrary.open('libX11.so.6');
       _gtk = DynamicLibrary.open('libgtk-3.so.0');
@@ -319,22 +322,38 @@ class DVLinuxBindings {
     // Needs a session bus rather than X11, and says so when there is none:
     // an item nothing can watch is not a failure of the other bindings.
     DVLinuxTray.register(DVNativeBridge.register);
-    DVLinuxDevice.register(DVNativeBridge.register);
-    DVLinuxSerial.register(DVNativeBridge.register);
-    DVLinuxUsb.register(DVNativeBridge.register);
-    DVLinuxBluetooth.register(DVNativeBridge.register);
-    DVLinuxNfc.register(DVNativeBridge.register);
     // A desktop deep link arrives as a launch argument; the launch keeps
     // the first one. The stream is fed by the launch as well.
     DVNativeBridge.register('deepLinks.initial', (Object? _) => DVAppLaunch.initialLink);
     DVNativeBridge.register('permissions.isGranted', DVDesktopPermissions.answer);
     DVNativeBridge.register('permissions.request', DVDesktopPermissions.answer);
-    // A restart loop the watchdog finds goes to whatever kiosk host is on
-    // screen, unless the app wired its own.
-    DVLinuxDevice.onRestartLoop ??= DVKioskHost.reportRestartLoop;
 
     _registered = true;
     return true;
+  }
+
+  static bool _deviceRegistered = false;
+
+  /// The bindings that need no desktop: the fleet APIs, the serial port,
+  /// the USB bus, Bluetooth and NFC.
+  ///
+  /// Registered before the desktop libraries are opened, and whether or not
+  /// they open. These were inside that block, which gives up when libX11 or
+  /// GTK is missing -- so on exactly the machines they were written for, an
+  /// eLinux kiosk with DRM and no X server, the serial port and the fleet
+  /// APIs came back "binding not registered". None of them touches X11:
+  /// they are libc, sysfs and the system bus.
+  static void registerDeviceBindings() {
+    if (_deviceRegistered) return;
+    DVLinuxDevice.register(DVNativeBridge.register);
+    DVLinuxSerial.register(DVNativeBridge.register);
+    DVLinuxUsb.register(DVNativeBridge.register);
+    DVLinuxBluetooth.register(DVNativeBridge.register);
+    DVLinuxNfc.register(DVNativeBridge.register);
+    // A restart loop the watchdog finds goes to whatever kiosk host is on
+    // screen, unless the app wired its own.
+    DVLinuxDevice.onRestartLoop ??= DVKioskHost.reportRestartLoop;
+    _deviceRegistered = true;
   }
 
   /// Unregisters everything this class registered. Intended for tests.
@@ -352,7 +371,9 @@ class DVLinuxBindings {
     DVLinuxMenus.unregister();
     DVLinuxDialogs.unregister();
     DVLinuxDevice.unregister();
+    DVLinuxSerial.closeAll();
     _registered = false;
+    _deviceRegistered = false;
   }
 
   /// GTK must be initialised before any clipboard call. `gtk_init_check`
