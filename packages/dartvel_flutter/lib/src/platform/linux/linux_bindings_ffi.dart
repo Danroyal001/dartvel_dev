@@ -10,6 +10,7 @@ import 'dart:ffi';
 import 'package:ffi/ffi.dart';
 
 import '../../../dartvel_flutter.dart';
+import 'linux_associations.dart';
 import 'linux_bluetooth.dart';
 import 'linux_device.dart';
 import 'linux_dialogs_ffi.dart';
@@ -223,6 +224,11 @@ class DVLinuxBindings {
     'media.pick',
     'permissions.isGranted',
     'permissions.request',
+    // The user's own desktop entry, MIME package and default-applications
+    // list: files, so this works with no desktop session at all.
+    'associations.register',
+    'associations.unregister',
+    'associations.handlerFor',
   };
 
 
@@ -345,6 +351,9 @@ class DVLinuxBindings {
   /// they are libc, sysfs and the system bus.
   static void registerDeviceBindings() {
     if (_deviceRegistered) return;
+    // Files, not X11: an application copied onto a kiosk with no desktop
+    // session is exactly the one whose associations nobody installed.
+    DVLinuxAssociations.register(DVNativeBridge.register);
     DVLinuxDevice.register(DVNativeBridge.register);
     DVLinuxSerial.register(DVNativeBridge.register);
     DVLinuxUsb.register(DVNativeBridge.register);
