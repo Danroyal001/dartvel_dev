@@ -173,9 +173,6 @@ class DVWindowsShortcuts {
   static void _pumpMain(SendPort toMain) {
     final DynamicLibrary user32 = DynamicLibrary.open('user32.dll');
     final DynamicLibrary kernel32 = DynamicLibrary.open('kernel32.dll');
-    final getMessage = user32.lookupFunction<
-        Int32 Function(Pointer<_Msg>, IntPtr, Uint32, Uint32),
-        int Function(Pointer<_Msg>, int, int, int)>('GetMessageW');
     final registerHotKey = user32.lookupFunction<
         Int32 Function(IntPtr, Int32, Uint32, Uint32),
         int Function(int, int, int, int)>('RegisterHotKey');
@@ -194,10 +191,32 @@ class DVWindowsShortcuts {
     peekMessage(msg, 0, _wmApp, _wmApp, 0);
     toMain.send(<String, Object?>{'op': 'ready', 'thread': threadId()});
 
+    // Waited on with a timeout rather than blocked on. GetMessageW does not
+    // return until a message arrives, and an isolate inside a foreign call
+    // that does not return never reaches a point where Dart can stop it: a
+    // pump that missed its WM_QUIT could not be killed either, and the
+    // process could not exit. This comes back to Dart four times a second,
+    // where a kill can land.
+    final msgWait = user32.lookupFunction<
+        Uint32 Function(Uint32, Pointer<Void>, Uint32, Uint32, Uint32),
+        int Function(int, Pointer<Void>, int, int, int)>(
+      'MsgWaitForMultipleObjectsEx',
+    );
+
     final Set<int> held = <int>{};
+    var running = true;
     try {
-      while (getMessage(msg, 0, 0, 0) > 0) {
+      while (running) {
+        // QS_ALLINPUT. The wait returns on a timeout as readily as on a
+        // message, and either way the queue is drained below.
+        msgWait(0, nullptr, 250, 0x04FF, 0);
+        // PM_REMOVE.
+        while (running && peekMessage(msg, 0, 0, 0, 1) != 0) {
         final _Msg m = msg.ref;
+        if (m.message == _wmQuit) {
+          running = false;
+          break;
+        }
         switch (m.message) {
           case _wmHotKey:
             toMain.send(<String, Object?>{'op': 'key', 'id': m.wParam});
@@ -223,6 +242,7 @@ class DVWindowsShortcuts {
             unregisterHotKey(0, id);
             held.remove(id);
             toMain.send(<String, Object?>{'op': 'unregistered', 'id': id, 'ok': true});
+        }
         }
       }
     } finally {
