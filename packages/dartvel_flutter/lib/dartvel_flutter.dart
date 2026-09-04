@@ -25,6 +25,7 @@ import 'src/kiosk/device_kiosk.dart';
 import 'src/platform/accelerator.dart';
 import 'src/platform/dialogs.dart';
 import 'src/platform/drag_drop.dart';
+import 'src/platform/file_associations.dart';
 import 'src/platform/printing.dart';
 import 'src/platform/terminal_size.dart';
 import 'src/platform/terminal_size_web.dart'
@@ -283,6 +284,7 @@ export 'src/platform/desktop_permissions.dart';
 export 'src/platform/device_runtime.dart';
 export 'src/platform/dialogs.dart';
 export 'src/platform/drag_drop.dart';
+export 'src/platform/file_associations.dart';
 export 'src/platform/file_bindings.dart';
 export 'src/platform/ios/ios_bindings.dart';
 export 'src/platform/linux/linux_bindings.dart';
@@ -4306,6 +4308,10 @@ class DVPlatform {
 
   /// What the desktop dropped onto the window.
   DVDragDrop get DragDrop => const DVDragDrop();
+
+  /// What this application opens: registering its own file types with the
+  /// desktop, for the user running it.
+  DVFileAssociations get associations => const DVFileAssociations();
 
   DVCamera get camera => const DVCamera();
   DVMedia get media => const DVMedia();

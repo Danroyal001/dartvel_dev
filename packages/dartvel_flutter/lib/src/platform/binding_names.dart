@@ -98,6 +98,12 @@ const Set<String> dvNativeBindingNames = <String>{
   'dragDrop.accept',
   'dragDrop.stop',
 
+  // File associations: what this application opens, registered with the
+  // desktop for the user running it rather than by an installer.
+  'associations.register',
+  'associations.unregister',
+  'associations.handlerFor',
+
   // Kiosk enforcement: hold the policy on the device, and let go.
   'kiosk.enforce',
   'kiosk.release',
