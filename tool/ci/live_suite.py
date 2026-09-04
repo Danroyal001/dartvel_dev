@@ -42,11 +42,85 @@ def _kill_tree(pid: int) -> None:
     subprocess.run(["pkill", "-9", "-f", "flutter_tester"], capture_output=True, check=False)
 
 
+class Run:
+    """What one run of a suite reported."""
+
+    def __init__(self) -> None:
+        self.passed = 0
+        self.skipped = 0
+        self.failures: list[str] = []
+        self.lines: list[str] = []
+        self.verdict: bool | None = None
+        self.hung = False
+        self.returncode = 0
+        self.stderr = ""
+
+    @property
+    def died_partway(self) -> bool:
+        """Whether the tester ended without finishing what it started.
+
+        Distinct from a suite that failed: no verdict, not stopped by the cap,
+        and something had already reported -- so the process went away while
+        the run was still going.
+        """
+        return self.verdict is None and not self.hung and self.passed > 0
+
+
 def main() -> int:
     command = sys.argv[1:]
     if not command:
         print("usage: live_suite.py <flutter> test <path> ...", file=sys.stderr)
         return 2
+
+    # Run once; run again only if the tester went away mid-suite. On a macOS
+    # runner the panel service occasionally takes the process with it, which
+    # marks every test after that one as failed and says nothing true about
+    # any of them. Two deaths in a row is a failure -- this retries an
+    # accident, not a fault.
+    run = _run(command)
+    if run.died_partway:
+        print("  the tester went away mid-run; running the suite again")
+        run = _run(command)
+        if run.died_partway:
+            for line in run.lines:
+                print(line)
+            print("::error::the tester went away mid-run twice")
+            return 1
+
+    for line in run.lines:
+        print(line)
+    print(f"\n{run.passed} passed, {len(run.failures)} failed, {run.skipped} skipped")
+    if run.stderr.strip():
+        print(run.stderr.strip())
+
+    if run.failures:
+        for name in run.failures:
+            print(f"::error::{name} failed")
+        return 1
+    if run.verdict is False:
+        print("::error::the reporter says the run did not succeed")
+        return 1
+    if run.verdict is None and run.passed == 0:
+        print("::error::the suite produced no results before it was stopped")
+        return 1
+    if run.hung:
+        print(
+            "::warning::every test passed and the tester never exited: "
+            "something native is still holding the process open after the "
+            "suite. Worth fixing, and not the tests failing."
+        )
+    elif run.returncode != 0:
+        print(
+            "::warning::every test passed and the tester exited "
+            f"{run.returncode}: something native is still holding the "
+            "process open after the suite. Worth fixing, and not the tests "
+            "failing."
+        )
+    return 0
+
+
+def _run(command: list[str]) -> Run:
+    result = Run()
 
     # Resolved rather than handed over as written. On Windows `flutter` is a
     # batch file, and CreateProcess is given the name exactly: without the
@@ -85,12 +159,8 @@ def main() -> int:
 
     names: dict[int, str] = {}
     errors: dict[int, list[str]] = {}
-    failures: list[str] = []
-    passed = 0
-    skipped = 0
-    verdict: bool | None = None
 
-    for line in (stdout or '').splitlines():
+    for line in (stdout or "").splitlines():
         line = line.strip()
         if not line.startswith("{"):
             continue
@@ -107,72 +177,39 @@ def main() -> int:
             if name.startswith("loading ") or event.get("hidden"):
                 continue
             if event.get("skipped"):
-                skipped += 1
-                print(f"  skipped  {name}")
+                result.skipped += 1
+                result.lines.append(f"  skipped  {name}")
             elif event.get("result") == "success":
-                passed += 1
-                print(f"  ok       {name}")
+                result.passed += 1
+                result.lines.append(f"  ok       {name}")
             else:
-                failures.append(name)
-                print(f"  FAILED   {name}")
-                for line in errors.get(event.get("testID"), []):
-                    print(f"           {line}")
+                result.failures.append(name)
+                result.lines.append(f"  FAILED   {name}")
+                for detail in errors.get(event.get("testID"), []):
+                    result.lines.append(f"           {detail}")
         elif kind == "error":
             # Kept against the test it belongs to and printed with it: an
             # error printed on its own, before the result it explains, is a
             # line nobody connects to anything.
-            detail: list[str] = [
-                line for line in str(event.get("error", "")).splitlines() if line.strip()
+            detail_lines = [
+                d for d in str(event.get("error", "")).splitlines() if d.strip()
             ]
             trace = str(event.get("stackTrace", "")).splitlines()
             if trace:
-                detail.append(trace[0].strip())
-            errors.setdefault(event.get("testID"), []).extend(detail[:6])
+                detail_lines.append(trace[0].strip())
+            errors.setdefault(event.get("testID"), []).extend(detail_lines[:6])
             if event.get("testID") is None:
-                for line in detail[:6]:
-                    print(f"  error: {line}")
+                for d in detail_lines[:6]:
+                    result.lines.append(f"  error: {d}")
         elif kind == "done":
-            verdict = event.get("success")
+            result.verdict = event.get("success")
 
-    print(f"\n{passed} passed, {len(failures)} failed, {skipped} skipped")
-    if (stderr or '').strip():
-        print(stderr.strip())
+    result.hung = hung
+    result.returncode = process.returncode or 0
+    result.stderr = stderr or ""
+    return result
 
-    if failures:
-        for name in failures:
-            print(f"::error::{name} failed")
-        return 1
-    if verdict is False:
-        print("::error::the reporter says the run did not succeed")
-        return 1
-    if verdict is None and not hung:
-        # It ended on its own without finishing the run: a crash partway
-        # through, and a real failure however few tests had failed by then.
-        print("::error::the tester ended without finishing the run")
-        return 1
-    if verdict is None and passed == 0:
-        # Nothing reported and nothing came back: there is no evidence the
-        # suite ran at all, and a step with no evidence is not a pass.
-        print("::error::the suite produced no results before it was stopped")
-        return 1
-    if hung:
-        # Every test reported and nothing failed; the process then did not
-        # come back. That is the known state of these suites -- AppKit and
-        # the Windows shell hold onto what a panel touched -- and it is not
-        # the tests failing.
-        print(
-            "::warning::every test passed and the tester never exited: "
-            "something native is still holding the process open after the "
-            "suite. Worth fixing, and not the tests failing."
-        )
-    elif process.returncode != 0:
-        print(
-            "::warning::every test passed and the tester exited "
-            f"{process.returncode}: something native is still holding the "
-            "process open after the suite. Worth fixing, and not the tests "
-            "failing."
-        )
-    return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())
