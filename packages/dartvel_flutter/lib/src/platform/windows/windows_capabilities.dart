@@ -83,4 +83,38 @@ const Set<String> dvWindowsImplementedBindings = <String>{
   // file manager drags, CF_UNICODETEXT for a browser's text.
   'dragDrop.accept',
   'dragDrop.stop',
+
+  // The per-user half of the registry: HKCU\Software\Classes, which needs
+  // no administrator and is where a desktop looks first.
+  'associations.register',
+  'associations.unregister',
+  'associations.handlerFor',
 };
+
+/// The ProgId this application uses for a MIME type.
+///
+/// Windows wants alphanumerics and periods, and at most 39 characters, so
+/// the type's punctuation goes and its slash becomes the period Windows uses
+/// to separate the parts of a ProgId. Deterministic, because unregistering
+/// has to name the same key registering did -- and here rather than in the
+/// FFI, so the rule is one rule and a test can check it from any host.
+String dvWindowsProgIdFor(String mimeType) {
+  final List<String> parts = mimeType
+      .split('/')
+      .map((String part) => part.replaceAll(RegExp('[^A-Za-z0-9]'), ''))
+      .where((String part) => part.isNotEmpty)
+      .toList();
+  if (parts.isEmpty) return 'DV.type';
+  const String prefix = 'DV.';
+  final int room = 39 - prefix.length;
+  // Trimmed from the front, part by part, rather than by counting
+  // characters: cutting a name at a fixed length lands on a period as often
+  // as anywhere else, and "DV..order" is not a name Windows accepts. The
+  // last part is the specific one, so it is the one that survives; if it
+  // alone is too long it is cut, which at least leaves a single part.
+  while (parts.length > 1 && parts.join('.').length > room) {
+    parts.removeAt(0);
+  }
+  final String body = parts.join('.');
+  return prefix + (body.length <= room ? body : body.substring(body.length - room));
+}
