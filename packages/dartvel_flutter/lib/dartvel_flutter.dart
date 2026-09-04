@@ -611,6 +611,14 @@ class DVModifier {
   DVModifier rounded(double value) =>
       _copyWith(borderRadius: BorderRadius.circular(value));
 
+  /// Corners that are not all the same.
+  ///
+  /// A sheet rounded at the top and square at the bottom, a card rounded
+  /// only where it shows: [rounded] can say one number and every design
+  /// system has boxes that need four.
+  DVModifier radius(BorderRadiusGeometry value) =>
+      _copyWith(borderRadius: value);
+
   /// Draws [value] round the box.
   ///
   /// `Border.all`, `Border(bottom: ...)` and the rest of Flutter's borders all
