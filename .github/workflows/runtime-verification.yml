@@ -739,60 +739,31 @@ jobs:
           arch: x86_64
           profile: pixel_6
           disable-animations: true
-          script: |
-            adb install -r examples/dartvel_example/build/app/outputs/flutter-apk/app-debug.apk
-            adb shell monkey -p com.example.dartvel_example -c android.intent.category.LAUNCHER 1
-            sleep 25
-            adb exec-out screencap -p > /tmp/diag/android.png
-            adb logcat -d -s flutter:* > /tmp/diag/android-logcat.log || true
+          # One line, deliberately. This action runs each *line* of `script`
+          # as its own `sh -c`, so a multi-line `(cd example && flutter test
+          # ...)` reaches the shell as an opening parenthesis and nothing
+          # else -- "Syntax error: end of file unexpected". That is how the
+          # lock-task verification silently never ran while this job went
+          # green. Everything it used to do is in the Dart tool, which also
+          # writes a verdict for the gate below.
+          script: dart tool/ci/android_device_checks.dart
 
-            # Inside this action's script, because the emulator it boots exists
-            # only for the length of it. As its own step the test found no
-            # device at all and reported "No supported devices found with name
-            # or id matching 'emulator-5554'" -- which is the same shape as the
-            # linux job having no DISPLAY: the thing being tested on was set up
-            # by a step that had already ended.
-            (cd examples/dartvel_example &&
-              flutter test integration_test/link_navigation_test.dart \
-                -d emulator-5554)
-
-            # Kiosk enforcement, which needs the Activity that JNI could not
-            # reach until Application.registerActivityLifecycleCallbacks was
-            # bound. The test asserts what the platform did; dumpsys is the
-            # second opinion, because a Dart-side bool that lied would pass a
-            # test that only read it back.
-            #
-            # Device owner first: without it, startLockTask shows the "pin
-            # this screen?" dialog and waits for somebody who is not there.
-            # This is also how a kiosk is actually provisioned, so the test
-            # exercises the deployment rather than a shortcut.
-            adb shell dpm set-device-owner \
-              com.example.dartvel_example/.DartvelDeviceAdminReceiver \
-              > /tmp/diag/android-device-owner.log 2>&1 || {
-                echo "could not set device owner; lock task will need the dialog"
-                cat /tmp/diag/android-device-owner.log
-              }
-
-            (cd examples/dartvel_example &&
-              flutter test integration_test/kiosk_lock_task_test.dart \
-                -d emulator-5554)
-
-            # And what Android itself says. LOCK_TASK_MODE_LOCKED is the
-            # device-owner path; PINNED is the dialog one. Either is lock
-            # task held; NONE after a test that reported it held is the
-            # disagreement worth failing on.
-            adb shell dumpsys activity activities \
-              | grep -iE "mLockTaskMode|LockTaskController" \
-              | tee /tmp/diag/android-lock-task.log || true
+      # The step above is continue-on-error so its diagnostics still upload,
+      # which means it cannot fail the job on its own. This reads what it
+      # decided. A missing verdict is a failure too: it means the tool never
+      # reached the end, which is the case that used to read as success.
+      - name: The device agreed with the tests
+        run: |
+          set -euo pipefail
+          test -f /tmp/diag/android-verdict.txt \
+            || { echo "no verdict: the device checks did not finish"; exit 1; }
+          cat /tmp/diag/android-verdict.txt
+          head -1 /tmp/diag/android-verdict.txt | grep -qx passed
 
       # A job that captured nothing is not a pass. The run step above is
       # continue-on-error so its logs still upload; this is not, so the job
       # goes red when there is no evidence — which is how tvOS went green while
       # failing to build at all.
-      # Links, tapped on the device this job is running. A widget test cannot
-      # tell a working link from one whose handler builds a callback and never
-      # calls it -- the dartvel.dev header shipped dead while a widget suite
-      # passed it. Only a running application can.
       - name: The capture must show the application
         run: |
           set -euo pipefail
