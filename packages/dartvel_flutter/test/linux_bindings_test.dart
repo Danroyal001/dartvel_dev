@@ -116,6 +116,14 @@ void main() {
         // The tray, as a StatusNotifierItem on the session bus.
         'tray.show',
         'tray.hide',
+        // The user's own desktop entry, MIME package and default-applications
+        // list. Registered with the device bindings rather than behind the
+        // desktop libraries, because they are files: an application copied
+        // onto a kiosk with no session is the one whose associations nobody
+        // installed.
+        'associations.register',
+        'associations.unregister',
+        'associations.handlerFor',
       },
     );
     expect(DVLinuxBindings.isRegistered, isTrue);
