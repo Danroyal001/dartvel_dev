@@ -5,6 +5,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 import '../build/accessibility_audit.dart';
+import '../build/android_kiosk_manifest.dart';
 import '../build/browser_extension.dart';
 import '../build/desktop_entry.dart';
 import '../build/elinux_bundle.dart';
@@ -779,6 +780,11 @@ class BuildCommand extends Command<void> {
     // Before Xcode packages the bundle: the document and URL types live in
     // its Info.plist.
     if (platform == 'macos') _writeMacosDesktopEntries(Directory.current.path);
+    // Before Gradle reads the manifest: a lock-task launcher is two things
+    // in it, and neither can be added at run time.
+    if (platform == 'android' || platform == 'fireos') {
+      _writeAndroidKioskFiles(Directory.current.path);
+    }
 
     final args = resolveFlutterBuildArguments(
       platform: platform,
@@ -1019,6 +1025,80 @@ class BuildCommand extends Command<void> {
       Logger.log('⚠️  $problem');
     }
     Logger.log('   Wrote ${result.written.join(', ')} under the bundle.');
+  }
+
+  /// The manifest entries and the device-admin component a declared kiosk
+  /// needs on Android.
+  ///
+  /// The specification's production path is an artifact that starts in kiosk
+  /// at boot, with no window of unlocked UI at startup, and on Android that
+  /// is a lock-task launcher: a HOME activity so the home button does not
+  /// leave, and a device-admin receiver for `dpm set-device-owner` to point
+  /// at so lock task is silent rather than a dialog nobody is there to
+  /// answer.
+  void _writeAndroidKioskFiles(String root) {
+    final DVAndroidKiosk kiosk = DVAndroidKiosk.of(root);
+    final File manifest =
+        File(p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'));
+    if (!manifest.existsSync()) {
+      if (kiosk.ownsTheDevice) {
+        Logger.log('⚠️  android/app/src/main/AndroidManifest.xml is not there, '
+            'so the kiosk declaration reaches nothing. Run flutter create . '
+            'to add the Android runner.');
+      }
+      return;
+    }
+
+    final String before = manifest.readAsStringSync();
+    final String after = dvAndroidKioskManifest(before, kiosk);
+    if (after != before) manifest.writeAsStringSync(after);
+    if (!kiosk.ownsTheDevice) return;
+
+    // The receiver has to be in the application's own package, because that
+    // is what `.DartvelDeviceAdminReceiver` in the manifest resolves to.
+    final String? package = _androidPackage(root, before);
+    if (package == null) {
+      Logger.log('⚠️  Could not read the Android package name, so the kiosk '
+          'device-admin receiver was not written.');
+      return;
+    }
+    final String source = p.joinAll(<String>[
+      root, 'android', 'app', 'src', 'main', 'java',
+      ...package.split('.'),
+      '$dvAndroidDeviceAdminClass.java',
+    ]);
+    final File receiver = File(source);
+    receiver.parent.createSync(recursive: true);
+    receiver.writeAsStringSync(dvAndroidDeviceAdminSource(package));
+    final File policy = File(p.join(
+        root, 'android', 'app', 'src', 'main', 'res', 'xml', 'dartvel_device_admin.xml'));
+    policy.parent.createSync(recursive: true);
+    policy.writeAsStringSync(dvAndroidDeviceAdminPolicy());
+    Logger.log('   Kiosk: the application is the home screen, with a '
+        'device-admin receiver for dpm set-device-owner.');
+  }
+
+  /// The application id Gradle builds under.
+  ///
+  /// From build.gradle rather than the manifest: a Flutter manifest has no
+  /// package attribute any more, and reading the one that is not there is
+  /// how the receiver ends up in a package nothing resolves.
+  String? _androidPackage(String root, String manifest) {
+    for (final String name in const <String>[
+      'android/app/build.gradle.kts',
+      'android/app/build.gradle',
+    ]) {
+      final File gradle = File(p.join(root, name));
+      if (!gradle.existsSync()) continue;
+      final RegExpMatch? found = RegExp(
+              r'''applicationId\s*=?\s*["']([A-Za-z0-9_.]+)["']''')
+          .firstMatch(gradle.readAsStringSync());
+      if (found != null) return found.group(1);
+    }
+    // An older project that still declares it on the manifest.
+    return RegExp(r'''package\s*=\s*["']([A-Za-z0-9_.]+)["']''')
+        .firstMatch(manifest)
+        ?.group(1);
   }
 
   /// The document and URL types into the macOS runner's Info.plist.
