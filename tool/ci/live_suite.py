@@ -84,6 +84,7 @@ def main() -> int:
             stderr = err.read()
 
     names: dict[int, str] = {}
+    errors: dict[int, list[str]] = {}
     failures: list[str] = []
     passed = 0
     skipped = 0
@@ -114,10 +115,22 @@ def main() -> int:
             else:
                 failures.append(name)
                 print(f"  FAILED   {name}")
+                for line in errors.get(event.get("testID"), []):
+                    print(f"           {line}")
         elif kind == "error":
-            print(f"  error: {event.get('error')}")
-            if event.get("stackTrace"):
-                print(f"    {event['stackTrace'].splitlines()[0]}")
+            # Kept against the test it belongs to and printed with it: an
+            # error printed on its own, before the result it explains, is a
+            # line nobody connects to anything.
+            detail: list[str] = [
+                line for line in str(event.get("error", "")).splitlines() if line.strip()
+            ]
+            trace = str(event.get("stackTrace", "")).splitlines()
+            if trace:
+                detail.append(trace[0].strip())
+            errors.setdefault(event.get("testID"), []).extend(detail[:6])
+            if event.get("testID") is None:
+                for line in detail[:6]:
+                    print(f"  error: {line}")
         elif kind == "done":
             verdict = event.get("success")
 
