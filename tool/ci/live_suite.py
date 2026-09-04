@@ -178,9 +178,17 @@ def _run(command: list[str]) -> Run:
     failed: list[tuple[str, object]] = []
     loose: list[str] = []
 
+    # What the process said that was not a report. The machine reporter's
+    # own output is JSON per line, so anything else is the runtime talking --
+    # an AppKit warning, a native log -- and it was being dropped. A failure
+    # the reporter attaches no error to leaves that as the only account of
+    # what happened.
+    said: list[str] = []
     for line in (stdout or "").splitlines():
         line = line.strip()
         if not line.startswith("{"):
+            if line:
+                said.append(line)
             continue
         try:
             event = json.loads(line)
@@ -224,6 +232,10 @@ def _run(command: list[str]) -> Run:
             errors.setdefault(event.get("testID"), []).extend(detail_lines[:6])
             if event.get("testID") is None:
                 loose.extend(detail_lines[:6])
+        elif kind == "print":
+            message = str(event.get("message", "")).strip()
+            if message:
+                said.append(message)
         elif kind == "done":
             result.verdict = event.get("success")
 
@@ -251,9 +263,12 @@ def _run(command: list[str]) -> Run:
     if result.failures and not errors:
         rendered.append(
             "  the reporter failed these and attached no error to any of "
-            "them, so there is nothing here to read; the stderr below is "
-            "everything the process said"
+            "them, so what the process itself said is all there is:"
         )
+        for line in said[-40:]:
+            rendered.append(f"    {line}")
+        if not said:
+            rendered.append("    (it said nothing at all)")
     result.lines = rendered
 
     if "Shell subprocess ended" in (stderr or ""):
