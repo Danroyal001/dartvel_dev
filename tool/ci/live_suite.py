@@ -31,12 +31,24 @@ def main() -> int:
     # "flutter is not installed" on a runner that has just used it.
     executable = shutil.which(command[0]) or command[0]
 
-    process = subprocess.run(
+    # Read with a cap, and keep what was read. The tester emits its verdict
+    # and then, on these suites, does not exit; waiting for it to would burn
+    # the job's whole allowance and be cancelled, which throws away the
+    # verdict that had already arrived. Killed at the cap, the output up to
+    # that point still says what every test did.
+    process = subprocess.Popen(
         [executable] + command[1:] + ["--machine"],
-        capture_output=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         text=True,
-        timeout=1800,
     )
+    hung = False
+    try:
+        stdout, stderr = process.communicate(timeout=600)
+    except subprocess.TimeoutExpired:
+        hung = True
+        process.kill()
+        stdout, stderr = process.communicate()
 
     names: dict[int, str] = {}
     failures: list[str] = []
@@ -44,7 +56,7 @@ def main() -> int:
     skipped = 0
     verdict: bool | None = None
 
-    for line in process.stdout.splitlines():
+    for line in (stdout or '').splitlines():
         line = line.strip()
         if not line.startswith("{"):
             continue
@@ -77,8 +89,8 @@ def main() -> int:
             verdict = event.get("success")
 
     print(f"\n{passed} passed, {len(failures)} failed, {skipped} skipped")
-    if process.stderr.strip():
-        print(process.stderr.strip())
+    if (stderr or '').strip():
+        print(stderr.strip())
 
     if failures:
         for name in failures:
@@ -92,7 +104,13 @@ def main() -> int:
         # a real failure however few tests had failed by then.
         print("::error::the suite produced no verdict; the tester did not finish")
         return 1
-    if process.returncode != 0:
+    if hung:
+        print(
+            "::warning::every test passed and the tester never exited: "
+            "something native is still holding the process open after the "
+            "suite. Worth fixing, and not the tests failing."
+        )
+    elif process.returncode != 0:
         print(
             "::warning::every test passed and the tester exited "
             f"{process.returncode}: something native is still holding the "
