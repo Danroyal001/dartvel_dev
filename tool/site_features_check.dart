@@ -103,6 +103,31 @@ int main(List<String> arguments) {
         'has $partial (${_word(partial)})');
   }
 
+  // And the docs page's count of frozen contracts with unfinished
+  // implementations behind them. It said fourteen against eight, which is
+  // the same untruth this check exists for: a number on the page that is not
+  // the number.
+  final File docs =
+      File('${root.path}/sites/dartvel_site/lib/pages/docs.dart');
+  final int frozen = (decoded['sections']! as List)
+      .where((Object? e) =>
+          e is Map && e['stability'] == 'Contract' && e['status'] != 'Shipped')
+      .length;
+  if (!docs.existsSync()) {
+    problems.add('docs.dart not found');
+  } else {
+    final RegExpMatch? f =
+        RegExp(r"'([A-Za-z-]+) sections are a frozen public contract")
+            .firstMatch(docs.readAsStringSync());
+    if (f == null) {
+      problems.add('the docs page no longer states the frozen-contract count');
+    } else if (_word(frozen) != f.group(1)!.toLowerCase()) {
+      problems.add('the docs page says "${f.group(1)}" frozen contracts with '
+          'an unfinished implementation; the index has $frozen '
+          '(${_word(frozen)})');
+    }
+  }
+
   if (problems.isNotEmpty) return _fail(problems);
   stdout.writeln('site features: ${listed.length} listed, '
       '${shipped.length} shipped, in agreement.');
