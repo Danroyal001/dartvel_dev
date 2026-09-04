@@ -1792,6 +1792,22 @@ void startDartvelKiosk() {
         ..writeln("      'auth': '${m.auth}',")
         ..writeln("      'theme': '${m.theme}',")
         ..writeln("      'data': '${m.data}',");
+      // What crosses the module boundary, both directions. Read by the
+      // runtime accessor: a global the module does not export is not the
+      // parent's to read, and one the parent does not hand down is not
+      // there to be found.
+      if (m.exportedGlobals.isNotEmpty || m.inheritedGlobals.isNotEmpty) {
+        String quoted(List<String> names) =>
+            names.map((String n) => "'$n'").join(', ');
+        out.writeln("      'globals': <String, Object?>{");
+        if (m.exportedGlobals.isNotEmpty) {
+          out.writeln("        'export': <String>[${quoted(m.exportedGlobals)}],");
+        }
+        if (m.inheritedGlobals.isNotEmpty) {
+          out.writeln("        'inherit': <String>[${quoted(m.inheritedGlobals)}],");
+        }
+        out.writeln('      },');
+      }
       if (m.location != null) out.writeln("      'location': '${m.location}',");
       // Where the module's own functions answer. Its generated client reads
       // this before falling back to the application's base, which is what
