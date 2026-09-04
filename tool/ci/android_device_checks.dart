@@ -40,17 +40,29 @@ enum DVLockTaskState {
 /// printed, in that order, and a parser that took the first match reported
 /// NONE for a device that was locked.
 DVLockTaskState dvLockTaskState(String dumpsys) {
-  DVLockTaskState state = DVLockTaskState.unknown;
-  for (final String line in const LineSplitter().convert(dumpsys)) {
-    if (line.contains('LOCK_TASK_MODE_LOCKED')) {
-      state = DVLockTaskState.locked;
-    } else if (line.contains('LOCK_TASK_MODE_PINNED')) {
-      state = DVLockTaskState.pinned;
-    } else if (line.contains('LOCK_TASK_MODE_NONE')) {
-      state = DVLockTaskState.none;
-    }
+  // Both spellings. dumpsys prints `mLockTaskModeState=LOCK_TASK_MODE_LOCKED`
+  // on some API levels and `mLockTaskModeState=LOCKED` on others, and a
+  // parser that knows one silently abstains on every device using the other
+  // -- which is what sixty `unknown` readings on an API 34 emulator were.
+  //
+  // Anchored on the assignment rather than searched for as a substring:
+  // `mLockTaskPackages[0]={com.example.locked}` is not a reading, and
+  // matching loosely would make it one.
+  final RegExp state = RegExp(
+    r'mLockTaskModeState\s*=\s*(?:LOCK_TASK_MODE_)?(LOCKED|PINNED|NONE)',
+  );
+  DVLockTaskState found = DVLockTaskState.unknown;
+  for (final RegExpMatch match in state.allMatches(dumpsys)) {
+    // The last mention wins: the global state and a per-display one are both
+    // printed, in that order, and taking the first reported NONE for a
+    // device that was locked.
+    found = switch (match.group(1)) {
+      'LOCKED' => DVLockTaskState.locked,
+      'PINNED' => DVLockTaskState.pinned,
+      _ => DVLockTaskState.none,
+    };
   }
-  return state;
+  return found;
 }
 
 /// The message to fail on when the test and the platform disagree, or null
@@ -151,6 +163,30 @@ Future<void> main(List<String> arguments) async {
   await _step('tap links on the device', failures,
       () => _flutterTest('integration_test/link_navigation_test.dart'));
 
+  // What the device thinks the package declares, before asking it to make
+  // one of them the owner. `set-device-owner` failed with "Unknown admin"
+  // against a manifest that demonstrably carries the receiver, and there is
+  // no way to tell from that message whether the component reached the
+  // installed package at all. This is the difference between reading the
+  // answer and guessing at it from a device that has been torn down.
+  final ProcessResult declared = await Process.run(
+      'adb', <String>['shell', 'dumpsys', 'package', _package]);
+  final String packageDump = '${declared.stdout}';
+  File('$_diag/android-package.log').writeAsStringSync(packageDump);
+  final List<String> adminLines = const LineSplitter()
+      .convert(packageDump)
+      .where((String line) =>
+          line.contains('DeviceAdmin') ||
+          line.contains('DEVICE_ADMIN') ||
+          line.contains('Receiver'))
+      .toList();
+  stdout.writeln('== what the package declares');
+  if (adminLines.isEmpty) {
+    stdout.writeln('   no receiver of any kind is in the installed package');
+  } else {
+    adminLines.take(20).forEach((String line) => stdout.writeln('   $line'));
+  }
+
   // Device owner first: without it, startLockTask shows the "pin this
   // screen?" dialog and waits for somebody who is not there. This is also
   // how a kiosk is actually provisioned, so the test exercises the
@@ -201,6 +237,22 @@ Future<void> main(List<String> arguments) async {
   final DVLockTaskState state = dvStrongest(samples);
   stdout.writeln('Android reported lock task: ${state.name} '
       '(${samples.length} readings)');
+  if (state == DVLockTaskState.unknown) {
+    // Nothing matched, on any reading. That is the parser and the platform
+    // disagreeing about the wording, not the platform saying no -- and the
+    // only way to tell is to keep what it actually printed.
+    final ProcessResult raw = await Process.run(
+        'adb', <String>['shell', 'dumpsys', 'activity', 'activities']);
+    File('$_diag/android-dumpsys-activities.log')
+        .writeAsStringSync('${raw.stdout}');
+    final List<String> mentions = const LineSplitter()
+        .convert('${raw.stdout}')
+        .where((String line) => line.toLowerCase().contains('locktask'))
+        .toList();
+    stdout.writeln('   dumpsys said nothing this reads. Lines mentioning '
+        'lock task: ${mentions.isEmpty ? 'none at all' : ''}');
+    mentions.take(10).forEach((String line) => stdout.writeln('   $line'));
+  }
 
   final String? disagreement = dvLockTaskDisagreement(held: held, state: state);
   if (disagreement != null) failures.add(disagreement);

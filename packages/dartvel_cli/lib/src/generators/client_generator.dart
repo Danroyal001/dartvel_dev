@@ -555,8 +555,12 @@ void registerPlatformBindings() {
     _ => true,
   };
   if (!registered) {
+    final String? why = defaultTargetPlatform == TargetPlatform.android
+        ? DVAndroidBindings.lastFailure
+        : null;
     debugPrint('[dartvel] native bindings for \$defaultTargetPlatform did not '
-        'load; platform APIs will report themselves unbound.');
+        'load; platform APIs will report themselves unbound.'
+        '\${why == null ? '' : ' \$why'}');
   }
 }
 
