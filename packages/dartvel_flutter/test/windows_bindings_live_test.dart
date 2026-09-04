@@ -646,10 +646,22 @@ void main() {
         filters: const <DVFileFilter>[DVFileFilter(label: 'Text', extensions: <String>['txt'])],
         initialDirectory: dir.path,
       );
-      expect(picked, <String>['${dir.path}\\notes.txt'], reason: 'dialog: ${DVWindowsDialogs.lastError}');
+      // The same file, not the same string. The temp directory comes back
+      // from Dart as an 8.3 short path (C:\Users\RUNNER~1\...) and the
+      // dialog answers with the long one, which is the better answer of the
+      // two; comparing the text would fail on a difference that is only
+      // spelling.
+      expect(picked, hasLength(1), reason: 'dialog: ${DVWindowsDialogs.lastError}');
+      expect(
+        File(picked.single).resolveSymbolicLinksSync(),
+        File('${dir.path}\\notes.txt').resolveSymbolicLinksSync(),
+      );
       expect(seen.title, 'Pick a note');
       expect(seen.filterLabels, <String>['Text']);
-      expect(seen.currentFolder?.toLowerCase(), dir.path.toLowerCase());
+      expect(
+        Directory(seen.currentFolder!).resolveSymbolicLinksSync().toLowerCase(),
+        Directory(dir.path).resolveSymbolicLinksSync().toLowerCase(),
+      );
     });
 
     test('open: cancel is no files, not an error', () async {
@@ -673,7 +685,13 @@ void main() {
         dialog.selectPath(dir.path);
         dialog.accept();
       });
-      expect((await DV.Platform.Dialogs.chooseDirectory())?.toLowerCase(), dir.path.toLowerCase());
+      final String? chosen = await DV.Platform.Dialogs.chooseDirectory();
+      expect(chosen, isNotNull, reason: 'dialog: ${DVWindowsDialogs.lastError}');
+      // The same directory, not the same spelling: see the open test above.
+      expect(
+        Directory(chosen!).resolveSymbolicLinksSync().toLowerCase(),
+        Directory(dir.path).resolveSymbolicLinksSync().toLowerCase(),
+      );
     });
 
     test('a message is shown with its text and dismissed', () async {
