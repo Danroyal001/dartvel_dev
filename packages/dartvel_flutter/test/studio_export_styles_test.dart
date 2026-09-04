@@ -156,4 +156,29 @@ void main() {
           '${result.stdout}${result.stderr}\n--- source ---\n$standalone',
     );
   }, timeout: const Timeout(Duration(minutes: 3)));
+
+  test('every way a box lays its children out is exported too', () {
+    // The modifier table keeps the renderer, the inspector and the export
+    // from drifting apart. Spacing and alignment are not modifiers -- they
+    // are arguments to the box -- and they had their own hand-written branch
+    // in the exporter, which is the same drift with a different name: a
+    // property added to the one list and forgotten in the other renders and
+    // does not export.
+    for (final DVStudioLayoutProperty property in dvStudioLayoutProperties) {
+      final DVPageDocument document = DVPageDocument(route: '/laid-out');
+      final DVPageDocumentEditor editor = DVPageDocumentEditor(document);
+      final DVPageNode box = DVPageNode.box(layout: 'row').withProperty(
+        property.name,
+        property.kind == DVStudioPropertyKind.number ? 24 : property.choices.first,
+      );
+      editor.insert(box, parent: document.root.id);
+      editor.insert(DVPageNode.text('one'), parent: box.id);
+
+      expect(
+        document.toDartSource(),
+        contains(RegExp(r'DVBox\.row\(\[[^\]]*\],\s*\w+:')),
+        reason: '${property.name} exported no argument',
+      );
+    }
+  });
 }
