@@ -710,8 +710,14 @@ jobs:
           sed -n '/^dartvel:/,/^    home:/p' pubspec.yaml
 
           flutter pub get
-          dart run dartvel_cli:dartvel routes
-          flutter build apk --debug
+
+          # Through `dartvel build`, not `flutter build apk`. The kiosk
+          # manifest entries and the device-admin receiver are written by
+          # Dartvel's own build step, so calling Flutter directly builds an
+          # APK with none of them -- which is what the guards below caught
+          # the first time this ran. It also runs generation, so the separate
+          # routes call is not needed.
+          dart run dartvel_cli:dartvel build android --no-release
           ls -la build/app/outputs/flutter-apk/
 
           # What the kiosk declaration was supposed to write. A build that
