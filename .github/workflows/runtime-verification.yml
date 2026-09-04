@@ -953,7 +953,7 @@ jobs:
           # generating it is exactly what Dartvel's embedded build path does.
           # Calling the embedder directly also tests the wrong thing.
           dart run dartvel_cli:dartvel routes
-          dart run dartvel_cli:dartvel build tvos --device-profile simulator 2>&1 | tail -25
+          dart run dartvel_cli:dartvel build tvos --simulator 2>&1 | tail -25
           APP=$(find build/tvos -name "*.app" -maxdepth 3 | head -1)
           echo "app: $APP"
           [ -n "$APP" ] || exit 1

@@ -440,6 +440,12 @@ class BuildCommand extends Command<void> {
           help: 'Sony eLinux output format (bundle | iso | img)')
       ..addOption('device-profile',
           help: 'Named embedded device profile from pubspec.yaml')
+      ..addFlag('simulator',
+          defaultsTo: false,
+          negatable: false,
+          help: 'Build for a simulator rather than a device (tvOS). Device '
+              'builds are AOT and need a configured Xcode signing team, so '
+              'this is the only unsigned path.')
       ..addOption('build-timeout',
           help: 'Minutes before a stalled build is killed (0 disables). '
               'A build that stops producing output is the failure mode worth '
@@ -508,6 +514,7 @@ class BuildCommand extends Command<void> {
     final target = argResults?['target'] as String?;
     final formatFlag = argResults?['format'] as String?;
     final deviceProfile = argResults?['device-profile'] as String?;
+    final simulator = argResults?['simulator'] as bool? ?? false;
     final arch = argResults?['arch'] as String;
     final archExplicit = argResults?.wasParsed('arch') ?? false;
     final splitPerAbi = argResults?['split-per-abi'] as bool;
@@ -694,6 +701,7 @@ class BuildCommand extends Command<void> {
               timeout: buildTimeout,
               format: p == 'sony-elinux' ? (format ?? 'bundle') : null,
               deviceProfile: deviceProfile,
+              simulator: simulator,
               arch: resolveEmbeddedArch(p, arch, explicit: archExplicit),
               target: target,
             )
@@ -1041,6 +1049,7 @@ class BuildCommand extends Command<void> {
     String buildMode, {
     String? format,
     String? deviceProfile,
+    bool simulator = false,
     required String arch,
     String? target,
     Duration? timeout,
@@ -1055,6 +1064,7 @@ class BuildCommand extends Command<void> {
       buildMode: buildMode,
       arch: arch,
       deviceProfile: deviceProfile,
+      simulator: simulator,
       target: target,
       // The project being built. The Fuchsia embedder takes a package path
       // rather than a name, because it builds apps from outside its workspace.
@@ -2461,6 +2471,7 @@ EmbeddedBuildPlan? resolveEmbeddedBuildPlan({
   String? target,
   String? appPath,
   String? toolchainHome,
+  bool simulator = false,
 }) {
   switch (platform) {
     case 'tizen':
@@ -2491,9 +2502,14 @@ EmbeddedBuildPlan? resolveEmbeddedBuildPlan({
           'webos', 'flutter-webos', List<String>.unmodifiable(args));
     case 'tvos':
       // Device builds are AOT and require a configured Xcode signing team.
-      // `simulator` (via --device-profile simulator) is the unsigned path,
-      // and the embedder accepts it only with a debug build.
-      final simulator = deviceProfile == 'simulator';
+      // --simulator is the unsigned path, and the embedder accepts it only
+      // with a debug build.
+      //
+      // Its own flag rather than --device-profile simulator, which is what
+      // it used to be: a device profile is a section of pubspec.yaml, and
+      // overloading the option meant the check that a profile is declared
+      // refused a tvOS build for a reason that read as a mistake in the
+      // project rather than as two features sharing one flag.
       final args = <String>[
         'build',
         'tvos',
