@@ -392,11 +392,11 @@ jobs:
       # the serial port. Isolated, it costs only its own.
       - name: Run the macOS suite
         working-directory: packages/dartvel_flutter
-        run: python3 ../../tool/ci/live_suite.py flutter test test/macos_bindings_live_test.dart --exclude-tags panels
+        run: python3 ../../tool/ci/live_suite.py flutter test test/macos_bindings_live_test.dart
 
       - name: Run the macOS panels
         working-directory: packages/dartvel_flutter
-        run: python3 ../../tool/ci/live_suite.py flutter test test/macos_bindings_live_test.dart --tags panels
+        run: python3 ../../tool/ci/live_suite.py flutter test test/macos_dialogs_live_test.dart
       # window.displays through CGGetActiveDisplayList, against the runner's
       # own display: at least one, a main, a real size in points.
       - name: Display enumeration
