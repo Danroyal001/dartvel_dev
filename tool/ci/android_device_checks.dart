@@ -165,27 +165,37 @@ Future<void> main(List<String> arguments) async {
 
   // What the device thinks the package declares, before asking it to make
   // one of them the owner. `set-device-owner` failed with "Unknown admin"
-  // against a manifest that demonstrably carries the receiver, and there is
-  // no way to tell from that message whether the component reached the
-  // installed package at all. This is the difference between reading the
-  // answer and guessing at it from a device that has been torn down.
-  final ProcessResult declared = await Process.run(
-      'adb', <String>['shell', 'dumpsys', 'package', _package]);
-  final String packageDump = '${declared.stdout}';
-  File('$_diag/android-package.log').writeAsStringSync(packageDump);
-  final List<String> adminLines = const LineSplitter()
-      .convert(packageDump)
-      .where((String line) =>
-          line.contains('DeviceAdmin') ||
-          line.contains('DEVICE_ADMIN') ||
-          line.contains('Receiver'))
+  // against a manifest that demonstrably carries the receiver.
+  //
+  // `pm query-receivers`, not `dumpsys package <pkg>`: the per-package dump
+  // has no receiver table, so the first version of this probe reported "no
+  // receiver of any kind" for every application including working ones. A
+  // diagnostic that is confidently wrong is worse than none.
+  final ProcessResult declared = await Process.run('adb', <String>[
+    'shell',
+    'pm',
+    'query-receivers',
+    '-a',
+    'android.app.action.DEVICE_ADMIN_ENABLED',
+  ]);
+  final String receivers = '${declared.stdout}${declared.stderr}';
+  File('$_diag/android-receivers.log').writeAsStringSync(receivers);
+  stdout.writeln('== device-admin receivers on this device');
+  final List<String> ours = const LineSplitter()
+      .convert(receivers)
+      .where((String line) => line.contains(_package))
       .toList();
-  stdout.writeln('== what the package declares');
-  if (adminLines.isEmpty) {
-    stdout.writeln('   no receiver of any kind is in the installed package');
+  if (ours.isEmpty) {
+    stdout.writeln('   none belonging to $_package. The manifest block did '
+        'not reach the installed package.');
+    // The whole list, so "ours is missing" can be told apart from "the
+    // query returned nothing at all".
+    stdout.writeln('   the query returned '
+        '${const LineSplitter().convert(receivers).length} line(s).');
   } else {
-    adminLines.take(20).forEach((String line) => stdout.writeln('   $line'));
+    ours.take(10).forEach((String line) => stdout.writeln('   $line'));
   }
+
 
   // Device owner first: without it, startLockTask shows the "pin this
   // screen?" dialog and waits for somebody who is not there. This is also
