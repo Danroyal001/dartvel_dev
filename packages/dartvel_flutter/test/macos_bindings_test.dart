@@ -60,6 +60,11 @@ void main() {
           'dragDrop.stop',
           // Pictures onto pages, to a PDF.
           'printing.toFile',
+          // LaunchServices: the bundle registered and the types it declares
+          // claimed, which is the half an installer normally does.
+          'associations.register',
+          'associations.unregister',
+          'associations.handlerFor',
         },
       );
     });

@@ -85,4 +85,10 @@ const Set<String> dvMacosImplementedBindings = <String>{
   // file manager writes, and the text a browser writes.
   'dragDrop.accept',
   'dragDrop.stop',
+
+  // LaunchServices: registering the running bundle and asking to be the
+  // default for the types its Info.plist declares.
+  'associations.register',
+  'associations.unregister',
+  'associations.handlerFor',
 };
