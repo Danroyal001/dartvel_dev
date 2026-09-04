@@ -237,4 +237,85 @@ void main() {
       expect(runtime, isNot(contains('maybeGet')));
     });
   });
+
+  group('what auth does at run time', () {
+    // The four modes were read and carried into the registry, and that was
+    // all: a module mounted `auth: public` sat behind the parent's guard
+    // exactly as one mounted `auth: inherit` did, so the mode was a comment
+    // with a typed accessor in front of it.
+    //
+    // Inherit is the parent's guard on the module's routes. Public is no
+    // guard, which is the whole point of the word: a documentation module
+    // mounted into an application everybody has to sign into is a
+    // documentation module nobody can read.
+    Future<String> routerFor(String modes) async {
+      final Directory root = workspace(modes);
+      // A guard over the parent's own pages. The module's routes are not
+      // under this directory, so nothing gave them one.
+      File(p.join(root.path, 'lib', 'pages', '_guard.dart'))
+        ..createSync(recursive: true)
+        ..writeAsStringSync('''
+import 'package:flutter/widgets.dart';
+
+Future<String?> guard(BuildContext context, Object state) async => null;
+''');
+      File(p.join(root.path, 'lib', 'pages', 'index.page.dart'))
+        ..createSync(recursive: true)
+        ..writeAsStringSync(_page);
+      Directory(p.join(root.path, 'lib', 'dartvel_client'))
+          .createSync(recursive: true);
+
+      await ClientGenerator.generate(
+        root: root.path,
+        pagesDir: 'lib/pages',
+        pkgName: 'shopfront',
+        buildId: 'b',
+        modules: dvDiscoverModuleMounts(root.path),
+        backendHost: '127.0.0.1',
+        backendPort: 3000,
+        devBackendHost: 'http://localhost:3000',
+        prodBackendHost: 'https://example.com',
+        apiBasePath: '/api',
+        envFiles: const <String>[],
+        seoSiteName: 'app',
+        seoTitle: 'app',
+        seoDesc: 'app',
+        seoImage: '',
+        seoTwitter: '',
+        defaultTransition: 'none',
+        durationMs: 200,
+        curve: 'linear',
+        normalizeTrailing: true,
+        notFoundRedirect: '/',
+        plugins: const <String>[],
+        webPrerender: false,
+        ota: false,
+        dv: YamlMap(),
+      );
+      return File(p.join(root.path, 'lib', 'dartvel_client', 'router.g.dart'))
+          .readAsStringSync();
+    }
+
+    /// The GoRoute block for the module's mounted page.
+    String moduleRoute(String router) {
+      final int at = router.indexOf("path: '/store'");
+      expect(at, greaterThan(-1), reason: 'the module route is not there');
+      return router.substring(router.lastIndexOf('GoRoute(', at), at + 400);
+    }
+
+    test('a module that inherits sits behind the parent\'s guard', () async {
+      expect(moduleRoute(await routerFor('      auth: inherit')),
+          contains('guard(context, state)'));
+    });
+
+    test('a public module does not', () async {
+      expect(moduleRoute(await routerFor('      auth: public')),
+          isNot(contains('guard(context, state)')));
+    });
+
+    test('the default is to inherit, which is what embedded means', () async {
+      expect(moduleRoute(await routerFor('')),
+          contains('guard(context, state)'));
+    });
+  });
 }
