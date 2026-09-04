@@ -15,6 +15,7 @@ it just is not the tests failing.
 """
 
 import json
+import shutil
 import subprocess
 import sys
 
@@ -24,8 +25,14 @@ def main() -> int:
         print("usage: live_suite.py <flutter> test <path> ...", file=sys.stderr)
         return 2
 
+    # Resolved rather than handed over as written. On Windows `flutter` is a
+    # batch file, and CreateProcess is given the name exactly: without the
+    # extension it finds nothing and reports a missing file, which reads as
+    # "flutter is not installed" on a runner that has just used it.
+    executable = shutil.which(command[0]) or command[0]
+
     process = subprocess.run(
-        command + ["--machine"],
+        [executable] + command[1:] + ["--machine"],
         capture_output=True,
         text=True,
         timeout=1800,
