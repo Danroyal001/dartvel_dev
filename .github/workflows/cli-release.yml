@@ -155,6 +155,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # For the one tool this job runs. Everything in this repository's CI is
+      # Dart; a second language for a dozen lines of JSON is a second thing to
+      # install, to pin and to read.
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
       - uses: actions/download-artifact@v4
         with:
           path: staging
@@ -175,19 +182,7 @@ jobs:
 
           # Every platform this release actually carries, so the npm launcher
           # and the tap resolve a URL instead of constructing one and hoping.
-          python3 - "$VERSION" > dist/latest.json <<'PY'
-          import hashlib, json, os, sys
-          version = sys.argv[1]
-          base = ('https://github.com/Danroyal001/dartvel_dev/releases/download/'
-                  f'v{version}')
-          assets = {}
-          for name in sorted(os.listdir('dist')):
-              if name in ('SHA256SUMS', 'latest.json'):
-                  continue
-              digest = hashlib.sha256(open(f'dist/{name}', 'rb').read()).hexdigest()
-              assets[name] = {'url': f'{base}/{name}', 'sha256': digest}
-          json.dump({'version': version, 'assets': assets}, sys.stdout, indent=2)
-          PY
+          dart tool/ci/release_manifest.dart "$VERSION" > dist/latest.json
           cat dist/latest.json
 
           COUNT=$(ls dist | grep -c '^dartvel-')
@@ -195,12 +190,7 @@ jobs:
           # adding or dropping a target cannot leave the two disagreeing --
           # and a release that quietly ships four of five is exactly what
           # fail-fast: false would otherwise allow.
-          EXPECTED=$(python3 - <<'PY'
-          import re
-          text = open('.github/workflows/cli-release.yml').read()
-          print(len(re.findall(r'^\s+- runner:', text, re.M)))
-          PY
-          )
+          EXPECTED=$(grep -cE '^\s+- runner:' .github/workflows/cli-release.yml)
           echo "built $COUNT of $EXPECTED platform binaries"
           [ "$COUNT" -eq "$EXPECTED" ] || {
             echo "::error::expected $EXPECTED binaries, found $COUNT"
