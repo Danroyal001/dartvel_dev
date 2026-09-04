@@ -53,8 +53,14 @@ void main() {
       // the two are one decision. The table says which those are, so this
       // check needs no special case of its own.
       if (property.companionOf != null) continue;
+      // With its companions, because some decisions cannot be stated by one
+      // property: a gradient needs the colour it runs to, and a colour on
+      // its own is a flat fill nobody asked for.
       final Map<String, Object?> properties = <String, Object?>{
         property.name: sampleFor(property),
+        for (final DVStudioProperty companion in dvStudioProperties)
+          if (companion.companionOf == property.name)
+            companion.name: sampleFor(companion),
       };
 
       final String source = pageWith(properties).toDartSource();

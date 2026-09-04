@@ -36,6 +36,7 @@ void main() {
           'color', 'backgroundColor', 'fontWeight', 'align', 'card',
           'letterSpacing', 'borderColor', 'borderWidth', 'opacity',
           'fontFamily', 'lineHeight',
+          'gradientFrom', 'gradientTo', 'gradientAngle',
           'paddingLeft', 'paddingTop', 'paddingRight', 'paddingBottom',
           'shadowColor', 'shadowX', 'shadowY', 'shadowBlur', 'shadowSpread',
         ]),
@@ -61,6 +62,10 @@ void main() {
         'paddingLeft': 8, 'paddingTop': 8, 'paddingRight': 8,
         'paddingBottom': 8,
         'fontFamily': 'Inter', 'lineHeight': 1.5,
+        // A gradient is two colours and a direction, so the second colour
+        // and the angle are only usable with the first.
+        'gradientFrom': '#FF112233', 'gradientTo': '#FF445566',
+        'gradientAngle': 90,
       };
       for (final property in dvStudioProperties) {
         expect(
