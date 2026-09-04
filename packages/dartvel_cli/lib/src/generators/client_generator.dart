@@ -1,6 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:dartvel_core/dartvel.dart'
+    show DVHomeWidgetSpec, dvHomeWidgetId, dvHomeWidgetRoute;
+
 import 'function_body.dart';
 import '../graph/module_mounts.dart';
 import 'page_names.dart';
@@ -417,6 +420,7 @@ export 'functions.g.dart';
 export 'jobs.g.dart';
 export 'models.g.dart';
 export 'openapi.g.dart';
+export 'home_widgets.g.dart';
 export 'router.g.dart';
 export 'schedules.g.dart';
 // The static-path manifest. It was generated and never exported, so the
@@ -776,6 +780,26 @@ ${_moduleBackendSource(dv)}    final url = kReleaseMode ? cfg.dvProdBackendHost 
     final modelRoutes =
         modelRoutesSrc.isEmpty ? '' : ',\n$modelRoutesSrc';
 
+    // A route per home widget. The specification says a home widget acts
+    // like a page and that Dartvel generates one that centres its content --
+    // so it is a real route, which is what lets the widget launch the
+    // application at itself and a page navigate back to it. A widget in a
+    // list and in no router is a launch that opens the not-found page.
+    final homeWidgets = _homeWidgetsIn(root);
+    final homeWidgetRoutesSrc = homeWidgets
+        .map(
+          (DVHomeWidgetSpec w) => '''
+    GoRoute(
+      path: '${w.route}',
+      pageBuilder: (context, state) => NoTransitionPage<void>(
+        child: Center(child: ${w.name}()),
+      ),
+    ),''',
+        )
+        .join('\n');
+    final homeWidgetRoutes =
+        homeWidgetRoutesSrc.isEmpty ? '' : ',\n$homeWidgetRoutesSrc';
+
 
     final routesSrc = pageEntries
         .map(
@@ -934,7 +958,9 @@ ${(() {
     // comma added unconditionally produced `),` followed by `,` -- a syntax
     // error in generated code, which is the worst place for one because
     // nobody reads it until the compiler complains.
-    final beforeModules = modelRoutes.isEmpty ? routesSrc : modelRoutes;
+    final beforeModules = homeWidgetRoutes.isNotEmpty
+        ? homeWidgetRoutes
+        : (modelRoutes.isEmpty ? routesSrc : modelRoutes);
     final moduleSeparator = beforeModules.trimRight().endsWith(',') ? '\n' : ',\n';
     final moduleRoutes = moduleRoutesSrc.isEmpty ? '' : '$moduleSeparator$moduleRoutesSrc';
 
@@ -1129,6 +1155,7 @@ $semanticsCall
     routes: [
 $routesSrc
 $modelRoutes
+$homeWidgetRoutes
 $moduleRoutes
     ],
     redirect: _globalRedirect,
@@ -1256,6 +1283,13 @@ ${(() {
     // runtime imports and calls it unconditionally.
     File(p.join(libClientDir.path, 'modules.g.dart')).writeAsStringSync(
       _modulesSource(buildId: buildId, modules: modules),
+    );
+
+    // What the application puts on a home screen. The list is written even
+    // when it is empty; the routes above are what makes each one more than
+    // a name.
+    File(p.join(libClientDir.path, 'home_widgets.g.dart')).writeAsStringSync(
+      _homeWidgetsSource(buildId, homeWidgets),
     );
 
     _generateFunctionalWidgets(
@@ -2018,6 +2052,101 @@ void startDartvelKiosk() {
       '$name\\s*:\\s*(0x[0-9A-Fa-f]+|[0-9]+)',
     ).firstMatch(args);
     return match?.group(1);
+  }
+
+
+  /// Every `@DVHomeWidget()` in the project, by generated class name.
+  ///
+  /// The annotation sits above the widget it marks, on its own line or
+  /// beside `@DVFunctionalWidget()`, and the input is private like every
+  /// other generation input -- so the name the page builds is the public one
+  /// the generator made.
+  static List<DVHomeWidgetSpec> _homeWidgetsIn(String root) {
+    final Directory libDir = Directory(p.join(root, 'lib'));
+    if (!libDir.existsSync()) return const <DVHomeWidgetSpec>[];
+    final RegExp declaration = RegExp(
+      r'@DVHomeWidget\(\)\s*(?:@[A-Za-z_][\w.]*\([^)]*\)\s*)*'
+      r'(?:Widget|[A-Za-z_][\w<>, ?]*)\s+([A-Za-z_][A-Za-z0-9_]*)\s*[({]',
+    );
+    final List<File> files = libDir
+        .listSync(recursive: true, followLinks: false)
+        .whereType<File>()
+        .where((File file) => file.path.endsWith('.dart'))
+        .where((File file) => !file.path
+            .contains('${p.separator}dartvel_client${p.separator}'))
+        .toList()
+      ..sort((File a, File b) => a.path.compareTo(b.path));
+
+    final List<DVHomeWidgetSpec> found = <DVHomeWidgetSpec>[];
+    final Set<String> claimed = <String>{};
+    for (final File file in files) {
+      final String source = file.readAsStringSync();
+      if (!source.contains('@DVHomeWidget()')) continue;
+      final String rel =
+          p.relative(file.path, from: root).replaceAll('\\', '/');
+      for (final RegExpMatch match in declaration.allMatches(source)) {
+        final String declared = match.group(1)!;
+        if (!declared.startsWith('_')) {
+          throw StateError(
+            'Dartvel generation inputs must be private. Rename $declared to '
+            '_$declared in $rel: the home widget Dartvel generates is the '
+            'public name, and application code refers to that.',
+          );
+        }
+        final String name = _publicWidgetName(declared);
+        final String id = dvHomeWidgetId(name);
+        if (!claimed.add(id)) {
+          // Two widgets under one identifier is a home screen that shows one
+          // of them and a launch that reaches whichever the router listed
+          // last -- both silent.
+          throw StateError(
+            'Two home widgets generate the identifier "$id". Rename one of '
+            'them: a home widget is found again by its identifier, on a '
+            'screen somebody has already put it on.',
+          );
+        }
+        found.add(DVHomeWidgetSpec(
+            id: id, name: name, route: dvHomeWidgetRoute(id)));
+      }
+    }
+    return found;
+  }
+
+  /// `_stepCounterWidget` as `StepCounterWidget`.
+  static String _publicWidgetName(String declared) {
+    final String bare = declared.startsWith('_') ? declared.substring(1) : declared;
+    return bare.isEmpty ? bare : bare[0].toUpperCase() + bare.substring(1);
+  }
+
+  /// `home_widgets.g.dart`: what the application declares, for the packaging
+  /// that puts them on a home screen and for anything resolving a launch.
+  ///
+  /// Written even when there are none, because the barrel exports it
+  /// unconditionally and a conditional export is a second thing to get wrong.
+  static String _homeWidgetsSource(
+    String buildId,
+    List<DVHomeWidgetSpec> widgets,
+  ) {
+    final StringBuffer out = StringBuffer()
+      ..writeln('// BUILD: $buildId')
+      ..writeln('// GENERATED CODE - DO NOT MODIFY BY HAND')
+      ..writeln('library dartvel_client_home_widgets;')
+      ..writeln()
+      ..writeln("import 'package:dartvel_core/dartvel.dart';")
+      ..writeln()
+      ..writeln('/// The home-screen widgets this application declares.')
+      ..writeln(
+          'const List<DVHomeWidgetSpec> dartvelHomeWidgets = <DVHomeWidgetSpec>[');
+    for (final DVHomeWidgetSpec widget in widgets) {
+      out
+        ..writeln('  DVHomeWidgetSpec(')
+        ..writeln("    id: '${esc(widget.id)}',")
+        ..writeln("    name: '${esc(widget.name)}',")
+        ..writeln("    route: '${esc(widget.route)}',")
+        ..writeln('  ),');
+    }
+    out.writeln('];');
+    return out.toString();
   }
 
   static void _generateFunctionalWidgets({

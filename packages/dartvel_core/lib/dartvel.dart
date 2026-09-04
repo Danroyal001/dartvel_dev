@@ -108,6 +108,7 @@ export 'src/updates/update_info.dart';
 export 'src/web/page_data.dart';
 export 'src/web/page_text.dart';
 export 'src/web/seo_head.dart';
+export 'src/widgets/home_widget.dart';
 export 'src/windowing/single_instance.dart';
 
 typedef RequestType = dv.Request;
