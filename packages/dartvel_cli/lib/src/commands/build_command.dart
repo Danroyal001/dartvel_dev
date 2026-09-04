@@ -9,6 +9,7 @@ import '../build/android_kiosk_manifest.dart';
 import '../build/browser_extension.dart';
 import '../build/desktop_entry.dart';
 import '../build/elinux_bundle.dart';
+import '../build/native_assets_config.dart';
 import '../build/capture_completeness.dart';
 import '../build/home_widget_check.dart';
 import '../build/declaration_check.dart';
@@ -872,6 +873,17 @@ class BuildCommand extends Command<void> {
     TerminalBuildPlan plan, {
     required Duration? timeout,
   }) async {
+    // The embedder runs `flutter build bundle`, and for a project with build
+    // hooks -- which every Dartvel application has, the Rust runtime being
+    // one -- that step wants a compiler configuration nothing puts where it
+    // looks. The desktop build writes one; this is a configuration step, not
+    // a second artifact, and nothing from it ships.
+    final String mode = plan.arguments.contains('--release') ? 'release' : 'debug';
+    final String root = Directory.current.path;
+    if (!await _configureNativeAssets(root, mode: mode, timeout: timeout)) {
+      return _PlatformBuildResult.failed;
+    }
+
     final command = '${plan.toolchain} ${plan.arguments.join(' ')}';
     Logger.log('   $command');
     final process = await Process.start(
@@ -888,6 +900,40 @@ class BuildCommand extends Command<void> {
     }
     Logger.log('✅ ${plan.platform} terminal build successful');
     return _PlatformBuildResult.succeeded;
+  }
+
+  /// Makes sure the bundle build will find the compiler configuration this
+  /// project's build hooks need.
+  ///
+  /// Runs the desktop build when there is no cache to copy. That is a
+  /// configuration step and not a second artifact: what ships is the
+  /// terminal bundle, and the desktop output is left where it lands.
+  Future<bool> _configureNativeAssets(
+    String root, {
+    required String mode,
+    required Duration? timeout,
+  }) async {
+    if (dvConfigureNativeAssets(root, mode: mode).ready) return true;
+
+    Logger.log('   Configuring native assets: the bundle build needs the '
+        'desktop build\'s compiler settings.');
+    final Process process = await Process.start(
+      'flutter',
+      <String>['build', 'linux', '--$mode'],
+      mode: ProcessStartMode.inheritStdio,
+      runInShell: true,
+    );
+    final int? exitCode = await _awaitBuild(process,
+        timeout: timeout, description: 'flutter build linux --$mode');
+    if (exitCode != 0) {
+      Logger.log('❌ The desktop build that writes the native-asset compiler '
+          'settings failed, so the terminal build cannot start.');
+      return false;
+    }
+
+    final DVNativeAssetsConfig result = dvConfigureNativeAssets(root, mode: mode);
+    if (!result.ready) Logger.log('❌ ${result.reason}');
+    return result.ready;
   }
 
   /// Assembles an eLinux release bundle from the desktop release build.
