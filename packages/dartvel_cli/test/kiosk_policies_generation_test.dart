@@ -105,6 +105,24 @@ void main() {
     expect(withDevice, contains('startDartvelKiosk()'));
   });
 
+  test('the generated config imports every type it names', () async {
+    // A kiosk with no named policies still emits the device getter, and the
+    // import was gated on there being named policies -- so a project that
+    // declared `kiosk: {enabled: true}` and nothing else generated a
+    // config.g.dart that named DVKioskPolicy and did not import it. It
+    // compiled nowhere, and the first anybody knew was `Type 'DVKioskPolicy'
+    // not found` from Gradle, two minutes into an Android build.
+    for (final String source in <String>[
+      await deviceConfig(),
+      config,
+      await plainConfig(),
+    ]) {
+      if (!source.contains('DVKioskPolicy')) continue;
+      expect(source, contains("show DVKioskPolicy"),
+          reason: 'names DVKioskPolicy without importing it');
+    }
+  });
+
   test('a display-scope declaration installs no device kiosk', () {
     expect(config, isNot(contains('installKioskPolicy')));
     expect(config, isNot(contains('get device')));

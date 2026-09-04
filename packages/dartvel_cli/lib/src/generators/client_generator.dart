@@ -1586,10 +1586,22 @@ void startDartvelKiosk() {
 
   /// Whether any named policy is declared, so the config only imports the
   /// policy type when something in it is one.
+  /// Whether the generated config names `DVKioskPolicy`, and so has to
+  /// import it.
+  ///
+  /// Named policies are one of the two ways it gets there. The other is a
+  /// device-scope declaration, which emits the `device` getter on its own --
+  /// so gating the import on named policies alone produced a config.g.dart
+  /// that named the type and did not import it, for the most ordinary kiosk
+  /// declaration there is. It compiled nowhere, and the first anybody knew
+  /// was Gradle two minutes into an Android build.
   static bool _hasKioskPolicies(YamlMap dv) {
     final Object? kiosk = dv['kiosk'];
-    final Object? policies = kiosk is Map ? kiosk['policies'] : null;
-    return policies is Map && policies.isNotEmpty;
+    if (kiosk is! Map) return false;
+    final Object? policies = kiosk['policies'];
+    if (policies is Map && policies.isNotEmpty) return true;
+    return kiosk['enabled'] == true &&
+        (kiosk['scope'] ?? 'device') == 'device';
   }
 
   static String _kioskPoliciesSource(YamlMap dv) {
