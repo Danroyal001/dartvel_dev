@@ -371,13 +371,13 @@ class ClientGenerator {
     // Guards: scan for _guard.dart files and build a dir->alias map
     final guardImports = <String>[];
     final guardMapByDir = <String, String>{};
-    final guardGlob = Glob('$pagesDir/**/_guard.dart');
-    for (final e in guardGlob.listFileSystemSync(
-      fs,
-      root: root,
-      followLinks: false,
-    )) {
-      final ioFile = File(e.path);
+    // Through the discovery rather than a second copy of the glob. `**/`
+    // requires at least one directory, so a `_guard.dart` sitting directly
+    // in pagesDir -- authorisation over the whole application, the most
+    // likely one anybody writes -- was never matched here. The helper was
+    // fixed and tested; this was the other copy, and the generated router is
+    // the half that matters.
+    for (final File ioFile in discoverGuards(root: root, pagesDir: pagesDir)) {
       if (!ioFile.existsSync()) continue;
       final rel = p.relative(ioFile.path, from: root).replaceAll('\\', '/');
       final importPath = rel.replaceFirst(
@@ -941,6 +941,19 @@ ${(() {
     // generated page at the mounted path. Without these the routes would be
     // in the index and the sitemap while the application answered its own
     // not-found page for every one of them.
+    // A module's auth mode, at run time at last. It was read and carried
+    // into the registry and that was all: a module mounted `auth: public`
+    // sat behind the parent's guard exactly as one mounted `auth: inherit`
+    // did, so the mode was a comment with a typed accessor in front of it.
+    //
+    // Inherit is the parent's own guard on the module's routes -- the guard
+    // over the pages directory, which is what protects the application
+    // rather than one section of it. Public is no guard, which is the whole
+    // point of the word: a documentation module mounted into an application
+    // everybody has to sign into is a documentation module nobody can read.
+    // Independent and federated have their own session elsewhere, so the
+    // parent's guard is not theirs to apply either.
+    final String inheritedGuard = guardRedirectFor(pagesDir);
     final moduleRoutesSrc = <String>[
       for (final DVModuleMount m in modules)
         if (m.compiledIntoParent)
@@ -948,7 +961,7 @@ ${(() {
           '''
     GoRoute(
       path: '${esc(r.mounted)}',
-      pageBuilder: (context, state) => NoTransitionPage<void>(
+${m.auth == 'inherit' ? inheritedGuard : ''}      pageBuilder: (context, state) => NoTransitionPage<void>(
         child: const ${_moduleAlias(m.id)}.${r.widget}(),
       ),
     ),''',

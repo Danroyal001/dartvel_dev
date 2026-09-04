@@ -7,7 +7,9 @@
 import 'dart:io';
 
 import 'package:dartvel_cli/src/generators/client_generator.dart';
+import 'package:dartvel_cli/src/graph/module_mounts.dart';
 import 'package:test/test.dart';
+import 'package:yaml/yaml.dart';
 
 Future<Directory> _project(Map<String, String> files) async {
   final root = await Directory.systemTemp.createTemp('dartvel_layouts_');
@@ -22,6 +24,7 @@ Future<Directory> _project(Map<String, String> files) async {
 
 void main() {
   rootGuardTests();
+  generatedRouterGuardTests();
 
   group('layout and guard discovery', () {
     test('finds a nested layout and a guard', () async {
@@ -64,6 +67,64 @@ void main() {
 // at least one directory, so a `_guard.dart` sitting directly in pagesDir was
 // never matched — and a guard for the whole application is the most likely one
 // anybody writes.
+// And the half that matters: the generator has to use the discovery, not a
+// second copy of the glob. It had its own `**/_guard.dart` inline, so the
+// helper was fixed, its tests passed, and the generated router still ignored
+// a guard over the whole application -- which is authorisation that silently
+// does nothing.
+void generatedRouterGuardTests() {
+  group('a root guard in the generated router', () {
+    test('every page is behind it', () async {
+      final root = await _project({
+        'lib/pages/index.page.dart':
+            "import 'package:dartvel_core/dartvel.dart';\n"
+            '@DVPage()\nWidget _index() => const Placeholder();\n',
+        'lib/pages/_guard.dart':
+            "import 'package:flutter/widgets.dart';\n"
+            'Future<String?> guard(BuildContext c, Object s) async => null;\n',
+      });
+      try {
+        Directory('${root.path}/lib/dartvel_client').createSync(recursive: true);
+        await ClientGenerator.generate(
+          root: root.path,
+          pagesDir: 'lib/pages',
+          pkgName: 'shop',
+          buildId: 'b',
+          modules: const <DVModuleMount>[],
+          backendHost: '127.0.0.1',
+          backendPort: 3000,
+          devBackendHost: 'http://localhost:3000',
+          prodBackendHost: 'https://example.com',
+          apiBasePath: '/api',
+          envFiles: const <String>[],
+          seoSiteName: 'app',
+          seoTitle: 'app',
+          seoDesc: 'app',
+          seoImage: '',
+          seoTwitter: '',
+          defaultTransition: 'none',
+          durationMs: 200,
+          curve: 'linear',
+          normalizeTrailing: true,
+          notFoundRedirect: '/',
+          plugins: const <String>[],
+          webPrerender: false,
+          ota: false,
+          dv: YamlMap(),
+        );
+
+        final String router =
+            File('${root.path}/lib/dartvel_client/router.g.dart')
+                .readAsStringSync();
+        expect(router, contains('_guard.dart'));
+        expect(router, contains('.guard(context, state)'));
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    });
+  });
+}
+
 void rootGuardTests() {
   group('a guard at the root of pagesDir', () {
     test('is discovered, the way a root layout already was', () async {
