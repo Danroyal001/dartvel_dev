@@ -317,13 +317,23 @@ jobs:
         working-directory: packages/dartvel_flutter
         run: flutter pub get
 
-      # A per-test timeout, because a modal dialog nothing answers does not
-      # fail -- it waits, and the job burns its twenty-five minutes and is
-      # cancelled, taking the rest of the matrix's signal with it. With this,
-      # the test that hangs is named and the ones after it still run.
+      # Bounded, because a modal dialog nothing answers does not fail -- it
+      # waits, and the job burnt its twenty-five minutes and was cancelled,
+      # taking the rest of the matrix's signal with it. A per-test timeout is
+      # not enough on its own: a native modal loop never yields to the
+      # tester's event loop, so the timeout that would fail the test cannot
+      # fire. The step is capped instead, and says which fault it was.
       - name: Run the Win32 suite
         working-directory: packages/dartvel_flutter
-        run: flutter test test/windows_bindings_live_test.dart --timeout 90s
+        shell: bash
+        run: |
+          set +e
+          timeout 420 flutter test test/windows_bindings_live_test.dart --timeout 90s
+          code=$?
+          if [ "$code" -eq 124 ]; then
+            echo "::error::the Win32 suite hung -- a modal dialog is waiting for an answer that never came, and a native modal loop does not yield to the tester, so no per-test timeout can fail it"
+          fi
+          exit $code
       # window.displays through EnumDisplayMonitors, against the runner's own
       # desktop session: at least one display, a primary, a real size.
       - name: Display enumeration
