@@ -76,6 +76,8 @@ const Set<String> dvNativeBindingNames = <String>{
   'device.serial.write',
   'device.serial.read',
   'device.serial.close',
+  // What is plugged in, which sysfs already answers.
+  'device.usb.devices',
 
   // Desktop shell integration, beyond the window itself.
   'menus.setApplicationMenu',

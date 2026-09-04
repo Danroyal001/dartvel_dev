@@ -2954,6 +2954,83 @@ class DVSerialConnection {
   }
 }
 
+/// A device on the bus.
+class DVUsbDevice {
+  const DVUsbDevice({
+    required this.path,
+    required this.vendorId,
+    required this.productId,
+    this.manufacturer,
+    this.product,
+    this.serial,
+    this.bus,
+    this.address,
+  });
+
+  /// The kernel's name for it: `1-1`, `usb2`, `3-1.4`.
+  final String path;
+
+  /// The USB vendor and product ids, as the numbers everyone quotes them by.
+  final int vendorId;
+  final int productId;
+
+  /// What the device says about itself, when it says anything. A hub or a
+  /// cheap adapter often says nothing.
+  final String? manufacturer;
+  final String? product;
+  final String? serial;
+
+  final int? bus;
+  final int? address;
+
+  Map<String, Object?> toMap() => <String, Object?>{
+        'path': path,
+        'vendorId': vendorId,
+        'productId': productId,
+        if (manufacturer != null) 'manufacturer': manufacturer,
+        if (product != null) 'product': product,
+        if (serial != null) 'serial': serial,
+        if (bus != null) 'bus': bus,
+        if (address != null) 'address': address,
+      };
+
+  /// `1d6b:0002`, the way lsusb prints it and the way a datasheet quotes it.
+  String get id => '${_hex(vendorId)}:${_hex(productId)}';
+
+  static String _hex(int value) =>
+      value.toRadixString(16).padLeft(4, '0');
+}
+
+/// The USB bus, under `DV.Platform.device.usb`.
+class DVUsb {
+  const DVUsb();
+
+  /// The devices on the bus.
+  ///
+  /// What is plugged in, not what can be talked to: a fleet asking why a
+  /// kiosk stopped scanning needs to know whether the scanner is there at
+  /// all, and that is a different question from opening it.
+  Future<List<DVUsbDevice>> devices() async {
+    final List<Object?> found =
+        await DVNativeBridge.require<List<Object?>>('device.usb.devices');
+    return <DVUsbDevice>[
+      for (final Object? device in found)
+        if (device is Map<Object?, Object?>) _deviceFrom(device),
+    ];
+  }
+
+  static DVUsbDevice _deviceFrom(Map<Object?, Object?> map) => DVUsbDevice(
+        path: '${map['path']}',
+        vendorId: map['vendorId'] is int ? map['vendorId']! as int : 0,
+        productId: map['productId'] is int ? map['productId']! as int : 0,
+        manufacturer: map['manufacturer']?.toString(),
+        product: map['product']?.toString(),
+        serial: map['serial']?.toString(),
+        bus: map['bus'] is int ? map['bus']! as int : null,
+        address: map['address'] is int ? map['address']! as int : null,
+      );
+}
+
 /// The serial ports, under `DV.Platform.device.serial`.
 class DVSerial {
   const DVSerial();
@@ -2988,6 +3065,9 @@ class DVDeviceControls {
 
   /// The serial ports, and what is on them.
   DVSerial get serial => const DVSerial();
+
+  /// What is plugged into this machine.
+  DVUsb get usb => const DVUsb();
 
   Future<DVHardwareCapabilityManifest> capabilityManifest() async {
     final result = await DVNativeBridge.require<Map<Object?, Object?>>(
