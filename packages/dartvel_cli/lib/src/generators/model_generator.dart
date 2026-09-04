@@ -16,6 +16,10 @@ class ModelGenerator {
     required String buildId,
   }) async {
     final String searchTuningSrc = _searchTuningSource(root);
+    // Null for an ordinary application. Set only when this project is
+    // itself a Dartvel module, in which case its models resolve their table
+    // and their database through whatever mounted it.
+    final String? ownModuleId = _ownModuleId(root);
     final modelsDir = Directory(p.join(root, 'lib', 'models'));
     final fs = const LocalFileSystem();
     // Always '/': a glob separator is not a host path separator, and a
@@ -63,6 +67,18 @@ class ModelGenerator {
     sb.writeln('        ? DateTime.fromMillisecondsSinceEpoch(value.toInt())');
     sb.writeln('        : DateTime.parse(value.toString());');
 
+    if (ownModuleId != null) {
+      // This project is a module, so every statement below resolves its
+      // table and its database through whatever mounted it. Unmounted --
+      // the module running on its own, or its own tests -- that resolves to
+      // the plain name in the configured database, which is what keeps a
+      // module testable without a parent.
+      sb.writeln();
+      sb.writeln('/// How this module reaches its data, given how it was');
+      sb.writeln('/// mounted. See DVModuleData.');
+      sb.writeln("const DVModuleData _dvModule = DVModuleData('$ownModuleId');");
+    }
+
     final classesGenerated = <String>[];
 
     for (final file in files) {
@@ -106,6 +122,24 @@ class ModelGenerator {
             .firstMatch(modelArgs)
             ?.group(1);
         final tableName = '${className.toLowerCase()}s';
+        // How this model's statements name their table, and where they send
+        // them. An application names the table and uses the application's
+        // database. A module asks its own registration, because the mode is
+        // the parent's decision and this code was generated before there was
+        // a parent: `store_orders` in the application's database, `orders` in
+        // one of the module's own, or a refusal when the module's data is
+        // somewhere else entirely.
+        final String tableRef = ownModuleId == null
+            ? tableName
+            : "\${_dvModule.table('$tableName')}";
+        // The same table, as a Dart expression rather than a fragment of a
+        // SQL string: a spec field and a getter need the value, not an
+        // interpolation.
+        final String tableExpr = ownModuleId == null
+            ? "'$tableName'"
+            : "_dvModule.table('$tableName')";
+        final String dbRef =
+            ownModuleId == null ? 'const DVDatabase()' : '_dvModule.database';
         classesGenerated.add(className);
 
         // Parse fields
@@ -406,7 +440,7 @@ class ModelGenerator {
             "    model: '$className',\n"
             "    route: '/${_pluralRouteSegment(className)}/:$publicPathField',\n"
             "    param: '$publicPathField',\n"
-            "    table: '$tableName',\n"
+            '    table: $tableExpr,\n'
             "    keyField: '$publicPathField',\n"
             "    titleField: ${resolvedPageTitle == null ? 'null' : "'$resolvedPageTitle'"},\n"
             "    contentFields: <String>[${mainContentCandidates.map((String n) => "'$n'").join(', ')}],\n"
@@ -449,7 +483,10 @@ class ModelGenerator {
           sb.writeln('    return values.toList(growable: false);');
           sb.writeln('    }');
           sb.writeln(
-            "    final rows = await DV.Database.query('select * from $tableName');",
+            // DV.Database for an application, unchanged: it is const
+            // DVDatabase() by another name, and this feature has no reason
+            // to rewrite output it does not change the meaning of.
+            "    final rows = await ${ownModuleId == null ? 'DV.Database' : '_dvModule.database'}.query('select * from $tableRef');",
           );
           sb.writeln('    return rows');
           sb.writeln('        .map(${className}Parser.fromJson)');
@@ -685,7 +722,7 @@ class ModelGenerator {
           sb.writeln('  /// Every stored [$className].');
           sb.writeln('  static Future<core.List<$className>> all() async {');
           sb.writeln(
-            "    final rows = await const DVDatabase().query('SELECT * FROM $tableName');",
+            "    final rows = await $dbRef.query('SELECT * FROM $tableRef');",
           );
           sb.writeln(
             '    return rows.map(_fromRow).toList(growable: false);',
@@ -696,22 +733,22 @@ class ModelGenerator {
           sb.writeln('  /// or null.');
           sb.writeln('  static Future<$className?> find(String $keyField) async {');
           sb.writeln(
-            "    final rows = await const DVDatabase().query('SELECT * FROM $tableName WHERE $keyField = ?', <Object?>[$keyField]);",
+            "    final rows = await $dbRef.query('SELECT * FROM $tableRef WHERE $keyField = ?', <Object?>[$keyField]);",
           );
           sb.writeln('    return rows.isEmpty ? null : _fromRow(rows.first);');
           sb.writeln('  }');
           sb.writeln();
           sb.writeln('  /// Upserts [model] and publishes the change.');
           sb.writeln('  static Future<$className> save($className model) async {');
-          sb.writeln('    const db = DVDatabase();');
+          sb.writeln('    final db = $dbRef;');
           sb.writeln(
-            "    final existing = await db.query('SELECT ${fields.first['name']} FROM $tableName WHERE $keyField = ?', <Object?>[model.$keyField]);",
+            "    final existing = await db.query('SELECT ${fields.first['name']} FROM $tableRef WHERE $keyField = ?', <Object?>[model.$keyField]);",
           );
           sb.writeln(
-            "    await db.execute('DELETE FROM $tableName WHERE $keyField = ?', <Object?>[model.$keyField]);",
+            "    await db.execute('DELETE FROM $tableRef WHERE $keyField = ?', <Object?>[model.$keyField]);",
           );
           sb.writeln(
-            "    await db.execute('INSERT INTO $tableName ($columnList) VALUES ($placeholderList)', <Object?>[${fields.map(toParam).join(', ')}]);",
+            "    await db.execute('INSERT INTO $tableRef ($columnList) VALUES ($placeholderList)', <Object?>[${fields.map(toParam).join(', ')}]);",
           );
           sb.writeln('    await DVModelSync.publish<$className>(');
           sb.writeln('      model,');
@@ -725,7 +762,7 @@ class ModelGenerator {
           sb.writeln('  /// Removes [model] and publishes the deletion.');
           sb.writeln('  static Future<void> destroy($className model) async {');
           sb.writeln(
-            "    await const DVDatabase().execute('DELETE FROM $tableName WHERE $keyField = ?', <Object?>[model.$keyField]);",
+            "    await $dbRef.execute('DELETE FROM $tableRef WHERE $keyField = ?', <Object?>[model.$keyField]);",
           );
           sb.writeln(
             '    await DVModelSync.publish<$className>(model, kind: DVModelChangeKind.deleted);',
@@ -947,12 +984,12 @@ class ModelGenerator {
         // Database metadata
         sb.writeln();
         sb.writeln('  /// Database table name for [$className].');
-        sb.writeln("  String get tableName => '$tableName';");
+        sb.writeln('  String get tableName => $tableExpr;');
         sb.writeln();
         sb.writeln('  /// SQL statement to create the [$className] table.');
         final cols = fields.map((f) => "${f['name']} TEXT").join(', ');
         sb.writeln(
-          "  String get createTableSql => 'CREATE TABLE IF NOT EXISTS $tableName ($cols)';",
+          "  String get createTableSql => 'CREATE TABLE IF NOT EXISTS $tableRef ($cols)';",
         );
 
         sb.writeln('}');
@@ -1822,13 +1859,18 @@ class ModelGenerator {
     File(p.join(clientDir.path, 'models.g.dart')).writeAsStringSync(content);
 
     // Pure Dart, no Flutter: what the backend renders a public page from.
+    //
+    // `final` rather than `const` in a module, because a module's table name
+    // is the answer to how it was mounted and that is not known until it is.
     File(p.join(clientDir.path, 'model_pages.g.dart')).writeAsStringSync(
       '${generatedHeader}library dartvel_client_model_pages;\n\n'
-      "import 'package:dartvel_core/dartvel.dart' show DVModelPageSpec;\n\n"
+      "import 'package:dartvel_core/dartvel.dart' show DVModelPageSpec"
+      '${ownModuleId == null ? '' : ', DVModuleData'};\n\n'
+      '${ownModuleId == null ? '' : "const DVModuleData _dvModule = DVModuleData('$ownModuleId');\n\n"}'
       '/// Where each public model page\'s rows are and which fields carry its\n'
       '/// title, content, image and published flag. The backend resolves a\n'
       '/// page\'s data from these on request.\n'
-      'const List<DVModelPageSpec> dartvelModelPages = <DVModelPageSpec>[\n'
+      '${ownModuleId == null ? 'const' : 'final'} List<DVModelPageSpec> dartvelModelPages = <DVModelPageSpec>[\n'
       '${pageSpecs.join('\n')}${pageSpecs.isEmpty ? '' : '\n'}'
       '];\n',
     );
@@ -1998,6 +2040,29 @@ class ModelGenerator {
       return '${singular.substring(0, singular.length - 1)}ies';
     }
     return '${singular}s';
+  }
+
+
+  /// This project's own module id, when the project is a Dartvel module.
+  ///
+  /// `dartvel.module.id` in the module's own pubspec. A module's models are
+  /// generated from the module's project, long before anybody mounts it, so
+  /// the parent's data mode cannot be written into them -- they carry the id
+  /// and ask at run time instead. Null for an ordinary application, which is
+  /// nobody's module and reads its own tables.
+  static String? _ownModuleId(String root) {
+    final File pubspec = File(p.join(root, 'pubspec.yaml'));
+    if (!pubspec.existsSync()) return null;
+    final Object? loaded = loadYaml(pubspec.readAsStringSync());
+    if (loaded is! YamlMap) return null;
+    final Object? dartvel = loaded['dartvel'];
+    if (dartvel is! YamlMap) return null;
+    final Object? module = dartvel['module'];
+    if (module is! YamlMap) return null;
+    final Object? id = module['id'];
+    if (id == null) return null;
+    final String value = '$id'.trim();
+    return value.isEmpty ? null : value;
   }
 
   /// Renders `dartvel.search` from pubspec.yaml as a const DVSearchTuning.
