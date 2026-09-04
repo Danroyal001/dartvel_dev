@@ -330,7 +330,7 @@ jobs:
       - name: Run the Win32 suite
         working-directory: packages/dartvel_flutter
         shell: bash
-        run: python3 ../../tool/ci/live_suite.py flutter test test/windows_bindings_live_test.dart --timeout 90s
+        run: dart run ../../tool/ci/live_suite.dart flutter test test/windows_bindings_live_test.dart --timeout 90s
       # window.displays through EnumDisplayMonitors, against the runner's own
       # desktop session: at least one display, a primary, a real size.
       - name: Display enumeration
@@ -392,7 +392,7 @@ jobs:
       # the serial port. Isolated, it costs only its own.
       - name: Run the macOS suite
         working-directory: packages/dartvel_flutter
-        run: python3 ../../tool/ci/live_suite.py flutter test test/macos_bindings_live_test.dart
+        run: dart run ../../tool/ci/live_suite.dart flutter test test/macos_bindings_live_test.dart
 
       # And, when they fail, what macOS thought of it. The panels have been
       # failing with no diagnostics at all -- tests marked failed with no
@@ -424,7 +424,7 @@ jobs:
           while IFS= read -r name; do
             [ -z "$name" ] && continue
             echo "--- $name"
-            python3 ../../tool/ci/live_suite.py flutter test "$file" --plain-name "$name"
+            dart run ../../tool/ci/live_suite.dart flutter test "$file" --plain-name "$name"
             if [ $? -ne 0 ]; then
               failed=1
               echo "FAILED: $name"
