@@ -328,12 +328,24 @@ jobs:
         shell: bash
         run: |
           set +e
+          # In parts, and each part capped. Every test passes and the process
+          # then will not exit, which is a different fault from a test that
+          # hangs and needs a different fix: something the suite started is
+          # still running. Running the groups separately names which one, the
+          # way the macOS job's bisection did.
+          for group in clipboard kiosk shortcuts device menus tray printing dialogs "drag and drop"; do
+            timeout 150 flutter test test/windows_bindings_live_test.dart --plain-name "$group" > /tmp/part.log 2>&1
+            code=$?
+            tail -3 /tmp/part.log
+            echo "-- $group: exit $code"
+          done
           timeout 420 flutter test test/windows_bindings_live_test.dart --timeout 90s
-          code=$?
-          if [ "$code" -eq 124 ]; then
-            echo "::error::the Win32 suite hung -- a modal dialog is waiting for an answer that never came, and a native modal loop does not yield to the tester, so no per-test timeout can fail it"
+          whole=$?
+          echo "-- whole suite: exit $whole"
+          if [ "$whole" -eq 124 ]; then
+            echo "::error::the Win32 suite finished its tests and the process would not exit; the group exits above name what is still running"
           fi
-          exit $code
+          exit $whole
       # window.displays through EnumDisplayMonitors, against the runner's own
       # desktop session: at least one display, a primary, a real size.
       - name: Display enumeration
