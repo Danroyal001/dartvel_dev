@@ -833,6 +833,24 @@ final List<DVStudioProperty> dvStudioProperties = <DVStudioProperty>[
   DVStudioProperty('lineHeight', DVStudioPropertyKind.number,
       (m, v, p) => _number(m, v, (m, v) => m.lineHeight(v)),
       source: (v, p) => _numberSource('lineHeight', v)),
+  // How many lines the text gets, and what happens to the rest. A design
+  // says both, and a page that said neither pushed everything below a long
+  // title down the screen.
+  DVStudioProperty('maxLines', DVStudioPropertyKind.number,
+      (m, v, p) => v is num && v >= 1 ? m.maxLines(v.toInt()) : null,
+      source: (v, p) =>
+          v is num && v >= 1 ? '.maxLines(${v.toInt()})' : null),
+  DVStudioProperty(
+    'overflow',
+    DVStudioPropertyKind.choice,
+    (m, v, p) {
+      final TextOverflow? overflow = _overflows[v];
+      return overflow == null ? null : m.overflow(overflow);
+    },
+    choices: _overflows.keys.toList(growable: false),
+    source: (v, p) =>
+        _overflows.containsKey(v) ? '.overflow(TextOverflow.$v)' : null,
+  ),
   DVStudioProperty('padding', DVStudioPropertyKind.number,
       (m, v, p) => _padding(m, p),
       source: (v, p) => _hasEdgePadding(p) ? null : _numberSource('padding', v)),
@@ -1132,6 +1150,14 @@ String dvStudioPlaceSource(Map<String, Object?> properties, String source) {
   return 'Positioned(${named.join(', ')}, child: $source)';
 }
 
+
+/// What a design means by the words it uses for overflow.
+const Map<String, TextOverflow> _overflows = <String, TextOverflow>{
+  'clip': TextOverflow.clip,
+  'ellipsis': TextOverflow.ellipsis,
+  'fade': TextOverflow.fade,
+  'visible': TextOverflow.visible,
+};
 
 /// The file an exported page belongs in, by the pages router's own rule.
 ///

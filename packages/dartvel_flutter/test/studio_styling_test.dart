@@ -37,6 +37,7 @@ void main() {
           'letterSpacing', 'borderColor', 'borderWidth', 'opacity',
           'fontFamily', 'lineHeight',
           'gradientFrom', 'gradientTo', 'gradientAngle',
+          'maxLines', 'overflow',
           'paddingLeft', 'paddingTop', 'paddingRight', 'paddingBottom',
           'shadowColor', 'shadowX', 'shadowY', 'shadowBlur', 'shadowSpread',
         ]),
@@ -66,6 +67,9 @@ void main() {
         // and the angle are only usable with the first.
         'gradientFrom': '#FF112233', 'gradientTo': '#FF445566',
         'gradientAngle': 90,
+        // A line limit is a count, so zero lines is not a limit; the
+        // overflow is one of the words a design uses.
+        'maxLines': 2, 'overflow': 'ellipsis',
       };
       for (final property in dvStudioProperties) {
         expect(

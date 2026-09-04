@@ -336,6 +336,14 @@ class DVModifier {
   /// The typeface, by the family name a design names it by.
   final String? fontFamilyValue;
 
+  /// How many lines the text may take, and what happens to the rest.
+  ///
+  /// A design says both: a card title is one line with an ellipsis, a
+  /// description is three. Without a limit a long title pushes everything
+  /// below it down the screen, which the design it came from never does.
+  final int? maxLinesValue;
+  final TextOverflow? overflowValue;
+
   /// Line height as a multiple of the font size, which is how Flutter reads
   /// it. A design says it in points; the multiple is what survives a change
   /// of size.
@@ -418,6 +426,8 @@ class DVModifier {
     this.letterSpacingValue,
     this.fontFamilyValue,
     this.lineHeightValue,
+    this.maxLinesValue,
+    this.overflowValue,
     this.boxColor,
     this.gradientValue,
     this.constraintsValue,
@@ -459,6 +469,8 @@ class DVModifier {
         letterSpacingValue = null,
         fontFamilyValue = null,
         lineHeightValue = null,
+        maxLinesValue = null,
+        overflowValue = null,
         boxColor = null,
         gradientValue = null,
         constraintsValue = null,
@@ -499,6 +511,8 @@ class DVModifier {
     double? letterSpacingValue,
     String? fontFamilyValue,
     double? lineHeightValue,
+    int? maxLinesValue,
+    TextOverflow? overflowValue,
     Color? boxColor,
     Gradient? gradientValue,
     BoxConstraints? constraintsValue,
@@ -539,6 +553,8 @@ class DVModifier {
       letterSpacingValue: letterSpacingValue ?? this.letterSpacingValue,
       fontFamilyValue: fontFamilyValue ?? this.fontFamilyValue,
       lineHeightValue: lineHeightValue ?? this.lineHeightValue,
+      maxLinesValue: maxLinesValue ?? this.maxLinesValue,
+      overflowValue: overflowValue ?? this.overflowValue,
       boxColor: boxColor ?? this.boxColor,
       gradientValue: gradientValue ?? this.gradientValue,
       constraintsValue: constraintsValue ?? this.constraintsValue,
@@ -644,6 +660,16 @@ class DVModifier {
   /// design says 24 on a 16 and means one and a half.
   DVModifier lineHeight(double value) => _copyWith(lineHeightValue: value);
 
+  /// The most lines the text may take.
+  ///
+  /// The ellipsis comes with it unless [overflow] says otherwise: a limit
+  /// that clips mid-word looks like a rendering fault, and a design that
+  /// sets one means the ellipsis.
+  DVModifier maxLines(int value) => _copyWith(maxLinesValue: value);
+
+  /// What happens to text past the limit.
+  DVModifier overflow(TextOverflow value) => _copyWith(overflowValue: value);
+
   DVModifier backgroundColor(Color value) => _copyWith(boxColor: value);
 
   DVModifier width(double value) => _copyWith(widthValue: value);
@@ -744,6 +770,8 @@ class DVModifier {
         letterSpacingValue: other.letterSpacingValue ?? letterSpacingValue,
         fontFamilyValue: other.fontFamilyValue ?? fontFamilyValue,
         lineHeightValue: other.lineHeightValue ?? lineHeightValue,
+        maxLinesValue: other.maxLinesValue ?? maxLinesValue,
+        overflowValue: other.overflowValue ?? overflowValue,
         boxColor: other.boxColor ?? boxColor,
         gradientValue: other.gradientValue ?? gradientValue,
         constraintsValue: other.constraintsValue ?? constraintsValue,
@@ -1789,6 +1817,10 @@ class DVText extends StatelessWidget {
           fontFamily: modifier?.fontFamilyValue,
           height: modifier?.lineHeightValue,
         ),
+        maxLines: modifier?.maxLinesValue,
+        overflow: modifier?.maxLinesValue == null
+            ? modifier?.overflowValue
+            : modifier?.overflowValue ?? TextOverflow.ellipsis,
       );
     }
 
