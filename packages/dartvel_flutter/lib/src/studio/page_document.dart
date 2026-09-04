@@ -754,8 +754,19 @@ final List<DVStudioProperty> dvStudioProperties = <DVStudioProperty>[
       (m, v, p) => _number(m, v, (m, v) => m.letterSpacing(v)),
       source: (v, p) => _numberSource('letterSpacing', v)),
   DVStudioProperty('padding', DVStudioPropertyKind.number,
-      (m, v, p) => _number(m, v, (m, v) => m.padding(v)),
-      source: (v, p) => _numberSource('padding', v)),
+      (m, v, p) => _padding(m, p),
+      source: (v, p) => _hasEdgePadding(p) ? null : _numberSource('padding', v)),
+  // Four sides, because a design almost never has one number: 24 across
+  // against 8 down is the shape of a card, and a document that could say
+  // only one of them left the import to keep the largest.
+  //
+  // Each side applies the whole EdgeInsets rather than its own edge: a
+  // modifier replaces the padding it is given, so four modifiers would leave
+  // only the last one applied.
+  for (final String side in _paddingEdges)
+    DVStudioProperty(side, DVStudioPropertyKind.number,
+        (m, v, p) => _padding(m, p),
+        source: (v, p) => _paddingEdgeSource(side, p)),
   DVStudioProperty('margin', DVStudioPropertyKind.number,
       (m, v, p) => _number(m, v, (m, v) => m.margin(v)),
       source: (v, p) => _numberSource('margin', v)),
@@ -859,6 +870,61 @@ double _borderWidthOf(Map<String, Object?> properties) {
 
 String _hex(Color colour) =>
     (colour.toARGB32() & 0xFFFFFFFF).toRadixString(16).padLeft(8, '0').toUpperCase();
+
+
+/// The named edges, in the order [paddingOnly] takes them.
+const List<String> _paddingEdges = <String>[
+  'paddingLeft',
+  'paddingTop',
+  'paddingRight',
+  'paddingBottom',
+];
+
+/// Whether any single edge is named, which is what makes this padding more
+/// than one number.
+bool _hasEdgePadding(Map<String, Object?> properties) =>
+    _paddingEdges.any((String side) => properties[side] is num);
+
+/// The value for one edge: its own if it has one, else the one number, else
+/// nothing.
+double _paddingEdge(Map<String, Object?> properties, String side) {
+  final Object? own = properties[side];
+  if (own is num) return own.toDouble();
+  final Object? all = properties['padding'];
+  return all is num ? all.toDouble() : 0;
+}
+
+/// Applies the whole padding, whichever property asked.
+DVModifier? _padding(DVModifier modifier, Map<String, Object?> properties) {
+  if (!_hasEdgePadding(properties)) {
+    final Object? all = properties['padding'];
+    return all is num ? modifier.padding(all.toDouble()) : null;
+  }
+  return modifier.paddingOnly(
+    left: _paddingEdge(properties, 'paddingLeft'),
+    top: _paddingEdge(properties, 'paddingTop'),
+    right: _paddingEdge(properties, 'paddingRight'),
+    bottom: _paddingEdge(properties, 'paddingBottom'),
+  );
+}
+
+/// The exported call, written once.
+///
+/// Emitted by the first named edge and by none of the others, because the
+/// call says all four sides and a second one would replace the first.
+String? _paddingEdgeSource(String side, Map<String, Object?> properties) {
+  if (!_hasEdgePadding(properties)) return null;
+  final String first =
+      _paddingEdges.firstWhere((String s) => properties[s] is num);
+  if (side != first) return null;
+  final String args = <String>[
+    'left: ${_paddingEdge(properties, 'paddingLeft')}',
+    'top: ${_paddingEdge(properties, 'paddingTop')}',
+    'right: ${_paddingEdge(properties, 'paddingRight')}',
+    'bottom: ${_paddingEdge(properties, 'paddingBottom')}',
+  ].join(', ');
+  return '.paddingOnly($args)';
+}
 
 String? _numberSource(String name, Object? value) =>
     value is num ? '.$name(${value.toDouble()})' : null;
