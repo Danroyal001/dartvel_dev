@@ -144,4 +144,38 @@ void main() {
     expect(source, isNot(contains('DVPageNode')));
     expect(source, isNot(contains('DVPageDocument')));
   });
+
+  test('a document read back from its own JSON shares nothing with it', () {
+    // The obvious way to copy a document in memory, and it was not a copy:
+    // toJson handed over the same property map and fromJson cast it, which
+    // is a view. Rewriting an image's source on the copy -- what exporting a
+    // project does -- changed the document the running application was still
+    // serving.
+    final DVPageDocument original = DVPageDocument(route: '/copied');
+    final DVPageDocumentEditor editor = DVPageDocumentEditor(original);
+    final DVPageNode node = DVPageNode.image('figma/abc.png')
+        .withProperty('source', 'stored');
+    editor.insert(node, parent: original.root.id);
+
+    final DVPageDocument copy = DVPageDocument.fromJson(original.toJson());
+    copy.root.children.single.properties['source'] = 'asset';
+
+    expect(original.root.children.single.properties['source'], 'stored');
+  });
+
+  test('and its breakpoint overrides are its own too', () {
+    final DVPageDocument original = DVPageDocument(route: '/copied');
+    final DVPageDocumentEditor editor = DVPageDocumentEditor(original);
+    editor.insert(
+      DVPageNode.text('hello')
+          .withBreakpointProperty(DVBreakpoint.tablet, 'fontSize', 24),
+      parent: original.root.id,
+    );
+
+    final DVPageDocument copy = DVPageDocument.fromJson(original.toJson());
+    copy.root.children.single.breakpoints['tablet']!['fontSize'] = 48;
+
+    expect(
+        original.root.children.single.breakpoints['tablet']!['fontSize'], 24);
+  });
 }
