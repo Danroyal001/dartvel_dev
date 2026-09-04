@@ -134,20 +134,7 @@ jobs:
             echo "::error::the application published nothing beside its lock"
             exit 1
           fi
-          python3 - <<'CHECK'
-          import json, sys
-          live = json.load(open('/tmp/diag/linux-live.json'))
-          startup = live.get('startup') or {}
-          phases = [p['name'] for p in startup.get('phases', [])]
-          print('startup phases:', phases, 'total:', startup.get('totalMicros'))
-          for expected in ('configure', 'generated', 'bindings', 'first frame'):
-              if expected not in phases:
-                  print(f'::error::startup never marked "{expected}"')
-                  sys.exit(1)
-          if not startup.get('totalMicros'):
-              print('::error::startup measured nothing')
-              sys.exit(1)
-          CHECK
+          dart tool/ci/startup_check.dart /tmp/diag/linux-live.json
 
       - name: The capture must show the application
         run: |
@@ -552,7 +539,7 @@ jobs:
         working-directory: examples/dartvel_example/build/web
         run: |
           set -uo pipefail
-          python3 -m http.server 8080 > /tmp/serve.log 2>&1 &
+          dart "$GITHUB_WORKSPACE/tool/ci/serve.dart" 8080 > /tmp/serve.log 2>&1 &
           sleep 3
           # CanvasKit downloads and the first frame takes a moment; a shot taken
           # immediately catches a blank canvas and reads as a failure.
@@ -577,17 +564,8 @@ jobs:
           # Served with a fallback to index.html, which is what path URLs
           # need and what deploy configuration writes; the plain file server
           # above answers 404 for a route with no file.
-          python3 - <<'FALLBACK' > /tmp/serve-fallback.log 2>&1 &
-          import http.server, os, socketserver
-          class App(http.server.SimpleHTTPRequestHandler):
-              def do_GET(self):
-                  path = self.translate_path(self.path)
-                  if not os.path.isfile(path) and not os.path.isdir(path):
-                      self.path = '/index.html'
-                  return super().do_GET()
-          socketserver.TCPServer.allow_reuse_address = True
-          socketserver.TCPServer(('', 8082), App).serve_forever()
-          FALLBACK
+          dart "$GITHUB_WORKSPACE/tool/ci/serve.dart" 8082 --spa \
+            > /tmp/serve-fallback.log 2>&1 &
           sleep 3
           # Dumped until the module's screen is in it, not once and hoped.
           # A single dump is a race against the first paint: the engine boots,
@@ -1119,7 +1097,8 @@ jobs:
             echo "::warning::the command line; serving the bundle over HTTP"
             echo "::warning::instead. Rendering is still verified; acceptance"
             echo "::warning::of the manifest by Chrome is not."
-            (cd "$EXT" && python3 -m http.server 8181 > /tmp/diag/serve.log 2>&1 &)
+            (cd "$EXT" && dart "$GITHUB_WORKSPACE/tool/ci/serve.dart" 8181 \
+               > /tmp/diag/serve.log 2>&1 &)
             sleep 3
             PAGE="http://localhost:8181/index.html"
           fi
