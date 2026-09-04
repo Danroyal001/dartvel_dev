@@ -35,6 +35,8 @@ void main() {
           'fontSize', 'padding', 'margin', 'width', 'height', 'rounded',
           'color', 'backgroundColor', 'fontWeight', 'align', 'card',
           'letterSpacing', 'borderColor', 'borderWidth', 'opacity',
+          'paddingLeft', 'paddingTop', 'paddingRight', 'paddingBottom',
+          'shadowColor', 'shadowX', 'shadowY', 'shadowBlur', 'shadowSpread',
         ]),
       );
     });
@@ -50,6 +52,13 @@ void main() {
         // A border is one decision made of two values, so the width is only
         // usable with the colour it belongs to; opacity is a fraction.
         'borderColor': '#112233', 'borderWidth': 2, 'opacity': 0.5,
+        // A shadow is one decision made of five, so its parts are only
+        // usable with the colour they belong to; padding has four sides and
+        // each applies the whole inset.
+        'shadowColor': '#33000000', 'shadowX': 0, 'shadowY': 4,
+        'shadowBlur': 12, 'shadowSpread': 0,
+        'paddingLeft': 8, 'paddingTop': 8, 'paddingRight': 8,
+        'paddingBottom': 8,
       };
       for (final property in dvStudioProperties) {
         expect(

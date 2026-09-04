@@ -779,6 +779,39 @@ final List<DVStudioProperty> dvStudioProperties = <DVStudioProperty>[
   DVStudioProperty('rounded', DVStudioPropertyKind.number,
       (m, v, p) => _number(m, v, (m, v) => m.rounded(v)),
       source: (v, p) => _numberSource('rounded', v)),
+  // A shadow is one decision made of five values, so the colour owns it and
+  // the rest are its companions: applied separately, whichever ran last
+  // would hold defaults for the other four.
+  DVStudioProperty(
+    'shadowColor',
+    DVStudioPropertyKind.colour,
+    (m, v, p) {
+      final List<BoxShadow>? shadow = _shadowOf(v, p);
+      return shadow == null ? null : m.shadow(shadow);
+    },
+    source: (v, p) {
+      final List<BoxShadow>? shadow = _shadowOf(v, p);
+      if (shadow == null) return null;
+      final BoxShadow cast = shadow.single;
+      return '.shadow(<BoxShadow>[BoxShadow(color: '
+          'Color(0x${_hex(cast.color)}), '
+          'offset: Offset(${cast.offset.dx}, ${cast.offset.dy}), '
+          'blurRadius: ${cast.blurRadius}, '
+          'spreadRadius: ${cast.spreadRadius})])';
+    },
+  ),
+  // Declared so the inspector offers each one, and exported by the colour.
+  for (final String part in _shadowParts)
+    DVStudioProperty(
+      part,
+      DVStudioPropertyKind.number,
+      (m, v, p) {
+        final List<BoxShadow>? shadow = _shadowOf(p['shadowColor'], p);
+        return shadow == null ? null : m.shadow(shadow);
+      },
+      source: (v, p) => null,
+      companionOf: 'shadowColor',
+    ),
   DVStudioProperty('color', DVStudioPropertyKind.colour,
       (m, v, p) => _colour(m, v, (m, v) => m.color(v)),
       source: (v, p) => _colourSource('color', v)),
@@ -871,6 +904,38 @@ double _borderWidthOf(Map<String, Object?> properties) {
 String _hex(Color colour) =>
     (colour.toARGB32() & 0xFFFFFFFF).toRadixString(16).padLeft(8, '0').toUpperCase();
 
+
+
+/// The parts of a shadow that are not its colour.
+const List<String> _shadowParts = <String>[
+  'shadowX',
+  'shadowY',
+  'shadowBlur',
+  'shadowSpread',
+];
+
+/// The shadow [colour] and [properties] describe, or null when there is
+/// none.
+///
+/// A blur with no colour is not a shadow: defaulting to black would put one
+/// under every box that named a radius, which is a design nobody drew.
+List<BoxShadow>? _shadowOf(Object? colour, Map<String, Object?> properties) {
+  final Color? parsed = parseDocumentColor(colour);
+  if (parsed == null) return null;
+  double part(String name) {
+    final Object? value = properties[name];
+    return value is num ? value.toDouble() : 0;
+  }
+
+  return <BoxShadow>[
+    BoxShadow(
+      color: parsed,
+      offset: Offset(part('shadowX'), part('shadowY')),
+      blurRadius: part('shadowBlur'),
+      spreadRadius: part('shadowSpread'),
+    ),
+  ];
+}
 
 /// The named edges, in the order [paddingOnly] takes them.
 const List<String> _paddingEdges = <String>[
