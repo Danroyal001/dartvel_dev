@@ -41,3 +41,9 @@ jobs:
       # index records as Shipped and nothing else. It listed 29 of 40 under a
       # heading that said thirty-three, because nothing compared them.
       - run: dart run tool/site_features_check.dart
+
+      # This repository is Dart, tooling included, and it has drifted back
+      # more than once: a workflow reaches for a python3 heredoc because the
+      # script is six lines, and the language breakdown of a project sold as
+      # "Flutter's Laravel" then says Python. A rule nothing checks drifts.
+      - run: dart run tool/ci/no_python_check.dart
