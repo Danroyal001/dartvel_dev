@@ -1036,48 +1036,10 @@ jobs:
           sleep 3
 
           # The id Chrome derived for the unpacked extension, read from the
-          # profile it just wrote. Written to a file rather than inlined: an
-          # embedded multi-line script inside a YAML block scalar has lines at
-          # column 0, which YAML reads as new top-level keys.
-          cat > /tmp/extid.py <<'PYEOF'
-          import json
-          import os
-          import sys
-
-          wanted = os.path.realpath(sys.argv[1])
-          path = '/tmp/chrome-profile/Default/Preferences'
-          if not os.path.exists(path):
-              print('NO PREFERENCES FILE', file=sys.stderr)
-              raise SystemExit(0)
-
-          prefs = json.load(open(path))
-          settings = prefs.get('extensions', {}).get('settings', {})
-
-          # Everything Chrome recorded, to the log. The first attempt matched
-          # on an exact path string, found nothing, and could not say whether
-          # Chrome had rejected the manifest or the lookup was simply wrong.
-          for key, value in settings.items():
-              print(f'  {key} location={value.get("location")} '
-                    f'path={value.get("path")}', file=sys.stderr)
-
-          for key, value in settings.items():
-              recorded = value.get('path')
-              if not recorded:
-                  continue
-              # location 4 is UNPACKED. Chrome may store the path normalised
-              # or relative to the profile, so compare resolved paths and fall
-              # back to the only unpacked entry.
-              if os.path.realpath(recorded) == wanted:
-                  print(key)
-                  raise SystemExit(0)
-
-          unpacked = [k for k, v in settings.items() if v.get('location') == 4]
-          if len(unpacked) == 1:
-              print(unpacked[0])
-          PYEOF
-          sed -i 's/^          //' /tmp/extid.py
-          # stderr carries the dump of what Chrome recorded; keep it in the log.
-          EXT_ID=$(python3 /tmp/extid.py "$EXT" 2>>/tmp/diag/extension-run.log)
+          # profile it just wrote. stderr carries the dump of what Chrome
+          # recorded; keep it in the log.
+          EXT_ID=$(dart "$GITHUB_WORKSPACE/tool/ci/chrome_extension_id.dart" \
+            "$EXT" 2>>/tmp/diag/extension-run.log)
           echo "extension id: ${EXT_ID:-<not found>}"
 
           if [ -n "$EXT_ID" ]; then
@@ -1149,13 +1111,7 @@ jobs:
             --disable-gpu --disable-dev-shm-usage \
             --user-data-dir=/tmp/chrome-text --load-extension=$EXT \
             --virtual-time-budget=20000 --dump-dom "$PAGE" 2>/dev/null \
-            | python3 -c "
-          import re, sys
-          html = sys.stdin.read()
-          # Semantics labels carry the visible text for a CanvasKit page.
-          labels = re.findall(r'aria-label=\"([^\"]+)\"', html)
-          print(' | '.join(labels[:20]))
-          ") || TEXT=""
+            | dart "$GITHUB_WORKSPACE/tool/ci/aria_labels.dart") || TEXT=""
           echo "page labels: $TEXT"
 
           if echo "$TEXT" | grep -qiE "No page at|^404"; then
@@ -1171,25 +1127,7 @@ jobs:
           # Structural manifest checks, independent of whether Chrome would
           # load it. These are the parts a Dartvel bug would break.
           MANIFEST="$EXT/manifest.json"
-          python3 - "$MANIFEST" <<'MFEOF'
-          import json
-          import sys
-
-          manifest = json.load(open(sys.argv[1]))
-          problems = []
-          if manifest.get('manifest_version') != 3:
-              problems.append(f"manifest_version is {manifest.get('manifest_version')}, not 3")
-          for required in ('name', 'version'):
-              if not manifest.get(required):
-                  problems.append(f'missing {required}')
-          background = manifest.get('background', {})
-          if 'service_worker' not in background:
-              problems.append('MV3 background must declare a service_worker')
-          if problems:
-              print('manifest problems: ' + '; '.join(problems))
-              raise SystemExit(1)
-          print('manifest is well-formed MV3')
-          MFEOF
+          dart "$GITHUB_WORKSPACE/tool/ci/manifest_check.dart" mv3 "$MANIFEST"
 
       # A job that captured nothing is not a pass. The run step above is
       # continue-on-error so its logs still upload; this is not, so the job
@@ -1267,19 +1205,9 @@ jobs:
       - name: The manifest must name a stable add-on
         run: |
           set -euo pipefail
-          python3 - examples/dartvel_example/build/firefox-extension/manifest.json <<'MF'
-          import json, sys
-          m = json.load(open(sys.argv[1]))
-          gecko = (m.get('browser_specific_settings') or {}).get('gecko') or {}
-          if not gecko.get('id'):
-              print('::error::the Firefox manifest names no add-on id')
-              raise SystemExit(1)
-          if m.get('manifest_version') != 3:
-              print('::error::manifest_version is %r' % m.get('manifest_version'))
-              raise SystemExit(1)
-          print('add-on id:', gecko['id'])
-          open('/tmp/addon-id', 'w').write(gecko['id'])
-          MF
+          dart "$GITHUB_WORKSPACE/tool/ci/manifest_check.dart" firefox \
+            examples/dartvel_example/build/firefox-extension/manifest.json \
+            /tmp/addon-id
 
       - name: Load it in Firefox and photograph the page
         run: |
@@ -1299,34 +1227,8 @@ jobs:
           (cd "$EXT" && zip -qr "$PROFILE/extensions/$ID.xpi" .)
           ls -la "$PROFILE/extensions/"
 
-          python3 - "$PROFILE" "$ID" "$UUID" <<'PREFS'
-          import json, sys
-          profile, addon_id, uuid = sys.argv[1], sys.argv[2], sys.argv[3]
-          prefs = [
-              ('xpinstall.signatures.required', 'false'),
-              ('extensions.autoDisableScopes', '0'),
-              ('extensions.enabledScopes', '5'),
-              ('extensions.webextensions.uuids',
-               json.dumps(json.dumps({addon_id: uuid}))),
-              ('browser.shell.checkDefaultBrowser', 'false'),
-              ('toolkit.telemetry.enabled', 'false'),
-              # Otherwise the first run opens a welcome page, which is what
-              # gets photographed instead of the extension.
-              ('browser.startup.homepage_override.mstone', '"ignore"'),
-              ('browser.aboutwelcome.enabled', 'false'),
-              ('datareporting.policy.firstRunURL', '""'),
-              ('datareporting.policy.dataSubmissionEnabled', 'false'),
-              ('trailhead.firstrun.didSeeAboutWelcome', 'true'),
-              # The page's own console, on stdout. Without these a Flutter
-              # start-up error is invisible: the DOM looks the same whether
-              # the application threw or simply has not painted yet.
-              ('devtools.console.stdout.content', 'true'),
-              ('browser.dom.window.dump.enabled', 'true'),
-          ]
-          with open(profile + '/prefs.js', 'w') as f:
-              for name, value in prefs:
-                  f.write('user_pref("%s", %s);\n' % (name, value))
-          PREFS
+          dart "$GITHUB_WORKSPACE/tool/ci/firefox_profile.dart" prefs \
+            "$PROFILE" "$ID" "$UUID"
 
           PAGE="moz-extension://$UUID/index.html"
           echo "photographing $PAGE"
@@ -1357,14 +1259,8 @@ jobs:
           # What Firefox decided about the add-on, so a page that never loads
           # can be told apart from an add-on that never installed.
           if [ -f "$PROFILE/extensions.json" ]; then
-            python3 - "$PROFILE/extensions.json" <<'STATE'
-          import json, sys
-          data = json.load(open(sys.argv[1]))
-          for addon in data.get('addons', []):
-              if addon.get('location') != 'app-global':
-                  print('addon %s: active=%s type=%s' % (
-                      addon.get('id'), addon.get('active'), addon.get('type')))
-          STATE
+            dart "$GITHUB_WORKSPACE/tool/ci/firefox_profile.dart" addons \
+              "$PROFILE/extensions.json"
           else
             echo "no extensions.json: Firefox never registered an add-on"
           fi
@@ -1495,34 +1391,7 @@ jobs:
           done
           kill $SERVER 2>/dev/null || true
 
-          python3 - <<'CHECK'
-          import glob, re, sys
-
-          pages = {}
-          for path in sorted(glob.glob('/tmp/diag/page*.html')):
-              html = open(path).read()
-              title = re.search(r'<title>(.*?)</title>', html, re.S)
-              note = re.search(r'<noscript>(.*?)</noscript>', html, re.S)
-              pages[path] = (
-                  title.group(1).strip() if title else None,
-                  len(note.group(1)) if note else 0,
-              )
-              print('%-34s %-34s noscript:%s' % (path, pages[path][0], pages[path][1]))
-
-          if len(pages) != 4:
-              print('::error::expected four pages, got %d' % len(pages))
-              sys.exit(1)
-
-          titles = [t for t, _ in pages.values()]
-          if len(set(titles)) != len(titles):
-              print('::error::two routes share a title, so they are not being '
-                    'rendered per route: %r' % titles)
-              sys.exit(1)
-
-          if any(n == 0 for _, n in pages.values()):
-              print('::error::a route came back with no crawler-visible text')
-              sys.exit(1)
-          CHECK
+          dart "$GITHUB_WORKSPACE/tool/ci/prerendered_pages_check.dart" /tmp/diag 4
 
       - uses: actions/upload-artifact@v4
         if: always()
