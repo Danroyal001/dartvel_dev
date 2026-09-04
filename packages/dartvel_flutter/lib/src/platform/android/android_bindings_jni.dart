@@ -24,6 +24,8 @@ import 'package:jni/jni.dart';
 
 import '../../../dartvel_flutter.dart' show DVNativeBridge;
 import 'android_capabilities.dart';
+import 'android_kiosk_jni.dart';
+import 'generated/android/app/Application.dart';
 import 'generated/android/content/ClipData.dart';
 import 'generated/android/content/ClipboardManager.dart';
 import 'generated/android/content/Context.dart';
@@ -54,6 +56,16 @@ class DVAndroidBindings {
     final context = _applicationContext();
     if (context == null) return false;
     _context = context;
+
+    // The Activity, which is what lock task mode belongs to and what the
+    // application Context cannot reach. Android reports it and never answers
+    // the question afterwards, so the watching starts here, before anything
+    // asks.
+    // The application Context *is* the Application on Android; the cast is
+    // what tells Dart so. `as` checks it, so a Context that somehow is not
+    // one throws here rather than at the first callback.
+    DVAndroidActivities.watch(context.as(Application.type));
+    DVAndroidKiosk.register(DVNativeBridge.register);
 
     DVNativeBridge.register('clipboard.copy', (Object? arguments) {
       final text = arguments is Map ? '${arguments['text'] ?? ''}' : '';

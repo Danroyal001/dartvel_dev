@@ -20,7 +20,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('capability list', () {
-    test('it claims clipboard, haptics and sharing', () {
+    test('it claims clipboard, haptics, sharing and the kiosk', () {
       expect(
         DVAndroidBindings.implemented,
         <String>{
@@ -30,8 +30,21 @@ void main() {
           'haptics.lightVibrate',
           'haptics.impact',
           'share.text',
+          'kiosk.enforce',
+          'kiosk.release',
         },
       );
+    });
+
+    test('the kiosk is here because the Activity is now reachable', () {
+      // It was absent for the same reason biometrics and NFC still are: lock
+      // task mode belongs to an Activity, and the application Context that
+      // package:jni hands back is not one. The difference is that Android
+      // offers a way to be told which Activity is in front --
+      // Application.registerActivityLifecycleCallbacks -- and jnigen can
+      // implement a Java interface, so the callback is Dart's. No platform
+      // channel, which is what the native integration rule asks for.
+      expect(DVAndroidBindings.implemented, contains('kiosk.enforce'));
     });
 
     test('it is no longer empty, which is the point', () {
