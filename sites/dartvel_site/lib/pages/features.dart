@@ -333,6 +333,11 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
 /// words. The checker holds this list to the index's Partial sections exactly.
 const List<(String, String, String)> partial = <(String, String, String)>[
   (
+    'App store publishing',
+    'One command to a store, and every refusal before the upload',
+    'Present: dartvel publish takes a built application to Google Play, App Store Connect, TestFlight or Firebase App Distribution, declared once in pubspec.yaml. The work is an upload of a binary that took minutes to produce, so every refusal comes before it: a track nobody publishes to is refused rather than corrected to the nearest, credentials that were never declared are refused rather than left to a tool that stops to ask a pipeline with nobody to answer, and App Store Connect is refused off macOS at the start rather than with "command not found" at the end of a long build. --dry-run shows what Dartvel would do to a store account before it does it, and the upload uploads and nothing else. Absent: the stores are driven through their own tools rather than their APIs, so a machine without one is told to install it; nothing has been published from CI, which needs an account and a signing identity; and metadata, screenshots and staged rollouts are deliberately left alone.',
+  ),
+  (
     'Home Widgets',
     'The page half is generated; the native packaging is not',
     'Present: @DVHomeWidget on any widget generates the page the specification describes -- a route at /widgets/<id> that centres the widget\'s content, which is what lets the widget launch the application at itself and a page navigate back to it -- and the application\'s list of them beside the router, for the packaging that puts them on a home screen. The identifier is the class name in kebab case, one rule in one place: a widget somebody has already put on their home screen is found again by it, and two spellings of the route is a tap that opens the not-found page. A build for a target with no home screen leaves them out and says which ones and why, or is refused outright when the project asks to be -- what must never happen is the third option, a widget quietly carried into an artifact that can never show it. Absent: the native packaging, a Jetpack Glance widget on Android and a WidgetKit extension on iOS and macOS, and with it the shell properties a home widget shares with a page.',
@@ -421,7 +426,7 @@ Widget _featuresPage(BuildContext context) => SingleChildScrollView(
               width: 660,
             ),
             Body(
-              'Fourteen more sections are partial. They are listed as '
+              'Fifteen more sections are partial. They are listed as '
               'partial, with what is absent written next to what is present.',
               width: 660,
             ),

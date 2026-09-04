@@ -938,7 +938,15 @@
     },
     {
       "section": "App store publishing",
-      "kind": "narrative"
+      "stability": "Draft",
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_cli/lib/src/publish/publish_plan.dart",
+        "packages/dartvel_cli/lib/src/commands/publish_command.dart",
+        "packages/dartvel_cli/test/publish_plan_test.dart",
+        "packages/dartvel_cli/test/publish_command_test.dart"
+      ],
+      "absent": "Built: dartvel publish takes a built application to Google Play, App Store Connect, TestFlight or Firebase App Distribution, declared under dartvel.publish in pubspec.yaml. Host support, then the tooling, then the work -- and here the work is an upload of a binary that took minutes to produce, so every refusal comes before it: a track nobody publishes to is refused rather than corrected to the nearest, because \"staging\" could mean internal or alpha and guessing puts a build in front of the wrong people; Play credentials that were never declared are refused rather than left to fastlane, which stops to ask and a pipeline has nobody to answer; App Store Connect is refused off macOS at the start rather than with \"command not found\" at the end of a long build. --dry-run prints the command instead of running it. The upload uploads and nothing else, because a publish that also promoted the build would be two things under one word. Absent: the stores are driven through their own tools -- fastlane, xcrun altool, the firebase CLI -- rather than their APIs directly, so a machine without one is told to install it rather than having it fetched; no store has been published to from CI, which needs an account and a signing identity; and metadata, screenshots and staged rollouts are deliberately not touched."
     },
     {
       "section": "Takeaway",
