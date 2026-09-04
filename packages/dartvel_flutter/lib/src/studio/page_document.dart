@@ -284,7 +284,7 @@ class DVPageDocument {
       core = leaf.source(node, _escape);
     } else {
         final children = node.children
-            .map((DVPageNode c) => '\n$pad  ${_nodeSource(c, depth + 1)},')
+            .map((DVPageNode c) => '\n$pad  ${node.layout == 'stack' ? dvStudioPlaceSource(c.properties, _nodeSource(c, depth + 1)) : _nodeSource(c, depth + 1)},')
             .join();
         final childList = children.isEmpty ? '[]' : '[$children\n$pad]';
         final String layoutArgs = _layoutArgumentSource(node.properties);
@@ -467,8 +467,15 @@ class DVPageDocumentRenderer extends StatelessWidget {
     if (leaf != null) {
       built = leaf.build(node);
     } else {
+        // A stack's children can name where they sit. A design that does
+        // not use auto-layout places everything by coordinate, and a stack
+        // with no positions piles every child into the top-left corner --
+        // so a screen of carefully placed elements comes through as a heap.
+        final bool places = node.layout == 'stack';
         final children = node.children
-            .map((DVPageNode c) => _build(c, breakpoint))
+            .map((DVPageNode c) => places
+                ? dvStudioPlace(c.propertiesFor(breakpoint), _build(c, breakpoint))
+                : _build(c, breakpoint))
             .toList(growable: false);
         // How the children sit together, which a box could describe and not
         // render: every list and row came out with the framework's default
@@ -1005,6 +1012,51 @@ LinearGradient? _gradientOf(Object? from, Map<String, Object?> properties) {
     end: Alignment(dx, dy),
     colors: <Color>[start, end],
   );
+}
+
+/// The edges a child of a stack can name.
+const List<String> dvStudioPlacementEdges = <String>[
+  'left',
+  'top',
+  'right',
+  'bottom',
+];
+
+/// Whether [properties] say where a child sits.
+bool dvStudioIsPlaced(Map<String, Object?> properties) =>
+    dvStudioPlacementEdges.any((String edge) => properties[edge] is num);
+
+/// [child] at the place [properties] name, or [child] itself when they name
+/// none.
+///
+/// Only the edges that were named. Filling the others in with zero would
+/// move a child pinned to one edge, and stretch one pinned to two.
+Widget dvStudioPlace(Map<String, Object?> properties, Widget child) {
+  if (!dvStudioIsPlaced(properties)) return child;
+  double? edge(String name) {
+    final Object? value = properties[name];
+    return value is num ? value.toDouble() : null;
+  }
+
+  return Positioned(
+    left: edge('left'),
+    top: edge('top'),
+    right: edge('right'),
+    bottom: edge('bottom'),
+    child: child,
+  );
+}
+
+/// The exported form of [dvStudioPlace]: [source] wrapped where the child
+/// says it sits.
+String dvStudioPlaceSource(Map<String, Object?> properties, String source) {
+  if (!dvStudioIsPlaced(properties)) return source;
+  final List<String> named = <String>[
+    for (final String edge in dvStudioPlacementEdges)
+      if (properties[edge] is num)
+        '$edge: ${(properties[edge]! as num).toDouble()}',
+  ];
+  return 'Positioned(${named.join(', ')}, child: $source)';
 }
 
 /// The parts of a shadow that are not its colour.
