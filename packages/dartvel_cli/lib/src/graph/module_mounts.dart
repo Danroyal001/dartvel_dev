@@ -79,6 +79,7 @@ class DVModuleMount {
     this.routeBase = '/',
     this.inSitemap = true,
     this.location,
+    this.backend,
     this.shell = 'inherit',
     this.auth = 'inherit',
     this.theme = 'inherit',
@@ -141,6 +142,10 @@ class DVModuleMount {
   /// versions differed, which is the point at which nobody would think to
   /// look at the build.
   bool get compiledIntoParent => deployment != DVModuleDeployment.federated;
+
+  /// Where this module's backend functions answer, when they are not the
+  /// parent's: the `backend` a split-backend module declares.
+  final String? backend;
 
   /// How much of the parent's shell the module's pages sit inside:
   /// `inherit`, `extend`, `override` or `none`.
@@ -206,6 +211,7 @@ List<DVModuleMount> dvDiscoverModuleMounts(String root) {
         deployment: deployment,
         routes: const <DVModuleRoute>[],
         inSitemap: inSitemap,
+        backend: modes.backend,
         shell: modes.shell,
         auth: modes.auth,
         theme: modes.theme,
@@ -226,6 +232,7 @@ List<DVModuleMount> dvDiscoverModuleMounts(String root) {
         deployment: deployment,
         routes: const <DVModuleRoute>[],
         inSitemap: inSitemap,
+        backend: modes.backend,
         shell: modes.shell,
         auth: modes.auth,
         theme: modes.theme,
@@ -283,6 +290,7 @@ List<DVModuleMount> dvDiscoverModuleMounts(String root) {
       version: moduleDeclaration['version'] == null ? null : '${moduleDeclaration['version']}',
       routeBase: routeBase,
       inSitemap: inSitemap,
+      backend: modes.backend,
       shell: modes.shell,
       auth: modes.auth,
       theme: modes.theme,
@@ -312,6 +320,7 @@ DVModuleMount _federated({
         deployment: DVModuleDeployment.federated,
         routes: const <DVModuleRoute>[],
         inSitemap: inSitemap,
+        backend: modes.backend,
         shell: modes.shell,
         auth: modes.auth,
         theme: modes.theme,
@@ -524,12 +533,15 @@ Map<Object?, Object?> _dartvelSection(String root) {
 
 /// The four per-module modes, as declared.
 class _DVModuleModes {
-  const _DVModuleModes(this.shell, this.auth, this.theme, this.data);
+  const _DVModuleModes(this.shell, this.auth, this.theme, this.data, this.backend);
 
   final String shell;
   final String auth;
   final String theme;
   final String data;
+
+  /// Where a separately deployed backend answers.
+  final String? backend;
 }
 
 /// Reads `shell`, `auth`, `theme` and `data`, and refuses the combinations
@@ -600,5 +612,18 @@ _DVModuleModes _modesOf(
     }
   }
 
-  return _DVModuleModes(shell, auth, theme, data);
+  final Object? backend = body['backend'];
+  final String? backendUrl =
+      backend == null || '$backend'.trim().isEmpty ? null : '$backend'.trim();
+  if (deployment == DVModuleDeployment.splitBackend && backendUrl == null) {
+    // The pages compile into the parent exactly as an embedded module's do,
+    // so nothing looks wrong. Every call the module makes goes to the
+    // parent's API, which does not serve those functions, and the answer is
+    // a 404 from an application that was built, deployed and looks right.
+    problems.add('dartvel.modules.$id is split-backend and declares no '
+        'backend address, so its functions would be called on the parent\'s '
+        'API, which does not serve them.');
+  }
+
+  return _DVModuleModes(shell, auth, theme, data, backendUrl);
 }

@@ -29,6 +29,23 @@ class DVModule {
   /// Configuration the parent passed at mount time.
   final Map<String, Object?> config;
 
+  /// Where this module's backend functions answer, when they are not the
+  /// parent's.
+  ///
+  /// A split-backend or federated module runs its functions as its own
+  /// service, and the module's generated client asks here before falling
+  /// back to the application's own base. Null when the parent serves them,
+  /// which is what lets the caller tell the two cases apart -- answering
+  /// with the parent's address would make them identical to anything reading
+  /// this, and a module calling the wrong service does not crash, it gets a
+  /// 404 from an application that was built and deployed and looks right.
+  String? get apiBase {
+    final Object? declared = config['backend'];
+    if (declared == null) return null;
+    final String value = '$declared'.trim();
+    return value.isEmpty ? null : value;
+  }
+
   /// The module's own asset paths, each mapped to the path that finds it
   /// once the module is mounted.
   ///

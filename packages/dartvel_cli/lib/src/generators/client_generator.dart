@@ -576,7 +576,7 @@ class DartvelRuntime {
 
   static String get baseUrl {
     if (_override.isNotEmpty) return _override;
-    final url = kReleaseMode ? cfg.dvProdBackendHost : cfg.dvDevBackendHost;
+${_moduleBackendSource(dv)}    final url = kReleaseMode ? cfg.dvProdBackendHost : cfg.dvDevBackendHost;
     return _adjustDevHost(url);
   }
 
@@ -1731,6 +1731,26 @@ void startDartvelKiosk() {
     }
   }
 
+  /// The module's own backend, asked for before the application's.
+  ///
+  /// Only for a project that is itself a module. Compiled into a parent, this
+  /// code runs inside an application whose base URL is the parent's -- and a
+  /// split-backend or federated module's functions are not there. The parent
+  /// puts the address in the registry when it mounts it; standing alone,
+  /// nothing has registered this module and the application's own base is
+  /// the right answer.
+  static String _moduleBackendSource(Object? dv) {
+    final Object? section = dv is Map ? dv['module'] : null;
+    if (section is! Map) return '';
+    final Object? id = section['id'];
+    if (id == null || '$id'.trim().isEmpty) return '';
+    return '    // This project is the `$id` module. Mounted with a backend\n'
+        '    // of its own, its functions answer there rather than on\n'
+        '    // whatever application this code was compiled into.\n'
+        "    final mounted = DV.Modules.maybeGet('$id')?.apiBase;\n"
+        '    if (mounted != null && mounted.isNotEmpty) return mounted;\n';
+  }
+
   /// `modules.g.dart`: the mounted modules as the registry sees them, and a
   /// typed accessor for each.
   ///
@@ -1773,6 +1793,10 @@ void startDartvelKiosk() {
         ..writeln("      'theme': '${m.theme}',")
         ..writeln("      'data': '${m.data}',");
       if (m.location != null) out.writeln("      'location': '${m.location}',");
+      // Where the module's own functions answer. Its generated client reads
+      // this before falling back to the application's base, which is what
+      // makes split-backend more than a word in a pubspec.
+      if (m.backend != null) out.writeln("      'backend': '${m.backend}',");
       if (m.name != null) out.writeln("      'name': '${m.name}',");
       if (m.version != null) out.writeln("      'version': '${m.version}',");
       out.writeln('    },');
