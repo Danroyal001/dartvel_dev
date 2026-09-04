@@ -46,6 +46,33 @@ class DVModule {
     return value.isEmpty ? null : value;
   }
 
+  /// The globals this module shares with whatever mounted it.
+  ///
+  /// `dartvel.module.globals.export` in the module's own pubspec. Empty is
+  /// the default and means nothing is shared: the specification isolates
+  /// module globals and asks for sharing to be written down, because a
+  /// parent reaching into a module's state turns anything the module keeps
+  /// into somebody's dependency without its author knowing.
+  List<String> get exportedGlobals => _globalNames('export');
+
+  /// The application globals this module may read.
+  ///
+  /// `dartvel.modules.<id>.globals.inherit` in the parent's pubspec: the
+  /// parent decides what it hands down, and the module reads it without
+  /// naming the parent, so the same module standing alone reads its own.
+  List<String> get inheritedGlobals => _globalNames('inherit');
+
+  List<String> _globalNames(String key) {
+    final Object? globals = config['globals'];
+    if (globals is! Map) return const <String>[];
+    final Object? names = globals[key];
+    if (names is! List) return const <String>[];
+    return <String>[
+      for (final Object? name in names)
+        if ('$name'.trim().isNotEmpty) '$name'.trim(),
+    ];
+  }
+
   /// The module's own asset paths, each mapped to the path that finds it
   /// once the module is mounted.
   ///
