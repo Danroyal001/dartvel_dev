@@ -14,9 +14,11 @@
 // module that silently has no session.
 import 'dart:io';
 
+import 'package:dartvel_cli/src/generators/client_generator.dart';
 import 'package:dartvel_cli/src/graph/module_mounts.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
+import 'package:yaml/yaml.dart';
 
 const String _page = '''
 import 'package:flutter/widgets.dart';
@@ -150,6 +152,89 @@ void main() {
           mountOf('      theme: override\n', deployment: 'backend-only');
 
       expect(mount.problems.join(' '), contains('theme'));
+    });
+  });
+
+  group('a backend deployed on its own', () {
+    test('the address is read', () {
+      final DVModuleMount mount = mountOf(
+        '      backend: https://store-api.example.com\n',
+        deployment: 'split-backend',
+      );
+
+      expect(mount.backend, 'https://store-api.example.com');
+      expect(mount.problems, isEmpty);
+    });
+
+    test('split-backend with no address is refused', () {
+      // The pages compile in exactly as an embedded module's do, so nothing
+      // looks wrong: every call the module makes goes to the parent's API,
+      // which does not serve those functions, and the answer is a 404 from
+      // an application that was built and deployed and looks right.
+      final DVModuleMount mount = mountOf('', deployment: 'split-backend');
+
+      expect(mount.problems, isNotEmpty);
+      expect(mount.problems.join(' '), contains('backend'));
+    });
+
+    test('an embedded module needs no address', () {
+      expect(mountOf('').problems, isEmpty);
+      expect(mountOf('').backend, isNull);
+    });
+  });
+
+  group('the module\'s own client', () {
+    Future<String> generateModule({String extra = ''}) async {
+      final Directory root = Directory.systemTemp.createTempSync('dartvel_module_client_');
+      addTearDown(() => root.deleteSync(recursive: true));
+      Directory(p.join(root.path, 'lib', 'pages')).createSync(recursive: true);
+      Directory(p.join(root.path, 'lib', 'dartvel_client')).createSync(recursive: true);
+      File(p.join(root.path, 'lib', 'pages', 'index.page.dart')).writeAsStringSync(_page);
+      File(p.join(root.path, 'pubspec.yaml')).writeAsStringSync('name: store\n');
+      final YamlMap dv = loadYaml(extra.isEmpty ? '{}' : extra) as YamlMap;
+      await ClientGenerator.generate(
+        root: root.path,
+        pagesDir: 'lib/pages',
+        pkgName: 'store',
+        buildId: 'b',
+        backendHost: '127.0.0.1',
+        backendPort: 3000,
+        devBackendHost: 'http://localhost:3000',
+        prodBackendHost: 'https://example.com',
+        apiBasePath: '/api',
+        envFiles: const <String>[],
+        seoSiteName: 'app',
+        seoTitle: 'app',
+        seoDesc: 'app',
+        seoImage: '',
+        seoTwitter: '',
+        defaultTransition: 'none',
+        durationMs: 200,
+        curve: 'linear',
+        normalizeTrailing: true,
+        notFoundRedirect: '/',
+        plugins: const <String>[],
+        webPrerender: false,
+        ota: false,
+        dv: dv,
+      );
+      return File(p.join(root.path, 'lib', 'dartvel_client', 'dartvel_runtime.dart'))
+          .readAsStringSync();
+    }
+
+    test('a module asks where its own backend is before using the application\'s', () async {
+      // Compiled into a parent, this code runs inside an application whose
+      // base URL is the parent's. Its functions are not there.
+      final String runtime = await generateModule(extra: 'module: { id: store }');
+
+      expect(runtime, contains("DV.Modules.maybeGet('store')"));
+      expect(runtime, contains('apiBase'));
+    });
+
+    test('an application that is not a module asks nothing', () async {
+      final String runtime = await generateModule();
+
+      expect(runtime, isNot(contains('maybeGet')));
     });
   });
 }
