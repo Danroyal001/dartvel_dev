@@ -112,6 +112,13 @@ def main() -> int:
     if run.verdict is None and run.passed == 0:
         print("::error::the suite produced no results before it was stopped")
         return 1
+    if run.passed == 0 and run.skipped == 0:
+        # A run that matched nothing. package:test says the run succeeded --
+        # it did, there was nothing to do -- and a filter with a typo in it
+        # then reports a green step for a test nobody ran, which is the one
+        # outcome worse than a red one.
+        print("::error::no test matched; the suite ran nothing")
+        return 1
     if run.hung:
         print(
             "::warning::every test passed and the tester never exited: "
