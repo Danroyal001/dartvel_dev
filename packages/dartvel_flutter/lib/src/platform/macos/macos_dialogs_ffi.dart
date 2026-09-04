@@ -288,8 +288,13 @@ class DVMacosDialogs {
   static void _disarmTimer() {
     final Pointer<Void>? timer = _timer;
     if (timer == null) return;
-    _o.send0(timer, 'invalidate');
     _timer = null;
+    _o.send0(timer, 'invalidate');
+    // And the retain above given back. Invalidating a timer the run loop
+    // still holds is safe; keeping this reference after would leak one small
+    // object per dialog, which is the sort of thing that is only ever found
+    // by somebody else.
+    _o.send0(timer, 'release');
   }
 
   static void _armTimer() {
@@ -323,7 +328,13 @@ class DVMacosDialogs {
     // panels that run in it.
     final Pointer<Void> mode = _appKit.lookup<Pointer<Void>>('NSModalPanelRunLoopMode').value;
     _objc!.lookupFunction<_Send2N, _Send2D>('objc_msgSend')(loop, o.sel('addTimer:forMode:'), timer, mode);
-    _timer = timer;
+    // Retained, because this outlives the run loop's own reference. A
+    // one-shot timer is invalidated and released the moment it fires, and a
+    // raw pointer kept past that is a pointer to freed memory -- so
+    // invalidating it later, which is exactly what the next dialog does, is
+    // a use-after-free in a process that has just finished reporting a test
+    // as passed.
+    _timer = _o.send0(timer, 'retain');
   }
 
   static DVMacosDialogSeen _inspect(Pointer<Void> panel, _DialogKind kind) {
