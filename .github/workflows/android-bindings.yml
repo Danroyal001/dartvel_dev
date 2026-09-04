@@ -103,6 +103,12 @@ jobs:
           set -euo pipefail
           GEN=packages/dartvel_flutter/lib/src/platform/android/generated
           CFG=packages/dartvel_flutter/tool/android_bindings.jnigen.yaml
+          # The root package, for the one tool this step runs. Everything in
+          # this repository's CI is Dart, so the tool that reads the config is
+          # too -- and reading the YAML rather than grepping it is the point:
+          # a class listed under a comment is still a class the generator was
+          # asked for.
+          dart pub get > /dev/null
           missing=0
           while read -r fqcn; do
             [ -n "$fqcn" ] || continue
@@ -118,12 +124,7 @@ jobs:
               continue
             fi
             echo "$fqcn: $(wc -l < "$path") lines"
-          done < <(python3 -c "
-          import yaml, sys
-          cfg = yaml.safe_load(open('$CFG'))
-          for c in cfg.get('classes') or []:
-              print(c)
-          ")
+          done < <(dart run tool/ci/yaml_list.dart "$CFG" classes)
           [ "$missing" -eq 0 ] || exit 1
 
       - name: It must have produced something importable
