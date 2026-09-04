@@ -317,9 +317,13 @@ jobs:
         working-directory: packages/dartvel_flutter
         run: flutter pub get
 
+      # A per-test timeout, because a modal dialog nothing answers does not
+      # fail -- it waits, and the job burns its twenty-five minutes and is
+      # cancelled, taking the rest of the matrix's signal with it. With this,
+      # the test that hangs is named and the ones after it still run.
       - name: Run the Win32 suite
         working-directory: packages/dartvel_flutter
-        run: flutter test test/windows_bindings_live_test.dart
+        run: flutter test test/windows_bindings_live_test.dart --timeout 90s
       # window.displays through EnumDisplayMonitors, against the runner's own
       # desktop session: at least one display, a primary, a real size.
       - name: Display enumeration
