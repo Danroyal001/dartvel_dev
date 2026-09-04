@@ -594,15 +594,20 @@ final List<DVStudioLeafType> dvStudioLeafTypes = <DVStudioLeafType>[
     type: 'image',
     label: 'Image',
     create: () => DVPageNode.image('https://example.com/image.png'),
-    build: (node) => DVImageView(
-      DVImage.network(
-        '${node.properties['src'] ?? ''}',
-        alt: node.properties['alt'] as String?,
-      ),
-    ),
-    source: (node, escape) =>
-        "const DVImageView(DVImage.network('${escape('${node.properties['src'] ?? ''}')}'"
-        "${node.properties['alt'] != null ? ", alt: '${escape('${node.properties['alt']}')}'" : ''}))",
+    // Where the image comes from is the node's to say. It could only ever be
+    // a URL, which left assets, files and stored bytes unreachable from a
+    // page -- and an imported design permanently dependent on somebody
+    // else's address staying up. Read through DVImage's own reader, so a
+    // page and a model field cannot disagree about what a source name means.
+    build: (node) => DVImageView(dvStudioImageOf(node.properties)),
+    source: (node, escape) {
+      final DVImage image = dvStudioImageOf(node.properties);
+      final String alt = image.alt == null
+          ? ''
+          : ", alt: '${escape('${image.alt}')}'";
+      return 'const DVImageView(DVImage.${image.source.name}'
+          "('${escape(image.reference)}'$alt))";
+    },
   ),
   // A button is a text node that announces itself as one. The tap itself is
   // the node's action, the same mechanism any node uses, so this adds the
@@ -887,6 +892,23 @@ final List<DVStudioLayoutProperty> dvStudioLayoutProperties =
   const DVStudioLayoutProperty('crossAxis', DVStudioPropertyKind.choice,
       choices: dvStudioCrossAlignNames),
 ];
+
+/// The image a node describes.
+///
+/// `src` is the reference and `source` names its kind, defaulting to a URL so
+/// that every document written before a page could say otherwise reads as it
+/// always did. Built through [DVImage.fromJson] rather than a switch here, so
+/// a page node and a model field cannot come to disagree about what `stored`
+/// or `asset` means -- including the leniency, which is deliberate there: a
+/// page that will not render because one word is misspelled is worse than one
+/// that tries the address.
+DVImage dvStudioImageOf(Map<String, Object?> properties) =>
+    DVImage.fromJson(<String, Object?>{
+      'reference': '${properties['src'] ?? ''}',
+      if (properties['source'] != null) 'source': properties['source'],
+      if (properties['alt'] != null) 'alt': properties['alt'],
+    }) ??
+    const DVImage.network('');
 
 /// The names [DVAlign] answers to in a page document.
 const List<String> dvStudioAlignNames = <String>[
