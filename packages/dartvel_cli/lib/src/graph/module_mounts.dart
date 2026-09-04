@@ -80,6 +80,7 @@ class DVModuleMount {
     this.inSitemap = true,
     this.location,
     this.backend,
+    this.requires = const <String>[],
     this.mounted = true,
     this.shell = 'inherit',
     this.auth = 'inherit',
@@ -148,6 +149,13 @@ class DVModuleMount {
   /// parent's: the `backend` a split-backend module declares.
   final String? backend;
 
+  /// What the module needs the target to be able to do.
+  ///
+  /// `dartvel.modules.<id>.requires` for a module built from source, and the
+  /// verified manifest's capabilities for a federated one -- which says the
+  /// same thing about a module the parent did not build.
+  final List<String> requires;
+
   /// Whether the parent could honour the declaration at all.
   ///
   /// False when there is no project at the source path, or when a federated
@@ -192,6 +200,12 @@ List<DVModuleMount> dvDiscoverModuleMounts(String root) {
     final DVModuleDeployment deployment = _deploymentOf(body, problems, id);
     final bool inSitemap = '${body['sitemap'] ?? 'include'}' != 'exclude';
     final _DVModuleModes modes = _modesOf(body, deployment, problems, id);
+    final List<String> requires = <String>[
+      for (final Object? need in body['requires'] is List
+          ? body['requires']! as List<Object?>
+          : const <Object?>[])
+        '$need',
+    ];
 
     if (deployment == DVModuleDeployment.federated) {
       // A federated module is deployed by somebody else. The source beside
@@ -205,6 +219,7 @@ List<DVModuleMount> dvDiscoverModuleMounts(String root) {
         mount: mount,
         inSitemap: inSitemap,
         modes: modes,
+        requires: requires,
         problems: problems,
       ));
       return;
@@ -223,6 +238,7 @@ List<DVModuleMount> dvDiscoverModuleMounts(String root) {
         routes: const <DVModuleRoute>[],
         inSitemap: inSitemap,
         backend: modes.backend,
+      requires: requires,
         shell: modes.shell,
         auth: modes.auth,
         theme: modes.theme,
@@ -245,6 +261,7 @@ List<DVModuleMount> dvDiscoverModuleMounts(String root) {
         routes: const <DVModuleRoute>[],
         inSitemap: inSitemap,
         backend: modes.backend,
+      requires: requires,
         shell: modes.shell,
         auth: modes.auth,
         theme: modes.theme,
@@ -303,6 +320,7 @@ List<DVModuleMount> dvDiscoverModuleMounts(String root) {
       routeBase: routeBase,
       inSitemap: inSitemap,
       backend: modes.backend,
+      requires: requires,
       shell: modes.shell,
       auth: modes.auth,
       theme: modes.theme,
@@ -322,6 +340,7 @@ DVModuleMount _federated({
   required String mount,
   required bool inSitemap,
   required _DVModuleModes modes,
+  required List<String> requires,
   required List<String> problems,
 }) {
   DVModuleMount refused() => DVModuleMount(
@@ -334,6 +353,7 @@ DVModuleMount _federated({
         routes: const <DVModuleRoute>[],
         inSitemap: inSitemap,
         backend: modes.backend,
+      requires: requires,
         shell: modes.shell,
         auth: modes.auth,
         theme: modes.theme,
@@ -408,6 +428,10 @@ DVModuleMount _federated({
     ],
     assets: manifest.assets,
     version: manifest.version,
+    // What the module says it needs, from the manifest the parent verified:
+    // the same statement as a source module's `requires`, about a module the
+    // parent did not build.
+    requires: <String>[...requires, ...manifest.capabilities]..sort(),
     inSitemap: inSitemap,
     location: location,
     problems: problems,
