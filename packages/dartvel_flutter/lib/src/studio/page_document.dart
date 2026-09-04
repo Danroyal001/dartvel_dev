@@ -628,14 +628,22 @@ final List<DVStudioLeafType> dvStudioLeafTypes = <DVStudioLeafType>[
     // page -- and an imported design permanently dependent on somebody
     // else's address staying up. Read through DVImage's own reader, so a
     // page and a model field cannot disagree about what a source name means.
-    build: (node) => DVImageView(dvStudioImageOf(node.properties)),
+    build: (node) => DVImageView(
+      dvStudioImageOf(node.properties),
+      fit: dvStudioImageFitOf(node.properties['fit']),
+    ),
     source: (node, escape) {
       final DVImage image = dvStudioImageOf(node.properties);
       final String alt = image.alt == null
           ? ''
           : ", alt: '${escape('${image.alt}')}'";
-      return 'const DVImageView(DVImage.${image.source.name}'
-          "('${escape(image.reference)}'$alt))";
+      // The default is not written: the export is the page as somebody would
+      // have written it, and nobody writes the default.
+      final BoxFit fit = dvStudioImageFitOf(node.properties['fit']);
+      final String fitArgument =
+          fit == BoxFit.cover ? '' : ', fit: BoxFit.${fit.name}';
+      return '${fitArgument.isEmpty ? 'const ' : ''}DVImageView(DVImage.${image.source.name}'
+          "('${escape(image.reference)}'$alt)$fitArgument)";
     },
   ),
   // A button is a text node that announces itself as one. The tap itself is
@@ -1013,6 +1021,34 @@ LinearGradient? _gradientOf(Object? from, Map<String, Object?> properties) {
     colors: <Color>[start, end],
   );
 }
+
+/// How an image fills its box, by the names Flutter uses.
+///
+/// A design says it per image: a photograph fills its frame and is cropped,
+/// a logo fits inside and is not. Cover is the default every document
+/// written before this relied on, and it is also what an unrecognised name
+/// falls back to -- a document outlives the version that wrote it, and a
+/// page that will not render because one word is misspelled is worse than
+/// one that shows the picture.
+const List<String> dvStudioImageFits = <String>[
+  'cover',
+  'contain',
+  'fill',
+  'fitWidth',
+  'fitHeight',
+  'none',
+  'scaleDown',
+];
+
+BoxFit dvStudioImageFitOf(Object? value) => switch ('$value') {
+      'contain' => BoxFit.contain,
+      'fill' => BoxFit.fill,
+      'fitWidth' => BoxFit.fitWidth,
+      'fitHeight' => BoxFit.fitHeight,
+      'none' => BoxFit.none,
+      'scaleDown' => BoxFit.scaleDown,
+      _ => BoxFit.cover,
+    };
 
 /// The edges a child of a stack can name.
 const List<String> dvStudioPlacementEdges = <String>[

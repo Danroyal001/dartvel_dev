@@ -394,13 +394,24 @@ class DVStudioInspector extends StatelessWidget {
               onChanged: (String value) =>
                   controller.setProperty(node.id, 'text', value),
             ),
-          if (node.type == 'image')
+          if (node.type == 'image') ...<Widget>[
             _DVStudioField(
               label: 'src',
               value: '${node.properties['src'] ?? ''}',
               onChanged: (String value) =>
                   controller.setProperty(node.id, 'src', value),
             ),
+            // How it fills its box. A photograph fills and is cropped, a logo
+            // fits inside and is not, and a page that could not say which
+            // left half the images in a design stretched.
+            _DVStudioField(
+              label: 'fit',
+              hint: dvStudioImageFits.join(' / '),
+              value: '${node.properties['fit'] ?? ''}',
+              onChanged: (String value) => controller.setProperty(
+                  node.id, 'fit', value.isEmpty ? null : value),
+            ),
+          ],
           // Rendered from dvStudioProperties, the same list the renderer
           // applies, so the inspector cannot offer a control the page ignores
           // or omit one it honours.
