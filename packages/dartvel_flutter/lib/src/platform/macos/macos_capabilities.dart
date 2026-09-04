@@ -46,6 +46,12 @@ const Set<String> dvMacosImplementedBindings = <String>{
   'device.watchdog.heartbeat',
   'device.fleet.provision',
   'device.diagnostics.collect',
+  // The serial port, through the same POSIX calls in a different shape.
+  'device.serial.ports',
+  'device.serial.open',
+  'device.serial.write',
+  'device.serial.read',
+  'device.serial.close',
 
   // NSMenu as the application's main menu, every item's target one object
   // defined at runtime, activated by id.

@@ -31,6 +31,7 @@ import 'macos_dnd_ffi.dart';
 import 'macos_kiosk_ffi.dart';
 import 'macos_menus_ffi.dart';
 import 'macos_printing_ffi.dart';
+import 'macos_serial.dart';
 import 'macos_shortcuts_ffi.dart';
 import 'macos_tray_ffi.dart';
 
@@ -129,6 +130,7 @@ class DVMacosBindings {
     DVNativeBridge.register('permissions.request', DVDesktopPermissions.answer);
     DVDeviceRuntime.probes = const DVMacosDeviceProbes();
     DVDeviceRuntime.register(DVNativeBridge.register);
+    DVMacosSerial.register(DVNativeBridge.register);
 
     _registered = true;
     return true;
