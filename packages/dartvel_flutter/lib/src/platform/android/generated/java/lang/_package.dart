@@ -2,3 +2,6 @@
 export 'CharSequence.dart';
 export 'ClassLoader.dart';
 export 'Cloneable.dart';
+export 'Runnable.dart';
+export 'Throwable.dart';
+export 'Void.dart';
