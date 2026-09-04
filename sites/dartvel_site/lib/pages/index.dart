@@ -407,14 +407,16 @@ Widget _targets(BuildContext context) => Section(
         // application drawing in a terminal is not a thing people expect to
         // be on the list.
         const DVText(
-          'The last of those is a terminal. `dartvel build linux-cli` links '
-          'the terminal backend and no GUI code; the desktop build links the '
-          'GUI and no terminal code; an application that asks for both '
-          'resolves at launch — --tui, or the prompt when there is no '
-          'display. Nothing pays for a mode it will never use. CI runs it '
-          'inside a pty and counts the escape sequences, because a build that '
-          'produced a GUI binary and called it a TUI is exactly what happened '
-          'once.',
+          'The last of those is a terminal. dartvel build linux-cli links the '
+          'terminal backend and no GUI code; the desktop build links the GUI '
+          'and no terminal code; an application that asks for both resolves '
+          'at launch — --tui, or the prompt when there is no display. Nothing '
+          'pays for a mode it will never use. The embedder is run in a pty in '
+          'CI and its escape sequences counted, because a build that produced '
+          'a GUI binary and called it a TUI is exactly what happened once. A '
+          'Dartvel application in a terminal is the half still landing: '
+          'Flutter cannot configure a project\'s native assets for a bundle '
+          'build on Linux, so what CI renders today is a plain Flutter app.',
         ).modifier(const DVModifier().fontSize(16).color(const Color(0xFF9AA6C4)).height(1.65).width(640)),
         const SizedBox(height: 8),
         // Breadth only. The section below already counts shipped spec

@@ -400,8 +400,19 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq pkg-config libxkbcommon-dev unzip \
+          # The last five are the terminal's: an xterm to photograph, a
+          # display to put it on, and a font to draw with. The first line is
+          # what a Linux desktop build needs, and this job now does one --
+          # not to ship it, but because the bundle build reads the compiler
+          # settings it writes.
+          sudo apt-get install -y -qq ninja-build libgtk-3-dev clang cmake \
+            pkg-config libxkbcommon-dev unzip \
             xterm xvfb imagemagick x11-apps fonts-dejavu-core
+
+      # The Rust runtime the example embeds. Its build hook needs cbindgen,
+      # and the desktop build below runs that hook.
+      - name: Install cbindgen
+        run: cargo install cbindgen --locked || true
 
       - name: Build the terminal embedder
         run: |
@@ -414,21 +425,40 @@ jobs:
           cargo build --release -p flt-cli --bin dartvel-cli-flt
           ls -la target/release/dartvel-cli-flt
 
-      # sample_app rather than the Dartvel example: a Dartvel project has native
-      # assets, and `flutter build bundle` cannot configure those on Linux —
-      # Flutter derives their compiler settings from a CMake cache that only the
-      # desktop build writes. That is a known gap, recorded in
-      # docs/build-targets.md, and it is not what this job is testing.
-      - name: Assemble a terminal bundle
+      # The Dartvel example, not the embedder's own sample.
+      #
+      # It was the sample for a real reason: `flutter build bundle` wants a
+      # compiler configuration for a project's build hooks -- every Dartvel
+      # application has one, the Rust runtime -- and looks for it at
+      # build/flutter_assets/linux/x64/<mode>/CMakeCache.txt, which nothing
+      # writes. The desktop build writes one two directories away, so
+      # `dartvel build linux-cli` runs that first and copies it across.
+      #
+      # Rendering the sample proved the embedder and said nothing about
+      # Dartvel, which is the claim this job exists to support.
+      - name: Assemble a terminal bundle from the example
         run: |
           set -uo pipefail
           exec > >(tee -a /tmp/diag/terminal-assemble.log) 2>&1
-          cd flt
+          cd examples/dartvel_example
+          flutter pub get
+          dart run dartvel_cli:dartvel routes
+
+          # The configuration step. `dartvel build linux-cli` does exactly
+          # this for a developer -- the desktop build for its compiler
+          # settings, then the copy -- and it is written out here so the
+          # failure it prevents is visible in the log rather than buried in a
+          # tool. Nothing from the desktop build ships; the terminal bundle
+          # below is the artifact.
+          flutter build linux --debug
+          mkdir -p build/flutter_assets/linux/x64/debug
+          cp build/linux/x64/debug/CMakeCache.txt \
+             build/flutter_assets/linux/x64/debug/CMakeCache.txt
+
           # Absolute, because --out is resolved against the *project*
-          # directory rather than the working one: `--out ../terminal-out` from
-          # flt/ with `--project sample_app` wrote to flt/terminal-out, and the
-          # next step looked in the repository root and found nothing.
-          ./target/release/dartvel-cli-flt build linux --project sample_app --out /tmp/terminal-out
+          # directory rather than the working one.
+          "$GITHUB_WORKSPACE/flt/target/release/dartvel-cli-flt" build linux \
+            --project . --out /tmp/terminal-out
           find /tmp/terminal-out -maxdepth 2
 
       # Two captures, because they answer different questions.
