@@ -132,12 +132,21 @@ def main() -> int:
     if verdict is False:
         print("::error::the reporter says the run did not succeed")
         return 1
-    if verdict is None:
-        # No verdict at all means the tester died before finishing, which is
-        # a real failure however few tests had failed by then.
-        print("::error::the suite produced no verdict; the tester did not finish")
+    if verdict is None and not hung:
+        # It ended on its own without finishing the run: a crash partway
+        # through, and a real failure however few tests had failed by then.
+        print("::error::the tester ended without finishing the run")
+        return 1
+    if verdict is None and passed == 0:
+        # Nothing reported and nothing came back: there is no evidence the
+        # suite ran at all, and a step with no evidence is not a pass.
+        print("::error::the suite produced no results before it was stopped")
         return 1
     if hung:
+        # Every test reported and nothing failed; the process then did not
+        # come back. That is the known state of these suites -- AppKit and
+        # the Windows shell hold onto what a panel touched -- and it is not
+        # the tests failing.
         print(
             "::warning::every test passed and the tester never exited: "
             "something native is still holding the process open after the "
