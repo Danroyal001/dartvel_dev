@@ -229,7 +229,7 @@ jobs:
         run: |
           extra=""
           if [ "${{ matrix.platform }}" = "tvos" ]; then
-            extra="--device-profile simulator"
+            extra="--simulator"
           fi
           set -o pipefail
           # Bounded well inside the job cap, so a stall is reported by Dartvel

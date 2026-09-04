@@ -184,7 +184,7 @@ void main() {
         platform: 'tvos',
         buildMode: '--release',
         arch: 'arm64',
-        deviceProfile: 'simulator',
+        simulator: true,
       );
 
       expect(plan, isNotNull);
@@ -196,6 +196,23 @@ void main() {
         '--simulator',
         '--dart-define=DARTVEL_PLATFORM=tvos',
       ]);
+    });
+
+    test('a device profile is not how a simulator is asked for', () {
+      // They were the same flag: --device-profile simulator meant the
+      // unsigned tvOS path. Two things sharing one option is how the check
+      // that a profile is declared came to refuse a tvOS build -- "simulator"
+      // is not a profile and never was, and the build that had been passing
+      // it was refused for a reason that read as a mistake in the project.
+      final plan = resolveEmbeddedBuildPlan(
+        platform: 'tvos',
+        buildMode: '--release',
+        arch: 'arm64',
+        deviceProfile: 'simulator',
+      );
+
+      expect(plan!.arguments, isNot(contains('--simulator')));
+      expect(plan.arguments, contains('--release'));
     });
 
     test('embedders that need a platform directory carry how to make one', () {
