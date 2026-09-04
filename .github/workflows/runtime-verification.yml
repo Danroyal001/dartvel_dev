@@ -1715,36 +1715,11 @@ jobs:
           # The two files appinfo.json names and the package never held.
           cp "$GITHUB_WORKSPACE/elinux-src/build/flutter-client" "$OUT/dartvel_app"
           chmod +x "$OUT/dartvel_app"
-          python3 - "$OUT/icon.png" <<'PY'
-          import struct, sys, zlib
-          # An 80x80 tile in the example's own purple. webOS shows the icon on
-          # the home screen and refuses the package when appinfo names one that
-          # is not there.
-          w = h = 80
-          px = bytes((0x4B, 0x3B, 0x82))
-          rows = b''.join(b'\x00' + px * w for _ in range(h))
-          def chunk(tag, body):
-              c = tag + body
-              return struct.pack('>I', len(body)) + c + struct.pack('>I', zlib.crc32(c))
-          open(sys.argv[1], 'wb').write(
-              b'\x89PNG\r\n\x1a\n'
-              + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0))
-              + chunk(b'IDAT', zlib.compress(rows))
-              + chunk(b'IEND', b''))
-          PY
-          python3 - "$OUT" <<'PY'
-          import json, sys
-          out = sys.argv[1]
-          json.dump({
-              'id': 'com.dartvel.example',
-              'title': 'Dartvel Example',
-              'version': '1.0.0',
-              'type': 'native',
-              'main': 'dartvel_app',
-              'icon': 'icon.png',
-              'vendor': 'Dartvel',
-          }, open(f'{out}/appinfo.json', 'w'), indent=2)
-          PY
+          # An 80x80 tile in the example's own purple. webOS shows the icon
+          # on the home screen and refuses the package when appinfo names one
+          # that is not there.
+          dart "$GITHUB_WORKSPACE/tool/ci/png.dart" solid "$OUT/icon.png" 80 80 4B3B82
+          dart "$GITHUB_WORKSPACE/tool/ci/webos_appinfo.dart" write "$OUT"
           find "$OUT" -maxdepth 3 | sort
 
       # The checks webOS reports only as a generic install failure on the
@@ -1770,23 +1745,7 @@ jobs:
             esac
           done
 
-          python3 - "$OUT" <<'PY'
-          import json, re, sys
-          info = json.load(open(f'{sys.argv[1]}/appinfo.json'))
-          problems = []
-          if '.' not in info['id']:
-              problems.append('id is not reverse-DNS')
-          if info['id'] != info['id'].lower():
-              problems.append('id is not lowercase')
-          if info['type'] != 'native':
-              problems.append('type is not native')
-          if not re.fullmatch(r'\d+\.\d+\.\d+', info['version']):
-              problems.append('version is not three numeric parts')
-          if problems:
-              print('::error::' + '; '.join(problems))
-              raise SystemExit(1)
-          print('appinfo.json is acceptable:', info['id'], info['version'])
-          PY
+          dart "$GITHUB_WORKSPACE/tool/ci/webos_appinfo.dart" check "$OUT"
 
           # Through the CLI's own validator, so the check the build runs and the
           # check the tests cover are the same one. A second hand-written list
@@ -1840,21 +1799,7 @@ jobs:
           # A crash before the first frame leaves a buffer that is one colour,
           # and one colour passes every check that only stats the file. This
           # is the check that does not.
-          python3 -c "
-          import struct, sys, zlib
-          data = open('frame.ppm','rb').read()
-          parts = data.split(b'\n', 3)
-          w, h = map(int, parts[1].split())
-          rows = b''.join(b'\x00' + parts[3][y*w*3:(y+1)*w*3] for y in range(h))
-          def chunk(tag, body):
-              c = tag + body
-              return struct.pack('>I', len(body)) + c + struct.pack('>I', zlib.crc32(c))
-          open('frame.png','wb').write(
-              b'\x89PNG\r\n\x1a\n'
-              + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0))
-              + chunk(b'IDAT', zlib.compress(rows))
-              + chunk(b'IEND', b''))
-          "
+          dart "$GITHUB_WORKSPACE/tool/ci/png.dart" from-ppm frame.ppm frame.png
           dart pub get --directory "$GITHUB_WORKSPACE/packages/dartvel_cli"
           dart run "$GITHUB_WORKSPACE/packages/dartvel_cli/bin/dartvel.dart" \
             capture verify frame.png --label webos-arm
