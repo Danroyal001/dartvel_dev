@@ -119,12 +119,12 @@ void main() {
   });
 
   group('registration', () {
-    test('off Windows it declines rather than throwing', () {
+    test('off Windows it declines rather than throwing', () async {
       // An application calls register() unconditionally at startup, so the
       // wrong platform has to be a quiet false and not an exception.
       if (Platform.isWindows) {
         expect(DVWindowsBindings.register(), isTrue);
-        DVWindowsBindings.unregister();
+        await DVWindowsBindings.unregister();
         return;
       }
       expect(DVWindowsBindings.register(), isFalse);

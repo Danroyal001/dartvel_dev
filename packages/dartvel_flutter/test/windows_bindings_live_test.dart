@@ -14,7 +14,7 @@ library;
 // window, and a test harness has none; they return false by design, and
 // asserting that here would be asserting the harness.
 import 'dart:ffi';
-import 'dart:io' show Directory, File, Platform;
+import 'dart:io' show Directory, File, FileSystemException, Platform, sleep;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -631,6 +631,18 @@ void main() {
     });
     tearDown(() {
       DVWindowsDialogs.automate(null);
+      // Windows holds a directory open for a moment after a file dialog that
+      // was showing it closes, and a delete that lands in that moment fails
+      // with "the process cannot access the file". Retried rather than
+      // ignored: a directory that never goes is worth knowing about.
+      for (var attempt = 0; attempt < 20; attempt++) {
+        try {
+          dir.deleteSync(recursive: true);
+          return;
+        } on FileSystemException {
+          sleep(const Duration(milliseconds: 100));
+        }
+      }
       dir.deleteSync(recursive: true);
     });
 
