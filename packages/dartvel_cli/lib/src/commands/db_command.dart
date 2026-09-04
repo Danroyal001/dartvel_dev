@@ -6,6 +6,7 @@ import 'package:file/local.dart';
 import 'package:glob/glob.dart';
 import 'package:path/path.dart' as p;
 
+import '../graph/module_mounts.dart';
 import '../utils/logger.dart';
 
 class DbCommand extends Command<void> {
@@ -153,20 +154,73 @@ class DartvelDbTable {
     required this.name,
     required this.model,
     required this.source,
+    this.module,
   });
 
   final String name;
   final String model;
+
+  /// The model file, relative to the project that declares it.
   final String source;
+
+  /// The module this table came from, or null for the application's own.
+  ///
+  /// Recorded so a snapshot says why the database has a table no model in
+  /// this project declares.
+  final String? module;
 
   Map<String, Object?> toJson() => <String, Object?>{
         'name': name,
         'model': model,
         'source': source,
+        if (module != null) 'module': module,
       };
 }
 
 DartvelDbSchema discoverLocalSchema(String root) {
+  final tables = <DartvelDbTable>[
+    ..._tablesIn(root, module: null),
+    for (final DVModuleMount mount in _modulesSharingTheDatabase(root))
+      ..._tablesIn(p.join(root, mount.sourcePath), module: mount.id),
+  ];
+  final claimed = <String, DartvelDbTable>{};
+  for (final DartvelDbTable table in tables) {
+    final DartvelDbTable? first = claimed[table.name];
+    if (first == null) {
+      claimed[table.name] = table;
+      continue;
+    }
+    String owner(DartvelDbTable t) =>
+        t.module == null ? 'the application' : 'module ${t.module}';
+    // One database, one table of that name. Two models writing to it would
+    // read each other's rows, and the columns of whichever lost would simply
+    // not be there.
+    throw StateError(
+      'dartvel: ${owner(first)} and ${owner(table)} both declare the table '
+      '${table.name}. Rename one of the models, or give the module a data '
+      'mode of its own.',
+    );
+  }
+  tables.sort((left, right) => left.name.compareTo(right.name));
+  return DartvelDbSchema(tables: List<DartvelDbTable>.unmodifiable(tables));
+}
+
+/// The modules whose tables live in this application's database.
+///
+/// Only the ones compiled into it -- a federated or split-backend module runs
+/// its own -- and only where the module's data mode says shared. A module
+/// with its own schema, its own database or a remote one keeps its tables
+/// there; creating empty copies here would look like its data had been lost.
+List<DVModuleMount> _modulesSharingTheDatabase(String root) =>
+    dvDiscoverModuleMounts(root)
+        .where((DVModuleMount mount) =>
+            mount.mounted &&
+            mount.data == 'shared' &&
+            (mount.deployment == DVModuleDeployment.embedded ||
+                mount.deployment == DVModuleDeployment.backendOnly))
+        .toList(growable: false);
+
+List<DartvelDbTable> _tablesIn(String root, {required String? module}) {
   final glob = Glob('lib/models/**.dart');
   const fs = LocalFileSystem();
   final tables = <DartvelDbTable>[];
@@ -196,12 +250,12 @@ DartvelDbSchema discoverLocalSchema(String root) {
           name: '${model.toLowerCase()}s',
           model: model,
           source: p.relative(sourceFile.path, from: root).replaceAll(r'\', '/'),
+          module: module,
         ),
       );
     }
   }
-  tables.sort((left, right) => left.name.compareTo(right.name));
-  return DartvelDbSchema(tables: List<DartvelDbTable>.unmodifiable(tables));
+  return tables;
 }
 
 File localSchemaSnapshotFile(String root) =>
