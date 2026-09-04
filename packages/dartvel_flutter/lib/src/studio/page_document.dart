@@ -156,15 +156,34 @@ class DVPageNode {
         id: json['id'] as String?,
         type: json['type']! as String,
         layout: (json['layout'] as String?) ?? 'list',
-        properties:
-            (json['properties'] as Map?)?.cast<String, Object?>() ?? {},
-        action: (json['action'] as Map?)?.cast<String, Object?>(),
+        // Copied rather than cast. `cast` is a view over the same map, so
+        // reading a document back from its own JSON -- the obvious way to
+        // copy one in memory -- produced a document that shared its
+        // properties with the original, and rewriting an image's source on
+        // the copy changed the one the application was still serving.
+        properties: <String, Object?>{
+          if (json['properties'] is Map)
+            for (final MapEntry<Object?, Object?> e
+                in (json['properties']! as Map).entries)
+              '${e.key}': e.value,
+        },
+        action: json['action'] is Map
+            ? <String, Object?>{
+                for (final MapEntry<Object?, Object?> e
+                    in (json['action']! as Map).entries)
+                  '${e.key}': e.value,
+              }
+            : null,
         breakpoints: <String, Map<String, Object?>>{
           if (json['breakpoints'] is Map)
             for (final MapEntry<Object?, Object?> e
                 in (json['breakpoints'] as Map).entries)
               if (e.value is Map)
-                '${e.key}': (e.value as Map).cast<String, Object?>(),
+                '${e.key}': <String, Object?>{
+                  for (final MapEntry<Object?, Object?> o
+                      in (e.value! as Map).entries)
+                    '${o.key}': o.value,
+                },
         },
         children: <DVPageNode>[
           for (final child in (json['children'] as List?) ?? const <Object?>[])
