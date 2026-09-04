@@ -1,14 +1,14 @@
 {
   "$comment": "Implementation status per NEW_SPEC.md h1 section. See the \"Specification Status\" section of NEW_SPEC.md. Validate with: dart run tool/spec_status_check.dart",
   "specFile": "NEW_SPEC.md",
-  "updated": "2026-08-19",
+  "updated": "2026-09-04",
   "sections": [
     {
       "section": "New Spec v2",
       "kind": "narrative"
     },
     {
-      "section": "Dartvel \u2014 The Complete Vision, to be implemented",
+      "section": "Dartvel — The Complete Vision, to be implemented",
       "kind": "narrative"
     },
     {
@@ -224,13 +224,17 @@
       "stability": "Contract",
       "status": "Shipped",
       "evidence": [
+        "packages/dartvel_cli/lib/src/commands/import_command.dart",
+        "packages/dartvel_cli/lib/src/import/openapi_import.dart",
+        "packages/dartvel_cli/test/import_command_test.dart",
         "packages/dartvel_cli/test/openapi_generator_test.dart",
+        "packages/dartvel_cli/test/openapi_import_test.dart",
         "packages/dartvel_core/lib/src/graphql/graphql.dart",
         "packages/dartvel_core/test/graphql_directives_test.dart",
         "packages/dartvel_core/test/graphql_subscriptions_test.dart",
         "packages/dartvel_core/test/graphql_test.dart"
       ],
-      "absent": null
+      "absent": "Built since: Dartvel reads an OpenAPI document as well as writing one. `dartvel import openapi <file|url>` turns a specification into ordinary source -- a private @DVModel per schema under lib/models/, a function per operation under lib/api/ with path parameters interpolated -- which is the direction people actually start from: an API exists, somebody hands you its spec, and the work is transcribing it by hand. A field the specification does not list in `required` is nullable, which is the difference between a model that matches the API and one that throws the first time a field is absent. A schema the importer cannot map is reported and skipped rather than emitted as `dynamic`: a guess that compiles is found at run time, and a line of output naming the schema is found now. Files already on disk are left alone unless --overwrite is passed, because an import that silently replaced an edited file is an import that gets run once."
     },
     {
       "section": "Model Sync and Presence",

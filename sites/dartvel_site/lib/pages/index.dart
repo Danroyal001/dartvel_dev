@@ -304,6 +304,12 @@ Widget _pillars(BuildContext context) => const Section(
             'channels anywhere.',
           ),
           SiteCard(
+            'Somebody else\'s API',
+            'dartvel import openapi turns a specification into models and '
+            'typed calls, as ordinary files in your repository. A field the '
+            'spec does not require comes out nullable.',
+          ),
+          SiteCard(
             'One toolkit',
             'dartvel dev, build, test, db, queue, deploy. Generation runs as '
             'part of the build.',
