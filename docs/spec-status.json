@@ -257,11 +257,13 @@
         "packages/dartvel_core/test/mail_providers_test.dart",
         "packages/dartvel_core/test/push_providers_test.dart",
         "packages/dartvel_core/test/web_push_test.dart",
+        "packages/dartvel_core/test/smtp_live_test.dart",
+        ".github/workflows/mail-smtp.yml",
         "packages/dartvel_core/test/apns_test.dart",
         "packages/dartvel_core/test/web_push_vapid_test.dart",
         "packages/dartvel_core/test/web_push_es256_test.dart"
       ],
-      "absent": "no provider has been exercised against a real APNS or push service; the native transport they depend on speaks HTTP/2 and HTTP/3 and is verified live, and the VAPID signature is now pinned byte-for-byte to RFC 6979's published P-256 vectors rather than only round-tripped through this library's own verifier -- but a signature a push service would accept is not the same as a request one has accepted"
+      "absent": "no provider has been exercised against a real APNS or push service. The SMTP provider is exercised against a real SMTP server now, in a container, with the raw source of what arrived read back -- which is the only way to see the half of this that is accepted and wrong, and it found two. The subject went down the wire as raw UTF-8 in a header RFC 5322 says is ASCII: the server took it, the companion assertion that it was still readable at the far end passed because that server guesses the encoding, and the clients that do not guess show it as mojibake to whoever was sent it. Headers are RFC 2047 encoded words now, split on character boundaries rather than on bytes, since a word broken mid-character decodes to a replacement in half the readers and leaves the subject wrong in exactly two places; an address keeps its angle brackets and only the display name is encoded, because encoding the whole thing produces a header no server can route. The body declared no transfer encoding at all, which means 7bit, which raw UTF-8 is not -- a server without 8BITMIME may refuse it or strip the high bit and the message arrives readable-ish, which is the worst outcome to be handed. Each part says what it is now: 7bit where the content really is, quoted-printable where it is not, which also keeps every line under the 998 octets RFC 5321 allows. Dot-stuffing, the AUTH exchange, multipart and the ordinary path were already right and are now proven against a server rather than against a connection this repository wrote. Still absent: the native transport they depend on speaks HTTP/2 and HTTP/3 and is verified live, and the VAPID signature is now pinned byte-for-byte to RFC 6979's published P-256 vectors rather than only round-tripped through this library's own verifier -- but a signature a push service would accept is not the same as a request one has accepted"
     },
     {
       "section": "File Storage",
