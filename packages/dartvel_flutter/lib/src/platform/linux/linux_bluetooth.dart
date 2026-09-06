@@ -248,9 +248,13 @@ class DVLinuxBluetooth {
   /// failures, so flattening them into one is throwing away the only part
   /// that tells anybody what to do next.
   static bool _refused(DBusMethodResponseException error, String method) {
-    final String name = error.response is DBusMethodErrorResponse
-        ? (error.response as DBusMethodErrorResponse).errorName
-        : '';
+    // Through a local typed as the base response, so this compiles and
+    // reads the same whether the package declares .response as the error
+    // subtype or as the parent -- and carries no cast to be flagged as
+    // unnecessary if it is already the subtype.
+    final DBusMethodResponse response = error.response;
+    final String name =
+        response is DBusMethodErrorResponse ? response.errorName : '';
     // Already paired is the outcome the caller asked for.
     if (name.endsWith('.AlreadyExists')) {
       lastError = null;
@@ -275,7 +279,7 @@ class DVLinuxBluetooth {
       lastError = null;
       return true;
     }
-    final String detail = error.response.values
+    final String detail = response.values
         .whereType<DBusString>()
         .map((DBusString v) => v.value)
         .join('; ');
