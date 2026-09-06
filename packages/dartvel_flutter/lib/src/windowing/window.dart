@@ -164,6 +164,23 @@ extension DVWindowKindX on DVWindowKind {
       : DVWindowModality.none;
 }
 
+/// How content crosses from one window to another.
+///
+/// Not a setting: it follows from whether the target's windows share an
+/// engine, and it is worth naming because the two are very different promises
+/// and look identical on screen for the first half-second.
+enum DVWindowHandover {
+  /// One engine, one widget tree, one isolate. Content moved between windows
+  /// is the same Dart object tree, so signals, controllers, in-flight requests
+  /// and scroll positions survive because nothing was rebuilt.
+  sameEngine,
+
+  /// Separate engines. Nothing can be handed over; the receiving window opens
+  /// the route and builds it from scratch, and only what was written to
+  /// `DV.Window.shared` crosses.
+  shared,
+}
+
 /// What a window blocks while it is open.
 enum DVWindowModality {
   /// Blocks nothing.
@@ -708,6 +725,15 @@ class DVWindowManager {
 
   DVWindowingCapability get capability => _detectCapability()
       .withDisplayCount(_displays.value.length);
+
+  /// The best a move between two windows can do on this target.
+  ///
+  /// Read it to decide what to promise, never whether to offer the move: a
+  /// workspace still moves a tab between two panes of one window on a target
+  /// that has no second window at all.
+  DVWindowHandover get handover => capability.sameEngine
+      ? DVWindowHandover.sameEngine
+      : DVWindowHandover.shared;
 
   DVWindowingCapability _detectCapability() =>
       _capabilityOverride ??

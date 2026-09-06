@@ -45,6 +45,28 @@ class DVTab {
 /// Why a tab left a workspace, so the caller can tell a tear-out from a close.
 enum DVTabExit { closed, tornOut, adopted }
 
+/// One tab's place in a workspace: the tab, and the identity its content keeps
+/// while it moves between workspaces.
+///
+/// The key belongs to the entry rather than to the route. Two deliberate tabs
+/// on one route are two tabs, and keying their content by route would make the
+/// second one retake the first one's element the moment it was selected --
+/// showing a half-written form the person had started somewhere else.
+class _DVTabEntry {
+  _DVTabEntry(this.tab)
+      : contentKey = GlobalKey(debugLabel: 'dv-tab ${tab.route.path}');
+
+  final DVTab tab;
+
+  /// What makes a re-dock a handover rather than a re-creation.
+  ///
+  /// The same key arriving in another workspace inside one frame reparents the
+  /// live element: its `State`, its controllers, its scroll positions and its
+  /// in-flight requests are the same objects afterwards, because nothing was
+  /// built again.
+  final GlobalKey contentKey;
+}
+
 /// The state behind a tab strip: order, selection, tear-out and adoption.
 ///
 /// Separated from the widget because every rule worth getting right — what
@@ -54,28 +76,36 @@ class DVTabWorkspaceController extends ChangeNotifier {
   DVTabWorkspaceController({
     List<DVTab> tabs = const <DVTab>[],
     this.window,
-  }) : _tabs = List<DVTab>.of(tabs) {
-    if (_tabs.isNotEmpty) _activeIndex = 0;
+  }) : _entries = <_DVTabEntry>[
+          for (final DVTab tab in tabs) _DVTabEntry(tab),
+        ] {
+    if (_entries.isNotEmpty) _activeIndex = 0;
   }
 
-  final List<DVTab> _tabs;
+  final List<_DVTabEntry> _entries;
   int _activeIndex = -1;
 
   /// The window this workspace lives in, when it is not the main one. An
   /// emptied workspace closes it.
   final DVWindow? window;
 
-  List<DVTab> get tabs => List<DVTab>.unmodifiable(_tabs);
+  List<DVTab> get tabs => List<DVTab>.unmodifiable(
+        _entries.map((_DVTabEntry entry) => entry.tab),
+      );
 
   int get activeIndex => _activeIndex;
 
-  DVTab? get active =>
-      _activeIndex >= 0 && _activeIndex < _tabs.length ? _tabs[_activeIndex] : null;
+  DVTab? get active => _activeEntry?.tab;
 
-  bool get isEmpty => _tabs.isEmpty;
+  _DVTabEntry? get _activeEntry =>
+      _activeIndex >= 0 && _activeIndex < _entries.length
+          ? _entries[_activeIndex]
+          : null;
+
+  bool get isEmpty => _entries.isEmpty;
 
   void activate(int index) {
-    if (index < 0 || index >= _tabs.length || index == _activeIndex) return;
+    if (index < 0 || index >= _entries.length || index == _activeIndex) return;
     _activeIndex = index;
     notifyListeners();
   }
@@ -85,36 +115,51 @@ class DVTabWorkspaceController extends ChangeNotifier {
   /// Idempotent by route for the same reason `DV.Window.open` is: two tabs
   /// showing one route is not a state anyone asked for.
   void add(DVTab tab, {int? at}) {
-    if (!tab.duplicate) {
+    _adopt(_DVTabEntry(tab), at: at);
+  }
+
+  /// Takes [entry] -- a tab new to this workspace, or one moving here from
+  /// another with its content identity intact.
+  ///
+  /// Returns whether the entry was taken. False means the workspace already
+  /// had a tab on that route and focused it instead, so whatever [entry] was
+  /// carrying did not come across.
+  bool _adopt(_DVTabEntry entry, {int? at}) {
+    if (!entry.tab.duplicate) {
       // By route, not by object. This used to be _tabs.indexOf(tab), and DVTab
       // overrides no ==, so it compared by identity: two DVTab objects naming
       // the same route were never equal and every add appended. A test reusing
       // one instance -- the natural thing to write -- passed either way.
-      final int existing =
-          _tabs.indexWhere((DVTab t) => t.route.path == tab.route.path);
+      final int existing = _entries.indexWhere(
+          (_DVTabEntry e) => e.tab.route.path == entry.tab.route.path);
       if (existing != -1) {
         activate(existing);
-        return;
+        return false;
       }
     }
-    final index = at == null ? _tabs.length : at.clamp(0, _tabs.length);
-    _tabs.insert(index, tab);
+    final index = at == null ? _entries.length : at.clamp(0, _entries.length);
+    _entries.insert(index, entry);
     // The tab that was added is the one to look at, exactly as adding a route
     // that is already open activates the tab holding it. A workspace that
     // added a tab behind you would be a different rule for the same action,
     // and a tab dragged in from another window would land out of sight.
+    //
+    // It is also what makes a handover possible at all: only the active tab is
+    // built, so a tab that arrived in the background would have its element
+    // dropped on the floor rather than reparented.
     _activeIndex = index;
     notifyListeners();
+    return true;
   }
 
   /// Moves a tab within the strip. Works on every target, including ones with
   /// no windowing capability at all — reordering is pure UI.
   void reorder(int from, int to) {
-    if (from < 0 || from >= _tabs.length) return;
-    final target = to.clamp(0, _tabs.length - 1);
+    if (from < 0 || from >= _entries.length) return;
+    final target = to.clamp(0, _entries.length - 1);
     if (from == target) return;
-    final moving = _tabs.removeAt(from);
-    _tabs.insert(target, moving);
+    final moving = _entries.removeAt(from);
+    _entries.insert(target, moving);
     final wasActive = _activeIndex;
     if (wasActive == from) {
       _activeIndex = target;
@@ -130,15 +175,19 @@ class DVTabWorkspaceController extends ChangeNotifier {
   ///
   /// Selection moves to the neighbour rather than resetting, because a closed
   /// tab should leave the user where they were looking.
-  DVTab? removeAt(int index, {DVTabExit reason = DVTabExit.closed}) {
-    if (index < 0 || index >= _tabs.length) return null;
-    final removed = _tabs.removeAt(index);
-    if (_tabs.isEmpty) {
+  DVTab? removeAt(int index, {DVTabExit reason = DVTabExit.closed}) =>
+      _removeEntryAt(index, reason: reason)?.tab;
+
+  _DVTabEntry? _removeEntryAt(int index,
+      {DVTabExit reason = DVTabExit.closed}) {
+    if (index < 0 || index >= _entries.length) return null;
+    final removed = _entries.removeAt(index);
+    if (_entries.isEmpty) {
       _activeIndex = -1;
     } else if (index < _activeIndex) {
       _activeIndex--;
     } else if (index == _activeIndex) {
-      _activeIndex = index.clamp(0, _tabs.length - 1);
+      _activeIndex = index.clamp(0, _entries.length - 1);
     }
     notifyListeners();
     return removed;
@@ -149,11 +198,18 @@ class DVTabWorkspaceController extends ChangeNotifier {
   /// Gated on `capability.tearOut`: where it is false the tab does not leave
   /// the strip, because a gesture that silently does nothing is worse than one
   /// that is absent. Returns the window when it happened.
+  ///
+  /// This is not a handover and does not pretend to be one. The new window
+  /// renders the route through the host's route builder, so the tab arrives
+  /// built from scratch; what crosses is what was written to the shared store
+  /// under `workspace.tab.<path>` just before the window opened. [moveTo] is
+  /// the handover, because there the receiving workspace is already on screen
+  /// and can take the element itself.
   Future<DVWindow?> tearOut(int index) async {
-    if (index < 0 || index >= _tabs.length) return null;
+    if (index < 0 || index >= _entries.length) return null;
     if (!DV.Platform.Window.capability.tearOut) return null;
 
-    final tab = _tabs[index];
+    final tab = _entries[index].tab;
     final int started = DVWindowManager.performance.mark();
     // Written before the window opens: the new engine reads the store on
     // boot, so a slow start loses nothing.
@@ -166,14 +222,85 @@ class DVTabWorkspaceController extends ChangeNotifier {
     return opened;
   }
 
-  /// Moves a tab into [destination]. Same convergence as a drag between
-  /// strips: the receiving workspace adds the route, this one lets it go.
-  Future<void> moveTo(DVTabWorkspaceController destination, int index) async {
-    final tab = removeAt(index, reason: DVTabExit.adopted);
-    if (tab == null) return;
-    destination.add(tab);
+  /// Moves the tab at [index] into [destination], reporting how it travelled.
+  ///
+  /// [DVWindowHandover.sameEngine] means the tab arrived whole: its element is
+  /// reparented into the receiving workspace, so the text someone was half way
+  /// through typing, the position they had scrolled to, the controllers and
+  /// the requests still in flight are the same objects afterwards. That is the
+  /// difference between a re-dock and a tab that looks right and is empty.
+  ///
+  /// [DVWindowHandover.shared] means it did not: [destination] already had a
+  /// tab on that route and focused it, so this tab was closed and nothing but
+  /// the shared store crossed. Null means [index] named no tab.
+  ///
+  /// Both workspaces must be on screen. That is not a restriction so much as
+  /// what "the same engine" means here: `DVWindowHost` renders every window as
+  /// a `View` in one `ViewCollection`, so two windows share a build owner and
+  /// an element can move between them -- and a workspace that is not mounted
+  /// has no element tree to move into. [moveDestinations] lists the ones that
+  /// qualify.
+  Future<DVWindowHandover?> moveTo(
+    DVTabWorkspaceController destination,
+    int index,
+  ) async {
+    final _DVTabEntry? entry =
+        _removeEntryAt(index, reason: DVTabExit.adopted);
+    if (entry == null) return null;
+    // The receiver takes it before anything is awaited. Both notifications
+    // then land in the same frame, which is the entire mechanism: an await in
+    // between would put the departure in one frame and the arrival in the
+    // next, the element would be unmounted in the gap, and the handover would
+    // quietly become a rebuild that still looks correct on screen.
+    final bool taken = destination._adopt(entry);
     await _closeIfEmptied();
+    return taken ? DVWindowHandover.sameEngine : DVWindowHandover.shared;
   }
+
+  /// The workspaces currently on screen, in the order they were mounted.
+  ///
+  /// Held as the widget states rather than the controllers so that rebuilding
+  /// a workspace elsewhere in the tree -- a new state mounting before the old
+  /// one is disposed -- cannot leave a live workspace unregistered.
+  static final List<_DVTabWorkspaceState> _mounted = <_DVTabWorkspaceState>[];
+
+  /// Where a tab from this workspace can be moved.
+  ///
+  /// Only workspaces that are actually on screen: an unmounted controller has
+  /// no strip to drop a tab into, and a tab moved somewhere invisible reads to
+  /// the person who moved it as a tab that was lost.
+  ///
+  /// A workspace in another window is offered only where windows share an
+  /// engine. Elsewhere the other window is a separate isolate holding no
+  /// object this one could hand anything to, and the honest affordance there
+  /// is "open in new window" -- the same rule tear-out follows, absent rather
+  /// than present and empty.
+  List<DVTabWorkspaceController> get moveDestinations {
+    final bool acrossWindows = DV.Platform.Window.capability.sameEngine;
+    return <DVTabWorkspaceController>[
+      for (final _DVTabWorkspaceState state in _mounted)
+        if (!identical(state._controller, this) &&
+            (acrossWindows || identical(state._controller.window, window)))
+          state._controller,
+    ];
+  }
+
+  /// Whether a tab can be dragged out of this strip and into another window's.
+  ///
+  /// False everywhere, at the Flutter this ships against. A drag belongs to
+  /// the window the pointer went down in: the OS grabs the pointer for that
+  /// window until the button comes up, Flutter routes every move to that view,
+  /// and the feedback under the cursor is clipped to it -- so no strip in
+  /// another window ever sees the gesture, whatever the two windows share.
+  /// Nor could Dartvel work out which window the cursor was over: it does not
+  /// track where its windows are on screen, deliberately, because on Wayland
+  /// there is no window position to track.
+  ///
+  /// So a cross-window move is an action naming a destination from
+  /// [moveDestinations], and it is the arrival that is a real handover. Said
+  /// here rather than left to be discovered, because a drag that quietly ends
+  /// nowhere is the thing this whole file is trying not to ship.
+  bool get offersCrossWindowDrag => false;
 
   /// A workspace window whose last tab leaves closes itself. This is state
   /// policy rather than a window callback, so tear-out, re-dock and cleanup
@@ -240,7 +367,15 @@ class _DVTabWorkspaceState extends State<DVTabWorkspace> {
       widget.controller ?? DVTabWorkspaceController(tabs: widget.initialTabs);
 
   @override
+  void initState() {
+    super.initState();
+    // On screen, so a tab from another workspace can be moved here.
+    DVTabWorkspaceController._mounted.add(this);
+  }
+
+  @override
   void dispose() {
+    DVTabWorkspaceController._mounted.remove(this);
     if (widget.controller == null) _controller.dispose();
     super.dispose();
   }
@@ -261,8 +396,15 @@ class _DVTabWorkspaceState extends State<DVTabWorkspace> {
             const DVText('No tabs open.')
           else
             Expanded(
-              child: widget.builder?.call(context, active) ??
-                  DVText(active.route.path),
+              // Keyed by the tab, not by this workspace and not by the route.
+              // A tab that moves takes this key with it, so the workspace
+              // receiving it reparents the element that is already built
+              // instead of building a second one and throwing the first away.
+              child: KeyedSubtree(
+                key: _controller._activeEntry!.contentKey,
+                child: widget.builder?.call(context, active) ??
+                    DVText(active.route.path),
+              ),
             ),
         ]);
       },
@@ -351,9 +493,12 @@ class _DVTabWorkspaceState extends State<DVTabWorkspace> {
     );
   }
 
-  /// Move and close, as actions: the switchers have no drag.
+  /// Move and close, as actions: the switchers have no drag, and no strip on
+  /// any target has a drag that reaches another window.
   Widget _actions(int index) {
     final int count = _controller.tabs.length;
+    final List<DVTabWorkspaceController> destinations =
+        _controller.moveDestinations;
     Widget action(String key, String label, VoidCallback? onTap) => GestureDetector(
           key: ValueKey<String>(key),
           behavior: HitTestBehavior.opaque,
@@ -385,16 +530,45 @@ class _DVTabWorkspaceState extends State<DVTabWorkspace> {
           if (_focused >= _controller.tabs.length && _focused > 0) _focused--;
         });
       }),
+      // Where the drag cannot go. A tab cannot be dragged into another
+      // window's strip at this Flutter -- see
+      // DVTabWorkspaceController.offersCrossWindowDrag -- so the move is an
+      // action naming the destination. It is the same call the drag would have
+      // made, and the tab arrives whole either way.
+      for (int d = 0; d < destinations.length; d++)
+        action('dv-tab-move-to-$d', 'Move to ${_nameOf(destinations[d])}', () {
+          // Not awaited, for the reason the tear-out drop is not: the tab has
+          // left this strip by the time the call returns to the event loop,
+          // and what the emptied window then does is the window's business.
+          unawaited(_controller.moveTo(destinations[d], index));
+          setState(() {
+            _actionsFor = null;
+            if (_focused >= _controller.tabs.length && _focused > 0) _focused--;
+          });
+        }),
     ], spacing: 4),
     );
   }
+
+  /// What to call a destination in the menu.
+  ///
+  /// The window's route, because that is the only name a window is guaranteed
+  /// to have -- a title is optional and the OS may not have honoured it.
+  String _nameOf(DVTabWorkspaceController destination) =>
+      destination.window?.route.path ?? 'the main window';
 
   // --- the strip --------------------------------------------------------------
 
   Widget _strip() {
     final tabs = _controller.tabs;
-    return DVBox.row(<Widget>[
-      for (var i = 0; i < tabs.length; i++) _tab(i, tabs[i]),
+    final int? actionsFor = _actionsFor;
+    return DVBox.list(<Widget>[
+      DVBox.row(<Widget>[
+        for (var i = 0; i < tabs.length; i++) _tab(i, tabs[i]),
+      ]),
+      // The same menu the switchers use, for the same reason: some things a
+      // tab can do have no gesture. On a strip that is the cross-window move.
+      if (actionsFor != null && actionsFor < tabs.length) _actions(actionsFor),
     ]);
   }
 
@@ -437,6 +611,8 @@ class _DVTabWorkspaceState extends State<DVTabWorkspace> {
         child: GestureDetector(
           key: ValueKey<String>('dv-tab-${tab.route.path}'),
           onTap: () => _controller.activate(index),
+          // Stationary, so the drag recognizer above never claims it.
+          onLongPress: () => setState(() => _actionsFor = index),
           child: label,
         ),
       ),

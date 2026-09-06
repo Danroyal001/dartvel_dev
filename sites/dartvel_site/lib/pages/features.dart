@@ -399,8 +399,8 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   ),
   (
     'Tab Workspaces',
-    'Tabs that tear out, re-dock and persist',
-    'Present: the tab strip, reorder, tear-out gated on capability, re-dock by adoption, the empty-window rule, duplicate tabs, deduplication by route, a switcher on TV and watch, and persistence scoped to the tenant and the user that drops routes that no longer resolve. Absent: same-engine hit-testing across windows.',
+    'Tabs that tear out, hand over between windows and persist',
+    'Present: the tab strip, reorder, tear-out gated on capability, the empty-window rule, duplicate tabs, deduplication by route, a switcher on TV and watch, persistence scoped to the tenant and the user that drops routes that no longer resolve, and a re-dock that hands the tab over instead of rebuilding it -- the element moves between workspaces in one frame, so what was half typed, where the list had been scrolled to and the controllers behind them are the same objects on the other side. Absent: the drag cannot leave a window. The OS holds the pointer in the window it went down in and Flutter routes the whole drag to that view, so no strip elsewhere ever sees it; a cross-window move is an action on the tab menu instead, and tear-out into a brand-new window still builds the route from scratch.',
   ),
   (
     'Secrets and Environments',
