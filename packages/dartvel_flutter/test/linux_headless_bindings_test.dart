@@ -37,6 +37,7 @@ void main() {
         'bluetooth.devices',
         'nfc.isAvailable',
         'nfc.readTag',
+        'nfc.writeTag',
         'device.capabilityManifest',
         'device.health',
         'device.watchdog.arm',

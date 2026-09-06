@@ -109,6 +109,7 @@ void main() {
         // neard: the reader, and the tag on it.
         'nfc.isAvailable',
         'nfc.readTag',
+        'nfc.writeTag',
         'deepLinks.initial',
         'media.pick',
         'permissions.isGranted',

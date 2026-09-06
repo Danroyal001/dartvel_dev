@@ -220,6 +220,7 @@ class DVLinuxBindings {
     // neard: whether there is a reader, and what is on it.
     'nfc.isAvailable',
     'nfc.readTag',
+    'nfc.writeTag',
     'deepLinks.initial',
     'media.pick',
     'permissions.isGranted',
