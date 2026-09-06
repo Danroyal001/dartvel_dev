@@ -155,6 +155,31 @@ void main() {
     });
   });
 
+  group('what the widget gallery calls it', () {
+    test('is the title the widget declared', () {
+      // configurationDisplayName is the line under the preview in the
+      // gallery, and it was the identifier -- a route segment. "next-shift"
+      // among an iPhone's widgets reads as somebody's debugging left in.
+      final String swift = dvAppleHomeWidgetSource(const <DVHomeWidgetSpec>[
+        DVHomeWidgetSpec(
+          id: 'next-shift',
+          name: 'NextShiftWidget',
+          route: '/widgets/next-shift',
+          title: 'Next shift',
+        ),
+      ], 'dartvel');
+
+      expect(swift, contains('.configurationDisplayName("Next shift")'));
+    });
+
+    test('falls back to the identifier when there is no title', () {
+      // An empty display name is a widget nobody can find in the gallery.
+      final String swift = dvAppleHomeWidgetSource(_widgets, 'dartvel');
+
+      expect(swift, contains('.configurationDisplayName("today")'));
+    });
+  });
+
   _sdkFloor();
 }
 

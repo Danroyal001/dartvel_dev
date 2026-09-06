@@ -12,6 +12,8 @@
 import 'dart:io';
 
 import 'package:dartvel_cli/src/build/home_widget_check.dart';
+import 'package:dartvel_cli/src/generators/client_generator.dart';
+import 'package:dartvel_core/dartvel.dart' show DVHomeWidgetSpec;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -102,5 +104,49 @@ dartvel:
 
     expect(check.ok, isFalse);
     expect(check.lines.join(' '), contains('onUnsupported'));
+  });
+
+  test('a widget with shell properties is still a widget to this check', () {
+    // Both scanners matched `@DVHomeWidget()` with the parentheses empty, so
+    // giving a widget the shell properties the specification promises made
+    // it invisible to the build: the web build stopped mentioning it, and
+    // the exclusion notice that is the whole point of this check went quiet
+    // while the widget was still declared.
+    final Directory root = workspace(widget: false);
+    File(p.join(root.path, 'lib', 'widgets', 'step_counter.dart'))
+      ..createSync(recursive: true)
+      ..writeAsStringSync(
+          _widget.replaceFirst('@DVHomeWidget()', "@DVHomeWidget(title: 'Steps')"));
+
+    final DVHomeWidgetCheck check =
+        DVHomeWidgetCheck.run(root.path, target: 'web');
+
+    expect(check.excluded, isTrue);
+    expect(check.lines.join(' '), contains('step-counter'));
+  });
+
+  test('this check and the generator agree on what a widget is', () {
+    // Two scanners with a regular expression each. When they disagree the
+    // build reports one set and packages another -- a widget excluded from a
+    // web build and still generated into it, or named in a DV-WIDGET-001
+    // refusal that no provider was ever written for.
+    final Directory root = workspace(widget: false);
+    for (final String annotation in const <String>[
+      '@DVHomeWidget()',
+      "@DVHomeWidget(title: 'Steps today', showAppBar: true)",
+      '@DVHomeWidget(shell: DVPageShellMode.none)',
+    ]) {
+      File(p.join(root.path, 'lib', 'widgets', 'step_counter.dart'))
+        ..createSync(recursive: true)
+        ..writeAsStringSync(_widget.replaceFirst('@DVHomeWidget()', annotation));
+
+      expect(
+        DVHomeWidgetCheck.declaredIn(root.path),
+        ClientGenerator.homeWidgetsIn(root.path)
+            .map((DVHomeWidgetSpec widget) => widget.id)
+            .toList(),
+        reason: annotation,
+      );
+    }
   });
 }

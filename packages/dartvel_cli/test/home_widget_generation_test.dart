@@ -138,4 +138,106 @@ void main() {
       throwsA(isA<StateError>()),
     );
   });
+
+  test('an annotation with arguments still declares a widget', () async {
+    // The scanners matched the literal `@DVHomeWidget()`, empty parentheses
+    // and all. The moment the specification's "same shell properties" were
+    // given to one -- @DVHomeWidget(title: 'Steps') -- the widget stopped
+    // existing: no entry in the list, no route in the router, no provider on
+    // the device and no message anywhere, with the annotation still sitting
+    // in the file saying otherwise.
+    await generate(widgets: <String, String>{
+      'widgets/step_counter.dart': _shellful,
+    });
+
+    expect(read('home_widgets.g.dart'), contains("id: 'step-counter'"));
+    expect(read('router.g.dart'), contains("path: '/widgets/step-counter'"));
+  });
+
+  test('the declared shell properties reach the generated page', () async {
+    // "Home widgets act like DVPage and support the same shell properties."
+    // A page gets its properties through DVPageShell; a home widget's page
+    // was a bare Center, so every property was declared and then dropped --
+    // a page that renders under the status bar and shows no title, which
+    // reads as a styling problem rather than as a property nothing reads.
+    await generate(widgets: <String, String>{
+      'widgets/step_counter.dart': _shellful,
+    });
+
+    final String route = widgetRoute(read('router.g.dart'));
+    expect(route, contains('DVPageShell('));
+    expect(route, contains("title: 'Steps today'"));
+    expect(route, contains('showAppBar: true'));
+    // Still centred: the specification asks for a page that centres the
+    // widget's content, and a shell around it does not replace that.
+    expect(route, contains('Center('));
+  });
+
+  test('a property that differs from the default is the one carried', () async {
+    // The failure this catches is a generator that writes a constant
+    // `const DVPageScaffoldSpec()` for every widget: every assertion about
+    // the common case passes, and an application that asked for no platform
+    // shell gets a Material one.
+    await generate(widgets: <String, String>{
+      'widgets/step_counter.dart': _stepCounter.replaceFirst(
+        '@DVHomeWidget()',
+        '@DVHomeWidget(shell: DVPageShellMode.none, selectable: false)',
+      ),
+    });
+
+    final String route = widgetRoute(read('router.g.dart'));
+    expect(route, contains('shell: DVPageShellMode.none'));
+    expect(route, contains('selectable: false'));
+  });
+
+  test('a widget that declared no properties still gets the page shell',
+      () async {
+    // The default is a page's default, because that is what "acts like
+    // DVPage" means. Without the shell there is no safe area and no
+    // selection, which is a page that looks built rather than one that is.
+    await generate();
+
+    final String route = widgetRoute(read('router.g.dart'));
+    expect(route, contains('DVPageShell('));
+    expect(route, contains('DVPageScaffoldSpec('));
+  });
+
+  test('the title is what the platform calls it, and the id is the fallback',
+      () async {
+    // The identifier is a route segment -- step-counter -- and it was what
+    // the launcher and the widget gallery showed. A widget called
+    // "step-counter" among somebody's applications looks like a defect in
+    // whichever one it came from.
+    await generate(widgets: <String, String>{
+      'widgets/step_counter.dart': _shellful,
+    });
+
+    expect(read('home_widgets.g.dart'), contains("title: 'Steps today'"));
+
+    await generate();
+    expect(read('home_widgets.g.dart'), isNot(contains('title:')));
+  });
+}
+
+/// The same widget, with the shell properties a page has.
+const String _shellful = '''
+import 'package:flutter/widgets.dart';
+import 'package:dartvel_flutter/dartvel_flutter.dart';
+
+@DVHomeWidget(title: 'Steps today', showAppBar: true)
+@DVFunctionalWidget()
+Widget _stepCounterWidget(BuildContext context) => const DVText('1,204 steps');
+''';
+
+/// The generated route for the step counter, and nothing either side of it.
+///
+/// The router holds the application's pages too, and a `title:` belonging to
+/// one of those would satisfy an assertion about the widget's own shell
+/// without the widget having one.
+String widgetRoute(String router) {
+  const String marker = "path: '/widgets/step-counter'";
+  final int at = router.indexOf(marker);
+  expect(at, isNot(-1), reason: 'the widget route is not in the router');
+  final int end = router.indexOf('GoRoute(', at + marker.length);
+  return router.substring(at, end == -1 ? router.length : end);
 }
