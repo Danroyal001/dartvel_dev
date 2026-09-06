@@ -182,7 +182,11 @@ Future<void> main(List<String> arguments) async {
     'install',
     '-r',
     '-t',
-    'build/app/outputs/flutter-apk/app-debug.apk',
+    // From the repository root, which is where this runs. The flutter test
+    // above is the thing with a working directory of its own, and the first
+    // version of this line copied the path out of that command and reached
+    // adb as a path relative to nothing: "failed to stat".
+    '$_example/build/app/outputs/flutter-apk/app-debug.apk',
   ]);
   stdout.writeln('== put the application back after flutter test removed it');
   stdout.writeln('   ${'${reinstall.stdout}${reinstall.stderr}'.trim()}');
@@ -194,7 +198,9 @@ Future<void> main(List<String> arguments) async {
       await Process.run('adb', <String>['shell', 'pm', 'path', _package]);
   if (!'${present.stdout}'.trim().startsWith('package:')) {
     stdout.writeln('!! $_package is still not installed. Everything below '
-        'would report a missing receiver for a package that is not there.');
+        'would report a missing receiver for a package that is not there. '
+        'The APK was looked for at '
+        '$_example/build/app/outputs/flutter-apk/app-debug.apk.');
     failures.add('the application would not stay installed');
   }
 
