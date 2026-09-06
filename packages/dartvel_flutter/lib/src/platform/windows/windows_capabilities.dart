@@ -13,7 +13,6 @@ library dartvel_flutter.platform.windows.capabilities;
 /// Focus Assist. Registering either would produce a binding that reports
 /// success and shows nothing, which is worse than the "not registered" error.
 const Set<String> dvWindowsImplementedBindings = <String>{
-  // user32 clipboard, with the global-memory dance it requires.
   'clipboard.copy',
   'clipboard.paste',
 
@@ -48,6 +47,16 @@ const Set<String> dvWindowsImplementedBindings = <String>{
   'device.watchdog.heartbeat',
   'device.fleet.provision',
   'device.diagnostics.collect',
+
+  // CreateFileW on the \\.\COMn path, with SetCommState and
+  // SetCommTimeouts, and the port list out of
+  // HKLM\HARDWARE\DEVICEMAP\SERIALCOMM. The one bus an embedded device
+  // is most likely to have, and the last desktop it was missing from.
+  'device.serial.ports',
+  'device.serial.open',
+  'device.serial.write',
+  'device.serial.read',
+  'device.serial.close',
 
   // A Win32 menu bar on the process's window, the window subclassed so
   // WM_COMMAND is dispatched by the item's id.

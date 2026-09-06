@@ -861,6 +861,41 @@ void main() {
     });
   });
 
+  group('serial ports', () {
+    // A hosted runner has no serial hardware, and that is the point: the
+    // failure modes worth catching here are the ones that only show on a
+    // machine with none. Reading the registry key that is not there must be
+    // an empty list, and opening a port that is not there must say so by
+    // name rather than hand back a Win32 number.
+    test('enumerating is a list, on a machine with no ports at all', () async {
+      final List<Object?> ports =
+          await DVNativeBridge.require<List<Object?>>('device.serial.ports');
+
+      for (final Object? port in ports) {
+        final Map<Object?, Object?> entry = port! as Map<Object?, Object?>;
+        expect('${entry['name']}', matches(RegExp(r'^COM\d+$')));
+        // The prefix is what CreateFileW needs above COM9, and a list that
+        // hands back bare names works on nine ports and fails on the tenth.
+        expect('${entry['path']}', startsWith(r'\\.\'));
+      }
+    });
+
+    test('a port that is not there fails by name, not by error number',
+        () async {
+      // COM99 is not a port on a hosted runner. This is the only place the
+      // CreateFileW failure path runs at all, and a raw "error 2" reaching a
+      // developer is the thing dvWindowsSerialFailure exists to prevent.
+      await expectLater(
+        DVNativeBridge.require<int>(
+            'device.serial.open', <String, Object?>{'name': 'COM99'}),
+        throwsA(predicate((Object? error) {
+          final String message = '$error';
+          return message.contains('COM99') && !message.contains('error 2');
+        }, 'names COM99 and not the Win32 code')),
+      );
+    });
+  });
+
   test('an unimplemented binding still throws', () async {
     // Notifications are deliberately absent; see the capability list.
     await expectLater(

@@ -37,6 +37,13 @@ void main() {
           'device.watchdog.heartbeat',
           'device.fleet.provision',
           'device.diagnostics.collect',
+          // CreateFileW on the \\.\COMn path, SetCommState and
+          // SetCommTimeouts, and the port list out of SERIALCOMM.
+          'device.serial.ports',
+          'device.serial.open',
+          'device.serial.write',
+          'device.serial.read',
+          'device.serial.close',
           // A Win32 menu bar on the process's window, WM_COMMAND by id.
           'menus.setApplicationMenu',
           // Shell_NotifyIcon on the process's window, its menu by id.
@@ -132,6 +139,11 @@ void main() {
         'device.watchdog.heartbeat',
         'device.fleet.provision',
         'device.diagnostics.collect',
+        'device.serial.ports',
+        'device.serial.open',
+        'device.serial.write',
+        'device.serial.read',
+        'device.serial.close',
         'menus.setApplicationMenu',
         'window.persistState',
         'window.restoreState',
