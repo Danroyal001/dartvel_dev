@@ -6,6 +6,7 @@
 // extension with the Xcode target that builds it, only run for a project
 // that actually declares a widget -- without one the packaging code ran on
 // nothing in CI and every job was green either way.
+import 'package:dartvel_core/dartvel.dart';
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/widgets.dart';
 
