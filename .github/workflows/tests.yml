@@ -489,6 +489,36 @@ jobs:
         working-directory: sites/dartvel_site
         run: flutter analyze lib
 
+      # Built, not only analysed. The site is a deliverable somebody hands
+      # to a host, and a job that proves it compiles and never produces the
+      # thing it compiles to leaves the artifact to be made on a laptop --
+      # which is how a zip a week older than the copy it was cut from gets
+      # shipped.
+      #
+      # dartvel build web, not flutter build web: the PWA manifest, the
+      # service worker, the route index, the sitemap and the SEO head are
+      # Dartvel's and a Flutter build writes none of them.
+      - name: Build the site
+        working-directory: sites/dartvel_site
+        run: dart run dartvel_cli:dartvel build web --release
+
+      - name: The build produced something to ship
+        working-directory: sites/dartvel_site
+        run: |
+          set -euo pipefail
+          # A build that succeeds and writes nothing is the failure worth
+          # guarding: the upload below would then attach an empty archive
+          # and the job would still be green.
+          test -f build/web/index.html
+          test -f build/web/main.dart.js
+          echo "index.html and main.dart.js are there; $(find build/web -type f | wc -l) files total"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dartvel-site
+          path: sites/dartvel_site/build/web
+          if-no-files-found: error
+
   spec:
     name: spec-status index
     runs-on: ubuntu-latest
