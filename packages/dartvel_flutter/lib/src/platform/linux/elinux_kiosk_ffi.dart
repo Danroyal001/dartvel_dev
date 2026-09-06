@@ -28,7 +28,11 @@ library dartvel_flutter.platform.linux.elinux_kiosk;
 import 'dart:async';
 import 'dart:ffi';
 
-import 'package:dartvel_core/dartvel.dart' show DVKioskDegradation;
+// Not a show clause: the code for a degradation lives on an extension in
+// that library, and a show list that names only the enum filters the
+// extension out of scope -- so .code stops existing, in every package that
+// compiles this file.
+import 'package:dartvel_core/dartvel.dart';
 import 'package:ffi/ffi.dart';
 
 /// `VT_LOCKSWITCH`: no more virtual terminal switching until it is undone.
