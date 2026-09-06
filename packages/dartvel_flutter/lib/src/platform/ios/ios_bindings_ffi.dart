@@ -20,9 +20,8 @@ library dartvel_flutter.platform.ios.ffi;
 import 'dart:ffi';
 import 'dart:io' show Platform;
 
-import 'package:ffi/ffi.dart';
-
 import 'package:dartvel_core/dartvel.dart' show dvIosLaunchUrlKey;
+import 'package:ffi/ffi.dart';
 
 import '../../../dartvel_flutter.dart' show DVNativeBridge;
 import 'ios_capabilities.dart';
