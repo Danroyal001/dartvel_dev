@@ -32,14 +32,8 @@ import 'package:flutter_test/flutter_test.dart';
 /// heard it -- and the test would pass or fail for a reason that has nothing
 /// to do with what is being written.
 class _Neard {
-  _Neard({
-    this.powered = true,
-    this.tag = true,
-    this.readOnly = false,
-    this.refuse,
-  });
+  _Neard({this.tag = true, this.readOnly = false, this.refuse});
 
-  final bool powered;
   final bool tag;
   final bool readOnly;
 
@@ -86,7 +80,9 @@ class _NeardRoot extends DBusObject {
           DBusObjectPath('/org/neard/nfc0'):
               _interfaces(<String, Map<String, DBusValue>>{
             'org.neard.Adapter': <String, DBusValue>{
-              'Powered': DBusBoolean(neard.powered),
+              // Always on here. Whether an unpowered adapter is available is
+              // the read suite's question, and this one is about writing.
+              'Powered': const DBusBoolean(true),
             },
           }),
           if (neard.tag)

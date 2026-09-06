@@ -179,7 +179,7 @@ class DVLinuxNfc {
         // NDEF puts a language code in every Text record, and a reader that
         // finds none shows the record as empty.
         const DBusString('Language'): DBusVariant(DBusString(language)),
-        const DBusString('Encoding'): DBusVariant(const DBusString('UTF-8')),
+        const DBusString('Encoding'): const DBusVariant(DBusString('UTF-8')),
       },
     };
 
