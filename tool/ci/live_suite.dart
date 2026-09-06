@@ -31,7 +31,7 @@ Future<int> main(List<String> arguments) async {
   // marks every test after that one as failed and says nothing true about any
   // of them. Two deaths in a row is a failure — this retries an accident, not
   // a fault.
-  _Run run = await _run(arguments);
+  DVLiveRun run = await _run(arguments);
   if (run.diedPartway) {
     stdout.writeln('  the tester went away mid-run, so the results after it '
         'say nothing; running the suite again');
@@ -120,7 +120,7 @@ class _Result {
 }
 
 /// What one run of a suite reported.
-class _Run {
+class DVLiveRun {
   int passed = 0;
   int skipped = 0;
   final List<String> failures = <String>[];
@@ -139,21 +139,40 @@ class _Run {
   /// into a dialog test that was passing.
   bool errorsAttached = false;
 
+  /// Every failure is one of package:test's own fixtures, with nothing
+  /// attached to any of them.
+  ///
+  /// package:test names its fixtures in brackets: (tearDownAll), (setUpAll).
+  /// A LiveTest closed while it is running -- the channel to the tester gone
+  /// -- reports exactly this: a non-success testDone for the fixture, no
+  /// error event ever emitted, and a done event all the same. Every real
+  /// test passed.
+  bool get onlyFixturesFailed =>
+      failures.isNotEmpty &&
+      !errorsAttached &&
+      failures.every((String name) => name.startsWith('('));
+
   /// Whether the tester ended without finishing what it started.
   ///
-  /// Two shapes, both meaning the process went away mid-run rather than a test
-  /// failing. It can leave no verdict at all; or the harness notices first,
-  /// says so in its own words — 'Shell subprocess ended cleanly. Did main()
-  /// call exit()?' — and marks everything left as failed, which arrives
-  /// looking exactly like a suite in which fourteen things broke at once.
+  /// Three shapes, all meaning the process went away rather than a test
+  /// failing. It can leave no verdict at all; the harness can notice first
+  /// and say so in its own words -- 'Shell subprocess ended cleanly. Did
+  /// main() call exit()?' -- and mark everything left as failed, which
+  /// arrives looking exactly like a suite in which fourteen things broke at
+  /// once; or it can die late enough that only the closing fixture is left
+  /// to fail, which arrives looking like a broken teardown.
+  ///
+  /// That third one was reported as a failing dialogs test for two days. It
+  /// is the same accident as the other two and it is retried like them.
   bool get diedPartway {
     if (verdict == null && !hung && passed > 0) return true;
+    if (onlyFixturesFailed && passed > 0) return true;
     return testerLeft;
   }
 }
 
-Future<_Run> _run(List<String> command) async {
-  final _Run result = _Run();
+Future<DVLiveRun> _run(List<String> command) async {
+  final DVLiveRun result = DVLiveRun();
 
   // Written to files rather than to pipes. `flutter` spawns the tester, and
   // killing the parent leaves the child holding the pipe open, so anything
@@ -201,6 +220,31 @@ Future<_Run> _run(List<String> command) async {
   } finally {
     workspace.deleteSync(recursive: true);
   }
+
+  return dvParseLiveSuite(
+    machine: stdoutText,
+    stderr: stderrText,
+    exitCode: code,
+    hung: result.hung,
+  );
+}
+
+/// Everything the machine reporter said, turned into a verdict.
+///
+/// Separated from the process that produced it so a recorded stream can be
+/// fed to it. This parser had been changed four times in three days on the
+/// strength of reading CI logs, because there was no other way to change it:
+/// nothing could be asserted without a macOS runner and a flaky suite.
+DVLiveRun dvParseLiveSuite({
+  required String machine,
+  required String stderr,
+  required int exitCode,
+  required bool hung,
+}) {
+  final DVLiveRun result = DVLiveRun()..hung = hung;
+  final String stdoutText = machine;
+  final String stderrText = stderr;
+  final int code = exitCode;
 
   final Map<Object?, String> names = <Object?, String>{};
   final Map<Object?, List<String>> errors = <Object?, List<String>>{};
