@@ -99,4 +99,30 @@ void main() {
     expect(out, contains('AWidgetProvider'));
     expect(out, contains('BWidgetProvider'));
   });
+
+  test('the launcher offers the widget by its title', () {
+    // The identifier is a route segment. A widget picker listing
+    // "step-counter" between two applications' widgets looks like a defect
+    // in whichever application it came from, and nothing about it is
+    // reported anywhere -- the build is green, the widget works, and it is
+    // named after a URL.
+    const DVHomeWidgetSpec titled = DVHomeWidgetSpec(
+      id: 'step-counter',
+      name: 'StepCounterWidget',
+      route: '/widgets/step-counter',
+      title: 'Steps today',
+    );
+
+    expect(dvAndroidHomeWidgetMetadata(titled), contains('Steps today'));
+    expect(
+      dvAndroidHomeWidgetProviderSource('com.example.app', titled),
+      contains('Steps today'),
+    );
+  });
+
+  test('a widget with no title is offered by its identifier', () {
+    // The fallback is the identifier rather than an empty label: a widget
+    // with no name in the picker cannot be picked.
+    expect(dvAndroidHomeWidgetMetadata(_widgets.single), contains('step-counter'));
+  });
 }

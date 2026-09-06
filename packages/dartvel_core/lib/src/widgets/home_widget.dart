@@ -15,6 +15,7 @@ class DVHomeWidgetSpec {
     required this.id,
     required this.name,
     required this.route,
+    this.title,
   });
 
   /// The identifier the platform knows it by: the widget's name in kebab
@@ -30,9 +31,51 @@ class DVHomeWidgetSpec {
   /// home screen.
   final String route;
 
+  /// What a person sees it called: the `title` the annotation was given, and
+  /// null when it was given none.
+  ///
+  /// It is a shell property a page has, and it is also the only one that
+  /// leaves the application: a launcher's widget picker and WidgetKit's
+  /// gallery both need a name, and until this existed they were shown [id],
+  /// which is a route segment.
+  final String? title;
+
+  /// The name to show wherever a platform asks for one.
+  ///
+  /// The identifier is the fallback rather than an empty string, because a
+  /// widget with no name in a picker cannot be picked -- and an empty label
+  /// is not something a build can see.
+  String get label => (title == null || title!.isEmpty) ? id : title!;
+
   @override
   String toString() => 'DVHomeWidgetSpec($id at $route)';
 }
+
+/// The declaration a `@DVHomeWidget` annotation sits above.
+///
+/// One pattern, in core, because two scanners read it: the generator that
+/// writes the page and the route, and the build check that decides whether
+/// the target being built has anywhere to put one. They held a copy each,
+/// and both copies matched the literal `@DVHomeWidget()` -- empty parentheses
+/// included. Giving a widget the shell properties the specification promises
+/// therefore deleted it: no entry in the generated list, no route, no
+/// provider, no extension, and no message anywhere, with the annotation still
+/// in the file saying otherwise.
+///
+/// Group 1 is whatever the annotation was given, group 2 the declared name.
+final RegExp dvHomeWidgetDeclaration = RegExp(
+  r'@DVHomeWidget\(([^)]*)\)\s*(?:@[A-Za-z_][\w.]*\([^)]*\)\s*)*'
+  r'(?:Widget|[A-Za-z_][\w<>, ?]*)\s+([A-Za-z_][A-Za-z0-9_]*)\s*[({]',
+);
+
+/// Whether [source] is worth scanning for a home widget at all.
+///
+/// The cheap check the scanners do before the regular expression. It was
+/// `contains('@DVHomeWidget()')`, which is the same bug as the pattern: a
+/// file whose only home widget carried arguments was skipped before anything
+/// looked at it.
+bool dvSourceDeclaresHomeWidget(String source) =>
+    source.contains('@DVHomeWidget(');
 
 /// The route a home widget with [id] is shown at.
 ///

@@ -47,6 +47,16 @@ String dvAppleAppGroup(String bundleId) => 'group.$bundleId.dartvelwidgets';
 String dvAppleWidgetKind(String id) =>
     'dartvel.widget.${id.replaceAll(RegExp('[^A-Za-z0-9]'), '_')}';
 
+/// [value] as the body of a Swift string literal.
+///
+/// A widget's title is a person's words and can hold a quote or a backslash.
+/// Either one written straight into the generated Swift is a file that does
+/// not compile, at the end of a build that reported success until Xcode ran.
+String _swift(String value) => value
+    .replaceAll(r'\', r'\\')
+    .replaceAll('"', r'\"')
+    .replaceAll('\n', r'\n');
+
 /// [widget]'s name as a Swift type.
 ///
 /// Widget ids and names come from Dart and may carry characters Swift will
@@ -146,19 +156,19 @@ String dvAppleHomeWidgetSource(List<DVHomeWidgetSpec> widgets, String scheme) {
     out
       ..writeln('struct ${type}Provider: TimelineProvider {')
       ..writeln('    func placeholder(in context: Context) -> DartvelEntry {')
-      ..writeln('        DartvelEntry(date: Date(), text: "${widget.id}")')
+      ..writeln('        DartvelEntry(date: Date(), text: "${_swift(widget.label)}")')
       ..writeln('    }')
       ..writeln()
       ..writeln('    func getSnapshot(in context: Context,')
       ..writeln('                     completion: @escaping (DartvelEntry) -> Void) {')
       ..writeln('        completion(DartvelEntry(date: Date(),')
-      ..writeln('            text: dartvelWidgetText("$kind") ?? "${widget.id}"))')
+      ..writeln('            text: dartvelWidgetText("$kind") ?? "${_swift(widget.label)}"))')
       ..writeln('    }')
       ..writeln()
       ..writeln('    func getTimeline(in context: Context,')
       ..writeln('                     completion: @escaping (Timeline<DartvelEntry>) -> Void) {')
       ..writeln('        let entry = DartvelEntry(date: Date(),')
-      ..writeln('            text: dartvelWidgetText("$kind") ?? "${widget.id}")')
+      ..writeln('            text: dartvelWidgetText("$kind") ?? "${_swift(widget.label)}")')
       // Not .never: a widget that shows what it showed the day it was
       // placed is a legitimate policy and the wrong default for an
       // application's own data. WidgetKit treats this as a request, not a
@@ -174,7 +184,7 @@ String dvAppleHomeWidgetSource(List<DVHomeWidgetSpec> widgets, String scheme) {
       ..writeln()
       ..writeln('    var body: some View {')
       ..writeln('        VStack(alignment: .leading, spacing: 4) {')
-      ..writeln('            Text("${widget.id}")')
+      ..writeln('            Text("${_swift(widget.label)}")')
       ..writeln('                .font(.caption)')
       ..writeln('                .foregroundColor(Color.secondary)')
       ..writeln('            Text(entry.text)')
@@ -196,7 +206,7 @@ String dvAppleHomeWidgetSource(List<DVHomeWidgetSpec> widgets, String scheme) {
       ..writeln('                            provider: ${type}Provider()) { entry in')
       ..writeln('            ${type}View(entry: entry)')
       ..writeln('        }')
-      ..writeln('        .configurationDisplayName("${widget.id}")')
+      ..writeln('        .configurationDisplayName("${_swift(widget.label)}")')
       ..writeln('        .supportedFamilies([.systemSmall, .systemMedium])')
       ..writeln('    }')
       ..writeln('}')
