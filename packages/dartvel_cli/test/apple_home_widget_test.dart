@@ -154,4 +154,58 @@ void main() {
       expect(swift, isNot(contains('dartvel://widget')));
     });
   });
+
+  _sdkFloor();
+}
+
+// ---------------------------------------------------------------------------
+// The SDK the extension is actually built against.
+//
+// Found by building it. The target declares a deployment floor of iOS 14 --
+// WidgetKit's own, and low enough to reach the devices a widget is most
+// likely to be on -- and the first generated view used .foregroundStyle,
+// which is iOS 17, and .secondary as a ShapeStyle, which is iOS 15. Xcode
+// refused both, having happily accepted the project file and the target: the
+// splice was right and the Swift was not.
+//
+// A string test cannot know what Apple shipped when, so this is not a general
+// availability check. It is a list of the specific symbols that have already
+// been wrong once, which is the class of mistake that comes back when
+// somebody edits the view and reaches for the modern spelling.
+
+void _sdkFloor() {
+  group('the generated view against its deployment target', () {
+    const List<String> tooNew = <String>[
+      // iOS 17 / macOS 14. `.foregroundColor` is deprecated there and still
+      // compiles, which is the right trade for a floor of 14.
+      'foregroundStyle',
+      // iOS 16.
+      'AnyLayout',
+      'Gauge',
+      // iOS 15, and the reason the first version failed twice over.
+      'foregroundStyle(.secondary)',
+    ];
+
+    test('it uses nothing newer than the target it is built with', () {
+      final String swift = dvAppleHomeWidgetSource(_widgets, 'dartvel');
+
+      for (final String symbol in tooNew) {
+        expect(swift, isNot(contains(symbol)), reason: symbol);
+      }
+    });
+
+    test('the one modern API it does use is behind an availability check', () {
+      // containerBackground is the exception and has to be: a widget built
+      // against the iOS 17 SDK that does not declare its background is drawn
+      // without one. It cannot simply be called, because the deployment
+      // target is older than the API.
+      final String swift = dvAppleHomeWidgetSource(_widgets, 'dartvel');
+
+      expect(swift, contains('containerBackground'));
+      expect(swift, contains('#available(iOS 17.0'));
+      final int guard = swift.indexOf('#available(iOS 17.0');
+      expect(swift.indexOf('containerBackground'), greaterThan(guard),
+          reason: 'the call must sit inside the check, not before it');
+    });
+  });
 }
