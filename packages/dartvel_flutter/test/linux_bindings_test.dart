@@ -106,6 +106,10 @@ void main() {
         'bluetooth.scanDevices',
         'bluetooth.adapters',
         'bluetooth.devices',
+        'bluetooth.pair',
+        'bluetooth.connect',
+        'bluetooth.disconnect',
+        'bluetooth.forget',
         // neard: the reader, and the tag on it.
         'nfc.isAvailable',
         'nfc.readTag',
