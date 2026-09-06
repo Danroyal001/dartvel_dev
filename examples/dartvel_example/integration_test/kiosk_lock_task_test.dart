@@ -49,9 +49,18 @@ void main() {
         isNot(contains('no kiosk binding on this platform')));
 
     // Lock task either took or said why. Both are results; silence is not.
+    //
+    // Printed before the assertion rather than named in its reason: the
+    // reason said the enforcement result held the answer and nothing put it
+    // anywhere a CI log would show it, so three runs reported that this was
+    // false and none of them said why.
+    // ignore: avoid_print
+    print('kiosk enforcement: strength=${held.strength} '
+        'notificationsSuppressed=${held.notificationsSuppressed} '
+        'unenforced=${held.unenforced}');
     expect(held.notificationsSuppressed, isTrue,
         reason: 'lock task closes the notification shade; if it is not held, '
-            'this is false and the reason is in the enforcement result');
+            'the enforcement result printed above says why');
   });
 
   testWidgets('releasing it lets go', (WidgetTester tester) async {
