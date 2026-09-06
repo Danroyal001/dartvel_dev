@@ -369,3 +369,122 @@ String? _applicationTargetId(String pbxproj) {
   }
   return null;
 }
+
+/// The marker on the one build setting this adds to somebody else's target.
+///
+/// Everything else this writes is an object of its own, identified by
+/// [dvAppleWidgetIdPrefix]. The application's entitlements setting is not:
+/// it is a line inside a configuration Flutter owns, so it is marked in a
+/// trailing comment instead, and taken away by the same rule.
+const String _appSettingMark = '/* dartvel.widgets */';
+
+const String _entitlementsMarkStart = '\t<!-- dartvel.widgets: begin -->';
+const String _entitlementsMarkEnd = '\t<!-- dartvel.widgets: end -->';
+
+/// The application's entitlements, claiming the App Group it shares with its
+/// widgets.
+///
+/// The extension having the group is half of it. The application has to have
+/// it as well, or it writes to its own container and the widget -- correctly
+/// entitled and correctly signed -- reads an empty one and renders the
+/// placeholder forever. Nothing errors at either end.
+///
+/// [existing] is the file's current contents, or empty where there is none:
+/// a plain Flutter iOS project has no entitlements file at all, while a
+/// macOS one ships two with the sandbox and the network client in them, and
+/// replacing those would take the network away from an application that was
+/// using it.
+String dvAppleAppEntitlements(String existing, String appGroup) {
+  final String base = existing.trim().isEmpty
+      ? '''
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+</dict>
+</plist>
+'''
+      : existing;
+
+  final RegExp block = RegExp(
+      '\n${RegExp.escape(_entitlementsMarkStart)}.*?'
+      '${RegExp.escape(_entitlementsMarkEnd)}',
+      dotAll: true);
+  final String stripped = base.replaceAll(block, '');
+
+  final StringBuffer out = StringBuffer()
+    ..writeln(_entitlementsMarkStart)
+    ..writeln('\t<key>com.apple.security.application-groups</key>')
+    ..writeln('\t<array>')
+    ..writeln('\t\t<string>$appGroup</string>')
+    ..writeln('\t</array>')
+    ..writeln(_entitlementsMarkEnd);
+
+  final int close = stripped.indexOf('</dict>');
+  if (close < 0) return stripped;
+  return '${stripped.substring(0, close)}${out.toString()}'
+      '${stripped.substring(close)}';
+}
+
+/// [pbxproj] with the application target signed with the entitlements at
+/// [path].
+///
+/// Only where it has none. A macOS project is already pointed at
+/// DebugProfile.entitlements, and overwriting that setting would take the
+/// sandbox off the application to add a widget to it.
+String dvApplePbxprojWithAppEntitlements(
+  String pbxproj, {
+  required bool hasWidgets,
+  required String path,
+}) {
+  final String stripped = pbxproj
+      .split('\n')
+      .where((String line) => !line.contains(_appSettingMark))
+      .join('\n');
+  if (!hasWidgets) return stripped;
+
+  final String? target = _applicationTargetId(stripped);
+  if (target == null) return stripped;
+
+  String out = stripped;
+  for (final String id in _configurationIds(stripped, target)) {
+    final int object = out.indexOf('\t\t$id ');
+    if (object < 0) continue;
+    final int settings = out.indexOf('buildSettings = {', object);
+    if (settings < 0) continue;
+    final int end = out.indexOf('\t\t\t};', settings);
+    if (end < 0) continue;
+    // Already signed with something. Leaving it is the only safe answer:
+    // the other setting is somebody's, and this one is not worth theirs.
+    if (out.substring(settings, end).contains('CODE_SIGN_ENTITLEMENTS')) {
+      continue;
+    }
+    final int eol = out.indexOf('\n', settings);
+    out = '${out.substring(0, eol + 1)}'
+        '\t\t\t\tCODE_SIGN_ENTITLEMENTS = $path; $_appSettingMark\n'
+        '${out.substring(eol + 1)}';
+  }
+  return out;
+}
+
+/// The XCBuildConfiguration ids the target with [targetId] builds under.
+List<String> _configurationIds(String pbxproj, String targetId) {
+  final int target = pbxproj.indexOf('\t\t$targetId ');
+  if (target < 0) return const <String>[];
+  final RegExpMatch? list = RegExp(r'buildConfigurationList = ([0-9A-F]{24})')
+      .firstMatch(pbxproj.substring(target));
+  if (list == null) return const <String>[];
+
+  final int object = pbxproj.indexOf('\t\t${list.group(1)} ');
+  if (object < 0) return const <String>[];
+  final int begin = pbxproj.indexOf('buildConfigurations = (', object);
+  if (begin < 0) return const <String>[];
+  final int close = pbxproj.indexOf('\t\t\t);', begin);
+  if (close < 0) return const <String>[];
+
+  return RegExp(r'([0-9A-F]{24})')
+      .allMatches(pbxproj.substring(begin, close))
+      .map((RegExpMatch m) => m.group(1)!)
+      .toList();
+}

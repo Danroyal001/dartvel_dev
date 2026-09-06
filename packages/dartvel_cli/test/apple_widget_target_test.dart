@@ -351,4 +351,106 @@ void main() {
       expect(ids.toSet().length, ids.length);
     });
   });
+
+  _appSide();
+}
+
+// ---------------------------------------------------------------------------
+// The application's own half of the App Group.
+//
+// The extension having the group entitlement is half of it. The application
+// has to have it too, or it writes to its own container and the widget --
+// correctly entitled, correctly signed -- reads an empty one and renders the
+// placeholder forever. Nothing errors at either end.
+
+void _appSide() {
+  group('the application\'s entitlements', () {
+    test('a project with none gets a file that claims the group', () {
+      // A plain Flutter iOS project has no Runner.entitlements at all.
+      final String out =
+          dvAppleAppEntitlements('', 'group.com.example.shop.dartvelwidgets');
+
+      expect(out, contains('com.apple.security.application-groups'));
+      expect(out, contains('group.com.example.shop.dartvelwidgets'));
+      expect(out, startsWith('<?xml'));
+    });
+
+    test('a project with entitlements keeps the ones it had', () {
+      // macOS ships DebugProfile.entitlements with the sandbox and the
+      // network client in it. Replacing that file would take away the
+      // network from an application that was using it.
+      const String existing = '''
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<key>com.apple.security.network.client</key>
+	<true/>
+</dict>
+</plist>
+''';
+      final String out =
+          dvAppleAppEntitlements(existing, 'group.com.example.shop.x');
+
+      expect(out, contains('com.apple.security.app-sandbox'));
+      expect(out, contains('com.apple.security.network.client'));
+      expect(out, contains('group.com.example.shop.x'));
+    });
+
+    test('a second build does not claim it twice', () {
+      // A duplicate key in an entitlements plist is a signing failure whose
+      // message names the file and not the build that wrote it.
+      final String once = dvAppleAppEntitlements('', 'group.a.b');
+      final String twice = dvAppleAppEntitlements(once, 'group.a.b');
+
+      expect(twice, once);
+      expect('group.a.b'.allMatches(twice).length, 1);
+    });
+
+    test('a group that changed replaces the one before it', () {
+      // A renamed bundle id is a new group, and an application still
+      // claiming the old one writes where nothing reads.
+      final String once = dvAppleAppEntitlements('', 'group.a.old');
+      final String twice = dvAppleAppEntitlements(once, 'group.a.new');
+
+      expect(twice, contains('group.a.new'));
+      expect(twice, isNot(contains('group.a.old')));
+    });
+  });
+
+  group('pointing the application at its entitlements', () {
+    test('a target that has none is given them', () {
+      final String out = dvApplePbxprojWithAppEntitlements(_pbxproj,
+          hasWidgets: true, path: 'Runner/Runner.entitlements');
+
+      expect(out, contains('CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements'));
+    });
+
+    test('a target that already has them is left alone', () {
+      // macOS projects are already wired to DebugProfile.entitlements, and
+      // overwriting that setting takes the sandbox off the application --
+      // a build that removes a security boundary to add a widget.
+      final String wired = _pbxproj.replaceFirst(
+          '\t\t\t\tSDKROOT = iphoneos;',
+          '\t\t\t\tCODE_SIGN_ENTITLEMENTS = '
+          'Runner/DebugProfile.entitlements;\n\t\t\t\tSDKROOT = iphoneos;');
+
+      expect(
+          dvApplePbxprojWithAppEntitlements(wired,
+              hasWidgets: true, path: 'Runner/Runner.entitlements'),
+          wired);
+    });
+
+    test('taking the widgets away takes the setting back out', () {
+      final String once = dvApplePbxprojWithAppEntitlements(_pbxproj,
+          hasWidgets: true, path: 'Runner/Runner.entitlements');
+
+      expect(
+          dvApplePbxprojWithAppEntitlements(once,
+              hasWidgets: false, path: 'Runner/Runner.entitlements'),
+          _pbxproj);
+    });
+  });
 }
