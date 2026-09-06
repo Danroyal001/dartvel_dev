@@ -17,6 +17,14 @@ on:
       - '.github/workflows/distributed-cache.yml'
   workflow_dispatch:
 
+# A push that lands while this is running supersedes it. Without this the runs
+# queue and every one of them finishes against a branch that has already moved
+# on -- which is not a cost problem, it is a feedback one: the answer arrives
+# for a commit nobody is looking at any more.
+concurrency:
+  group: distributed-cache-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   redis-nodes:
     name: Redis — two nodes, one cache
