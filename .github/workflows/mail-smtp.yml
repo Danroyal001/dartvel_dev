@@ -1,0 +1,86 @@
+# The SMTP provider against a real SMTP server.
+#
+# Every other mail provider here is HTTP and is tested against a fake
+# transport. SMTP is not HTTP: it is a stateful conversation with a server
+# that has its own opinions about what a message may contain, and the unit
+# tests for it talk to a connection this repository wrote. A fake that shares
+# the author's misunderstanding of the protocol agrees with the client every
+# time.
+#
+# What only a real server shows is the part that is accepted and wrong. A
+# subject with a non-ASCII character in it, written as raw bytes into a header
+# that RFC 5322 says is ASCII, is taken by most servers and arrives as
+# mojibake. A body line over 998 octets is over the limit RFC 5321 sets and
+# what happens to it is the server's choice. Neither is an error at the point
+# it is made.
+#
+# Mailpit is the server because it keeps what it received and will hand back
+# the raw source, which is the only way to check what actually went down the
+# wire rather than what a client library was willing to parse back.
+name: mail over SMTP
+
+on:
+  push:
+    paths:
+      - 'packages/dartvel_core/lib/src/mail/**'
+      - 'packages/dartvel_core/test/*mail*'
+      - 'packages/dartvel_core/test/*smtp*'
+      - '.github/workflows/mail-smtp.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: mail-smtp-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smtp:
+    name: SMTP — send it, and read back what arrived
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      mailpit:
+        image: axllent/mailpit:latest
+        ports:
+          - 1025:1025
+          - 8025:8025
+        env:
+          # AUTH is exercised against a server that really performs the
+          # exchange. Accepting any credentials is the point: what is under
+          # test is that the client completes AUTH PLAIN where the server
+          # offers it, not that this server checks passwords.
+          MP_SMTP_AUTH_ACCEPT_ANY: '1'
+          MP_SMTP_AUTH_ALLOW_INSECURE: '1'
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
+
+      - name: Resolve
+        working-directory: packages/dartvel_core
+        run: dart pub get
+
+      - name: The server is actually up
+        run: |
+          set -euo pipefail
+          # The health of the container is not the health of the protocol.
+          # Asking the API here means a failure names the server rather than
+          # arriving later as a confusing client error.
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8025/api/v1/info > /tmp/info.json; then
+              cat /tmp/info.json
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::Mailpit never answered its API"
+          exit 1
+
+      - name: Send it, and read back what arrived
+        working-directory: packages/dartvel_core
+        env:
+          DARTVEL_SMTP_HOST: localhost
+          DARTVEL_SMTP_PORT: '1025'
+          DARTVEL_SMTP_API: http://localhost:8025
+        run: timeout 240 dart test test/smtp_live_test.dart --reporter expanded
