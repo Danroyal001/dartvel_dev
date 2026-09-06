@@ -403,22 +403,33 @@ jobs:
       # One process per test, because the failure being chased kills the
       # process: package:test then reports every test after it as "did not
       # complete", so one bad panel hid which panel it was and threw away the
-      # results of the four after it. Run one at a time, each says for itself
-      # whether it passed, and the one that takes the tester with it is named.
+      # results of the four after it. Naming the culprit is still worth
+      # having -- it is just not worth six draws against a process that dies
+      # one run in five, so it is spent only once the suite has already
+      # failed.
       - name: Run the macOS panels
         working-directory: packages/dartvel_flutter
         run: |
           set +e
           file=test/macos_dialogs_live_test.dart
-          # The names as written, up to the first quote -- a name containing
-          # an escaped apostrophe comes out truncated, which is still a
-          # substring and is what --plain-name matches on.
-          # Up to the first quote, and without the backslash that escapes
-          # it: a name written with an apostrophe comes out truncated, which
-          # is still a substring and is what --plain-name matches on -- but
-          # with the backslash still on the end it matches nothing at all,
-          # and a filter that matches nothing used to report a green step for
-          # a test nobody ran.
+
+          # Once, not once per test. This used to loop over every name in the
+          # file with --plain-name, which was for a good reason -- a failure
+          # names the test that caused it -- and it took six independent
+          # draws against a death that takes the process about one run in
+          # five. At 0.8^6 that is a one-in-four chance of a green job for a
+          # suite in which nothing is wrong, and two of eleven runs were
+          # green. The odds were the bug, not the panels.
+          dart run ../../tool/ci/live_suite.dart flutter test "$file"
+          if [ $? -eq 0 ]; then
+            echo "the panels suite passed"
+            exit 0
+          fi
+
+          # It failed, so now spend the draws to find out which one. This
+          # runs only on the way to a red job, where the extra deaths cost
+          # nothing that is not already lost.
+          echo "::group::naming the test that failed"
           names=$(grep -oE "test\('[^']+" "$file" | sed "s/^test('//;s/\\\\$//")
           failed=0
           while IFS= read -r name; do
@@ -428,18 +439,28 @@ jobs:
             if [ $? -ne 0 ]; then
               failed=1
               echo "FAILED: $name"
-              # What macOS thought of it. No crash report means the process
-              # left another way, which is worth knowing too.
+              # What macOS thought of it. Both directories, and after a
+              # settle: a report is written asynchronously, and globbing for
+              # it the instant the process dies finds nothing whether or not
+              # there is anything to find.
+              sleep 3
               found=0
-              for report in $(ls -t ~/Library/Logs/DiagnosticReports/*.ips 2>/dev/null | head -2); do
+              for report in $(ls -t ~/Library/Logs/DiagnosticReports/*.ips \
+                                 /Library/Logs/DiagnosticReports/*.ips 2>/dev/null | head -2); do
                 found=1
                 echo "== $report"
                 head -c 3000 "$report"
                 echo
               done
-              [ "$found" -eq 0 ] && echo "none: the tester did not crash"
+              if [ "$found" -eq 0 ]; then
+                echo "no crash report; what the system logged instead:"
+                log show --last 3m --predicate 'process == "flutter_tester"' \
+                  --style compact 2>/dev/null | tail -40 \
+                  || echo "(log show said nothing)"
+              fi
             fi
           done <<< "$names"
+          echo "::endgroup::"
           exit $failed
       # window.displays through CGGetActiveDisplayList, against the runner's
       # own display: at least one, a main, a real size in points.
