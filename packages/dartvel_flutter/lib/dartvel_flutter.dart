@@ -2835,6 +2835,38 @@ class DVBluetooth {
         if (device is Map<Object?, Object?>) DVBluetoothDevice.fromMap(device),
     ];
   }
+
+  /// Pairs the device at [address].
+  ///
+  /// True when the device is paired at the end of the call, which includes
+  /// the case where it already was. A caller told that a device it asked for
+  /// is a failure, when the device is paired and working, retries forever.
+  ///
+  /// Pairing needs an agent to answer for it, and a device with nobody
+  /// standing at it has none -- which is said in those words rather than as
+  /// a pairing failure, because it sends whoever reads it somewhere else
+  /// entirely.
+  Future<bool> pair(String address) async => DVNativeBridge.require<bool>(
+      'bluetooth.pair', <String, Object?>{'address': address});
+
+  /// Connects to the device at [address].
+  ///
+  /// Refused for something unpaired, and said to be: the radio is not used
+  /// at all in that case, so a timeout would be the wrong diagnosis.
+  Future<bool> connect(String address) async => DVNativeBridge.require<bool>(
+      'bluetooth.connect', <String, Object?>{'address': address});
+
+  /// Disconnects the device at [address]. Already disconnected is success.
+  Future<bool> disconnect(String address) async => DVNativeBridge.require<bool>(
+      'bluetooth.disconnect', <String, Object?>{'address': address});
+
+  /// Unpairs the device at [address] and forgets it.
+  ///
+  /// The other half of pairing, and the one a fleet needs when a reader is
+  /// replaced: a device left paired to hardware that is gone is a slot the
+  /// new one cannot take.
+  Future<bool> forget(String address) async => DVNativeBridge.require<bool>(
+      'bluetooth.forget', <String, Object?>{'address': address});
 }
 
 class DVNfc {
