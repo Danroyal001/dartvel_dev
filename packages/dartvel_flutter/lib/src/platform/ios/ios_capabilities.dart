@@ -7,8 +7,8 @@ library dartvel_flutter.platform.ios.capabilities;
 
 /// What iOS is bound for, and nothing more.
 ///
-/// The clipboard and haptics. The reasons for each omission are specific
-/// rather than "not done yet":
+/// The clipboard, haptics, and the link a launch carried. The reasons for
+/// each omission are specific rather than "not done yet":
 ///
 ///   * **`screen.geometry`** would come from `UIScreen.nativeBounds`, which
 ///     returns a `CGRect`. A struct return through `objc_msgSend` needs
@@ -27,6 +27,11 @@ const Set<String> dvIosImplementedBindings = <String>{
   'haptics.impact',
   'haptics.lightVibrate',
   'haptics.vibrate',
+  // The link this launch carried, out of the standard defaults, where the
+  // capture dartvel build writes into AppDelegate.swift leaves it. A home
+  // widget's tap is a widgetURL naming a route, and without this iOS opened
+  // the application at its home route instead -- which looks like it worked.
+  'deepLinks.initial',
 };
 
 /// The system sound identifier that produces a given haptic.

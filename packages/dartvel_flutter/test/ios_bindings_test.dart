@@ -11,13 +11,18 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('capability list', () {
-    test('it claims the clipboard and haptics', () {
+    test('it claims the clipboard, haptics and the launch link', () {
       expect(DVIosBindings.implemented, <String>{
         'clipboard.copy',
         'clipboard.paste',
         'haptics.impact',
         'haptics.lightVibrate',
         'haptics.vibrate',
+        // Read out of the standard defaults, where the capture written into
+        // AppDelegate.swift leaves it. A home widget's tap is a widgetURL
+        // naming a route, and without this iOS opened the application at its
+        // home route instead.
+        'deepLinks.initial',
       });
     });
 
