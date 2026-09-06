@@ -202,6 +202,22 @@ void main() {
     expect(route, contains('DVPageScaffoldSpec('));
   });
 
+  test('a widget that builds its own Scaffold is not given a second one',
+      () async {
+    // Two Scaffolds is two backgrounds and two app bars. It renders, which
+    // is the problem: it reads as a styling mistake in the widget rather
+    // than as a page that wrapped something already wrapped. Pages have this
+    // rule, and "the same shell properties" has to include it.
+    await generate(widgets: <String, String>{
+      'widgets/step_counter.dart': _stepCounter.replaceFirst(
+        "const DVText('1,204 steps')",
+        "Scaffold(body: const DVText('1,204 steps'))",
+      ),
+    });
+
+    expect(widgetRoute(read('router.g.dart')), contains('scaffold: false'));
+  });
+
   test('the title is what the platform calls it, and the id is the fallback',
       () async {
     // The identifier is a route segment -- step-counter -- and it was what
