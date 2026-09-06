@@ -217,6 +217,10 @@ class DVLinuxBindings {
     'bluetooth.scanDevices',
     'bluetooth.adapters',
     'bluetooth.devices',
+    'bluetooth.pair',
+    'bluetooth.connect',
+    'bluetooth.disconnect',
+    'bluetooth.forget',
     // neard: whether there is a reader, and what is on it.
     'nfc.isAvailable',
     'nfc.readTag',

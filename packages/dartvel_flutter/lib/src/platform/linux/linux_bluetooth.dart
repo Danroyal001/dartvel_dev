@@ -33,6 +33,10 @@ class DVLinuxBluetooth {
     'bluetooth.scanDevices',
     'bluetooth.adapters',
     'bluetooth.devices',
+    'bluetooth.pair',
+    'bluetooth.connect',
+    'bluetooth.disconnect',
+    'bluetooth.forget',
   };
 
   /// Why the last read found nothing.
@@ -75,6 +79,23 @@ class DVLinuxBluetooth {
         for (final DVBluetoothDevice device in found) device.toMap(),
       ];
     });
+    // Doing something to a device, rather than reading about one. Each takes
+    // the address a caller holds; resolving it to the object path BlueZ
+    // wants is this layer's job, since the path is an implementation detail
+    // of the daemon and the address is what is written on the label.
+    for (final MapEntry<String, Future<bool> Function(DBusClient, String)> e
+        in <String, Future<bool> Function(DBusClient, String)>{
+      'bluetooth.pair': pairOn,
+      'bluetooth.connect': connectOn,
+      'bluetooth.disconnect': disconnectOn,
+      'bluetooth.forget': forgetOn,
+    }.entries) {
+      bind(e.key, (Object? arguments) {
+        final Map<Object?, Object?> a =
+            arguments is Map ? arguments : const <Object?, Object?>{};
+        return e.value(bus ?? DBusClient.system(), '${a['address'] ?? ''}');
+      });
+    }
   }
 
   /// The adapters this machine has.
@@ -126,6 +147,143 @@ class DVLinuxBluetooth {
     return devices;
   }
 
+
+  /// Pairs the device at [address].
+  ///
+  /// True when the device is paired at the end of the call, which includes
+  /// the case where it already was: BlueZ answers `AlreadyExists`, and a
+  /// caller told that is a failure retries forever against a reader that
+  /// works.
+  static Future<bool> pairOn(DBusClient bus, String address) =>
+      _onDevice(bus, address, 'Pair');
+
+  /// Connects to the device at [address].
+  static Future<bool> connectOn(DBusClient bus, String address) =>
+      _onDevice(bus, address, 'Connect');
+
+  /// Disconnects the device at [address].
+  static Future<bool> disconnectOn(DBusClient bus, String address) =>
+      _onDevice(bus, address, 'Disconnect');
+
+  /// Unpairs the device at [address] and forgets it.
+  ///
+  /// `RemoveDevice` belongs to the adapter rather than to the device, and it
+  /// is the only way to unpair -- so this asks the adapter the device says it
+  /// is on. On a machine with two, asking the other one removes nothing and
+  /// answers success.
+  static Future<bool> forgetOn(DBusClient bus, String address) async {
+    final DVBluetoothDevice? device = await _find(bus, address);
+    if (device == null) return false;
+    final String? adapter = device.adapter;
+    if (adapter == null) {
+      lastError = 'BlueZ does not say which adapter ${device.address} is on, '
+          'so there is nothing to ask to forget it.';
+      return false;
+    }
+    return _call(bus, DBusObjectPath(adapter), _adapter, 'RemoveDevice',
+        <DBusValue>[DBusObjectPath(device.path)]);
+  }
+
+  /// One of Device1's no-argument methods, on the device at [address].
+  static Future<bool> _onDevice(
+      DBusClient bus, String address, String method) async {
+    final DVBluetoothDevice? device = await _find(bus, address);
+    if (device == null) return false;
+    return _call(
+        bus, DBusObjectPath(device.path), _device, method, const <DBusValue>[]);
+  }
+
+  /// The known device at [address], or null with [lastError] saying why.
+  ///
+  /// Matched case-insensitively. BlueZ spells its object paths in upper case
+  /// and a caller holds whatever was on the label or in a configuration file;
+  /// comparing the two literally answers "no such device" for one sitting on
+  /// the desk.
+  static Future<DVBluetoothDevice?> _find(
+      DBusClient bus, String address) async {
+    final List<DVBluetoothDevice> known = await devicesOn(bus);
+    // devicesOn has already said why it found nothing, and "BlueZ is not
+    // running" must not be replaced by "no such device": those send somebody
+    // to two different places.
+    if (lastError != null) return null;
+
+    final String wanted = address.trim().toUpperCase();
+    for (final DVBluetoothDevice device in known) {
+      if (device.address.toUpperCase() == wanted) return device;
+    }
+    lastError = 'This machine does not know a device at $address. Bring it '
+        'into range, or check the address.';
+    return null;
+  }
+
+  static Future<bool> _call(
+    DBusClient bus,
+    DBusObjectPath path,
+    String interface,
+    String method,
+    List<DBusValue> values,
+  ) async {
+    try {
+      await bus.callMethod(
+        destination: _service,
+        path: path,
+        interface: interface,
+        name: method,
+        values: values,
+        replySignature: DBusSignature(''),
+      );
+      lastError = null;
+      return true;
+    } on DBusMethodResponseException catch (error) {
+      return _refused(error, method);
+    } on Object catch (error) {
+      lastError = 'BlueZ could not $method: $error';
+      return false;
+    }
+  }
+
+  /// What BlueZ said, turned into something worth acting on.
+  ///
+  /// Its error names are specific and its worst answers look like ordinary
+  /// failures, so flattening them into one is throwing away the only part
+  /// that tells anybody what to do next.
+  static bool _refused(DBusMethodResponseException error, String method) {
+    final String name = error.response is DBusMethodErrorResponse
+        ? (error.response as DBusMethodErrorResponse).errorName
+        : '';
+    // Already paired is the outcome the caller asked for.
+    if (name.endsWith('.AlreadyExists')) {
+      lastError = null;
+      return true;
+    }
+    if (name.endsWith('.AuthenticationCanceled') ||
+        name.endsWith('.AuthenticationFailed') ||
+        name.endsWith('.AuthenticationRejected')) {
+      lastError = 'Pairing needs an agent to answer for it and there is none '
+          'registered. On a device with nobody standing at it, pair from the '
+          'fleet console or register an agent that accepts automatically.';
+      return false;
+    }
+    if (name.endsWith('.NotReady')) {
+      lastError = 'The device is not ready to connect. Pair it first: a '
+          'connection to something unpaired is refused before the radio is '
+          'used at all.';
+      return false;
+    }
+    if (name.endsWith('.NotConnected')) {
+      // Asked to disconnect something already disconnected.
+      lastError = null;
+      return true;
+    }
+    final String detail = error.response.values
+        .whereType<DBusString>()
+        .map((DBusString v) => v.value)
+        .join('; ');
+    lastError = 'BlueZ refused $method'
+        '${name.isEmpty ? '' : ' ($name)'}'
+        '${detail.isEmpty ? '' : ': $detail'}';
+    return false;
+  }
   static Future<Map<DBusObjectPath, Map<String, Map<String, DBusValue>>>>
       _managedObjects(DBusClient bus) async {
     try {
