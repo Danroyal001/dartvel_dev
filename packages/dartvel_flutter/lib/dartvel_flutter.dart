@@ -2843,6 +2843,23 @@ class DVNfc {
       DVNativeBridge.require<bool>('nfc.isAvailable');
   Future<String> readTag() async =>
       DVNativeBridge.require<String>('nfc.readTag');
+
+  /// Writes [value] to the tag currently on the reader.
+  ///
+  /// A value that is a URI in a scheme a reader can follow is written as a
+  /// URI record, and everything else as text. That distinction is not
+  /// cosmetic: a link written into a text record reads back as exactly the
+  /// characters somebody typed and does nothing when a phone touches it.
+  ///
+  /// [language] is the NDEF text record's language code, which the format
+  /// requires and some readers show an empty record without.
+  ///
+  /// False rather than an exception when the tag will not take it -- there
+  /// is no tag on the reader, it is locked, it was taken away mid-write --
+  /// because this is called from a screen somebody is standing at.
+  Future<bool> writeTag(String value, {String language = 'en'}) async =>
+      DVNativeBridge.require<bool>('nfc.writeTag',
+          <String, Object?>{'value': value, 'language': language});
 }
 
 class DVHardwareCapability {
