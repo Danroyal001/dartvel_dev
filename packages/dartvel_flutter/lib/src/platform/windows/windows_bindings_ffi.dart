@@ -23,6 +23,7 @@ import 'windows_dnd_ffi.dart';
 import 'windows_kiosk_ffi.dart';
 import 'windows_menus_ffi.dart';
 import 'windows_printing_ffi.dart';
+import 'windows_serial_ffi.dart';
 import 'windows_shortcuts_ffi.dart';
 import 'windows_tray_ffi.dart';
 
@@ -149,6 +150,11 @@ class DVWindowsBindings {
     DVWindowsMenus.register(DVNativeBridge.register, user32: _user32);
     DVWindowsTray.register(DVNativeBridge.register, user32: _user32);
     DVWindowsPrinting.register(DVNativeBridge.register);
+    // The serial port, which was the last desktop this was missing from.
+    // Its own libraries -- kernel32 for the port, advapi32 for the registry
+    // list -- opened inside, because a machine with no serial hardware still
+    // has both and the empty list is the honest answer.
+    DVWindowsSerial.register(DVNativeBridge.register);
     DVWindowsDialogs.register(DVNativeBridge.register, user32: _user32);
     DVWindowsDragDrop.register(DVNativeBridge.register, user32: _user32, kernel32: _kernel32);
     // Its own libraries: the registry is advapi32's and telling Explorer is
