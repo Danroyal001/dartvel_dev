@@ -101,6 +101,11 @@ void main() {
         'device.serial.close',
         // What is plugged into the bus.
         'device.usb.devices',
+        'device.usb.open',
+        'device.usb.claim',
+        'device.usb.write',
+        'device.usb.read',
+        'device.usb.close',
         // BlueZ: the adapters and what they know about.
         'bluetooth.isEnabled',
         'bluetooth.scanDevices',
