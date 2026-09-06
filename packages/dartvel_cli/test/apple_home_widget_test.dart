@@ -180,6 +180,30 @@ void main() {
     });
   });
 
+  group('the data the application leaves it', () {
+    test('is read from the key the application writes', () {
+      // The two halves are in different languages and different processes,
+      // and nothing brings them together until somebody puts the widget on
+      // their home screen. The Swift built its own key by interpolating the
+      // kind; the Dart runtime derives one from core. Two rules that agree
+      // today is a widget showing its placeholder for ever the first time
+      // either is touched, with nothing to see at either end.
+      final String swift = dvAppleHomeWidgetSource(_widgets, 'dartvel');
+
+      expect(swift, contains('"${dvHomeWidgetDataKey('today')}"'));
+      expect(swift, contains('"${dvHomeWidgetDataKey('next-shift')}"'));
+    });
+
+    test('and the group is the one the entitlements name', () {
+      // The App Group is derived from the application's bundle id in three
+      // places -- the entitlement, the build setting and the runtime that
+      // writes -- and a fourth spelling would be a correctly signed widget
+      // reading an empty container.
+      expect(dvAppleAppGroup('com.example.shop'),
+          dvHomeWidgetAppGroup('com.example.shop'));
+    });
+  });
+
   _sdkFloor();
 }
 
