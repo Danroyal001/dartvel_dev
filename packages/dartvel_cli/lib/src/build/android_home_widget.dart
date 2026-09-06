@@ -18,7 +18,12 @@
 /// link to the route Dartvel generated for it.
 library;
 
-import 'package:dartvel_core/dartvel.dart' show DVHomeWidgetSpec;
+import 'package:dartvel_core/dartvel.dart'
+    show
+        DVHomeWidgetSpec,
+        dvHomeWidgetAndroidClass,
+        dvHomeWidgetAndroidStore,
+        dvHomeWidgetDataKey;
 
 const String _markStart = '        <!-- dartvel.homeWidgets: begin -->';
 const String _markEnd = '        <!-- dartvel.homeWidgets: end -->';
@@ -30,6 +35,24 @@ const String _markEnd = '        <!-- dartvel.homeWidgets: end -->';
 /// silently different names in the manifest and on disk is worse.
 String dvAndroidWidgetResource(String id) =>
     'dartvel_widget_${id.replaceAll(RegExp('[^A-Za-z0-9]'), '_')}';
+
+/// [value] as the body of a Java string literal.
+///
+/// A title is a person's words and can hold a quote. In generated Java that
+/// is a file that does not compile, at the end of a build that reported
+/// success until Gradle ran.
+String _java(String value) =>
+    value.replaceAll(r'\', r'\\').replaceAll('"', r'\"');
+
+/// [value] as the body of an XML attribute.
+///
+/// An ampersand in a widget's title -- "Sales & returns" -- is a malformed
+/// resource file, and aapt reports it against a file nobody wrote.
+String _xml(String value) => value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
 
 /// [manifest] with a receiver per widget, or without them when there are
 /// none.
@@ -96,16 +119,29 @@ import android.appwidget.AppWidgetProvider;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.net.Uri;
 import android.widget.RemoteViews;
 
 public class ${widget.name}Provider extends AppWidgetProvider {
     @Override
     public void onUpdate(Context context, AppWidgetManager manager, int[] ids) {
+        // What the application last published, or the widget's own name.
+        //
+        // This receiver runs in the application's process -- only the
+        // RemoteViews it returns are handed to the launcher -- so the store
+        // the application writes is reachable from here with no content
+        // provider and no permission. The Flutter tree is not: the launcher
+        // composes the view, and it cannot host an engine.
+        SharedPreferences store = context.getSharedPreferences(
+                "$dvHomeWidgetAndroidStore", Context.MODE_PRIVATE);
+        String text = store.getString(
+                "${dvHomeWidgetDataKey(widget.id)}", "${_java(widget.label)}");
+
         for (int id : ids) {
             RemoteViews views =
                     new RemoteViews(context.getPackageName(), R.layout.$resource);
-            views.setTextViewText(R.id.${resource}_label, "${widget.id}");
+            views.setTextViewText(R.id.${resource}_label, text);
 
             // The route this widget was generated for. A launch that opened
             // the application's home screen instead would be a shortcut, not
@@ -129,6 +165,108 @@ public class ${widget.name}Provider extends AppWidgetProvider {
 ''';
 }
 
+/// The Java package the publisher lives in: the last segment of the class
+/// Dart looks up, with the separators Java uses.
+///
+/// Derived from the one name in core rather than written twice. The runtime
+/// finds this class by string, so a rename in one place and not the other is
+/// a publish that answers false on a device with a perfectly good widget on
+/// its home screen.
+final String dvAndroidWidgetPublisherPackage = dvHomeWidgetAndroidClass
+    .split('/')
+    .sublist(0, dvHomeWidgetAndroidClass.split('/').length - 1)
+    .join('.');
+
+/// Where the publisher's source is written, relative to the project root.
+final String dvAndroidWidgetPublisherPath =
+    'android/app/src/main/java/$dvHomeWidgetAndroidClass.java';
+
+/// The class the application publishes a widget's data through.
+///
+/// In a fixed package rather than the application's own, for the reason the
+/// Context holder is: Dart finds it by name, and the application's package
+/// is an applicationId this framework is compiled without.
+///
+/// It is Java rather than Dart for two reasons that are both platform. The
+/// jnigen bindings have `SharedPreferences` as a stub, so Dart cannot write
+/// the store; and the redraw needs each provider's class name, which the
+/// build knows and Dart cannot. Written only for a project that declares a
+/// widget, so the runtime failing to find it is the honest answer "this
+/// application has none" rather than an error.
+String dvAndroidWidgetPublisherSource(
+  String package,
+  List<DVHomeWidgetSpec> widgets,
+) {
+  final StringBuffer providers = StringBuffer();
+  for (final DVHomeWidgetSpec widget in widgets) {
+    providers.writeln('        "$package.${widget.name}Provider",');
+  }
+  return '''
+package $dvAndroidWidgetPublisherPackage;
+
+// GENERATED by dartvel build from @DVHomeWidget. Do not edit: the next build
+// writes it again.
+//
+// The application's half of what a home widget shows. Nothing of the Flutter
+// tree crosses -- the launcher composes the widget in its own process, which
+// cannot host an engine -- so what the application shares with the surface
+// on the home screen is a value under a key, and the tree and its state are
+// shared at the page the widget was generated for instead.
+import android.appwidget.AppWidgetManager;
+import android.content.ComponentName;
+import android.content.Context;
+import android.content.Intent;
+import android.content.SharedPreferences;
+
+public final class DartvelWidgets {
+    // Every provider this application declares, by class name. The redraw is
+    // per component: a provider missing from here is a widget that keeps
+    // showing yesterday's value while the one beside it on the same home
+    // screen updates.
+    private static final String[] PROVIDERS = new String[] {
+$providers    };
+
+    // Returns the key it wrote, or null. A boolean cannot tell "stored
+    // nothing" from "stored it under a key nobody reads", and both of those
+    // look identical from the application.
+    public static String publish(String key, String text) {
+        Context context = DartvelContext.context();
+        if (context == null || key == null || key.length() == 0) return null;
+
+        SharedPreferences store = context.getSharedPreferences(
+                "$dvHomeWidgetAndroidStore", Context.MODE_PRIVATE);
+        // commit(), not apply(). apply() writes on another thread, and the
+        // broadcast below can reach the provider before the value lands --
+        // a redraw showing what the widget showed before, which reads as a
+        // publish that did nothing rather than as a race.
+        if (!store.edit().putString(key, text).commit()) return null;
+
+        refresh(context);
+        return key;
+    }
+
+    private static void refresh(Context context) {
+        AppWidgetManager manager = AppWidgetManager.getInstance(context);
+        if (manager == null) return;
+        for (String provider : PROVIDERS) {
+            ComponentName component =
+                    new ComponentName(context.getPackageName(), provider);
+            int[] ids = manager.getAppWidgetIds(component);
+            // None placed. Broadcasting anyway would hand the provider a null
+            // id array, which is a crash in the application rather than a
+            // widget that does not update.
+            if (ids == null || ids.length == 0) continue;
+
+            Intent update = new Intent(AppWidgetManager.ACTION_APPWIDGET_UPDATE);
+            update.setComponent(component);
+            update.putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids);
+            context.sendBroadcast(update);
+        }
+    }
+}
+''';
+}
+
 /// What the launcher reads to describe the widget before anybody places it.
 ///
 /// A provider whose metadata points at a missing layout installs and then
@@ -140,6 +278,7 @@ String dvAndroidHomeWidgetMetadata(DVHomeWidgetSpec widget) {
 <?xml version="1.0" encoding="utf-8"?>
 <!-- GENERATED by dartvel build from @DVHomeWidget. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:label="${_xml(widget.label)}"
     android:minWidth="110dp"
     android:minHeight="40dp"
     android:updatePeriodMillis="1800000"

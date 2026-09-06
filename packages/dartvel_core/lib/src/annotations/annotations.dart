@@ -448,8 +448,42 @@ class DVPolicies {
 }
 
 /// Annotation for supported home-screen and lock-screen widgets.
+///
+/// "Home widgets act like `DVPage` and support the same shell properties," so
+/// these are [DVPage]'s, with the same names and the same defaults: the page
+/// Dartvel generates at `/widgets/<id>` is a page, and a property that means
+/// one thing on a page and another here would be worse than not having it.
+///
+/// [title] is the one that also leaves the application. A launcher's widget
+/// picker and WidgetKit's gallery both ask for a name, and without a title
+/// they are given the identifier -- `step-counter`, a route segment, sitting
+/// among the names of somebody's applications.
 class DVHomeWidget {
-  const DVHomeWidget();
+  final String? title;
+  final DVPageShellMode shell;
+  final bool scaffold;
+  final bool showAppBar;
+  final bool selectable;
+  final bool safeArea;
+  final bool centerTitle;
+  final bool extendBody;
+  final bool resizeToAvoidBottomInset;
+  final int? backgroundColor;
+  final int? appBarBackgroundColor;
+
+  const DVHomeWidget({
+    this.title,
+    this.shell = DVPageShellMode.adaptive,
+    this.scaffold = true,
+    this.showAppBar = false,
+    this.selectable = true,
+    this.safeArea = true,
+    this.centerTitle = false,
+    this.extendBody = false,
+    this.resizeToAvoidBottomInset = true,
+    this.backgroundColor,
+    this.appBarBackgroundColor,
+  });
 }
 
 /// Annotation for exposing a function as an AI-callable tool.

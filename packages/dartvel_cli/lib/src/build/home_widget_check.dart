@@ -14,7 +14,8 @@ library;
 
 import 'dart:io';
 
-import 'package:dartvel_core/dartvel.dart' show dvHomeWidgetId;
+import 'package:dartvel_core/dartvel.dart'
+    show dvHomeWidgetDeclaration, dvHomeWidgetId, dvSourceDeclaresHomeWidget;
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
@@ -92,17 +93,26 @@ class DVHomeWidgetCheck {
     );
   }
 
-  /// The identifiers of every `@DVHomeWidget()` in the project.
+  /// The identifiers of every `@DVHomeWidget` in the project.
   ///
   /// The names rather than a count, because "one home widget was left out"
   /// sends somebody looking through the whole project for it.
+  ///
+  /// Public so a test can hold it against the generator's own scan. They are
+  /// two walks over the same files, and when they disagree the build reports
+  /// one set of widgets and packages another -- named in a DV-WIDGET-001
+  /// refusal that no provider was ever written for, or generated into an
+  /// artifact the notice said they had been left out of.
+  static List<String> declaredIn(String root) => _declaredIn(root);
+
   static List<String> _declaredIn(String root) {
     final Directory lib = Directory(p.join(root, 'lib'));
     if (!lib.existsSync()) return const <String>[];
-    final RegExp declaration = RegExp(
-      r'@DVHomeWidget\(\)\s*(?:@[A-Za-z_][\w.]*\([^)]*\)\s*)*'
-      r'(?:Widget|[A-Za-z_][\w<>, ?]*)\s+([A-Za-z_][A-Za-z0-9_]*)\s*[({]',
-    );
+    // Core's pattern, shared with the generator. A copy here matched
+    // `@DVHomeWidget()` and nothing else, so a widget given the shell
+    // properties the specification promises disappeared from this check
+    // while the generator was about to write a route for it.
+    final RegExp declaration = dvHomeWidgetDeclaration;
     final List<String> found = <String>[];
     for (final FileSystemEntity entity
         in lib.listSync(recursive: true, followLinks: false)) {
@@ -111,9 +121,9 @@ class DVHomeWidgetCheck {
         continue;
       }
       final String source = entity.readAsStringSync();
-      if (!source.contains('@DVHomeWidget()')) continue;
+      if (!dvSourceDeclaresHomeWidget(source)) continue;
       for (final RegExpMatch match in declaration.allMatches(source)) {
-        final String declared = match.group(1)!;
+        final String declared = match.group(2)!;
         final String bare =
             declared.startsWith('_') ? declared.substring(1) : declared;
         if (bare.isEmpty) continue;

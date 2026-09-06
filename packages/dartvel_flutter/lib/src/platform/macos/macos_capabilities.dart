@@ -73,6 +73,13 @@ const Set<String> dvMacosImplementedBindings = <String>{
   'permissions.request',
   'deepLinks.initial',
 
+  // What a home-screen widget shows, into the App Group container the
+  // WidgetKit extension is entitled to read. macOS packages the same
+  // extension iOS does, and a widget that can be placed and can never be
+  // given anything to show is a placeholder somebody put in their
+  // notification centre.
+  'homeWidgets.publish',
+
   // NSOpenPanel, NSSavePanel and NSAlert, run modally on the main thread
   // and answerable from the modal loop.
   'dialogs.openFile',

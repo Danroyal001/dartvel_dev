@@ -29,6 +29,7 @@ library dartvel_flutter.platform.android.jni;
 
 import 'dart:io' show Platform;
 
+import 'package:dartvel_core/dartvel.dart' show dvHomeWidgetAndroidClass;
 import 'package:jni/jni.dart';
 
 import '../../../dartvel_flutter.dart' show DVNativeBridge;
@@ -51,6 +52,15 @@ import 'generated/java/lang/CharSequence.dart';
 /// constant in both places rather than one, because the Flutter package
 /// cannot depend on the CLI. A test in the CLI asserts they agree.
 const String _contextHolder = 'dev/dartvel/jni/DartvelContext';
+
+/// The class a home widget's data is published through, in the same form and
+/// for the same reason.
+///
+/// From core, because the CLI writes the class and this calls it and they
+/// are in packages that cannot import each other. Two spellings would be a
+/// publish that answers false on a device with a perfectly good widget on
+/// its home screen.
+const String _widgetPublisher = dvHomeWidgetAndroidClass;
 
 /// Registers the Android bindings that are genuinely implemented.
 class DVAndroidBindings {
@@ -113,6 +123,17 @@ class DVAndroidBindings {
       final map = arguments is Map ? arguments : const <Object?, Object?>{};
       final duration = map['duration'];
       return _vibrate(duration is int ? duration : 25);
+    });
+
+    // What a home-screen widget shows. Nothing about the Flutter tree
+    // crosses -- the launcher composes the widget in its own process, which
+    // cannot host an engine -- so this is the value the generated provider
+    // reads back out of the shared store before it draws.
+    DVNativeBridge.register('homeWidgets.publish', (Object? arguments) {
+      final map = arguments is Map ? arguments : const <Object?, Object?>{};
+      final key = '${map['key'] ?? ''}';
+      if (key.isEmpty) return false;
+      return _publishWidget(key, '${map['text'] ?? ''}');
     });
 
     DVNativeBridge.register('share.text', (Object? arguments) {
@@ -233,6 +254,48 @@ class DVAndroidBindings {
     if (item == null) return null;
     final text = item.coerceToText(_context);
     return text?.toString();
+  }
+
+  /// Leaves [text] under [key] where the generated widget provider reads it,
+  /// and asks the launcher to redraw what is already on a home screen.
+  ///
+  /// Through the class `dartvel build android` writes, rather than through
+  /// SharedPreferences from here: the jnigen bindings have `SharedPreferences`
+  /// as a stub, and the redraw needs the provider class names, which Java
+  /// knows at build time and Dart cannot know at all -- the application's
+  /// package is an applicationId this package is compiled without.
+  ///
+  /// The class is written only for a project that declares a home widget, so
+  /// the lookup failing is the honest answer "this application has none".
+  /// Every failure here is silent on the device -- an APK built with plain
+  /// `flutter build` has none of the generated classes -- which is why each
+  /// one answers false rather than being allowed to look like a write.
+  static bool _publishWidget(String key, String text) {
+    final JClass holder;
+    try {
+      holder = JClass.forName(_widgetPublisher);
+    } on Object {
+      return false;
+    }
+
+    try {
+      final JStaticMethodId method = holder.staticMethodId(
+        'publish',
+        '(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;',
+      );
+      // A String rather than a boolean, so the answer carries which key was
+      // written: a publish that stored something under a key nobody reads
+      // and a publish that stored nothing look the same from a bool.
+      final JString? written = method.callNullable(
+        holder,
+        JString.type,
+        <dynamic>[key.toJString(), text.toJString()],
+      );
+      if (written == null) return false;
+      return written.toDartString(releaseOriginal: true) == key;
+    } on Object {
+      return false;
+    }
   }
 
   /// Vibrates for [milliseconds].

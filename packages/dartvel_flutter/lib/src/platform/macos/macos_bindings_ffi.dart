@@ -19,6 +19,7 @@ library dartvel_flutter.platform.macos.ffi;
 import 'dart:ffi';
 import 'dart:io' show Platform;
 
+import 'package:dartvel_core/dartvel.dart' show dvHomeWidgetAppGroup;
 import 'package:ffi/ffi.dart';
 
 import '../../../dartvel_flutter.dart' show DVAppLaunch, DVNativeBridge;
@@ -79,6 +80,10 @@ typedef _MsgSendIntNative = Int64 Function(
     Pointer<Void> receiver, Pointer<Void> selector);
 typedef _MsgSendIntDart = int Function(
     Pointer<Void> receiver, Pointer<Void> selector);
+typedef _MsgSendVoid2Native = Void Function(Pointer<Void> receiver,
+    Pointer<Void> selector, Pointer<Void> a, Pointer<Void> b);
+typedef _MsgSendVoid2Dart = void Function(Pointer<Void> receiver,
+    Pointer<Void> selector, Pointer<Void> a, Pointer<Void> b);
 
 // CoreGraphics — plain C.
 typedef _CGMainDisplayIDNative = Uint32 Function();
@@ -143,6 +148,16 @@ class DVMacosBindings {
       // and throwing on the first call.
     }
     DVNativeBridge.register('deepLinks.initial', (Object? _) => DVAppLaunch.initialLink);
+
+    // What a home-screen widget shows. macOS packages the same WidgetKit
+    // extension iOS does, in the same separate process, so the same thing
+    // crosses: data, into the App Group container, and never the tree.
+    DVNativeBridge.register('homeWidgets.publish', (Object? arguments) {
+      final map = arguments is Map ? arguments : const <Object?, Object?>{};
+      final key = '${map['key'] ?? ''}';
+      if (key.isEmpty) return false;
+      return _publishWidget(key, '${map['text'] ?? ''}');
+    });
     DVNativeBridge.register('permissions.isGranted', DVDesktopPermissions.answer);
     DVNativeBridge.register('permissions.request', DVDesktopPermissions.answer);
     DVDeviceRuntime.probes = const DVMacosDeviceProbes();
@@ -204,6 +219,67 @@ class DVMacosBindings {
     } finally {
       calloc.free(utf8);
     }
+  }
+
+  /// The App Group defaults, made once and kept.
+  ///
+  /// `alloc`/`initWithSuiteName:` returns an object this code owns and
+  /// nothing here runs under ARC, so one per publish would leak one per
+  /// publish -- and a widget is refreshed on a timer.
+  static Pointer<Void>? _groupDefaults;
+  static bool _groupDefaultsTried = false;
+
+  /// Leaves [text] under [key] in the container the widget extension reads.
+  ///
+  /// The group comes from the application's own bundle id, the same rule the
+  /// build writes into the extension's entitlements, so two Dartvel
+  /// applications on one Mac cannot end up reading each other's.
+  ///
+  /// It cannot make the widget redraw now: `WidgetCenter` is Swift-only and
+  /// has no Objective-C class to message, so the surface picks the value up
+  /// on the timeline its provider asked for.
+  static bool _publishWidget(String key, String text) {
+    final defaults = _defaultsForGroup();
+    if (defaults == null) return false;
+
+    final sendVoid2 = _objc
+        .lookupFunction<_MsgSendVoid2Native, _MsgSendVoid2Dart>('objc_msgSend');
+    // setObject:forKey: returns void, so there is no result to check. What
+    // can still be wrong is the entitlement, which nothing here reports and
+    // which shows only as a widget reading an empty container.
+    sendVoid2(defaults, _selector('setObject:forKey:'), _nsString(text),
+        _nsString(key));
+    return true;
+  }
+
+  static Pointer<Void>? _defaultsForGroup() {
+    if (_groupDefaultsTried) return _groupDefaults;
+    _groupDefaultsTried = true;
+
+    final send0 =
+        _objc.lookupFunction<_MsgSend0Native, _MsgSend0Dart>('objc_msgSend');
+    final send1 =
+        _objc.lookupFunction<_MsgSend1Native, _MsgSend1Dart>('objc_msgSend');
+    final sendUtf8 = _objc
+        .lookupFunction<_MsgSendUtf8Native, _MsgSendUtf8Dart>('objc_msgSend');
+
+    final bundle = send0(_class('NSBundle'), _selector('mainBundle'));
+    if (bundle == nullptr) return null;
+    final identifier = send0(bundle, _selector('bundleIdentifier'));
+    if (identifier == nullptr) return null;
+    final utf8 = sendUtf8(identifier, _selector('UTF8String'));
+    if (utf8 == nullptr) return null;
+
+    final String group = dvHomeWidgetAppGroup(utf8.toDartString());
+    final allocated = send0(_class('NSUserDefaults'), _selector('alloc'));
+    if (allocated == nullptr) return null;
+    final defaults =
+        send1(allocated, _selector('initWithSuiteName:'), _nsString(group));
+    // Nil is what a suite this process cannot open answers with, and that is
+    // the honest "this application has no widget container".
+    if (defaults == nullptr) return null;
+    _groupDefaults = defaults;
+    return defaults;
   }
 
   static bool _copy(String text) {

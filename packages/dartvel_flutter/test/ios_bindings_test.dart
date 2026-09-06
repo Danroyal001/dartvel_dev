@@ -23,6 +23,11 @@ void main() {
         // naming a route, and without this iOS opened the application at its
         // home route instead.
         'deepLinks.initial',
+        // What a home-screen widget shows, into the App Group container the
+        // extension reads. Never the widget's view: WidgetKit composes that
+        // in a process that cannot host a Flutter engine, which is why the
+        // tree and the state are shared at /widgets/<id> instead.
+        'homeWidgets.publish',
       });
     });
 

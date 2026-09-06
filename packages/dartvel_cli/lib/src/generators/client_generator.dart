@@ -2,7 +2,12 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dartvel_core/dartvel.dart'
-    show DVHomeWidgetSpec, dvHomeWidgetId, dvHomeWidgetRoute;
+    show
+        DVHomeWidgetSpec,
+        dvHomeWidgetDeclaration,
+        dvHomeWidgetId,
+        dvHomeWidgetRoute,
+        dvSourceDeclaresHomeWidget;
 
 import 'function_body.dart';
 import '../graph/module_mounts.dart';
@@ -799,14 +804,26 @@ ${_moduleBackendSource(dv)}    final url = kReleaseMode ? cfg.dvProdBackendHost 
     // so it is a real route, which is what lets the widget launch the
     // application at itself and a page navigate back to it. A widget in a
     // list and in no router is a launch that opens the not-found page.
-    final homeWidgets = _homeWidgetsIn(root);
-    final homeWidgetRoutesSrc = homeWidgets
+    final List<_HomeWidgetEntry> homeWidgetEntries = _homeWidgetEntriesIn(root);
+    final List<DVHomeWidgetSpec> homeWidgets = homeWidgetEntries
+        .map((_HomeWidgetEntry e) => e.spec)
+        .toList(growable: false);
+    // DVPageShell, because the specification says a home widget acts like a
+    // DVPage and supports the same shell properties -- and a page's
+    // properties are what DVPageShell applies. Without it the declared
+    // title, safe area, platform shell and selection were parsed and then
+    // dropped: the page rendered, under the status bar, with no title, which
+    // reads as a styling problem rather than as a property nothing acts on.
+    final homeWidgetRoutesSrc = homeWidgetEntries
         .map(
-          (DVHomeWidgetSpec w) => '''
+          (_HomeWidgetEntry e) => '''
     GoRoute(
-      path: '${w.route}',
+      path: '${e.spec.route}',
       pageBuilder: (context, state) => NoTransitionPage<void>(
-        child: Center(child: ${w.name}()),
+        child: DVPageShell(
+          spec: ${e.scaffold},
+          child: Center(child: ${e.spec.name}()),
+        ),
       ),
     ),''',
         )
@@ -2080,7 +2097,24 @@ void startDartvelKiosk() {
           : 'const DVPageScaffoldSpec()';
     }
 
-    final args = match.group(1) ?? '';
+    return _scaffoldSpecFromArgs(
+      match.group(1) ?? '',
+      buildsScaffold: _sourceBuildsScaffold(source),
+    );
+  }
+
+  /// A `DVPageScaffoldSpec` literal from the arguments of an annotation that
+  /// carries the shell properties.
+  ///
+  /// Split out of [_pageScaffoldSpec] for `@DVHomeWidget`, which the
+  /// specification says supports the same shell properties as `DVPage`.
+  /// "The same" has to mean one parser: two of them agree on `title` and
+  /// then disagree about whether `scaffold: false` was written, and the
+  /// result is a page that looks slightly wrong on one route.
+  static String _scaffoldSpecFromArgs(
+    String args, {
+    required bool buildsScaffold,
+  }) {
     final fields = <String>[];
 
     final title = _namedStringArg(args, 'title');
@@ -2101,8 +2135,7 @@ void startDartvelKiosk() {
       final value = _namedBoolArg(args, name);
       if (value != null) fields.add('$name: $value');
     }
-    if (_sourceBuildsScaffold(source) &&
-        _namedBoolArg(args, 'scaffold') == null) {
+    if (buildsScaffold && _namedBoolArg(args, 'scaffold') == null) {
       fields.add('scaffold: false');
     }
 
@@ -2161,15 +2194,18 @@ void startDartvelKiosk() {
   /// provider per widget, and two scans that could disagree about what a
   /// home widget is would be a widget on the home screen opening a route
   /// the router does not have.
-  static List<DVHomeWidgetSpec> homeWidgetsIn(String root) => _homeWidgetsIn(root);
+  static List<DVHomeWidgetSpec> homeWidgetsIn(String root) =>
+      _homeWidgetEntriesIn(root)
+          .map((_HomeWidgetEntry e) => e.spec)
+          .toList(growable: false);
 
-  static List<DVHomeWidgetSpec> _homeWidgetsIn(String root) {
+  static List<_HomeWidgetEntry> _homeWidgetEntriesIn(String root) {
     final Directory libDir = Directory(p.join(root, 'lib'));
-    if (!libDir.existsSync()) return const <DVHomeWidgetSpec>[];
-    final RegExp declaration = RegExp(
-      r'@DVHomeWidget\(\)\s*(?:@[A-Za-z_][\w.]*\([^)]*\)\s*)*'
-      r'(?:Widget|[A-Za-z_][\w<>, ?]*)\s+([A-Za-z_][A-Za-z0-9_]*)\s*[({]',
-    );
+    if (!libDir.existsSync()) return const <_HomeWidgetEntry>[];
+    // The pattern is core's, shared with the build check that decides
+    // whether this target has anywhere to put a widget. Two copies is how
+    // the build came to report one set of widgets and package another.
+    final RegExp declaration = dvHomeWidgetDeclaration;
     final List<File> files = libDir
         .listSync(recursive: true, followLinks: false)
         .whereType<File>()
@@ -2179,15 +2215,16 @@ void startDartvelKiosk() {
         .toList()
       ..sort((File a, File b) => a.path.compareTo(b.path));
 
-    final List<DVHomeWidgetSpec> found = <DVHomeWidgetSpec>[];
+    final List<_HomeWidgetEntry> found = <_HomeWidgetEntry>[];
     final Set<String> claimed = <String>{};
     for (final File file in files) {
       final String source = file.readAsStringSync();
-      if (!source.contains('@DVHomeWidget()')) continue;
+      if (!dvSourceDeclaresHomeWidget(source)) continue;
       final String rel =
           p.relative(file.path, from: root).replaceAll('\\', '/');
       for (final RegExpMatch match in declaration.allMatches(source)) {
-        final String declared = match.group(1)!;
+        final String args = match.group(1) ?? '';
+        final String declared = match.group(2)!;
         if (!declared.startsWith('_')) {
           throw StateError(
             'Dartvel generation inputs must be private. Rename $declared to '
@@ -2207,11 +2244,51 @@ void startDartvelKiosk() {
             'screen somebody has already put it on.',
           );
         }
-        found.add(DVHomeWidgetSpec(
-            id: id, name: name, route: dvHomeWidgetRoute(id)));
+        found.add(_HomeWidgetEntry(
+          spec: DVHomeWidgetSpec(
+            id: id,
+            name: name,
+            route: dvHomeWidgetRoute(id),
+            title: _unquoted(_namedStringArg(args, 'title')),
+          ),
+          // The same parser a page's shell properties go through, on the
+          // same argument names. A second parser would agree on the common
+          // case and drift on the rest, and the drift shows up as a page
+          // that looks slightly wrong rather than as anything reported.
+          //
+          // Including the rule about a widget that builds its own Scaffold:
+          // wrapping that in another is two backgrounds and two app bars,
+          // which renders and is wrong. The look is at the file, as it is
+          // for a page -- a file holding one widget with a Scaffold and one
+          // without gives them both the widget's own, which is the safe
+          // direction of the two.
+          scaffold: _scaffoldSpecFromArgs(
+            args,
+            buildsScaffold: _sourceBuildsScaffold(source),
+          ),
+        ));
       }
     }
     return found;
+  }
+
+  /// The text of a Dart string literal the generator parsed back out.
+  ///
+  /// `_namedStringArg` returns the literal with its quotes, because its other
+  /// caller writes it straight back into generated source. A title also has
+  /// to travel to a launcher's widget picker and to WidgetKit's gallery,
+  /// where it is not Dart, so it is unwrapped once here rather than at each
+  /// place that shows it -- a quote shown to a person is the kind of thing
+  /// that survives review because it looks deliberate.
+  static String? _unquoted(String? literal) {
+    if (literal == null) return null;
+    String value = literal.trim();
+    if (value.startsWith('r')) value = value.substring(1);
+    if (value.length < 2) return null;
+    final String quote = value[0];
+    if (quote != "'" && quote != '"') return null;
+    if (!value.endsWith(quote)) return null;
+    return value.substring(1, value.length - 1);
   }
 
   /// `_stepCounterWidget` as `StepCounterWidget`.
@@ -2244,8 +2321,15 @@ void startDartvelKiosk() {
         ..writeln('  DVHomeWidgetSpec(')
         ..writeln("    id: '${esc(widget.id)}',")
         ..writeln("    name: '${esc(widget.name)}',")
-        ..writeln("    route: '${esc(widget.route)}',")
-        ..writeln('  ),');
+        ..writeln("    route: '${esc(widget.route)}',");
+      // Only when there is one. A title written out as the identifier would
+      // make "this widget has no name of its own" unanswerable from the
+      // generated list, which is where the packaging reads it from.
+      final String? title = widget.title;
+      if (title != null && title.isNotEmpty) {
+        out.writeln("    title: '${esc(title)}',");
+      }
+      out.writeln('  ),');
     }
     out.writeln('];');
     return out.toString();
@@ -2804,6 +2888,22 @@ String _routeTargetName(String cleanPath) {
   // An identifier cannot begin with a digit.
   if (RegExp(r'^[0-9]').hasMatch(name)) return 'r$name';
   return name;
+}
+
+/// A declared home widget and the shell its generated page is built with.
+///
+/// Two fields rather than one because they end up in different places. The
+/// spec is what the Android and Apple packaging reads, and it lives in core,
+/// where `DVPageScaffoldSpec` -- a Flutter type -- cannot follow it. The
+/// shell is Dart source, written into the router and needed nowhere else.
+class _HomeWidgetEntry {
+  const _HomeWidgetEntry({required this.spec, required this.scaffold});
+
+  final DVHomeWidgetSpec spec;
+
+  /// A `const DVPageScaffoldSpec(...)` literal, from the same parser the
+  /// pages use on the same argument names.
+  final String scaffold;
 }
 
 class _PageEntry {
