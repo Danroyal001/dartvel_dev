@@ -727,6 +727,15 @@ jobs:
           test -f android/app/src/main/java/com/example/dartvel_example/DartvelDeviceAdminReceiver.java
           test -f android/app/src/main/res/xml/dartvel_device_admin.xml
           grep -q "android.intent.category.HOME" android/app/src/main/AndroidManifest.xml
+
+          # And where it stops being there. The guards above check the files
+          # beside the manifest and one line inside it, and passed for a
+          # build whose installed package had no device-admin receiver at
+          # all -- so "the receiver was written" and "the receiver is on the
+          # device" were never connected. This reads the source manifest and
+          # then reads the manifest back out of the APK that was actually
+          # built, so a failure says which of the two lost it.
+          dart "$GITHUB_WORKSPACE/tool/ci/android_manifest_check.dart" .
           echo "the kiosk declaration reached the manifest and the receiver"
 
       - name: Boot the emulator, install and photograph
