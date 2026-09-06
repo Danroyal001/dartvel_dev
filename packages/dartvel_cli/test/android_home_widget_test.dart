@@ -99,4 +99,84 @@ void main() {
     expect(out, contains('AWidgetProvider'));
     expect(out, contains('BWidgetProvider'));
   });
+
+  test('the launcher offers the widget by its title', () {
+    // The identifier is a route segment. A widget picker listing
+    // "step-counter" between two applications' widgets looks like a defect
+    // in whichever application it came from, and nothing about it is
+    // reported anywhere -- the build is green, the widget works, and it is
+    // named after a URL.
+    const DVHomeWidgetSpec titled = DVHomeWidgetSpec(
+      id: 'step-counter',
+      name: 'StepCounterWidget',
+      route: '/widgets/step-counter',
+      title: 'Steps today',
+    );
+
+    expect(dvAndroidHomeWidgetMetadata(titled), contains('Steps today'));
+    expect(
+      dvAndroidHomeWidgetProviderSource('com.example.app', titled),
+      contains('Steps today'),
+    );
+  });
+
+  group('the data the application leaves it', () {
+    test('is what the provider draws, with the title as the fallback', () {
+      // The provider drew a constant, so a home widget showed the same line
+      // for ever: it looked like a working widget, which is why nothing
+      // about it would ever be reported.
+      final String source =
+          dvAndroidHomeWidgetProviderSource('com.example.app', _widgets.single);
+
+      expect(source, contains(dvHomeWidgetAndroidStore));
+      expect(source, contains(dvHomeWidgetDataKey('step-counter')));
+    });
+
+    test('is committed before the launcher is asked to redraw', () {
+      // apply() writes on another thread. The broadcast would reach the
+      // provider first and the provider would read what was there before --
+      // a redraw showing the previous value, which reads as a publish that
+      // did nothing rather than as a race.
+      final String java =
+          dvAndroidWidgetPublisherSource('com.example.app', _widgets);
+
+      expect(java, contains('.commit()'));
+      expect(java, isNot(contains('.apply()')));
+    });
+
+    test('reaches every provider, not the first one', () {
+      // The redraw is per component: AppWidgetManager is asked for the ids
+      // placed for each provider by name. A widget missing from the list is
+      // one that keeps showing yesterday's value while its neighbour on the
+      // same home screen updates.
+      final String java =
+          dvAndroidWidgetPublisherSource('com.example.app', const <DVHomeWidgetSpec>[
+        DVHomeWidgetSpec(id: 'a', name: 'AWidget', route: '/widgets/a'),
+        DVHomeWidgetSpec(id: 'b', name: 'BWidget', route: '/widgets/b'),
+      ]);
+
+      expect(java, contains('com.example.app.AWidgetProvider'));
+      expect(java, contains('com.example.app.BWidgetProvider'));
+      expect(java, contains('EXTRA_APPWIDGET_IDS'));
+    });
+
+    test('is published through the class the runtime looks up by name', () {
+      // Dart finds this class by a fixed name, because the application's
+      // package is an applicationId the framework is compiled without. A
+      // class in the application's own package would be a lookup that fails
+      // on every device, and the publish answers false for that.
+      final String java =
+          dvAndroidWidgetPublisherSource('com.example.app', _widgets);
+
+      expect(java, contains('package ${dvAndroidWidgetPublisherPackage};'));
+      expect('$dvAndroidWidgetPublisherPackage.DartvelWidgets'.replaceAll('.', '/'),
+          dvHomeWidgetAndroidClass);
+    });
+  });
+
+  test('a widget with no title is offered by its identifier', () {
+    // The fallback is the identifier rather than an empty label: a widget
+    // with no name in the picker cannot be picked.
+    expect(dvAndroidHomeWidgetMetadata(_widgets.single), contains('step-counter'));
+  });
 }

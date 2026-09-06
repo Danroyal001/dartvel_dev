@@ -36,6 +36,11 @@ void main() {
           // arrived with the Activity -- and a home widget's tap is a deep
           // link, so without it a widget opened the application's home route.
           'deepLinks.initial',
+          // What a home-screen widget shows. The provider is a receiver in
+          // this application's own process, so both ends reach the same
+          // SharedPreferences -- but the launcher composes the widget, so
+          // what crosses is the data and never the tree.
+          'homeWidgets.publish',
         },
       );
     });
