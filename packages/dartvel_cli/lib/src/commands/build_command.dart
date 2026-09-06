@@ -1218,6 +1218,13 @@ class BuildCommand extends Command<void> {
         ..parent.createSync(recursive: true)
         ..writeAsStringSync(dvAndroidHomeWidgetLayout(widget));
     }
+
+    // The application's half of what a widget shows. Without it a provider
+    // draws the widget's own name for ever -- which looks like a working
+    // widget, and is why nothing about it would be reported.
+    File(p.joinAll(<String>[root, ...dvAndroidWidgetPublisherPath.split('/')]))
+      ..parent.createSync(recursive: true)
+      ..writeAsStringSync(dvAndroidWidgetPublisherSource(package, widgets));
     Logger.log('   Home widgets: ${widgets.length} provider(s) the launcher '
         'can offer, each opening the page it was generated for.');
   }

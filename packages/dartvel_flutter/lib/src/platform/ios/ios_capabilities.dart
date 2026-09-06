@@ -32,6 +32,11 @@ const Set<String> dvIosImplementedBindings = <String>{
   // widget's tap is a widgetURL naming a route, and without this iOS opened
   // the application at its home route instead -- which looks like it worked.
   'deepLinks.initial',
+  // What a home-screen widget shows, into the App Group container the
+  // extension is entitled to read. Not the widget's view: WidgetKit composes
+  // that in a process that cannot host a Flutter engine, so the tree and the
+  // state are shared at /widgets/<id> and the data is what crosses.
+  'homeWidgets.publish',
 };
 
 /// The system sound identifier that produces a given haptic.

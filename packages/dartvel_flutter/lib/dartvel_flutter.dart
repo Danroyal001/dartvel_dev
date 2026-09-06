@@ -256,6 +256,11 @@ export 'package:dartvel_core/dartvel.dart'
         registerFormControlsFactory,
         // The model registries a DVForm reads: an application registers
         // through the generated client, and a test registers directly.
+        // Where a home widget's data is left for the surface that draws it.
+        // Application code publishes through DVHomeWidgets; this is here so
+        // a test can hold the key the application writes against the key the
+        // generated Swift and Java read.
+        dvHomeWidgetDataKey,
         dvModelDeserializers,
         dvModelFactories,
         dvModelSerializers,
@@ -307,6 +312,7 @@ export 'src/studio/studio_edit.dart';
 export 'src/studio/studio_editor.dart';
 export 'src/studio/studio_screen.dart';
 export 'src/table/table.dart';
+export 'src/widgets/home_widgets.dart';
 export 'src/windowing/app_launch.dart';
 export 'src/windowing/displays.dart';
 export 'src/windowing/performance.dart';

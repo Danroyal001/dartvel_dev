@@ -10,7 +10,12 @@ import 'package:dartvel_core/dartvel.dart';
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/widgets.dart';
 
-@DVHomeWidget()
+// With a title, because the title is the half of the shell properties that
+// leaves the application: it is what the launcher's picker and WidgetKit's
+// gallery call this, and an untitled widget is offered as "order-status".
+// It also keeps a build in CI exercising an annotation with arguments, which
+// is the shape that used to make a home widget disappear.
+@DVHomeWidget(title: 'Order status')
 @DVFunctionalWidget()
 Widget _orderStatusWidget(BuildContext context) => const DVBox.list(<Widget>[
       DVText('Order #4182'),

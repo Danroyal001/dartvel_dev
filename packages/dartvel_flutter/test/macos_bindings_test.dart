@@ -65,6 +65,10 @@ void main() {
           'associations.register',
           'associations.unregister',
           'associations.handlerFor',
+          // What a home-screen widget shows, into the App Group container
+          // the WidgetKit extension reads. Never the widget's view: that is
+          // composed in a process that cannot host a Flutter engine.
+          'homeWidgets.publish',
         },
       );
     });

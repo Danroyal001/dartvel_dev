@@ -49,6 +49,12 @@ const Set<String> dvNativeBindingNames = <String>{
   'tray.hide',
   'tray.show',
 
+  // The one thing that can cross to a home-screen widget. The surface is
+  // composed in the launcher's process on Android and by the system on iOS
+  // and macOS, and neither can host a Flutter engine, so the tree and the
+  // state are shared at /widgets/<id> and this carries the data.
+  'homeWidgets.publish',
+
   // Files. Bound on every target with a filesystem.
   'files.delete',
   'files.readBytes',
