@@ -6,6 +6,7 @@ import 'package:dartvel_core/dartvel.dart'
 
 import 'function_body.dart';
 import '../graph/module_mounts.dart';
+import 'route_blocks.dart';
 import 'page_names.dart';
 import 'symbol_qualifier.dart';
 import 'static_paths_generator.dart';
@@ -793,14 +794,6 @@ ${_moduleBackendSource(dv)}    final url = kReleaseMode ? cfg.dvProdBackendHost 
         )
         .join('\n');
 
-    // Prefixed with a separator when there are page routes before it. The
-    // page entries are joined without a trailing comma, so appending a route
-    // straight after the last one produces "),\n    GoRoute(" without the
-    // comma -- a syntax error in generated code, which is the worst place for
-    // one because nobody reads it until the compiler complains.
-    final modelRoutes =
-        modelRoutesSrc.isEmpty ? '' : ',\n$modelRoutesSrc';
-
     // A route per home widget. The specification says a home widget acts
     // like a page and that Dartvel generates one that centres its content --
     // so it is a real route, which is what lets the widget launch the
@@ -818,8 +811,6 @@ ${_moduleBackendSource(dv)}    final url = kReleaseMode ? cfg.dvProdBackendHost 
     ),''',
         )
         .join('\n');
-    final homeWidgetRoutes =
-        homeWidgetRoutesSrc.isEmpty ? '' : ',\n$homeWidgetRoutesSrc';
 
 
     final routesSrc = pageEntries
@@ -1002,16 +993,19 @@ ${m.auth == 'inherit' ? inheritedGuard : ''}      pageBuilder: (context, state) 
       ),
     ),''',
     ].join('\n');
-    // A separator only where one is missing. The page entries are joined
-    // without a trailing comma and the model routes end with one, so a
-    // comma added unconditionally produced `),` followed by `,` -- a syntax
-    // error in generated code, which is the worst place for one because
-    // nobody reads it until the compiler complains.
-    final beforeModules = homeWidgetRoutes.isNotEmpty
-        ? homeWidgetRoutes
-        : (modelRoutes.isEmpty ? routesSrc : modelRoutes);
-    final moduleSeparator = beforeModules.trimRight().endsWith(',') ? '\n' : ',\n';
-    final moduleRoutes = moduleRoutesSrc.isEmpty ? '' : '$moduleSeparator$moduleRoutesSrc';
+    // The four blocks of the route list, joined with a separator only where
+    // one is missing. Each block used to prefix its own comma and each got
+    // it right alone; two of them present at once put a comma after a block
+    // that already ended in one, which the compiler reports as "Expected an
+    // identifier, but got ','" against a file nobody wrote. It survived
+    // because no project here had both a model page and a home widget, so
+    // two blocks were never both present in a build.
+    final allRoutes = dvJoinRouteBlocks(<String>[
+      routesSrc,
+      modelRoutesSrc,
+      homeWidgetRoutesSrc,
+      moduleRoutesSrc,
+    ]);
 
     final generatedPageWidgets = pageEntries.map((e) {
       final DVFunctionBody? pageBody = e.body;
@@ -1202,10 +1196,7 @@ $routeCapabilities
 $semanticsCall
   final router = GoRouter(
     routes: [
-$routesSrc
-$modelRoutes
-$homeWidgetRoutes
-$moduleRoutes
+$allRoutes
     ],
     redirect: _globalRedirect,
     // A route with no compiled page may still be a Studio page: builder
