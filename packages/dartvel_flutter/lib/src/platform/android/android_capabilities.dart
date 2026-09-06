@@ -48,6 +48,13 @@ const Set<String> dvAndroidImplementedBindings = <String>{
 
   // The launch Intent's URI, which is the Activity's and so arrived with it.
   'deepLinks.initial',
+
+  // What a home-screen widget shows. The AppWidgetProvider is a receiver in
+  // this application's own process -- only the RemoteViews it returns are
+  // handed to the launcher -- so both ends reach the same SharedPreferences,
+  // and the write goes through the class `dartvel build android` writes
+  // beside the Context holder.
+  'homeWidgets.publish',
 };
 
 /// `Intent.FLAG_ACTIVITY_NEW_TASK`.
