@@ -163,6 +163,41 @@ Future<void> main(List<String> arguments) async {
   await _step('tap links on the device', failures,
       () => _flutterTest('integration_test/link_navigation_test.dart'));
 
+  // Put the application back before asking the device anything about it.
+  //
+  // This is the bug, and it took three checks to find because every one of
+  // them was pointed at the wrong stage. `flutter test` installs the
+  // application to run an integration test and uninstalls it again when the
+  // test finishes -- so by the time the link-navigation test above has
+  // returned, the package is gone. `dpm set-device-owner` was being asked to
+  // make a component of an uninstalled package the device owner, and
+  // answered "Unknown admin", which reads exactly like a missing receiver
+  // and is not one. The manifest was right the whole time.
+  //
+  // Reinstalled with -r, which is an update rather than a fresh install:
+  // device-owner status survives an update and does not survive an
+  // uninstall, so the kiosk test below can install over this one without
+  // taking away what is about to be granted.
+  final ProcessResult reinstall = await Process.run('adb', <String>[
+    'install',
+    '-r',
+    '-t',
+    'build/app/outputs/flutter-apk/app-debug.apk',
+  ]);
+  stdout.writeln('== put the application back after flutter test removed it');
+  stdout.writeln('   ${'${reinstall.stdout}${reinstall.stderr}'.trim()}');
+
+  // And a guard, because the whole of the last three runs was a check that
+  // could not fail for the reason it was looking for. If the package is not
+  // here now, nothing below this line means anything.
+  final ProcessResult present =
+      await Process.run('adb', <String>['shell', 'pm', 'path', _package]);
+  if (!'${present.stdout}'.trim().startsWith('package:')) {
+    stdout.writeln('!! $_package is still not installed. Everything below '
+        'would report a missing receiver for a package that is not there.');
+    failures.add('the application would not stay installed');
+  }
+
   // What the device thinks the package declares, before asking it to make
   // one of them the owner. `set-device-owner` failed with "Unknown admin"
   // against a manifest that demonstrably carries the receiver.
@@ -280,6 +315,23 @@ Future<void> main(List<String> arguments) async {
   stdout.writeln('dpm set-device-owner: exit ${owner.exitCode}');
   stdout.writeln(ownerLog.trim());
 
+  // Whether it took, asked of the platform rather than inferred from an exit
+  // code. And asked again after the kiosk test, because that test installs
+  // the application over this one: an update keeps device-owner status and
+  // an uninstall does not, so if the two answers differ, the reinstall
+  // rather than the enforcement is what to look at.
+  Future<String> deviceOwner() async {
+    final ProcessResult policy = await Process.run(
+        'adb', <String>['shell', 'dumpsys', 'device_policy']);
+    final Iterable<String> lines = const LineSplitter()
+        .convert('${policy.stdout}')
+        .where((String line) => line.contains('Device Owner') ||
+            line.contains('device owner'));
+    return lines.isEmpty ? 'none' : lines.first.trim();
+  }
+
+  stdout.writeln('   the device owner is now: ${await deviceOwner()}');
+
   // The platform's own answer, sampled while the test runs. Reading dumpsys
   // afterwards proves nothing: the test releases the task before it ends, so
   // a healthy run and a run where lock task never engaged both read NONE.
@@ -311,6 +363,13 @@ Future<void> main(List<String> arguments) async {
 
   sampling = false;
   await sampler;
+
+  // The same question again. If the owner was set before the test and is
+  // gone after it, the kiosk did not fail to hold -- it was never provisioned
+  // by the time it tried, because the test's own install took the owner away
+  // with it. That is a different fix, and the two answers side by side are
+  // what say which.
+  stdout.writeln('   the device owner after the test: ${await deviceOwner()}');
 
   final DVLockTaskState state = dvStrongest(samples);
   stdout.writeln('Android reported lock task: ${state.name} '
