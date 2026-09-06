@@ -55,8 +55,10 @@ void main() {
     // anywhere a CI log would show it, so three runs reported that this was
     // false and none of them said why.
     // ignore: avoid_print
-    print('kiosk enforcement: strength=${held.strength} '
+    print('kiosk enforcement: fullscreen=${held.fullscreen} '
+        'confined=${held.confined} '
         'notificationsSuppressed=${held.notificationsSuppressed} '
+        'blocked=${held.blocked} '
         'unenforced=${held.unenforced}');
     expect(held.notificationsSuppressed, isTrue,
         reason: 'lock task closes the notification shade; if it is not held, '
