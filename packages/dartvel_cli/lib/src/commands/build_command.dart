@@ -10,6 +10,8 @@ import 'package:dartvel_core/dartvel.dart' show DVHomeWidgetSpec;
 import '../build/android_home_widget.dart';
 import '../build/android_context_provider.dart';
 import '../build/android_kiosk_manifest.dart';
+import '../build/apple_home_widget.dart';
+import '../build/apple_widget_target.dart';
 import '../build/browser_extension.dart';
 import '../build/desktop_entry.dart';
 import '../build/elinux_bundle.dart';
@@ -786,6 +788,12 @@ class BuildCommand extends Command<void> {
     // Before Xcode packages the bundle: the document and URL types live in
     // its Info.plist.
     if (platform == 'macos') _writeMacosDesktopEntries(Directory.current.path);
+    // Before Xcode reads the project: an extension target cannot be added to
+    // a build that has already started, and a widget with no target is Swift
+    // that nothing compiles.
+    if (platform == 'ios' || platform == 'macos') {
+      _writeAppleHomeWidgets(Directory.current.path, platform);
+    }
     // Before Gradle reads the manifest: a lock-task launcher is two things
     // in it, and neither can be added at run time.
     if (platform == 'android' || platform == 'fireos') {
@@ -1210,6 +1218,108 @@ class BuildCommand extends Command<void> {
     }
     Logger.log('   Home widgets: ${widgets.length} provider(s) the launcher '
         'can offer, each opening the page it was generated for.');
+  }
+
+  /// The WidgetKit extension for every `@DVHomeWidget`, and the Xcode target
+  /// that builds it.
+  ///
+  /// The Dart half generates the page and the route, and that was all iOS and
+  /// macOS had: a page at `/widgets/<id>` and a row in a support table, which
+  /// is a home widget nobody can put on a home screen. What the platform
+  /// needs is a separate bundle -- its own sources, Info.plist and
+  /// entitlements -- and a target in the Xcode project to build it, none of
+  /// which can be added while the application is running.
+  void _writeAppleHomeWidgets(String root, String platform) {
+    final List<DVHomeWidgetSpec> widgets = ClientGenerator.homeWidgetsIn(root);
+    final File project = File(p.join(
+        root, platform, 'Runner.xcodeproj', 'project.pbxproj'));
+    if (!project.existsSync()) {
+      if (widgets.isNotEmpty) {
+        Logger.log('⚠️  $platform/Runner.xcodeproj is not there, so the home '
+            'widgets reach nothing. Run flutter create . to add the '
+            '$platform runner.');
+      }
+      return;
+    }
+
+    final String before = project.readAsStringSync();
+    final String? bundleId = _appleBundleId(before);
+    if (bundleId == null) {
+      if (widgets.isNotEmpty) {
+        Logger.log('⚠️  Could not read the bundle identifier out of '
+            '$platform/Runner.xcodeproj, so the widget extension was not '
+            'added. An extension has to be identified under the '
+            'application it ships inside.');
+      }
+      return;
+    }
+
+    final Directory extension =
+        Directory(p.join(root, platform, dvAppleWidgetExtensionName));
+    final String group = dvAppleAppGroup(bundleId);
+    final bool has = widgets.isNotEmpty;
+
+    if (has) {
+      extension.createSync(recursive: true);
+      File(p.join(extension.path, '$dvAppleWidgetExtensionName.swift'))
+          .writeAsStringSync(dvAppleHomeWidgetSource(widgets, 'dartvel'));
+      File(p.join(extension.path, 'Info.plist'))
+          .writeAsStringSync(dvAppleHomeWidgetInfoPlist());
+      File(p.join(extension.path, '$dvAppleWidgetExtensionName.entitlements'))
+          .writeAsStringSync(dvAppleHomeWidgetEntitlements(group));
+    }
+
+    // The application's own half of the group. Without it the app writes to
+    // its own container and the widget -- correctly entitled, correctly
+    // signed -- reads an empty one and shows its placeholder forever.
+    final String entitlementsPath = platform == 'ios'
+        ? p.join('Runner', 'Runner.entitlements')
+        : p.join('Runner', 'DebugProfile.entitlements');
+    final File appEntitlements =
+        File(p.join(root, platform, entitlementsPath));
+    if (has) {
+      appEntitlements.parent.createSync(recursive: true);
+      appEntitlements.writeAsStringSync(dvAppleAppEntitlements(
+          appEntitlements.existsSync()
+              ? appEntitlements.readAsStringSync()
+              : '',
+          group));
+      // macOS signs Release with its own file, and a widget that works in
+      // debug and not in release is the worst shape this could take.
+      final File release =
+          File(p.join(root, platform, 'Runner', 'Release.entitlements'));
+      if (platform == 'macos' && release.existsSync()) {
+        release.writeAsStringSync(
+            dvAppleAppEntitlements(release.readAsStringSync(), group));
+      }
+    }
+
+    String after = dvApplePbxprojWithWidgets(before,
+        hasWidgets: has, bundleId: bundleId, platform: platform);
+    after = dvApplePbxprojWithAppEntitlements(after,
+        hasWidgets: has && platform == 'ios', path: entitlementsPath);
+    if (after != before) project.writeAsStringSync(after);
+
+    if (!has) return;
+    Logger.log('   Home widgets: a WidgetKit extension with '
+        '${widgets.length} widget(s), embedded in the application and '
+        'sharing its App Group.');
+  }
+
+  /// The bundle identifier the application is built under.
+  ///
+  /// The test target's is the same string with a suffix, and taking that one
+  /// would identify the extension under a bundle that does not ship.
+  String? _appleBundleId(String pbxproj) {
+    for (final RegExpMatch match
+        in RegExp(r'PRODUCT_BUNDLE_IDENTIFIER = ([^;]+);')
+            .allMatches(pbxproj)) {
+      final String value = match.group(1)!.trim().replaceAll('"', '');
+      if (value.contains('RunnerTests') || value.contains('.Tests')) continue;
+      if (value.contains(r'$(')) continue;
+      return value;
+    }
+    return null;
   }
 
   /// The application id Gradle builds under.
