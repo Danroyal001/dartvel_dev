@@ -329,11 +329,23 @@ Future<void> main(List<String> arguments) async {
   Future<String> deviceOwner() async {
     final ProcessResult policy = await Process.run(
         'adb', <String>['shell', 'dumpsys', 'device_policy']);
-    final Iterable<String> lines = const LineSplitter()
-        .convert('${policy.stdout}')
-        .where((String line) => line.contains('Device Owner') ||
-            line.contains('device owner'));
-    return lines.isEmpty ? 'none' : lines.first.trim();
+    final List<String> lines = const LineSplitter().convert('${policy.stdout}');
+    // The header and what follows it, not the header alone. "Device Owner:"
+    // is printed with the details on the lines after it, so matching one
+    // line answered "Device Owner:" both before and after the test -- the
+    // same empty string either way, which is the one answer that could not
+    // tell them apart.
+    for (int i = 0; i < lines.length; i++) {
+      if (!lines[i].contains('Device Owner')) continue;
+      final List<String> block = <String>[lines[i].trim()];
+      for (int j = i + 1; j < lines.length && j < i + 5; j++) {
+        final String next = lines[j].trim();
+        if (next.isEmpty || !lines[j].startsWith(' ')) break;
+        block.add(next);
+      }
+      return block.join(' | ');
+    }
+    return 'none';
   }
 
   stdout.writeln('   the device owner is now: ${await deviceOwner()}');

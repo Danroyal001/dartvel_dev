@@ -56,6 +56,29 @@ Future<int> main(List<String> arguments) async {
   }
 
   if (run.failures.isNotEmpty) {
+    // package:test reports its own fixtures as tests, named in brackets:
+    // (tearDownAll), (setUpAll). One of those failing with nothing attached
+    // to it is not a test failing -- every real test passed -- it is the
+    // process going away after them, and the two need saying differently.
+    //
+    // Reported for an hour as a broken save-panel test, which was passing in
+    // the same output three lines above the failure.
+    final List<String> fixtures =
+        run.failures.where((String n) => n.startsWith('(')).toList();
+    final List<String> tests =
+        run.failures.where((String n) => !n.startsWith('(')).toList();
+    if (tests.isEmpty && fixtures.isNotEmpty && !run.errorsAttached) {
+      stdout.writeln('::error::every test passed and then the tester went '
+          'away: ${fixtures.join(', ')} failed with nothing attached, so this '
+          'is the process ending after the suite rather than a test. It '
+          'exited ${run.exitCode}. Something native is still holding it, or '
+          'the harness lost it.');
+      if (run.stderr.trim().isEmpty) {
+        stdout.writeln('   it wrote nothing to stderr on the way out.');
+      }
+      exitCode = 1;
+      return 1;
+    }
     for (final String name in run.failures) {
       stdout.writeln('::error::$name failed');
     }
@@ -108,6 +131,13 @@ class _Run {
   int exitCode = 0;
   String stderr = '';
   bool testerLeft = false;
+
+  /// Whether the reporter attached an explanation to anything it failed.
+  ///
+  /// A failure with none is not the same kind of event as a failed
+  /// expectation, and reporting the two the same way is how an hour goes
+  /// into a dialog test that was passing.
+  bool errorsAttached = false;
 
   /// Whether the tester ended without finishing what it started.
   ///
@@ -272,6 +302,8 @@ Future<_Run> _run(List<String> command) async {
       rendered.add('  error (${names[testId] ?? testId}): $detail');
     }
   });
+
+  result.errorsAttached = errors.isNotEmpty;
 
   // And the case with no explanation at all, said rather than left blank.
   if (result.failures.isNotEmpty && errors.isEmpty) {
