@@ -364,8 +364,8 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   ),
   (
     'Mail and Notifications',
-    'Every channel, no live push service yet',
-    'Present: email, in-app, push and web push with a VAPID signature pinned to the published P-256 vectors, local and test providers, and templates rendered in the recipient\'s language. Absent: no provider has been exercised against a real APNS or push service.',
+    'Every channel; SMTP against a real server, push not yet',
+    'Present: email, in-app, push and web push with a VAPID signature pinned to the published P-256 vectors, local and test providers, and templates rendered in the recipient\'s language. The SMTP provider is exercised against a real SMTP server in a container, with the source of what arrived read back -- which is the only way to see the half of this that is accepted and wrong, and it found two things. A subject with an accent in it went down the wire as raw UTF-8 in a header that has to be ASCII: the server took it, and the clients that do not guess the encoding show it as mojibake to whoever was sent it. The body declared no transfer encoding, which means seven-bit, which it was not. Both are fixed and both are now checked against a server rather than against a connection this repository wrote. Absent: no provider has been exercised against a real APNS or push service.',
   ),
   (
     'OTA Updates',
