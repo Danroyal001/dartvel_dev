@@ -23,6 +23,7 @@ import 'linux_serial_ffi.dart';
 import 'linux_shortcuts_ffi.dart';
 import 'linux_tray_dbus.dart';
 import 'linux_usb.dart';
+import 'linux_usb_transfer.dart';
 
 // --- libX11 ------------------------------------------------------------------
 
@@ -212,6 +213,11 @@ class DVLinuxBindings {
     'device.serial.read',
     'device.serial.close',
     'device.usb.devices',
+    'device.usb.open',
+    'device.usb.claim',
+    'device.usb.write',
+    'device.usb.read',
+    'device.usb.close',
     // BlueZ, on the system bus: what adapters there are and what they know.
     'bluetooth.isEnabled',
     'bluetooth.scanDevices',
@@ -362,6 +368,10 @@ class DVLinuxBindings {
     DVLinuxDevice.register(DVNativeBridge.register);
     DVLinuxSerial.register(DVNativeBridge.register);
     DVLinuxUsb.register(DVNativeBridge.register);
+    // Talking to a device, as opposed to listing one. Registered beside the
+    // reader because it is the same bus and the same absence of a desktop:
+    // an eLinux kiosk with a scanner has both and neither touches X11.
+    DVLinuxUsbTransfers.register(DVNativeBridge.register);
     DVLinuxBluetooth.register(DVNativeBridge.register);
     DVLinuxNfc.register(DVNativeBridge.register);
     // A restart loop the watchdog finds goes to whatever kiosk host is on

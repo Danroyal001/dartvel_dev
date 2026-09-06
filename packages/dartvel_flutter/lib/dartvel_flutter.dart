@@ -3275,6 +3275,55 @@ class DVUsb {
         bus: map['bus'] is int ? map['bus']! as int : null,
         address: map['address'] is int ? map['address']! as int : null,
       );
+
+  /// Opens the device on [bus] at [address], returning a handle.
+  ///
+  /// Listing is a reader and this is not: it needs write access to the
+  /// device node, which on most distributions means a udev rule. A refusal
+  /// says that in those words rather than as a permission error, because it
+  /// is not a fault in the calling code.
+  Future<int> open({required int bus, required int address}) async =>
+      DVNativeBridge.require<int>(
+          'device.usb.open', <String, Object?>{'bus': bus, 'address': address});
+
+  /// Claims an interface so transfers on it belong to this process.
+  ///
+  /// The kernel will not let two things drive one interface. That is the
+  /// point rather than an obstacle: a scanner usbhid is already reading
+  /// would otherwise deliver half its bytes here and half to the input
+  /// layer, and neither half is a barcode.
+  Future<bool> claim(int handle, int interface) async =>
+      DVNativeBridge.require<bool>('device.usb.claim',
+          <String, Object?>{'handle': handle, 'interface': interface});
+
+  /// Writes to an endpoint, answering how many bytes the device took.
+  Future<int> write(int handle, int endpoint, List<int> bytes,
+          {int timeoutMs = 1000}) async =>
+      DVNativeBridge.require<int>('device.usb.write', <String, Object?>{
+        'handle': handle,
+        'endpoint': endpoint,
+        'bytes': bytes,
+        'timeoutMs': timeoutMs,
+      });
+
+  /// Reads from an endpoint. The direction bit is set for you.
+  Future<List<int>> read(int handle, int endpoint,
+          {int max = 512, int timeoutMs = 1000}) async =>
+      DVNativeBridge.require<List<int>>('device.usb.read', <String, Object?>{
+        'handle': handle,
+        'endpoint': endpoint,
+        'max': max,
+        'timeoutMs': timeoutMs,
+      });
+
+  /// Releases every claimed interface and closes the handle.
+  ///
+  /// The claims go back first. A descriptor closed with an interface still
+  /// claimed leaves the kernel driver unbound until the device is replugged,
+  /// so the next run finds hardware that no longer works and nothing that
+  /// says why.
+  Future<bool> close(int handle) async => DVNativeBridge.require<bool>(
+      'device.usb.close', <String, Object?>{'handle': handle});
 }
 
 /// The serial ports, under `DV.Platform.device.serial`.
