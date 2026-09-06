@@ -21,16 +21,19 @@
 library;
 
 import 'dart:convert';
-import 'dart:io';
+// Prefixed: dartvel_core exports a Platform of its own, and the unprefixed
+// import resolves to that one -- which has no environment and fails at load
+// with a message about a member rather than about the collision.
+import 'dart:io' as io show HttpClient, HttpClientRequest, HttpClientResponse, Platform;
 
 import 'package:dartvel_core/dartvel.dart';
 import 'package:test/test.dart';
 
-final String? _host = Platform.environment['DARTVEL_SMTP_HOST'];
+final String? _host = io.Platform.environment['DARTVEL_SMTP_HOST'];
 final int _port =
-    int.tryParse(Platform.environment['DARTVEL_SMTP_PORT'] ?? '') ?? 1025;
+    int.tryParse(io.Platform.environment['DARTVEL_SMTP_PORT'] ?? '') ?? 1025;
 final String _api =
-    Platform.environment['DARTVEL_SMTP_API'] ?? 'http://localhost:8025';
+    io.Platform.environment['DARTVEL_SMTP_API'] ?? 'http://localhost:8025';
 
 /// Everything Mailpit currently holds, newest first.
 Future<List<Map<String, Object?>>> _inbox() async {
@@ -42,11 +45,11 @@ Future<List<Map<String, Object?>>> _inbox() async {
 }
 
 Future<Map<String, Object?>> _json(String method, String path) async {
-  final HttpClient client = HttpClient();
+  final io.HttpClient client = io.HttpClient();
   try {
-    final HttpClientRequest request =
+    final io.HttpClientRequest request =
         await client.openUrl(method, Uri.parse('$_api$path'));
-    final HttpClientResponse response = await request.close();
+    final io.HttpClientResponse response = await request.close();
     final String text = await response.transform(utf8.decoder).join();
     if (response.statusCode >= 300) {
       throw StateError('$method $path -> ${response.statusCode}: $text');
@@ -61,11 +64,11 @@ Future<Map<String, Object?>> _json(String method, String path) async {
 
 /// The message exactly as it was received, headers and all.
 Future<String> _raw(String id) async {
-  final HttpClient client = HttpClient();
+  final io.HttpClient client = io.HttpClient();
   try {
-    final HttpClientRequest request = await client
+    final io.HttpClientRequest request = await client
         .openUrl('GET', Uri.parse('$_api/api/v1/message/$id/raw'));
-    final HttpClientResponse response = await request.close();
+    final io.HttpClientResponse response = await request.close();
     // Latin-1, deliberately: the point of several of these is whether a byte
     // above 0x7F reached a header at all, and decoding as UTF-8 would either
     // hide it or throw.
@@ -76,9 +79,9 @@ Future<String> _raw(String id) async {
 }
 
 Future<void> _clear() async {
-  final HttpClient client = HttpClient();
+  final io.HttpClient client = io.HttpClient();
   try {
-    final HttpClientRequest request = await client.openUrl(
+    final io.HttpClientRequest request = await client.openUrl(
         'DELETE', Uri.parse('$_api/api/v1/messages'));
     await (await request.close()).drain<void>();
   } finally {
