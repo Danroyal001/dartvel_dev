@@ -58,3 +58,12 @@ String dvHomeWidgetId(String className) {
   }
   return out.isEmpty ? 'widget' : out.toString();
 }
+
+/// The user-defaults key an iOS launch URL is left under.
+///
+/// In core rather than beside either half, because both halves need it and
+/// they are in different packages: the build writes the capture into
+/// `AppDelegate.swift`, and the Flutter runtime reads it back through the
+/// Objective-C runtime. Two spellings of it is a launch that is captured and
+/// never read, with nothing to see at either end.
+const String dvIosLaunchUrlKey = 'dartvel.launchURL';

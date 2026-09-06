@@ -12,6 +12,7 @@ import '../build/android_context_provider.dart';
 import '../build/android_kiosk_manifest.dart';
 import '../build/apple_home_widget.dart';
 import '../build/apple_widget_target.dart';
+import '../build/ios_deep_links.dart';
 import '../build/browser_extension.dart';
 import '../build/desktop_entry.dart';
 import '../build/elinux_bundle.dart';
@@ -794,6 +795,7 @@ class BuildCommand extends Command<void> {
     if (platform == 'ios' || platform == 'macos') {
       _writeAppleHomeWidgets(Directory.current.path, platform);
     }
+    if (platform == 'ios') _writeIosDeepLinks(Directory.current.path);
     // Before Gradle reads the manifest: a lock-task launcher is two things
     // in it, and neither can be added at run time.
     if (platform == 'android' || platform == 'fireos') {
@@ -1306,6 +1308,39 @@ class BuildCommand extends Command<void> {
         'sharing its App Group.');
   }
 
+
+  /// The capture that gives iOS a link to hand back.
+  ///
+  /// Written for every iOS build rather than only for projects with home
+  /// widgets, because the capability list claims `deepLinks.initial` on iOS
+  /// unconditionally. A binding that is registered and always answers null,
+  /// on a launch that really did carry a URL, is exactly the drift the
+  /// capability files warn about -- the set says the binding exists and the
+  /// application behaves as though no link ever arrives.
+  void _writeIosDeepLinks(String root) {
+    final File delegate =
+        File(p.join(root, 'ios', 'Runner', 'AppDelegate.swift'));
+    if (!delegate.existsSync()) {
+      Logger.log('⚠️  ios/Runner/AppDelegate.swift is not there, so a link '
+          'this application is launched with reaches nothing. Run flutter '
+          'create . to add the iOS runner.');
+      return;
+    }
+    final String before = delegate.readAsStringSync();
+    final String after = dvIosAppDelegate(before, enabled: true);
+    if (after == before) return;
+    if (!after.contains(dvIosLaunchUrlKey)) {
+      // The delegate has been rewritten into something this does not
+      // recognise. Saying so is the whole value here: the alternative is a
+      // widget whose tap opens the home screen and a developer with nothing
+      // to read.
+      Logger.log('⚠️  ios/Runner/AppDelegate.swift has been rewritten, so '
+          'the launch capture was not added. A link the application is '
+          'launched with will not reach DV.Platform.deepLinks.');
+      return;
+    }
+    delegate.writeAsStringSync(after);
+  }
   /// The bundle identifier the application is built under.
   ///
   /// The test target's is the same string with a suffix, and taking that one

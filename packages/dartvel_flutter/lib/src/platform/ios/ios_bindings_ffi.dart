@@ -22,6 +22,8 @@ import 'dart:io' show Platform;
 
 import 'package:ffi/ffi.dart';
 
+import 'package:dartvel_core/dartvel.dart' show dvIosLaunchUrlKey;
+
 import '../../../dartvel_flutter.dart' show DVNativeBridge;
 import 'ios_capabilities.dart';
 
@@ -37,6 +39,10 @@ typedef _MsgSend0Dart = Pointer<Void> Function(
 typedef _MsgSendVoidNative = Void Function(
     Pointer<Void> receiver, Pointer<Void> selector, Pointer<Void> a);
 typedef _MsgSendVoidDart = void Function(
+    Pointer<Void> receiver, Pointer<Void> selector, Pointer<Void> a);
+typedef _MsgSend1Native = Pointer<Void> Function(
+    Pointer<Void> receiver, Pointer<Void> selector, Pointer<Void> a);
+typedef _MsgSend1Dart = Pointer<Void> Function(
     Pointer<Void> receiver, Pointer<Void> selector, Pointer<Void> a);
 typedef _MsgSendUtf8Native = Pointer<Utf8> Function(
     Pointer<Void> receiver, Pointer<Void> selector);
@@ -87,6 +93,13 @@ class DVIosBindings {
     });
     DVNativeBridge.register('clipboard.paste', (Object? _) => _paste());
 
+    // Where a link the application was launched with lands. The generated
+    // home widget's tap is a widgetURL carrying its route, and without this
+    // iOS opened the application at its home route -- which looks like it
+    // worked, and is a shortcut rather than a widget. The capture itself is
+    // in AppDelegate.swift, written by the build.
+    DVNativeBridge.register('deepLinks.initial', (Object? _) => _initialLink());
+
     // AudioToolbox is opened by path out of the dyld shared cache rather than
     // assumed to be linked into the app. If it is not there, registration
     // fails as a whole rather than installing a subset: `implemented` is what
@@ -96,6 +109,7 @@ class DVIosBindings {
     if (_playSystemSound == null) {
       DVNativeBridge.unregister('clipboard.copy');
       DVNativeBridge.unregister('clipboard.paste');
+      DVNativeBridge.unregister('deepLinks.initial');
       return false;
     }
     for (final name in const <String>[
@@ -184,6 +198,42 @@ class DVIosBindings {
     return true;
   }
 
+
+  /// The link this launch carried, once.
+  ///
+  /// The build writes the capture into `AppDelegate.swift`, which leaves the
+  /// URL in the standard defaults; this reads it back and takes it away
+  /// again. Reading it once is the point. Defaults survive the process, so a
+  /// link left behind would be opened on every later start, taking somebody
+  /// back to a page they had navigated away from days ago -- which is a
+  /// stranger bug to be handed than a widget that does nothing.
+  static String? _initialLink() {
+    final send0 =
+        _objc.lookupFunction<_MsgSend0Native, _MsgSend0Dart>('objc_msgSend');
+    final send1 =
+        _objc.lookupFunction<_MsgSend1Native, _MsgSend1Dart>('objc_msgSend');
+    final sendUtf8 = _objc
+        .lookupFunction<_MsgSendUtf8Native, _MsgSendUtf8Dart>('objc_msgSend');
+    final sendVoid = _objc
+        .lookupFunction<_MsgSendVoidNative, _MsgSendVoidDart>('objc_msgSend');
+
+    final defaults =
+        send0(_class('NSUserDefaults'), _selector('standardUserDefaults'));
+    if (defaults == nullptr) return null;
+
+    final key = _nsString(dvIosLaunchUrlKey);
+    final value = send1(defaults, _selector('stringForKey:'), key);
+    // Nil is the ordinary case: an application opened from its own icon was
+    // launched with no link, and that is not a failure.
+    if (value == nullptr) return null;
+
+    final utf8 = sendUtf8(value, _selector('UTF8String'));
+    if (utf8 == nullptr) return null;
+    final String link = utf8.toDartString();
+
+    sendVoid(defaults, _selector('removeObjectForKey:'), key);
+    return link.isEmpty ? null : link;
+  }
   static String? _paste() {
     final send0 =
         _objc.lookupFunction<_MsgSend0Native, _MsgSend0Dart>('objc_msgSend');
