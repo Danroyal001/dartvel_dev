@@ -30,20 +30,41 @@ import 'package:dartvel_flutter/src/platform/linux/linux_bluetooth.dart';
 import 'package:dbus/dbus.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// A BlueZ that remembers what it was asked to do.
-class _BlueZ extends DBusObject {
-  _BlueZ({this.paired = false, this.agent = true}) : super(DBusObjectPath('/'));
+/// BlueZ, exported as the objects BlueZ actually exports.
+///
+/// Shaped like the daemon rather than flattened into one node, because a
+/// method call is routed to the object registered at its path and
+/// DBusMethodCall does not carry the path with it. A single object at `/`
+/// answers GetManagedObjects and nothing else: a Pair on a device path would
+/// reach nobody, and the test would be asserting against a client that never
+/// got an answer rather than against a daemon that gave one.
+class _BlueZ {
+  _BlueZ({this.paired = false, this.agent = true});
 
-  /// Whether the reader is already paired, which changes what Pair() answers.
+  /// Whether the reader is already paired, which changes what Pair answers.
   final bool paired;
 
   /// Whether a pairing agent is registered. Without one there is nobody to
   /// answer a passkey, which is the state a headless kiosk is always in.
   final bool agent;
 
+  /// What every object was asked to do, in order.
   final List<String> calls = <String>[];
 
-  static const String _reader = '/org/bluez/hci0/dev_11_22_33_44_55_66';
+  static const String adapterPath = '/org/bluez/hci0';
+  static const String devicePath = '/org/bluez/hci0/dev_11_22_33_44_55_66';
+
+  List<DBusObject> get objects => <DBusObject>[
+        _Root(this),
+        _Adapter(this),
+        _Device(this),
+      ];
+}
+
+class _Root extends DBusObject {
+  _Root(this.bluez) : super(DBusObjectPath('/'));
+
+  final _BlueZ bluez;
 
   @override
   List<DBusIntrospectInterface> introspect() => <DBusIntrospectInterface>[
@@ -55,37 +76,6 @@ class _BlueZ extends DBusObject {
 
   @override
   Future<DBusMethodResponse> handleMethodCall(DBusMethodCall methodCall) async {
-    if (methodCall.interface == 'org.bluez.Device1') {
-      calls.add('${methodCall.name} ${methodCall.path.value}');
-      switch (methodCall.name) {
-        case 'Pair':
-          if (paired) {
-            return DBusMethodErrorResponse('org.bluez.Error.AlreadyExists',
-                <DBusValue>[const DBusString('Already Exists')]);
-          }
-          if (!agent) {
-            return DBusMethodErrorResponse(
-                'org.bluez.Error.AuthenticationCanceled',
-                <DBusValue>[const DBusString('Authentication Canceled')]);
-          }
-          return DBusMethodSuccessResponse(<DBusValue>[]);
-        case 'Connect':
-          if (!paired) {
-            return DBusMethodErrorResponse('org.bluez.Error.NotReady',
-                <DBusValue>[const DBusString('Resource Not Ready')]);
-          }
-          return DBusMethodSuccessResponse(<DBusValue>[]);
-        case 'Disconnect':
-          return DBusMethodSuccessResponse(<DBusValue>[]);
-      }
-      return DBusMethodErrorResponse.unknownMethod();
-    }
-    if (methodCall.interface == 'org.bluez.Adapter1' &&
-        methodCall.name == 'RemoveDevice') {
-      calls.add(
-          'RemoveDevice ${methodCall.path.value} ${(methodCall.values.first as DBusObjectPath).value}');
-      return DBusMethodSuccessResponse(<DBusValue>[]);
-    }
     if (methodCall.interface != 'org.freedesktop.DBus.ObjectManager' ||
         methodCall.name != 'GetManagedObjects') {
       return DBusMethodErrorResponse.unknownMethod();
@@ -95,45 +85,118 @@ class _BlueZ extends DBusObject {
         DBusSignature('o'),
         DBusSignature('a{sa{sv}}'),
         <DBusValue, DBusValue>{
-          DBusObjectPath('/org/bluez/hci0'):
+          DBusObjectPath(_BlueZ.adapterPath):
               _interfaces(<String, Map<String, DBusValue>>{
             'org.bluez.Adapter1': <String, DBusValue>{
               'Address': const DBusString('AA:BB:CC:DD:EE:FF'),
               'Powered': const DBusBoolean(true),
             },
           }),
-          DBusObjectPath(_reader): _interfaces(<String, Map<String, DBusValue>>{
+          DBusObjectPath(_BlueZ.devicePath):
+              _interfaces(<String, Map<String, DBusValue>>{
             'org.bluez.Device1': <String, DBusValue>{
               'Address': const DBusString('11:22:33:44:55:66'),
               'Name': const DBusString('Card reader'),
-              'Paired': DBusBoolean(paired),
+              'Paired': DBusBoolean(bluez.paired),
               'Connected': const DBusBoolean(false),
-              'Adapter': DBusObjectPath('/org/bluez/hci0'),
+              'Adapter': DBusObjectPath(_BlueZ.adapterPath),
             },
           }),
         },
       ),
     ]);
   }
-
-  DBusValue _interfaces(Map<String, Map<String, DBusValue>> interfaces) =>
-      DBusDict(
-        DBusSignature('s'),
-        DBusSignature('a{sv}'),
-        <DBusValue, DBusValue>{
-          for (final MapEntry<String, Map<String, DBusValue>> e
-              in interfaces.entries)
-            DBusString(e.key): DBusDict(
-              DBusSignature('s'),
-              DBusSignature('v'),
-              <DBusValue, DBusValue>{
-                for (final MapEntry<String, DBusValue> p in e.value.entries)
-                  DBusString(p.key): DBusVariant(p.value),
-              },
-            ),
-        },
-      );
 }
+
+class _Device extends DBusObject {
+  _Device(this.bluez) : super(DBusObjectPath(_BlueZ.devicePath));
+
+  final _BlueZ bluez;
+
+  @override
+  List<DBusIntrospectInterface> introspect() => <DBusIntrospectInterface>[
+        DBusIntrospectInterface('org.bluez.Device1',
+            methods: <DBusIntrospectMethod>[
+              DBusIntrospectMethod('Pair'),
+              DBusIntrospectMethod('Connect'),
+              DBusIntrospectMethod('Disconnect'),
+            ]),
+      ];
+
+  @override
+  Future<DBusMethodResponse> handleMethodCall(DBusMethodCall methodCall) async {
+    if (methodCall.interface != 'org.bluez.Device1') {
+      return DBusMethodErrorResponse.unknownMethod();
+    }
+    bluez.calls.add('${methodCall.name} ${path.value}');
+    switch (methodCall.name) {
+      case 'Pair':
+        if (bluez.paired) {
+          return DBusMethodErrorResponse('org.bluez.Error.AlreadyExists',
+              <DBusValue>[const DBusString('Already Exists')]);
+        }
+        if (!bluez.agent) {
+          return DBusMethodErrorResponse(
+              'org.bluez.Error.AuthenticationCanceled',
+              <DBusValue>[const DBusString('Authentication Canceled')]);
+        }
+        return DBusMethodSuccessResponse(<DBusValue>[]);
+      case 'Connect':
+        if (!bluez.paired) {
+          return DBusMethodErrorResponse('org.bluez.Error.NotReady',
+              <DBusValue>[const DBusString('Resource Not Ready')]);
+        }
+        return DBusMethodSuccessResponse(<DBusValue>[]);
+      case 'Disconnect':
+        return DBusMethodSuccessResponse(<DBusValue>[]);
+    }
+    return DBusMethodErrorResponse.unknownMethod();
+  }
+}
+
+class _Adapter extends DBusObject {
+  _Adapter(this.bluez) : super(DBusObjectPath(_BlueZ.adapterPath));
+
+  final _BlueZ bluez;
+
+  @override
+  List<DBusIntrospectInterface> introspect() => <DBusIntrospectInterface>[
+        DBusIntrospectInterface('org.bluez.Adapter1',
+            methods: <DBusIntrospectMethod>[
+              DBusIntrospectMethod('RemoveDevice'),
+            ]),
+      ];
+
+  @override
+  Future<DBusMethodResponse> handleMethodCall(DBusMethodCall methodCall) async {
+    if (methodCall.interface != 'org.bluez.Adapter1' ||
+        methodCall.name != 'RemoveDevice') {
+      return DBusMethodErrorResponse.unknownMethod();
+    }
+    final DBusValue argument = methodCall.values.first;
+    bluez.calls.add('RemoveDevice ${path.value} '
+        '${argument is DBusObjectPath ? argument.value : argument}');
+    return DBusMethodSuccessResponse(<DBusValue>[]);
+  }
+}
+
+DBusValue _interfaces(Map<String, Map<String, DBusValue>> interfaces) =>
+    DBusDict(
+      DBusSignature('s'),
+      DBusSignature('a{sv}'),
+      <DBusValue, DBusValue>{
+        for (final MapEntry<String, Map<String, DBusValue>> e
+            in interfaces.entries)
+          DBusString(e.key): DBusDict(
+            DBusSignature('s'),
+            DBusSignature('v'),
+            <DBusValue, DBusValue>{
+              for (final MapEntry<String, DBusValue> p in e.value.entries)
+                DBusString(p.key): DBusVariant(p.value),
+            },
+          ),
+      },
+    );
 
 void main() {
   final bool hasBus =
@@ -149,7 +212,9 @@ void main() {
   Future<void> serving(_BlueZ it) async {
     bluez = it;
     final DBusClient bus = DBusClient.session();
-    await bus.registerObject(it);
+    for (final DBusObject object in it.objects) {
+      await bus.registerObject(object);
+    }
     await bus.requestName('org.bluez');
     addTearDown(() async => bus.close());
   }
