@@ -21,6 +21,9 @@ import 'package:path/path.dart' as p;
 import 'package:shelf/shelf.dart';
 import 'package:shelf_static/shelf_static.dart';
 
+import 'admin_mount.dart';
+import 'admin_serving.dart';
+
 export 'package:dartvel_core/dartvel.dart' show DVPageData, DVPageDataCache, DVPageDataMode, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVWebServerSettings, dvMatchRoute, dvRenderPage, dvRenderRoute, dvRouteParams;
 
 
@@ -143,6 +146,12 @@ Handler dvWebServerHandler({
   Duration? staleFor,
   bool? streaming,
   DVCacheAdapter? pageStore,
+  // The admin, served by the backend rather than compiled into the client.
+  // Null is no admin at all, which is what a release build that never asked
+  // for one gets: not a disabled route, no route.
+  DVAdminMount? admin,
+  String? adminRoot,
+  Future<bool> Function(Request request)? adminAuthenticated,
 }) {
   final manifestFile = File(p.join(webRoot, 'dartvel_routes.json'));
   final shellFile = File(p.join(webRoot, 'index.html'));
@@ -202,6 +211,51 @@ Handler dvWebServerHandler({
 
   return (Request request) async {
     final path = '/${request.url.path}';
+
+    // The admin, before anything else looks at the path.
+    //
+    // First because the answer for a hidden admin has to be the same nothing
+    // the application returns for a route it does not serve. Falling through
+    // to the static handler or the shell would answer a request for the
+    // admin with the application's own page, which tells whoever asked that
+    // the path means something here.
+    if (admin != null) {
+      final DVAdminRequest decision = dvAdminFor(
+        path,
+        admin,
+        authenticated: adminAuthenticated == null
+            ? false
+            : await adminAuthenticated(request),
+      );
+      switch (decision) {
+        case DVAdminRequest.hidden:
+          return Response(dvAdminHiddenStatus,
+              body: '', headers: dvAdminHiddenHeaders);
+        case DVAdminRequest.serve:
+          final String root = adminRoot ?? p.join(webRoot, '__admin');
+          final String rest = path.substring(admin.path.length);
+          final String relative =
+              rest.isEmpty || rest == '/' ? 'index.html' : rest.substring(1);
+          final File asset = File(p.join(root, relative));
+          if (asset.existsSync()) {
+            return Response.ok(asset.readAsBytesSync(), headers: <String, String>{
+              'content-type': _adminContentType(relative),
+            });
+          }
+          // The admin is one application with its own routes, so anything
+          // under the mount that is not a file is its shell -- the same
+          // rule the site itself follows one branch down.
+          final File shell = File(p.join(root, 'index.html'));
+          if (!shell.existsSync()) {
+            return Response(dvAdminHiddenStatus,
+                body: '', headers: dvAdminHiddenHeaders);
+          }
+          return Response.ok(shell.readAsStringSync(),
+              headers: <String, String>{'content-type': 'text/html; charset=utf-8'});
+        case DVAdminRequest.notTheAdmin:
+          break;
+      }
+    }
 
     // A file on disk wins, so main.dart.js and the assets are served as
     // themselves. index.html does not: it is the shell, and serving it raw
@@ -276,4 +330,26 @@ Handler dvWebServerHandler({
       headers: htmlHeaders,
     );
   };
+}
+
+/// The content type for a file the admin serves.
+///
+/// A short table rather than a package: the admin is one Flutter web build
+/// and these are the kinds it is made of. Serving main.dart.js as
+/// text/plain would leave a blank page and a console error about a MIME
+/// type, which reads as a broken admin rather than a missing line here.
+String _adminContentType(String relative) {
+  final String name = relative.toLowerCase();
+  if (name.endsWith('.html')) return 'text/html; charset=utf-8';
+  if (name.endsWith('.js') || name.endsWith('.mjs')) {
+    return 'text/javascript; charset=utf-8';
+  }
+  if (name.endsWith('.css')) return 'text/css; charset=utf-8';
+  if (name.endsWith('.json')) return 'application/json; charset=utf-8';
+  if (name.endsWith('.wasm')) return 'application/wasm';
+  if (name.endsWith('.png')) return 'image/png';
+  if (name.endsWith('.svg')) return 'image/svg+xml';
+  if (name.endsWith('.woff2')) return 'font/woff2';
+  if (name.endsWith('.ttf')) return 'font/ttf';
+  return 'application/octet-stream';
 }
