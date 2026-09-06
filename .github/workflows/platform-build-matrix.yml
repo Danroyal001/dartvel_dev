@@ -5,11 +5,24 @@ name: Platform build matrix
 # need macOS — Flutter has no desktop cross-compilation, so these are the only
 # places these targets can genuinely be proven.
 #
-# Manually triggered on purpose. This is a public repository, so standard
-# runners are free — but a full matrix still takes real wall-clock time and is
-# rarely more informative than running it deliberately.
+# It also runs on push, for the paths that write native files into these
+# projects. Those are the parts no unit test can prove: the Xcode target
+# spliced into project.pbxproj, the widget extension's Info.plist, the
+# capture written into AppDelegate.swift. A string test says the generator
+# produced the right text; only a real build says Xcode accepted it. Bounded
+# by paths and by a timeout rather than by being manual -- this is a public
+# repository and standard runners are free, macOS included.
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/dartvel_cli/lib/src/build/apple_**'
+      - 'packages/dartvel_cli/lib/src/build/ios_**'
+      - 'packages/dartvel_cli/lib/src/build/desktop_entry.dart'
+      - 'packages/dartvel_cli/lib/src/commands/build_command.dart'
+      - 'examples/dartvel_example/lib/widgets/**'
+      - '.github/workflows/platform-build-matrix.yml'
   workflow_dispatch:
     inputs:
       targets:
@@ -23,6 +36,13 @@ on:
           anything approaching this is hung.
         type: string
         default: '45'
+
+# A push that lands while a matrix is running supersedes it: nine jobs across
+# three operating systems is not worth running twice for a branch that has
+# already moved on.
+concurrency:
+  group: platform-build-matrix-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   FLUTTER_VERSION: 3.44.5
@@ -70,7 +90,9 @@ jobs:
         id: gate
         shell: bash
         run: |
+          # Empty on a push, where the workflow has no inputs at all.
           selected='${{ inputs.targets }}'
+          [ -n "$selected" ] || selected=all
           if [ "$selected" = "all" ] || [ "$selected" = "${{ matrix.group }}" ] \
              || [ "$selected" = "${{ matrix.platform }}" ]; then
             echo "run=true" >> "$GITHUB_OUTPUT"
