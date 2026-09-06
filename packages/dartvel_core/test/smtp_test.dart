@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:dartvel_core/dartvel.dart';
 import 'package:test/test.dart';
@@ -341,4 +342,162 @@ void main() {
       expect(build(), isNot(contains('multipart')));
     });
   });
+
+  _encoding();
+}
+
+// ---------------------------------------------------------------------------
+// Encoding, which is where a message is accepted and wrong.
+//
+// Found by sending through a real server and reading back the source: the
+// subject went down the wire as raw UTF-8 in a header RFC 5322 says is ASCII,
+// and the body declared no transfer encoding at all, which means 7bit, which
+// it was not. Mailpit took both without complaint. So does almost everything
+// else, and the message arrives looking broken to whoever was sent it.
+
+void _encoding() {
+  group('header encoding', () {
+    test('ASCII is left exactly as it was', () {
+      // Encoding what does not need it would make every ordinary subject
+      // unreadable in the source for no gain.
+      expect(DVSmtpClient.encodeHeaderValue('Order 4182'), 'Order 4182');
+    });
+
+    test('an accent becomes an encoded word that decodes back', () {
+      final String encoded = DVSmtpClient.encodeHeaderValue('Café réf 4182');
+
+      expect(encoded, startsWith('=?UTF-8?B?'));
+      expect(encoded, endsWith('?='));
+      expect(_decodeWords(encoded), 'Café réf 4182');
+    });
+
+    test('nothing above 0x7F survives into the header', () {
+      // The assertion the live suite makes against a real server, made here
+      // where it is cheap.
+      for (final int unit
+          in DVSmtpClient.encodeHeaderValue('Café — réf').codeUnits) {
+        expect(unit, lessThan(0x80));
+      }
+    });
+
+    test('a long value is split into words no wider than 75', () {
+      // RFC 2047 caps an encoded word at 75 characters. A single long one is
+      // accepted by servers and folded by some of them in the middle of the
+      // base64, which decodes to nothing anybody wants.
+      final String encoded =
+          DVSmtpClient.encodeHeaderValue('Café ${'réf ' * 40}');
+
+      for (final String word in encoded.split('\r\n ')) {
+        expect(word.length, lessThanOrEqualTo(75), reason: word);
+      }
+    });
+
+    test('no word ends in the middle of a character', () {
+      // The quiet one. Base64 split by bytes puts half of a two-byte
+      // character at the end of one word and half at the start of the next,
+      // and each decodes to a replacement character -- so the subject is
+      // wrong in exactly two places and right everywhere else.
+      final String encoded =
+          DVSmtpClient.encodeHeaderValue('café ' * 30);
+
+      expect(_decodeWords(encoded), 'café ' * 30);
+      expect(_decodeWords(encoded), isNot(contains('�')));
+    });
+
+    test('an address keeps its angle brackets and encodes only the name', () {
+      // Encoding the whole thing encodes the brackets with it, and the
+      // result is a header no server can route.
+      final String encoded =
+          DVSmtpClient.encodeAddressHeader('"Café" <shop@dartvel.dev>');
+
+      expect(encoded, endsWith('<shop@dartvel.dev>'));
+      expect(encoded, contains('=?UTF-8?B?'));
+    });
+
+    test('an ASCII display name is not touched', () {
+      expect(DVSmtpClient.encodeAddressHeader('"Support" <a@b.c>'),
+          '"Support" <a@b.c>');
+    });
+  });
+
+  group('the body', () {
+    test('plain ASCII within the line limit needs no encoding', () {
+      expect(DVSmtpClient.bodyIsSevenBit('hello\nworld'), isTrue);
+    });
+
+    test('an accent is not seven bit, however the header describes it', () {
+      expect(DVSmtpClient.bodyIsSevenBit('café'), isFalse);
+    });
+
+    test('a line past 998 octets is not seven bit either', () {
+      // RFC 5321's limit. What a server does past it is its own choice and
+      // none of the choices leave the message as it was sent.
+      expect(DVSmtpClient.bodyIsSevenBit('x' * 999), isFalse);
+      expect(DVSmtpClient.bodyIsSevenBit('x' * 998), isTrue);
+    });
+
+    test('quoted-printable round-trips', () {
+      const String body = 'Votre commande — 4182 €\nligne deux';
+
+      expect(_decodeQuotedPrintable(DVSmtpClient.quotedPrintable(body)), body);
+    });
+
+    test('an equals sign is escaped, or it reads as an escape', () {
+      expect(DVSmtpClient.quotedPrintable('a=b'), contains('=3D'));
+      expect(_decodeQuotedPrintable(DVSmtpClient.quotedPrintable('a=b')), 'a=b');
+    });
+
+    test('trailing whitespace is encoded rather than left to be stripped', () {
+      // A server may trim it, and then the message that arrives is not the
+      // message that was sent.
+      expect(DVSmtpClient.quotedPrintable('two  '), endsWith('=20'));
+    });
+
+    test('no line is longer than the 76 quoted-printable allows', () {
+      final String encoded = DVSmtpClient.quotedPrintable('x' * 5000);
+
+      for (final String line in encoded.split('\r\n')) {
+        expect(line.length, lessThanOrEqualTo(76), reason: line);
+      }
+    });
+
+    test('a long line survives the wrapping intact', () {
+      // Soft breaks are removed by the reader. If they were hard the message
+      // would arrive with newlines nobody typed.
+      final String body = 'start ${'x' * 2000} end';
+
+      expect(_decodeQuotedPrintable(DVSmtpClient.quotedPrintable(body)), body);
+    });
+  });
+}
+
+/// Decodes a run of RFC 2047 encoded words, folding and all.
+String _decodeWords(String value) {
+  final StringBuffer out = StringBuffer();
+  for (final String word in value.split('\r\n ')) {
+    final RegExpMatch? match =
+        RegExp(r'^=\?UTF-8\?B\?(.*)\?=$').firstMatch(word);
+    out.write(match == null ? word : utf8.decode(base64.decode(match.group(1)!)));
+  }
+  return out.toString();
+}
+
+/// Decodes quoted-printable: soft breaks away, `=XX` back to bytes.
+String _decodeQuotedPrintable(String value) {
+  final String joined = value.replaceAll('=\r\n', '');
+  final List<int> bytes = <int>[];
+  for (int i = 0; i < joined.length; i++) {
+    if (joined[i] == '=' && i + 2 < joined.length) {
+      bytes.add(int.parse(joined.substring(i + 1, i + 3), radix: 16));
+      i += 2;
+      continue;
+    }
+    if (joined[i] == '\r' && i + 1 < joined.length && joined[i + 1] == '\n') {
+      bytes.add(0x0A);
+      i += 1;
+      continue;
+    }
+    bytes.addAll(utf8.encode(joined[i]));
+  }
+  return utf8.decode(bytes);
 }
