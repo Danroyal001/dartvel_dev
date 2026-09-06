@@ -10,6 +10,7 @@ import 'dart:ffi';
 import 'package:ffi/ffi.dart';
 
 import '../../../dartvel_flutter.dart';
+import 'elinux_kiosk_ffi.dart';
 import 'linux_associations.dart';
 import 'linux_bluetooth.dart';
 import 'linux_device.dart';
@@ -267,6 +268,17 @@ class DVLinuxBindings {
       _glib = DynamicLibrary.open('libglib-2.0.so.0');
       _gio = DynamicLibrary.open('libgio-2.0.so.0');
     } on ArgumentError {
+      // No X11, which is the eLinux case: DRM and no window manager. The key
+      // grabs below are not the enforcement that matters there and cannot be
+      // done anyway -- there is nothing to grab from. What can be done is
+      // the console: lock the terminal switch so Ctrl+Alt+F2 cannot put a
+      // login prompt in front of a unit in a lobby, and stop the console
+      // drawing kernel messages over the framebuffer.
+      //
+      // Here rather than beside the device bindings, because a desktop with
+      // X11 holds a kiosk a different way and must not also take the console
+      // out from under whoever is sitting at it.
+      DVElinuxKiosk.register(DVNativeBridge.register);
       return false;
     }
 
