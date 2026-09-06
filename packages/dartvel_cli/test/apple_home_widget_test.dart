@@ -201,10 +201,16 @@ void _sdkFloor() {
       // target is older than the API.
       final String swift = dvAppleHomeWidgetSource(_widgets, 'dartvel');
 
-      expect(swift, contains('containerBackground'));
       expect(swift, contains('#available(iOS 17.0'));
+
+      // The call site, not the first mention of the name: the comment above
+      // the helper explains why it is there, and a search for the bare word
+      // finds that instead -- which is how this assertion first failed
+      // against code that was correct.
       final int guard = swift.indexOf('#available(iOS 17.0');
-      expect(swift.indexOf('containerBackground'), greaterThan(guard),
+      final int call = swift.indexOf('self.containerBackground(');
+      expect(call, greaterThan(0), reason: 'it has to actually be called');
+      expect(call, greaterThan(guard),
           reason: 'the call must sit inside the check, not before it');
     });
   });
