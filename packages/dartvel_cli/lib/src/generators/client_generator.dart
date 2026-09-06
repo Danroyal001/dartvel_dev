@@ -2255,7 +2255,17 @@ void startDartvelKiosk() {
           // same argument names. A second parser would agree on the common
           // case and drift on the rest, and the drift shows up as a page
           // that looks slightly wrong rather than as anything reported.
-          scaffold: _scaffoldSpecFromArgs(args, buildsScaffold: false),
+          //
+          // Including the rule about a widget that builds its own Scaffold:
+          // wrapping that in another is two backgrounds and two app bars,
+          // which renders and is wrong. The look is at the file, as it is
+          // for a page -- a file holding one widget with a Scaffold and one
+          // without gives them both the widget's own, which is the safe
+          // direction of the two.
+          scaffold: _scaffoldSpecFromArgs(
+            args,
+            buildsScaffold: _sourceBuildsScaffold(source),
+          ),
         ));
       }
     }
