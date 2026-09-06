@@ -197,6 +197,74 @@ Future<void> main(List<String> arguments) async {
   }
 
 
+
+  // The last gap: the APK on the build machine against the one on the
+  // device. The build-time check has already proven the generator wrote the
+  // receiver and the packager kept it, and the device says it has no such
+  // admin -- so either the install carries something else, or the query is
+  // asking the wrong question. Reading the manifest back off the device
+  // settles which, and nothing short of it does.
+  stdout.writeln('== the manifest the device actually has');
+  final ProcessResult where =
+      await Process.run('adb', <String>['shell', 'pm', 'path', _package]);
+  final String pathLine = '${where.stdout}'.trim();
+  if (!pathLine.startsWith('package:')) {
+    stdout.writeln('   $_package is not installed at all: $pathLine');
+  } else {
+    final String remote = pathLine.split('\n').first.substring('package:'.length).trim();
+    stdout.writeln('   installed from $remote');
+    final String local = '$_diag/installed.apk';
+    final ProcessResult pulled =
+        await Process.run('adb', <String>['pull', remote, local]);
+    if (pulled.exitCode != 0) {
+      stdout.writeln('   could not pull it: ${pulled.stderr}');
+    } else {
+      final String? aapt2 = await _aapt2();
+      if (aapt2 == null) {
+        stdout.writeln('   aapt2 is not on PATH, so it was not read. This is '
+            'a gap in the check, not a pass.');
+      } else {
+        final ProcessResult dump = await Process.run(aapt2, <String>[
+          'dump', 'xmltree', local, '--file', 'AndroidManifest.xml',
+        ]);
+        final String tree = '${dump.stdout}';
+        File('$_diag/android-installed-manifest.txt').writeAsStringSync(tree);
+        if (tree.contains('DartvelDeviceAdminReceiver')) {
+          stdout.writeln('   the installed APK DOES carry the receiver, so '
+              'the package is right and the query is asking the wrong '
+              'question. Look at the probe, not at the build.');
+          for (final String line in const LineSplitter().convert(tree)) {
+            if (line.contains('DartvelDeviceAdminReceiver') ||
+                line.contains('DEVICE_ADMIN_ENABLED') ||
+                line.contains('BIND_DEVICE_ADMIN')) {
+              stdout.writeln('     ${line.trim()}');
+            }
+          }
+        } else {
+          stdout.writeln('   the installed APK does NOT carry the receiver, '
+              'though the one that was built does. Something between the '
+              'build directory and the device replaced it -- look at what '
+              'runs between them, not at the generator.');
+        }
+      }
+    }
+  }
+
+  // And the resolver table the system actually matches against, filtered to
+  // this package. `pm query-receivers` performs implicit resolution; this is
+  // the table it resolves in, and the two disagreeing is itself the answer.
+  final ProcessResult resolver = await Process.run(
+      'adb', <String>['shell', 'dumpsys', 'package', 'r', 'receiver']);
+  final List<String> mine = const LineSplitter()
+      .convert('${resolver.stdout}')
+      .where((String line) => line.contains(_package))
+      .toList();
+  stdout.writeln('== the receiver resolver table, for this package');
+  if (mine.isEmpty) {
+    stdout.writeln('   nothing at all, which agrees with the query.');
+  } else {
+    mine.take(12).forEach((String line) => stdout.writeln('   ${line.trim()}'));
+  }
   // Device owner first: without it, startLockTask shows the "pin this
   // screen?" dialog and waits for somebody who is not there. This is also
   // how a kiosk is actually provisioned, so the test exercises the
@@ -315,4 +383,33 @@ Future<void> _run(
   if (code != 0) {
     throw StateError('$executable ${arguments.join(' ')} exited $code');
   }
+}
+
+/// aapt2, from the SDK the runner already has.
+///
+/// The same lookup as tool/ci/android_manifest_check.dart, which runs on the
+/// build machine rather than here. Duplicated rather than shared because
+/// this file is called with `dart tool/ci/...` from inside the emulator
+/// action, where the root package is not resolved and an import of anything
+/// but `dart:` would not load.
+Future<String?> _aapt2() async {
+  final ProcessResult which = await Process.run('which', <String>['aapt2']);
+  if (which.exitCode == 0) return '${which.stdout}'.trim();
+
+  final String? sdk = Platform.environment['ANDROID_SDK_ROOT'] ??
+      Platform.environment['ANDROID_HOME'];
+  if (sdk == null) return null;
+  final Directory tools = Directory('$sdk/build-tools');
+  if (!tools.existsSync()) return null;
+  final List<String> versions = tools
+      .listSync()
+      .whereType<Directory>()
+      .map((Directory d) => d.path)
+      .toList()
+    ..sort();
+  for (final String version in versions.reversed) {
+    final File candidate = File('$version/aapt2');
+    if (candidate.existsSync()) return candidate.path;
+  }
+  return null;
 }
