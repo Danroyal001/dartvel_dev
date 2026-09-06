@@ -156,7 +156,7 @@ class DartvelAdminGenerator {
       ..writeln("import '../../dartvel_client/dartvel_client.dart';")
       ..writeln("import 'package:flutter/widgets.dart';")
       ..writeln()
-      ..writeln("@DVPage(title: 'Dartvel Models', path: '/_dartvel_admin/models')")
+      ..writeln("@DVPage(title: 'Dartvel Models', path: '/_dartvel_admin/models', policy: DVPolicies.viewAdmin)")
       ..writeln("@pragma('vm:entry-point')")
       ..writeln('Widget _dartvelAdminModelsPage(BuildContext context) => '
           'buildDartvelAdminModelsPage(context);')
@@ -184,7 +184,7 @@ class DartvelAdminGenerator {
 import '../../dartvel_client/dartvel_client.dart';
 import 'package:flutter/widgets.dart';
 
-@DVPage(title: 'Dartvel Admin', path: '/_dartvel_admin')
+@DVPage(title: 'Dartvel Admin', path: '/_dartvel_admin', policy: DVPolicies.viewAdmin)
 @pragma('vm:entry-point')
 Widget _dartvelAdminIndexPage(BuildContext context) => buildDartvelAdminIndexPage(context);
 
@@ -219,7 +219,7 @@ Widget dartvelAdminCard(BuildContext context, String label, String path) =>
 import '../../dartvel_client/dartvel_client.dart';
 import 'package:flutter/widgets.dart';
 
-@DVPage(title: 'Dartvel Outbox', path: '/_dartvel_admin/outbox')
+@DVPage(title: 'Dartvel Outbox', path: '/_dartvel_admin/outbox', policy: DVPolicies.viewAdmin)
 @pragma('vm:entry-point')
 Widget _dartvelAdminOutboxPage(BuildContext context) => buildDartvelAdminOutboxPage(context);
 
@@ -241,7 +241,7 @@ Widget buildDartvelAdminOutboxPage(BuildContext context) => DVBox(
 import '../../dartvel_client/dartvel_client.dart';
 import 'package:flutter/widgets.dart';
 
-@DVPage(title: 'Dartvel Policies', path: '/_dartvel_admin/policies')
+@DVPage(title: 'Dartvel Policies', path: '/_dartvel_admin/policies', policy: DVPolicies.viewAdmin)
 @pragma('vm:entry-point')
 Widget _dartvelAdminPoliciesPage(BuildContext context) => buildDartvelAdminPoliciesPage(context);
 
@@ -253,7 +253,7 @@ Widget buildDartvelAdminPoliciesPage(BuildContext context) =>
 import '../../dartvel_client/dartvel_client.dart';
 import 'package:flutter/widgets.dart';
 
-@DVPage(title: 'Dartvel Telemetry', path: '/_dartvel_admin/telemetry')
+@DVPage(title: 'Dartvel Telemetry', path: '/_dartvel_admin/telemetry', policy: DVPolicies.viewAdmin)
 @pragma('vm:entry-point')
 Widget _dartvelAdminTelemetryPage(BuildContext context) => buildDartvelAdminTelemetryPage(context);
 
@@ -275,7 +275,7 @@ Widget buildDartvelAdminTelemetryPage(BuildContext context) => DVBox(
 import '../../dartvel_client/dartvel_client.dart';
 import 'package:flutter/widgets.dart';
 
-@DVPage(title: 'Dartvel Studio', path: '/_dartvel_admin/studio')
+@DVPage(title: 'Dartvel Studio', path: '/_dartvel_admin/studio', policy: DVPolicies.viewAdmin)
 @pragma('vm:entry-point')
 Widget _dartvelAdminStudioPage(BuildContext context) => buildDartvelAdminStudioPage(context);
 
@@ -289,7 +289,7 @@ Widget buildDartvelAdminStudioPage(BuildContext context) => const DVStudioScreen
 import '../../dartvel_client/dartvel_client.dart';
 import 'package:flutter/widgets.dart';
 
-@DVPage(title: 'Dartvel Queues', path: '/_dartvel_admin/queues')
+@DVPage(title: 'Dartvel Queues', path: '/_dartvel_admin/queues', policy: DVPolicies.viewAdmin)
 @pragma('vm:entry-point')
 Widget _dartvelAdminQueuesPage(BuildContext context) => buildDartvelAdminQueuesPage(context);
 
@@ -306,7 +306,7 @@ Widget buildDartvelAdminQueuesPage(BuildContext context) =>
 import '../../dartvel_client/dartvel_client.dart';
 import 'package:flutter/widgets.dart';
 
-@DVPage(title: 'Dartvel Cache', path: '/_dartvel_admin/cache')
+@DVPage(title: 'Dartvel Cache', path: '/_dartvel_admin/cache', policy: DVPolicies.viewAdmin)
 @pragma('vm:entry-point')
 Widget _dartvelAdminCachePage(BuildContext context) => buildDartvelAdminCachePage(context);
 
@@ -318,7 +318,7 @@ Widget buildDartvelAdminCachePage(BuildContext context) =>
 import '../../dartvel_client/dartvel_client.dart';
 import 'package:flutter/widgets.dart';
 
-@DVPage(title: 'Dartvel Routes', path: '/_dartvel_admin/routes')
+@DVPage(title: 'Dartvel Routes', path: '/_dartvel_admin/routes', policy: DVPolicies.viewAdmin)
 @pragma('vm:entry-point')
 Widget _dartvelAdminRoutesPage(BuildContext context) => buildDartvelAdminRoutesPage(context);
 
@@ -329,3 +329,22 @@ Widget buildDartvelAdminRoutesPage(BuildContext context) =>
         .modifier(const DVModifier().padding(24));
 ''';
 }
+
+/// The pages `dartvel admin` writes, by the file each is written to.
+///
+/// Exposed so that what the scaffold generates can be asserted rather than
+/// described. The eight of these shipped with no guard, no policy and no
+/// role between them and anybody who could load the application -- and one
+/// of them is the page builder, whose documents the router prefers over the
+/// pages the application shipped with.
+Map<String, String> dvAdminScaffoldPages() => <String, String>{
+      'index.page.dart': DartvelAdminGenerator._indexPage,
+      'queues.page.dart': DartvelAdminGenerator._queuesPage,
+      'cache.page.dart': DartvelAdminGenerator._cachePage,
+      'routes.page.dart': DartvelAdminGenerator._routesPage,
+      'studio.page.dart': DartvelAdminGenerator._studioPage,
+      'models.page.dart': DartvelAdminGenerator._modelsPage(const <String>[]),
+      'outbox.page.dart': DartvelAdminGenerator._outboxPage,
+      'policies.page.dart': DartvelAdminGenerator._policiesPage,
+      'telemetry.page.dart': DartvelAdminGenerator._telemetryPage,
+    };
