@@ -23,14 +23,21 @@ import 'package:dartvel_flutter/src/platform/linux/linux_nfc.dart';
 import 'package:dbus/dbus.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// A stand-in for neard that remembers what it was asked to write.
-class _Neard extends DBusObject {
+/// neard, exported as the objects neard actually exports.
+///
+/// Two of them, because a method call is routed to the object registered at
+/// its path and DBusMethodCall does not carry the path. A single node at `/`
+/// can answer GetManagedObjects and cannot answer a Write on the tag, so a
+/// fake shaped that way would have the client waiting on a daemon that never
+/// heard it -- and the test would pass or fail for a reason that has nothing
+/// to do with what is being written.
+class _Neard {
   _Neard({
     this.powered = true,
     this.tag = true,
     this.readOnly = false,
     this.refuse,
-  }) : super(DBusObjectPath('/'));
+  });
 
   final bool powered;
   final bool tag;
@@ -44,34 +51,29 @@ class _Neard extends DBusObject {
   Map<String, String> written = <String, String>{};
   int writes = 0;
 
+  static const String tagPath = '/org/neard/nfc0/tag0';
+
+  List<DBusObject> get objects => <DBusObject>[
+        _NeardRoot(this),
+        if (tag) _NeardTag(this),
+      ];
+}
+
+class _NeardRoot extends DBusObject {
+  _NeardRoot(this.neard) : super(DBusObjectPath('/'));
+
+  final _Neard neard;
+
   @override
   List<DBusIntrospectInterface> introspect() => <DBusIntrospectInterface>[
         DBusIntrospectInterface('org.freedesktop.DBus.ObjectManager',
             methods: <DBusIntrospectMethod>[
               DBusIntrospectMethod('GetManagedObjects'),
             ]),
-        DBusIntrospectInterface('org.neard.Tag',
-            methods: <DBusIntrospectMethod>[DBusIntrospectMethod('Write')]),
       ];
 
   @override
   Future<DBusMethodResponse> handleMethodCall(DBusMethodCall methodCall) async {
-    if (methodCall.interface == 'org.neard.Tag' &&
-        methodCall.name == 'Write') {
-      writes++;
-      final DBusValue argument = methodCall.values.first;
-      written = <String, String>{
-        if (argument is DBusDict)
-          for (final MapEntry<DBusValue, DBusValue> e in argument.children.entries)
-            (e.key as DBusString).value:
-                _plain((e.value as DBusVariant).value),
-      };
-      if (refuse != null) {
-        return DBusMethodErrorResponse('org.neard.Error.Failed',
-            <DBusValue>[DBusString(refuse!)]);
-      }
-      return DBusMethodSuccessResponse(<DBusValue>[]);
-    }
     if (methodCall.interface != 'org.freedesktop.DBus.ObjectManager' ||
         methodCall.name != 'GetManagedObjects') {
       return DBusMethodErrorResponse.unknownMethod();
@@ -84,43 +86,76 @@ class _Neard extends DBusObject {
           DBusObjectPath('/org/neard/nfc0'):
               _interfaces(<String, Map<String, DBusValue>>{
             'org.neard.Adapter': <String, DBusValue>{
-              'Powered': DBusBoolean(powered),
+              'Powered': DBusBoolean(neard.powered),
             },
           }),
-          if (tag)
-            DBusObjectPath('/org/neard/nfc0/tag0'):
+          if (neard.tag)
+            DBusObjectPath(_Neard.tagPath):
                 _interfaces(<String, Map<String, DBusValue>>{
               'org.neard.Tag': <String, DBusValue>{
                 'Type': const DBusString('Type2'),
-                'ReadOnly': DBusBoolean(readOnly),
+                'ReadOnly': DBusBoolean(neard.readOnly),
               },
             }),
         },
       ),
     ]);
   }
+}
+
+class _NeardTag extends DBusObject {
+  _NeardTag(this.neard) : super(DBusObjectPath(_Neard.tagPath));
+
+  final _Neard neard;
+
+  @override
+  List<DBusIntrospectInterface> introspect() => <DBusIntrospectInterface>[
+        DBusIntrospectInterface('org.neard.Tag',
+            methods: <DBusIntrospectMethod>[DBusIntrospectMethod('Write')]),
+      ];
+
+  @override
+  Future<DBusMethodResponse> handleMethodCall(DBusMethodCall methodCall) async {
+    if (methodCall.interface != 'org.neard.Tag' ||
+        methodCall.name != 'Write') {
+      return DBusMethodErrorResponse.unknownMethod();
+    }
+    neard.writes++;
+    final DBusValue argument = methodCall.values.first;
+    neard.written = <String, String>{
+      if (argument is DBusDict)
+        for (final MapEntry<DBusValue, DBusValue> e
+            in argument.children.entries)
+          (e.key as DBusString).value: _plain((e.value as DBusVariant).value),
+    };
+    if (neard.refuse != null) {
+      return DBusMethodErrorResponse('org.neard.Error.Failed',
+          <DBusValue>[DBusString(neard.refuse!)]);
+    }
+    return DBusMethodSuccessResponse(<DBusValue>[]);
+  }
 
   static String _plain(DBusValue value) =>
       value is DBusString ? value.value : value.toString();
-
-  DBusValue _interfaces(Map<String, Map<String, DBusValue>> interfaces) =>
-      DBusDict(
-        DBusSignature('s'),
-        DBusSignature('a{sv}'),
-        <DBusValue, DBusValue>{
-          for (final MapEntry<String, Map<String, DBusValue>> e
-              in interfaces.entries)
-            DBusString(e.key): DBusDict(
-              DBusSignature('s'),
-              DBusSignature('v'),
-              <DBusValue, DBusValue>{
-                for (final MapEntry<String, DBusValue> p in e.value.entries)
-                  DBusString(p.key): DBusVariant(p.value),
-              },
-            ),
-        },
-      );
 }
+
+DBusValue _interfaces(Map<String, Map<String, DBusValue>> interfaces) =>
+    DBusDict(
+      DBusSignature('s'),
+      DBusSignature('a{sv}'),
+      <DBusValue, DBusValue>{
+        for (final MapEntry<String, Map<String, DBusValue>> e
+            in interfaces.entries)
+          DBusString(e.key): DBusDict(
+            DBusSignature('s'),
+            DBusSignature('v'),
+            <DBusValue, DBusValue>{
+              for (final MapEntry<String, DBusValue> p in e.value.entries)
+                DBusString(p.key): DBusVariant(p.value),
+            },
+          ),
+      },
+    );
 
 void main() {
   final bool hasBus =
@@ -136,7 +171,9 @@ void main() {
   Future<void> serving(_Neard it) async {
     neard = it;
     final DBusClient bus = DBusClient.session();
-    await bus.registerObject(it);
+    for (final DBusObject object in it.objects) {
+      await bus.registerObject(object);
+    }
     await bus.requestName('org.neard');
     addTearDown(() async => bus.close());
   }
