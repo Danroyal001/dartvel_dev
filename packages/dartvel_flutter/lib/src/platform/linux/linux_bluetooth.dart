@@ -248,13 +248,14 @@ class DVLinuxBluetooth {
   /// failures, so flattening them into one is throwing away the only part
   /// that tells anybody what to do next.
   static bool _refused(DBusMethodResponseException error, String method) {
-    // Through a local typed as the base response, so this compiles and
-    // reads the same whether the package declares .response as the error
-    // subtype or as the parent -- and carries no cast to be flagged as
-    // unnecessary if it is already the subtype.
-    final DBusMethodResponse response = error.response;
-    final String name =
-        response is DBusMethodErrorResponse ? response.errorName : '';
+    // .response is declared as the error response, so its name and its
+    // values are both here without a cast. An earlier version of this read
+    // it through a local typed as the parent, to be safe against the
+    // package declaring it either way -- which was not safe, it was a guess,
+    // and the parent has no values getter. It broke every target that
+    // compiles this file.
+    final DBusMethodErrorResponse response = error.response;
+    final String name = response.errorName;
     // Already paired is the outcome the caller asked for.
     if (name.endsWith('.AlreadyExists')) {
       lastError = null;
