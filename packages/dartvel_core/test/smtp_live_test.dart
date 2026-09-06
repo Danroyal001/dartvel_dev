@@ -213,13 +213,17 @@ void main() {
 
   test('a line longer than the protocol allows still arrives whole', () async {
     // RFC 5321 caps a line at 998 octets and what a server does past that is
-    // its own choice. The message has to be wrapped or encoded before it
-    // gets there.
+    // its own choice, so the message has to be wrapped before it gets
+    // there. Read back decoded rather than raw: a correct implementation
+    // wraps with quoted-printable soft breaks, and asserting on the source
+    // would be asserting that it had not.
     final String long = 'x' * 2000;
-    final String raw = await _send(_message(text: 'start $long end'));
+    await _send(_message(text: 'start $long end'));
+    final Map<String, Object?> stored =
+        await _json('GET', '/api/v1/message/${(await _inbox()).single['ID']}');
 
-    expect(raw, contains('start'));
-    expect(raw, contains('end'),
+    expect('${stored['Text']}', contains('start'));
+    expect('${stored['Text']}', contains('end'),
         reason: 'the tail of an over-long line was lost');
   });
 
