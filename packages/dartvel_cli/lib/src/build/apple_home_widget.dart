@@ -16,7 +16,12 @@
 /// home widget, and it is all this claims.
 library;
 
-import 'package:dartvel_core/dartvel.dart' show DVHomeWidgetSpec;
+import 'package:dartvel_core/dartvel.dart'
+    show
+        DVHomeWidgetSpec,
+        dvHomeWidgetAppGroup,
+        dvHomeWidgetDataKey,
+        dvHomeWidgetKind;
 
 /// The extension target's name, used for its directory, its bundle and its
 /// build settings. Named once because the pbxproj, the Info.plist path and
@@ -38,14 +43,28 @@ const String dvAppleAppGroupSetting = 'DARTVEL_APP_GROUP';
 /// constant here means the second Dartvel app installed reads the first
 /// one's container, or is refused the entitlement and shows a placeholder
 /// nobody can explain.
-String dvAppleAppGroup(String bundleId) => 'group.$bundleId.dartvelwidgets';
+///
+/// The rule is core's, because the runtime that writes into the container
+/// derives the same group from the same bundle id, and it is in a package
+/// this one cannot import. Two rules is a correctly signed widget reading a
+/// container the application never writes to.
+String dvAppleAppGroup(String bundleId) => dvHomeWidgetAppGroup(bundleId);
 
 /// The kind string WidgetKit addresses this widget by.
 ///
 /// Two widgets sharing a kind is a reload of the wrong one and a timeline
 /// written into the wrong one, with no error at either end.
-String dvAppleWidgetKind(String id) =>
-    'dartvel.widget.${id.replaceAll(RegExp('[^A-Za-z0-9]'), '_')}';
+String dvAppleWidgetKind(String id) => dvHomeWidgetKind(id);
+
+/// [value] as the body of a Swift string literal.
+///
+/// A widget's title is a person's words and can hold a quote or a backslash.
+/// Either one written straight into the generated Swift is a file that does
+/// not compile, at the end of a build that reported success until Xcode ran.
+String _swift(String value) => value
+    .replaceAll(r'\', r'\\')
+    .replaceAll('"', r'\"')
+    .replaceAll('\n', r'\n');
 
 /// [widget]'s name as a Swift type.
 ///
@@ -110,9 +129,16 @@ String dvAppleHomeWidgetSource(List<DVHomeWidgetSpec> widgets, String scheme) {
     ..writeln('/// standard defaults in an extension are the extension\'s own,')
     ..writeln('/// which the application never writes to, so a widget reading')
     ..writeln('/// them shows its placeholder forever.')
-    ..writeln('func dartvelWidgetText(_ kind: String) -> String? {')
+    ..writeln('///')
+    ..writeln('/// The key is passed in whole rather than built here. It is')
+    ..writeln('/// one rule in Dart, written into this file and used by the')
+    ..writeln('/// runtime that does the writing: a key spelled twice is a')
+    ..writeln('/// widget reading a container that has everything in it')
+    ..writeln('/// except what it asked for, with nothing to see at either')
+    ..writeln('/// end.')
+    ..writeln('func dartvelWidgetText(_ key: String) -> String? {')
     ..writeln('    UserDefaults(suiteName: dartvelAppGroup)?')
-    ..writeln('        .string(forKey: "dartvel.widget.text.\\(kind)")')
+    ..writeln('        .string(forKey: key)')
     ..writeln('}')
     ..writeln()
     ..writeln('/// The widget background, on the two eras of WidgetKit.')
@@ -143,22 +169,23 @@ String dvAppleHomeWidgetSource(List<DVHomeWidgetSpec> widgets, String scheme) {
   for (final DVHomeWidgetSpec widget in widgets) {
     final String type = dvAppleWidgetSwiftName(widget);
     final String kind = dvAppleWidgetKind(widget.id);
+    final String key = dvHomeWidgetDataKey(widget.id);
     out
       ..writeln('struct ${type}Provider: TimelineProvider {')
       ..writeln('    func placeholder(in context: Context) -> DartvelEntry {')
-      ..writeln('        DartvelEntry(date: Date(), text: "${widget.id}")')
+      ..writeln('        DartvelEntry(date: Date(), text: "${_swift(widget.label)}")')
       ..writeln('    }')
       ..writeln()
       ..writeln('    func getSnapshot(in context: Context,')
       ..writeln('                     completion: @escaping (DartvelEntry) -> Void) {')
       ..writeln('        completion(DartvelEntry(date: Date(),')
-      ..writeln('            text: dartvelWidgetText("$kind") ?? "${widget.id}"))')
+      ..writeln('            text: dartvelWidgetText("$key") ?? "${_swift(widget.label)}"))')
       ..writeln('    }')
       ..writeln()
       ..writeln('    func getTimeline(in context: Context,')
       ..writeln('                     completion: @escaping (Timeline<DartvelEntry>) -> Void) {')
       ..writeln('        let entry = DartvelEntry(date: Date(),')
-      ..writeln('            text: dartvelWidgetText("$kind") ?? "${widget.id}")')
+      ..writeln('            text: dartvelWidgetText("$key") ?? "${_swift(widget.label)}")')
       // Not .never: a widget that shows what it showed the day it was
       // placed is a legitimate policy and the wrong default for an
       // application's own data. WidgetKit treats this as a request, not a
@@ -174,7 +201,7 @@ String dvAppleHomeWidgetSource(List<DVHomeWidgetSpec> widgets, String scheme) {
       ..writeln()
       ..writeln('    var body: some View {')
       ..writeln('        VStack(alignment: .leading, spacing: 4) {')
-      ..writeln('            Text("${widget.id}")')
+      ..writeln('            Text("${_swift(widget.label)}")')
       ..writeln('                .font(.caption)')
       ..writeln('                .foregroundColor(Color.secondary)')
       ..writeln('            Text(entry.text)')
@@ -196,7 +223,7 @@ String dvAppleHomeWidgetSource(List<DVHomeWidgetSpec> widgets, String scheme) {
       ..writeln('                            provider: ${type}Provider()) { entry in')
       ..writeln('            ${type}View(entry: entry)')
       ..writeln('        }')
-      ..writeln('        .configurationDisplayName("${widget.id}")')
+      ..writeln('        .configurationDisplayName("${_swift(widget.label)}")')
       ..writeln('        .supportedFamilies([.systemSmall, .systemMedium])')
       ..writeln('    }')
       ..writeln('}')
