@@ -10,6 +10,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'ci/spec_coverage.dart';
+
 const _statuses = <String>{'Designed', 'Partial', 'Shipped'};
 const _stabilities = <String>{'Draft', 'Contract'};
 
@@ -21,10 +23,15 @@ int main(List<String> arguments) {
   if (!specFile.existsSync()) return _fail(['NEW_SPEC.md not found']);
   if (!indexFile.existsSync()) return _fail(['docs/spec-status.json not found']);
 
-  final specSections = <String>[
-    for (final line in specFile.readAsLinesSync())
-      if (line.startsWith('# ')) line.substring(2).trim(),
-  ];
+  // Through the shared reader, which skips fenced code blocks.
+  //
+  // This used to take any line starting with "# ", and the specification is
+  // full of shell samples whose comments start the same way. So it demanded
+  // an index entry for `# Mobile`, `# Web`, `# Desktop`, `# etc.` and three
+  // others -- and somebody added them, which is why the index carried seven
+  // sections that were comments in a bash block. Five of them had no status,
+  // no stability and no evidence, because there was nothing to say.
+  final specSections = dvSpecHeadings(specFile.readAsStringSync());
 
   final Object? decoded;
   try {

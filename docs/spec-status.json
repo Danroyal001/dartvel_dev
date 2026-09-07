@@ -770,21 +770,9 @@
         "packages/dartvel_cli/test/inspect_command_test.dart",
         "packages/dartvel_cli/test/mcp_server_test.dart",
         "packages/dartvel_cli/test/project_graph_test.dart",
-        "packages/dartvel_cli/test/spec_command_test.dart"
-      ],
-      "absent": null
-    },
-    {
-      "section": "etc.",
-      "kind": "narrative"
-    },
-    {
-      "section": ".dartvel.sh",
-      "stability": "Draft",
-      "status": "Shipped",
-      "evidence": [
         "packages/dartvel_cli/test/shell_command_test.dart",
-        "packages/dartvel_cli/test/shell_output_test.dart"
+        "packages/dartvel_cli/test/shell_output_test.dart",
+        "packages/dartvel_cli/test/spec_command_test.dart"
       ],
       "absent": "Nothing named. DV.$, dartvel sh and dartvel task all work, the last reading tasks from dartvel.tasks in pubspec.yaml -- verified by declaring one and running it, which is how the shell was found to be discarding the output of any command that exited quickly"
     },
@@ -973,30 +961,7 @@
         "packages/dartvel_cli/test/browser_extension_test.dart",
         "docs/build-targets.md"
       ],
-      "absent": "tizen and vscode build but have never been run; fuchsia's engine does not build at 3.44.5; webOS and Sony eLinux ship a Dart below the 3.12 floor, so their embedders cannot resolve the example"
-    },
-    {
-      "section": "Mobile",
-      "kind": "narrative"
-    },
-    {
-      "section": "Web",
-      "kind": "narrative"
-    },
-    {
-      "section": "Desktop",
-      "kind": "narrative"
-    },
-    {
-      "section": "Television, embedded, and extension platforms",
-      "kind": "narrative"
-    },
-    {
-      "section": "Complete Sony Embedded Linux system images",
-      "stability": "Draft",
-      "status": "Designed",
-      "evidence": [],
-      "absent": "Present: the two targets exist and are routed -- dartvel build sony-elinux-iso and -img resolve to the eLinux bundle build with a format, and the bundle itself is built and verified on a virtual device in CI. Absent: the image. Dartvel bundles no system-imaging toolchain, so after the bundle is built the packaging step reports DV-ELINUX-IMG and skips rather than writing something that is not a bootable image. That is the whole of it: a complete system image needs a root filesystem, a bootloader and a partition layout, none of which this repository has any of, and emitting a file with the right extension would be worse than the honest skip because it would look like the feature."
+      "absent": "tizen and vscode build but have never been run; fuchsia's engine does not build at 3.44.5; webOS and Sony eLinux ship a Dart below the 3.12 floor, so their embedders cannot resolve the example webOS, Sony eLinux and Fuchsia now skip rather than fail, each naming which wall it hit, so a target nobody can build stops reporting a failure about the wrong thing. Present: the two targets exist and are routed -- dartvel build sony-elinux-iso and -img resolve to the eLinux bundle build with a format, and the bundle itself is built and verified on a virtual device in CI. Absent: the image. Dartvel bundles no system-imaging toolchain, so after the bundle is built the packaging step reports DV-ELINUX-IMG and skips rather than writing something that is not a bootable image. That is the whole of it: a complete system image needs a root filesystem, a bootloader and a partition layout, none of which this repository has any of, and emitting a file with the right extension would be worse than the honest skip because it would look like the feature."
     },
     {
       "section": "Unified Development, Transparency, and Contracts",

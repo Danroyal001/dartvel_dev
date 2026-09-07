@@ -46,6 +46,7 @@ jobs:
       #
       # dart, not dart run: this imports only dart: libraries, so it needs
       # no package resolution.
+      - run: dart tool/ci/spec_coverage_check.dart
       - run: dart tool/ci/evidence_reachable_check.dart
 
       # Cheap, and it catches a class of break that reads as flakiness. A
