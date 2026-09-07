@@ -38,11 +38,46 @@ class DVAndroidActivities {
   static Activity? _current;
   static bool _watching = false;
 
-  /// The resumed Activity, or null before the first one resumes.
-  static Activity? get current => _current;
+  /// The resumed Activity, or null when there genuinely is none.
+  ///
+  /// The Dart-side callbacks below are registered when the bindings come up,
+  /// which is after the Flutter engine and therefore after the first Activity
+  /// has already resumed -- and registerActivityLifecycleCallbacks only
+  /// reports what happens from the moment it is called. So onActivityResumed
+  /// never fired for the Activity that was already there, and every kiosk
+  /// enforcement reported that none had resumed on a device where one plainly
+  /// had.
+  ///
+  /// The generated provider registers the same callbacks in its onCreate,
+  /// which Android runs before Application.onCreate returns and so before any
+  /// Activity exists. It sees the first resume. This asks it when the
+  /// Dart-side watcher has nothing, rather than replacing the watcher: the
+  /// provider is generated per project and an application that predates it
+  /// still has the Dart one.
+  static Activity? get current => _current ?? _fromProvider();
 
   /// Whether the application is reporting its Activities.
   static bool get watching => _watching;
+
+  /// The Activity the generated provider is holding, or null.
+  ///
+  /// Looked up the same way the Context is: by name, through the class the
+  /// build writes, with no hidden API and no ActivityThread -- which is
+  /// absent from the public android.jar and is why jnigen could not bind it.
+  ///
+  /// A project built with plain `flutter build` has no provider, and that is
+  /// a null rather than an error here: the Dart watcher is still running and
+  /// will see the next resume.
+  static Activity? _fromProvider() {
+    try {
+      final JClass holder = JClass.forName('dev/dartvel/jni/DartvelContext');
+      final JStaticMethodId method =
+          holder.staticMethodId('activity', '()Landroid/app/Activity;');
+      return method.callNullable(holder, Activity.type, const <dynamic>[]);
+    } on Object {
+      return null;
+    }
+  }
 
   /// Starts watching [application]. Safe to call twice; the second does
   /// nothing, because two registrations mean two callbacks and the second
