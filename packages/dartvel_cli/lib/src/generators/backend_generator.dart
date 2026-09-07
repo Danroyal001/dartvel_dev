@@ -319,6 +319,7 @@ import 'dartvel_backend.g.dart' as cfg;
 import 'package:$pkgName/dartvel_client/model_pages.g.dart' show dartvelModelPages;
 import 'package:$pkgName/dartvel_client/modules_data.g.dart' show registerDartvelModules;
 import 'package:$pkgName/dartvel_client/schedules.g.dart' show dartvelStartBackendSchedules;
+import 'package:$pkgName/dartvel_client/ai_tools.g.dart' show registerDartvelAITools;
 ${backendImports.join('\n')}
 
 // The generated OpenAPI document, served at cfg.apiBasePath + '/openapi.json'.
@@ -661,6 +662,11 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   // ever built a DVScheduler was the scheduler's own unit test, so a job
   // declared on a function never ran once in a served application. Returns
   // without starting a timer when there are no schedules.
+  // Every @DVAITool, registered so a provider can call one. The generated
+  // list carried a name, a description and a file path and nothing else,
+  // which is a catalogue rather than a tool: an assistant could read that a
+  // function existed and had no way to run it.
+  registerDartvelAITools();
   dartvelStartBackendSchedules();
   final router = buildBackendRouter();
   final bindHost = host ?? cfg.backendHost;
@@ -1355,11 +1361,27 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
     final entries = entriesByName.values.toList(growable: false)
       ..sort((a, b) => a.name.compareTo(b.name));
 
+    // Aliases for the files the handlers call into. The entries used to
+    // carry a name, a description and a file path and nothing else, which is
+    // a catalogue rather than a set of tools: an assistant could read that a
+    // function existed and had no way to run it.
+    final Map<String, String> toolAliasByImport = <String, String>{};
+    for (final _AIToolEntry entry in entries) {
+      toolAliasByImport.putIfAbsent(
+        entry.importUri,
+        () => 'tool${toolAliasByImport.length}',
+      );
+    }
+
     final sb = StringBuffer()
       ..writeln('// GENERATED – do not edit.')
       ..writeln('library dartvel_client_ai_tools;')
       ..writeln()
-      ..writeln("import 'package:dartvel_core/dartvel.dart';")
+      ..writeln("import 'package:dartvel_core/dartvel.dart';");
+    for (final MapEntry<String, String> import in toolAliasByImport.entries) {
+      sb.writeln("import '${esc(import.key)}' as ${import.value};");
+    }
+    sb
       ..writeln()
       ..writeln('const List<DVAIToolEntry> dartvelAITools = <DVAIToolEntry>[');
     for (final entry in entries) {
@@ -1372,7 +1394,102 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
         ..writeln('  ),');
     }
     sb.writeln('];');
+
+    // The half that was missing: something an assistant can actually call.
+    //
+    // A JSON Schema per tool, because every provider requires one, and a
+    // handler that reads the arguments out of the input object and calls the
+    // function. A value of the wrong type is refused by name rather than
+    // coerced: a tool that quietly received 0 for a number it could not read
+    // would run and be wrong.
+    sb
+      ..writeln()
+      ..writeln('/// Registers every generated tool so a provider can call')
+      ..writeln('/// them. Idempotent -- the registry overwrites by name.')
+      ..writeln('void registerDartvelAITools() {');
+    if (entries.isEmpty) {
+      sb.writeln('  // This application declares no @DVAITool inputs.');
+    } else {
+      sb.writeln('  const registry = DVAIToolRegistry();');
+    }
+    for (final _AIToolEntry entry in entries) {
+      final String alias = toolAliasByImport[entry.importUri]!;
+      final String schema = entry.parameterNames.isEmpty
+          ? "const <String, DVJsonValue>{}"
+          : '<String, DVJsonValue>{\n'
+              "        'type': const DVJsonString('object'),\n"
+              "        'properties': DVJsonMap(<String, DVJsonValue>{\n"
+              '${[
+                  for (var i = 0; i < entry.parameterNames.length; i++)
+                    "          '${esc(entry.parameterNames[i])}': "
+                        'DVJsonMap(<String, DVJsonValue>{'
+                        "'type': DVJsonString('"
+                        "${_dvJsonSchemaType(entry.parameterTypes[i])}')}),"
+                ].join('\n')}\n'
+              '        }),\n'
+              '      }';
+      final List<String> args = <String>[
+        for (var i = 0; i < entry.parameterNames.length; i++)
+          '${entry.named ? '${entry.parameterNames[i]}: ' : ''}'
+              '_dvToolArg(args, \'${esc(entry.parameterNames[i])}\', '
+              "'${esc(entry.parameterTypes[i])}') "
+              'as ${entry.parameterTypes[i]}',
+      ];
+      sb
+        ..writeln("  registry.register('${esc(entry.name)}',")
+        ..writeln('      (DVJsonObject input) async {')
+        ..writeln('    final args = DVJsonCodec.toJsonObject(input);')
+        ..writeln('    final result = await $alias.${entry.name}('
+            '${args.join(', ')});')
+        ..writeln('    return DVJsonCodec.fromJson(result);')
+        ..writeln('  },')
+        ..writeln("      description: '${esc(entry.description)}',")
+        ..writeln('      parameters: $schema);');
+    }
+    sb.writeln('}');
+
+    if (entries.isNotEmpty) {
+      sb
+        ..writeln()
+        ..writeln('/// One argument, refused by name rather than coerced.')
+        ..writeln('///')
+        ..writeln('/// A tool that quietly received 0 for a number it could')
+        ..writeln('/// not read would run and be wrong, which is the failure')
+        ..writeln('/// a schema exists to prevent.')
+        ..writeln('Object? _dvToolArg('
+            'Map<String, Object?> args, String name, String type) {')
+        ..writeln('  final value = args[name];')
+        ..writeln("  if (value == null && !type.endsWith('?')) {")
+        ..writeln('    throw ArgumentError.value(')
+        ..writeln('        name, name, '
+            "'is required by this tool and was not supplied');")
+        ..writeln('  }')
+        ..writeln('  if (value == null) return null;')
+        ..writeln("  final base = type.replaceAll('?', '');")
+        ..writeln("  if (base == 'int' && value is num) return value.toInt();")
+        ..writeln("  if (base == 'double' && value is num) {")
+        ..writeln('    return value.toDouble();')
+        ..writeln('  }')
+        ..writeln("  if (base == 'String') return value.toString();")
+        ..writeln('  return value;')
+        ..writeln('}');
+    }
     return sb.toString();
+  }
+
+  /// The JSON Schema type a Dart parameter type advertises.
+  ///
+  /// Anything this does not recognise is advertised as a string rather than
+  /// omitted, because a provider requires a type on every property and a
+  /// missing one is a tool it will not call.
+  static String _dvJsonSchemaType(String type) {
+    final String base = type.replaceAll('?', '').trim();
+    if (base == 'int') return 'integer';
+    if (base == 'double' || base == 'num') return 'number';
+    if (base == 'bool') return 'boolean';
+    if (base.startsWith('List')) return 'array';
+    if (base.startsWith('Map')) return 'object';
+    return 'string';
   }
 
   static ({
@@ -1588,7 +1705,7 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       r"""@DVAITool\s*\(\s*(?:description\s*:\s*(['"])(.*?)\1\s*)?\)\s*"""
       r'(?:@[A-Za-z_][A-Za-z0-9_]*(?:\([^)]*\))?\s*)*'
       r'(?:Future<[^>]+>|Future|Stream<[^>]+>|[A-Za-z_][A-Za-z0-9_<>, ?]*)\s+'
-      r'([A-Za-z_][A-Za-z0-9_]*)\s*\(',
+      r'([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)',
       dotAll: true,
     );
     for (final match in pattern.allMatches(source)) {
@@ -1602,11 +1719,21 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
           'dartvel_client/dartvel_client.dart.',
         );
       }
+      final parameterNames = <String>[];
+      final parameterTypes = <String>[];
+      var named = '0';
+      RouteUtils.extractParams(match.group(4) ?? '', (n, t) {
+        parameterNames.add(n);
+        parameterTypes.add(t);
+      }, onNamed: (v) => named = v);
       entriesByName[name] = _AIToolEntry(
         name: name,
         description: match.group(2) ?? '',
         importUri: importUri,
         relativePath: relativePath,
+        parameterNames: parameterNames,
+        parameterTypes: parameterTypes,
+        named: named == '1',
       );
     }
   }
@@ -1622,7 +1749,7 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       r'@DVBackendFunction(?:\([^)]*\))?\s*'
       r'(?:@[A-Za-z_][A-Za-z0-9_]*(?:\([^)]*\))?\s*)*'
       r'(?:Future<[^>]+>|Future|Stream<[^>]+>|[A-Za-z_][A-Za-z0-9_<>, ?]*)\s+'
-      r'([A-Za-z_][A-Za-z0-9_]*)\s*\(',
+      r'([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)',
       dotAll: true,
     );
     for (final match in pattern.allMatches(source)) {
@@ -1633,11 +1760,21 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
           entriesByName.containsKey(publicName)) {
         continue;
       }
+      final parameterNames = <String>[];
+      final parameterTypes = <String>[];
+      var named = '0';
+      RouteUtils.extractParams(match.group(2) ?? '', (n, t) {
+        parameterNames.add(n);
+        parameterTypes.add(t);
+      }, onNamed: (v) => named = v);
       entriesByName[publicName] = _AIToolEntry(
         name: publicName,
         description: 'Backend function $name',
         importUri: importUri,
         relativePath: relativePath,
+        parameterNames: parameterNames,
+        parameterTypes: parameterTypes,
+        named: named == '1',
       );
     }
   }
@@ -1699,11 +1836,26 @@ class _AIToolEntry {
   final String importUri;
   final String relativePath;
 
+  /// What the tool takes, so the generated handler can call it.
+  ///
+  /// The entries used to carry a name, a description and a file path and
+  /// nothing else, which is a catalogue rather than a tool: an assistant
+  /// could read that a function existed and had no way to run it.
+  final List<String> parameterNames;
+  final List<String> parameterTypes;
+
+  /// Whether the parameters are named. A tool declared with named
+  /// parameters has to be called with them.
+  final bool named;
+
   const _AIToolEntry({
     required this.name,
     required this.description,
     required this.importUri,
     required this.relativePath,
+    this.parameterNames = const <String>[],
+    this.parameterTypes = const <String>[],
+    this.named = false,
   });
 }
 

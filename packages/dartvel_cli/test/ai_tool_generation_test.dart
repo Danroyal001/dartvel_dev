@@ -110,4 +110,98 @@ Future<String> rotateLedgerSecret() async => 'hidden';
       }
     }
   });
+
+  test('a declared AI tool is registered with a handler that calls it',
+      () async {
+    // The generated list carried a name, a description and a file path and
+    // nothing else, which is a catalogue rather than a set of tools: an
+    // assistant could read that a function existed and had no way to run it.
+    final root = await Directory.systemTemp.createTemp('dartvel_aitool_run_');
+    try {
+      Directory(p.join(root.path, '.dart_tool')).createSync();
+      Directory(p.join(root.path, 'lib', 'dartvel_client'))
+          .createSync(recursive: true);
+      Directory(p.join(root.path, 'lib', 'backend', 'functions'))
+          .createSync(recursive: true);
+
+      File(p.join(root.path, 'lib', 'backend', 'functions', 'weather.dart'))
+          .writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVAITool(description: 'Current temperature for a city')
+Future<num> temperature(String city, int days) async => 21;
+''');
+
+      await BackendGenerator.generate(
+        root: root.path,
+        backendDir: 'lib/backend',
+        pkgName: 'aitool_app',
+        buildId: 'test-build',
+        backendHost: '127.0.0.1',
+        backendPort: 3000,
+        apiBasePath: '/api',
+      );
+
+      final tools = File(
+        p.join(root.path, 'lib', 'dartvel_client', 'ai_tools.g.dart'),
+      ).readAsStringSync();
+
+      // Registered, with a handler that calls the function.
+      expect(tools, contains('void registerDartvelAITools()'));
+      expect(tools, contains("registry.register('temperature'"));
+      expect(tools, contains('.temperature('));
+      // A schema, because every provider requires one on each tool, and the
+      // types have to survive the trip: an int advertised as a string is a
+      // tool a model will call wrongly.
+      expect(tools, contains("'city'"));
+      expect(tools, contains("DVJsonString('string')"));
+      expect(tools, contains("DVJsonString('integer')"));
+      // Refused by name rather than coerced. A tool that quietly received 0
+      // for a number it could not read would run and be wrong.
+      expect(tools, contains('_dvToolArg('));
+      expect(tools, contains('is required by this tool'));
+
+      // And something has to call the registration, or it is a function in a
+      // generated file nobody imports.
+      final routes = File(
+        p.join(root.path, '.dart_tool', 'dartvel_backend_routes.g.dart'),
+      ).readAsStringSync();
+      expect(routes, contains('registerDartvelAITools()'));
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
+  test('an application with no tools still defines the registration',
+      () async {
+    // The generated backend calls it unconditionally, so an application with
+    // no @DVAITool inputs would otherwise generate a server that does not
+    // compile.
+    final root = await Directory.systemTemp.createTemp('dartvel_aitool_none_');
+    try {
+      Directory(p.join(root.path, '.dart_tool')).createSync();
+      Directory(p.join(root.path, 'lib', 'dartvel_client'))
+          .createSync(recursive: true);
+      Directory(p.join(root.path, 'lib', 'backend', 'functions'))
+          .createSync(recursive: true);
+
+      await BackendGenerator.generate(
+        root: root.path,
+        backendDir: 'lib/backend',
+        pkgName: 'no_tools_app',
+        buildId: 'test-build',
+        backendHost: '127.0.0.1',
+        backendPort: 3000,
+        apiBasePath: '/api',
+      );
+
+      final tools = File(
+        p.join(root.path, 'lib', 'dartvel_client', 'ai_tools.g.dart'),
+      ).readAsStringSync();
+      expect(tools, contains('void registerDartvelAITools()'));
+      expect(tools, isNot(contains('registry.register(')));
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
 }
