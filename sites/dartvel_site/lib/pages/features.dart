@@ -123,12 +123,6 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'than left to the application.',
   ),
   (
-    'Generated Model Pages',
-    'Model.Page(...)',
-    'Public pages from a model, with .async, .signal and .fromId. Static '
-    'paths come from the model rather than a route written out as a string.',
-  ),
-  (
     'Reversible Transactions',
     'DV.transaction',
     'context.afterCommit and context.compensate, so a failure unwinds what '
@@ -358,6 +352,22 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
 /// words. The checker holds this list to the index's Partial sections exactly.
 const List<(String, String, String)> partial = <(String, String, String)>[
   (
+    'Generated Model Pages',
+    'Model.Page(...), without a favicon',
+    'Public pages from a model, with .async, .signal and .fromId. Static '
+    'paths come from the model rather than a route written out as a string. '
+    'Absent: the page favicon. The specification asks for a resized, '
+    'compressed, content-hashed derivative of the featured image, falling '
+    'back through the model, the module and the application. The field '
+    'exists and the head writer emits it, and nothing ever sets it -- the '
+    'resolver fills the title, the description, the image and the structured '
+    'data and leaves the favicon empty, so every model page shows the '
+    'shell\'s. Named rather than half-built: a favicon pointed straight at '
+    'the featured image would serve a several-hundred-kilobyte photograph as '
+    'a thirty-two pixel icon on every page, which is worse than the one it '
+    'replaced.',
+  ),
+  (
     'Lifecycle Signals',
     'Four of six change',
     'DV.lifecycle.app and .build, context.lifecycle.page, .request and '
@@ -542,7 +552,7 @@ Widget _featuresPage(BuildContext context) => SingleChildScrollView(
         const Section(
           children: <Widget>[
             Eyebrow('WHAT WORKS TODAY'),
-            Heading('Thirty-seven shipped sections.', level: 1),
+            Heading('Thirty-six shipped sections.', level: 1),
             Body(
               'This list is the repository’s own record of what is built, not '
               'a description of what is planned. A tool checks it and fails '
@@ -552,7 +562,7 @@ Widget _featuresPage(BuildContext context) => SingleChildScrollView(
               width: 660,
             ),
             Body(
-              'Twenty-one more sections are partial. They are listed as '
+              'Twenty-two more sections are partial. They are listed as '
               'partial, with what is absent written next to what is present.',
               width: 660,
             ),
