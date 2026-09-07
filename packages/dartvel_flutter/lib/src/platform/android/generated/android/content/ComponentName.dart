@@ -36,13 +36,817 @@ import 'dart:core' show Object, String;
 import 'package:jni/_internal.dart' as jni$_;
 import 'package:jni/jni.dart' as jni$_;
 
+import '../../java/lang/Cloneable.dart' as cloneable$_;
+
+import '../../java/lang/Comparable.dart' as comparable$_;
+
+import '../os/Parcel.dart' as parcel$_;
+
+import '../os/Parcelable.dart' as parcelable$_;
+
+import 'Context.dart' as context$_;
+
 /// from: `android.content.ComponentName`
-///
-/// WARNING: ComponentName is a stub. To generate bindings for this class, include
-/// android.content.ComponentName in your config's classes list.
-///
-extension type ComponentName._(jni$_.JObject _$this) implements jni$_.JObject {
+extension type ComponentName._(jni$_.JObject _$this)
+    implements
+        jni$_.JObject,
+        parcelable$_.Parcelable,
+        cloneable$_.Cloneable,
+        comparable$_.Comparable {
+  static final _class = jni$_.JClass.forName(r'android/content/ComponentName');
+
+  /// The type which includes information such as the signature of this class.
   static const jni$_.JType<ComponentName> type = $ComponentName$Type$();
+  static final _id_CREATOR = _class.staticFieldId(
+    r'CREATOR',
+    r'Landroid/os/Parcelable$Creator;',
+  );
+
+  /// from: `static public final android.os.Parcelable$Creator<android.content.ComponentName> CREATOR`
+  /// The returned object must be released after use, by calling the [release] method.
+  static parcelable$_.Parcelable$$Creator? get CREATOR =>
+      _id_CREATOR.getNullable(_class, parcelable$_.Parcelable$$Creator.type)
+          as parcelable$_.Parcelable$$Creator?;
+
+  static final _id_new$ = _class.constructorId(
+    r'(Ljava/lang/String;Ljava/lang/String;)V',
+  );
+
+  static final _new$ =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)
+                >,
+              )
+            >
+          >('globalEnv_NewObject')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void <init>(java.lang.String string, java.lang.String string1)`
+  /// The returned object must be released after use, by calling the [release] method.
+  factory ComponentName(jni$_.JString? string, jni$_.JString? string1) {
+    final _$$classRef = _class.reference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    final _$string1 = string1?.reference ?? jni$_.jNullReference;
+    return _new$(
+      _$$classRef.pointer,
+      _id_new$.pointer,
+      _$string.pointer,
+      _$string1.pointer,
+    ).object<ComponentName>();
+  }
+
+  static final _id_new$1 = _class.constructorId(
+    r'(Landroid/content/Context;Ljava/lang/String;)V',
+  );
+
+  static final _new$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)
+                >,
+              )
+            >
+          >('globalEnv_NewObject')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void <init>(android.content.Context context, java.lang.String string)`
+  /// The returned object must be released after use, by calling the [release] method.
+  factory ComponentName.new$1(
+    context$_.Context? context,
+    jni$_.JString? string,
+  ) {
+    final _$$classRef = _class.reference;
+    final _$context = context?.reference ?? jni$_.jNullReference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    return _new$1(
+      _$$classRef.pointer,
+      _id_new$1.pointer,
+      _$context.pointer,
+      _$string.pointer,
+    ).object<ComponentName>();
+  }
+
+  static final _id_new$2 = _class.constructorId(
+    r'(Landroid/content/Context;Ljava/lang/Class;)V',
+  );
+
+  static final _new$2 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)
+                >,
+              )
+            >
+          >('globalEnv_NewObject')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void <init>(android.content.Context context, java.lang.Class<?> class)`
+  /// The returned object must be released after use, by calling the [release] method.
+  factory ComponentName.new$2(
+    context$_.Context? context,
+    jni$_.JClass? class$,
+  ) {
+    final _$$classRef = _class.reference;
+    final _$context = context?.reference ?? jni$_.jNullReference;
+    final _$class$ = class$?.reference ?? jni$_.jNullReference;
+    return _new$2(
+      _$$classRef.pointer,
+      _id_new$2.pointer,
+      _$context.pointer,
+      _$class$.pointer,
+    ).object<ComponentName>();
+  }
+
+  static final _id_new$3 = _class.constructorId(r'(Landroid/os/Parcel;)V');
+
+  static final _new$3 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_NewObject')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void <init>(android.os.Parcel parcel)`
+  /// The returned object must be released after use, by calling the [release] method.
+  factory ComponentName.new$3(parcel$_.Parcel? parcel) {
+    final _$$classRef = _class.reference;
+    final _$parcel = parcel?.reference ?? jni$_.jNullReference;
+    return _new$3(
+      _$$classRef.pointer,
+      _id_new$3.pointer,
+      _$parcel.pointer,
+    ).object<ComponentName>();
+  }
+
+  static final _id_createRelative = _class.staticMethodId(
+    r'createRelative',
+    r'(Ljava/lang/String;Ljava/lang/String;)Landroid/content/ComponentName;',
+  );
+
+  static final _createRelative =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)
+                >,
+              )
+            >
+          >('globalEnv_CallStaticObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `static public android.content.ComponentName createRelative(java.lang.String string, java.lang.String string1)`
+  /// The returned object must be released after use, by calling the [release] method.
+  static ComponentName? createRelative(
+    jni$_.JString? string,
+    jni$_.JString? string1,
+  ) {
+    final _$$classRef = _class.reference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    final _$string1 = string1?.reference ?? jni$_.jNullReference;
+    return _createRelative(
+      _$$classRef.pointer,
+      _id_createRelative.pointer,
+      _$string.pointer,
+      _$string1.pointer,
+    ).object<ComponentName?>();
+  }
+
+  static final _id_createRelative$1 = _class.staticMethodId(
+    r'createRelative',
+    r'(Landroid/content/Context;Ljava/lang/String;)Landroid/content/ComponentName;',
+  );
+
+  static final _createRelative$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)
+                >,
+              )
+            >
+          >('globalEnv_CallStaticObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `static public android.content.ComponentName createRelative(android.content.Context context, java.lang.String string)`
+  /// The returned object must be released after use, by calling the [release] method.
+  static ComponentName? createRelative$1(
+    context$_.Context? context,
+    jni$_.JString? string,
+  ) {
+    final _$$classRef = _class.reference;
+    final _$context = context?.reference ?? jni$_.jNullReference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    return _createRelative$1(
+      _$$classRef.pointer,
+      _id_createRelative$1.pointer,
+      _$context.pointer,
+      _$string.pointer,
+    ).object<ComponentName?>();
+  }
+
+  static final _id_unflattenFromString = _class.staticMethodId(
+    r'unflattenFromString',
+    r'(Ljava/lang/String;)Landroid/content/ComponentName;',
+  );
+
+  static final _unflattenFromString =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallStaticObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `static public android.content.ComponentName unflattenFromString(java.lang.String string)`
+  /// The returned object must be released after use, by calling the [release] method.
+  static ComponentName? unflattenFromString(jni$_.JString? string) {
+    final _$$classRef = _class.reference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    return _unflattenFromString(
+      _$$classRef.pointer,
+      _id_unflattenFromString.pointer,
+      _$string.pointer,
+    ).object<ComponentName?>();
+  }
+
+  static final _id_writeToParcel$1 = _class.staticMethodId(
+    r'writeToParcel',
+    r'(Landroid/content/ComponentName;Landroid/os/Parcel;)V',
+  );
+
+  static final _writeToParcel$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<
+                  (jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)
+                >,
+              )
+            >
+          >('globalEnv_CallStaticVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `static public void writeToParcel(android.content.ComponentName componentName, android.os.Parcel parcel)`
+  static void writeToParcel$1(
+    ComponentName? componentName,
+    parcel$_.Parcel? parcel,
+  ) {
+    final _$$classRef = _class.reference;
+    final _$componentName = componentName?.reference ?? jni$_.jNullReference;
+    final _$parcel = parcel?.reference ?? jni$_.jNullReference;
+    _writeToParcel$1(
+      _$$classRef.pointer,
+      _id_writeToParcel$1.pointer,
+      _$componentName.pointer,
+      _$parcel.pointer,
+    ).check();
+  }
+
+  static final _id_readFromParcel = _class.staticMethodId(
+    r'readFromParcel',
+    r'(Landroid/os/Parcel;)Landroid/content/ComponentName;',
+  );
+
+  static final _readFromParcel =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallStaticObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `static public android.content.ComponentName readFromParcel(android.os.Parcel parcel)`
+  /// The returned object must be released after use, by calling the [release] method.
+  static ComponentName? readFromParcel(parcel$_.Parcel? parcel) {
+    final _$$classRef = _class.reference;
+    final _$parcel = parcel?.reference ?? jni$_.jNullReference;
+    return _readFromParcel(
+      _$$classRef.pointer,
+      _id_readFromParcel.pointer,
+      _$parcel.pointer,
+    ).object<ComponentName?>();
+  }
+}
+
+extension ComponentName$$Methods on ComponentName {
+  static final _id_clone = ComponentName._class.instanceMethodId(
+    r'clone',
+    r'()Landroid/content/ComponentName;',
+  );
+
+  static final _clone =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public android.content.ComponentName clone()`
+  /// The returned object must be released after use, by calling the [release] method.
+  ComponentName? clone() {
+    final _$$selfRef = reference;
+    return _clone(
+      _$$selfRef.pointer,
+      _id_clone.pointer,
+    ).object<ComponentName?>();
+  }
+
+  static final _id_get$packageName = ComponentName._class.instanceMethodId(
+    r'getPackageName',
+    r'()Ljava/lang/String;',
+  );
+
+  static final _get$packageName =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public java.lang.String getPackageName()`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JString? get packageName {
+    final _$$selfRef = reference;
+    return _get$packageName(
+      _$$selfRef.pointer,
+      _id_get$packageName.pointer,
+    ).object<jni$_.JString?>();
+  }
+
+  static final _id_get$className = ComponentName._class.instanceMethodId(
+    r'getClassName',
+    r'()Ljava/lang/String;',
+  );
+
+  static final _get$className =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public java.lang.String getClassName()`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JString? get className {
+    final _$$selfRef = reference;
+    return _get$className(
+      _$$selfRef.pointer,
+      _id_get$className.pointer,
+    ).object<jni$_.JString?>();
+  }
+
+  static final _id_get$shortClassName = ComponentName._class.instanceMethodId(
+    r'getShortClassName',
+    r'()Ljava/lang/String;',
+  );
+
+  static final _get$shortClassName =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public java.lang.String getShortClassName()`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JString? get shortClassName {
+    final _$$selfRef = reference;
+    return _get$shortClassName(
+      _$$selfRef.pointer,
+      _id_get$shortClassName.pointer,
+    ).object<jni$_.JString?>();
+  }
+
+  static final _id_flattenToString = ComponentName._class.instanceMethodId(
+    r'flattenToString',
+    r'()Ljava/lang/String;',
+  );
+
+  static final _flattenToString =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public java.lang.String flattenToString()`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JString? flattenToString() {
+    final _$$selfRef = reference;
+    return _flattenToString(
+      _$$selfRef.pointer,
+      _id_flattenToString.pointer,
+    ).object<jni$_.JString?>();
+  }
+
+  static final _id_flattenToShortString = ComponentName._class.instanceMethodId(
+    r'flattenToShortString',
+    r'()Ljava/lang/String;',
+  );
+
+  static final _flattenToShortString =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public java.lang.String flattenToShortString()`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JString? flattenToShortString() {
+    final _$$selfRef = reference;
+    return _flattenToShortString(
+      _$$selfRef.pointer,
+      _id_flattenToShortString.pointer,
+    ).object<jni$_.JString?>();
+  }
+
+  static final _id_toShortString = ComponentName._class.instanceMethodId(
+    r'toShortString',
+    r'()Ljava/lang/String;',
+  );
+
+  static final _toShortString =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public java.lang.String toShortString()`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JString? toShortString() {
+    final _$$selfRef = reference;
+    return _toShortString(
+      _$$selfRef.pointer,
+      _id_toShortString.pointer,
+    ).object<jni$_.JString?>();
+  }
+
+  static final _id_toString$1 = ComponentName._class.instanceMethodId(
+    r'toString',
+    r'()Ljava/lang/String;',
+  );
+
+  static final _toString$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public java.lang.String toString()`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JString? toString$1() {
+    final _$$selfRef = reference;
+    return _toString$1(
+      _$$selfRef.pointer,
+      _id_toString$1.pointer,
+    ).object<jni$_.JString?>();
+  }
+
+  static final _id_equals = ComponentName._class.instanceMethodId(
+    r'equals',
+    r'(Ljava/lang/Object;)Z',
+  );
+
+  static final _equals =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public boolean equals(java.lang.Object object)`
+  core$_.bool equals(jni$_.JObject? object) {
+    final _$$selfRef = reference;
+    final _$object = object?.reference ?? jni$_.jNullReference;
+    return _equals(
+      _$$selfRef.pointer,
+      _id_equals.pointer,
+      _$object.pointer,
+    ).boolean;
+  }
+
+  static final _id_hashCode$1 = ComponentName._class.instanceMethodId(
+    r'hashCode',
+    r'()I',
+  );
+
+  static final _hashCode$1 =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public int hashCode()`
+  core$_.int hashCode$1() {
+    final _$$selfRef = reference;
+    return _hashCode$1(_$$selfRef.pointer, _id_hashCode$1.pointer).integer;
+  }
+
+  static final _id_compareTo = ComponentName._class.instanceMethodId(
+    r'compareTo',
+    r'(Landroid/content/ComponentName;)I',
+  );
+
+  static final _compareTo =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public int compareTo(android.content.ComponentName componentName)`
+  core$_.int compareTo(ComponentName? componentName) {
+    final _$$selfRef = reference;
+    final _$componentName = componentName?.reference ?? jni$_.jNullReference;
+    return _compareTo(
+      _$$selfRef.pointer,
+      _id_compareTo.pointer,
+      _$componentName.pointer,
+    ).integer;
+  }
+
+  static final _id_describeContents = ComponentName._class.instanceMethodId(
+    r'describeContents',
+    r'()I',
+  );
+
+  static final _describeContents =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public int describeContents()`
+  core$_.int describeContents() {
+    final _$$selfRef = reference;
+    return _describeContents(
+      _$$selfRef.pointer,
+      _id_describeContents.pointer,
+    ).integer;
+  }
+
+  static final _id_writeToParcel = ComponentName._class.instanceMethodId(
+    r'writeToParcel',
+    r'(Landroid/os/Parcel;I)V',
+  );
+
+  static final _writeToParcel =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>, jni$_.Int32)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public void writeToParcel(android.os.Parcel parcel, int i)`
+  void writeToParcel(parcel$_.Parcel? parcel, core$_.int i) {
+    final _$$selfRef = reference;
+    final _$parcel = parcel?.reference ?? jni$_.jNullReference;
+    _writeToParcel(
+      _$$selfRef.pointer,
+      _id_writeToParcel.pointer,
+      _$parcel.pointer,
+      i,
+    ).check();
+  }
+
+  core$_.bool operator <(ComponentName? componentName) {
+    return compareTo(componentName) < 0;
+  }
+
+  core$_.bool operator <=(ComponentName? componentName) {
+    return compareTo(componentName) <= 0;
+  }
+
+  core$_.bool operator >(ComponentName? componentName) {
+    return compareTo(componentName) > 0;
+  }
+
+  core$_.bool operator >=(ComponentName? componentName) {
+    return compareTo(componentName) >= 0;
+  }
 }
 
 final class $ComponentName$Type$ extends jni$_.JType<ComponentName> {
