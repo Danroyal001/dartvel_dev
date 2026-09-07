@@ -652,9 +652,16 @@ Future<Map<String, bool>> ping() async => <String, bool>{'ok': true};
       // A function that declares no policy is not gated. Without this the
       // test would pass just as well if every route were guarded by the
       // empty string, which denies everything.
+      // Bounded to the route it belongs to. A fixed window spills into the
+      // next router.get, which is the guarded one, and the assertion then
+      // fails against code that is correct.
       final int pingAt = routes.indexOf("'/ping'");
       expect(pingAt, greaterThan(-1));
-      final String pingHandler = routes.substring(pingAt, pingAt + 400);
+      final int nextRoute = routes.indexOf('router.', pingAt);
+      final String pingHandler = routes.substring(
+        pingAt,
+        nextRoute == -1 ? routes.length : nextRoute,
+      );
       expect(pingHandler, isNot(contains('_dvAllowed')));
     } finally {
       root.deleteSync(recursive: true);

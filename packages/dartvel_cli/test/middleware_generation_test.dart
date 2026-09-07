@@ -101,8 +101,9 @@ Future<Map<String, bool>> ping() async => <String, bool>{'ok': true};
       // list, which is a different bug wearing the same output.
       final pingAt = routes.indexOf("'/ping'");
       expect(pingAt, greaterThan(-1));
+      final nextRoute = routes.indexOf('router.', pingAt);
       expect(
-        routes.substring(pingAt, pingAt + 120),
+        routes.substring(pingAt, nextRoute == -1 ? routes.length : nextRoute),
         isNot(contains('_dvGuarded')),
       );
     } finally {
