@@ -191,6 +191,28 @@ class ModelGenerator {
           if (RegExp(r'\bshowInForms\s*:\s*true\b').hasMatch(args)) {
             sensitiveFormFields.add(name);
           }
+          // `encrypted: true` documents itself as requesting at-rest
+          // encryption. Dartvel has no server-side field-encryption key
+          // surface yet -- DVAppKeyCipher is a per-device key bound to a
+          // platform key store (Keychain, DPAPI, libsecret, Android
+          // Keystore), not a server process, and DV.Secrets only reads
+          // configuration values, it does not encrypt anything. Silently
+          // keeping the flag and writing plaintext would be worse than
+          // refusing: a developer who wrote `encrypted: true` believes the
+          // column is encrypted. Refuse at generation time instead, naming
+          // exactly what is missing.
+          if (RegExp(r'\bencrypted\s*:\s*true\b').hasMatch(args)) {
+            throw StateError(
+              'Field "$name" on $sourceClassName declares '
+              '@DVModel.sensitiveField(encrypted: true), but Dartvel has no '
+              'at-rest field encryption implemented yet: nothing wires an '
+              'encryption key to this column, so the value would be stored '
+              'as plaintext under a flag that promises it is not. Remove '
+              '`encrypted: true` and encrypt the value yourself before it '
+              'reaches this field, or wait for field-level encryption to '
+              'ship (see docs/spec-status.json under models).',
+            );
+          }
         }
 
         // Generated model pages compose fields semantically rather than

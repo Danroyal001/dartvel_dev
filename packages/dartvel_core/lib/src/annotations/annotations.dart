@@ -218,9 +218,14 @@ class DVModel {
   /// By default a sensitive field is excluded from public serialization
   /// (`toPublicJson`), generated model pages/tables/cards, search indexing,
   /// analytics, traces, and logs, and requires explicit policy authorization
-  /// before it can be sent to clients. Set [encrypted] to request at-rest
-  /// encryption, and use [showInForms]/[showInAdmin] to opt specific generated
-  /// UI surfaces back in.
+  /// before it can be sent to clients. Use [showInForms]/[showInAdmin] to opt
+  /// specific generated UI surfaces back in.
+  ///
+  /// [encrypted] is not implemented: Dartvel has no server-side field
+  /// encryption key surface yet, so `encrypted: true` cannot ask for
+  /// anything and the generator refuses at generation time rather than
+  /// storing the field as plaintext under a flag that says otherwise. See
+  /// `docs/spec-status.json` for status.
   const DVModel.sensitiveField({
     this.encrypted = false,
     this.showInForms = false,
