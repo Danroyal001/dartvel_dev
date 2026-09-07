@@ -127,3 +127,24 @@ String? dvBackendPolicyFromSource(String source) {
   if (value == null || value == 'null') return null;
   return value;
 }
+
+/// The middleware keys a `@DVUseMiddleware` source declares, in order.
+///
+/// Order matters and is the declared one: a maintenance check that runs
+/// after a rate limiter would count requests the application is not serving,
+/// and an auth check that runs after a logger writes the path of a request
+/// nobody was allowed to make.
+///
+/// [source] is the declaration's own source, so a file holding several
+/// backend functions gives each its own list rather than the first one's.
+List<String> dvMiddlewareKeysFromSource(String source) {
+  final RegExpMatch? annotation = RegExp(
+    r'@DVUseMiddleware\s*\(\s*\[(.*?)\]\s*\)',
+    dotAll: true,
+  ).firstMatch(source);
+  if (annotation == null) return const <String>[];
+  return RegExp(r'DVMiddlewares\.([A-Za-z_][A-Za-z0-9_]*)')
+      .allMatches(annotation.group(1) ?? '')
+      .map((RegExpMatch m) => m.group(1)!)
+      .toList(growable: false);
+}
