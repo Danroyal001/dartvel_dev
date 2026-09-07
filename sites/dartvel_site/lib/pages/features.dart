@@ -480,7 +480,7 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   (
     'Billing',
     'Stripe and Paddle; not the app stores',
-    'Present: checkout for a plan\'s configured price and webhooks that grant and revoke entitlements, each believed only when its own signature matches in constant time within five minutes. Absent: App Store and Play Billing purchases, which need the store bindings.',
+    'Present: checkout for a plan\'s configured price and webhooks that grant and revoke entitlements, each believed only when its own signature matches in constant time within five minutes. Absent: App Store and Play Billing purchases, which need the store bindings; and the two billing arguments on the model annotation, which are declared and read by nothing anywhere, so a model marked billable is a model with a comment on it. Named here rather than emitted into generated metadata nothing reads, because a value written down and never acted on is the same silence in a new place.',
   ),
   (
     'Desktop, Embedded, and Qt-Critical Capabilities',
