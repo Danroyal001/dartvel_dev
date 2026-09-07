@@ -255,4 +255,48 @@ Future<Map<String, bool>> _pay(String orderId) async => <String, bool>{'ok': tru
       root.deleteSync(recursive: true);
     }
   });
+
+  test('a tool that returns nothing still compiles', () async {
+    // await on a void or Future<void> function produces void, and assigning
+    // that does not compile. A tool that sends an email and returns nothing
+    // is an ordinary tool, and a handler that assigned its result would be a
+    // server that will not build -- found by reading the emitted code rather
+    // than by a compiler, because nothing here compiles generated output.
+    final root = await Directory.systemTemp.createTemp('dartvel_aitool_void_');
+    try {
+      Directory(p.join(root.path, '.dart_tool')).createSync();
+      Directory(p.join(root.path, 'lib', 'dartvel_client'))
+          .createSync(recursive: true);
+      Directory(p.join(root.path, 'lib', 'backend', 'functions'))
+          .createSync(recursive: true);
+
+      File(p.join(root.path, 'lib', 'backend', 'functions', 'notify.dart'))
+          .writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVAITool(description: 'Tell the owner')
+Future<void> notifyOwner(String message) async {}
+''');
+
+      await BackendGenerator.generate(
+        root: root.path,
+        backendDir: 'lib/backend',
+        pkgName: 'void_tool_app',
+        buildId: 'test-build',
+        backendHost: '127.0.0.1',
+        backendPort: 3000,
+        apiBasePath: '/api',
+      );
+
+      final tools = File(
+        p.join(root.path, 'lib', 'dartvel_client', 'ai_tools.g.dart'),
+      ).readAsStringSync();
+
+      expect(tools, contains('.notifyOwner('));
+      expect(tools, contains('const DVJsonNull()'));
+      expect(tools, isNot(contains('final result = await')));
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
 }
