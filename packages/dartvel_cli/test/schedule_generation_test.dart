@@ -160,4 +160,55 @@ Future<void> cleanupExpiredSessions() async {}
       if (root.existsSync()) root.deleteSync(recursive: true);
     }
   });
+
+  test('a client cron schedule is started by the runtime', () async {
+    // The client entries were generated and nothing started them, so a
+    // schedule declared on a page never ran once. Its handlers live in their
+    // own file because the generated backend imports schedules.g.dart, and a
+    // page pulled in there would put Flutter into a server with no dart:ui.
+    final root = await Directory.systemTemp.createTemp('dartvel_client_cron_');
+    try {
+      Directory(p.join(root.path, '.dart_tool')).createSync();
+      Directory(p.join(root.path, 'lib', 'dartvel_client'))
+          .createSync(recursive: true);
+      Directory(p.join(root.path, 'lib', 'backend', 'functions'))
+          .createSync(recursive: true);
+      final pagesDir = Directory(p.join(root.path, 'lib', 'pages'))
+        ..createSync(recursive: true);
+
+      File(p.join(pagesDir.path, 'refresh.dart')).writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVClientCron('*/5 * * * *')
+void refreshDashboard() {}
+''');
+
+      await BackendGenerator.generate(
+        root: root.path,
+        backendDir: 'lib/backend',
+        pkgName: 'client_cron_app',
+        buildId: 'test-build',
+        backendHost: '127.0.0.1',
+        backendPort: 3000,
+        apiBasePath: '/api',
+      );
+
+      final client = File(
+        p.join(root.path, 'lib', 'dartvel_client', 'client_schedules.g.dart'),
+      ).readAsStringSync();
+      expect(client, contains('dartvelClientCronHandlers'));
+      expect(client, contains('refreshDashboard()'));
+      expect(client, contains('DVScheduler('));
+      expect(client, contains('.tick()'));
+
+      // And the page it came from must not be dragged into the backend's
+      // file, which is the reason there are two.
+      final backend = File(
+        p.join(root.path, 'lib', 'dartvel_client', 'schedules.g.dart'),
+      ).readAsStringSync();
+      expect(backend, isNot(contains('pages/refresh.dart')));
+    } finally {
+      if (root.existsSync()) root.deleteSync(recursive: true);
+    }
+  });
 }

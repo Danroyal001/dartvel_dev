@@ -378,7 +378,7 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   ),
   (
     'Scheduling',
-    'Backend cron runs; the client half does not',
+    'Cron on both sides, and it runs now',
     'Five-field cron parsed the way cron actually reads it, day-of-month OR '
     'day-of-week, with nextAfter for the next tick and a scheduler that '
     'dispatches onto the queue rather than running inline. The scheduler was '
@@ -387,9 +387,10 @@ const List<(String, String, String)> partial = <(String, String, String)>[
     'backend function travelled into a generated list and stopped, and this '
     'entry said it ran. A served backend now registers every declared '
     'schedule and ticks, and an application with none starts no timer. The '
-    'client half is generated and still not started -- the client runtime '
-    'has nowhere a periodic tick belongs yet, and a starter nobody calls '
-    'would be the same silence one file over.',
+    'client half runs too, started by the generated runtime, and its '
+    'handlers live in their own file: the backend imports the other one, '
+    'and a schedule declared on a page would otherwise pull Flutter into a '
+    'server that has no screen.',
   ),
   (
     'Middleware',
