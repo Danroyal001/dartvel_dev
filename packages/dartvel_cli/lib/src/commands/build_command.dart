@@ -27,6 +27,7 @@ import '../build/pwa_icons.dart';
 import '../build/pwa_manifest.dart';
 import '../secrets/secrets_analysis.dart';
 import '../build/pwa_service_worker.dart';
+import '../build/sdk_floor.dart';
 import '../build/seo_head.dart';
 import '../build/page_text.dart';
 import '../build/semantic_html.dart';
@@ -1472,6 +1473,21 @@ class BuildCommand extends Command<void> {
       return _PlatformBuildResult.skipped;
     }
 
+    // Before anything is generated: the embedder is installed, and the
+    // question left is whether the Dart it carries can build this project.
+    //
+    // When it cannot, pub refuses to solve inside the scaffold that has just
+    // been written, Dartvel deletes the half-written directory, and the
+    // build reports that it could not generate a scaffold -- a true message
+    // about the wrong thing. The toolchain rule says such a target skips
+    // cleanly with a clear message, and this is the wall that is not the
+    // toolchain being absent: it is present, and it is too old.
+    final String? tooOld = await _embedderBelowFloor(platform, plan);
+    if (tooOld != null) {
+      Logger.log('⚠️  $tooOld');
+      return _PlatformBuildResult.skipped;
+    }
+
     // These embedders refuse a project with no platform directory. That
     // directory is generated output, so Dartvel generates it rather than
     // failing with the vendor's "not configured" message and a manual step.
@@ -1490,8 +1506,24 @@ class BuildCommand extends Command<void> {
         runInShell: true,
         environment: _buildEnvironment,
       );
-      scaffold.stdout.listen((data) => stdout.add(data));
-      scaffold.stderr.listen((data) => stderr.add(data));
+      // Kept for the same reason as the build's own output below: the
+      // vendor's `create` runs pub inside the scaffold it just wrote, and
+      // when that refuses on the SDK the message is the only thing that says
+      // which wall was hit.
+      final StringBuffer scaffoldSaid = StringBuffer();
+      void keepScaffold(List<int> data) {
+        if (scaffoldSaid.length > 64 * 1024) return;
+        scaffoldSaid.write(systemEncoding.decode(data, allowMalformed: true));
+      }
+
+      scaffold.stdout.listen((data) {
+        stdout.add(data);
+        keepScaffold(data);
+      });
+      scaffold.stderr.listen((data) {
+        stderr.add(data);
+        keepScaffold(data);
+      });
       // Scaffold generation shells out to the vendor CLI, which is exactly
       // the kind of process that has hung before. Bounded at a share of the
       // build's allowance: generating a platform directory is quick, and one
@@ -1514,6 +1546,18 @@ class BuildCommand extends Command<void> {
           generated.deleteSync(recursive: true);
           Logger.log('   Removed the partial $scaffoldDir/ scaffold.');
         }
+        final String? refused = dvSdkFloorRefusal(
+          target: platform,
+          output: scaffoldSaid.toString(),
+        );
+        if (refused != null) {
+          // Not a scaffold that could not be written -- one that was written
+          // and then refused by the embedder's own pub. Reporting the first
+          // is a true message about the wrong thing, and it sent people
+          // looking for a fault in the project.
+          Logger.log('⚠️  $refused');
+          return _PlatformBuildResult.skipped;
+        }
         Logger.log('❌ Could not generate the $scaffoldDir/ scaffold.');
         return _PlatformBuildResult.failed;
       }
@@ -1526,8 +1570,26 @@ class BuildCommand extends Command<void> {
       runInShell: true,
       environment: _environmentFor(plan),
     );
-    proc.stdout.listen((data) => stdout.add(data));
-    proc.stderr.listen((data) => stderr.add(data));
+    // Passed through and kept. Kept because the reason a build failed is
+    // sometimes in it and nowhere else: an embedder with no CLI to ask for
+    // its version says so through its own pub, mid-build, and that message
+    // is the difference between a target that is broken and one that cannot
+    // be built here at all. Bounded, because a build can print a great deal
+    // and only the tail carries the refusal.
+    final StringBuffer said = StringBuffer();
+    void keep(List<int> data) {
+      if (said.length > 64 * 1024) return;
+      said.write(systemEncoding.decode(data, allowMalformed: true));
+    }
+
+    proc.stdout.listen((data) {
+      stdout.add(data);
+      keep(data);
+    });
+    proc.stderr.listen((data) {
+      stderr.add(data);
+      keep(data);
+    });
     final exitCode = await _awaitBuild(
       proc,
       timeout: timeout,
@@ -1536,6 +1598,18 @@ class BuildCommand extends Command<void> {
     if (exitCode == null) return _PlatformBuildResult.failed;
 
     if (exitCode != 0) {
+      // The toolchain refusing this project for a stated reason is a skip,
+      // not a failure. Its own pub said the Dart it has cannot solve against
+      // Dartvel's floor, which is the same wall the version probe catches
+      // for the embedders that have a CLI to ask.
+      final String? refused = dvSdkFloorRefusal(
+        target: platform,
+        output: said.toString(),
+      );
+      if (refused != null) {
+        Logger.log('⚠️  $refused');
+        return _PlatformBuildResult.skipped;
+      }
       Logger.log('❌ $label build failed');
       return _PlatformBuildResult.failed;
     }
@@ -2551,6 +2625,40 @@ class BuildCommand extends Command<void> {
   /// so without this the build would install a toolchain and then immediately
   /// report it as missing.
   final _installedToolPaths = <String>[];
+
+
+  /// Whether [platform]'s embedder bundles a Dart older than Dartvel's floor.
+  ///
+  /// Returns what to say, or null to carry on. Asked by running the vendor CLI
+  /// with `--version`, which every one of them answers because every one of
+  /// them wraps Flutter's own.
+  ///
+  /// A CLI that will not run, times out, or prints something unrecognisable is
+  /// not "too old": it is a reason to try the build and let that say what is
+  /// wrong, rather than refusing a target here for a formatting change in
+  /// somebody else's tool.
+  Future<String?> _embedderBelowFloor(
+    String platform,
+    EmbeddedBuildPlan plan,
+  ) async {
+    final String executable = plan.executable;
+    try {
+      final ProcessResult probe = await Process.run(
+        executable,
+        const <String>['--version'],
+        runInShell: true,
+        environment: _buildEnvironment,
+      ).timeout(const Duration(minutes: 2));
+      if (probe.exitCode != 0) return null;
+      return dvEmbedderTooOld(
+        target: platform,
+        executable: executable,
+        versionOutput: '${probe.stdout}\n${probe.stderr}',
+      );
+    } on Object {
+      return null;
+    }
+  }
 
   /// The environment child processes should see, including anything installed
   /// during this run. Null when nothing was installed, so the child simply
