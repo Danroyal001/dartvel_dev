@@ -13,6 +13,7 @@ import 'function_body.dart';
 import '../graph/module_mounts.dart';
 import 'route_blocks.dart';
 import 'page_names.dart';
+import 'page_policy.dart';
 import 'symbol_qualifier.dart';
 import 'static_paths_generator.dart';
 import 'package:file/local.dart';
@@ -297,6 +298,7 @@ class ClientGenerator {
           publicName: publicName,
           generatedWidget: _generatedPageWidgetName(className),
           pageScaffold: _pageScaffoldSpec(src),
+          policy: _pagePolicy(src),
           route: route,
           directory: dir,
           isFunctional: isFunctional,
@@ -756,7 +758,7 @@ ${_moduleBackendSource(dv)}    final url = kReleaseMode ? cfg.dvProdBackendHost 
       return expr;
     }
 
-    String guardRedirectFor(String dir) {
+    String guardRedirectFor(String dir, String? policy) {
       // Build ancestor chain from pagesDir to dir; collect guards
       final parts = <String>[];
       var cur = dir;
@@ -771,14 +773,11 @@ ${_moduleBackendSource(dv)}    final url = kReleaseMode ? cfg.dvProdBackendHost 
           .where((d) => guardMapByDir.containsKey(d))
           .map((d) => guardMapByDir[d]!)
           .toList();
-      if (chain.isEmpty) return '';
-      final calls = chain
-          .map(
-            (a) =>
-                '      { final r = await $a.guard(context, state); if (r != null) return r; }',
-          )
-          .join('\n');
-      return '\n      redirect: (context, state) async {\n$calls\n        return null;\n      },\n';
+      // One redirect however many guards, and the directory chain first: a
+      // page can be under a guarded folder and carry a policy of its own,
+      // and replacing the chain with the policy would quietly drop the
+      // folder's guard.
+      return dvPageGuardChain(directoryGuards: chain, policy: policy);
     }
 
     // A route per model that asked Dartvel to generate its pages. Without
@@ -835,7 +834,7 @@ ${_moduleBackendSource(dv)}    final url = kReleaseMode ? cfg.dvProdBackendHost 
           (e) => '''
     GoRoute(
       path: '${esc(e.route)}',
-${guardRedirectFor(e.directory)}      pageBuilder: (context, state) {
+${guardRedirectFor(e.directory, e.policy)}      pageBuilder: (context, state) {
         final params = Map<String, String>.from(state.pathParameters);
         final query  = Map<String, String>.from(state.uri.queryParameters);
         final page = const ${e.generatedWidget}();
@@ -982,7 +981,7 @@ ${(() {
     // everybody has to sign into is a documentation module nobody can read.
     // Independent and federated have their own session elsewhere, so the
     // parent's guard is not theirs to apply either.
-    final String inheritedGuard = guardRedirectFor(pagesDir);
+    final String inheritedGuard = guardRedirectFor(pagesDir, null);
     // The theme and the chrome a module's pages render in, where the parent
     // asked for either. Only here: wrapping the parent's own pages would be
     // the mode applying to the wrong half of the application. Inherit emits
@@ -2086,6 +2085,16 @@ void startDartvelKiosk() {
   static String _generatedPageWidgetName(String functionName) =>
       dvGeneratedPageWidgetName(functionName);
 
+
+  /// The policy `@DVPage(policy: ...)` declares, or null.
+  ///
+  /// Read by the same shape `_pageScaffoldSpec` reads its arguments with,
+  /// because the annotation is one annotation and two parsers for it drift.
+  /// This one was missing entirely: the argument was declared, documented in
+  /// the specification as the usage example, and read by nothing, so a page
+  /// carrying the annotation for guarding it was open to everybody.
+  static String? _pagePolicy(String source) => dvPagePolicyFromSource(source);
+
   static String _pageScaffoldSpec(String source) {
     final match = RegExp(
       r'@DVPage\(([^)]*)\)',
@@ -2914,6 +2923,10 @@ class _PageEntry {
   final String pageScaffold;
   final String route;
   final String directory;
+
+  /// The policy this page declares, or null. Emitted into the route's
+  /// redirect so the router refuses before the page builds.
+  final String? policy;
   final bool isFunctional;
   final String? expressionBody;
 
@@ -2928,6 +2941,7 @@ class _PageEntry {
   final String? errorAlias;
 
   const _PageEntry({
+    this.policy,
     required this.importIndex,
     required this.className,
     required this.publicName,
