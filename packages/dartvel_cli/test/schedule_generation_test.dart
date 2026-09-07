@@ -223,4 +223,53 @@ void refreshDashboard() {}
       if (root.existsSync()) root.deleteSync(recursive: true);
     }
   });
+
+  test('a schedule on a private function is refused, not dropped', () async {
+    // Dropping it silently is not available: the entry list is what
+    // registerAll reads, and it refuses an entry with no handler, so a
+    // schedule left in the list without one is a server that will not start.
+    // Filtering it out of both would be a schedule that is declared and
+    // never runs, which is what this whole path was fixed to end.
+    final root = await Directory.systemTemp.createTemp('dartvel_cron_priv_');
+    try {
+      Directory(p.join(root.path, '.dart_tool')).createSync();
+      Directory(p.join(root.path, 'lib', 'dartvel_client'))
+          .createSync(recursive: true);
+      final functionsDir =
+          Directory(p.join(root.path, 'lib', 'backend', 'functions'))
+            ..createSync(recursive: true);
+
+      File(p.join(functionsDir.path, 'sweep.dart')).writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVBackendCron('0 * * * *')
+Future<void> _sweep() async {}
+''');
+
+      await expectLater(
+        BackendGenerator.generate(
+          root: root.path,
+          backendDir: 'lib/backend',
+          pkgName: 'cron_priv_app',
+          buildId: 'test-build',
+          backendHost: '127.0.0.1',
+          backendPort: 3000,
+          apiBasePath: '/api',
+        ),
+        throwsA(
+          isA<StateError>().having(
+            (StateError e) => e.message,
+            'message',
+            allOf(
+              contains('_sweep'),
+              contains('sweep.dart'),
+              contains('private'),
+            ),
+          ),
+        ),
+      );
+    } finally {
+      if (root.existsSync()) root.deleteSync(recursive: true);
+    }
+  });
 }
