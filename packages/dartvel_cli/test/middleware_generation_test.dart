@@ -170,6 +170,93 @@ Future<Map<String, bool>> note() async => <String, bool>{'ok': true};
       root.deleteSync(recursive: true);
     }
   });
+
+  test('a route that declares a body limit checks before it reads', () async {
+    // A limit that arrives after the read is not a limit, so the check
+    // cannot live in the chain -- the chain runs around the handler and the
+    // body is in memory by then. It is emitted where the reading happens,
+    // and only for a route that asked.
+    final root = await Directory.systemTemp.createTemp('dartvel_body_limit_');
+    try {
+      Directory(p.join(root.path, '.dart_tool')).createSync();
+      Directory(p.join(root.path, 'lib', 'dartvel_client'))
+          .createSync(recursive: true);
+      Directory(p.join(root.path, 'lib', 'backend', 'functions'))
+          .createSync(recursive: true);
+
+      File(p.join(root.path, 'lib', 'backend', 'functions', 'note.post.dart'))
+          .writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVUseMiddleware([DVMiddlewares.bodyLimit])
+Future<Map<String, bool>> note(String text) async => <String, bool>{'ok': true};
+''');
+      File(p.join(root.path, 'lib', 'backend', 'functions', 'open.post.dart'))
+          .writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+Future<Map<String, bool>> open(String text) async => <String, bool>{'ok': true};
+''');
+
+      await _generate(root);
+
+      final routes = File(
+        p.join(root.path, '.dart_tool', 'dartvel_backend_routes.g.dart'),
+      ).readAsStringSync();
+
+      // The announced size is refused without reading a byte, and the read
+      // itself is capped for a sender that announced nothing.
+      expect(routes, contains('core.dvDeclaredTooLarge('));
+      expect(routes, contains('core.dvReadCapped(req.body.stream'));
+      expect(routes, contains('_dvTooLarge('));
+      expect(routes, contains('dv.Response(413'));
+
+      // A route that did not ask still reads the body the ordinary way. A
+      // limit on every route would refuse the upload endpoint nobody
+      // limited.
+      final openAt = routes.indexOf("'/open'");
+      expect(openAt, greaterThan(-1));
+      final nextRoute = routes.indexOf('router.', openAt);
+      expect(
+        routes.substring(openAt, nextRoute == -1 ? routes.length : nextRoute),
+        isNot(contains('dvReadCapped')),
+      );
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
+  test('declaring both limits gives each shape its own number', () async {
+    // Which is the point of there being two. A JSON body of several
+    // megabytes is a mistake; an upload of several megabytes is the feature.
+    final root = await Directory.systemTemp.createTemp('dartvel_both_limits_');
+    try {
+      Directory(p.join(root.path, '.dart_tool')).createSync();
+      Directory(p.join(root.path, 'lib', 'dartvel_client'))
+          .createSync(recursive: true);
+      Directory(p.join(root.path, 'lib', 'backend', 'functions'))
+          .createSync(recursive: true);
+
+      File(p.join(root.path, 'lib', 'backend', 'functions', 'upload.post.dart'))
+          .writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVUseMiddleware([DVMiddlewares.bodyLimit, DVMiddlewares.uploadLimit])
+Future<Map<String, bool>> upload(String name) async => <String, bool>{'ok': true};
+''');
+
+      await _generate(root);
+
+      final routes = File(
+        p.join(root.path, '.dart_tool', 'dartvel_backend_routes.g.dart'),
+      ).readAsStringSync();
+
+      expect(routes, contains('core.DVBodyLimits.upload'));
+      expect(routes, contains('core.DVBodyLimits.body'));
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
 }
 
 Future<Directory> _createProject() async {
