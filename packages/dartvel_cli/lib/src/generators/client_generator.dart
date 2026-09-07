@@ -464,6 +464,7 @@ import 'dartvel_config.g.dart' as cfg;
 import 'jobs.g.dart' show registerDartvelJobs;
 import 'models.g.dart' show registerDartvelModels;
 import 'modules.g.dart' show registerDartvelModules;
+import 'client_schedules.g.dart' show dartvelStartClientSchedules;
 
 /// Wires the generated runtime into the short `DV.baseUrl` / `DV.api(...)` API.
 /// Called automatically during app/router initialization.
@@ -500,6 +501,11 @@ void configureDartvelRuntime({List<String> arguments = const <String>[]}) {
   // dartvel:// link, a second launch -- and the launches that come after it.
   startDartvelLaunch(arguments);
 ${_deviceKioskInstallSource(dv)}
+  // Every @DVClientCron schedule, registered and ticking. The entries were
+  // generated and nothing started them, so a schedule declared on a page
+  // never ran once. Starts no timer when the application declares none.
+  dartvelStartClientSchedules();
+
   // Reads stored Studio documents into memory so an override resolves during
   // navigation instead of flashing the compiled page first.
   unawaited(DVPageStore.prime());
