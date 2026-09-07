@@ -105,3 +105,25 @@ String? dvPagePolicyFromSource(String source) {
   if (value == null || value == 'null') return null;
   return value;
 }
+
+/// The policy a `@DVBackendFunction` source declares, or null.
+///
+/// The other half of the page one, and the half that matters more. The
+/// specification is explicit that "backend functions and model queries
+/// enforce policies even if UI guards are bypassed" -- a page guard without
+/// a function guard is a lock on the front door of a building with open
+/// windows, and until now both were unenforced.
+///
+/// [source] is the function's own source, so a file with several backend
+/// functions gives each its own answer rather than the first one's.
+String? dvBackendPolicyFromSource(String source) {
+  final RegExpMatch? annotation =
+      RegExp(r'@DVBackendFunction\(([^)]*)\)', dotAll: true).firstMatch(source);
+  if (annotation == null) return null;
+  final RegExpMatch? match = RegExp(
+    r'policy\s*:\s*([A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)*)',
+  ).firstMatch(annotation.group(1) ?? '');
+  final String? value = match?.group(1);
+  if (value == null || value == 'null') return null;
+  return value;
+}
