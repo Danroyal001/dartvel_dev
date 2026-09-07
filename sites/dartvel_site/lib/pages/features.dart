@@ -64,8 +64,18 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
   (
     'Authorization',
     'DV.Auth.authorization',
-    'Policies over models and functions, enforced before a handler runs '
-    'rather than inside it.',
+    'Policies over models, functions and pages, enforced before a handler '
+    'runs rather than inside it, and default-deny: a policy nobody '
+    'registered answers no, which is the right answer to a question the '
+    'application never taught it. A page declares one with the page '
+    'annotation policy argument, and that is now enforced -- it was '
+    'accepted and ignored until '
+    'September 2026, so a page carrying the annotation for guarding it was '
+    'open to everybody with nothing anywhere saying so. A page whose '
+    'application has configured nothing to answer its policy is refused '
+    'rather than opened, because treating no answer as yes would put the '
+    'same bug back as a default; and a folder guard still runs first, since '
+    'a page can be under one and carry a policy of its own.',
   ),
   (
     'Middleware',
