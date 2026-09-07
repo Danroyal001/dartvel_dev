@@ -184,3 +184,9 @@ sites/*.zip
 /immunitybio*
 /footlocker*
 /premise*
+
+# Agent worktrees. Created under .claude/worktrees when an agent works in an
+# isolated copy of the repository, and left behind when it finishes. Ignored
+# rather than tidied up by hand: this is a public repository, and a stray
+# `git add -A` at the root would commit somebody's whole working copy into it.
+.claude/worktrees/
