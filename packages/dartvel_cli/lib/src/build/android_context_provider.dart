@@ -17,6 +17,8 @@
 /// jnigen could not bind it -- and nothing that waits for an Activity.
 library dartvel_cli.build.android_context_provider;
 
+import 'package:dartvel_core/dartvel.dart' show dvAndroidDeviceAdminClass;
+
 /// Where the provider's source is written, relative to the project root.
 const String dvAndroidContextProviderPath =
     'android/app/src/main/java/dev/dartvel/jni/DartvelContext.java';
@@ -43,6 +45,8 @@ package dev.dartvel.jni;
 
 import android.app.Activity;
 import android.app.Application;
+import android.app.admin.DevicePolicyManager;
+import android.content.ComponentName;
 import android.content.ContentProvider;
 import android.content.ContentValues;
 import android.content.Context;
@@ -70,6 +74,44 @@ public final class DartvelContext extends ContentProvider {
   /// where one plainly had. Registered here, they see the first one.
   public static Activity activity() {
     return sActivity;
+  }
+
+  /// Allowlists this application for lock task, or says why it could not.
+  ///
+  /// Here rather than in Dart because it is three Android calls and an array,
+  /// and the array is the part Dart cannot express without knowing exactly
+  /// how the JNI bindings model one. In Java it is String[].
+  ///
+  /// Null means allowlisted. Anything else is a reason worth showing: being
+  /// the device owner is not enough for lock task, and startLockTask() on a
+  /// package that is not allowlisted does not throw -- Android shows the pin
+  /// dialog instead, to nobody, on a unit in a lobby.
+  public static String allowLockTask() {
+    Context context = sContext;
+    if (context == null) {
+      return "there is no application Context yet";
+    }
+    DevicePolicyManager policy = (DevicePolicyManager)
+        context.getSystemService(Context.DEVICE_POLICY_SERVICE);
+    if (policy == null) {
+      return "this device has no device policy service";
+    }
+    String pkg = context.getPackageName();
+    if (!policy.isDeviceOwnerApp(pkg)) {
+      // Not a failure to enforce. This application gets screen pinning,
+      // which is a weaker kiosk rather than none.
+      return "this application is not the device owner, so lock task is "
+          + "screen pinning rather than the silent kind";
+    }
+    try {
+      policy.setLockTaskPackages(
+          new ComponentName(pkg, pkg + "."),
+          new String[] {pkg});
+      return null;
+    } catch (SecurityException error) {
+      return "the device policy service refused the allowlist ("
+          + error.getMessage() + ")";
+    }
   }
 
   @Override
