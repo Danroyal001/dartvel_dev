@@ -425,8 +425,41 @@ ${backendEntries.map((e) {
       final i = e['i']!;
       final typed = e['typed'] ?? '';
       final invocation = e['invocation'] ?? 'f$i.$typed';
+
+      // The declared middleware, wrapped around the handler rather than
+      // emitted inside it: a refusal has to answer before the function runs,
+      // and the headers securityHeaders resolves have to reach a response
+      // that exists, which they never did while the chain put them in a map
+      // nothing downstream read.
+      final List<String> middlewareKeys = (e['middleware'] ?? '')
+          .split(' ')
+          .where((String key) => key.isNotEmpty)
+          .toList(growable: false);
+      final String handlerOpen = middlewareKeys.isEmpty
+          ? '(dv.Request req) async {'
+          : '(dv.Request req) => _dvGuarded(req, const <String>['
+              "${middlewareKeys.map((String k) => "'$k'").join(', ')}"
+              '], () async {';
+      final String handlerClose = middlewareKeys.isEmpty ? '  });' : '  }));';
+
+      final String policy = e['policy'] ?? '';
+      final String policyGate = policy.isEmpty
+          ? ''
+          : "\n    if (!await _dvAllowed('$policy', req)) "
+              "return _dvPolicyForbidden('$policy');";
+
       if (typed.isEmpty) {
-        return "  router.$method(cfg.apiBasePath + '$path', (dv.Request req) => Future.value(f$i.handler(req)));";
+        // A raw handler owns the request, so there is no body prelude and no
+        // argument to decode. It still has to be guarded: a policy declared
+        // on one of these was read, recorded and never emitted, so
+        // @DVBackendFunction(policy: ...) on a raw handler was a route
+        // anybody could call.
+        if (policyGate.isEmpty && middlewareKeys.isEmpty) {
+          return "  router.$method(cfg.apiBasePath + '$path', (dv.Request req) => Future.value(f$i.handler(req)));";
+        }
+        return '''  router.$method(cfg.apiBasePath + '$path', $handlerOpen$policyGate
+    return await f$i.handler(req);
+$handlerClose''';
       }
       final tparams =
           (e['tparams'] ?? '').split(',').where((s) => s.isNotEmpty).toList();
@@ -492,28 +525,6 @@ ${backendEntries.map((e) {
       // before the function is called. Emitted per route rather than wrapped
       // around the router, because a policy belongs to one function and a
       // middleware that guessed which would be the same silence again.
-      // The declared middleware, wrapped around the handler rather than
-      // emitted inside it: a refusal has to answer before the function runs,
-      // and the headers securityHeaders resolves have to reach a response
-      // that exists, which they never did while the chain put them in a map
-      // nothing downstream read.
-      final List<String> middlewareKeys = (e['middleware'] ?? '')
-          .split(' ')
-          .where((String key) => key.isNotEmpty)
-          .toList(growable: false);
-      final String handlerOpen = middlewareKeys.isEmpty
-          ? '(dv.Request req) async {'
-          : '(dv.Request req) => _dvGuarded(req, const <String>['
-              "${middlewareKeys.map((String k) => "'$k'").join(', ')}"
-              '], () async {';
-      final String handlerClose = middlewareKeys.isEmpty ? '  });' : '  }));';
-
-      final String policy = e['policy'] ?? '';
-      final String policyGate = policy.isEmpty
-          ? ''
-          : "\n    if (!await _dvAllowed('$policy', req)) "
-              "return _dvPolicyForbidden('$policy');";
-
       if (path == '/health' && method.toLowerCase() == 'get') {
         return "  _hasHealth = true;\n"
             '''  router.$method(cfg.apiBasePath + '$path', $handlerOpen
