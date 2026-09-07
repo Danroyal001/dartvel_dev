@@ -1474,6 +1474,51 @@ jobs:
 
           dart "$GITHUB_WORKSPACE/tool/ci/prerendered_pages_check.dart" /tmp/diag 4
 
+      - name: The studio must be served by the backend, and only what it holds
+        run: |
+          set -euo pipefail
+          cd sites/dartvel_site
+
+          # Written by the build. Everything around the admin -- the mount,
+          # the hidden answer, the file serving -- was built and working
+          # while nothing ever put a file in the directory it reads from, so
+          # enabling it produced a 404 from a mount that was correct.
+          test -f build/web/__admin/index.html
+          test -f build/web/__admin/graph.json
+
+          dart run dartvel_cli:dartvel preview --port 8098 &
+          SERVER=$!
+          for i in $(seq 1 30); do
+            curl -sf -o /dev/null http://127.0.0.1:8098/ && break
+            sleep 1
+          done
+
+          curl -sf http://127.0.0.1:8098/__studio > /tmp/diag/studio.html
+          grep -q 'admin.js' /tmp/diag/studio.html
+
+          curl -sf http://127.0.0.1:8098/__studio/graph.json \
+            > /tmp/diag/studio-graph.json
+
+          # --path-as-is, or curl resolves the dot segments itself and the
+          # server never sees the request this is about.
+          climb=$(curl -s --path-as-is -o /tmp/diag/studio-climb.html \
+            -w '%{http_code}' \
+            'http://127.0.0.1:8098/__studio/../index.html')
+          encoded=$(curl -s --path-as-is -o /tmp/diag/studio-encoded.html \
+            -w '%{http_code}' \
+            'http://127.0.0.1:8098/__studio/%2e%2e/index.html')
+          kill $SERVER 2>/dev/null || true
+
+          dart "$GITHUB_WORKSPACE/tool/ci/studio_graph_check.dart" \
+            /tmp/diag/studio-graph.json models routes functions jobs
+
+          for code in "$climb" "$encoded"; do
+            if [ "$code" != "404" ]; then
+              echo "::error::climbing out of the admin mount answered $code"
+              exit 1
+            fi
+          done
+
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: web-server-pages, path: /tmp/diag/, if-no-files-found: warn }

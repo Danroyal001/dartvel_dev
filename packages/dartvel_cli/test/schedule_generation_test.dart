@@ -201,12 +201,17 @@ void refreshDashboard() {}
       expect(client, contains('DVScheduler('));
       expect(client, contains('.tick()'));
 
-      // And the page it came from must not be dragged into the backend's
-      // file, which is the reason there are two.
+      // And the page it came from must not be imported into the backend's
+      // file, which is the reason there are two. Its path is in there as an
+      // entry's filePath, which is data; an import is what would pull
+      // Flutter into the server.
       final backend = File(
         p.join(root.path, 'lib', 'dartvel_client', 'schedules.g.dart'),
       ).readAsStringSync();
-      expect(backend, isNot(contains('pages/refresh.dart')));
+      expect(
+        backend,
+        isNot(contains("import 'package:client_cron_app/pages/refresh.dart'")),
+      );
     } finally {
       if (root.existsSync()) root.deleteSync(recursive: true);
     }
