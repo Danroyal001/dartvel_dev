@@ -1517,22 +1517,26 @@ jobs:
           curl -sf http://127.0.0.1:8098/__studio/graph.json \
             > /tmp/diag/studio-graph.json
 
-          # --path-as-is, or curl resolves the dot segments itself and the
-          # server never sees the request this is about.
-          climb=$(curl -s --path-as-is -o /tmp/diag/studio-climb.html \
-            -w '%{http_code}' \
-            'http://127.0.0.1:8098/__studio/../index.html')
-          encoded=$(curl -s --path-as-is -o /tmp/diag/studio-encoded.html \
-            -w '%{http_code}' \
-            'http://127.0.0.1:8098/__studio/%2e%2e/index.html')
+          # A path that climbs out of the mount must not be answered with
+          # anything from inside it. --path-as-is so curl sends the dots
+          # rather than resolving them, though the server resolves them
+          # before the handler sees the request -- which is why this asserts
+          # what came back rather than a status. The handler's own refusal is
+          # the one the unit test drives directly, with a Request built by
+          # hand; this is the end-to-end half, and what it can show is that
+          # the studio is not served from outside its own mount.
+          curl -s --path-as-is -o /tmp/diag/studio-climb.html \
+            'http://127.0.0.1:8098/__studio/../index.html'
+          curl -s --path-as-is -o /tmp/diag/studio-encoded.html \
+            'http://127.0.0.1:8098/__studio/%2e%2e/index.html'
           kill $SERVER 2>/dev/null || true
 
           dart "$GITHUB_WORKSPACE/tool/ci/studio_graph_check.dart" \
             /tmp/diag/studio-graph.json models routes functions jobs
 
-          for code in "$climb" "$encoded"; do
-            if [ "$code" != "404" ]; then
-              echo "::error::climbing out of the admin mount answered $code"
+          for page in studio-climb studio-encoded; do
+            if grep -q 'admin.js' "/tmp/diag/$page.html"; then
+              echo "::error::$page was answered with the studio"
               exit 1
             fi
           done
