@@ -405,16 +405,28 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   ),
   (
     'Multi-tenancy',
-    'Tenant resolution; filtering not yet',
+    'Resolution, and a shared database that filters',
     'Tenant resolution is built: the current tenant is resolved from the '
     'configured source, the middleware makes it current for the rest of the '
-    'request, and presence is scoped by it. Automatic filtering of generated '
-    'model queries is not, and this entry used to say it was -- a generated '
-    'query carries no tenant predicate, so on a shared database it returns '
-    'every tenant\'s rows. That is the isolation somebody chooses a '
-    'framework for, so it is named here rather than left implied: filtering '
-    'needs the schema, the writes and the reads to arrive together, and a '
-    'column written but not filtered on would look like the feature working.',
+    'request, presence is scoped by it, and it is held in a zone so it '
+    'follows async work instead of leaking between concurrent requests. '
+    'Filtering of generated model queries is built too, and was not until '
+    'recently: the word tenant appeared nowhere in the model generator and '
+    'nowhere in any database adapter, so on a shared database a query '
+    'returned every tenant\'s rows while this entry said the feature was '
+    'shipped. A model that asks for it gets a tenant column, a predicate on '
+    'every read, the current tenant written into every write, and a delete '
+    'that cannot reach another tenant\'s row. Those arrive together on '
+    'purpose: a column written and not filtered on leaks, one filtered on '
+    'and not written hides every row, and both look exactly like the feature '
+    'working. It is per model, because a single-tenant application should '
+    'not carry a column it never reads and a table deliberately shared '
+    'across tenants would be broken by a predicate it never asked for. '
+    'Absent: the schema-per-tenant and database-per-tenant strategies, which '
+    'resolve a tenant and then do nothing different with it; a migration for '
+    'a table that already has rows, so turning this on later leaves them '
+    'belonging to no tenant; and any scoping of raw queries an application '
+    'writes itself.',
   ),
   (
     'Sensitive Model Fields',

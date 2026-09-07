@@ -142,6 +142,22 @@ class ModelGenerator {
             ownModuleId == null ? 'const DVDatabase()' : '_dvModule.database';
         classesGenerated.add(className);
 
+        // Whether this model's rows belong to a tenant.
+        //
+        // DVTenantIsolation.sharedDatabase is "one database, one schema, rows
+        // scoped by a tenant column". Resolution was real and the column was
+        // not -- the word tenant appeared nowhere in this file and nowhere in
+        // any database adapter -- so every generated query returned every
+        // tenant's rows on the strategy the specification lists first.
+        //
+        // Opt in per model. A single-tenant application should not carry a
+        // column it never reads, and a table deliberately shared across
+        // tenants -- a currency list, a country table -- would be broken by a
+        // predicate it never asked for.
+        final bool tenantScoped =
+            RegExp(r'@DVModel\s*\([^)]*\btenantScoped\s*:\s*true\b', dotAll: true)
+                .hasMatch(content);
+
         // Field annotations stack: a field can carry both
         // @DVModel.sensitiveField() and @DVModel.searchableField(), and a
         // pattern written expecting to sit directly above the declaration
@@ -675,6 +691,28 @@ class ModelGenerator {
         // Persistence and model sync. The key column is the same field public
         // pages use; falling back to the first field keeps keyless models
         // usable for append-only data.
+        // The tenant column and the fragments every statement needs. Built
+        // once, because the schema, the writes and the reads have to agree:
+        // a column written and not filtered on leaks, and one filtered on and
+        // not written hides every row, and both look like the feature
+        // working.
+        const String tenantColumn = 'dv_tenant';
+        if (tenantScoped &&
+            fields.any((Map<String, String> f) => f['name'] == tenantColumn)) {
+          throw StateError(
+            'Model $className declares a field named $tenantColumn and also '
+            'sets tenantScoped: true. The generated table would have two '
+            'columns of that name, which fails when the table is created in '
+            'a deployment rather than here. Rename the field.',
+          );
+        }
+        // Read when the statement runs, not captured once: the tenant is per
+        // request and DVTenants keeps it in a zone that follows async work.
+        const String tenantValue = 'const DVTenants().currentTenant';
+        final String tenantWhere = tenantScoped ? '$tenantColumn = ? AND ' : '';
+        final String tenantOnly = tenantScoped ? ' WHERE $tenantColumn = ?' : '';
+        final String tenantBind = tenantScoped ? '$tenantValue, ' : '';
+
         final keyField = fields.isEmpty
             ? null
             : (() {
@@ -685,10 +723,14 @@ class ModelGenerator {
                 }
               })();
         if (keyField != null) {
-          final columnList =
-              fields.map((Map<String, String> f) => f['name']!).join(', ');
-          final placeholderList =
-              fields.map((Map<String, String> f) => '?').join(', ');
+          final columnList = <String>[
+            if (tenantScoped) tenantColumn,
+            ...fields.map((Map<String, String> f) => f['name']!),
+          ].join(', ');
+          final placeholderList = <String>[
+            if (tenantScoped) '?',
+            ...fields.map((Map<String, String> f) => '?'),
+          ].join(', ');
           String toParam(Map<String, String> f) {
             final base = f['type']!.replaceAll('?', '');
             final name = f['name']!;
@@ -753,7 +795,7 @@ class ModelGenerator {
           sb.writeln('  /// Every stored [$className].');
           sb.writeln('  static Future<core.List<$className>> all() async {');
           sb.writeln(
-            "    final rows = await $dbRef.query('SELECT * FROM $tableRef');",
+            "    final rows = await $dbRef.query('SELECT * FROM $tableRef$tenantOnly'${tenantScoped ? ', <Object?>[$tenantValue]' : ''});",
           );
           sb.writeln(
             '    return rows.map(_fromRow).toList(growable: false);',
@@ -764,7 +806,7 @@ class ModelGenerator {
           sb.writeln('  /// or null.');
           sb.writeln('  static Future<$className?> find(String $keyField) async {');
           sb.writeln(
-            "    final rows = await $dbRef.query('SELECT * FROM $tableRef WHERE $keyField = ?', <Object?>[$keyField]);",
+            "    final rows = await $dbRef.query('SELECT * FROM $tableRef WHERE $tenantWhere$keyField = ?', <Object?>[$tenantBind$keyField]);",
           );
           sb.writeln('    return rows.isEmpty ? null : _fromRow(rows.first);');
           sb.writeln('  }');
@@ -773,13 +815,13 @@ class ModelGenerator {
           sb.writeln('  static Future<$className> save($className model) async {');
           sb.writeln('    final db = $dbRef;');
           sb.writeln(
-            "    final existing = await db.query('SELECT ${fields.first['name']} FROM $tableRef WHERE $keyField = ?', <Object?>[model.$keyField]);",
+            "    final existing = await db.query('SELECT ${fields.first['name']} FROM $tableRef WHERE $tenantWhere$keyField = ?', <Object?>[${tenantBind}model.$keyField]);",
           );
           sb.writeln(
-            "    await db.execute('DELETE FROM $tableRef WHERE $keyField = ?', <Object?>[model.$keyField]);",
+            "    await db.execute('DELETE FROM $tableRef WHERE $tenantWhere$keyField = ?', <Object?>[${tenantBind}model.$keyField]);",
           );
           sb.writeln(
-            "    await db.execute('INSERT INTO $tableRef ($columnList) VALUES ($placeholderList)', <Object?>[${fields.map(toParam).join(', ')}]);",
+            "    await db.execute('INSERT INTO $tableRef ($columnList) VALUES ($placeholderList)', <Object?>[$tenantBind${fields.map(toParam).join(', ')}]);",
           );
           sb.writeln('    await DVModelSync.publish<$className>(');
           sb.writeln('      model,');
@@ -793,7 +835,7 @@ class ModelGenerator {
           sb.writeln('  /// Removes [model] and publishes the deletion.');
           sb.writeln('  static Future<void> destroy($className model) async {');
           sb.writeln(
-            "    await $dbRef.execute('DELETE FROM $tableRef WHERE $keyField = ?', <Object?>[model.$keyField]);",
+            "    await $dbRef.execute('DELETE FROM $tableRef WHERE $tenantWhere$keyField = ?', <Object?>[${tenantBind}model.$keyField]);",
           );
           sb.writeln(
             '    await DVModelSync.publish<$className>(model, kind: DVModelChangeKind.deleted);',
@@ -1018,7 +1060,10 @@ class ModelGenerator {
         sb.writeln('  String get tableName => $tableExpr;');
         sb.writeln();
         sb.writeln('  /// SQL statement to create the [$className] table.');
-        final cols = fields.map((f) => "${f['name']} TEXT").join(', ');
+        final cols = <String>[
+          if (tenantScoped) '$tenantColumn TEXT',
+          ...fields.map((f) => "${f['name']} TEXT"),
+        ].join(', ');
         sb.writeln(
           "  String get createTableSql => 'CREATE TABLE IF NOT EXISTS $tableRef ($cols)';",
         );
