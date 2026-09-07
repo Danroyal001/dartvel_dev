@@ -23,8 +23,14 @@ Handler _handler({DVAdminMount? admin, bool authenticated = false}) =>
       adminAuthenticated: (Request _) async => authenticated,
     );
 
+/// A request for [path].
+///
+/// This used to build `Uri.parse('http://x')` and drop the argument, so
+/// every test in this file asked for `/` and none of them tested the path it
+/// named. A parameter nothing reads is the quietest way for a suite to prove
+/// nothing at all.
 Future<Response> _get(Handler handler, String path) async =>
-    await handler(Request('GET', Uri.parse('http://x')));
+    await handler(Request('GET', Uri.parse('http://x$path')));
 
 DVAdminMount _mount({bool enabled = true, bool requiresAuth = false}) =>
     DVAdminMount(

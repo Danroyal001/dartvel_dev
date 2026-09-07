@@ -236,10 +236,24 @@ Handler dvWebServerHandler({
           final String rest = path.substring(admin.path.length);
           final String relative =
               rest.isEmpty || rest == '/' ? 'index.html' : rest.substring(1);
-          final File asset = File(p.join(root, relative));
+          // A Uri does not normalise dot segments on its own, so this was
+          // joined onto the admin root and opened as it arrived:
+          // /__studio/../../secrets read a file outside the directory the
+          // admin is served from, and on a deployment that directory sits
+          // inside the build output next to everything else the server can
+          // reach. Refused with the same nothing everything else here
+          // answers with, rather than an error naming what was attempted.
+          final String normalized = p.normalize(relative.replaceAll('\\', '/'));
+          if (normalized.startsWith('..') ||
+              normalized.startsWith('/') ||
+              p.isAbsolute(normalized)) {
+            return Response(dvAdminHiddenStatus,
+                body: '', headers: dvAdminHiddenHeaders);
+          }
+          final File asset = File(p.join(root, normalized));
           if (asset.existsSync()) {
             return Response.ok(asset.readAsBytesSync(), headers: <String, String>{
-              'content-type': _adminContentType(relative),
+              'content-type': _adminContentType(normalized),
             });
           }
           // The admin is one application with its own routes, so anything
