@@ -315,7 +315,17 @@ Future<Map<String, bool>> ping() async => <String, bool>{'ok': true};
       ).readAsStringSync();
 
       expect(routes, contains('core.dvTraced('));
-      expect(routes, isNot(contains('_dvGuarded(')));
+      // Bounded to the route. _dvGuarded is emitted as a helper in every
+      // generated file whether anything calls it or not, so asserting on the
+      // whole file asks whether the helper exists rather than whether this
+      // route uses it.
+      final pingAt = routes.indexOf("'/ping'");
+      expect(pingAt, greaterThan(-1));
+      final nextRoute = routes.indexOf('router.', pingAt);
+      expect(
+        routes.substring(pingAt, nextRoute == -1 ? routes.length : nextRoute),
+        isNot(contains('_dvGuarded(')),
+      );
       // One wrapper: the closure's brace, dvTraced's bracket, the router's.
       expect(routes, contains('  }));'));
     } finally {
