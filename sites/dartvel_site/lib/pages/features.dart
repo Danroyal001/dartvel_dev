@@ -187,7 +187,19 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'dartvel inspect, dartvel mcp',
     'One versioned graph of routes, models, functions and jobs, with the '
     'source each was derived from. --json is a serialization of it, and '
-    'dartvel mcp serves it to a coding agent.',
+    'dartvel mcp serves it to a coding agent. The dashboard itself is one '
+    'per application and the backend serves it, at a path the project '
+    'chooses -- a default rather than a constant, because a fixed admin path '
+    'is most of why wp-admin is the most scanned URL on the internet. Its '
+    'pages used to be ordinary pages in the client, with no guard on any of '
+    'them, compiled into every build the application shipped; one of them is '
+    'the page builder, whose stored documents the router prefers over the '
+    'compiled page. They declare a policy now, the guard refuses when '
+    'nothing is configured to answer it, a release build does not serve the '
+    'dashboard unless the project asked, and a request refused for want of a '
+    'sign-in is answered exactly as a route that does not exist -- an admin '
+    'answering 401 where the rest of the site answers 404 tells a scanner '
+    'the host has one, and where, before anybody has typed a password.',
   ),
   (
     'Pages',
