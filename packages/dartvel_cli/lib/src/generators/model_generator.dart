@@ -697,6 +697,20 @@ class ModelGenerator {
         // not written hides every row, and both look like the feature
         // working.
         const String tenantColumn = 'dv_tenant';
+        if (tenantScoped && generatesPublicPages) {
+          // The public page resolver reads the row by key with no tenant
+          // predicate, and it has to: a statically generated page is written
+          // with no request and therefore no tenant to be current for. So
+          // one tenant's row would be served at a public URL to anybody --
+          // the exact leak the column exists to close, on the one path that
+          // never sees it.
+          throw StateError(
+            'Model $className sets both tenantScoped: true and '
+            'generatePublicPages: true. A public page is rendered with no '
+            'request, so there is no current tenant to scope it by, and the '
+            'row would be served at a public URL to anybody. Choose one.',
+          );
+        }
         if (tenantScoped &&
             fields.any((Map<String, String> f) => f['name'] == tenantColumn)) {
           throw StateError(

@@ -130,6 +130,38 @@ void main() {
   });
 
   group('what it refuses', () {
+    test('a tenant-scoped model cannot also have public pages', () async {
+      // The public page resolver reads the row by key with no tenant
+      // predicate, and it has to: a statically generated page is written
+      // with no request, so there is no current tenant to scope it by. One
+      // tenant's row would be served at a public URL to anybody -- the exact
+      // leak the column exists to close, on the one path that never sees it.
+      await expectLater(
+        _generate('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVModel(tenantScoped: true, generatePublicPages: true)
+class _Order {
+  final String id;
+  final String total;
+
+  const _Order({required this.id, required this.total});
+}
+'''),
+        throwsA(
+          isA<StateError>().having(
+            (StateError e) => e.message,
+            'message',
+            allOf(
+              contains('tenantScoped'),
+              contains('generatePublicPages'),
+              contains('Order'),
+            ),
+          ),
+        ),
+      );
+    });
+
     test('a field named dv_tenant collides with the column', () async {
       // Two columns of that name is a create-table error at runtime, in a
       // deployment, rather than a generation error here.
