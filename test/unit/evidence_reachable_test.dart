@@ -141,4 +141,134 @@ class DVReal {}
       );
     });
   });
+
+  group('what a package barrel exports', () {
+    test('a directly exported file is reachable from the barrel', () {
+      expect(
+        dvExportedFiles(
+          barrels: <String>['lib/dartvel.dart'],
+          sourceByFile: <String, String>{
+            'lib/dartvel.dart': "export 'src/queues/redis_queue.dart';",
+            'lib/src/queues/redis_queue.dart': 'class DVRedisQueueAdapter {}',
+          },
+        ),
+        contains('lib/src/queues/redis_queue.dart'),
+      );
+    });
+
+    test('an export chain is followed', () {
+      // tracing_middleware.dart is not named in dartvel.dart at all. It is
+      // exported by observability.dart, which the barrel exports, so an
+      // application can import it -- a check that only reads the barrel
+      // would call it unreachable and be wrong.
+      final Set<String> exported = dvExportedFiles(
+        barrels: <String>['lib/dartvel.dart'],
+        sourceByFile: <String, String>{
+          'lib/dartvel.dart': "export 'src/observability/observability.dart';",
+          'lib/src/observability/observability.dart':
+              "export 'tracing_middleware.dart';",
+          'lib/src/observability/tracing_middleware.dart': 'void dvTraced() {}',
+        },
+      );
+
+      expect(exported, contains('lib/src/observability/tracing_middleware.dart'));
+    });
+
+    test('a show clause does not hide the path', () {
+      expect(
+        dvExportedFiles(
+          barrels: <String>['lib/dartvel.dart'],
+          sourceByFile: <String, String>{
+            'lib/dartvel.dart':
+                "export 'src/auth/saml.dart' show DVSaml, DVSamlResult;",
+            'lib/src/auth/saml.dart': 'class DVSaml {}',
+          },
+        ),
+        contains('lib/src/auth/saml.dart'),
+      );
+    });
+
+    test('a package: export is somebody else\'s file', () {
+      expect(
+        dvExportedFiles(
+          barrels: <String>['lib/dartvel.dart'],
+          sourceByFile: <String, String>{
+            'lib/dartvel.dart': "export 'package:meta/meta.dart';",
+          },
+        ),
+        isEmpty,
+      );
+    });
+
+    test('an export cycle terminates', () {
+      // Not legal Dart to any purpose, but a check that hangs on it is worse
+      // than one that ignores it.
+      expect(
+        dvExportedFiles(
+          barrels: <String>['lib/a.dart'],
+          sourceByFile: <String, String>{
+            'lib/a.dart': "export 'b.dart';",
+            'lib/b.dart': "export 'a.dart';",
+          },
+        ),
+        containsAll(<String>['lib/a.dart', 'lib/b.dart']),
+      );
+    });
+  });
+
+  group('who is supposed to be the caller', () {
+    test('an adapter the application constructs is not a broken wire', () {
+      // DVRedisQueueAdapter is called by nothing in the framework and that
+      // is correct: an application constructs it and hands it over. The
+      // first version of this check failed the build on ten of these, which
+      // is the noise that gets a check switched off.
+      final DVEvidenceReach reach = dvEvidenceReach(
+        symbolsByFile: <String, Set<String>>{
+          'lib/src/queues/redis_queue.dart': <String>{'DVRedisQueueAdapter'},
+        },
+        referencesByLibFile: <String, Set<String>>{
+          'lib/src/queues/queues.dart': <String>{'DVQueues'},
+        },
+        exportedFiles: <String>{'lib/src/queues/redis_queue.dart'},
+      );
+
+      expect(reach.unreachable, isEmpty);
+      expect(reach.applicationOnly, <String>['lib/src/queues/redis_queue.dart']);
+    });
+
+    test('evidence no caller and no import can reach is unreachable', () {
+      // The real finding: DVSqsQueueAdapter is cited as shipped, nothing in
+      // the framework names it, and it is not exported from the barrel, so
+      // an application cannot import it without reaching into src/.
+      final DVEvidenceReach reach = dvEvidenceReach(
+        symbolsByFile: <String, Set<String>>{
+          'lib/src/queues/sqs_queue.dart': <String>{'DVSqsQueueAdapter'},
+        },
+        referencesByLibFile: <String, Set<String>>{
+          'lib/src/queues/queues.dart': <String>{'DVQueues'},
+        },
+        exportedFiles: <String>{},
+      );
+
+      expect(reach.unreachable, <String>['lib/src/queues/sqs_queue.dart']);
+      expect(reach.applicationOnly, isEmpty);
+    });
+
+    test('a file the framework calls is neither', () {
+      final DVEvidenceReach reach = dvEvidenceReach(
+        symbolsByFile: <String, Set<String>>{
+          'lib/src/generators/page_policy.dart': <String>{'dvPageGuardChain'},
+        },
+        referencesByLibFile: <String, Set<String>>{
+          'lib/src/generators/client_generator.dart': <String>{
+            'dvPageGuardChain',
+          },
+        },
+        exportedFiles: <String>{'lib/src/generators/page_policy.dart'},
+      );
+
+      expect(reach.unreachable, isEmpty);
+      expect(reach.applicationOnly, isEmpty);
+    });
+  });
 }
