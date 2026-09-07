@@ -63,6 +63,16 @@ class DVMiddlewareSettings {
   /// Whether a state-changing request must carry an Idempotency-Key.
   static bool requireIdempotencyKey = false;
 
+  /// The Content-Security-Policy a route declaring `csp` sends.
+  ///
+  /// No default, and deliberately none. A policy is a statement about one
+  /// application's own scripts, styles and origins, and a framework that
+  /// guessed would either be so permissive it protects nothing or break the
+  /// first page it was applied to. The generated backend sets this from
+  /// dartvel.security.csp, and a route declaring the key with nothing
+  /// configured fails the build rather than sending no header.
+  static String? contentSecurityPolicy;
+
   /// Who this request is, for `DVMiddlewares.auth`.
   ///
   /// Null means nobody taught the application how to answer, and the key
@@ -135,9 +145,6 @@ const Map<String, String> dvMiddlewareKeysUnbuiltReason = <String, String>{
   'rateLimitCheckout': 'Nothing implements this. It is not a preset of '
       'rateLimit; there is no code behind the name at all. Use '
       'DVMiddlewares.rateLimit.',
-  'csp': 'No Content-Security-Policy is emitted anywhere, and there is no '
-      'configuration surface for the policy string. securityHeaders sends '
-      'the fixed headers that do exist.',
   'cacheTags': 'Nothing implements this. Cache invalidation lives on '
       'DV.Cache.tag and DV.Cache.revalidateTag.',
 };
@@ -244,6 +251,12 @@ Middleware _build(String key) {
       return CommonMiddleware.featureFlags(
         flags: DVMiddlewareSettings.featureFlags,
       );
+    case 'csp':
+      return (Object? request, MiddlewareContext context) {
+        final String? policy = DVMiddlewareSettings.contentSecurityPolicy;
+        if (policy == null || policy.trim().isEmpty) return;
+        context.data['cspHeader'] = policy.trim();
+      };
     case 'maintenance':
       return CommonMiddleware.maintenance(
         isDown: () => DVMiddlewareSettings.maintenanceIsDown(),
@@ -308,6 +321,8 @@ Future<DVMiddlewareResult> dvRunMiddlewares(
   }
 
   final Map<String, String> headers = <String, String>{};
+  final Object? csp = context.data['cspHeader'];
+  if (csp is String) headers['Content-Security-Policy'] = csp;
   final Object? security = context.data['securityHeaders'];
   if (security is Map) {
     for (final MapEntry<Object?, Object?> entry in security.entries) {
@@ -344,4 +359,5 @@ void dvResetMiddlewareRuntime() {
   DVMiddlewareSettings.requireTenant = false;
   DVMiddlewareSettings.requireIdempotencyKey = false;
   DVMiddlewareSettings.authUserId = null;
+  DVMiddlewareSettings.contentSecurityPolicy = null;
 }
