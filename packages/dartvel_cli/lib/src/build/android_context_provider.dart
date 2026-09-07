@@ -105,7 +105,7 @@ public final class DartvelContext extends ContentProvider {
     }
     try {
       policy.setLockTaskPackages(
-          new ComponentName(pkg, pkg + "."),
+          new ComponentName(pkg, pkg + ".$dvAndroidDeviceAdminClass"),
           new String[] {pkg});
       return null;
     } catch (SecurityException error) {

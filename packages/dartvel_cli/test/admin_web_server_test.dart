@@ -24,7 +24,7 @@ Handler _handler({DVAdminMount? admin, bool authenticated = false}) =>
     );
 
 Future<Response> _get(Handler handler, String path) async =>
-    await handler(Request('GET', Uri.parse('http://x' + path)));
+    await handler(Request('GET', Uri.parse('http://x')));
 
 DVAdminMount _mount({bool enabled = true, bool requiresAuth = false}) =>
     DVAdminMount(

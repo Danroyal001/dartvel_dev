@@ -168,7 +168,7 @@ void main() {
       final String java =
           dvAndroidWidgetPublisherSource('com.example.app', _widgets);
 
-      expect(java, contains('package ${dvAndroidWidgetPublisherPackage};'));
+      expect(java, contains('package $dvAndroidWidgetPublisherPackage;'));
       expect('$dvAndroidWidgetPublisherPackage.DartvelWidgets'.replaceAll('.', '/'),
           dvHomeWidgetAndroidClass);
     });
