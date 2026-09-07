@@ -126,19 +126,39 @@ const String dvGenBuildId = '$buildId';
       String rtype = '';
       String invocation = '';
       String helper = '';
+      // Whether the function's first parameter is a DVContext.
+      //
+      // The public API rules say such a parameter is injected and is not a
+      // client-supplied argument. The generator had never heard of the type
+      // -- DVContext appeared nowhere in the CLI -- so it was decoded from
+      // the request like any other parameter: the client supplied the
+      // context, and context.lifecycle.request threw for want of a signal
+      // nothing built.
+      bool injectsContext = false;
+      var parameterIndex = 0;
+      void collect(String n, String t) {
+        final String bare = t.trim().replaceAll('?', '');
+        if (parameterIndex == 0 &&
+            (bare == 'DVContext' || bare.endsWith('.DVContext'))) {
+          injectsContext = true;
+          parameterIndex++;
+          return;
+        }
+        parameterIndex++;
+        if (typedParams.isNotEmpty) {
+          typedParams += ',';
+          typedTypes += ',';
+        }
+        typedParams += n;
+        typedTypes += t;
+      }
 
       if (privateExpression != null) {
         typedName = privateExpression.publicName;
         rtype = privateExpression.returnType;
         invocation = '_dvBackendFn$i';
-        RouteUtils.extractParams(privateExpression.parameters, (n, t) {
-          if (typedParams.isNotEmpty) {
-            typedParams += ',';
-            typedTypes += ',';
-          }
-          typedParams += n;
-          typedTypes += t;
-        }, onNamed: (v) => tnamed = v);
+        RouteUtils.extractParams(privateExpression.parameters, collect,
+            onNamed: (v) => tnamed = v);
         final String modifier = privateExpression.body.modifier == null
             ? ''
             : ' ${privateExpression.body.modifier}';
@@ -170,14 +190,8 @@ const String dvGenBuildId = '$buildId';
 
         if (mm != null) {
           typedName = funcCandidate;
-          RouteUtils.extractParams(mm.group(1) ?? '', (n, t) {
-            if (typedParams.isNotEmpty) {
-              typedParams += ',';
-              typedTypes += ',';
-            }
-            typedParams += n;
-            typedTypes += t;
-          }, onNamed: (v) => tnamed = v);
+          RouteUtils.extractParams(mm.group(1) ?? '', collect,
+            onNamed: (v) => tnamed = v);
         } else if (hasHandler) {
           // Defer to `handler(...)` style; leave untyped so router uses fN.handler
           typedName = '';
@@ -204,14 +218,8 @@ const String dvGenBuildId = '$buildId';
             final name = (m2.group(1) ?? '').trim();
             if (name.isEmpty || reserved.contains(name)) continue;
             typedName = name;
-            RouteUtils.extractParams(m2.group(2) ?? '', (n, t) {
-              if (typedParams.isNotEmpty) {
-                typedParams += ',';
-                typedTypes += ',';
-              }
-              typedParams += n;
-              typedTypes += t;
-            }, onNamed: (v) => tnamed = v);
+            RouteUtils.extractParams(m2.group(2) ?? '', collect,
+            onNamed: (v) => tnamed = v);
             break;
           }
           // Fallback return type, if not captured yet
@@ -249,6 +257,8 @@ const String dvGenBuildId = '$buildId';
         // repository and it was a spelling check, so nineteen keys were
         // accepted and dropped.
         'middleware': dvMiddlewareKeysFromSource(src).join(' '),
+        // Whether to build a DVContext and pass it first.
+        'ctx': injectsContext ? '1' : '0',
       });
     }
 
@@ -429,7 +439,34 @@ ${backendEntries.map((e) {
         final expr = RouteUtils.coerce(pn, pt);
         argList.add(tnamed ? ('$pn: $expr') : expr);
       }
-      final callArgs = argList.join(', ');
+      // The injected context, first and positional, ahead of whatever the
+      // client supplied.
+      final bool injectsContext = e['ctx'] == '1';
+      final callArgs =
+          (injectsContext ? <String>['_dvCtx', ...argList] : argList)
+              .join(', ');
+      // Built per request, because the lifecycle it carries is this
+      // request's. Only where a function asked: a context nothing reads is a
+      // cost on every request for the functions that did not.
+      final String contextPrelude = injectsContext
+          ? '\n    final _dvLifecycle = '
+              'core.DVMutableLifecycleSignal<core.DVRequestLifecycle>('
+              'core.DVRequestLifecycle.received);'
+              '\n    final _dvCtx = core.DVContext(requestLifecycle: '
+              '_dvLifecycle);'
+              '\n    _dvLifecycle.set(core.DVRequestLifecycle.executing);'
+          : '';
+      // After the function returns and before the response is encoded. Not
+      // completed: the body may be a stream this handler no longer owns, and
+      // reporting a request complete while it is still sending would be a
+      // state that lies rather than one that is missing.
+      final String contextDone = injectsContext
+          ? '\n      _dvLifecycle.set('
+              'core.DVRequestLifecycle.preparingResponse);'
+          : '';
+      final String contextFailed = injectsContext
+          ? '      _dvLifecycle.set(core.DVRequestLifecycle.failed);'
+          : '';
       final requestPrelude = '''    Object? body;
     try {
       if (req.method != 'GET' && req.method != 'HEAD') {
@@ -479,9 +516,9 @@ ${backendEntries.map((e) {
       if (path == '/health' && method.toLowerCase() == 'get') {
         return "  _hasHealth = true;\n"
             '''  router.$method(cfg.apiBasePath + '$path', $handlerOpen
-$requestPrelude$policyGate
+$requestPrelude$policyGate$contextPrelude
     try {
-      Object? result = await $invocation($callArgs);
+      Object? result = await $invocation($callArgs);$contextDone
       if (result is dv.Response) return result;
       if (result is Stream<List<int>>) return dv.Response(200, body: result);
       if (result is Stream) {
@@ -499,6 +536,7 @@ $requestPrelude$policyGate
           headers: dv.Headers({'content-type': 'application/json; charset=utf-8'}),
           body: Stream<List<int>>.value(conv.utf8.encode(conv.jsonEncode(result))));
     } catch (e, st) {
+$contextFailed
       stderr.writeln('[dartvel backend] ERROR in ${method.toUpperCase()} $path: \${e.toString()}');
       stderr.writeln(st);
       return dv.Response(500, body: Stream<List<int>>.value(conv.utf8.encode('Internal Server Error')));
@@ -506,9 +544,9 @@ $requestPrelude$policyGate
 $handlerClose''';
       }
       return '''  router.$method(cfg.apiBasePath + '$path', $handlerOpen
-$requestPrelude$policyGate
+$requestPrelude$policyGate$contextPrelude
     try {
-      Object? result = await $invocation($callArgs);
+      Object? result = await $invocation($callArgs);$contextDone
       if (result is dv.Response) return result;
       if (result is Stream<List<int>>) return dv.Response(200, body: result);
       if (result is Stream) {
@@ -526,6 +564,7 @@ $requestPrelude$policyGate
           headers: dv.Headers({'content-type': 'application/json; charset=utf-8'}),
           body: Stream<List<int>>.value(conv.utf8.encode(conv.jsonEncode(result))));
     } catch (e, st) {
+$contextFailed
       stderr.writeln('[dartvel backend] ERROR in ${method.toUpperCase()} $path: \${e.toString()}');
       stderr.writeln(st);
       return dv.Response(500, body: Stream<List<int>>.value(conv.utf8.encode('Internal Server Error')));

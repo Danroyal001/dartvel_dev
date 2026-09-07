@@ -116,12 +116,6 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'than left to the application.',
   ),
   (
-    'Lifecycle Signals',
-    'Read-only enums',
-    'DV.lifecycle.app and .build, context.lifecycle.page, .request and '
-    '.transaction. Application code observes them; it does not assign them.',
-  ),
-  (
     'Generated Model Pages',
     'Model.Page(...)',
     'Public pages from a model, with .async, .signal and .fromId. Static '
@@ -357,6 +351,23 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
 /// words. The checker holds this list to the index's Partial sections exactly.
 const List<(String, String, String)> partial = <(String, String, String)>[
   (
+    'Lifecycle Signals',
+    'Three of six change',
+    'DV.lifecycle.app and .build, context.lifecycle.page, .request and '
+    '.transaction. Application code observes them; it does not assign them. '
+    'Three of the six move. The kiosk signal is driven by the kiosk host and '
+    'the transaction signal by DV.transaction, and the request signal now '
+    'changes on a backend function that asks for a context -- received, '
+    'executing, then preparing a response or failed. It never reports '
+    'completed, because the body may be a stream the handler no longer owns, '
+    'and saying a request finished while it is still sending would be a '
+    'state that lies rather than one that is missing. Absent: anything that '
+    'advances the application and build signals, whose setters are called '
+    'from nowhere but their own tests, so an application observing either '
+    'sees the value it started with for the life of the process; and any '
+    'page context at all, so reading the page signal throws.',
+  ),
+  (
     'Scheduling',
     'Backend cron runs; the client half does not',
     'Five-field cron parsed the way cron actually reads it, day-of-month OR '
@@ -504,7 +515,7 @@ Widget _featuresPage(BuildContext context) => SingleChildScrollView(
         const Section(
           children: <Widget>[
             Eyebrow('WHAT WORKS TODAY'),
-            Heading('Thirty-eight shipped sections.', level: 1),
+            Heading('Thirty-seven shipped sections.', level: 1),
             Body(
               'This list is the repository’s own record of what is built, not '
               'a description of what is planned. A tool checks it and fails '
@@ -514,7 +525,7 @@ Widget _featuresPage(BuildContext context) => SingleChildScrollView(
               width: 660,
             ),
             Body(
-              'Twenty more sections are partial. They are listed as '
+              'Twenty-one more sections are partial. They are listed as '
               'partial, with what is absent written next to what is present.',
               width: 660,
             ),
