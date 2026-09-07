@@ -69,13 +69,13 @@ Future<Map<String, bool>> handler() async => <String, bool>{'ok': true};
 import 'package:dartvel_core/dartvel.dart';
 
 @DVUseMiddleware([DVMiddlewares.securityHeaders, DVMiddlewares.rateLimit])
-Future<Map<String, bool>> handler() async => <String, bool>{'ok': true};
+Future<Map<String, bool>> order() async => <String, bool>{'ok': true};
 ''');
       File(p.join(root.path, 'lib', 'backend', 'functions', 'ping.get.dart'))
           .writeAsStringSync('''
 import 'package:dartvel_core/dartvel.dart';
 
-Future<Map<String, bool>> handler() async => <String, bool>{'ok': true};
+Future<Map<String, bool>> ping() async => <String, bool>{'ok': true};
 ''');
 
       await _generate(root);
@@ -123,7 +123,7 @@ Future<Map<String, bool>> handler() async => <String, bool>{'ok': true};
 import 'package:dartvel_core/dartvel.dart';
 
 @DVUseMiddleware([DVMiddlewares.rateLimitCheckout])
-Future<Map<String, bool>> handler() async => <String, bool>{'ok': true};
+Future<Map<String, bool>> pay() async => <String, bool>{'ok': true};
 ''');
 
       await expectLater(
@@ -156,7 +156,7 @@ Future<Map<String, bool>> handler() async => <String, bool>{'ok': true};
 import 'package:dartvel_core/dartvel.dart';
 
 @DVUseMiddleware([DVMiddlewares.csrf])
-Future<Map<String, bool>> handler() async => <String, bool>{'ok': true};
+Future<Map<String, bool>> note() async => <String, bool>{'ok': true};
 ''');
 
       await _generate(root);

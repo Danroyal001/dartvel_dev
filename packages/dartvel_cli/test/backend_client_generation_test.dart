@@ -199,7 +199,7 @@ Future<String> _handler(String input) async {
           .writeAsStringSync('''
 import 'package:dartvel_core/dartvel.dart';
 
-Future<Map<String, bool>> handler(DVContext context, String orderId) async =>
+Future<Map<String, bool>> pay(DVContext context, String orderId) async =>
     <String, bool>{'ok': true};
 ''');
 
@@ -253,7 +253,7 @@ Future<Map<String, bool>> handler(DVContext context, String orderId) async =>
           .writeAsStringSync('''
 import 'package:dartvel_core/dartvel.dart';
 
-Future<Map<String, bool>> handler(String id) async => <String, bool>{'ok': true};
+Future<Map<String, bool>> ping(String id) async => <String, bool>{'ok': true};
 ''');
 
       await BackendGenerator.generate(

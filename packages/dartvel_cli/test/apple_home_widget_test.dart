@@ -262,5 +262,22 @@ void _sdkFloor() {
       expect(call, greaterThan(guard),
           reason: 'the call must sit inside the check, not before it');
     });
+
+    test('the two branches are a view builder, not one opaque type', () {
+      // A function returning `some View` has one opaque type, and the two
+      // branches here do not have it: containerBackground and padding return
+      // different ones, so Swift refused the file with "branches have
+      // mismatching types" and every iOS build failed at the Xcode step --
+      // after Dart, after generation, after everything this repository tests.
+      // @ViewBuilder is what lets a function return either.
+      final String swift = dvAppleHomeWidgetSource(_widgets, 'dartvel');
+
+      final int surface = swift.indexOf('func dartvelWidgetSurface()');
+      expect(surface, greaterThan(0));
+      expect(
+        swift.substring(0, surface),
+        endsWith('@ViewBuilder\n    '),
+      );
+    });
   });
 }

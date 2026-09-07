@@ -610,7 +610,7 @@ Widget _indexPage(BuildContext context) {
 import 'package:dartvel_core/dartvel.dart';
 
 @DVBackendFunction(policy: DVPolicies.refund)
-Future<Map<String, bool>> handler() async => <String, bool>{'ok': true};
+Future<Map<String, bool>> refund() async => <String, bool>{'ok': true};
 ''');
       File(
         p.join(root.path, 'lib', 'backend', 'functions', 'ping.get.dart'),
@@ -618,7 +618,7 @@ Future<Map<String, bool>> handler() async => <String, bool>{'ok': true};
 import 'package:dartvel_core/dartvel.dart';
 
 @DVBackendFunction()
-Future<Map<String, bool>> handler() async => <String, bool>{'ok': true};
+Future<Map<String, bool>> ping() async => <String, bool>{'ok': true};
 ''');
 
       await BackendGenerator.generate(
@@ -656,6 +656,51 @@ Future<Map<String, bool>> handler() async => <String, bool>{'ok': true};
       expect(pingAt, greaterThan(-1));
       final String pingHandler = routes.substring(pingAt, pingAt + 400);
       expect(pingHandler, isNot(contains('_dvAllowed')));
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
+  test('a raw handler that declares a policy is guarded too', () async {
+    // A function named handler takes the request itself and skips the whole
+    // typed path -- no body prelude, no decoded arguments. The policy was
+    // read, recorded on the entry and never emitted for that shape, so
+    // @DVBackendFunction(policy: ...) on a raw handler produced a route
+    // anybody could call. Found because three tests written against this
+    // shape all reported a router with no gate in it.
+    final root = await Directory.systemTemp.createTemp('dartvel_raw_policy_');
+    try {
+      Directory(p.join(root.path, '.dart_tool')).createSync();
+      Directory(p.join(root.path, 'lib', 'dartvel_client'))
+          .createSync(recursive: true);
+      Directory(p.join(root.path, 'lib', 'backend', 'functions'))
+          .createSync(recursive: true);
+
+      File(p.join(root.path, 'lib', 'backend', 'functions', 'raw.post.dart'))
+          .writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVBackendFunction(policy: DVPolicies.refund)
+Future<Object?> handler(Object req) async => <String, bool>{'ok': true};
+''');
+
+      await BackendGenerator.generate(
+        root: root.path,
+        backendDir: 'lib/backend',
+        pkgName: 'raw_policy_app',
+        buildId: 'test-build',
+        backendHost: '127.0.0.1',
+        backendPort: 3000,
+        apiBasePath: '/api',
+      );
+
+      final routes = File(
+        p.join(root.path, '.dart_tool', 'dartvel_backend_routes.g.dart'),
+      ).readAsStringSync();
+      expect(
+        routes,
+        contains("if (!await _dvAllowed('DVPolicies.refund', req))"),
+      );
     } finally {
       root.deleteSync(recursive: true);
     }
