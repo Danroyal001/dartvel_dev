@@ -251,13 +251,9 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'One tool',
     'create, dev, build, doctor, inspect, explain, i18n, queue, cache and sh. '
     'build runs generation for you; doctor says what each target can '
-    'actually do; explain looks up any diagnostic code.',
-  ),
-  (
-    '.dartvel.sh',
-    'DVShell',
-    'A typed shell for project tasks — commands as values, results as '
-    'values — reachable from Dart, from dartvel task and from dartvel sh.',
+    'actually do; explain looks up any diagnostic code. The shell is part of '
+    'it: a typed surface for project tasks, commands as values and results '
+    'as values, reachable from Dart, from dartvel task and from dartvel sh.',
   ),
   (
     'Backend Function Request Lifecycle',
@@ -567,7 +563,7 @@ Widget _featuresPage(BuildContext context) => SingleChildScrollView(
         const Section(
           children: <Widget>[
             Eyebrow('WHAT WORKS TODAY'),
-            Heading('Thirty-six shipped sections.', level: 1),
+            Heading('Thirty-five shipped sections.', level: 1),
             Body(
               'This list is the repository’s own record of what is built, not '
               'a description of what is planned. A tool checks it and fails '
