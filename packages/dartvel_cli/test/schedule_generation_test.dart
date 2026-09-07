@@ -101,7 +101,9 @@ Future<void> cleanupExpiredSessions() async {}
       // is deliberate -- a job that appears scheduled and never runs is the
       // failure being fixed here.
       expect(schedules, contains('dartvelBackendCronHandlers'));
-      expect(schedules, contains('cleanupExpiredSessions()'));
+      // Awaited, because it returns a Future. The plain-void case is next
+      // door and is the one that must not be.
+      expect(schedules, contains('await cron0.cleanupExpiredSessions();'));
       expect(schedules, contains('DVScheduler('));
       expect(schedules, contains('registerAll('));
       expect(schedules, contains('.tick()'));
@@ -197,7 +199,12 @@ void refreshDashboard() {}
         p.join(root.path, 'lib', 'dartvel_client', 'client_schedules.g.dart'),
       ).readAsStringSync();
       expect(client, contains('dartvelClientCronHandlers'));
-      expect(client, contains('refreshDashboard()'));
+      // Not awaited. A @DVClientCron is usually written void refresh() {},
+      // and  on a plain void is an error rather than a no-op -- the
+      // generated handler did not compile, and every job that runs the
+      // example failed on it at once.
+      expect(client, contains('{ cron0.refreshDashboard(); }'));
+      expect(client, isNot(contains('await cron0.refreshDashboard')));
       expect(client, contains('DVScheduler('));
       expect(client, contains('.tick()'));
 
