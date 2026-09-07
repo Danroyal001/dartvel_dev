@@ -200,7 +200,10 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'it reads a graph with no build target in it. What it reads is the graph '
     'the build captured rather than the running application, so queues, '
     'cache tags and the page builder are named in the specification and not '
-    'in it yet.',
+    'in it yet, and dartvel dev does not serve it -- the dev server hands '
+    'back the project\'s own index.html rather than a build output, so the '
+    'way to see the dashboard today is a web-server build followed by '
+    'dartvel preview.',
   ),
   (
     'Pages',
