@@ -80,6 +80,46 @@ String _realFailure() => <String>[
       _event(<String, Object?>{'type': 'done', 'success': false}),
     ].join('\n');
 
+/// The shape a macOS panel death produces at the end of a suite.
+///
+/// Real tests and the closing fixture all marked failed, no error event ever
+/// emitted for any of them, and a verdict all the same. Transcribed from the
+/// run on 2026-09-07 that reported five dialog tests and a tearDownAll,
+/// where the run before it had passed twenty-seven.
+String _diedWithRealTestsMarked() => <String>[
+      _event(<String, Object?>{'type': 'start'}),
+      _event(<String, Object?>{
+        'type': 'testStart',
+        'test': <String, Object?>{'id': 1, 'name': 'dialogs are available'},
+      }),
+      _event(<String, Object?>{
+        'type': 'testDone',
+        'testID': 1,
+        'result': 'success',
+      }),
+      for (int id = 2; id <= 6; id++) ...<String>[
+        _event(<String, Object?>{
+          'type': 'testStart',
+          'test': <String, Object?>{'id': id, 'name': 'dialogs open $id'},
+        }),
+        _event(<String, Object?>{
+          'type': 'testDone',
+          'testID': id,
+          'result': 'error',
+        }),
+      ],
+      _event(<String, Object?>{
+        'type': 'testStart',
+        'test': <String, Object?>{'id': 7, 'name': '(tearDownAll)'},
+      }),
+      _event(<String, Object?>{
+        'type': 'testDone',
+        'testID': 7,
+        'result': 'error',
+      }),
+      _event(<String, Object?>{'type': 'done', 'success': false}),
+    ].join('\n');
+
 DVLiveRun _parse(String machine, {String stderr = '', int exitCode = 0}) =>
     dvParseLiveSuite(
         machine: machine, stderr: stderr, exitCode: exitCode, hung: false);
@@ -168,6 +208,34 @@ void main() {
             .diedPartway,
         isTrue,
       );
+    });
+  });
+
+  group('failures with nothing attached to any of them', () {
+    test('are a death even when real tests are among them', () {
+      // onlyFixturesFailed covered the case where the process died late
+      // enough that only the closing fixture was left. It can die a moment
+      // earlier and take five real tests with it, and that arrived looking
+      // like five broken dialogs -- reported as a failure on a suite whose
+      // previous run passed twenty-seven.
+      //
+      // A test that genuinely fails carries an error. Every failure carrying
+      // none is the accident, not a fault.
+      final DVLiveRun run = _parse(_diedWithRealTestsMarked());
+
+      expect(run.passed, 1);
+      expect(run.failures.length, 6);
+      expect(run.errorsAttached, isFalse);
+      expect(run.diedPartway, isTrue);
+    });
+
+    test('a real failure with an error is still a failure', () {
+      // The check is only worth having if it does not swallow the thing it
+      // is meant to report.
+      final DVLiveRun run = _parse(_realFailure());
+
+      expect(run.errorsAttached, isTrue);
+      expect(run.diedPartway, isFalse);
     });
   });
 }

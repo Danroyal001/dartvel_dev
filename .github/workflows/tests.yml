@@ -208,6 +208,37 @@ jobs:
         working-directory: examples/dartvel_example
         run: dart run dartvel_cli:dartvel routes
 
+
+      # Nothing in this repository compiled generated backend output. The
+      # unit tests read dartvel_backend_routes.g.dart as a string and assert
+      # what is in it, which is how a policy gate written across a line
+      # break, a missing import and an interpolation resolved against the
+      # generator's own scope all shipped in one commit.
+      #
+      # Compiled rather than analysed: analysing a path inside .dart_tool can
+      # report "no issues" for a file it never opened, and a check that
+      # passes without looking is worse than no check. A kernel compile
+      # resolves every import and every symbol, and it does not run anything.
+      - name: The generated server must compile
+        working-directory: examples/dartvel_example
+        run: |
+          set -euo pipefail
+          test -f .dart_tool/dartvel_backend_routes.g.dart
+          cat > .dart_tool/dv_generated_server_check.dart <<'ENTRY'
+          // Written by CI. Imports the generated server so the compiler has
+          // to resolve all of it, and names the pieces the generator wires
+          // in so an unused one cannot be dropped without noticing.
+          import 'dartvel_backend_routes.g.dart' as routes;
+
+          void main() {
+            routes.buildBackendRouter();
+            routes.startBackend();
+          }
+          ENTRY
+          dart compile kernel .dart_tool/dv_generated_server_check.dart \
+            -o /tmp/dv_generated_server.dill
+          echo "the generated server compiles"
+
       # A real window server, because the app is a desktop binary and a
       # headless runner has no display. This is the same arrangement that first
       # proved the Linux target runs rather than merely builds.
