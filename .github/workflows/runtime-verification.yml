@@ -1474,10 +1474,28 @@ jobs:
 
           dart "$GITHUB_WORKSPACE/tool/ci/prerendered_pages_check.dart" /tmp/diag 4
 
+      - name: A release build carries no dashboard
+        working-directory: sites/dartvel_site
+        run: |
+          set -euo pipefail
+          # dartvel build defaults to --release, and a release build serves
+          # the admin only when the project asked for one. An application
+          # deployed by somebody who never read this must not acquire an
+          # admin endpoint out of convenience.
+          if [ -d build/web/__admin ]; then
+            echo "::error::a release build wrote an admin dashboard"
+            exit 1
+          fi
+
       - name: The studio must be served by the backend, and only what it holds
         run: |
           set -euo pipefail
           cd sites/dartvel_site
+
+          # A development build, which is the case that gets the dashboard
+          # with no configuration at all -- and the one a developer meets
+          # first.
+          dart run dartvel_cli:dartvel build web-server --no-release
 
           # Written by the build. Everything around the admin -- the mount,
           # the hidden answer, the file serving -- was built and working
