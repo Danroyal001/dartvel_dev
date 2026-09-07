@@ -213,8 +213,7 @@ class DVAndroidKiosk {
         // locking and says nothing about it. A refusal is recorded and the
         // lock is still attempted: without the allowlist Android gives
         // screen pinning, which is a weaker kiosk rather than none.
-        final String? refused = _allowlist();
-        if (refused != null) lockTaskAllowlist = refused;
+        lockTaskAllowlist = _allowlist();
         activity.startLockTask();
         _held = true;
         lastError = null;
@@ -233,6 +232,12 @@ class DVAndroidKiosk {
       // with the reason rather than claimed.
       'blocked': const <String>[],
       'unenforced': <String, String>{
+        // The allowlist, when it did not take. Reported here rather than kept
+        // on a static nobody reads: without it the application says it holds
+        // a kiosk, Android says NONE, and the reason the two disagree is
+        // sitting in a field no log ever prints.
+        if (lockTaskAllowlist != null)
+          'the lock task allowlist': lockTaskAllowlist!,
         for (final Object? combo in combos)
           '$combo': _held
               ? 'lock task mode blocks the home and recents buttons wholesale; '
