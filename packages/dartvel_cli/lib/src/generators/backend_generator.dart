@@ -1617,10 +1617,18 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       sb
         ..writeln("  registry.register('${esc(entry.name)}',")
         ..writeln('      (DVJsonObject input) async {')
-        ..writeln('    final args = DVJsonCodec.toJsonObject(input);')
-        ..writeln('    final result = await $alias.${entry.name}('
-            '${args.join(', ')});')
-        ..writeln('    return DVJsonCodec.fromJson(result);')
+        ..writeln('    final args = DVJsonCodec.toJsonObject(input);');
+      if (entry.returnsVoid) {
+        sb
+          ..writeln('    await $alias.${entry.name}(${args.join(', ')});')
+          ..writeln('    return const DVJsonNull();');
+      } else {
+        sb
+          ..writeln('    final result = await $alias.${entry.name}('
+              '${args.join(', ')});')
+          ..writeln('    return DVJsonCodec.fromJson(result);');
+      }
+      sb
         ..writeln('  },')
         ..writeln("      description: '${esc(entry.description)}',")
         ..writeln('      parameters: $schema);');
@@ -1907,6 +1915,7 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       }, onNamed: (v) => named = v);
       entriesByName[name] = _AIToolEntry(
         name: name,
+        returnsVoid: _dvReturnsNothing(match.group(0) ?? '', name),
         description: match.group(2) ?? '',
         importUri: importUri,
         relativePath: relativePath,
@@ -1948,6 +1957,7 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       }, onNamed: (v) => named = v);
       entriesByName[publicName] = _AIToolEntry(
         name: publicName,
+        returnsVoid: _dvReturnsNothing(declaration, name),
         description: 'Backend function $name',
         importUri: importUri,
         relativePath: relativePath,
@@ -2028,6 +2038,14 @@ class _AIToolEntry {
   /// parameters has to be called with them.
   final bool named;
 
+  /// Whether the function returns nothing.
+  ///
+  /// `await f()` on a void or Future<void> function produces void, and
+  /// assigning that to a variable does not compile. A generated handler that
+  /// did would be a server that will not build, from a tool that sends an
+  /// email and returns nothing -- an ordinary thing for a tool to be.
+  final bool returnsVoid;
+
   /// The name the function is actually declared under.
   ///
   /// A backend function input is private by the spec, and the catalogue
@@ -2044,6 +2062,7 @@ class _AIToolEntry {
     this.parameterNames = const <String>[],
     this.parameterTypes = const <String>[],
     this.named = false,
+    this.returnsVoid = false,
     String? declaredName,
   }) : declaredName = declaredName ?? name;
 }
@@ -2236,3 +2255,15 @@ List<File> _libFilesOf(String projectRoot) {
   }
   return files..sort((File a, File b) => a.path.compareTo(b.path));
 }
+
+/// Whether [declaration] declares [name] as returning nothing.
+///
+/// void and Future<void> both make `await f()` a void, which cannot be
+/// assigned. A tool that sends an email and returns nothing is an ordinary
+/// tool, and a generated handler that assigned its result would be a server
+/// that does not build.
+bool _dvReturnsNothing(String declaration, String name) => RegExp(
+      r'(?:^|[^A-Za-z0-9_])(?:void|Future<void>|FutureOr<void>)\s+'
+      '${RegExp.escape(name)}'
+      r'\s*\(',
+    ).hasMatch(declaration);
