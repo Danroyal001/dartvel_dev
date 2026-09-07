@@ -8,6 +8,17 @@ is the data, so the decision is made from evidence rather than memory.
 a gap". So nothing below is a rule violation. What follows is the shape of the
 commitment currently being made.
 
+> **Read the counts below with this in mind.** Seven of the rows in this
+> audit were never sections of the specification. `spec_status_check` read
+> any line beginning with `# ` as a heading, and NEW_SPEC.md is full of shell
+> samples whose comments start the same way, so the index carried entries for
+> `Mobile`, `Web`, `Desktop`, `etc.`, `.dartvel.sh`,
+> `Television, embedded, and extension platforms` and
+> `Complete Sony Embedded Linux system images` -- all of them comments inside
+> one ```bash block. They were removed on 2026-09-07 and the parser made
+> fence-aware. The shape of the argument here still holds; the totals are
+> seven too many.
+
 ## The numbers
 
 55 sections carry labels. The other 20 are narrative prose — Philosophy,
