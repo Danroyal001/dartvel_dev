@@ -308,6 +308,7 @@ import 'package:mime/mime.dart';
 import 'dartvel_backend.g.dart' as cfg;
 import 'package:$pkgName/dartvel_client/model_pages.g.dart' show dartvelModelPages;
 import 'package:$pkgName/dartvel_client/modules_data.g.dart' show registerDartvelModules;
+import 'package:$pkgName/dartvel_client/schedules.g.dart' show dartvelStartBackendSchedules;
 ${backendImports.join('\n')}
 
 // The generated OpenAPI document, served at cfg.apiBasePath + '/openapi.json'.
@@ -616,6 +617,12 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   // a database where nothing had created it. Backend functions are where
   // model queries actually run.
   registerDartvelModules();
+  // Every @DVBackendCron schedule, registered and ticking. Nothing did this
+  // before: the schedules were generated into a list and the only thing that
+  // ever built a DVScheduler was the scheduler's own unit test, so a job
+  // declared on a function never ran once in a served application. Returns
+  // without starting a timer when there are no schedules.
+  dartvelStartBackendSchedules();
   final router = buildBackendRouter();
   final bindHost = host ?? cfg.backendHost;
   final bindPort = port ?? cfg.backendPort;
@@ -1171,11 +1178,33 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       );
     }
 
+    // The half that was missing. The entries below were generated correctly
+    // and read by nothing: DVScheduler was instantiated in one place in the
+    // repository and that place was its own unit test, so a schedule
+    // travelled from the annotation into the list and stopped there while
+    // the section recorded it as running.
+    final List<_CronEntry> backendCron = entries
+        .where((entry) => entry.target == 'DVCronTarget.backend')
+        .toList(growable: false);
+    final Map<String, String> cronAliasByImport = <String, String>{};
+    for (final _CronEntry entry in backendCron) {
+      cronAliasByImport.putIfAbsent(
+        entry.importUri,
+        () => 'cron${cronAliasByImport.length}',
+      );
+    }
+
     final sb = StringBuffer()
       ..writeln('// GENERATED – do not edit.')
       ..writeln('library dartvel_client_schedules;')
       ..writeln()
-      ..writeln("import 'package:dartvel_core/dartvel.dart';")
+      ..writeln("import 'dart:async';")
+      ..writeln()
+      ..writeln("import 'package:dartvel_core/dartvel.dart';");
+    for (final MapEntry<String, String> import in cronAliasByImport.entries) {
+      sb.writeln("import '${esc(import.key)}' as ${import.value};");
+    }
+    sb
       ..writeln()
       ..writeln('const List<DVCronEntry> dartvelCronEntries = <DVCronEntry>[');
     for (final entry in entries) {
@@ -1202,6 +1231,56 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       ..writeln(
           '  dartvelCronEntries.where((entry) => entry.target == DVCronTarget.client),')
       ..writeln(');');
+
+    sb
+      ..writeln()
+      ..writeln('/// The function behind each backend schedule.')
+      ..writeln('///')
+      ..writeln('/// registerAll refuses an entry with no handler rather than')
+      ..writeln('/// skipping it, so a name here that does not match an entry')
+      ..writeln('/// is a startup failure and not a job that quietly never')
+      ..writeln('/// runs.');
+    if (backendCron.isEmpty) {
+      sb.writeln('const Map<String, Future<void> Function()> '
+          'dartvelBackendCronHandlers = '
+          '<String, Future<void> Function()>{};');
+    } else {
+      sb.writeln('final Map<String, Future<void> Function()> '
+          'dartvelBackendCronHandlers = '
+          '<String, Future<void> Function()>{');
+      for (final _CronEntry entry in backendCron) {
+        final String alias = cronAliasByImport[entry.importUri]!;
+        sb.writeln("  '${esc(entry.name)}': () async { "
+            'await $alias.${entry.name}(); },');
+      }
+      sb.writeln('};');
+    }
+    sb
+      ..writeln()
+      ..writeln('/// Registers every backend schedule and starts ticking.')
+      ..writeln('///')
+      ..writeln('/// Returns null when the application declares no backend')
+      ..writeln('/// schedule: a timer firing in every application that has')
+      ..writeln('/// none is a cost nobody asked for.')
+      ..writeln('///')
+      ..writeln('/// The tick interval is shorter than a minute because the')
+      ..writeln('/// finest cron granularity is a minute, and a tick landing')
+      ..writeln('/// a little after the boundary is what keeps a minute')
+      ..writeln('/// schedule from skipping one. Ticking often is safe: a')
+      ..writeln('/// task is keyed to the occurrence it last ran for.')
+      ..writeln('Timer? dartvelStartBackendSchedules({')
+      ..writeln('  Duration every = const Duration(seconds: 20),')
+      ..writeln('  bool catchUp = false,')
+      ..writeln('}) {')
+      ..writeln('  if (dartvelBackendCronEntries.isEmpty) return null;')
+      ..writeln('  final DVScheduler scheduler = DVScheduler()')
+      ..writeln('    ..registerAll(')
+      ..writeln('      dartvelBackendCronEntries,')
+      ..writeln('      handlers: dartvelBackendCronHandlers,')
+      ..writeln('      catchUp: catchUp,')
+      ..writeln('    );')
+      ..writeln('  return Timer.periodic(every, (Timer _) => scheduler.tick());')
+      ..writeln('}');
     return sb.toString();
   }
 

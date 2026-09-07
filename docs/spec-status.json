@@ -113,7 +113,7 @@
     {
       "section": "Scheduling",
       "stability": "Draft",
-      "status": "Shipped",
+      "status": "Partial",
       "evidence": [
         "packages/dartvel_cli/test/schedule_generation_test.dart",
         "packages/dartvel_core/lib/src/scheduling/cron.dart",
@@ -121,7 +121,7 @@
         "packages/dartvel_core/test/cron_test.dart",
         "packages/dartvel_core/test/scheduler_test.dart"
       ],
-      "absent": "Nothing named. Both @DVBackendCron and @DVClientCron are collected into generated entries and DVScheduler runs them: the note that client cron generation was missing was wrong, and what was actually missing was any cron evaluator at all -- the schedule travelled from an annotation into a generated list and stopped there"
+      "absent": "Nothing ran a schedule until this was written. Both @DVBackendCron and @DVClientCron are collected into generated entries, and the note here used to say DVScheduler ran them; it did not. DVScheduler was instantiated in exactly one place in the repository and that place was its own unit test, so a schedule travelled from an annotation into a generated list and stopped. The generated schedules file now emits the handler behind each backend entry and a starter that registers them and ticks, and the generated startBackend calls it before it serves, so a declared backend schedule runs in a served application. An application with no schedule starts no timer. Absent: the client half. The client entries are generated and nothing starts them, because the client runtime has no place a periodic tick belongs yet, and emitting a starter nobody calls would put the same silence one file over."
     },
     {
       "section": "Queues, Jobs, and Signals",
