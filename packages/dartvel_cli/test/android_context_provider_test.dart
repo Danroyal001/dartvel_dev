@@ -15,6 +15,7 @@
 import 'dart:io';
 
 import 'package:dartvel_cli/src/build/android_context_provider.dart';
+import 'package:dartvel_core/dartvel.dart' show dvAndroidDeviceAdminClass;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -103,6 +104,8 @@ void main() {
   });
 
   _activity();
+
+  _allowlist();
 }
 
 
@@ -204,6 +207,73 @@ void _activity() {
       ]) {
         expect(source, contains(method), reason: method);
       }
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
+// What the allowlist actually names.
+//
+// The provider builds the admin component setLockTaskPackages is addressed
+// by, and it built it wrong: an interpolation was lost in an edit and the
+// generated Java read
+//
+//     new ComponentName(pkg, pkg + ".")
+//
+// so the component was the package name with a trailing dot, which is not a
+// class. setLockTaskPackages threw, the application went on to call
+// startLockTask() unallowlisted, Android showed the pin dialog to nobody,
+// and the platform reported NONE while the kiosk reported held. Several CI
+// runs went into finding that, and the analyzer had said "unused import" the
+// whole time.
+//
+// Generated source is the worst place for a lost interpolation: nothing type
+// checks a string, and the failure arrives on a device.
+
+void _allowlist() {
+  group('the lock task allowlist', () {
+    test('names the receiver class, not an empty suffix', () {
+      final String source = dvAndroidContextProviderSource();
+
+      expect(source, contains('DartvelDeviceAdminReceiver'));
+      expect(source, isNot(contains('pkg + "."')),
+          reason: 'the component would be the package with a trailing dot');
+    });
+
+    test('the receiver it names is the one the build writes', () {
+      // Two spellings would be a device owner set against a component that
+      // does not exist, which Android reports as an unknown admin -- the
+      // exact wrong turn this took four layers ago.
+      expect(dvAndroidContextProviderSource(),
+          contains(dvAndroidDeviceAdminClass));
+    });
+
+    test('it asks whether this application is the device owner first', () {
+      // Calling setLockTaskPackages without being the device owner throws,
+      // and the throw is indistinguishable from the ones worth reporting.
+      final String source = dvAndroidContextProviderSource();
+      final int asks = source.indexOf('isDeviceOwnerApp');
+      final int sets = source.indexOf('setLockTaskPackages');
+
+      expect(asks, greaterThan(0));
+      expect(sets, greaterThan(asks), reason: 'ask before setting');
+    });
+
+    test('it allowlists this application and nothing else', () {
+      // A kiosk allowlisting other packages is a different feature with a
+      // different blast radius.
+      expect(dvAndroidContextProviderSource(),
+          contains('new String[] {pkg}'));
+    });
+
+    test('a refusal comes back as a reason rather than a crash', () {
+      // A kiosk that threw on the way in is a device showing a stack trace
+      // in a lobby.
+      final String source = dvAndroidContextProviderSource();
+
+      expect(source, contains('catch (SecurityException'));
+      expect(source, contains('return null'),
+          reason: 'null is the allowlisted answer');
     });
   });
 }
