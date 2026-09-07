@@ -101,6 +101,8 @@ void main() {
       expect(dvAndroidContextProviderManifest(odd), odd);
     });
   });
+
+  _activity();
 }
 
 
@@ -130,5 +132,78 @@ void _oneName() {
     expect(java, contains('package ${parts.sublist(0, parts.length - 1).join('.')};'));
     expect(java, contains('class ${parts.last} '));
     expect(dvAndroidContextProviderPath, endsWith('${parts.last}.java'));
+  });
+}
+
+// ---------------------------------------------------------------------------
+// The Activity, as well as the Context.
+//
+// Lock task is an Activity method, and Dartvel could not find an Activity to
+// call it on. The kiosk watcher calls registerActivityLifecycleCallbacks from
+// Dart when the bindings register, which is after the Flutter engine is up --
+// and those callbacks only report lifecycle events from the moment they are
+// registered. The Activity has already resumed by then, so onActivityResumed
+// never fires and every enforcement reports "no Activity has resumed yet, so
+// there is nothing to lock" on a device where one plainly has.
+//
+// The provider is the fix for the same reason it exists at all: Android
+// creates it before Application.onCreate returns, which is before any
+// Activity. Callbacks registered there see the first resume.
+
+void _activity() {
+  group('the provider watches for the Activity too', () {
+    test('it registers lifecycle callbacks, not just a Context', () {
+      final String source = dvAndroidContextProviderSource();
+
+      expect(source, contains('registerActivityLifecycleCallbacks'));
+    });
+
+    test('it registers them in onCreate, before any Activity exists', () {
+      // Registered later and it is the same bug in a new place: callbacks
+      // that start watching after the thing they watch for has happened.
+      final String source = dvAndroidContextProviderSource();
+      final int onCreate = source.indexOf('public boolean onCreate()');
+      final int register = source.indexOf('registerActivityLifecycleCallbacks');
+
+      expect(onCreate, greaterThan(0));
+      expect(register, greaterThan(onCreate),
+          reason: 'the registration has to be inside onCreate');
+    });
+
+    test('it hands the resumed Activity back', () {
+      final String source = dvAndroidContextProviderSource();
+
+      expect(source, contains('public static Activity activity()'));
+      expect(source, contains('onActivityResumed'));
+    });
+
+    test('it forgets an Activity that is going away', () {
+      // Holding a destroyed Activity is a leak and a lock task call on a
+      // window that is gone, which throws where a null would have been
+      // reported.
+      final String source = dvAndroidContextProviderSource();
+
+      expect(source, contains('onActivityPaused'));
+      expect(source, contains('onActivityDestroyed'));
+    });
+
+    test('it implements every callback the interface requires', () {
+      // ActivityLifecycleCallbacks is an interface with seven methods. A
+      // class missing one does not compile, and the failure arrives from
+      // Gradle rather than from here.
+      final String source = dvAndroidContextProviderSource();
+
+      for (final String method in <String>[
+        'onActivityCreated',
+        'onActivityStarted',
+        'onActivityResumed',
+        'onActivityPaused',
+        'onActivityStopped',
+        'onActivitySaveInstanceState',
+        'onActivityDestroyed',
+      ]) {
+        expect(source, contains(method), reason: method);
+      }
+    });
   });
 }
