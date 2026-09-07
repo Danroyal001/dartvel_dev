@@ -2280,7 +2280,15 @@ class BuildCommand extends Command<void> {
     // something you hand to somebody.
     final DVAdminMount admin = dvAdminMount(_dartvelSection(root),
         release: _isReleaseBuild());
-    if (!admin.enabled) return;
+    if (!admin.enabled) {
+      // Said out loud rather than left as an empty directory. dartvel build
+      // defaults to --release, so somebody trying the dashboard for the
+      // first time gets a build without one and nothing telling them why.
+      Logger.log('   No admin dashboard in this build. A release build '
+          'serves one only when dartvel.admin.enabled says so; '
+          '--no-release gets it with no configuration.');
+      return;
+    }
 
     final String problem = dvAdminMountProblem(admin.path) ?? '';
     if (problem.isNotEmpty) {
