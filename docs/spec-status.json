@@ -995,7 +995,8 @@
       "section": "Complete Sony Embedded Linux system images",
       "stability": "Draft",
       "status": "Designed",
-      "evidence": []
+      "evidence": [],
+      "absent": "Present: the two targets exist and are routed -- dartvel build sony-elinux-iso and -img resolve to the eLinux bundle build with a format, and the bundle itself is built and verified on a virtual device in CI. Absent: the image. Dartvel bundles no system-imaging toolchain, so after the bundle is built the packaging step reports DV-ELINUX-IMG and skips rather than writing something that is not a bootable image. That is the whole of it: a complete system image needs a root filesystem, a bootloader and a partition layout, none of which this repository has any of, and emitting a file with the right extension would be worse than the honest skip because it would look like the feature."
     },
     {
       "section": "Unified Development, Transparency, and Contracts",
