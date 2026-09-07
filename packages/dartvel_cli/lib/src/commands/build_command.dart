@@ -1513,7 +1513,7 @@ class BuildCommand extends Command<void> {
       final StringBuffer scaffoldSaid = StringBuffer();
       void keepScaffold(List<int> data) {
         if (scaffoldSaid.length > 64 * 1024) return;
-        scaffoldSaid.write(systemEncoding.decode(data, allowMalformed: true));
+        scaffoldSaid.write(utf8.decode(data, allowMalformed: true));
       }
 
       scaffold.stdout.listen((data) {
@@ -1579,7 +1579,7 @@ class BuildCommand extends Command<void> {
     final StringBuffer said = StringBuffer();
     void keep(List<int> data) {
       if (said.length > 64 * 1024) return;
-      said.write(systemEncoding.decode(data, allowMalformed: true));
+      said.write(utf8.decode(data, allowMalformed: true));
     }
 
     proc.stdout.listen((data) {
