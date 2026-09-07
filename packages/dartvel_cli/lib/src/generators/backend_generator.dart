@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:dartvel_core/dartvel.dart'
     show
         dvMiddlewareKeysAlwaysOn,
+        dvMiddlewareKeysAtRequest,
         dvMiddlewareKeysBuilt,
         dvMiddlewareKeysUnbuiltReason;
 import 'package:file/local.dart';
@@ -420,6 +421,16 @@ Future<dv.Response> _dvGuarded(
   return response;
 }
 
+/// A body bigger than the route said it would read.
+///
+/// 413 with the number in it. A refusal that does not say what would have
+/// been accepted leaves the caller guessing, and the limit is the contract
+/// rather than a secret.
+dv.Response _dvTooLarge(int limit) => dv.Response(413,
+    headers: dv.Headers({'content-type': 'text/plain; charset=utf-8'}),
+    body: Stream<List<int>>.value(
+        conv.utf8.encode(core.dvTooLargeMessage(limit))));
+
 dv.Response _dvCsrfForbidden() => dv.Response(403,
     headers: dv.Headers({'content-type': 'text/plain; charset=utf-8'}),
     body: Stream<List<int>>.value(conv.utf8.encode('CSRF token missing')));
@@ -509,14 +520,48 @@ $handlerClose''';
       final String contextFailed = injectsContext
           ? '      _dvLifecycle.set(core.DVRequestLifecycle.failed);'
           : '';
+      // The declared body limit, enforced where the body is read.
+      //
+      // bodyLimit and uploadLimit cannot be middleware in the ordinary
+      // sense: the chain runs around the handler, and by the time it has
+      // anything to say the body is already in memory. A limit that arrives
+      // after the read is not a limit. So the check is emitted here, and
+      // only for a route that asked -- one on every route would refuse the
+      // upload endpoint nobody limited.
+      final bool limitsBody = middlewareKeys.contains('bodyLimit');
+      final bool limitsUpload = middlewareKeys.contains('uploadLimit');
+      // Declaring both means each shape gets its own number, which is the
+      // point of there being two: a JSON body of several megabytes is a
+      // mistake, and an upload of several megabytes is the feature.
+      final String limitExpr = limitsBody && limitsUpload
+          ? "ct.contains('multipart/form-data') "
+              '? core.DVBodyLimits.upload : core.DVBodyLimits.body'
+          : limitsUpload
+              ? 'core.DVBodyLimits.upload'
+              : 'core.DVBodyLimits.body';
+      final String readBody = limitsBody || limitsUpload
+          ? '''        final _dvLimit = $limitExpr;
+        if (core.dvDeclaredTooLarge(
+            contentLength: req.headers.get('content-length'),
+            limit: _dvLimit)) {
+          return _dvTooLarge(_dvLimit);
+        }
+        final _dvBody = await core.dvReadCapped(req.body.stream, _dvLimit);
+        if (_dvBody == null) return _dvTooLarge(_dvLimit);
+        if (ct.contains('multipart/form-data')) {
+          body = await _parseMultipart(Stream<List<int>>.value(_dvBody), ct);
+        } else {
+          final raw = conv.utf8.decode(_dvBody, allowMalformed: true);'''
+          : '''        if (ct.contains('multipart/form-data')) {
+          body = await _parseMultipart(req.body.stream, ct);
+        } else {
+          final raw = await req.body.text();''';
+
       final requestPrelude = '''    Object? body;
     try {
       if (req.method != 'GET' && req.method != 'HEAD') {
         final ct = req.headers.get('content-type') ?? '';
-        if (ct.contains('multipart/form-data')) {
-          body = await _parseMultipart(req.body.stream, ct);
-        } else {
-          final raw = await req.body.text();
+$readBody
           if (ct.contains('application/json')) {
             body = raw.isEmpty ? null : conv.jsonDecode(raw);
           } else if (ct.contains('application/x-www-form-urlencoded')) {
@@ -1815,6 +1860,7 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
     final Set<String> supported = <String>{
       ...dvMiddlewareKeysBuilt,
       ...dvMiddlewareKeysAlwaysOn,
+      ...dvMiddlewareKeysAtRequest,
       ...dvMiddlewareKeysUnbuiltReason.keys,
     };
     final fs = const LocalFileSystem();

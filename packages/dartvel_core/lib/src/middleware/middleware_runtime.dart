@@ -88,6 +88,18 @@ const Set<String> dvMiddlewareKeysBuilt = <String>{
   'maintenance',
 };
 
+/// Keys the generated request prelude enforces, not the chain.
+///
+/// A body limit cannot be a middleware in the ordinary sense. The chain runs
+/// around the handler, and by the time it has anything to say the body has
+/// been read -- a limit that arrives after the read is not a limit. So the
+/// generator emits the check where the reading happens, and these are
+/// declared here so the chain skips them rather than refusing the build.
+const Set<String> dvMiddlewareKeysAtRequest = <String>{
+  'bodyLimit',
+  'uploadLimit',
+};
+
 /// Keys the route already enforces for every request.
 ///
 /// CSRF is validated in the generated request prelude on every method that
@@ -119,10 +131,6 @@ const Map<String, String> dvMiddlewareKeysUnbuiltReason = <String, String>{
   'csp': 'No Content-Security-Policy is emitted anywhere, and there is no '
       'configuration surface for the policy string. securityHeaders sends '
       'the fixed headers that do exist.',
-  'bodyLimit': 'Nothing enforces a request body size. The body is read '
-      'before any limit could be applied.',
-  'uploadLimit': 'Nothing enforces an upload size. Multipart parts are read '
-      'before any limit could be applied.',
   'cacheTags': 'Nothing implements this. Cache invalidation lives on '
       'DV.Cache.tag and DV.Cache.revalidateTag.',
 };
@@ -261,6 +269,8 @@ Future<DVMiddlewareResult> dvRunMiddlewares(
   final MiddlewareChain chain = MiddlewareChain();
   for (final String key in keys) {
     if (dvMiddlewareKeysAlwaysOn.contains(key)) continue;
+    // Enforced by the generated prelude, before this chain is reached.
+    if (dvMiddlewareKeysAtRequest.contains(key)) continue;
     final Middleware? middleware = dvMiddlewareFor(key);
     if (middleware == null) {
       throw ArgumentError.value(

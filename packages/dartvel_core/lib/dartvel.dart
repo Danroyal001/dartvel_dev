@@ -83,6 +83,7 @@ export 'src/kiosk/updates.dart';
 export 'src/lifecycle/lifecycle.dart';
 export 'src/mail/smtp.dart';
 export 'src/media/image.dart';
+export 'src/middleware/body_limit.dart';
 export 'src/middleware/middleware.dart';
 export 'src/middleware/middleware_runtime.dart';
 export 'src/modules/manifest.dart';

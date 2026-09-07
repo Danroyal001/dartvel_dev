@@ -407,7 +407,7 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   ),
   (
     'Middleware',
-    'Nine run, one is already on, nine fail the build',
+    'Nine run, two guard the body, seven fail the build',
     'Composable middleware around backend functions, with the request '
     'lifecycle observable as a signal. The nineteen keys did nothing until '
     'recently. The annotation had one reader -- a check that the name was '
@@ -420,11 +420,19 @@ const List<(String, String, String)> partial = <(String, String, String)>[
     'now run, in the order declared, wrapped around the handler so a '
     'refusal answers before the function does and resolved headers reach a '
     'response that exists. CSRF is already enforced on every state-changing '
-    'request whether it is declared or not. The remaining nine are '
-    'implemented nowhere and fail the build naming what to use instead, '
-    'because somebody who wrote a body limit has decided large bodies are '
-    'rejected, and serving them is not a smaller failure for having been '
-    'quiet about it.',
+    'request whether it is declared or not. Two more cannot be middleware at '
+    'all -- the chain runs around the handler, and by the time it has '
+    'anything to say the body is already in memory, so a limit that arrives '
+    'there is not a limit. The body and upload limits are checked where the '
+    'body is read instead: the announced length first, without reading a '
+    'byte, and then the read itself capped for a sender that announced '
+    'nothing. Declaring both gives each shape its own number, which is the '
+    'point of there being two -- a JSON body of several megabytes is a '
+    'mistake and an upload of several megabytes is the feature. The '
+    'remaining seven are implemented nowhere and fail the build naming what '
+    'to use instead, because somebody who wrote one of them has decided '
+    'something is being enforced, and serving as though it were is not a '
+    'smaller failure for having been quiet about it.',
   ),
   (
     'Multi-tenancy',

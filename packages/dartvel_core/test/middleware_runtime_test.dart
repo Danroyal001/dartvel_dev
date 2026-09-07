@@ -40,13 +40,12 @@ void main() {
     });
 
     test('a key with no implementation builds nothing', () {
-      // bodyLimit, uploadLimit, csp, cacheTags and rateLimitCheckout are
-      // declared on DVMiddlewares and implemented nowhere. Returning a
-      // do-nothing middleware for them would be the same silence in a new
-      // place.
-      expect(dvMiddlewareFor('bodyLimit'), isNull);
+      // csp, cacheTags and rateLimitCheckout are declared on DVMiddlewares
+      // and implemented nowhere. Returning a do-nothing middleware for them
+      // would be the same silence in a new place.
       expect(dvMiddlewareFor('csp'), isNull);
       expect(dvMiddlewareFor('cacheTags'), isNull);
+      expect(dvMiddlewareFor('rateLimitCheckout'), isNull);
     });
 
     test('every unbuilt key is named, and no key is in both sets', () {
@@ -59,6 +58,43 @@ void main() {
       }
       for (final String key in dvMiddlewareKeysUnbuilt) {
         expect(dvMiddlewareFor(key), isNull, reason: key);
+      }
+    });
+  });
+
+  group('the keys the prelude enforces', () {
+    test('a body limit is not run by the chain', () async {
+      // It cannot be: the chain runs around the handler and the body is in
+      // memory by then. The generated prelude checks before it reads, so the
+      // chain skips these rather than refusing the build over them.
+      expect(
+        dvMiddlewareKeysAtRequest,
+        containsAll(<String>['bodyLimit', 'uploadLimit']),
+      );
+
+      final DVMiddlewareResult result = await dvRunMiddlewares(
+        const <String>['bodyLimit', 'uploadLimit'],
+        request(),
+      );
+
+      expect(result.allowed, isTrue);
+      expect(result.headers, isEmpty);
+    });
+
+    test('and none of the four sets overlap', () {
+      // A key in two of them would be enforced twice or refused while
+      // working, and which depends on the order the generator reads them.
+      final List<Set<String>> sets = <Set<String>>[
+        dvMiddlewareKeysBuilt,
+        dvMiddlewareKeysAtRequest,
+        dvMiddlewareKeysAlwaysOn,
+        dvMiddlewareKeysUnbuilt,
+      ];
+      for (int a = 0; a < sets.length; a++) {
+        for (int b = a + 1; b < sets.length; b++) {
+          expect(sets[a].intersection(sets[b]), isEmpty,
+              reason: 'sets $a and $b share a key');
+        }
       }
     });
   });
@@ -190,11 +226,11 @@ void main() {
 
     test('a declared key nobody implemented refuses the build, not the '
         'request', () async {
-      // Running a chain containing bodyLimit must not quietly serve the
-      // request as though the limit applied. The generator rejects it, and
-      // this is the runtime saying the same thing rather than shrugging.
+      // Running a chain containing csp must not quietly serve the request
+      // as though a policy had been sent. The generator rejects it, and this
+      // is the runtime saying the same thing rather than shrugging.
       await expectLater(
-        dvRunMiddlewares(const <String>['bodyLimit'], request()),
+        dvRunMiddlewares(const <String>['csp'], request()),
         throwsA(isA<ArgumentError>()),
       );
     });
