@@ -52,42 +52,71 @@ Future<void> main(List<String> args) async {
   // deliberate -- a false alarm costs somebody an afternoon and teaches
   // them to switch the check off.
   final Map<String, Set<String>> references = <String, Set<String>>{};
-  for (final Directory package in Directory('packages')
-      .listSync()
-      .whereType<Directory>()) {
+  final Map<String, String> sourceByFile = <String, String>{};
+  // Anything directly under lib/ is a public entrypoint an application may
+  // import; everything below lib/src/ is reachable only by being exported
+  // from one of them.
+  final List<String> barrels = <String>[];
+  for (final Directory package
+      in Directory('packages').listSync().whereType<Directory>()) {
     final Directory lib = Directory('${package.path}/lib');
     if (!lib.existsSync()) continue;
     for (final File file in lib
         .listSync(recursive: true)
         .whereType<File>()
         .where((File f) => f.path.endsWith('.dart'))) {
+      final String source = file.readAsStringSync();
+      sourceByFile[file.path] = source;
       references[file.path] = RegExp(r'[A-Za-z_][A-Za-z0-9_]*')
-          .allMatches(file.readAsStringSync())
+          .allMatches(source)
           .map((RegExpMatch m) => m.group(0)!)
           .toSet();
+      if (file.parent.path == lib.path) barrels.add(file.path);
     }
   }
 
-  final List<String> unreachable = dvUnreachableEvidence(
+  final DVEvidenceReach reach = dvEvidenceReach(
     symbolsByFile: symbolsByFile,
     referencesByLibFile: references,
+    exportedFiles: dvExportedFiles(
+      barrels: barrels,
+      sourceByFile: sourceByFile,
+    ),
   );
 
-  if (unreachable.isEmpty) {
-    stdout.writeln('every cited implementation file is called by something '
+  void report(String heading, List<String> paths) {
+    stdout.writeln(heading);
+    for (final String path in paths) {
+      stdout.writeln('  $path');
+      stdout.writeln('    cited by: ${sectionByFile[path]}');
+      stdout.writeln('    declares: ${symbolsByFile[path]!.join(', ')}');
+    }
+    stdout.writeln('');
+  }
+
+  if (reach.applicationOnly.isNotEmpty) {
+    report(
+      'Evidence only an application can call -- nothing in the framework '
+      'names these, which is right for an adapter somebody constructs and '
+      'wrong for anything the framework was meant to invoke:',
+      reach.applicationOnly,
+    );
+  }
+
+  if (reach.unreachable.isEmpty) {
+    stdout.writeln('every cited implementation file has a possible caller '
         '(${symbolsByFile.length} checked)');
     return;
   }
 
-  stdout.writeln('Evidence nothing outside a test calls:');
-  for (final String path in unreachable) {
-    stdout.writeln('  $path');
-    stdout.writeln('    cited by: ${sectionByFile[path]}');
-    stdout.writeln('    declares: ${symbolsByFile[path]!.join(', ')}');
-  }
-  stdout.writeln('');
-  stdout.writeln('A section citing a file nothing calls is a section '
-      'claiming work that does not run. Either wire it in, or say in the '
-      'section what is still absent.');
+  report(
+    'Evidence nothing can call -- no framework caller, and not exported '
+    'from any public entrypoint, so an application cannot import it '
+    'without reaching into src/:',
+    reach.unreachable,
+  );
+  stdout.writeln('A section citing a file nothing can call is a section '
+      'claiming work that does not run. Export it, wire it in, or say in '
+      'the section what is still absent.');
   exit(1);
 }
