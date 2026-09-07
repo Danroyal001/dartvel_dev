@@ -21,12 +21,16 @@ import 'package:test/test.dart';
 
 void main() {
   group('what a declared policy generates', () {
-    test('a page with one gets a redirect that checks it', () {
-      // Not a comment, not a TODO: a route the router will actually refuse.
+    test('a page with one gets a check the router will actually run', () {
+      // Not a comment, not a TODO. The redirect itself is the chain's --
+      // there has to be exactly one of those however many guards a route
+      // has -- so this is the check that goes inside it.
       final String guard = dvPagePolicyGuard('DVPolicies.viewAdmin');
 
-      expect(guard, contains('redirect:'));
       expect(guard, contains('DVPolicies.viewAdmin'));
+      expect(dvPageGuardChain(
+              directoryGuards: const <String>[], policy: 'DVPolicies.viewAdmin'),
+          contains('redirect:'));
     });
 
     test('it calls the one shared checker, not an inlined auth call', () {
