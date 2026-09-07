@@ -78,27 +78,6 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'a page can be under one and carry a policy of its own.',
   ),
   (
-    'Middleware',
-    'Nine run, one is already on, nine fail the build',
-    'Composable middleware around backend functions, with the request '
-    'lifecycle observable as a signal. The nineteen keys did nothing until '
-    'recently. The annotation had one reader -- a check that the name was '
-    'spelled correctly -- which then dropped the list, so nothing reached '
-    'the generated router and no request was ever handled differently for '
-    'declaring any of them. The implementations were not missing: the rate '
-    'limiter, the security headers, locale negotiation, maintenance mode, '
-    'tenant resolution and the rest were all written and tested through a '
-    'chain each test built by hand, and nothing else ever built one. Nine '
-    'now run, in the order declared, wrapped around the handler so a '
-    'refusal answers before the function does and resolved headers reach a '
-    'response that exists. CSRF is already enforced on every state-changing '
-    'request whether it is declared or not. The remaining nine are '
-    'implemented nowhere and fail the build naming what to use instead, '
-    'because somebody who wrote a body limit has decided large bodies are '
-    'rejected, and serving them is not a smaller failure for having been '
-    'quiet about it.',
-  ),
-  (
     'Theme',
     'Light and dark',
     'A themed surface that follows the system by default. This site runs on '
@@ -109,19 +88,6 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'Built on models and signals',
     'Generated sync, subscriptions, presence and fanout. There is no '
     'DV.Realtime namespace, deliberately: it is models, signals and queues.',
-  ),
-  (
-    'Multi-tenancy',
-    'Tenant resolution; filtering not yet',
-    'Tenant resolution is built: the current tenant is resolved from the '
-    'configured source, the middleware makes it current for the rest of the '
-    'request, and presence is scoped by it. Automatic filtering of generated '
-    'model queries is not, and this entry used to say it was -- a generated '
-    'query carries no tenant predicate, so on a shared database it returns '
-    'every tenant\'s rows. That is the isolation somebody chooses a '
-    'framework for, so it is named here rather than left implied: filtering '
-    'needs the schema, the writes and the reads to arrive together, and a '
-    'column written but not filtered on would look like the feature working.',
   ),
   (
     'SEO',
@@ -172,16 +138,6 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     '@DVJob and DV.Queues',
     'Durable jobs and queues. background: true and durable: true on a backend '
     'function are sugar that compiles onto the same layer.',
-  ),
-  (
-    'Sensitive Model Fields',
-    '@DVModel.sensitiveField(); encrypted: true refused',
-    'Excluded from logs, AI context, traces, analytics, public serialization, '
-    'search, generated pages, tables and admin by default. Reaching a client '
-    'takes an explicit policy. encrypted: true is not implemented: there is '
-    'no server-side field-encryption key surface yet, so a field declaring '
-    'it fails generation, naming the model and field, rather than being '
-    'stored as plaintext under a flag that says otherwise.',
   ),
   (
     'Authentication',
@@ -239,21 +195,6 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'Every annotation',
     '@DVPage, @DVFunctionalWidget, @DVBackendFunction and @DVJob.handler all '
     'take a block body. No more one-line wrappers around a public helper.',
-  ),
-  (
-    'Scheduling',
-    'Backend cron runs; the client half does not',
-    'Five-field cron parsed the way cron actually reads it, day-of-month OR '
-    'day-of-week, with nextAfter for the next tick and a scheduler that '
-    'dispatches onto the queue rather than running inline. The scheduler was '
-    'built and nothing ever started one: the only place in the repository '
-    'that constructed it was its own unit test, so a schedule declared on a '
-    'backend function travelled into a generated list and stopped, and this '
-    'entry said it ran. A served backend now registers every declared '
-    'schedule and ticks, and an application with none starts no timer. The '
-    'client half is generated and still not started -- the client runtime '
-    'has nowhere a periodic tick belongs yet, and a starter nobody calls '
-    'would be the same silence one file over.',
   ),
   (
     'Queues, Jobs, and Signals',
@@ -399,6 +340,65 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
 /// words. The checker holds this list to the index's Partial sections exactly.
 const List<(String, String, String)> partial = <(String, String, String)>[
   (
+    'Scheduling',
+    'Backend cron runs; the client half does not',
+    'Five-field cron parsed the way cron actually reads it, day-of-month OR '
+    'day-of-week, with nextAfter for the next tick and a scheduler that '
+    'dispatches onto the queue rather than running inline. The scheduler was '
+    'built and nothing ever started one: the only place in the repository '
+    'that constructed it was its own unit test, so a schedule declared on a '
+    'backend function travelled into a generated list and stopped, and this '
+    'entry said it ran. A served backend now registers every declared '
+    'schedule and ticks, and an application with none starts no timer. The '
+    'client half is generated and still not started -- the client runtime '
+    'has nowhere a periodic tick belongs yet, and a starter nobody calls '
+    'would be the same silence one file over.',
+  ),
+  (
+    'Middleware',
+    'Nine run, one is already on, nine fail the build',
+    'Composable middleware around backend functions, with the request '
+    'lifecycle observable as a signal. The nineteen keys did nothing until '
+    'recently. The annotation had one reader -- a check that the name was '
+    'spelled correctly -- which then dropped the list, so nothing reached '
+    'the generated router and no request was ever handled differently for '
+    'declaring any of them. The implementations were not missing: the rate '
+    'limiter, the security headers, locale negotiation, maintenance mode, '
+    'tenant resolution and the rest were all written and tested through a '
+    'chain each test built by hand, and nothing else ever built one. Nine '
+    'now run, in the order declared, wrapped around the handler so a '
+    'refusal answers before the function does and resolved headers reach a '
+    'response that exists. CSRF is already enforced on every state-changing '
+    'request whether it is declared or not. The remaining nine are '
+    'implemented nowhere and fail the build naming what to use instead, '
+    'because somebody who wrote a body limit has decided large bodies are '
+    'rejected, and serving them is not a smaller failure for having been '
+    'quiet about it.',
+  ),
+  (
+    'Multi-tenancy',
+    'Tenant resolution; filtering not yet',
+    'Tenant resolution is built: the current tenant is resolved from the '
+    'configured source, the middleware makes it current for the rest of the '
+    'request, and presence is scoped by it. Automatic filtering of generated '
+    'model queries is not, and this entry used to say it was -- a generated '
+    'query carries no tenant predicate, so on a shared database it returns '
+    'every tenant\'s rows. That is the isolation somebody chooses a '
+    'framework for, so it is named here rather than left implied: filtering '
+    'needs the schema, the writes and the reads to arrive together, and a '
+    'column written but not filtered on would look like the feature working.',
+  ),
+  (
+    'Sensitive Model Fields',
+    '@DVModel.sensitiveField(); encrypted: true refused',
+    'Excluded from logs, AI context, traces, analytics, public serialization, '
+    'search, generated pages, tables and admin by default. Reaching a client '
+    'takes an explicit policy. encrypted: true is not implemented: there is '
+    'no server-side field-encryption key surface yet, so a field declaring '
+    'it fails generation, naming the model and field, rather than being '
+    'stored as plaintext under a flag that says otherwise.',
+  ),
+  (
     'App store publishing',
     'One command to a store, and every refusal before the upload',
     'Present: dartvel publish takes a built application to Google Play, App Store Connect, TestFlight or Firebase App Distribution, declared once in pubspec.yaml. The work is an upload of a binary that took minutes to produce, so every refusal comes before it: a track nobody publishes to is refused rather than corrected to the nearest, credentials that were never declared are refused rather than left to a tool that stops to ask a pipeline with nobody to answer, and App Store Connect is refused off macOS at the start rather than with "command not found" at the end of a long build. --dry-run shows what Dartvel would do to a store account before it does it, and the upload uploads and nothing else. Absent: the stores are driven through their own tools rather than their APIs, so a machine without one is told to install it; nothing has been published from CI, which needs an account and a signing identity; and metadata, screenshots and staged rollouts are deliberately left alone.',
@@ -487,7 +487,7 @@ Widget _featuresPage(BuildContext context) => SingleChildScrollView(
         const Section(
           children: <Widget>[
             Eyebrow('WHAT WORKS TODAY'),
-            Heading('Forty-three shipped sections.', level: 1),
+            Heading('Thirty-eight shipped sections.', level: 1),
             Body(
               'This list is the repository’s own record of what is built, not '
               'a description of what is planned. A tool checks it and fails '
@@ -497,7 +497,7 @@ Widget _featuresPage(BuildContext context) => SingleChildScrollView(
               width: 660,
             ),
             Body(
-              'Fifteen more sections are partial. They are listed as '
+              'Twenty more sections are partial. They are listed as '
               'partial, with what is absent written next to what is present.',
               width: 660,
             ),
