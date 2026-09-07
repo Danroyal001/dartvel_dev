@@ -79,6 +79,13 @@ classes:
   - android.app.Activity
   - android.app.Application
 
+  # Allowlisting the application for lock task, which is the step between
+  # being the device owner and lock task actually engaging. Without it
+  # startLockTask() returns without throwing and Android shows the "pin this
+  # screen?" dialog instead -- to nobody, on a unit in a lobby -- so the
+  # application believes it holds a kiosk while dumpsys reports NONE.
+  - android.app.admin.DevicePolicyManager
+
   # Immersive mode: the other half of a kiosk. Lock task blocks the buttons;
   # this hides the bars they are drawn on.
   - android.view.View
