@@ -5,6 +5,8 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 import '../build/accessibility_audit.dart';
+import '../build/admin_artifact.dart';
+import '../build/admin_mount.dart';
 import 'package:dartvel_core/dartvel.dart' show DVHomeWidgetSpec;
 
 import '../build/android_home_widget.dart';
@@ -37,6 +39,7 @@ import '../build/static_paths_runner.dart';
 import '../build/static_generation.dart';
 import '../build/web_server.dart';
 import '../graph/module_mounts.dart';
+import '../graph/project_graph.dart';
 import '../utils/build_runner.dart';
 import '../generators/client_generator.dart' show ClientGenerator;
 import '../utils/logger.dart';
@@ -870,6 +873,7 @@ class BuildCommand extends Command<void> {
         _writeSeoHead(root);
         if (platform == 'web-server') {
           _writeWebServerManifest(root);
+          await _writeAdminDashboard(root);
         } else {
           await _writeStaticPages(root);
         }
@@ -2252,6 +2256,73 @@ class BuildCommand extends Command<void> {
 
   /// Write what a Dartvel server needs to build any page on request.
   ///
+  /// The admin dashboard, into the directory the server serves it from.
+  ///
+  /// Everything around this was already built and nothing wrote the files:
+  /// the mount decided where the admin lived, the request handler decided
+  /// who could see it and answered a hidden one with the same nothing a
+  /// nonexistent route gets, and the server read from an admin root no build
+  /// step had ever created. A project that turned the admin on got a 404
+  /// from a mount that was working correctly.
+  ///
+  /// One dashboard per application, not per target: what it shows is the
+  /// project graph, which has no target in it. And it is only written for
+  /// web-server, because that is the target with a backend to serve it --
+  /// putting it in a static web build would be the same thing as compiling
+  /// it into the client, which is what moving it here undid.
+  Future<void> _writeAdminDashboard(String root) async {
+    final web = Directory(p.join(root, 'build', 'web'));
+    if (!web.existsSync()) return;
+
+    // A release or profile build has to ask for the admin; a debug one gets
+    // it by default, which is what makes a new project's dashboard work with
+    // no configuration. Profile counts as release: a profile build is
+    // something you hand to somebody.
+    final DVAdminMount admin = dvAdminMount(_dartvelSection(root),
+        release: _isReleaseBuild());
+    if (!admin.enabled) return;
+
+    final String problem = dvAdminMountProblem(admin.path) ?? '';
+    if (problem.isNotEmpty) {
+      Logger.log('❌ $problem');
+      return;
+    }
+
+    final Object? declaredName = readPubspecYaml(root)?['name'];
+    final String appName =
+        declaredName is String && declaredName.trim().isNotEmpty
+            ? declaredName.trim()
+            : 'Dartvel application';
+
+    final DartvelProjectGraph graph = await DartvelProjectGraph.build(
+      root: root,
+      pkgName: appName,
+    );
+
+    final Directory adminRoot = Directory(p.join(web.path, '__admin'))
+      ..createSync(recursive: true);
+    final Map<String, String> files = dvAdminArtifact(
+      graph: graph.toJson(),
+      appName: appName,
+      buildId: DateTime.now().toUtc().toIso8601String(),
+    );
+    for (final MapEntry<String, String> file in files.entries) {
+      File(p.join(adminRoot.path, file.key)).writeAsStringSync(file.value);
+    }
+
+    Logger.log('   Admin dashboard at ${admin.path} '
+        '(${files.length} files, served by the backend).');
+  }
+
+  /// Whether this build is a release or profile one.
+  ///
+  /// The admin defaults on in development and off otherwise, so this decides
+  /// which default a build gets. Read from the same flags the build mode
+  /// comes from rather than guessed, and profile counts as release here: a
+  /// profile build is something you hand to somebody.
+  bool _isReleaseBuild() =>
+      argResults?['release'] == true || argResults?['profile'] == true;
+
   /// No per-route HTML: the server writes those, which is the point of the
   /// target. The sitemap and robots stay files, because each is one document
   /// that does not vary by request and generating them per fetch would be
