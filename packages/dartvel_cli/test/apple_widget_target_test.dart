@@ -228,6 +228,28 @@ void main() {
           contains('Embed App Extensions'));
     });
 
+    test('the embed runs before Thin Binary, or Xcode finds a cycle', () {
+      // Flutter's Thin Binary script walks the built .app and thins every
+      // binary in it, PlugIns included. Embedding the extension after that
+      // ran gave Xcode a copy into a bundle the script had already consumed,
+      // and it refused the whole build: "Cycle inside Runner; building could
+      // produce unreliable results." Embedding first also gets the
+      // extension thinned, which is what the script is for.
+      final String out = _spliced();
+
+      final int runner =
+          out.indexOf('97C146ED1CF9000F007C117D /* Runner */ = {');
+      final int phases = out.indexOf('buildPhases = (', runner);
+      final int phasesEnd = out.indexOf(');', phases);
+      final String list = out.substring(phases, phasesEnd);
+
+      final int embed = list.indexOf('Embed App Extensions');
+      final int thin = list.indexOf('Thin Binary');
+      expect(embed, greaterThan(-1));
+      expect(thin, greaterThan(-1));
+      expect(embed, lessThan(thin));
+    });
+
     test('the application waits for it, rather than racing it', () {
       // Without a target dependency, Xcode is free to build the app first
       // and embed an .appex that is not there yet -- which fails on some

@@ -274,4 +274,47 @@ Future<Map<String, bool>> ping(String id) async => <String, bool>{'ok': true};
       root.deleteSync(recursive: true);
     }
   });
+
+  test('a function with an async expression body is found', () async {
+    // Future<T> f() async => v; is how most of these are written, and every
+    // pattern that looked for the function went straight from the parameter
+    // list to => or {. So the function was not found, the file fell through
+    // to the handler shape, and the generated router called f0.handler on a
+    // file that has no handler -- a server that does not compile, from the
+    // most ordinary way to write a backend function.
+    final root = await Directory.systemTemp.createTemp('dartvel_async_body_');
+    try {
+      Directory(p.join(root.path, '.dart_tool')).createSync();
+      Directory(p.join(root.path, 'lib', 'dartvel_client'))
+          .createSync(recursive: true);
+      Directory(p.join(root.path, 'lib', 'backend', 'functions'))
+          .createSync(recursive: true);
+
+      File(p.join(root.path, 'lib', 'backend', 'functions', 'total.get.dart'))
+          .writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+Future<int> total(int a, int b) async => a + b;
+''');
+
+      await BackendGenerator.generate(
+        root: root.path,
+        backendDir: 'lib/backend',
+        pkgName: 'async_body_app',
+        buildId: 'test-build',
+        backendHost: '127.0.0.1',
+        backendPort: 3000,
+        apiBasePath: '/api',
+      );
+
+      final routes = File(
+        p.join(root.path, '.dart_tool', 'dartvel_backend_routes.g.dart'),
+      ).readAsStringSync();
+
+      expect(routes, contains('.total('));
+      expect(routes, isNot(contains('handler(req)')));
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
 }
