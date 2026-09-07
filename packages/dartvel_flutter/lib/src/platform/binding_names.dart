@@ -31,6 +31,8 @@ const Set<String> dvNativeBindingNames = <String>{
   'location.current',
   'nfc.isAvailable',
   'nfc.readTag',
+  // Writing one, which is the half a kiosk needs to hand somebody a card.
+  'nfc.writeTag',
   'sensors.accelerometer',
   'sensors.gyroscope',
 
@@ -84,9 +86,20 @@ const Set<String> dvNativeBindingNames = <String>{
   'device.serial.close',
   // What is plugged in, which sysfs already answers.
   'device.usb.devices',
+  // Talking to a device, as opposed to listing one.
+  'device.usb.open',
+  'device.usb.claim',
+  'device.usb.write',
+  'device.usb.read',
+  'device.usb.close',
   // Bluetooth, which BlueZ already knows about.
   'bluetooth.adapters',
   'bluetooth.devices',
+  // Doing something to a device rather than reading about one.
+  'bluetooth.pair',
+  'bluetooth.connect',
+  'bluetooth.disconnect',
+  'bluetooth.forget',
 
   // Desktop shell integration, beyond the window itself.
   'menus.setApplicationMenu',
