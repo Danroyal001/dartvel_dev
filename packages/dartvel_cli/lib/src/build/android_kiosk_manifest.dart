@@ -15,8 +15,14 @@ library;
 
 import 'dart:io';
 
+import 'package:dartvel_core/dartvel.dart' show dvAndroidDeviceAdminClass;
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
+
+// The receiver class, named once so the manifest, the Java file, the
+// device-owner command and the runtime allowlist cannot come to disagree
+// about it. It lives in core because the runtime half is in another package.
+export 'package:dartvel_core/dartvel.dart' show dvAndroidDeviceAdminClass;
 
 /// The kiosk a project declares, as far as the Android build cares.
 class DVAndroidKiosk {
@@ -53,10 +59,6 @@ class DVAndroidKiosk {
 
 const String _markStart = '        <!-- dartvel.kiosk: begin -->';
 const String _markEnd = '        <!-- dartvel.kiosk: end -->';
-
-/// The receiver class, named once so the manifest, the Java file and the
-/// device-owner command cannot come to disagree about it.
-const String dvAndroidDeviceAdminClass = 'DartvelDeviceAdminReceiver';
 
 /// [manifest] with the kiosk block in it, or without it when there is no
 /// kiosk.

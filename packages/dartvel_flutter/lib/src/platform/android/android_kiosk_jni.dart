@@ -20,10 +20,14 @@
 /// not this code's.
 library dartvel_flutter.platform.android.kiosk;
 
+import 'package:dartvel_core/dartvel.dart' show dvAndroidDeviceAdminClass;
 import 'package:jni/jni.dart';
 
 import 'generated/android/app/Activity.dart';
 import 'generated/android/app/Application.dart';
+import 'generated/android/app/admin/DevicePolicyManager.dart';
+import 'generated/android/content/ComponentName.dart';
+import 'generated/android/content/Context.dart';
 import 'generated/android/os/Bundle.dart';
 
 /// The Activity in front of the person, as the application's own lifecycle
@@ -146,6 +150,11 @@ class DVAndroidKiosk {
   /// Why the last enforce did not take. Null when it did.
   static String? lastError;
 
+  /// Why the application could not allowlist itself for lock task, if it
+  /// could not. Null when it is allowlisted, which is the silent kiosk; a
+  /// reason here means screen pinning, which is the weaker one.
+  static String? lockTaskAllowlist;
+
   static void register(
     void Function(String, Object? Function(Object?)) bind,
   ) {
@@ -160,6 +169,61 @@ class DVAndroidKiosk {
     });
   }
 
+
+  /// Allowlists this application for lock task, where it may.
+  ///
+  /// The step between being the device owner and lock task actually
+  /// engaging, and the one whose absence is silent: startLockTask() on a
+  /// package that is not allowlisted does not throw. Android shows the "pin
+  /// this screen?" dialog instead -- to nobody, on a unit in a lobby -- so
+  /// the application reports a kiosk it holds while dumpsys reports NONE.
+  /// The two disagreeing is the only way anybody finds out.
+  ///
+  /// Only for itself. A kiosk allowlisting other packages is a different
+  /// feature with a different blast radius, and this one has no reason to.
+  ///
+  /// Returns why it could not, or null when the application is allowlisted.
+  static String? _allowlist(Activity activity) {
+    try {
+      final JString? serviceName = Context.DEVICE_POLICY_SERVICE;
+      if (serviceName == null) return 'this Android has no device policy name';
+      final JObject? service = activity.getSystemService(serviceName);
+      if (service == null || service.isNull) {
+        return 'this device has no device policy service';
+      }
+      final DevicePolicyManager dpm =
+          service.as(DevicePolicyManager.type, releaseOriginal: true);
+
+      final JString? package = activity.getPackageName();
+      if (package == null) return 'the Activity has no package name';
+
+      if (!dpm.isDeviceOwnerApp(package)) {
+        // Not an error, and not a failure to enforce. An application that is
+        // not the device owner gets screen pinning, which is the weaker
+        // kiosk the enforcement result already reports rather than none.
+        return 'this application is not the device owner, so lock task is '
+            'screen pinning rather than the silent kind';
+      }
+
+      // The receiver `dartvel build android` writes, addressed the way the
+      // manifest addresses it: the application's package, and the class
+      // inside it.
+      final ComponentName admin = ComponentName(
+        package,
+        '${package.toDartString()}.$dvAndroidDeviceAdminClass'.toJString(),
+      );
+      final JArray<JString?> allowed =
+          JArray<JString?>.filled(1, package, E: JString.nullableType);
+      dpm.setLockTaskPackages(admin, allowed);
+      return null;
+    } on JThrowable catch (error) {
+      // Reported rather than thrown, like everything else here: the caller
+      // gets a kiosk that says which parts it holds.
+      return 'the device policy service refused the allowlist ($error)';
+    } on Object catch (error) {
+      return 'the allowlist could not be set ($error)';
+    }
+  }
   static Map<String, Object?> _enforce(Map<Object?, Object?> map) {
     release();
     final List<Object?> combos =
@@ -173,6 +237,12 @@ class DVAndroidKiosk {
               'being watched';
     } else {
       try {
+        // Allowlisted first, or startLockTask shows the pin dialog instead of
+        // locking and says nothing about it. A refusal is recorded and the
+        // lock is still attempted: without the allowlist Android gives
+        // screen pinning, which is a weaker kiosk rather than none.
+        final String? refused = _allowlist(activity);
+        if (refused != null) lockTaskAllowlist = refused;
         activity.startLockTask();
         _held = true;
         lastError = null;

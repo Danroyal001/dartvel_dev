@@ -175,3 +175,13 @@ const String dvHomeWidgetAndroidStore = 'dartvel.widgets';
 /// Objective-C runtime. Two spellings of it is a launch that is captured and
 /// never read, with nothing to see at either end.
 const String dvIosLaunchUrlKey = 'dartvel.launchURL';
+
+/// The device-admin receiver class `dartvel build android` writes.
+///
+/// In core because both halves need it and they are in different packages:
+/// the build writes the receiver and the manifest entry that names it, and
+/// the Flutter runtime addresses the same component when it allowlists the
+/// application for lock task. Two spellings of it is a device owner set
+/// against a component that does not exist, which Android reports as an
+/// unknown admin and which took four layers of this to find once already.
+const String dvAndroidDeviceAdminClass = 'DartvelDeviceAdminReceiver';
