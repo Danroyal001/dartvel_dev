@@ -38,6 +38,16 @@ jobs:
           sdk: 3.12.2
       - run: dart run tool/spec_status_check.dart
 
+      # And whether anything calls what those files declare. Citing a file
+      # that exists is a low bar: the page policy guard, the cron scheduler
+      # and the lifecycle setters each cleared it while doing nothing at
+      # all -- correct code, unit-tested against its own return value,
+      # recorded as shipped, never wired.
+      #
+      # dart, not dart run: this imports only dart: libraries, so it needs
+      # no package resolution.
+      - run: dart tool/ci/evidence_reachable_check.dart
+
       # Cheap, and it catches a class of break that reads as flakiness. A
       # pubspec naming an asset directory that git cannot track builds fine on
       # every machine that has ever run it and fails on every fresh checkout,

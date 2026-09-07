@@ -1,0 +1,91 @@
+/// Evidence that nothing calls.
+///
+/// `tool/spec_status_check.dart` holds a section's claim to the files it
+/// cites and checks that they exist. Existing is a low bar, and three
+/// findings in one audit cleared it while doing nothing at all:
+///
+///   * `@DVPage(policy:)` had a guard builder, a runtime checker, and a unit
+///     test for each. No caller. The index said the router called them.
+///   * `DVScheduler` evaluates cron entries. Nothing instantiates it, and
+///     the section's own note says it runs them.
+///   * The lifecycle setters are called only from their own tests, so four
+///     of six signals never change for the life of an application.
+///
+/// All three are one mistake: a correct implementation written in isolation,
+/// unit-tested against its own return value, recorded as shipped, and never
+/// wired. A test asserting on the shape of a string returned by a function
+/// nothing calls passes forever.
+///
+/// So this asks a different question. Not whether the file exists -- whether
+/// anything outside a test calls what it declares.
+library;
+
+import 'dart:convert';
+import 'dart:io';
+
+/// The public top-level symbols [source] declares.
+///
+/// Deliberately shallow: a regular expression over declarations rather than
+/// a parse. The point is to have a name to look for, and a name this misses
+/// is a check that stays quiet rather than one that lies.
+Set<String> dvPublicSymbols(String source) {
+  final Set<String> found = <String>{};
+  for (final String raw in const LineSplitter().convert(source)) {
+    final String line = raw.trimLeft();
+    // Comments quote the API constantly in this repository, and a symbol
+    // inside one is not a declaration.
+    if (line.startsWith('//') || line.startsWith('///')) continue;
+
+    final RegExpMatch? type = RegExp(
+      r'^(?:abstract\s+|final\s+|sealed\s+|base\s+|interface\s+)*'
+      r'(?:class|mixin|enum|extension|typedef)\s+([A-Z][A-Za-z0-9_]*)',
+    ).firstMatch(line);
+    if (type != null) {
+      found.add(type.group(1)!);
+      continue;
+    }
+
+    // A top-level constant or a function, both of which this repository
+    // names with a dv prefix by convention.
+    final RegExpMatch? member = RegExp(
+      r'^(?:const|final)?\s*[A-Za-z_][A-Za-z0-9_<>?,\s]*\s+'
+      r'(dv[A-Z][A-Za-z0-9_]*)\s*[=(]',
+    ).firstMatch(line);
+    if (member != null) found.add(member.group(1)!);
+  }
+  return found;
+}
+
+/// The evidence files nothing outside a test refers to.
+///
+/// [symbolsByFile] is what each cited implementation file declares.
+/// [referencesByLibFile] is every name mentioned by every other
+/// implementation file. A file is reachable when one of its symbols appears
+/// in another file -- one is enough, because this is looking for files
+/// nothing reaches at all rather than for dead members inside a live file.
+///
+/// A file referring to itself does not count: `dvPageGuardChain` calling
+/// `dvPagePolicyGuard` is not a caller, it is the same island.
+List<String> dvUnreachableEvidence({
+  required Map<String, Set<String>> symbolsByFile,
+  required Map<String, Set<String>> referencesByLibFile,
+}) {
+  final List<String> unreachable = <String>[];
+  for (final MapEntry<String, Set<String>> file in symbolsByFile.entries) {
+    // Nothing public to call, so nothing to be unreachable. Reporting it
+    // would be noise, and noise teaches people to ignore the check.
+    if (file.value.isEmpty) continue;
+
+    bool reached = false;
+    for (final MapEntry<String, Set<String>> other
+        in referencesByLibFile.entries) {
+      if (other.key == file.key) continue;
+      if (other.value.any(file.value.contains)) {
+        reached = true;
+        break;
+      }
+    }
+    if (!reached) unreachable.add(file.key);
+  }
+  return unreachable;
+}
