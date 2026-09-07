@@ -117,7 +117,14 @@ String dvServeRoute({
 List<String> dvWebServerStaleFiles({required List<String> present}) =>
     present
         .where((String path) =>
-            path.endsWith('/index.html') && path != 'index.html')
+            path.endsWith('/index.html') &&
+            path != 'index.html' &&
+            // The admin's shell is called index.html and is not a route: it
+            // is written by this same build into a directory the server
+            // reads from, and sweeping it away leaves the mount answering
+            // nothing again. It survives the order it is written in today,
+            // and would not survive somebody reordering two lines.
+            !path.startsWith('__admin/'))
         .toList();
 
 /// The server `dartvel build web-server` is for.
