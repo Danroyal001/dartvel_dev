@@ -10,6 +10,7 @@ import '../graph/module_mounts.dart';
 import '../utils/helpers.dart';
 import '../utils/logger.dart';
 import 'openapi_generator.dart';
+import 'page_policy.dart';
 import 'route_utils.dart';
 
 class BackendGenerator {
@@ -361,7 +362,7 @@ Future<bool> _dvAllowed(String policy, dv.Request req) =>
 dv.Response _dvPolicyForbidden(String policy) => dv.Response(403,
     headers: dv.Headers({'content-type': 'text/plain; charset=utf-8'}),
     body: Stream<List<int>>.value(
-        conv.utf8.encode('Not authorized ($policy)')));
+        conv.utf8.encode('Not authorized (\$policy)')));
 
 dv.Response _dvCsrfForbidden() => dv.Response(403,
     headers: dv.Headers({'content-type': 'text/plain; charset=utf-8'}),
@@ -419,8 +420,7 @@ ${backendEntries.map((e) {
       final String policy = e['policy'] ?? '';
       final String policyGate = policy.isEmpty
           ? ''
-          : "
-    if (!await _dvAllowed('$policy', req)) "
+          : "\n    if (!await _dvAllowed('$policy', req)) "
               "return _dvPolicyForbidden('$policy');";
 
       if (path == '/health' && method.toLowerCase() == 'get') {

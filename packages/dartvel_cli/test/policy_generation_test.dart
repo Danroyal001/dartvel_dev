@@ -587,4 +587,77 @@ Widget _indexPage(BuildContext context) {
       root.deleteSync(recursive: true);
     }
   });
+
+  test('a backend function that declares a policy is gated in the router',
+      () async {
+    // policy_generation_test above proved the annotation parses. That is not
+    // the same as the guard running: the parser, the runtime checker and a
+    // unit test for each existed for @DVPage(policy:) while nothing called
+    // either. So this asserts on the emitted router.
+    final root = await Directory.systemTemp.createTemp('dartvel_policy_gate_');
+    try {
+      Directory(p.join(root.path, '.dart_tool')).createSync();
+      Directory(
+        p.join(root.path, 'lib', 'dartvel_client'),
+      ).createSync(recursive: true);
+      Directory(
+        p.join(root.path, 'lib', 'backend', 'functions'),
+      ).createSync(recursive: true);
+
+      File(
+        p.join(root.path, 'lib', 'backend', 'functions', 'refund.post.dart'),
+      ).writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVBackendFunction(policy: DVPolicies.refund)
+Future<Map<String, bool>> handler() async => <String, bool>{'ok': true};
+''');
+      File(
+        p.join(root.path, 'lib', 'backend', 'functions', 'ping.get.dart'),
+      ).writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVBackendFunction()
+Future<Map<String, bool>> handler() async => <String, bool>{'ok': true};
+''');
+
+      await BackendGenerator.generate(
+        root: root.path,
+        backendDir: 'lib/backend',
+        pkgName: 'policy_gate_app',
+        buildId: 'test-build',
+        backendHost: '127.0.0.1',
+        backendPort: 3000,
+        apiBasePath: '/api',
+      );
+
+      final routes = File(
+        p.join(root.path, '.dart_tool', 'dartvel_backend_routes.g.dart'),
+      ).readAsStringSync();
+
+      // The gate itself, naming the declared policy.
+      expect(
+        routes,
+        contains("if (!await _dvAllowed('DVPolicies.refund', req))"),
+      );
+      expect(routes, contains("_dvPolicyForbidden('DVPolicies.refund')"));
+      // Default deny lives in core, so the generated helper must ask it
+      // rather than decide for itself.
+      expect(routes, contains('core.DVBackendPolicy.allows('));
+      // And the message must carry the policy at runtime, not the generator's
+      // empty local: an unescaped interpolation here is how the whole file
+      // stopped compiling once already.
+      expect(routes, contains(r"'Not authorized ($policy)'"));
+
+      // A function that declares no policy is not gated. Without this the
+      // test would pass just as well if every route were guarded by the
+      // empty string, which denies everything.
+      final int pingAt = routes.indexOf("'/ping'");
+      expect(pingAt, greaterThan(-1));
+      final String pingHandler = routes.substring(pingAt, pingAt + 400);
+      expect(pingHandler, isNot(contains('_dvAllowed')));
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
 }
