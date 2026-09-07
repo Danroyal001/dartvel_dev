@@ -154,11 +154,12 @@
     {
       "section": "Middleware",
       "stability": "Contract",
-      "status": "Shipped",
+      "status": "Partial",
       "evidence": [
         "packages/dartvel_core/test/middleware_builtins_test.dart",
         "packages/dartvel_cli/test/middleware_generation_test.dart"
-      ]
+      ],
+      "absent": "The nineteen DVMiddlewares keys ran nothing until this was written. @DVUseMiddleware had one reader in the repository -- a validator in the backend generator that threw when a name was not on a whitelist -- so it checked the spelling and dropped the list. Nothing was stored, nothing reached the generated router, and no request was ever handled differently for declaring any of them. The implementations were not missing either: rateLimit, securityHeaders, locale, maintenance, tenant, idempotency, featureFlags and auth are all written and unit-tested, through a chain each test builds by hand, and nothing else ever built one. A key now falls into one of three sets and every one of them means something. Nine are built and run in the order declared, wrapped around the handler so a refusal answers before the function runs and the headers the chain resolves reach a response that exists. One, csrf, is already enforced for every state-changing request whether or not it is declared, so declaring it is redundant rather than wrong. Nine are implemented nowhere and now fail the build with the reason: policy belongs on the function annotation which carries the policy name, cors and compression are server-wide settings passed to serve, and rateLimitCheckout, tracing, csp, bodyLimit, uploadLimit and cacheTags have no code behind the name at all. The middleware library was also not exported from the barrel, so an application could not import CommonMiddleware or MiddlewareChain without reaching into src. Absent: what those nine unimplemented keys would do -- a body or upload limit needs enforcement before the body is read, a CSP needs a policy-string configuration surface, and per-route CORS needs a rule for how it composes with the server-wide setting."
     },
     {
       "section": "Authentication",
@@ -363,20 +364,22 @@
     {
       "section": "Monitoring and Observability",
       "stability": "Draft",
-      "status": "Shipped",
+      "status": "Partial",
       "evidence": [
         "packages/dartvel_core/lib/src/observability/health.dart",
         "packages/dartvel_core/lib/src/observability/metrics.dart",
         "packages/dartvel_core/lib/src/observability/observability.dart",
         "packages/dartvel_core/lib/src/observability/tracing.dart",
         "packages/dartvel_core/lib/src/observability/tracing_middleware.dart",
+        "packages/dartvel_cli/lib/src/commands/observability_commands.dart",
         "packages/dartvel_core/test/health_endpoint_test.dart",
         "packages/dartvel_core/test/observability_test.dart",
         "packages/dartvel_core/test/tracing_middleware_test.dart",
         "packages/dartvel_core/test/tracing_test.dart",
+        "packages/dartvel_cli/test/observability_commands_test.dart",
         "packages/dartvel_flutter/test/telemetry_admin_test.dart"
       ],
-      "absent": "Profiling and performance analysis. Logs, metrics, traces and error reporting are built: DVMetrics renders Prometheus text exposition and GET /metrics serves it, DVHealth backs GET /health with real checks on a deadline, and tracing carries W3C Trace Context across the request boundary with sampling decided from the trace id alone -- a per-process decision samples a four-service request with probability p^4, which reads as tracing being on and finding nothing"
+      "absent": "Logs, profiling, performance analysis, error reporting, structured diagnostics with fix-recommendations, structured AI-readable logs, and the DV.log / DV.ObservabilityAndLogging.event API the spec names are all unbuilt -- there is no log sink anywhere in the runtime, so nothing an application logs goes anywhere. What is real: DVMetrics renders Prometheus text exposition and GET /metrics serves it, DVHealth backs GET /health with real checks on a deadline, and tracing carries W3C Trace Context across the request boundary with sampling decided from the trace id alone -- a per-process decision samples a four-service request with probability p^4, which reads as tracing being on and finding nothing. Spans are captured but only into an in-process list nothing exports or serves, so nothing outside that process can ever read one back. dartvel logs, dartvel traces and dartvel metrics used to paper over this with hardcoded sample output; dartvel metrics now fetches the real GET /metrics endpoint and reports plainly when no server answers or nothing has been recorded, and dartvel logs / dartvel traces now say outright that they have nothing to read instead of inventing a trace id or a log line"
     },
     {
       "section": "Testing",
