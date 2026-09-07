@@ -1239,6 +1239,8 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
     );
     final List<_CronEntry> clientCron = entries
         .where((entry) => entry.target == 'DVCronTarget.client')
+        // As above: private is unreachable from the generated file.
+        .where((entry) => !entry.name.startsWith('_'))
         .toList(growable: false);
     final Map<String, String> aliasByImport = <String, String>{};
     for (final _CronEntry entry in clientCron) {
@@ -1250,7 +1252,7 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
 
     final sb = StringBuffer()
       ..writeln('// GENERATED – do not edit.')
-      ..writeln('// ignore_for_file: unused_element')
+      ..writeln('// ignore_for_file: unused_element, directives_ordering')
       ..writeln('library dartvel_client_client_schedules;')
       ..writeln()
       ..writeln("import 'dart:async';")
@@ -1378,6 +1380,11 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
     // the section recorded it as running.
     final List<_CronEntry> backendCron = entries
         .where((entry) => entry.target == 'DVCronTarget.backend')
+        // A private declaration has no symbol another library can call, so a
+        // handler written against it would be generated code that does not
+        // compile. Listed as an entry, not registered -- the same rule the
+        // AI tools follow, and for the same reason.
+        .where((entry) => !entry.name.startsWith('_'))
         .toList(growable: false);
     final Map<String, String> cronAliasByImport = <String, String>{};
     for (final _CronEntry entry in backendCron) {
@@ -1389,7 +1396,7 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
 
     final sb = StringBuffer()
       ..writeln('// GENERATED – do not edit.')
-      ..writeln('// ignore_for_file: unused_element')
+      ..writeln('// ignore_for_file: unused_element, directives_ordering')
       ..writeln('library dartvel_client_schedules;')
       ..writeln()
       ..writeln("import 'dart:async';")
@@ -1541,7 +1548,7 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
 
     final sb = StringBuffer()
       ..writeln('// GENERATED – do not edit.')
-      ..writeln('// ignore_for_file: unused_element')
+      ..writeln('// ignore_for_file: unused_element, directives_ordering')
       ..writeln('library dartvel_client_ai_tools;')
       ..writeln()
       ..writeln("import 'package:dartvel_core/dartvel.dart';");
