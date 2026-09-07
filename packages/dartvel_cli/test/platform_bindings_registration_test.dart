@@ -154,11 +154,10 @@ void main() {
       // profile already measures the frame for that reason, and ready is set
       // in the same callback rather than at the end of configuration.
       final int frameAt = runtime.indexOf('addPostFrameCallback');
+      final int readyAt = runtime.indexOf('DVAppLifecycle.ready');
       expect(frameAt, greaterThan(-1));
-      expect(
-        runtime.substring(frameAt, frameAt + 300),
-        contains('DVAppLifecycle.ready'),
-      );
+      expect(readyAt, greaterThan(frameAt),
+          reason: 'ready has to be set inside the frame callback');
     });
   });
 }

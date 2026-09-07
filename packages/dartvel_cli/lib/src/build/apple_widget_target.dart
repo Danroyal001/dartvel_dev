@@ -175,12 +175,17 @@ String dvApplePbxprojWithWidgets(
     '\t\t};',
   ]);
 
-  // Onto the application: the embed phase last, which is where Xcode puts
-  // its own, and the dependency so the app waits for the extension rather
-  // than racing it.
+  // Onto the application, before Flutter's Thin Binary script, and the
+  // dependency so the app waits for the extension rather than racing it.
+  //
+  // The order is the part that matters. Thin Binary walks the built .app and
+  // thins every binary in it, PlugIns included; embedding after it ran gave
+  // Xcode a copy into a bundle that script had already consumed, and it
+  // refused the whole build with "Cycle inside Runner". Embedding first also
+  // gets the extension thinned, which is what the script is there for.
   final String? application = _applicationTargetId(stripped);
   if (application != null) {
-    out = _intoList(out, application, 'buildPhases',
+    out = _intoPhaseList(out, application,
         '\t\t\t\t$_embedPhaseId /* Embed App Extensions */,');
     out = _intoList(out, application, 'dependencies',
         '\t\t\t\t$_targetDepId /* PBXTargetDependency */,');
@@ -487,4 +492,27 @@ List<String> _configurationIds(String pbxproj, String targetId) {
       .allMatches(pbxproj.substring(begin, close))
       .map((RegExpMatch m) => m.group(1)!)
       .toList();
+}
+
+/// Adds [entry] to a target's `buildPhases`, ahead of Thin Binary.
+///
+/// Appending would put it after that script, which is the ordering Xcode
+/// reports as a cycle: the copy writes into a bundle the script has already
+/// walked. A project with no such phase -- anything that is not a Flutter
+/// application -- gets the entry at the end, where Xcode puts its own.
+String _intoPhaseList(String pbxproj, String objectId, String entry) {
+  final int object = pbxproj.indexOf('\t\t$objectId ');
+  if (object < 0) return pbxproj;
+  final int list = pbxproj.indexOf('buildPhases = (', object);
+  if (list < 0) return pbxproj;
+  final int close = pbxproj.indexOf('\t\t\t);', list);
+  if (close < 0) return pbxproj;
+
+  final int thin = pbxproj.indexOf('/* Thin Binary */', list);
+  if (thin > 0 && thin < close) {
+    final int lineStart = pbxproj.lastIndexOf('\n', thin) + 1;
+    return '${pbxproj.substring(0, lineStart)}$entry\n'
+        '${pbxproj.substring(lineStart)}';
+  }
+  return '${pbxproj.substring(0, close)}$entry\n${pbxproj.substring(close)}';
 }

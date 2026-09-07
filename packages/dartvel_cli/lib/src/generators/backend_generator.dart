@@ -109,8 +109,14 @@ const String dvGenBuildId = '$buildId';
         backendImports.add("import '$importPath' as f$i;");
       }
       // Prefer explicit handler(RequestType/Request) for compatibility
+      // The body modifier has to be allowed for. `Future<T> f() async => v;`
+      // is how most of these are written, and a pattern that goes straight
+      // from the parameter list to `=>` does not match it -- so the function
+      // was not found, the file fell through to the handler shape, and the
+      // generated router called f0.handler on a file that has no handler.
       final regHandler = RegExp(
-          r'^\s*(?:[A-Za-z_][\w<>, ?]*\s+)?handler\s*\(([^)]*)\)\s*(?:=>|\{)',
+          r'^\s*(?:[A-Za-z_][\w<>, ?]*\s+)?handler\s*\(([^)]*)\)\s*'
+          r'(?:async\*?|sync\*)?\s*(?:=>|\{)',
           multiLine: true);
       final hasHandler = regHandler.hasMatch(src);
       final baseWhole = p.basenameWithoutExtension(rel); // e.g., hello.get
@@ -172,7 +178,7 @@ const String dvGenBuildId = '$buildId';
         final regCandidate = RegExp(
             r'^\s*(?:[A-Za-z_][\w<>, ?]*\s+)?' +
                 RegExp.escape(funcCandidate) +
-                r'\s*\(([^)]*)\)\s*(?:=>|\{)',
+                r'\s*\(([^)]*)\)\s*(?:async\*?|sync\*)?\s*(?:=>|\{)',
             multiLine: true);
         final RegExpMatch? mm = regCandidate.firstMatch(src);
         // Try also to capture return type for typed API generation
@@ -198,7 +204,8 @@ const String dvGenBuildId = '$buildId';
         } else {
           // 2) Fallback: detect the first top-level function declaration in the file (skip keywords)
           final regAnyFn = RegExp(
-              r'^\s*(?:[A-Za-z_][\w<>, ?]*\s+)?([A-Za-z_]\w*)\s*\(([^)]*)\)\s*(?:=>|\{)',
+              r'^\s*(?:[A-Za-z_][\w<>, ?]*\s+)?([A-Za-z_]\w*)\s*\(([^)]*)\)\s*'
+              r'(?:async\*?|sync\*)?\s*(?:=>|\{)',
               multiLine: true);
           const reserved = {
             'if',
@@ -225,7 +232,8 @@ const String dvGenBuildId = '$buildId';
           // Fallback return type, if not captured yet
           if (rtype.isEmpty) {
             final regAnyTyped = RegExp(
-                r'^\s*([A-Za-z_][\w<>, ?]*)?\s+([A-Za-z_]\w*)\s*\(([^)]*)\)\s*(?:=>|\{)',
+                r'^\s*([A-Za-z_][\w<>, ?]*)?\s+([A-Za-z_]\w*)\s*\(([^)]*)\)\s*'
+                r'(?:async\*?|sync\*)?\s*(?:=>|\{)',
                 multiLine: true);
             final m = regAnyTyped.firstMatch(src);
             if (m != null) rtype = (m.group(1) ?? 'dynamic').trim();
