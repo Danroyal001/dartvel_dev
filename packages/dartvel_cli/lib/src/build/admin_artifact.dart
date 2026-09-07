@@ -41,13 +41,61 @@ Map<String, String> dvAdminArtifact({
   return <String, String>{
     'index.html': _html(appName: appName, buildId: buildId),
     'admin.css': _css,
-    'admin.js': _js,
+    'admin.js': _js.replaceFirst('__DV_SECTIONS__', _sectionsSource()),
     // Written back byte for byte rather than reshaped. A builder that
     // rearranged it would be a second definition of the graph, and the two
     // would disagree the first time either changed.
     'graph.json': const JsonEncoder.withIndent('  ').convert(graph),
   };
 }
+
+/// What each section of the dashboard shows, and in what order.
+///
+/// The keys are the graph's, not names invented here. The first version of
+/// this file read `file` for every node's source and the graph calls it
+/// `source`, so every "Declared in" cell rendered empty: a dashboard that
+/// looked like it worked and showed nothing. The test that was supposed to
+/// catch it built its own fixture by hand and made the same mistake, which
+/// is why the fixture is now a real DartvelProjectGraph.
+const Map<String, List<List<String>>> dvAdminSections =
+    <String, List<List<String>>>{
+  'models': <List<String>>[
+    <String>['name', 'Name'],
+    <String>['source', 'Declared in'],
+  ],
+  'routes': <List<String>>[
+    <String>['path', 'Path'],
+    <String>['page', 'Page'],
+    <String>['source', 'Declared in'],
+  ],
+  'functions': <List<String>>[
+    <String>['method', 'Method'],
+    <String>['path', 'Path'],
+    <String>['name', 'Function'],
+    <String>['source', 'Declared in'],
+  ],
+  'jobs': <List<String>>[
+    <String>['name', 'Name'],
+    <String>['queue', 'Queue'],
+    <String>['source', 'Declared in'],
+  ],
+};
+
+/// The section titles, which are the plural the graph uses, capitalised.
+String _sectionTitle(String key) =>
+    '${key[0].toUpperCase()}${key.substring(1)}';
+
+/// [dvAdminSections] as the JavaScript literal the page reads.
+String _sectionsSource() => <String>[
+      '[',
+      for (final MapEntry<String, List<List<String>>> section
+          in dvAdminSections.entries)
+        "  {key: '${section.key}', title: '${_sectionTitle(section.key)}', "
+            'columns: ['
+            '${section.value.map((List<String> c) => "['${c[0]}', '${c[1]}']").join(', ')}'
+            ']},',
+      ']',
+    ].join('\n');
 
 /// HTML-escapes a value that reaches the page.
 ///
@@ -165,12 +213,7 @@ const String _js = r'''
 // The four kinds of node the project graph carries, and the columns each is
 // worth showing. A kind with no rows still gets a tab, because "no jobs" is
 // an answer and a missing tab is not.
-var SECTIONS = [
-  {key: 'models', title: 'Models', columns: [['name', 'Name'], ['file', 'Declared in']]},
-  {key: 'routes', title: 'Routes', columns: [['path', 'Path'], ['file', 'Declared in']]},
-  {key: 'functions', title: 'Functions', columns: [['method', 'Method'], ['path', 'Path'], ['file', 'Declared in']]},
-  {key: 'jobs', title: 'Jobs', columns: [['name', 'Name'], ['file', 'Declared in']]}
-];
+var SECTIONS = __DV_SECTIONS__;
 
 function text(tag, value) {
   var node = document.createElement(tag);
@@ -193,7 +236,7 @@ function table(section, rows) {
     for (var k = 0; k < section.columns.length; k++) {
       var field = section.columns[k][0];
       var cell = text('td', rows[r][field]);
-      if (field === 'file') cell.className = 'file';
+      if (field === 'source') cell.className = 'file';
       row.appendChild(cell);
     }
     element.appendChild(row);
