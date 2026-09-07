@@ -1239,9 +1239,8 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
     );
     final List<_CronEntry> clientCron = entries
         .where((entry) => entry.target == 'DVCronTarget.client')
-        // As above: private is unreachable from the generated file.
-        .where((entry) => !entry.name.startsWith('_'))
         .toList(growable: false);
+    _refusePrivateCron(clientCron, 'DVClientCron');
     final Map<String, String> aliasByImport = <String, String>{};
     for (final _CronEntry entry in clientCron) {
       aliasByImport.putIfAbsent(
@@ -1380,12 +1379,8 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
     // the section recorded it as running.
     final List<_CronEntry> backendCron = entries
         .where((entry) => entry.target == 'DVCronTarget.backend')
-        // A private declaration has no symbol another library can call, so a
-        // handler written against it would be generated code that does not
-        // compile. Listed as an entry, not registered -- the same rule the
-        // AI tools follow, and for the same reason.
-        .where((entry) => !entry.name.startsWith('_'))
         .toList(growable: false);
+    _refusePrivateCron(backendCron, 'DVBackendCron');
     final Map<String, String> cronAliasByImport = <String, String>{};
     for (final _CronEntry entry in backendCron) {
       cronAliasByImport.putIfAbsent(
@@ -2309,3 +2304,26 @@ bool _dvReturnsPlainVoid(String declaration, String name) => RegExp(
       '${RegExp.escape(name)}'
       r'\s*\(',
     ).hasMatch(declaration);
+
+/// Refuses a schedule on a private function.
+///
+/// Dropping it silently is not available: the entry list is what
+/// registerAll reads, and it refuses an entry with no handler, so a
+/// schedule left in the list without one is a server that will not start.
+/// Filtering it out of both would be a schedule that is declared and never
+/// runs, which is the failure this whole path was fixed to end.
+///
+/// So it is a build error, naming the file. A private function has no symbol
+/// another library can call, and the generated handler lives in another
+/// library.
+void _refusePrivateCron(List<_CronEntry> entries, String annotation) {
+  for (final _CronEntry entry in entries) {
+    if (!entry.name.startsWith('_')) continue;
+    throw StateError(
+      'dartvel: @$annotation is declared on ${entry.name} in '
+      '${entry.relativePath}, which is private to that file. The generated '
+      'schedule calls it from another library and cannot see it. Make it '
+      'public.',
+    );
+  }
+}
