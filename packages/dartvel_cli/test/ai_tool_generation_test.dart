@@ -204,4 +204,55 @@ Future<num> temperature(String city, int days) async => 21;
       root.deleteSync(recursive: true);
     }
   });
+
+  test('a private declaration is listed and not registered', () async {
+    // Backend function inputs are private by the spec, and the catalogue
+    // lists one under the public name the generated client exposes. There is
+    // no public symbol in the source file to call, so a handler written
+    // against that name would be generated code that does not compile.
+    final root = await Directory.systemTemp.createTemp('dartvel_aitool_priv_');
+    try {
+      Directory(p.join(root.path, '.dart_tool')).createSync();
+      Directory(p.join(root.path, 'lib', 'dartvel_client'))
+          .createSync(recursive: true);
+      Directory(p.join(root.path, 'lib', 'backend', 'functions'))
+          .createSync(recursive: true);
+      File(p.join(root.path, 'pubspec.yaml')).writeAsStringSync('''
+name: priv_tools_app
+dartvel:
+  ai:
+    exposeBackendFunctionsAsTools: true
+''');
+      File(p.join(root.path, 'lib', 'backend', 'functions', 'pay.post.dart'))
+          .writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVBackendFunction()
+Future<Map<String, bool>> _pay(String orderId) async => <String, bool>{'ok': true};
+''');
+
+      await BackendGenerator.generate(
+        root: root.path,
+        backendDir: 'lib/backend',
+        pkgName: 'priv_tools_app',
+        buildId: 'test-build',
+        backendHost: '127.0.0.1',
+        backendPort: 3000,
+        apiBasePath: '/api',
+      );
+
+      final tools = File(
+        p.join(root.path, 'lib', 'dartvel_client', 'ai_tools.g.dart'),
+      ).readAsStringSync();
+
+      expect(tools, contains("name: 'pay'"));
+      expect(tools, isNot(contains("registry.register('pay'")));
+      expect(tools, contains('private to its own file'));
+      // And no import for a file nothing calls into, or the generated file
+      // carries a warning nobody can act on.
+      expect(tools, isNot(contains("as tool0")));
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
 }
