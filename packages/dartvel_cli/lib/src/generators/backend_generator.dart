@@ -1367,6 +1367,10 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
     // function existed and had no way to run it.
     final Map<String, String> toolAliasByImport = <String, String>{};
     for (final _AIToolEntry entry in entries) {
+      // Only the ones a handler will be generated for, or the import is
+      // unused and the generated file carries an analyzer warning nobody
+      // can act on.
+      if (entry.declaredName.startsWith('_')) continue;
       toolAliasByImport.putIfAbsent(
         entry.importUri,
         () => 'tool${toolAliasByImport.length}',
@@ -1413,6 +1417,16 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       sb.writeln('  const registry = DVAIToolRegistry();');
     }
     for (final _AIToolEntry entry in entries) {
+      // A private declaration has no public symbol in its file, so a handler
+      // written against the catalogue's public name would be generated code
+      // that does not compile. Listed, not registered, and said so where
+      // somebody reading the file will see it.
+      if (entry.declaredName.startsWith('_')) {
+        sb.writeln("  // '${esc(entry.name)}' is declared as "
+            '${entry.declaredName}, which is private to its own file. It is '
+            'listed above and cannot be registered from here.');
+        continue;
+      }
       final String alias = toolAliasByImport[entry.importUri]!;
       final String schema = entry.parameterNames.isEmpty
           ? "const <String, DVJsonValue>{}"
@@ -1775,6 +1789,7 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
         parameterNames: parameterNames,
         parameterTypes: parameterTypes,
         named: named == '1',
+        declaredName: name,
       );
     }
   }
@@ -1848,6 +1863,14 @@ class _AIToolEntry {
   /// parameters has to be called with them.
   final bool named;
 
+  /// The name the function is actually declared under.
+  ///
+  /// A backend function input is private by the spec, and the catalogue
+  /// lists it under the public name the generated client exposes. There is
+  /// no public symbol in the source file to call, so a handler written
+  /// against the public name would be generated code that does not compile.
+  final String declaredName;
+
   const _AIToolEntry({
     required this.name,
     required this.description,
@@ -1856,7 +1879,8 @@ class _AIToolEntry {
     this.parameterNames = const <String>[],
     this.parameterTypes = const <String>[],
     this.named = false,
-  });
+    String? declaredName,
+  }) : declaredName = declaredName ?? name;
 }
 
 /// A backend function file, with the project it belongs to.
