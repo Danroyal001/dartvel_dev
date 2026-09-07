@@ -359,20 +359,22 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
 const List<(String, String, String)> partial = <(String, String, String)>[
   (
     'Lifecycle Signals',
-    'Three of six change',
+    'Four of six change',
     'DV.lifecycle.app and .build, context.lifecycle.page, .request and '
     '.transaction. Application code observes them; it does not assign them. '
-    'Three of the six move. The kiosk signal is driven by the kiosk host and '
-    'the transaction signal by DV.transaction, and the request signal now '
+    'Four of the six move. The kiosk signal is driven by the kiosk host and '
+    'the transaction signal by DV.transaction, the application signal moves '
+    'from booting to ready -- ready in the frame callback, because a router '
+    'that is built is not a screen somebody can see -- and the request '
+    'signal now '
     'changes on a backend function that asks for a context -- received, '
     'executing, then preparing a response or failed. It never reports '
     'completed, because the body may be a stream the handler no longer owns, '
     'and saying a request finished while it is still sending would be a '
     'state that lies rather than one that is missing. Absent: anything that '
-    'advances the application and build signals, whose setters are called '
-    'from nowhere but their own tests, so an application observing either '
-    'sees the value it started with for the life of the process; and any '
-    'page context at all, so reading the page signal throws.',
+    'advances the build signal, which describes a build pipeline running in '
+    'a process the application is not; and any page context at all, so '
+    'reading the page signal throws.',
   ),
   (
     'Scheduling',
