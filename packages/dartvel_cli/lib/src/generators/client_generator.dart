@@ -459,7 +459,7 @@ import 'package:flutter/foundation.dart' show kReleaseMode, kIsWeb, defaultTarge
 import 'dart:io' show exit${dv['terminal'] == true ? ', stdin, stdout, stderr, File, Platform, Process, ProcessStartMode' : ''};
 import 'package:flutter/widgets.dart' show WidgetsFlutterBinding;
 import 'package:dartvel_core/dartvel.dart' show DVStartupProfile, dvLiveWindowsPathFor;
-${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVPageStore,${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''}${_hasDeviceProfileDisplays(dv) ? ' DVWindowManager,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAndroidBindings, DVAppLaunch, DVRouteTarget, DVWindowOptions, DVRenderSurface${dv['terminal'] == true ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''};
+${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVAppLifecycle, DVPageStore,${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''}${_hasDeviceProfileDisplays(dv) ? ' DVWindowManager,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAndroidBindings, DVAppLaunch, DVRouteTarget, DVWindowOptions, DVRenderSurface${dv['terminal'] == true ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''};
 import 'dartvel_config.g.dart' as cfg;
 import 'jobs.g.dart' show registerDartvelJobs;
 import 'models.g.dart' show registerDartvelModels;
@@ -468,6 +468,11 @@ import 'modules.g.dart' show registerDartvelModules;
 /// Wires the generated runtime into the short `DV.baseUrl` / `DV.api(...)` API.
 /// Called automatically during app/router initialization.
 void configureDartvelRuntime({List<String> arguments = const <String>[]}) {
+  // The application lifecycle, which had a setter called from nowhere but
+  // its own test: an application observing DV.lifecycle.app saw
+  // uninitialized for the life of the process. An enum that reports one
+  // value forever is a field, not a signal.
+  DV.lifecycle.setApp(DVAppLifecycle.booting);
   DV.registerRuntime(
     baseUrl: () => DartvelRuntime.baseUrl,
     apiBasePath: () => DartvelRuntime.apiBasePath,
@@ -511,6 +516,10 @@ ${_deviceKioskInstallSource(dv)}
   // test binding stays the one in use.
   WidgetsFlutterBinding.ensureInitialized().addPostFrameCallback((_) {
     DVStartupProfile.current.mark('first frame');
+    // Ready here rather than at the end of configuration: a router that is
+    // built is not a screen somebody can see, which is the same reason the
+    // startup profile measures the frame instead of the constructor.
+    DV.lifecycle.setApp(DVAppLifecycle.ready);
   });
 }
 

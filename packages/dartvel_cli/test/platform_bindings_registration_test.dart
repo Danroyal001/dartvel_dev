@@ -133,4 +133,32 @@ void main() {
     expect(runtime, contains('debugPrint'));
     expect(runtime, isNot(contains('throw StateError(\'Native bindings')));
   });
+
+  group('the application lifecycle signal', () {
+    test('advances to booting when the runtime is configured', () {
+      // DV.lifecycle.app had a setter called from nowhere but its own test,
+      // so an application observing it saw uninitialized for the life of the
+      // process. An enum that reports one value forever is a field, not a
+      // signal.
+      expect(runtime, contains('DVAppLifecycle.booting'));
+      final int configureAt = runtime.indexOf('void configureDartvelRuntime(');
+      expect(configureAt, greaterThan(-1));
+      expect(
+        runtime.substring(configureAt, configureAt + 400),
+        contains('DVAppLifecycle.booting'),
+      );
+    });
+
+    test('reaches ready after the first frame, not before it', () {
+      // A router that is built is not a screen somebody can see. The startup
+      // profile already measures the frame for that reason, and ready is set
+      // in the same callback rather than at the end of configuration.
+      final int frameAt = runtime.indexOf('addPostFrameCallback');
+      expect(frameAt, greaterThan(-1));
+      expect(
+        runtime.substring(frameAt, frameAt + 300),
+        contains('DVAppLifecycle.ready'),
+      );
+    });
+  });
 }
