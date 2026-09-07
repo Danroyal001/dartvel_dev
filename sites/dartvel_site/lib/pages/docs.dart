@@ -294,7 +294,7 @@ Widget _honesty() => const Section(
           width: 660,
         ),
         Body(
-          'Eleven sections are a frozen public contract with an unfinished '
+          'Twelve sections are a frozen public contract with an unfinished '
           'implementation behind them. They are marked that way rather than '
           'implied to work.',
           width: 660,

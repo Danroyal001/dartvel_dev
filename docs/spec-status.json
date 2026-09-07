@@ -836,10 +836,11 @@
     {
       "section": "Lifecycle Signals",
       "stability": "Contract",
-      "status": "Shipped",
+      "status": "Partial",
       "evidence": [
         "packages/dartvel_core/test/lifecycle_test.dart"
-      ]
+      ],
+      "absent": "Two of the six signals change and four did not. DV.lifecycle.kiosk is driven by the kiosk host and context.lifecycle.transaction by DV.transaction, both real. DV.lifecycle.app and DV.lifecycle.build have setters called from nowhere but their own tests, so an application observing either sees the initial value for the life of the process. context.lifecycle.page has nothing that constructs a page context at all, so reading it throws. context.lifecycle.request now exists on a backend function that declares a DVContext parameter, and it changes -- received, executing, then preparingResponse or failed. It does not reach completed, because the response body may be a stream the handler no longer owns and reporting a request complete while it is still sending would be a state that lies rather than one that is missing. Absent: anything that advances the application and build signals, and any page context at all."
     },
     {
       "section": "Backend Function Request Lifecycle",
@@ -852,7 +853,7 @@
         "packages/dartvel_core/test/flat_transport_test.dart",
         "packages/dartvel_core/test/middleware_test.dart"
       ],
-      "absent": null
+      "absent": "A backend function whose first parameter is a DVContext is now given one. It was not: DVContext appeared nowhere in the CLI, so the parameter was decoded from the request like any other argument -- the client supplied the context the specification says is injected, and the generated client asked for it. It is injected first and positionally now, excluded from the client signature, and carries a request lifecycle that changes. Absent: completed as a terminal state, for the reason given under Lifecycle Signals."
     },
     {
       "section": "Modules",
