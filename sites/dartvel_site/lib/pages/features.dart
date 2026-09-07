@@ -79,9 +79,24 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
   ),
   (
     'Middleware',
-    'Request pipeline',
+    'Nine run, one is already on, nine fail the build',
     'Composable middleware around backend functions, with the request '
-    'lifecycle observable as a signal.',
+    'lifecycle observable as a signal. The nineteen keys did nothing until '
+    'recently. The annotation had one reader -- a check that the name was '
+    'spelled correctly -- which then dropped the list, so nothing reached '
+    'the generated router and no request was ever handled differently for '
+    'declaring any of them. The implementations were not missing: the rate '
+    'limiter, the security headers, locale negotiation, maintenance mode, '
+    'tenant resolution and the rest were all written and tested through a '
+    'chain each test built by hand, and nothing else ever built one. Nine '
+    'now run, in the order declared, wrapped around the handler so a '
+    'refusal answers before the function does and resolved headers reach a '
+    'response that exists. CSRF is already enforced on every state-changing '
+    'request whether it is declared or not. The remaining nine are '
+    'implemented nowhere and fail the build naming what to use instead, '
+    'because somebody who wrote a body limit has decided large bodies are '
+    'rejected, and serving them is not a smaller failure for having been '
+    'quiet about it.',
   ),
   (
     'Theme',

@@ -1,4 +1,9 @@
 import 'dart:io';
+import 'package:dartvel_core/dartvel.dart'
+    show
+        dvMiddlewareKeysAlwaysOn,
+        dvMiddlewareKeysBuilt,
+        dvMiddlewareKeysUnbuiltReason;
 import 'package:file/local.dart';
 import 'function_body.dart';
 import 'symbol_qualifier.dart';
@@ -239,6 +244,11 @@ const String dvGenBuildId = '$buildId';
         // enforce policies even if the UI guard is bypassed, and until now
         // neither side enforced anything.
         'policy': dvBackendPolicyFromSource(src) ?? '',
+        // The middleware the function declares, in declaration order. Read
+        // here for the same reason: @DVUseMiddleware had one reader in the
+        // repository and it was a spelling check, so nineteen keys were
+        // accepted and dropped.
+        'middleware': dvMiddlewareKeysFromSource(src).join(' '),
       });
     }
 
@@ -287,6 +297,7 @@ $openApiJson\'\'\';
 
     final backendRoutes = '''
 // GENERATED – do not edit.
+// ignore_for_file: unused_element
 import 'dart:async';
 import 'dart:convert' as conv;
 import 'dart:io';
@@ -364,6 +375,31 @@ dv.Response _dvPolicyForbidden(String policy) => dv.Response(403,
     body: Stream<List<int>>.value(
         conv.utf8.encode('Not authorized (\$policy)')));
 
+/// Runs a route's declared middleware around its handler.
+///
+/// Both halves of this were missing. A refusal has to answer before the
+/// function runs -- a rate limit that arrives after the charge went through
+/// is not a rate limit -- and the headers the chain resolves have to reach a
+/// response, which they never did while securityHeaders wrote them into a
+/// map nothing downstream read.
+Future<dv.Response> _dvGuarded(
+  dv.Request req,
+  List<String> keys,
+  Future<dv.Response> Function() run,
+) async {
+  final core.DVMiddlewareResult mw = await core.dvRunMiddlewares(keys, req);
+  if (!mw.allowed) {
+    // The message is fixed text chosen by the runtime. Nothing from the
+    // request is echoed back into it.
+    return dv.Response(mw.status,
+        headers: dv.Headers({'content-type': 'text/plain; charset=utf-8'}),
+        body: Stream<List<int>>.value(conv.utf8.encode(mw.message)));
+  }
+  final dv.Response response = await run();
+  mw.headers.forEach(response.headers.set);
+  return response;
+}
+
 dv.Response _dvCsrfForbidden() => dv.Response(403,
     headers: dv.Headers({'content-type': 'text/plain; charset=utf-8'}),
     body: Stream<List<int>>.value(conv.utf8.encode('CSRF token missing')));
@@ -417,6 +453,22 @@ ${backendEntries.map((e) {
       // before the function is called. Emitted per route rather than wrapped
       // around the router, because a policy belongs to one function and a
       // middleware that guessed which would be the same silence again.
+      // The declared middleware, wrapped around the handler rather than
+      // emitted inside it: a refusal has to answer before the function runs,
+      // and the headers securityHeaders resolves have to reach a response
+      // that exists, which they never did while the chain put them in a map
+      // nothing downstream read.
+      final List<String> middlewareKeys = (e['middleware'] ?? '')
+          .split(' ')
+          .where((String key) => key.isNotEmpty)
+          .toList(growable: false);
+      final String handlerOpen = middlewareKeys.isEmpty
+          ? '(dv.Request req) async {'
+          : '(dv.Request req) => _dvGuarded(req, const <String>['
+              "${middlewareKeys.map((String k) => "'$k'").join(', ')}"
+              '], () async {';
+      final String handlerClose = middlewareKeys.isEmpty ? '  });' : '  }));';
+
       final String policy = e['policy'] ?? '';
       final String policyGate = policy.isEmpty
           ? ''
@@ -425,7 +477,7 @@ ${backendEntries.map((e) {
 
       if (path == '/health' && method.toLowerCase() == 'get') {
         return "  _hasHealth = true;\n"
-            '''  router.$method(cfg.apiBasePath + '$path', (dv.Request req) async {
+            '''  router.$method(cfg.apiBasePath + '$path', $handlerOpen
 $requestPrelude$policyGate
     try {
       Object? result = await $invocation($callArgs);
@@ -450,9 +502,9 @@ $requestPrelude$policyGate
       stderr.writeln(st);
       return dv.Response(500, body: Stream<List<int>>.value(conv.utf8.encode('Internal Server Error')));
     }
-  });''';
+$handlerClose''';
       }
-      return '''  router.$method(cfg.apiBasePath + '$path', (dv.Request req) async {
+      return '''  router.$method(cfg.apiBasePath + '$path', $handlerOpen
 $requestPrelude$policyGate
     try {
       Object? result = await $invocation($callArgs);
@@ -477,7 +529,7 @@ $requestPrelude$policyGate
       stderr.writeln(st);
       return dv.Response(500, body: Stream<List<int>>.value(conv.utf8.encode('Internal Server Error')));
     }
-  });''';
+$handlerClose''';
     }).join('\n')}
   if (!_hasHealth) {
     router.get(cfg.apiBasePath + '/health', (dv.Request _) async => dv.Response.text('ok'));
@@ -1324,26 +1376,17 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       dvQualifySourceSymbols(expression, alias, symbols);
 
   static Future<void> _validateMiddlewareAnnotations(String root) async {
-    const supported = <String>{
-      'auth',
-      'policy',
-      'tenant',
-      'cors',
-      'csrf',
-      'rateLimit',
-      'rateLimitCheckout',
-      'requestLogging',
-      'tracing',
-      'securityHeaders',
-      'csp',
-      'bodyLimit',
-      'uploadLimit',
-      'compression',
-      'locale',
-      'idempotency',
-      'cacheTags',
-      'featureFlags',
-      'maintenance',
+    // The whitelist used to be the whole story: nineteen names, checked for
+    // spelling and then dropped. Every one of them changed nothing, so a
+    // developer who wrote bodyLimit got a green build and no limit.
+    //
+    // The three sets come from the runtime, so the check and the behaviour
+    // cannot drift apart -- a key the runtime learns to run stops being a
+    // build error in the same commit.
+    final Set<String> supported = <String>{
+      ...dvMiddlewareKeysBuilt,
+      ...dvMiddlewareKeysAlwaysOn,
+      ...dvMiddlewareKeysUnbuiltReason.keys,
     };
     final fs = const LocalFileSystem();
     for (final entity in Glob('lib/**.dart')
@@ -1375,6 +1418,16 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
             throw StateError(
               'dartvel: unsupported middleware "DVMiddlewares.$name" in '
               '$relativePath. Supported middleware: ${supported.join(', ')}.',
+            );
+          }
+          final String? unbuilt = dvMiddlewareKeysUnbuiltReason[name];
+          if (unbuilt != null) {
+            // Refused rather than ignored. Somebody who declared bodyLimit
+            // has decided large bodies are rejected, and serving them is not
+            // a smaller failure for having been quiet about it.
+            throw StateError(
+              'dartvel: DVMiddlewares.$name in $relativePath is declared and '
+              'not implemented. $unbuilt',
             );
           }
         }
