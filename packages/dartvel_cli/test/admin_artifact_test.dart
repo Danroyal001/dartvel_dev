@@ -14,31 +14,45 @@
 import 'dart:convert';
 
 import 'package:dartvel_cli/src/build/admin_artifact.dart';
+import 'package:dartvel_cli/src/graph/project_graph.dart';
 import 'package:test/test.dart';
 
-Map<String, Object?> graph() => <String, Object?>{
-      'graphVersion': 1,
-      'models': <Object?>[
-        <String, Object?>{
-          'name': 'User',
-          'file': 'lib/models/user.dart',
-          'fields': <Object?>[
-            <String, Object?>{'name': 'id', 'type': 'String'},
+/// A real project graph, serialized the way the build serializes it.
+///
+/// The first version of this test wrote its own fixture by hand, with a
+/// `file` key on every node. The graph calls it `source`, and the dashboard
+/// read `file` too -- so the fixture agreed with the mistake and every
+/// "Declared in" cell would have rendered empty in front of somebody. A
+/// fixture invented next to the code it checks proves the two agree, which
+/// is not the question.
+Map<String, Object?> graph() => const DartvelProjectGraph(
+      models: <DVGraphModel>[
+        DVGraphModel(
+          name: 'User',
+          source: 'lib/models/user.dart',
+          fields: <DVGraphField>[
+            DVGraphField(name: 'id', type: 'String', sensitive: false),
           ],
-        },
+        ),
       ],
-      'routes': <Object?>[
-        <String, Object?>{'path': '/', 'file': 'lib/pages/index.dart'},
+      routes: <DVGraphRoute>[
+        DVGraphRoute(
+          path: '/',
+          page: 'HomePage',
+          source: 'lib/pages/index.dart',
+        ),
       ],
-      'functions': <Object?>[
-        <String, Object?>{
-          'path': '/orders',
-          'method': 'post',
-          'file': 'lib/backend/functions/orders.post.dart',
-        },
+      functions: <DVGraphFunction>[
+        DVGraphFunction(
+          name: 'orders',
+          method: 'post',
+          path: '/orders',
+          source: 'lib/backend/functions/orders.post.dart',
+          annotated: true,
+        ),
       ],
-      'jobs': <Object?>[],
-    };
+      jobs: <DVGraphJob>[],
+    ).toJson();
 
 void main() {
   group('what the artifact is made of', () {
@@ -152,6 +166,42 @@ void main() {
       ]) {
         expect(script, contains(kind), reason: kind);
       }
+    });
+
+    test('every column it reads is a key the graph actually produces', () {
+      // The one that matters. The page read `file` for every node's source
+      // and the graph calls it `source`, so every "Declared in" cell would
+      // have rendered empty in front of somebody -- a dashboard that looks
+      // like it works and shows nothing.
+      //
+      // Held against a real DartvelProjectGraph rather than a fixture
+      // written next to the dashboard, because a fixture written here agreed
+      // with the mistake.
+      final Map<String, Object?> real = graph();
+
+      for (final MapEntry<String, List<List<String>>> section
+          in dvAdminSections.entries) {
+        final List<Object?> rows = real[section.key]! as List<Object?>;
+        if (rows.isEmpty) continue;
+        final Map<String, Object?> row =
+            (rows.first as Map).cast<String, Object?>();
+        for (final List<String> column in section.value) {
+          expect(
+            row.keys,
+            contains(column.first),
+            reason: '${section.key} has no ${column.first}; it has '
+                '${row.keys.join(', ')}',
+          );
+        }
+      }
+    });
+
+    test('a section exists for every kind the graph carries', () {
+      // And the other direction: a kind the graph grows and the dashboard
+      // never learned about would simply not be shown.
+      final Map<String, Object?> real = graph()..remove('graphVersion');
+
+      expect(dvAdminSections.keys.toSet(), real.keys.toSet());
     });
 
     test('the build it was generated from', () {
