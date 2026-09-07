@@ -89,3 +89,98 @@ List<String> dvUnreachableEvidence({
   }
   return unreachable;
 }
+
+/// Every file reachable by following `export` from [barrels].
+///
+/// A cited file can be called by nobody in this repository and still be
+/// exactly right: `DVRedisQueueAdapter` is constructed by the application
+/// and handed to the framework, so the caller lives in somebody else's
+/// project. What decides whether that is fine is whether an application can
+/// import it at all, and the answer is the package's public barrel.
+///
+/// Exports chain -- `dartvel.dart` exports `observability.dart`, which
+/// exports `tracing_middleware.dart` -- so following one level would call a
+/// reachable file unreachable. `package:` exports point outside this
+/// package and are somebody else's problem.
+Set<String> dvExportedFiles({
+  required Iterable<String> barrels,
+  required Map<String, String> sourceByFile,
+}) {
+  final Set<String> seen = <String>{};
+  final List<String> pending = <String>[...barrels];
+
+  while (pending.isNotEmpty) {
+    final String current = pending.removeLast();
+    if (!seen.add(current)) continue;
+    final String? source = sourceByFile[current];
+    if (source == null) continue;
+
+    for (final RegExpMatch m in RegExp(
+      r'''^\s*export\s+['"]([^'"]+)['"]''',
+      multiLine: true,
+    ).allMatches(source)) {
+      final String target = m.group(1)!;
+      if (target.startsWith('dart:') || target.startsWith('package:')) continue;
+      pending.add(_dvResolve(current, target));
+    }
+  }
+  return seen;
+}
+
+/// `lib/src/o/observability.dart` + `tracing_middleware.dart`.
+String _dvResolve(String from, String relative) {
+  final List<String> base = from.split('/')..removeLast();
+  for (final String part in relative.split('/')) {
+    if (part == '.' || part.isEmpty) continue;
+    if (part == '..') {
+      if (base.isNotEmpty) base.removeLast();
+      continue;
+    }
+    base.add(part);
+  }
+  return base.join('/');
+}
+
+/// Cited files split by who could possibly be calling them.
+class DVEvidenceReach {
+  const DVEvidenceReach({
+    required this.unreachable,
+    required this.applicationOnly,
+  });
+
+  /// Nothing in this repository names it and no application can import it.
+  /// There is no caller anywhere, which is the case worth failing a build
+  /// over.
+  final List<String> unreachable;
+
+  /// Exported for an application to call, and called by nothing here. Right
+  /// for an adapter, wrong for a checker the framework was supposed to
+  /// invoke -- so it is reported rather than failed on.
+  final List<String> applicationOnly;
+}
+
+/// Which cited files have a caller, and which only could have one.
+DVEvidenceReach dvEvidenceReach({
+  required Map<String, Set<String>> symbolsByFile,
+  required Map<String, Set<String>> referencesByLibFile,
+  required Set<String> exportedFiles,
+}) {
+  final List<String> unreachable = <String>[];
+  final List<String> applicationOnly = <String>[];
+
+  for (final String path in dvUnreachableEvidence(
+    symbolsByFile: symbolsByFile,
+    referencesByLibFile: referencesByLibFile,
+  )) {
+    if (exportedFiles.contains(path)) {
+      applicationOnly.add(path);
+    } else {
+      unreachable.add(path);
+    }
+  }
+
+  return DVEvidenceReach(
+    unreachable: unreachable,
+    applicationOnly: applicationOnly,
+  );
+}
