@@ -128,23 +128,19 @@ void main() {
       expect(result.headers['Content-Security-Policy'], "default-src 'self'");
     });
 
-    test('no configured policy sends no header rather than an empty one', () {
+    test('no configured policy sends no header rather than an empty one',
+        () async {
       // An empty Content-Security-Policy is not "no policy": browsers read it
       // as one that allows nothing, which breaks the page. The build refuses
       // this combination, and this is the runtime refusing to invent a
       // header if it ever reaches here anyway.
       expect(DVMiddlewareSettings.contentSecurityPolicy, isNull);
 
-      expectLater(
-        dvRunMiddlewares(const <String>['cacheTags'], request()),
-        completion(
-          isA<DVMiddlewareResult>().having(
-            (DVMiddlewareResult r) => r.headers,
-            'headers',
-            isEmpty,
-          ),
-        ),
-      );
+      final DVMiddlewareResult result =
+          await dvRunMiddlewares(const <String>['csp'], request());
+
+      expect(result.allowed, isTrue);
+      expect(result.headers, isEmpty);
     });
 
     test('a rate limit refuses with 429 once the window is full', () async {
