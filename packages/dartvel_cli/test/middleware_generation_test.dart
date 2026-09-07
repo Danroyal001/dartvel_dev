@@ -257,6 +257,71 @@ Future<Map<String, bool>> upload(String name) async => <String, bool>{'ok': true
       root.deleteSync(recursive: true);
     }
   });
+
+  test('a declared tracing key wraps the whole handler', () async {
+    // dvTraced existed, was tested, and was wired to nothing: the key named
+    // it and the generator had never heard of either. It wraps rather than
+    // joins the chain, and it wraps the chain too -- a request refused by a
+    // rate limit is still a request, and a trace covering only the ones that
+    // got through is a latency graph with the slow half missing.
+    final root = await _createProject();
+    try {
+      File(p.join(root.path, 'lib', 'backend', 'functions', 'quote.get.dart'))
+          .writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVUseMiddleware([DVMiddlewares.tracing, DVMiddlewares.securityHeaders])
+Future<Map<String, bool>> quote() async => <String, bool>{'ok': true};
+''');
+
+      await _generate(root);
+
+      final routes = File(
+        p.join(root.path, '.dart_tool', 'dartvel_backend_routes.g.dart'),
+      ).readAsStringSync();
+
+      expect(routes, contains('core.dvTraced(core.DVObservability.tracer'));
+      // Outside the chain, not inside it.
+      final traceAt = routes.indexOf('core.dvTraced(');
+      final guardAt = routes.indexOf('_dvGuarded(', traceAt);
+      expect(guardAt, greaterThan(traceAt));
+      // And tracing is not handed to the chain, which has no middleware for
+      // it and would refuse the request.
+      expect(routes, isNot(contains("<String>['tracing'")));
+      expect(routes, contains("<String>['securityHeaders']"));
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
+  test('tracing on its own still closes its brackets', () async {
+    // The wrappers nest, and the closing brackets are counted rather than
+    // written out for each combination. A miscount is a generated file that
+    // does not parse, reported against a line nobody wrote.
+    final root = await _createProject();
+    try {
+      File(p.join(root.path, 'lib', 'backend', 'functions', 'ping.get.dart'))
+          .writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVUseMiddleware([DVMiddlewares.tracing])
+Future<Map<String, bool>> ping() async => <String, bool>{'ok': true};
+''');
+
+      await _generate(root);
+
+      final routes = File(
+        p.join(root.path, '.dart_tool', 'dartvel_backend_routes.g.dart'),
+      ).readAsStringSync();
+
+      expect(routes, contains('core.dvTraced('));
+      expect(routes, isNot(contains('_dvGuarded(')));
+      // One wrapper: the closure's brace, dvTraced's bracket, the router's.
+      expect(routes, contains('  }));'));
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
 }
 
 Future<Directory> _createProject() async {

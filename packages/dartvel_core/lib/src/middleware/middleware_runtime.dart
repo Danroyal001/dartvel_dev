@@ -100,6 +100,15 @@ const Set<String> dvMiddlewareKeysAtRequest = <String>{
   'uploadLimit',
 };
 
+/// Keys that wrap the handler rather than joining the chain.
+///
+/// dvTraced takes a handler and returns a response, so it is not a
+/// middleware in this chain's sense -- and it has to be outside the chain
+/// anyway. A request refused by a rate limit is still a request, and a trace
+/// that covers only the ones that got through is a latency graph with the
+/// slow half missing.
+const Set<String> dvMiddlewareKeysWrapping = <String>{'tracing'};
+
 /// Keys the route already enforces for every request.
 ///
 /// CSRF is validated in the generated request prelude on every method that
@@ -126,8 +135,6 @@ const Map<String, String> dvMiddlewareKeysUnbuiltReason = <String, String>{
   'rateLimitCheckout': 'Nothing implements this. It is not a preset of '
       'rateLimit; there is no code behind the name at all. Use '
       'DVMiddlewares.rateLimit.',
-  'tracing': 'The tracing helper wraps a handler and returns a response, so '
-      'it is not a middleware in this chain. Nothing wires it to this key.',
   'csp': 'No Content-Security-Policy is emitted anywhere, and there is no '
       'configuration surface for the policy string. securityHeaders sends '
       'the fixed headers that do exist.',
@@ -271,6 +278,8 @@ Future<DVMiddlewareResult> dvRunMiddlewares(
     if (dvMiddlewareKeysAlwaysOn.contains(key)) continue;
     // Enforced by the generated prelude, before this chain is reached.
     if (dvMiddlewareKeysAtRequest.contains(key)) continue;
+    // Wrapped around the handler and this chain both.
+    if (dvMiddlewareKeysWrapping.contains(key)) continue;
     final Middleware? middleware = dvMiddlewareFor(key);
     if (middleware == null) {
       throw ArgumentError.value(

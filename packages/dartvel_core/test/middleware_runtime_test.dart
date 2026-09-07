@@ -73,7 +73,7 @@ void main() {
       );
 
       final DVMiddlewareResult result = await dvRunMiddlewares(
-        const <String>['bodyLimit', 'uploadLimit'],
+        const <String>['bodyLimit', 'uploadLimit', 'tracing'],
         request(),
       );
 
@@ -81,12 +81,13 @@ void main() {
       expect(result.headers, isEmpty);
     });
 
-    test('and none of the four sets overlap', () {
+    test('and none of the five sets overlap', () {
       // A key in two of them would be enforced twice or refused while
       // working, and which depends on the order the generator reads them.
       final List<Set<String>> sets = <Set<String>>[
         dvMiddlewareKeysBuilt,
         dvMiddlewareKeysAtRequest,
+        dvMiddlewareKeysWrapping,
         dvMiddlewareKeysAlwaysOn,
         dvMiddlewareKeysUnbuilt,
       ];
