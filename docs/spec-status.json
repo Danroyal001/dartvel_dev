@@ -896,11 +896,12 @@
     {
       "section": "Generated Model Pages",
       "stability": "Contract",
-      "status": "Shipped",
+      "status": "Partial",
       "evidence": [
         "packages/dartvel_cli/test/model_page_composition_test.dart",
         "packages/dartvel_cli/test/static_paths_generation_test.dart"
-      ]
+      ],
+      "absent": "A model page carries no favicon. The specification asks for a resized, compressed, content-hashed derivative of the featured image, with fallbacks from a configured model favicon to the module one to the application one. DVPageData has the field and the head writer emits it, and nothing ever sets it: the resolver fills the title, the description, the image and the structured data and leaves the favicon null, so every model page shows the shell one. Named rather than half-built, because a favicon set to the featured image without resizing or hashing would be a several-hundred-kilobyte PNG served as a 32-pixel icon on every page, which is worse than the shell favicon it replaced."
     },
     {
       "section": "Reversible Transactions",
