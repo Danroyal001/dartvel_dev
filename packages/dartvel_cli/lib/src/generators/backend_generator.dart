@@ -1279,7 +1279,8 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       for (final _CronEntry entry in clientCron) {
         final String alias = aliasByImport[entry.importUri]!;
         sb.writeln("  '${esc(entry.name)}': () async { "
-            'await $alias.${entry.name}(); },');
+            '${entry.returnsPlainVoid ? '' : 'await '}'
+            '$alias.${entry.name}(); },');
       }
       sb.writeln('};');
     }
@@ -1444,7 +1445,8 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       for (final _CronEntry entry in backendCron) {
         final String alias = cronAliasByImport[entry.importUri]!;
         sb.writeln("  '${esc(entry.name)}': () async { "
-            'await $alias.${entry.name}(); },');
+            '${entry.returnsPlainVoid ? '' : 'await '}'
+            '$alias.${entry.name}(); },');
       }
       sb.writeln('};');
     }
@@ -1619,8 +1621,11 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
         ..writeln('      (DVJsonObject input) async {')
         ..writeln('    final args = DVJsonCodec.toJsonObject(input);');
       if (entry.returnsVoid) {
+        // Awaited only when there is a Future to await. `await f()` on a
+        // plain void is an error, not a no-op.
         sb
-          ..writeln('    await $alias.${entry.name}(${args.join(', ')});')
+          ..writeln('    ${entry.returnsPlainVoid ? '' : 'await '}'
+              '$alias.${entry.name}(${args.join(', ')});')
           ..writeln('    return const DVJsonNull();');
       } else {
         sb
@@ -1874,6 +1879,8 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
     for (final match in pattern.allMatches(source)) {
       entries.add(_CronEntry(
         name: match.group(3)!,
+        returnsPlainVoid:
+            _dvReturnsPlainVoid(match.group(0) ?? '', match.group(3)!),
         cron: match.group(2)!,
         target: target,
         importUri: importUri,
@@ -1916,6 +1923,7 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       entriesByName[name] = _AIToolEntry(
         name: name,
         returnsVoid: _dvReturnsNothing(match.group(0) ?? '', name),
+        returnsPlainVoid: _dvReturnsPlainVoid(match.group(0) ?? '', name),
         description: match.group(2) ?? '',
         importUri: importUri,
         relativePath: relativePath,
@@ -1958,6 +1966,7 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       entriesByName[publicName] = _AIToolEntry(
         name: publicName,
         returnsVoid: _dvReturnsNothing(declaration, name),
+        returnsPlainVoid: _dvReturnsPlainVoid(declaration, name),
         description: 'Backend function $name',
         importUri: importUri,
         relativePath: relativePath,
@@ -2011,12 +2020,21 @@ class _CronEntry {
   final String importUri;
   final String relativePath;
 
+  /// Whether the function returns a plain `void`.
+  ///
+  /// `await f()` on one of those is an error -- "this expression has type
+  /// void and can't be used" -- and a @DVClientCron is usually written
+  /// `void refresh() {}`, so the generated handler would not compile. A
+  /// Future<void> is different: awaiting it as a statement is fine.
+  final bool returnsPlainVoid;
+
   const _CronEntry({
     required this.name,
     required this.cron,
     required this.target,
     required this.importUri,
     required this.relativePath,
+    this.returnsPlainVoid = false,
   });
 }
 
@@ -2046,6 +2064,12 @@ class _AIToolEntry {
   /// email and returns nothing -- an ordinary thing for a tool to be.
   final bool returnsVoid;
 
+  /// Whether it returns a plain `void` rather than a Future of one.
+  ///
+  /// `await f()` on a plain void is an error. This is the difference
+  /// between a handler that compiles and one that does not.
+  final bool returnsPlainVoid;
+
   /// The name the function is actually declared under.
   ///
   /// A backend function input is private by the spec, and the catalogue
@@ -2063,6 +2087,7 @@ class _AIToolEntry {
     this.parameterTypes = const <String>[],
     this.named = false,
     this.returnsVoid = false,
+    this.returnsPlainVoid = false,
     String? declaredName,
   }) : declaredName = declaredName ?? name;
 }
@@ -2264,6 +2289,16 @@ List<File> _libFilesOf(String projectRoot) {
 /// that does not build.
 bool _dvReturnsNothing(String declaration, String name) => RegExp(
       r'(?:^|[^A-Za-z0-9_])(?:void|Future<void>|FutureOr<void>)\s+'
+      '${RegExp.escape(name)}'
+      r'\s*\(',
+    ).hasMatch(declaration);
+
+/// Whether [declaration] declares [name] as returning a plain `void`.
+///
+/// `Future<void> f(` puts a `>` between the word and the name, so this
+/// matches only the bare one -- which is the case `await` cannot be used on.
+bool _dvReturnsPlainVoid(String declaration, String name) => RegExp(
+      r'(?:^|[^A-Za-z0-9_])void\s+'
       '${RegExp.escape(name)}'
       r'\s*\(',
     ).hasMatch(declaration);
