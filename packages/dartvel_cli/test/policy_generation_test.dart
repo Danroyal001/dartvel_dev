@@ -4,6 +4,8 @@ import 'package:dartvel_cli/src/generators/backend_generator.dart';
 import 'package:dartvel_cli/src/generators/client_generator.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
+
+import 'generated_router.dart';
 import 'package:yaml/yaml.dart';
 
 void main() {
@@ -655,14 +657,7 @@ Future<Map<String, bool>> ping() async => <String, bool>{'ok': true};
       // Bounded to the route it belongs to. A fixed window spills into the
       // next router.get, which is the guarded one, and the assertion then
       // fails against code that is correct.
-      final int pingAt = routes.indexOf("'/ping'");
-      expect(pingAt, greaterThan(-1));
-      final int nextRoute = routes.indexOf('router.', pingAt);
-      final String pingHandler = routes.substring(
-        pingAt,
-        nextRoute == -1 ? routes.length : nextRoute,
-      );
-      expect(pingHandler, isNot(contains('_dvAllowed')));
+      expect(dvRouteSource(routes, '/ping'), isNot(contains('_dvAllowed')));
     } finally {
       root.deleteSync(recursive: true);
     }
