@@ -4,6 +4,8 @@ import 'package:dartvel_cli/src/generators/backend_generator.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
+import 'generated_router.dart';
+
 void main() {
   test('backend generator accepts typed middleware constants', () async {
     final root = await _createProject();
@@ -99,13 +101,7 @@ Future<Map<String, bool>> ping() async => <String, bool>{'ok': true};
       // A route declaring nothing is not wrapped. Without this the test
       // would pass just as well if every route were guarded by an empty
       // list, which is a different bug wearing the same output.
-      final pingAt = routes.indexOf("'/ping'");
-      expect(pingAt, greaterThan(-1));
-      final nextRoute = routes.indexOf('router.', pingAt);
-      expect(
-        routes.substring(pingAt, nextRoute == -1 ? routes.length : nextRoute),
-        isNot(contains('_dvGuarded')),
-      );
+      expect(dvRouteSource(routes, '/ping'), isNot(contains('_dvGuarded')));
     } finally {
       root.deleteSync(recursive: true);
     }
@@ -214,13 +210,7 @@ Future<Map<String, bool>> open(String text) async => <String, bool>{'ok': true};
       // A route that did not ask still reads the body the ordinary way. A
       // limit on every route would refuse the upload endpoint nobody
       // limited.
-      final openAt = routes.indexOf("'/open'");
-      expect(openAt, greaterThan(-1));
-      final nextRoute = routes.indexOf('router.', openAt);
-      expect(
-        routes.substring(openAt, nextRoute == -1 ? routes.length : nextRoute),
-        isNot(contains('dvReadCapped')),
-      );
+      expect(dvRouteSource(routes, '/open'), isNot(contains('dvReadCapped')));
     } finally {
       root.deleteSync(recursive: true);
     }
@@ -319,13 +309,7 @@ Future<Map<String, bool>> ping() async => <String, bool>{'ok': true};
       // generated file whether anything calls it or not, so asserting on the
       // whole file asks whether the helper exists rather than whether this
       // route uses it.
-      final pingAt = routes.indexOf("'/ping'");
-      expect(pingAt, greaterThan(-1));
-      final nextRoute = routes.indexOf('router.', pingAt);
-      expect(
-        routes.substring(pingAt, nextRoute == -1 ? routes.length : nextRoute),
-        isNot(contains('_dvGuarded(')),
-      );
+      expect(dvRouteSource(routes, '/ping'), isNot(contains('_dvGuarded(')));
       // One wrapper: the closure's brace, dvTraced's bracket, the router's.
       expect(routes, contains('  }));'));
     } finally {
