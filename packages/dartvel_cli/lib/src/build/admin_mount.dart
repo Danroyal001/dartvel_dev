@@ -120,3 +120,30 @@ String _normalise(String path) {
   }
   return value == '/' ? '' : value;
 }
+
+/// The directory `dartvel admin` writes its dashboard into.
+const String dvAdminPagesDirectory = '_dartvel_admin';
+
+/// Whether [path] is a page the client's router should carry.
+///
+/// The dashboard is written into `lib/pages/_dartvel_admin`, and the page
+/// scanner walks `lib/pages` -- so the editor, the model browser, the queue
+/// inspector and the telemetry read-out are compiled into every client the
+/// application ships. On web that is bundle weight; on mobile it is app size
+/// and review surface; everywhere it is the admin inheriting the
+/// application's own guards, shell and theme, so a module with
+/// `shell: override` can change the chrome of the screen somebody
+/// administers the application from.
+///
+/// Where the backend is serving the admin, the client does not also carry
+/// it. Where nothing is, it does -- an application with no backend admin
+/// still reaches its dashboard the way it always has, and dropping the pages
+/// then would remove the feature rather than move it.
+bool dvPageBelongsToClient(String path, {required DVAdminMount? admin}) {
+  if (admin == null || !admin.enabled) return true;
+  // Both separators. The scanner hands back whatever the platform's paths
+  // look like, and a rule that knew only forward slashes would ship the
+  // admin to every client built on Windows and nowhere else.
+  final String normalised = path.replaceAll(r'\', '/');
+  return !normalised.contains('/$dvAdminPagesDirectory/');
+}
