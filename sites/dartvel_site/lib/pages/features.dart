@@ -242,10 +242,18 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
   ),
   (
     'Scheduling',
-    'Cron on both sides',
+    'Backend cron runs; the client half does not',
     'Five-field cron parsed the way cron actually reads it, day-of-month OR '
     'day-of-week, with nextAfter for the next tick and a scheduler that '
-    'dispatches onto the queue rather than running inline.',
+    'dispatches onto the queue rather than running inline. The scheduler was '
+    'built and nothing ever started one: the only place in the repository '
+    'that constructed it was its own unit test, so a schedule declared on a '
+    'backend function travelled into a generated list and stopped, and this '
+    'entry said it ran. A served backend now registers every declared '
+    'schedule and ticks, and an application with none starts no timer. The '
+    'client half is generated and still not started -- the client runtime '
+    'has nowhere a periodic tick belongs yet, and a starter nobody calls '
+    'would be the same silence one file over.',
   ),
   (
     'Queues, Jobs, and Signals',
@@ -260,13 +268,6 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'Zero-config SQLite with WAL for local work and in-memory for tests, the '
     'same generated migrations against Postgres and MySQL, and one adapter '
     'API in front of all of them.',
-  ),
-  (
-    'Monitoring and Observability',
-    'DV.log, metrics, traces',
-    'Structured logs that carry trace context, a Prometheus exposition '
-    'endpoint, health checks that report down rather than hang, and W3C '
-    'trace propagation through the Rust runtime.',
   ),
   (
     'Testing',
@@ -471,6 +472,11 @@ const List<(String, String, String)> partial = <(String, String, String)>[
     'Embedded, Television, and Extension Build Targets',
     'Builds that exist; devices that have not run them',
     'Present: tizen and vscode build. Absent: neither has been run; fuchsia\'s engine does not build at Flutter 3.44.5; webOS and Sony eLinux ship a Dart below the 3.12 floor, so their embedders cannot resolve the example.',
+  ),
+  (
+    'Monitoring and Observability',
+    'Metrics and health are real; logs are not',
+    'Present: DVMetrics renders Prometheus text exposition and every server answers GET /metrics with it; dartvel metrics reads that endpoint and says so when nothing answers or nothing has been recorded yet, rather than printing a sample. DVHealth backs GET /health with real checks on a deadline. Tracing carries W3C Trace Context across the request boundary, with sampling decided from the trace id alone so a distributed request is not resampled at every hop. Absent: there is no log sink anywhere in the runtime, so DV.log and DV.ObservabilityAndLogging.event do not exist and nothing an application logs goes anywhere -- dartvel logs says so plainly instead of printing invented lines. Spans are captured but only into an in-process list nothing exports or serves, so dartvel traces has nothing to read either. Profiling, performance analysis, error reporting, and structured, AI-readable diagnostics are all unbuilt too.',
   ),
 ];
 
