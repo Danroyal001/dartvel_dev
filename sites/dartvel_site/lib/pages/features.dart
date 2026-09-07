@@ -97,8 +97,16 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
   ),
   (
     'Multi-tenancy',
-    'Tenant scoping',
-    'Tenant resolution and scoping through the model and request layers.',
+    'Tenant resolution; filtering not yet',
+    'Tenant resolution is built: the current tenant is resolved from the '
+    'configured source, the middleware makes it current for the rest of the '
+    'request, and presence is scoped by it. Automatic filtering of generated '
+    'model queries is not, and this entry used to say it was -- a generated '
+    'query carries no tenant predicate, so on a shared database it returns '
+    'every tenant\'s rows. That is the isolation somebody chooses a '
+    'framework for, so it is named here rather than left implied: filtering '
+    'needs the schema, the writes and the reads to arrive together, and a '
+    'column written but not filtered on would look like the feature working.',
   ),
   (
     'SEO',

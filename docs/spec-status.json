@@ -300,9 +300,10 @@
       "absent": null
     },
     {
+      "absent": "Tenant resolution is built and works: DVTenants resolves the current tenant from the configured source, the tenant middleware makes it current for the rest of the chain, and presence is scoped by it. Automatic filtering is not built, and this section claimed it was. The word tenant does not appear once in the model generator, and it appears nowhere in any database adapter, so a generated model's queries carry no tenant predicate: on the shared-database strategy the specification lists first, a query returns every tenant's rows. That is the worst thing a section can get wrong -- it is not a missing convenience, it is the isolation somebody chose this framework for, claimed on a page marked Shipped with no absence stated against it. Naming it here before fixing it, because a multi-tenant application built on that claim is exposed today and a correction that waits for the fix protects nobody. What filtering needs is more than a predicate: generated models declare no tenant column, so the schema, the writes and the reads have to arrive together, and a column written and not filtered on, or filtered on and not written, would each be worse than the current state because they would look like the feature working. Absent: automatic tenant filtering of generated model queries; schema-per-tenant and database-per-tenant strategies beyond resolution.",
       "section": "Multi-tenancy",
       "stability": "Contract",
-      "status": "Shipped",
+      "status": "Partial",
       "evidence": [
         "packages/dartvel_core/test/tenants_test.dart"
       ]
