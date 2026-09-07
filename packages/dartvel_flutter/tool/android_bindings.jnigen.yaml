@@ -86,6 +86,12 @@ classes:
   # application believes it holds a kiosk while dumpsys reports NONE.
   - android.app.admin.DevicePolicyManager
 
+  # The admin component setLockTaskPackages is addressed by. Referenced
+  # already and generated as a stub because nothing named it: a stub has the
+  # type and none of the constructors, so the component cannot be built and
+  # the allowlist cannot be set.
+  - android.content.ComponentName
+
   # Immersive mode: the other half of a kiosk. Lock task blocks the buttons;
   # this hides the bars they are drawn on.
   - android.view.View
