@@ -105,9 +105,16 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
   ),
   (
     'AI',
-    'DV.AI',
+    'DV.AI, and tools a provider can call',
     'A local adapter, structured outputs and embeddings, with provider '
-    'extension points.',
+    'extension points. A function marked as an AI tool is registered with a '
+    'handler now, which it was not: the generated list carried a name, a '
+    'description and a file path, so an assistant could read that a function '
+    'existed and had no way to run it. Each tool gets a JSON Schema, because '
+    'every provider requires one, and an argument of the wrong type is '
+    'refused by name rather than coerced -- a tool that quietly received 0 '
+    'for a number it could not read would run and be wrong, which is the '
+    'thing a schema exists to prevent.',
   ),
   (
     'CSRF Protection',
