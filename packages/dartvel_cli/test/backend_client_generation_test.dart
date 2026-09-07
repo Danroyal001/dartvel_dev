@@ -178,4 +178,100 @@ Future<String> _handler(String input) async {
       root.deleteSync(recursive: true);
     }
   });
+
+  test('a backend function taking a DVContext is given one', () async {
+    // The public API rules say a backend function whose first parameter is a
+    // DVContext receives it by injection and it is not a client-supplied
+    // argument. The generator had never heard of DVContext -- the string
+    // appears nowhere in the CLI -- so the parameter was treated as an
+    // ordinary argument decoded from the request. The client got to supply
+    // it, and context.lifecycle.request threw for want of a signal nothing
+    // ever built.
+    final root = await Directory.systemTemp.createTemp('dartvel_ctx_');
+    try {
+      Directory(p.join(root.path, '.dart_tool')).createSync();
+      Directory(p.join(root.path, 'lib', 'dartvel_client'))
+          .createSync(recursive: true);
+      Directory(p.join(root.path, 'lib', 'backend', 'functions'))
+          .createSync(recursive: true);
+
+      File(p.join(root.path, 'lib', 'backend', 'functions', 'pay.post.dart'))
+          .writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+Future<Map<String, bool>> handler(DVContext context, String orderId) async =>
+    <String, bool>{'ok': true};
+''');
+
+      await BackendGenerator.generate(
+        root: root.path,
+        backendDir: 'lib/backend',
+        pkgName: 'ctx_app',
+        buildId: 'test-build',
+        backendHost: '127.0.0.1',
+        backendPort: 3000,
+        apiBasePath: '/api',
+      );
+
+      final routes = File(
+        p.join(root.path, '.dart_tool', 'dartvel_backend_routes.g.dart'),
+      ).readAsStringSync();
+
+      // Injected, and first.
+      expect(routes, contains('core.DVContext('));
+      expect(routes, contains('requestLifecycle:'));
+      // The request lifecycle has to change, or it is an enum that reports
+      // one value forever.
+      expect(routes, contains('DVRequestLifecycle.executing'));
+      expect(routes, contains('DVRequestLifecycle.failed'));
+
+      // And the client must not be asked for it. A context decoded from the
+      // request body is the opposite of an injected one.
+      final client = File(
+        p.join(root.path, 'lib', 'dartvel_client', 'functions.g.dart'),
+      ).readAsStringSync();
+      expect(client, contains('orderId'));
+      expect(client, isNot(contains('DVContext')));
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
+  test('a function taking no context is unchanged', () async {
+    // Without this the test above would pass just as well if every handler
+    // built a context it never used, which is a cost on every request for
+    // the functions that did not ask.
+    final root = await Directory.systemTemp.createTemp('dartvel_noctx_');
+    try {
+      Directory(p.join(root.path, '.dart_tool')).createSync();
+      Directory(p.join(root.path, 'lib', 'dartvel_client'))
+          .createSync(recursive: true);
+      Directory(p.join(root.path, 'lib', 'backend', 'functions'))
+          .createSync(recursive: true);
+
+      File(p.join(root.path, 'lib', 'backend', 'functions', 'ping.get.dart'))
+          .writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+Future<Map<String, bool>> handler(String id) async => <String, bool>{'ok': true};
+''');
+
+      await BackendGenerator.generate(
+        root: root.path,
+        backendDir: 'lib/backend',
+        pkgName: 'noctx_app',
+        buildId: 'test-build',
+        backendHost: '127.0.0.1',
+        backendPort: 3000,
+        apiBasePath: '/api',
+      );
+
+      final routes = File(
+        p.join(root.path, '.dart_tool', 'dartvel_backend_routes.g.dart'),
+      ).readAsStringSync();
+      expect(routes, isNot(contains('core.DVContext(')));
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
 }
