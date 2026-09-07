@@ -36,7 +36,7 @@ const String dvDartFloor = '3.12.0';
 /// Flutter version says nothing about how old its Dart is.
 String? dvEmbedderDartVersion(String versionOutput) {
   final RegExpMatch? match = RegExp(
-    r'\bDart\s+(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.\-]+)?)',
+    r'\bDart\s+(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.\-]*[0-9A-Za-z])?)',
   ).firstMatch(versionOutput);
   return match?.group(1);
 }
@@ -118,7 +118,7 @@ String? dvSdkFloorRefusal({
   if (!output.contains('requires SDK version')) return null;
 
   final RegExpMatch? current = RegExp(
-    r'current Dart SDK version is (\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.\-]+)?)',
+    r'current Dart SDK version is (\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.\-]*[0-9A-Za-z])?)',
   ).firstMatch(output);
   final String said = current == null ? 'a Dart older than' : current.group(1)!;
 

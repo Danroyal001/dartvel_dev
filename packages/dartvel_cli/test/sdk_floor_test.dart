@@ -137,6 +137,22 @@ pub get failed
       expect(said, contains('nothing to fix here'));
     });
 
+    test('a version at the end of a sentence keeps its full stop out', () {
+      // pub writes "The current Dart SDK version is 2.19.0-415.0.dev." and
+      // the prerelease is allowed to contain dots, so a greedy read took the
+      // sentence's full stop with it and the skip message said
+      // "Dart 2.19.0-415.0.dev. and Dartvel needs".
+      final String? said = dvSdkFloorRefusal(
+        target: 'fuchsia',
+        output: 'The current Dart SDK version is 2.19.0-415.0.dev.\n'
+            'Because app requires SDK version >=3.12.0 <4.0.0, '
+            'version solving failed.',
+      );
+
+      expect(said, contains('Dart 2.19.0-415.0.dev and'));
+      expect(said, isNot(contains('dev. and')));
+    });
+
     test('an ordinary build failure is still a failure', () {
       // The check has to be narrow. A compile error that happens to mention
       // an SDK must not be reported as a target nobody can build.

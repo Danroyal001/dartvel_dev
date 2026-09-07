@@ -271,6 +271,39 @@ jobs:
         shell: bash
         working-directory: examples/dartvel_example
         run: |
+          # The same rule as tizen's, for the other two documented walls: a
+          # skip passes only when the build said which wall it hit.
+          #
+          #   * the embedder's own Dart is below Dartvel's floor -- webOS
+          #     ships 3.10.9 and Fuchsia's is from 2022, so their pub refuses
+          #     to solve this project and no artifact can exist;
+          #   * a vendor dependency Dartvel must not install and cannot
+          #     produce here, like the Sony eLinux embedder artifacts, which
+          #     come from a separate workflow.
+          #
+          # Deliberately not on this list: "not found on PATH". An embedder
+          # that should have been installed and was not is a CI regression,
+          # and passing on it would hide the one skip worth failing over.
+          #
+          # Each of these re-arms itself. The day the vendor ships a newer
+          # Flutter, or the artifacts are in place, the skip stops happening
+          # and the artifact check below applies again.
+          log="$RUNNER_TEMP/build.log"
+          if grep -q "Skipping ${{ matrix.platform }}" "$log"; then
+            if grep -qE "bundles Dart|the embedder resolved with" "$log"; then
+              echo "::notice::${{ matrix.platform }} skipped: its embedder's Dart is below Dartvel's floor"
+              grep -m 1 -E "bundles Dart|the embedder resolved with" "$log"
+              exit 0
+            fi
+            if grep -q "needs tools Dartvel cannot install for you" "$log"; then
+              echo "::notice::${{ matrix.platform }} skipped: a vendor dependency this runner cannot produce"
+              grep -m 1 -A 2 "needs tools Dartvel cannot install for you" "$log"
+              exit 0
+            fi
+            echo "::error::${{ matrix.platform }} skipped without saying why"
+            exit 1
+          fi
+
           case "${{ matrix.platform }}" in
             windows) path=build/windows/x64/runner/Release ;;
             macos)   path=build/macos/Build/Products/Release ;;
@@ -309,39 +342,6 @@ jobs:
               exit 0
             fi
             echo "::error::tizen did not skip for the documented licence reason"
-            exit 1
-          fi
-
-          # The same rule as tizen's, for the other two documented walls: a
-          # skip passes only when the build said which wall it hit.
-          #
-          #   * the embedder's own Dart is below Dartvel's floor -- webOS
-          #     ships 3.10.9 and Fuchsia's is from 2022, so their pub refuses
-          #     to solve this project and no artifact can exist;
-          #   * a vendor dependency Dartvel must not install and cannot
-          #     produce here, like the Sony eLinux embedder artifacts, which
-          #     come from a separate workflow.
-          #
-          # Deliberately not on this list: "not found on PATH". An embedder
-          # that should have been installed and was not is a CI regression,
-          # and passing on it would hide the one skip worth failing over.
-          #
-          # Each of these re-arms itself. The day the vendor ships a newer
-          # Flutter, or the artifacts are in place, the skip stops happening
-          # and the artifact check below applies again.
-          log="$RUNNER_TEMP/build.log"
-          if grep -q "Skipping ${{ matrix.platform }}" "$log"; then
-            if grep -qE "bundles Dart|the embedder resolved with" "$log"; then
-              echo "::notice::${{ matrix.platform }} skipped: its embedder's Dart is below Dartvel's floor"
-              grep -m 1 -E "bundles Dart|the embedder resolved with" "$log"
-              exit 0
-            fi
-            if grep -q "needs tools Dartvel cannot install for you" "$log"; then
-              echo "::notice::${{ matrix.platform }} skipped: a vendor dependency this runner cannot produce"
-              grep -m 1 -A 2 "needs tools Dartvel cannot install for you" "$log"
-              exit 0
-            fi
-            echo "::error::${{ matrix.platform }} skipped without saying why"
             exit 1
           fi
 
