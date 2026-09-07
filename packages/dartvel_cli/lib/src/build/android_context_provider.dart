@@ -41,18 +41,35 @@ package dev.dartvel.jni;
 // any Activity and earlier than the Flutter engine, so a binding registered
 // during startup has something to bind to.
 
+import android.app.Activity;
+import android.app.Application;
 import android.content.ContentProvider;
 import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
 import android.net.Uri;
+import android.os.Bundle;
 
 public final class DartvelContext extends ContentProvider {
   private static Context sContext;
+  private static Activity sActivity;
 
   /// The application Context, or null before Android has created this.
   public static Context context() {
     return sContext;
+  }
+
+  /// The Activity that is currently resumed, or null when none is.
+  ///
+  /// Lock task is an Activity method, and Dartvel used to look for one by
+  /// registering lifecycle callbacks from Dart once the bindings came up --
+  /// which is after the engine, and therefore after the first Activity had
+  /// already resumed. Those callbacks only report what happens from the
+  /// moment they are registered, so onActivityResumed never fired and every
+  /// kiosk enforcement reported that no Activity had resumed on a device
+  /// where one plainly had. Registered here, they see the first one.
+  public static Activity activity() {
+    return sActivity;
   }
 
   @Override
@@ -61,6 +78,40 @@ public final class DartvelContext extends ContentProvider {
     // The application's, not the provider's. They are the same object on
     // every version anyone runs, but not by contract, and asking is one word.
     sContext = context == null ? null : context.getApplicationContext();
+    if (sContext instanceof Application) {
+      ((Application) sContext).registerActivityLifecycleCallbacks(
+          new Application.ActivityLifecycleCallbacks() {
+            @Override
+            public void onActivityCreated(Activity a, Bundle b) {}
+
+            @Override
+            public void onActivityStarted(Activity a) {}
+
+            @Override
+            public void onActivityResumed(Activity a) {
+              sActivity = a;
+            }
+
+            @Override
+            public void onActivityPaused(Activity a) {
+              // Only if it is still the one being held. Two activities
+              // handing over run resume-then-pause, so forgetting on any
+              // pause would drop the one that just arrived.
+              if (sActivity == a) sActivity = null;
+            }
+
+            @Override
+            public void onActivityStopped(Activity a) {}
+
+            @Override
+            public void onActivitySaveInstanceState(Activity a, Bundle b) {}
+
+            @Override
+            public void onActivityDestroyed(Activity a) {
+              if (sActivity == a) sActivity = null;
+            }
+          });
+    }
     return true;
   }
 
