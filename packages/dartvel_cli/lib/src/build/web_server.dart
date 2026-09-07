@@ -243,7 +243,17 @@ Handler dvWebServerHandler({
           // inside the build output next to everything else the server can
           // reach. Refused with the same nothing everything else here
           // answers with, rather than an error naming what was attempted.
-          final String normalized = p.normalize(relative.replaceAll('\\', '/'));
+          String decoded;
+          try {
+            // Decoded before it is normalised, so %2e%2e is the same two dots
+            // to this check as it is to any proxy in front of it. An invalid
+            // escape is not a filename either.
+            decoded = Uri.decodeComponent(relative);
+          } on ArgumentError {
+            return Response(dvAdminHiddenStatus,
+                body: '', headers: dvAdminHiddenHeaders);
+          }
+          final String normalized = p.normalize(decoded.replaceAll('\\', '/'));
           if (normalized.startsWith('..') ||
               normalized.startsWith('/') ||
               p.isAbsolute(normalized)) {
