@@ -164,9 +164,24 @@ class DVLiveRun {
   ///
   /// That third one was reported as a failing dialogs test for two days. It
   /// is the same accident as the other two and it is retried like them.
+  /// A fourth shape, and the general case of the third.
+  ///
+  /// The process can die a moment earlier than the fixture-only shape and
+  /// take real tests with it: five dialog tests and a tearDownAll, all
+  /// marked failed, no error attached to any of them, a verdict all the
+  /// same. That arrived looking like five broken dialogs on a suite whose
+  /// previous run had passed twenty-seven.
+  ///
+  /// A test that genuinely fails carries an error -- an expectation prints
+  /// what it wanted and what it got. Every failure carrying none is the
+  /// accident, not a fault.
+  bool get failedWithNothingSaid =>
+      failures.isNotEmpty && !errorsAttached && passed > 0;
+
   bool get diedPartway {
     if (verdict == null && !hung && passed > 0) return true;
     if (onlyFixturesFailed && passed > 0) return true;
+    if (failedWithNothingSaid) return true;
     return testerLeft;
   }
 }
