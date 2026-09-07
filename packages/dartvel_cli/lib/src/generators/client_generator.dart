@@ -1016,6 +1016,24 @@ ${m.auth == 'inherit' ? inheritedGuard : ''}      pageBuilder: (context, state) 
     // identifier, but got ','" against a file nobody wrote. It survived
     // because no project here had both a model page and a home widget, so
     // two blocks were never both present in a build.
+    // Which page routes the router will not open without a guard passing.
+    //
+    // The generator is the only thing that knows -- it just built the
+    // redirect chain -- and until now it threw the answer away, so the
+    // sitemap writer scraped `path:` literals out of this file and published
+    // every private route it found. Written down here so the answer travels
+    // with the router instead of being guessed from it.
+    //
+    // Page routes only. Model public pages are public by annotation, and a
+    // module mount carries its own `sitemap: include|exclude`.
+    final guardedRoutes = <String>{
+      for (final e in pageEntries)
+        if (guardRedirectFor(e.directory, e.policy).isNotEmpty) e.route,
+    };
+    final guardedRoutesSrc = guardedRoutes.isEmpty
+        ? '<String>[]'
+        : "<String>[\n  ${guardedRoutes.map((r) => "'${esc(r)}',").join('\n  ')}\n]";
+
     final allRoutes = dvJoinRouteBlocks(<String>[
       routesSrc,
       modelRoutesSrc,
@@ -1192,6 +1210,13 @@ ${sbRedirect.toString()}
 $generatedPageWidgets
 
 /// Creates the GoRouter instance for Dartvel routing.
+/// The page routes this router refuses without a guard passing.
+///
+/// Read by the build to keep private routes out of sitemap.xml, and
+/// available to an application that wants to hide a link it would not be
+/// allowed to follow.
+const List<String> dartvelGuardedRoutes = $guardedRoutesSrc;
+
 GoRouter createDartvelRouter({List<String> arguments = const <String>[]}) {
   configureDartvelRuntime(arguments: arguments);
   // What each route can fetch and show before you go there, so DVNavLink can

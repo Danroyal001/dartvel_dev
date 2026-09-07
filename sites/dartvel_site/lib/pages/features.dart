@@ -113,7 +113,14 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'Head tags and prerendering',
     'dartvel build web writes the title, description, canonical, Open Graph '
     'and Twitter tags from configuration, and prerendered routes carry '
-    'semantic content for crawlers.',
+    'semantic content for crawlers. The sitemap leaves out routes the '
+    'router guards, which it did not until recently: it was built by '
+    'reading path literals out of the generated router, and a pattern that '
+    'matches a path cannot see the guard three lines under it, so every '
+    'private route was published. The generator now writes down which '
+    'routes it guards and the build reads that instead of guessing. '
+    'Per-route sitemap tuning is not built -- priority and change frequency '
+    'appear in the specification and in no Dart file.',
   ),
   (
     'AI',

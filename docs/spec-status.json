@@ -314,7 +314,8 @@
       "status": "Shipped",
       "evidence": [
         "packages/dartvel_flutter/test/seo_ota_test.dart"
-      ]
+      ],
+      "absent": "Guarded routes are excluded from sitemap.xml now, and were not until this was written: the sitemap was built by scraping every path: literal out of the generated router with a regular expression, which cannot see the redirect guard block below the path it just matched, so /admin and everything behind a folder guard was published to crawlers. The specification says private routes are excluded by default and it was not true. The generator now writes dartvelGuardedRoutes into router.g.dart and the build reads it. Absent: per-route sitemap tuning -- dartvel.seo.sitemap.enabled, .exclude and .defaults are documented and parsed nowhere, and DVPageSitemap and DVSitemapChangeFrequency appear in the specification's example and are declared in no Dart file. Also absent from the guarded list: module mount routes, which carry their own sitemap: include|exclude key instead, and generated model public pages, which are public by annotation."
     },
     {
       "section": "PWA",

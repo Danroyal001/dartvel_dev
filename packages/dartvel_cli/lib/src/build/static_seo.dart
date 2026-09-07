@@ -124,11 +124,42 @@ String _injectContent(String html, String content) {
   return '${cleaned.substring(0, at)}$block${cleaned.substring(at)}';
 }
 
-/// A sitemap listing every route that is a page.
+/// The routes a generated router guards, read back out of its source.
+///
+/// The generator knows: it computed the redirect chain to emit it. Nothing
+/// downstream could tell, because the only way to ask was to scrape `path:`
+/// literals, and a regular expression cannot see the guard block below the
+/// path it matched. So the generator now writes the answer down and this
+/// reads it.
+///
+/// A router without the list is one generated before this existed; that is
+/// an empty answer rather than an error, because failing a build over a
+/// stale generated file would strand anybody mid-upgrade.
+Set<String> dvGuardedRoutes(String routerSource) {
+  final RegExpMatch? list = RegExp(
+    r'dartvelGuardedRoutes\s*=\s*<String>\[([^\]]*)\]',
+    dotAll: true,
+  ).firstMatch(routerSource);
+  if (list == null) return const <String>{};
+  return RegExp(r"'([^']*)'")
+      .allMatches(list.group(1)!)
+      .map((RegExpMatch m) => m.group(1)!)
+      .where((String route) => route.isNotEmpty)
+      .toSet();
+}
+
+/// A sitemap listing every route that is a page and is not guarded.
+///
+/// [guarded] is left out entirely rather than listed with a lower priority.
+/// The specification's wording is that private routes are excluded, and a
+/// sitemap is read by people who were not invited: the guard still refuses
+/// them at the door, but the address of an internal tool is worth having on
+/// its own.
 String dvSitemap({
   required List<String> routes,
   required String siteUrl,
   List<String> federated = const <String>[],
+  Set<String> guarded = const <String>{},
 }) {
   final buffer = StringBuffer()
     ..writeln('<?xml version="1.0" encoding="UTF-8"?>')
@@ -144,6 +175,10 @@ String dvSitemap({
   // ignored by crawlers, which would make mounting a micro-site under a
   // parent's domain pointless.
   for (final String route in <String>[...routes, ...federated]) {
+    // Applied to the federated list too. A module mounted under the parent's
+    // domain is advertised on the parent's path, so skipping the check there
+    // would make mounting a module the way around this.
+    if (guarded.contains(route)) continue;
     // Same filter as the writer: a route with no file behind it has no URL to
     // advertise, and a crawler following one gets a 404 from the sitemap that
     // was meant to help it.
