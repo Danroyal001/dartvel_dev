@@ -1252,6 +1252,7 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
 
     final sb = StringBuffer()
       ..writeln('// GENERATED – do not edit.')
+      ..writeln('// ignore_for_file: unused_element')
       ..writeln('library dartvel_client_schedules;')
       ..writeln()
       ..writeln("import 'dart:async';")
@@ -1402,6 +1403,7 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
 
     final sb = StringBuffer()
       ..writeln('// GENERATED – do not edit.')
+      ..writeln('// ignore_for_file: unused_element')
       ..writeln('library dartvel_client_ai_tools;')
       ..writeln()
       ..writeln("import 'package:dartvel_core/dartvel.dart';");
