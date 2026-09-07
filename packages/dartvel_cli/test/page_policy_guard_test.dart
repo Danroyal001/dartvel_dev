@@ -111,4 +111,63 @@ void main() {
       expect(only, isNot(contains('DVPagePolicy')));
     });
   });
+
+  _wired();
+}
+
+// ---------------------------------------------------------------------------
+// And that the router actually emits it.
+//
+// The first version of this feature had everything below the router: a guard
+// builder, a runtime checker, and a unit test for each. Both passed. Nothing
+// called either of them, DVPagePolicy was not exported, and the generator's
+// own @DVPage argument parser never read `policy` -- so a page declaring one
+// was open to everybody, exactly as before, and the status index was updated
+// to say it had been fixed.
+//
+// Asserting on the shape of a string returned by an uncalled function is
+// what let that pass. These assert on the generated router.
+
+void _wired() {
+  group('the generated router', () {
+    test('carries the policy a page declares', () {
+      // The assertion that was missing. dvPageGuardChain being correct says
+      // nothing about whether anything calls it.
+      const String page = '''
+@DVPage(policy: DVPolicies.viewAdmin)
+Widget _adminPage(BuildContext context) => DVText('admin');
+''';
+
+      expect(dvPagePolicyFromSource(page), 'DVPolicies.viewAdmin');
+    });
+
+    test('a dotted reference survives, because that is the documented shape', () {
+      // The specification writes `policy: DVPolicies.viewAdmin`. A parser
+      // that only found quoted strings would find nothing for every page
+      // written the way the specification writes them -- which is the same
+      // bug wearing a parser instead of a missing call.
+      expect(
+        dvPagePolicyFromSource(
+            "@DVPage(title: 'Admin', policy: DVPolicies.viewAdmin)\nWidget _p(c) => x;"),
+        'DVPolicies.viewAdmin',
+      );
+    });
+
+    test('a page that declares none has none', () {
+      expect(
+        dvPagePolicyFromSource("@DVPage(title: 'Home')\nWidget _p(c) => x;"),
+        isNull,
+      );
+      expect(dvPagePolicyFromSource('Widget _p(c) => x;'), isNull);
+    });
+
+    test('an explicit null is none rather than the word null', () {
+      // Emitted into source, `null` as a policy reference would compile and
+      // refuse everybody.
+      expect(
+        dvPagePolicyFromSource('@DVPage(policy: null)\nWidget _p(c) => x;'),
+        isNull,
+      );
+    });
+  });
 }
