@@ -233,6 +233,11 @@ const String dvGenBuildId = '$buildId';
         'src': src,
         'invocation': invocation,
         'helper': helper,
+        // The policy the function declares. Read here so the handler can
+        // refuse before it runs: the specification asks backend functions to
+        // enforce policies even if the UI guard is bypassed, and until now
+        // neither side enforced anything.
+        'policy': dvBackendPolicyFromSource(src) ?? '',
       });
     }
 
@@ -345,6 +350,19 @@ bool _dvValidateCsrf(dv.Request req, Object? body) {
   );
 }
 
+/// Whether this request may run a function guarded by [policy].
+///
+/// Asks the same default-deny surface every other policy in the application
+/// is answered by: can() returns false for a policy nobody registered, which
+/// is the right answer to a question the application never taught it.
+Future<bool> _dvAllowed(String policy, dv.Request req) =>
+    core.DVBackendPolicy.allows(policy, req.url.path);
+
+dv.Response _dvPolicyForbidden(String policy) => dv.Response(403,
+    headers: dv.Headers({'content-type': 'text/plain; charset=utf-8'}),
+    body: Stream<List<int>>.value(
+        conv.utf8.encode('Not authorized ($policy)')));
+
 dv.Response _dvCsrfForbidden() => dv.Response(403,
     headers: dv.Headers({'content-type': 'text/plain; charset=utf-8'}),
     body: Stream<List<int>>.value(conv.utf8.encode('CSRF token missing')));
@@ -394,10 +412,21 @@ ${backendEntries.map((e) {
     } catch (e) { /* ignore body read errors */ }
     if (!_dvValidateCsrf(req, body)) return _dvCsrfForbidden();''';
 
+      // The policy gate, after the body is read so CSRF still runs first and
+      // before the function is called. Emitted per route rather than wrapped
+      // around the router, because a policy belongs to one function and a
+      // middleware that guessed which would be the same silence again.
+      final String policy = e['policy'] ?? '';
+      final String policyGate = policy.isEmpty
+          ? ''
+          : "
+    if (!await _dvAllowed('$policy', req)) "
+              "return _dvPolicyForbidden('$policy');";
+
       if (path == '/health' && method.toLowerCase() == 'get') {
         return "  _hasHealth = true;\n"
             '''  router.$method(cfg.apiBasePath + '$path', (dv.Request req) async {
-$requestPrelude
+$requestPrelude$policyGate
     try {
       Object? result = await $invocation($callArgs);
       if (result is dv.Response) return result;
@@ -424,7 +453,7 @@ $requestPrelude
   });''';
       }
       return '''  router.$method(cfg.apiBasePath + '$path', (dv.Request req) async {
-$requestPrelude
+$requestPrelude$policyGate
     try {
       Object? result = await $invocation($callArgs);
       if (result is dv.Response) return result;
