@@ -174,6 +174,45 @@ class DVReal {}
       expect(exported, contains('lib/src/observability/tracing_middleware.dart'));
     });
 
+    test('a conditional export names more than one file', () {
+      // export 'a.dart' if (dart.library.io) 'b.dart'; is how this
+      // repository ships anything that needs sockets: a stub for the web and
+      // the real one for a VM. Reading only the first path calls the real
+      // implementation unreachable, which is every database, cache, mail and
+      // LDAP client in the package.
+      final Set<String> exported = dvExportedFiles(
+        barrels: <String>['lib/dartvel.dart'],
+        sourceByFile: <String, String>{
+          'lib/dartvel.dart': "export 'src/auth/ldap_unsupported.dart'\n"
+              "    if (dart.library.io) 'src/auth/ldap.dart';",
+          'lib/src/auth/ldap_unsupported.dart': 'class DVLdapClient {}',
+          'lib/src/auth/ldap.dart': 'class DVLdapClient {}',
+        },
+      );
+
+      expect(exported, contains('lib/src/auth/ldap_unsupported.dart'));
+      expect(exported, contains('lib/src/auth/ldap.dart'));
+    });
+
+    test('every branch of a multi-way conditional export is followed', () {
+      final Set<String> exported = dvExportedFiles(
+        barrels: <String>['lib/dartvel.dart'],
+        sourceByFile: <String, String>{
+          'lib/dartvel.dart': "export 'stub.dart'"
+              " if (dart.library.io) 'io.dart'"
+              " if (dart.library.js_interop) 'web.dart';",
+          'lib/stub.dart': '',
+          'lib/io.dart': '',
+          'lib/web.dart': '',
+        },
+      );
+
+      expect(
+        exported,
+        containsAll(<String>['lib/stub.dart', 'lib/io.dart', 'lib/web.dart']),
+      );
+    });
+
     test('a show clause does not hide the path', () {
       expect(
         dvExportedFiles(

@@ -115,13 +115,27 @@ Set<String> dvExportedFiles({
     final String? source = sourceByFile[current];
     if (source == null) continue;
 
-    for (final RegExpMatch m in RegExp(
-      r'''^\s*export\s+['"]([^'"]+)['"]''',
+    // The whole directive, not its first path. A conditional export names
+    // several files -- `export 'stub.dart' if (dart.library.io) 'io.dart';`
+    // is how anything needing sockets ships here -- and reading only the
+    // first calls the real implementation unreachable. That is every
+    // database, cache, mail and LDAP client in the package, and the reason
+    // it went unnoticed is that the stub declares the same names, so the
+    // symbols looked reached from somewhere else.
+    for (final RegExpMatch directive in RegExp(
+      r'^\s*export\s+[^;]+;',
       multiLine: true,
     ).allMatches(source)) {
-      final String target = m.group(1)!;
-      if (target.startsWith('dart:') || target.startsWith('package:')) continue;
-      pending.add(_dvResolve(current, target));
+      for (final RegExpMatch m
+          in RegExp('''['"]([^'"]+)['"]''').allMatches(directive.group(0)!)) {
+        final String target = m.group(1)!;
+        if (target.startsWith('dart:') || target.startsWith('package:')) {
+          continue;
+        }
+        // A condition names a library, not a file: `dart.library.io` has no
+        // quotes around it, so only the paths reach here.
+        pending.add(_dvResolve(current, target));
+      }
     }
   }
   return seen;
