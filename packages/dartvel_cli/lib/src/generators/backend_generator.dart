@@ -1361,6 +1361,18 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
     final entries = entriesByName.values.toList(growable: false)
       ..sort((a, b) => a.name.compareTo(b.name));
 
+    // Which entries this file can generate a handler for.
+    //
+    // The registration is called from the generated backend, so importing a
+    // tool declared in a page would pull Flutter into a server that has no
+    // dart:ui -- the whole application would stop compiling for the sake of
+    // one tool the backend could never have called anyway. And a private
+    // declaration has no public symbol in its file, so a handler written
+    // against the catalogue's public name would not compile either.
+    bool registrable(_AIToolEntry entry) =>
+        !entry.declaredName.startsWith('_') &&
+        entry.relativePath.startsWith('$backendDir/');
+
     // Aliases for the files the handlers call into. The entries used to
     // carry a name, a description and a file path and nothing else, which is
     // a catalogue rather than a set of tools: an assistant could read that a
@@ -1370,7 +1382,7 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       // Only the ones a handler will be generated for, or the import is
       // unused and the generated file carries an analyzer warning nobody
       // can act on.
-      if (entry.declaredName.startsWith('_')) continue;
+      if (!registrable(entry)) continue;
       toolAliasByImport.putIfAbsent(
         entry.importUri,
         () => 'tool${toolAliasByImport.length}',
@@ -1417,14 +1429,18 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       sb.writeln('  const registry = DVAIToolRegistry();');
     }
     for (final _AIToolEntry entry in entries) {
-      // A private declaration has no public symbol in its file, so a handler
-      // written against the catalogue's public name would be generated code
-      // that does not compile. Listed, not registered, and said so where
-      // somebody reading the file will see it.
-      if (entry.declaredName.startsWith('_')) {
-        sb.writeln("  // '${esc(entry.name)}' is declared as "
-            '${entry.declaredName}, which is private to its own file. It is '
-            'listed above and cannot be registered from here.');
+      // Listed, not registered, and said so where somebody reading the
+      // generated file will see it rather than wondering why their tool is
+      // never called.
+      if (!registrable(entry)) {
+        final String why = entry.declaredName.startsWith('_')
+            ? 'it is declared as ${entry.declaredName}, which is private to '
+                'its own file'
+            : 'it is declared in ${entry.relativePath}, outside the backend '
+                'this registration runs in';
+        sb.writeln(
+          "  // '${esc(entry.name)}' is listed and not registered: $why.",
+        );
         continue;
       }
       final String alias = toolAliasByImport[entry.importUri]!;
