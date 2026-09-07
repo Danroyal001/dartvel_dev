@@ -193,4 +193,21 @@ void main() {
       expect(stale, isEmpty);
     });
   });
+
+  test('the admin is not a stale page', () async {
+    // The sweep removes every per-route index.html a previous static build
+    // left, because a server that falls through to files would serve
+    // yesterday's copy of each route. The admin's shell is also called
+    // index.html and is not a route: it is written by this same build, into
+    // a directory the server reads from, and removing it leaves the mount
+    // answering nothing again.
+    expect(
+      dvWebServerStaleFiles(present: <String>[
+        'index.html',
+        'docs/index.html',
+        '__admin/index.html',
+      ]),
+      <String>['docs/index.html'],
+    );
+  });
 }
