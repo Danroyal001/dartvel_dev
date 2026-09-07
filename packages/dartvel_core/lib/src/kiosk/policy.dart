@@ -179,6 +179,60 @@ class DVKioskPolicy {
     final Map<Object?, Object?> exit = _map(k['exit']);
     final Map<Object?, Object?> updates = _map(k['updates']);
 
+    // A key this parser does not read is reported rather than dropped.
+    //
+    // The specification describes more containment than is built --
+    // routes.external, input.clipboard, input.textSelection,
+    // display.hideCursor, screenDim -- and each one was read straight past.
+    // An unrecognised enum value has always produced a problem here; an
+    // unrecognised key produced nothing, and that is the worse of the two.
+    // Somebody who writes `input.clipboard: disabled` into a kiosk has
+    // decided the clipboard is locked and has been told nothing to the
+    // contrary. Silence reads as agreement.
+    void unread(String path, Map<Object?, Object?> map, Set<String> known) {
+      for (final Object? key in map.keys) {
+        if (key is! String || known.contains(key)) continue;
+        problems.add('$path.$key is not read by this version of Dartvel: it '
+            'is accepted here and changes nothing at runtime.');
+      }
+    }
+
+    unread('dartvel.kiosk', k, const <String>{
+      'enabled',
+      'scope',
+      'home',
+      'routes',
+      'input',
+      'session',
+      'display',
+      'exit',
+      'updates',
+    });
+    unread('dartvel.kiosk.routes', routes, const <String>{'allow'});
+    unread('dartvel.kiosk.input', input, const <String>{
+      'systemGestures',
+      'hardwareKeys',
+      'shortcuts',
+    });
+    unread('dartvel.kiosk.session', session, const <String>{
+      'onIdle',
+      'idleTimeout',
+      'idleWarning',
+      'clearOnReset',
+    });
+    unread('dartvel.kiosk.display', display, const <String>{'fullscreen'});
+    unread('dartvel.kiosk.exit', exit, const <String>{
+      'method',
+      'pin',
+      'audit',
+      'lockoutFor',
+      'maxAttempts',
+    });
+    unread('dartvel.kiosk.updates', updates, const <String>{
+      'apply',
+      'window',
+    });
+
     final DVKioskUpdateApply updatesApply = _enum<DVKioskUpdateApply>(
       updates['apply'],
       const <String, DVKioskUpdateApply>{
