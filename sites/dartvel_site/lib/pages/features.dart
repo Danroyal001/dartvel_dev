@@ -188,7 +188,24 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'dashboard unless the project asked, and a request refused for want of a '
     'sign-in is answered exactly as a route that does not exist -- an admin '
     'answering 401 where the rest of the site answers 404 tells a scanner '
-    'the host has one, and where, before anybody has typed a password.',
+    'the host has one, and where, before anybody has typed a password. The '
+    'dashboard itself is written by dartvel build web-server into the '
+    'directory the server already read from, which no build step had ever '
+    'created -- so turning the admin on used to produce a 404 from a mount '
+    'that was working correctly. It is a static page rather than a second '
+    'Flutter application, because the backend serving it may be a container '
+    'with no Flutter toolchain and no route to the internet, and for the '
+    'same reason it loads nothing from another host: a dashboard that '
+    'half-renders because a CDN is unreachable is worse than one that was '
+    'never offered, and this is the page somebody opens when something is '
+    'already wrong. Every reference in it is relative, so moving the mount '
+    'somewhere private does not break it. It shows the models, routes, '
+    'backend functions and jobs the application declares, each with the file '
+    'it came from -- one dashboard for the whole application, which is why '
+    'it reads a graph with no build target in it. What it reads is the graph '
+    'the build captured rather than the running application, so queues, '
+    'cache tags and the page builder are named in the specification and not '
+    'in it yet.',
   ),
   (
     'Pages',
