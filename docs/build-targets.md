@@ -1089,3 +1089,28 @@ image assembly needs the configured Sony eLinux imaging toolchain. Dartvel does
 not bundle one and does not emit a placeholder file in its place. These formats
 are excluded from `dartvel build` with no argument, since they are explicit
 packaging steps rather than part of a general build.
+
+## When a target skips
+
+`dartvel build <target>` skips rather than fails when the toolchain says it
+cannot serve, and the message names which wall it hit. There are three, and
+CI passes a skip only for these — a skip that says nothing is still a
+failure, and so is "not found on PATH", because an embedder that should have
+been installed and was not is a regression rather than a wall.
+
+| Wall | What is printed | Why it is not a failure |
+|---|---|---|
+| Licence-gated SDK | `Skipping tizen` with `Tizen Studio SDK` | Dartvel must never install it, so no runner can ever produce a TPK |
+| The embedder's Dart is below the floor | `bundles Dart <version>` before anything is generated, or `the embedder resolved with Dart <version>` when the embedder has no CLI to ask and its own pub is the first thing to say so | The vendor ships that Flutter. Nothing in the project can change it, and its pub refuses to solve before a file is compiled |
+| A vendor dependency this machine cannot produce | `needs tools Dartvel cannot install for you` | The Sony eLinux embedder artifacts come from a separate workflow; a build runner has no way to make them |
+
+Each re-arms itself. The day a vendor ships a newer Flutter, or the artifacts
+are in place, the skip stops happening and the artifact check applies again —
+so a target cannot stay green by continuing to skip once the wall is gone.
+
+Before this, webOS and Fuchsia failed on every run with a true message about
+the wrong thing: their scaffolds were written, their own pub refused the SDK,
+Dartvel deleted the half-written directory and reported that it could not
+generate a scaffold. Sony eLinux skipped correctly and the job failed anyway,
+because the step after it demanded an artifact from a build that had just
+explained why there was none.
