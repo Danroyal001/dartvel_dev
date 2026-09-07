@@ -2209,6 +2209,7 @@ class BuildCommand extends Command<void> {
             routes: routes,
             siteUrl: siteUrl,
             federated: dvFederatedRoutes(root).keys.toList(),
+            guarded: dvGuardedRoutes(_routerSource(root)),
           ));
       File(p.join(web.path, 'robots.txt'))
           .writeAsStringSync(dvRobots(siteUrl: siteUrl));
@@ -2302,6 +2303,7 @@ class BuildCommand extends Command<void> {
             routes: routes,
             siteUrl: siteUrl,
             federated: dvFederatedRoutes(root).keys.toList(),
+            guarded: dvGuardedRoutes(_routerSource(root)),
           ));
       File(p.join(web.path, 'robots.txt'))
           .writeAsStringSync(dvRobots(siteUrl: siteUrl));
