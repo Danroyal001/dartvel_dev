@@ -154,6 +154,25 @@ const Map<String, String> dvMiddlewareKeysUnbuiltReason = <String, String>{
 Set<String> get dvMiddlewareKeysUnbuilt =>
     dvMiddlewareKeysUnbuiltReason.keys.toSet();
 
+/// Every key, and the promise that each is in exactly one set.
+///
+/// A key can be built, enforced by the prelude, wrapping, already on, or
+/// implemented nowhere. Being in none of them is not a fifth answer: the
+/// generator builds its supported list from these sets, so a key missing
+/// from all of them is refused as unsupported -- which is what happened to
+/// csp when the edit that added it to the built set silently did not apply.
+///
+/// Listed here rather than derived from DVMiddlewares, whose keys are static
+/// constants with no runtime list. A test in the CLI holds this against the
+/// annotation, so the two cannot drift.
+Set<String> get dvMiddlewareKeysAll => <String>{
+      ...dvMiddlewareKeysBuilt,
+      ...dvMiddlewareKeysAtRequest,
+      ...dvMiddlewareKeysWrapping,
+      ...dvMiddlewareKeysAlwaysOn,
+      ...dvMiddlewareKeysUnbuilt,
+    };
+
 /// What a middleware puts in `context.data` when it refuses, and the status
 /// that refusal is.
 const Map<String, int> _refusalStatus = <String, int>{
