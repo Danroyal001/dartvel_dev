@@ -96,6 +96,7 @@ const Set<String> dvMiddlewareKeysBuilt = <String>{
   'idempotency',
   'featureFlags',
   'maintenance',
+  'csp',
 };
 
 /// Keys the generated request prelude enforces, not the chain.
