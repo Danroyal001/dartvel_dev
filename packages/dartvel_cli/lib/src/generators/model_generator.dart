@@ -142,6 +142,14 @@ class ModelGenerator {
             ownModuleId == null ? 'const DVDatabase()' : '_dvModule.database';
         classesGenerated.add(className);
 
+        // Field annotations stack: a field can carry both
+        // @DVModel.sensitiveField() and @DVModel.searchableField(), and a
+        // pattern written expecting to sit directly above the declaration
+        // misses whichever one ends up second. Each pattern below skips any
+        // other annotations standing between itself and the `final`.
+        const String otherAnnotations =
+            r'(?:@[A-Za-z0-9_.]+\s*\([^)]*\)\s*)*';
+
         // Parse fields
         // We find all fields of format: final Type name;
         final fieldRegex = RegExp(
@@ -157,7 +165,7 @@ class ModelGenerator {
         // spelling is still accepted while it remains deprecated.
         final searchableFieldRegex = RegExp(
           r'@(?:DVModel\.searchableField|DVSearchable)\s*\(\s*\)\s*'
-          r'final\s+(.+?)\s+([A-Za-z0-9_]+)\s*;',
+          '${otherAnnotations}final\\s+(.+?)\\s+([A-Za-z0-9_]+)\\s*;',
           dotAll: true,
         );
         for (final m in searchableFieldRegex.allMatches(content)) {
@@ -173,7 +181,7 @@ class ModelGenerator {
         final sensitiveFormFields = <String>{};
         final sensitiveFieldRegex = RegExp(
           r'@(?:DVModel\.sensitiveField|DVSensitiveModelField)\s*\(([^)]*)\)\s*'
-          r'final\s+.+?\s+([A-Za-z0-9_]+)\s*;',
+          '${otherAnnotations}final\\s+.+?\\s+([A-Za-z0-9_]+)\\s*;',
           dotAll: true,
         );
         for (final m in sensitiveFieldRegex.allMatches(content)) {
@@ -192,8 +200,8 @@ class ModelGenerator {
         // alone.
         String? singleAnnotatedField(String constructor) {
           final match = RegExp(
-            '@DVModel\\.$constructor\\s*\\(\\s*\\)\\s*final\\s+.+?\\s+'
-            '([A-Za-z0-9_]+)\\s*;',
+            '@DVModel\\.$constructor\\s*\\(\\s*\\)\\s*'
+            '${otherAnnotations}final\\s+.+?\\s+([A-Za-z0-9_]+)\\s*;',
             dotAll: true,
           ).firstMatch(content);
           return match?.group(1);
@@ -205,7 +213,8 @@ class ModelGenerator {
 
         final hiddenPageFields = <String>{};
         for (final m in RegExp(
-          r'@DVModel\.hideFromPage\s*\(\s*\)\s*final\s+.+?\s+([A-Za-z0-9_]+)\s*;',
+          r'@DVModel\.hideFromPage\s*\(\s*\)\s*'
+          '${otherAnnotations}final\\s+.+?\\s+([A-Za-z0-9_]+)\\s*;',
           dotAll: true,
         ).allMatches(content)) {
           hiddenPageFields.add(m.group(1)!);
@@ -213,8 +222,8 @@ class ModelGenerator {
 
         final pageFieldOrder = <String, int>{};
         for (final m in RegExp(
-          r'@DVModel\.pageOrder\s*\(\s*(-?\d+)\s*\)\s*final\s+.+?\s+'
-          r'([A-Za-z0-9_]+)\s*;',
+          r'@DVModel\.pageOrder\s*\(\s*(-?\d+)\s*\)\s*'
+          '${otherAnnotations}final\\s+.+?\\s+([A-Za-z0-9_]+)\\s*;',
           dotAll: true,
         ).allMatches(content)) {
           pageFieldOrder[m.group(2)!] = int.parse(m.group(1)!);
@@ -1723,8 +1732,19 @@ class ModelGenerator {
         sb.writeln('}');
 
         if (isSearchableModel || searchableFields.isNotEmpty) {
+          // A sensitive field is excluded from search indexing by the same
+          // rule that keeps it out of tables, forms and toPublicJson. There
+          // is no showInSearch opt-in the way showInForms exists, so the
+          // filter applies to the explicit list too: a field carrying both
+          // annotations is a contradiction, and a facet is a client-facing
+          // surface.
           final effectiveSearchableFields =
-              searchableFields.isEmpty ? fields : searchableFields;
+              (searchableFields.isEmpty ? fields : searchableFields)
+                  .where(
+                    (Map<String, String> f) =>
+                        !sensitiveFieldNames.contains(f['name']),
+                  )
+                  .toList(growable: false);
           sb.writeln();
           sb.writeln('/// Generated search facets for [$className].');
           sb.writeln('class ${className}SearchFacets {');
