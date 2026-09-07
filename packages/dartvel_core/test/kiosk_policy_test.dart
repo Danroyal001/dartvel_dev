@@ -223,4 +223,87 @@ void main() {
       expect(policy.idleTimeout, greaterThan(Duration.zero));
     });
   });
+
+  group('a key nobody reads is not silently accepted', () {
+    // NEW_SPEC lists routes.external, input.clipboard, input.textSelection,
+    // display.hideCursor and screenDim. The parser reads the routes, input
+    // and display maps and pulls three named children out of them, so those
+    // five are read past and dropped. An unrecognised enum value already
+    // produces a problem; an unrecognised key produced nothing, which is the
+    // worse of the two failures -- the developer believes the kiosk is
+    // locked down and it is not.
+    test('an unparsed containment key is reported', () {
+      final DVKioskPolicy policy = DVKioskPolicy.parse(
+        kiosk(<String, Object?>{
+          'enabled': true,
+          'input': <String, Object?>{'clipboard': 'disabled'},
+        }),
+      );
+
+      expect(policy.problems, isNotEmpty);
+      expect(
+        policy.problems.join('\n'),
+        contains('dartvel.kiosk.input.clipboard'),
+      );
+    });
+
+    test('every unparsed key is named, not just the first', () {
+      final DVKioskPolicy policy = DVKioskPolicy.parse(
+        kiosk(<String, Object?>{
+          'enabled': true,
+          'routes': <String, Object?>{
+            'allow': <Object?>['/'],
+            'external': 'block',
+          },
+          'display': <String, Object?>{
+            'fullscreen': true,
+            'hideCursor': 'always',
+          },
+        }),
+      );
+
+      final String said = policy.problems.join('\n');
+      expect(said, contains('dartvel.kiosk.routes.external'));
+      expect(said, contains('dartvel.kiosk.display.hideCursor'));
+      // The keys that are parsed are not reported, or the message becomes
+      // noise and the real one is lost in it.
+      expect(said, isNot(contains('routes.allow')));
+      expect(said, isNot(contains('display.fullscreen')));
+    });
+
+    test('a top-level key nobody reads is reported too', () {
+      // screenDim is documented at the top of the kiosk section rather than
+      // under display, and is read nowhere at all.
+      final DVKioskPolicy policy = DVKioskPolicy.parse(
+        kiosk(<String, Object?>{'enabled': true, 'screenDim': '30s'}),
+      );
+
+      expect(
+        policy.problems.join('\n'),
+        contains('dartvel.kiosk.screenDim'),
+      );
+    });
+
+    test('a fully understood policy still reports nothing', () {
+      // The check is only worth having if it stays quiet on valid input.
+      final DVKioskPolicy policy = DVKioskPolicy.parse(
+        kiosk(<String, Object?>{
+          'enabled': true,
+          'scope': 'device',
+          'home': '/',
+          'routes': <String, Object?>{
+            'allow': <Object?>['/', '/help'],
+          },
+          'input': <String, Object?>{
+            'systemGestures': 'block',
+            'hardwareKeys': 'block',
+            'shortcuts': 'block',
+          },
+          'display': <String, Object?>{'fullscreen': true},
+        }),
+      );
+
+      expect(policy.problems, isEmpty);
+    });
+  });
 }
