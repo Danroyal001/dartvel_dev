@@ -407,7 +407,7 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   ),
   (
     'Middleware',
-    'Nine run, two guard the body, seven fail the build',
+    'Nine run, tracing wraps, two guard the body, six fail the build',
     'Composable middleware around backend functions, with the request '
     'lifecycle observable as a signal. The nineteen keys did nothing until '
     'recently. The annotation had one reader -- a check that the name was '
@@ -429,7 +429,11 @@ const List<(String, String, String)> partial = <(String, String, String)>[
     'nothing. Declaring both gives each shape its own number, which is the '
     'point of there being two -- a JSON body of several megabytes is a '
     'mistake and an upload of several megabytes is the feature. The '
-    'remaining seven are implemented nowhere and fail the build naming what '
+    'tracing wraps the handler and the chain both, which is where it has to '
+    'be: a request refused by a rate limit is still a request, and a trace '
+    'covering only the ones that got through is a latency graph with the '
+    'slow half missing. The remaining six are implemented nowhere and fail '
+    'the build naming what '
     'to use instead, because somebody who wrote one of them has decided '
     'something is being enforced, and serving as though it were is not a '
     'smaller failure for having been quiet about it.',

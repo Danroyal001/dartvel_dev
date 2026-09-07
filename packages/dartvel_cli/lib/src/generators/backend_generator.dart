@@ -4,7 +4,8 @@ import 'package:dartvel_core/dartvel.dart'
         dvMiddlewareKeysAlwaysOn,
         dvMiddlewareKeysAtRequest,
         dvMiddlewareKeysBuilt,
-        dvMiddlewareKeysUnbuiltReason;
+        dvMiddlewareKeysUnbuiltReason,
+        dvMiddlewareKeysWrapping;
 import 'package:file/local.dart';
 import 'function_body.dart';
 import 'symbol_qualifier.dart';
@@ -454,12 +455,44 @@ ${backendEntries.map((e) {
           .split(' ')
           .where((String key) => key.isNotEmpty)
           .toList(growable: false);
-      final String handlerOpen = middlewareKeys.isEmpty
-          ? '(dv.Request req) async {'
-          : '(dv.Request req) => _dvGuarded(req, const <String>['
-              "${middlewareKeys.map((String k) => "'$k'").join(', ')}"
-              '], () async {';
-      final String handlerClose = middlewareKeys.isEmpty ? '  });' : '  }));';
+      // Tracing wraps everything, including the chain. A request refused by
+      // a rate limit is still a request, and a trace that only covers the
+      // ones that got through is a latency graph with the slow half missing.
+      //
+      // The helper existed, was tested, and was wired to nothing -- the key
+      // named it and the generator had never heard of either.
+      final bool traces = middlewareKeys.contains('tracing');
+      final List<String> chainKeys = middlewareKeys
+          .where((String key) => key != 'tracing')
+          .toList(growable: false);
+
+      // Built rather than written out for each combination: a miscounted
+      // bracket here is a generated file that does not parse, and the error
+      // names a line nobody wrote.
+      //
+      // The innermost closure is always the handler body. Each wrapper adds
+      // one `)` to the close, and the router call adds the last one. The
+      // traced closure takes the request again under the same name, so the
+      // body reads `req` whether it is traced or not.
+      final StringBuffer open = StringBuffer('(dv.Request req) => ');
+      int wrappers = 0;
+      if (traces) {
+        open.write('core.dvTraced(core.DVObservability.tracer, req, ');
+        wrappers++;
+      }
+      if (chainKeys.isNotEmpty) {
+        if (traces) open.write('(dv.Request req) => ');
+        open.write('_dvGuarded(req, const <String>['
+            "${chainKeys.map((String k) => "'$k'").join(', ')}"
+            '], () async {');
+        wrappers++;
+      } else if (traces) {
+        open.write('(dv.Request req) async {');
+      }
+
+      final String handlerOpen =
+          wrappers == 0 ? '(dv.Request req) async {' : open.toString();
+      final String handlerClose = '  }${')' * wrappers});';
 
       final String policy = e['policy'] ?? '';
       final String policyGate = policy.isEmpty
@@ -1861,6 +1894,7 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       ...dvMiddlewareKeysBuilt,
       ...dvMiddlewareKeysAlwaysOn,
       ...dvMiddlewareKeysAtRequest,
+      ...dvMiddlewareKeysWrapping,
       ...dvMiddlewareKeysUnbuiltReason.keys,
     };
     final fs = const LocalFileSystem();
