@@ -85,3 +85,23 @@ String dvPageGuardChain({
     ..writeln('      },');
   return out.toString();
 }
+
+/// The policy a `@DVPage` source declares, or null.
+///
+/// Public so a test can hold the generator's own parser to account. The
+/// first version of this feature had a correct guard builder, a correct
+/// runtime checker, a unit test for each, and no caller for either -- so a
+/// page declaring a policy stayed open and the index recorded it as fixed.
+/// Asserting on a string returned by an uncalled function is what let that
+/// pass; this is the parser the generator actually uses.
+String? dvPagePolicyFromSource(String source) {
+  final RegExpMatch? annotation =
+      RegExp(r'@DVPage\(([^)]*)\)', dotAll: true).firstMatch(source);
+  if (annotation == null) return null;
+  final RegExpMatch? match = RegExp(
+    r'policy\s*:\s*([A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)*)',
+  ).firstMatch(annotation.group(1) ?? '');
+  final String? value = match?.group(1);
+  if (value == null || value == 'null') return null;
+  return value;
+}
