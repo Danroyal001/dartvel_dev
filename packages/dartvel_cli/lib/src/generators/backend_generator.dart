@@ -1172,6 +1172,15 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       pkgName: pkgName,
       backendDir: backendDir,
     ));
+    // The client half is a separate file because the generated backend
+    // imports the one above, and a client schedule declared on a page would
+    // pull Flutter into a server with no dart:ui.
+    File(p.join(libClientDir.path, 'client_schedules.g.dart'))
+        .writeAsStringSync(await _generateClientSchedules(
+      root: root,
+      pkgName: pkgName,
+      backendDir: backendDir,
+    ));
     File(p.join(libClientDir.path, 'ai_tools.g.dart'))
         .writeAsStringSync(await _generateAITools(
       root: root,
@@ -1202,6 +1211,125 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
     } catch (_) {}
 
     log('dartvel: generated lib/dartvel_client/* and .dart_tool/dartvel_backend*.g.dart (build $buildId)');
+  }
+
+  /// The client half, in its own file.
+  ///
+  /// Separate from schedules.g.dart because the generated backend imports
+  /// that one, and a client schedule declared on a page would pull Flutter
+  /// into a server with no dart:ui. A show clause does not help: the whole
+  /// library is still compiled.
+  static Future<String> _generateClientSchedules({
+    required String root,
+    required String pkgName,
+    required String backendDir,
+  }) async {
+    final entries = await _cronEntries(
+      root: root,
+      pkgName: pkgName,
+      backendDir: backendDir,
+    );
+    final List<_CronEntry> clientCron = entries
+        .where((entry) => entry.target == 'DVCronTarget.client')
+        .toList(growable: false);
+    final Map<String, String> aliasByImport = <String, String>{};
+    for (final _CronEntry entry in clientCron) {
+      aliasByImport.putIfAbsent(
+        entry.importUri,
+        () => 'cron${aliasByImport.length}',
+      );
+    }
+
+    final sb = StringBuffer()
+      ..writeln('// GENERATED – do not edit.')
+      ..writeln('// ignore_for_file: unused_element')
+      ..writeln('library dartvel_client_client_schedules;')
+      ..writeln()
+      ..writeln("import 'dart:async';")
+      ..writeln()
+      ..writeln("import 'package:dartvel_core/dartvel.dart';")
+      ..writeln("import 'schedules.g.dart' show dartvelClientCronEntries;");
+    for (final MapEntry<String, String> import in aliasByImport.entries) {
+      sb.writeln("import '${esc(import.key)}' as ${import.value};");
+    }
+    sb
+      ..writeln()
+      ..writeln('/// The function behind each client schedule.')
+      ..writeln('///')
+      ..writeln('/// registerAll refuses an entry with no handler rather')
+      ..writeln('/// than skipping it, so a name here that does not match an')
+      ..writeln('/// entry is a startup failure and not a job that quietly')
+      ..writeln('/// never runs.');
+    if (clientCron.isEmpty) {
+      sb.writeln('const Map<String, Future<void> Function()> '
+          'dartvelClientCronHandlers = '
+          '<String, Future<void> Function()>{};');
+    } else {
+      sb.writeln('final Map<String, Future<void> Function()> '
+          'dartvelClientCronHandlers = '
+          '<String, Future<void> Function()>{');
+      for (final _CronEntry entry in clientCron) {
+        final String alias = aliasByImport[entry.importUri]!;
+        sb.writeln("  '${esc(entry.name)}': () async { "
+            'await $alias.${entry.name}(); },');
+      }
+      sb.writeln('};');
+    }
+    sb
+      ..writeln()
+      ..writeln('/// Registers every client schedule and starts ticking.')
+      ..writeln('///')
+      ..writeln('/// Returns null when the application declares none: a')
+      ..writeln('/// timer firing in every application that has no schedule')
+      ..writeln('/// is a cost nobody asked for, and on a phone it is a')
+      ..writeln('/// wakeup as well as a tick.')
+      ..writeln('Timer? dartvelStartClientSchedules({')
+      ..writeln('  Duration every = const Duration(seconds: 20),')
+      ..writeln('  bool catchUp = false,')
+      ..writeln('}) {')
+      ..writeln('  if (dartvelClientCronEntries.isEmpty) return null;')
+      ..writeln('  final DVScheduler scheduler = DVScheduler()')
+      ..writeln('    ..registerAll(')
+      ..writeln('      dartvelClientCronEntries,')
+      ..writeln('      handlers: dartvelClientCronHandlers,')
+      ..writeln('      catchUp: catchUp,')
+      ..writeln('    );')
+      ..writeln('  return Timer.periodic(every, (Timer _) => scheduler.tick());')
+      ..writeln('}');
+    return sb.toString();
+  }
+
+  /// Every cron entry the project declares, backend and client.
+  static Future<List<_CronEntry>> _cronEntries({
+    required String root,
+    required String pkgName,
+    required String backendDir,
+  }) async {
+    final entries = <_CronEntry>[];
+    for (final (project, file) in _mergedLibFiles(root, pkgName, backendDir)) {
+      final source = await file.readAsString();
+      final relativePath =
+          p.relative(file.path, from: project.root).replaceAll('\\', '/');
+      final importUri = relativePath.replaceFirst(
+          RegExp(r'^lib/'), 'package:${project.packageName}/');
+      _collectCronEntries(
+        source: source,
+        relativePath: relativePath,
+        importUri: importUri,
+        annotationName: 'DVBackendCron',
+        target: 'DVCronTarget.backend',
+        entries: entries,
+      );
+      _collectCronEntries(
+        source: source,
+        relativePath: relativePath,
+        importUri: importUri,
+        annotationName: 'DVClientCron',
+        target: 'DVCronTarget.client',
+        entries: entries,
+      );
+    }
+    return entries;
   }
 
   static Future<String> _generateSchedules({
