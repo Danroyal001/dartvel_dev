@@ -160,10 +160,13 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
   ),
   (
     'Sensitive Model Fields',
-    '@DVModel.sensitiveField()',
+    '@DVModel.sensitiveField(); encrypted: true refused',
     'Excluded from logs, AI context, traces, analytics, public serialization, '
     'search, generated pages, tables and admin by default. Reaching a client '
-    'takes an explicit policy.',
+    'takes an explicit policy. encrypted: true is not implemented: there is '
+    'no server-side field-encryption key surface yet, so a field declaring '
+    'it fails generation, naming the model and field, rather than being '
+    'stored as plaintext under a flag that says otherwise.',
   ),
   (
     'Authentication',

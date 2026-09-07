@@ -917,10 +917,14 @@
     {
       "section": "Sensitive Model Fields",
       "stability": "Contract",
-      "status": "Shipped",
+      "status": "Partial",
       "evidence": [
-        "packages/dartvel_cli/test/sensitive_model_generation_test.dart"
-      ]
+        "packages/dartvel_cli/test/sensitive_model_generation_test.dart",
+        "packages/dartvel_cli/test/sensitive_field_encryption_test.dart",
+        "packages/dartvel_cli/lib/src/generators/model_generator.dart",
+        "packages/dartvel_core/lib/src/annotations/annotations.dart"
+      ],
+      "absent": "The encrypted argument on @DVModel.sensitiveField(encrypted: true) is documented as requesting at-rest encryption and nothing read it: the generator never checked the value, so a field marked encrypted: true was stored as plain, unencrypted text -- the exact opposite of what the flag promises. There is no server-side field-encryption key surface to wire it to yet; DVAppKeyCipher exists but is bound to a per-device platform key store (Keychain, DPAPI, libsecret, Android Keystore), not a server process, and DV.Secrets only reads configuration values, it does not encrypt anything. Rather than continue storing plaintext under the flag, generation now refuses when encrypted: true is declared, naming the model and field, until real field-level encryption ships. Everything else about sensitive fields -- exclusion from public serialization, generated pages/tables/cards, search indexing, and forms unless opted back in -- is shipped and unaffected."
     },
     {
       "section": "Static Web Generation",
