@@ -315,6 +315,16 @@ const String dartvelOpenApiJson = r\'\'\'
 $openApiJson\'\'\';
 ''');
 
+    // The Content-Security-Policy this application sends, handed to the
+    // runtime where the server starts. Emitted only when the project set
+    // one: a route declaring the key without it never gets this far, because
+    // the middleware validator refuses that build.
+    final String? csp = _dvContentSecurityPolicy(root);
+    final String cspAssignment = csp == null
+        ? ''
+        : "\n  core.DVMiddlewareSettings.contentSecurityPolicy = "
+            "'${esc(csp)}';";
+
     final backendRoutes = '''
 // GENERATED – do not edit.
 // ignore_for_file: unused_element
@@ -753,7 +763,7 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   // every module as unmounted: its models resolved the plain table name in
   // a database where nothing had created it. Backend functions are where
   // model queries actually run.
-  registerDartvelModules();
+  registerDartvelModules();$cspAssignment
   // Every @DVBackendCron schedule, registered and ticking. Nothing did this
   // before: the schedules were generated into a list and the only thing that
   // ever built a DVScheduler was the scheduler's own unit test, so a job
@@ -1929,6 +1939,19 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
               '$relativePath. Supported middleware: ${supported.join(', ')}.',
             );
           }
+          if (name == 'csp' && _dvContentSecurityPolicy(root) == null) {
+            // A policy is a statement about one application's own scripts
+            // and origins. There is no default that could be right, and
+            // sending no header while the key says one is sent is the
+            // silence this whole set exists to end.
+            throw StateError(
+              'dartvel: DVMiddlewares.csp in $relativePath needs a policy. '
+              'Set dartvel.security.csp in pubspec.yaml to the '
+              'Content-Security-Policy this application should send. There '
+              'is no default: a policy permissive enough to suit every '
+              'application would protect none of them.',
+            );
+          }
           final String? unbuilt = dvMiddlewareKeysUnbuiltReason[name];
           if (unbuilt != null) {
             // Refused rather than ignored. Somebody who declared bodyLimit
@@ -2406,4 +2429,23 @@ void _refusePrivateCron(List<_CronEntry> entries, String annotation) {
       'public.',
     );
   }
+}
+
+/// `dartvel.security.csp` from pubspec.yaml, or null.
+///
+/// Read at generation time so a route declaring the key with nothing
+/// configured fails the build, rather than starting a server that sends no
+/// header while the annotation says it sends one.
+String? _dvContentSecurityPolicy(String root) {
+  final File pubspec = File(p.join(root, 'pubspec.yaml'));
+  if (!pubspec.existsSync()) return null;
+  final Object? parsed = loadYaml(pubspec.readAsStringSync());
+  if (parsed is! YamlMap) return null;
+  final Object? dartvel = parsed['dartvel'];
+  if (dartvel is! YamlMap) return null;
+  final Object? security = dartvel['security'];
+  if (security is! YamlMap) return null;
+  final Object? csp = security['csp'];
+  if (csp is! String || csp.trim().isEmpty) return null;
+  return csp.trim();
 }

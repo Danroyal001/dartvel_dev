@@ -316,6 +316,76 @@ Future<Map<String, bool>> ping() async => <String, bool>{'ok': true};
       root.deleteSync(recursive: true);
     }
   });
+
+  test('a declared csp with no policy fails the build', () async {
+    // A policy is a statement about one application's own scripts and
+    // origins. There is no default that could be right, and sending no
+    // header while the annotation says one is sent is the silence this set
+    // of refusals exists to end.
+    final root = await _createProject();
+    try {
+      File(p.join(root.path, 'lib', 'backend', 'functions', 'page.get.dart'))
+          .writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVUseMiddleware([DVMiddlewares.csp])
+Future<Map<String, bool>> page() async => <String, bool>{'ok': true};
+''');
+
+      await expectLater(
+        () => _generate(root),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            allOf(
+              contains('dartvel.security.csp'),
+              contains('no default'),
+            ),
+          ),
+        ),
+      );
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
+  test('a configured csp reaches the runtime and the response', () async {
+    final root = await _createProject();
+    try {
+      File(p.join(root.path, 'pubspec.yaml')).writeAsStringSync('''
+name: csp_app
+dartvel:
+  security:
+    csp: "default-src 'self'"
+''');
+      File(p.join(root.path, 'lib', 'backend', 'functions', 'page.get.dart'))
+          .writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVUseMiddleware([DVMiddlewares.csp])
+Future<Map<String, bool>> page() async => <String, bool>{'ok': true};
+''');
+
+      await _generate(root);
+
+      final routes = File(
+        p.join(root.path, '.dart_tool', 'dartvel_backend_routes.g.dart'),
+      ).readAsStringSync();
+
+      // Handed to the runtime where the server starts, and the route asks
+      // the chain for it. The header itself is added by the chain, which is
+      // asserted next door on a value.
+      expect(
+        routes,
+        contains('core.DVMiddlewareSettings.contentSecurityPolicy = '),
+      );
+      expect(routes, contains("default-src \\'self\\'"));
+      expect(dvRouteSource(routes, '/page'), contains("'csp'"));
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
 }
 
 Future<Directory> _createProject() async {

@@ -40,10 +40,9 @@ void main() {
     });
 
     test('a key with no implementation builds nothing', () {
-      // csp, cacheTags and rateLimitCheckout are declared on DVMiddlewares
+      // cacheTags and rateLimitCheckout are declared on DVMiddlewares
       // and implemented nowhere. Returning a do-nothing middleware for them
       // would be the same silence in a new place.
-      expect(dvMiddlewareFor('csp'), isNull);
       expect(dvMiddlewareFor('cacheTags'), isNull);
       expect(dvMiddlewareFor('rateLimitCheckout'), isNull);
     });
@@ -117,6 +116,35 @@ void main() {
       expect(result.allowed, isTrue);
       expect(result.headers['X-Frame-Options'], 'DENY');
       expect(result.headers['X-Content-Type-Options'], 'nosniff');
+    });
+
+    test('a configured policy comes back as a header', () async {
+      DVMiddlewareSettings.contentSecurityPolicy = "default-src 'self'";
+
+      final DVMiddlewareResult result =
+          await dvRunMiddlewares(const <String>['csp'], request());
+
+      expect(result.allowed, isTrue);
+      expect(result.headers['Content-Security-Policy'], "default-src 'self'");
+    });
+
+    test('no configured policy sends no header rather than an empty one', () {
+      // An empty Content-Security-Policy is not "no policy": browsers read it
+      // as one that allows nothing, which breaks the page. The build refuses
+      // this combination, and this is the runtime refusing to invent a
+      // header if it ever reaches here anyway.
+      expect(DVMiddlewareSettings.contentSecurityPolicy, isNull);
+
+      expectLater(
+        dvRunMiddlewares(const <String>['cacheTags'], request()),
+        completion(
+          isA<DVMiddlewareResult>().having(
+            (DVMiddlewareResult r) => r.headers,
+            'headers',
+            isEmpty,
+          ),
+        ),
+      );
     });
 
     test('a rate limit refuses with 429 once the window is full', () async {
@@ -227,11 +255,11 @@ void main() {
 
     test('a declared key nobody implemented refuses the build, not the '
         'request', () async {
-      // Running a chain containing csp must not quietly serve the request
-      // as though a policy had been sent. The generator rejects it, and this
-      // is the runtime saying the same thing rather than shrugging.
+      // Running a chain containing cacheTags must not quietly serve the
+      // request as though tags had been recorded. The generator rejects it,
+      // and this is the runtime saying the same thing rather than shrugging.
       await expectLater(
-        dvRunMiddlewares(const <String>['csp'], request()),
+        dvRunMiddlewares(const <String>['cacheTags'], request()),
         throwsA(isA<ArgumentError>()),
       );
     });
