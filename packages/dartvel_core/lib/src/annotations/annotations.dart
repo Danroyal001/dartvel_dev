@@ -199,6 +199,19 @@ class DVModel {
   /// than the honest general type, and search engines act on the label.
   final String? schemaType;
 
+  /// Whether this model's rows belong to a tenant.
+  ///
+  /// On the shared-database strategy -- one database, one schema, rows
+  /// scoped by a tenant column -- a query with no tenant predicate returns
+  /// every tenant's rows. Nothing in the generated model had one, so the
+  /// isolation the strategy is named for did not exist.
+  ///
+  /// Opt in per model rather than on for everything: a single-tenant
+  /// application should not carry a column it never reads, and a model that
+  /// is deliberately shared across tenants -- a currency table, a country
+  /// list -- would be broken by a predicate it never asked for.
+  final bool tenantScoped;
+
   const DVModel({
     this.searchable = false,
     this.billable = false,
@@ -207,6 +220,7 @@ class DVModel {
     this.generatePublicPages = false,
     this.publicPathsResolver,
     this.schemaType,
+    this.tenantScoped = false,
   })  : encrypted = false,
         showInForms = false,
         showInAdmin = false,
@@ -238,7 +252,8 @@ class DVModel {
         publicPathsResolver = null,
         pageRole = null,
         pageOrderIndex = null,
-        schemaType = null;
+        schemaType = null,
+        tenantScoped = false;
 
   /// Marks a model field for generated search indexing:
   /// `@DVModel.searchableField()`.
@@ -254,7 +269,8 @@ class DVModel {
         showInAdmin = false,
         pageRole = null,
         pageOrderIndex = null,
-        schemaType = null;
+        schemaType = null,
+        tenantScoped = false;
 
   /// Marks the field a generated model page uses as its featured image:
   /// `@DVModel.featuredImage()`.
@@ -302,7 +318,8 @@ class DVModel {
         encrypted = false,
         showInForms = false,
         showInAdmin = false,
-        schemaType = null;
+        schemaType = null,
+        tenantScoped = false;
 }
 
 /// Marks a model property for generated search indexing.
