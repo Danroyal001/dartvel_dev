@@ -13,11 +13,16 @@ import 'package:dartvel_core/dartvel.dart';
 /// declaration here is a compiler reading the emitted code:
 ///
 ///   * `policy` puts a gate in front of the handler,
-///   * `@DVUseMiddleware` wraps it in the chain,
+///   * `tracing` wraps the whole thing, and the chain wraps the handler, so
+///     this is the nested case -- two closures deep, and the closing
+///     brackets are counted rather than written out. A miscount there is a
+///     generated file that does not parse, and only a compiler proves it
+///     does,
 ///   * the `DVContext` first parameter is injected rather than decoded from
 ///     the request, and is dropped from the generated client's signature.
 @DVBackendFunction(policy: DVPolicies.exportData)
 @DVUseMiddleware(<DVMiddlewareKey>[
+  DVMiddlewares.tracing,
   DVMiddlewares.securityHeaders,
   DVMiddlewares.locale,
 ])
