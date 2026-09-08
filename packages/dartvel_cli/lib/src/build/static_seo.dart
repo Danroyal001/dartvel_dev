@@ -148,6 +148,219 @@ Set<String> dvGuardedRoutes(String routerSource) {
       .toSet();
 }
 
+/// What a page or a project says about how a URL should be crawled.
+///
+/// [changeFrequency] is the sitemaps.org token rather than the enum, because
+/// this side of the build reads it back out of a generated file as text. The
+/// enum lives in `dartvel_core`, where a page writes it.
+class DVSitemapEntry {
+  const DVSitemapEntry({this.priority, this.changeFrequency});
+
+  /// Between 0 and 1, relative to the rest of this site and nothing else. It
+  /// does not raise a page in anybody's results; it says which of your own
+  /// pages to crawl first when a crawler cannot take them all.
+  final double? priority;
+
+  final String? changeFrequency;
+
+  /// This entry over [other], field by field.
+  ///
+  /// Field by field rather than whole: a page that only says it changes
+  /// daily should keep the project's priority rather than losing it to the
+  /// null it did not write.
+  DVSitemapEntry over(DVSitemapEntry? other) => DVSitemapEntry(
+        priority: priority ?? other?.priority,
+        changeFrequency: changeFrequency ?? other?.changeFrequency,
+      );
+
+  bool get isEmpty => priority == null && changeFrequency == null;
+}
+
+/// The seven words sitemaps.org defines for `<changefreq>`.
+///
+/// A crawler drops the whole `<url>` element when one of its children will
+/// not validate, so an eighth word here removes the page rather than the
+/// hint it was meant to carry.
+const Set<String> dvSitemapChangeFrequencies = <String>{
+  'always',
+  'hourly',
+  'daily',
+  'weekly',
+  'monthly',
+  'yearly',
+  'never',
+};
+
+/// The per-route sitemap entries a generated router declares.
+///
+/// The generator knows what each page's annotation said and writes it down,
+/// for the same reason it writes down which routes it guards: the build
+/// cannot read a Dart annotation, and scraping one out of the router with a
+/// regular expression is what published every private route.
+Map<String, DVSitemapEntry> dvSitemapEntries(String routerSource) {
+  final RegExpMatch? map = RegExp(
+    r'dartvelSitemapEntries\s*=\s*<String,\s*DVPageSitemap>\{(.*?)\n\};',
+    dotAll: true,
+  ).firstMatch(routerSource);
+  if (map == null) return const <String, DVSitemapEntry>{};
+
+  final Map<String, DVSitemapEntry> entries = <String, DVSitemapEntry>{};
+  final RegExp entry = RegExp(
+    r"'([^']*)'\s*:\s*DVPageSitemap\(([^)]*)\)",
+    dotAll: true,
+  );
+  for (final RegExpMatch match in entry.allMatches(map.group(1)!)) {
+    final String args = match.group(2)!;
+    final RegExpMatch? priority =
+        RegExp(r'priority:\s*([0-9.]+)').firstMatch(args);
+    final RegExpMatch? frequency = RegExp(
+      r'changeFrequency:\s*DVSitemapChangeFrequency\.([A-Za-z]+)',
+    ).firstMatch(args);
+    entries[match.group(1)!] = DVSitemapEntry(
+      priority: priority == null ? null : double.tryParse(priority.group(1)!),
+      changeFrequency: frequency?.group(1),
+    );
+  }
+  return entries;
+}
+
+/// Whether [route] is covered by one of the project's [patterns].
+///
+/// `**` matches any number of segments, `*` matches one, and a pattern is
+/// anchored at both ends -- so `/admin/**` does not take `/superadmin` with
+/// it.
+///
+/// `/admin/**` also excludes `/admin` itself. Publishing the front door of a
+/// section whose every child is hidden discloses the same thing the pattern
+/// was written to hide, and a reader who writes `/admin/**` means the admin
+/// area rather than the admin area minus its index.
+bool dvSitemapExcluded(String route, List<String> patterns) {
+  for (final String pattern in patterns) {
+    if (_matchesGlob(route, pattern)) return true;
+    if (pattern.endsWith('/**') &&
+        route == pattern.substring(0, pattern.length - 3)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool _matchesGlob(String route, String pattern) {
+  final StringBuffer expr = StringBuffer('^');
+  int i = 0;
+  while (i < pattern.length) {
+    if (pattern.startsWith('**', i)) {
+      expr.write('.*');
+      i += 2;
+      continue;
+    }
+    if (pattern[i] == '*') {
+      // One segment, so a single star cannot cross a slash.
+      expr.write('[^/]*');
+      i++;
+      continue;
+    }
+    expr.write(RegExp.escape(pattern[i]));
+    i++;
+  }
+  expr.write(r'$');
+  return RegExp(expr.toString()).hasMatch(route);
+}
+
+/// What `dartvel.seo.sitemap` says.
+class DVSitemapConfig {
+  const DVSitemapConfig({
+    this.enabled = true,
+    this.exclude = const <String>[],
+    this.defaults,
+  });
+
+  /// On unless the project turns it off. A site that never configured SEO is
+  /// the one that most needs the file written for it.
+  final bool enabled;
+  final List<String> exclude;
+  final DVSitemapEntry? defaults;
+}
+
+/// Read `dartvel.seo.sitemap` out of the `dartvel:` section of a pubspec.
+///
+/// [dv] is that section, which is what the build already holds.
+DVSitemapConfig dvSitemapConfig(Object? dv) {
+  final Object? seo = _mapValue(dv, 'seo');
+  final Object? sitemap = _mapValue(seo, 'sitemap');
+  if (sitemap == null) return const DVSitemapConfig();
+
+  final Object? enabled = _mapValue(sitemap, 'enabled');
+  final Object? exclude = _mapValue(sitemap, 'exclude');
+  final Object? defaults = _mapValue(sitemap, 'defaults');
+
+  return DVSitemapConfig(
+    enabled: enabled is bool ? enabled : true,
+    exclude: exclude is Iterable
+        ? exclude
+            .map((Object? e) => e?.toString() ?? '')
+            .where((String e) => e.isNotEmpty)
+            .toList(growable: false)
+        : const <String>[],
+    defaults: defaults == null ? null : _entryFromYaml(defaults),
+  );
+}
+
+DVSitemapEntry? _entryFromYaml(Object? node) {
+  final Object? priority = _mapValue(node, 'priority');
+  // Both spellings. The XML element is <changefreq>, and a developer who
+  // copied the name out of the file they are configuring should not get
+  // silence for it.
+  final Object? frequency = _mapValue(node, 'changeFrequency') ??
+      _mapValue(node, 'changefreq') ??
+      _mapValue(node, 'change_frequency');
+  final DVSitemapEntry entry = DVSitemapEntry(
+    priority: priority is num
+        ? priority.toDouble()
+        : double.tryParse(priority?.toString() ?? ''),
+    changeFrequency: frequency?.toString(),
+  );
+  return entry.isEmpty ? null : entry;
+}
+
+Object? _mapValue(Object? node, String key) {
+  if (node is Map) return node[key];
+  return null;
+}
+
+/// The `<priority>` text for [value], refusing what sitemaps.org will not
+/// accept.
+///
+/// Refused rather than clamped, and named with the route it came from: a 5
+/// that silently became a 1 reads as working, and the page somebody wrote it
+/// on is the page they cared most about.
+String dvSitemapPriority(double value, String where) {
+  if (value.isNaN || value < 0 || value > 1) {
+    throw ArgumentError.value(
+      value,
+      'priority',
+      'sitemap priority for $where must be between 0 and 1',
+    );
+  }
+  final String text = value.toStringAsFixed(1);
+  // 0.85 is a priority somebody meant; keep it rather than rounding it to
+  // the nearest tenth behind their back.
+  return double.parse(text) == value ? text : value.toString();
+}
+
+/// The `<changefreq>` text for [value], refusing an eighth word.
+String dvSitemapChangeFrequency(String value, String where) {
+  if (!dvSitemapChangeFrequencies.contains(value)) {
+    throw ArgumentError.value(
+      value,
+      'changeFrequency',
+      'sitemap changefreq for $where must be one of '
+          '${dvSitemapChangeFrequencies.join(', ')}',
+    );
+  }
+  return value;
+}
+
 /// A sitemap listing every route that is a page and is not guarded.
 ///
 /// [guarded] is left out entirely rather than listed with a lower priority.
@@ -155,11 +368,20 @@ Set<String> dvGuardedRoutes(String routerSource) {
 /// sitemap is read by people who were not invited: the guard still refuses
 /// them at the door, but the address of an internal tool is worth having on
 /// its own.
+///
+/// [entries] is what each page's own `@DVPage(sitemap: ...)` said, and
+/// [defaults] what the project said for the rest. A route neither of them
+/// mentions is written as a bare `<loc>`: a priority nobody asked for says
+/// the same thing as no priority at all, in more bytes, and a crawler
+/// reading it cannot tell it was invented.
 String dvSitemap({
   required List<String> routes,
   required String siteUrl,
   List<String> federated = const <String>[],
   Set<String> guarded = const <String>{},
+  Map<String, DVSitemapEntry> entries = const <String, DVSitemapEntry>{},
+  DVSitemapEntry? defaults,
+  List<String> exclude = const <String>[],
 }) {
   final buffer = StringBuffer()
     ..writeln('<?xml version="1.0" encoding="UTF-8"?>')
@@ -179,16 +401,32 @@ String dvSitemap({
     // domain is advertised on the parent's path, so skipping the check there
     // would make mounting a module the way around this.
     if (guarded.contains(route)) continue;
+    if (dvSitemapExcluded(route, exclude)) continue;
     // Same filter as the writer: a route with no file behind it has no URL to
     // advertise, and a crawler following one gets a 404 from the sitemap that
     // was meant to help it.
     if (dvStaticRoutePath(route) == null) continue;
     final url = const HtmlEscape(HtmlEscapeMode.element)
         .convert(dvStaticCanonical(siteUrl, route));
+    final DVSitemapEntry entry =
+        (entries[route] ?? const DVSitemapEntry()).over(defaults);
     buffer
       ..writeln('  <url>')
-      ..writeln('    <loc>$url</loc>')
-      ..writeln('  </url>');
+      ..writeln('    <loc>$url</loc>');
+    final double? priority = entry.priority;
+    if (priority != null) {
+      buffer.writeln(
+        '    <priority>${dvSitemapPriority(priority, route)}</priority>',
+      );
+    }
+    final String? frequency = entry.changeFrequency;
+    if (frequency != null) {
+      buffer.writeln(
+        '    <changefreq>'
+        '${dvSitemapChangeFrequency(frequency, route)}</changefreq>',
+      );
+    }
+    buffer.writeln('  </url>');
   }
 
   buffer.writeln('</urlset>');
@@ -196,10 +434,16 @@ String dvSitemap({
 }
 
 /// A robots.txt that allows crawling and names the sitemap.
-String dvRobots({required String siteUrl}) {
+///
+/// [sitemap] is false when `dartvel.seo.sitemap.enabled` turned the file
+/// off. Naming a sitemap the build did not write points a crawler at a 404,
+/// which is worse than saying nothing about it.
+String dvRobots({required String siteUrl, bool sitemap = true}) {
   final base = siteUrl.replaceAll(RegExp(r'/+$'), '');
-  return 'User-agent: *\n'
-      'Allow: /\n'
+  const String head = 'User-agent: *\n'
+      'Allow: /\n';
+  if (!sitemap) return head;
+  return '$head'
       '\n'
       'Sitemap: $base/sitemap.xml\n';
 }

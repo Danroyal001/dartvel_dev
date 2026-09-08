@@ -65,6 +65,13 @@ class DVPage {
   final int? backgroundColor;
   final int? appBarBackgroundColor;
 
+  /// How this page appears in `sitemap.xml`, or null for the defaults.
+  ///
+  /// The specification shows this argument and no Dart file had it, so a
+  /// page could not say it changes daily or matters more than its
+  /// neighbours -- every route was emitted with a URL and nothing else.
+  final DVPageSitemap? sitemap;
+
   const DVPage({
     this.path,
     this.title,
@@ -79,7 +86,42 @@ class DVPage {
     this.resizeToAvoidBottomInset = true,
     this.backgroundColor,
     this.appBarBackgroundColor,
+    this.sitemap,
   });
+}
+
+/// How often a page changes, in the words sitemaps.org defines.
+///
+/// A crawler treats these as a hint rather than a promise, which is the
+/// reason to be honest with them: a site that says hourly everywhere is
+/// telling a crawler nothing, and one that says it about a page that changes
+/// yearly spends somebody else's crawl budget.
+enum DVSitemapChangeFrequency {
+  always,
+  hourly,
+  daily,
+  weekly,
+  monthly,
+  yearly,
+  never;
+
+  /// The token sitemaps.org expects, which is the enum's own name.
+  String get token => name;
+}
+
+/// A page's entry in `sitemap.xml`.
+///
+/// [priority] is relative to the rest of this site and nothing else. It does
+/// not raise a page in anybody's results; it says which of your own pages to
+/// crawl first when a crawler cannot take them all.
+class DVPageSitemap {
+  const DVPageSitemap({this.priority, this.changeFrequency});
+
+  /// Between 0 and 1. Out of range is refused where it is read rather than
+  /// clamped, because a 5 that silently became a 1 reads as working.
+  final double? priority;
+
+  final DVSitemapChangeFrequency? changeFrequency;
 }
 
 /// Annotation for a functional widget Page
