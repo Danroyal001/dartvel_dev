@@ -600,7 +600,14 @@ const List<(String, String, String)> partial = <(String, String, String)>[
     'is worse than one missed -- while a rollup that writes a row per day '
     'needs the opposite. A value the build cannot read stops it, because a '
     'generated schedule carries the answer rather than working it out '
-    'later.',
+    'later. On a phone a tick is a wakeup as well as a tick, so the client '
+    'ticks only while the application is in front of somebody: a timer '
+    'firing every twenty seconds from a pocket wakes the device for a '
+    'schedule that could have waited, and the system suspends it anyway. '
+    'Coming back ticks once straight away, because whatever came due while '
+    'it was away is due now rather than twenty seconds from now, and that '
+    'wait is the whole of what somebody who just opened the application is '
+    'waiting on.',
   ),
   (
     'Middleware',

@@ -384,4 +384,90 @@ Future<void> rollUpYesterday() async {}
       );
     });
   });
+
+  group('a client tick is a wakeup as well as a tick', () {
+    // On a phone it is both. A timer firing every twenty seconds while the
+    // application is in somebody's pocket wakes the device for a schedule
+    // that could have waited, and the timer stops mattering the moment the
+    // system suspends it anyway -- so the periods that pass while the
+    // application is away arrive whenever the timer happens to fire next
+    // rather than when it comes back.
+    Future<Map<String, String>> generate(String page) async {
+      final Directory root =
+          await Directory.systemTemp.createTemp('dartvel_cron_wake_');
+      addTearDown(() {
+        if (root.existsSync()) root.deleteSync(recursive: true);
+      });
+      Directory(p.join(root.path, '.dart_tool')).createSync();
+      Directory(p.join(root.path, 'lib', 'dartvel_client'))
+          .createSync(recursive: true);
+      Directory(p.join(root.path, 'lib', 'backend', 'functions'))
+          .createSync(recursive: true);
+      final Directory pagesDir = Directory(p.join(root.path, 'lib', 'pages'))
+        ..createSync(recursive: true);
+      File(p.join(pagesDir.path, 'home.dart')).writeAsStringSync(page);
+
+      await BackendGenerator.generate(
+        root: root.path,
+        backendDir: 'lib/backend',
+        pkgName: 'cron_wake_app',
+        buildId: 'test-build',
+        backendHost: '127.0.0.1',
+        backendPort: 3000,
+        apiBasePath: '/api',
+      );
+
+      final Directory client =
+          Directory(p.join(root.path, 'lib', 'dartvel_client'));
+      return <String, String>{
+        for (final FileSystemEntity entity in client.listSync())
+          if (entity is File) p.basename(entity.path): entity.readAsStringSync(),
+      };
+    }
+
+    const String withSchedule = '''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVClientCron('*/5 * * * *')
+void refreshDashboard() {}
+''';
+
+    test('it stops while the application is away and starts when it returns',
+        () async {
+      final Map<String, String> files = await generate(withSchedule);
+      final String client = files['client_schedules.g.dart']!;
+
+      expect(client, contains('DV.lifecycle.app'));
+      expect(client, contains('DVAppLifecycle.backgrounded'));
+      expect(client, contains('DVAppLifecycle.ready'));
+    });
+
+    test('and whatever came due while it was away runs on the way back',
+        () async {
+      // Not on the next tick, which could be twenty seconds after somebody
+      // opened the application and is the whole of what they are waiting on.
+      final Map<String, String> files = await generate(withSchedule);
+      final String client = files['client_schedules.g.dart']!;
+
+      final int resume = client.indexOf('DVAppLifecycle.ready');
+      final int tick = client.indexOf('tick()', resume);
+      expect(resume, greaterThan(-1));
+      expect(tick, greaterThan(resume),
+          reason: 'coming back does not tick, so a due period waits');
+    });
+
+    test('an application with no client schedule listens to nothing',
+        () async {
+      // A lifecycle listener in every application that has no schedule is
+      // the same cost as the timer this file already refuses to start.
+      final Map<String, String> files = await generate('''
+import 'package:dartvel_core/dartvel.dart';
+
+void refreshDashboard() {}
+''');
+      final String client = files['client_schedules.g.dart']!;
+
+      expect(client, isNot(contains('DV.lifecycle.app.listen')));
+    });
+  });
 }
