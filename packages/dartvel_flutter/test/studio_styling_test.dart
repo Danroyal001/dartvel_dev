@@ -40,6 +40,7 @@ void main() {
           'maxLines', 'overflow',
           'paddingLeft', 'paddingTop', 'paddingRight', 'paddingBottom',
           'shadowColor', 'shadowX', 'shadowY', 'shadowBlur', 'shadowSpread',
+          'rotation',
         ]),
       );
     });
@@ -70,6 +71,8 @@ void main() {
         // A line limit is a count, so zero lines is not a limit; the
         // overflow is one of the words a design uses.
         'maxLines': 2, 'overflow': 'ellipsis',
+        // Degrees, and zero is not a rotation.
+        'rotation': 15,
       };
       for (final property in dvStudioProperties) {
         expect(
