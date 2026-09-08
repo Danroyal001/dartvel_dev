@@ -1383,13 +1383,25 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
 
     final sb = StringBuffer()
       ..writeln('// GENERATED – do not edit.')
-      ..writeln('// ignore_for_file: unused_element, directives_ordering')
+      // unused_import as well: an application with no client schedule gets
+      // a starter that starts nothing, so dart:async and the core barrel are
+      // there for the file's shape rather than for its body.
+      ..writeln(
+          '// ignore_for_file: unused_element, unused_import, directives_ordering')
       ..writeln('library dartvel_client_client_schedules;')
       ..writeln()
       ..writeln("import 'dart:async';")
       ..writeln()
       ..writeln("import 'package:dartvel_core/dartvel.dart';")
       ..writeln("import 'schedules.g.dart' show dartvelClientCronEntries;");
+    if (clientCron.isNotEmpty) {
+      // The application lifecycle, which only this half can reach: DV lives
+      // in dartvel_flutter, and importing it is exactly why the client
+      // schedules are a file of their own rather than lines in the one the
+      // generated server reads.
+      sb.writeln("import 'package:dartvel_flutter/dartvel_flutter.dart' "
+          "show DV, DVAppLifecycle;");
+    }
     for (final MapEntry<String, String> import in aliasByImport.entries) {
       sb.writeln("import '${esc(import.key)}' as ${import.value};");
     }
@@ -1421,22 +1433,69 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       ..writeln()
       ..writeln('/// Registers every client schedule and starts ticking.')
       ..writeln('///')
-      ..writeln('/// Returns null when the application declares none: a')
+      ..writeln('/// Starts nothing when the application declares none: a')
       ..writeln('/// timer firing in every application that has no schedule')
-      ..writeln('/// is a cost nobody asked for, and on a phone it is a')
-      ..writeln('/// wakeup as well as a tick.')
-      ..writeln('Timer? dartvelStartClientSchedules({')
+      ..writeln('/// is a cost nobody asked for.');
+    if (clientCron.isEmpty) {
+      // Nothing to start, and nothing to listen to. A lifecycle subscription
+      // in every application that declares no schedule is the same cost as
+      // the timer this file already refuses to start.
+      sb
+        ..writeln('void dartvelStartClientSchedules({')
+        ..writeln('  Duration every = const Duration(seconds: 20),')
+        ..writeln('  bool catchUp = false,')
+        ..writeln('}) {')
+        ..writeln('  // The application declares no client schedule.')
+        ..writeln('}');
+      return sb.toString();
+    }
+    sb
+      ..writeln('/// Ticks only while the application is in front of')
+      ..writeln('/// somebody. On a phone a tick is a wakeup as well as a')
+      ..writeln('/// tick: a timer firing every twenty seconds from a')
+      ..writeln('/// pocket wakes the device for a schedule that could have')
+      ..writeln('/// waited, and the system suspends the timer anyway -- so')
+      ..writeln('/// the periods that pass while the application is away')
+      ..writeln('/// arrived whenever it happened to fire next.')
+      ..writeln('///')
+      ..writeln('/// Coming back ticks once straight away, because whatever')
+      ..writeln('/// came due while it was away is due now rather than up to')
+      ..writeln('/// `every` from now, and that wait is the whole of what')
+      ..writeln('/// somebody who just opened the application is waiting on.')
+      ..writeln('void dartvelStartClientSchedules({')
       ..writeln('  Duration every = const Duration(seconds: 20),')
       ..writeln('  bool catchUp = false,')
       ..writeln('}) {')
-      ..writeln('  if (dartvelClientCronEntries.isEmpty) return null;')
       ..writeln('  final DVScheduler scheduler = DVScheduler()')
       ..writeln('    ..registerAll(')
       ..writeln('      dartvelClientCronEntries,')
       ..writeln('      handlers: dartvelClientCronHandlers,')
       ..writeln('      catchUp: catchUp,')
       ..writeln('    );')
-      ..writeln('  return Timer.periodic(every, (Timer _) => scheduler.tick());')
+      ..writeln('  Timer? timer;')
+      ..writeln('  void start() {')
+      ..writeln('    timer ??= Timer.periodic(every, (Timer _) => scheduler.tick());')
+      ..writeln('  }')
+      ..writeln('  void stop() {')
+      ..writeln('    timer?.cancel();')
+      ..writeln('    timer = null;')
+      ..writeln('  }')
+      ..writeln('  start();')
+      ..writeln('  DV.lifecycle.app.listen((DVAppLifecycle state) {')
+      ..writeln('    switch (state) {')
+      ..writeln('      case DVAppLifecycle.ready:')
+      ..writeln('      case DVAppLifecycle.resuming:')
+      ..writeln('        scheduler.tick();')
+      ..writeln('        start();')
+      ..writeln('      case DVAppLifecycle.backgrounded:')
+      ..writeln('      case DVAppLifecycle.suspended:')
+      ..writeln('      case DVAppLifecycle.shuttingDown:')
+      ..writeln('      case DVAppLifecycle.stopped:')
+      ..writeln('        stop();')
+      ..writeln('      default:')
+      ..writeln('        break;')
+      ..writeln('    }')
+      ..writeln('  });')
       ..writeln('}');
     return sb.toString();
   }
