@@ -40,7 +40,7 @@ void main() {
           'maxLines', 'overflow',
           'paddingLeft', 'paddingTop', 'paddingRight', 'paddingBottom',
           'shadowColor', 'shadowX', 'shadowY', 'shadowBlur', 'shadowSpread',
-          'rotation', 'decoration', 'blur', 'backdropBlur',
+          'rotation', 'decoration', 'blur', 'backdropBlur', 'clip',
         ]),
       );
     });
@@ -78,6 +78,8 @@ void main() {
         'decoration': 'underline',
         // Both blurs are a standard deviation, and nought is not a blur.
         'blur': 4, 'backdropBlur': 12,
+        // A frame either crops what is in it or does not.
+        'clip': true,
       };
       for (final property in dvStudioProperties) {
         expect(

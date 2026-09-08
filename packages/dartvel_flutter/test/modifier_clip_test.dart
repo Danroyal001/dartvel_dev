@@ -78,4 +78,26 @@ void main() {
     );
     expect(animated.clipBehavior, Clip.antiAlias);
   });
+
+  testWidgets('a box can be asked to crop what is in it',
+      (WidgetTester tester) async {
+    // A frame that crops its content is its own decision in a design, and it
+    // has nothing to do with corners: a photograph cropped by a square frame
+    // is the commonest version of it. Without this the child paints outside
+    // the box and the page carries an overflow stripe, which is the design
+    // arriving visibly broken rather than quietly wrong.
+    await pump(tester, const DVModifier().clipContent());
+
+    expect(boxOf(tester).clipBehavior, Clip.hardEdge);
+  });
+
+  testWidgets('cropping and rounding together antialias',
+      (WidgetTester tester) async {
+    // Hard edges on a straight edge, antialiased on a curve. A rectangle
+    // needs no smoothing and paying for it on every cropping frame is a cost
+    // with nothing to show.
+    await pump(tester, const DVModifier().clipContent().rounded(10));
+
+    expect(boxOf(tester).clipBehavior, Clip.antiAlias);
+  });
 }

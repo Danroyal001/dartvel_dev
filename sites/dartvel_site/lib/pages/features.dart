@@ -67,7 +67,10 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'off again. With a flat colour nobody notices. With a photograph '
     'everybody does, and it is the commonest rounded thing in any design -- '
     'every circular avatar came through as a square photograph inside a '
-    'rounded outline.',
+    'rounded outline. A box can also be told to crop what is in it without '
+    'being rounded, which is a decision of its own -- a photograph cropped '
+    'by a square frame is the commonest version -- and without it the child '
+    'paints outside the box and the page carries an overflow stripe.',
   ),
   (
     'Routing',
