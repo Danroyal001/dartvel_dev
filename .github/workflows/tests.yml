@@ -565,6 +565,20 @@ jobs:
           test -f build/web/main.dart.js
           echo "index.html and main.dart.js are there; $(find build/web -type f | wc -l) files total"
 
+      # The whole sitemap chain, on a real project rather than in a test: the
+      # annotation on the features page, the constant the generator writes
+      # into router.g.dart, the build that reads it back, and the XML at the
+      # end. Every link has been separately correct while the chain did
+      # nothing, which is why this asserts the file rather than any of them.
+      - name: The sitemap says what the pages and the project said
+        working-directory: sites/dartvel_site
+        run: |
+          dart "$GITHUB_WORKSPACE/tool/ci/sitemap_check.dart" \
+            build/web/sitemap.xml \
+            '/features=0.8,weekly' \
+            '/docs=0.5,monthly'
+          grep -q 'Sitemap: https://dartvel.dev/sitemap.xml' build/web/robots.txt
+
       - uses: actions/upload-artifact@v4
         with:
           name: dartvel-site
