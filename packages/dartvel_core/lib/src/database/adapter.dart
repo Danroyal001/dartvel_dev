@@ -1,6 +1,8 @@
 /// The database adapter contract plus the in-memory development adapter.
 library dartvel_core.database.adapter;
 
+import '../tenancy/tenants.dart';
+
 abstract class DVDatabaseAdapter {
   Future<List<Map<String, Object?>>> query(String sql, [List<Object?>? params]);
   Future<int> execute(String sql, [List<Object?>? params]);
@@ -87,14 +89,37 @@ class MemoryDVDatabaseAdapter implements DVDatabaseAdapter {
 class DVDatabase {
   const DVDatabase();
   static DVDatabaseAdapter? _adapter;
+  static DVDatabaseAdapter Function(String tenant)? _openForTenant;
+  static final Map<String, DVDatabaseAdapter> _perTenant =
+      <String, DVDatabaseAdapter>{};
 
   void configure(DVDatabaseAdapter adapter) {
     _adapter = adapter;
   }
 
+  /// How to open the database for one tenant, under
+  /// [DVTenantIsolation.databasePerTenant].
+  ///
+  /// Required under that strategy and unused under the others. Without it
+  /// every tenant would read the one configured adapter, which is the leak
+  /// the strategy exists to prevent -- and every query would still return
+  /// rows, so nothing would look wrong.
+  ///
+  /// Called once per tenant and the result kept. A connection per query is a
+  /// connection pool nobody wrote, and on SQLite it is a second write lock
+  /// over the same file.
+  void configureTenantDatabases(
+    DVDatabaseAdapter Function(String tenant) open,
+  ) {
+    _openForTenant = open;
+    _perTenant.clear();
+  }
+
   /// Forgets the configured adapter. Intended for tests.
   void unconfigure() {
     _adapter = null;
+    _openForTenant = null;
+    _perTenant.clear();
   }
 
   Future<List<Map<String, Object?>>> query(
@@ -114,6 +139,22 @@ class DVDatabase {
   DVDatabaseAdapter get adapter => _configuredAdapter;
 
   static DVDatabaseAdapter get _configuredAdapter {
+    const DVTenants tenants = DVTenants();
+    if (tenants.isolation == DVTenantIsolation.databasePerTenant) {
+      final open = _openForTenant;
+      if (open == null) {
+        throw StateError(
+          'Tenant isolation is databasePerTenant and no per-tenant database '
+          'is configured, so every tenant would read the one adapter -- '
+          'which is the separation this strategy exists to provide, and '
+          'every query would still return rows. Call '
+          'DV.Database.configureTenantDatabases((tenant) => ...).',
+        );
+      }
+      final String tenant = tenants.currentTenant;
+      return _perTenant[tenant] ??= open(tenant);
+    }
+
     final adapter = _adapter;
     if (adapter == null) {
       throw StateError(

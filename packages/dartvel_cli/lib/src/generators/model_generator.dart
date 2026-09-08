@@ -156,13 +156,13 @@ class ModelGenerator {
         // one of the module's own, or a refusal when the module's data is
         // somewhere else entirely.
         final String tableRef = ownModuleId == null
-            ? tableName
+            ? "\${dvTenantTable('$tableName')}"
             : "\${_dvModule.table('$tableName')}";
         // The same table, as a Dart expression rather than a fragment of a
         // SQL string: a spec field and a getter need the value, not an
         // interpolation.
         final String tableExpr = ownModuleId == null
-            ? "'$tableName'"
+            ? "dvTenantTable('$tableName')"
             : "_dvModule.table('$tableName')";
         final String dbRef =
             ownModuleId == null ? 'const DVDatabase()' : '_dvModule.database';
@@ -1189,8 +1189,15 @@ class ModelGenerator {
             'model': className,
             'tenantScoped': tenantScoped,
             'columns': columnNames,
+            // The plain table name, not tableRef: tableRef is a Dart
+            // interpolation that resolves the tenant's schema at run time,
+            // and the migration is SQL somebody runs. Under
+            // schemaPerTenant this creates the unqualified table and the
+            // per-tenant schemas are not created here -- recorded as absent
+            // rather than half-done, because creating them needs a list of
+            // tenants that the build does not have.
             'createSql':
-                'CREATE TABLE IF NOT EXISTS $tableRef ($cols)',
+                'CREATE TABLE IF NOT EXISTS $tableName ($cols)',
           });
         }
 

@@ -80,7 +80,15 @@ void main() {
       // that looks safe because it has a predicate already, and a key that
       // is unique per tenant rather than globally is exactly how one tenant
       // reads another's row.
-      expect(generated, contains('SELECT * FROM orders WHERE dv_tenant = ?'));
+      // The table resolves for the tenant asking and the predicate is on
+      // the read. Both together: the name alone would pass on a query with
+      // no predicate, and the predicate alone would pass on one that reads
+      // the shared table under schemaPerTenant.
+      expect(
+        generated,
+        contains("SELECT * FROM \${dvTenantTable('orders')} "
+            'WHERE dv_tenant = ?'),
+      );
       expect(
         generated,
         contains('WHERE dv_tenant = ? AND id = ?'),
@@ -105,7 +113,8 @@ void main() {
       final String generated = await _generate(_scoped);
       expect(
         generated,
-        contains('DELETE FROM orders WHERE dv_tenant = ? AND id = ?'),
+        contains("DELETE FROM \${dvTenantTable('orders')} "
+            'WHERE dv_tenant = ? AND id = ?'),
       );
     });
 

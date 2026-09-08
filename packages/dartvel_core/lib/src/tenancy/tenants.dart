@@ -12,6 +12,32 @@ enum DVTenantIsolation {
   databasePerTenant,
 }
 
+/// What a generated query names, for the tenant the current work is for.
+///
+/// Called by every generated model statement. Under [DVTenantIsolation
+/// .sharedDatabase] this is the table's own name and the separation is the
+/// column, so nothing changes for the strategy almost everyone uses.
+///
+/// Under [DVTenantIsolation.schemaPerTenant] the name is qualified, which is
+/// the whole of that strategy: one database, a schema each. Under
+/// [DVTenantIsolation.databasePerTenant] it is not, because there the
+/// connection differs and qualifying the name as well would look for a
+/// schema inside the tenant's own database, which is not where its tables
+/// are.
+///
+/// This is what those two strategies were missing. The enum values existed,
+/// [DVTenants.qualifierFor] built the name correctly and was unit tested,
+/// and nothing anywhere called it -- so configuring either produced exactly
+/// the queries sharedDatabase produces against exactly the same database.
+/// Every query returned rows and the separation somebody selected was simply
+/// not there.
+String dvTenantTable(String table) {
+  const DVTenants tenants = DVTenants();
+  if (tenants.isolation != DVTenantIsolation.schemaPerTenant) return table;
+  final String? qualifier = tenants.qualifierFor(tenants.currentTenant);
+  return qualifier == null ? table : '$qualifier.$table';
+}
+
 /// Where a request's tenant is read from.
 enum DVTenantSource {
   /// The leftmost host label: `acme.example.com` is `acme`.
