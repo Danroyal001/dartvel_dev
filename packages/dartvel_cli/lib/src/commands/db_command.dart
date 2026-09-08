@@ -1,12 +1,15 @@
 import 'dart:convert';
-import '../generators/annotation_args.dart';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:file/local.dart';
 import 'package:glob/glob.dart';
+import 'package:dartvel_core/dartvel.dart'
+    show SqliteDVDatabaseAdapter;
 import 'package:path/path.dart' as p;
+import 'package:yaml/yaml.dart';
 
+import '../generators/annotation_args.dart';
 import '../graph/module_mounts.dart';
 import '../utils/logger.dart';
 
@@ -36,12 +39,37 @@ class DbMigrateSubcommand extends Command<void> {
     Logger.log('Running database migrations...');
     final root = Directory.current.path;
     final schema = discoverLocalSchema(root);
-    for (final table in schema.tables) {
-      Logger.log('  [+] Migrated table: ${table.name}');
-    }
     writeLocalSchemaSnapshot(root, schema);
+
+    // What actually happened, rather than a line per table found.
+    //
+    // This printed "[+] Migrated table: orders" for every model and
+    // "Migration complete. N tables synced successfully" while touching no
+    // database at all: it read a list of names and wrote a snapshot. The
+    // statements existed -- one per model, correct, carrying the tenant
+    // column -- and nothing anywhere called them.
+    final DVMigrationReport report = await dvApplyMigrations(root);
+
+    if (report.skippedReason != null) {
+      Logger.log('  Schema snapshot written for ${schema.tables.length} '
+          'table(s).');
+      Logger.log('  ! ${report.skippedReason}');
+      return;
+    }
+
+    for (final String table in report.applied) {
+      Logger.log('  [+] $table');
+    }
+    if (report.applied.isEmpty) {
+      Logger.log(
+        'No tables to migrate: this project declares no @DVModel inputs, or '
+        'they have not been generated yet. Run dartvel routes first.',
+      );
+      return;
+    }
     Logger.log(
-      'Migration complete. ${schema.tables.length} tables synced successfully.',
+      'Migration complete. ${report.applied.length} table(s) created or '
+      'already present.',
     );
   }
 }
@@ -310,4 +338,143 @@ List<File> discoverSeedFiles(String root) {
   final found = candidates.where((file) => file.existsSync()).toList()
     ..sort((left, right) => left.path.compareTo(right.path));
   return List<File>.unmodifiable(found);
+}
+
+/// What a migration run actually did.
+///
+/// `dartvel db migrate` said it had migrated and had touched no database. It
+/// discovered a list of table names, printed "[+] Migrated table: orders" for
+/// each one and "Migration complete. N tables synced successfully", and wrote
+/// a JSON snapshot. No statement was ever executed, and the generated
+/// `createTableSql` -- one per model, correct, carrying the tenant column --
+/// was called by nothing anywhere in the repository.
+///
+/// This is what it does now, and [skippedReason] is the honest half: the CLI
+/// has no connection to a managed Postgres or MySQL, and saying so with the
+/// statements written out is worth more than a green line.
+class DVMigrationReport {
+  const DVMigrationReport({
+    required this.applied,
+    this.skippedReason,
+    this.sqlFile,
+  });
+
+  /// Tables whose statement ran.
+  final List<String> applied;
+
+  /// Why nothing ran, or null when something did.
+  final String? skippedReason;
+
+  /// Where the statements were written when they could not be run.
+  final String? sqlFile;
+}
+
+/// The statements the generator wrote down, or an empty list.
+///
+/// Read rather than rebuilt. A second parser deciding what a table's columns
+/// are is how a migration comes to create one shape while the queries read
+/// another, with neither side noticing.
+List<Map<String, Object?>> dvGeneratedSchema(String root) {
+  final File file = File(p.join(root, '.dart_tool', 'dartvel_schema.g.json'));
+  if (!file.existsSync()) return const <Map<String, Object?>>[];
+  final Object? decoded = jsonDecode(file.readAsStringSync());
+  if (decoded is! Map) return const <Map<String, Object?>>[];
+  final Object? tables = decoded['tables'];
+  if (tables is! List) return const <Map<String, Object?>>[];
+  return tables.whereType<Map<String, Object?>>().toList(growable: false);
+}
+
+/// `dartvel.database` from pubspec.yaml: the provider and where it lives.
+({String provider, String path}) dvDatabaseSettings(String root) {
+  final File pubspec = File(p.join(root, 'pubspec.yaml'));
+  if (!pubspec.existsSync()) return (provider: 'sqlite', path: 'dartvel.db');
+  // Deliberately not the YAML package's full loader: this is two scalars and
+  // the command already reads the file for nothing else.
+  final Object? loaded = loadYaml(pubspec.readAsStringSync());
+  final Object? dartvel = loaded is Map ? loaded['dartvel'] : null;
+  final Object? database = dartvel is Map ? dartvel['database'] : null;
+  final Object? provider = database is Map ? database['provider'] : null;
+  final Object? path = database is Map ? database['path'] : null;
+  return (
+    provider: (provider ?? 'sqlite').toString(),
+    path: (path ?? 'dartvel.db').toString(),
+  );
+}
+
+/// Runs the generated statements against the configured database.
+///
+/// SQLite is applied here because it is the one the framework can reach: the
+/// specification makes local development zero-config with SQLite, and the
+/// file is beside the project. Anything else is written out with the reason
+/// it was not run, because the alternative is what this replaces -- a
+/// success message for work that did not happen.
+Future<DVMigrationReport> dvApplyMigrations(String root) async {
+  final List<Map<String, Object?>> tables = dvGeneratedSchema(root);
+  if (tables.isEmpty) {
+    return const DVMigrationReport(applied: <String>[]);
+  }
+
+  final ({String provider, String path}) settings = dvDatabaseSettings(root);
+  final List<String> statements = <String>[
+    for (final Map<String, Object?> table in tables)
+      if (table['createSql'] is String) table['createSql']! as String,
+  ];
+
+  if (settings.provider != 'sqlite') {
+    final File sql = File(
+      p.join(root, '.dart_tool', 'dartvel_migration.sql'),
+    );
+    sql.parent.createSync(recursive: true);
+    sql.writeAsStringSync('${statements.map((String s) => '$s;').join('\n')}\n');
+    return DVMigrationReport(
+      applied: const <String>[],
+      skippedReason:
+          'dartvel db migrate applies SQLite here and this project uses '
+          '${settings.provider}. The CLI has no connection to it, so the '
+          'statements are in ${p.relative(sql.path, from: root)} to run '
+          'against your database.',
+      sqlFile: sql.path,
+    );
+  }
+
+  final String file = p.isAbsolute(settings.path)
+      ? settings.path
+      : p.join(root, settings.path);
+  // The framework's own adapter, not a second sqlite3 dependency here. Two
+  // ways to open the same file is how the migration comes to enable
+  // foreign keys and the application not to.
+  final SqliteDVDatabaseAdapter db = SqliteDVDatabaseAdapter.file(file);
+  final List<String> applied = <String>[];
+  try {
+    for (final Map<String, Object?> table in tables) {
+      final Object? create = table['createSql'];
+      if (create is! String) continue;
+      await db.execute(create);
+      applied.add('${table['table']}');
+    }
+  } finally {
+    db.close();
+  }
+  return DVMigrationReport(applied: applied);
+}
+
+/// The columns a SQLite table actually has.
+///
+/// The question a migration has to be able to ask: CREATE TABLE IF NOT EXISTS
+/// is a no-op against a table that is already there, so a model that gained a
+/// column since the table was made does not get it, and every query naming
+/// that column fails against a database the migration just reported as
+/// migrated.
+Future<List<String>> dvSqliteColumns(String file, String table) async {
+  if (!File(file).existsSync()) return const <String>[];
+  final SqliteDVDatabaseAdapter db = SqliteDVDatabaseAdapter.file(file);
+  try {
+    final List<Map<String, Object?>> rows =
+        await db.query('PRAGMA table_info($table)');
+    return rows
+        .map((Map<String, Object?> row) => '${row['name']}')
+        .toList(growable: false);
+  } finally {
+    db.close();
+  }
 }
