@@ -15,6 +15,7 @@ import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_static/shelf_static.dart';
 
 import '../utils/logger.dart';
+import 'chrome_launch.dart';
 
 /// Walks `flt-semantics-host` and reports the structure, not Flutter's DOM.
 ///
@@ -134,7 +135,7 @@ Future<int> dvCaptureSemantics({
   try {
     browser = await puppeteer.launch(
       headless: true,
-      args: <String>['--no-sandbox', '--disable-setuid-sandbox'],
+      args: dvChromeLaunchArgs,
     );
   } on Object catch (error) {
     // A build without a browser is a normal thing, not a failure. Said out
