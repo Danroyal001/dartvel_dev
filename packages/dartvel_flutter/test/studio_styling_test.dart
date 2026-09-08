@@ -40,7 +40,7 @@ void main() {
           'maxLines', 'overflow',
           'paddingLeft', 'paddingTop', 'paddingRight', 'paddingBottom',
           'shadowColor', 'shadowX', 'shadowY', 'shadowBlur', 'shadowSpread',
-          'rotation',
+          'rotation', 'decoration',
         ]),
       );
     });
@@ -73,6 +73,9 @@ void main() {
         'maxLines': 2, 'overflow': 'ellipsis',
         // Degrees, and zero is not a rotation.
         'rotation': 15,
+        // A decoration is one of the words a design uses for a line through
+        // or under the text.
+        'decoration': 'underline',
       };
       for (final property in dvStudioProperties) {
         expect(

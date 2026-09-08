@@ -31,7 +31,16 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'Flutter\'s own Transform.rotate on purpose: the number in a page '
     'document, the number a designer reads in an inspector, the number Figma '
     'reports for a layer and the number in exported source are then all the '
-    'same one, converted once where the widget is built.',
+    'same one, converted once where the widget is built. Text can be '
+    'underlined and struck through now, and could not: the chain carried '
+    'every other text style a design uses and had no way to mark a link or '
+    'a superseded price, so both arrived as ordinary text. One method taking '
+    'Flutter\'s own TextDecoration rather than an underline flag and a '
+    'strikethrough flag beside each other, because a design that underlines '
+    'and strikes the same run is a real design and two flags cannot say it. '
+    'Text nobody decorated carries no decoration at all rather than '
+    'TextDecoration.none, which would override an underline an enclosing '
+    'theme asked for.',
   ),
   (
     'Routing',
