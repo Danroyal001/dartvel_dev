@@ -48,6 +48,9 @@ jobs:
       # no package resolution.
       - run: dart tool/ci/spec_coverage_check.dart
       - run: dart tool/ci/evidence_reachable_check.dart
+      # An annotation argument nobody reads is the shape of nearly every gap
+      # this repository has had: accepted, built, and doing nothing.
+      - run: dart tool/ci/annotation_read_check.dart
 
       # Cheap, and it catches a class of break that reads as flakiness. A
       # pubspec naming an asset directory that git cannot track builds fine on
