@@ -860,7 +860,16 @@ ${guardRedirectFor(e.directory, e.policy)}      pageBuilder: (context, state) {
           '${esc(e.route)}',
           fallback: page,
         );
-        final withState = DartvelRouteState(params: params, query: query, child: overridable);
+        // The page's own lifecycle, so context.lifecycle.page reaches a
+        // signal that moves. Without this the getter threw: the enum, the
+        // signal type and the refusal message all existed, and nothing ever
+        // created one for a page.
+        //
+        // Inside the route rather than around the router, because two pages
+        // are alive at once whenever one is leaving as the next enters, and
+        // a single signal would report whichever moved last for both.
+        final withLifecycle = DVPageLifecycleHost(child: overridable);
+        final withState = DartvelRouteState(params: params, query: query, child: withLifecycle);
 
         // i18n scope using the configured query parameter strategy.
         final i18nParam = '${esc(i18nParam)}';

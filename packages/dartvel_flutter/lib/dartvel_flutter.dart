@@ -306,6 +306,7 @@ export 'src/platform/webcrypto_key_store_io.dart'
 export 'src/platform/windows/windows_bindings.dart';
 export 'src/pwa/install_prompt.dart';
 export 'src/routing/nav_link.dart';
+export 'src/routing/page_lifecycle.dart';
 export 'src/routing/page_policy.dart';
 export 'src/routing/url_strategy.dart';
 export 'src/studio/page_document.dart';

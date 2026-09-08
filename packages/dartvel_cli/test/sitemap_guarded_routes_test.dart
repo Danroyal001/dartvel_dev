@@ -92,6 +92,42 @@ Widget aboutPage(BuildContext context) => const SizedBox.shrink();
       }
     });
 
+    test('every page route carries its own lifecycle', () async {
+      // context.lifecycle.page threw until something created a signal for a
+      // page. Wrapping happens inside the route rather than around the
+      // router, because two pages are alive at once whenever one is leaving
+      // as the next enters.
+      final Directory root = await Directory.systemTemp.createTemp(
+        'dartvel_page_lifecycle_',
+      );
+      try {
+        Directory(
+          p.join(root.path, 'lib', 'dartvel_client'),
+        ).createSync(recursive: true);
+        Directory(p.join(root.path, 'lib', 'pages')).createSync(recursive: true);
+        File(p.join(root.path, 'lib', 'pages', 'about.dart'))
+            .writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+import 'package:flutter/widgets.dart';
+
+@DVPage()
+Widget aboutPage(BuildContext context) => const SizedBox.shrink();
+''');
+
+        final String router = await _routerFor(root);
+
+        expect(router, contains('DVPageLifecycleHost(child:'));
+        // Inside the route, under the studio override, so the page the
+        // application wrote is the one whose lifecycle this is.
+        final int host = router.indexOf('DVPageLifecycleHost(');
+        final int state = router.indexOf('DartvelRouteState(', host);
+        expect(host, greaterThan(-1));
+        expect(state, greaterThan(host));
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    });
+
     test('a page under a guarded directory is listed too', () async {
       // The directory convention is the older of the two guards and the one
       // most applications actually use, so a check that only understood

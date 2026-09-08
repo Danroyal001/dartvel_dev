@@ -4,17 +4,24 @@ import '../lifecycle/lifecycle.dart';
 
 /// Lifecycle signals scoped to a single context.
 class DVContextLifecycle {
+  /// Read-only signals, because this class only ever reads them.
+  ///
+  /// It used to require the mutable type, which meant anything holding a
+  /// read-only signal -- the page scope, whose whole point is that the
+  /// application cannot move it -- could not build one of these. Widening
+  /// the parameter breaks no caller: every mutable signal is a read-only
+  /// one.
   DVContextLifecycle({
-    DVMutableLifecycleSignal<DVTransactionLifecycle>? transaction,
-    DVMutableLifecycleSignal<DVRequestLifecycle>? request,
-    DVMutableLifecycleSignal<DVPageLifecycle>? page,
+    DVLifecycleSignal<DVTransactionLifecycle>? transaction,
+    DVLifecycleSignal<DVRequestLifecycle>? request,
+    DVLifecycleSignal<DVPageLifecycle>? page,
   })  : _transaction = transaction,
         _request = request,
         _page = page;
 
-  final DVMutableLifecycleSignal<DVTransactionLifecycle>? _transaction;
-  final DVMutableLifecycleSignal<DVRequestLifecycle>? _request;
-  final DVMutableLifecycleSignal<DVPageLifecycle>? _page;
+  final DVLifecycleSignal<DVTransactionLifecycle>? _transaction;
+  final DVLifecycleSignal<DVRequestLifecycle>? _request;
+  final DVLifecycleSignal<DVPageLifecycle>? _page;
 
   /// `context.lifecycle.transaction` — only inside a [DV.transaction].
   DVLifecycleSignal<DVTransactionLifecycle> get transaction {
