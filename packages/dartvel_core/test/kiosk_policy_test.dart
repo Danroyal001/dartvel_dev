@@ -233,22 +233,22 @@ void main() {
     // worse of the two failures -- the developer believes the kiosk is
     // locked down and it is not.
     //
-    // Three of the five are built now, so what this group protects is the
+    // Four of the five are built now, so what this group protects is the
     // rule rather than the list: a key the parser does not read says so.
-    // The keys named here are the ones still unbuilt, and this file is where
-    // that has to be corrected the day one of them lands.
+    // routes.external is the one that is left, and this file is where that
+    // has to be corrected the day it lands.
     test('an unparsed containment key is reported', () {
       final DVKioskPolicy policy = DVKioskPolicy.parse(
         kiosk(<String, Object?>{
           'enabled': true,
-          'display': <String, Object?>{'screenDim': '5m'},
+          'routes': <String, Object?>{'external': 'block'},
         }),
       );
 
       expect(policy.problems, isNotEmpty);
       expect(
         policy.problems.join('\n'),
-        contains('dartvel.kiosk.display.screenDim'),
+        contains('dartvel.kiosk.routes.external'),
       );
     });
 
@@ -281,16 +281,17 @@ void main() {
             'allow': <Object?>['/'],
             'external': 'block',
           },
-          'display': <String, Object?>{
-            'fullscreen': true,
-            'screenDim': '5m',
-          },
+          'display': <String, Object?>{'fullscreen': true},
+          // Not a containment key at all, and that is the point: the rule is
+          // about any key the parser does not read, not about a list of five
+          // that keeps shrinking.
+          'session': <String, Object?>{'dimAfterHours': 3},
         }),
       );
 
       final String said = policy.problems.join('\n');
       expect(said, contains('dartvel.kiosk.routes.external'));
-      expect(said, contains('dartvel.kiosk.display.screenDim'));
+      expect(said, contains('dartvel.kiosk.session.dimAfterHours'));
       // The keys that are parsed are not reported, or the message becomes
       // noise and the real one is lost in it.
       expect(said, isNot(contains('routes.allow')));
@@ -298,8 +299,10 @@ void main() {
     });
 
     test('a top-level key nobody reads is reported too', () {
-      // screenDim is documented at the top of the kiosk section rather than
-      // under display, and is read nowhere at all.
+      // screenDim under display is read now. Written at the top of the kiosk
+      // section instead it is still nothing -- and the near miss is the case
+      // worth reporting, because the value is right and the place is wrong,
+      // which reads as the feature being broken rather than misplaced.
       final DVKioskPolicy policy = DVKioskPolicy.parse(
         kiosk(<String, Object?>{'enabled': true, 'screenDim': '30s'}),
       );
@@ -308,6 +311,7 @@ void main() {
         policy.problems.join('\n'),
         contains('dartvel.kiosk.screenDim'),
       );
+      expect(policy.screenDim, isNull);
     });
 
     test('a fully understood policy still reports nothing', () {

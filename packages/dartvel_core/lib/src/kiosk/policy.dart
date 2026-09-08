@@ -77,6 +77,7 @@ class DVKioskPolicy {
     required this.blockClipboard,
     required this.blockTextSelection,
     required this.hideCursor,
+    required this.screenDim,
     required this.idleTimeout,
     required this.idleWarning,
     required this.onIdle,
@@ -136,6 +137,18 @@ class DVKioskPolicy {
   /// trackpad. Whether a pointing device is attached is the question the
   /// mode is actually asking, so that is the question it asks.
   final DVKioskCursor hideCursor;
+
+  /// How long the surface stays lit with nobody there, or null for never.
+  ///
+  /// A kiosk shows one attract screen for months, and burn-in is what that
+  /// does to a panel. What this reaches is the surface: after the idle it is
+  /// darkened, and any touch or key brings it back.
+  ///
+  /// It does not reduce backlight power, and the specification's comment
+  /// names both. Turning a backlight down needs a platform binding this does
+  /// not have, and a feature that looks like it saves power and does not is
+  /// worse than one that says which half it is.
+  final Duration? screenDim;
 
   final Duration idleTimeout;
   final Duration idleWarning;
@@ -295,9 +308,7 @@ class DVKioskPolicy {
     });
     unread('dartvel.kiosk.display', display, const <String>{
       'fullscreen',
-      // Read now. screenDim is still unbuilt and still reports: it wants
-      // a backlight, and an overlay drawn over the application is a
-      // different thing wearing the same name.
+      'screenDim',
       'hideCursor',
     });
     unread('dartvel.kiosk.exit', exit, const <String>{
@@ -342,6 +353,30 @@ class DVKioskPolicy {
     final Duration idleTimeout = _duration(
         session['idleTimeout'], const Duration(seconds: 90),
         'dartvel.kiosk.session.idleTimeout', problems);
+    // How long the surface stays lit with nobody there. Zero disables it,
+    // which is what the specification's own comment says.
+    final Duration parsedDim = _duration(
+      display['screenDim'],
+      Duration.zero,
+      'dartvel.kiosk.display.screenDim',
+      problems,
+    );
+    final Duration? screenDim = parsedDim > Duration.zero ? parsedDim : null;
+
+    // Hoisted out of the constructor call below: whether the dim can ever
+    // arrive depends on what happens when the session goes idle.
+    final DVKioskIdleAction onIdleAction = _enum<DVKioskIdleAction>(
+      session['onIdle'],
+      const <String, DVKioskIdleAction>{
+        'reset': DVKioskIdleAction.reset,
+        'home': DVKioskIdleAction.home,
+        'none': DVKioskIdleAction.none,
+      },
+      DVKioskIdleAction.reset,
+      'dartvel.kiosk.session.onIdle',
+      problems,
+    );
+
     final Duration idleWarning = _duration(
         session['idleWarning'], const Duration(seconds: 15),
         'dartvel.kiosk.session.idleWarning', problems);
@@ -412,6 +447,21 @@ class DVKioskPolicy {
           'exit.pin secret is declared.');
     }
 
+    // A dim that arrives after the session has already reset is a dim that
+    // never arrives. The reset returns the kiosk to its attract route and
+    // starts the clock again, so the idle never reaches the longer number --
+    // ever, not merely usually. Configured, accepted, and dead.
+    if (screenDim != null &&
+        onIdleAction != DVKioskIdleAction.none &&
+        screenDim >= idleTimeout) {
+      problems.add(
+        'dartvel.kiosk.display.screenDim is $screenDim and '
+        'dartvel.kiosk.session.idleTimeout is $idleTimeout, so the session '
+        'resets before the screen dims and it never will. Set the dim '
+        'shorter than the timeout, or session.onIdle to none.',
+      );
+    }
+
     return DVKioskPolicy(
       enabled: enabled,
       scope: scope,
@@ -426,6 +476,7 @@ class DVKioskPolicy {
       // automatically a device where nothing can be selected.
       blockClipboard: _blocks(input['clipboard'], false),
       blockTextSelection: _blocks(input['textSelection'], false),
+      screenDim: screenDim,
       hideCursor: _enum<DVKioskCursor>(
         display['hideCursor'],
         const <String, DVKioskCursor>{
@@ -439,17 +490,7 @@ class DVKioskPolicy {
       ),
       idleTimeout: idleTimeout,
       idleWarning: idleWarning,
-      onIdle: _enum<DVKioskIdleAction>(
-        session['onIdle'],
-        const <String, DVKioskIdleAction>{
-          'reset': DVKioskIdleAction.reset,
-          'home': DVKioskIdleAction.home,
-          'none': DVKioskIdleAction.none,
-        },
-        DVKioskIdleAction.reset,
-        'dartvel.kiosk.session.onIdle',
-        problems,
-      ),
+      onIdle: onIdleAction,
       clearOnReset: clear,
       fullscreen: display['fullscreen'] != false,
       exitMethod: method,

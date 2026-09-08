@@ -107,7 +107,8 @@ class DVKioskRuntime {
         _clock = clock ?? DateTime.now,
         _clear = clear ?? _nothingToClear,
         state = DVKioskSignal<DVKioskState>(DVKioskState.off),
-        countdown = DVKioskSignal<Duration?>(null);
+        countdown = DVKioskSignal<Duration?>(null),
+        dimmed = DVKioskSignal<bool>(false);
 
   final DVKioskPolicy policy;
   final Future<String?> Function(String name) _readSecret;
@@ -151,6 +152,18 @@ class DVKioskRuntime {
   /// otherwise. Drive the countdown route from this.
   final DVKioskSignal<Duration?> countdown;
 
+  /// Whether the surface is darkened for burn-in, per
+  /// `dartvel.kiosk.display.screenDim`.
+  ///
+  /// A kiosk shows one attract screen for months and burn-in is what that
+  /// does to a panel. The host draws over the surface when this is true and
+  /// any pointer or key clears it.
+  ///
+  /// The surface, not the backlight. Turning a backlight down needs a
+  /// platform binding this does not have, and a signal that implied it
+  /// saved power would be describing something it does not do.
+  final DVKioskSignal<bool> dimmed;
+
   // Synchronous: the app's "go home" runs inside reset(), before the runtime
   // reports active again, so nothing is drawn against a half-cleared session.
   final StreamController<DVKioskReset> _resets =
@@ -169,15 +182,25 @@ class DVKioskRuntime {
   void touch() {
     _lastActivity = _clock();
     countdown._set(null);
+    // Somebody is here, so the screen comes back. Before anything else: a
+    // person who touched a dark panel is waiting to see it.
+    dimmed._set(false);
   }
 
   /// Checks the idle clock once. The periodic timer calls this; a test can.
   Future<void> tick() async {
     if (state.value != DVKioskState.active) return;
-    if (policy.onIdle == DVKioskIdleAction.none) return;
     final DateTime? last = _lastActivity;
     if (last == null) return;
     final Duration idle = _clock().difference(last);
+
+    // Before the idle action and outside it. A display configured only to
+    // dim sets onIdle to none, and this used to return above that line --
+    // so the one kiosk that wanted nothing but the dim never got it.
+    final Duration? dim = policy.screenDim;
+    if (dim != null) dimmed._set(idle >= dim);
+
+    if (policy.onIdle == DVKioskIdleAction.none) return;
     if (idle >= policy.idleTimeout) {
       countdown._set(null);
       if (policy.onIdle == DVKioskIdleAction.reset) {

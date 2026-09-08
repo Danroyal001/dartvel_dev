@@ -1,5 +1,5 @@
-// Two of the five kiosk containment keys the specification describes and
-// nothing implemented.
+// The kiosk containment keys the specification describes and nothing
+// implemented.
 //
 // They were read straight past: the parser pulled three named children out of
 // input and the rest fell through, so `clipboard: disabled` in a kiosk policy
@@ -8,11 +8,12 @@
 // somebody who writes the clipboard rule into a kiosk has decided the
 // clipboard is locked.
 //
-// These two are the ones Dartvel can honour on its own, in Dart, with no
-// platform binding: what a page lets you select, and what the framework's own
-// clipboard API will do. The three that remain -- routes.external,
-// display.hideCursor and screenDim -- still need something underneath them
-// and still report.
+// Four of the five are the ones Dartvel can honour on its own, in Dart,
+// with no platform binding: what a page lets you select, what the
+// framework's own clipboard API will do, whether a pointer is drawn, and
+// whether the surface darkens with nobody there. The one that remains --
+// routes.external -- still needs a meaning distinct from the allow list
+// before anything can enforce it, and still reports.
 import 'package:dartvel_core/dartvel.dart';
 import 'package:test/test.dart';
 
@@ -69,25 +70,40 @@ void main() {
       );
     });
 
-    test('the three that are still unbuilt still say so', () {
-      // Naming two of five as done would be worse than naming none: the
-      // remaining three look implemented by association.
+    test('the one that is still unbuilt still says so', () {
+      // Naming four of five as done would be worse than naming none: the
+      // remaining one looks implemented by association.
       final DVKioskPolicy policy = DVKioskPolicy.parse(<String, Object?>{
         'kiosk': <String, Object?>{
           'enabled': true,
           'routes': <String, Object?>{'external': 'block'},
-          'display': <String, Object?>{'hideCursor': true, 'screenDim': '30s'},
         },
       });
 
-      expect(
-        policy.problems.join(' '),
-        allOf(
-          contains('external'),
-          contains('hideCursor'),
-          contains('screenDim'),
-        ),
-      );
+      expect(policy.problems.join(' '), contains('external'));
+    });
+
+    test('and the four that are built do not', () {
+      // The other direction, which fails silently: a key that does
+      // something and still says it does nothing sends somebody looking for
+      // a bug that is not there.
+      final DVKioskPolicy policy = DVKioskPolicy.parse(<String, Object?>{
+        'kiosk': <String, Object?>{
+          'enabled': true,
+          'session': <String, Object?>{'idleTimeout': '90s'},
+          'input': <String, Object?>{
+            'clipboard': 'disabled',
+            'textSelection': 'disabled',
+          },
+          'display': <String, Object?>{
+            'hideCursor': 'always',
+            'screenDim': '30s',
+          },
+        },
+      });
+
+      expect(policy.problems, isEmpty);
+      expect(policy.screenDim, const Duration(seconds: 30));
     });
   });
 

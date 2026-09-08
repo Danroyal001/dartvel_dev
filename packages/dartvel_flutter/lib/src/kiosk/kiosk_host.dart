@@ -90,6 +90,7 @@ class _DVKioskHostState extends State<DVKioskHost> {
   }
 
   void _listen(DVKioskRuntime runtime) {
+    runtime.dimmed.addListener(_changed);
     runtime.countdown.addListener(_changed);
     runtime.state.addListener(_changed);
     runtime.state.addListener(_mirror);
@@ -98,6 +99,7 @@ class _DVKioskHostState extends State<DVKioskHost> {
   }
 
   void _unlisten(DVKioskRuntime runtime) {
+    runtime.dimmed.removeListener(_changed);
     runtime.countdown.removeListener(_changed);
     runtime.state.removeListener(_changed);
     runtime.state.removeListener(_mirror);
@@ -143,6 +145,26 @@ class _DVKioskHostState extends State<DVKioskHost> {
               right: 0,
               bottom: 0,
               child: _DVKioskCountdown(left: left),
+            ),
+          // Over everything, including the countdown: a dimmed panel showing
+          // a bright countdown is the burn-in this exists to prevent, in the
+          // one place it is guaranteed to sit.
+          //
+          // Not quite black. A panel that goes completely dark reads as
+          // switched off, and somebody walks away from a kiosk that is
+          // working; this reads as asleep, which is what it is.
+          if (widget.runtime.dimmed.value)
+            Positioned.fill(
+              child: GestureDetector(
+                // Opaque, so the tap that wakes the screen is spent waking
+                // it. Somebody touching a dark panel means "come back", not
+                // "buy the thing that happens to be under my finger" -- and
+                // they cannot see what is under their finger, which is the
+                // whole problem with letting it through.
+                behavior: HitTestBehavior.opaque,
+                onTap: widget.runtime.touch,
+                child: const ColoredBox(color: Color(0xE6000000)),
+              ),
             ),
         ],
       ),
