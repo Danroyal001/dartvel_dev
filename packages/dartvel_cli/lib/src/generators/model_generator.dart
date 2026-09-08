@@ -39,6 +39,11 @@ class ModelGenerator {
     // carries as createTableSql.
     final schemaTables = <Map<String, Object?>>[];
 
+    // Which tables carry the tenant column, for the check that refuses
+    // a raw query reading across every tenant. The database layer has no
+    // idea what a model is, so the only place that knows has to say so.
+    final scopedTables = <String>{};
+
     // The currency every declared nativePrice is in. Read once: a model
     // cannot have its own, because a catalogue priced in three currencies is
     // three numbers nobody can add together.
@@ -1189,6 +1194,7 @@ class ModelGenerator {
         // generation records the module's tables under the names the parent
         // gives them, which is where a migration has to read them from.
         if (ownModuleId == null) {
+          if (tenantScoped) scopedTables.add(tableName);
           schemaTables.add(<String, Object?>{
             'table': tableName,
             'model': className,
@@ -2021,6 +2027,15 @@ class ModelGenerator {
     sb.writeln('/// Idempotent — registries overwrite by key — and');
     sb.writeln('/// repeatable after a test reset.');
     sb.writeln('void registerDartvelModels() {');
+    // Before the per-model registrations, and emitted even when the set is
+    // empty, so a generated client always says what it scopes rather than
+    // leaving the answer to whatever ran before it. The runtime adds rather
+    // than replaces, because a module's client registers its own tables in
+    // the same process.
+    sb.writeln(
+      '  dvRegisterTenantScopedTables(<String>{'
+      '${scopedTables.map((String t) => "'$t'").join(', ')}});',
+    );
     for (final className in classesGenerated) {
       sb.writeln('  _register$className();');
     }

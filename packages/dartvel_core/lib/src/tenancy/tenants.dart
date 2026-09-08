@@ -38,6 +38,70 @@ String dvTenantTable(String table) {
   return qualifier == null ? table : '$qualifier.$table';
 }
 
+/// The tables whose rows belong to a tenant, registered by the generated
+/// client.
+///
+/// Held rather than derived because the check runs in the database layer,
+/// which has no idea what a model is. The generated registration is the only
+/// place that knows, and it runs before anything queries.
+final Set<String> _scopedTables = <String>{};
+
+/// Records which tables carry the tenant column. Called by generated code.
+///
+/// Added rather than replaced, because more than one generated client runs
+/// in a process: an application registers its own and every module it mounts
+/// registers the module's, and a call that replaced would leave whichever
+/// ran last as the only scoped set -- so the other's tables would go
+/// unchecked, silently, on the strategy where the column is the only thing
+/// separating tenants.
+void dvRegisterTenantScopedTables(Set<String> tables) {
+  _scopedTables.addAll(tables);
+}
+
+/// Forgets every registered table. Called by [DVTenants.reset].
+void dvResetTenantScopedTables() => _scopedTables.clear();
+
+/// The tables currently registered as tenant-scoped.
+Set<String> get dvTenantScopedTables => Set<String>.unmodifiable(_scopedTables);
+
+/// The scoped tables a statement names without scoping by tenant.
+///
+/// Generated model queries carry the predicate. Everything else does not: a
+/// report, a dashboard count, a join the generator cannot express, a query
+/// written before the model was scoped. Each returns rows, the numbers look
+/// plausible, and one tenant is shown another tenant's data.
+///
+/// Deliberately coarse. It knows which tables are scoped because the
+/// generator registered them, and it looks for the column in the statement.
+/// A false positive is a refusal somebody reads and fixes; a false negative
+/// leaves today's behaviour exactly as it is. What it must never do is guess
+/// quietly in the direction of allowing.
+///
+/// Only under [DVTenantIsolation.sharedDatabase]. Under the other two the
+/// separation is the schema or the connection, and a predicate on a column
+/// that is not there would fail every query.
+List<String> dvUnscopedTablesIn(String sql) {
+  if (const DVTenants().isolation != DVTenantIsolation.sharedDatabase) {
+    return const <String>[];
+  }
+  if (_scopedTables.isEmpty) return const <String>[];
+  final String lower = sql.toLowerCase();
+  if (lower.contains(dvTenantColumnName)) return const <String>[];
+  return <String>[
+    for (final String table in _scopedTables)
+      // On a word boundary: "orders" inside "workorders" is a different
+      // table, and refusing it would teach people to reach for the escape
+      // hatch out of habit.
+      if (RegExp('(?<![A-Za-z0-9_])${RegExp.escape(table.toLowerCase())}'
+              '(?![A-Za-z0-9_])')
+          .hasMatch(lower))
+        table,
+  ];
+}
+
+/// The column a tenant-scoped row carries, as the check looks for it.
+const String dvTenantColumnName = 'dv_tenant';
+
 /// Where a request's tenant is read from.
 enum DVTenantSource {
   /// The leftmost host label: `acme.example.com` is `acme`.
@@ -141,6 +205,7 @@ class DVTenants {
 
   /// Restores the defaults. Intended for tests.
   static void reset() {
+    dvResetTenantScopedTables();
     _current = defaultTenant;
     _isolation = DVTenantIsolation.sharedDatabase;
     _source = DVTenantSource.subdomain;
