@@ -67,6 +67,11 @@ dartvel:
   devBackendHost: http://localhost:3000
   prodBackendHost: https://api.example.com
 
+  # The currency every @DVModel(nativePrice:) is in. One per project: a
+  # catalogue priced in three currencies is three numbers nobody can add
+  # together.
+  nativeCurrency: USD
+
   # Decided once, where the server starts, which is why declaring either
   # as a route middleware is refused. Here so the generated backend
   # emits a real policy and a compiler reads it: an empty section would
