@@ -45,13 +45,28 @@ Widget routed(Widget page) => MaterialApp.router(
     );
 
 const List<(String, Size)> _devices = <(String, Size)>[
+  // A watch browser is the narrowest surface anything renders in, and it is
+  // shorter than it is narrow. Wear OS reports about this.
+  ('a watch', Size(320, 320)),
   ('a narrow floor', Size(320, 640)),
   ('iPhone SE', Size(375, 667)),
   ('iPhone 14', Size(390, 844)),
   ('Pixel 7', Size(412, 915)),
+  // A phone on its side. The width is a tablet's and the height is a third of
+  // one, which is the case a width-only breakpoint gets wrong.
+  ('a phone in landscape', Size(844, 390)),
+  // Folded, then open. The narrow state is a phone that is taller than it is
+  // wide by a lot; the open state is a tablet that is nearly square.
+  ('a folded phone', Size(344, 882)),
+  ('an unfolded phone', Size(1768, 2208)),
   ('iPad portrait', Size(820, 1180)),
   ('iPad landscape', Size(1180, 820)),
   ('a laptop', Size(1440, 900)),
+  // A kiosk is a portrait panel bolted to a wall, which is a shape no phone
+  // or desktop has: as wide as a laptop and twice as tall.
+  ('a kiosk in portrait', Size(1080, 1920)),
+  ('a television', Size(1920, 1080)),
+  ('a 4K television', Size(3840, 2160)),
 ];
 
 final Map<String, Widget Function()> _pages = <String, Widget Function()>{

@@ -174,7 +174,16 @@ class _DeckState extends State<Deck> {
                   ),
                 ),
               ),
-              if (!screen.isMobile)
+              // Width said there was room and height is what it needs.
+              // The rail is one dot per slide stacked down the side, so it
+              // is as tall as the deck is long -- and shown on width alone
+              // it fitted a tablet and ran sixty points off the bottom of a
+              // phone held sideways, which has a tablet's width and a third
+              // of its height. That is the case a width-only breakpoint
+              // gets wrong, and a kiosk in portrait or a short desktop
+              // window hits it too.
+              if (!screen.isMobile &&
+                  constraints.maxHeight >= widget.slides.length * 48 + 32)
                 Positioned(
                   right: 26,
                   top: 0,
