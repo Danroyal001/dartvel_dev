@@ -196,4 +196,64 @@ void main() {
       expect(dvKioskBlocksClipboard, isTrue);
     });
   });
+
+  group('hideCursor decides on a mouse, not on a guess', () {
+    test('the three modes parse', () {
+      DVKioskPolicy display(Object? value) => DVKioskPolicy.parse(
+            <String, Object?>{
+              'kiosk': <String, Object?>{
+                'enabled': true,
+                'display': <String, Object?>{'hideCursor': value},
+              },
+            },
+          );
+
+      expect(display('always').hideCursor, DVKioskCursor.always);
+      expect(display('never').hideCursor, DVKioskCursor.never);
+      expect(display('auto').hideCursor, DVKioskCursor.auto);
+      // The specification's own default.
+      expect(display(null).hideCursor, DVKioskCursor.auto);
+      expect(display('always').problems, isEmpty);
+    });
+
+    test('a mode nobody defined is a problem, not a silent auto', () {
+      final DVKioskPolicy policy = DVKioskPolicy.parse(<String, Object?>{
+        'kiosk': <String, Object?>{
+          'enabled': true,
+          'display': <String, Object?>{'hideCursor': 'sometimes'},
+        },
+      });
+
+      expect(policy.problems.join(' '), contains('hideCursor'));
+    });
+
+    test('auto means touch-only, which means no mouse is connected', () {
+      // "Touch-only" cannot be read off the target: a kiosk on a Linux box
+      // with a touchscreen is a desktop build, and a tablet with a keyboard
+      // case has a trackpad. Whether a pointing device is attached is the
+      // question the mode is actually asking.
+      expect(
+        dvKioskHidesCursor(DVKioskCursor.auto, mouseConnected: false),
+        isTrue,
+      );
+      expect(
+        dvKioskHidesCursor(DVKioskCursor.auto, mouseConnected: true),
+        isFalse,
+      );
+    });
+
+    test('always and never do not consult the hardware', () {
+      // An operator who wrote always has a reason -- a projected display, a
+      // photographed screen -- and a mouse plugged in to service the machine
+      // should not undo it.
+      expect(
+        dvKioskHidesCursor(DVKioskCursor.always, mouseConnected: true),
+        isTrue,
+      );
+      expect(
+        dvKioskHidesCursor(DVKioskCursor.never, mouseConnected: false),
+        isFalse,
+      );
+    });
+  });
 }
