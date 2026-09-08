@@ -21,12 +21,17 @@ import '../dartvel_client/dartvel_client.dart';
 @DVFunctionalWidget()
 Widget _dartvelMark(BuildContext context, {double size = 22, Color? color}) =>
     DVBox(
-      CustomPaint(painter: _DartvelMarkPainter(color)),
+      CustomPaint(painter: DartvelMarkPainter(color)),
       const DVModifier().width(size).height(size),
     );
 
-class _DartvelMarkPainter extends CustomPainter {
-  const _DartvelMarkPainter(this.color);
+/// The painter behind [DartvelMark].
+///
+/// Public because a @DVFunctionalWidget body is lowered into the generated
+/// widget file, where a class private to this one cannot be seen. The
+/// generator says so rather than emitting code that will not compile.
+class DartvelMarkPainter extends CustomPainter {
+  const DartvelMarkPainter(this.color);
 
   final Color? color;
 
@@ -107,6 +112,6 @@ class _DartvelMarkPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_DartvelMarkPainter oldDelegate) =>
+  bool shouldRepaint(DartvelMarkPainter oldDelegate) =>
       oldDelegate.color != color;
 }
