@@ -108,8 +108,14 @@ Widget _siteFooter(BuildContext context) {
           ExternalLink('pub.dev', 'https://pub.dev/packages/dartvel_dev'),
           ExternalLink('npm', 'https://www.npmjs.com/package/dartvel_dev'),
         ], spacing: 20),
-        const DVText('MIT licensed. Built with Dartvel.')
-            .modifier(const DVModifier().fontSize(13).color(palette.faint)),
+        // The mark again, quietly, at the size a piece of small print takes.
+        // Flat rather than gradient: at sixteen points the fold is two
+        // pixels of grey, and the footer is not where the logo argues.
+        DVBox.row(<Widget>[
+          DartvelMark(size: 16, color: palette.faint),
+          const DVText('MIT licensed. Built with Dartvel.')
+              .modifier(const DVModifier().fontSize(13).color(palette.faint)),
+        ], spacing: 8),
       ], spacing: 12),
       const DVModifier().maxWidth(kColumn).centered(),
     ),
