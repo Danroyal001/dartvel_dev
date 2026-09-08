@@ -434,6 +434,7 @@ export 'functions.g.dart';
 export 'jobs.g.dart';
 export 'models.g.dart';
 export 'openapi.g.dart';
+export 'policies.g.dart';
 export 'home_widgets.g.dart';
 export 'router.g.dart';
 export 'schedules.g.dart';
@@ -471,6 +472,7 @@ import 'jobs.g.dart' show registerDartvelJobs;
 import 'models.g.dart' show registerDartvelModels;
 import 'modules.g.dart' show registerDartvelModules;
 import 'client_schedules.g.dart' show dartvelStartClientSchedules;
+import 'policies.g.dart' show dartvelRegisterPolicies;
 
 /// Wires the generated runtime into the short `DV.baseUrl` / `DV.api(...)` API.
 /// Called automatically during app/router initialization.
@@ -525,6 +527,12 @@ ${_sharedStoreTuningSource(dv)}${_deviceKioskInstallSource(dv)}
   // generated and nothing started them, so a schedule declared on a page
   // never ran once. Starts no timer when the application declares none.
   dartvelStartClientSchedules();
+
+  // Every @DVPolicy class, registered before a page can ask whether to draw
+  // an action. Registered on both sides rather than only the server: a
+  // generated table hides a button the policy denies, and a client that
+  // registered nothing would hide every one of them.
+  dartvelRegisterPolicies();
 
   // Reads stored Studio documents into memory so an override resolves during
   // navigation instead of flashing the compiled page first.

@@ -19,6 +19,7 @@ import '../utils/helpers.dart';
 import '../utils/logger.dart';
 import 'openapi_generator.dart';
 import 'page_policy.dart';
+import 'policy_classes.dart';
 import 'route_utils.dart';
 
 class BackendGenerator {
@@ -354,6 +355,7 @@ import 'dartvel_backend.g.dart' as cfg;
 import 'package:$pkgName/dartvel_client/model_pages.g.dart' show dartvelModelPages;
 import 'package:$pkgName/dartvel_client/modules_data.g.dart' show registerDartvelModules;
 import 'package:$pkgName/dartvel_client/schedules.g.dart' show dartvelStartBackendSchedules;
+import 'package:$pkgName/dartvel_client/policies.g.dart' show dartvelRegisterPolicies;
 import 'package:$pkgName/dartvel_client/ai_tools.g.dart' show registerDartvelAITools;
 ${backendImports.join('\n')}
 
@@ -807,6 +809,11 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   // which is a catalogue rather than a tool: an assistant could read that a
   // function existed and had no way to run it.
   registerDartvelAITools();
+  // Every @DVPolicy class, registered before the first request. The
+  // annotation was in the specification and read by nothing, so a policy the
+  // application had written was answered by default-deny -- closed, and not
+  // the answer the policy gives.
+  dartvelRegisterPolicies();
   dartvelStartBackendSchedules();
   final router = buildBackendRouter();
   final bindHost = host ?? cfg.backendHost;
@@ -1305,6 +1312,12 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       pkgName: pkgName,
       backendDir: backendDir,
     ));
+    File(p.join(libClientDir.path, 'policies.g.dart'))
+        .writeAsStringSync(await _generatePolicies(
+      root: root,
+      pkgName: pkgName,
+      backendDir: backendDir,
+    ));
     // The client half is a separate file because the generated backend
     // imports the one above, and a client schedule declared on a page would
     // pull Flutter into a server with no dart:ui.
@@ -1465,6 +1478,87 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       );
     }
     return entries;
+  }
+
+  /// Every `@DVPolicy(Resource)` class, registered.
+  ///
+  /// The registration tears the method off rather than wrapping it, so Dart
+  /// infers the user and resource types from the policy's own signature. That
+  /// is what makes the registry key the type the policy actually takes: a
+  /// string this generator assembled could be assembled wrongly, and the
+  /// symptom would be a policy that is registered under a name nothing asks
+  /// about, which looks exactly like a policy that denies.
+  static Future<String> _generatePolicies({
+    required String root,
+    required String pkgName,
+    required String backendDir,
+  }) async {
+    final List<(String, DVPolicyClass)> found = <(String, DVPolicyClass)>[];
+    for (final (project, file) in _mergedLibFiles(root, pkgName, backendDir)) {
+      final String source = await file.readAsString();
+      if (!source.contains('@DVPolicy(')) continue;
+      final String relativePath =
+          p.relative(file.path, from: project.root).replaceAll('\\', '/');
+      final String importUri = relativePath.replaceFirst(
+          RegExp(r'^lib/'), 'package:${project.packageName}/');
+      for (final DVPolicyClass policy
+          in dvPolicyClassesIn(source, relativePath)) {
+        found.add((importUri, policy));
+      }
+    }
+
+    final Map<String, String> aliasByImport = <String, String>{};
+    for (final (String importUri, _) in found) {
+      aliasByImport.putIfAbsent(
+        importUri,
+        () => 'pol${aliasByImport.length}',
+      );
+    }
+
+    final StringBuffer sb = StringBuffer()
+      ..writeln('// GENERATED – do not edit.')
+      ..writeln('// ignore_for_file: unused_import, directives_ordering')
+      ..writeln('library dartvel_client_policies;')
+      ..writeln()
+      ..writeln("import 'package:dartvel_core/dartvel.dart';");
+    for (final MapEntry<String, String> import in aliasByImport.entries) {
+      sb.writeln("import '${esc(import.key)}' as ${import.value};");
+    }
+    sb
+      ..writeln()
+      ..writeln('/// Puts every policy the application declares into the')
+      ..writeln('/// authorization registry.')
+      ..writeln('///')
+      ..writeln('/// Called before anything can ask a question of it. A')
+      ..writeln('/// policy nobody registered is answered false, so the cost')
+      ..writeln('/// of calling this late is a check that denies for a while')
+      ..writeln('/// rather than one that throws.')
+      ..writeln('void dartvelRegisterPolicies() {');
+    if (found.isEmpty) {
+      sb.writeln('  // The application declares no @DVPolicy class.');
+    }
+    int index = 0;
+    for (final (String importUri, DVPolicyClass policy) in found) {
+      final String alias = aliasByImport[importUri]!;
+      final String variable = 'policy$index';
+      index++;
+      if (policy.methods.isEmpty) {
+        // A policy class with no conventional method is not an error: it may
+        // be a work in progress, and refusing the build over it would stop
+        // somebody halfway through writing one.
+        sb.writeln('  // ${policy.className} declares no policy action yet.');
+        continue;
+      }
+      sb.writeln(
+          '  final $alias.${policy.className} $variable = '
+          '$alias.${policy.className}();');
+      for (final DVPolicyMethod method in policy.methods) {
+        sb.writeln("  const DVAuthAuthorization()"
+            ".register('${esc(method.action)}', $variable.${method.action});");
+      }
+    }
+    sb.writeln('}');
+    return sb.toString();
   }
 
   static Future<String> _generateSchedules({

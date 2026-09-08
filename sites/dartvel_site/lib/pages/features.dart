@@ -104,7 +104,21 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'application has configured nothing to answer its policy is refused '
     'rather than opened, because treating no answer as yes would put the '
     'same bug back as a default; and a folder guard still runs first, since '
-    'a page can be under one and carry a policy of its own.',
+    'a page can be under one and carry a policy of its own. A backend '
+    'function declares one the same way, and its gate runs on the generated '
+    'route after the body is read, so the cross-site check still runs '
+    'first. And a policy class -- the annotation naming the model it '
+    'governs, with a method per action -- is read now, which it was not: '
+    'the annotation was the specification\'s own headline example of '
+    'authorization and appeared in one file, the one declaring it, so a '
+    'PostPolicy somebody wrote compiled and was never consulted. Its '
+    'conventional methods are registered on both sides before anything can '
+    'ask, the client included, because a generated table hides an action '
+    'the policy denies and a client that registered nothing would hide '
+    'every one of them. A method that takes a different model than the one '
+    'the annotation names stops the build: it would register the check '
+    'under that other model, leaving the annotated one failing closed while '
+    'the other is opened by a policy nobody wrote for it.',
   ),
   (
     'Theme',
