@@ -93,4 +93,45 @@ Widget adminPage(BuildContext context) => const SizedBox.shrink();
       expect(dvPagePolicyFromSource(source), 'DVPolicies.viewAdmin');
     });
   });
+
+  group('an annotation written in prose is not an annotation', () {
+    // Not hypothetical. The marketing site's own features page describes
+    // `@DVPage(sitemap: DVPageSitemap(...))` in a paragraph, above the
+    // annotation that page actually carries, and the generator read the
+    // paragraph: it emitted half a Dart string, quote and all, into the
+    // router as a constant and the site stopped compiling. That was the
+    // lucky outcome. The same read applied to `policy:` generates a page
+    // guarded by whatever a sentence happened to mention.
+    const String source = r"""
+const cards = [
+  (
+    'SEO',
+    'A page tunes its own entry with @DVPage(sitemap: DVPageSitemap(priority: '
+    '0.8)), and the project sets the rest.',
+  ),
+];
+
+// Mentioned in a comment too: @DVPage(policy: DVPolicies.nonsense)
+
+@DVPage(title: 'Features')
+Widget _featuresPage(BuildContext context) => const SizedBox.shrink();
+""";
+
+    test('the arguments come from the annotation, not the paragraph', () {
+      expect(dvAnnotationArgs(source, 'DVPage'), "title: 'Features'");
+    });
+
+    test('a policy is not read out of a sentence', () {
+      expect(dvPagePolicyFromSource(source), isNull);
+    });
+
+    test('masking leaves prose alone and blanks the real arguments', () {
+      final String masked = dvMaskAnnotationArgs(source, 'DVPage');
+
+      expect(masked, contains('DVPageSitemap(priority: '));
+      expect(masked, isNot(contains("title: 'Features'")));
+      expect(masked.length, source.length);
+      expect(dvPageSymbol(source), '_featuresPage');
+    });
+  });
 }

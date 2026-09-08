@@ -10,7 +10,6 @@ import 'package:dartvel_core/dartvel.dart'
         dvSourceDeclaresHomeWidget;
 
 import 'annotation_args.dart';
-import 'annotation_args.dart';
 import 'function_body.dart';
 import '../graph/module_mounts.dart';
 import 'route_blocks.dart';

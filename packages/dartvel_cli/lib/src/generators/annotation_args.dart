@@ -116,16 +116,38 @@ List<String> _trimmedNonEmpty(
 /// `@DVPageSitemap(` is not `@DVPage(`: the character after the name has to
 /// be the parenthesis, or a longer annotation whose name starts with this one
 /// would be read as this one.
+///
+/// Occurrences inside a string literal or a comment are not annotations. A
+/// plain search found one and this is not a hypothetical: the marketing
+/// site's own features page describes `@DVPage(sitemap: DVPageSitemap(...))`
+/// in prose, above the annotation that page actually carries, and the
+/// generator emitted the prose -- half a Dart string, quote and all -- into
+/// the router as a constant. The site stopped compiling, which is the good
+/// outcome; the same read applied to `policy:` would have generated a page
+/// guarded by whatever a paragraph happened to mention.
 int _annotationOpenParen(String source, String name, {int from = 0}) {
   final String needle = '@$name';
-  int at = source.indexOf(needle, from);
-  while (at >= 0) {
-    int i = at + needle.length;
-    while (i < source.length && _isSpace(source.codeUnitAt(i))) {
-      i++;
+  for (int i = from; i < source.length; i++) {
+    final int c = source.codeUnitAt(i);
+    if (_isQuote(c)) {
+      final int end = _endOfString(source, i);
+      if (end < 0) return -1;
+      i = end;
+      continue;
     }
-    if (i < source.length && source.codeUnitAt(i) == _openParen) return i;
-    at = source.indexOf(needle, at + 1);
+    if (c == _slash) {
+      final int skipped = _endOfComment(source, i);
+      if (skipped > i) {
+        i = skipped;
+        continue;
+      }
+    }
+    if (c != _at || !source.startsWith(needle, i)) continue;
+    int j = i + needle.length;
+    while (j < source.length && _isSpace(source.codeUnitAt(j))) {
+      j++;
+    }
+    if (j < source.length && source.codeUnitAt(j) == _openParen) return j;
   }
   return -1;
 }
@@ -219,3 +241,4 @@ const int _doubleQuote = 0x22;
 const int _backslash = 0x5c;
 const int _slash = 0x2f;
 const int _star = 0x2a;
+const int _at = 0x40;
