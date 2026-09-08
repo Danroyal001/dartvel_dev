@@ -246,10 +246,30 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
   ),
   (
     'Database',
-    'SQLite by default',
-    'Zero-config SQLite with WAL for local work and in-memory for tests, the '
-    'same generated migrations against Postgres and MySQL, and one adapter '
-    'API in front of all of them.',
+    'SQLite by default, and migrations that run',
+    'Zero-config SQLite with WAL for local work and in-memory for tests, '
+    'Postgres and MySQL with TLS, and one adapter API in front of all of '
+    'them. Migrations run now, and did not: dartvel db migrate read a list '
+    'of table names, printed a line per model saying it had migrated it and '
+    'a total saying they were synced successfully, wrote a snapshot, and '
+    'executed nothing at all. The statement that creates each table was '
+    'generated, correct, and called by nothing anywhere. The generator now '
+    'writes those statements where the command can read them -- from the '
+    'same column list the model itself carries, so the migration and the '
+    'queries cannot describe different tables -- and the command runs them '
+    'against SQLite, which is the database the framework can reach from a '
+    'command line. For Postgres or MySQL it writes the statements out and '
+    'says it did not run them, because the CLI has no connection to a '
+    'managed database and saying so is worth more than the green line it '
+    'replaces. A table that already exists gains the columns its model '
+    'gained, since CREATE TABLE IF NOT EXISTS does nothing to a table that '
+    'is there and a query naming a column it lacks fails against a database '
+    'just reported as migrated. The tenant column is the one that cannot be '
+    'added quietly: rows written before it existed belong to nobody, a '
+    'predicate on every read hides all of them from everybody, and the table '
+    'reads as empty in a way nobody can tell from data loss -- so a table '
+    'with rows is left completely alone rather than half migrated, and the '
+    'command asks whose those rows are.',
   ),
   (
     'Testing',
