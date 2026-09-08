@@ -8,7 +8,9 @@
 //
 // The enum, the signal type, the getter and its refusal message all existed.
 // What was missing is the one thing that makes any of it observable.
-import 'package:dartvel_core/dartvel.dart';
+// DVPageLifecycle and DVLifecycleSignal come through the dartvel_flutter
+// barrel, which is what an application imports; naming dartvel_core here as
+// well is the import a page would not write.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
