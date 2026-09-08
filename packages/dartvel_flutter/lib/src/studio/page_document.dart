@@ -1044,6 +1044,16 @@ final List<DVStudioProperty> dvStudioProperties = <DVStudioProperty>[
         v is num && v != 0 ? '.rotate(${v.toDouble()})' : null,
   ),
   DVStudioProperty(
+    'clip',
+    DVStudioPropertyKind.flag,
+    // A frame that crops its content is its own decision in a design, and it
+    // has nothing to do with corners: a photograph cropped by a square frame
+    // is the commonest version. Without it the child paints outside the box
+    // and the page carries an overflow stripe.
+    (m, v, p) => v == true ? m.clipContent() : null,
+    source: (v, p) => v == true ? '.clipContent()' : null,
+  ),
+  DVStudioProperty(
     'blur',
     DVStudioPropertyKind.number,
     (m, v, p) {

@@ -433,6 +433,15 @@ class DVModifier {
   /// Whether the box is centred within its parent.
   final bool centeredValue;
 
+  /// Whether the box crops whatever is in it to its own bounds.
+  ///
+  /// Its own decision, and nothing to do with corners: a photograph
+  /// cropped by a square frame is the commonest version of it, and
+  /// Figma keeps the two apart too. A rounded box crops regardless,
+  /// because a child squaring off the corners its parent rounded is
+  /// never what anybody meant.
+  final bool clipValue;
+
   /// Told whether the pointer is over the box.
   ///
   /// [hoverValue] restyles this box; revealing a sibling -- a label beside a
@@ -500,6 +509,7 @@ class DVModifier {
     this.blurSigma,
     this.backdropBlurSigma,
     this.centeredValue = false,
+    this.clipValue = false,
     this.onHoverChangedCallback,
     this.hoverValue,
     this.revealValue = false,
@@ -547,6 +557,7 @@ class DVModifier {
         blurSigma = null,
         backdropBlurSigma = null,
         centeredValue = false,
+        clipValue = false,
         onHoverChangedCallback = null,
         hoverValue = null,
         revealValue = false,
@@ -594,6 +605,7 @@ class DVModifier {
     double? backdropBlurSigma,
     bool clearInteraction = false,
     bool? centeredValue,
+    bool? clipValue,
     ValueChanged<bool>? onHoverChangedCallback,
     DVModifier? hoverValue,
     bool? revealValue,
@@ -640,6 +652,7 @@ class DVModifier {
       blurSigma: blurSigma ?? this.blurSigma,
       backdropBlurSigma: backdropBlurSigma ?? this.backdropBlurSigma,
       centeredValue: centeredValue ?? this.centeredValue,
+      clipValue: clipValue ?? this.clipValue,
       onHoverChangedCallback:
           onHoverChangedCallback ?? this.onHoverChangedCallback,
       hoverValue: hoverValue ?? this.hoverValue,
@@ -847,7 +860,14 @@ class DVModifier {
       backdropBlurSigma != null ||
       minimumTapTargetValue != null ||
       revealValue ||
+      clipValue ||
       centeredValue;
+
+  /// Crops whatever is in the box to the box.
+  ///
+  /// See [clipValue]. A rounded box already crops; this is for the
+  /// square frame that also does.
+  DVModifier clipContent() => _copyWith(clipValue: true);
 
   DVModifier opacity(double value) => _copyWith(opacityValue: value);
 
@@ -946,6 +966,7 @@ class DVModifier {
         backdropBlurSigma:
             other.backdropBlurSigma ?? backdropBlurSigma,
         centeredValue: other.centeredValue || centeredValue,
+        clipValue: other.clipValue || clipValue,
         onHoverChangedCallback:
             other.onHoverChangedCallback ?? onHoverChangedCallback,
         // Not carried over: a hover state describing its own hover state, or
@@ -1459,7 +1480,14 @@ class DVBox<T> extends StatelessWidget {
     // rounded outline. A clip on every box in the application, for the
     // corners most of them do not round, is the cost this condition keeps
     // off.
-    final Clip clip = m?.borderRadius != null ? Clip.antiAlias : Clip.none;
+    final Clip clip = m?.borderRadius != null
+        // Antialiased on a curve and hard on a straight edge: a
+        // rectangle needs no smoothing, and paying for it on every
+        // cropping frame is a cost with nothing to show for it.
+        ? Clip.antiAlias
+        : (m?.clipValue ?? false)
+            ? Clip.hardEdge
+            : Clip.none;
 
     Widget result = animating
         ? AnimatedContainer(
