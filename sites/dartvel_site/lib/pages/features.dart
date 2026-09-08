@@ -83,7 +83,12 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'DVBox.wrapLine had existed the whole time. A chip row came through as '
     'a single row that runs off the side of a phone, and nothing said so, '
     'because an unknown layout falls through to a column in every one of '
-    'them.',
+    'them. A wrapping row aligns like any other row too, which took a '
+    'second change: the alignment is written for every auto-layout frame, '
+    'and a wrap that ignored it would be a property the inspector offers '
+    'and nothing applies. Stretch is the one that cannot travel -- a Wrap '
+    'has no width to stretch a child to -- so it becomes start, which is '
+    'what it already did.',
   ),
   (
     'Routing',
