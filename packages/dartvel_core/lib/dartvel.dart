@@ -78,6 +78,7 @@ export 'src/diagnostics/diagnostics.dart';
 export 'src/i18n/locale_negotiation.dart';
 export 'src/i18n/plural_rules.dart';
 export 'src/kiosk/enforcement.dart';
+export 'src/kiosk/containment.dart';
 export 'src/kiosk/policy.dart';
 export 'src/kiosk/runtime.dart';
 export 'src/kiosk/updates.dart';

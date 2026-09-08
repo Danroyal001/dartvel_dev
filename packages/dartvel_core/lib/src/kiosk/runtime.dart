@@ -12,6 +12,7 @@ library dartvel.kiosk.runtime;
 import 'dart:async';
 
 import '../lifecycle/lifecycle.dart' show DVLifecycleRegistry;
+import 'containment.dart';
 import 'policy.dart';
 
 /// Where a kiosk is.
@@ -128,6 +129,19 @@ class DVKioskRuntime {
   void _enter(DVKioskState next) {
     state._set(next);
     lifecycle?.setKiosk(next);
+    // What the policy denies follows the state rather than the process.
+    //
+    // Staff mode lifts it, deliberately: somebody standing at the machine
+    // with the exit method has been trusted with more than the person in the
+    // queue, and an engineer who cannot copy the error code off the screen
+    // reads it out over the phone instead. `off` lifts it for the obvious
+    // reason -- a kiosk that stopped is not still holding the clipboard of
+    // whatever runs next in the same process.
+    dvApplyKioskContainment(
+      next == DVKioskState.off || next == DVKioskState.staffMode
+          ? null
+          : policy,
+    );
   }
 
   /// Observed, never assigned from outside.

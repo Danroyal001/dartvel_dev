@@ -44,6 +44,8 @@ class DVKioskPolicy {
     required this.blockSystemGestures,
     required this.blockHardwareKeys,
     required this.blockShortcuts,
+    required this.blockClipboard,
+    required this.blockTextSelection,
     required this.idleTimeout,
     required this.idleWarning,
     required this.onIdle,
@@ -73,6 +75,26 @@ class DVKioskPolicy {
   final bool blockSystemGestures;
   final bool blockHardwareKeys;
   final bool blockShortcuts;
+
+  /// Whether the clipboard is locked, from `input.clipboard`.
+  ///
+  /// Not implied by kiosk mode. An order screen showing a reference number
+  /// is more useful if the number can be copied, and the specification
+  /// makes this an explicit key rather than a consequence.
+  ///
+  /// What this reaches is the framework's own clipboard API and the
+  /// selection that feeds it. A desktop kiosk running beside another
+  /// application whose clipboard the OS shares is not covered by a rule
+  /// written in Dart, and saying so is better than implying otherwise.
+  final bool blockClipboard;
+
+  /// Whether page text can be selected, from `input.textSelection`.
+  ///
+  /// Overrides what a page declares. `@DVPage(selectable: true)` is the
+  /// page's preference and the kiosk policy is the deployment's decision,
+  /// and a deployment that has locked selection has not left the question
+  /// open to each page.
+  final bool blockTextSelection;
 
   final Duration idleTimeout;
   final Duration idleWarning;
@@ -182,8 +204,11 @@ class DVKioskPolicy {
     // A key this parser does not read is reported rather than dropped.
     //
     // The specification describes more containment than is built --
-    // routes.external, input.clipboard, input.textSelection,
-    // display.hideCursor, screenDim -- and each one was read straight past.
+    // routes.external, display.hideCursor and display.screenDim, each of
+    // which still needs something underneath it -- and every one of the five
+    // was read straight past. input.clipboard and input.textSelection are
+    // built now: they are the two Dartvel can honour on its own, in Dart,
+    // with no platform binding.
     // An unrecognised enum value has always produced a problem here; an
     // unrecognised key produced nothing, and that is the worse of the two.
     // Somebody who writes `input.clipboard: disabled` into a kiosk has
@@ -213,6 +238,13 @@ class DVKioskPolicy {
       'systemGestures',
       'hardwareKeys',
       'shortcuts',
+      // Read now, so reporting them would say a key does nothing while it
+      // does. routes.external, display.hideCursor and display.screenDim are
+      // still unbuilt and still report: naming two of the five as done would
+      // be worse than naming none, because the other three would look
+      // implemented by association.
+      'clipboard',
+      'textSelection',
     });
     unread('dartvel.kiosk.session', session, const <String>{
       'onIdle',
@@ -343,6 +375,10 @@ class DVKioskPolicy {
       blockHardwareKeys:
           _blocks(input['hardwareKeys'], scope == DVKioskScope.device),
       blockShortcuts: _blocks(input['shortcuts'], true),
+      // Default false on both: see the field comments. A kiosk is not
+      // automatically a device where nothing can be selected.
+      blockClipboard: _blocks(input['clipboard'], false),
+      blockTextSelection: _blocks(input['textSelection'], false),
       idleTimeout: idleTimeout,
       idleWarning: idleWarning,
       onIdle: _enum<DVKioskIdleAction>(
