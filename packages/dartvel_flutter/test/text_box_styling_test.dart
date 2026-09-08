@@ -110,4 +110,21 @@ void main() {
       contains(0.5),
     );
   });
+
+  testWidgets('a heading that reveals on scroll reveals',
+      (WidgetTester tester) async {
+    // The reveal is a box behaviour like the rest, and nothing in this
+    // repository puts one on text yet -- which is why it is worth a test
+    // rather than a note: the next person to write it should not have to
+    // find out it does nothing.
+    await pump(
+      tester,
+      const DVText('section').modifier(const DVModifier().revealOnScroll()),
+    );
+
+    expect(find.byType(AnimatedOpacity), findsOneWidget);
+
+    await tester.pumpAndSettle(const Duration(seconds: 3));
+    expect(find.text('section'), findsOneWidget);
+  });
 }

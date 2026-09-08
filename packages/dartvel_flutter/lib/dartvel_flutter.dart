@@ -819,6 +819,14 @@ class DVModifier {
   /// Enumerated rather than inferred, and the list is every field DVBox's own
   /// decoration reads that DVText does not apply itself. A box property added
   /// there and not added here goes back to being silently dropped on text.
+  ///
+  /// A hover state is deliberately not in the list. The box would apply the
+  /// hovered modifier's padding and colour and not its type, because the text
+  /// was drawn before the pointer arrived -- a link that changes colour on
+  /// hover would change everything about itself except the colour. Making it
+  /// work means rebuilding the text under the pointer, which is a change to
+  /// the most-used widget here for something nothing in this repository asks
+  /// for yet. Left whole rather than half-done.
   bool get hasBoxStyling =>
       paddingValue != null ||
       marginValue != null ||
@@ -838,6 +846,7 @@ class DVModifier {
       blurSigma != null ||
       backdropBlurSigma != null ||
       minimumTapTargetValue != null ||
+      revealValue ||
       centeredValue;
 
   DVModifier opacity(double value) => _copyWith(opacityValue: value);
