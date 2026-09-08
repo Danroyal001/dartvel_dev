@@ -22,7 +22,16 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'Styling',
     'Fluent modifiers',
     'padding, rounded, colour, typography, shadows, tap targets and semantics '
-    'on one chain, built on Mix.',
+    'on one chain, built on Mix. A box can be turned now, and could not: the '
+    'chain faded a box, rounded it, bordered it and painted a gradient '
+    'through it, and had no way to rotate one -- so an imported design\'s '
+    'tilted badge and its angled price flash came through square. Rendered, '
+    'plausible, and not the design, which is the kind of loss nothing '
+    'reports. rotate takes degrees rather than radians, which differs from '
+    'Flutter\'s own Transform.rotate on purpose: the number in a page '
+    'document, the number a designer reads in an inspector, the number Figma '
+    'reports for a layer and the number in exported source are then all the '
+    'same one, converted once where the widget is built.',
   ),
   (
     'Routing',
