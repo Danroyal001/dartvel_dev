@@ -474,6 +474,14 @@ import 'client_schedules.g.dart' show dartvelStartClientSchedules;
 
 /// Wires the generated runtime into the short `DV.baseUrl` / `DV.api(...)` API.
 /// Called automatically during app/router initialization.
+///
+/// This runs while the router is being built, which is **before `runApp`**.
+/// Nothing added here may assume a Flutter binding exists: reading
+/// `WidgetsBinding.instance` throws at this point, the application never
+/// reaches its first frame, and no package test catches it because a widget
+/// test always has a binding already. What it looks like instead is the site
+/// build reporting "Captured 0 of 4 routes" and blaming resource pressure.
+/// Call `WidgetsFlutterBinding.ensureInitialized()` and use what it returns.
 void configureDartvelRuntime({List<String> arguments = const <String>[]}) {
   // The application lifecycle, which had a setter called from nowhere but
   // its own test: an application observing DV.lifecycle.app saw
