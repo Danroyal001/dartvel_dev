@@ -1,4 +1,5 @@
 import 'dart:convert';
+import '../generators/annotation_args.dart';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
@@ -250,7 +251,7 @@ List<DartvelDbTable> _tablesIn(
     final matches = RegExp(
       r'@DVModel\s*\([^)]*\)\s*(?:@pragma\([^)]*\)\s*)*class\s+([A-Za-z0-9_]+)',
       dotAll: true,
-    ).allMatches(content);
+    ).allMatches(dvMaskAnnotationArgs(content, 'DVModel'));
     for (final match in matches) {
       final sourceClassName = match.group(1)!;
       if (!sourceClassName.startsWith('_')) {

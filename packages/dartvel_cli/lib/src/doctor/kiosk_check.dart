@@ -9,6 +9,7 @@
 /// [lines] and takes [ok] into its own verdict.
 library dartvel_cli.doctor.kiosk_check;
 
+import '../generators/annotation_args.dart';
 import 'dart:io';
 
 import 'package:dartvel_core/dartvel.dart';
@@ -98,7 +99,12 @@ class DVKioskCheck {
       if (e is! File || !e.path.endsWith('.dart')) continue;
       final String src = e.readAsStringSync();
       if (!sensitive.hasMatch(src)) continue;
-      for (final RegExpMatch m in modelClass.allMatches(src)) {
+      // Blanked annotation arguments: `[^)]*` stops at the first close
+      // parenthesis and a string argument can contain one, and a model
+      // this misses is a sensitive field the kiosk check reports as out
+      // of reach when it is on the screen.
+      for (final RegExpMatch m
+          in modelClass.allMatches(dvMaskAnnotationArgs(src, 'DVModel'))) {
         models.add(m.group(1)!);
       }
     }

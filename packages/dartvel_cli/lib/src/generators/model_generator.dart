@@ -4,6 +4,7 @@ import 'package:yaml/yaml.dart';
 import 'package:file/local.dart';
 import 'package:glob/glob.dart';
 import 'package:path/path.dart' as p;
+import 'annotation_args.dart';
 
 /// Sort key for a field with no `@DVModel.pageOrder(n)`, so every ordered
 /// field lands ahead of every unordered one regardless of the value used.
@@ -84,12 +85,21 @@ class ModelGenerator {
     for (final file in files) {
       final content = await file.readAsString();
       // Scan for @DVModel(...) classes.
+      //
+      // Matched against a copy whose annotation arguments are blanked to
+      // spaces, because `[^)]*` stops at the first close parenthesis and a
+      // string argument can contain one -- `schemaType: 'Product (beta)'`.
+      // The model was then not discovered at all: no generated class, no
+      // table, no admin row, on a build that succeeded. Blanking keeps every
+      // offset, so the arguments are read back out of `content` itself.
+      final masked = dvMaskAnnotationArgs(content, 'DVModel');
       final classMatches = RegExp(
         r'@DVModel\s*\(([^)]*)\)\s*(?:@pragma\([^)]*\)\s*)*class\s+([A-Za-z0-9_]+)\b',
         dotAll: true,
-      ).allMatches(content);
+      ).allMatches(masked);
       for (final match in classMatches) {
-        final modelArgs = match.group(1) ?? '';
+        final modelArgs =
+            dvAnnotationArgs(content.substring(match.start), 'DVModel') ?? '';
         final sourceClassName = match.group(2)!;
         if (!sourceClassName.startsWith('_')) {
           throw StateError(
@@ -154,9 +164,15 @@ class ModelGenerator {
         // column it never reads, and a table deliberately shared across
         // tenants -- a currency list, a country table -- would be broken by a
         // predicate it never asked for.
+        // This model's own arguments, not the file's. Read from the whole
+        // file, one tenant-scoped model made every model beside it
+        // tenant-scoped -- and the symptom is not a leak but the opposite:
+        // a currency table written before the column existed has rows
+        // belonging to no tenant, so every one of them disappears for every
+        // tenant. Which is the case named two comments above as the reason
+        // this is opt-in at all.
         final bool tenantScoped =
-            RegExp(r'@DVModel\s*\([^)]*\btenantScoped\s*:\s*true\b', dotAll: true)
-                .hasMatch(content);
+            RegExp(r'\btenantScoped\s*:\s*true\b').hasMatch(modelArgs);
 
         // Field annotations stack: a field can carry both
         // @DVModel.sensitiveField() and @DVModel.searchableField(), and a
