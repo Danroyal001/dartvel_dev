@@ -344,7 +344,10 @@ Widget _fromDesign(BuildContext context) => const Section(
             'And as the design',
             'Typefaces, line heights, shadows, gradients, corners that '
             'differ, how each image fills its frame, how many lines a title '
-            'gets. A node keeps the size it was drawn at only where the '
+            'gets. Text arrives in the case it displays rather than the case '
+            'it was typed in, a link keeps its underline and a superseded '
+            'price its strike-through, and a tilted layer arrives tilted. '
+            'A node keeps the size it was drawn at only where the '
             'designer fixed it, so the result is not pinned to the width of '
             'the artboard.',
           ),
