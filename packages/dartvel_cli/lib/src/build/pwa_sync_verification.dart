@@ -20,6 +20,7 @@ import 'package:shelf/shelf.dart' as shelf;
 import 'package:shelf/shelf_io.dart' as shelf_io;
 
 import 'semantics_capture.dart' show dvCaptureHandler;
+import 'chrome_launch.dart';
 
 class DVPwaSyncResult {
   /// Why nothing was verified -- no browser -- or null when it ran.
@@ -75,7 +76,7 @@ Future<DVPwaSyncResult> dvVerifyPwaSync({
     browser = await puppeteer.launch(
       headless: true,
       executablePath: chromePath ?? _systemChrome(),
-      args: <String>['--no-sandbox', '--disable-setuid-sandbox'],
+      args: dvChromeLaunchArgs,
     );
   } on Object catch (error) {
     await server.close(force: true);
