@@ -40,7 +40,7 @@ void main() {
           'maxLines', 'overflow',
           'paddingLeft', 'paddingTop', 'paddingRight', 'paddingBottom',
           'shadowColor', 'shadowX', 'shadowY', 'shadowBlur', 'shadowSpread',
-          'rotation', 'decoration',
+          'rotation', 'decoration', 'blur', 'backdropBlur',
         ]),
       );
     });
@@ -76,6 +76,8 @@ void main() {
         // A decoration is one of the words a design uses for a line through
         // or under the text.
         'decoration': 'underline',
+        // Both blurs are a standard deviation, and nought is not a blur.
+        'blur': 4, 'backdropBlur': 12,
       };
       for (final property in dvStudioProperties) {
         expect(

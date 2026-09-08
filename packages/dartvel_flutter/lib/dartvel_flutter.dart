@@ -413,6 +413,23 @@ class DVModifier {
   /// radians sees the difference before they run it.
   final double? rotateDegrees;
 
+  /// How far the box and its contents are blurred.
+  ///
+  /// A standard deviation, which is what ImageFilter.blur takes and
+  /// what CSS's blur() takes -- and Figma's own CSS export writes the
+  /// number from its Layer blur straight into blur(Npx), so the value
+  /// a designer typed is the value here.
+  final double? blurSigma;
+
+  /// How far whatever is behind the box is blurred.
+  ///
+  /// Not the same picture as [blurSigma], which is why they are two
+  /// methods: this leaves the box sharp and softens what shows
+  /// through it, which is the whole of a frosted card. One blur()
+  /// would have to guess which was meant, and the wrong guess reads
+  /// as a bug in the renderer rather than a mistake in the chain.
+  final double? backdropBlurSigma;
+
   /// Whether the box is centred within its parent.
   final bool centeredValue;
 
@@ -480,6 +497,8 @@ class DVModifier {
     this.animateCurve = Curves.easeOut,
     this.opacityValue,
     this.rotateDegrees,
+    this.blurSigma,
+    this.backdropBlurSigma,
     this.centeredValue = false,
     this.onHoverChangedCallback,
     this.hoverValue,
@@ -525,6 +544,8 @@ class DVModifier {
         animateCurve = Curves.easeOut,
         opacityValue = null,
         rotateDegrees = null,
+        blurSigma = null,
+        backdropBlurSigma = null,
         centeredValue = false,
         onHoverChangedCallback = null,
         hoverValue = null,
@@ -569,6 +590,8 @@ class DVModifier {
     Curve? animateCurve,
     double? opacityValue,
     double? rotateDegrees,
+    double? blurSigma,
+    double? backdropBlurSigma,
     bool? centeredValue,
     ValueChanged<bool>? onHoverChangedCallback,
     DVModifier? hoverValue,
@@ -613,6 +636,8 @@ class DVModifier {
       animateCurve: animateCurve ?? this.animateCurve,
       opacityValue: opacityValue ?? this.opacityValue,
       rotateDegrees: rotateDegrees ?? this.rotateDegrees,
+      blurSigma: blurSigma ?? this.blurSigma,
+      backdropBlurSigma: backdropBlurSigma ?? this.backdropBlurSigma,
       centeredValue: centeredValue ?? this.centeredValue,
       onHoverChangedCallback:
           onHoverChangedCallback ?? this.onHoverChangedCallback,
@@ -773,6 +798,19 @@ class DVModifier {
   /// Fades the whole box, children included.
   DVModifier opacity(double value) => _copyWith(opacityValue: value);
 
+  /// Blurs the box and everything in it by [sigma].
+  ///
+  /// See [blurSigma] for why the unit is a standard deviation.
+  DVModifier blur(double sigma) => _copyWith(blurSigma: sigma);
+
+  /// Blurs whatever shows through the box, leaving the box sharp.
+  ///
+  /// Bounded by the box, because an unclipped backdrop filter blurs
+  /// the whole screen behind it -- the page goes soft and nothing
+  /// points at the card that asked for it.
+  DVModifier backdropBlur(double sigma) =>
+      _copyWith(backdropBlurSigma: sigma);
+
   /// Turns the box by [degrees], clockwise.
   ///
   /// Degrees, not radians -- see [rotateDegrees]. `rotate(45)` is a
@@ -851,6 +889,9 @@ class DVModifier {
             : animateCurve,
         opacityValue: other.opacityValue ?? opacityValue,
         rotateDegrees: other.rotateDegrees ?? rotateDegrees,
+        blurSigma: other.blurSigma ?? blurSigma,
+        backdropBlurSigma:
+            other.backdropBlurSigma ?? backdropBlurSigma,
         centeredValue: other.centeredValue || centeredValue,
         onHoverChangedCallback:
             other.onHoverChangedCallback ?? onHoverChangedCallback,
@@ -1397,6 +1438,33 @@ class DVBox<T> extends StatelessWidget {
     if (degrees != null && degrees != 0) {
       result = Transform.rotate(
         angle: degrees * math.pi / 180,
+        child: result,
+      );
+    }
+
+    // Inside the fade and outside the turn, so a blurred box fades as one
+    // thing. Zero is not a blur: a filter layer that changes no pixel costs
+    // what a real one costs, and a design exported with nought is saying it
+    // does not blur rather than asking for that.
+    final double? backdropBlur = m?.backdropBlurSigma;
+    if (backdropBlur != null && backdropBlur > 0) {
+      result = ClipRRect(
+        // The box's own corners, so the blur stops where the card does.
+        borderRadius: m?.borderRadius ?? BorderRadius.zero,
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(
+            sigmaX: backdropBlur,
+            sigmaY: backdropBlur,
+          ),
+          child: result,
+        ),
+      );
+    }
+
+    final double? blur = m?.blurSigma;
+    if (blur != null && blur > 0) {
+      result = ImageFiltered(
+        imageFilter: ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur),
         child: result,
       );
     }
