@@ -1118,6 +1118,34 @@ enum DVAlign {
 /// stacks into a column.
 enum DVCrossAlign { stretch, start, center, end }
 
+/// [DVAlign] as a Wrap reads it.
+///
+/// One for one: a Wrap offers every alignment a row does, so a wrapping row
+/// aligns exactly like the row it becomes when the line has space.
+WrapAlignment dvWrapAlignmentOf(DVAlign align) => switch (align) {
+      DVAlign.start => WrapAlignment.start,
+      DVAlign.center => WrapAlignment.center,
+      DVAlign.end => WrapAlignment.end,
+      DVAlign.spaceBetween => WrapAlignment.spaceBetween,
+      DVAlign.spaceAround => WrapAlignment.spaceAround,
+      DVAlign.spaceEvenly => WrapAlignment.spaceEvenly,
+    };
+
+/// [DVCrossAlign] as a Wrap reads it.
+///
+/// Stretch becomes start, because a Wrap has no equivalent: its children are
+/// as wide as they are, and there is no width to stretch them to. Start is
+/// what one already does, and mapping it to something else would make the
+/// default cross alignment mean a different thing in a wrapping row than in
+/// every other layout.
+WrapCrossAlignment dvWrapCrossAlignmentOf(DVCrossAlign align) =>
+    switch (align) {
+      DVCrossAlign.stretch => WrapCrossAlignment.start,
+      DVCrossAlign.start => WrapCrossAlignment.start,
+      DVCrossAlign.center => WrapCrossAlignment.center,
+      DVCrossAlign.end => WrapCrossAlignment.end,
+    };
+
 typedef DVWidgetBuilder<T> = Widget Function(T item);
 
 class DVBox<T> extends StatelessWidget {
@@ -1215,12 +1243,14 @@ class DVBox<T> extends StatelessWidget {
     List<Widget> children, {
     DVModifier? modifier,
     double spacing = 8,
+    DVAlign align = DVAlign.start,
+    DVCrossAlign crossAlign = DVCrossAlign.stretch,
   })  : _child = null,
         _children = children,
         _modifier = modifier,
         _layout = _DVBoxLayout.wrap,
-        _align = DVAlign.start,
-        _crossAlign = DVCrossAlign.stretch,
+        _align = align,
+        _crossAlign = crossAlign,
         _columns = 1,
         _responsive = true,
         _spacing = spacing,
@@ -1233,12 +1263,14 @@ class DVBox<T> extends StatelessWidget {
     List<Widget> children, {
     DVModifier? modifier,
     double spacing = 8,
+    DVAlign align = DVAlign.start,
+    DVCrossAlign crossAlign = DVCrossAlign.stretch,
   })  : _child = null,
         _children = children,
         _modifier = modifier,
         _layout = _DVBoxLayout.wrap,
-        _align = DVAlign.start,
-        _crossAlign = DVCrossAlign.stretch,
+        _align = align,
+        _crossAlign = crossAlign,
         _columns = 1,
         _responsive = true,
         _spacing = spacing,
@@ -1451,6 +1483,11 @@ class DVBox<T> extends StatelessWidget {
     }
     return result;
   }
+
+  WrapAlignment get _wrapAlignment => dvWrapAlignmentOf(_align);
+
+  WrapCrossAlignment get _wrapCrossAlignment =>
+      dvWrapCrossAlignmentOf(_crossAlign);
 
   Widget _decorate(BuildContext context, DVModifier? m, Widget? content) {
     final decoration = BoxDecoration(
@@ -1674,8 +1711,13 @@ class DVBox<T> extends StatelessWidget {
         );
         break;
       case _DVBoxLayout.wrap:
-        result =
-            Wrap(spacing: _spacing, runSpacing: _spacing, children: children);
+        result = Wrap(
+          spacing: _spacing,
+          runSpacing: _spacing,
+          alignment: _wrapAlignment,
+          crossAxisAlignment: _wrapCrossAlignment,
+          children: children,
+        );
         break;
       case _DVBoxLayout.stack:
         result = Stack(children: children);
@@ -1725,6 +1767,8 @@ class DVBox<T> extends StatelessWidget {
         return Wrap(
           spacing: _spacing,
           runSpacing: _spacing,
+          alignment: _wrapAlignment,
+          crossAxisAlignment: _wrapCrossAlignment,
           children: [for (final item in items) builder(context, item)],
         );
       case _DVBoxLayout.stack:

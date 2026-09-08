@@ -323,8 +323,7 @@ class DVPageDocument {
           'row' when scrolls =>
             'DVBox.horizontalScrollable($childList${_spacingArgumentSource(node.properties)})',
           'row' => 'DVBox.row($childList$layoutArgs)',
-          'wrap' =>
-            'DVBox.wrapLine($childList${_spacingArgumentSource(node.properties)})',
+          'wrap' => 'DVBox.wrapLine($childList$layoutArgs)',
           'grid' =>
             'DVBox.grid($childList, columns: ${node.properties['columns'] ?? 2})',
           'stack' => 'DVBox.stack($childList)',
@@ -526,7 +525,8 @@ class DVPageDocumentRenderer extends StatelessWidget {
             DVBox.horizontalScrollable(children, spacing: spacing),
           'row' => DVBox.row(children,
               spacing: spacing, align: main, crossAlign: cross),
-          'wrap' => DVBox.wrapLine(children, spacing: spacing),
+          'wrap' => DVBox.wrapLine(children,
+              spacing: spacing, align: main, crossAlign: cross),
           'grid' => DVBox.grid(
               children,
               columns: (node.properties['columns'] as num?)?.toInt() ?? 2,
