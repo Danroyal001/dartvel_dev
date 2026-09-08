@@ -58,6 +58,15 @@ jobs:
       # infrastructure fault. The workflow's own comments record them, and a
       # rule nothing checks drifts back.
       - run: dart tool/ci/test_matrix_check.dart
+      # A sibling constraint that excludes the version published beside it.
+      # This is a gate in tool/publish.sh, which is the right place to stop a
+      # release and the wrong place to find out: dartvel_dev 0.3.1 shipped
+      # depending on dartvel_core ^0.2.1, and a caret on a 0.x version stops
+      # at the next minor, so everyone installing that set resolved 0.2.x for
+      # every sibling. Running it here as well finds it at the commit that
+      # writes the constraint rather than at the release that trips over it,
+      # and it imports nothing but dart:io so it costs a second.
+      - run: dart tool/check_constraints.dart
 
       # Cheap, and it catches a class of break that reads as flakiness. A
       # pubspec naming an asset directory that git cannot track builds fine on
