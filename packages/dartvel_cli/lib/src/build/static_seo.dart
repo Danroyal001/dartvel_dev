@@ -205,8 +205,13 @@ Map<String, DVSitemapEntry> dvSitemapEntries(String routerSource) {
   if (map == null) return const <String, DVSitemapEntry>{};
 
   final Map<String, DVSitemapEntry> entries = <String, DVSitemapEntry>{};
+  // `const` optional, because the emitter writes it and a page may have
+  // written it too. This pattern required the constructor immediately after
+  // the colon, so it matched nothing at all against a real generated router
+  // and every entry came back empty -- the reader and the writer were
+  // written against each other rather than against a file.
   final RegExp entry = RegExp(
-    r"'([^']*)'\s*:\s*DVPageSitemap\(([^)]*)\)",
+    r"'([^']*)'\s*:\s*(?:const\s+)?DVPageSitemap\(([^)]*)\)",
     dotAll: true,
   );
   for (final RegExpMatch match in entry.allMatches(map.group(1)!)) {

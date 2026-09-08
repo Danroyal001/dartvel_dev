@@ -174,13 +174,10 @@ Future<String> handler() async => 'pong';
         apiBasePath: '/api',
       );
 
+      // .dart_tool, which is where BackendGenerator writes it -- the
+      // generated server is not application source.
       return File(
-        p.join(
-          root.path,
-          'lib',
-          'backend',
-          'dartvel_backend_routes.g.dart',
-        ),
+        p.join(root.path, '.dart_tool', 'dartvel_backend_routes.g.dart'),
       ).readAsStringSync();
     }
 
