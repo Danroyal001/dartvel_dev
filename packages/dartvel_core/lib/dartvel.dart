@@ -27,6 +27,7 @@ export 'src/analytics/analytics.dart';
 export 'src/annotations/annotations.dart';
 export 'src/auth/auth.dart';
 export 'src/auth/backend_policy.dart';
+export 'src/billing/money.dart';
 export 'src/billing/paddle.dart';
 export 'src/billing/stripe.dart';
 // LDAP is a raw TCP protocol, so a browser cannot speak it. Exported

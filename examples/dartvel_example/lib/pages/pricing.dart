@@ -23,6 +23,11 @@ Widget _pricingPage(BuildContext context) => DVBox.list([
   const DVText('Plans').modifier(const DVModifier().fontSize(24.0)),
   DVBox.row([
     const DVText('Free'),
+    // The price the model declares, read rather than repeated. A static
+    // the generator emits and nothing calls is the same gap the
+    // annotation had before it was emitted at all -- this page is where
+    // a compiler and a screenshot both see it.
+    DVText(Product.nativePrice?.toString() ?? 'Free'),
     const DVText('Pro').modifier(
       const DVModifier().onPressed(
         DV.Navigation.to(const DVRouteTarget('/checkout')),
