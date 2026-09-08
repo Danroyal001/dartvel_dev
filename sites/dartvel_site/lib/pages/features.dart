@@ -519,6 +519,38 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'opened nothing. It waits for the answer now, because the browser only '
     'opens the dialog when asked and reports the choice afterwards.',
   ),
+  (
+    'Scheduling',
+    'Cron on both sides, and it runs now',
+    'Five-field cron parsed the way cron actually reads it, day-of-month OR '
+    'day-of-week, with nextAfter for the next tick and a scheduler that '
+    'dispatches onto the queue rather than running inline. The scheduler was '
+    'built and nothing ever started one: the only place in the repository '
+    'that constructed it was its own unit test, so a schedule declared on a '
+    'backend function travelled into a generated list and stopped, and this '
+    'entry said it ran. A served backend now registers every declared '
+    'schedule and ticks, and an application with none starts no timer. The '
+    'client half runs too, started by the generated runtime, and its '
+    'handlers live in their own file: the backend imports the other one, '
+    'and a schedule declared on a page would otherwise pull Flutter into a '
+    'server that has no screen. A schedule can also say for itself whether '
+    'the periods missed while the process was down are run when it comes '
+    'back. Saying nothing is not the same as saying no: a schedule that '
+    'wrote it down has decided about itself and outranks the blanket '
+    'setting the application starts its schedules with, which is what a '
+    'nightly digest needs -- four of them the morning a server comes back '
+    'is worse than one missed -- while a rollup that writes a row per day '
+    'needs the opposite. A value the build cannot read stops it, because a '
+    'generated schedule carries the answer rather than working it out '
+    'later. On a phone a tick is a wakeup as well as a tick, so the client '
+    'ticks only while the application is in front of somebody: a timer '
+    'firing every twenty seconds from a pocket wakes the device for a '
+    'schedule that could have waited, and the system suspends it anyway. '
+    'Coming back ticks once straight away, because whatever came due while '
+    'it was away is due now rather than twenty seconds from now, and that '
+    'wait is the whole of what somebody who just opened the application is '
+    'waiting on.',
+  ),
 ];
 
 /// Half built: what is present and what is absent, in the repository's own
@@ -581,38 +613,6 @@ const List<(String, String, String)> partial = <(String, String, String)>[
     'widget, named rather than emitted at moments that merely resemble '
     'them; and anything that advances the build signal, which describes a '
     'build pipeline running in a process the application is not.',
-  ),
-  (
-    'Scheduling',
-    'Cron on both sides, and it runs now',
-    'Five-field cron parsed the way cron actually reads it, day-of-month OR '
-    'day-of-week, with nextAfter for the next tick and a scheduler that '
-    'dispatches onto the queue rather than running inline. The scheduler was '
-    'built and nothing ever started one: the only place in the repository '
-    'that constructed it was its own unit test, so a schedule declared on a '
-    'backend function travelled into a generated list and stopped, and this '
-    'entry said it ran. A served backend now registers every declared '
-    'schedule and ticks, and an application with none starts no timer. The '
-    'client half runs too, started by the generated runtime, and its '
-    'handlers live in their own file: the backend imports the other one, '
-    'and a schedule declared on a page would otherwise pull Flutter into a '
-    'server that has no screen. A schedule can also say for itself whether '
-    'the periods missed while the process was down are run when it comes '
-    'back. Saying nothing is not the same as saying no: a schedule that '
-    'wrote it down has decided about itself and outranks the blanket '
-    'setting the application starts its schedules with, which is what a '
-    'nightly digest needs -- four of them the morning a server comes back '
-    'is worse than one missed -- while a rollup that writes a row per day '
-    'needs the opposite. A value the build cannot read stops it, because a '
-    'generated schedule carries the answer rather than working it out '
-    'later. On a phone a tick is a wakeup as well as a tick, so the client '
-    'ticks only while the application is in front of somebody: a timer '
-    'firing every twenty seconds from a pocket wakes the device for a '
-    'schedule that could have waited, and the system suspends it anyway. '
-    'Coming back ticks once straight away, because whatever came due while '
-    'it was away is due now rather than twenty seconds from now, and that '
-    'wait is the whole of what somebody who just opened the application is '
-    'waiting on.',
   ),
   (
     'Middleware',
@@ -858,7 +858,7 @@ Widget _featuresPage(BuildContext context) => SingleChildScrollView(
         const Section(
           children: <Widget>[
             Eyebrow('WHAT WORKS TODAY'),
-            Heading('Thirty-five shipped sections.', level: 1),
+            Heading('Thirty-six shipped sections.', level: 1),
             Body(
               'This list is the repository’s own record of what is built, not '
               'a description of what is planned. A tool checks it and fails '
@@ -868,7 +868,7 @@ Widget _featuresPage(BuildContext context) => SingleChildScrollView(
               width: 660,
             ),
             Body(
-              'Twenty-two more sections are partial. They are listed as '
+              'Twenty-one more sections are partial. They are listed as '
               'partial, with what is absent written next to what is present.',
               width: 660,
             ),
@@ -877,7 +877,7 @@ Widget _featuresPage(BuildContext context) => SingleChildScrollView(
         Section(
           tint: true,
           children: <Widget>[
-            // A grid where there is room. Twenty-two full-width rows
+            // A grid where there is room. Twenty-one full-width rows
             // separated by hairlines is a list to scroll past rather than a
             // set of things to compare, and every one of them looked the
             // same as the last.
@@ -960,7 +960,7 @@ Widget _featureRow(
               // Level 2, not 3: these sit directly under the page's h1 and
               // nothing on the page is an h2, so 3 skipped a level and a
               // reader navigating by heading was told they had missed one.
-              // Without any level at all they were twenty-two paragraphs, so
+              // Without any level at all they were twenty-one paragraphs, so
               // the page had a title and no structure under it -- for a screen
               // reader moving by heading and for the crawler-visible HTML
               // alike.

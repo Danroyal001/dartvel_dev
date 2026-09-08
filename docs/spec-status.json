@@ -124,7 +124,7 @@
     {
       "section": "Scheduling",
       "stability": "Draft",
-      "status": "Partial",
+      "status": "Shipped",
       "evidence": [
         "packages/dartvel_cli/test/schedule_generation_test.dart",
         "packages/dartvel_core/lib/src/scheduling/cron.dart",

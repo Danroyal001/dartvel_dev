@@ -100,6 +100,17 @@ int main(List<String> arguments) {
       final absent = entry['absent'];
       if (absent is! String || absent.trim().isEmpty) {
         problems.add('$name: "Partial" must say what is absent.');
+      } else if (RegExp(r'Absent:\s*nothing named here', caseSensitive: false)
+          .hasMatch(absent)) {
+        // Non-empty was the whole of the old rule, and a section that closed
+        // its last gap kept saying Partial while its own prose said nothing
+        // was missing. Scheduling sat that way from the moment its client
+        // ticking landed: a check that asks whether a field has text in it
+        // cannot tell what the text says.
+        problems.add(
+          '$name: "Partial" but the entry names no absence. Promote it to '
+          '"Shipped", or say what is still missing.',
+        );
       }
     }
   }
