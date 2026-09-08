@@ -87,4 +87,80 @@ void main() {
     expect(dvStudioLayoutLabel('list'), 'Column');
     expect(dvStudioLayoutLabel('wrap'), 'Wrap');
   });
+
+  group('a wrapping row is aligned like any other', () {
+    // The alignment properties are written for every auto-layout frame, and a
+    // wrap that ignored them would be a property offered by the inspector,
+    // carried in the document and applied by nothing -- which is the failure
+    // this table was rebuilt to end. A centred row of tags is an ordinary
+    // design, and start-aligning it is a quiet, permanent difference.
+    Wrap wrapOf(WidgetTester tester) =>
+        tester.widget<Wrap>(find.byType(Wrap));
+
+    DVPageDocument wrapWith(Map<String, Object?> properties) {
+      final DVPageDocument document = DVPageDocument(route: '/tags');
+      final DVPageDocumentEditor editor = DVPageDocumentEditor(document);
+      DVPageNode box = DVPageNode.box(layout: 'wrap');
+      properties.forEach((String name, Object? value) {
+        box = box.withProperty(name, value);
+      });
+      editor.insert(box, parent: document.root.id);
+      editor.insert(DVPageNode.text('one'), parent: box.id);
+      return document;
+    }
+
+    testWidgets('the chain can centre one', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: DVBox.wrapLine(
+            <Widget>[DVText('one')],
+            align: DVAlign.center,
+          ),
+        ),
+      );
+
+      expect(wrapOf(tester).alignment, WrapAlignment.center);
+    });
+
+    testWidgets('and a document says the same thing',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DVPageDocumentRenderer(
+            wrapWith(const <String, Object?>{'mainAxis': 'center'}),
+          ),
+        ),
+      );
+
+      expect(wrapOf(tester).alignment, WrapAlignment.center);
+    });
+
+    testWidgets('the cross alignment reaches it too',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DVPageDocumentRenderer(
+            wrapWith(const <String, Object?>{'crossAxis': 'end'}),
+          ),
+        ),
+      );
+
+      expect(wrapOf(tester).crossAxisAlignment, WrapCrossAlignment.end);
+    });
+
+    testWidgets('stretch is start, because a wrap cannot stretch',
+        (WidgetTester tester) async {
+      // Every other layout defaults to stretch and a Wrap has no equivalent:
+      // its children are as wide as they are. Start is what it does, and
+      // saying so here is better than a cross alignment that silently means
+      // something else.
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: DVBox.wrapLine(<Widget>[DVText('one')]),
+        ),
+      );
+
+      expect(wrapOf(tester).crossAxisAlignment, WrapCrossAlignment.start);
+    });
+  });
 }
