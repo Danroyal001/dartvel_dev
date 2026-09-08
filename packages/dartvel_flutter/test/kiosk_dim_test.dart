@@ -32,8 +32,18 @@ Finder get dim => find.byWidgetPredicate(
       (Widget w) => w is ColoredBox && w.color == const Color(0xE6000000),
     );
 
+/// Puts the kiosk in its active state without leaving a timer running.
+///
+/// resume() starts the periodic tick, and a widget test fails on a pending
+/// timer when the body ends -- before addTearDown gets to cancel it. These
+/// tests drive tick() by hand anyway, so the timer is cancelled immediately
+/// and the state it set is what is wanted.
+Future<void> activate(DVKioskRuntime runtime) async {
+  await runtime.resume();
+  runtime.stop();
+}
+
 Future<void> pump(WidgetTester tester, DVKioskRuntime runtime) async {
-  addTearDown(runtime.stop);
   await tester.pumpWidget(
     MaterialApp(
       home: DVKioskHost(
@@ -52,7 +62,7 @@ void main() {
       (WidgetTester tester) async {
     final DVKioskRuntime kiosk = kioskThatDims();
     await pump(tester, kiosk);
-    await kiosk.resume();
+    await activate(kiosk);
     await tester.pump();
 
     expect(dim, findsNothing);
@@ -62,7 +72,7 @@ void main() {
       (WidgetTester tester) async {
     final DVKioskRuntime kiosk = kioskThatDims();
     await pump(tester, kiosk);
-    await kiosk.resume();
+    await activate(kiosk);
 
     now = now.add(const Duration(seconds: 31));
     await kiosk.tick();
@@ -78,7 +88,6 @@ void main() {
     // which is the whole problem with letting the tap through.
     bool bought = false;
     final DVKioskRuntime kiosk = kioskThatDims();
-    addTearDown(kiosk.stop);
     await tester.pumpWidget(
       MaterialApp(
         home: DVKioskHost(
@@ -93,7 +102,7 @@ void main() {
         ),
       ),
     );
-    await kiosk.resume();
+    await activate(kiosk);
     now = now.add(const Duration(seconds: 31));
     await kiosk.tick();
     await tester.pump();
@@ -119,7 +128,7 @@ void main() {
     );
     now = DateTime(2026, 1, 1, 9);
     await pump(tester, kiosk);
-    await kiosk.resume();
+    await activate(kiosk);
 
     now = now.add(const Duration(seconds: 89));
     await kiosk.tick();
