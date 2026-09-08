@@ -283,8 +283,21 @@ class ModelGenerator {
         // @DVSensitiveModelField spelling is still accepted.
         final sensitiveFieldNames = <String>{};
         // Fields opted back into generated forms with
-        // @DVModel.sensitiveField(showInForms: true). There is no generated
-        // admin view yet, so showInAdmin has nothing to gate.
+        // @DVModel.sensitiveField(showInForms: true).
+        //
+        // showInAdmin still gates nothing, and the reason has changed. It
+        // used to be that there was no generated admin; there is one now,
+        // and Model.Admin() renders this same generated form -- so a
+        // sensitive field is already excluded from the admin by the form
+        // that builds it, and showInAdmin has no separate set to gate.
+        //
+        // Making it mean something needs a second set of controls, admin
+        // only, so that a field can be visible to an operator and not in an
+        // application's own form. That is a real distinction and nobody has
+        // asked for it, so it is recorded as absent rather than guessed at:
+        // a flag that silently does what showInForms does would be worse
+        // than one that does nothing, because it would look like the
+        // narrower permission was being honoured.
         final sensitiveFormFields = <String>{};
         final sensitiveFieldRegex = RegExp(
           r'@(?:DVModel\.sensitiveField|DVSensitiveModelField)\s*\(([^)]*)\)\s*'
