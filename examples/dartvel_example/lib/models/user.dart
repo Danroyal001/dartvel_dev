@@ -1,6 +1,9 @@
 import 'package:dartvel_core/dartvel.dart';
 
-@DVModel(generatePublicPages: true)
+// The favicon these pages wear. Points at a file the example actually
+// ships, because a page wearing an icon that 404s looks exactly like a
+// page wearing none.
+@DVModel(generatePublicPages: true, favicon: '/favicon.png')
 @pragma('vm:entry-point')
 class _User {
   final String slug;

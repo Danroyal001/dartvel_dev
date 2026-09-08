@@ -152,6 +152,12 @@ class ModelGenerator {
         final schemaType = RegExp(r'''\bschemaType\s*:\s*['"]([A-Za-z0-9_]+)['"]''')
             .firstMatch(modelArgs)
             ?.group(1);
+        // The favicon this model's pages wear. A path rather than an
+        // identifier, so the pattern takes anything up to the quote that
+        // ends it.
+        final favicon = RegExp("\\bfavicon\\s*:\\s*['\"]([^'\"]+)['\"]")
+            .firstMatch(modelArgs)
+            ?.group(1);
         final tableName = '${className.toLowerCase()}s';
         // How this model's statements name their table, and where they send
         // them. An application names the table and uses the application's
@@ -578,6 +584,7 @@ class ModelGenerator {
             "    imageField: ${resolvedFeaturedImage == null ? 'null' : "'$resolvedFeaturedImage'"},\n"
             "    publishedField: ${publishedField == null ? 'null' : "'$publishedField'"},\n"
             "    schemaType: ${schemaType == null ? 'null' : "'$schemaType'"},\n"
+            "    favicon: ${favicon == null ? 'null' : "'${esc(favicon)}'"},\n"
             '  ),',
           );
           sb.writeln();

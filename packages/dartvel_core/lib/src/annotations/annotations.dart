@@ -241,6 +241,16 @@ class DVModel {
   /// than the honest general type, and search engines act on the label.
   final String? schemaType;
 
+  /// The favicon this model's generated pages wear, or null for the
+  /// application's.
+  ///
+  /// A path the application serves. Not a derivative of the featured image:
+  /// the specification asks for a resized, content-hashed one of those too,
+  /// and an unresized photograph served as a 32-pixel icon is several
+  /// hundred kilobytes on every page -- worse than the shell favicon it
+  /// would replace.
+  final String? favicon;
+
   /// Whether this model's rows belong to a tenant.
   ///
   /// On the shared-database strategy -- one database, one schema, rows
@@ -262,6 +272,7 @@ class DVModel {
     this.generatePublicPages = false,
     this.publicPathsResolver,
     this.schemaType,
+    this.favicon,
     this.tenantScoped = false,
   })  : encrypted = false,
         showInForms = false,
@@ -295,6 +306,7 @@ class DVModel {
         pageRole = null,
         pageOrderIndex = null,
         schemaType = null,
+        favicon = null,
         tenantScoped = false;
 
   /// Marks a model field for generated search indexing:
@@ -312,6 +324,7 @@ class DVModel {
         pageRole = null,
         pageOrderIndex = null,
         schemaType = null,
+        favicon = null,
         tenantScoped = false;
 
   /// Marks the field a generated model page uses as its featured image:
@@ -361,6 +374,7 @@ class DVModel {
         showInForms = false,
         showInAdmin = false,
         schemaType = null,
+        favicon = null,
         tenantScoped = false;
 }
 

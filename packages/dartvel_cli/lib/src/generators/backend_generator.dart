@@ -325,6 +325,11 @@ $openApiJson\'\'\';
     // server starts, which is why declaring either as a route middleware is
     // refused -- and until now the refusal pointed at a serve call the
     // application does not write.
+    // dartvel.seo.favicon: what a model page wears when neither the model
+    // nor its module named one. Null emits null, which leaves the shell's.
+    final String? seoFavicon = _dvSeoFavicon(root);
+    final String applicationFavicon =
+        seoFavicon == null ? 'null' : "'${esc(seoFavicon)}'";
     final DVServerOptions server = dvServerOptions(root);
     final String? corsSource = server.corsSource;
     final String corsConstant = corsSource == null ? 'null' : corsSource;
@@ -759,6 +764,10 @@ dv.Router buildBackend() => buildBackendRouter();
 final core.DVPageDataResolver dartvelPageData = core.dvModelPageResolver(
   dartvelModelPages,
   (String sql, List<Object?> params) => const core.DVDatabase().query(sql, params),
+  // The last of the specification's three fallbacks -- model, module,
+  // application. The first two are already in the spec each model carries,
+  // because a module's models are generated from the module's own project.
+  applicationFavicon: $applicationFavicon,
 );
 
 /// The CORS policy `dartvel.server.cors` configures, or null when the
@@ -2492,4 +2501,26 @@ DVServerOptions dvServerOptions(String root) {
   final Object? parsed = loadYaml(pubspec.readAsStringSync());
   if (parsed is! YamlMap) return const DVServerOptions();
   return DVServerOptions.parse(parsed['dartvel']);
+}
+
+
+/// `dartvel.seo.favicon` from pubspec.yaml, or null.
+///
+/// The application-wide fallback for a model page's icon. Read here rather
+/// than guessed from web/favicon.png, because a file that happens to exist is
+/// not a decision somebody made -- and a page that quietly wore the wrong
+/// icon would look like the feature working.
+String? _dvSeoFavicon(String root) {
+  final File pubspec = File(p.join(root, 'pubspec.yaml'));
+  if (!pubspec.existsSync()) return null;
+  final Object? parsed = loadYaml(pubspec.readAsStringSync());
+  if (parsed is! YamlMap) return null;
+  final Object? dartvel = parsed['dartvel'];
+  if (dartvel is! YamlMap) return null;
+  final Object? seo = dartvel['seo'];
+  if (seo is! YamlMap) return null;
+  final Object? favicon = seo['favicon'];
+  if (favicon == null) return null;
+  final String value = '$favicon'.trim();
+  return value.isEmpty ? null : value;
 }

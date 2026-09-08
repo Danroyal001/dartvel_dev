@@ -421,6 +421,7 @@ class DVModelPageSpec {
     this.imageField,
     this.publishedField,
     this.schemaType,
+    this.favicon,
   });
 
   final String model;
@@ -431,6 +432,20 @@ class DVModelPageSpec {
   final String? titleField;
   final List<String> contentFields;
   final String? imageField;
+
+  /// The favicon this model's pages wear, or null for the application's.
+  ///
+  /// A path, not a derivative of the featured image. The specification asks
+  /// for a resized, content-hashed one of those as well, and that is named
+  /// as absent rather than half-built: an unresized photograph served as a
+  /// 32-pixel icon is several hundred kilobytes on every page, which is
+  /// worse than the shell favicon it would replace.
+  ///
+  /// A module's models are generated from the module's own project, so the
+  /// value here is already the module's when a module declared one. The
+  /// specification's three fallbacks -- model, module, application -- are
+  /// this and then the application's.
+  final String? favicon;
   final String? publishedField;
 
   /// The schema.org type the page is, from `@DVModel(schemaType:)`. Null is
@@ -442,7 +457,11 @@ class DVModelPageSpec {
 /// The page data a model row is: the title field, the longest content
 /// field as description and text, the image, and structured data naming
 /// the record; hidden when the published field says so.
-DVPageData dvModelPageData(DVModelPageSpec spec, Map<String, Object?> row) {
+DVPageData dvModelPageData(
+  DVModelPageSpec spec,
+  Map<String, Object?> row, {
+  String? applicationFavicon,
+}) {
   String? text(Object? value) {
     if (value == null) return null;
     final String s = '$value'.trim();
@@ -462,6 +481,12 @@ DVPageData dvModelPageData(DVModelPageSpec spec, Map<String, Object?> row) {
     title: title,
     description: content,
     image: image,
+    // Never the featured image. This field was declared, emitted by the head
+    // writer, and set by nothing at all, so every model page wore the
+    // shell's icon -- and filling it with the featured image would have been
+    // worse than leaving it: a photograph at 32 pixels is the whole
+    // photograph, downloaded on every page.
+    favicon: spec.favicon ?? applicationFavicon,
     text: <String>[title, if (content != null && content != title) content],
     structuredData: <String, Object?>{
       '@context': 'https://schema.org',
@@ -479,7 +504,11 @@ typedef DVPageQuery = Future<List<Map<String, Object?>>> Function(String sql, Li
 /// A resolver over [specs]: the request's pattern names the model, the
 /// parameter names the row, [query] reads it. A row that is not there is a
 /// hidden page; a pattern no spec owns is nobody's, null.
-DVPageDataResolver dvModelPageResolver(List<DVModelPageSpec> specs, DVPageQuery query) {
+DVPageDataResolver dvModelPageResolver(
+  List<DVModelPageSpec> specs,
+  DVPageQuery query, {
+  String? applicationFavicon,
+}) {
   return (DVPageRequest request) async {
     for (final DVModelPageSpec spec in specs) {
       if (spec.route != request.pattern) continue;
@@ -495,7 +524,11 @@ DVPageDataResolver dvModelPageResolver(List<DVModelPageSpec> specs, DVPageQuery 
         <Object?>[key],
       );
       if (rows.isEmpty) return DVPageData(title: spec.model, visibility: DVPageVisibility.hidden);
-      return dvModelPageData(spec, rows.first);
+      return dvModelPageData(
+        spec,
+        rows.first,
+        applicationFavicon: applicationFavicon,
+      );
     }
     return null;
   };

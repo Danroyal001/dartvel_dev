@@ -532,4 +532,73 @@ class _Note {
       }
     });
   });
+
+  group('a model page\'s favicon', () {
+    test('a declared favicon reaches the page spec', () async {
+      // The head writer emits DVPageData.favicon and the resolver reads it
+      // from the spec, so a value that stops here is a model page wearing
+      // the shell's icon while the annotation says otherwise.
+      final root = await Directory.systemTemp.createTemp('dartvel_favicon_');
+      addTearDown(() => root.deleteSync(recursive: true));
+      Directory(p.join(root.path, 'lib', 'models')).createSync(recursive: true);
+      Directory(
+        p.join(root.path, 'lib', 'dartvel_client'),
+      ).createSync(recursive: true);
+      File(p.join(root.path, 'lib', 'models', 'product.dart'))
+          .writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVModel(generatePublicPages: true, favicon: '/icons/product.png')
+class _Product {
+  final String slug;
+  final String name;
+  const _Product({required this.slug, required this.name});
+}
+''');
+
+      await ModelGenerator.generate(
+        root: root.path,
+        pkgName: 'favicon_app',
+        buildId: 'test-build',
+      );
+
+      final String pages = File(
+        p.join(root.path, 'lib', 'dartvel_client', 'model_pages.g.dart'),
+      ).readAsStringSync();
+
+      expect(pages, contains("favicon: '/icons/product.png'"));
+    });
+
+    test('a model that declares none says so rather than nothing', () async {
+      final root = await Directory.systemTemp.createTemp('dartvel_favicon_no_');
+      addTearDown(() => root.deleteSync(recursive: true));
+      Directory(p.join(root.path, 'lib', 'models')).createSync(recursive: true);
+      Directory(
+        p.join(root.path, 'lib', 'dartvel_client'),
+      ).createSync(recursive: true);
+      File(p.join(root.path, 'lib', 'models', 'product.dart'))
+          .writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVModel(generatePublicPages: true)
+class _Product {
+  final String slug;
+  final String name;
+  const _Product({required this.slug, required this.name});
+}
+''');
+
+      await ModelGenerator.generate(
+        root: root.path,
+        pkgName: 'favicon_app',
+        buildId: 'test-build',
+      );
+
+      final String pages = File(
+        p.join(root.path, 'lib', 'dartvel_client', 'model_pages.g.dart'),
+      ).readAsStringSync();
+
+      expect(pages, contains('favicon: null'));
+    });
+  });
 }
