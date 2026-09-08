@@ -10,6 +10,7 @@ import 'package:dartvel_core/dartvel.dart'
         dvSourceDeclaresHomeWidget;
 
 import 'annotation_args.dart';
+import 'annotation_args.dart';
 import 'function_body.dart';
 import '../graph/module_mounts.dart';
 import 'route_blocks.dart';
@@ -304,6 +305,7 @@ class ClientGenerator {
           generatedWidget: _generatedPageWidgetName(className),
           pageScaffold: _pageScaffoldSpec(src),
           policy: _pagePolicy(src),
+          sitemap: _pageSitemap(src),
           route: route,
           directory: dir,
           isFunctional: isFunctional,
@@ -1063,6 +1065,25 @@ ${m.auth == 'inherit' ? inheritedGuard : ''}      pageBuilder: (context, state) 
         ? '<String>[]'
         : "<String>[\n  ${guardedRoutes.map((r) => "'${esc(r)}',").join('\n  ')}\n]";
 
+    // What each page's own `@DVPage(sitemap: ...)` said, for the build that
+    // writes sitemap.xml. Here for the same reason the guarded list is: the
+    // build cannot read a Dart annotation, and until now every route was
+    // written out as a <loc> and nothing else because nothing carried the
+    // answer across.
+    //
+    // Only the pages that said something. A route with no entry takes the
+    // project defaults, and a priority nobody asked for says the same thing
+    // as no priority at all in more bytes.
+    final sitemapEntries = <String, String>{
+      for (final e in pageEntries)
+        if (e.sitemap != null) e.route: e.sitemap!,
+    };
+    final sitemapEntriesSrc = sitemapEntries.isEmpty
+        ? '<String, DVPageSitemap>{}'
+        : '<String, DVPageSitemap>{\n'
+              '${sitemapEntries.entries.map((en) => "  '${esc(en.key)}': const ${en.value},").join('\n')}'
+              '\n}';
+
     final allRoutes = dvJoinRouteBlocks(<String>[
       routesSrc,
       modelRoutesSrc,
@@ -1245,6 +1266,13 @@ $generatedPageWidgets
 /// available to an application that wants to hide a link it would not be
 /// allowed to follow.
 const List<String> dartvelGuardedRoutes = $guardedRoutesSrc;
+
+/// What each page's `@DVPage(sitemap: ...)` said about how it should be
+/// crawled, by route.
+///
+/// Read by the build that writes sitemap.xml. A route that is not here said
+/// nothing, and takes the project's defaults.
+const Map<String, DVPageSitemap> dartvelSitemapEntries = $sitemapEntriesSrc;
 
 GoRouter createDartvelRouter({List<String> arguments = const <String>[]}) {
   configureDartvelRuntime(arguments: arguments);
@@ -2149,6 +2177,26 @@ void startDartvelKiosk() {
   /// carrying the annotation for guarding it was open to everybody.
   static String? _pagePolicy(String source) => dvPagePolicyFromSource(source);
 
+  /// The `DVPageSitemap(...)` a page declares, as written, or null.
+  ///
+  /// Re-emitted rather than rebuilt from parsed parts, so an argument the
+  /// annotation carried and this parser does not know about survives into
+  /// the router instead of being dropped on the way through. The result is
+  /// checked by the analyzer, because the router is compiled.
+  static String? _pageSitemap(String source) {
+    final String? args = dvAnnotationArgs(source, 'DVPage');
+    if (args == null) return null;
+    for (final String arg in dvSplitArgs(args)) {
+      if (!RegExp(r'^sitemap\s*:').hasMatch(arg)) continue;
+      final String value = arg.substring(arg.indexOf(':') + 1).trim();
+      if (value.isEmpty || value == 'null') return null;
+      // `const` is added where it is emitted, so a page that wrote the
+      // keyword and one that left it out produce the same constant.
+      return value.replaceFirst(RegExp(r'^const\s+'), '');
+    }
+    return null;
+  }
+
   static String _pageScaffoldSpec(String source) {
     final String? args = dvAnnotationArgs(source, 'DVPage');
     if (args == null) {
@@ -2991,6 +3039,14 @@ class _PageEntry {
   final String? loadingAlias;
   final String? errorAlias;
 
+  /// What `@DVPage(sitemap: ...)` said about this route, as the constructor
+  /// call to re-emit, or null when the page said nothing. Written into the
+  /// router because the build that writes sitemap.xml cannot read a Dart
+  /// annotation, and scraping one out of the router with a regular
+  /// expression is what published every private route the last time it was
+  /// tried.
+  final String? sitemap;
+
   const _PageEntry({
     this.policy,
     required this.importIndex,
@@ -3005,6 +3061,7 @@ class _PageEntry {
     this.body,
     this.sourceSymbols = const <String>{},
     this.text = const <String>[],
+    this.sitemap,
     this.loadingAlias,
     this.errorAlias,
   });

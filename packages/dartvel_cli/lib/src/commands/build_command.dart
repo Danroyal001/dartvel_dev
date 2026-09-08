@@ -2282,22 +2282,34 @@ class BuildCommand extends Command<void> {
     }
 
     if (siteUrl != null && siteUrl.isNotEmpty) {
-      File(p.join(web.path, 'sitemap.xml'))
-          .writeAsStringSync(dvSitemap(
-            routes: routes,
-            siteUrl: siteUrl,
-            federated: dvFederatedRoutes(root).keys.toList(),
-            guarded: dvGuardedRoutes(_routerSource(root)),
-          ));
-      File(p.join(web.path, 'robots.txt'))
-          .writeAsStringSync(dvRobots(siteUrl: siteUrl));
+      // dartvel.seo.sitemap: whether to write one at all, which routes to
+      // leave out, and what to say about a page that said nothing itself.
+      final DVSitemapConfig sitemapConfig =
+          dvSitemapConfig(_dartvelSection(root));
+      if (sitemapConfig.enabled) {
+        File(p.join(web.path, 'sitemap.xml')).writeAsStringSync(dvSitemap(
+          routes: routes,
+          siteUrl: siteUrl,
+          federated: dvFederatedRoutes(root).keys.toList(),
+          guarded: dvGuardedRoutes(_routerSource(root)),
+          entries: dvSitemapEntries(_routerSource(root)),
+          defaults: sitemapConfig.defaults,
+          exclude: sitemapConfig.exclude,
+        ));
+      }
+      File(p.join(web.path, 'robots.txt')).writeAsStringSync(
+        // A robots.txt naming a sitemap the build did not write points a
+        // crawler at a 404, which is worse than saying nothing.
+        dvRobots(siteUrl: siteUrl, sitemap: sitemapConfig.enabled),
+      );
 
       // The stylesheet the sitemap points at. A bare urlset renders as the
       // browser's XML tree view, which says nothing about the site; crawlers
       // ignore XSLT entirely. Written only when absent, so a project that
       // wants its own keeps it.
       final stylesheet = File(p.join(web.path, 'sitemap.xsl'));
-      if (!File(p.join(root, 'web', 'sitemap.xsl')).existsSync()) {
+      if (sitemapConfig.enabled &&
+          !File(p.join(root, 'web', 'sitemap.xsl')).existsSync()) {
         stylesheet.writeAsStringSync(dvSitemapStylesheet(
           siteName: settings['siteName'] as String? ?? baseTitle,
           tagline: dvSeoDescription(settings) ?? '',
@@ -2451,22 +2463,34 @@ class BuildCommand extends Command<void> {
     );
 
     if (siteUrl != null && siteUrl.isNotEmpty) {
-      File(p.join(web.path, 'sitemap.xml'))
-          .writeAsStringSync(dvSitemap(
-            routes: routes,
-            siteUrl: siteUrl,
-            federated: dvFederatedRoutes(root).keys.toList(),
-            guarded: dvGuardedRoutes(_routerSource(root)),
-          ));
-      File(p.join(web.path, 'robots.txt'))
-          .writeAsStringSync(dvRobots(siteUrl: siteUrl));
+      // dartvel.seo.sitemap: whether to write one at all, which routes to
+      // leave out, and what to say about a page that said nothing itself.
+      final DVSitemapConfig sitemapConfig =
+          dvSitemapConfig(_dartvelSection(root));
+      if (sitemapConfig.enabled) {
+        File(p.join(web.path, 'sitemap.xml')).writeAsStringSync(dvSitemap(
+          routes: routes,
+          siteUrl: siteUrl,
+          federated: dvFederatedRoutes(root).keys.toList(),
+          guarded: dvGuardedRoutes(_routerSource(root)),
+          entries: dvSitemapEntries(_routerSource(root)),
+          defaults: sitemapConfig.defaults,
+          exclude: sitemapConfig.exclude,
+        ));
+      }
+      File(p.join(web.path, 'robots.txt')).writeAsStringSync(
+        // A robots.txt naming a sitemap the build did not write points a
+        // crawler at a 404, which is worse than saying nothing.
+        dvRobots(siteUrl: siteUrl, sitemap: sitemapConfig.enabled),
+      );
 
       // The stylesheet the sitemap points at. A bare urlset renders as the
       // browser's XML tree view, which says nothing about the site; crawlers
       // ignore XSLT entirely. Written only when absent, so a project that
       // wants its own keeps it.
       final stylesheet = File(p.join(web.path, 'sitemap.xsl'));
-      if (!File(p.join(root, 'web', 'sitemap.xsl')).existsSync()) {
+      if (sitemapConfig.enabled &&
+          !File(p.join(root, 'web', 'sitemap.xsl')).existsSync()) {
         stylesheet.writeAsStringSync(dvSitemapStylesheet(
           siteName: seo['siteName'] as String? ??
               dvSeoTitle(seo, _packageName(root) ?? 'Dartvel'),

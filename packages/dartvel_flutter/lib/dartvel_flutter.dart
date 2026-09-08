@@ -114,6 +114,9 @@ export 'package:dartvel_core/dartvel.dart'
         DVLifecycleSignal,
         DVMutableLifecycleSignal,
         DVLifecycleRegistry,
+        // Sitemap tuning, named in a generated router's per-route entries
+        DVPageSitemap,
+        DVSitemapChangeFrequency,
         // Modules
         DVModule,
         DVModuleRegistry,
