@@ -76,7 +76,14 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'a box with a line right round it -- not a missing style but a wrong '
     'one, and a single hairline under a header is the commonest border '
     'there is. A document that names no side still draws all four, because '
-    'one width has always meant a box.',
+    'one width has always meant a box. A page can also name a wrapping row '
+    'now: three switches read a layout name -- the renderer, the exporter '
+    'and the builder canvas -- and a fourth list decided what anybody could '
+    'drag in, and the wrapping row was missing from all four while '
+    'DVBox.wrapLine had existed the whole time. A chip row came through as '
+    'a single row that runs off the side of a phone, and nothing said so, '
+    'because an unknown layout falls through to a column in every one of '
+    'them.',
   ),
   (
     'Routing',

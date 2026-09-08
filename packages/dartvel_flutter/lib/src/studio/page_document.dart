@@ -323,6 +323,8 @@ class DVPageDocument {
           'row' when scrolls =>
             'DVBox.horizontalScrollable($childList${_spacingArgumentSource(node.properties)})',
           'row' => 'DVBox.row($childList$layoutArgs)',
+          'wrap' =>
+            'DVBox.wrapLine($childList${_spacingArgumentSource(node.properties)})',
           'grid' =>
             'DVBox.grid($childList, columns: ${node.properties['columns'] ?? 2})',
           'stack' => 'DVBox.stack($childList)',
@@ -524,6 +526,7 @@ class DVPageDocumentRenderer extends StatelessWidget {
             DVBox.horizontalScrollable(children, spacing: spacing),
           'row' => DVBox.row(children,
               spacing: spacing, align: main, crossAlign: cross),
+          'wrap' => DVBox.wrapLine(children, spacing: spacing),
           'grid' => DVBox.grid(
               children,
               columns: (node.properties['columns'] as num?)?.toInt() ?? 2,
@@ -1121,6 +1124,35 @@ final List<DVStudioProperty> dvStudioProperties = <DVStudioProperty>[
       (m, v, p) => v == true ? m.card() : null,
       source: (v, p) => v == true ? '.card()' : null),
 ];
+
+/// Every layout a page document can name.
+///
+/// The renderer and the Dart exporter each switch over this, which is the
+/// arrangement the property table was fixed for: two lists of the same thing
+/// drift, and here the drift is silent because an unknown name falls through
+/// to a column in both. A wrapping row was missing from both while
+/// DVBox.wrapLine existed the whole time, so a chip row or a tag list -- the
+/// commonest wrapping thing in any design -- came through as a single row
+/// that runs off the side of a phone.
+const List<String> dvStudioLayouts = <String>[
+  'list',
+  'row',
+  'wrap',
+  'grid',
+  'stack',
+  'single',
+];
+
+/// What the palette calls [layout].
+///
+/// Derived rather than listed, so a layout added above appears in the palette
+/// without a second list to keep in step. Only the column needs saying: its
+/// name in a document is `list`, because it is the default and a page written
+/// before there were others has no layout at all.
+String dvStudioLayoutLabel(String layout) => switch (layout) {
+      'list' => 'Column',
+      _ => layout[0].toUpperCase() + layout.substring(1),
+    };
 
 /// The sides a border can be drawn on, one width each.
 const List<String> _borderSides = <String>[
