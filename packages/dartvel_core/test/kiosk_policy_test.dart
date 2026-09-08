@@ -226,25 +226,51 @@ void main() {
 
   group('a key nobody reads is not silently accepted', () {
     // NEW_SPEC lists routes.external, input.clipboard, input.textSelection,
-    // display.hideCursor and screenDim. The parser reads the routes, input
-    // and display maps and pulls three named children out of them, so those
-    // five are read past and dropped. An unrecognised enum value already
-    // produces a problem; an unrecognised key produced nothing, which is the
+    // display.hideCursor and screenDim. The parser read the routes, input
+    // and display maps and pulled three named children out of them, so all
+    // five were read past and dropped. An unrecognised enum value already
+    // produced a problem; an unrecognised key produced nothing, which is the
     // worse of the two failures -- the developer believes the kiosk is
     // locked down and it is not.
+    //
+    // Three of the five are built now, so what this group protects is the
+    // rule rather than the list: a key the parser does not read says so.
+    // The keys named here are the ones still unbuilt, and this file is where
+    // that has to be corrected the day one of them lands.
     test('an unparsed containment key is reported', () {
       final DVKioskPolicy policy = DVKioskPolicy.parse(
         kiosk(<String, Object?>{
           'enabled': true,
-          'input': <String, Object?>{'clipboard': 'disabled'},
+          'display': <String, Object?>{'screenDim': '5m'},
         }),
       );
 
       expect(policy.problems, isNotEmpty);
       expect(
         policy.problems.join('\n'),
-        contains('dartvel.kiosk.input.clipboard'),
+        contains('dartvel.kiosk.display.screenDim'),
       );
+    });
+
+    test('a key that is read is not reported', () {
+      // The other half of the rule, and the half that goes wrong silently:
+      // a key that does something and still says it does nothing sends
+      // somebody looking for a bug that is not there.
+      final DVKioskPolicy policy = DVKioskPolicy.parse(
+        kiosk(<String, Object?>{
+          'enabled': true,
+          'input': <String, Object?>{
+            'clipboard': 'disabled',
+            'textSelection': 'disabled',
+          },
+          'display': <String, Object?>{'hideCursor': 'always'},
+        }),
+      );
+
+      expect(policy.problems, isEmpty);
+      expect(policy.blockClipboard, isTrue);
+      expect(policy.blockTextSelection, isTrue);
+      expect(policy.hideCursor, DVKioskCursor.always);
     });
 
     test('every unparsed key is named, not just the first', () {
@@ -257,14 +283,14 @@ void main() {
           },
           'display': <String, Object?>{
             'fullscreen': true,
-            'hideCursor': 'always',
+            'screenDim': '5m',
           },
         }),
       );
 
       final String said = policy.problems.join('\n');
       expect(said, contains('dartvel.kiosk.routes.external'));
-      expect(said, contains('dartvel.kiosk.display.hideCursor'));
+      expect(said, contains('dartvel.kiosk.display.screenDim'));
       // The keys that are parsed are not reported, or the message becomes
       // noise and the real one is lost in it.
       expect(said, isNot(contains('routes.allow')));
