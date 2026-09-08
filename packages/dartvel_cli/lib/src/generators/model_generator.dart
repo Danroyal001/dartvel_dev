@@ -958,6 +958,27 @@ class ModelGenerator {
           sb.writeln('    return DVModelWatch(subscription);');
           sb.writeln('  }');
         }
+
+        // Billing metadata, so something can read what the annotation said.
+        // In the class rather than in the extension below it: a static
+        // declared in an extension is reached as ExtensionName.member and
+        // never as Model.member, so this was emitted and Product.nativePrice
+        // still did not exist.
+        //
+        // A model that is not billable says so rather than being silent,
+        // because "no answer" and "not for sale" are different and only one
+        // of them is a bug.
+        sb.writeln();
+        sb.writeln('  /// Whether [$className] is recorded as billable.');
+        sb.writeln('  static const bool billable = $billable;');
+        sb.writeln();
+        sb.writeln('  /// The price [$className] carries in the project\'s');
+        sb.writeln('  /// native currency, or null when it declares none.');
+        sb.writeln(
+          nativePrice == null
+              ? '  static const DVMoney? nativePrice = null;'
+              : "  static final DVMoney? nativePrice = DVMoney(amount: $nativePrice, currency: '$nativeCurrency');",
+        );
         sb.writeln('}');
 
         sb.writeln();
@@ -1131,21 +1152,6 @@ class ModelGenerator {
         }
 
         // Database metadata
-        sb.writeln();
-        // Billing metadata, so something can read what the annotation
-        // said. A model that is not billable says so rather than being
-        // silent about it, because "no answer" and "not for sale" are
-        // different and only one of them is a bug.
-        sb.writeln('  /// Whether [$className] is recorded as billable.');
-        sb.writeln('  static const bool billable = $billable;');
-        sb.writeln();
-        sb.writeln('  /// The price [$className] carries in the project\'s');
-        sb.writeln('  /// native currency, or null when it declares none.');
-        sb.writeln(
-          nativePrice == null
-              ? '  static const DVMoney? nativePrice = null;'
-              : "  static final DVMoney? nativePrice = DVMoney(amount: $nativePrice, currency: '$nativeCurrency');",
-        );
         sb.writeln();
         sb.writeln('  /// Database table name for [$className].');
         sb.writeln('  String get tableName => $tableExpr;');

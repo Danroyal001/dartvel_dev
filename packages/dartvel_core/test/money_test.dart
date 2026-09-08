@@ -13,20 +13,20 @@ import 'package:test/test.dart';
 void main() {
   group('what the integer counts', () {
     test('most currencies count hundredths', () {
-      expect(const DVMoney(amount: 100, currency: 'USD').toString(), '1.00 USD');
-      expect(const DVMoney(amount: 5, currency: 'EUR').toString(), '0.05 EUR');
+      expect(DVMoney(amount: 100, currency: 'USD').toString(), '1.00 USD');
+      expect(DVMoney(amount: 5, currency: 'EUR').toString(), '0.05 EUR');
     });
 
     test('yen counts yen', () {
       // 100 JPY is a hundred yen, not one. A framework that divided every
       // currency by a hundred would price a coffee at a hundredth of a yen
       // and nothing about the number would look wrong.
-      expect(const DVMoney(amount: 100, currency: 'JPY').toString(), '100 JPY');
+      expect(DVMoney(amount: 100, currency: 'JPY').toString(), '100 JPY');
     });
 
     test('dinars count thousandths', () {
       expect(
-        const DVMoney(amount: 1500, currency: 'KWD').toString(),
+        DVMoney(amount: 1500, currency: 'KWD').toString(),
         '1.500 KWD',
       );
     });
@@ -63,8 +63,8 @@ void main() {
       DVBillingRates.set(from: 'USD', to: 'EUR', rate: 0.92);
 
       expect(
-        const DVMoney(amount: 1000, currency: 'USD').inCurrency('EUR'),
-        const DVMoney(amount: 920, currency: 'EUR'),
+        DVMoney(amount: 1000, currency: 'USD').inCurrency('EUR'),
+        DVMoney(amount: 920, currency: 'EUR'),
       );
     });
 
@@ -73,7 +73,7 @@ void main() {
       DVBillingRates.set(from: 'USD', to: 'EUR', rate: 0.85);
 
       expect(
-        const DVMoney(amount: 1000, currency: 'USD').inCurrency('EUR').amount,
+        DVMoney(amount: 1000, currency: 'USD').inCurrency('EUR').amount,
         850,
       );
     });
@@ -84,7 +84,7 @@ void main() {
       // nobody configured a rate. It is a plausible number in the right
       // shape, and nothing downstream can tell it was never converted.
       expect(
-        () => const DVMoney(amount: 1000, currency: 'USD').inCurrency('JPY'),
+        () => DVMoney(amount: 1000, currency: 'USD').inCurrency('JPY'),
         throwsA(
           isA<StateError>().having(
             (StateError e) => e.message,
@@ -97,7 +97,7 @@ void main() {
 
     test('a currency converted to itself needs no rate', () {
       expect(
-        const DVMoney(amount: 1000, currency: 'USD').inCurrency('USD').amount,
+        DVMoney(amount: 1000, currency: 'USD').inCurrency('USD').amount,
         1000,
       );
     });
@@ -109,7 +109,7 @@ void main() {
       DVBillingRates.set(from: 'USD', to: 'JPY', rate: 150);
 
       expect(
-        const DVMoney(amount: 1000, currency: 'USD').inCurrency('JPY').amount,
+        DVMoney(amount: 1000, currency: 'USD').inCurrency('JPY').amount,
         1500,
       );
     });
@@ -120,7 +120,7 @@ void main() {
       DVBillingRates.set(from: 'USD', to: 'EUR', rate: 0.92);
 
       expect(
-        () => const DVMoney(amount: 100, currency: 'EUR').inCurrency('USD'),
+        () => DVMoney(amount: 100, currency: 'EUR').inCurrency('USD'),
         throwsStateError,
       );
     });
