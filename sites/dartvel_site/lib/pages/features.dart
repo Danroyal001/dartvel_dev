@@ -424,7 +424,7 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   ),
   (
     'Middleware',
-    'Ten run, tracing wraps, two guard the body, five fail the build',
+    'Ten run, tracing wraps, two guard the body, five say why not',
     'Composable middleware around backend functions, with the request '
     'lifecycle observable as a signal. The nineteen keys did nothing until '
     'recently. The annotation had one reader -- a check that the name was '
@@ -449,11 +449,30 @@ const List<(String, String, String)> partial = <(String, String, String)>[
     'tracing wraps the handler and the chain both, which is where it has to '
     'be: a request refused by a rate limit is still a request, and a trace '
     'covering only the ones that got through is a latency graph with the '
-    'slow half missing. The remaining six are implemented nowhere and fail '
-    'the build naming what '
-    'to use instead, because somebody who wrote one of them has decided '
+    'slow half missing. The remaining five fail the build naming what to '
+    'use instead, because somebody who wrote one of them has decided '
     'something is being enforced, and serving as though it were is not a '
-    'smaller failure for having been quiet about it.',
+    'smaller failure for having been quiet about it. Two of those five '
+    'now name something a developer can actually do. CORS and '
+    'compression are answered for the whole server rather than per route '
+    '-- the CORS headers go on every response including the preflight, '
+    'which never reaches a route -- and the refusal used to say to pass '
+    'them to the serve call. Nobody using Dartvel writes a serve call. '
+    'The generated backend makes it, and it read no configuration, so an '
+    'application could not set a CORS policy at all and could not turn '
+    'compression off. dartvel.server is read at build time and emitted '
+    'into that call: the origins, methods, headers, credentials and '
+    'preflight max-age of the policy, and whether responses are '
+    'compressed. Saying nothing means no CORS headers rather than '
+    'answering every origin, since that is the single setting most '
+    'likely to be wrong and a default nobody chose should not be it. A '
+    'value the build cannot honour stops the build: credentials from any '
+    'origin, which a browser refuses itself so the policy would allow '
+    'nothing; an origin written with a path or a trailing slash, which '
+    'never matches the Origin header and reads as CORS simply being '
+    'broken; and compression written as the string false, which is not '
+    'a boolean and would leave it on for somebody who wrote down that '
+    'they wanted it off.',
   ),
   (
     'Multi-tenancy',
