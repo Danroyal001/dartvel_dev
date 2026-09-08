@@ -66,18 +66,41 @@ class DVWebBindings {
   /// The captured event, kept because prompt() has to be called on it.
   static web.Event? _deferred;
 
-  /// Shows the browser prompt, from a user gesture.
-  static Future<void> showInstallPrompt() async {
+  /// Shows the browser prompt from a user gesture, and waits for the answer.
+  ///
+  /// Returns `accepted` or `dismissed`, which is what the browser calls them.
+  /// Waiting is the whole point: prompt() only opens the dialog, and the
+  /// choice arrives on userChoice afterwards. Returning without it reported
+  /// an acceptance whatever the person at the screen chose.
+  static Future<String> showInstallPrompt() async {
     final web.Event? event = _deferred;
-    if (event == null) return;
+    // Nothing was shown, so nobody accepted anything.
+    if (event == null) return 'dismissed';
     _deferred = null;
-    (event as JSObject).callMethod<JSAny?>('prompt'.toJS);
+
+    final JSObject deferred = event as JSObject;
+    deferred.callMethod<JSAny?>('prompt'.toJS);
+
+    final JSAny? choice = deferred.getProperty<JSAny?>('userChoice'.toJS);
+    // A browser that fired beforeinstallprompt always has it; a polyfill or
+    // an older engine might not, and guessing acceptance there would install
+    // nothing and say it had.
+    if (choice == null) return 'dismissed';
+
+    final JSObject result = await (choice as JSPromise<JSObject>).toDart;
+    final JSAny? outcome = result.getProperty<JSAny?>('outcome'.toJS);
+    return outcome == null ? 'dismissed' : (outcome as JSString).toDart;
   }
 
   static bool register() {
     if (_registered) return true;
 
     _wireInstallPrompt();
+
+    // The prompt itself. This binding existed and was called by nothing, so
+    // DVInstallPrompt.show() flipped its own flags and never opened the
+    // browser's dialog at all.
+    DVNativeBridge.register('install.prompt', (Object? _) => showInstallPrompt());
 
     DVNativeBridge.register('clipboard.copy', (Object? arguments) async {
       final text = arguments is Map ? '${arguments['text'] ?? ''}' : '';
