@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '../generators/annotation_args.dart';
 import '../generators/route_utils.dart';
 
 /// A versioned description of what an application is made of.
@@ -169,7 +170,13 @@ class DartvelProjectGraph {
   );
 
   static List<DVGraphRoute> _routesIn(String source, String rel) {
-    final Match? match = _pagePattern.firstMatch(source);
+    // Matched against a copy whose annotation arguments are blanked to
+    // spaces, because this pattern steps over `@DVPage(...)` to reach the
+    // function under it and `[^)]*` stops inside a nested call -- so a page
+    // declaring `sitemap: DVPageSitemap(...)` was not in the graph at all,
+    // and the admin dashboard and the studio both simply did not show it.
+    final Match? match =
+        _pagePattern.firstMatch(dvMaskAnnotationArgs(source, 'DVPage'));
     if (match == null) return const <DVGraphRoute>[];
     // Routes are derived from the file's location, never written out as a
     // string: a repeated route drifts the moment the page file moves.
