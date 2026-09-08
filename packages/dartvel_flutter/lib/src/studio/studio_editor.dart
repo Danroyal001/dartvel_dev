@@ -202,22 +202,21 @@ class DVStudioPaletteItem {
   static List<DVStudioPaletteItem> get defaults => <DVStudioPaletteItem>[
         for (final leaf in dvStudioLeafTypes)
           DVStudioPaletteItem(label: leaf.label, create: leaf.create),
-        DVStudioPaletteItem(
-          label: 'Column',
-          create: () => DVPageNode.box(),
-        ),
-        DVStudioPaletteItem(
-          label: 'Row',
-          create: () => DVPageNode.box(layout: 'row'),
-        ),
-        DVStudioPaletteItem(
-          label: 'Grid',
-          create: () => DVPageNode.box(layout: 'grid'),
-        ),
-        DVStudioPaletteItem(
-          label: 'Stack',
-          create: () => DVPageNode.box(layout: 'stack'),
-        ),
+        // Built from dvStudioLayouts for the reason the leaves above are
+        // built from dvStudioLeafTypes: four hand-written entries are a
+        // fourth list of the same thing, and the wrapping row was missing
+        // from every one of them.
+        //
+        // `single` is left out on purpose. It is what a box with one child
+        // already is rather than something anybody drags in, and a palette
+        // entry for it would create a box that behaves like a column with a
+        // different name.
+        for (final String layout in dvStudioLayouts)
+          if (layout != 'single')
+            DVStudioPaletteItem(
+              label: dvStudioLayoutLabel(layout),
+              create: () => DVPageNode.box(layout: layout),
+            ),
       ];
 }
 
@@ -341,8 +340,12 @@ class _DVStudioCanvasState extends State<DVStudioCanvas> {
     final children = <Widget>[
       for (final child in node.children) _buildNode(child),
     ];
+    // The third reader of a layout name, after the renderer and the Dart
+    // exporter. A name handled in two of the three is a box that previews one
+    // way on the canvas and another when the page runs.
     return switch (node.layout) {
       'row' => DVBox.row(children),
+      'wrap' => DVBox.wrapLine(children),
       'grid' => DVBox.grid(
           children,
           columns: (node.properties['columns'] as num?)?.toInt() ?? 2,
