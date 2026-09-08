@@ -27,6 +27,10 @@ class ModelGenerator {
     // backslash is glob's escape character. p.join here matched nothing on
     // Windows, so models.g.dart came out empty and every model type was
     // undefined hundreds of lines away.
+    // The currency every declared nativePrice is in. Read once: a model
+    // cannot have its own, because a catalogue priced in three currencies is
+    // three numbers nobody can add together.
+    final String? nativeCurrency = _nativeCurrency(root);
     final glob = Glob('lib/models/**.dart');
     final files = <File>[];
     if (modelsDir.existsSync()) {
@@ -173,6 +177,48 @@ class ModelGenerator {
         // this is opt-in at all.
         final bool tenantScoped =
             RegExp(r'\btenantScoped\s*:\s*true\b').hasMatch(modelArgs);
+
+        // billable and nativePrice, which the specification writes as
+        //
+        //     @DVModel(billable: true, nativePrice: 100)
+        //
+        // and which were read by nothing. Both were declared on the
+        // annotation and unit tested for holding the value they were given,
+        // so a model marked billable generated exactly what an unbillable
+        // one did and 100 was a number in a file.
+        final bool billable =
+            RegExp(r'\bbillable\s*:\s*true\b').hasMatch(modelArgs);
+        final RegExpMatch? priceMatch =
+            RegExp(r'\bnativePrice\s*:\s*(-?\d+)').firstMatch(modelArgs);
+        final int? nativePrice =
+            priceMatch == null ? null : int.parse(priceMatch.group(1)!);
+
+        if (nativePrice != null && !billable) {
+          // Silently ignoring it means a price that never applies, on a
+          // model somebody priced deliberately.
+          throw StateError(
+            'Dartvel: $sourceClassName declares nativePrice but not '
+            'billable: true. A price on a model nothing can charge for is '
+            'never read. Add billable: true, or remove the price.',
+          );
+        }
+        if (nativePrice != null && nativePrice < 0) {
+          throw StateError(
+            'Dartvel: $sourceClassName declares a negative nativePrice. A '
+            'price is what something costs; a refund is a different '
+            'operation.',
+          );
+        }
+        if (nativePrice != null && nativeCurrency == null) {
+          // A hundred of what? Emitting a price under a guessed currency is
+          // the failure that looks exactly like the feature working.
+          throw StateError(
+            'Dartvel: $sourceClassName declares nativePrice: $nativePrice '
+            'and the project sets no dartvel.nativeCurrency, so there is no '
+            'currency for it to be in. Add nativeCurrency: USD (or whichever '
+            'it is) under the dartvel: key in pubspec.yaml.',
+          );
+        }
 
         // Field annotations stack: a field can carry both
         // @DVModel.sensitiveField() and @DVModel.searchableField(), and a
@@ -1085,6 +1131,21 @@ class ModelGenerator {
         }
 
         // Database metadata
+        sb.writeln();
+        // Billing metadata, so something can read what the annotation
+        // said. A model that is not billable says so rather than being
+        // silent about it, because "no answer" and "not for sale" are
+        // different and only one of them is a bug.
+        sb.writeln('  /// Whether [$className] is recorded as billable.');
+        sb.writeln('  static const bool billable = $billable;');
+        sb.writeln();
+        sb.writeln('  /// The price [$className] carries in the project\'s');
+        sb.writeln('  /// native currency, or null when it declares none.');
+        sb.writeln(
+          nativePrice == null
+              ? '  static const DVMoney? nativePrice = null;'
+              : "  static final DVMoney? nativePrice = DVMoney(amount: $nativePrice, currency: '$nativeCurrency');",
+        );
         sb.writeln();
         sb.writeln('  /// Database table name for [$className].');
         sb.writeln('  String get tableName => $tableExpr;');
@@ -2184,6 +2245,32 @@ class ModelGenerator {
     if (id == null) return null;
     final String value = '$id'.trim();
     return value.isEmpty ? null : value;
+  }
+
+  /// `dartvel.nativeCurrency`, upper-cased, or null.
+  ///
+  /// The specification: "Native prices use the nativeCurrency setting under
+  /// the dartvel: pubspec key". A model declaring a price without it is
+  /// refused rather than given a guessed currency, because a hundred of the
+  /// wrong currency is a plausible number that nothing downstream can catch.
+  static String? _nativeCurrency(String root) {
+    final File pubspec = File(p.join(root, 'pubspec.yaml'));
+    if (!pubspec.existsSync()) return null;
+    final Object? loaded = loadYaml(pubspec.readAsStringSync());
+    if (loaded is! YamlMap) return null;
+    final Object? dartvel = loaded['dartvel'];
+    if (dartvel is! YamlMap) return null;
+    final Object? currency = dartvel['nativeCurrency'];
+    if (currency == null) return null;
+    final String value = '$currency'.trim().toUpperCase();
+    if (value.isEmpty) return null;
+    if (!RegExp(r'^[A-Z]{3}$').hasMatch(value)) {
+      throw StateError(
+        'Dartvel: dartvel.nativeCurrency is "$currency", which is not an ISO '
+        '4217 code. It is three letters -- USD, EUR, JPY.',
+      );
+    }
+    return value;
   }
 
   /// Renders `dartvel.search` from pubspec.yaml as a const DVSearchTuning.

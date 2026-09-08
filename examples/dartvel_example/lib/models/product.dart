@@ -12,7 +12,15 @@ import 'package:dartvel_core/dartvel.dart';
 /// The route is still the model's own, so it is never written out as a string
 /// here — a route repeated in an annotation drifts silently the moment the page
 /// file moves.
-@DVModel(publicPathsResolver: productPaths)
+/// Priced, so the generator has a billable model to emit and a compiler
+/// has one to read. The price is in the project's dartvel.nativeCurrency;
+/// a model declaring one without that setting fails the build, because a
+/// hundred of a guessed currency is a plausible number nothing catches.
+@DVModel(
+  publicPathsResolver: productPaths,
+  billable: true,
+  nativePrice: 2499,
+)
 @pragma('vm:entry-point')
 class _Product {
   final String slug;
