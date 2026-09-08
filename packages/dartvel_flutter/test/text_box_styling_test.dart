@@ -127,4 +127,23 @@ void main() {
     await tester.pumpAndSettle(const Duration(seconds: 3));
     expect(find.text('section'), findsOneWidget);
   });
+
+  testWidgets('a centred heading is centred', (WidgetTester tester) async {
+    // The fifth place this cost something, and the one with a claim attached
+    // to it: a page document says a text node is centred with `align`, that
+    // becomes DVModifier.align, and DVText looked straight past it. So every
+    // centred heading in every imported design came through left-aligned
+    // while the feature list said centred text survives the import.
+    await pump(
+      tester,
+      const DVText('Centred').modifier(
+        const DVModifier().align(Alignment.center),
+      ),
+    );
+
+    expect(
+      tester.widget<Container>(find.byType(Container)).alignment,
+      Alignment.center,
+    );
+  });
 }
