@@ -367,15 +367,14 @@ Future<void> main(List<String> arguments) async {
           'adb', <String>['shell', 'dumpsys', 'activity', 'activities']);
       final DVLockTaskState seen = dvLockTaskState('${dump.stdout}');
       samples.add(seen);
-      keptDump ??= '${dump.stdout}';
+      // The newest reading, until one sees the lock and freezes it. A dump
+      // from before the test installed anything is the least useful there
+      // is, and the first reading is exactly that.
+      if (!keptShowsLock) keptDump = '${dump.stdout}';
       if (seen == DVLockTaskState.locked || seen == DVLockTaskState.pinned) {
-        // A reading that saw the lock beats one that did not, and the first
-        // such reading is the one that caught it going on -- kept rather
-        // than replaced by every reading after it.
-        if (!keptShowsLock) {
-          keptDump = '${dump.stdout}';
-          keptShowsLock = true;
-        }
+        // A reading that saw the lock beats every reading that did not, and
+        // the first such reading is the one that caught it going on.
+        keptShowsLock = true;
         File('$_diag/android-lock-task.log').writeAsStringSync(
           const LineSplitter()
               .convert('${dump.stdout}')
@@ -430,8 +429,8 @@ Future<void> main(List<String> arguments) async {
     // because there was something to show. The case where the application
     // says it held the kiosk and Android says it did not -- which is this
     // job's whole question -- saved neither, so the answer had to be guessed
-    // from a one-line summary. It stopped being a guess the moment somebody
-    // could read what dumpsys actually printed.
+    // from a one-line summary.
+    //
     // A reading from while the test was running, not a fresh one: asking the
     // device now is asking it after it let go, which is the mistake the
     // sampling exists to avoid.
