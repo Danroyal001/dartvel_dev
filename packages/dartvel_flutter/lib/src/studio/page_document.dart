@@ -1044,6 +1044,34 @@ final List<DVStudioProperty> dvStudioProperties = <DVStudioProperty>[
         v is num && v != 0 ? '.rotate(${v.toDouble()})' : null,
   ),
   DVStudioProperty(
+    'blur',
+    DVStudioPropertyKind.number,
+    (m, v, p) {
+      // Zero is not a blur. A filter layer costs what a real blur costs and
+      // changes no pixel, and a design exported with nought is saying it does
+      // not blur rather than asking for that. A negative one is not a blur
+      // either: ImageFilter.blur asserts on it, which would take the whole
+      // page down over a number a document can easily carry.
+      if (v is! num || v <= 0) return null;
+      return m.blur(v.toDouble());
+    },
+    source: (v, p) =>
+        v is num && v > 0 ? '.blur(${v.toDouble()})' : null,
+  ),
+  DVStudioProperty(
+    'backdropBlur',
+    DVStudioPropertyKind.number,
+    (m, v, p) {
+      // The other blur, kept separate for the reason the modifier keeps them
+      // separate: this one leaves the layer sharp and softens what shows
+      // through it, which is a frosted card rather than a soft-focus shape.
+      if (v is! num || v <= 0) return null;
+      return m.backdropBlur(v.toDouble());
+    },
+    source: (v, p) =>
+        v is num && v > 0 ? '.backdropBlur(${v.toDouble()})' : null,
+  ),
+  DVStudioProperty(
     'decoration',
     DVStudioPropertyKind.choice,
     (m, v, p) => switch (v) {

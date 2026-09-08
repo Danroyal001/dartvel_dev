@@ -40,7 +40,17 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'and strikes the same run is a real design and two flags cannot say it. '
     'Text nobody decorated carries no decoration at all rather than '
     'TextDecoration.none, which would override an underline an enclosing '
-    'theme asked for.',
+    'theme asked for. A box can be blurred now, and could not: a soft-focus '
+    'shape rendered sharp, and a frosted card over a photograph rendered as '
+    'a flat translucent panel. Two methods rather than one, because they '
+    'are not the same picture -- blur softens the box and what is in it, '
+    'backdropBlur leaves it sharp and softens whatever shows through, which '
+    'is the whole of the frosted effect. The unit is a standard deviation, '
+    'the one ImageFilter.blur and CSS both take, and Figma writes the '
+    'number from its Layer blur straight into blur(Npx), so the value a '
+    'designer typed is the value everywhere. A background blur is bounded '
+    'by the box, since an unclipped one blurs the whole screen behind it '
+    'and nothing points at the card that asked for it.',
   ),
   (
     'Routing',
