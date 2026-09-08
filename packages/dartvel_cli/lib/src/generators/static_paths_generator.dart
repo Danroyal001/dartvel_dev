@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'annotation_args.dart';
 import 'package:path/path.dart' as p;
 
 /// A discovered source of static paths for a parameterized model route.
@@ -96,8 +97,18 @@ class StaticPathsGenerator {
       if (content.contains('@DVModel') &&
           (content.contains('generatePublicPages') ||
               content.contains('publicPathsResolver'))) {
-        for (final match in _modelRegex.allMatches(content)) {
-          final args = match.group(1) ?? '';
+      // Blanked annotation arguments: `[^)]*` stops at the first close
+      // parenthesis and a string argument can contain one. The model
+      // generator masks the same way, and the two disagreeing is a model
+      // whose static paths are silently not generated.
+        final masked = dvMaskAnnotationArgs(content, 'DVModel');
+        for (final match in _modelRegex.allMatches(masked)) {
+          // Out of the original, not the masked copy: the copy is only
+          // there so the pattern can step over the annotation, and its
+          // arguments are spaces. Offsets are the same in both.
+          final args =
+              dvAnnotationArgs(content.substring(match.start), 'DVModel') ??
+                  '';
           final resolver = _resolverArgRegex.firstMatch(args)?.group(1);
           final generates =
               RegExp(r'\bgeneratePublicPages\s*:\s*true\b').hasMatch(args);

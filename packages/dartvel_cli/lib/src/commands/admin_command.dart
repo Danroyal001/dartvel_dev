@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import '../generators/annotation_args.dart';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
@@ -143,7 +144,13 @@ class DartvelAdminGenerator {
     final names = <String>{};
     for (final entity in modelsDir.listSync(recursive: true)) {
       if (entity is! File || !entity.path.endsWith('.dart')) continue;
-      for (final match in pattern.allMatches(entity.readAsStringSync())) {
+    // Blanked annotation arguments, because `[^)]*` stops at the first
+    // close parenthesis and a string argument can contain one. The model
+    // generator masks the same way, and a model this misses while the
+    // generator finds it is a table in the database with no row here.
+      for (final match in pattern.allMatches(
+        dvMaskAnnotationArgs(entity.readAsStringSync(), 'DVModel'),
+      )) {
         names.add(match.group(1)!);
       }
     }
