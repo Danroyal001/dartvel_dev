@@ -35,7 +35,9 @@ void main() {
     await pump(
       tester,
       const DVText('on a chip')
-          .modifier(const DVModifier().backgroundColor(Color(0xFF112233))),
+          .modifier(
+            const DVModifier().backgroundColor(const Color(0xFF112233)),
+          ),
     );
 
     final BoxDecoration decoration = tester
@@ -65,7 +67,8 @@ void main() {
     int taps = 0;
     await pump(
       tester,
-      DVText('Close').modifier(DVModifier().padding(6).onTap(() => taps++)),
+      const DVText('Close')
+          .modifier(const DVModifier().padding(6).onTap(() => taps++)),
     );
 
     await tester.tap(find.text('Close'));
