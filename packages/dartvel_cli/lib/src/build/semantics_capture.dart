@@ -135,6 +135,10 @@ Future<int> dvCaptureSemantics({
   try {
     browser = await puppeteer.launch(
       headless: true,
+      // The browser this machine already has. Without it puppeteer goes
+      // looking for one of its own and reports a crash when it cannot get
+      // it, which is how a build failed on a machine with Chrome installed.
+      executablePath: dvSystemChrome(),
       args: dvChromeLaunchArgs,
     );
   } on Object catch (error) {

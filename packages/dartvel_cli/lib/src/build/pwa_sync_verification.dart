@@ -75,7 +75,7 @@ Future<DVPwaSyncResult> dvVerifyPwaSync({
   try {
     browser = await puppeteer.launch(
       headless: true,
-      executablePath: chromePath ?? _systemChrome(),
+      executablePath: chromePath ?? dvSystemChrome(),
       args: dvChromeLaunchArgs,
     );
   } on Object catch (error) {
@@ -149,20 +149,3 @@ Future<DVPwaSyncResult> dvVerifyPwaSync({
   }
 }
 
-/// A system Chrome, when one is installed, so nothing is downloaded on a
-/// machine that already has a browser.
-String? _systemChrome() {
-  final String? env = Platform.environment['DARTVEL_CHROME'];
-  if (env != null && env.isNotEmpty) return env;
-  for (final String candidate in <String>[
-    '/usr/bin/google-chrome',
-    '/usr/bin/google-chrome-stable',
-    '/usr/bin/chromium',
-    '/usr/bin/chromium-browser',
-    '/opt/google/chrome/chrome',
-    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-  ]) {
-    if (File(candidate).existsSync()) return candidate;
-  }
-  return null;
-}
