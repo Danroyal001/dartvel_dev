@@ -43,6 +43,11 @@ const Set<String> dvNativeBindingNames = <String>{
   'haptics.impact',
   'haptics.lightVibrate',
   'haptics.vibrate',
+  // The browser's own install dialog. Web only, and the reason it exists is
+  // that the answer has to come back: prompt() opens the dialog and the
+  // choice arrives afterwards, so an application that did not wait reported
+  // an acceptance whatever the person at the screen chose.
+  'install.prompt',
   'media.pick',
   'notifications.sendLocal',
   'permissions.isGranted',
