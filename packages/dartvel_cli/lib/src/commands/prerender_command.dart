@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 import 'package:puppeteer/puppeteer.dart';
 
 import '../utils/logger.dart';
+import '../build/chrome_launch.dart';
 
 class PrerenderCommand extends Command<void> {
   @override
@@ -47,7 +48,7 @@ class PrerenderCommand extends Command<void> {
     // Launch headless browser
     final browser = await puppeteer.launch(
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      args: dvChromeLaunchArgs,
     );
 
     try {
