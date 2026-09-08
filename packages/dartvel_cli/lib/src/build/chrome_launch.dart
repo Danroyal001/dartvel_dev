@@ -5,6 +5,8 @@
 /// others.
 library;
 
+import 'dart:io';
+
 /// Flags for a headless Chrome, in the environments this actually runs in.
 ///
 /// `--no-sandbox` and `--disable-setuid-sandbox` are the usual pair for a
@@ -29,3 +31,36 @@ const List<String> dvChromeLaunchArgs = <String>[
   '--disable-setuid-sandbox',
   '--disable-dev-shm-usage',
 ];
+
+/// A system Chrome, when one is installed, so nothing is downloaded on a
+/// machine that already has a browser.
+///
+/// The semantics capture did not ask for one. It called `puppeteer.launch`
+/// with no executable at all, so puppeteer went looking for a copy of its own
+/// -- and when it could not get one it failed with "Websocket url not found",
+/// which reads as a browser that crashed rather than one that was never
+/// there. `dartvel build web` then refused to ship pages with no
+/// crawler-visible content, on a machine with a working Chrome at
+/// /usr/bin/google-chrome.
+///
+/// [environment] is injectable so the precedence can be tested without
+/// setting a variable on the process running the test.
+String? dvSystemChrome({Map<String, String>? environment}) {
+  final Map<String, String> env = environment ?? Platform.environment;
+  final String? named = env['DARTVEL_CHROME'];
+  // Empty is not a path. An unset variable and one set to nothing arrive
+  // here the same way in a shell, and treating '' as an executable makes
+  // puppeteer fail with something that names neither.
+  if (named != null && named.isNotEmpty) return named;
+  for (final String candidate in <String>[
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    '/opt/google/chrome/chrome',
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  ]) {
+    if (File(candidate).existsSync()) return candidate;
+  }
+  return null;
+}
