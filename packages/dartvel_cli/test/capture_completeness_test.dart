@@ -50,4 +50,55 @@ void main() {
     // Defensive: a miscount must not fail a build that captured everything.
     expect(dvVerifyCapture(captured: 5, expected: 4).ok, isTrue);
   });
+
+  // A machine with no browser is not a machine under load.
+  //
+  // Both came back as "captured 0", so both failed the build -- and one of
+  // them cannot be fixed by rerunning or by freeing memory, which is what the
+  // message told people to do. A slim CI image, a Docker build stage and a
+  // locked-down laptop have no Chrome and never will, and refusing there
+  // makes `dartvel build web` a command that only runs where somebody has
+  // already installed a browser.
+  //
+  // The capture is worth failing for when a browser ran and came back short,
+  // because that is resource pressure and rerunning does fix it. It is not
+  // worth failing for when there was never a browser: the build still writes
+  // every page, the crawler-visible HTML is the weaker page-text form rather
+  // than nothing, and the way to improve it is a command on another machine.
+  group('no browser at all', () {
+    test('is not a failure', () {
+      final DVCaptureVerdict v =
+          dvVerifyCapture(captured: 0, expected: 4, browserAvailable: false);
+      expect(v.ok, isTrue);
+    });
+
+    test('still says so, because the pages are weaker for it', () {
+      final DVCaptureVerdict v =
+          dvVerifyCapture(captured: 0, expected: 4, browserAvailable: false);
+      expect(v.message, isNotNull);
+      expect(v.message, contains('prerender'));
+    });
+
+    test('does not tell anyone to free memory they have plenty of', () {
+      final DVCaptureVerdict v =
+          dvVerifyCapture(captured: 0, expected: 4, browserAvailable: false);
+      expect(v.message, isNot(contains('resource pressure')));
+      expect(v.message, isNot(contains('rerun')));
+    });
+
+    // The distinction has to be the browser, not the count. A browser that
+    // launched and captured nothing is the failure this check exists for.
+    test('a browser that captured nothing is still a failure', () {
+      final DVCaptureVerdict v =
+          dvVerifyCapture(captured: 0, expected: 4, browserAvailable: true);
+      expect(v.ok, isFalse);
+      expect(v.message, contains('resource pressure'));
+    });
+
+    test('a browser is assumed when nothing says otherwise', () {
+      // The existing callers pass no such flag, and the safe reading of
+      // silence is the strict one.
+      expect(dvVerifyCapture(captured: 0, expected: 4).ok, isFalse);
+    });
+  });
 }
