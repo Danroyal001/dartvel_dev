@@ -412,13 +412,30 @@ class DVBackendFunction {
 /// Annotation for a Backend Cron Job
 class DVBackendCron {
   final String cron;
-  const DVBackendCron(this.cron);
+
+  /// Whether the occurrences missed while the process was down are run when
+  /// it comes back.
+  ///
+  /// Null is not false: it is this schedule saying nothing, which lets the
+  /// application's own blanket setting decide. A schedule that writes false
+  /// has decided for itself and wins over that -- a nightly digest sent four
+  /// times the morning a server comes back is worse than one digest missed.
+  /// True is right for work that writes a row per period, where a missing
+  /// period is a hole in the data.
+  final bool? catchUp;
+
+  const DVBackendCron(this.cron, {this.catchUp});
 }
 
 /// Annotation for a Client Cron Job
 class DVClientCron {
   final String cron;
-  const DVClientCron(this.cron);
+
+  /// See [DVBackendCron.catchUp]. A phone is closed far more often than a
+  /// server is down, so the blanket default matters more here.
+  final bool? catchUp;
+
+  const DVClientCron(this.cron, {this.catchUp});
 }
 
 /// Annotation for a durable background job.

@@ -110,6 +110,11 @@ class DVScheduler {
   ///
   /// This is how a schedule declared with `@DVClientCron` reaches the
   /// scheduler without the application copying the expression out by hand.
+  ///
+  /// [catchUp] is the blanket setting, and a schedule that stated one of its
+  /// own wins over it. An application that turns catch-up on has decided
+  /// about the schedules that said nothing; a schedule that wrote it down
+  /// had already decided about itself.
   void registerAll(
     List<DVCronEntry> entries, {
     required Map<String, Future<void> Function()> handlers,
@@ -127,7 +132,12 @@ class DVScheduler {
               '(declared in ${entry.filePath})',
         );
       }
-      register(entry.name, entry.cron, handler, catchUp: catchUp);
+      register(
+        entry.name,
+        entry.cron,
+        handler,
+        catchUp: entry.catchUp ?? catchUp,
+      );
     }
   }
 
