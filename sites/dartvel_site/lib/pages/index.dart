@@ -336,9 +336,13 @@ Widget _fromDesign(BuildContext context) => const Section(
           SiteCard(
             'It arrives as layout',
             'Auto-layout becomes rows and lists with the designer\'s own '
-            'spacing and alignment. Padding keeps all four sides. A frame '
-            'placed by hand keeps its coordinates, relative to the frame it '
-            'sits in rather than to the artboard it was drawn on.',
+            'spacing and alignment, and a row that wraps becomes one that '
+            'wraps -- a tag list read as a plain row looks right at the '
+            'width it was drawn at and runs off the side of a phone. '
+            'Padding keeps all four sides. A frame placed by hand keeps its '
+            'coordinates, relative to the frame it sits in rather than to '
+            'the artboard it was drawn on, and a frame that crops its '
+            'content crops it.',
           ),
           SiteCard(
             'And as the design',
@@ -350,6 +354,11 @@ Widget _fromDesign(BuildContext context) => const Section(
             'frosted card keeps the blur behind it rather than in front of '
             'it, which is the difference between the effect and a flat '
             'translucent panel. '
+            'A stroke on one side is a rule on one side, not a box: an '
+            'underline beneath a header is the commonest border there is, '
+            'and read as a single weight it came through drawn right round. '
+            'An image is painted like every other layer, so a round avatar '
+            'arrives round rather than as a square photograph. '
             'A node keeps the size it was drawn at only where the '
             'designer fixed it, so the result is not pinned to the width of '
             'the artboard.',
