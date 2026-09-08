@@ -91,7 +91,7 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
   ),
   (
     'SEO',
-    'Head tags and prerendering',
+    'Head tags, prerendering and a sitemap that says something',
     'dartvel build web writes the title, description, canonical, Open Graph '
     'and Twitter tags from configuration, and prerendered routes carry '
     'semantic content for crawlers. The sitemap leaves out routes the '
@@ -99,9 +99,24 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'reading path literals out of the generated router, and a pattern that '
     'matches a path cannot see the guard three lines under it, so every '
     'private route was published. The generator now writes down which '
-    'routes it guards and the build reads that instead of guessing. '
-    'Per-route sitemap tuning is not built -- priority and change frequency '
-    'appear in the specification and in no Dart file.',
+    'routes it guards and the build reads that instead of guessing. A page '
+    'tunes its own entry with @DVPage(sitemap: DVPageSitemap(priority: 0.8, '
+    'changeFrequency: DVSitemapChangeFrequency.daily)), and the project '
+    'sets the rest under dartvel.seo.sitemap: whether to write the file at '
+    'all, which paths to exclude, and the defaults for a page that said '
+    'nothing. A page overrides those field by field, so saying only that it '
+    'changes daily keeps the project\'s priority. A route neither of them '
+    'mentions stays a bare URL, because a priority nobody asked for says '
+    'the same thing as none and a crawler cannot tell it was invented; a '
+    'priority outside 0 to 1 or a changefreq that is not one of the seven '
+    'words sitemaps.org defines is refused rather than clamped or dropped, '
+    'since a crawler discards the whole entry when a child will not '
+    'validate. Adding that argument also found something worse: it is a '
+    'call, and every parser of @DVPage(...) here stopped at the first close '
+    'parenthesis, so a page carrying it was not discovered at all and its '
+    'route was missing from the router on a build that succeeded -- and a '
+    'policy written after it was not read, which generates a guarded page '
+    'open.',
   ),
   (
     'AI',
