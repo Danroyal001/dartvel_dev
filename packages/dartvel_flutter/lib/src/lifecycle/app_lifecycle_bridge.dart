@@ -60,18 +60,26 @@ _DVAppLifecycleObserver? _observer;
 /// Idempotent. A second observer over the same binding would report every
 /// transition twice, and a listener counting them would see each state
 /// arrive as many times as something called this.
+///
+/// Ensures the binding rather than assuming it. The generated runtime calls
+/// this from configureDartvelRuntime, which runs while the router is being
+/// built -- before runApp, and therefore before runApp would have
+/// initialised anything. Reading WidgetsBinding.instance there throws, the
+/// application never reaches its first frame, and what that looked like was
+/// a site build capturing nothing: "Captured 0 of 4 routes", reported as
+/// resource pressure because that is the usual cause.
 void dvStartAppLifecycleBridge() {
   if (_observer != null) return;
   final _DVAppLifecycleObserver observer = _DVAppLifecycleObserver();
   _observer = observer;
-  WidgetsBinding.instance.addObserver(observer);
+  WidgetsFlutterBinding.ensureInitialized().addObserver(observer);
 }
 
 /// Stops reporting. For tests, and for a host that owns the binding itself.
 void dvStopAppLifecycleBridge() {
   final _DVAppLifecycleObserver? observer = _observer;
   if (observer == null) return;
-  WidgetsBinding.instance.removeObserver(observer);
+  WidgetsFlutterBinding.ensureInitialized().removeObserver(observer);
   _observer = null;
 }
 
