@@ -2119,16 +2119,27 @@ class BuildCommand extends Command<void> {
     if (routes.isEmpty) return;
 
     Logger.log('   Reading the semantics tree for ${routes.length} routes...');
-    final int captured = await dvCaptureSemantics(
+    final DVCaptureRun run = await dvCaptureSemantics(
       projectRoot: root,
       webRoot: web.path,
       routes: routes,
     );
-    final verdict =
-        dvVerifyCapture(captured: captured, expected: routes.length);
+    final verdict = dvVerifyCapture(
+      captured: run.captured,
+      expected: routes.length,
+      browserAvailable: run.browserAvailable,
+    );
     if (verdict.ok) {
-      Logger.log('   Captured $captured of ${routes.length}.');
-      _auditAccessibility(root, routes);
+      if (verdict.message != null) {
+        // Built, and worse for it. Loud enough to notice, not fatal: there is
+        // nothing on this machine to fix.
+        Logger.log('   ⚠ ${verdict.message}');
+      } else {
+        Logger.log('   Captured ${run.captured} of ${routes.length}.');
+      }
+      // Only when there is a tree to judge. An accessibility audit of the
+      // page-text fallback would report the fallback, not the application.
+      if (run.browserAvailable) _auditAccessibility(root, routes);
       return;
     }
 
