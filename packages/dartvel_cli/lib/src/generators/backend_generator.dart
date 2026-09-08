@@ -13,6 +13,7 @@ import 'package:glob/glob.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
+import '../build/server_options.dart';
 import '../graph/module_mounts.dart';
 import '../utils/helpers.dart';
 import '../utils/logger.dart';
@@ -319,6 +320,15 @@ $openApiJson\'\'\';
     // runtime where the server starts. Emitted only when the project set
     // one: a route declaring the key without it never gets this far, because
     // the middleware validator refuses that build.
+    // dartvel.server: the CORS policy this application answers with and
+    // whether responses are compressed. Both are decided once, where the
+    // server starts, which is why declaring either as a route middleware is
+    // refused -- and until now the refusal pointed at a serve call the
+    // application does not write.
+    final DVServerOptions server = dvServerOptions(root);
+    final String? corsSource = server.corsSource;
+    final String corsConstant = corsSource == null ? 'null' : corsSource;
+    final String compressionLiteral = server.compression ? 'true' : 'false';
     final String? csp = _dvContentSecurityPolicy(root);
     final String cspAssignment = csp == null
         ? ''
@@ -751,12 +761,26 @@ final core.DVPageDataResolver dartvelPageData = core.dvModelPageResolver(
   (String sql, List<Object?> params) => const core.DVDatabase().query(sql, params),
 );
 
+/// The CORS policy `dartvel.server.cors` configures, or null when the
+/// project named none -- which means no CORS headers rather than "allow
+/// everything". A server that answers every origin is the single setting
+/// most likely to be wrong, and defaulting to it would put it on every
+/// application that never thought about the question.
+const dv.CorsOptions? dartvelConfiguredCors = $corsConstant;
+
+/// Whether responses are compressed, from `dartvel.server.compression`.
+const bool dartvelCompression = $compressionLiteral;
+
 /// Starts the backend. With [spaRoot], the built site is served beside the
 /// API and each page assembled on request from the web-server manifest and
 /// the model's data. With [pageStore] -- any cache adapter, so Redis where
 /// the deployment has one -- the assembled pages are kept there rather than
 /// in this process, and a second instance serves what the first resolved.
-Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls, bool h2c = false, dv.CorsOptions? cors, String? spaRoot, core.DVCacheAdapter? pageStore}) {
+///
+/// [cors] and [compression] override the configuration for a caller that
+/// passes them; a generated entrypoint passes neither, so what an
+/// application gets is what `dartvel.server` says.
+Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls, bool h2c = false, dv.CorsOptions? cors, String? spaRoot, core.DVCacheAdapter? pageStore, bool? compression}) {
   // The modules this application mounts, before anything is served. The
   // registry decides where a schema-isolated module's tables are and which
   // database its models use, and a backend that registered nothing saw
@@ -778,7 +802,11 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   final router = buildBackendRouter();
   final bindHost = host ?? cfg.backendHost;
   final bindPort = port ?? cfg.backendPort;
-  return dv.serve(router.call, host: bindHost, port: bindPort, tls: tls, h2c: h2c, cors: cors, spaRoot: spaRoot, pageData: dartvelPageData, pageStore: pageStore);
+  // A caller's argument wins over the configuration, so a test or a
+  // second entrypoint can still override either; the configuration is
+  // what an application gets when it says nothing here, which is what
+  // every generated entrypoint does.
+  return dv.serve(router.call, host: bindHost, port: bindPort, tls: tls, h2c: h2c, cors: cors ?? dartvelConfiguredCors, spaRoot: spaRoot, pageData: dartvelPageData, pageStore: pageStore, compression: compression ?? dartvelCompression);
 }
 ''';
     File(p.join(backendOut.path, 'dartvel_backend_routes.g.dart'))
@@ -2448,4 +2476,20 @@ String? _dvContentSecurityPolicy(String root) {
   final Object? csp = security['csp'];
   if (csp is! String || csp.trim().isEmpty) return null;
   return csp.trim();
+}
+
+/// `dartvel.server` from pubspec.yaml.
+///
+/// Read at generation time and emitted into `startBackend`, because that is
+/// the only serve call a Dartvel application has. The refusal for
+/// `DVMiddlewares.cors` used to say "pass cors: to the serve call", which
+/// was advice nobody could take: the generated entrypoint made that call and
+/// read no configuration, so an application could not set a CORS policy at
+/// all and could not turn compression off.
+DVServerOptions dvServerOptions(String root) {
+  final File pubspec = File(p.join(root, 'pubspec.yaml'));
+  if (!pubspec.existsSync()) return const DVServerOptions();
+  final Object? parsed = loadYaml(pubspec.readAsStringSync());
+  if (parsed is! YamlMap) return const DVServerOptions();
+  return DVServerOptions.parse(parsed['dartvel']);
 }

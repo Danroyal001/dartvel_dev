@@ -67,6 +67,18 @@ dartvel:
   devBackendHost: http://localhost:3000
   prodBackendHost: https://api.example.com
 
+  # Decided once, where the server starts, which is why declaring either
+  # as a route middleware is refused. Here so the generated backend
+  # emits a real policy and a compiler reads it: an empty section would
+  # emit null and prove nothing.
+  server:
+    cors:
+      origins: [https://app.example.com]
+      methods: [GET, POST]
+      allowCredentials: true
+      maxAge: 10m
+    compression: true
+
   # A module mounted at /notes: its own /:id answers at /notes/:id here, and
   # its pages are in this application's route index and sitemap.
   modules:
