@@ -142,7 +142,13 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'instead. A method that takes a different model than the one '
     'the annotation names stops the build: it would register the check '
     'under that other model, leaving the annotated one failing closed while '
-    'the other is opened by a policy nobody wrote for it.',
+    'the other is opened by a policy nobody wrote for it. What a generated '
+    'admin does not yet do is ask before it draws New and Delete: it draws '
+    'them and deletes the row. That one is named rather than half-built, '
+    'because the check needs a user and there are two notions of one here '
+    'that nobody has reconciled -- the session user and the model a policy '
+    'is written against -- and handing the wrong one to a check would throw '
+    'where a refusal belongs, which is worse than the gap.',
   ),
   (
     'Theme',
