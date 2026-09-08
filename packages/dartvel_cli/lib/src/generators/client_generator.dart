@@ -529,9 +529,13 @@ ${_sharedStoreTuningSource(dv)}${_deviceKioskInstallSource(dv)}
   dartvelStartClientSchedules();
 
   // Every @DVPolicy class, registered before a page can ask whether to draw
-  // an action. Registered on both sides rather than only the server: a
-  // generated table hides a button the policy denies, and a client that
-  // registered nothing would hide every one of them.
+  // an action. The client is where they are read: a generated table hides a
+  // button the policy denies, and a client that registered nothing would
+  // hide every one of them. The generated server does not register them --
+  // a policy is written against the application's models, those are reached
+  // through the generated barrel, and that barrel exports the router and the
+  // widgets, so importing one into a process with no dart:ui compiles
+  // Flutter into it.
   dartvelRegisterPolicies();
 
   // Reads stored Studio documents into memory so an override resolves during
