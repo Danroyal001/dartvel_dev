@@ -66,6 +66,28 @@ void main(List<String> arguments) {
     }
   }
 
+  // Everywhere else with a suite. The matrix is how packages are run; a site
+  // is one job with its own working directory, and the rule is the same --
+  // a suite nobody runs is a green build that checked nothing. The site had
+  // five test files and no job ran any of them, including the one that
+  // renders every page at every size a device comes in, so a layout that
+  // overflowed on every phone sat green for as long as it took somebody to
+  // run it by hand.
+  int elsewhere = 0;
+  for (final String root in const <String>['sites']) {
+    final Directory directory = Directory(root);
+    if (!directory.existsSync()) continue;
+    for (final FileSystemEntity entity in directory.listSync()) {
+      if (entity is! Directory) continue;
+      if (!_hasTests(Directory('${entity.path}/test'))) continue;
+      elsewhere++;
+      final String name = entity.path.split(Platform.pathSeparator).last;
+      if (!_runsTestsIn(workflow.readAsStringSync(), '$root/$name')) {
+        problems.add('$root/$name has a suite and no job runs it.');
+      }
+    }
+  }
+
   if (problems.isNotEmpty) {
     stderr.writeln('test-matrix: ${problems.length} problem(s)');
     for (final String problem in problems) {
@@ -78,8 +100,9 @@ void main(List<String> arguments) {
     exit(1);
   }
 
-  stdout.writeln('test-matrix: ${withSuites.length} packages with suites, '
-      'every one of them run by a job, and every job a package that is here.');
+  stdout.writeln('test-matrix: ${withSuites.length} packages and $elsewhere '
+      'other directories with suites, every one of them run by a job, and '
+      'every job a package that is here.');
 }
 
 /// The `package:` values of the test matrix's `include:` entries.
@@ -88,6 +111,24 @@ Set<String> _matrixPackages(String yaml) => <String>{
           in RegExp(r'-\s*\{\s*package:\s*([A-Za-z0-9_]+)').allMatches(yaml))
         match.group(1)!,
     };
+
+/// Whether the workflow runs a test command in [path].
+///
+/// Line-based rather than a YAML parse, because the shape being checked is a
+/// step: a working directory and, near it, a command that runs tests. Reading
+/// the file as YAML would be more correct and would need a parser this check
+/// deliberately does not have -- it imports only dart: libraries so it can run
+/// without package resolution.
+bool _runsTestsIn(String yaml, String path) {
+  final List<String> lines = yaml.split('\n');
+  for (int i = 0; i < lines.length; i++) {
+    if (!lines[i].contains('working-directory: $path')) continue;
+    for (int j = i; j < lines.length && j < i + 6; j++) {
+      if (RegExp(r'run:.*(flutter|dart) test').hasMatch(lines[j])) return true;
+    }
+  }
+  return false;
+}
 
 /// Whether [directory] holds at least one test.
 ///
