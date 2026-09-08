@@ -161,8 +161,13 @@ class ModelGenerator {
         // The same table, as a Dart expression rather than a fragment of a
         // SQL string: a spec field and a getter need the value, not an
         // interpolation.
+        // The plain name here, not the tenant-resolved one. This value is
+        // stored -- in a const page-spec list and in a getter -- and a
+        // resolved name that is stored is the first tenant's answer handed
+        // to everybody afterwards, which is a worse leak than not resolving
+        // it at all. The page resolver resolves it per request instead.
         final String tableExpr = ownModuleId == null
-            ? "dvTenantTable('$tableName')"
+            ? "'$tableName'"
             : "_dvModule.table('$tableName')";
         final String dbRef =
             ownModuleId == null ? 'const DVDatabase()' : '_dvModule.database';
