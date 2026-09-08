@@ -63,6 +63,23 @@ void main() {
     expect(held.notificationsSuppressed, isTrue,
         reason: 'lock task closes the notification shade; if it is not held, '
             'the enforcement result printed above says why');
+
+    // Held long enough for the platform to be seen holding it.
+    //
+    // The emulator step is the second opinion this test leans on, and it
+    // reads `dumpsys activity` on a timer -- half a second apart, plus
+    // however long adb takes to answer. Everything above happens in a few
+    // milliseconds and the tear-down releases straight after, so the window
+    // in which Android is actually locked was shorter than the gap between
+    // two readings: the sampler could sample for half a minute and never
+    // once look while the kiosk was on.
+    //
+    // That reports NONE whether the kiosk worked or not, which is the exact
+    // ambiguity the sampling was added to remove, and it is a coin toss
+    // rather than a check -- it came up heads for a while and has come up
+    // tails since. Three seconds is several readings inside the hold, so a
+    // NONE after this is Android saying no rather than nobody having looked.
+    await Future<void>.delayed(const Duration(seconds: 3));
   });
 
   testWidgets('releasing it lets go', (WidgetTester tester) async {
