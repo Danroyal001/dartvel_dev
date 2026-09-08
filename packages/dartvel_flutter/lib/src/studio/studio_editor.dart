@@ -337,22 +337,31 @@ class _DVStudioCanvasState extends State<DVStudioCanvas> {
   }
 
   Widget _buildContainer(DVPageNode node) {
-    final children = <Widget>[
-      for (final child in node.children) _buildNode(child),
+    // A stack's children name where they sit, the same way they do when the
+    // page runs. Without it a screen of hand-placed elements is a heap in the
+    // corner of the canvas and a design once it ships.
+    final bool places = node.layout == 'stack';
+    final List<Widget> children = <Widget>[
+      for (final DVPageNode child in node.children)
+        places
+            ? dvStudioPlace(child.properties, _buildNode(child))
+            : _buildNode(child),
     ];
-    // The third reader of a layout name, after the renderer and the Dart
-    // exporter. A name handled in two of the three is a box that previews one
-    // way on the canvas and another when the page runs.
-    return switch (node.layout) {
-      'row' => DVBox.row(children),
-      'wrap' => DVBox.wrapLine(children),
-      'grid' => DVBox.grid(
-          children,
-          columns: (node.properties['columns'] as num?)?.toInt() ?? 2,
-        ),
-      'stack' => DVBox.stack(children),
-      _ => DVBox.list(children),
-    };
+
+    // Drawn by the same two functions the page uses. This used to be a third
+    // switch over the layout name and nothing else -- no padding, no
+    // background, no radius, no spacing, no alignment -- so a card was a bare
+    // column while somebody was styling it and a card once the page ran, and
+    // the person styling it could not see what they were doing.
+    //
+    // The styling travels and the behaviour does not: a canvas that navigates
+    // away when somebody taps the card they are editing is worse than one
+    // that shows the card unstyled.
+    return dvStudioStyled(
+      node,
+      dvStudioLayoutBox(node, children),
+      withAction: false,
+    );
   }
 }
 

@@ -425,7 +425,13 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
   (
     'Dartvel Studio',
     'Visual builder, exports to code',
-    'Pages are built from the same widgets the app renders, with drag-and-drop, '
+    'Pages are built from the same widgets the app renders, and the canvas '
+    'they are built on draws them the way the page will -- which it did not: '
+    'it laid its boxes out itself and styled none of them, so a card was a '
+    'bare column while somebody was styling it and a card once the page ran. '
+    'The styling travels to the canvas and the behaviour does not, because a '
+    'canvas that navigates away when you tap the card you are editing is '
+    'worse than one that shows it unstyled. With drag-and-drop, '
     'an inspector, undo, mobile-first breakpoints and one-click export to an '
     'ordinary @DVPage. A box carries how its children sit in it -- the gap '
     'between them and how they align along each axis -- so a design with '
