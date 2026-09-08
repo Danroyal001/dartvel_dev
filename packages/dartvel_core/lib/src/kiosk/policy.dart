@@ -30,6 +30,36 @@ enum DVKioskExitMethod { none, pin, gesturePin, adminAuth, remote, hardwareCombo
 /// What a session reset clears.
 enum DVKioskClearable { signals, forms, sharedStore, auth, clientCache }
 
+/// Whether a kiosk shows a pointer.
+enum DVKioskCursor {
+  /// Hidden when no pointing device is attached, which is what the
+  /// specification's "touch-only" means in the only terms a running
+  /// application can check.
+  auto,
+
+  /// Hidden whatever is attached. An operator who wrote this has a reason --
+  /// a projected display, a screen that gets photographed -- and a mouse
+  /// plugged in to service the machine should not undo it.
+  always,
+
+  /// Left alone.
+  never,
+}
+
+/// Whether the pointer is hidden, given the mode and the hardware.
+///
+/// Separate from the widget that applies it so the decision can be tested
+/// without one, and so the two cannot disagree.
+bool dvKioskHidesCursor(
+  DVKioskCursor mode, {
+  required bool mouseConnected,
+}) =>
+    switch (mode) {
+      DVKioskCursor.always => true,
+      DVKioskCursor.never => false,
+      DVKioskCursor.auto => !mouseConnected,
+    };
+
 /// One kiosk's declared policy.
 ///
 /// Never throws on bad input: a policy that cannot be read has to report what
@@ -46,6 +76,7 @@ class DVKioskPolicy {
     required this.blockShortcuts,
     required this.blockClipboard,
     required this.blockTextSelection,
+    required this.hideCursor,
     required this.idleTimeout,
     required this.idleWarning,
     required this.onIdle,
@@ -95,6 +126,16 @@ class DVKioskPolicy {
   /// and a deployment that has locked selection has not left the question
   /// open to each page.
   final bool blockTextSelection;
+
+  /// Whether the pointer is hidden over the application, from
+  /// `display.hideCursor`.
+  ///
+  /// `auto` is the specification's default and means touch-only, which
+  /// cannot be read off the build target: a kiosk on a Linux box with a
+  /// touchscreen is a desktop build, and a tablet in a keyboard case has a
+  /// trackpad. Whether a pointing device is attached is the question the
+  /// mode is actually asking, so that is the question it asks.
+  final DVKioskCursor hideCursor;
 
   final Duration idleTimeout;
   final Duration idleWarning;
@@ -204,11 +245,11 @@ class DVKioskPolicy {
     // A key this parser does not read is reported rather than dropped.
     //
     // The specification describes more containment than is built --
-    // routes.external, display.hideCursor and display.screenDim, each of
-    // which still needs something underneath it -- and every one of the five
-    // was read straight past. input.clipboard and input.textSelection are
-    // built now: they are the two Dartvel can honour on its own, in Dart,
-    // with no platform binding.
+    // routes.external and display.screenDim, each of which still needs
+    // something underneath it -- and every one of the five was read straight
+    // past. input.clipboard, input.textSelection and display.hideCursor are
+    // built now: the three Dartvel can honour on its own, in Dart, with no
+    // platform binding.
     // An unrecognised enum value has always produced a problem here; an
     // unrecognised key produced nothing, and that is the worse of the two.
     // Somebody who writes `input.clipboard: disabled` into a kiosk has
@@ -252,7 +293,13 @@ class DVKioskPolicy {
       'idleWarning',
       'clearOnReset',
     });
-    unread('dartvel.kiosk.display', display, const <String>{'fullscreen'});
+    unread('dartvel.kiosk.display', display, const <String>{
+      'fullscreen',
+      // Read now. screenDim is still unbuilt and still reports: it wants
+      // a backlight, and an overlay drawn over the application is a
+      // different thing wearing the same name.
+      'hideCursor',
+    });
     unread('dartvel.kiosk.exit', exit, const <String>{
       'method',
       'pin',
@@ -379,6 +426,17 @@ class DVKioskPolicy {
       // automatically a device where nothing can be selected.
       blockClipboard: _blocks(input['clipboard'], false),
       blockTextSelection: _blocks(input['textSelection'], false),
+      hideCursor: _enum<DVKioskCursor>(
+        display['hideCursor'],
+        const <String, DVKioskCursor>{
+          'auto': DVKioskCursor.auto,
+          'always': DVKioskCursor.always,
+          'never': DVKioskCursor.never,
+        },
+        DVKioskCursor.auto,
+        'dartvel.kiosk.display.hideCursor',
+        problems,
+      ),
       idleTimeout: idleTimeout,
       idleWarning: idleWarning,
       onIdle: _enum<DVKioskIdleAction>(

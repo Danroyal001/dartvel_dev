@@ -8,7 +8,8 @@
 // operator why instead of an attract loop that keeps dying.
 import 'dart:async';
 
-import 'package:dartvel_core/dartvel.dart' show DVKioskReset, DVKioskRuntime;
+import 'package:dartvel_core/dartvel.dart'
+    show DVKioskCursor, DVKioskReset, DVKioskRuntime, dvKioskHidesCursor;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -54,6 +55,13 @@ class _DVKioskHostState extends State<DVKioskHost> {
     // Every key, whatever has focus: the host is not in the focus chain of
     // a page that holds it, and activity is activity.
     HardwareKeyboard.instance.addHandler(_onKey);
+    // Whether a pointing device is attached, which is what hideCursor: auto
+    // is asking. It changes while the application runs -- an engineer plugs
+    // a mouse into a kiosk to service it -- so it is listened to rather than
+    // read once at start.
+    if (widget.runtime.policy.hideCursor == DVKioskCursor.auto) {
+      WidgetsBinding.instance.mouseTracker.addListener(_changed);
+    }
   }
 
   bool _onKey(KeyEvent event) {
@@ -73,6 +81,9 @@ class _DVKioskHostState extends State<DVKioskHost> {
   @override
   void dispose() {
     HardwareKeyboard.instance.removeHandler(_onKey);
+    if (widget.runtime.policy.hideCursor == DVKioskCursor.auto) {
+      WidgetsBinding.instance.mouseTracker.removeListener(_changed);
+    }
     _unlisten(widget.runtime);
     DVKioskHost.restartLoop.removeListener(_changed);
     super.dispose();
@@ -108,7 +119,17 @@ class _DVKioskHostState extends State<DVKioskHost> {
     if (loop != null) return DVKioskDiagnosticsScreen(finding: loop);
     if (!widget.runtime.policy.enabled) return widget.child;
     final Duration? left = widget.runtime.countdown.value;
-    return Listener(
+    // A pointer nobody can move is what a touchscreen kiosk shows when the
+    // cursor is left on: it sits where the last mouse left it and reads as a
+    // frozen screen. Hidden over the application's own surface, which under a
+    // device-scope kiosk is the whole display -- and said as that rather than
+    // as hiding the system cursor, which would need a binding this does not
+    // have.
+    final bool hideCursor = dvKioskHidesCursor(
+      widget.runtime.policy.hideCursor,
+      mouseConnected: WidgetsBinding.instance.mouseTracker.mouseIsConnected,
+    );
+    final Widget body = Listener(
       behavior: HitTestBehavior.translucent,
       onPointerDown: (_) => widget.runtime.touch(),
       onPointerMove: (_) => widget.runtime.touch(),
@@ -126,6 +147,12 @@ class _DVKioskHostState extends State<DVKioskHost> {
         ],
       ),
     );
+    // A MouseRegion rather than a platform call: this is the half Flutter
+    // owns, it works on every target that has a pointer at all, and it needs
+    // no binding that could be missing.
+    return hideCursor
+        ? MouseRegion(cursor: SystemMouseCursors.none, child: body)
+        : body;
   }
 }
 

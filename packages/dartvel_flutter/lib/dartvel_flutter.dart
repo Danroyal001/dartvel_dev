@@ -75,6 +75,16 @@ export 'package:dartvel_core/dartvel.dart'
         DVFormControlsFactory,
         DVHttpAIAdapter,
         DVJsonCodec,
+        // Kiosk containment: what a policy denies, and the decision
+        // behind hiding the pointer. An application observes these; the
+        // host applies them.
+        DVKioskCursor,
+        dvKioskHidesCursor,
+        dvKioskBlocksClipboard,
+        dvKioskBlocksTextSelection,
+        dvApplyKioskContainment,
+        dvResetKioskContainment,
+        dvRefuseIfClipboardBlocked,
         DVKioskEnforcement,
         DVKioskExitRequest,
         DVKioskExitResult,
