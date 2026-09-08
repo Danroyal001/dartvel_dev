@@ -65,6 +65,16 @@ dartvel:
       compiled or served.
     siteUrl: https://dartvel.dev
     siteName: Dartvel
+
+    # What a page that says nothing about itself gets, and what is left
+    # out entirely. A page overrides these field by field, so /features
+    # keeps its own priority and its own frequency.
+    sitemap:
+      enabled: true
+      exclude: [/__admin/**]
+      defaults:
+        priority: 0.5
+        changeFrequency: monthly
     image: icons/Icon-512.png
 
   pwa:

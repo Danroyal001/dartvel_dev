@@ -613,7 +613,22 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   ),
 ];
 
-@DVPage(title: 'Features — Dartvel', showAppBar: false)
+// Tuned, so the whole chain runs on a real project rather than only in a
+// test: the annotation, the constant the generator writes into the
+// router, the build that reads it back, and the <priority> and
+// <changefreq> in build/web/sitemap.xml that CI then asserts.
+//
+// This file also describes the annotation in prose, a few hundred lines
+// up, which is the shape that broke the parser once: it searched for the
+// first @DVPage( in the file and found the paragraph.
+@DVPage(
+  title: 'Features — Dartvel',
+  showAppBar: false,
+  sitemap: DVPageSitemap(
+    priority: 0.8,
+    changeFrequency: DVSitemapChangeFrequency.weekly,
+  ),
+)
 @pragma('vm:entry-point')
 Widget _featuresPage(BuildContext context) => SingleChildScrollView(
       child: DVBox.list(<Widget>[
