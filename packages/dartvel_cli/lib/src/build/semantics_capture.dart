@@ -16,6 +16,7 @@ import 'package:shelf_static/shelf_static.dart';
 
 import '../utils/logger.dart';
 import 'chrome_launch.dart';
+import 'capture_completeness.dart';
 
 /// Walks `flt-semantics-host` and reports the structure, not Flutter's DOM.
 ///
@@ -123,13 +124,15 @@ shelf.Handler dvCaptureHandler(String webRoot) {
   };
 }
 
-Future<int> dvCaptureSemantics({
+Future<DVCaptureRun> dvCaptureSemantics({
   required String projectRoot,
   required String webRoot,
   required List<String> routes,
   Duration settle = const Duration(seconds: 20),
 }) async {
-  if (routes.isEmpty) return 0;
+  if (routes.isEmpty) {
+    return const DVCaptureRun(captured: 0, browserAvailable: true);
+  }
 
   Browser? browser;
   try {
@@ -148,7 +151,10 @@ Future<int> dvCaptureSemantics({
     Logger.log('   No browser for the semantics capture ($error).');
     Logger.log('   Falling back to page text; run `dartvel prerender` on a '
         'machine with Chrome for headings, links and landmarks.');
-    return 0;
+    // Said out loud and then honoured. This used to promise a fallback and
+    // then fail the build anyway, which made the message a lie on every
+    // machine without Chrome.
+    return const DVCaptureRun(captured: 0, browserAvailable: false);
   }
 
   final HttpServer server = await shelf_io.serve(
@@ -201,5 +207,5 @@ Future<int> dvCaptureSemantics({
     }
   }
 
-  return captured;
+  return DVCaptureRun(captured: captured, browserAvailable: true);
 }
