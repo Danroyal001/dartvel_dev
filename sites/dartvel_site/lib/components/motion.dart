@@ -34,7 +34,7 @@ Widget _countUp(
       .fontSize(size)
       .fontWeight(FontWeight.w800)
       .color(color)
-      .height(1.05);
+      .lineHeight(1.05);
 
   // Not a whole number, or reduced motion: show it and stop.
   if (target == null || context.screen.reducedMotion) {
