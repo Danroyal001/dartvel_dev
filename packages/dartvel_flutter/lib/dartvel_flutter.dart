@@ -1441,6 +1441,17 @@ class DVBox<T> extends StatelessWidget {
     final Duration? animate = m?.animateDuration;
     final bool animating = animate != null && !context.screen.reducedMotion;
 
+    // Clipped to its own corners where it has any, and not otherwise. The
+    // radius used to reach the decoration and nothing else, so a box drew
+    // rounded corners and its child squared them off again. With a flat
+    // colour nobody notices, because the decoration is the only thing painted
+    // there; with a photograph everybody does, and every circular avatar in
+    // every imported design came through as a square photograph inside a
+    // rounded outline. A clip on every box in the application, for the
+    // corners most of them do not round, is the cost this condition keeps
+    // off.
+    final Clip clip = m?.borderRadius != null ? Clip.antiAlias : Clip.none;
+
     Widget result = animating
         ? AnimatedContainer(
             duration: animate,
@@ -1451,6 +1462,7 @@ class DVBox<T> extends StatelessWidget {
             margin: m?.marginValue,
             padding: m?.paddingValue,
             decoration: decoration,
+            clipBehavior: clip,
             child: content,
           )
         : Container(
@@ -1460,6 +1472,7 @@ class DVBox<T> extends StatelessWidget {
             margin: m?.marginValue,
             padding: m?.paddingValue,
             decoration: decoration,
+            clipBehavior: clip,
             child: content,
           );
 
