@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630" role="img" aria-label="Dartvel — Flutter, full stack.">
+  <title>Dartvel — Flutter, full stack.</title>
+  <defs>
+    <linearGradient id="svg1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7A3BFF"/><stop offset="0.55" stop-color="#2F6BFF"/><stop offset="1" stop-color="#1FB6F5"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#2F6BFF" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#2F6BFF" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="svc"><path clip-rule="evenodd" d="M112 100 H256 C336 100 400 170 400 256 C400 342 336 412 256 412 H112 Z M176 170 H256 L320 256 L256 342 H176 L240 256 Z"/></clipPath>
+  </defs>
+  <rect width="1200" height="630" fill="#0B1020"/>
+  <ellipse cx="600" cy="290" rx="640" ry="420" fill="url(#glow)"/>
+  <g transform="translate(192,173) scale(0.75)">
+    <g transform="translate(-112,-100)">
+      <path fill="url(#svg1)" fill-rule="evenodd" d="M112 100 H256 C336 100 400 170 400 256 C400 342 336 412 256 412 H112 Z M176 170 H256 L320 256 L256 342 H176 L240 256 Z"/>
+      <g clip-path="url(#svc)"><polygon points="112,412 400,140 512,140 512,512 112,512" fill="#0B1020" opacity="0.20"/></g>
+    </g>
+  </g>
+  <g transform="translate(478,225) scale(0.78)">
+    <g fill="none" stroke="#F2F5FA" stroke-width="24" stroke-linecap="round" stroke-linejoin="round">
+      <g transform="translate(20,12)">
+        <g><circle cx="54" cy="96" r="36"/><path d="M102 12 V132"/></g>
+        <g transform="translate(134,0)"><circle cx="54" cy="96" r="36"/><path d="M102 60 V132"/></g>
+        <g transform="translate(268,0)"><path d="M12 60 V132"/><path d="M12 92 A 38 38 0 0 1 54 60"/></g>
+        <g transform="translate(340,0)"><path d="M36 30 V106 A 26 26 0 0 0 62 132"/><path d="M10 60 H64"/></g>
+        <g transform="translate(424,0)"><path d="M12 60 L42 132 L72 60"/></g>
+        <g transform="translate(510,0)"><path d="M18 96 L90 96 A 36 36 0 1 0 66 130"/></g>
+        <g transform="translate(632,0)"><path d="M12 12 V132"/></g>
+      </g>
+    </g>
+  </g>
+  <text x="600" y="486" fill="#9AA7BD" text-anchor="middle"
+        font-family="Nimbus Sans, Liberation Sans, Helvetica, Arial, sans-serif"
+        font-size="32" letter-spacing="1">Flutter, full stack.</text>
+</svg>

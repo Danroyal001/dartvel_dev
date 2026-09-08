@@ -75,7 +75,10 @@ dartvel:
       defaults:
         priority: 0.5
         changeFrequency: monthly
-    image: icons/Icon-512.png
+    # A landscape card, not the app icon. A square 512 is what a link
+    # preview crops to a thumbnail; 1200 by 630 is the size every one of
+    # them actually lays out for.
+    image: social-card.png
 
   pwa:
     enabled: true
