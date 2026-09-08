@@ -628,6 +628,21 @@ class DVModifier {
     bool? inputObscureText,
     ValueChanged<String>? inputChanged,
   }) {
+    assert(
+      _heightIsABox(
+        heightValue ?? this.heightValue,
+        fontSizeValue ?? this.fontSizeValue,
+        fontWeightValue ?? this.fontWeightValue,
+        letterSpacingValue ?? this.letterSpacingValue,
+        fontFamilyValue ?? this.fontFamilyValue,
+      ),
+      'height(${heightValue ?? this.heightValue}) on a modifier that also '
+      'styles text. height() is the box, in points, and no text fits in a box '
+      'that is under three of them -- so this is a line height, and the '
+      'method for that is lineHeight(). Written as a height it does not '
+      'overflow and it does not warn: the box is exactly the size it was '
+      'told to be, and the words are clipped away inside it.',
+    );
     return DVModifier(
       paddingValue: paddingValue ?? this.paddingValue,
       marginValue: marginValue ?? this.marginValue,
@@ -760,6 +775,28 @@ class DVModifier {
   /// Flutter's own unit, and the one that survives a change of size: a
   /// design says 24 on a 16 and means one and a half.
   DVModifier lineHeight(double value) => _copyWith(lineHeightValue: value);
+
+  /// Whether a height on this modifier is plausibly a box rather than a line
+  /// height that went to the wrong method.
+  ///
+  /// The test is not "is it small". A rule, a divider and a progress track
+  /// are all a box one or two points tall and are all perfectly ordinary --
+  /// and none of them chooses a font. It is the pair that is impossible: a
+  /// modifier that sets a typeface, a size, a weight or a letter spacing, and
+  /// then asks for a box too short to put a single line of it in.
+  static bool _heightIsABox(
+    double? height,
+    double? fontSize,
+    FontWeight? fontWeight,
+    double? letterSpacing,
+    String? fontFamily,
+  ) {
+    if (height == null || height >= 3) return true;
+    return fontSize == null &&
+        fontWeight == null &&
+        letterSpacing == null &&
+        fontFamily == null;
+  }
 
   /// The most lines the text may take.
   ///
@@ -992,6 +1029,12 @@ class DVModifier {
         inputChanged: other.inputChanged ?? inputChanged,
       );
 
+  /// The box's height in points.
+  ///
+  /// Not the line height. `lineHeight()` is the multiple of the font size
+  /// that spaces lines apart, and the two are a keystroke apart: the site
+  /// wrote `height(1.06)` on its own h1 and laid a 54 point headline into a
+  /// box one point tall, which clips in silence.
   DVModifier height(double value) => _copyWith(heightValue: value);
 
   DVModifier align(AlignmentGeometry value) => _copyWith(alignmentValue: value);
