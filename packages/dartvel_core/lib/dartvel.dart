@@ -135,12 +135,22 @@ class DVCronEntry {
   final String importUri;
   final String filePath;
 
+  /// What the schedule itself said about catch-up, or null if it said
+  /// nothing.
+  ///
+  /// Nullable rather than defaulted so a schedule that wrote false can be
+  /// told from one that wrote nothing: the first has decided, and must win
+  /// over the blanket setting a starter is called with; the second is
+  /// leaving that decision to the application.
+  final bool? catchUp;
+
   const DVCronEntry({
     required this.name,
     required this.cron,
     required this.target,
     required this.importUri,
     required this.filePath,
+    this.catchUp,
   });
 }
 

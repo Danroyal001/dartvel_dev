@@ -272,4 +272,116 @@ Future<void> _sweep() async {}
       if (root.existsSync()) root.deleteSync(recursive: true);
     }
   });
+
+  group('catch-up per schedule', () {
+    // A schedule that must not miss a period and one that must not repeat
+    // itself are both ordinary, and the annotation could say neither. The
+    // scheduler took catchUp per task from the day it was written; the only
+    // way to reach it was a hand-written register() call, which is the thing
+    // generated schedules exist so nobody writes.
+    Future<String> schedulesFor(String annotation) async {
+      final Directory root =
+          await Directory.systemTemp.createTemp('dartvel_cron_catchup_');
+      addTearDown(() {
+        if (root.existsSync()) root.deleteSync(recursive: true);
+      });
+      Directory(p.join(root.path, '.dart_tool')).createSync();
+      Directory(p.join(root.path, 'lib', 'dartvel_client'))
+          .createSync(recursive: true);
+      final Directory functionsDir =
+          Directory(p.join(root.path, 'lib', 'backend', 'functions'))
+            ..createSync(recursive: true);
+      File(p.join(functionsDir.path, 'rollup.dart')).writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+$annotation
+Future<void> rollUpYesterday() async {}
+''');
+
+      await BackendGenerator.generate(
+        root: root.path,
+        backendDir: 'lib/backend',
+        pkgName: 'cron_catchup_app',
+        buildId: 'test-build',
+        backendHost: '127.0.0.1',
+        backendPort: 3000,
+        apiBasePath: '/api',
+      );
+
+      return File(
+        p.join(root.path, 'lib', 'dartvel_client', 'schedules.g.dart'),
+      ).readAsStringSync();
+    }
+
+    test('a schedule that asks for catch-up still reaches the list at all',
+        () async {
+      // The first thing an extra argument breaks is the match: the pattern
+      // required the expression to be the whole of the annotation, so a
+      // schedule that asked for catch-up was not a schedule. It would have
+      // disappeared from the generated list with nothing said, which is a
+      // worse outcome than the argument being ignored.
+      final String content = await schedulesFor(
+        "@DVBackendCron('0 3 * * *', catchUp: true)",
+      );
+
+      expect(content, contains('rollUpYesterday'));
+    });
+
+    test('and it is carried into the entry', () async {
+      final String content = await schedulesFor(
+        "@DVBackendCron('0 3 * * *', catchUp: true)",
+      );
+
+      expect(content, contains('catchUp: true'));
+    });
+
+    test('a schedule that refuses catch-up says so rather than saying nothing',
+        () async {
+      // Distinct from not mentioning it. An application that starts its
+      // schedules with catchUp: true is making a blanket decision, and a
+      // nightly digest that wrote catchUp: false has already made a narrower
+      // one that must win over it.
+      final String content = await schedulesFor(
+        "@DVBackendCron('0 3 * * *', catchUp: false)",
+      );
+
+      expect(content, contains('catchUp: false'));
+    });
+
+    test('a schedule that says nothing carries nothing', () async {
+      final String content = await schedulesFor("@DVBackendCron('0 3 * * *')");
+
+      expect(content, contains('rollUpYesterday'));
+      expect(content, isNot(contains('catchUp: true')));
+      expect(content, isNot(contains('catchUp: false')));
+    });
+
+    test('a client schedule can ask for it too', () async {
+      final String content = await schedulesFor(
+        "@DVClientCron('0 3 * * *', catchUp: true)",
+      );
+
+      expect(content, contains('catchUp: true'));
+    });
+
+    test('a catch-up the generator cannot read stops the build', () async {
+      // Not treated as unstated. Somebody who wrote catchUp has decided
+      // something about missed periods, and generating a schedule that
+      // ignores it is the silent half of the failure this whole path exists
+      // to end.
+      await expectLater(
+        schedulesFor("@DVBackendCron('0 3 * * *', catchUp: kCatchUp)"),
+        throwsA(
+          isA<StateError>().having(
+            (StateError e) => e.message,
+            'message',
+            allOf(
+              contains('rollup.dart'),
+              contains('catchUp'),
+            ),
+          ),
+        ),
+      );
+    });
+  });
 }

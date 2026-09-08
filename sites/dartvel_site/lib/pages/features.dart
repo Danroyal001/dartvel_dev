@@ -504,7 +504,16 @@ const List<(String, String, String)> partial = <(String, String, String)>[
     'client half runs too, started by the generated runtime, and its '
     'handlers live in their own file: the backend imports the other one, '
     'and a schedule declared on a page would otherwise pull Flutter into a '
-    'server that has no screen.',
+    'server that has no screen. A schedule can also say for itself whether '
+    'the periods missed while the process was down are run when it comes '
+    'back. Saying nothing is not the same as saying no: a schedule that '
+    'wrote it down has decided about itself and outranks the blanket '
+    'setting the application starts its schedules with, which is what a '
+    'nightly digest needs -- four of them the morning a server comes back '
+    'is worse than one missed -- while a rollup that writes a row per day '
+    'needs the opposite. A value the build cannot read stops it, because a '
+    'generated schedule carries the answer rather than working it out '
+    'later.',
   ),
   (
     'Middleware',
