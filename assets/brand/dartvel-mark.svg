@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Dartvel">
+  <title>Dartvel</title>
+  <defs>
+    <linearGradient id="dvg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7A3BFF"/>
+      <stop offset="0.55" stop-color="#2F6BFF"/>
+      <stop offset="1" stop-color="#1FB6F5"/>
+    </linearGradient>
+    <clipPath id="dvc"><path clip-rule="evenodd" d="M112 100 H256 C336 100 400 170 400 256 C400 342 336 412 256 412 H112 Z M176 170 H256 L320 256 L256 342 H176 L240 256 Z"/></clipPath>
+  </defs>
+  <path fill="url(#dvg)" fill-rule="evenodd" d="M112 100 H256 C336 100 400 170 400 256 C400 342 336 412 256 412 H112 Z M176 170 H256 L320 256 L256 342 H176 L240 256 Z"/>
+  <g clip-path="url(#dvc)">
+    <polygon points="112,412 400,140 512,140 512,512 112,512" fill="#0B1020" opacity="0.20"/>
+  </g>
+</svg>
