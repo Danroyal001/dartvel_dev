@@ -41,7 +41,18 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'Models',
     '@DVModel',
     'One annotated class generates the typed client, serialization, the form, '
-    'the table, the admin surface and the sync.',
+    'the table, the admin surface and the sync. Which meant that reading the '
+    'annotation wrongly cost all of them at once, and it was read wrongly in '
+    'two ways. The pattern that finds a model stopped at the first closing '
+    'bracket, so a string argument containing one -- a schema type of '
+    'Product (beta), say -- ended the annotation early and the model was not '
+    'found at all: no class, no table, no admin row, no graph node, on a '
+    'build that succeeded. Six separate parsers carried that pattern, and a '
+    'model one of them misses while another finds it is a table in the '
+    'database with no row anywhere else. The same scan now skips strings and '
+    'comments, because an annotation written about in a paragraph is not an '
+    'annotation -- this page describes one further down, and a parser that '
+    'took the first one it saw in the file read the paragraph.',
   ),
   (
     'Forms',
@@ -497,7 +508,13 @@ const List<(String, String, String)> partial = <(String, String, String)>[
     'refused: a public page is rendered with no request, so there is no '
     'current tenant to scope it by, and the row would be served at a public '
     'URL to anybody -- the exact leak the column exists to close, on the one '
-    'path that never sees it. '
+    'path that never sees it. Which model is scoped is read from that '
+    'model\'s own arguments now, and was read from the whole file, so one '
+    'tenant-scoped model scoped every model declared beside it. The case '
+    'that breaks is the one the rule was written for -- a currency list, a '
+    'country table -- and the symptom is the opposite of a leak: rows '
+    'written before the column existed belong to no tenant, so a predicate '
+    'nobody asked for hides all of them from everybody. '
     'Absent: the schema-per-tenant and database-per-tenant strategies, which '
     'resolve a tenant and then do nothing different with it; a migration for '
     'a table that already has rows, so turning this on later leaves them '
