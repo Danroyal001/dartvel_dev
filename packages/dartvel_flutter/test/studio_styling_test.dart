@@ -41,6 +41,8 @@ void main() {
           'paddingLeft', 'paddingTop', 'paddingRight', 'paddingBottom',
           'shadowColor', 'shadowX', 'shadowY', 'shadowBlur', 'shadowSpread',
           'rotation', 'decoration', 'blur', 'backdropBlur', 'clip',
+          'borderTopWidth', 'borderRightWidth',
+          'borderBottomWidth', 'borderLeftWidth',
         ]),
       );
     });
@@ -56,6 +58,10 @@ void main() {
         // A border is one decision made of two values, so the width is only
         // usable with the colour it belongs to; opacity is a fraction.
         'borderColor': '#112233', 'borderWidth': 2, 'opacity': 0.5,
+        // A rule under a header is one side, and every side is only usable
+        // with the colour it belongs to.
+        'borderTopWidth': 1, 'borderRightWidth': 1,
+        'borderBottomWidth': 1, 'borderLeftWidth': 1,
         // A shadow is one decision made of five, so its parts are only
         // usable with the colour they belong to; padding has four sides and
         // each applies the whole inset.

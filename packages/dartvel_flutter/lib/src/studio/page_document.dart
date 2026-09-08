@@ -991,15 +991,31 @@ final List<DVStudioProperty> dvStudioProperties = <DVStudioProperty>[
     (m, v, p) {
       final colour = parseDocumentColor(v);
       if (colour == null) return null;
-      return m.border(Border.all(color: colour, width: _borderWidthOf(p)));
+      return m.border(_borderOf(colour, p));
     },
     source: (v, p) {
       final colour = parseDocumentColor(v);
       if (colour == null) return null;
-      return '.border(Border.all(color: Color(0x${_hex(colour)}), '
-          'width: ${_borderWidthOf(p)}))';
+      return '.border(${_borderSource(colour, p)})';
     },
   ),
+  // One width per side, because the commonest border in any design is a
+  // single hairline under a header or between two rows -- and a document that
+  // could only say one width drew that as a box. Companions of the colour for
+  // the reason the plain width is: a side on its own is a line nobody chose a
+  // colour for.
+  for (final String side in _borderSides)
+    DVStudioProperty(
+      side,
+      DVStudioPropertyKind.number,
+      (m, v, p) {
+        final colour = parseDocumentColor(p['borderColor']);
+        if (colour == null || v is! num) return null;
+        return m.border(_borderOf(colour, p));
+      },
+      source: (v, p) => null,
+      companionOf: 'borderColor',
+    ),
   // Declared so the inspector offers it and the table stays the one place a
   // style is defined. The colour above draws it: a width alone is a border
   // nobody chose a colour for, and choosing one would put a line in the
@@ -1105,6 +1121,67 @@ final List<DVStudioProperty> dvStudioProperties = <DVStudioProperty>[
       (m, v, p) => v == true ? m.card() : null,
       source: (v, p) => v == true ? '.card()' : null),
 ];
+
+/// The sides a border can be drawn on, one width each.
+const List<String> _borderSides = <String>[
+  'borderTopWidth',
+  'borderRightWidth',
+  'borderBottomWidth',
+  'borderLeftWidth',
+];
+
+/// The border [properties] describe, in [colour].
+///
+/// Border.all when nothing names a side, because a document that says one
+/// width means a box and every page already written that way has to keep
+/// meaning it. Named sides otherwise, and the ones not named are drawn as
+/// nothing rather than as the plain width: somebody who wrote a bottom rule
+/// asked for a bottom rule.
+Border _borderOf(Color colour, Map<String, Object?> properties) {
+  final List<double?> sides = <double?>[
+    for (final String side in _borderSides) _sideWidthOf(properties[side]),
+  ];
+  if (sides.every((double? width) => width == null)) {
+    return Border.all(color: colour, width: _borderWidthOf(properties));
+  }
+  BorderSide edge(double? width) => width == null
+      ? BorderSide.none
+      : BorderSide(color: colour, width: width);
+  return Border(
+    top: edge(sides[0]),
+    right: edge(sides[1]),
+    bottom: edge(sides[2]),
+    left: edge(sides[3]),
+  );
+}
+
+/// The same border as Dart source.
+String _borderSource(Color colour, Map<String, Object?> properties) {
+  final String hex = 'Color(0x${_hex(colour)})';
+  final List<double?> sides = <double?>[
+    for (final String side in _borderSides) _sideWidthOf(properties[side]),
+  ];
+  if (sides.every((double? width) => width == null)) {
+    return 'Border.all(color: $hex, width: ${_borderWidthOf(properties)})';
+  }
+  const List<String> names = <String>['top', 'right', 'bottom', 'left'];
+  final List<String> parts = <String>[
+    for (int i = 0; i < names.length; i++)
+      if (sides[i] != null)
+        '${names[i]}: BorderSide(color: $hex, width: ${sides[i]})',
+  ];
+  return 'Border(${parts.join(', ')})';
+}
+
+/// A side's width, or null where the document does not name that side.
+///
+/// Zero is not a side: a border of no width is not drawn, and writing it as
+/// a BorderSide of zero puts a side in the Border that renders as nothing
+/// and reads in the exported source as a decision.
+double? _sideWidthOf(Object? value) {
+  if (value is! num || value <= 0) return null;
+  return value.toDouble();
+}
 
 /// The border width a document asks for, defaulting to one point.
 ///

@@ -70,7 +70,13 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'rounded outline. A box can also be told to crop what is in it without '
     'being rounded, which is a decision of its own -- a photograph cropped '
     'by a square frame is the commonest version -- and without it the child '
-    'paints outside the box and the page carries an overflow stripe.',
+    'paints outside the box and the page carries an overflow stripe. A '
+    'border can be on one side now: the document could say a colour and a '
+    'width, the width went to all four, and a box with a rule under it was '
+    'a box with a line right round it -- not a missing style but a wrong '
+    'one, and a single hairline under a header is the commonest border '
+    'there is. A document that names no side still draws all four, because '
+    'one width has always meant a box.',
   ),
   (
     'Routing',
