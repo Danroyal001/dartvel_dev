@@ -305,4 +305,68 @@ dartvel:
       expect(router, isNot(contains('NoTransitionPage<void>(\n        child: const store')));
     });
   });
+
+  group('a mount that asked to stay out of the sitemap', () {
+    // sitemap: include|exclude is parsed, reaches DVModuleMount.inSitemap and
+    // is written into the generated route index -- and the sitemap writer
+    // never asked. Every route of a module mounted with sitemap: exclude was
+    // published anyway.
+    //
+    // This is the guarded-route bug in the one place a comment says it is
+    // handled. A sitemap is the file written to be read by people who were
+    // not invited, and a module excluded from it is usually excluded for
+    // that reason: a staff tool, a partner portal, a documentation site that
+    // is not ready.
+    Directory excluded() {
+      final Directory root = workspace(manifestDocument: signedManifest());
+      final String pubspec =
+          File(p.join(root.path, 'pubspec.yaml')).readAsStringSync();
+      File(p.join(root.path, 'pubspec.yaml')).writeAsStringSync(
+        pubspec.replaceFirst(
+          '      deployment: federated\n',
+          '      deployment: federated\n      sitemap: exclude\n',
+        ),
+      );
+      return root;
+    }
+
+    test('is still answered, because the parent still redirects', () {
+      // The exclusion is about being advertised, not about being reachable.
+      // Dropping it from the manifest as well would make a link somebody
+      // already has stop working.
+      final Directory root = excluded();
+
+      expect(dvFederatedRoutes(root.path), isNotEmpty);
+    });
+
+    test('is left out of the sitemap', () {
+      final Directory root = excluded();
+
+      expect(dvFederatedSitemapRoutes(root.path), isEmpty);
+    });
+
+    test('a mount that said nothing is listed, since include is the default',
+        () {
+      final Directory root = workspace(manifestDocument: signedManifest());
+
+      expect(
+        dvFederatedSitemapRoutes(root.path).keys,
+        containsAll(<String>['/store', '/store/products/:id']),
+      );
+    });
+
+    test('include is listed', () {
+      final Directory root = workspace(manifestDocument: signedManifest());
+      final String pubspec =
+          File(p.join(root.path, 'pubspec.yaml')).readAsStringSync();
+      File(p.join(root.path, 'pubspec.yaml')).writeAsStringSync(
+        pubspec.replaceFirst(
+          '      deployment: federated\n',
+          '      deployment: federated\n      sitemap: include\n',
+        ),
+      );
+
+      expect(dvFederatedSitemapRoutes(root.path), isNotEmpty);
+    });
+  });
 }

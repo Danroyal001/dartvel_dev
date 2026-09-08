@@ -2290,7 +2290,9 @@ class BuildCommand extends Command<void> {
         File(p.join(web.path, 'sitemap.xml')).writeAsStringSync(dvSitemap(
           routes: routes,
           siteUrl: siteUrl,
-          federated: dvFederatedRoutes(root).keys.toList(),
+          // Sitemap-only: a mount with sitemap: exclude is still answered by
+          // the server and still redirected to, and is not advertised here.
+          federated: dvFederatedSitemapRoutes(root).keys.toList(),
           guarded: dvGuardedRoutes(_routerSource(root)),
           entries: dvSitemapEntries(_routerSource(root)),
           defaults: sitemapConfig.defaults,
@@ -2471,7 +2473,9 @@ class BuildCommand extends Command<void> {
         File(p.join(web.path, 'sitemap.xml')).writeAsStringSync(dvSitemap(
           routes: routes,
           siteUrl: siteUrl,
-          federated: dvFederatedRoutes(root).keys.toList(),
+          // Sitemap-only: a mount with sitemap: exclude is still answered by
+          // the server and still redirected to, and is not advertised here.
+          federated: dvFederatedSitemapRoutes(root).keys.toList(),
           guarded: dvGuardedRoutes(_routerSource(root)),
           entries: dvSitemapEntries(_routerSource(root)),
           defaults: sitemapConfig.defaults,
