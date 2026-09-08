@@ -276,3 +276,27 @@ __QUEUE_ON_FAILURE__
   );
 });
 ''';
+
+/// The routes a worker should precache, from the routes the build prerenders.
+///
+/// Taken from the route list rather than from scanning `build/web`, which is
+/// how this was decided before: the worker was written ahead of the route
+/// pages, so a clean build found nothing on disk and precached the root
+/// alone. It looked correct only because a second build ran over the first
+/// and the directories were still there from last time -- so CI, which always
+/// builds clean, always shipped the broken artifact, and a developer, who
+/// always builds twice, never saw it.
+///
+/// A template is not a page. Precaching the literal `/posts/:id` caches
+/// whatever that address answers -- a 404 on any real server -- and then
+/// serves it as the offline answer for every post.
+List<String> dvPrecacheRoutes(Iterable<String> routes) {
+  final Set<String> precache = <String>{'/'};
+  for (final String route in routes) {
+    if (route.isEmpty) continue;
+    // ':' is the parameterised segment; '*' is the catch-all.
+    if (route.contains(':') || route.contains('*')) continue;
+    precache.add(route.startsWith('/') ? route : '/$route');
+  }
+  return precache.toList();
+}
