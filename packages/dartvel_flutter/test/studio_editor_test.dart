@@ -294,4 +294,106 @@ void main() {
       );
     });
   });
+
+  group('the canvas shows the design', () {
+    // "What is edited is what ships" is what the renderer's own
+    // documentation promises, and the canvas built its containers itself: a
+    // switch over the layout name and nothing else. So a card with padding,
+    // a background and a radius was a bare column while it was being edited
+    // and a card once the page ran, and the person styling it could not see
+    // what they were doing.
+    Widget host(DVStudioEditorController controller) => MaterialApp(
+          home: Scaffold(body: DVStudioCanvas(controller: controller)),
+        );
+
+    DVStudioEditorController cardController() {
+      final DVPageDocument document =
+          DVPageDocument(route: '/card', title: 'Card');
+      final DVPageDocumentEditor editor = DVPageDocumentEditor(document);
+      DVPageNode box = DVPageNode.box();
+      box = box.withProperty('backgroundColor', '#112233');
+      box = box.withProperty('padding', 16);
+      box = box.withProperty('rounded', 8);
+      editor.insert(box, parent: document.root.id);
+      editor.insert(DVPageNode.text('inside'), parent: box.id);
+      return DVStudioEditorController(document);
+    }
+
+    BoxDecoration? cardOf(WidgetTester tester) {
+      for (final Element element in find.byType(Container).evaluate()) {
+        final Object? decoration = (element.widget as Container).decoration;
+        if (decoration is BoxDecoration &&
+            decoration.color == const Color(0xFF112233)) {
+          return decoration;
+        }
+      }
+      return null;
+    }
+
+    testWidgets('a styled box is styled while it is being edited',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(host(cardController()));
+
+      final BoxDecoration? card = cardOf(tester);
+      expect(card, isNotNull, reason: 'the background never reached the canvas');
+      expect(card!.borderRadius, BorderRadius.circular(8));
+    });
+
+    testWidgets('and its spacing and alignment are the ones it declares',
+        (WidgetTester tester) async {
+      final DVPageDocument document =
+          DVPageDocument(route: '/row', title: 'Row');
+      final DVPageDocumentEditor editor = DVPageDocumentEditor(document);
+      DVPageNode row = DVPageNode.box(layout: 'row');
+      row = row.withProperty('spacing', 24);
+      editor.insert(row, parent: document.root.id);
+      editor.insert(DVPageNode.text('one'), parent: row.id);
+      editor.insert(DVPageNode.text('two'), parent: row.id);
+
+      await tester.pumpWidget(host(DVStudioEditorController(document)));
+
+      // Twenty-four points between two texts, wherever the gap is drawn.
+      final Iterable<SizedBox> gaps = tester
+          .widgetList<SizedBox>(find.byType(SizedBox))
+          .where((SizedBox box) => box.width == 24);
+      expect(gaps, isNotEmpty,
+          reason: 'the declared spacing never reached the canvas');
+    });
+
+    testWidgets('the editing surface leaves the bound action behind',
+        (WidgetTester tester) async {
+      // Styling the box would otherwise bring its action with it, and a
+      // canvas that navigates away when somebody taps the card they are
+      // editing is worse than one that shows the card unstyled. The action is
+      // a gesture on the widget, so counting them is the question.
+      final DVPageNode node = DVPageNode(
+        type: 'box',
+        properties: <String, Object?>{'backgroundColor': '#112233'},
+        action: <String, Object?>{'type': 'navigate', 'to': '/elsewhere'},
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: dvStudioStyled(
+            node,
+            const SizedBox(width: 40, height: 40),
+            withAction: false,
+          ),
+        ),
+      );
+      expect(find.byType(GestureDetector), findsNothing);
+
+      // And it is still there for the page itself, which is the half that
+      // makes a prototype link work.
+      await tester.pumpWidget(
+        MaterialApp(
+          home: dvStudioStyled(
+            node,
+            const SizedBox(width: 40, height: 40),
+          ),
+        ),
+      );
+      expect(find.byType(GestureDetector), findsWidgets);
+    });
+  });
 }
