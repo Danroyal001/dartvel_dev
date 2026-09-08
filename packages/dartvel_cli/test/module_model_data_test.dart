@@ -95,17 +95,25 @@ void main() {
       // behind is the shape of bug this is about: reads land in the right
       // place and writes do not, so the data is split across two tables and
       // looks merely missing.
-      final RegExp direct = RegExp(r'(FROM|INTO|UPDATE) (\w+)');
+      //
+      // Every statement resolves the name through a call now, on both sides
+      // -- an application through dvTenantTable, because a schema per tenant
+      // changes what the table is called, and a module through its own
+      // registration. So what must never appear is the bare name.
+      final RegExp bare = RegExp(r'(FROM|INTO|UPDATE) orders\b');
+      final RegExp resolved =
+          RegExp(r"(FROM|INTO|UPDATE) \$\{(dvTenantTable|_dvModule\.table)\('orders'\)\}");
 
-      // The regex earns its keep on the application's output first. A
-      // pattern that matches nothing would pass the real assertion below
-      // while checking nothing at all.
-      expect(direct.allMatches(await generate()), isNotEmpty);
+      final String application = await generate();
+      // The patterns earn their keep on real output first. One that matched
+      // nothing would pass every assertion below while checking nothing.
+      expect(resolved.allMatches(application), isNotEmpty);
+      expect(bare.allMatches(application), isEmpty);
 
-      final Iterable<RegExpMatch> statements =
-          direct.allMatches(await generate(moduleId: 'store'));
+      final String mounted = await generate(moduleId: 'store');
+      expect(resolved.allMatches(mounted), isNotEmpty);
       expect(
-        statements.map((RegExpMatch m) => m.group(0)),
+        bare.allMatches(mounted),
         isEmpty,
         reason: "a module's statements resolve the table through DVModuleData",
       );
