@@ -11,6 +11,8 @@
 /// user gesture.
 library dartvel_flutter.pwa.install_prompt;
 
+import '../../dartvel_flutter.dart' show DVNativeBridge;
+
 /// What the reader chose.
 enum DVInstallOutcome { accepted, dismissed }
 
@@ -81,6 +83,16 @@ class DVInstallPrompt {
     _listeners.clear();
   }
 
+  /// What the browser said, as the enum.
+  ///
+  /// Anything other than "accepted" is a dismissal. The browser answers with
+  /// one of two words, and treating an unrecognised third as acceptance
+  /// would install nothing and say it had.
+  static DVInstallOutcome _outcomeOf(Object? answer) =>
+      '$answer' == 'accepted'
+          ? DVInstallOutcome.accepted
+          : DVInstallOutcome.dismissed;
+
   static Future<DVInstallOutcome> show() async {
     if (!available) {
       // Not "dismissed", which would be a lie: nothing was shown. A caller
@@ -96,9 +108,23 @@ class DVInstallPrompt {
     // reused. Leaving it available would give a button that silently stops
     // working after the first tap.
     _available = false;
-    if (_outcome == DVInstallOutcome.accepted) _installed = true;
+
+    // The browser's answer, not a value this class held. `_outcome` was set
+    // by nothing outside a test, so in a browser this reported accepted
+    // whatever the person at the screen chose -- and then marked the
+    // application installed, which hides the affordance, so an application
+    // somebody declined could never be installed from inside it again.
+    //
+    // Through the bridge like every other platform call, so a target with no
+    // install prompt keeps the seam the tests use.
+    final DVInstallOutcome outcome =
+        DVNativeBridge.isRegistered('install.prompt')
+            ? _outcomeOf(await DVNativeBridge.invoke<Object?>('install.prompt'))
+            : _outcome;
+
+    if (outcome == DVInstallOutcome.accepted) _installed = true;
     _notify();
-    return _outcome;
+    return outcome;
   }
 }
 
