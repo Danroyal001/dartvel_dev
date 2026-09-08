@@ -92,6 +92,14 @@ void main() {
 }
 
 /// `(class, parameter)` for every `this.x` in an annotation's constructor.
+///
+/// The whole parameter list, not only a brace group. It used to be
+/// `const Name({...})`, which reads every annotation whose arguments are all
+/// named and skips the whole class the moment one is positional -- silently,
+/// because a class that matches nothing looks exactly like a class with no
+/// arguments. `@DVBackendCron('0 3 * * *', catchUp: true)` is that shape, and
+/// both cron annotations were invisible to this check while it reported that
+/// every argument was read.
 List<(String, String)> _parametersIn(String source) {
   final RegExp classes = RegExp(r'class\s+(DV[A-Za-z0-9_]*)\s*\{');
   final List<RegExpMatch> found = classes.allMatches(source).toList();
@@ -101,7 +109,7 @@ List<(String, String)> _parametersIn(String source) {
     final int start = found[i].end;
     final int end = i + 1 < found.length ? found[i + 1].start : source.length;
     final RegExpMatch? constructor = RegExp(
-      'const\\s+$name\\(\\{(.*?)\\}\\)',
+      'const\\s+$name\\((.*?)\\)\\s*(?:;|:|\\{)',
       dotAll: true,
     ).firstMatch(source.substring(start, end));
     if (constructor == null) continue;
