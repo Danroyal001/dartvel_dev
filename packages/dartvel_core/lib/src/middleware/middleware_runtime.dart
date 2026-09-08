@@ -138,11 +138,13 @@ const Map<String, String> dvMiddlewareKeysUnbuiltReason = <String, String>{
       'policy applies. Declare it on the function instead: '
       '@DVBackendFunction(policy: DVPolicies.yourPolicy), which is enforced '
       'per route.',
-  'cors': 'CORS is configured for the whole server, not per route. Pass '
-      'cors: to the serve call rather than declaring it here.',
-  'compression': 'Compression is a server-wide setting decided when the '
-      'server starts, so a per-route declaration would change nothing. Pass '
-      'compression: to the serve call.',
+  'cors': 'CORS is answered for the whole server, not per route: the '
+      'headers go on every response including the preflight, which never '
+      'reaches a route. Configure it under dartvel.server.cors, naming '
+      'the origins you answer.',
+  'compression': 'Compression is decided when the server starts, so a '
+      'per-route declaration would change nothing. Configure it under '
+      'dartvel.server.compression, where false turns it off.',
   'rateLimitCheckout': 'Nothing implements this. It is not a preset of '
       'rateLimit; there is no code behind the name at all. Use '
       'DVMiddlewares.rateLimit.',
