@@ -49,7 +49,10 @@ void main() {
   });
 
   testWidgets('a square box clips nothing', (WidgetTester tester) async {
-    await pump(tester, const DVModifier().backgroundColor(Color(0xFF112233)));
+    await pump(
+      tester,
+      const DVModifier().backgroundColor(const Color(0xFF112233)),
+    );
 
     expect(boxOf(tester).clipBehavior, Clip.none);
   });
