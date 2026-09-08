@@ -111,7 +111,12 @@ class DartvelProjectGraph {
 
   static List<DVGraphModel> _modelsIn(String source, String rel) {
     final List<DVGraphModel> found = <DVGraphModel>[];
-    for (final Match match in _modelPattern.allMatches(source)) {
+    // Blanked annotation arguments, because `[^)]*` stops at the first
+    // close parenthesis and a string argument can contain one. The model
+    // generator masks the same way, and a model this misses while the
+    // generator finds it is a table in the database with no row here.
+    for (final Match match
+        in _modelPattern.allMatches(dvMaskAnnotationArgs(source, 'DVModel'))) {
       final String declared = match.group(1)!;
       final int bodyStart = source.indexOf('{', match.end - 1);
       if (bodyStart == -1) continue;
