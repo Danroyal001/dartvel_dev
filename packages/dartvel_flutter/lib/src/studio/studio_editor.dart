@@ -444,7 +444,10 @@ class DVStudioInspector extends StatelessWidget {
           // list above; offered here for the same reason that one exists.
           if (dvStudioLeafTypeFor(node) == null)
             for (final property in dvStudioLayoutProperties)
-              _DVStudioField(
+              // Only where it means something. A row has no columns, and a
+              // control that does nothing is worse than one that is absent.
+              if (property.appliesTo(node.layout))
+                _DVStudioField(
                 label: property.name,
                 hint: property.choices.isEmpty
                     ? null

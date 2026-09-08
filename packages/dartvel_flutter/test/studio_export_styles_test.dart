@@ -175,10 +175,10 @@ void main() {
     // a flag can change which constructor is written -- a scrolling row is
     // DVBox.horizontalScrollable -- and a check that insisted on an argument
     // would refuse a correct export.
-    String sourceOf(Map<String, Object?> properties) {
+    String sourceOf(String layout, Map<String, Object?> properties) {
       final DVPageDocument document = DVPageDocument(route: '/laid-out');
       final DVPageDocumentEditor editor = DVPageDocumentEditor(document);
-      DVPageNode box = DVPageNode.box(layout: 'row');
+      DVPageNode box = DVPageNode.box(layout: layout);
       properties.forEach((String name, Object? value) {
         box = box.withProperty(name, value);
       });
@@ -187,7 +187,6 @@ void main() {
       return document.toDartSource();
     }
 
-    final String plain = sourceOf(const <String, Object?>{});
     for (final DVStudioLayoutProperty property in dvStudioLayoutProperties) {
       final Object? sample = switch (property.kind) {
         DVStudioPropertyKind.number => 24,
@@ -197,10 +196,16 @@ void main() {
         DVStudioPropertyKind.text => 'Inter',
       };
 
+      // Against a layout the property belongs to. A row has no columns, and
+      // holding one to account for exporting nothing there would refuse a
+      // correct export -- which is the same mistake as offering the control.
+      final String layout =
+          property.layouts.isEmpty ? 'row' : property.layouts.first;
+
       expect(
-        sourceOf(<String, Object?>{property.name: sample}),
-        isNot(plain),
-        reason: '${property.name} exported nothing',
+        sourceOf(layout, <String, Object?>{property.name: sample}),
+        isNot(sourceOf(layout, const <String, Object?>{})),
+        reason: '${property.name} exported nothing on a $layout',
       );
     }
   });
