@@ -141,7 +141,7 @@ void main() {
       await kiosk.tick();
       expect(kiosk.dimmed.value, isTrue);
 
-      await kiosk.reset(DVKioskResetReason.staff);
+      await kiosk.reset(DVKioskResetReason.explicit);
 
       expect(kiosk.dimmed.value, isFalse);
     });
