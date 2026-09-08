@@ -1028,6 +1028,21 @@ final List<DVStudioProperty> dvStudioProperties = <DVStudioProperty>[
     source: (v, p) =>
         v is num && v >= 0 && v <= 1 ? '.opacity(${v.toDouble()})' : null,
   ),
+  DVStudioProperty(
+    'rotation',
+    DVStudioPropertyKind.number,
+    (m, v, p) {
+      // Zero is not a rotation. Wrapping every box in a Transform that turns
+      // it by nothing would put a layer in the tree of every page for the
+      // one design in ten that tilts something, and a document can carry any
+      // value at all -- a page that will not render because of one is worse
+      // than one drawn square.
+      if (v is! num || v == 0) return null;
+      return m.rotate(v.toDouble());
+    },
+    source: (v, p) =>
+        v is num && v != 0 ? '.rotate(${v.toDouble()})' : null,
+  ),
   DVStudioProperty('card', DVStudioPropertyKind.flag,
       (m, v, p) => v == true ? m.card() : null,
       source: (v, p) => v == true ? '.card()' : null),

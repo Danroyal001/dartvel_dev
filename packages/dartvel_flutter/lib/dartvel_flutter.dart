@@ -393,6 +393,17 @@ class DVModifier {
 
   final double? opacityValue;
 
+  /// How far the box is turned, in degrees, clockwise.
+  ///
+  /// Degrees rather than radians, which is a deliberate difference from
+  /// Transform.rotate: the number here is the number a designer reads in an
+  /// inspector, the number Figma reports for a layer, the number stored in a
+  /// page document and the number in the exported source. One unit
+  /// everywhere somebody looks, converted once where the widget is built.
+  /// The parameter is named for its unit so that somebody reaching for
+  /// radians sees the difference before they run it.
+  final double? rotateDegrees;
+
   /// Whether the box is centred within its parent.
   final bool centeredValue;
 
@@ -458,6 +469,7 @@ class DVModifier {
     this.animateDuration,
     this.animateCurve = Curves.easeOut,
     this.opacityValue,
+    this.rotateDegrees,
     this.centeredValue = false,
     this.onHoverChangedCallback,
     this.hoverValue,
@@ -501,6 +513,7 @@ class DVModifier {
         animateDuration = null,
         animateCurve = Curves.easeOut,
         opacityValue = null,
+        rotateDegrees = null,
         centeredValue = false,
         onHoverChangedCallback = null,
         hoverValue = null,
@@ -543,6 +556,7 @@ class DVModifier {
     Duration? animateDuration,
     Curve? animateCurve,
     double? opacityValue,
+    double? rotateDegrees,
     bool? centeredValue,
     ValueChanged<bool>? onHoverChangedCallback,
     DVModifier? hoverValue,
@@ -585,6 +599,7 @@ class DVModifier {
       animateDuration: animateDuration ?? this.animateDuration,
       animateCurve: animateCurve ?? this.animateCurve,
       opacityValue: opacityValue ?? this.opacityValue,
+      rotateDegrees: rotateDegrees ?? this.rotateDegrees,
       centeredValue: centeredValue ?? this.centeredValue,
       onHoverChangedCallback:
           onHoverChangedCallback ?? this.onHoverChangedCallback,
@@ -735,6 +750,13 @@ class DVModifier {
   /// Fades the whole box, children included.
   DVModifier opacity(double value) => _copyWith(opacityValue: value);
 
+  /// Turns the box by [degrees], clockwise.
+  ///
+  /// Degrees, not radians -- see [rotateDegrees]. `rotate(45)` is a
+  /// forty-five degree tilt, and `rotate(math.pi / 4)` is very nearly
+  /// nothing.
+  DVModifier rotate(double degrees) => _copyWith(rotateDegrees: degrees);
+
   /// Centres the box within its parent.
   ///
   /// Different from [align], which places the child inside the box. A
@@ -804,6 +826,7 @@ class DVModifier {
             ? other.animateCurve
             : animateCurve,
         opacityValue: other.opacityValue ?? opacityValue,
+        rotateDegrees: other.rotateDegrees ?? rotateDegrees,
         centeredValue: other.centeredValue || centeredValue,
         onHoverChangedCallback:
             other.onHoverChangedCallback ?? onHoverChangedCallback,
@@ -1341,6 +1364,17 @@ class DVBox<T> extends StatelessWidget {
 
     if (m?.centeredValue ?? false) {
       result = Center(child: result);
+    }
+
+    // Outside the fade, so a rotated box fades as one thing rather than
+    // fading and then being turned, which are the same picture -- but the
+    // order matters for the layer the semantics tree sees.
+    final double? degrees = m?.rotateDegrees;
+    if (degrees != null && degrees != 0) {
+      result = Transform.rotate(
+        angle: degrees * math.pi / 180,
+        child: result,
+      );
     }
 
     final double? opacity = m?.opacityValue;
