@@ -1043,6 +1043,26 @@ final List<DVStudioProperty> dvStudioProperties = <DVStudioProperty>[
     source: (v, p) =>
         v is num && v != 0 ? '.rotate(${v.toDouble()})' : null,
   ),
+  DVStudioProperty(
+    'decoration',
+    DVStudioPropertyKind.choice,
+    (m, v, p) => switch (v) {
+      'underline' => m.decoration(TextDecoration.underline),
+      'lineThrough' => m.decoration(TextDecoration.lineThrough),
+      // 'none' included on purpose: a design that turned an underline off is
+      // saying something, and dropping it would leave whatever a theme
+      // provides.
+      'none' => m.decoration(TextDecoration.none),
+      _ => null,
+    },
+    choices: const <String>['none', 'underline', 'lineThrough'],
+    source: (v, p) => switch (v) {
+      'underline' => '.decoration(TextDecoration.underline)',
+      'lineThrough' => '.decoration(TextDecoration.lineThrough)',
+      'none' => '.decoration(TextDecoration.none)',
+      _ => null,
+    },
+  ),
   DVStudioProperty('card', DVStudioPropertyKind.flag,
       (m, v, p) => v == true ? m.card() : null,
       source: (v, p) => v == true ? '.card()' : null),

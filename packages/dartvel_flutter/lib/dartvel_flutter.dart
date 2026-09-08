@@ -369,6 +369,14 @@ class DVModifier {
   final int? maxLinesValue;
   final TextOverflow? overflowValue;
 
+  /// An underline or a strike-through, or null for whatever the text
+  /// already had.
+  ///
+  /// Null rather than TextDecoration.none, because naming none overrides an
+  /// underline an enclosing theme asked for -- a decision this modifier was
+  /// never given.
+  final TextDecoration? decorationValue;
+
   /// Line height as a multiple of the font size, which is how Flutter reads
   /// it. A design says it in points; the multiple is what survives a change
   /// of size.
@@ -464,6 +472,7 @@ class DVModifier {
     this.lineHeightValue,
     this.maxLinesValue,
     this.overflowValue,
+    this.decorationValue,
     this.boxColor,
     this.gradientValue,
     this.constraintsValue,
@@ -508,6 +517,7 @@ class DVModifier {
         lineHeightValue = null,
         maxLinesValue = null,
         overflowValue = null,
+        decorationValue = null,
         boxColor = null,
         gradientValue = null,
         constraintsValue = null,
@@ -551,6 +561,7 @@ class DVModifier {
     double? lineHeightValue,
     int? maxLinesValue,
     TextOverflow? overflowValue,
+    TextDecoration? decorationValue,
     Color? boxColor,
     Gradient? gradientValue,
     BoxConstraints? constraintsValue,
@@ -594,6 +605,7 @@ class DVModifier {
       lineHeightValue: lineHeightValue ?? this.lineHeightValue,
       maxLinesValue: maxLinesValue ?? this.maxLinesValue,
       overflowValue: overflowValue ?? this.overflowValue,
+      decorationValue: decorationValue ?? this.decorationValue,
       boxColor: boxColor ?? this.boxColor,
       gradientValue: gradientValue ?? this.gradientValue,
       constraintsValue: constraintsValue ?? this.constraintsValue,
@@ -710,6 +722,16 @@ class DVModifier {
   /// What happens to text past the limit.
   DVModifier overflow(TextOverflow value) => _copyWith(overflowValue: value);
 
+  /// Underlines the text, strikes it through, or both.
+  ///
+  /// Flutter's own type rather than underline() and strikethrough(),
+  /// matching overflow(TextOverflow) beside it: a price that is struck
+  /// through and a link that is underlined are one design away from a label
+  /// that is both, and TextDecoration.combine says so where two flags
+  /// cannot.
+  DVModifier decoration(TextDecoration value) =>
+      _copyWith(decorationValue: value);
+
   DVModifier backgroundColor(Color value) => _copyWith(boxColor: value);
 
   DVModifier width(double value) => _copyWith(widthValue: value);
@@ -819,6 +841,7 @@ class DVModifier {
         lineHeightValue: other.lineHeightValue ?? lineHeightValue,
         maxLinesValue: other.maxLinesValue ?? maxLinesValue,
         overflowValue: other.overflowValue ?? overflowValue,
+        decorationValue: other.decorationValue ?? decorationValue,
         boxColor: other.boxColor ?? boxColor,
         gradientValue: other.gradientValue ?? gradientValue,
         constraintsValue: other.constraintsValue ?? constraintsValue,
@@ -1873,6 +1896,7 @@ class DVText extends StatelessWidget {
           fontSize: modifier?.fontSizeValue,
           fontWeight: modifier?.fontWeightValue,
           letterSpacing: modifier?.letterSpacingValue,
+          decoration: modifier?.decorationValue,
           fontFamily: modifier?.fontFamilyValue,
           height: modifier?.lineHeightValue,
         ),
