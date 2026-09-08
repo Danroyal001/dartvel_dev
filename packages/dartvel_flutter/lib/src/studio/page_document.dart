@@ -508,80 +508,98 @@ class DVPageDocumentRenderer extends StatelessWidget {
                 ? dvStudioPlace(c.propertiesFor(breakpoint), _build(c, breakpoint))
                 : _build(c, breakpoint))
             .toList(growable: false);
-        // How the children sit together, which a box could describe and not
-        // render: every list and row came out with the framework's default
-        // gap, packed to the start and stretched across, whatever the
-        // document said.
-        final double spacing = dvStudioSpacingOf(node.properties);
-        final DVAlign main = dvStudioAlignOf(node.properties['mainAxis']);
-        final DVCrossAlign cross =
-            dvStudioCrossAlignOf(node.properties['crossAxis']);
-        // Whether the box scrolls its own axis. Almost every screen in a
-        // design is taller than the device, and a document that could not
-        // say so rendered the overflow stripe on the first screen.
-        final bool scrolls = node.properties['scroll'] == true;
-        built = switch (node.layout) {
-          'row' when scrolls =>
-            DVBox.horizontalScrollable(children, spacing: spacing),
-          'row' => DVBox.row(children,
-              spacing: spacing, align: main, crossAlign: cross),
-          'wrap' => DVBox.wrapLine(children,
-              spacing: spacing, align: main, crossAlign: cross),
-          'grid' => DVBox.grid(
-              children,
-              columns: (node.properties['columns'] as num?)?.toInt() ?? 2,
-            ),
-          'stack' => DVBox.stack(children),
-          'single' => children.isEmpty
-              ? const DVBox(SizedBox.shrink())
-              : DVBox(children.first),
-          _ => scrolls
-              ? DVBox.list(children,
-                      spacing: spacing, align: main, crossAlign: cross)
-                  .scrollable()
-              : DVBox.list(children,
-                  spacing: spacing, align: main, crossAlign: cross),
-        };
+        built = dvStudioLayoutBox(node, children);
     }
 
-    final styled = _applyStyle(node, built);
-    return styled;
+    return dvStudioStyled(node, built);
   }
+}
 
-  /// Folds a node's properties onto the widget as a [DVModifier].
-  ///
-  /// Every entry here is a control the builder's inspector can offer. A
-  /// property the renderer ignores is one the inspector cannot meaningfully
-  /// expose, so this list is the page builder's actual styling vocabulary.
-  Widget _applyStyle(DVPageNode node, Widget built) {
-    var modifier = const DVModifier();
-    var modified = false;
+/// The box [node] describes, holding [children].
+///
+/// Shared, because the page and the surface it is edited on both draw one and
+/// the editor used to draw its own: a switch over the layout name and nothing
+/// else, so a card with padding, a background and a radius was a bare column
+/// while somebody was styling it and a card once the page ran. What is edited
+/// is what ships is the promise, and two implementations cannot keep it.
+Widget dvStudioLayoutBox(DVPageNode node, List<Widget> children) {
+  // How the children sit together, which a box could describe and not
+  // render: every list and row came out with the framework's default gap,
+  // packed to the start and stretched across, whatever the document said.
+  final double spacing = dvStudioSpacingOf(node.properties);
+  final DVAlign main = dvStudioAlignOf(node.properties['mainAxis']);
+  final DVCrossAlign cross =
+      dvStudioCrossAlignOf(node.properties['crossAxis']);
+  // Whether the box scrolls its own axis. Almost every screen in a design is
+  // taller than the device, and a document that could not say so rendered the
+  // overflow stripe on the first screen.
+  final bool scrolls = node.properties['scroll'] == true;
+  return switch (node.layout) {
+    'row' when scrolls =>
+      DVBox.horizontalScrollable(children, spacing: spacing),
+    'row' => DVBox.row(children,
+        spacing: spacing, align: main, crossAlign: cross),
+    'wrap' => DVBox.wrapLine(children,
+        spacing: spacing, align: main, crossAlign: cross),
+    'grid' => DVBox.grid(
+        children,
+        columns: (node.properties['columns'] as num?)?.toInt() ?? 2,
+      ),
+    'stack' => DVBox.stack(children),
+    'single' => children.isEmpty
+        ? const DVBox(SizedBox.shrink())
+        : DVBox(children.first),
+    _ => scrolls
+        ? DVBox.list(children,
+                spacing: spacing, align: main, crossAlign: cross)
+            .scrollable()
+        : DVBox.list(children,
+            spacing: spacing, align: main, crossAlign: cross),
+  };
+}
 
-    for (final property in dvStudioProperties) {
-      final applied = property.apply(
-        modifier,
-        node.properties[property.name],
-        node.properties,
-      );
-      if (applied != null) {
-        modifier = applied;
-        modified = true;
-      }
-    }
+/// Folds [node]'s properties onto [built] as a [DVModifier].
+///
+/// Every entry here is a control the builder's inspector can offer. A
+/// property the renderer ignores is one the inspector cannot meaningfully
+/// expose, so this list is the page builder's actual styling vocabulary.
+///
+/// [withAction] is false on the editing surface. The styling has to travel
+/// there and the behaviour must not: a canvas that navigates away when
+/// somebody taps the card they are editing is worse than one that shows the
+/// card unstyled.
+Widget dvStudioStyled(
+  DVPageNode node,
+  Widget built, {
+  bool withAction = true,
+}) {
+  var modifier = const DVModifier();
+  var modified = false;
 
-    final action = node.action;
-    if (action != null && action['type'] == 'navigate') {
-      modifier = modifier.onPressed(
-        DV.Navigation.to(DVRouteTarget('${action['to']}')),
-      );
+  for (final property in dvStudioProperties) {
+    final applied = property.apply(
+      modifier,
+      node.properties[property.name],
+      node.properties,
+    );
+    if (applied != null) {
+      modifier = applied;
       modified = true;
     }
-
-    if (!modified) return built;
-    if (built is DVText) return built.modifier(modifier);
-    if (built is DVBox) return built.modifier(modifier);
-    return DVBox(built).modifier(modifier);
   }
+
+  final action = node.action;
+  if (withAction && action != null && action['type'] == 'navigate') {
+    modifier = modifier.onPressed(
+      DV.Navigation.to(DVRouteTarget('${action['to']}')),
+    );
+    modified = true;
+  }
+
+  if (!modified) return built;
+  if (built is DVText) return built.modifier(modifier);
+  if (built is DVBox) return built.modifier(modifier);
+  return DVBox(built).modifier(modifier);
 }
 
 const Map<Object?, FontWeight> _fontWeights = <Object?, FontWeight>{
@@ -1130,7 +1148,8 @@ final List<DVStudioProperty> dvStudioProperties = <DVStudioProperty>[
 /// The renderer and the Dart exporter each switch over this, which is the
 /// arrangement the property table was fixed for: two lists of the same thing
 /// drift, and here the drift is silent because an unknown name falls through
-/// to a column in both. A wrapping row was missing from both while
+/// to a column in both. There were three, until the editing canvas was made
+/// to draw its boxes through the same function the page does. A wrapping row was missing from both while
 /// DVBox.wrapLine existed the whole time, so a chip row or a tag list -- the
 /// commonest wrapping thing in any design -- came through as a single row
 /// that runs off the side of a phone.
