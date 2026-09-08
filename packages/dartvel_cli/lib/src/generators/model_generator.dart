@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:yaml/yaml.dart';
@@ -27,6 +28,16 @@ class ModelGenerator {
     // backslash is glob's escape character. p.join here matched nothing on
     // Windows, so models.g.dart came out empty and every model type was
     // undefined hundreds of lines away.
+    // Every table this project declares, with the statement that creates
+    // it, for `dartvel db migrate`.
+    //
+    // Written by the generator rather than rebuilt by the command, because a
+    // second parser deciding what a table's columns are is how the migration
+    // comes to create one shape and the queries to read another, with
+    // neither side noticing. The statement here is the same string the model
+    // carries as createTableSql.
+    final schemaTables = <Map<String, Object?>>[];
+
     // The currency every declared nativePrice is in. Read once: a model
     // cannot have its own, because a catalogue priced in three currencies is
     // three numbers nobody can add together.
@@ -1157,13 +1168,28 @@ class ModelGenerator {
         sb.writeln('  String get tableName => $tableExpr;');
         sb.writeln();
         sb.writeln('  /// SQL statement to create the [$className] table.');
-        final cols = <String>[
-          if (tenantScoped) '$tenantColumn TEXT',
-          ...fields.map((f) => "${f['name']} TEXT"),
-        ].join(', ');
+        final columnNames = <String>[
+          if (tenantScoped) tenantColumn,
+          ...fields.map((f) => f['name']!),
+        ];
+        final cols = columnNames.map((String c) => '$c TEXT').join(', ');
         sb.writeln(
           "  String get createTableSql => 'CREATE TABLE IF NOT EXISTS $tableRef ($cols)';",
         );
+        // A module's tableRef is a Dart interpolation resolved at run time,
+        // so there is no fixed name to migrate here: the parent's own
+        // generation records the module's tables under the names the parent
+        // gives them, which is where a migration has to read them from.
+        if (ownModuleId == null) {
+          schemaTables.add(<String, Object?>{
+            'table': tableName,
+            'model': className,
+            'tenantScoped': tenantScoped,
+            'columns': columnNames,
+            'createSql':
+                'CREATE TABLE IF NOT EXISTS $tableRef ($cols)',
+          });
+        }
 
         sb.writeln('}');
 
@@ -2045,6 +2071,26 @@ class ModelGenerator {
             'void registerDartvelModels() {}\n'
         : '$generatedHeader\n${sb.toString()}';
     File(p.join(clientDir.path, 'models.g.dart')).writeAsStringSync(content);
+
+    // The schema, where something other than Dart can read it.
+    //
+    // `dartvel db migrate` said it had migrated and touched no database: it
+    // discovered a list of table names, printed a line for each, and wrote a
+    // snapshot. The statements existed -- one per model, correct, carrying
+    // the tenant column -- and createTableSql was called by nothing anywhere.
+    // The command needs the statements, and it cannot import generated Dart,
+    // so they are written here beside the generated client rather than
+    // reconstructed there from a second parse of the models.
+    final File schemaFile = File(
+      p.join(root, '.dart_tool', 'dartvel_schema.g.json'),
+    );
+    schemaFile.parent.createSync(recursive: true);
+    schemaFile.writeAsStringSync(
+      '${const JsonEncoder.withIndent('  ').convert(<String, Object?>{
+        'build': buildId,
+        'tables': schemaTables,
+      })}\n',
+    );
 
     // Pure Dart, no Flutter: what the backend renders a public page from.
     //
