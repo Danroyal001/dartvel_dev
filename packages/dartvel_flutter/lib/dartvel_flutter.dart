@@ -295,6 +295,7 @@ export 'src/kiosk/device_kiosk.dart';
 export 'src/kiosk/kiosk.dart';
 export 'src/kiosk/kiosk_host.dart';
 export 'src/kiosk/kiosk_keys.dart';
+export 'src/lifecycle/app_lifecycle_bridge.dart';
 export 'src/media/image_view.dart';
 export 'src/media/stored_image.dart';
 export 'src/modules/module_shell.dart';
@@ -319,7 +320,6 @@ export 'src/platform/webcrypto_key_store_io.dart'
 export 'src/platform/windows/windows_bindings.dart';
 export 'src/pwa/install_prompt.dart';
 export 'src/routing/nav_link.dart';
-export 'src/lifecycle/app_lifecycle_bridge.dart';
 export 'src/routing/page_lifecycle.dart';
 export 'src/routing/page_policy.dart';
 export 'src/routing/url_strategy.dart';
