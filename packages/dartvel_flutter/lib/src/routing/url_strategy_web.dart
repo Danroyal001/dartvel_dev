@@ -99,7 +99,7 @@ void dvInterceptLinkNavigation(void Function(String path) route) {
         (target as web_dom.Element).closest('a[href]');
     if (anchor == null) return;
 
-    final String? path = dvRoutedLinkPath(DVLinkActivation(
+    final DVLinkActivation activation = DVLinkActivation(
       href: anchor.getAttribute('href') ?? '',
       currentUrl: web_dom.window.location.href,
       target: anchor.getAttribute('target'),
@@ -108,7 +108,23 @@ void dvInterceptLinkNavigation(void Function(String path) route) {
       withModifier: mouse != null &&
           (mouse.ctrlKey || mouse.metaKey || mouse.shiftKey || mouse.altKey),
       alreadyHandled: event.defaultPrevented,
-    ));
+    );
+
+    // A link that leaves the site opens beside it. The anchor is marked and
+    // the browser is left to do it: `window.open` from here would be a popup
+    // to a blocker, and preventing the default so Flutter's own handler could
+    // open it would put the opening one frame after the gesture, which is the
+    // same problem. Marking it costs nothing and the click carries on.
+    //
+    // `noopener` because a page opened from a link can otherwise reach back
+    // through `window.opener` and navigate the one that opened it.
+    if (dvLinkLeavesTheSite(activation)) {
+      anchor.setAttribute('target', '_blank');
+      anchor.setAttribute('rel', 'noopener noreferrer');
+      return;
+    }
+
+    final String? path = dvRoutedLinkPath(activation);
     if (path == null) return;
 
     event.preventDefault();
@@ -129,6 +145,10 @@ bool _intercepting = false;
 /// middle-click both reach the browser. Without it `DVLinkOpener` had no
 /// implementation at all and every external link silently did nothing —
 /// which looks exactly like a working link.
+/// True on the web, where every link in the semantics tree is a real anchor
+/// the browser activates on the same click the widget sees.
+const bool dvBrowserFollowsAnchors = true;
+
 void dvOpenUrl(String path, {bool newTab = false}) {
   if (newTab) {
     // noopener, because a page opened with `window.open` can otherwise reach

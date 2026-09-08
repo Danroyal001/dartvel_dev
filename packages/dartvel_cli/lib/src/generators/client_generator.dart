@@ -1345,7 +1345,8 @@ $allRoutes
   // Without this DVLinkOpener has no implementation, so DVNavLink.external
   // and every middle-click silently do nothing -- which looks exactly like a
   // link that works.
-  DVLinkOpener.install(dvOpenUrl);
+  DVLinkOpener.install(dvOpenUrl,
+      browserFollowsAnchors: dvBrowserFollowsAnchors);
   return router;
 }
 

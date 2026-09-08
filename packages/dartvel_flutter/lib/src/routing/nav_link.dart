@@ -265,6 +265,9 @@ class _DVNavLinkState extends State<DVNavLink> {
   void _openBeside() {
     _previewTimer?.cancel();
     _removePreview();
+    // The browser opens a tab on a middle or modified click by itself, and
+    // opening a second one is not a second intention.
+    if (DVLinkOpener.browserFollowsAnchors) return;
     final String destination = widget.externalUrl ?? widget.to.path;
     final void Function(String)? override = widget.openInNewTab;
     if (override != null) {
@@ -281,6 +284,11 @@ class _DVNavLinkState extends State<DVNavLink> {
     final String? external = widget.externalUrl;
     if (external != null) {
       // Opened, never routed. The router has no route for another origin.
+      //
+      // Where the browser follows anchors it has already opened this one, and
+      // the interceptor marked it to open beside rather than instead of the
+      // page. Opening it here too would send the reader's own tab after it.
+      if (DVLinkOpener.browserFollowsAnchors) return;
       DVLinkOpener.open(external);
       return;
     }
@@ -463,10 +471,26 @@ class DVLinkOpener {
 
   static void Function(String path, {bool newTab})? _opener;
 
-  /// Install the platform's way of doing it. Called by the generated router
-  /// on the web.
-  static void install(void Function(String path, {bool newTab}) opener) =>
-      _opener = opener;
+  static bool _browserFollowsAnchors = false;
+
+  /// Install the platform's way of doing it. Called by the generated router.
+  ///
+  /// [browserFollowsAnchors] says the platform activates the anchor in the
+  /// semantics tree on the same click the widget sees, which is true on the
+  /// web and false everywhere else. Where it is true the widget must not open
+  /// the link as well: both went to the same address in the same tab, so two
+  /// navigations looked like one, and it only became visible when either of
+  /// them opened a tab.
+  static void install(
+    void Function(String path, {bool newTab}) opener, {
+    bool browserFollowsAnchors = false,
+  }) {
+    _opener = opener;
+    _browserFollowsAnchors = browserFollowsAnchors;
+  }
+
+  /// Whether the platform follows an anchor on its own.
+  static bool get browserFollowsAnchors => _browserFollowsAnchors;
 
   /// Open [path], in this tab unless [newTab].
   ///
@@ -476,7 +500,10 @@ class DVLinkOpener {
       _opener?.call(path, newTab: newTab);
 
   @visibleForTesting
-  static void reset() => _opener = null;
+  static void reset() {
+    _opener = null;
+    _browserFollowsAnchors = false;
+  }
 }
 
 /// Route loaders, so a link can fetch what it points at.
