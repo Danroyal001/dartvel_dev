@@ -346,7 +346,10 @@ Widget _fromDesign(BuildContext context) => const Section(
             'differ, how each image fills its frame, how many lines a title '
             'gets. Text arrives in the case it displays rather than the case '
             'it was typed in, a link keeps its underline and a superseded '
-            'price its strike-through, and a tilted layer arrives tilted. '
+            'price its strike-through, and a tilted layer arrives tilted. A '
+            'frosted card keeps the blur behind it rather than in front of '
+            'it, which is the difference between the effect and a flat '
+            'translucent panel. '
             'A node keeps the size it was drawn at only where the '
             'designer fixed it, so the result is not pinned to the width of '
             'the artboard.',
