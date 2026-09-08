@@ -61,7 +61,13 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'own. The box half is drawn by the thing that draws '
     'boxes, only when one was asked for, and the tap and the semantics are '
     'left with the text so a button does not run its action twice and a '
-    'screen reader does not say heading twice.',
+    'screen reader does not say heading twice. A rounded box also rounds '
+    'what is in it now, and did not: the radius reached the decoration and '
+    'nothing else, so a box drew rounded corners and its child squared them '
+    'off again. With a flat colour nobody notices. With a photograph '
+    'everybody does, and it is the commonest rounded thing in any design -- '
+    'every circular avatar came through as a square photograph inside a '
+    'rounded outline.',
   ),
   (
     'Routing',
