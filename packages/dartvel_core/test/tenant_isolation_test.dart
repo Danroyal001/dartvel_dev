@@ -146,4 +146,69 @@ void main() {
       }
     });
   });
+
+  group('a stored table name is the first tenant\'s answer', () {
+    // The page-spec list is built once for the process and a public page is
+    // rendered from it on every request. A tenant-resolved name stored there
+    // would be whichever tenant touched it first, served to everybody after
+    // -- a worse leak than not resolving it, because it is one tenant's data
+    // under another tenant's URL rather than a query that fails.
+    test('the spec keeps the plain name', () {
+      const DVModelPageSpec spec = DVModelPageSpec(
+        model: 'Order',
+        route: '/orders/:slug',
+        param: 'slug',
+        table: 'orders',
+        keyField: 'slug',
+        contentFields: <String>[],
+      );
+
+      expect(spec.table, 'orders');
+    });
+
+    test('the resolver qualifies it for the tenant asking', () async {
+      const DVTenants().configure(
+        isolation: DVTenantIsolation.schemaPerTenant,
+      );
+      const DVTenants().currentTenant = 'acme';
+      final List<String> asked = <String>[];
+
+      final DVPageDataResolver resolve = dvModelPageResolver(
+        const <DVModelPageSpec>[
+          DVModelPageSpec(
+            model: 'Order',
+            route: '/orders/:slug',
+            param: 'slug',
+            table: 'orders',
+            keyField: 'slug',
+            contentFields: <String>[],
+          ),
+        ],
+        (String sql, List<Object?> params) async {
+          asked.add(sql);
+          return const <Map<String, Object?>>[];
+        },
+      );
+
+      await resolve(
+        const DVPageRequest(
+          path: '/orders/a',
+          pattern: '/orders/:slug',
+          params: <String, String>{'slug': 'a'},
+        ),
+      );
+      await const DVTenants().withTenant('globex', () async {
+        await resolve(
+          const DVPageRequest(
+            path: '/orders/a',
+            pattern: '/orders/:slug',
+            params: <String, String>{'slug': 'a'},
+          ),
+        );
+      });
+
+      expect(asked.first, contains('FROM dartvel_acme.orders'));
+      expect(asked.last, contains('FROM dartvel_globex.orders'));
+    });
+  });
 }
