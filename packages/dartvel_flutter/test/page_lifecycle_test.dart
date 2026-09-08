@@ -17,7 +17,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// A page that records every state its own lifecycle reaches.
 class _Watcher extends StatefulWidget {
-  const _Watcher(this.seen);
+  const _Watcher(this.seen, {super.key});
 
   final List<DVPageLifecycle> seen;
 
@@ -28,33 +28,49 @@ class _Watcher extends StatefulWidget {
 class _WatcherState extends State<_Watcher> {
   bool _listening = false;
 
+  /// What the page's own signal said while this widget was being built.
+  ///
+  /// The distinction the host makes is between "there is something to show"
+  /// and "there is something on screen", and only a value read inside build
+  /// can tell them apart: by the time pumpWidget returns, a frame has been
+  /// rendered and the post-frame callback has already run.
+  DVPageLifecycle? duringBuild;
+
   @override
   Widget build(BuildContext context) {
+    final DVLifecycleSignal<DVPageLifecycle> signal = context.lifecycle.page;
+    duringBuild ??= signal.value;
     if (!_listening) {
       _listening = true;
-      context.lifecycle.page.listen(widget.seen.add);
+      signal.listen(widget.seen.add);
     }
     return const SizedBox.shrink();
   }
 }
 
 void main() {
-  testWidgets('a page reaches active, and only after a frame', (tester) async {
+  testWidgets('a page is ready in build and active only after a frame',
+      (tester) async {
     // Ready is "there is something to show"; active is "there is something on
     // screen". A page that reported active at the end of build would say so
     // before anybody could have seen it, which is the same mistake the
     // application signal made until it moved into the frame callback.
+    //
+    // Asserted on the value read inside build rather than on what a listener
+    // had heard by the time pumpWidget returned. pumpWidget renders a frame,
+    // so by then the callback has fired and correctly -- an earlier version
+    // of this test asserted otherwise and was simply wrong about pumpWidget.
     final List<DVPageLifecycle> seen = <DVPageLifecycle>[];
+    final GlobalKey<State<_Watcher>> key = GlobalKey<State<_Watcher>>();
 
     await tester.pumpWidget(
-      DVPageLifecycleHost(child: _Watcher(seen)),
+      DVPageLifecycleHost(child: _Watcher(seen, key: key)),
     );
 
-    // The listener attaches during the first build, so `ready` may already
-    // have been set; what must not have happened yet is the frame.
-    expect(seen, isNot(contains(DVPageLifecycle.active)));
-
-    await tester.pump();
+    final _WatcherState state = key.currentState! as _WatcherState;
+    expect(state.duringBuild, DVPageLifecycle.ready);
+    // And by the time the frame is done, it is on screen. The two together
+    // are the contract: ready in build, active after the frame.
     expect(seen, contains(DVPageLifecycle.active));
   });
 
