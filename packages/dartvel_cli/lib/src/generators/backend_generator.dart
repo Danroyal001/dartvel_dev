@@ -1535,8 +1535,11 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
         ..writeln("    cron: '${esc(entry.cron)}',")
         ..writeln('    target: ${entry.target},')
         ..writeln("    importUri: '${esc(entry.importUri)}',")
-        ..writeln("    filePath: '${esc(entry.relativePath)}',")
-        ..writeln('  ),');
+        ..writeln("    filePath: '${esc(entry.relativePath)}',");
+      if (entry.catchUp != null) {
+        sb.writeln('    catchUp: ${entry.catchUp},');
+      }
+      sb.writeln('  ),');
     }
     sb
       ..writeln('];')
@@ -2012,23 +2015,63 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
     required String target,
     required List<_CronEntry> entries,
   }) {
+    // The expression is not the whole of the annotation any more. It used to
+    // be, and an argument after it did not make the schedule wrong -- it made
+    // it invisible, because the pattern stopped matching and the function
+    // stopped being a schedule. That is the failure worth guarding: a build
+    // that says nothing and an application that quietly runs nothing.
     final pattern = RegExp(
-      "@$annotationName\\(\\s*(['\"])(.*?)\\1\\s*\\)\\s*"
+      "@$annotationName\\(\\s*(['\"])(.*?)\\1\\s*(,[^)]*)?\\)\\s*"
       r'(?:Future<[^>]+>|Future|Stream<[^>]+>|[A-Za-z_][A-Za-z0-9_<>, ?]*)\s+'
       r'([A-Za-z_][A-Za-z0-9_]*)\s*\(',
       dotAll: true,
     );
     for (final match in pattern.allMatches(source)) {
       entries.add(_CronEntry(
-        name: match.group(3)!,
+        name: match.group(4)!,
         returnsPlainVoid:
-            _dvReturnsPlainVoid(match.group(0) ?? '', match.group(3)!),
+            _dvReturnsPlainVoid(match.group(0) ?? '', match.group(4)!),
         cron: match.group(2)!,
+        catchUp: _cronCatchUp(
+          match.group(3),
+          annotationName: annotationName,
+          relativePath: relativePath,
+        ),
         target: target,
         importUri: importUri,
         relativePath: relativePath,
       ));
     }
+  }
+
+  /// What the arguments after a cron expression say about catch-up.
+  ///
+  /// Null when nothing was said, which is not the same as false: false is a
+  /// schedule refusing catch-up, and it has to outrank the blanket setting a
+  /// starter is called with.
+  ///
+  /// A value that is not a literal stops the build. Somebody who wrote
+  /// catchUp has decided something about missed periods, and a generator that
+  /// silently produced a schedule ignoring it would be the quiet half of the
+  /// same failure the pattern above guards against.
+  static bool? _cronCatchUp(
+    String? args, {
+    required String annotationName,
+    required String relativePath,
+  }) {
+    if (args == null) return null;
+    if (!RegExp(r'\bcatchUp\s*:').hasMatch(args)) return null;
+    final RegExpMatch? literal =
+        RegExp(r'\bcatchUp\s*:\s*(true|false)\b').firstMatch(args);
+    if (literal == null) {
+      throw StateError(
+        'The @$annotationName in $relativePath writes catchUp as something '
+        'this generator cannot read. It must be written as true or false in '
+        'the annotation itself, because the generated schedule carries the '
+        'value rather than evaluating it.',
+      );
+    }
+    return literal.group(1) == 'true';
   }
 
   static void _collectAIToolEntries({
@@ -2170,6 +2213,9 @@ class _CronEntry {
   /// Future<void> is different: awaiting it as a statement is fine.
   final bool returnsPlainVoid;
 
+  /// What the annotation said about catch-up, or null if it said nothing.
+  final bool? catchUp;
+
   const _CronEntry({
     required this.name,
     required this.cron,
@@ -2177,6 +2223,7 @@ class _CronEntry {
     required this.importUri,
     required this.relativePath,
     this.returnsPlainVoid = false,
+    this.catchUp,
   });
 }
 

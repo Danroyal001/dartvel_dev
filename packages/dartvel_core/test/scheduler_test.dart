@@ -229,4 +229,67 @@ void main() {
       throwsArgumentError,
     );
   });
+
+  group('what a schedule says about catch-up outranks the blanket setting', () {
+    // The blanket argument is the application deciding for the schedules that
+    // said nothing. A schedule that wrote it down has already decided about
+    // itself, and the two disagree in both directions: a nightly digest must
+    // not fire four times the morning a server comes back, and a rollup that
+    // writes a row per period must not leave holes.
+    DVCronEntry entry(String name, {bool? catchUp}) => DVCronEntry(
+          name: name,
+          cron: '30 2 * * *',
+          target: DVCronTarget.backend,
+          importUri: 'package:app/jobs.dart',
+          filePath: 'lib/jobs.dart',
+          catchUp: catchUp,
+        );
+
+    Future<List<String>> runFrom(
+      DVCronEntry declared, {
+      required bool blanket,
+    }) async {
+      final List<String> fired = <String>[];
+      final DVScheduler built = DVScheduler(clock: () => now)
+        ..registerAll(
+          <DVCronEntry>[declared],
+          handlers: <String, Future<void> Function()>{
+            declared.name: () async => fired.add(declared.name),
+          },
+          catchUp: blanket,
+        );
+
+      // By the third night three occurrences have come round: the scheduler
+      // was built at midnight on the first, and 02:30 has passed on the
+      // first, the second and the third.
+      now = at(2026, 4, 3, 2, 30);
+      await built.tick();
+      return fired;
+    }
+
+    test('a schedule that refused it does not catch up under a blanket yes',
+        () async {
+      final List<String> fired =
+          await runFrom(entry('digest', catchUp: false), blanket: true);
+
+      expect(fired, <String>['digest']);
+    });
+
+    test('a schedule that asked for it catches up under a blanket no',
+        () async {
+      final List<String> fired =
+          await runFrom(entry('rollup', catchUp: true), blanket: false);
+
+      expect(fired, <String>['rollup', 'rollup', 'rollup']);
+    });
+
+    test('a schedule that said nothing follows the blanket setting', () async {
+      expect(
+        await runFrom(entry('sync'), blanket: true),
+        <String>['sync', 'sync', 'sync'],
+      );
+      now = at(2026, 4, 1, 0, 0);
+      expect(await runFrom(entry('sync'), blanket: false), <String>['sync']);
+    });
+  });
 }
