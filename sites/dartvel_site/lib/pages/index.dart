@@ -346,7 +346,9 @@ Widget _fromDesign(BuildContext context) => const Section(
             'stays pinned: the badge on the corner of a card and the close '
             'button on a sheet are taken out of the flow and left where '
             'they were drawn, where reading them as ordinary children made '
-            'the card wider by a badge and left the corner empty.',
+            'the card wider by a badge and left the corner empty. A '
+            'gradient keeps the opacity the fill carries, so a scrim over a '
+            'hero image fades the photograph rather than covering it.',
           ),
           SiteCard(
             'And as the design',
