@@ -870,7 +870,7 @@ class BuildCommand extends Command<void> {
         // publish whatever the last one produced -- including for a route
         // that has since stopped rendering.
         await _captureSemantics(root);
-        _writePwaManifest(root);
+        await _writePwaManifest(root);
         _writeSeoHead(root);
         if (platform == 'web-server') {
           _writeWebServerManifest(root);
@@ -1832,7 +1832,7 @@ class BuildCommand extends Command<void> {
     exit(1);
   }
 
-  void _writePwaManifest(String root) {
+  Future<void> _writePwaManifest(String root) async {
     final pwa = _dartvelSection(root)['pwa'];
     final settings = pwa is Map ? pwa : const <Object?, Object?>{};
     if (settings['enabled'] == false) return;
@@ -1861,7 +1861,7 @@ class BuildCommand extends Command<void> {
     }
 
     _writePwaIcons(root, settings);
-    _writeServiceWorker(root, name: name, settings: settings);
+    await _writeServiceWorker(root, name: name, settings: settings);
   }
 
   /// The hreflang set for [route], and its x-default, when the site is built
@@ -1929,32 +1929,27 @@ class BuildCommand extends Command<void> {
   /// Flutter's own caches the app shell and nothing Dartvel knows about, so a
   /// Dartvel site had no offline page, no cached routes, and no control over
   /// what a stale worker serves after a deploy.
-  void _writeServiceWorker(
+  Future<void> _writeServiceWorker(
     String root, {
     required String name,
     required Map<Object?, Object?> settings,
-  }) {
+  }) async {
     if (settings['serviceWorker'] == false) return;
 
     final web = Directory(p.join(root, 'build', 'web'));
     if (!web.existsSync()) return;
 
-    // The routes this build produced, which is what a Dartvel worker can
+    // The routes this build produces, which is what a Dartvel worker can
     // precache and Flutter's cannot know.
-    final routes = <String>['/'];
-    for (final entity in web.listSync()) {
-      if (entity is! Directory) continue;
-      final segment = p.basename(entity.path);
-      if (segment.startsWith('.') ||
-          segment == 'assets' ||
-          segment == 'canvaskit' ||
-          segment == 'icons') {
-        continue;
-      }
-      if (File(p.join(entity.path, 'index.html')).existsSync()) {
-        routes.add('/$segment');
-      }
-    }
+    //
+    // Asked of the router, not of the output directory. Scanning build/web
+    // for directories with an index.html read the result of work this runs
+    // before -- the route pages are written later -- so a clean build found
+    // nothing and precached the root alone, while a second build over the
+    // first found last time's directories and reported four. CI builds clean
+    // every time and shipped the broken worker every time; nobody building
+    // locally ever saw it.
+    final routes = dvPrecacheRoutes(await _pagesToGenerate(root));
 
     const offlinePath = '/offline.html';
     File(p.join(web.path, 'offline.html'))
