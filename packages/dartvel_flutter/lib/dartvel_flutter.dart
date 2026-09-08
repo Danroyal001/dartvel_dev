@@ -3433,6 +3433,10 @@ class DVClipboard {
   const DVClipboard();
 
   Future<void> copy(String text) async {
+    // Before the binding, not after. A kiosk that has locked the clipboard
+    // has locked it for the application too, and asking the platform first
+    // would put the text on the clipboard and then report a failure.
+    dvRefuseIfClipboardBlocked('copy');
     final handled =
         await DVNativeBridge.require<bool>('clipboard.copy', {'text': text});
     if (!handled) {
@@ -3440,7 +3444,13 @@ class DVClipboard {
     }
   }
 
-  Future<String?> paste() => DVNativeBridge.require<String?>('clipboard.paste');
+  Future<String?> paste() {
+    // Both directions. A kiosk that blocks copying and allows pasting is a
+    // kiosk somebody can type into from whatever the last person left on the
+    // clipboard, which is the half that carries other people's data.
+    dvRefuseIfClipboardBlocked('paste');
+    return DVNativeBridge.require<String?>('clipboard.paste');
+  }
 }
 
 class DVShare {
@@ -6157,7 +6167,12 @@ class _DVPageShellState extends State<DVPageShell> {
   Widget _body(Widget body) {
     // Inside the safe area, not outside it: a SelectionArea above would let a
     // drag begin in the notch or over the home indicator.
-    final content = spec.selectable
+    // The page's preference, unless the deployment has decided otherwise.
+    // A kiosk policy with textSelection: disabled has closed the question,
+    // and a page declaring selectable: true is stating a preference rather
+    // than overruling the device it is running on.
+    final bool selectable = spec.selectable && !dvKioskBlocksTextSelection;
+    final content = selectable
         ? SelectionArea(
             // skipTraversal, because a SelectionArea is focusable and would
             // otherwise take the first tab stop on every page: the first Tab
