@@ -206,7 +206,7 @@ Widget _heading(
           .fontSize(context.screen.value<double>(mobile: 26, desktop: 34))
           .fontWeight(FontWeight.w800)
           .color(onDark ? const Color(0xFFF2F5FC) : Palette.of(context).ink)
-          .height(1.15)
+          .lineHeight(1.15)
           // Declared, so the outline exists for a screen reader moving by
           // heading and for the crawler-visible HTML built from the semantics
           // tree. Without it every heading was a paragraph.
@@ -223,7 +223,7 @@ Widget _body(BuildContext context, String text, {double width = 640}) =>
       const DVModifier()
           .fontSize(17)
           .color(Palette.of(context).muted)
-          .height(1.65)
+          .lineHeight(1.65)
           .maxWidth(width),
     );
 
@@ -241,7 +241,7 @@ Widget _siteCard(BuildContext context, String title, String body) {
           .fontWeight(FontWeight.w700)
           .color(palette.ink)),
       DVText(body).modifier(
-          const DVModifier().fontSize(14).color(palette.muted).height(1.55)),
+          const DVModifier().fontSize(14).color(palette.muted).lineHeight(1.55)),
     ], spacing: 8),
     const DVModifier()
         .width(context.screen.value<double>(mobile: double.infinity, tablet: 300))
@@ -331,7 +331,7 @@ Widget _stats(
             .fontSize(13.5)
             .fontWeight(FontWeight.w600)
             .color(onDark ? const Color(0xFF98A6C9) : palette.muted)
-            .height(1.4)),
+            .lineHeight(1.4)),
       ], spacing: 4, crossAlign: DVCrossAlign.start),
   ], spacing: context.screen.value<double>(mobile: 28, desktop: 56));
 }
@@ -416,7 +416,7 @@ Widget _siteButton(
       DVText(label).modifier(const DVModifier()
           .fontSize(15)
           .fontWeight(FontWeight.w600)
-          .height(1.2)
+          .lineHeight(1.2)
           .color(filled ? const Color(0xFFFFFFFF) : palette.ink)),
       const DVModifier()
           .paddingSymmetric(horizontal: 22, vertical: 15)

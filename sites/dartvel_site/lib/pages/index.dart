@@ -59,7 +59,7 @@ Widget _heroCopy(BuildContext context) => DVBox.list(
               .fontSize(context.screen.value<double>(mobile: 36, desktop: 54))
               .fontWeight(FontWeight.w800)
               .color(Palette.of(context).ink)
-              .height(1.06)
+              .lineHeight(1.06)
               // The site's one h1.
               .semanticHeading(1),
         ),
@@ -73,7 +73,7 @@ Widget _heroCopy(BuildContext context) => DVBox.list(
               .fontSize(context.screen.value<double>(mobile: 17, desktop: 20))
               .fontWeight(FontWeight.w600)
               .color(Palette.of(context).accent)
-              .height(1.45)
+              .lineHeight(1.45)
               .maxWidth(640),
         ),
         const DVText(
@@ -81,7 +81,7 @@ Widget _heroCopy(BuildContext context) => DVBox.list(
           'Routing, typed clients, serialization, forms, admin and the server '
           'are generated, compiled or served for you.',
         ).modifier(
-          const DVModifier().fontSize(19).color(Palette.of(context).muted).height(1.65).width(640),
+          const DVModifier().fontSize(19).color(Palette.of(context).muted).lineHeight(1.65).width(640),
         ),
         // The two things people do not expect a Flutter framework to do, at
         // the top of the page rather than three slides down where they were.
@@ -90,7 +90,7 @@ Widget _heroCopy(BuildContext context) => DVBox.list(
           'ordinary Dart. Build the same application for a terminal, with no '
           'GUI code linked in.',
         ).modifier(
-          const DVModifier().fontSize(17).color(Palette.of(context).muted).height(1.6).width(600),
+          const DVModifier().fontSize(17).color(Palette.of(context).muted).lineHeight(1.6).width(600),
         ),
         const DVBox.wrapLine(<Widget>[
           PrimaryLink('Get started', '/docs'),
@@ -244,7 +244,7 @@ Widget _proof(BuildContext context) => Section(
           'One annotated class gives you the typed client, the form with '
           'validation, the table, the admin surface, the public page and the '
           'sync. You do not write, or maintain, any of them.',
-        ).modifier(const DVModifier().fontSize(17).color(Palette.of(context).muted).height(1.6).width(620)),
+        ).modifier(const DVModifier().fontSize(17).color(Palette.of(context).muted).lineHeight(1.6).width(620)),
         const CodeBlock(<String>[
           '@DVModel(generatePublicPages: true)',
           'class _Post {',
@@ -269,7 +269,7 @@ Widget _proof(BuildContext context) => Section(
           'context, traces, analytics, public serialization, search, the '
           'generated page, the table and the admin by default. It reaches a '
           'client only when a policy says so.',
-        ).modifier(const DVModifier().fontSize(15).color(Palette.of(context).muted).height(1.6).width(620)),
+        ).modifier(const DVModifier().fontSize(15).color(Palette.of(context).muted).lineHeight(1.6).width(620)),
       ],
     );
 
@@ -429,7 +429,7 @@ Widget _targets(BuildContext context) => Section(
           'fork so the engine and the Flutter version stay aligned. A build '
           'checks host support and tooling before doing any work, so it never '
           'starts something it cannot finish.',
-        ).modifier(const DVModifier().fontSize(16).color(const Color(0xFF9AA6C4)).height(1.65).width(640)),
+        ).modifier(const DVModifier().fontSize(16).color(const Color(0xFF9AA6C4)).lineHeight(1.65).width(640)),
         const SizedBox(height: 8),
         // The last chip in that row is the one worth a sentence: a Flutter
         // application drawing in a terminal is not a thing people expect to
@@ -443,7 +443,7 @@ Widget _targets(BuildContext context) => Section(
           'CI and its escape sequences counted, because a build that produced '
           'a GUI binary and called it a TUI is exactly what happened once — '
           'and what it renders is a Dartvel application, not a sample.',
-        ).modifier(const DVModifier().fontSize(16).color(const Color(0xFF9AA6C4)).height(1.65).width(640)),
+        ).modifier(const DVModifier().fontSize(16).color(const Color(0xFF9AA6C4)).lineHeight(1.65).width(640)),
         const SizedBox(height: 8),
         // Breadth only. The section below already counts shipped spec
         // sections, and two numeric rows a screen apart both saying 22 read
@@ -468,7 +468,7 @@ Widget _honest(BuildContext context) => Section(
           'public surface can still move, and how much is built — checked by a '
           'tool that fails when a section claims to be built and the evidence '
           'it names does not exist.',
-        ).modifier(const DVModifier().fontSize(17).color(Palette.of(context).muted).height(1.65).width(660)),
+        ).modifier(const DVModifier().fontSize(17).color(Palette.of(context).muted).lineHeight(1.65).width(660)),
         const DVBox.wrapLine(<Widget>[
           Stat('33', 'sections shipped'),
           Stat('22', 'partial, and listed'),
@@ -478,7 +478,7 @@ Widget _honest(BuildContext context) => Section(
         const DVText(
           'A target says verified only where the command was run and the '
           'artifact inspected — never because a sibling target works.',
-        ).modifier(const DVModifier().fontSize(15).color(Palette.of(context).faint).height(1.6).width(620)),
+        ).modifier(const DVModifier().fontSize(15).color(Palette.of(context).faint).lineHeight(1.6).width(620)),
       ],
     );
 

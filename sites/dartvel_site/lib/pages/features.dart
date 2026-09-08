@@ -969,7 +969,7 @@ Widget _featureRow(
         SiteChip(surface),
       ], spacing: 10),
       DVText(body).modifier(
-        const DVModifier().fontSize(15).color(palette.muted).height(1.6),
+        const DVModifier().fontSize(15).color(palette.muted).lineHeight(1.6),
       ),
     ], spacing: 6),
     const DVModifier()
