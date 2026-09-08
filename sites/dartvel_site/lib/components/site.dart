@@ -341,19 +341,10 @@ Widget _wordmark(BuildContext context) {
     padding: EdgeInsets.zero,
     semanticLabel: 'Dartvel, home',
     child: DVBox.row(<Widget>[
-      DVBox(
-        const DVText('D').modifier(const DVModifier()
-            .fontSize(13)
-            .fontWeight(FontWeight.w800)
-            .color(const Color(0xFFFFFFFF))
-            .height(1.2)),
-        const DVModifier()
-            .width(22)
-            .height(22)
-            .backgroundColor(palette.accent)
-            .rounded(6)
-            .align(Alignment.center),
-      ),
+      // The mark itself, not a letter in a box. The placeholder was a bold
+      // D on an accent square, which is what a header has before anybody
+      // draws a logo.
+      const DartvelMark(size: 24),
       const DVText('Dartvel').modifier(const DVModifier()
           .fontSize(17)
           .fontWeight(FontWeight.w800)
