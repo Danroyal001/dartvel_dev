@@ -465,7 +465,7 @@ import 'package:flutter/foundation.dart' show kReleaseMode, kIsWeb, defaultTarge
 import 'dart:io' show exit${dv['terminal'] == true ? ', stdin, stdout, stderr, File, Platform, Process, ProcessStartMode' : ''};
 import 'package:flutter/widgets.dart' show WidgetsFlutterBinding;
 import 'package:dartvel_core/dartvel.dart' show DVStartupProfile, dvLiveWindowsPathFor;
-${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVAppLifecycle, DVPageStore,${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''}${_hasDeviceProfileDisplays(dv) ? ' DVWindowManager,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAndroidBindings, DVAppLaunch, DVRouteTarget, DVWindowOptions, DVRenderSurface${dv['terminal'] == true ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''};
+${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVAppLifecycle, DVPageStore,${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''}${_hasDeviceProfileDisplays(dv) || _hasSharedStoreTuning(dv) ? ' DVWindowManager,' : ''}${_hasSharedStoreTuning(dv) ? ' DVWindowSharedStore,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAndroidBindings, DVAppLaunch, DVRouteTarget, DVWindowOptions, DVRenderSurface${dv['terminal'] == true ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''};
 import 'dartvel_config.g.dart' as cfg;
 import 'jobs.g.dart' show registerDartvelJobs;
 import 'models.g.dart' show registerDartvelModels;
@@ -506,7 +506,7 @@ void configureDartvelRuntime({List<String> arguments = const <String>[]}) {
   // The arguments this process was started with -- a file association, a
   // dartvel:// link, a second launch -- and the launches that come after it.
   startDartvelLaunch(arguments);
-${_deviceKioskInstallSource(dv)}
+${_sharedStoreTuningSource(dv)}${_deviceKioskInstallSource(dv)}
   // Every @DVClientCron schedule, registered and ticking. The entries were
   // generated and nothing started them, so a schedule declared on a page
   // never ran once. Starts no timer when the application declares none.
@@ -1627,6 +1627,63 @@ void startDartvelKiosk() {
     ];
     if (names.isEmpty) return '';
     return "import 'config.g.dart' show ${names.join(', ')};\n";
+  }
+
+  /// `dartvel.windowing.sharedState`, as the store the application uses.
+  ///
+  /// The specification documents four numbers here and the build read none
+  /// of them. Two are constructor parameters already, with defaults equal to
+  /// the documented values -- so a project that set spillThresholdKb: 64 got
+  /// 32 and one that set debounceMs: 200 got 50. The setting was accepted,
+  /// the build succeeded, and the number in the pubspec was decoration.
+  ///
+  /// Emitted only when the project tuned something. The store is built
+  /// lazily with its own defaults, and replacing it with an identical one
+  /// would be a line of generated code that exists to do what not writing it
+  /// does.
+  ///
+  /// pollMs and sweepAfter are not here: there is no separate-process
+  /// polling backend and no sweep of spilled files, so there is no parameter
+  /// to pass them to. Named as absent rather than wired to nothing.
+  /// Whether [_sharedStoreTuningSource] emits anything.
+  ///
+  /// Asks that function rather than repeating its conditions: the import
+  /// list and the code it is for have to agree, and two copies of "did the
+  /// project tune the store" is how a generated file comes to name a type it
+  /// does not import.
+  static bool _hasSharedStoreTuning(YamlMap dv) =>
+      _sharedStoreTuningSource(dv).isNotEmpty;
+
+  static String _sharedStoreTuningSource(YamlMap dv) {
+    final Object? windowing = dv['windowing'];
+    final Object? shared =
+        windowing is Map ? windowing['sharedState'] : null;
+    if (shared is! Map) return '';
+
+    final Object? debounce = shared['debounceMs'];
+    final Object? threshold = shared['spillThresholdKb'];
+    final List<String> arguments = <String>[
+      // Numbers only. A value that is not one would reach generated source
+      // as Duration(milliseconds: fast), which does not compile -- so a typo
+      // in a pubspec would break the build with an error pointing at a
+      // generated file nobody wrote.
+      if (debounce is int) 'debounce: Duration(milliseconds: $debounce)',
+      // Kilobytes in the pubspec, bytes in the constructor. The
+      // specification writes Kb and the parameter is spillThresholdBytes;
+      // passing the number through would spill at 64 bytes.
+      if (threshold is int) 'spillThresholdBytes: ${threshold * 1024}',
+    ];
+    if (arguments.isEmpty) return '';
+
+    return '  // dartvel.windowing.sharedState. Replaced rather than\n'
+        '  // configured, because the store is what holds the values and\n'
+        '  // useSharedStore is the hook that already existed.\n'
+        '  //\n'
+        '  // On the class, not through DV.Window: that getter answers with\n'
+        '  // a DVWindowManager instance and this is a static.\n'
+        '  DVWindowManager.useSharedStore(DVWindowSharedStore(\n'
+        '    ${arguments.join(',\n    ')},\n'
+        '  ));\n';
   }
 
   /// `dartvel.deviceProfiles.<id>.displays.<name>.index`, per profile that
