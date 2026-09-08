@@ -507,7 +507,7 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   ),
   (
     'Multi-tenancy',
-    'Resolution, and a shared database that filters',
+    'All three strategies, and a shared database that filters',
     'Tenant resolution is built: the current tenant is resolved from the '
     'configured source, the middleware makes it current for the rest of the '
     'request, presence is scoped by it, and it is held in a zone so it '
@@ -535,11 +535,30 @@ const List<(String, String, String)> partial = <(String, String, String)>[
     'country table -- and the symptom is the opposite of a leak: rows '
     'written before the column existed belong to no tenant, so a predicate '
     'nobody asked for hides all of them from everybody. '
-    'Absent: the schema-per-tenant and database-per-tenant strategies, which '
-    'resolve a tenant and then do nothing different with it; a migration for '
-    'a table that already has rows, so turning this on later leaves them '
-    'belonging to no tenant; and any scoping of raw queries an application '
-    'writes itself.',
+    'All three strategies do something now. Two of them did not: '
+    'schema-per-tenant and database-per-tenant were an enum value and a '
+    'function that built the right name and was called by nothing, so '
+    'choosing either produced exactly the queries the shared strategy '
+    'produces, against exactly the same database. Every tenant read every '
+    'tenant\'s rows on the two settings chosen to prevent that, and it '
+    'looked like it worked -- every query returned rows and the application '
+    'behaved. A schema per tenant qualifies the table name, resolved when '
+    'the statement runs rather than written in, because which schema is '
+    'asking is a fact about the request and two requests are in flight at '
+    'once. A database per tenant does not qualify the name, since the '
+    'connection is what differs; the adapter is resolved per tenant instead, '
+    'opened once each and kept, because a connection per query is a pool '
+    'nobody wrote and on SQLite a second write lock over one file. Choosing '
+    'that strategy without saying how to open a tenant\'s database is '
+    'refused, because the fallback is one database for everybody -- the '
+    'leak it exists to close, returning rows the whole time. Turning tenant '
+    'scoping on for a table that already has rows is handled too: the table '
+    'is left entirely alone until somebody says whose those rows are, since '
+    'rows written before the column existed belong to nobody and would be '
+    'hidden from everybody, leaving a table that reads as empty in a way '
+    'nothing tells apart from data loss. Absent: creating the per-tenant '
+    'schemas themselves, which needs a list of tenants the build does not '
+    'have; and any scoping of raw queries an application writes itself.',
   ),
   (
     'Sensitive Model Fields',
