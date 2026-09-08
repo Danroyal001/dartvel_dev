@@ -111,7 +111,11 @@ Widget _siteFooter(BuildContext context) {
         // The mark again, quietly, at the size a piece of small print takes.
         // Flat rather than gradient: at sixteen points the fold is two
         // pixels of grey, and the footer is not where the logo argues.
-        DVBox.row(<Widget>[
+        // Wrapped, not a row. The line beside it is thirty-three characters
+        // and a phone gutter leaves 276 points: a row put the mark and the
+        // text side by side at their natural widths and ran 185 points off
+        // the edge, which in release is silently clipped.
+        DVBox.wrapLine(<Widget>[
           DartvelMark(size: 16, color: palette.faint),
           const DVText('MIT licensed. Built with Dartvel.')
               .modifier(const DVModifier().fontSize(13).color(palette.faint)),
