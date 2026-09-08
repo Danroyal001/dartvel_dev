@@ -132,6 +132,10 @@ void main() {
     // override it per breakpoint -- and the inspector offered no control for
     // it, so a grid built in the builder was permanently two columns wide.
     // That is the drift the layout list exists to prevent, in the layout list.
+    // Three children, because a grid never draws more columns than it has
+    // cards: two cards in a three-column grid occupy the row rather than two
+    // thirds of it, which is the grid being sensible and would make a test
+    // of the column count measure the child count instead.
     DVPageDocument gridWith(Map<String, Object?> properties) {
       final DVPageDocument document = DVPageDocument(route: '/grid');
       final DVPageDocumentEditor editor = DVPageDocumentEditor(document);
@@ -140,7 +144,9 @@ void main() {
         grid = grid.withProperty(name, value);
       });
       editor.insert(grid, parent: document.root.id);
-      editor.insert(DVPageNode.text('one'), parent: grid.id);
+      for (final String label in <String>['one', 'two', 'three']) {
+        editor.insert(DVPageNode.text(label), parent: grid.id);
+      }
       return document;
     }
 
@@ -169,6 +175,11 @@ void main() {
     });
 
     testWidgets('the number reaches the grid', (WidgetTester tester) async {
+      // A desktop-width surface, because the column count is a ceiling that
+      // steps down on a narrow one: three columns on a phone would be three
+      // cards the width of a thumbnail, so the grid asks for one. The number
+      // under test is the ceiling, and it only means anything where the
+      // screen allows it.
       await tester.binding.setSurfaceSize(const Size(1400, 2400));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
