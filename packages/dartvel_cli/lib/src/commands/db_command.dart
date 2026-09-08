@@ -10,6 +10,7 @@ import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 import '../generators/annotation_args.dart';
+import '../generators/tenant_column.dart';
 import '../graph/module_mounts.dart';
 import '../utils/logger.dart';
 
@@ -34,6 +35,24 @@ class DbMigrateSubcommand extends Command<void> {
   @override
   final String description = 'Run pending database schema migrations.';
 
+  DbMigrateSubcommand() {
+    argParser
+      ..addOption(
+        'tenant',
+        help: 'Which tenant the rows written before the tenant column '
+            'existed belong to. Required to add that column to a table that '
+            'already has rows, because without it they belong to nobody and '
+            'every tenant sees an empty table.',
+      )
+      ..addFlag(
+        'orphan-existing-rows',
+        negatable: false,
+        help: 'Add the tenant column and leave existing rows belonging to no '
+            'tenant, which hides them. For a staging database or a table '
+            'being emptied. Never the default.',
+      );
+  }
+
   @override
   Future<void> run() async {
     Logger.log('Running database migrations...');
@@ -48,7 +67,24 @@ class DbMigrateSubcommand extends Command<void> {
     // database at all: it read a list of names and wrote a snapshot. The
     // statements existed -- one per model, correct, carrying the tenant
     // column -- and nothing anywhere called them.
-    final DVMigrationReport report = await dvApplyMigrations(root);
+    final String? tenant = argResults?['tenant'] as String?;
+    final bool orphan =
+        argResults?['orphan-existing-rows'] as bool? ?? false;
+    if (tenant != null && orphan) {
+      Logger.log(
+        'Pass --tenant or --orphan-existing-rows, not both: they are two '
+        'different answers to the same question.',
+        isError: true,
+      );
+      exitCode = 1;
+      return;
+    }
+
+    final DVMigrationReport report = await dvApplyMigrations(
+      root,
+      tenant: tenant,
+      orphanExistingRows: orphan,
+    );
 
     if (report.skippedReason != null) {
       Logger.log('  Schema snapshot written for ${schema.tables.length} '
@@ -59,6 +95,24 @@ class DbMigrateSubcommand extends Command<void> {
 
     for (final String table in report.applied) {
       Logger.log('  [+] $table');
+    }
+    for (final String column in report.added) {
+      Logger.log('  [+] $column (added to an existing table)');
+    }
+    if (report.needsTenant.isNotEmpty) {
+      // Nothing was altered on these. The application on the old code still
+      // works, which is why this stops rather than going half way.
+      Logger.log(
+        'Not migrated: ${report.needsTenant.join(', ')}. These tables have '
+        'rows and are gaining the tenant column, and rows written before it '
+        'existed belong to no tenant -- a predicate on every read would hide '
+        'every one of them from everybody, so the table would read as empty. '
+        'Run again with --tenant <id> to say whose they are, or '
+        '--orphan-existing-rows if they genuinely belong to nobody.',
+        isError: true,
+      );
+      exitCode = 1;
+      return;
     }
     if (report.applied.isEmpty) {
       Logger.log(
@@ -355,12 +409,31 @@ List<File> discoverSeedFiles(String root) {
 class DVMigrationReport {
   const DVMigrationReport({
     required this.applied,
+    this.added = const <String>[],
+    this.needsTenant = const <String>[],
     this.skippedReason,
     this.sqlFile,
   });
 
   /// Tables whose statement ran.
   final List<String> applied;
+
+  /// Columns added to a table that was already there, as `table.column`.
+  ///
+  /// CREATE TABLE IF NOT EXISTS is a no-op against a table that exists, so a
+  /// model that gained a column since the table was made never got it, and
+  /// every query naming that column failed against a database the migration
+  /// had just reported as migrated.
+  final List<String> added;
+
+  /// Tables whose rows would be hidden by adding the tenant column, and
+  /// which were left alone until somebody says whose those rows are.
+  ///
+  /// Rows written before the column existed belong to no tenant, and a
+  /// predicate on every read hides all of them from everybody. That is not a
+  /// smaller version of the feature: the table reads as empty, which looks
+  /// like data loss and cannot be told apart from it.
+  final List<String> needsTenant;
 
   /// Why nothing ran, or null when something did.
   final String? skippedReason;
@@ -408,7 +481,11 @@ List<Map<String, Object?>> dvGeneratedSchema(String root) {
 /// file is beside the project. Anything else is written out with the reason
 /// it was not run, because the alternative is what this replaces -- a
 /// success message for work that did not happen.
-Future<DVMigrationReport> dvApplyMigrations(String root) async {
+Future<DVMigrationReport> dvApplyMigrations(
+  String root, {
+  String? tenant,
+  bool orphanExistingRows = false,
+}) async {
   final List<Map<String, Object?>> tables = dvGeneratedSchema(root);
   if (tables.isEmpty) {
     return const DVMigrationReport(applied: <String>[]);
@@ -445,17 +522,60 @@ Future<DVMigrationReport> dvApplyMigrations(String root) async {
   // foreign keys and the application not to.
   final SqliteDVDatabaseAdapter db = SqliteDVDatabaseAdapter.file(file);
   final List<String> applied = <String>[];
+  final List<String> added = <String>[];
+  final List<String> needsTenant = <String>[];
   try {
     for (final Map<String, Object?> table in tables) {
       final Object? create = table['createSql'];
       if (create is! String) continue;
+      final String name = '${table['table']}';
+      final List<String> want = <String>[
+        for (final Object? column in (table['columns'] as List<Object?>? ??
+            const <Object?>[]))
+          '$column',
+      ];
+
+      final List<String> before = await _columns(db, name);
       await db.execute(create);
-      applied.add('${table['table']}');
+      applied.add(name);
+      if (before.isEmpty) continue;
+
+      // The table was already there, so the statement did nothing. What it
+      // is missing has to be added one column at a time.
+      final List<String> missing =
+          want.where((String c) => !before.contains(c)).toList();
+      if (missing.isEmpty) continue;
+
+      if (missing.contains(dvTenantColumn) &&
+          !orphanExistingRows &&
+          tenant == null &&
+          await _hasRows(db, name)) {
+        // Nothing altered. The application running the old code still
+        // works, which is the point of stopping here rather than half way.
+        needsTenant.add(name);
+        continue;
+      }
+
+      for (final String column in missing) {
+        await db.execute('ALTER TABLE $name ADD COLUMN $column TEXT');
+        added.add('$name.$column');
+      }
+      if (missing.contains(dvTenantColumn) && tenant != null) {
+        await db.execute(
+          'UPDATE $name SET $dvTenantColumn = ? '
+          'WHERE $dvTenantColumn IS NULL',
+          <Object?>[tenant],
+        );
+      }
     }
   } finally {
     db.close();
   }
-  return DVMigrationReport(applied: applied);
+  return DVMigrationReport(
+    applied: applied,
+    added: added,
+    needsTenant: needsTenant,
+  );
 }
 
 /// The columns a SQLite table actually has.
@@ -469,11 +589,49 @@ Future<List<String>> dvSqliteColumns(String file, String table) async {
   if (!File(file).existsSync()) return const <String>[];
   final SqliteDVDatabaseAdapter db = SqliteDVDatabaseAdapter.file(file);
   try {
-    final List<Map<String, Object?>> rows =
-        await db.query('PRAGMA table_info($table)');
-    return rows
-        .map((Map<String, Object?> row) => '${row['name']}')
-        .toList(growable: false);
+    // The same read the migration makes when it decides what a table is
+    // missing. Two ways to ask a table what its columns are is how one of
+    // them comes to be right.
+    return await _columns(db, table);
+  } finally {
+    db.close();
+  }
+}
+
+
+
+Future<List<String>> _columns(SqliteDVDatabaseAdapter db, String table) async {
+  final List<Map<String, Object?>> rows =
+      await db.query('PRAGMA table_info($table)');
+  return rows
+      .map((Map<String, Object?> row) => '${row['name']}')
+      .toList(growable: false);
+}
+
+Future<bool> _hasRows(SqliteDVDatabaseAdapter db, String table) async {
+  final List<Map<String, Object?>> rows =
+      await db.query('SELECT 1 FROM $table LIMIT 1');
+  return rows.isNotEmpty;
+}
+
+/// Runs one statement against a SQLite file. For tests and for the seeder.
+Future<void> dvSqliteExecute(String file, String sql) async {
+  final SqliteDVDatabaseAdapter db = SqliteDVDatabaseAdapter.file(file);
+  try {
+    await db.execute(sql);
+  } finally {
+    db.close();
+  }
+}
+
+/// Reads rows from a SQLite file.
+Future<List<Map<String, Object?>>> dvSqliteRows(
+  String file,
+  String sql,
+) async {
+  final SqliteDVDatabaseAdapter db = SqliteDVDatabaseAdapter.file(file);
+  try {
+    return await db.query(sql);
   } finally {
     db.close();
   }

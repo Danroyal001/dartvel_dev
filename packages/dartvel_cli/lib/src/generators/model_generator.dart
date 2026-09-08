@@ -6,6 +6,7 @@ import 'package:file/local.dart';
 import 'package:glob/glob.dart';
 import 'package:path/path.dart' as p;
 import 'annotation_args.dart';
+import 'tenant_column.dart';
 
 /// Sort key for a field with no `@DVModel.pageOrder(n)`, so every ordered
 /// field lands ahead of every unordered one regardless of the value used.
@@ -769,7 +770,9 @@ class ModelGenerator {
         // a column written and not filtered on leaks, and one filtered on and
         // not written hides every row, and both look like the feature
         // working.
-        const String tenantColumn = 'dv_tenant';
+        // One definition, shared with the migration that adds this
+        // column to a table older than the annotation.
+        const String tenantColumn = dvTenantColumn;
         if (tenantScoped && generatesPublicPages) {
           // The public page resolver reads the row by key with no tenant
           // predicate, and it has to: a statically generated page is written
