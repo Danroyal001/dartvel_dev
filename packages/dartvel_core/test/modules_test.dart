@@ -161,4 +161,41 @@ void moduleAssets() {
       expect(registry('store').asset('assets/unknown.png'), 'assets/unknown.png');
     });
   });
+
+  group('a registered module says it is running', () {
+    // DV.Modules.<id>.lifecycle was created at discovered and never moved.
+    // Twelve states, one of them ever produced -- so an application waiting
+    // for a module to be usable waited forever, and the signal reported a
+    // module that is permanently being discovered. An enum that reports one
+    // value for the life of the process is a field, not a signal, which is
+    // the same thing that was wrong with the application lifecycle.
+    test('registering it makes it active', () {
+      final DVModuleRegistry registry = DVModuleRegistry();
+
+      final DVModule module =
+          registry.register(id: 'notes', mountPath: '/notes');
+
+      expect(module.lifecycle.value, DVModuleLifecycle.active);
+    });
+
+    test('every module in the registry, not just the first', () {
+      final DVModuleRegistry registry = DVModuleRegistry();
+
+      registry.register(id: 'notes', mountPath: '/notes');
+      registry.register(id: 'store', mountPath: '/store');
+
+      expect(
+        registry.all.map((DVModule m) => m.lifecycle.value),
+        everyElement(DVModuleLifecycle.active),
+      );
+    });
+
+    test('a module nobody registered is still only discovered', () {
+      // The initial state is honest for a module the registry has not taken:
+      // it exists as a description and is serving nothing.
+      final DVModule loose = DVModule(id: 'loose', mountPath: '/loose');
+
+      expect(loose.lifecycle.value, DVModuleLifecycle.discovered);
+    });
+  });
 }

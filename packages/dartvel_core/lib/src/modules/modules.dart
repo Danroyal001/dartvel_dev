@@ -393,6 +393,19 @@ class DVModuleRegistry {
   }) {
     final module = DVModule(id: id, mountPath: mountPath, config: config, assets: assets);
     _modules[id] = module;
+    // A module the registry has taken is mounted and serving in this
+    // process, so it says so. The signal was created at discovered and moved
+    // by nothing: twelve states, one of them ever produced, so an
+    // application waiting for a module to be usable waited forever and the
+    // signal reported a module that is permanently being discovered.
+    //
+    // Only this transition, deliberately. resolving, validating, loading and
+    // mounting are build-time phases -- the build found the module, checked
+    // it, generated it and mounted it long before this process started --
+    // and a runtime signal reporting `resolving` for something resolved at
+    // build time is theatre, which is the reason the page signal does not
+    // emit the states that belong to a route transition either.
+    module.setLifecycle(DVModuleLifecycle.active);
     return module;
   }
 
