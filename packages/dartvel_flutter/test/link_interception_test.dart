@@ -101,4 +101,74 @@ void main() {
           isNull);
     });
   });
+
+  // A link that leaves the site opens beside it rather than instead of it.
+  //
+  // On the web this is the browser's job, not the router's: the anchor is
+  // already there, the click is already a user gesture, and `window.open`
+  // from anywhere else is what a popup blocker exists to stop. So the
+  // interceptor marks the anchor and steps back, and this decides which
+  // anchors get marked.
+  group('leaves the site', () {
+    test('another origin does', () {
+      expect(dvLinkLeavesTheSite(activation('https://pub.dev/packages/x')),
+          isTrue);
+      expect(dvLinkLeavesTheSite(activation('https://github.com/a/b')), isTrue);
+    });
+
+    test('this origin does not, however it is written', () {
+      expect(dvLinkLeavesTheSite(activation('/features')), isFalse);
+      expect(dvLinkLeavesTheSite(activation('cloud')), isFalse);
+      expect(dvLinkLeavesTheSite(activation('https://dartvel.dev/docs')),
+          isFalse);
+    });
+
+    // Not a navigation, so not a tab. A new window holding a half-written
+    // mail client is worse than the thing it replaced.
+    test('mailto and tel do not', () {
+      expect(dvLinkLeavesTheSite(activation('mailto:hi@dartvel.dev')), isFalse);
+      expect(dvLinkLeavesTheSite(activation('tel:+441234567890')), isFalse);
+    });
+
+    // Every one of these already means something to the browser, and the
+    // meaning is more specific than "open it". Marking the anchor would
+    // change what a download or a ctrl-click does.
+    test('an instruction the browser already has is left alone', () {
+      expect(
+          dvLinkLeavesTheSite(
+              activation('https://pub.dev/x', hasDownload: true)),
+          isFalse);
+      expect(
+          dvLinkLeavesTheSite(
+              activation('https://pub.dev/x', withModifier: true)),
+          isFalse);
+      expect(dvLinkLeavesTheSite(activation('https://pub.dev/x', button: 1)),
+          isFalse);
+      expect(
+          dvLinkLeavesTheSite(
+              activation('https://pub.dev/x', target: '_blank')),
+          isFalse);
+      expect(
+          dvLinkLeavesTheSite(
+              activation('https://pub.dev/x', alreadyHandled: true)),
+          isFalse);
+    });
+
+    // The two answers cannot both be yes for one activation: routing it and
+    // opening it beside are different destinations for the same click.
+    test('nothing is both routed and sent away', () {
+      for (final String href in <String>[
+        '/features',
+        'cloud',
+        'https://dartvel.dev/docs',
+        'https://pub.dev/packages/x',
+        'mailto:hi@dartvel.dev',
+        '#install',
+      ]) {
+        final DVLinkActivation a = activation(href);
+        expect(dvRoutedLinkPath(a) != null && dvLinkLeavesTheSite(a), isFalse,
+            reason: '$href was claimed by both');
+      }
+    });
+  });
 }

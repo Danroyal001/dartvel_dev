@@ -17,3 +17,7 @@ void dvInterceptLinkNavigation(void Function(String path) route) {}
 
 /// No-op off the web, where there is no browser to hand a URL to.
 void dvOpenUrl(String path, {bool newTab = false}) {}
+
+/// False off the web: there are no anchors, so nothing follows one and
+/// [DVNavLink] is the only thing that can open a link.
+const bool dvBrowserFollowsAnchors = false;

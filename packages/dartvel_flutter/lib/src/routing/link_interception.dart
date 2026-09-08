@@ -78,3 +78,49 @@ String? dvRoutedLinkPath(DVLinkActivation activation) {
       (resolved.hasQuery ? '?${resolved.query}' : '') +
       (resolved.fragment.isEmpty ? '' : '#${resolved.fragment}');
 }
+
+/// Whether this activation leaves the site, and so belongs in its own tab.
+///
+/// A link to pub.dev is not a page of this application and never comes back
+/// into it: replacing the document means the reader has left, and the way
+/// back is the button that reloads everything they were part-way through.
+/// Opening beside is what a site does, and it is the browser that should do
+/// it — the anchor is already in the document and the click is already a user
+/// gesture, which is the difference between a tab and a blocked popup.
+///
+/// So this is not "should the router open a tab". It is "should the anchor be
+/// marked `target=_blank` and the browser left to it", and the answer is no
+/// for everything the browser already has an instruction about. A download, a
+/// ctrl-click, a middle click and an explicit `target` each mean something
+/// more specific than "open it", and overriding any of them takes a choice
+/// away from the reader.
+///
+/// `mailto:` and `tel:` are excluded because they are not navigations. A tab
+/// that opens, hands the URL to a mail client and is left behind empty is a
+/// worse outcome than the one it replaced.
+///
+/// This and [dvRoutedLinkPath] never both answer yes: one is a page of this
+/// application and the other is not.
+bool dvLinkLeavesTheSite(DVLinkActivation activation) {
+  if (activation.alreadyHandled) return false;
+  if (activation.button != 0) return false;
+  if (activation.withModifier) return false;
+  if (activation.hasDownload) return false;
+
+  final String? target = activation.target;
+  if (target != null && target.isNotEmpty && target != '_self') return false;
+
+  final Uri? destination = Uri.tryParse(activation.href);
+  if (destination == null) return false;
+  // A scheme that is not the web's is not a page anywhere, so it is not a
+  // page somewhere else either.
+  if (destination.hasScheme &&
+      destination.scheme != 'http' &&
+      destination.scheme != 'https') {
+    return false;
+  }
+
+  final Uri? here = Uri.tryParse(activation.currentUrl);
+  if (here == null) return false;
+  return here.resolveUri(destination).origin != here.origin;
+}

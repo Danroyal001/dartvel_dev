@@ -136,4 +136,76 @@ void main() {
 
     expect(find.byType(Card), findsNothing);
   });
+
+  // Where the browser follows anchors itself, the widget must not open the
+  // link as well.
+  //
+  // Every DVNavLink renders a real anchor in the semantics tree, and on the
+  // web the browser activates that anchor on the same click the widget sees.
+  // While both went to the same address in the same tab that was invisible --
+  // two navigations to one place look like one. It stops being invisible the
+  // moment either of them opens a tab: a middle click opened two, and an
+  // external link marked to open beside would open one tab and send the page
+  // the reader was on to the same address.
+  group('the browser follows the anchor', () {
+    setUp(() {
+      DVLinkOpener.install(
+        (String path, {bool newTab = false}) {
+          (newTab ? inNewTab : opened).add(path);
+        },
+        browserFollowsAnchors: true,
+      );
+    });
+
+    testWidgets('an external link is left to it', (tester) async {
+      await pump(
+        tester,
+        const DVNavLink.external(
+          'https://pub.dev/packages/dartvel_dev',
+          child: DVText('pub.dev'),
+        ),
+      );
+
+      await tester.tap(find.text('pub.dev'));
+      await tester.pump();
+
+      expect(opened, isEmpty);
+      expect(inNewTab, isEmpty);
+    });
+
+    testWidgets('a middle click is left to it', (tester) async {
+      await pump(
+        tester,
+        const DVNavLink.external(
+          'https://pub.dev/packages/dartvel_dev',
+          child: DVText('pub.dev'),
+        ),
+      );
+
+      final TestGesture gesture =
+          await tester.createGesture(buttons: kMiddleMouseButton);
+      await gesture.down(tester.getCenter(find.text('pub.dev')));
+      await gesture.up();
+      await tester.pump();
+
+      expect(inNewTab, isEmpty);
+    });
+  });
+
+  // Off the web there is no anchor and no browser, so the widget is the only
+  // thing that can open anything.
+  testWidgets('without one, the widget opens it', (tester) async {
+    await pump(
+      tester,
+      const DVNavLink.external(
+        'https://pub.dev/packages/dartvel_dev',
+        child: DVText('pub.dev'),
+      ),
+    );
+
+    await tester.tap(find.text('pub.dev'));
+    await tester.pump();
+
+    expect(opened, <String>['https://pub.dev/packages/dartvel_dev']);
+  });
 }
