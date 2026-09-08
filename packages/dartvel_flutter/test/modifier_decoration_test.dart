@@ -18,7 +18,7 @@ TextStyle? styleOf(WidgetTester tester) =>
 
 Future<void> pump(WidgetTester tester, DVModifier modifier) =>
     tester.pumpWidget(
-      MaterialApp(home: DVText('Sale').modifier(modifier)),
+      MaterialApp(home: const DVText('Sale').modifier(modifier)),
     );
 
 void main() {
