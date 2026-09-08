@@ -175,18 +175,25 @@ void main() {
     });
 
     testWidgets('the number reaches the grid', (WidgetTester tester) async {
-      // A desktop-width surface, because the column count is a ceiling that
-      // steps down on a narrow one: three columns on a phone would be three
+      // A desktop width, because the column count is a ceiling that steps
+      // down on a narrow screen: three columns on a phone would be three
       // cards the width of a thumbnail, so the grid asks for one. The number
       // under test is the ceiling, and it only means anything where the
       // screen allows it.
-      await tester.binding.setSurfaceSize(const Size(1400, 2400));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-
+      //
+      // Through MediaQuery rather than the surface size, because that is
+      // where the grid reads the width from -- and a scrolling page, because
+      // a grid draws square tiles and three of them stand taller than any
+      // viewport, which is the grid working and not the question here.
       await tester.pumpWidget(
         MaterialApp(
-          home: DVPageDocumentRenderer(
-            gridWith(const <String, Object?>{'columns': 3}),
+          home: MediaQuery(
+            data: const MediaQueryData(size: Size(1400, 2400)),
+            child: SingleChildScrollView(
+              child: DVPageDocumentRenderer(
+                gridWith(const <String, Object?>{'columns': 3}),
+              ),
+            ),
           ),
         ),
       );
