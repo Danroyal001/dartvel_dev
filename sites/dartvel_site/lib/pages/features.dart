@@ -942,6 +942,14 @@ Widget _featuresPage(BuildContext context) => SingleChildScrollView(
 /// were written as one.
 const int kFeatureRecordLines = 4;
 
+/// A lower bound on how wide one character can be, at the size a record is
+/// set in.
+///
+/// Deliberately under any real glyph: it is used to work out how much text
+/// could possibly fit on a line, and guessing low there means measuring a
+/// little more than necessary rather than cutting a record short.
+const double kNarrowestGlyph = 3;
+
 /// One shipped capability: the area, the surface you actually type, and what
 /// it does.
 @DVFunctionalWidget()
@@ -998,8 +1006,28 @@ Widget _featureRow(
           // the same text is in one column on a phone and two on a laptop --
           // so a length threshold offers the control on a card that does not
           // need it at one width and withholds it at another.
+          //
+          // Only the opening of it is measured, and the answer is still
+          // exact. Laying out six thousand characters to find out whether
+          // four lines are full is work for two hundred and fifty lines
+          // nobody will see -- once per card, and again on every relayout.
+          // On a phone, where the cards are one column and the text wraps
+          // narrow, fifty-seven of those took long enough that the first
+          // frame never arrived and the page was blank.
+          //
+          // The bound comes from the width rather than being a round number:
+          // no line can hold more than its width divided by the narrowest
+          // glyph the font has, so four lines cannot hold more than four
+          // times that. Cut there, a record that is still longer has already
+          // overrun by construction, and the measurement says so on its own.
+          final int probe = (constraints.maxWidth / kNarrowestGlyph).ceil() *
+                  kFeatureRecordLines +
+              1;
           final TextPainter painter = TextPainter(
-            text: TextSpan(text: body, style: style),
+            text: TextSpan(
+              text: body.length <= probe ? body : body.substring(0, probe),
+              style: style,
+            ),
             maxLines: kFeatureRecordLines,
             textDirection: TextDirection.ltr,
           )..layout(maxWidth: constraints.maxWidth);
