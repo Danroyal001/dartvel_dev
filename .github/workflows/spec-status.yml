@@ -51,6 +51,13 @@ jobs:
       # An annotation argument nobody reads is the shape of nearly every gap
       # this repository has had: accepted, built, and doing nothing.
       - run: dart tool/ci/annotation_read_check.dart
+      # A suite nobody runs and a job whose package is not there both leave
+      # the run green. Both have happened here: dartvel_windowing was added
+      # without a job, and dartvel_dev's job pointed at the name the package
+      # had before it was renamed, so bash could not start and it read as an
+      # infrastructure fault. The workflow's own comments record them, and a
+      # rule nothing checks drifts back.
+      - run: dart tool/ci/test_matrix_check.dart
 
       # Cheap, and it catches a class of break that reads as flakiness. A
       # pubspec naming an asset directory that git cannot track builds fine on
