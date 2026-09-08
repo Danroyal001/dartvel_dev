@@ -407,19 +407,26 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
 const List<(String, String, String)> partial = <(String, String, String)>[
   (
     'Generated Model Pages',
-    'Model.Page(...), without a favicon',
+    'Model.Page(...), wearing its own icon',
     'Public pages from a model, with .async, .signal and .fromId. Static '
     'paths come from the model rather than a route written out as a string. '
-    'Absent: the page favicon. The specification asks for a resized, '
-    'compressed, content-hashed derivative of the featured image, falling '
-    'back through the model, the module and the application. The field '
-    'exists and the head writer emits it, and nothing ever sets it -- the '
-    'resolver fills the title, the description, the image and the structured '
-    'data and leaves the favicon empty, so every model page shows the '
-    'shell\'s. Named rather than half-built: a favicon pointed straight at '
-    'the featured image would serve a several-hundred-kilobyte photograph as '
-    'a thirty-two pixel icon on every page, which is worse than the one it '
-    'replaced.',
+    'A model page can wear its own favicon now, and could not: the field '
+    'existed and the head writer emitted it, and nothing anywhere set it -- '
+    'the resolver filled the title, the description, the image and the '
+    'structured data and left the favicon empty, so every product, article '
+    'and profile wore the application shell\'s. There was nothing to fall '
+    'back to either, since no favicon was configured anywhere. A model '
+    'declares one, a module\'s models carry the module\'s, and '
+    'dartvel.seo.favicon is the application\'s -- read rather than guessed '
+    'from web/favicon.png, because a file that happens to be there is not a '
+    'decision anybody made and a page quietly wearing the wrong icon looks '
+    'exactly like the feature working. Absent: the resized, compressed, '
+    'content-hashed derivative of the featured image the specification also '
+    'asks for. That is why the field is separate from the image in the first '
+    'place -- pointed straight at it, a page would serve a '
+    'several-hundred-kilobyte photograph as a thirty-two pixel icon, which '
+    'is worse than the icon it replaced -- and deriving one per request from '
+    'a URL a row supplied is a fetch a server should not make.',
   ),
   (
     'Lifecycle Signals',
