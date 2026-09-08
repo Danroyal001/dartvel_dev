@@ -922,8 +922,28 @@ void main() {
 
     expect(find.byType(Scaffold), findsNothing);
     expect(find.byType(FilledButton), findsNothing);
-    expect(find.byType(DVBox), findsOneWidget);
+    // At least one, and it used to be exactly one -- which passed because the
+    // Sign in button was not being drawn. It asks for padding, a corner
+    // radius and a dark fill; DVText looked at none of that and rendered the
+    // words on their own, so the count was a measure of the bug rather than
+    // of the page.
+    expect(find.byType(DVBox), findsWidgets);
     expect(find.text('Sign in'), findsOneWidget);
+
+    // And the button is a button. Asserted here rather than left to the
+    // count, because a number of widgets says nothing about what they draw.
+    final BoxDecoration button = tester
+        .widget<Container>(
+          find
+              .ancestor(
+                of: find.text('Sign in'),
+                matching: find.byType(Container),
+              )
+              .first,
+        )
+        .decoration! as BoxDecoration;
+    expect(button.color, const Color(0xFF111827));
+    expect(button.borderRadius, BorderRadius.circular(8));
 
     await tester.enterText(find.byType(TextField).first, 'pages@example.com');
     await tester.enterText(find.byType(TextField).last, 'pages-password');
