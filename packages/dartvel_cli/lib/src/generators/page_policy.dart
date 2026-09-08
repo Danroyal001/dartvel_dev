@@ -20,6 +20,8 @@
 /// it.
 library;
 
+import 'annotation_args.dart';
+
 /// A policy reference has to be a Dart identifier, possibly dotted.
 ///
 /// The value is emitted into generated source. Anything else either fails to
@@ -95,12 +97,11 @@ String dvPageGuardChain({
 /// Asserting on a string returned by an uncalled function is what let that
 /// pass; this is the parser the generator actually uses.
 String? dvPagePolicyFromSource(String source) {
-  final RegExpMatch? annotation =
-      RegExp(r'@DVPage\(([^)]*)\)', dotAll: true).firstMatch(source);
-  if (annotation == null) return null;
+  final String? args = dvAnnotationArgs(source, 'DVPage');
+  if (args == null) return null;
   final RegExpMatch? match = RegExp(
     r'policy\s*:\s*([A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)*)',
-  ).firstMatch(annotation.group(1) ?? '');
+  ).firstMatch(args);
   final String? value = match?.group(1);
   if (value == null || value == 'null') return null;
   return value;
@@ -117,12 +118,11 @@ String? dvPagePolicyFromSource(String source) {
 /// [source] is the function's own source, so a file with several backend
 /// functions gives each its own answer rather than the first one's.
 String? dvBackendPolicyFromSource(String source) {
-  final RegExpMatch? annotation =
-      RegExp(r'@DVBackendFunction\(([^)]*)\)', dotAll: true).firstMatch(source);
-  if (annotation == null) return null;
+  final String? args = dvAnnotationArgs(source, 'DVBackendFunction');
+  if (args == null) return null;
   final RegExpMatch? match = RegExp(
     r'policy\s*:\s*([A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)*)',
-  ).firstMatch(annotation.group(1) ?? '');
+  ).firstMatch(args);
   final String? value = match?.group(1);
   if (value == null || value == 'null') return null;
   return value;

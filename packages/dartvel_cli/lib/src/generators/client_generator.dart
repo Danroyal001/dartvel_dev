@@ -9,6 +9,7 @@ import 'package:dartvel_core/dartvel.dart'
         dvHomeWidgetRoute,
         dvSourceDeclaresHomeWidget;
 
+import 'annotation_args.dart';
 import 'function_body.dart';
 import '../graph/module_mounts.dart';
 import 'route_blocks.dart';
@@ -171,6 +172,10 @@ class ClientGenerator {
       );
       // Parse class name by scanning file for a page class or functional widget.
       final src = await File(abs).readAsString();
+      // The annotation's own arguments blanked to spaces, for the patterns
+      // that step over it to reach the declaration below. Offsets are
+      // unchanged, so a match here still points into `src`.
+      final maskedSrc = dvMaskAnnotationArgs(src, 'DVPage');
       final hasPageAnnotation = src.contains('@DVPage');
       final isLegacyPageFile = rel.endsWith('.page.dart');
       if (!hasPageAnnotation && !isLegacyPageFile) {
@@ -178,7 +183,7 @@ class ClientGenerator {
       }
       final m = RegExp(
         r'(?:@DVPage\([^)]*\)\s*)?(?:@pragma\([^)]*\)\s*)*class\s+([A-Za-z_][A-Za-z0-9_]*)\s+extends\s+(DartvelPage|DVClassWidget)',
-      ).firstMatch(src);
+      ).firstMatch(maskedSrc);
       String className;
       String publicName;
       bool isFunctional = false;
@@ -199,7 +204,7 @@ class ClientGenerator {
       } else {
         final mf = RegExp(
           r'@DVPage\([^)]*\)\s*(?:@pragma\([^)]*\)\s*)*(?:@DVFunctionalWidget\(\)\s*)?Widget\s+([A-Za-z_][A-Za-z0-9_]*)\(',
-        ).firstMatch(src);
+        ).firstMatch(maskedSrc);
         if (mf == null) {
           stderr.writeln(
             'dartvel: could not find class extending DartvelPage/DVClassWidget or @DVPage function in $rel',
@@ -2145,18 +2150,15 @@ void startDartvelKiosk() {
   static String? _pagePolicy(String source) => dvPagePolicyFromSource(source);
 
   static String _pageScaffoldSpec(String source) {
-    final match = RegExp(
-      r'@DVPage\(([^)]*)\)',
-      dotAll: true,
-    ).firstMatch(source);
-    if (match == null) {
+    final String? args = dvAnnotationArgs(source, 'DVPage');
+    if (args == null) {
       return _sourceBuildsScaffold(source)
           ? 'const DVPageScaffoldSpec(scaffold: false)'
           : 'const DVPageScaffoldSpec()';
     }
 
     return _scaffoldSpecFromArgs(
-      match.group(1) ?? '',
+      args,
       buildsScaffold: _sourceBuildsScaffold(source),
     );
   }
