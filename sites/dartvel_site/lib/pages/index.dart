@@ -342,7 +342,11 @@ Widget _fromDesign(BuildContext context) => const Section(
             'Padding keeps all four sides. A frame placed by hand keeps its '
             'coordinates, relative to the frame it sits in rather than to '
             'the artboard it was drawn on, and a frame that crops its '
-            'content crops it.',
+            'content crops it. A layer pinned on top of a laid-out frame '
+            'stays pinned: the badge on the corner of a card and the close '
+            'button on a sheet are taken out of the flow and left where '
+            'they were drawn, where reading them as ordinary children made '
+            'the card wider by a badge and left the corner empty.',
           ),
           SiteCard(
             'And as the design',
