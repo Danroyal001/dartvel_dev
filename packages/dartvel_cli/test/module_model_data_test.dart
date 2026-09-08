@@ -58,7 +58,12 @@ void main() {
         () async {
       final String source = await generate();
 
-      expect(source, contains("FROM orders"));
+      // Its own table, resolved the way an application resolves one --
+      // dvTenantTable answers with the plain name unless a schema per tenant
+      // is configured -- rather than through a module registration.
+      expect(source, contains("FROM \${dvTenantTable('orders')}"));
+      expect(source, isNot(contains("_dvModule.table('orders')")),
+          reason: 'nothing mounted this, and nothing will');
       expect(source, isNot(contains('DVModuleData')),
           reason: 'nothing mounted this, and nothing will');
     });
