@@ -175,4 +175,154 @@ void main() {
       expect(report.skippedReason, isNull);
     });
   });
+
+  group('a table that already exists', () {
+    // CREATE TABLE IF NOT EXISTS is a no-op against a table that is already
+    // there, so a model that gained a column since the table was made never
+    // gets it, and every query naming that column fails against a database
+    // the migration has just reported as migrated.
+    const String unscoped = '''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVModel()
+class _Order {
+  final String id;
+  final String total;
+  const _Order({required this.id, required this.total});
+}
+''';
+
+    Future<Directory> migratedThenScoped({int rows = 0}) async {
+      final Directory root = await _project(unscoped);
+      await dvApplyMigrations(root.path);
+      for (int i = 0; i < rows; i++) {
+        await dvSqliteExecute(
+          p.join(root.path, 'app.db'),
+          "INSERT INTO orders (id, total) VALUES ('$i', '10')",
+        );
+      }
+      // The model gains the annotation after the table exists, which is the
+      // whole case: a deployment turning multi-tenancy on.
+      File(p.join(root.path, 'lib', 'models', 'order.dart'))
+          .writeAsStringSync(_order);
+      await ModelGenerator.generate(
+        root: root.path,
+        pkgName: 'migrate_app',
+        buildId: 'test-build-2',
+      );
+      return root;
+    }
+
+    test('an added column reaches an empty table', () async {
+      final Directory root = await migratedThenScoped();
+      addTearDown(() => root.deleteSync(recursive: true));
+
+      final DVMigrationReport report = await dvApplyMigrations(root.path);
+
+      expect(report.added, contains('orders.dv_tenant'));
+      expect(
+        await dvSqliteColumns(p.join(root.path, 'app.db'), 'orders'),
+        contains('dv_tenant'),
+      );
+    });
+
+    test('a table with rows is refused until somebody says whose they are',
+        () async {
+      // The rows were written before the column existed, so they belong to
+      // no tenant -- and a predicate on every read hides all of them from
+      // everybody. That is not a smaller version of the feature: the table
+      // reads as empty, which looks like data loss and is indistinguishable
+      // from it until somebody checks.
+      final Directory root = await migratedThenScoped(rows: 3);
+      addTearDown(() => root.deleteSync(recursive: true));
+
+      final DVMigrationReport report = await dvApplyMigrations(root.path);
+
+      expect(report.needsTenant, contains('orders'));
+      expect(report.added, isNot(contains('orders.dv_tenant')));
+      // Nothing altered, so the application on the old code still works.
+      expect(
+        await dvSqliteColumns(p.join(root.path, 'app.db'), 'orders'),
+        isNot(contains('dv_tenant')),
+      );
+    });
+
+    test('naming the tenant migrates the rows to it', () async {
+      final Directory root = await migratedThenScoped(rows: 3);
+      addTearDown(() => root.deleteSync(recursive: true));
+
+      final DVMigrationReport report =
+          await dvApplyMigrations(root.path, tenant: 'acme');
+
+      expect(report.needsTenant, isEmpty);
+      expect(report.added, contains('orders.dv_tenant'));
+      expect(
+        await dvSqliteRows(
+          p.join(root.path, 'app.db'),
+          "SELECT COUNT(*) AS n FROM orders WHERE dv_tenant = 'acme'",
+        ),
+        <Map<String, Object?>>[
+          <String, Object?>{'n': 3},
+        ],
+      );
+    });
+
+    test('orphaning them is possible and has to be asked for', () async {
+      // A deployment whose existing rows genuinely belong to nobody -- a
+      // staging database, a table being emptied -- can say so. What it
+      // cannot do is have that happen by default.
+      final Directory root = await migratedThenScoped(rows: 3);
+      addTearDown(() => root.deleteSync(recursive: true));
+
+      final DVMigrationReport report =
+          await dvApplyMigrations(root.path, orphanExistingRows: true);
+
+      expect(report.needsTenant, isEmpty);
+      expect(report.added, contains('orders.dv_tenant'));
+      expect(
+        await dvSqliteRows(
+          p.join(root.path, 'app.db'),
+          'SELECT COUNT(*) AS n FROM orders WHERE dv_tenant IS NULL',
+        ),
+        <Map<String, Object?>>[
+          <String, Object?>{'n': 3},
+        ],
+      );
+    });
+
+    test('an ordinary added column needs no permission', () async {
+      // Only the tenant column hides rows. A new field is null on the old
+      // ones, which is what adding a field means.
+      final Directory root = await _project(_order);
+      addTearDown(() => root.deleteSync(recursive: true));
+      await dvApplyMigrations(root.path);
+      await dvSqliteExecute(
+        p.join(root.path, 'app.db'),
+        "INSERT INTO orders (dv_tenant, id, total) VALUES ('acme', '1', '10')",
+      );
+
+      File(p.join(root.path, 'lib', 'models', 'order.dart'))
+          .writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVModel(tenantScoped: true)
+class _Order {
+  final String id;
+  final String total;
+  final String note;
+  const _Order({required this.id, required this.total, required this.note});
+}
+''');
+      await ModelGenerator.generate(
+        root: root.path,
+        pkgName: 'migrate_app',
+        buildId: 'test-build-3',
+      );
+
+      final DVMigrationReport report = await dvApplyMigrations(root.path);
+
+      expect(report.added, contains('orders.note'));
+      expect(report.needsTenant, isEmpty);
+    });
+  });
 }
