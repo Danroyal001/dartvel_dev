@@ -480,7 +480,8 @@ class _Product {
                 'publicStaticPaths() async {'));
         expect(
           content,
-          contains("DV.Database.query('select * from products')"),
+          contains("DV.Database.query('select * from "
+              "\${dvTenantTable('products')}')"),
         );
         expect(content, contains('.where((model) => model.published)'));
         expect(content, contains('.map((model) => model.slug)'));
