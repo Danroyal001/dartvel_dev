@@ -935,6 +935,13 @@ Widget _featuresPage(BuildContext context) => SingleChildScrollView(
       ], spacing: 0),
     );
 
+/// How much of a record a card shows before it is folded.
+///
+/// Four lines is about forty words, which is the first two sentences of every
+/// one of these -- and the first two sentences are the summary, because they
+/// were written as one.
+const int kFeatureRecordLines = 4;
+
 /// One shipped capability: the area, the surface you actually type, and what
 /// it does.
 @DVFunctionalWidget()
@@ -968,8 +975,66 @@ Widget _featureRow(
         ),
         SiteChip(surface),
       ], spacing: 10),
-      DVText(body).modifier(
-        const DVModifier().fontSize(15).color(palette.muted).lineHeight(1.6),
+      // The record, folded.
+      //
+      // Some of these run to three thousand words, because they are the
+      // repository's own account of what is built and what is not. Printed
+      // whole they made a grid where one card was twenty-five times the
+      // height of the one beside it, so half the page was prose and the
+      // other half was the white space left over next to it -- which is not
+      // a set of things anybody can compare.
+      //
+      // Folded rather than cut: the opening sentences are what a reader
+      // scanning thirty-six of these needs, and the rest is one tap away.
+      LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          final TextStyle style = TextStyle(
+            fontSize: 15,
+            color: palette.muted,
+            height: 1.6,
+          );
+          // Measured, not guessed at by counting characters. Whether this
+          // record overruns four lines depends on the column it is in, and
+          // the same text is in one column on a phone and two on a laptop --
+          // so a length threshold offers the control on a card that does not
+          // need it at one width and withholds it at another.
+          final TextPainter painter = TextPainter(
+            text: TextSpan(text: body, style: style),
+            maxLines: kFeatureRecordLines,
+            textDirection: TextDirection.ltr,
+          )..layout(maxWidth: constraints.maxWidth);
+          final bool overruns = painter.didExceedMaxLines;
+          painter.dispose();
+
+          if (!overruns) {
+            return DVText(body).modifier(const DVModifier()
+                .fontSize(15)
+                .color(palette.muted)
+                .lineHeight(1.6));
+          }
+
+          final DVSignal<bool> open = context.signal(false);
+          return DVBox.list(<Widget>[
+            DVText(body).modifier(const DVModifier()
+                .fontSize(15)
+                .color(palette.muted)
+                .lineHeight(1.6)
+                .maxLines(open.value ? 1 << 30 : kFeatureRecordLines)
+                .overflow(open.value
+                    ? TextOverflow.clip
+                    : TextOverflow.ellipsis)),
+            DVText(open.value ? 'Show less' : 'Read the whole record')
+                .modifier(const DVModifier()
+                    .fontSize(13)
+                    .fontWeight(FontWeight.w600)
+                    .color(palette.accent)
+                    // A button, and announced as one. It is text that does
+                    // something, which is the thing a screen reader has no
+                    // way to guess.
+                    .semanticButton()
+                    .onTap(() => open.value = !open.value)),
+          ], spacing: 8);
+        },
       ),
     ], spacing: 6),
     const DVModifier()

@@ -539,7 +539,7 @@ jobs:
         run: dart run dartvel_cli:dartvel routes
       - name: Analyze
         working-directory: sites/dartvel_site
-        run: flutter analyze lib
+        run: flutter analyze --fatal-warnings lib test
 
       # The site has a suite and nothing ran it. Five test files, including
       # one that renders every page at every size a real device has, and the

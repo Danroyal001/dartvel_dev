@@ -3,7 +3,6 @@
 // A build that succeeds proves the code compiled. It does not prove a page
 // draws anything, and a site whose text is unselectable compiled perfectly for
 // weeks.
-import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:dartvel_site/components/site.dart';
 import 'package:dartvel_site/dartvel_client/dartvel_client.dart';
 import 'package:flutter/material.dart';

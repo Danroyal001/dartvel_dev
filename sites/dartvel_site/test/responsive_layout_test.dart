@@ -8,12 +8,10 @@
 // The sizes are the ones people actually hold. The 320 entry is not a device
 // anyone still ships; it is the floor, and a layout that survives it survives
 // a split-screen tablet and a browser someone has zoomed to 200%.
-import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:dartvel_site/dartvel_client/dartvel_client.dart';
 import 'package:dartvel_site/pages/_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
 
 /// The page under test, inside a router.
 ///
