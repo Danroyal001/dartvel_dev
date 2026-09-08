@@ -354,6 +354,12 @@ Future<void> main(List<String> arguments) async {
   // afterwards proves nothing: the test releases the task before it ends, so
   // a healthy run and a run where lock task never engaged both read NONE.
   final List<DVLockTaskState> samples = <DVLockTaskState>[];
+  // One reading kept whole, so the verdict can be explained rather than
+  // guessed at. It has to be a reading taken while the test was running:
+  // dumpsys afterwards proves nothing, for the same reason the sampling
+  // exists at all.
+  String? keptDump;
+  bool keptShowsLock = false;
   bool sampling = true;
   final Future<void> sampler = () async {
     while (sampling) {
@@ -361,7 +367,15 @@ Future<void> main(List<String> arguments) async {
           'adb', <String>['shell', 'dumpsys', 'activity', 'activities']);
       final DVLockTaskState seen = dvLockTaskState('${dump.stdout}');
       samples.add(seen);
+      keptDump ??= '${dump.stdout}';
       if (seen == DVLockTaskState.locked || seen == DVLockTaskState.pinned) {
+        // A reading that saw the lock beats one that did not, and the first
+        // such reading is the one that caught it going on -- kept rather
+        // than replaced by every reading after it.
+        if (!keptShowsLock) {
+          keptDump = '${dump.stdout}';
+          keptShowsLock = true;
+        }
         File('$_diag/android-lock-task.log').writeAsStringSync(
           const LineSplitter()
               .convert('${dump.stdout}')
@@ -396,12 +410,10 @@ Future<void> main(List<String> arguments) async {
     // Nothing matched, on any reading. That is the parser and the platform
     // disagreeing about the wording, not the platform saying no -- and the
     // only way to tell is to keep what it actually printed.
-    final ProcessResult raw = await Process.run(
-        'adb', <String>['shell', 'dumpsys', 'activity', 'activities']);
-    File('$_diag/android-dumpsys-activities.log')
-        .writeAsStringSync('${raw.stdout}');
+    final String dump = keptDump ?? '';
+    File('$_diag/android-dumpsys-activities.log').writeAsStringSync(dump);
     final List<String> mentions = const LineSplitter()
-        .convert('${raw.stdout}')
+        .convert(dump)
         .where((String line) => line.toLowerCase().contains('locktask'))
         .toList();
     stdout.writeln('   dumpsys said nothing this reads. Lines mentioning '
@@ -410,7 +422,39 @@ Future<void> main(List<String> arguments) async {
   }
 
   final String? disagreement = dvLockTaskDisagreement(held: held, state: state);
-  if (disagreement != null) failures.add(disagreement);
+  if (disagreement != null) {
+    failures.add(disagreement);
+    // The dump, in the one case that most needs it. A reading that parsed as
+    // `none` kept nothing: `unknown` saved the dump because the parser and
+    // the platform disagreed about the wording, and `locked` saved the lines
+    // because there was something to show. The case where the application
+    // says it held the kiosk and Android says it did not -- which is this
+    // job's whole question -- saved neither, so the answer had to be guessed
+    // from a one-line summary. It stopped being a guess the moment somebody
+    // could read what dumpsys actually printed.
+    // A reading from while the test was running, not a fresh one: asking the
+    // device now is asking it after it let go, which is the mistake the
+    // sampling exists to avoid.
+    final String dump = keptDump ?? '';
+    File('$_diag/android-dumpsys-activities.log').writeAsStringSync(dump);
+    final List<String> mentions = const LineSplitter()
+        .convert(dump)
+        .where((String line) => line.toLowerCase().contains('locktask'))
+        .toList();
+    File('$_diag/android-lock-task.log').writeAsStringSync(
+      mentions.isEmpty
+          ? 'dumpsys printed no line mentioning lock task at all.\n'
+          : mentions.join('\n'),
+    );
+    // And in the log, because an artifact nobody downloads is a file on a
+    // server. Every one of them: which reading said what is the question,
+    // and ten of a hundred lines answers a different one.
+    stdout.writeln('   every line dumpsys printed about lock task:');
+    if (mentions.isEmpty) {
+      stdout.writeln('   none at all');
+    }
+    mentions.forEach((String line) => stdout.writeln('   $line'));
+  }
 
   final String result = failures.isEmpty
       ? 'passed'
