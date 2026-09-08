@@ -393,19 +393,43 @@ class DVModuleRegistry {
   }) {
     final module = DVModule(id: id, mountPath: mountPath, config: config, assets: assets);
     _modules[id] = module;
-    // A module the registry has taken is mounted and serving in this
-    // process, so it says so. The signal was created at discovered and moved
-    // by nothing: twelve states, one of them ever produced, so an
-    // application waiting for a module to be usable waited forever and the
-    // signal reported a module that is permanently being discovered.
+    // What registering a module actually says about it. The signal was
+    // created at discovered and moved by nothing: twelve states, one of them
+    // ever produced, so an application waiting for a module to be usable
+    // waited forever and the signal reported one permanently being
+    // discovered.
     //
-    // Only this transition, deliberately. resolving, validating, loading and
-    // mounting are build-time phases -- the build found the module, checked
-    // it, generated it and mounted it long before this process started --
-    // and a runtime signal reporting `resolving` for something resolved at
-    // build time is theatre, which is the reason the page signal does not
-    // emit the states that belong to a route transition either.
-    module.setLifecycle(DVModuleLifecycle.active);
+    // The answer depends on where the module runs, and calling every
+    // registered module active would be a claim the parent cannot make. A
+    // federated module is built and deployed somewhere else; the parent
+    // holds its routes so it can send readers there, and whether it is up is
+    // not something this process knows. Saying active for it would report a
+    // module that may be down.
+    //
+    //   embedded and backendOnly -- compiled into this artifact, running
+    //     here, so active.
+    //   splitBackend -- its pages are compiled in and running here; only its
+    //     functions answer elsewhere, so active as well.
+    //   federated -- mounted, and running somewhere this process cannot see.
+    //
+    // A registration with no deployment declared stays discovered, because
+    // the registry has been handed something it cannot place and a guess
+    // would be the whole problem again.
+    //
+    // Only these, deliberately. resolving, validating, loading and mounting
+    // are build-time phases -- the build found the module, checked it,
+    // generated it and mounted it long before this process started -- and a
+    // runtime signal reporting `resolving` for something resolved at build
+    // time is theatre, which is why the page signal does not emit the states
+    // belonging to a route transition either.
+    switch ('${config['deployment'] ?? ''}') {
+      case 'embedded':
+      case 'backendOnly':
+      case 'splitBackend':
+        module.setLifecycle(DVModuleLifecycle.active);
+      case 'federated':
+        module.setLifecycle(DVModuleLifecycle.mounted);
+    }
     return module;
   }
 
