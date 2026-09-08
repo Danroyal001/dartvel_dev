@@ -196,4 +196,26 @@ class _Order {
       );
     });
   });
+
+  group('the generated client says which tables are scoped', () {
+    test('a scoped model is registered, so a raw query can be refused', () async {
+      // The check that refuses a raw query reading across every tenant lives
+      // in the database layer, which has no idea what a model is. This
+      // registration is the only thing that tells it, so a generator that
+      // emitted the predicate and not this would leave every hand-written
+      // query unchecked while looking complete.
+      final String generated = await _generate(_scoped);
+
+      expect(
+        generated,
+        contains("dvRegisterTenantScopedTables(<String>{'orders'})"),
+      );
+    });
+
+    test('an unscoped model registers nothing', () async {
+      final String generated = await _generate(_unscoped);
+
+      expect(generated, contains('dvRegisterTenantScopedTables(<String>{})'));
+    });
+  });
 }
