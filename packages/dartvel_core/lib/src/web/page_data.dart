@@ -10,6 +10,7 @@ library;
 import 'dart:async';
 import 'dart:convert';
 
+import '../tenancy/tenants.dart';
 import '../cache/adapters.dart';
 import 'page_text.dart';
 import 'seo_head.dart';
@@ -484,7 +485,15 @@ DVPageDataResolver dvModelPageResolver(List<DVModelPageSpec> specs, DVPageQuery 
       if (spec.route != request.pattern) continue;
       final String? key = request.params[spec.param];
       if (key == null) return null;
-      final List<Map<String, Object?>> rows = await query('SELECT * FROM ${spec.table} WHERE ${spec.keyField} = ?', <Object?>[key]);
+      // Resolved here rather than stored in the spec. Under
+      // schemaPerTenant the table name depends on which tenant is asking,
+      // and the spec list is built once for the process -- so a resolved
+      // name in it would be the first tenant's answer served to everybody.
+      final List<Map<String, Object?>> rows = await query(
+        'SELECT * FROM ${dvTenantTable(spec.table)} '
+        'WHERE ${spec.keyField} = ?',
+        <Object?>[key],
+      );
       if (rows.isEmpty) return DVPageData(title: spec.model, visibility: DVPageVisibility.hidden);
       return dvModelPageData(spec, rows.first);
     }
