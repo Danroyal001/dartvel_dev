@@ -558,7 +558,24 @@ const List<(String, String, String)> partial = <(String, String, String)>[
     'hidden from everybody, leaving a table that reads as empty in a way '
     'nothing tells apart from data loss. Absent: creating the per-tenant '
     'schemas themselves, which needs a list of tenants the build does not '
-    'have; and any scoping of raw queries an application writes itself.',
+    'have. A raw query an application writes itself is checked now, and was '
+    'not: the generated queries carried the predicate and nothing else did '
+    '-- a report, a dashboard count, a join the generator cannot express, a '
+    'query written before the model was scoped -- each returning rows that '
+    'looked plausible while showing one tenant another tenant\'s data. The '
+    'generated client registers which tables are scoped, because the '
+    'database layer has no idea what a model is, and a statement naming one '
+    'without mentioning the column is refused. It is deliberately coarse: a '
+    'false positive is a refusal somebody reads and fixes, a false negative '
+    'leaves the old behaviour, and the one thing it never does is guess in '
+    'the direction of allowing. Writes are checked too -- the worse half, '
+    'since a write without the column puts a row in the table belonging to '
+    'nobody that every tenant then cannot see -- and a name matches on a '
+    'word boundary, so workorders is not orders: refusing that would teach '
+    'people to reach for the escape hatch out of habit, which is how an '
+    'escape hatch stops meaning anything. Crossing tenants deliberately is '
+    'DV.Database.acrossTenants, for an operator report or a support tool: '
+    'not hard, but written down.',
   ),
   (
     'Sensitive Model Fields',
