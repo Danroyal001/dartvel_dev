@@ -355,7 +355,6 @@ import 'dartvel_backend.g.dart' as cfg;
 import 'package:$pkgName/dartvel_client/model_pages.g.dart' show dartvelModelPages;
 import 'package:$pkgName/dartvel_client/modules_data.g.dart' show registerDartvelModules;
 import 'package:$pkgName/dartvel_client/schedules.g.dart' show dartvelStartBackendSchedules;
-import 'package:$pkgName/dartvel_client/policies.g.dart' show dartvelRegisterPolicies;
 import 'package:$pkgName/dartvel_client/ai_tools.g.dart' show registerDartvelAITools;
 ${backendImports.join('\n')}
 
@@ -809,11 +808,6 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   // which is a catalogue rather than a tool: an assistant could read that a
   // function existed and had no way to run it.
   registerDartvelAITools();
-  // Every @DVPolicy class, registered before the first request. The
-  // annotation was in the specification and read by nothing, so a policy the
-  // application had written was answered by default-deny -- closed, and not
-  // the answer the policy gives.
-  dartvelRegisterPolicies();
   dartvelStartBackendSchedules();
   final router = buildBackendRouter();
   final bindHost = host ?? cfg.backendHost;
@@ -1481,6 +1475,16 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
   }
 
   /// Every `@DVPolicy(Resource)` class, registered.
+  ///
+  /// Read by the client and not by the generated server, for the reason the
+  /// client schedules live in their own file. A policy is written against the
+  /// application's models, application code is told to reach those through the
+  /// generated `dartvel_client.dart` barrel, and that barrel exports the
+  /// router and the generated widgets -- so importing one policy into the
+  /// server compiles Flutter into a process with no dart:ui. A show clause
+  /// does not prevent it, because the whole library is still compiled. The
+  /// server enforces `@DVBackendFunction(policy:)`, which is answered by name
+  /// through DVBackendPolicy and imports nothing of the client's.
   ///
   /// The registration tears the method off rather than wrapping it, so Dart
   /// infers the user and resource types from the policy's own signature. That
