@@ -541,6 +541,15 @@ jobs:
         working-directory: sites/dartvel_site
         run: flutter analyze lib
 
+      # The site has a suite and nothing ran it. Five test files, including
+      # one that renders every page at every size a real device has, and the
+      # job went straight from analyze to build -- so a layout that overflowed
+      # on every phone sat there green. Analysis cannot see an overflow: it is
+      # a runtime measurement, and only rendering finds it.
+      - name: Test
+        working-directory: sites/dartvel_site
+        run: flutter test
+
       # Built, not only analysed. The site is a deliverable somebody hands
       # to a host, and a job that proves it compiles and never produces the
       # thing it compiles to leaves the artifact to be made on a laptop --
