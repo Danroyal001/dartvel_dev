@@ -41,6 +41,14 @@ void main() {
 
   testWidgets('every layout the document names renders and exports',
       (WidgetTester tester) async {
+    // Wide and tall on purpose. A grid is responsive: on a phone-width
+    // surface it steps down to one column, and two square tiles then stand
+    // sixteen hundred points tall inside a page that does not scroll. That
+    // is the grid working, and an overflow that says nothing about whether
+    // the layout renders -- which is the only question here.
+    await tester.binding.setSurfaceSize(const Size(1400, 2400));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
     // The guard the two switches needed. A name handled in one of them is a
     // page that previews correctly and exports to something else, and
     // nothing says so, because both fall through to a column.
