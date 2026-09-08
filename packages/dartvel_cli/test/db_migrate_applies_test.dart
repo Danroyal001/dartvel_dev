@@ -85,9 +85,15 @@ void main() {
       );
     });
 
-    test('the statement is the one the model itself carries', () async {
+    test('the columns are the ones the model itself carries', () async {
       // Two sources for one table is how the migration creates one shape and
       // the queries read another, and neither side would notice.
+      //
+      // The two statements are not the same string, and should not be: the
+      // model resolves its table name at run time, because under
+      // schemaPerTenant that name depends on which tenant is asking. What
+      // has to agree is the columns, which is what a query names and what a
+      // CREATE TABLE provides.
       final Directory root = await _project(_order);
       addTearDown(() => root.deleteSync(recursive: true));
 
@@ -101,8 +107,19 @@ void main() {
       final Map<String, Object?> orders =
           (schema['tables']! as List<Object?>).first as Map<String, Object?>;
       final String createSql = orders['createSql']! as String;
+      final List<String> columns =
+          (orders['columns']! as List<Object?>).cast<String>();
 
-      expect(models, contains(createSql));
+      // The migration statement is runnable SQL, not a Dart interpolation.
+      expect(createSql, isNot(contains('\$')));
+      expect(createSql, contains('CREATE TABLE IF NOT EXISTS orders ('));
+      for (final String column in columns) {
+        expect(createSql, contains('$column TEXT'));
+        expect(models, contains(column));
+      }
+      // And the model's own statement resolves its name for the tenant
+      // rather than writing it in.
+      expect(models, contains("dvTenantTable('orders')"));
     });
   });
 
