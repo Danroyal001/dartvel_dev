@@ -210,11 +210,37 @@ class DVModuleMount {
 /// router source its route index and sitemap are built from. They belong in
 /// both all the same, which needs the pairing this returns: the path the
 /// parent lists, and where a reader asking for it is sent.
-Map<String, String> dvFederatedRoutes(String root) {
+Map<String, String> dvFederatedRoutes(String root) =>
+    _federatedRoutes(root, sitemapOnly: false);
+
+/// The federated routes the parent's sitemap lists.
+///
+/// `sitemap: include|exclude` on a mount was parsed, reached
+/// [DVModuleMount.inSitemap] and was written into the generated route index
+/// -- and the sitemap writer never asked, so every route of a module mounted
+/// with `sitemap: exclude` was published anyway.
+///
+/// A sitemap is the file written to be read by people who were not invited,
+/// and a module kept out of it is usually kept out for that reason: a staff
+/// tool, a partner portal, a documentation site that is not ready.
+///
+/// Separate from [dvFederatedRoutes] rather than a filter inside it, because
+/// the two callers want different answers. The web server's manifest needs
+/// every federated route whatever the sitemap says -- the exclusion is about
+/// being advertised, not about being reachable, and dropping the redirect
+/// would make a link somebody already has stop working.
+Map<String, String> dvFederatedSitemapRoutes(String root) =>
+    _federatedRoutes(root, sitemapOnly: true);
+
+Map<String, String> _federatedRoutes(
+  String root, {
+  required bool sitemapOnly,
+}) {
   final Map<String, String> answered = <String, String>{};
   for (final DVModuleMount mount in dvDiscoverModuleMounts(root)) {
     final String? location = mount.location;
     if (location == null || !mount.mounted || mount.compiledIntoParent) continue;
+    if (sitemapOnly && !mount.inSitemap) continue;
     final String base = location.replaceAll(RegExp(r'/+$'), '');
     for (final DVModuleRoute route in mount.routes) {
       final String own = route.standalone == '/' ? '' : route.standalone;
