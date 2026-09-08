@@ -86,4 +86,74 @@ void main() {
     DVInstallPrompt.captureForTest();
     expect(seen, isEmpty);
   });
+
+  group('the browser is the one that answers', () {
+    // The outcome tests above set _outcome themselves and then assert it
+    // comes back, which proves the seam and not the path: in a browser
+    // nothing ever set it, so show() reported accepted whatever the person
+    // at the screen chose, and marked the application installed.
+    //
+    // Worse, the binding that calls the browser's own prompt() was written
+    // and called by nothing, so tapping Install never opened the browser's
+    // dialog at all.
+    tearDown(() => DVNativeBridge.unregister('install.prompt'));
+
+    test('the prompt is actually asked for', () async {
+      int asked = 0;
+      DVNativeBridge.register('install.prompt', (Object? _) async {
+        asked++;
+        return 'accepted';
+      });
+      DVInstallPrompt.captureForTest();
+
+      await DVInstallPrompt.show();
+
+      expect(asked, 1, reason: 'the browser was never asked');
+    });
+
+    test('a dismissal comes back as a dismissal', () async {
+      DVNativeBridge.register('install.prompt', (Object? _) async => 'dismissed');
+      DVInstallPrompt.captureForTest();
+
+      expect(await DVInstallPrompt.show(), DVInstallOutcome.dismissed);
+    });
+
+    test('a dismissed app is not an installed app', () async {
+      // The half that is visible to somebody: marking it installed hides the
+      // affordance, so an application the user declined to install can never
+      // be installed again from inside it.
+      DVNativeBridge.register('install.prompt', (Object? _) async => 'dismissed');
+      DVInstallPrompt.captureForTest();
+
+      await DVInstallPrompt.show();
+
+      expect(DVInstallPrompt.installed, isFalse);
+    });
+
+    test('an acceptance installs it', () async {
+      DVNativeBridge.register('install.prompt', (Object? _) async => 'accepted');
+      DVInstallPrompt.captureForTest();
+
+      expect(await DVInstallPrompt.show(), DVInstallOutcome.accepted);
+      expect(DVInstallPrompt.installed, isTrue);
+    });
+
+    test('anything the browser does not recognise is a dismissal', () async {
+      // The browser answers accepted or dismissed. Treating an unknown third
+      // answer as acceptance would install nothing and say it had.
+      DVNativeBridge.register('install.prompt', (Object? _) async => 'maybe');
+      DVInstallPrompt.captureForTest();
+
+      expect(await DVInstallPrompt.show(), DVInstallOutcome.dismissed);
+      expect(DVInstallPrompt.installed, isFalse);
+    });
+
+    test('with no binding at all the seam still decides', () async {
+      // Every non-web target has no install prompt binding, and the tests
+      // above this group depend on the seam continuing to work.
+      DVInstallPrompt.captureForTest(outcome: DVInstallOutcome.dismissed);
+
+      expect(await DVInstallPrompt.show(), DVInstallOutcome.dismissed);
+    });
+  });
 }
