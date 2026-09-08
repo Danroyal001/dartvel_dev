@@ -1,6 +1,8 @@
 /// The database adapter contract plus the in-memory development adapter.
 library dartvel_core.database.adapter;
 
+import 'dart:async';
+
 import '../tenancy/tenants.dart';
 
 abstract class DVDatabaseAdapter {
@@ -125,11 +127,44 @@ class DVDatabase {
   Future<List<Map<String, Object?>>> query(
     String sql, [
     List<Object?>? params,
-  ]) =>
-      _configuredAdapter.query(sql, params);
+  ]) {
+    _refuseUnscoped(sql);
+    return _configuredAdapter.query(sql, params);
+  }
 
-  Future<int> execute(String sql, [List<Object?>? params]) =>
-      _configuredAdapter.execute(sql, params);
+  Future<int> execute(String sql, [List<Object?>? params]) {
+    // Writes too, and a write without the column is the worse half: it puts
+    // a row in the table belonging to nobody, which every tenant then cannot
+    // see.
+    _refuseUnscoped(sql);
+    return _configuredAdapter.execute(sql, params);
+  }
+
+  /// Runs [body] with the tenant check off.
+  ///
+  /// An operator report, a migration, a support tool. The point is not that
+  /// crossing tenants is hard -- it is that it is written down: visible in a
+  /// diff, greppable, and a decision somebody made rather than a query that
+  /// happened not to have a predicate.
+  R acrossTenants<R>(R Function() body) => runZoned(
+        body,
+        zoneValues: <Object?, Object?>{_zoneAcrossTenants: true},
+      );
+
+  static const Symbol _zoneAcrossTenants = #dartvelAcrossTenants;
+
+  static void _refuseUnscoped(String sql) {
+    if (Zone.current[_zoneAcrossTenants] == true) return;
+    final List<String> tables = dvUnscopedTablesIn(sql);
+    if (tables.isEmpty) return;
+    throw StateError(
+      'This statement names ${tables.join(', ')}, whose rows belong to a '
+      'tenant, and does not mention $dvTenantColumnName -- so it reads or '
+      'writes across every tenant. Add the predicate, or say so with '
+      'DV.Database.acrossTenants(() => ...) if crossing tenants is what this '
+      'is for.',
+    );
+  }
 
   /// The configured adapter.
   ///
