@@ -107,7 +107,7 @@ void main() {
     // the inspector cannot set is a control the builder does not have.
     expect(
       dvStudioLayoutProperties.map((DVStudioLayoutProperty p) => p.name),
-      containsAll(<String>['spacing', 'mainAxis', 'crossAxis']),
+      containsAll(<String>['spacing', 'mainAxis', 'crossAxis', 'columns']),
     );
     for (final DVStudioLayoutProperty property in dvStudioLayoutProperties) {
       if (property.kind == DVStudioPropertyKind.choice) {
@@ -125,5 +125,72 @@ void main() {
     for (final String name in dvStudioCrossAlignNames) {
       expect(dvStudioCrossAlignOf(name).name, name);
     }
+  });
+
+  group('how many columns a grid has', () {
+    // The renderer reads it, the exporter writes it, a document can even
+    // override it per breakpoint -- and the inspector offered no control for
+    // it, so a grid built in the builder was permanently two columns wide.
+    // That is the drift the layout list exists to prevent, in the layout list.
+    DVPageDocument gridWith(Map<String, Object?> properties) {
+      final DVPageDocument document = DVPageDocument(route: '/grid');
+      final DVPageDocumentEditor editor = DVPageDocumentEditor(document);
+      DVPageNode grid = DVPageNode.box(layout: 'grid');
+      properties.forEach((String name, Object? value) {
+        grid = grid.withProperty(name, value);
+      });
+      editor.insert(grid, parent: document.root.id);
+      editor.insert(DVPageNode.text('one'), parent: grid.id);
+      return document;
+    }
+
+    test('the inspector offers it', () {
+      expect(
+        dvStudioLayoutProperties.map((DVStudioLayoutProperty p) => p.name),
+        contains('columns'),
+      );
+    });
+
+    test('and only where it means something', () {
+      // A control that does nothing is worse than one that is not there: the
+      // person who sets it has decided something, and a row has no columns.
+      final DVStudioLayoutProperty columns = dvStudioLayoutProperties
+          .firstWhere((DVStudioLayoutProperty p) => p.name == 'columns');
+
+      expect(columns.appliesTo('grid'), isTrue);
+      expect(columns.appliesTo('row'), isFalse);
+
+      // Spacing belongs to every layout, and saying so is what keeps the
+      // rule from being a special case for one property.
+      final DVStudioLayoutProperty spacing = dvStudioLayoutProperties
+          .firstWhere((DVStudioLayoutProperty p) => p.name == 'spacing');
+      expect(spacing.appliesTo('row'), isTrue);
+      expect(spacing.appliesTo('grid'), isTrue);
+    });
+
+    testWidgets('the number reaches the grid', (WidgetTester tester) async {
+      await tester.binding.setSurfaceSize(const Size(1400, 2400));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DVPageDocumentRenderer(
+            gridWith(const <String, Object?>{'columns': 3}),
+          ),
+        ),
+      );
+
+      final SliverGridDelegateWithFixedCrossAxisCount delegate =
+          tester.widget<GridView>(find.byType(GridView)).gridDelegate
+              as SliverGridDelegateWithFixedCrossAxisCount;
+      expect(delegate.crossAxisCount, 3);
+    });
+
+    test('and the exported source carries it', () {
+      expect(
+        gridWith(const <String, Object?>{'columns': 3}).toDartSource(),
+        contains('columns: 3'),
+      );
+    });
   });
 }

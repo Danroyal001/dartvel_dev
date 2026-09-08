@@ -1532,11 +1532,27 @@ String? _colourSource(String name, Object? value) {
 /// rather than nothing, because a property the renderer honours and the
 /// inspector cannot offer is exactly the drift that list exists to prevent.
 class DVStudioLayoutProperty {
-  const DVStudioLayoutProperty(this.name, this.kind, {this.choices = const <String>[]});
+  const DVStudioLayoutProperty(
+    this.name,
+    this.kind, {
+    this.choices = const <String>[],
+    this.layouts = const <String>[],
+  });
 
   final String name;
   final DVStudioPropertyKind kind;
   final List<String> choices;
+
+  /// The layouts this property means something to, or empty for all of them.
+  ///
+  /// A row has no columns. Offering the control anyway is worse than not
+  /// having it: the person who sets it has decided something, and nothing
+  /// happens.
+  final List<String> layouts;
+
+  /// Whether this property means anything to a box laid out as [layout].
+  bool appliesTo(String layout) =>
+      layouts.isEmpty || layouts.contains(layout);
 }
 
 /// How a box lays its children out, as the inspector offers it.
@@ -1550,6 +1566,16 @@ final List<DVStudioLayoutProperty> dvStudioLayoutProperties =
   // Whether the box scrolls its own axis: a list down, a row across. Almost
   // every screen in a design is taller than the device it runs on.
   const DVStudioLayoutProperty('scroll', DVStudioPropertyKind.flag),
+  // How many columns a grid has. The renderer read it, the exporter wrote it
+  // and a document could override it per breakpoint, while the inspector
+  // offered no control for it at all -- so a grid built in the builder was
+  // permanently two columns wide. That is the drift this list exists to
+  // prevent, in this list.
+  const DVStudioLayoutProperty(
+    'columns',
+    DVStudioPropertyKind.number,
+    layouts: <String>['grid'],
+  ),
 ];
 
 /// The image a node describes.
