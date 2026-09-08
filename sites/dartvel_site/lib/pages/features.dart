@@ -50,7 +50,16 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'number from its Layer blur straight into blur(Npx), so the value a '
     'designer typed is the value everywhere. A background blur is bounded '
     'by the box, since an unclipped one blurs the whole screen behind it '
-    'and nothing points at the card that asked for it.',
+    'and nothing points at the card that asked for it. The chain reaches '
+    'text now, and did not: DVText drew text and only text, so a modifier '
+    'carrying padding, a background, a corner radius, a width or a fade '
+    'reached it and did nothing on a build that succeeded. This repository '
+    'did it to itself three times, one of them this site -- the paragraph '
+    'helper set a readable measure every paragraph was meant to be held to '
+    'and none of them were. The box half is drawn by the thing that draws '
+    'boxes, only when one was asked for, and the tap and the semantics are '
+    'left with the text so a button does not run its action twice and a '
+    'screen reader does not say heading twice.',
   ),
   (
     'Routing',

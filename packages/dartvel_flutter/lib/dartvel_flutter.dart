@@ -592,6 +592,7 @@ class DVModifier {
     double? rotateDegrees,
     double? blurSigma,
     double? backdropBlurSigma,
+    bool clearInteraction = false,
     bool? centeredValue,
     ValueChanged<bool>? onHoverChangedCallback,
     DVModifier? hoverValue,
@@ -648,14 +649,24 @@ class DVModifier {
       heightValue: heightValue ?? this.heightValue,
       alignmentValue: alignmentValue ?? this.alignmentValue,
       shadows: shadows ?? this.shadows,
-      onTapCallback: onTapCallback ?? this.onTapCallback,
+      onTapCallback:
+          clearInteraction ? null : (onTapCallback ?? this.onTapCallback),
       bgImage: bgImage ?? this.bgImage,
-      semanticLabelValue: semanticLabelValue ?? this.semanticLabelValue,
-      semanticHintValue: semanticHintValue ?? this.semanticHintValue,
-      semanticButtonValue: semanticButtonValue ?? this.semanticButtonValue,
-      semanticHeadingValue:
-          semanticHeadingValue ?? this.semanticHeadingValue,
-      semanticRoleValue: semanticRoleValue ?? this.semanticRoleValue,
+      semanticLabelValue: clearInteraction
+          ? null
+          : (semanticLabelValue ?? this.semanticLabelValue),
+      semanticHintValue: clearInteraction
+          ? null
+          : (semanticHintValue ?? this.semanticHintValue),
+      semanticButtonValue: clearInteraction
+          ? null
+          : (semanticButtonValue ?? this.semanticButtonValue),
+      semanticHeadingValue: clearInteraction
+          ? null
+          : (semanticHeadingValue ?? this.semanticHeadingValue),
+      semanticRoleValue: clearInteraction
+          ? null
+          : (semanticRoleValue ?? this.semanticRoleValue),
       minimumTapTargetValue:
           minimumTapTargetValue ?? this.minimumTapTargetValue,
       inputValue: inputValue ?? this.inputValue,
@@ -796,6 +807,39 @@ class DVModifier {
   DVModifier gradient(Gradient value) => _copyWith(gradientValue: value);
 
   /// Fades the whole box, children included.
+  /// Whether this modifier says anything about the box round a widget.
+  ///
+  /// DVText draws text and drew only text: a modifier carrying padding, a
+  /// background, a corner radius or a border reached it and did nothing, on a
+  /// build that succeeded. This framework did it to itself in two places --
+  /// the studio's Close button and a tab label, both asking for padding round
+  /// a tap target and getting the glyphs -- which is the same shape as the
+  /// bug the semantic fields had on that widget before they were read.
+  ///
+  /// Enumerated rather than inferred, and the list is every field DVBox's own
+  /// decoration reads that DVText does not apply itself. A box property added
+  /// there and not added here goes back to being silently dropped on text.
+  bool get hasBoxStyling =>
+      paddingValue != null ||
+      marginValue != null ||
+      boxColor != null ||
+      gradientValue != null ||
+      borderRadius != null ||
+      borderValue != null ||
+      shadows != null ||
+      bgImage != null ||
+      widthValue != null ||
+      heightValue != null ||
+      alignmentValue != null ||
+      constraintsValue != null ||
+      animateDuration != null ||
+      opacityValue != null ||
+      rotateDegrees != null ||
+      blurSigma != null ||
+      backdropBlurSigma != null ||
+      minimumTapTargetValue != null ||
+      centeredValue;
+
   DVModifier opacity(double value) => _copyWith(opacityValue: value);
 
   /// Blurs the box and everything in it by [sigma].
@@ -2021,6 +2065,22 @@ class DVText extends StatelessWidget {
       if (!ownsLabel && modifier.semanticLabelValue == null) {
         result = MergeSemantics(child: result);
       }
+    }
+
+    // The box half, drawn by the thing that draws boxes rather than by a
+    // second copy of it here. Only when one was asked for: a container round
+    // every DVText in every application, for the styling most of them do not
+    // use, is a cost nobody chose.
+    //
+    // The tap and the semantics are cleared on the way, because this build
+    // has already applied them and its handling of a role that owns its own
+    // label is the careful one. Left in, the box would carry them too: a
+    // callback that runs twice and a screen reader saying "heading" and then
+    // "heading".
+    if (modifier != null && modifier.hasBoxStyling) {
+      result = DVBox(result).modifier(
+        modifier._copyWith(clearInteraction: true),
+      );
     }
 
     return result;
