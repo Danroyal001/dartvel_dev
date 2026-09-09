@@ -209,6 +209,20 @@ clean checkout could actually do.
   `0xAARRGGBB` integer the `@DVPage` annotation uses and the `#RRGGBB` string a
   web colour input produces; an unreadable value is ignored rather than guessed
   at, so a typo renders unstyled instead of black.
+- **Encrypted model fields.** `@DVModel.sensitiveField(encrypted: true)` used to
+  be read by nothing, then refused outright, because there was no server-side
+  key to wire it to. `DVFieldCipher` is AES-256-GCM over a keyring read from
+  `DARTVEL_FIELD_KEYS` in the server process environment — the key can live
+  nowhere the generator reaches, since generated model code is compiled into the
+  application bundle too. The generator seals the value before it becomes a
+  bound parameter and opens it in `_fromRow`, so the plaintext is never in a
+  statement a driver might log; with no keyring the field raises rather than
+  falling back to plaintext. The model and column names are authenticated with
+  the value, so a ciphertext moved to another column will not open. The ring
+  holds several keys, newest first, so rotation does not have to rewrite every
+  row before the new key takes over. Refused at generation time: a non-String
+  field, and the field generated lookups use, where a randomized ciphertext
+  would make `find()` miss and `save()` duplicate the row.
 - **`docs/spec-status.json` and its checker.** Implementation status per spec
   section, with two independent labels — `stability` (Draft/Contract) and
   `status` (Designed/Partial/Shipped) — because a frozen contract that is
