@@ -5950,7 +5950,15 @@ class DV {
   /// Read-only lifecycle signals: `DV.lifecycle.app`, `DV.lifecycle.build`.
   ///
   /// The framework owns the transitions; application code observes them.
-  static final DVLifecycleRegistry lifecycle = DVLifecycleRegistry();
+  ///
+  /// The registry itself is `dvLifecycle` in dartvel_core rather than one
+  /// constructed here, because the specification says the CLI, Studio, the
+  /// analyzer and external tools observe the same canonical state. A second
+  /// instance here would mean the build pipeline advanced one object and the
+  /// application read another -- which is what happened: the CLI cannot depend
+  /// on Flutter, so it could not reach this at all, and the build signal was
+  /// driven by nothing.
+  static DVLifecycleRegistry get lifecycle => dvLifecycle;
 
   /// Mounted Dartvel modules. The generator emits typed `DV.Modules.<id>`
   /// accessors on top of this registry, and `<id>Routes` for its pages.
