@@ -106,6 +106,24 @@ List<String> dvValidateDeclarations(
         'scope if it is not meant to ship to the browser.',
       );
     }
+
+    // And the other direction, which is the one that leaks. Whatever writes
+    // env.g.dart decides by prefix alone: the router builder runs under
+    // build_runner with the .env file and no pubspec declaration in reach, so
+    // a backend-scoped name spelled PUBLIC_ is compiled into the bundle while
+    // the declaration promises it stays on the server. DV-SECRETS-001 does
+    // not catch it either, because the value arrives through a generated
+    // constant rather than a DV.Secrets call the analysis can read. Refusing
+    // the contradiction is what keeps prefix and declaration from disagreeing.
+    if (secret.scope == DVSecretScope.backend &&
+        secret.name.startsWith('PUBLIC_')) {
+      problems.add(
+        '"${secret.name}" is backend-scoped but is spelled with the PUBLIC_ '
+        'prefix, which is what puts a value into the generated env.g.dart and '
+        'so into the client bundle. Rename it without the prefix, or declare '
+        'it scope: client if shipping it to every visitor is intended.',
+      );
+    }
   }
   return problems;
 }
