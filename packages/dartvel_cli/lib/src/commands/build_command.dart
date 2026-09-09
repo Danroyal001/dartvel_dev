@@ -292,8 +292,17 @@ TerminalBuildOutcome terminalBuildOutcome(
 /// and a nested map are all plausible things to write and all ambiguous;
 /// guessing one way links a backend nobody asked for, and guessing the other
 /// silently ignores a request that was made.
-bool readTerminalOptIn(YamlMap? pubspec) {
-  final dartvel = pubspec?['dartvel'];
+bool readTerminalOptIn(YamlMap? pubspec) =>
+    dvTerminalOptInFrom(pubspec?['dartvel']);
+
+/// The same answer, from the `dartvel:` section rather than the whole pubspec.
+///
+/// Split out because the generator holds that section and had grown its own
+/// reading of the key -- `dv['terminal'] == true`, which answers false for
+/// `yes`, `"true"` and `1`. Those are values a person writes meaning yes and
+/// YAML does not make booleans, so a project that asked for a terminal got a
+/// main declaring a GUI surface. One function, one verdict.
+bool dvTerminalOptInFrom(Object? dartvel) {
   if (dartvel is! YamlMap) return false;
   if (!dartvel.containsKey('terminal')) return false;
 

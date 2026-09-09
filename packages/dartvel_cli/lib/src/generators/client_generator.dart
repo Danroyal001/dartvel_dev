@@ -18,6 +18,7 @@ import 'route_blocks.dart';
 import 'page_names.dart';
 import 'page_policy.dart';
 import 'symbol_qualifier.dart';
+import '../commands/build_command.dart' show dvTerminalOptInFrom;
 import 'static_paths_generator.dart';
 import 'package:file/local.dart';
 import 'package:glob/glob.dart';
@@ -482,8 +483,15 @@ const String dvApiBasePath      = '${esc(apiBasePath)}';
     // code below. A build carrying both backends has a decision to make at
     // startup; one carrying only the terminal has none, and instead installs
     // the surface it is drawing on.
+    // Through the same reader the build uses, not a second test of the same
+    // key. `dv['terminal'] == true` answers false for `yes`, `"true"` and `1`
+    // -- values a person writes meaning yes and YAML does not make booleans --
+    // so a project that asked for a terminal got a main declaring a GUI
+    // surface. dartvel build refuses those before generation and exits 78;
+    // `dartvel routes` run by hand does not, and it is the same command the
+    // build runs as a subprocess.
     final Set<DVRenderBackend> linked = renderBackends ??
-        (dv['terminal'] == true
+        (dvTerminalOptInFrom(dv)
             ? const <DVRenderBackend>{
                 DVRenderBackend.gui,
                 DVRenderBackend.terminal,
