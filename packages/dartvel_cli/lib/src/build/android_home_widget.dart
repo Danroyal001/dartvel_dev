@@ -23,7 +23,9 @@ import 'package:dartvel_core/dartvel.dart'
         DVHomeWidgetSpec,
         dvHomeWidgetAndroidClass,
         dvHomeWidgetAndroidStore,
-        dvHomeWidgetDataKey;
+        dvHomeWidgetDataKey,
+        dvHomeWidgetLaunchScheme,
+        dvHomeWidgetLaunchUrl;
 
 const String _markStart = '        <!-- dartvel.homeWidgets: begin -->';
 const String _markEnd = '        <!-- dartvel.homeWidgets: end -->';
@@ -146,8 +148,13 @@ public class ${widget.name}Provider extends AppWidgetProvider {
             // The route this widget was generated for. A launch that opened
             // the application's home screen instead would be a shortcut, not
             // a widget.
+            //
+            // Built by the rule the runtime reads back, rather than spelled
+            // out here. Spelled out, the two ends drift the moment either
+            // moves, and the drift is a tap that reaches the not-found page
+            // from a widget somebody has already placed on their screen.
             Intent open = new Intent(Intent.ACTION_VIEW,
-                    Uri.parse("dartvel://widget${widget.route}"));
+                    Uri.parse("${dvHomeWidgetLaunchUrl(dvHomeWidgetLaunchScheme, widget.route)}"));
             open.setComponent(new ComponentName(context, "$package.MainActivity"));
             open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 

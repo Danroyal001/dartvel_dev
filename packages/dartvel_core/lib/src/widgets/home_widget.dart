@@ -84,6 +84,71 @@ bool dvSourceDeclaresHomeWidget(String source) =>
 /// tap opens the not-found page.
 String dvHomeWidgetRoute(String id) => '/widgets/$id';
 
+/// The host a home widget's launch link carries.
+///
+/// It says what kind of link this is, which is the only thing separating a
+/// widget's tap from an ordinary `dartvel://` deep link the application also
+/// handles. Without a host of its own the route would start at the
+/// authority, and `dartvel://widgets/order-status` parses with `widgets` as
+/// the host and `order-status` as the whole path -- so an application that
+/// handles both kinds of link could not tell them apart at all.
+const String dvHomeWidgetLaunchHost = 'widget';
+
+/// The URL scheme a home widget's tap opens the application with.
+///
+/// One value, because three things have to agree on it and only one of them
+/// is Dart: the generated Java that fires the intent, the generated Swift
+/// that hands the URL to WidgetKit, and the desktop launch path that decides
+/// whether an argument is a link at all.
+///
+/// It is the framework's scheme rather than the application's, and that is
+/// worth stating rather than leaving as an oversight. On Android the intent
+/// names the Activity outright, so nothing resolves the scheme and a shared
+/// one costs nothing. On Apple the URL is handed to the containing
+/// application by WidgetKit rather than through LaunchServices, so it costs
+/// nothing there either. Where it would cost something is an application
+/// that also wants `dartvel://` links from outside itself, and giving it a
+/// scheme of its own is a change that cannot be checked without a device.
+const String dvHomeWidgetLaunchScheme = 'dartvel';
+
+/// The link a home widget's tap opens the application with.
+///
+/// [scheme] is the application's own URL scheme and [route] the route the
+/// widget was generated for. Both native halves write this: Android's
+/// provider puts it in the PendingIntent, and WidgetKit's view hands it to
+/// `widgetURL`. One rule, because the runtime reads it back with
+/// [dvHomeWidgetRouteForLink] and two spellings is a tap that opens the
+/// not-found page on one platform and the right page on the other.
+String dvHomeWidgetLaunchUrl(String scheme, String route) =>
+    '$scheme://$dvHomeWidgetLaunchHost$route';
+
+/// The route [link] asks for when it is a home widget's tap, else null.
+///
+/// The inverse of [dvHomeWidgetLaunchUrl], and the half that did not exist.
+/// Both platforms launched the application at a URL naming the widget's
+/// route, and the general rule for a `dartvel://` link folds the host back
+/// into the path -- so `dartvel://widget/widgets/order-status` came out as
+/// `/widget/widgets/order-status`, which no router has. A widget on somebody's
+/// home screen opened the not-found page, and nothing at either end had
+/// anything to report.
+///
+/// Null for everything that is not this exact shape. Claiming a link that
+/// merely carries the host would send a half-written URL to `/widgets/`,
+/// which matches no widget and reads as one that was removed.
+String? dvHomeWidgetRouteForLink(String link) {
+  final Uri? uri = Uri.tryParse(link.trim());
+  if (uri == null || !uri.hasScheme) return null;
+  if (uri.host != dvHomeWidgetLaunchHost) return null;
+  final List<String> segments = uri.pathSegments;
+  if (segments.length != 2 || segments[0] != 'widgets') return null;
+  final String id = segments[1];
+  if (id.isEmpty) return null;
+  // Through the same function the build wrote the route with, rather than
+  // rebuilt from the pieces here. That is what keeps the two ends from
+  // drifting when the route shape changes.
+  return dvHomeWidgetRoute(id);
+}
+
 /// The identifier for a generated widget class.
 ///
 /// `StepCounterWidget` is `step-counter`. The trailing `Widget` goes because
