@@ -8,7 +8,28 @@
 /// point of a trace ID is that something else recognises it.
 library dartvel.observability.tracing;
 
+import 'dart:async';
 import 'dart:math';
+
+/// The zone key the current span hangs on.
+///
+/// A zone rather than a parameter threaded through every function: a query
+/// three calls deep has to be able to hang a child span off the request's
+/// without each function in between taking a span it does not otherwise use.
+/// That threading is exactly the boilerplate that stops people instrumenting
+/// anything.
+///
+/// It lives here rather than beside the HTTP middleware that first set it,
+/// because logging needs to read it too and a log line that cannot name the
+/// trace it happened inside is half of an investigation.
+const Object dvSpanZoneKey = #dartvelSpan;
+
+/// The span the current call is inside, if any.
+DVSpan? get dvCurrentSpan => Zone.current[dvSpanZoneKey] as DVSpan?;
+
+/// Runs [body] with [span] as the ambient span.
+R dvInSpan<R>(DVSpan span, R Function() body) =>
+    runZoned(body, zoneValues: <Object, Object?>{dvSpanZoneKey: span});
 
 /// The trace a request belongs to, as it travels between services.
 ///
@@ -144,6 +165,23 @@ class DVSpan {
 
   void setAttribute(String key, String value) => attributes[key] = value;
 
+  /// The span as a trace view reads it.
+  ///
+  /// Duration in milliseconds rather than the `Duration` object, because this
+  /// crosses a process boundary as JSON and a reader on the other side has no
+  /// Dart types.
+  Map<String, Object?> toJson() => <String, Object?>{
+        'name': name,
+        'traceId': traceId,
+        'spanId': spanId,
+        if (parentSpanId != null) 'parentSpanId': parentSpanId,
+        'startedAt': startedAt.toUtc().toIso8601String(),
+        if (duration != null)
+          'durationMs': duration!.inMicroseconds / 1000,
+        'status': status.name,
+        if (attributes.isNotEmpty) 'attributes': attributes,
+      };
+
   void recordError(Object error, [StackTrace? stackTrace]) {
     status = DVSpanStatus.error;
     attributes['error'] = '$error';
@@ -217,6 +255,57 @@ class DVMemoryTraceExporter implements DVTraceExporter {
   void export(DVSpan span) => spans.add(span);
 
   void clear() => spans.clear();
+}
+
+/// Keeps the most recent spans and forgets the rest.
+///
+/// This is the one the process holds open for its whole life, so it cannot be
+/// the unbounded kind: a server doing a thousand requests a second would
+/// otherwise be storing every span it ever produced, and the trace buffer
+/// would outgrow the application it belongs to.
+class DVRecentSpansExporter implements DVTraceExporter {
+  DVRecentSpansExporter({this.capacity = 200})
+      : assert(capacity > 0, 'a buffer that holds nothing records nothing');
+
+  final int capacity;
+  final List<DVSpan> _spans = <DVSpan>[];
+
+  /// Oldest first.
+  List<DVSpan> get spans => List<DVSpan>.unmodifiable(_spans);
+
+  @override
+  void export(DVSpan span) {
+    _spans.add(span);
+    if (_spans.length > capacity) {
+      _spans.removeRange(0, _spans.length - capacity);
+    }
+  }
+
+  void clear() => _spans.clear();
+}
+
+/// Sends each span to every exporter, and keeps going when one throws.
+///
+/// Configuring a collector must not be what removes the local buffer: before
+/// this, pointing tracing anywhere replaced the exporter outright, and the
+/// spans a developer could read on the machine in front of them disappeared
+/// the moment the application became worth tracing.
+class DVFanoutTraceExporter implements DVTraceExporter {
+  DVFanoutTraceExporter(this.exporters);
+
+  final List<DVTraceExporter> exporters;
+
+  @override
+  void export(DVSpan span) {
+    for (final DVTraceExporter exporter in exporters) {
+      try {
+        exporter.export(span);
+      } on Object {
+        // A collector that is down must not take the request with it, nor
+        // stop the other exporters from seeing the span.
+      }
+    }
+  }
 }
 
 /// Starts spans.

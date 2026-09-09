@@ -11,18 +11,6 @@ import 'dart:async';
 import '../http/wintercg.dart';
 import 'tracing.dart';
 
-/// The zone key the current span hangs on.
-///
-/// A zone rather than a parameter threaded through every function: a query
-/// three calls deep has to be able to hang a child span off the request's
-/// without each function in between taking a span it does not otherwise use.
-/// That threading is exactly the boilerplate that stops people instrumenting
-/// anything.
-const Object _dvSpanKey = #dartvelSpan;
-
-/// The span the current call is inside, if any.
-DVSpan? get dvCurrentSpan => Zone.current[_dvSpanKey] as DVSpan?;
-
 /// Runs [handler] inside a span for the request.
 ///
 /// Joins the caller's trace when the request carries a valid `traceparent`,
@@ -41,10 +29,7 @@ Future<Response> dvTraced(
     ..setAttribute('http.path', request.url.path);
 
   try {
-    final Response response = await runZoned(
-      () => handler(request),
-      zoneValues: <Object, Object?>{_dvSpanKey: span},
-    );
+    final Response response = await dvInSpan(span, () => handler(request));
 
     span.setAttribute('http.status', '${response.status}');
     // 5xx only. A 404 is the client asking for something that is not there,
