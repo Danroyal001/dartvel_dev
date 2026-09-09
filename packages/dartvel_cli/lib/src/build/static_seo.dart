@@ -51,6 +51,7 @@ String dvStaticPage({
   Map<String, String> alternates = const <String, String>{},
   String? defaultAlternate,
   String? favicon,
+  String? schemaType,
 }) {
   final canonical =
       siteUrl == null ? null : dvStaticCanonical(siteUrl, route);
@@ -69,6 +70,7 @@ String dvStaticPage({
     description: description,
     siteUrl: siteUrl,
     image: dvAbsoluteAsset(image, siteUrl),
+    schemaType: schemaType,
   );
 
   var html = dvSeoApply(

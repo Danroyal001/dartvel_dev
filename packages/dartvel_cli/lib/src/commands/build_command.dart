@@ -2370,9 +2370,14 @@ class BuildCommand extends Command<void> {
     // while the declaration sat in the model doing nothing at all --
     // and `dartvel.seo.favicon`, the application-wide fallback, reached the
     // static build not at all.
-    final Map<String, String> modelFavicons =
-        dvModelPageFavicons(_modelPagesSource(root));
+    final String modelPages = _modelPagesSource(root);
+    final Map<String, String> modelFavicons = dvModelPageFavicons(modelPages);
     final String? seoFavicon = settings['favicon'] as String?;
+    // And what each one says it is. `@DVModel(schemaType:)` was in the same
+    // state, so a statically built store announced every product as a plain
+    // WebPage -- structured data that validates and says the wrong thing.
+    final Map<String, String> modelSchemaTypes =
+        dvModelPageSchemaTypes(modelPages);
     var written = 0;
 
     for (final String route in routes) {
@@ -2383,6 +2388,9 @@ class BuildCommand extends Command<void> {
 
       final meta = _prerendered(web.path, route);
       final text = routeText[route] ?? const <String>[];
+      // Null for a page no model owns, which stays a WebPage.
+      final String? modelTemplate =
+          dvTemplateFor(route, modelSchemaTypes.keys);
       final page = dvStaticPage(
         favicon: dvBuildFavicon(
           root: root,
@@ -2390,6 +2398,8 @@ class BuildCommand extends Command<void> {
           declared:
               dvPageFavicon(route, modelFavicons, application: seoFavicon),
         ),
+        schemaType:
+            modelTemplate == null ? null : modelSchemaTypes[modelTemplate],
         shell: shell,
         route: route,
         title: meta?.title ??
