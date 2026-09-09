@@ -19,7 +19,11 @@ library dartvel_flutter.platform.macos.ffi;
 import 'dart:ffi';
 import 'dart:io' show Platform;
 
-import 'package:dartvel_core/dartvel.dart' show dvHomeWidgetAppGroup;
+import 'package:dartvel_core/dartvel.dart'
+    show
+        dvHomeWidgetAppGroup,
+        dvHomeWidgetAppleReloadClass,
+        dvHomeWidgetAppleReloadSelector;
 import 'package:ffi/ffi.dart';
 
 import '../../../dartvel_flutter.dart' show DVAppLaunch, DVNativeBridge;
@@ -249,7 +253,26 @@ class DVMacosBindings {
     // which shows only as a widget reading an empty container.
     sendVoid2(defaults, _selector('setObject:forKey:'), _nsString(text),
         _nsString(key));
+    _reloadWidgets();
     return true;
+  }
+
+  /// Asks WidgetKit to redraw now, where the application was built to allow
+  /// it.
+  ///
+  /// `WidgetCenter` is Swift-only and has no Objective-C class, so this
+  /// cannot reach it; what it reaches is a small Swift class `dartvel build`
+  /// compiles into the application, which can. An application built with
+  /// plain `flutter build` has no such class, and nil from `objc_getClass`
+  /// is the honest answer there rather than an error -- the widget then
+  /// picks the value up on the timeline its provider asked for, which is
+  /// what every publish did before this existed.
+  static void _reloadWidgets() {
+    final cls = _class(dvHomeWidgetAppleReloadClass);
+    if (cls == nullptr) return;
+    final send0 =
+        _objc.lookupFunction<_MsgSend0Native, _MsgSend0Dart>('objc_msgSend');
+    send0(cls, _selector(dvHomeWidgetAppleReloadSelector));
   }
 
   static Pointer<Void>? _defaultsForGroup() {

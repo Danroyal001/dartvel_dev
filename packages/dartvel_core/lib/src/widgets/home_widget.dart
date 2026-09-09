@@ -264,6 +264,30 @@ const String dvHomeWidgetAndroidClass = 'dev/dartvel/jni/DartvelWidgets';
 /// empty store.
 const String dvHomeWidgetAndroidStore = 'dartvel.widgets';
 
+/// The Objective-C class name of the Swift shim that redraws a home widget
+/// on Apple platforms.
+///
+/// WidgetCenter is Swift-only and has no Objective-C class to message, so
+/// nothing in Dart can reach it: `objc_getClass("WidgetCenter")` answers nil
+/// on a device where WidgetKit is working perfectly. What can be reached is
+/// a class compiled into the application that calls it, which is what
+/// `dartvel build` writes.
+///
+/// In core because both halves need it and they are in different packages:
+/// the build writes the Swift that declares this name, and the Flutter
+/// runtime looks it up by string. Two spellings is a lookup that answers nil
+/// for ever -- and nil is also the honest answer for an application built
+/// with plain `flutter build`, so the two are indistinguishable and neither
+/// reports anything.
+const String dvHomeWidgetAppleReloadClass = 'DartvelWidgetCenter';
+
+/// The selector the shim answers to.
+///
+/// Named beside the class for the same reason. A selector that does not
+/// exist is not a nil lookup: it is an unrecognised-selector exception,
+/// which is loud, and which arrives on a device rather than in a build.
+const String dvHomeWidgetAppleReloadSelector = 'reloadAll';
+
 /// The user-defaults key an iOS launch URL is left under.
 ///
 /// In core rather than beside either half, because both halves need it and
