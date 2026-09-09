@@ -263,14 +263,42 @@ class DVKioskRuntime {
 
   /// Enters kiosk mode, or returns to it from staff mode.
   ///
+  /// Both arrivals reset the session, and each carries its own reason.
+  ///
+  /// From [DVKioskState.staffMode] that is the specification's rule: staff
+  /// mode is a state rather than an unlock, and coming back out of it is
+  /// where the engineer's diagnostics page, their half-filled form and
+  /// whatever they signed into stop being on the screen. Without the reset
+  /// the next person in the queue inherits all of it.
+  ///
+  /// From [DVKioskState.off] it is the restart. A kiosk is supervised, so a
+  /// crash mid-order brings the process back within seconds -- and the parts
+  /// of a session that outlive a process come back with it, which is the
+  /// previous customer's session shown to whoever is standing there now.
+  ///
+  /// Every other state returns to kiosk without a reset, and [DVKioskState
+  /// .active] is the one that matters: a second resume while somebody is
+  /// part-way through an order must not wipe it.
+  ///
   /// Does not clear a lockout. One that a resume could clear would stop
   /// nothing: the way out of a locked kiosk is to wait, or to be staff with
   /// the declared method.
   Future<void> resume() async {
     if (!policy.enabled) return;
-    _enter(DVKioskState.active);
-    touch();
+    final DVKioskState from = state.value;
     _timer ??= Timer.periodic(tickEvery, (_) => unawaited(tick()));
+    switch (from) {
+      case DVKioskState.off:
+        await reset(DVKioskResetReason.startup);
+      case DVKioskState.staffMode:
+        await reset(DVKioskResetReason.staffExit);
+      case DVKioskState.active:
+      case DVKioskState.resetting:
+      case DVKioskState.locked:
+      case DVKioskState.failed:
+        _enter(DVKioskState.active);
+        touch();
+    }
   }
 
   /// Attempts to leave kiosk mode.
