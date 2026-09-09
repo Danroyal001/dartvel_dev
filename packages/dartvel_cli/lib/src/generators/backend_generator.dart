@@ -2502,6 +2502,10 @@ List<_DVBackendFunctionFile> _moduleFunctionFiles(String root) {
   final List<_DVBackendFunctionFile> files = <_DVBackendFunctionFile>[];
   for (final DVModuleMount mount in dvDiscoverModuleMounts(root)) {
     if (!mount.mounted) continue;
+    // A module that wrote exports.functions: false keeps them. The block was
+    // read by nothing before, so a module that had written down exactly what
+    // it shares contributed every function to the parent's router anyway.
+    if (!mount.exportsFunctions) continue;
     if (mount.deployment != DVModuleDeployment.embedded &&
         mount.deployment != DVModuleDeployment.backendOnly) {
       continue;

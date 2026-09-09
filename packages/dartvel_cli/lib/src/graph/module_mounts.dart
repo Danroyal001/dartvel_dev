@@ -83,6 +83,10 @@ class DVModuleMount {
     this.requires = const <String>[],
     this.mounted = true,
     this.exportedGlobals = const <String>[],
+    this.declaredRoutes = const <DVModuleRoute>[],
+    this.exportsPages = true,
+    this.exportsFunctions = true,
+    this.exportedModels = const <String>[],
     this.inheritedGlobals = const <String>[],
     this.shell = 'inherit',
     this.auth = 'inherit',
@@ -175,6 +179,38 @@ class DVModuleMount {
   /// than deciding for itself what a module exposes -- what a module keeps
   /// private is the module's to say.
   final List<String> exportedGlobals;
+
+  /// Every page route the module has, whether or not it shares them.
+  ///
+  /// [routes] is what the parent takes; this is what exists. The inspector
+  /// wants the second, and everything that builds an application wants the
+  /// first -- which is why the shared set is the plainly named one. A
+  /// consumer that reaches for `routes` without knowing this block exists
+  /// gets the right answer, and the wrong default here is exactly how the
+  /// declaration came to be ignored.
+  final List<DVModuleRoute> declaredRoutes;
+
+  /// Whether the module's pages join the parent's route index, from
+  /// `dartvel.module.exports.pages` in its own pubspec.
+  ///
+  /// True by default, which is what a module with no exports block already
+  /// does and what every existing one relies on. A block nobody wrote must
+  /// not start withholding anything.
+  final bool exportsPages;
+
+  /// Whether the module's backend functions join the parent's router, from
+  /// `dartvel.module.exports.functions`.
+  final bool exportsFunctions;
+
+  /// The models the module offers the parent by name, from
+  /// `dartvel.module.exports.models`.
+  ///
+  /// This governs which types the parent may name, not which tables the
+  /// migration creates. A module compiled into a parent runs its own code
+  /// against its own tables, so a migration that skipped them would break the
+  /// module to tidy the parent's schema -- the block describes a public
+  /// surface, not storage.
+  final List<String> exportedModels;
 
   /// The application globals the module may read, from
   /// `dartvel.modules.<id>.globals.inherit` in this project's pubspec.
@@ -358,6 +394,9 @@ List<DVModuleMount> dvDiscoverModuleMounts(String root) {
           if (asset is String && asset.isNotEmpty) asset: 'packages/$packageName/$asset',
     };
 
+    final bool sharesPages =
+        _exportFlag(moduleDeclaration, 'pages', problems);
+
     final Object? routesSection = moduleDeclaration['routes'];
     final String routeBase = routesSection is Map && routesSection['base'] is String
         ? _normalise(routesSection['base']! as String)
@@ -382,7 +421,13 @@ List<DVModuleMount> dvDiscoverModuleMounts(String root) {
       mount: mount,
       sourcePath: sourcePath,
       deployment: deployment,
-      routes: routes,
+      // What the parent takes, and what the module has. A module that wrote
+      // exports.pages: false keeps its pages: they stay on declaredRoutes so
+      // `dartvel modules` can still show them, and every consumer that builds
+      // an application reads `routes` and gets nothing, without having to
+      // know this block exists.
+      routes: sharesPages ? routes : const <DVModuleRoute>[],
+      declaredRoutes: routes,
       assets: assets,
       name: moduleDeclaration['name'] is String ? moduleDeclaration['name']! as String : null,
       version: moduleDeclaration['version'] == null ? null : '${moduleDeclaration['version']}',
@@ -391,6 +436,10 @@ List<DVModuleMount> dvDiscoverModuleMounts(String root) {
       backend: modes.backend,
       requires: requires,
       exportedGlobals: _globalNamesOf(moduleDeclaration, 'export'),
+      exportsPages: sharesPages,
+      exportsFunctions:
+          _exportFlag(moduleDeclaration, 'functions', problems),
+      exportedModels: _exportedModels(moduleDeclaration, problems),
       inheritedGlobals: inheritedGlobals,
       shell: modes.shell,
       auth: modes.auth,
@@ -401,6 +450,53 @@ List<DVModuleMount> dvDiscoverModuleMounts(String root) {
   });
   mounts.sort((DVModuleMount a, DVModuleMount b) => a.id.compareTo(b.id));
   return mounts;
+}
+
+/// One boolean under `exports` in [declaration], defaulting to true.
+///
+/// A value that is neither true nor false is refused by name rather than
+/// falling back to the default. `pages: yes-please` reading as `pages: true`
+/// is how a module silently shares what it wrote down that it keeps, and the
+/// permissive default is the wrong way to fail.
+bool _exportFlag(
+  Map<Object?, Object?> declaration,
+  String key,
+  List<String> problems,
+) {
+  final Object? exports = declaration['exports'];
+  if (exports is! Map) return true;
+  final Object? value = exports[key];
+  if (value == null) return true;
+  if (value is bool) return value;
+  problems.add(
+    'dartvel.module.exports.$key is "$value". It is either true or false: '
+    'true shares the module\'s $key with the parent, false keeps them to '
+    'the module. A value that is neither cannot be honoured, and defaulting '
+    'it to true would share what this line was written to keep.',
+  );
+  return true;
+}
+
+/// The model names under `exports.models`.
+List<String> _exportedModels(
+  Map<Object?, Object?> declaration,
+  List<String> problems,
+) {
+  final Object? exports = declaration['exports'];
+  if (exports is! Map) return const <String>[];
+  final Object? models = exports['models'];
+  if (models == null) return const <String>[];
+  if (models is! List) {
+    problems.add(
+      'dartvel.module.exports.models is "$models". It is a list of model '
+      'type names, as in [Product, Cart, Order], even when there is one.',
+    );
+    return const <String>[];
+  }
+  return <String>[
+    for (final Object? model in models)
+      if ('$model'.trim().isNotEmpty) '$model'.trim(),
+  ];
 }
 
 /// The names under `globals.export` or `globals.inherit` in [declaration].
