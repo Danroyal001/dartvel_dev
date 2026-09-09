@@ -1945,6 +1945,16 @@ class BuildCommand extends Command<void> {
     }
   }
 
+  /// Writes [html] at `<web>/<path>/index.html`.
+  ///
+  /// A directory with an index.html in it is how every static host serves a
+  /// path with no extension, and it needs no server configuration to work.
+  void _writePage(Directory web, String path, String html) {
+    final File file = File(p.join(web.path, path, 'index.html'));
+    file.parent.createSync(recursive: true);
+    file.writeAsStringSync(html);
+  }
+
   /// Replace Flutter's service worker with one that knows the routes.
   ///
   /// Flutter's own caches the app shell and nothing Dartvel knows about, so a
@@ -1972,9 +1982,21 @@ class BuildCommand extends Command<void> {
     // locally ever saw it.
     final routes = dvPrecacheRoutes(await _pagesToGenerate(root));
 
-    const offlinePath = '/offline.html';
-    File(p.join(web.path, 'offline.html'))
-        .writeAsStringSync(dvOfflinePage(title: name));
+    // Extensionless, because these are URLs a person sees: one is what the
+    // browser shows when the network is gone and the other is what a mistyped
+    // link lands on. A directory with an index.html in it is how a static
+    // host serves a path without an extension.
+    const offlinePath = '/offline/';
+    _writePage(web, 'offline', dvOfflinePage(title: name));
+    _writePage(web, '404', dvNotFoundPage(title: name));
+
+    // And once more at the root, under the name the hosts that cannot be told
+    // otherwise look for. GitHub Pages, Netlify and S3 website hosting each
+    // hard-code 404.html; a site that only had /404/index.html would fall
+    // back to their branding rather than its own. Nobody navigates to this
+    // one, so it is not an extension anybody sees.
+    File(p.join(web.path, '404.html'))
+        .writeAsStringSync(dvNotFoundPage(title: name));
 
     // Written over flutter_service_worker.js, which index.html already
     // registers: adding a second worker would leave two competing for the
