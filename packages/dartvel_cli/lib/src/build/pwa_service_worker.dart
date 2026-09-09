@@ -164,12 +164,37 @@ self.addEventListener('message', (event) => {
 });
 ''';
 
+/// A CSS colour taken from project configuration, or the neutral default.
+///
+/// Both error pages carried #2f6bff, which is the colour of dartvel.dev. Every
+/// application built with Dartvel shipped its error pages in the framework's
+/// brand rather than its own -- on the two pages a visitor sees when something
+/// has gone wrong, which is exactly when a page should look like the site it
+/// belongs to.
+///
+/// Sanitised rather than interpolated. The value lands inside a `<style>`
+/// block, so anything that is not a colour is a way to write CSS into every
+/// error page a project ships, and a pubspec is not a place anybody reads
+/// looking for that.
+///
+/// Black is the default because it is what the PWA manifest already defaults
+/// its theme colour to; a project that declares nothing gets the same answer
+/// from both.
+String dvAccentColour(String? declared) {
+  if (declared == null) return '#000000';
+  final String value = declared.trim();
+  return RegExp(r'^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$').hasMatch(value)
+      ? value
+      : '#000000';
+}
+
 /// The page shown when a navigation fails and nothing is cached.
 ///
 /// Self-contained: it is served when the network is gone, so it cannot
 /// reference a stylesheet, a font or a script it would have to fetch.
-String dvOfflinePage({required String title}) {
+String dvOfflinePage({required String title, String? accent}) {
   final String safe = const HtmlEscape().convert(title);
+  final String brand = dvAccentColour(accent);
   return '''
 <!DOCTYPE html>
 <html lang="en">
@@ -186,7 +211,7 @@ main{max-width:28rem;padding:2rem;text-align:center}
 h1{font-size:1.5rem;margin:0 0 .5rem}
 p{margin:0 0 1.5rem;color:#5a6478}
 button{font:inherit;padding:.7rem 1.4rem;border:0;border-radius:8px;
-background:#2f6bff;color:#fff;cursor:pointer}
+background:$brand;color:#fff;cursor:pointer}
 @media (prefers-color-scheme:dark){
 body{color:#f2f5fa;background:#0a0d13}
 p{color:#9aa7bd}}
@@ -316,7 +341,12 @@ List<String> dvPrecacheRoutes(Iterable<String> routes) {
 ///
 /// The link home is the whole point. A wrong URL with nothing on it is a dead
 /// end, and the visitor's only move is the back button.
-String dvNotFoundPage({required String title, String home = '/'}) {
+String dvNotFoundPage({
+  required String title,
+  String home = '/',
+  String? accent,
+}) {
+  final String brand = dvAccentColour(accent);
   final HtmlEscape escape = const HtmlEscape();
   final String safe = escape.convert(title);
   // Attribute mode for the URL. The default escape turns every "/" into
@@ -340,7 +370,7 @@ main{max-width:28rem;padding:2rem;text-align:center}
 h1{font-size:1.5rem;margin:0 0 .5rem}
 p{margin:0 0 1.5rem;color:#5a6478}
 a{display:inline-block;font:inherit;padding:.7rem 1.4rem;border-radius:8px;
-background:#2f6bff;color:#fff;text-decoration:none}
+background:$brand;color:#fff;text-decoration:none}
 @media (prefers-color-scheme:dark){
 body{color:#f2f5fa;background:#0a0d13}
 p{color:#9aa7bd}}

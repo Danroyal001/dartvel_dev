@@ -26,6 +26,7 @@ void expectSelfContained(String html) {
 }
 
 void main() {
+  accentTests();
   group('the not-found page', () {
     test('says what happened and names the site', () {
       final String html = dvNotFoundPage(title: 'Dartvel');
@@ -73,6 +74,46 @@ void main() {
     // error document is what a host serves when the rewrite is not in play.
     test('names the not-found page at its extensionless path', () {
       expect(dvApacheConfig(), contains('ErrorDocument 404 /404/index.html'));
+    });
+  });
+}
+
+// The accent is the project's, not Dartvel's.
+//
+// Both pages carried #2f6bff, which is the colour of dartvel.dev. Every
+// application built with Dartvel would have shipped error pages in the
+// framework's brand rather than its own, on the two pages a visitor sees when
+// something has gone wrong -- which is exactly when a page should look like
+// the site it belongs to.
+void accentTests() {
+  group('the accent', () {
+    test('comes from the project theme colour', () {
+      expect(dvNotFoundPage(title: 'Shop', accent: '#c2185b'),
+          contains('#c2185b'));
+      expect(dvOfflinePage(title: 'Shop', accent: '#c2185b'),
+          contains('#c2185b'));
+    });
+
+    test('a project that declares none gets no borrowed brand', () {
+      final String html = dvNotFoundPage(title: 'Shop');
+      expect(html, isNot(contains('2f6bff')),
+          reason: "that is dartvel.dev's blue, not this project's");
+    });
+
+    // It lands inside a <style> block, so a value that is not a colour is a
+    // way to write CSS into every error page the project ships.
+    test('a value that is not a colour is refused, not interpolated', () {
+      final String html = dvNotFoundPage(
+        title: 'Shop',
+        accent: 'red;} body{display:none} a{color:red',
+      );
+      expect(html, isNot(contains('display:none')));
+    });
+
+    test('three and six digit hex are both colours', () {
+      expect(dvNotFoundPage(title: 'S', accent: '#abc'), contains('#abc'));
+      expect(
+          dvNotFoundPage(title: 'S', accent: '#AABBCC'), contains('#AABBCC'));
     });
   });
 }
