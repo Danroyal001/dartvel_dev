@@ -4,14 +4,15 @@
 // running. A developer running any of them saw numbers that looked like
 // their application's and were fiction.
 //
-// `metrics` now reads the real `/metrics` endpoint a Dartvel server exposes
-// (packages/dartvel_core/lib/src/http/router.dart) and reports truthfully
-// when it cannot: no server, no data, or something that is not a Dartvel
-// server. `logs` and `traces` have no real source to read at all -- there is
-// no log sink anywhere in the runtime, and spans are exported only into an
-// in-process list nothing serves -- so both say that plainly and exit
-// non-zero instead of inventing anything.
+// All three now read a running server. `metrics` fetches GET /metrics;
+// `logs` and `traces` fetch GET /_dartvel/logs and GET /_dartvel/traces,
+// which serve the runtime's recent records and finished spans as NDJSON
+// (packages/dartvel_core/lib/src/http/router.dart). Those two endpoints are
+// off unless the server was started with DARTVEL_DIAGNOSTICS set, so the
+// commands have to tell a developer that in the one case they will actually
+// hit -- a 404 from a server that is otherwise working fine.
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
@@ -39,35 +40,211 @@ Future<String> runObservability(List<String> args) async {
   return out.toString();
 }
 
+/// A server that answers [path] with [body] and 404s everything else, plus
+/// the requests it received so a test can check what the command asked for.
+class FakeServer {
+  FakeServer(this.server, this.requests);
+
+  static Future<FakeServer> serving(
+    String path,
+    String body, {
+    int status = 200,
+    String contentType = 'application/x-ndjson',
+  }) async {
+    final List<shelf.Request> seen = <shelf.Request>[];
+    final HttpServer server = await shelf_io.serve(
+      (shelf.Request request) {
+        seen.add(request);
+        if ('/${request.url.path}' != path) {
+          return shelf.Response.notFound('Not Found');
+        }
+        return shelf.Response(
+          status,
+          body: body,
+          headers: <String, String>{'content-type': contentType},
+        );
+      },
+      InternetAddress.loopbackIPv4,
+      0,
+    );
+    return FakeServer(server, seen);
+  }
+
+  final HttpServer server;
+  final List<shelf.Request> requests;
+
+  String get base => 'http://${server.address.host}:${server.port}';
+
+  Future<void> close() => server.close(force: true);
+}
+
+String logLine(String message, {String level = 'info', String? traceId}) =>
+    jsonEncode(<String, Object?>{
+      'time': '2026-01-02T03:04:05.000Z',
+      'level': level,
+      'message': message,
+      if (traceId != null) 'traceId': traceId,
+    });
+
 void main() {
   setUp(() => exitCode = 0);
   tearDown(() => exitCode = 0);
 
   group('LogsCommand', () {
-    test(
-      'says plainly that there is nowhere to read logs from, instead of inventing lines',
-      () async {
-        final String output = await runObservability(<String>['logs']);
+    late FakeServer fake;
 
-        expect(output, isNot(contains('Backend server started successfully')));
-        expect(output, isNot(contains('Database connection established')));
-        expect(output.toLowerCase(), contains('no'));
-        expect(exitCode, isNot(0));
-      },
-    );
+    tearDown(() => fake.close());
+
+    test('prints the records a running server is holding', () async {
+      fake = await FakeServer.serving(
+        '/_dartvel/logs',
+        <String>[
+          logLine('serving on 8080'),
+          logLine('charge failed', level: 'error', traceId: 'a' * 32),
+        ].join('\n'),
+      );
+
+      final String output =
+          await runObservability(<String>['logs', '--url', fake.base]);
+
+      expect(output, contains('serving on 8080'));
+      expect(output, contains('charge failed'));
+      // Case is the renderer's business; that the level reached the terminal
+      // at all is not.
+      expect(output.toLowerCase(), contains('error'));
+      // The correlation id has to survive to the terminal, because quoting it
+      // into `dartvel traces` is the next thing anybody does.
+      expect(output, contains('a' * 32));
+      expect(exitCode, 0);
+    });
+
+    test('--json prints the record verbatim, for piping into jq', () async {
+      fake = await FakeServer.serving(
+        '/_dartvel/logs',
+        logLine('serving on 8080'),
+      );
+
+      final String output = await runObservability(
+          <String>['logs', '--url', fake.base, '--json']);
+
+      final Map<String, Object?> decoded =
+          jsonDecode(output.trim()) as Map<String, Object?>;
+      expect(decoded['message'], 'serving on 8080');
+    });
+
+    test('asks the server for the tail it was told to show', () async {
+      fake = await FakeServer.serving('/_dartvel/logs', logLine('one'));
+
+      await runObservability(
+          <String>['logs', '--url', fake.base, '--limit', '25']);
+
+      expect(fake.requests.single.url.queryParameters['limit'], '25');
+    });
+
+    test('names the switch that turns the endpoint on when it is off',
+        () async {
+      // A working server with diagnostics off answers 404, and that is the
+      // case a developer will actually hit. "Not found" on its own would send
+      // them looking for a bug in their routes.
+      fake = await FakeServer.serving('/somewhere-else', '');
+
+      final String output =
+          await runObservability(<String>['logs', '--url', fake.base]);
+
+      expect(output, contains('DARTVEL_DIAGNOSTICS'));
+      expect(exitCode, isNot(0));
+    });
+
+    test('says so plainly when the server has logged nothing yet', () async {
+      fake = await FakeServer.serving('/_dartvel/logs', '');
+
+      final String output =
+          await runObservability(<String>['logs', '--url', fake.base]);
+
+      expect(output.toLowerCase(), contains('no log records'));
+      expect(output, isNot(contains('Backend server started successfully')));
+    });
+
+    test('fails honestly when nothing is listening', () async {
+      fake = await FakeServer.serving('/_dartvel/logs', '');
+      final String base = fake.base;
+      await fake.close();
+
+      final String output =
+          await runObservability(<String>['logs', '--url', base]);
+
+      expect(output, isNot(contains('Database connection established')));
+      expect(exitCode, isNot(0));
+    });
   });
 
   group('TracesCommand', () {
-    test(
-      'says plainly that nothing exports spans, instead of inventing a trace',
-      () async {
-        final String output = await runObservability(<String>['traces']);
+    late FakeServer fake;
 
-        expect(output, isNot(contains('4bf92f3577b34da6a3ce929d0e0e4736')));
-        expect(output, isNot(contains('Spans captured: 12')));
-        expect(exitCode, isNot(0));
-      },
-    );
+    tearDown(() => fake.close());
+
+    test('prints the spans a running server is holding', () async {
+      fake = await FakeServer.serving(
+        '/_dartvel/traces',
+        jsonEncode(<String, Object?>{
+          'name': 'GET /checkout',
+          'traceId': 'b' * 32,
+          'spanId': 'c' * 16,
+          'durationMs': 12.5,
+          'status': 'ok',
+        }),
+      );
+
+      final String output =
+          await runObservability(<String>['traces', '--url', fake.base]);
+
+      expect(output, contains('GET /checkout'));
+      expect(output, contains('b' * 32));
+      expect(output, contains('12.5'));
+      expect(exitCode, 0);
+    });
+
+    test('a failed span is not printed as though it succeeded', () async {
+      fake = await FakeServer.serving(
+        '/_dartvel/traces',
+        jsonEncode(<String, Object?>{
+          'name': 'POST /charge',
+          'traceId': 'd' * 32,
+          'spanId': 'e' * 16,
+          'durationMs': 900,
+          'status': 'error',
+          'attributes': <String, Object?>{'error': 'gateway timeout'},
+        }),
+      );
+
+      final String output =
+          await runObservability(<String>['traces', '--url', fake.base]);
+
+      expect(output, contains('error'));
+      expect(output, contains('gateway timeout'));
+    });
+
+    test('names the switch that turns the endpoint on when it is off',
+        () async {
+      fake = await FakeServer.serving('/somewhere-else', '');
+
+      final String output =
+          await runObservability(<String>['traces', '--url', fake.base]);
+
+      expect(output, contains('DARTVEL_DIAGNOSTICS'));
+      expect(exitCode, isNot(0));
+    });
+
+    test('does not invent a trace when the server has recorded none',
+        () async {
+      fake = await FakeServer.serving('/_dartvel/traces', '');
+
+      final String output =
+          await runObservability(<String>['traces', '--url', fake.base]);
+
+      expect(output, isNot(contains('4bf92f3577b34da6a3ce929d0e0e4736')));
+      expect(output.toLowerCase(), contains('no spans'));
+    });
   });
 
   group('MetricsCommand', () {
