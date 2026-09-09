@@ -153,6 +153,16 @@ Map<String, String> dvModelPageAttribute(String source, String attribute) {
 Map<String, String> dvModelPageFavicons(String source) =>
     dvModelPageAttribute(source, 'favicon');
 
+/// Which schema.org type each model page route declared.
+///
+/// `@DVModel(schemaType:)` was in the same state as the favicon: parsed,
+/// written into the spec, read by the web server and by nothing on the static
+/// side. So `dartvel build web` announced every product and job posting as a
+/// plain WebPage -- valid structured data saying the wrong thing, on the
+/// deployment where a rich result is most of the point.
+Map<String, String> dvModelPageSchemaTypes(String source) =>
+    dvModelPageAttribute(source, 'schemaType');
+
 /// Templates that no declared route serves.
 ///
 /// Reported by name: a model whose pages all go nowhere is exactly what this
