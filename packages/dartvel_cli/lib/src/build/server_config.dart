@@ -40,6 +40,13 @@ String dvApacheConfig() => '''
   RewriteRule . /index.html [L]
 </IfModule>
 
+# Where mod_rewrite is off. The rewrite above sends unknown paths to the
+# application shell, which is right for a route the router knows and wrong for
+# one nothing does -- and it does not run at all on a host without
+# mod_rewrite, where this is what a visitor sees instead of the server's own
+# branding.
+ErrorDocument 404 /404/index.html
+
 <IfModule mod_mime.c>
   # instantiateStreaming refuses a wasm module served as anything else.
   AddType application/wasm .wasm

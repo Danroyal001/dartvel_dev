@@ -300,3 +300,60 @@ List<String> dvPrecacheRoutes(Iterable<String> routes) {
   }
   return precache.toList();
 }
+
+/// The page a host serves when the path is not a page.
+///
+/// There was an offline page and no not-found page at all, so a request for a
+/// route that does not exist got whatever the host happened to say: the host's
+/// own branding on most static hosts, and on Apache the generated rewrite
+/// quietly serving the application shell — which renders the router's
+/// not-found route, and is right only when the visitor reached the site with
+/// scripting on.
+///
+/// Self-contained for the same reason the offline page is: it is served at the
+/// moment something else could not be, so a stylesheet, a font or a script
+/// would be a blank page exactly when the page matters.
+///
+/// The link home is the whole point. A wrong URL with nothing on it is a dead
+/// end, and the visitor's only move is the back button.
+String dvNotFoundPage({required String title, String home = '/'}) {
+  final HtmlEscape escape = const HtmlEscape();
+  final String safe = escape.convert(title);
+  // Attribute mode for the URL. The default escape turns every "/" into
+  // &#47;, which browsers accept and nobody should have to read -- and the
+  // link home is the one thing on this page somebody might inspect.
+  final String safeHome =
+      const HtmlEscape(HtmlEscapeMode.attribute).convert(home);
+  return '''
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Not found — $safe</title>
+<style>
+body{margin:0;min-height:100vh;display:flex;align-items:center;
+justify-content:center;
+font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+color:#0b1020;background:#fff}
+main{max-width:28rem;padding:2rem;text-align:center}
+h1{font-size:1.5rem;margin:0 0 .5rem}
+p{margin:0 0 1.5rem;color:#5a6478}
+a{display:inline-block;font:inherit;padding:.7rem 1.4rem;border-radius:8px;
+background:#2f6bff;color:#fff;text-decoration:none}
+@media (prefers-color-scheme:dark){
+body{color:#f2f5fa;background:#0a0d13}
+p{color:#9aa7bd}}
+</style>
+</head>
+<body>
+<main>
+<h1>Page not found</h1>
+<p>That page is not part of $safe. It may have moved, or the link may be
+wrong.</p>
+<a href="$safeHome">Go to the home page</a>
+</main>
+</body>
+</html>
+''';
+}
