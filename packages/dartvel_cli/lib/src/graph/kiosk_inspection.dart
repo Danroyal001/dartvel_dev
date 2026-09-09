@@ -159,9 +159,20 @@ class DVEffectiveKioskPolicy {
         'scope': p.scope.name,
         'home': p.home,
         'routes.allow': p.allow,
+        'routes.external': p.external.name,
+        'routes.externalAllow': p.externalAllow,
         'input.systemGestures': p.blockSystemGestures,
         'input.hardwareKeys': p.blockHardwareKeys,
         'input.shortcuts': p.blockShortcuts,
+        // Everything the running kiosk acts on, rather than the subset that
+        // was listed by hand. Each key added to the policy since was
+        // enforced and invisible here, so a kiosk that refused a copy or a
+        // link showed nothing to say which declaration did it.
+        'input.clipboard': p.blockClipboard,
+        'input.textSelection': p.blockTextSelection,
+        'display.hideCursor': p.hideCursor.name,
+        'display.screenDim':
+            p.screenDim == null ? null : _seconds(p.screenDim!),
         'session.idleTimeout': _seconds(p.idleTimeout),
         'session.idleWarning': _seconds(p.idleWarning),
         'session.onIdle': p.onIdle.name,

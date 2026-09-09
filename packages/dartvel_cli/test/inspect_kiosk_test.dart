@@ -149,6 +149,43 @@ void main() {
     expect(text, contains('supervised'));
   });
 
+  test('every containment key the kiosk enforces is shown', () async {
+    // A value the runtime acts on and the inspection does not print is a
+    // kiosk refusing a link with nothing on screen saying which line did it.
+    // The listed values were a subset chosen by hand, so each key added to
+    // the policy since has been enforced and invisible.
+    final Map<String, Object?> json = asMap(jsonDecode(await run(
+      <String>['kiosk', '--json'],
+      project(pubspec: '''
+name: kiosk_app
+dartvel:
+  kiosk:
+    enabled: true
+    home: /welcome
+    routes:
+      external: allowlist
+      externalAllow: ["tel:"]
+    input:
+      clipboard: disabled
+      textSelection: disabled
+    display:
+      hideCursor: always
+      screenDim: 30s
+'''),
+    )));
+    final Map<String, Object?> values = asMap(asMap(json['device'])['values']);
+    final Map<String, Object?> sources =
+        asMap(asMap(json['device'])['sources']);
+
+    expect(values['routes.external'], 'allowlist');
+    expect(values['routes.externalAllow'], <String>['tel:']);
+    expect(sources['routes.external'], 'section');
+    expect(values['input.clipboard'], isTrue);
+    expect(values['input.textSelection'], isTrue);
+    expect(values['display.hideCursor'], 'always');
+    expect(values['display.screenDim'], '30s');
+  });
+
   test('a project with no kiosk says so', () async {
     final String text = await run(<String>['kiosk'], project(pubspec: 'name: kiosk_app\n'));
     expect(text, contains('kiosk: none declared'));
