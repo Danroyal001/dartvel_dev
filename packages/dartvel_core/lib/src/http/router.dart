@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import '../observability/observability.dart';
 import 'wintercg.dart';
 
@@ -165,11 +167,62 @@ class Router {
         (req.url.path == '/healths' || req.url.path == '/healthz')) {
       return Response.redirect('/health', 308);
     }
+    // The diagnostics pair. Off unless the process was started with them on,
+    // and a plain 404 when they are off -- a 403 would confirm to whoever is
+    // probing that there is a log buffer here worth coming back for.
+    if (req.method == 'GET' && req.url.path == '/_dartvel/logs') {
+      if (!DVObservability.diagnosticsEndpoints) return _notFound();
+      return _ndjson(_tail(
+        req,
+        DVObservability.recentLogs
+            .map((DVLogRecord record) => record.toJson())
+            .toList(growable: false),
+      ));
+    }
+    if (req.method == 'GET' && req.url.path == '/_dartvel/traces') {
+      if (!DVObservability.diagnosticsEndpoints) return _notFound();
+      return _ndjson(_tail(
+        req,
+        DVObservability.recentSpans
+            .map((DVSpan span) => span.toJson())
+            .toList(growable: false),
+      ));
+    }
     return Response.text('Not Found',
         status: 404,
         headers: Headers()..set('content-type', 'text/plain; charset=utf-8'));
   }
 }
+
+/// The last `?limit=n` entries, or all of them.
+///
+/// A bad limit is ignored rather than refused: this is a debugging endpoint,
+/// and answering a typo with a 400 helps nobody at three in the morning.
+List<Map<String, Object?>> _tail(Request req, List<Map<String, Object?>> all) {
+  final int? limit = int.tryParse(req.url.queryParameters['limit'] ?? '');
+  if (limit == null || limit <= 0 || limit >= all.length) return all;
+  return all.sublist(all.length - limit);
+}
+
+/// Newline-delimited JSON: one record per line.
+///
+/// Not a JSON array. A reader can start printing from the first line rather
+/// than waiting for a closing bracket, and `dartvel logs` can follow a growing
+/// response the same way `tail -f` does.
+Response _ndjson(List<Map<String, Object?>> records) => Response.text(
+      records.map(jsonEncode).join('\n'),
+      headers: Headers()
+        ..set('content-type', 'application/x-ndjson; charset=utf-8')
+        // Never cached, by anything. A stale log window is a wrong answer
+        // that looks exactly like a right one.
+        ..set('cache-control', 'no-store'),
+    );
+
+Response _notFound() => Response.text(
+      'Not Found',
+      status: 404,
+      headers: Headers()..set('content-type', 'text/plain; charset=utf-8'),
+    );
 
 class _Route {
   final String method;
