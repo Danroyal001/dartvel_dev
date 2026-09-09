@@ -10,9 +10,12 @@
 // the path and sends the reader on; the module serves the HTML, which is what
 // makes it federated rather than embedded.
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:dartvel_cli/src/build/static_seo.dart';
 import 'package:dartvel_cli/src/build/web_server.dart';
+import 'package:path/path.dart' as p;
+import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:test/test.dart';
 
 const Map<String, String> mounted = <String, String>{
@@ -84,6 +87,87 @@ void main() {
       );
 
       expect(xml, isNot(contains('/store/products/:id')));
+    });
+  });
+
+  group('the preview server', () {
+    // The build writes the location and the deployed backend acts on it.
+    // This server read the same manifest and had no idea the key existed, so
+    // `dartvel preview` answered /store with the parent's own shell: a page
+    // titled with the site name, no module content, and no sign anything was
+    // wrong. A developer checking a mounted micro-site locally saw a blank
+    // app and had nothing to go on.
+    late Directory root;
+    late HttpServer server;
+    late String base;
+
+    setUp(() async {
+      root = await Directory.systemTemp.createTemp('dartvel_fed_preview_');
+      File(p.join(root.path, 'index.html')).writeAsStringSync(
+          '<html><head><title>Parent</title></head><body></body></html>');
+      File(p.join(root.path, 'dartvel_routes.json')).writeAsStringSync(
+        dvWebServerManifest(
+          routes: <String>['/'],
+          titles: const <String, String>{'/': 'Home'},
+          text: const <String, List<String>>{},
+          siteUrl: 'https://example.com',
+          federated: <String, String>{
+            ...mounted,
+            '/bad': 'javascript:alert(1)',
+          },
+        ),
+      );
+      server = await shelf_io.serve(
+        dvWebServerHandler(webRoot: root.path),
+        InternetAddress.loopbackIPv4,
+        0,
+      );
+      base = 'http://${server.address.host}:${server.port}';
+    });
+
+    tearDown(() async {
+      await server.close(force: true);
+      root.deleteSync(recursive: true);
+    });
+
+    Future<HttpClientResponse> get(String path) async {
+      final client = HttpClient()..autoUncompress = false;
+      final HttpClientRequest request =
+          await client.getUrl(Uri.parse('$base$path'));
+      request.followRedirects = false;
+      return request.close();
+    }
+
+    test('sends the reader to the module rather than rendering a page',
+        () async {
+      final HttpClientResponse response = await get('/store');
+
+      expect(response.statusCode, 302);
+      expect(response.headers.value('location'), 'https://store.example.com/');
+    });
+
+    test('carries the request parameters across', () async {
+      // The reader asked for one product. Handing them the module's index
+      // loses the only part of the request that mattered.
+      final HttpClientResponse response = await get('/store/products/pro-kit');
+
+      expect(response.statusCode, 302);
+      expect(response.headers.value('location'),
+          'https://store.example.com/products/pro-kit');
+    });
+
+    test('a location that is not an address is not a redirect', () async {
+      // A manifest is data and can be edited. Sending a reader wherever the
+      // string points is how an open redirect starts.
+      final HttpClientResponse response = await get('/bad');
+
+      expect(response.statusCode, isNot(302));
+    });
+
+    test('the parent still renders its own pages', () async {
+      final HttpClientResponse response = await get('/');
+
+      expect(response.statusCode, 200);
     });
   });
 }

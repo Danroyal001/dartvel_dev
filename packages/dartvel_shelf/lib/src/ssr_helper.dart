@@ -2,7 +2,7 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:path/path.dart' as p;
 import 'package:dartvel_core/dartvel.dart'
-    show DVCacheAdapter, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVWebServerSettings, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute;
+    show DVCacheAdapter, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute;
 import 'package:dartvel_core/http.dart';
 
 /// Serve the single-page app's index, with any prerendered metadata for this
@@ -130,7 +130,7 @@ Future<Response> _fromManifest(
   // parent's not-found page; answered and unlisted, nobody would find it.
   final Object? location = route?['location'];
   if (matched != null && location is String) {
-    final String target = _federatedTarget(location, matched);
+    final String target = dvFederatedTarget(location, matched);
     if (target.isNotEmpty) {
       return Response(
         302,
@@ -152,27 +152,6 @@ Future<Response> _fromManifest(
       ? dvRenderRoute(shell: shell, path: path, title: title, text: text, siteUrl: siteUrl, siteName: shellTitle)
       : dvRenderPage(shell: shell, path: path, data: data, siteUrl: siteUrl, siteName: shellTitle);
   return _html(page, streaming: settings.streaming);
-}
-
-/// Where a federated route sends the reader, with the request's own
-/// parameters put back into it.
-///
-/// Empty when the location is not somewhere to send anybody. A manifest is
-/// data and can be edited, and redirecting to whatever string it happens to
-/// hold is how an open redirect starts -- so only http and https, and only
-/// with a host.
-String _federatedTarget(String location, DVPageRequest matched) {
-  var target = location;
-  matched.params.forEach((String name, String value) {
-    // The reader asked for one product; sending them to the module's index
-    // would lose the only part of the request that mattered.
-    target = target.replaceAll(':$name', Uri.encodeComponent(value));
-  });
-  final Uri? parsed = Uri.tryParse(target);
-  if (parsed == null) return '';
-  if (parsed.scheme != 'http' && parsed.scheme != 'https') return '';
-  if (parsed.host.isEmpty) return '';
-  return target;
 }
 
 Response _html(String page, {int status = 200, bool streaming = false}) {
