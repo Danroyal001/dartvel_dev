@@ -4570,7 +4570,10 @@ the server process environment, written newest first as
 `<id>:<base64 32-byte key>`, and from nowhere else: generated model code is
 compiled into the application bundle as well as the server, so a key the
 generator could reach would ship to every visitor. A process with no keyring
-raises on the field rather than falling back to plaintext. Rotation is adding
+raises on the field rather than falling back to plaintext, which also settles
+where such a model lives: the server persists it, and a device reading or
+writing the same model against its local database gets that refusal instead of
+a plaintext column. Rotation is adding
 a key at the front and leaving the old one behind it — a stored value records
 which key sealed it. Only `String` and `String?` can carry the flag, and not
 the field generated lookups use, since a randomized ciphertext never matches a
