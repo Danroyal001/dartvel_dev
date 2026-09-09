@@ -1003,6 +1003,25 @@ ${(() {
         ? '  dvEnsureSemantics();'
         : '  // Semantics off: dartvel.semantics is false in pubspec.yaml.';
 
+    // Teach the page middleware who this application considers signed in.
+    //
+    // DVPageMiddleware.isSignedIn defaults to null and null default-denies,
+    // which is the right answer for a page that declared authentication in
+    // an application with no way to check it -- and the wrong one for every
+    // application that has auth, because the guard would then refuse the
+    // people who just signed in. A feature nobody can use stays broken
+    // quietly, so the router that carries the key also carries the answer.
+    //
+    // ??= so an application that wired its own resolver first keeps it, and
+    // only when some page declared the key, so a router for an application
+    // with no auth never touches DV.Auth.
+    final bool anyPageAuthenticates =
+        pageEntries.any((e) => e.middleware.contains('auth'));
+    final String pageMiddlewareInstall = anyPageAuthenticates
+        ? '  DVPageMiddleware.isSignedIn ??= () async => '
+            'DV.Auth.currentUser != null;'
+        : '';
+
     // The text each route's page contains, taken from the source this
     // generator already has in hand. The build used to guess the file from
     // the route name and get it wrong: /docs picked up a code sample and
@@ -1332,6 +1351,7 @@ $routeCapabilities
   // the .htaccess and dartvel deploy configuration do.
   dvUsePathUrlStrategy();
 $semanticsCall
+$pageMiddlewareInstall
   final router = GoRouter(
     routes: [
 $allRoutes
