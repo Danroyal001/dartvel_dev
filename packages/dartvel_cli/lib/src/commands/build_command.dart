@@ -1988,6 +1988,15 @@ class BuildCommand extends Command<void> {
     // host serves a path without an extension.
     const offlinePath = '/offline/';
     _writePage(web, 'offline', dvOfflinePage(title: name));
+
+    // The page this used to be. build/web is not emptied between builds, so a
+    // file Dartvel wrote and no longer writes stays there and gets deployed:
+    // the site would go on serving an offline page nothing references, from a
+    // URL with an extension in it. Removed rather than left, because "the
+    // build no longer produces this" and "the build produced this" look
+    // identical on disk.
+    final File legacyOffline = File(p.join(web.path, 'offline.html'));
+    if (legacyOffline.existsSync()) legacyOffline.deleteSync();
     _writePage(web, '404', dvNotFoundPage(title: name));
 
     // And once more at the root, under the name the hosts that cannot be told
