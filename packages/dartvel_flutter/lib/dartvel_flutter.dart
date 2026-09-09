@@ -4415,14 +4415,24 @@ class DVDisplayControls {
         isKiosk: _isKiosk,
       );
 
+  // Each of the four calls below names its binding at the call site rather
+  // than passing the name to a helper. The helper is what let this whole
+  // namespace go unchecked: the declaration test scans for a name literal
+  // beside `require(`, and `_requireDisplayBinding('display.exitFullscreen')`
+  // does not look like one. Four names the specification pins were undeclared
+  // and registered by nothing, and both directions of the check read clean.
+
   Future<void> enterFullscreen([
     DVFullscreenOptions options = const DVFullscreenOptions(),
   ]) async {
     final browserHandled = await display_platform.enterFullscreen();
     if (!browserHandled) {
-      await _requireDisplayBinding(
+      _checkDisplayBinding(
         'display.enterFullscreen',
-        options.toMap(),
+        await DVNativeBridge.require<bool>(
+          'display.enterFullscreen',
+          options.toMap(),
+        ),
       );
     }
     _isFullscreen = true;
@@ -4431,7 +4441,10 @@ class DVDisplayControls {
   Future<void> exitFullscreen() async {
     final browserHandled = await display_platform.exitFullscreen();
     if (!browserHandled) {
-      await _requireDisplayBinding('display.exitFullscreen');
+      _checkDisplayBinding(
+        'display.exitFullscreen',
+        await DVNativeBridge.require<bool>('display.exitFullscreen'),
+      );
     }
     _isFullscreen = false;
   }
@@ -4439,21 +4452,26 @@ class DVDisplayControls {
   Future<void> enableKiosk([
     DVKioskOptions options = const DVKioskOptions(),
   ]) async {
-    await _requireDisplayBinding('display.enableKiosk', options.toMap());
+    _checkDisplayBinding(
+      'display.enableKiosk',
+      await DVNativeBridge.require<bool>(
+        'display.enableKiosk',
+        options.toMap(),
+      ),
+    );
     _isKiosk = true;
     if (options.fullscreen) _isFullscreen = true;
   }
 
   Future<void> disableKiosk() async {
-    await _requireDisplayBinding('display.disableKiosk');
+    _checkDisplayBinding(
+      'display.disableKiosk',
+      await DVNativeBridge.require<bool>('display.disableKiosk'),
+    );
     _isKiosk = false;
   }
 
-  Future<void> _requireDisplayBinding(
-    String method, [
-    Map<String, Object>? arguments,
-  ]) async {
-    final handled = await DVNativeBridge.require<bool>(method, arguments);
+  void _checkDisplayBinding(String method, bool handled) {
     if (!handled) {
       throw StateError(
           'Native display binding "$method" rejected the request.');
