@@ -316,8 +316,26 @@ Future<Map<String, bool>> ping() async => <String, bool>{'ok': true};
       // whole file asks whether the helper exists rather than whether this
       // route uses it.
       expect(dvRouteSource(routes, '/ping'), isNot(contains('_dvGuarded(')));
-      // One wrapper: the closure's brace, dvTraced's bracket, the router's.
-      expect(routes, contains('  }));'));
+      // The property, rather than a bracket count standing in for it. This
+      // asserted the exact text `  }));`, which was right while tracing was
+      // the outermost wrapper and wrong the moment another one went round
+      // it -- the file still parsed, and the test failed anyway. What it
+      // means to say is that the brackets close, so it says that: the
+      // formatter parses and never resolves, so it answers the question
+      // without needing the generated file's imports to exist.
+      final ProcessResult parsed = Process.runSync(
+        Platform.resolvedExecutable,
+        <String>[
+          'format',
+          '--output=none',
+          p.join(root.path, '.dart_tool', 'dartvel_backend_routes.g.dart'),
+        ],
+      );
+      expect(
+        parsed.exitCode,
+        0,
+        reason: 'the generated router does not parse:\n${parsed.stderr}',
+      );
     } finally {
       root.deleteSync(recursive: true);
     }
