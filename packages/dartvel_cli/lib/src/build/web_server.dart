@@ -16,7 +16,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:dartvel_core/dartvel.dart' show DVCacheAdapter, DVPageData, DVPageDataCache, DVPageDataMode, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVWebServerSettings, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute;
+import 'package:dartvel_core/dartvel.dart' show DVCacheAdapter, DVPageData, DVPageDataCache, DVPageDataMode, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute;
 import 'package:path/path.dart' as p;
 import 'package:shelf/shelf.dart';
 import 'package:shelf_static/shelf_static.dart';
@@ -184,6 +184,16 @@ Handler dvWebServerHandler({
           '$line',
       ],
   };
+  // A mounted micro-site's routes, and where each one really answers. The
+  // build has written these since federation landed and the deployed backend
+  // has acted on them; this server read the same file and skipped the key,
+  // so `dartvel preview` handed back the parent's own empty shell for a
+  // module path and gave the developer nothing to go on.
+  final locations = <String, String>{
+    for (final MapEntry<String, Object?> e in routeMap.entries)
+      if ((e.value as Map?)?['location'] is String)
+        e.key: (e.value as Map)['location'] as String,
+  };
   final siteUrl = manifest['siteUrl'] as String?;
   final DVWebServerSettings declared = DVWebServerSettings.parse(manifest['server']);
   final DVPageDataMode mode = pageDataMode ?? declared.pageDataMode;
@@ -301,6 +311,25 @@ Handler dvWebServerHandler({
     }
 
     final String cleanPath = path == '/' ? '/' : path.replaceAll(RegExp(r'/+$'), '');
+
+    // Federated first, ahead of resolving anything: the page belongs to the
+    // module and the parent has no data for it, so asking a resolver would
+    // be work thrown away at best and a wrong answer at worst.
+    if (locations.isNotEmpty) {
+      final DVPageRequest? mounted = dvMatchRoute(cleanPath, locations.keys);
+      if (mounted != null) {
+        final String target =
+            dvFederatedTarget(locations[mounted.pattern]!, mounted);
+        if (target.isNotEmpty) {
+          return Response.found(target);
+        }
+        // A location that is not somewhere to send anybody falls through to
+        // the ordinary page rather than redirecting: dvFederatedTarget
+        // refuses anything that is not http or https with a host, and
+        // obeying it anyway is how an open redirect starts.
+      }
+    }
+
     final DVPageData? data = await resolve(cleanPath, request.headers);
     const Map<String, String> htmlHeaders = <String, String>{
       'content-type': 'text/html; charset=utf-8',

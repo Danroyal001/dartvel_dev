@@ -258,6 +258,31 @@ String dvRenderPage({
       data,
     );
 
+/// Where a federated route sends the reader, with the request's own
+/// parameters put back into it.
+///
+/// A mounted micro-site serves its own HTML, so the parent answers the path
+/// and hands the reader on. Empty when [location] is not somewhere to send
+/// anybody: a manifest is data and can be edited, and redirecting to whatever
+/// string it happens to hold is how an open redirect starts. Only http and
+/// https, and only with a host.
+///
+/// In core rather than in either server because both of them redirect, and a
+/// second copy of this guard is a second place for it to be relaxed.
+String dvFederatedTarget(String location, DVPageRequest matched) {
+  var target = location;
+  matched.params.forEach((String name, String value) {
+    // The reader asked for one product; sending them to the module's index
+    // would lose the only part of the request that mattered.
+    target = target.replaceAll(':$name', Uri.encodeComponent(value));
+  });
+  final Uri? parsed = Uri.tryParse(target);
+  if (parsed == null) return '';
+  if (parsed.scheme != 'http' && parsed.scheme != 'https') return '';
+  if (parsed.host.isEmpty) return '';
+  return target;
+}
+
 /// [page] cut where a streamed response should flush: the head as the first
 /// piece, the rest after it.
 ///
