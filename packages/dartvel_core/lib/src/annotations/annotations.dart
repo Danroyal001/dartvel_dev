@@ -244,11 +244,17 @@ class DVModel {
   /// The favicon this model's generated pages wear, or null for the
   /// application's.
   ///
-  /// A path the application serves. Not a derivative of the featured image:
-  /// the specification asks for a resized, content-hashed one of those too,
-  /// and an unresized photograph served as a 32-pixel icon is several
-  /// hundred kilobytes on every page -- worse than the shell favicon it
-  /// would replace.
+  /// A path the application serves. `dartvel build web` treats it as a
+  /// source rather than as the file to link: it resizes and re-encodes the
+  /// image and names the result after a hash of its bytes, so a page does not
+  /// download a press shot to fill a 32-pixel square and the icon can be
+  /// cached forever. A value naming something the build cannot read -- a CDN
+  /// URL, an SVG -- is used exactly as written.
+  ///
+  /// Still not a derivative of the featured image, which the specification
+  /// also asks for. That image is a URL a row supplied, so deriving from it
+  /// means fetching an arbitrary host mid-build or mid-request; both cost
+  /// more than the icon is worth.
   final String? favicon;
 
   /// Whether this model's rows belong to a tenant.
