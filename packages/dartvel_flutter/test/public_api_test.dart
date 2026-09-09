@@ -3,6 +3,8 @@
 // symbol added to dartvel_core but not listed there is invisible to
 // applications even though its own tests pass. This file imports only the
 // public barrel; if it compiles, the surface is wired up.
+import 'dart:convert';
+
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -185,6 +187,35 @@ void main() {
         timestamp: DateTime.utc(2026),
       ),
       contains('authorization'),
+    );
+  });
+
+  test('the model-field encryption surface is reachable', () {
+    // A host that loads keys from a manager rather than the environment has
+    // to be able to hand the cipher over, and a caller has to be able to
+    // catch what an unreadable column throws. Generated models import core
+    // directly, so both would have compiled while staying invisible to the
+    // application that has to configure them.
+    addTearDown(DVFieldEncryption.reset);
+    final DVFieldCipher cipher = DVFieldCipher(
+      DVFieldKeyring.parse('k1:${base64Encode(List<int>.filled(32, 7))}'),
+    );
+    DVFieldEncryption.configure(cipher);
+    expect(DVFieldEncryption.isAvailable, isTrue);
+
+    final String sealed =
+        DVFieldEncryption.encrypt('User', 'taxNumber', 'GB-4471-22')!;
+    expect(DVFieldEncryption.decrypt('User', 'taxNumber', sealed),
+        'GB-4471-22');
+    expect(
+      () => DVFieldEncryption.decrypt('User', 'other', sealed),
+      throwsA(isA<DVFieldDecryptionFailure>()),
+    );
+
+    DVFieldEncryption.reset();
+    expect(
+      () => DVFieldEncryption.encrypt('User', 'taxNumber', 'GB-4471-22'),
+      throwsA(isA<DVFieldEncryptionUnavailable>()),
     );
   });
 
