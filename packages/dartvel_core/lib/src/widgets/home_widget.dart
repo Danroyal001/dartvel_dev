@@ -62,11 +62,43 @@ class DVHomeWidgetSpec {
 /// provider, no extension, and no message anywhere, with the annotation still
 /// in the file saying otherwise.
 ///
-/// Group 1 is whatever the annotation was given, group 2 the declared name.
+/// The specification puts the annotation on "any widget, whether
+/// Flutter-native, `DVClassWidget`, or `DVFunctionalWidget`", so the class
+/// shape is matched as well as the function shape -- and it is matched
+/// first, which is the whole of the fix. The function branch's return type
+/// is deliberately loose, because a widget-returning function may be written
+/// with any of several types, and loose enough to swallow
+/// `class _StepCounter extends` and take `StatelessWidget` for the declared
+/// name. What came of that was a message telling the developer to rename a
+/// class in the Flutter SDK, about a widget nothing had read.
+///
+/// Read the pieces out with [dvHomeWidgetAnnotationArgs],
+/// [dvHomeWidgetDeclaredName] and [dvHomeWidgetIsClass] rather than by group
+/// number: two scanners share this, and a group index counted by hand in
+/// each is a scan that silently reads the wrong capture when the pattern
+/// grows another one.
 final RegExp dvHomeWidgetDeclaration = RegExp(
   r'@DVHomeWidget\(([^)]*)\)\s*(?:@[A-Za-z_][\w.]*\([^)]*\)\s*)*'
-  r'(?:Widget|[A-Za-z_][\w<>, ?]*)\s+([A-Za-z_][A-Za-z0-9_]*)\s*[({]',
+  r'(?:class\s+(?<widgetClass>[A-Za-z_][A-Za-z0-9_]*)\b'
+  r'|(?:Widget|[A-Za-z_][\w<>, ?]*)\s+(?<widgetFunction>[A-Za-z_][A-Za-z0-9_]*)\s*\()',
 );
+
+/// Whatever the `@DVHomeWidget` in [match] was given, as written.
+String dvHomeWidgetAnnotationArgs(RegExpMatch match) => match.group(1) ?? '';
+
+/// The name declared under the `@DVHomeWidget` in [match].
+///
+/// The function's name or the class's, whichever shape it was written in.
+String dvHomeWidgetDeclaredName(RegExpMatch match) =>
+    match.namedGroup('widgetClass') ?? match.namedGroup('widgetFunction')!;
+
+/// Whether [match] declared a widget class rather than a widget function.
+///
+/// The two are generated differently and cannot be told apart afterwards: a
+/// function is lowered into a widget class the generator writes and owns, and
+/// a class is the developer's own, referenced where it already lives.
+bool dvHomeWidgetIsClass(RegExpMatch match) =>
+    match.namedGroup('widgetClass') != null;
 
 /// Whether [source] is worth scanning for a home widget at all.
 ///
