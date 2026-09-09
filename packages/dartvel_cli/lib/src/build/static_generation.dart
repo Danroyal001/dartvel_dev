@@ -71,17 +71,97 @@ List<String> dvStaticPathsFor(Map<String, Object?> entry) {
 List<String> dvServedStaticPaths(
   Iterable<String> paths, {
   required Iterable<String> declared,
-}) {
-  final List<List<String>> templates = <List<String>>[
-    for (final String route in declared)
-      if (dvIsTemplateRoute(route)) _segments(route),
-  ];
+}) =>
+    <String>[
+      for (final String path in paths)
+        if (dvTemplateFor(path, declared) != null) path,
+    ];
 
-  return <String>[
-    for (final String path in paths)
-      if (templates.any((List<String> t) => _matches(t, _segments(path)))) path,
-  ];
+/// The template among [templates] that serves [path], or null when none does.
+///
+/// The same match [dvServedStaticPaths] filters on, given a name because a
+/// written page has to be traced back to the model it came from -- that is
+/// how a generated page finds out which favicon and which schema type it
+/// should be wearing. Two matchers would be two ideas about which model a
+/// page belongs to, and the wrong one would show up as a page quietly wearing
+/// another model's icon.
+String? dvTemplateFor(String path, Iterable<String> templates) {
+  final List<String> segments = _segments(path);
+  for (final String template in templates) {
+    if (!dvIsTemplateRoute(template)) continue;
+    if (_matches(_segments(template), segments)) return template;
+  }
+  return null;
 }
+
+/// Which favicon [route] should ask for: the model's own, else [application].
+///
+/// The specification's chain is model, then module, then application, and the
+/// module level is not a third lookup here. A module's models are generated
+/// from the module's own project, so a favicon the module declared is already
+/// in the spec [modelFavicons] was read from.
+///
+/// A route belonging to no model still gets the application's. A site whose
+/// product pages wear one icon and whose /about wears another is the sort of
+/// inconsistency nobody files a bug about and everybody notices.
+String? dvPageFavicon(
+  String route,
+  Map<String, String> modelFavicons, {
+  String? application,
+}) {
+  final String? template = dvTemplateFor(route, modelFavicons.keys);
+  return (template == null ? null : modelFavicons[template]) ?? application;
+}
+
+/// One string [attribute] of each model page spec, by route, read out of the
+/// generated `model_pages.g.dart`.
+///
+/// The specs carry several decisions the static build needs and had no way to
+/// ask for. Read with a pattern rather than by analysing the file, which is
+/// how the build already reads the generated router: the specs come out of
+/// Dartvel's own generator in a fixed shape, so the input is not arbitrary
+/// Dart.
+///
+/// A spec that declared the attribute as null, or did not declare it at all,
+/// is absent from the map rather than mapped to null. A caller falling back
+/// to an application-wide value then does not have to tell "said nothing"
+/// from "said nothing that parsed".
+Map<String, String> dvModelPageAttribute(String source, String attribute) {
+  if (source.isEmpty) return const <String, String>{};
+  // Tempered so the search stops at the next spec. Left unbounded, an entry
+  // carrying no such key at all -- a manifest written by an older generator
+  // -- would reach forward and take the following model's value, which is a
+  // wrong answer that looks exactly like a right one.
+  final RegExp spec = RegExp(
+    "route:\\s*'([^']+)'(?:(?!\\broute:)[\\s\\S])*?"
+    "\\b$attribute:\\s*(?:'([^']*)'|null)",
+  );
+  final Map<String, String> values = <String, String>{};
+  for (final RegExpMatch match in spec.allMatches(source)) {
+    final String? value = match.group(2);
+    if (value == null || value.isEmpty) continue;
+    values[match.group(1)!] = value;
+  }
+  return values;
+}
+
+/// Which favicon each model page route declared.
+///
+/// `@DVModel(favicon:)` reached exactly one reader -- the web server's page
+/// resolver -- so a site built statically served the shell's icon on every
+/// generated page while the declaration sat in the model doing nothing.
+Map<String, String> dvModelPageFavicons(String source) =>
+    dvModelPageAttribute(source, 'favicon');
+
+/// Which schema.org type each model page route declared.
+///
+/// `@DVModel(schemaType:)` was in the same state as the favicon: parsed,
+/// written into the spec, read by the web server and by nothing on the static
+/// side. So `dartvel build web` announced every product and job posting as a
+/// plain WebPage -- valid structured data saying the wrong thing, on the
+/// deployment where a rich result is most of the point.
+Map<String, String> dvModelPageSchemaTypes(String source) =>
+    dvModelPageAttribute(source, 'schemaType');
 
 /// Templates that no declared route serves.
 ///

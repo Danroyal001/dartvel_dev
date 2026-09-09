@@ -346,17 +346,33 @@ List<String> dvPageChunks(String page) {
   ];
 }
 
+/// [html] wearing [href] as its icon, replacing whatever the shell declared.
+///
+/// Replacing rather than appending: two `<link rel="icon">` tags leave the
+/// browser to choose, and which one it chooses is not something the page gets
+/// to decide. A null [href] leaves the document alone, so a page that named
+/// no icon keeps the application's instead of losing it.
+///
+/// Here rather than in each renderer because both of them do this -- the web
+/// server per request, the static build once per page -- and a second copy of
+/// the rule is a second place for the two to disagree about what a page
+/// wears.
+String dvApplyFavicon(String html, String? href) {
+  if (href == null || href.isEmpty) return html;
+  final String escaped =
+      const HtmlEscape(HtmlEscapeMode.attribute).convert(href);
+  final RegExp icon = RegExp(r'<link[^>]*rel="(?:shortcut )?icon"[^>]*>');
+  return icon.hasMatch(html)
+      ? html.replaceAll(icon, '<link rel="icon" href="$escaped">')
+      : html.replaceFirst(
+          '</head>', '<link rel="icon" href="$escaped">\n</head>');
+}
+
 /// [html] with the page's structured data and favicon in its head. Marked,
 /// so rendering the same page again replaces rather than adds.
 String dvApplyPageExtras(String html, DVPageData data) {
   var out = html.replaceAll(RegExp(r'<!--dv:ld-->.*?<!--/dv:ld-->\n?', dotAll: true), '');
-  if (data.favicon != null) {
-    final String href = const HtmlEscape(HtmlEscapeMode.attribute).convert(data.favicon!);
-    final RegExp icon = RegExp(r'<link[^>]*rel="(?:shortcut )?icon"[^>]*>');
-    out = icon.hasMatch(out)
-        ? out.replaceAll(icon, '<link rel="icon" href="$href">')
-        : out.replaceFirst('</head>', '<link rel="icon" href="$href">\n</head>');
-  }
+  out = dvApplyFavicon(out, data.favicon);
   final Map<String, Object?>? ld = data.structuredData;
   if (ld != null) {
     // `</` cannot appear inside the script: a value of `</script>` would

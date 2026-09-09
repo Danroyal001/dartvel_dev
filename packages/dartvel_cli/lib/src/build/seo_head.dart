@@ -14,7 +14,7 @@ import 'dart:io';
 import 'package:dartvel_core/dartvel.dart' show dvViewportApply;
 import 'package:path/path.dart' as p;
 
-export 'package:dartvel_core/dartvel.dart' show dvSeoHead, dvSeoApply, dvAbsoluteAsset, dvViewportMeta, dvViewportApply;
+export 'package:dartvel_core/dartvel.dart' show dvApplyFavicon, dvSeoHead, dvSeoApply, dvAbsoluteAsset, dvViewportMeta, dvViewportApply;
 
 /// Put a viewport into the project's own `web/index.html`.
 ///

@@ -29,6 +29,7 @@ import '../secrets/secrets_analysis.dart';
 import '../build/pwa_service_worker.dart';
 import '../build/sdk_floor.dart';
 import '../build/build_lifecycle.dart';
+import '../build/favicon_derivative.dart';
 import '../build/seo_head.dart';
 import '../build/page_text.dart';
 import '../build/semantic_html.dart';
@@ -2141,6 +2142,18 @@ class BuildCommand extends Command<void> {
     final before = index.readAsStringSync();
     var after = dvSeoApply(
         before, rootJsonLd.isEmpty ? head : '$head\n$rootJsonLd');
+    // The application favicon, if the project configured one. Applied here as
+    // well as to the inner pages, because a root wearing a different icon
+    // from every other page on the site is the kind of inconsistency nobody
+    // reports and everybody notices.
+    after = dvApplyFavicon(
+      after,
+      dvBuildFavicon(
+        root: root,
+        webRoot: Directory(p.join(root, 'build', 'web')),
+        declared: settings['favicon'] as String?,
+      ),
+    );
     // The body is empty until JavaScript runs, so a crawler, a link preview
     // and a reader with scripting off all see nothing.
     //
@@ -2350,6 +2363,21 @@ class BuildCommand extends Command<void> {
     // What each page calls itself, which is better than anything derivable
     // from the path.
     final declared = dvRouteTitles(_routerSource(root));
+
+    // Which icon each generated model page wears. `@DVModel(favicon:)` was
+    // read by the web server's page resolver and by nothing else, so a site
+    // built statically served the shell's icon on every product and article
+    // while the declaration sat in the model doing nothing at all --
+    // and `dartvel.seo.favicon`, the application-wide fallback, reached the
+    // static build not at all.
+    final String modelPages = _modelPagesSource(root);
+    final Map<String, String> modelFavicons = dvModelPageFavicons(modelPages);
+    final String? seoFavicon = settings['favicon'] as String?;
+    // And what each one says it is. `@DVModel(schemaType:)` was in the same
+    // state, so a statically built store announced every product as a plain
+    // WebPage -- structured data that validates and says the wrong thing.
+    final Map<String, String> modelSchemaTypes =
+        dvModelPageSchemaTypes(modelPages);
     var written = 0;
 
     for (final String route in routes) {
@@ -2360,6 +2388,9 @@ class BuildCommand extends Command<void> {
 
       final meta = _prerendered(web.path, route);
       final text = routeText[route] ?? const <String>[];
+      // Null for a page no model owns, which stays a WebPage.
+      final String? modelTemplate =
+          dvTemplateFor(route, modelSchemaTypes.keys);
       final page = dvStaticPage(
         shell: shell,
         route: route,
@@ -2373,6 +2404,14 @@ class BuildCommand extends Command<void> {
         siteName: settings['siteName'] as String? ?? baseTitle,
         alternates: _alternatesFor(root, route).$1,
         defaultAlternate: _alternatesFor(root, route).$2,
+        favicon: dvBuildFavicon(
+          root: root,
+          webRoot: web,
+          declared:
+              dvPageFavicon(route, modelFavicons, application: seoFavicon),
+        ),
+        schemaType:
+            modelTemplate == null ? null : modelSchemaTypes[modelTemplate],
       );
 
       // The semantics tree when there is one, the source-literal extractor
@@ -2689,6 +2728,13 @@ class BuildCommand extends Command<void> {
     final router =
         File(p.join(root, 'lib', 'dartvel_client', 'router.g.dart'));
     return router.existsSync() ? router.readAsStringSync() : '';
+  }
+
+  /// The generated model-page manifest's source, or empty when there is none.
+  String _modelPagesSource(String root) {
+    final File manifest =
+        File(p.join(root, 'lib', 'dartvel_client', 'model_pages.g.dart'));
+    return manifest.existsSync() ? manifest.readAsStringSync() : '';
   }
 
   /// The routes the generator emitted, read from the generated router.
