@@ -22,6 +22,7 @@ import 'src/display_platform.dart'
     if (dart.library.js_interop) 'src/display_platform_web.dart'
     as display_platform;
 import 'src/kiosk/device_kiosk.dart';
+import 'src/kiosk/session_clear.dart';
 import 'src/kiosk/kiosk.dart' show DVKioskEnforced;
 import 'src/kiosk/kiosk_keys.dart';
 import 'src/modules/module_shell.dart';
@@ -330,6 +331,7 @@ export 'src/admin/route_admin.dart';
 export 'src/admin/route_info.dart';
 export 'src/admin/telemetry_admin.dart';
 export 'src/kiosk/device_kiosk.dart';
+export 'src/kiosk/session_clear.dart';
 export 'src/kiosk/kiosk.dart';
 export 'src/kiosk/kiosk_host.dart';
 export 'src/kiosk/kiosk_keys.dart';
@@ -4755,14 +4757,28 @@ class DVPlatform {
   /// Installs the declared device-scope kiosk policy: makes the kiosk,
   /// enters it and asks the platform to hold it. A disabled policy installs
   /// nothing. Called by the generated runtime at start.
+  ///
+  /// [clear] performs `session.clearOnReset`. Without one the framework's own
+  /// default runs, which empties the client cache, signs out and empties the
+  /// shared store as the policy names them. That default was missing
+  /// entirely: the runtime called a callback nobody supplied, so every entry
+  /// in clearOnReset was read, validated, reported by doctor and then
+  /// dropped. An application that knows its own session state supplies this
+  /// and replaces the default rather than adding to it.
   static Future<DVDeviceKiosk?> installKioskPolicy(
     DVKioskPolicy policy, {
     Future<String?> Function(String name)? readSecret,
+    Future<void> Function(Set<DVKioskClearable> what)? clear,
   }) async {
     await uninstallKioskPolicy();
     if (!policy.enabled) return null;
     final DVDeviceKiosk kiosk = DVDeviceKiosk(
-      runtime: DVKioskRuntime(policy, readSecret: readSecret, lifecycle: DV.lifecycle),
+      runtime: DVKioskRuntime(
+        policy,
+        readSecret: readSecret,
+        lifecycle: DV.lifecycle,
+        clear: clear ?? dvClearKioskSession,
+      ),
       target: DVWindowManager.kioskTargetHere(),
     );
     _deviceKiosk = kiosk;
