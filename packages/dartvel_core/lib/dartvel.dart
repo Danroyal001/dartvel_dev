@@ -2115,6 +2115,46 @@ class DVMailMessage {
   });
 }
 
+/// The headers that carry [priority] to a mail client.
+///
+/// No provider API here has a priority field, so priority travels as headers
+/// or not at all - and for a long while it was not at all. Three are emitted
+/// because no single one is universally honoured: `X-Priority` is what Outlook
+/// and most Windows clients read, `Importance` is the RFC 2156 header Gmail
+/// and Thunderbird prefer, and `Priority` (RFC 2156 too) is what a handful of
+/// gateways consult when ordering a queue.
+///
+/// Normal returns nothing. Stamping `Importance: normal` on every message adds
+/// bytes to every send, changes no client's behaviour, and gives spam filters
+/// that score explicit priority headers something to score - so the default
+/// stays silent.
+Map<String, String> dvMailPriorityHeaders(DVMailPriority priority) =>
+    switch (priority) {
+      DVMailPriority.high => const <String, String>{
+          'X-Priority': '1 (Highest)',
+          'Importance': 'high',
+          'Priority': 'urgent',
+        },
+      DVMailPriority.low => const <String, String>{
+          'X-Priority': '5 (Lowest)',
+          'Importance': 'low',
+          'Priority': 'non-urgent',
+        },
+      DVMailPriority.normal => const <String, String>{},
+    };
+
+/// Every header [message] should reach the wire with.
+///
+/// An explicit entry in `message.headers` wins over the one priority would
+/// have added. Someone writing the header by hand has said something more
+/// specific than the enum can, and silently overwriting it would leave the
+/// typed field and the escape hatch fighting over the same wire bytes.
+Map<String, String> dvMailWireHeaders(DVMailMessage message) =>
+    <String, String>{
+      ...dvMailPriorityHeaders(message.priority),
+      ...message.headers,
+    };
+
 abstract class DVMailProvider {
   Future<void> send(DVMailMessage message);
 }
@@ -2220,7 +2260,8 @@ class ResendMailProvider extends DVHttpMailProvider {
           'subject': message.subject,
           'text': message.text,
           if (message.html != null) 'html': message.html,
-          if (message.headers.isNotEmpty) 'headers': message.headers,
+          if (dvMailWireHeaders(message) case final wire when wire.isNotEmpty)
+            'headers': wire,
         })),
       );
 }
@@ -2265,7 +2306,8 @@ class SendGridMailProvider extends DVHttpMailProvider {
             if (message.html != null)
               <String, Object?>{'type': 'text/html', 'value': message.html},
           ],
-          if (message.headers.isNotEmpty) 'headers': message.headers,
+          if (dvMailWireHeaders(message) case final wire when wire.isNotEmpty)
+            'headers': wire,
         })),
       );
 }
@@ -2299,9 +2341,9 @@ class PostmarkMailProvider extends DVHttpMailProvider {
           'TextBody': message.text,
           if (message.html != null) 'HtmlBody': message.html,
           'MessageStream': messageStream,
-          if (message.headers.isNotEmpty)
+          if (dvMailWireHeaders(message) case final wire when wire.isNotEmpty)
             'Headers': <Object?>[
-              for (final entry in message.headers.entries)
+              for (final entry in wire.entries)
                 <String, Object?>{'Name': entry.key, 'Value': entry.value},
             ],
         })),
@@ -2355,7 +2397,7 @@ class SmtpMailProvider implements DVMailProvider {
       subject: message.subject,
       text: message.text,
       html: message.html,
-      headers: message.headers,
+      headers: dvMailWireHeaders(message),
     );
   }
 }
@@ -2390,6 +2432,12 @@ class SesMailProvider extends DVHttpMailProvider {
   @override
   DVHttpRequest buildRequest(DVMailMessage message) {
     final url = baseUrl.replace(path: '/v2/email/outbound-emails');
+    // SES v2 takes custom headers on Simple content as a Name/Value list. This
+    // provider built its payload without them, so a header set on a message
+    // survived five providers and vanished on the sixth. SES accepts the
+    // request either way, so the only symptom was a header missing from mail
+    // nobody inspects.
+    final wire = dvMailWireHeaders(message);
     final body = utf8.encode(jsonEncode(<String, Object?>{
       'FromEmailAddress': DVHttpMailProvider.formatAddress(message.from),
       'Destination': <String, Object?>{
@@ -2405,6 +2453,11 @@ class SesMailProvider extends DVHttpMailProvider {
             if (message.html != null)
               'Html': <String, Object?>{'Data': message.html},
           },
+          if (wire.isNotEmpty)
+            'Headers': <Object?>[
+              for (final entry in wire.entries)
+                <String, Object?>{'Name': entry.key, 'Value': entry.value},
+            ],
         },
       },
     }));
@@ -2461,7 +2514,7 @@ class MailgunMailProvider extends DVHttpMailProvider {
         ('subject', message.subject),
         ('text', message.text),
         if (message.html != null) ('html', message.html!),
-        for (final entry in message.headers.entries)
+        for (final entry in dvMailWireHeaders(message).entries)
           ('h:${entry.key}', entry.value),
       ]),
     );
