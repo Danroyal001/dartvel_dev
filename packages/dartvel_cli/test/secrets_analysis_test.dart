@@ -202,6 +202,57 @@ final d = DV.Secrets.has('FOUR');
     });
   });
 
+  group('DV-SECRETS-002 in backend code', () {
+    test('a typo in a backend file is an error, not a production surprise', () {
+      // The spec makes an undeclared name a build error precisely because a
+      // typo is otherwise a runtime failure in production. The analysis only
+      // ever read client files, so the place secrets are actually used was
+      // the one place a misspelling went unnoticed.
+      final List<DVSecretFinding> findings = dvAnalyseSecrets(
+        declared: dvParseSecretDeclarations(_pubspec),
+        clientFiles: const <String, String>{},
+        backendFiles: <String, String>{
+          'lib/backend/pay.dart': "DV.Secrets.get('PAYSTAK_SECRET');",
+        },
+      );
+
+      expect(findings, hasLength(1));
+      expect(findings.single.code, 'DV-SECRETS-002');
+      expect(findings.single.file, 'lib/backend/pay.dart');
+      expect(findings.single.message, contains('PAYSTAK_SECRET'));
+      expect(findings.single.message, contains('pubspec.yaml'));
+    });
+
+    test('a declared backend secret in a backend file is exactly right', () {
+      // The whole point of backend scope. Reporting DV-SECRETS-001 here
+      // would make the diagnostic fire on correct code, and a diagnostic
+      // that fires on correct code gets suppressed project-wide.
+      expect(
+        dvAnalyseSecrets(
+          declared: dvParseSecretDeclarations(_pubspec),
+          clientFiles: const <String, String>{},
+          backendFiles: <String, String>{
+            'lib/backend/pay.dart': "DV.Secrets.get('PAYSTACK_SECRET');",
+          },
+        ),
+        isEmpty,
+      );
+    });
+
+    test('a client secret read on the backend is fine too', () {
+      expect(
+        dvAnalyseSecrets(
+          declared: dvParseSecretDeclarations(_pubspec),
+          clientFiles: const <String, String>{},
+          backendFiles: <String, String>{
+            'lib/backend/pay.dart': "DV.Secrets.get('PUBLIC_STRIPE_KEY');",
+          },
+        ),
+        isEmpty,
+      );
+    });
+  });
+
   group('deploy validation', () {
     test('a secret required for the target that does not resolve is fatal', () {
       final List<String> problems = dvValidateEnvironment(

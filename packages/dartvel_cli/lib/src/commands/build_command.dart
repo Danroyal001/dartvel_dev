@@ -1830,19 +1830,26 @@ class BuildCommand extends Command<void> {
     if (!lib.existsSync()) return;
 
     final clientFiles = <String, String>{};
+    final backendFiles = <String, String>{};
     for (final entity in lib.listSync(recursive: true, followLinks: false)) {
       if (entity is! File || !entity.path.endsWith('.dart')) continue;
       final rel = p.relative(entity.path, from: root).replaceAll('\\', '/');
-      // The backend is where a backend-scoped secret belongs, and the
-      // generated client is written from the sources already checked.
-      if (rel.startsWith(backendDir)) continue;
+      // The generated client is written from the sources already checked.
       if (rel.contains('/dartvel_client/')) continue;
+      // The backend is where a backend-scoped secret belongs, so it is not
+      // checked for scope -- only for a name nothing declares, which is where
+      // a typo hides until production.
+      if (rel.startsWith(backendDir)) {
+        backendFiles[rel] = entity.readAsStringSync();
+        continue;
+      }
       clientFiles[rel] = entity.readAsStringSync();
     }
 
     final findings = dvAnalyseSecrets(
       declared: declared,
       clientFiles: clientFiles,
+      backendFiles: backendFiles,
     );
     if (findings.isEmpty) return;
 
