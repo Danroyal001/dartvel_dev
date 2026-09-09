@@ -288,11 +288,14 @@ class DVModel {
   /// before it can be sent to clients. Use [showInForms]/[showInAdmin] to opt
   /// specific generated UI surfaces back in.
   ///
-  /// [encrypted] is not implemented: Dartvel has no server-side field
-  /// encryption key surface yet, so `encrypted: true` cannot ask for
-  /// anything and the generator refuses at generation time rather than
-  /// storing the field as plaintext under a flag that says otherwise. See
-  /// `docs/spec-status.json` for status.
+  /// [encrypted] seals the value with AES-256-GCM before it reaches the
+  /// database and opens it on the way back, under the keyring in
+  /// `DARTVEL_FIELD_KEYS` — a server-process environment variable, because
+  /// generated model code compiles into the application bundle too and a key
+  /// held anywhere the generator writes would ship to every visitor. Only
+  /// `String` and `String?` can carry it, it cannot go on the field
+  /// generated lookups use, and with no keyring configured the field raises
+  /// rather than falling back to plaintext. See [DVFieldCipher].
   const DVModel.sensitiveField({
     this.encrypted = false,
     this.showInForms = false,
