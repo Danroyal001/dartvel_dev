@@ -83,6 +83,31 @@ void main() {
     ]));
   });
 
+  test('the display names the specification fixes are all present', () {
+    // The Platform section names these four bindings outright and says they
+    // must be FFI/JNI bindings rather than platform channels. They reached
+    // DVNativeBridge through a private helper, so the literal never sat next
+    // to `require(` and neither direction of the check above could see them:
+    // four names the specification pins were undeclared, unregistered on
+    // every target, and nothing said so.
+    expect(dvNativeBindingNames, containsAll(<String>[
+      'display.enterFullscreen',
+      'display.exitFullscreen',
+      'display.enableKiosk',
+      'display.disableKiosk',
+    ]));
+  });
+
+  test('the scan reaches the display names, not only the declaration', () {
+    // Declaring them is half of it. If the call still hides the literal
+    // inside a helper the scan cannot read, the "used but not declared" gate
+    // goes back to being blind to this whole namespace.
+    expect(namesInSource(), containsAll(<String>[
+      'display.enterFullscreen',
+      'display.exitFullscreen',
+    ]));
+  });
+
   test('no two names differ only by case', () {
     // A binding registry keyed by exact string treats window.setTitle and
     // window.settitle as two capabilities, and only one of them works.
