@@ -52,6 +52,11 @@ void main() {
     await Future<void>.delayed(Duration.zero);
 
     expect(seen, <DVKioskState>[
+      // Entering kiosk is itself a reset -- a supervised kiosk restarts
+      // mid-session and whatever outlived the process comes back with it --
+      // so the first thing a page observing the lifecycle sees is the wipe,
+      // not an active kiosk that quietly still holds the last order.
+      DVKioskState.resetting,
       DVKioskState.active,
       DVKioskState.resetting,
       DVKioskState.active,
