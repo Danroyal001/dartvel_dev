@@ -5,7 +5,8 @@ import 'package:dartvel_core/dartvel.dart'
         dvMiddlewareKeysAtRequest,
         dvMiddlewareKeysBuilt,
         dvMiddlewareKeysUnbuiltReason,
-        dvMiddlewareKeysWrapping;
+        dvMiddlewareKeysWrapping,
+        dvPageMiddlewareRefusal;
 import 'package:file/local.dart';
 import 'function_body.dart';
 import 'symbol_qualifier.dart';
@@ -2118,6 +2119,16 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
         dotAll: true,
       ).allMatches(source);
       for (final annotation in annotations) {
+        // Which scope this declaration is in. The sets differ, and until now
+        // there was one set: this loop walks every file under lib/, pages
+        // included, and measured a page's keys against the ones written for
+        // the HTTP chain. Nine of them were accepted on a page and ran
+        // nothing.
+        final bool isPage = dvMiddlewareDeclaresPage(
+          source,
+          annotation.start,
+          annotation.end,
+        );
         final body = annotation.group(1) ?? '';
         final constants = RegExp(r'DVMiddlewares\.([A-Za-z_][A-Za-z0-9_]*)')
             .allMatches(body)
@@ -2135,6 +2146,21 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
               'dartvel: unsupported middleware "DVMiddlewares.$name" in '
               '$relativePath. Supported middleware: ${supported.join(', ')}.',
             );
+          }
+          if (isPage) {
+            final String? refusal = dvPageMiddlewareRefusal(name);
+            if (refusal != null) {
+              // Refused rather than accepted and dropped. Somebody who wrote
+              // bodyLimit on a page believes something is being capped, and
+              // nothing is: a route activation reads no body. The message
+              // carries somewhere to put it instead, because a build that
+              // only says no leaves them with a green tree and no feature.
+              throw StateError(
+                'dartvel: DVMiddlewares.$name in $relativePath cannot be page '
+                'middleware. $refusal',
+              );
+            }
+            continue;
           }
           if (name == 'csp' && _dvContentSecurityPolicy(root) == null) {
             // A policy is a statement about one application's own scripts
