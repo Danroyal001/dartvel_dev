@@ -291,8 +291,12 @@ List<DVSecretFinding> dvAnalysePublicEnvironment({
 ///
 /// Values are dropped again before returning. The gate runs inside the
 /// process that goes on to build and write the deployment artifacts, and a
-/// secret left loaded is a secret that can reach one.
+/// secret left loaded is a secret that can reach one. The state that was
+/// there beforehand is put back rather than cleared, because a plain reset
+/// would take the host's own configured values and rotation hooks with it and
+/// the caller would find out somewhere else, later.
 Set<String> dvResolveSecrets(Iterable<String> names, {String? envFile}) {
+  final DVSecretsState before = DVSecrets.captureState();
   if (envFile != null) DVSecrets.useEnvFile(envFile);
   try {
     return <String>{
@@ -301,6 +305,7 @@ Set<String> dvResolveSecrets(Iterable<String> names, {String? envFile}) {
     };
   } finally {
     DVSecrets.reset();
+    DVSecrets.restoreState(before);
   }
 }
 
