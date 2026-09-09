@@ -11,6 +11,8 @@ library dartvel.observability.tracing;
 import 'dart:async';
 import 'dart:math';
 
+import '../secrets/secrets.dart';
+
 /// The zone key the current span hangs on.
 ///
 /// A zone rather than a parameter threaded through every function: a query
@@ -163,7 +165,14 @@ class DVSpan {
         sampled: sampled,
       );
 
-  void setAttribute(String key, String value) => attributes[key] = value;
+  /// Records [value] against [key], with any resolved secret struck out.
+  ///
+  /// Spans usually leave the building. A log file at least sits on
+  /// infrastructure the operator runs, while traces go to a hosted backend,
+  /// so a database URL carrying its password into `db.url` is a credential
+  /// handed to a third party and then to everyone who can read that account.
+  void setAttribute(String key, String value) =>
+      attributes[key] = dvRedactSecrets(value);
 
   /// The span as a trace view reads it.
   ///
@@ -184,8 +193,11 @@ class DVSpan {
 
   void recordError(Object error, [StackTrace? stackTrace]) {
     status = DVSpanStatus.error;
-    attributes['error'] = '$error';
-    if (stackTrace != null) attributes['error.stack'] = '$stackTrace';
+    // Through setAttribute rather than straight into the map, because an
+    // upstream client quoting the rejected key back at you is one of the
+    // commonest ways a credential ends up in an error string.
+    setAttribute('error', '$error');
+    if (stackTrace != null) setAttribute('error.stack', '$stackTrace');
   }
 
   /// Finishes the span and exports it.

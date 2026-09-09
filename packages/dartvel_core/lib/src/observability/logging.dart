@@ -19,6 +19,7 @@ library dartvel.observability.logging;
 
 import 'dart:convert';
 
+import '../secrets/secrets.dart';
 import 'tracing.dart';
 
 /// How much a record matters, in the order everyone already expects.
@@ -230,7 +231,11 @@ class DVLogger {
   /// What a redacted value is replaced with. Present rather than removed, so
   /// a reader can tell the difference between a secret that was there and a
   /// field that was never set.
-  static const String redactedValue = '[redacted]';
+  ///
+  /// The same marker [dvRedactSecrets] uses, deliberately: two spellings
+  /// would mean an operator searching their log store for redactions finds
+  /// only half of them.
+  static const String redactedValue = dvRedactedMarker;
 
   /// Called for every record, whether or not it passes [minimumLevel].
   ///
@@ -254,12 +259,18 @@ class DVLogger {
     final DVSpan? span = dvCurrentSpan;
     final DVLogRecord record = DVLogRecord(
       level: level,
-      message: message,
+      // Redacted before anything else touches it. The key-name list below
+      // guesses where a secret might be; this matches the values DV.Secrets
+      // actually handed out, which is what catches a credential inside a
+      // connection string, quoted back by an upstream error, or typed into a
+      // sentence by hand during an incident.
+      message: dvRedactSecrets(message),
       context: _sanitise(context),
       event: event,
       code: code,
-      error: error?.toString(),
-      stackTrace: stackTrace?.toString(),
+      error: error == null ? null : dvRedactSecrets(error.toString()),
+      stackTrace:
+          stackTrace == null ? null : dvRedactSecrets(stackTrace.toString()),
       // An explicit id wins: a job replaying work on behalf of a request
       // knows the trace it belongs to, and the ambient span would put it
       // under the worker's own trace instead.
@@ -332,9 +343,11 @@ class DVLogger {
   }
 
   Object? _encodable(Object? value) {
-    if (value == null || value is num || value is bool || value is String) {
-      return value;
-    }
+    if (value == null || value is num || value is bool) return value;
+    // Every string on the way to a sink passes the resolved secret values,
+    // however deep in the context map it sits. A password inside a URL under
+    // the key `url` is the case the key-name list will never catch.
+    if (value is String) return dvRedactSecrets(value);
     if (value is Iterable) {
       return value.map(_encodable).toList(growable: false);
     }
@@ -345,6 +358,6 @@ class DVLogger {
               _isRedacted('${entry.key}') ? redactedValue : _encodable(entry.value),
       };
     }
-    return value.toString();
+    return dvRedactSecrets(value.toString());
   }
 }
