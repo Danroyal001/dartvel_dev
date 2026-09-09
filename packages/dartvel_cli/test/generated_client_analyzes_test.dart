@@ -79,6 +79,24 @@ import '../../dartvel_client/dartvel_client.dart';
 Widget _postPage(BuildContext context) => const DVText('Post');
 ''';
 
+/// A page that declares middleware, which emits a redirect and an installer
+/// into the router.
+///
+/// Here rather than only in the string-matching tests because both of those
+/// emissions are code: a call whose signature drifted, or an install naming
+/// a symbol the barrel does not export, reads perfectly and does not
+/// compile.
+const String _guardedPage = '''
+import 'package:flutter/widgets.dart';
+
+import '../dartvel_client/dartvel_client.dart';
+
+@DVUseMiddleware([DVMiddlewares.auth, DVMiddlewares.maintenance])
+@DVPage(title: 'Account')
+@pragma('vm:entry-point')
+Widget _accountPage(BuildContext context) => const DVText('Account');
+''';
+
 const String _backendFunction = '''
 import 'package:dartvel_core/dartvel.dart';
 
@@ -116,6 +134,8 @@ void main() {
     write(p.join(project.path, 'lib', 'pages', 'index.page.dart'), _indexPage);
     write(p.join(project.path, 'lib', 'pages', 'posts', '[slug].page.dart'),
         _postPage);
+    write(p.join(project.path, 'lib', 'pages', 'account.page.dart'),
+        _guardedPage);
     write(p.join(project.path, 'lib', 'backend', 'ping.dart'), _backendFunction);
     write(p.join(project.path, 'pubspec.yaml'), '''
 name: generated_client_probe
@@ -226,6 +246,19 @@ dependency_overrides:
     ]));
     expect(analysis.exitCode, anyOf(0, 1),
         reason: 'flutter analyze did not run: ${analysis.stderr}');
+  });
+
+  test('the middleware fixture is actually in the analyzed router', () {
+    // Without this the guarded page could stop being picked up -- renamed
+    // convention, moved directory -- and the analyzer would keep passing on
+    // a router that no longer contains the code this fixture exists to
+    // compile. A green suite proving nothing is the failure worth guarding.
+    final String router = File(
+      p.join(project.path, 'lib', 'dartvel_client', 'router.g.dart'),
+    ).readAsStringSync();
+
+    expect(router, contains('DVPageMiddleware.check'));
+    expect(router, contains('DVPageMiddleware.isSignedIn ??='));
   });
 
   test('the admin pages were generated and analyzed too', () {

@@ -205,6 +205,53 @@ Widget usersPage(BuildContext context) => const SizedBox.shrink();
     }
   });
 
+  test('the auth key is told who this application considers signed in',
+      () async {
+    // Without this the hook is null, and null default-denies -- so every
+    // page declaring auth would be closed to everybody, including the
+    // people who had just signed in. A guard that refuses the whole
+    // application is not safer than one that works; it is a feature nobody
+    // can use, which is how it stays broken.
+    //
+    // Assigned with ??= so an application that wired its own answer first
+    // keeps it.
+    final Directory root = await _project();
+    try {
+      _page(root, 'checkout.dart', '''
+@DVUseMiddleware([DVMiddlewares.auth])
+@DVPage()
+Widget checkoutPage(BuildContext context) => const SizedBox.shrink();
+''');
+
+      final String routes = await _routerFor(root);
+
+      expect(routes, contains('DVPageMiddleware.isSignedIn ??='));
+      expect(routes, contains('DV.Auth.currentUser'));
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
+  test('an application with no page declaring auth is wired to nothing',
+      () async {
+    // The control. Installing the resolver unconditionally would make every
+    // router touch DV.Auth, including applications that have no auth at all.
+    final Directory root = await _project();
+    try {
+      _page(root, 'about.dart', '''
+@DVPage()
+Widget aboutPage(BuildContext context) => const SizedBox.shrink();
+''');
+
+      expect(
+        await _routerFor(root),
+        isNot(contains('DVPageMiddleware.isSignedIn')),
+      );
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
   test('a page behind middleware is kept out of the sitemap', () async {
     // NEW_SPEC.md: authenticated routes are excluded by default. The
     // guarded list is how the sitemap writer learns which those are, and it
