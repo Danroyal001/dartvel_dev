@@ -7,6 +7,8 @@
 /// smoke test notices.
 library dartvel_flutter.routing.link_interception;
 
+import 'package:dartvel_core/dartvel.dart' show dvKioskAllowsExternalUrl;
+
 /// What the browser reported about a link activation.
 class DVLinkActivation {
   const DVLinkActivation({
@@ -123,4 +125,34 @@ bool dvLinkLeavesTheSite(DVLinkActivation activation) {
   final Uri? here = Uri.tryParse(activation.currentUrl);
   if (here == null) return false;
   return here.resolveUri(destination).origin != here.origin;
+}
+
+/// Whether the running kiosk policy refuses this activation, so the browser
+/// must not be allowed to act on the anchor.
+///
+/// Asked before anything else the interceptor decides, because the answer
+/// changes what happens to the event rather than where it goes. On the web
+/// the anchor is real and the browser follows it on the same click the widget
+/// sees; a kiosk that decided afterwards would have decided after the tab
+/// opened.
+///
+/// Only addresses that leave the application are judged. A route of this
+/// application -- a relative href, or an absolute one back to the same origin
+/// -- is `routes.allow`'s question, and a fragment is a scroll. `mailto:` and
+/// `tel:` are judged even though they are not navigations: both hand the
+/// address to another application, and a kiosk whose way out is the
+/// contact-us link has no way out closed at all.
+bool dvKioskRefusesLink(DVLinkActivation activation) {
+  final Uri? destination = Uri.tryParse(activation.href);
+  if (destination == null) return false;
+  if (!destination.hasScheme) return false;
+
+  final Uri? here = Uri.tryParse(activation.currentUrl);
+  if (here != null &&
+      (destination.scheme == 'http' || destination.scheme == 'https') &&
+      here.resolveUri(destination).origin == here.origin) {
+    return false;
+  }
+
+  return !dvKioskAllowsExternalUrl(activation.href);
 }
