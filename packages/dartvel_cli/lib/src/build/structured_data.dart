@@ -24,6 +24,7 @@ String dvStructuredData({
   String? description,
   String? siteUrl,
   String? image,
+  String? schemaType,
 }) {
   // Every identifier in this vocabulary is an absolute URL. Emitting it with
   // relative ones produces a block that validates and describes nothing.
@@ -48,7 +49,12 @@ String dvStructuredData({
   } else {
     blocks.add(<String, Object?>{
       '@context': 'https://schema.org',
-      '@type': 'WebPage',
+      // What the model said it is, when a model owns this route. WebPage is
+      // true of every page ever written and is what a crawler falls back to
+      // anyway; Product, Recipe and JobPosting are what a rich result is
+      // keyed off, and the declaration reached the web server and stopped
+      // there.
+      '@type': schemaType == null || schemaType.isEmpty ? 'WebPage' : schemaType,
       'name': title,
       'url': canonical,
       if (description != null && description.isNotEmpty)
