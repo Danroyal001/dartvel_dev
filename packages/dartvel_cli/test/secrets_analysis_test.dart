@@ -75,6 +75,45 @@ dartvel:
       expect(problems.single, contains('PUBLIC_'));
     });
 
+    test('a backend secret carrying the PUBLIC_ prefix is refused', () {
+      // The leak this closes. Nothing generating env.g.dart reads the
+      // declaration -- the router builder runs under build_runner and only
+      // ever sees the .env file -- so the prefix alone decides what is
+      // compiled into the bundle. A name declared backend-scoped and spelled
+      // PUBLIC_ therefore ships to every visitor while the pubspec says it
+      // never leaves the server, and no diagnostic fires because the value
+      // travels through the generated constant rather than a DV.Secrets call
+      // the analysis can see.
+      final List<String> problems = dvValidateDeclarations(
+        dvParseSecretDeclarations('''
+name: shop
+dartvel:
+  secrets:
+    PUBLIC_PAYSTACK_SECRET:
+      scope: backend
+'''),
+      );
+      expect(problems, hasLength(1));
+      expect(problems.single, contains('PUBLIC_PAYSTACK_SECRET'));
+      expect(problems.single, contains('env.g.dart'));
+    });
+
+    test('an undeclared scope on a PUBLIC_ name is refused too', () {
+      // scope: backend is the default, so omitting it is the same claim
+      // written with fewer words, and it must fail the same way.
+      final List<String> problems = dvValidateDeclarations(
+        dvParseSecretDeclarations('''
+name: shop
+dartvel:
+  secrets:
+    PUBLIC_TOKEN:
+      required: [production]
+'''),
+      );
+      expect(problems, hasLength(1));
+      expect(problems.single, contains('PUBLIC_TOKEN'));
+    });
+
     test('a correctly prefixed client secret passes', () {
       expect(dvValidateDeclarations(dvParseSecretDeclarations(_pubspec)),
           isEmpty);
