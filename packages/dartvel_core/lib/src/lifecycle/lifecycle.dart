@@ -206,3 +206,19 @@ class DVLifecycleRegistry {
     _kiosk.set(DVKioskState.off);
   }
 }
+
+/// The one lifecycle registry this process has.
+///
+/// The specification says the CLI, Studio, the analyzer and external tools
+/// observe the same canonical lifecycle state. They could not. The registry
+/// was reachable only through `DV.lifecycle`, a static on `DV` in
+/// dartvel_flutter, and the CLI depends on dartvel_core and deliberately not
+/// on Flutter — so the one signal whose entire subject is the build pipeline
+/// was unreachable from the process that runs the build, and `setBuild` was
+/// called by nothing but its own test.
+///
+/// It lives here because dartvel_core is the package both sides already
+/// depend on. `DV.lifecycle` returns this, so an application observing a
+/// state and a tool setting one are reading the same object rather than two
+/// that happen to agree.
+final DVLifecycleRegistry dvLifecycle = DVLifecycleRegistry();

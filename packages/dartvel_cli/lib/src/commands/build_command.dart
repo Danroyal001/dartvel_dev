@@ -7,7 +7,7 @@ import 'package:yaml/yaml.dart';
 import '../build/accessibility_audit.dart';
 import '../build/admin_artifact.dart';
 import '../build/admin_mount.dart';
-import 'package:dartvel_core/dartvel.dart' show DVHomeWidgetSpec;
+import 'package:dartvel_core/dartvel.dart' show DVHomeWidgetSpec, DVBuildLifecycle;
 
 import '../build/android_home_widget.dart';
 import '../build/android_context_provider.dart';
@@ -28,6 +28,7 @@ import '../build/pwa_manifest.dart';
 import '../secrets/secrets_analysis.dart';
 import '../build/pwa_service_worker.dart';
 import '../build/sdk_floor.dart';
+import '../build/build_lifecycle.dart';
 import '../build/seo_head.dart';
 import '../build/page_text.dart';
 import '../build/semantic_html.dart';
@@ -593,6 +594,11 @@ class BuildCommand extends Command<void> {
       exit(78); // EX_CONFIG
     }
 
+    // Reported from here on. DV.lifecycle.build had a setter nothing
+    // called, so every observer saw idle for the whole pipeline and could not
+    // tell a build that was generating from one that had failed from one that
+    // never started.
+    final DVBuildStages stages = DVBuildStages();
     Logger.log('🔨 Building Dartvel project...');
     if (renderBackends.contains(DVRenderBackend.terminal)) {
       Logger.log(
@@ -625,25 +631,35 @@ class BuildCommand extends Command<void> {
     _checkSecrets(root);
 
     Logger.log('📝 Generating Dartvel artifacts...');
-    final routesResult = await _processRun(
-      'dart',
-      ['run', 'dartvel_cli:dartvel', 'routes'],
-      workingDirectory: root,
-      runInShell: true,
+    final routesResult = await stages.run(
+      DVBuildLifecycle.generating,
+      () => _processRun(
+        'dart',
+        ['run', 'dartvel_cli:dartvel', 'routes'],
+        workingDirectory: root,
+        runInShell: true,
+      ),
     );
 
     if (routesResult.exitCode != 0) {
+      // Reported before the exit, because a process that leaves on a non-zero
+      // code without saying so leaves the signal on `generating` for whatever
+      // reads it next.
+      stages.failed();
       Logger.log('❌ Dartvel artifact generation failed');
       exit(1);
     }
 
     if (_hasBuildRunner(root)) {
       Logger.log('📦 Running build_runner...');
-      final buildRunnerResult = await _processRun(
-        'dart',
-        ['run', 'build_runner', 'build', '--delete-conflicting-outputs'],
-        workingDirectory: root,
-        runInShell: true,
+      final buildRunnerResult = await stages.run(
+        DVBuildLifecycle.generating,
+        () => _processRun(
+          'dart',
+          ['run', 'build_runner', 'build', '--delete-conflicting-outputs'],
+          workingDirectory: root,
+          runInShell: true,
+        ),
       );
 
       if (buildRunnerResult.exitCode != 0) {
@@ -763,6 +779,7 @@ class BuildCommand extends Command<void> {
 
     Logger.log('');
     if (failures > 0) {
+      stages.failed();
       Logger.log(
         '❌ Build completed with $failures failed target(s) and $skipped skipped target(s).',
       );
@@ -770,9 +787,13 @@ class BuildCommand extends Command<void> {
       return;
     }
     if (skipped > 0) {
+      // Skipped is not failed: the targets that ran, ran. A build that skipped
+      // an unavailable toolchain and produced everything else is complete.
+      stages.completed();
       Logger.log('✅ Build complete with $skipped skipped target(s).');
       return;
     }
+    stages.completed();
     Logger.log('✅ Build complete!');
   }
 
