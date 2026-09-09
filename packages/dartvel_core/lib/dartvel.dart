@@ -47,6 +47,7 @@ export 'src/cache/distributed.dart';
 export 'src/cache/memcached.dart';
 export 'src/cache/redis.dart';
 export 'src/crypto/app_key.dart';
+export 'src/crypto/field_cipher.dart';
 export 'src/crypto/key_stores.dart';
 export 'src/database/adapters.dart';
 export 'src/database/mysql.dart';
