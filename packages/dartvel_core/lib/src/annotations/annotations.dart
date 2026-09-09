@@ -295,7 +295,9 @@ class DVModel {
   /// held anywhere the generator writes would ship to every visitor. Only
   /// `String` and `String?` can carry it, it cannot go on the field
   /// generated lookups use, and with no keyring configured the field raises
-  /// rather than falling back to plaintext. See [DVFieldCipher].
+  /// rather than falling back to plaintext — so a model carrying one is
+  /// persisted by the server, and saving or reading it against a device's own
+  /// database gets that refusal. See [DVFieldCipher].
   const DVModel.sensitiveField({
     this.encrypted = false,
     this.showInForms = false,
