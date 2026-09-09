@@ -18,6 +18,7 @@ import 'src/http/wintercg.dart' as dv;
 import 'src/mail/smtp.dart';
 import 'src/notifications/web_push.dart';
 import 'src/notifications/web_push_vapid.dart';
+import 'src/observability/observability.dart';
 import 'src/scheduling/cron.dart';
 import 'src/search/search_tuning.dart';
 
@@ -92,6 +93,10 @@ export 'src/middleware/middleware_runtime.dart';
 export 'src/middleware/page_middleware_keys.dart';
 export 'src/modules/manifest.dart';
 export 'src/modules/modules.dart';
+// The device side of push. Exported by nothing until now, so the API that
+// registers a device, requests permission and subscribes to a topic was
+// written, tested through a src/ import, and callable by no application.
+export 'src/notifications/push.dart';
 export 'src/notifications/web_push.dart';
 export 'src/notifications/web_push_vapid.dart';
 export 'src/observability/observability.dart';
@@ -2117,6 +2122,46 @@ class DVMailMessage {
   });
 }
 
+/// The headers that carry [priority] to a mail client.
+///
+/// No provider API here has a priority field, so priority travels as headers
+/// or not at all - and for a long while it was not at all. Three are emitted
+/// because no single one is universally honoured: `X-Priority` is what Outlook
+/// and most Windows clients read, `Importance` is the RFC 2156 header Gmail
+/// and Thunderbird prefer, and `Priority` (RFC 2156 too) is what a handful of
+/// gateways consult when ordering a queue.
+///
+/// Normal returns nothing. Stamping `Importance: normal` on every message adds
+/// bytes to every send, changes no client's behaviour, and gives spam filters
+/// that score explicit priority headers something to score - so the default
+/// stays silent.
+Map<String, String> dvMailPriorityHeaders(DVMailPriority priority) =>
+    switch (priority) {
+      DVMailPriority.high => const <String, String>{
+          'X-Priority': '1 (Highest)',
+          'Importance': 'high',
+          'Priority': 'urgent',
+        },
+      DVMailPriority.low => const <String, String>{
+          'X-Priority': '5 (Lowest)',
+          'Importance': 'low',
+          'Priority': 'non-urgent',
+        },
+      DVMailPriority.normal => const <String, String>{},
+    };
+
+/// Every header [message] should reach the wire with.
+///
+/// An explicit entry in `message.headers` wins over the one priority would
+/// have added. Someone writing the header by hand has said something more
+/// specific than the enum can, and silently overwriting it would leave the
+/// typed field and the escape hatch fighting over the same wire bytes.
+Map<String, String> dvMailWireHeaders(DVMailMessage message) =>
+    <String, String>{
+      ...dvMailPriorityHeaders(message.priority),
+      ...message.headers,
+    };
+
 abstract class DVMailProvider {
   Future<void> send(DVMailMessage message);
 }
@@ -2222,7 +2267,8 @@ class ResendMailProvider extends DVHttpMailProvider {
           'subject': message.subject,
           'text': message.text,
           if (message.html != null) 'html': message.html,
-          if (message.headers.isNotEmpty) 'headers': message.headers,
+          if (dvMailWireHeaders(message) case final wire when wire.isNotEmpty)
+            'headers': wire,
         })),
       );
 }
@@ -2267,7 +2313,8 @@ class SendGridMailProvider extends DVHttpMailProvider {
             if (message.html != null)
               <String, Object?>{'type': 'text/html', 'value': message.html},
           ],
-          if (message.headers.isNotEmpty) 'headers': message.headers,
+          if (dvMailWireHeaders(message) case final wire when wire.isNotEmpty)
+            'headers': wire,
         })),
       );
 }
@@ -2301,9 +2348,9 @@ class PostmarkMailProvider extends DVHttpMailProvider {
           'TextBody': message.text,
           if (message.html != null) 'HtmlBody': message.html,
           'MessageStream': messageStream,
-          if (message.headers.isNotEmpty)
+          if (dvMailWireHeaders(message) case final wire when wire.isNotEmpty)
             'Headers': <Object?>[
-              for (final entry in message.headers.entries)
+              for (final entry in wire.entries)
                 <String, Object?>{'Name': entry.key, 'Value': entry.value},
             ],
         })),
@@ -2357,7 +2404,7 @@ class SmtpMailProvider implements DVMailProvider {
       subject: message.subject,
       text: message.text,
       html: message.html,
-      headers: message.headers,
+      headers: dvMailWireHeaders(message),
     );
   }
 }
@@ -2392,11 +2439,22 @@ class SesMailProvider extends DVHttpMailProvider {
   @override
   DVHttpRequest buildRequest(DVMailMessage message) {
     final url = baseUrl.replace(path: '/v2/email/outbound-emails');
+    // SES v2 takes custom headers on Simple content as a Name/Value list. This
+    // provider built its payload without them, so a header set on a message
+    // survived five providers and vanished on the sixth. SES accepts the
+    // request either way, so the only symptom was a header missing from mail
+    // nobody inspects.
+    final wire = dvMailWireHeaders(message);
     final body = utf8.encode(jsonEncode(<String, Object?>{
       'FromEmailAddress': DVHttpMailProvider.formatAddress(message.from),
       'Destination': <String, Object?>{
+        // The full RFC 5322 form, which SES v2 accepts here. Sending the bare
+        // mailbox dropped every recipient display name on this provider and
+        // no other, so the same code produced named recipients on five
+        // providers and unnamed ones on the sixth.
         'ToAddresses': <String>[
-          for (final address in message.to) address.email,
+          for (final address in message.to)
+            DVHttpMailProvider.formatAddress(address),
         ],
       },
       'Content': <String, Object?>{
@@ -2407,6 +2465,11 @@ class SesMailProvider extends DVHttpMailProvider {
             if (message.html != null)
               'Html': <String, Object?>{'Data': message.html},
           },
+          if (wire.isNotEmpty)
+            'Headers': <Object?>[
+              for (final entry in wire.entries)
+                <String, Object?>{'Name': entry.key, 'Value': entry.value},
+            ],
         },
       },
     }));
@@ -2463,7 +2526,7 @@ class MailgunMailProvider extends DVHttpMailProvider {
         ('subject', message.subject),
         ('text', message.text),
         if (message.html != null) ('html', message.html!),
-        for (final entry in message.headers.entries)
+        for (final entry in dvMailWireHeaders(message).entries)
           ('h:${entry.key}', entry.value),
       ]),
     );
@@ -3067,9 +3130,176 @@ class DVMemoryNotificationProvider implements DVNotificationProvider {
   }
 }
 
+/// Where one recipient can be reached, per channel.
+///
+/// `DV.Notifications.send` takes a recipient id, because that is what
+/// application code has. Every provider underneath takes something else: a
+/// mailbox, an FCM registration token, a browser subscription, an E.164
+/// number. This is the translation, and without it the id itself was handed
+/// to whichever provider ran - which a push service accepts and then delivers
+/// to nobody.
+class DVNotificationRoutes {
+  /// Where in-app records are filed. Defaults to the recipient id.
+  final String? inApp;
+
+  final DVMailAddress? email;
+
+  /// Native push registration tokens. A recipient with three devices has
+  /// three; sending to only the first is a notification two devices never get.
+  final List<String> pushTokens;
+
+  /// Browser subscriptions, each the JSON `PushManager.subscribe()` produced.
+  final List<String> webPushSubscriptions;
+
+  /// E.164, e.g. `+15551234567`.
+  final String? sms;
+
+  const DVNotificationRoutes({
+    this.inApp,
+    this.email,
+    this.pushTokens = const <String>[],
+    this.webPushSubscriptions = const <String>[],
+    this.sms,
+  });
+}
+
+/// A daily window during which interruptive channels stay quiet.
+///
+/// [utcOffset] is the recipient's, not the server's. A quiet-hours window read
+/// in the server's clock is quiet hours for the server, which is nobody.
+class DVQuietHours {
+  /// Start of the window, as time since local midnight.
+  final Duration from;
+
+  /// End of the window, exclusive.
+  final Duration to;
+
+  final Duration utcOffset;
+
+  const DVQuietHours({
+    required this.from,
+    required this.to,
+    this.utcOffset = Duration.zero,
+  });
+
+  /// Whether [instant] falls inside the window.
+  ///
+  /// Windows that wrap midnight are the normal case - 22:00 to 07:00 is what
+  /// anyone actually configures - and the obvious `from <= t && t < to`
+  /// comparison is empty for every one of them. That reads as quiet hours
+  /// being off, and the only symptom is a phone buzzing at 3am.
+  bool covers(DateTime instant) {
+    final local = instant.toUtc().add(utcOffset);
+    final sinceMidnight = Duration(
+      hours: local.hour,
+      minutes: local.minute,
+      seconds: local.second,
+    );
+    if (from <= to) return sinceMidnight >= from && sinceMidnight < to;
+    return sinceMidnight >= from || sinceMidnight < to;
+  }
+}
+
+/// What a recipient has asked to receive.
+class DVNotificationPreferences {
+  /// Channels this recipient has turned off.
+  final Set<DVNotificationChannel> mutedChannels;
+
+  final DVQuietHours? quietHours;
+
+  /// Opted out of everything. Not an error to send to - the send simply
+  /// delivers nothing and says so.
+  final bool unsubscribed;
+
+  const DVNotificationPreferences({
+    this.mutedChannels = const <DVNotificationChannel>{},
+    this.quietHours,
+    this.unsubscribed = false,
+  });
+}
+
+/// What happened on one channel.
+enum DVNotificationOutcome {
+  delivered,
+
+  /// No provider is registered for the channel, or the channel needs
+  /// configuration the application has not supplied.
+  notConfigured,
+
+  /// The provider exists, but this recipient has no address for it.
+  noRoute,
+
+  /// Suppressed by the recipient's preferences.
+  muted,
+
+  /// Held because the recipient is inside their quiet hours.
+  quietHours,
+
+  /// The provider was called and rejected or failed.
+  failed,
+}
+
+/// One channel's result, including the ones that went nowhere.
+class DVNotificationAttempt {
+  final DVNotificationChannel channel;
+
+  /// Which provider ran. Null when the channel never reached one, and for
+  /// email, which goes through the mail provider rather than the notification
+  /// provider registry.
+  final DVNotificationProviderKind? provider;
+
+  final DVNotificationOutcome outcome;
+  final Object? error;
+
+  const DVNotificationAttempt({
+    required this.channel,
+    required this.outcome,
+    this.provider,
+    this.error,
+  });
+
+  @override
+  String toString() => provider == null
+      ? '${channel.name}: ${outcome.name}'
+      : '${channel.name} via ${provider!.name}: ${outcome.name}';
+}
+
+/// Everything one `send` did, per channel.
+class DVNotificationDelivery {
+  final String recipient;
+  final List<DVNotificationAttempt> attempts;
+
+  const DVNotificationDelivery({
+    required this.recipient,
+    required this.attempts,
+  });
+
+  Set<DVNotificationChannel> get delivered => <DVNotificationChannel>{
+        for (final attempt in attempts)
+          if (attempt.outcome == DVNotificationOutcome.delivered)
+            attempt.channel,
+      };
+
+  /// True when nothing reached the recipient on any channel.
+  bool get isSilent => delivered.isEmpty;
+}
+
+/// Resolves a recipient id to the addresses its channels need.
+typedef DVNotificationRouteResolver = Future<DVNotificationRoutes> Function(
+  String recipient,
+);
+
+/// Resolves a recipient id to what they have asked to receive.
+typedef DVNotificationPreferenceResolver
+    = Future<DVNotificationPreferences> Function(String recipient);
+
 class DVNotificationsService {
   static final Map<DVNotificationProviderKind, DVNotificationProvider>
       _providers = {};
+
+  static DVNotificationRouteResolver? _routes;
+  static DVNotificationPreferenceResolver? _preferences;
+  static DVMailAddress? _mailSender;
 
   const DVNotificationsService();
 
@@ -3079,16 +3309,325 @@ class DVNotificationsService {
     _providers[provider.kind] = provider;
   }
 
-  Future<void> send(
+  /// Where each recipient can be reached.
+  void useRoutes(DVNotificationRouteResolver resolver) {
+    _routes = resolver;
+  }
+
+  /// What each recipient has asked to receive.
+  void usePreferences(DVNotificationPreferenceResolver resolver) {
+    _preferences = resolver;
+  }
+
+  /// The `From` on mail sent through the email channel.
+  ///
+  /// Required rather than guessed: a plausible default sender is a domain the
+  /// application does not control, so the mail is delivered to spam by
+  /// everyone who checks SPF and to nobody by everyone who checks DMARC.
+  void useMailSender(DVMailAddress sender) {
+    _mailSender = sender;
+  }
+
+  /// Forgets the routing configuration. For tests.
+  void resetRouting() {
+    _routes = null;
+    _preferences = null;
+    _mailSender = null;
+  }
+
+  /// The channels this process could deliver on right now.
+  Set<DVNotificationChannel> get availableChannels => <DVNotificationChannel>{
+        for (final channel in DVNotificationChannel.values)
+          if (channel == DVNotificationChannel.email
+              ? _mailSender != null
+              : _candidateKinds(channel)
+                  .any((DVNotificationProviderKind k) =>
+                      _providers.containsKey(k)))
+            channel,
+      };
+
+  /// Sends [message] to [recipient] on the channels it asks for.
+  ///
+  /// This used to take one provider kind and ignore `message.channels`
+  /// entirely, so the spec's own three-channel example delivered to the local
+  /// in-app provider and reported success. Each channel now resolves its own
+  /// provider and its own address for this recipient, and every channel's
+  /// result comes back - including the ones that were suppressed, which is the
+  /// difference between a notification that was withheld and one that was lost.
+  ///
+  /// Pass [provider] to bypass routing entirely and send through one named
+  /// provider, which is what a test or a one-off admin push wants.
+  ///
+  /// Throws when every channel failed for a reason the application could fix -
+  /// nothing registered, no address, a provider that rejected. A recipient who
+  /// opted out, or whose quiet hours are in force, is not that: the send
+  /// returns with those recorded.
+  Future<DVNotificationDelivery> send(
     String recipient,
     DVNotificationMessage message, {
-    DVNotificationProviderKind provider = DVNotificationProviderKind.local,
-  }) {
-    final selected = _providers[provider];
-    if (selected == null) {
-      throw StateError('No notification provider registered for $provider.');
+    DVNotificationProviderKind? provider,
+    DVNotificationRoutes? routes,
+    DVNotificationPreferences? preferences,
+    DateTime? now,
+  }) async {
+    if (provider != null) {
+      final selected = _providers[provider];
+      if (selected == null) {
+        throw StateError('No notification provider registered for $provider.');
+      }
+      await selected.send(recipient, message);
+      return DVNotificationDelivery(
+        recipient: recipient,
+        attempts: <DVNotificationAttempt>[
+          for (final channel in message.channels)
+            DVNotificationAttempt(
+              channel: channel,
+              provider: provider,
+              outcome: DVNotificationOutcome.delivered,
+            ),
+        ],
+      );
     }
-    return selected.send(recipient, message);
+
+    final resolvedRoutes =
+        routes ?? await _routes?.call(recipient) ?? const DVNotificationRoutes();
+    final resolvedPreferences = preferences ??
+        await _preferences?.call(recipient) ??
+        const DVNotificationPreferences();
+    final instant = now ?? DateTime.now();
+
+    final attempts = <DVNotificationAttempt>[];
+    for (final channel in message.channels) {
+      attempts.addAll(await _sendOn(
+        channel: channel,
+        recipient: recipient,
+        message: message,
+        routes: resolvedRoutes,
+        preferences: resolvedPreferences,
+        now: instant,
+      ));
+    }
+
+    final delivery =
+        DVNotificationDelivery(recipient: recipient, attempts: attempts);
+    if (delivery.isSilent) {
+      final broken = attempts
+          .where((DVNotificationAttempt a) =>
+              a.outcome == DVNotificationOutcome.notConfigured ||
+              a.outcome == DVNotificationOutcome.noRoute ||
+              a.outcome == DVNotificationOutcome.failed)
+          .toList();
+      if (broken.isNotEmpty) {
+        throw StateError(
+          'Notification to $recipient reached nobody: '
+          '${broken.join('; ')}.',
+        );
+      }
+    }
+    return delivery;
+  }
+
+  /// Channels that interrupt, and so are the ones quiet hours are about.
+  ///
+  /// Email and in-app are excluded deliberately. Holding a push until morning
+  /// delays a buzz; holding an email drops it, because nothing re-sends it
+  /// when the window closes.
+  static const Set<DVNotificationChannel> _interruptive =
+      <DVNotificationChannel>{
+    DVNotificationChannel.push,
+    DVNotificationChannel.webPush,
+    DVNotificationChannel.sms,
+  };
+
+  /// Which providers can carry [channel], best first.
+  ///
+  /// Web Push sits last under `push`: it is the fallback for a target with no
+  /// native push provider, and for a native provider that failed.
+  static List<DVNotificationProviderKind> _candidateKinds(
+    DVNotificationChannel channel,
+  ) =>
+      switch (channel) {
+        DVNotificationChannel.inApp => const <DVNotificationProviderKind>[
+            DVNotificationProviderKind.local,
+          ],
+        DVNotificationChannel.push => const <DVNotificationProviderKind>[
+            DVNotificationProviderKind.firebase,
+            DVNotificationProviderKind.apns,
+            DVNotificationProviderKind.windows,
+            DVNotificationProviderKind.macos,
+            DVNotificationProviderKind.linux,
+            DVNotificationProviderKind.tizen,
+            DVNotificationProviderKind.webos,
+            DVNotificationProviderKind.webPush,
+          ],
+        DVNotificationChannel.webPush => const <DVNotificationProviderKind>[
+            DVNotificationProviderKind.webPush,
+          ],
+        DVNotificationChannel.sms => const <DVNotificationProviderKind>[
+            DVNotificationProviderKind.sms,
+          ],
+        DVNotificationChannel.email => const <DVNotificationProviderKind>[],
+      };
+
+  static List<String> _addressesFor(
+    DVNotificationProviderKind kind,
+    String recipient,
+    DVNotificationRoutes routes,
+  ) =>
+      switch (kind) {
+        DVNotificationProviderKind.local => <String>[
+            routes.inApp ?? recipient,
+          ],
+        DVNotificationProviderKind.webPush => routes.webPushSubscriptions,
+        DVNotificationProviderKind.sms =>
+          routes.sms == null ? const <String>[] : <String>[routes.sms!],
+        _ => routes.pushTokens,
+      };
+
+  Future<List<DVNotificationAttempt>> _sendOn({
+    required DVNotificationChannel channel,
+    required String recipient,
+    required DVNotificationMessage message,
+    required DVNotificationRoutes routes,
+    required DVNotificationPreferences preferences,
+    required DateTime now,
+  }) async {
+    if (preferences.unsubscribed ||
+        preferences.mutedChannels.contains(channel)) {
+      return <DVNotificationAttempt>[
+        DVNotificationAttempt(
+          channel: channel,
+          outcome: DVNotificationOutcome.muted,
+        ),
+      ];
+    }
+
+    final quiet = preferences.quietHours;
+    if (quiet != null && _interruptive.contains(channel) && quiet.covers(now)) {
+      return <DVNotificationAttempt>[
+        DVNotificationAttempt(
+          channel: channel,
+          outcome: DVNotificationOutcome.quietHours,
+        ),
+      ];
+    }
+
+    if (channel == DVNotificationChannel.email) {
+      return <DVNotificationAttempt>[
+        await _sendEmail(message: message, routes: routes),
+      ];
+    }
+
+    final attempts = <DVNotificationAttempt>[];
+    var sawProvider = false;
+    for (final kind in _candidateKinds(channel)) {
+      final provider = _providers[kind];
+      if (provider == null) continue;
+      final addresses = _addressesFor(kind, recipient, routes);
+      if (addresses.isEmpty) continue;
+      sawProvider = true;
+
+      Object? failure;
+      var anyDelivered = false;
+      for (final address in addresses) {
+        try {
+          await provider.send(address, message);
+          anyDelivered = true;
+        } catch (error) {
+          failure ??= error;
+        }
+      }
+
+      if (anyDelivered) {
+        attempts.add(DVNotificationAttempt(
+          channel: channel,
+          provider: kind,
+          outcome: DVNotificationOutcome.delivered,
+        ));
+        return attempts;
+      }
+
+      // Recorded rather than swallowed, then the next candidate is tried. A
+      // fallback that hides the first failure is how a broken push provider
+      // stays broken for months.
+      attempts.add(DVNotificationAttempt(
+        channel: channel,
+        provider: kind,
+        outcome: DVNotificationOutcome.failed,
+        error: failure,
+      ));
+      _countFailure(channel);
+    }
+
+    if (attempts.isEmpty) {
+      attempts.add(DVNotificationAttempt(
+        channel: channel,
+        outcome: sawProvider
+            ? DVNotificationOutcome.failed
+            : _candidateKinds(channel)
+                    .any((DVNotificationProviderKind k) =>
+                        _providers.containsKey(k))
+                ? DVNotificationOutcome.noRoute
+                : DVNotificationOutcome.notConfigured,
+      ));
+    }
+    return attempts;
+  }
+
+  Future<DVNotificationAttempt> _sendEmail({
+    required DVNotificationMessage message,
+    required DVNotificationRoutes routes,
+  }) async {
+    final to = routes.email;
+    if (to == null) {
+      return const DVNotificationAttempt(
+        channel: DVNotificationChannel.email,
+        outcome: DVNotificationOutcome.noRoute,
+      );
+    }
+    final from = _mailSender;
+    if (from == null) {
+      return DVNotificationAttempt(
+        channel: DVNotificationChannel.email,
+        outcome: DVNotificationOutcome.notConfigured,
+        error: StateError(
+          'The email channel needs a sender. Call '
+          'DV.Notifications.useMailSender(...) with an address the '
+          'application is authorised to send from.',
+        ),
+      );
+    }
+    try {
+      await const DVNotificationMail().send(DVMailMessage(
+        from: from,
+        to: <DVMailAddress>[to],
+        subject: message.title,
+        text: message.body,
+      ));
+      return const DVNotificationAttempt(
+        channel: DVNotificationChannel.email,
+        outcome: DVNotificationOutcome.delivered,
+      );
+    } catch (error) {
+      _countFailure(DVNotificationChannel.email);
+      return DVNotificationAttempt(
+        channel: DVNotificationChannel.email,
+        outcome: DVNotificationOutcome.failed,
+        error: error,
+      );
+    }
+  }
+
+  /// Provider failures go where a scrape can see them. A fallback that works
+  /// makes the primary's failure invisible in every other way.
+  static void _countFailure(DVNotificationChannel channel) {
+    DVObservability.metrics
+        .counter(
+          '${dvMetricPrefix}notification_failures_total',
+          <String, String>{'channel': channel.name},
+          'Notification sends a provider rejected or failed.',
+        )
+        .increment();
   }
 }
 
@@ -3238,6 +3777,9 @@ class DVTestHarness {
     DVNotificationsService._providers
       ..clear()
       ..[DVNotificationProviderKind.local] = DVMemoryNotificationProvider();
+    // Routing is process-wide too. A resolver left registered by one test
+    // sends the next test's notification to an address it never configured.
+    const DVNotificationsService().resetRouting();
   }
 
   void clearNotificationProviders() {

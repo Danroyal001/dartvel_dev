@@ -240,6 +240,36 @@ export 'package:dartvel_core/dartvel.dart'
         FirebasePushProvider,
         TwilioSmsProvider,
         DVNotificationsService,
+        // The routing side of DV.Notifications.send. Without these an
+        // application can name channels but cannot say where the recipient is
+        // reachable on any of them, which is the whole of the feature.
+        DVNotificationRoutes,
+        DVNotificationRouteResolver,
+        DVNotificationPreferences,
+        DVNotificationPreferenceResolver,
+        DVQuietHours,
+        DVNotificationOutcome,
+        DVNotificationAttempt,
+        DVNotificationDelivery,
+        // Absent from this list until now, so an application importing
+        // dartvel_flutter could not reach Apple push or the Web Push fallback
+        // at all -- both documented, both built, both unreachable from the
+        // package Flutter code actually imports.
+        ApnsPushProvider,
+        ApnsEnvironment,
+        ApnsPushType,
+        WebPushProvider,
+        DVWebPushKeyPair,
+        DVWebPushSubscription,
+        dvMailPriorityHeaders,
+        dvMailWireHeaders,
+        // Device registration. A Flutter application is the one that has a
+        // device to register, so leaving these out of the list left the
+        // feature reachable only from a pure Dart server.
+        PushNotifications,
+        PushNotification,
+        PushNotificationProvider,
+        LocalPushNotificationProvider,
         DVPolicyCheck,
         DVQueueAdapter,
         DVQueues,
@@ -6895,7 +6925,10 @@ extension DVNotificationTemplating on DVNotificationsService {
   /// Sends [template] to [recipient], rendered in [locale] (the current one
   /// when null) with [args] interpolated. Strict: a missing translation is an
   /// error rather than a notification whose title is a key name.
-  Future<void> sendTemplate(
+  /// Returns what each channel did, the same as [DVNotificationsService.send].
+  /// A void return could not tell a caller whether the translated message
+  /// reached anybody, which for a notification is the only question.
+  Future<DVNotificationDelivery> sendTemplate(
     String recipient,
     DVNotificationTemplate template, {
     LocaleTag? locale,
@@ -6910,7 +6943,7 @@ extension DVNotificationTemplating on DVNotificationsService {
       data: data,
       channels: channels,
     );
-    await send(recipient, message);
+    return send(recipient, message);
   }
 }
 

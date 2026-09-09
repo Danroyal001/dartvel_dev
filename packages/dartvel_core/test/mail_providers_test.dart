@@ -222,9 +222,14 @@ void main() {
 
       expect(
           recorder.json['FromEmailAddress'], '"Support" <support@example.com>');
+      // A recipient display name is part of the message the developer wrote.
+      // The other five providers carry it; this one used to send the bare
+      // mailbox, so "Ada Lovelace" arrived as ada@example.com and only on SES.
+      // SES v2 takes a full RFC 5322 address here, so there was nothing to
+      // trade off - the name was simply dropped.
       expect(
         (recorder.json['Destination']! as Map<String, Object?>)['ToAddresses'],
-        <String>['ada@example.com', 'grace@example.com'],
+        <String>['"Ada Lovelace" <ada@example.com>', 'grace@example.com'],
       );
       final simple = (recorder.json['Content']!
           as Map<String, Object?>)['Simple']! as Map<String, Object?>;
