@@ -91,11 +91,18 @@ int main(List<String> arguments) {
   }
 
   // The sentence about partial sections states a number too.
+  //
+  // The count, not the sentence it sits in. This matched
+  // "N more sections are partial" exactly, so rewriting that line to
+  // "Twenty-one more are half done" failed the check while the page still
+  // said the true number -- the check was pinning prose, and what it is for
+  // is the number on the page agreeing with the index. Whoever rewrites the
+  // copy next should not have to come here.
   final int partial = (decoded['sections']! as List)
       .where((Object? e) => e is Map && e['status'] == 'Partial')
       .length;
   final RegExpMatch? p =
-      RegExp(r"'([A-Za-z-]+) more sections are partial").firstMatch(source);
+      RegExp(r"'([A-Za-z-]+) more\b").firstMatch(source);
   if (p == null) {
     problems.add('the page no longer states the partial count');
   } else if (_word(partial) != p.group(1)!.toLowerCase()) {
