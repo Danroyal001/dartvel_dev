@@ -4564,6 +4564,18 @@ class _User(
 );
 ```
 
+`encrypted: true` seals the value with AES-256-GCM before it is written and
+opens it when the row is read. The keyring comes from `DARTVEL_FIELD_KEYS` in
+the server process environment, written newest first as
+`<id>:<base64 32-byte key>`, and from nowhere else: generated model code is
+compiled into the application bundle as well as the server, so a key the
+generator could reach would ship to every visitor. A process with no keyring
+raises on the field rather than falling back to plaintext. Rotation is adding
+a key at the front and leaving the old one behind it — a stored value records
+which key sealed it. Only `String` and `String?` can carry the flag, and not
+the field generated lookups use, since a randomized ciphertext never matches a
+plaintext in a `WHERE` clause.
+
 Explicit policy authorization is required before sensitive fields are sent to
 clients. This extends the existing security scope (authentication,
 authorization, CSRF, CORS, origin validation, XSS/injection/SSRF protection,

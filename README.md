@@ -108,7 +108,7 @@ Everything else is automatically compiled, generated, or served by the framework
 | **SEO** | `dartvel build web` writes the head tags, JSON-LD, per-route HTML built from the semantics tree, `sitemap.xml` with a styled stylesheet, and `robots.txt` | ✅ Implemented |
 | **PWA** | Manifest, a viewport meta on every built page, icons generated from web/icon.png, a service worker that precaches the build's routes and keeps an outbox of writes made offline, replayed in order once the network is back -- verified in a real Chrome on every push -- a self-contained offline page, and `DV.Platform.install` for the install prompt | ✅ Shipped |
 | **AI Integration** | HTTP adapters for Claude, OpenAI, Gemini, OpenRouter, and Ollama, plus the deterministic local adapter | ✅ Implemented |
-| **Sensitive Fields** | `@DVModel.sensitiveField()` redacts fields from public serialization, cards, logs, and AI context | ✅ Implemented |
+| **Sensitive Fields** | `@DVModel.sensitiveField()` redacts fields from public serialization, cards, logs, and AI context; `encrypted: true` adds AES-256-GCM at rest, keyed from `DARTVEL_FIELD_KEYS` on the server | ✅ Implemented |
 | **Lifecycle Signals** | Read-only enum signals: `DV.lifecycle.app`/`.build`, `context.lifecycle.page`/`.request`/`.transaction` | ✅ Implemented |
 | **Modules** | `DV.Modules.<id>` registry with per-module lifecycle and mount-point independence | ✅ Implemented |
 | **Reversible Transactions** | `DV.transaction(...)` with `context.afterCommit(...)` and `context.compensate(...)` | ✅ Implemented |
