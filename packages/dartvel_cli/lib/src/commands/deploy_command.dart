@@ -186,9 +186,10 @@ class DeployCommand extends Command<void> {
 
   /// Whether every secret this environment requires actually resolves.
   ///
-  /// Resolution is the same order the runtime uses: the process environment,
-  /// then .env for local development. A value present in neither is one the
-  /// deployed application would fail on at its first request.
+  /// Asked of DVSecrets rather than answered here, so the gate and the
+  /// process it gates cannot disagree about what counts as set. A value
+  /// nothing supplies is one the deployed application would fail on at its
+  /// first request.
   bool _secretsResolve(String environment) {
     final pubspec = File('pubspec.yaml');
     if (!pubspec.existsSync()) return true;
@@ -196,10 +197,7 @@ class DeployCommand extends Command<void> {
     final declared = dvParseSecretDeclarations(pubspec.readAsStringSync());
     if (declared.isEmpty) return true;
 
-    final resolved = <String>{
-      for (final name in declared.keys)
-        if (_resolves(name)) name,
-    };
+    final resolved = dvResolveSecrets(declared.keys);
 
     final problems = dvValidateEnvironment(
       declared: declared,
@@ -212,25 +210,6 @@ class DeployCommand extends Command<void> {
         'secret(s):');
     for (final problem in problems) {
       Logger.error('   $problem');
-    }
-    return false;
-  }
-
-  bool _resolves(String name) {
-    final fromEnvironment = Platform.environment[name];
-    if (fromEnvironment != null && fromEnvironment.isNotEmpty) return true;
-
-    final envFile = File('.env');
-    if (!envFile.existsSync()) return false;
-    for (final line in envFile.readAsLinesSync()) {
-      final trimmed = line.trim();
-      if (trimmed.isEmpty || trimmed.startsWith('#')) continue;
-      final separator = trimmed.indexOf('=');
-      if (separator <= 0) continue;
-      if (trimmed.substring(0, separator).trim() != name) continue;
-      // An empty assignment is not a value. Treating `KEY=` as resolved is
-      // how a deploy ships with a blank credential.
-      return trimmed.substring(separator + 1).trim().isNotEmpty;
     }
     return false;
   }
