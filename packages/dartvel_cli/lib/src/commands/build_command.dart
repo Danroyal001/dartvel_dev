@@ -1809,6 +1809,16 @@ class BuildCommand extends Command<void> {
   /// approximation -- a value routed through an indirection this cannot
   /// follow is a false negative -- which is why the structural guarantee is
   /// elsewhere: only PUBLIC_ values reach the generated env.g.dart at all.
+  /// The env files the generator will read, so the check covers exactly what
+  /// would be compiled in rather than a guess at where it lives.
+  List<String> _envFileNames(String root) {
+    final configured = _dartvelSection(root)['envFiles'];
+    if (configured is! List) return const <String>['.env', '.env.local'];
+    return <String>[
+      for (final entry in configured) '$entry',
+    ];
+  }
+
   void _checkSecrets(String root) {
     final File pubspec = File(p.join(root, 'pubspec.yaml'));
     if (!pubspec.existsSync()) return;
@@ -1822,6 +1832,26 @@ class BuildCommand extends Command<void> {
         Logger.error('   $problem');
       }
       Logger.log('❌ dartvel.secrets is not valid');
+      exit(1);
+    }
+
+    // Before the source scan, because this one does not depend on anybody
+    // writing a DV.Secrets call: the prefix alone puts a value in the bundle.
+    final envProblems = <DVSecretFinding>[];
+    for (final envFile in _envFileNames(root)) {
+      final file = File(p.join(root, envFile));
+      if (!file.existsSync()) continue;
+      envProblems.addAll(dvAnalysePublicEnvironment(
+        declared: declared,
+        file: envFile,
+        contents: file.readAsStringSync(),
+      ));
+    }
+    if (envProblems.isNotEmpty) {
+      for (final finding in envProblems) {
+        Logger.error('   ${finding.code} ${finding.file}: ${finding.message}');
+      }
+      Logger.log('❌ ${envProblems.length} secret problem(s)');
       exit(1);
     }
 

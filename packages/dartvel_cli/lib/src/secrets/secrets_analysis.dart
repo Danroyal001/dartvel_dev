@@ -236,6 +236,49 @@ DVSecretFinding _undeclared(String path, String name) => DVSecretFinding(
           'call site fails at runtime in production instead.',
     );
 
+/// PUBLIC_ variables in an env file that the declaration does not account for.
+///
+/// Whatever writes `env.g.dart` compiles in every PUBLIC_-prefixed variable it
+/// finds, and that is the whole of the decision -- no declaration is consulted
+/// and none is in reach under build_runner. So a name somebody typed with the
+/// prefix reaches every visitor with nothing having reviewed it: copied from
+/// another project, guessed at, or written before anyone thought about the
+/// scope. The declaration is meant to be where the client opt-in is
+/// justified, and this is what makes that so rather than aspirational.
+///
+/// Names without the prefix are not reported. They never reach the bundle, so
+/// flagging them would turn a security diagnostic into a tidiness one, and
+/// those get switched off together.
+///
+/// [contents] rather than a path, and read with the parser the runtime uses,
+/// so this and the generator cannot disagree about what the file says.
+List<DVSecretFinding> dvAnalysePublicEnvironment({
+  required Map<String, DVSecretDeclaration> declared,
+  required String file,
+  required String contents,
+}) {
+  final List<DVSecretFinding> findings = <DVSecretFinding>[];
+  final List<String> names = dvParseEnvContents(contents).keys.toList()..sort();
+  for (final String name in names) {
+    if (!name.startsWith('PUBLIC_')) continue;
+    if (declared[name]?.scope == DVSecretScope.client) continue;
+
+    // The value is never quoted back. A diagnostic that prints the secret to
+    // prove it found one has put it in the build log, where CI keeps it for
+    // everybody with access to the repository.
+    findings.add(DVSecretFinding(
+      code: 'DV-SECRETS-003',
+      file: file,
+      secret: name,
+      message: '"$name" carries the PUBLIC_ prefix, so it is compiled into '
+          'env.g.dart and ships to every visitor, but no dartvel.secrets '
+          'entry declares it scope: client. Declare it, or rename it without '
+          'the prefix so it stays on the server.',
+    ));
+  }
+  return findings;
+}
+
 /// Which of [names] resolve, asked of the same resolver the deployed process
 /// will use.
 ///
