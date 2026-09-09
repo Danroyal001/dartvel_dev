@@ -62,11 +62,43 @@ class DVHomeWidgetSpec {
 /// provider, no extension, and no message anywhere, with the annotation still
 /// in the file saying otherwise.
 ///
-/// Group 1 is whatever the annotation was given, group 2 the declared name.
+/// The specification puts the annotation on "any widget, whether
+/// Flutter-native, `DVClassWidget`, or `DVFunctionalWidget`", so the class
+/// shape is matched as well as the function shape -- and it is matched
+/// first, which is the whole of the fix. The function branch's return type
+/// is deliberately loose, because a widget-returning function may be written
+/// with any of several types, and loose enough to swallow
+/// `class _StepCounter extends` and take `StatelessWidget` for the declared
+/// name. What came of that was a message telling the developer to rename a
+/// class in the Flutter SDK, about a widget nothing had read.
+///
+/// Read the pieces out with [dvHomeWidgetAnnotationArgs],
+/// [dvHomeWidgetDeclaredName] and [dvHomeWidgetIsClass] rather than by group
+/// number: two scanners share this, and a group index counted by hand in
+/// each is a scan that silently reads the wrong capture when the pattern
+/// grows another one.
 final RegExp dvHomeWidgetDeclaration = RegExp(
   r'@DVHomeWidget\(([^)]*)\)\s*(?:@[A-Za-z_][\w.]*\([^)]*\)\s*)*'
-  r'(?:Widget|[A-Za-z_][\w<>, ?]*)\s+([A-Za-z_][A-Za-z0-9_]*)\s*[({]',
+  r'(?:class\s+(?<widgetClass>[A-Za-z_][A-Za-z0-9_]*)\b'
+  r'|(?:Widget|[A-Za-z_][\w<>, ?]*)\s+(?<widgetFunction>[A-Za-z_][A-Za-z0-9_]*)\s*\()',
 );
+
+/// Whatever the `@DVHomeWidget` in [match] was given, as written.
+String dvHomeWidgetAnnotationArgs(RegExpMatch match) => match.group(1) ?? '';
+
+/// The name declared under the `@DVHomeWidget` in [match].
+///
+/// The function's name or the class's, whichever shape it was written in.
+String dvHomeWidgetDeclaredName(RegExpMatch match) =>
+    match.namedGroup('widgetClass') ?? match.namedGroup('widgetFunction')!;
+
+/// Whether [match] declared a widget class rather than a widget function.
+///
+/// The two are generated differently and cannot be told apart afterwards: a
+/// function is lowered into a widget class the generator writes and owns, and
+/// a class is the developer's own, referenced where it already lives.
+bool dvHomeWidgetIsClass(RegExpMatch match) =>
+    match.namedGroup('widgetClass') != null;
 
 /// Whether [source] is worth scanning for a home widget at all.
 ///
@@ -83,6 +115,71 @@ bool dvSourceDeclaresHomeWidget(String source) =>
 /// resolving a launch back to it: two spellings of this is how a widget's
 /// tap opens the not-found page.
 String dvHomeWidgetRoute(String id) => '/widgets/$id';
+
+/// The host a home widget's launch link carries.
+///
+/// It says what kind of link this is, which is the only thing separating a
+/// widget's tap from an ordinary `dartvel://` deep link the application also
+/// handles. Without a host of its own the route would start at the
+/// authority, and `dartvel://widgets/order-status` parses with `widgets` as
+/// the host and `order-status` as the whole path -- so an application that
+/// handles both kinds of link could not tell them apart at all.
+const String dvHomeWidgetLaunchHost = 'widget';
+
+/// The URL scheme a home widget's tap opens the application with.
+///
+/// One value, because three things have to agree on it and only one of them
+/// is Dart: the generated Java that fires the intent, the generated Swift
+/// that hands the URL to WidgetKit, and the desktop launch path that decides
+/// whether an argument is a link at all.
+///
+/// It is the framework's scheme rather than the application's, and that is
+/// worth stating rather than leaving as an oversight. On Android the intent
+/// names the Activity outright, so nothing resolves the scheme and a shared
+/// one costs nothing. On Apple the URL is handed to the containing
+/// application by WidgetKit rather than through LaunchServices, so it costs
+/// nothing there either. Where it would cost something is an application
+/// that also wants `dartvel://` links from outside itself, and giving it a
+/// scheme of its own is a change that cannot be checked without a device.
+const String dvHomeWidgetLaunchScheme = 'dartvel';
+
+/// The link a home widget's tap opens the application with.
+///
+/// [scheme] is the application's own URL scheme and [route] the route the
+/// widget was generated for. Both native halves write this: Android's
+/// provider puts it in the PendingIntent, and WidgetKit's view hands it to
+/// `widgetURL`. One rule, because the runtime reads it back with
+/// [dvHomeWidgetRouteForLink] and two spellings is a tap that opens the
+/// not-found page on one platform and the right page on the other.
+String dvHomeWidgetLaunchUrl(String scheme, String route) =>
+    '$scheme://$dvHomeWidgetLaunchHost$route';
+
+/// The route [link] asks for when it is a home widget's tap, else null.
+///
+/// The inverse of [dvHomeWidgetLaunchUrl], and the half that did not exist.
+/// Both platforms launched the application at a URL naming the widget's
+/// route, and the general rule for a `dartvel://` link folds the host back
+/// into the path -- so `dartvel://widget/widgets/order-status` came out as
+/// `/widget/widgets/order-status`, which no router has. A widget on somebody's
+/// home screen opened the not-found page, and nothing at either end had
+/// anything to report.
+///
+/// Null for everything that is not this exact shape. Claiming a link that
+/// merely carries the host would send a half-written URL to `/widgets/`,
+/// which matches no widget and reads as one that was removed.
+String? dvHomeWidgetRouteForLink(String link) {
+  final Uri? uri = Uri.tryParse(link.trim());
+  if (uri == null || !uri.hasScheme) return null;
+  if (uri.host != dvHomeWidgetLaunchHost) return null;
+  final List<String> segments = uri.pathSegments;
+  if (segments.length != 2 || segments[0] != 'widgets') return null;
+  final String id = segments[1];
+  if (id.isEmpty) return null;
+  // Through the same function the build wrote the route with, rather than
+  // rebuilt from the pieces here. That is what keeps the two ends from
+  // drifting when the route shape changes.
+  return dvHomeWidgetRoute(id);
+}
 
 /// The identifier for a generated widget class.
 ///
@@ -166,6 +263,30 @@ const String dvHomeWidgetAndroidClass = 'dev/dartvel/jni/DartvelWidgets';
 /// equivalent is needed. Two spellings of the name is a widget reading an
 /// empty store.
 const String dvHomeWidgetAndroidStore = 'dartvel.widgets';
+
+/// The Objective-C class name of the Swift shim that redraws a home widget
+/// on Apple platforms.
+///
+/// WidgetCenter is Swift-only and has no Objective-C class to message, so
+/// nothing in Dart can reach it: `objc_getClass("WidgetCenter")` answers nil
+/// on a device where WidgetKit is working perfectly. What can be reached is
+/// a class compiled into the application that calls it, which is what
+/// `dartvel build` writes.
+///
+/// In core because both halves need it and they are in different packages:
+/// the build writes the Swift that declares this name, and the Flutter
+/// runtime looks it up by string. Two spellings is a lookup that answers nil
+/// for ever -- and nil is also the honest answer for an application built
+/// with plain `flutter build`, so the two are indistinguishable and neither
+/// reports anything.
+const String dvHomeWidgetAppleReloadClass = 'DartvelWidgetCenter';
+
+/// The selector the shim answers to.
+///
+/// Named beside the class for the same reason. A selector that does not
+/// exist is not a nil lookup: it is an unrecognised-selector exception,
+/// which is loud, and which arrives on a device rather than in a build.
+const String dvHomeWidgetAppleReloadSelector = 'reloadAll';
 
 /// The user-defaults key an iOS launch URL is left under.
 ///
