@@ -77,6 +77,32 @@ dartvel:
 `pagesDir` and `backendDir` are defaults, not requirements — point them
 elsewhere and generation follows.
 
+An application serving more than one customer configures tenancy in the same
+place:
+
+```yaml
+dartvel:
+  tenancy:
+    isolation: shared-database   # or schema-per-tenant, database-per-tenant
+    source: subdomain            # or header, path-prefix, query-parameter
+    header: X-Tenant             # when source is header
+    queryParameter: tenant       # when source is query-parameter
+    ignoredHostLabels: [www]     # www.example.com is the site, not a tenant
+    require: true                # refuse a request that names no tenant
+```
+
+Every key is optional and the defaults are the ones above. A value Dartvel
+does not implement fails the build rather than being ignored: a misspelled
+`isolation` left on the floor would run the shared-database default while the
+pubspec says otherwise, and every query would still return rows.
+
+Under `database-per-tenant` the application also has to say how to open one
+tenant's database, with `DV.Database.configureTenantDatabases(...)`, since the
+build cannot know. Which models carry a tenant is per model, with
+`@DVModel(tenantScoped: true)` — a table deliberately shared between tenants,
+a currency list or a country table, would be broken by a predicate it never
+asked for.
+
 ---
 
 ## Generate
