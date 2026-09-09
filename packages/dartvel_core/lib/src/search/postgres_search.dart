@@ -96,7 +96,15 @@ class DVPostgresSearchProvider<TModel, TFacets>
   ({String sql, Object? param})? get _tenantPredicate {
     const DVTenants tenants = DVTenants();
     if (tenants.isolation != DVTenantIsolation.sharedDatabase) return null;
-    if (!dvTenantScopedTables.contains(table)) return null;
+    // Case-insensitively, because an unquoted SQL identifier is: a provider
+    // built for Orders and a client that registered orders name one table,
+    // and missing that fails in the silent direction -- no predicate, rows
+    // returned, nothing about the result to look at.
+    final String lower = table.toLowerCase();
+    if (!dvTenantScopedTables
+        .any((String scoped) => scoped.toLowerCase() == lower)) {
+      return null;
+    }
     return (sql: '$dvTenantColumnName = ?', param: tenants.currentTenant);
   }
 
