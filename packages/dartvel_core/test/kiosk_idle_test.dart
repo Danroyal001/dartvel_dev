@@ -46,6 +46,19 @@ void main() {
     resets = <DVKioskReset>[];
   });
 
+  /// Resumes into kiosk and forgets the startup reset.
+  ///
+  /// Entering kiosk from `off` resets the session with
+  /// [DVKioskResetReason.startup] -- a supervised kiosk restarts mid-order
+  /// and the parts of a session that outlive a process come back with it.
+  /// That belongs to kiosk_reset_reason_test; here it is one entry of noise
+  /// in front of every assertion about the idle clock.
+  Future<void> boot(DVKioskRuntime r) async {
+    await r.resume();
+    resets.clear();
+    cleared.clear();
+  }
+
   Future<void> pass(DVKioskRuntime r, Duration d) async {
     now = now.add(d);
     await r.tick();
@@ -53,7 +66,7 @@ void main() {
 
   test('nothing happens while someone is using it', () async {
     final DVKioskRuntime r = runtime(policy());
-    await r.resume();
+    await boot(r);
     for (int i = 0; i < 10; i++) {
       await pass(r, const Duration(seconds: 40));
       r.touch();
@@ -65,7 +78,7 @@ void main() {
 
   test('the countdown starts idleWarning before the timeout and counts down', () async {
     final DVKioskRuntime r = runtime(policy());
-    await r.resume();
+    await boot(r);
     await pass(r, const Duration(seconds: 49));
     expect(r.countdown.value, isNull);
     await pass(r, const Duration(seconds: 1));
@@ -78,7 +91,7 @@ void main() {
 
   test('touching during the countdown cancels it', () async {
     final DVKioskRuntime r = runtime(policy());
-    await r.resume();
+    await boot(r);
     await pass(r, const Duration(seconds: 55));
     expect(r.countdown.value, isNotNull);
     r.touch();
@@ -91,7 +104,7 @@ void main() {
 
   test('at the timeout, onIdle: reset clears what the policy says and goes home', () async {
     final DVKioskRuntime r = runtime(policy());
-    await r.resume();
+    await boot(r);
     await pass(r, const Duration(seconds: 60));
 
     expect(cleared, <Set<DVKioskClearable>>[<DVKioskClearable>{DVKioskClearable.signals, DVKioskClearable.forms}]);
@@ -110,7 +123,7 @@ void main() {
 
   test('onIdle: home goes home and clears nothing', () async {
     final DVKioskRuntime r = runtime(policy(onIdle: 'home'));
-    await r.resume();
+    await boot(r);
     await pass(r, const Duration(seconds: 60));
     expect(cleared, isEmpty);
     expect(resets.single.cleared, isEmpty);
@@ -120,7 +133,7 @@ void main() {
 
   test('onIdle: none does nothing, and the countdown is not shown either', () async {
     final DVKioskRuntime r = runtime(policy(onIdle: 'none'));
-    await r.resume();
+    await boot(r);
     await pass(r, const Duration(seconds: 55));
     expect(r.countdown.value, isNull);
     await pass(r, const Duration(seconds: 10));
@@ -136,7 +149,7 @@ void main() {
       clear: (Set<DVKioskClearable> what) async => cleared.add(what),
     );
     r.resets.listen(resets.add);
-    await r.resume();
+    await boot(r);
     expect((await r.exit(const DVKioskExitRequest.pin('4821'))).granted, isTrue);
     await pass(r, const Duration(minutes: 5));
     expect(resets, isEmpty);
@@ -146,7 +159,7 @@ void main() {
 
   test('an explicit reset does the same as an idle one, now', () async {
     final DVKioskRuntime r = runtime(policy());
-    await r.resume();
+    await boot(r);
     final DVKioskReset reset = await r.reset(DVKioskResetReason.explicit);
     expect(reset.reason, DVKioskResetReason.explicit);
     expect(cleared, hasLength(1));
@@ -160,8 +173,11 @@ void main() {
       clock: () => now,
       clear: (Set<DVKioskClearable> _) async => throw StateError('store down'),
     );
-    await r.resume();
-    await expectLater(r.reset(DVKioskResetReason.explicit), throwsStateError);
+    // The startup reset is the first clear this runtime attempts, so the
+    // failure lands on the way into kiosk -- which is the worst moment for
+    // it to be swallowed. A device that could not drop the last session and
+    // presents itself as fresh is the outcome the failed state exists for.
+    await expectLater(r.resume(), throwsStateError);
     expect(r.state.value, DVKioskState.failed);
     r.stop();
   });
@@ -174,7 +190,7 @@ void main() {
       clear: (Set<DVKioskClearable> what) async => cleared.add(what),
     );
     r.resets.listen(resets.add);
-    await r.resume();
+    await boot(r);
     now = now.add(const Duration(seconds: 61));
     await Future<void>.delayed(const Duration(milliseconds: 100));
     expect(resets, hasLength(1));

@@ -8,12 +8,12 @@
 // somebody who writes the clipboard rule into a kiosk has decided the
 // clipboard is locked.
 //
-// Four of the five are the ones Dartvel can honour on its own, in Dart,
-// with no platform binding: what a page lets you select, what the
-// framework's own clipboard API will do, whether a pointer is drawn, and
-// whether the surface darkens with nobody there. The one that remains --
-// routes.external -- still needs a meaning distinct from the allow list
-// before anything can enforce it, and still reports.
+// All five are the ones Dartvel can honour on its own, in Dart, with no
+// platform binding: what a page lets you select, what the framework's own
+// clipboard API will do, whether a pointer is drawn, whether the surface
+// darkens with nobody there, and whether a link may leave the application at
+// all. What is still unbuilt is the power half of screenDim, which is a
+// backlight and not a rule.
 import 'package:dartvel_core/dartvel.dart';
 import 'package:test/test.dart';
 
@@ -70,9 +70,10 @@ void main() {
       );
     });
 
-    test('the one that is still unbuilt still says so', () {
-      // Naming four of five as done would be worse than naming none: the
-      // remaining one looks implemented by association.
+    test('the fifth key is read now and no longer says otherwise', () {
+      // It was the last one reported as unread. Leaving the report in place
+      // would send somebody who declared it looking for the reason their
+      // kiosk still opens the browser, and the reason would not be there.
       final DVKioskPolicy policy = DVKioskPolicy.parse(<String, Object?>{
         'kiosk': <String, Object?>{
           'enabled': true,
@@ -80,7 +81,8 @@ void main() {
         },
       });
 
-      expect(policy.problems.join(' '), contains('external'));
+      expect(policy.external, DVKioskExternal.block);
+      expect(policy.problems, isEmpty);
     });
 
     test('and the four that are built do not', () {
