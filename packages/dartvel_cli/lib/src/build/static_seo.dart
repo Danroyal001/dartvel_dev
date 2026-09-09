@@ -50,6 +50,7 @@ String dvStaticPage({
   String? siteName,
   Map<String, String> alternates = const <String, String>{},
   String? defaultAlternate,
+  String? favicon,
 }) {
   final canonical =
       siteUrl == null ? null : dvStaticCanonical(siteUrl, route);
@@ -91,6 +92,12 @@ String dvStaticPage({
       defaultAlternate: defaultAlternate,
     ) + (jsonLd.isEmpty ? '' : '\n$jsonLd'),
   );
+
+  // Outside the marked region deliberately. dvSeoApply rewrites what is
+  // between its markers, and the shell's icon link is not in there -- it is a
+  // tag Flutter wrote, and replacing it is the only way a page gets its own
+  // icon rather than a second one next to the application's.
+  html = dvApplyFavicon(html, favicon);
 
   if (content != null && content.trim().isNotEmpty) {
     html = _injectContent(html, content);
