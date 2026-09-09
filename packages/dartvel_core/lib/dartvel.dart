@@ -91,6 +91,10 @@ export 'src/middleware/middleware.dart';
 export 'src/middleware/middleware_runtime.dart';
 export 'src/modules/manifest.dart';
 export 'src/modules/modules.dart';
+// The device side of push. Exported by nothing until now, so the API that
+// registers a device, requests permission and subscribes to a topic was
+// written, tested through a src/ import, and callable by no application.
+export 'src/notifications/push.dart';
 export 'src/notifications/web_push.dart';
 export 'src/notifications/web_push_vapid.dart';
 export 'src/observability/observability.dart';

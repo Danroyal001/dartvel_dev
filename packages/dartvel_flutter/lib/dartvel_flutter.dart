@@ -257,6 +257,13 @@ export 'package:dartvel_core/dartvel.dart'
         DVWebPushSubscription,
         dvMailPriorityHeaders,
         dvMailWireHeaders,
+        // Device registration. A Flutter application is the one that has a
+        // device to register, so leaving these out of the list left the
+        // feature reachable only from a pure Dart server.
+        PushNotifications,
+        PushNotification,
+        PushNotificationProvider,
+        LocalPushNotificationProvider,
         DVPolicyCheck,
         DVQueueAdapter,
         DVQueues,
