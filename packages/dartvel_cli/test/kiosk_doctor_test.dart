@@ -220,4 +220,42 @@ Widget _p(BuildContext context) => $body;
           isNot(contains('DV-KIOSK-009')));
     });
   });
+
+  group('what the framework cannot clear by itself', () {
+    DVKioskCheck check(List<String> clear) => DVKioskCheck.run(
+          section(<String, Object?>{
+            'enabled': true,
+            'session': <String, Object?>{'clearOnReset': clear},
+            'exit': <String, Object?>{'method': 'pin', 'pin': 'secret:PIN'},
+          }),
+          <DVKioskTarget>[DVKioskTarget.linuxDesktop],
+        );
+
+    test('signals and forms are named, because Dartvel clears neither', () {
+      // Dartvel clears the client cache, the auth session and the shared
+      // store. Page signals go when the navigation home destroys the page,
+      // and anything kept outside a page survives it -- so an operator who
+      // wrote these two has asked for something only the application can do,
+      // and silence here is a reset that quietly leaves them in place.
+      final String said = check(<String>['signals', 'forms']).lines.join('\n');
+
+      expect(said, contains('signals'));
+      expect(said, contains('forms'));
+      expect(said, contains('installKioskPolicy'));
+    });
+
+    test('and it is a warning rather than a failure', () {
+      // A kiosk whose session lives entirely in the page is correct as
+      // declared, and failing a build over it would stop a deployment that
+      // works.
+      expect(check(<String>['signals']).ok, isTrue);
+    });
+
+    test('the three Dartvel does clear are not mentioned', () {
+      final String said =
+          check(<String>['sharedStore', 'auth', 'clientCache']).lines.join('\n');
+
+      expect(said, isNot(contains('installKioskPolicy')));
+    });
+  });
 }
