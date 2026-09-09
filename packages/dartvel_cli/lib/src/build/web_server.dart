@@ -16,7 +16,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:dartvel_core/dartvel.dart' show DVCacheAdapter, DVPageData, DVPageDataCache, DVPageDataMode, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute;
+import 'package:dartvel_core/dartvel.dart' show DVCacheAdapter, DVPageData, DVPageDataCache, DVPageDataMode, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvWithRequestTenant;
 import 'package:path/path.dart' as p;
 import 'package:shelf/shelf.dart';
 import 'package:shelf_static/shelf_static.dart';
@@ -234,8 +234,25 @@ Handler dvWebServerHandler({
 
   final files = createStaticHandler(webRoot);
 
-  return (Request request) async {
-    final path = '/${request.url.path}';
+  // The tenant the request named, current for everything this handler does.
+  //
+  // Nothing here resolved one, so a page whose data comes from a
+  // tenant-scoped model rendered the default tenant's rows while the
+  // deployed server rendered the caller's. That is the divergence this
+  // target exists to avoid: the page a developer previews is meant to be
+  // the page the server sends.
+  //
+  // Handed a map rather than the shelf request, because the resolver reads
+  // the host and the headers and knows neither shape. requestedUri carries
+  // the Host header, which is where a tenant subdomain lives; request.url
+  // is the path alone.
+  return (Request request) => dvWithRequestTenant(
+        <String, Object?>{
+          'url': request.requestedUri,
+          'headers': request.headers,
+        },
+        () async {
+          final path = '/${request.url.path}';
 
     // The admin, before anything else looks at the path.
     //
@@ -407,7 +424,8 @@ Handler dvWebServerHandler({
       ),
       headers: htmlHeaders,
     );
-  };
+        },
+      );
 }
 
 /// The content type for a file the admin serves.
