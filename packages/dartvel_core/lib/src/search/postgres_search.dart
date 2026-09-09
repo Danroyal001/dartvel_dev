@@ -70,6 +70,44 @@ class DVPostgresSearchProvider<TModel, TFacets>
       .map((String column) => "coalesce($column, '')")
       .join(" || ' ' || ");
 
+  /// The table as this tenant's statement names it.
+  ///
+  /// Under a schema per tenant that is a qualified name, resolved when the
+  /// statement runs rather than when the provider was built: which schema is
+  /// asking is a fact about the request, and two requests are in flight at
+  /// once. Under the shared database it is the table's own name and the
+  /// separation is [_tenantPredicate] below.
+  String get _table => dvTenantTable(table);
+
+  /// The tenant predicate for this table, or null when it needs none.
+  ///
+  /// Null for a table nobody registered as scoped -- a currency list is
+  /// deliberately shared and a predicate on a column it has not got fails
+  /// every search over it -- and null under the other two isolation
+  /// strategies, where the schema or the connection is what separates.
+  ///
+  /// This is what search was missing. The provider builds its own SQL and
+  /// hands it to the adapter, so it went past DV.Database and past the check
+  /// that refuses a statement naming a scoped table without the tenant
+  /// column. Nothing else added one: the automatic tenant filter was a hook
+  /// called [filter] that every application had to write for itself, and one
+  /// that did not got a search box returning other tenants' rows with their
+  /// titles and descriptions in the results.
+  ({String sql, Object? param})? get _tenantPredicate {
+    const DVTenants tenants = DVTenants();
+    if (tenants.isolation != DVTenantIsolation.sharedDatabase) return null;
+    // Case-insensitively, because an unquoted SQL identifier is: a provider
+    // built for Orders and a client that registered orders name one table,
+    // and missing that fails in the silent direction -- no predicate, rows
+    // returned, nothing about the result to look at.
+    final String lower = table.toLowerCase();
+    if (!dvTenantScopedTables
+        .any((String scoped) => scoped.toLowerCase() == lower)) {
+      return null;
+    }
+    return (sql: '$dvTenantColumnName = ?', param: tenants.currentTenant);
+  }
+
   @override
   Future<DVSearchResultPage<TModel>> query(
     String query, {
@@ -95,20 +133,28 @@ class DVPostgresSearchProvider<TModel, TFacets>
       "websearch_to_tsquery('$configuration', ?)",
     );
     final params = <Object?>[trimmed];
+    // Before the application's own filter, so a filter that throws or is
+    // written wrong cannot be the reason the tenant predicate is missing.
+    final scope = _tenantPredicate;
+    if (scope != null) {
+      where.write(' AND ${scope.sql}');
+      params.add(scope.param);
+    }
     if (extra != null && extra.sql.trim().isNotEmpty) {
       where.write(' AND (${extra.sql})');
       params.addAll(extra.params);
     }
 
+    final String from = _table;
     final counted = await database.query(
-      'SELECT COUNT(*) AS total FROM $table WHERE $where',
+      'SELECT COUNT(*) AS total FROM $from WHERE $where',
       params,
     );
     final total = (counted.first['total'] as num?)?.toInt() ?? 0;
 
     final offset = (page < 1 ? 0 : page - 1) * perPage;
     final rows = await database.query(
-      'SELECT * FROM $table WHERE $where '
+      'SELECT * FROM $from WHERE $where '
       // ts_rank orders by relevance rather than table order, which is the
       // only reason to use the search engine over a LIKE.
       "ORDER BY ts_rank(to_tsvector('$configuration', $_document), "
@@ -135,7 +181,10 @@ class DVPostgresSearchProvider<TModel, TFacets>
       throw ArgumentError.value(name, 'indexName', 'Not a plain identifier.');
     }
     await database.execute(
-      'CREATE INDEX IF NOT EXISTS $name ON $table USING GIN '
+      // The tenant's own table under a schema per tenant: an index built on
+      // the bare name there lands in whichever schema the connection is
+      // pointed at, which is somebody else's table or none.
+      'CREATE INDEX IF NOT EXISTS $name ON $_table USING GIN '
       "(to_tsvector('$configuration', $_document))",
     );
   }
