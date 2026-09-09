@@ -8,13 +8,19 @@ import 'generated_router.dart';
 
 void main() {
   test('backend generator accepts typed middleware constants', () async {
+    // This page used to declare tenant and rateLimit and assert the build
+    // was fine with them. It was, and that was the bug: neither key means
+    // anything on a page -- there is no request to resolve a tenant from,
+    // and a limit the caller enforces on itself is not a limit -- and the
+    // validator was measuring both against the sets written for the HTTP
+    // chain. The keys left are the two a route can actually run.
     final root = await _createProject();
     try {
       File(p.join(root.path, 'lib', 'pages', 'checkout.dart'))
           .writeAsStringSync('''
 import 'package:dartvel_core/dartvel.dart';
 
-@DVUseMiddleware([DVMiddlewares.auth, DVMiddlewares.tenant, DVMiddlewares.rateLimit])
+@DVUseMiddleware([DVMiddlewares.auth, DVMiddlewares.maintenance])
 @DVPage()
 void checkoutPage() {}
 ''');
@@ -382,6 +388,169 @@ Future<Map<String, bool>> page() async => <String, bool>{'ok': true};
       );
       expect(routes, contains("default-src \\'self\\'"));
       expect(dvRouteSource(routes, '/page'), contains("'csp'"));
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
+  _pageScope();
+}
+
+// ---------------------------------------------------------------------------
+// The same annotation on a page is a different question.
+//
+// This validator walks every file under lib/, pages included, and measured
+// all of them against the sets written for the HTTP chain. So a page could
+// declare bodyLimit and be told the name was fine: there is no request body
+// to cap on a route activation, no response whose headers it could set, and
+// no second party to rate limit, because the page and the visitor are one
+// machine. Nine keys were accepted on a page and ran nothing -- the exact
+// failure the backend sets were written to end, one scope sideways.
+
+void _pageScope() {
+  test('a page declaring a body limit fails the build and says where limits go',
+      () async {
+    final root = await _createProject();
+    try {
+      File(p.join(root.path, 'lib', 'pages', 'upload.dart'))
+          .writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVUseMiddleware([DVMiddlewares.bodyLimit])
+@DVPage()
+void uploadPage() {}
+''');
+
+      await expectLater(
+        () => _generate(root),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            allOf(
+              contains('DVMiddlewares.bodyLimit'),
+              contains('@DVBackendFunction'),
+            ),
+          ),
+        ),
+      );
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
+  test('a page declaring policy is pointed at the argument that names one',
+      () async {
+    // The refusal has to name somewhere to put the thing. A build that only
+    // says no leaves a developer with a green tree and no guard, which is
+    // barely better than the silence this replaced.
+    final root = await _createProject();
+    try {
+      File(p.join(root.path, 'lib', 'pages', 'admin.dart'))
+          .writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVPage()
+@DVUseMiddleware([DVMiddlewares.policy])
+void adminPage() {}
+''');
+
+      await expectLater(
+        () => _generate(root),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            contains('@DVPage(policy:'),
+          ),
+        ),
+      );
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
+  test('the same key on a backend function still builds', () async {
+    // The control, and the one that would catch this going too far. A page
+    // scope that leaked into the backend would refuse bodyLimit where it is
+    // implemented, tested and enforced in the request prelude.
+    final root = await _createProject();
+    try {
+      File(p.join(root.path, 'lib', 'backend', 'functions', 'up.post.dart'))
+          .writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVUseMiddleware([DVMiddlewares.bodyLimit])
+Future<Map<String, bool>> up() async => <String, bool>{'ok': true};
+''');
+
+      await _generate(root);
+
+      expect(
+        File(p.join(root.path, '.dart_tool', 'dartvel_backend_routes.g.dart'))
+            .existsSync(),
+        isTrue,
+      );
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
+  test('a page outside the pages directory is judged as a page too', () async {
+    // The scope is the declaration, not the folder. A page file anywhere
+    // under lib/ carries @DVPage, and deciding by directory would let the
+    // same annotation mean two things depending on where somebody put it.
+    final root = await _createProject();
+    try {
+      File(p.join(root.path, 'lib', 'checkout_page.dart'))
+          .writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVUseMiddleware([DVMiddlewares.rateLimit])
+@DVPage()
+void checkoutPage() {}
+''');
+
+      await expectLater(
+        () => _generate(root),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            contains('DVMiddlewares.rateLimit'),
+          ),
+        ),
+      );
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
+  test('two declarations in one file are judged one at a time', () async {
+    // A file can hold a page and a backend function, and a scope decided
+    // per file rather than per declaration would refuse whichever came
+    // second. Both here are legal in their own scope.
+    final root = await _createProject();
+    try {
+      File(p.join(root.path, 'lib', 'mixed.dart')).writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVUseMiddleware([DVMiddlewares.auth])
+@DVPage()
+void checkoutPage() {}
+
+@DVUseMiddleware([DVMiddlewares.bodyLimit])
+@DVBackendFunction()
+Future<Map<String, bool>> up() async => <String, bool>{'ok': true};
+''');
+
+      await _generate(root);
+
+      expect(
+        File(p.join(root.path, 'lib', 'dartvel_client', 'functions.g.dart'))
+            .existsSync(),
+        isTrue,
+      );
     } finally {
       root.deleteSync(recursive: true);
     }
