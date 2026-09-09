@@ -2442,8 +2442,13 @@ class SesMailProvider extends DVHttpMailProvider {
     final body = utf8.encode(jsonEncode(<String, Object?>{
       'FromEmailAddress': DVHttpMailProvider.formatAddress(message.from),
       'Destination': <String, Object?>{
+        // The full RFC 5322 form, which SES v2 accepts here. Sending the bare
+        // mailbox dropped every recipient display name on this provider and
+        // no other, so the same code produced named recipients on five
+        // providers and unnamed ones on the sixth.
         'ToAddresses': <String>[
-          for (final address in message.to) address.email,
+          for (final address in message.to)
+            DVHttpMailProvider.formatAddress(address),
         ],
       },
       'Content': <String, Object?>{
