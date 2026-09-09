@@ -49,6 +49,29 @@ class DVKioskCheck {
       }
     }
 
+    // Two of the five clearables are the application's own state and Dartvel
+    // reaches neither. It clears the client cache, the auth session and the
+    // shared store; page signals go when the reset's navigation home
+    // destroys the page, and everything a project keeps outside a page --
+    // a store, a controller, a DV.global registration -- survives the reset
+    // that was declared to drop it.
+    //
+    // Said rather than failed. A kiosk whose whole session lives in the page
+    // is correct as written, and stopping a working deployment over it would
+    // be worse than the silence. The silence is still the wrong answer: an
+    // operator who wrote these two believes something is being cleared.
+    final List<String> ownState = <String>[
+      if (policy.clearOnReset.contains(DVKioskClearable.signals)) 'signals',
+      if (policy.clearOnReset.contains(DVKioskClearable.forms)) 'forms',
+    ];
+    if (ownState.isNotEmpty) {
+      lines.add('  [~] session.clearOnReset lists ${ownState.join(' and ')}, '
+          'which only the application can clear. Dartvel clears the client '
+          'cache, the auth session and the shared store; state held outside '
+          'the page survives the reset. Pass a clear callback to '
+          'DVPlatform.installKioskPolicy to reach it.');
+    }
+
     // The policy's own refusals first: nothing about a target matters if the
     // declaration cannot be honoured anywhere.
     for (final String problem in policy.problems) {

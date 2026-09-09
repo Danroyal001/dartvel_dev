@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui show Display;
 
-import 'package:dartvel_core/dartvel.dart' show DVDiagnostics, DVInstanceLock, DVStartupProfile, DVKioskEnforcement, DVKioskExitRequest, DVKioskExitResult, DVKioskPolicy, DVKioskReset, DVKioskResetReason, DVKioskRuntime, DVKioskSignal, DVKioskState, DVKioskTarget, DVTenants;
+import 'package:dartvel_core/dartvel.dart' show DVDiagnostics, DVInstanceLock, DVStartupProfile, DVKioskClearable, DVKioskEnforcement, DVKioskExitRequest, DVKioskExitResult, DVKioskPolicy, DVKioskReset, DVKioskResetReason, DVKioskRuntime, DVKioskSignal, DVKioskState, DVKioskTarget, DVTenants;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
@@ -1008,7 +1008,7 @@ class DVWindowManager {
       if (spec == null) {
         throw ArgumentError('A kiosk window needs DVWindowOptions.kiosk with its declared policy.');
       }
-      window.kiosk = DVWindowKioskHandle._(window, spec.policy, target: kioskTargetHere());
+      window.kiosk = DVWindowKioskHandle._(window, spec.policy, target: kioskTargetHere(), name: spec.name);
       await window.kiosk!._runtime.resume();
       if (!kioskInPlace && display?.display != null) {
         _kioskOwners[display!.display!.id] = window;
@@ -1293,7 +1293,18 @@ class DVWindowManager {
 class DVWindowKiosk {
   final DVKioskPolicy policy;
 
-  const DVWindowKiosk({required this.policy});
+  /// The declared kiosk window's name, from `dartvel.kiosk.windows.<name>`.
+  ///
+  /// It is what scopes a session reset. A display-scope policy may clear the
+  /// shared store only under `kiosk.<name>.*`, and the policy alone cannot
+  /// say which prefix that is -- two customer displays running the same
+  /// named policy own different keys. Without a name the reset leaves the
+  /// store alone, because the only alternative is emptying all of it, and
+  /// signing the cashier out of their own window is what display scope
+  /// exists to prevent.
+  final String? name;
+
+  const DVWindowKiosk({required this.policy, this.name});
 }
 
 /// What a kiosk window can be asked: its state, what this platform honours
@@ -1306,8 +1317,20 @@ class DVWindowKioskHandle {
   DVKioskReset? _lastReset;
   bool _exited = false;
 
-  DVWindowKioskHandle._(this._window, this.policy, {required DVKioskTarget target})
-      : _runtime = DVKioskRuntime(policy, tickEvery: const Duration(seconds: 1)),
+  DVWindowKioskHandle._(this._window, this.policy,
+      {required DVKioskTarget target, String? name})
+      : _runtime = DVKioskRuntime(
+          policy,
+          tickEvery: const Duration(seconds: 1),
+          // The window's own share of the store, and no more. Without this
+          // the runtime called the default clear, whose body is empty, so
+          // every entry in clearOnReset was parsed, validated and dropped.
+          clear: (Set<DVKioskClearable> what) => dvClearKioskSession(
+                what,
+                scope: policy.scope,
+                namespace: name == null ? null : 'kiosk.$name',
+              ),
+        ),
         enforcement = DVKioskEnforcement.resolve(policy: policy, target: target);
 
   /// The kiosk's state, as a signal.
