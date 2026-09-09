@@ -16,8 +16,84 @@ import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  setUp(() => DVNativeBridge.unregister('homeWidgets.publish'));
-  tearDown(() => DVNativeBridge.unregister('homeWidgets.publish'));
+  setUp(() {
+    DVNativeBridge.unregister('homeWidgets.publish');
+    DVHomeWidgets.declare(const <DVHomeWidgetSpec>[]);
+  });
+  tearDown(() {
+    DVNativeBridge.unregister('homeWidgets.publish');
+    DVHomeWidgets.declare(const <DVHomeWidgetSpec>[]);
+  });
+
+  group('against what the application declares', () {
+    // The generated list of home widgets was written into
+    // home_widgets.g.dart, exported from the barrel, and read by nothing.
+    // Not by the runtime, and not by the build either, which rescans the
+    // source files for itself.
+    //
+    // What it is for is this. publish() takes a bare string, and every way
+    // of getting that string wrong is silent: order_status instead of
+    // order-status writes a key no widget ever asks for, answers true, and
+    // leaves somebody looking at a home screen that never changes. The
+    // declared list is the one thing in the process that knows which ids
+    // exist.
+    const DVHomeWidgetSpec orderStatus = DVHomeWidgetSpec(
+      id: 'order-status',
+      name: 'OrderStatusWidget',
+      route: '/widgets/order-status',
+    );
+
+    test('a declared widget is published', () async {
+      DVHomeWidgets.declare(const <DVHomeWidgetSpec>[orderStatus]);
+      Object? seen;
+      DVNativeBridge.register('homeWidgets.publish', (Object? arguments) {
+        seen = arguments;
+        return true;
+      });
+
+      expect(
+          await DVHomeWidgets.publish('order-status', 'Out for delivery'),
+          isTrue);
+      expect((seen! as Map<String, Object?>)['key'],
+          dvHomeWidgetDataKey('order-status'));
+    });
+
+    test('an id no widget has is refused, and the message lists the real ones',
+        () async {
+      DVHomeWidgets.declare(const <DVHomeWidgetSpec>[orderStatus]);
+      bool called = false;
+      DVNativeBridge.register('homeWidgets.publish', (Object? _) {
+        called = true;
+        return true;
+      });
+
+      // Thrown rather than answered false, because false is what a platform
+      // with no home screen says and this is a typo that can never work on
+      // any of them. The declared ids are in the message: "order_status is
+      // not a home widget" leaves somebody guessing at the spelling.
+      Object? thrown;
+      try {
+        await DVHomeWidgets.publish('order_status', 'Out for delivery');
+      } on Object catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown, isA<StateError>());
+      expect('$thrown', contains('order_status'));
+      expect('$thrown', contains('order-status'));
+      expect(called, isFalse, reason: 'a key no widget reads was written');
+    });
+
+    test('an application that declares nothing is not second-guessed',
+        () async {
+      // A test, a widget built outside a Dartvel application, an app on an
+      // older generated client: none of them has a list, and refusing every
+      // publish there would break working code to catch a typo.
+      DVNativeBridge.register('homeWidgets.publish', (Object? _) => true);
+
+      expect(await DVHomeWidgets.publish('anything-at-all', 'text'), isTrue);
+    });
+  });
 
   test('the key it writes under is the key the widget reads', () async {
     // The generated Swift reads dvHomeWidgetDataKey(id) out of the App Group
