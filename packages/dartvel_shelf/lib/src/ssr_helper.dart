@@ -2,7 +2,7 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:path/path.dart' as p;
 import 'package:dartvel_core/dartvel.dart'
-    show DVCacheAdapter, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute;
+    show DVCacheAdapter, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute;
 import 'package:dartvel_core/http.dart';
 
 /// Serve the single-page app's index, with any prerendered metadata for this
@@ -111,6 +111,11 @@ Future<Response> _fromManifest(
   final Map<String, Object?> routeMap =
       (manifest['routes'] as Map?)?.cast<String, Object?>() ?? <String, Object?>{};
   final String? siteUrl = manifest['siteUrl'] as String?;
+  // What dartvel.seo declared. Rendering a route replaces the head block the
+  // build wrote into the shell, so without these every served page came out
+  // with no description, no image and no site name -- less than the shell it
+  // was rendered from, and no worse-looking in a browser.
+  final DVSiteSeo site = DVSiteSeo.parse(manifest['site']);
   final DVWebServerSettings settings = DVWebServerSettings.parse(manifest['server']);
   final String raw = req.url.path.isEmpty ? '/' : (req.url.path.startsWith('/') ? req.url.path : '/${req.url.path}');
   final String path = raw == '/' ? '/' : raw.replaceAll(RegExp(r'/+$'), '');
@@ -141,16 +146,22 @@ Future<Response> _fromManifest(
   final String? shellTitle = RegExp(r'<title>(.*?)</title>', dotAll: true).firstMatch(shell)?.group(1)?.trim();
   final String title = route?['title'] is String ? route!['title']! as String : (shellTitle ?? path);
   final List<String> text = <String>[for (final Object? line in (route?['text'] as List?) ?? const <Object?>[]) '$line'];
+  // The declared name, and the shell's title only as a last resort: that
+  // title is the homepage's, so falling back to it names the site with a
+  // sentence in every link preview.
+  final String? siteName = site.name ?? shellTitle;
 
   if (data != null && data.visibility != DVPageVisibility.public) {
-    final String bare = dvRenderRoute(shell: shell, path: path, title: shellTitle ?? title, siteUrl: siteUrl, siteName: shellTitle);
+    // No description and no image: they describe a page the reader is not
+    // being shown.
+    final String bare = dvRenderRoute(shell: shell, path: path, title: shellTitle ?? title, siteUrl: siteUrl, siteName: siteName);
     // Not streamed whatever the declaration says: there is no slow half to
     // wait for, and a refusal is smaller than the chunk framing around it.
     return _html(bare, status: data.visibility == DVPageVisibility.hidden ? 404 : 401);
   }
   final String page = data == null
-      ? dvRenderRoute(shell: shell, path: path, title: title, text: text, siteUrl: siteUrl, siteName: shellTitle)
-      : dvRenderPage(shell: shell, path: path, data: data, siteUrl: siteUrl, siteName: shellTitle);
+      ? dvRenderRoute(shell: shell, path: path, title: title, text: text, siteUrl: siteUrl, siteName: siteName, description: site.description, image: site.image)
+      : dvRenderPage(shell: shell, path: path, data: data, siteUrl: siteUrl, siteName: siteName, description: site.description, image: site.image);
   return _html(page, streaming: settings.streaming);
 }
 
