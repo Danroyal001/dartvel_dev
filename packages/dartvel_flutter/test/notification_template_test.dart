@@ -75,4 +75,35 @@ void main() {
     await DV.Notifications.sendTemplate('user-1', shipped, args: <String, String>{'order': '1'});
     expect(outbox.sent.single.message.title, 'Commande expédiée');
   });
+
+  // The channels argument travelled into the message and no further, so a
+  // template asking for email reached the in-app provider instead. Now that
+  // the channel picks its own provider, the translated subject has to arrive
+  // as mail -- and the caller has to be able to see that it did, which a
+  // Future<void> could not say.
+  test('a template asking for email arrives as mail, translated', () async {
+    final DVMemoryMailProvider mailbox = DVMemoryMailProvider();
+    DV.Notifications.mail.useProvider(mailbox);
+    DV.Notifications.useMailSender(const DVMailAddress('shop@example.com'));
+    DV.Notifications.useRoutes(
+      (String recipient) async =>
+          const DVNotificationRoutes(email: DVMailAddress('ada@example.com')),
+    );
+    addTearDown(DV.Notifications.resetRouting);
+
+    final DVNotificationDelivery delivery = await DV.Notifications.sendTemplate(
+      'user-1',
+      shipped,
+      locale: const LocaleTag('fr-FR'),
+      args: <String, String>{'order': '42'},
+      channels: <DVNotificationChannel>[DVNotificationChannel.email],
+    );
+
+    expect(mailbox.sent.single.subject, 'Commande expédiée');
+    expect(mailbox.sent.single.text, 'La commande 42 est en route.');
+    expect(mailbox.sent.single.to.single.email, 'ada@example.com');
+    expect(outbox.sent, isEmpty);
+    expect(delivery.delivered,
+        <DVNotificationChannel>{DVNotificationChannel.email});
+  });
 }
