@@ -168,6 +168,37 @@ String? dvBackendPolicyFromSource(String source) {
 ///
 /// [source] is the declaration's own source, so a file holding several
 /// backend functions gives each its own list rather than the first one's.
+/// Whether the declaration carrying the annotation spanning [start]-[end] is
+/// a page.
+///
+/// The scope is the declaration, not the file and not the folder. A file can
+/// hold a page and a backend function, and one answer per file would refuse
+/// whichever came second; a page can live outside the pages directory, and
+/// deciding by folder would let the same annotation mean two things
+/// depending on where somebody put it.
+///
+/// The window is the declaration's own annotation stack and signature:
+/// backwards to the end of whatever came before, forwards to the start of
+/// the body. `@DVPage` may sit either side of `@DVUseMiddleware`, so both
+/// directions are read.
+bool dvMiddlewareDeclaresPage(String source, int start, int end) {
+  int back = 0;
+  for (final String boundary in <String>['}', ';', '\n\n']) {
+    final int at = source.lastIndexOf(boundary, start);
+    if (at > back) back = at + boundary.length;
+  }
+  int forward = source.length;
+  for (final String boundary in <String>['{', '=>']) {
+    final int at = source.indexOf(boundary, end);
+    if (at != -1 && at < forward) forward = at;
+  }
+  if (back >= forward) return false;
+  // `\b` rather than a bare prefix, so `@DVPageSomethingElse` is not read as
+  // a page. The two are word characters either side of the boundary, so the
+  // pattern cannot match inside a longer name.
+  return RegExp(r'@DVPage\b').hasMatch(source.substring(back, forward));
+}
+
 List<String> dvMiddlewareKeysFromSource(String source) {
   final RegExpMatch? annotation = RegExp(
     r'@DVUseMiddleware\s*\(\s*\[(.*?)\]\s*\)',
