@@ -109,10 +109,21 @@ void main() {
       // Rounding a typo down to the GUI is how a terminal build would quietly
       // generate a windowed main again, which is the whole defect.
       expect(() => parseRenderBackends('tui'), throwsFormatException);
-      expect(() => parseRenderBackends(''), throwsFormatException);
       expect(
         () => parseRenderBackends('gui,graphical'),
         throwsFormatException,
+      );
+      // An empty --render is a different mistake and says so, rather than
+      // complaining about the spelling of a backend nobody named.
+      expect(
+        () => parseRenderBackends(''),
+        throwsA(
+          isA<FormatException>().having(
+            (FormatException e) => e.message,
+            'message',
+            contains('at least one rendering backend'),
+          ),
+        ),
       );
     });
   });
