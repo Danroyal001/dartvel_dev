@@ -2118,6 +2118,19 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
         r'@DVUseMiddleware\s*\(\s*\[(.*?)\]\s*\)',
         dotAll: true,
       ).allMatches(source);
+      // A layout is a `_layout.dart` by convention, and layout-scoped
+      // middleware is in the specification and implemented nowhere -- the
+      // layout generator has never read this annotation. Accepting the key
+      // is the worst answer available: every page under that folder looks
+      // guarded and none of them is.
+      if (annotations.isNotEmpty && p.basename(path) == '_layout.dart') {
+        throw StateError(
+          'dartvel: @DVUseMiddleware in $relativePath is layout middleware, '
+          'which nothing runs. The layout is wrapped around the pages under '
+          'it and its annotations are not read. Declare the keys on each '
+          '@DVPage in that folder until a layout scope exists.',
+        );
+      }
       for (final annotation in annotations) {
         // Which scope this declaration is in. The sets differ, and until now
         // there was one set: this loop walks every file under lib/, pages
