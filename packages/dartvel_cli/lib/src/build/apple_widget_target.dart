@@ -183,7 +183,7 @@ String dvApplePbxprojWithWidgets(
   // Xcode a copy into a bundle that script had already consumed, and it
   // refused the whole build with "Cycle inside Runner". Embedding first also
   // gets the extension thinned, which is what the script is there for.
-  final String? application = _applicationTargetId(stripped);
+  final String? application = dvAppleApplicationTargetId(stripped);
   if (application != null) {
     out = _intoPhaseList(out, application,
         '\t\t\t\t$_embedPhaseId /* Embed App Extensions */,');
@@ -362,9 +362,19 @@ String? _productsGroupId(String pbxproj) =>
 /// Found by its product type rather than by its name, because the target is
 /// called Runner in a Flutter project and a renamed one is still the
 /// application the extension has to be embedded in.
-String? _applicationTargetId(String pbxproj) {
+///
+/// The header comment is matched with `[^*]*` rather than a dot-all `.*?`.
+/// A dot-all one crosses newlines, so the match could begin on an unrelated
+/// single-line object further up the file and run down to the first real
+/// target -- and the id captured was then that unrelated object's. Nothing
+/// here noticed, because every caller took that id and searched forward for
+/// a list, and the next list in the file happened to be the right one. It
+/// stops being the right one the moment anything is added between them, and
+/// what that looks like is an extension built and never embedded, from a
+/// build that succeeded.
+String? dvAppleApplicationTargetId(String pbxproj) {
   final RegExp target = RegExp(
-      r'\t\t([0-9A-F]{24}) /\*.*?\*/ = \{\n\t\t\tisa = PBXNativeTarget;'
+      r'\t\t([0-9A-F]{24}) /\*[^*]*\*/ = \{\n\t\t\tisa = PBXNativeTarget;'
       r'.*?\n\t\t\};',
       dotAll: true);
   for (final RegExpMatch match in target.allMatches(pbxproj)) {
@@ -374,6 +384,7 @@ String? _applicationTargetId(String pbxproj) {
   }
   return null;
 }
+
 
 /// The marker on the one build setting this adds to somebody else's target.
 ///
@@ -449,7 +460,7 @@ String dvApplePbxprojWithAppEntitlements(
       .join('\n');
   if (!hasWidgets) return stripped;
 
-  final String? target = _applicationTargetId(stripped);
+  final String? target = dvAppleApplicationTargetId(stripped);
   if (target == null) return stripped;
 
   String out = stripped;
