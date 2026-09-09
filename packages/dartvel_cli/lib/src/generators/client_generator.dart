@@ -1218,6 +1218,20 @@ ${buildReturn.split('\n').map((line) => '        $line').join('\n')}
       'String? _globalRedirect(BuildContext context, GoRouterState state) {',
     );
     sbRedirect.writeln('  final path = state.uri.path;');
+    // A running kiosk answers first. routes.allow parsed, doctor read it and
+    // DV-KIOSK-006 was registered for a route being blocked -- and nothing
+    // blocked one, so a kiosk declaring allow: [/welcome, /order/**] served
+    // /admin to anyone who could ask for it. The specification names who
+    // can: deep links, notifications and OS intents are honoured only within
+    // the allow list, and this redirect is the one place that sees all of
+    // them along with every in-app navigation.
+    //
+    // Emitted for every project rather than only for a kiosk one. Whether a
+    // kiosk is holding is a fact about the running process, not the build:
+    // a kiosk window carries its own policy, and staff mode lifts the list
+    // while the same binary runs. It returns null when nothing holds.
+    sbRedirect.writeln('  final kioskRoute = dvKioskRouteRedirect(path);');
+    sbRedirect.writeln('  if (kioskRoute != null) return kioskRoute;');
     // A browser extension opens its page as /index.html, and so does anyone
     // who lands on a static host's file directly. Without this the router
     // treats it as a route nobody declared and shows its own 404 -- which is
