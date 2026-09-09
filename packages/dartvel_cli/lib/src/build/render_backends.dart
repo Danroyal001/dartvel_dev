@@ -27,6 +27,14 @@ String renderBackendsFlag(Set<DVRenderBackend> backends) =>
 /// defect this argument exists to close.
 Set<DVRenderBackend>? parseRenderBackends(String? value) {
   if (value == null) return null;
+  // Checked here rather than after the loop, where it could never be reached:
+  // an empty string splits into one empty name and fails as an unknown
+  // backend, under a message about spelling.
+  if (value.trim().isEmpty) {
+    throw const FormatException(
+      'A build must link at least one rendering backend; --render was empty.',
+    );
+  }
   final Set<DVRenderBackend> backends = <DVRenderBackend>{};
   for (final String name in value.split(',')) {
     final DVRenderBackend? backend = DVRenderBackend.values
@@ -39,11 +47,6 @@ Set<DVRenderBackend>? parseRenderBackends(String? value) {
       );
     }
     backends.add(backend);
-  }
-  if (backends.isEmpty) {
-    throw const FormatException(
-      'A build must link at least one rendering backend; --render was empty.',
-    );
   }
   return backends;
 }
