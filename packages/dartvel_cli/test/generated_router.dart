@@ -42,3 +42,42 @@ String dvRouteSource(String routerSource, String path) {
 List<String> dvRegisteredPaths(String routerSource) => RegExp(
       r"cfg\.apiBasePath \+ '([^']*)'",
     ).allMatches(routerSource).map((RegExpMatch m) => m.group(1)!).toList();
+
+/// The generated source for the page route at [path], up to the next route.
+///
+/// The client router is a list of `GoRoute(...)` entries rather than
+/// `router.get(...)` calls, so [dvRouteSource]'s boundary never matches in
+/// one and the slice runs to the end of the file. Every `isNot` assertion
+/// would then read the whole router and pass only when no route anywhere
+/// has the thing, which is not what the test asked.
+String dvPageRouteSource(String routerSource, String path) {
+  final int at = routerSource.indexOf("path: '$path'");
+  if (at < 0) {
+    throw ArgumentError.value(
+      path,
+      'path',
+      'is not a page route in this generated router. Registered: '
+          '${dvPageRoutePaths(routerSource).join(', ')}',
+    );
+  }
+  // The next route, or the end of the route list when this is the last one.
+  // Running to the end of the file instead is the same spilling bug this
+  // helper exists to avoid, and it bites hardest on a single-page fixture:
+  // the router's own `redirect: _globalRedirect` sits below the list, so
+  // `isNot(contains('redirect:'))` failed for a route that has none.
+  final int nextRoute = routerSource.indexOf('GoRoute(', at);
+  final int listEnd = routerSource.indexOf('\n    ],', at);
+  final List<int> bounds = <int>[
+    for (final int i in <int>[nextRoute, listEnd])
+      if (i != -1) i,
+  ];
+  return routerSource.substring(
+    at,
+    bounds.isEmpty ? routerSource.length : bounds.reduce((a, b) => a < b ? a : b),
+  );
+}
+
+/// Every page path the generated client router registers.
+List<String> dvPageRoutePaths(String routerSource) => RegExp(
+      r"path: '([^']*)'",
+    ).allMatches(routerSource).map((RegExpMatch m) => m.group(1)!).toList();

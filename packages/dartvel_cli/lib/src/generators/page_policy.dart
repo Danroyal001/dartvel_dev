@@ -61,22 +61,53 @@ String dvPagePolicyGuard(String? policy) {
         }''';
 }
 
+/// The middleware call for a page that declared some, or empty.
+///
+/// One call with the whole list rather than a call per key, because the
+/// order is part of what was declared and a runtime that receives the list
+/// keeps it. Keys are validated before this runs, so anything reaching here
+/// is one the page scope implements.
+String dvPageMiddlewareGuard(List<String> keys) {
+  if (keys.isEmpty) return '';
+  final String list = keys.map((String k) => "'$k'").join(', ');
+  return '''
+        {
+          final String? refusal = await DVPageMiddleware.check(
+              context, state, const <String>[$list]);
+          if (refusal != null) return refusal;
+        }''';
+}
+
 /// Every guard a route runs, in the order it runs them.
 ///
-/// The directory chain is outermost and runs first: a page can be both under
-/// a guarded folder and carrying a policy of its own, and if the policy
-/// replaced the chain then moving a page into a guarded folder would quietly
-/// drop the folder's guard.
+/// Declared middleware first, then the directory chain, then the page's own
+/// policy. That order is the backend's: the middleware chain wraps the
+/// handler and the policy gate sits inside it, so a page and a function that
+/// declare the same pair answer in the same sequence. It is also the cheaper
+/// question first -- whether the application is serving anybody at all, and
+/// whether this visitor is signed in, before an authorization surface is
+/// asked what a visitor nobody has identified may do.
+///
+/// Nothing replaces anything. A page can sit under a guarded folder, declare
+/// middleware, and carry a policy; dropping any of the three because another
+/// was present is how a page quietly loses the guard it was moved behind.
 String dvPageGuardChain({
   required List<String> directoryGuards,
   required String? policy,
+  List<String> middleware = const <String>[],
 }) {
   final String policyGuard = dvPagePolicyGuard(policy);
-  if (directoryGuards.isEmpty && policyGuard.isEmpty) return '';
+  final String middlewareGuard = dvPageMiddlewareGuard(middleware);
+  if (directoryGuards.isEmpty &&
+      policyGuard.isEmpty &&
+      middlewareGuard.isEmpty) {
+    return '';
+  }
 
   final StringBuffer out = StringBuffer()
     ..writeln()
     ..writeln('      redirect: (context, state) async {');
+  if (middlewareGuard.isNotEmpty) out.writeln(middlewareGuard);
   for (final String guard in directoryGuards) {
     out.writeln('        { final r = await $guard.guard(context, state); '
         'if (r != null) return r; }');
