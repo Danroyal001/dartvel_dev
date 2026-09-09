@@ -437,7 +437,7 @@ Widget _indexPage(BuildContext context) => (() {
               }
             }),
             ShowcaseButton('Send Notification', () async {
-              await DV.Notifications.send(
+              final delivery = await DV.Notifications.send(
                 'demo-user',
                 const DVNotificationMessage(
                   title: 'Dartvel',
@@ -449,8 +449,13 @@ Widget _indexPage(BuildContext context) => (() {
                   ],
                 ),
               );
+              // Which channels, not "sent". This example configures only the
+              // in-app provider, and the old message claimed all three.
+              final channels = delivery.delivered
+                  .map((DVNotificationChannel c) => c.name)
+                  .join(', ');
               if (context.mounted) {
-                showShowcaseMessage(context, 'Notification sent');
+                showShowcaseMessage(context, 'Delivered on: $channels');
               }
             }),
             ShowcaseButton('Send Mail', () async {
