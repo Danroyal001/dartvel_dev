@@ -30,6 +30,10 @@ import 'src/platform/dialogs.dart';
 import 'src/platform/drag_drop.dart';
 import 'src/platform/file_associations.dart';
 import 'src/platform/printing.dart';
+import 'src/platform/terminal_graphics.dart';
+import 'src/platform/terminal_graphics_web.dart'
+    if (dart.library.io) 'src/platform/terminal_graphics_io.dart'
+    as terminal_graphics;
 import 'src/platform/terminal_size.dart';
 import 'src/platform/terminal_size_web.dart'
     if (dart.library.io) 'src/platform/terminal_size_io.dart' as terminal_size;
@@ -351,6 +355,7 @@ export 'src/platform/linux/linux_bindings.dart';
 export 'src/platform/macos/macos_bindings.dart';
 export 'src/platform/printing.dart';
 export 'src/platform/raster.dart';
+export 'src/platform/terminal_graphics.dart';
 export 'src/platform/terminal_size.dart';
 export 'src/platform/web/web_bindings.dart';
 export 'src/platform/webcrypto_key_store_io.dart'
@@ -4667,14 +4672,6 @@ DVLaunchOutcome resolveLaunchSurface({
 /// every application to ship both backends.
 enum DVRenderSurface { gui, terminal }
 
-/// How faithfully a terminal can draw.
-///
-/// Kitty's graphics protocol carries real pixels; ANSI carries cells and is
-/// coarser. Which one is active is reported rather than inferred from a
-/// terminal's name, because the name is a poor predictor and a wrong guess
-/// changes what a layout can reasonably draw.
-enum DVTerminalGraphics { kitty, ansi }
-
 /// The terminal an application is drawing into.
 ///
 /// Null whenever the surface is a GUI: asking a window for its column count is
@@ -4717,6 +4714,30 @@ class DVTerminalSurface {
         read: readAttachedSize,
         resizes: windowChanges(),
       );
+
+  /// The terminal this process is attached to, having asked it which graphics
+  /// protocol it speaks.
+  ///
+  /// This is what a terminal backend calls at startup, and it is the only
+  /// thing that ever produces a [DVTerminalGraphics]. [DVTerminalSurface.attached]
+  /// takes one as an argument, which meant every value the API ever reported
+  /// was a constant somebody typed rather than an answer from the terminal in
+  /// front of the user.
+  ///
+  /// [negotiate] is the question; the default asks the attached terminal. It
+  /// is injectable because the answer decides whether a layout draws pixels or
+  /// cells, and a decision that important should be assertable without a pty.
+  static Future<DVTerminalSurface> attach({
+    Future<DVTerminalGraphics> Function()? negotiate,
+  }) async {
+    final DVTerminalGraphics graphics = await (negotiate ??
+        terminal_graphics.dvNegotiateAttachedTerminalGraphics)();
+    return DVTerminalSurface(
+      graphics: graphics,
+      read: readAttachedSize,
+      resizes: windowChanges(),
+    );
+  }
 
   static DVTerminalSize readAttachedSize() => terminal_size.dvReadAttachedTerminalSize();
 
