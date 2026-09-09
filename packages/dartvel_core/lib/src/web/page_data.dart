@@ -423,13 +423,30 @@ class DVPageDataCache {
   /// refresh once, which costs one query and no correctness.
   final Set<String> _refreshing = <String>{};
 
+  /// What a kept page is filed under: the tenant it was resolved for, then
+  /// the path.
+  ///
+  /// The path alone was the key, and under the subdomain source
+  /// `acme.example.com/orders` and `globex.example.com/orders` are the same
+  /// path. So the first tenant to ask filled the entry and every other
+  /// tenant was handed that tenant's title, description, structured data and
+  /// crawler text until the ttl ran out. Nothing about the response looked
+  /// wrong, which is why it needed no attacker: two customers on one server
+  /// was enough.
+  ///
+  /// The tenant goes first so a shared store's keys sort by tenant, and the
+  /// separator cannot be mistaken for part of a path, which always begins
+  /// with a slash.
+  String _keyFor(DVPageRequest request) =>
+      '${const DVTenants().currentTenant}|${request.path}';
+
   /// The data for [request] by [mode]: resolved, kept, served stale, or not
   /// asked for at all.
   Future<DVPageData?> resolve(DVPageRequest request, DVPageDataResolver resolver, DVPageDataMode mode) async {
     if (mode == DVPageDataMode.defer) return null;
     if (mode == DVPageDataMode.await_) return resolver(request);
 
-    final String key = request.path;
+    final String key = _keyFor(request);
     final _Kept? have = await _read(key);
     if (have != null && _now().difference(have.at) <= ttl) return have.data;
     if (mode == DVPageDataMode.staleWhileRevalidate && have != null) {
