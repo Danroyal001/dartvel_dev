@@ -16,7 +16,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:dartvel_core/dartvel.dart' show DVCacheAdapter, DVPageData, DVPageDataCache, DVPageDataMode, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVWebServerSettings, dvMatchRoute, dvRenderPage, dvRenderRoute;
+import 'package:dartvel_core/dartvel.dart' show DVCacheAdapter, DVPageData, DVPageDataCache, DVPageDataMode, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVWebServerSettings, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute;
 import 'package:path/path.dart' as p;
 import 'package:shelf/shelf.dart';
 import 'package:shelf_static/shelf_static.dart';
@@ -349,15 +349,15 @@ Handler dvWebServerHandler({
     if (!stream) return Response.ok(page, headers: htmlHeaders);
 
     // Streamed: the head goes out as its own chunk, the rest after it, so
-    // the title is on the wire before the body is.
-    final int headEnd = page.indexOf('</head>');
-    final List<String> chunks = headEnd < 0
-        ? <String>[page]
-        : <String>[page.substring(0, headEnd + '</head>'.length), page.substring(headEnd + '</head>'.length)];
+    // the title is on the wire before the body is. Where the cut goes is
+    // dvPageChunks' decision rather than this file's, because the backend
+    // streams too and two copies of the rule drift.
     // No content-length, so the server sends it chunked; shelf treats an
     // explicit chunked header as a body already encoded, which this is not.
     return Response.ok(
-      Stream<List<int>>.fromIterable(<List<int>>[for (final String c in chunks) utf8.encode(c)]),
+      Stream<List<int>>.fromIterable(
+        <List<int>>[for (final String c in dvPageChunks(page)) utf8.encode(c)],
+      ),
       headers: htmlHeaders,
     );
   };

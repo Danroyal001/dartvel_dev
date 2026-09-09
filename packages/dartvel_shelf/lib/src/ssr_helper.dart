@@ -2,7 +2,7 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:path/path.dart' as p;
 import 'package:dartvel_core/dartvel.dart'
-    show DVCacheAdapter, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVWebServerSettings, dvMatchRoute, dvRenderPage, dvRenderRoute;
+    show DVCacheAdapter, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVWebServerSettings, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute;
 import 'package:dartvel_core/http.dart';
 
 /// Serve the single-page app's index, with any prerendered metadata for this
@@ -144,12 +144,14 @@ Future<Response> _fromManifest(
 
   if (data != null && data.visibility != DVPageVisibility.public) {
     final String bare = dvRenderRoute(shell: shell, path: path, title: shellTitle ?? title, siteUrl: siteUrl, siteName: shellTitle);
+    // Not streamed whatever the declaration says: there is no slow half to
+    // wait for, and a refusal is smaller than the chunk framing around it.
     return _html(bare, status: data.visibility == DVPageVisibility.hidden ? 404 : 401);
   }
   final String page = data == null
       ? dvRenderRoute(shell: shell, path: path, title: title, text: text, siteUrl: siteUrl, siteName: shellTitle)
       : dvRenderPage(shell: shell, path: path, data: data, siteUrl: siteUrl, siteName: shellTitle);
-  return _html(page);
+  return _html(page, streaming: settings.streaming);
 }
 
 /// Where a federated route sends the reader, with the request's own
@@ -173,11 +175,26 @@ String _federatedTarget(String location, DVPageRequest matched) {
   return target;
 }
 
-Response _html(String page, {int status = 200}) {
+Response _html(String page, {int status = 200, bool streaming = false}) {
   final headers = Headers()
     ..set('content-type', 'text/html; charset=utf-8')
     ..set('cache-control', 'no-store');
-  return Response(status, headers: headers, body: Stream<List<int>>.value(utf8.encode(page)));
+  if (!streaming) {
+    return Response(status, headers: headers, body: Stream<List<int>>.value(utf8.encode(page)));
+  }
+  // The head as its own write, so the title is on the wire before the body
+  // is. `isStream` is what makes that survive the trip out: the runtime
+  // gathers the whole body of anything it is not told is a stream and sends
+  // it with a content-length, which puts the split back together again and
+  // leaves the setting doing nothing.
+  return Response(
+    status,
+    headers: headers,
+    isStream: true,
+    body: Stream<List<int>>.fromIterable(
+      <List<int>>[for (final String chunk in dvPageChunks(page)) utf8.encode(chunk)],
+    ),
+  );
 }
 
 /// Escape a prerendered value for interpolation into HTML.
