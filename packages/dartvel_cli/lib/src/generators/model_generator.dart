@@ -299,39 +299,38 @@ class ModelGenerator {
         // than one that does nothing, because it would look like the
         // narrower permission was being honoured.
         final sensitiveFormFields = <String>{};
+        // Fields declared @DVModel.sensitiveField(encrypted: true). The value
+        // is sealed by DVFieldEncryption on its way into the row and opened
+        // on its way back out, under a keyring that only the server process
+        // environment supplies.
+        final encryptedFieldNames = <String>{};
         final sensitiveFieldRegex = RegExp(
           r'@(?:DVModel\.sensitiveField|DVSensitiveModelField)\s*\(([^)]*)\)\s*'
-          '${otherAnnotations}final\\s+.+?\\s+([A-Za-z0-9_]+)\\s*;',
+          '${otherAnnotations}final\\s+(.+?)\\s+([A-Za-z0-9_]+)\\s*;',
           dotAll: true,
         );
         for (final m in sensitiveFieldRegex.allMatches(content)) {
           final args = m.group(1)!;
-          final name = m.group(2)!;
+          final type = m.group(2)!.trim();
+          final name = m.group(3)!;
           sensitiveFieldNames.add(name);
           if (RegExp(r'\bshowInForms\s*:\s*true\b').hasMatch(args)) {
             sensitiveFormFields.add(name);
           }
-          // `encrypted: true` documents itself as requesting at-rest
-          // encryption. Dartvel has no server-side field-encryption key
-          // surface yet -- DVAppKeyCipher is a per-device key bound to a
-          // platform key store (Keychain, DPAPI, libsecret, Android
-          // Keystore), not a server process, and DV.Secrets only reads
-          // configuration values, it does not encrypt anything. Silently
-          // keeping the flag and writing plaintext would be worse than
-          // refusing: a developer who wrote `encrypted: true` believes the
-          // column is encrypted. Refuse at generation time instead, naming
-          // exactly what is missing.
           if (RegExp(r'\bencrypted\s*:\s*true\b').hasMatch(args)) {
-            throw StateError(
-              'Field "$name" on $sourceClassName declares '
-              '@DVModel.sensitiveField(encrypted: true), but Dartvel has no '
-              'at-rest field encryption implemented yet: nothing wires an '
-              'encryption key to this column, so the value would be stored '
-              'as plaintext under a flag that promises it is not. Remove '
-              '`encrypted: true` and encrypt the value yourself before it '
-              'reaches this field, or wait for field-level encryption to '
-              'ship (see docs/spec-status.json under models).',
-            );
+            // A ciphertext is text. Encrypting an int would hand the model
+            // back a String where its constructor wants a number, and the
+            // failure would land at run time in generated code the developer
+            // did not write, so it is refused here where the declaration is.
+            if (type != 'String' && type != 'String?') {
+              throw StateError(
+                'Field "$name" on $sourceClassName is $type and declares '
+                '@DVModel.sensitiveField(encrypted: true). Field encryption '
+                'produces text, so only String and String? can carry it. '
+                'Store the value as a String, or drop `encrypted: true`.',
+              );
+            }
+            encryptedFieldNames.add(name);
           }
         }
 
@@ -486,6 +485,16 @@ class ModelGenerator {
         sb.writeln('  /// public serialization and generated display.');
         sb.writeln(
           '  static const Set<String> sensitiveFields = <String>{${sensitiveFieldNames.map((n) => "'$n'").join(', ')}};',
+        );
+        sb.writeln();
+        sb.writeln(
+          '  /// Field names declared @DVModel.sensitiveField(encrypted: true),',
+        );
+        sb.writeln('  /// whose columns hold a ciphertext rather than the');
+        sb.writeln('  /// value. A dump, a backup or a hand-written query sees');
+        sb.writeln('  /// text either way, so the set is what tells them apart.');
+        sb.writeln(
+          '  static const Set<String> encryptedFields = <String>{${encryptedFieldNames.map((n) => "'$n'").join(', ')}};',
         );
         sb.writeln();
         sb.writeln('  /// Generated form component for [$className].');
@@ -843,6 +852,22 @@ class ModelGenerator {
                   return fields.first['name']!;
                 }
               })();
+        // Every write uses a fresh nonce, so the same value seals to different
+        // bytes each time. A lookup binds the plaintext against a column of
+        // those bytes and matches nothing -- find() returns null and save()
+        // takes the insert branch, quietly duplicating the row instead of
+        // replacing it. Nothing throws, which is why this is caught here.
+        if (keyField != null && encryptedFieldNames.contains(keyField)) {
+          throw StateError(
+            'Field "$keyField" on $sourceClassName is the field generated '
+            'lookups use, and declares '
+            '@DVModel.sensitiveField(encrypted: true). Encryption is '
+            'randomized, so find("...") would compare a plaintext against a '
+            'ciphertext and never match, and save() would insert a second row '
+            'rather than replace the first. Give the model a plain String id '
+            'or slug and encrypt a different field.',
+          );
+        }
         if (keyField != null) {
           final columnList = <String>[
             if (tenantScoped) tenantColumn,
@@ -855,6 +880,13 @@ class ModelGenerator {
           String toParam(Map<String, String> f) {
             final base = f['type']!.replaceAll('?', '');
             final name = f['name']!;
+            // Sealed before it reaches the statement, so the plaintext is
+            // never a bound parameter -- a driver that logs its statements,
+            // or a database that logs slow ones, would otherwise write the
+            // value into a log the encryption was meant to keep it out of.
+            if (encryptedFieldNames.contains(name)) {
+              return "DVFieldEncryption.encrypt('$className', '$name', model.$name)";
+            }
             // SQLite stores booleans as integers and DateTimes as text; the
             // conversion happens here so _fromRow can reverse it.
             if (base == 'bool') return 'model.$name == true ? 1 : 0';
@@ -884,7 +916,14 @@ class ModelGenerator {
             final base = type.replaceAll('?', '');
             final nullable = type.endsWith('?');
             String read;
-            if (base == 'bool') {
+            if (encryptedFieldNames.contains(name)) {
+              // Reading the column through unchanged would hand back the
+              // ciphertext: still a String, still non-null, and wrong
+              // everywhere downstream without anything failing.
+              final String opened =
+                  "DVFieldEncryption.decrypt('$className', '$name', row['$name'] as String?)";
+              read = nullable ? opened : '$opened!';
+            } else if (base == 'bool') {
               // The generated columns have TEXT affinity, which coerces a
               // bound integer to the string '1'; accept every stored form.
               const truthy =
