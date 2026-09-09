@@ -21,7 +21,11 @@ import 'dart:ffi';
 import 'dart:io' show Platform;
 
 import 'package:dartvel_core/dartvel.dart'
-    show dvHomeWidgetAppGroup, dvIosLaunchUrlKey;
+    show
+        dvHomeWidgetAppGroup,
+        dvHomeWidgetAppleReloadClass,
+        dvHomeWidgetAppleReloadSelector,
+        dvIosLaunchUrlKey;
 import 'package:ffi/ffi.dart';
 
 import '../../../dartvel_flutter.dart' show DVNativeBridge;
@@ -232,10 +236,13 @@ class DVIosBindings {
   /// would have the second Dartvel application installed reading the first
   /// one's container.
   ///
-  /// What this cannot do is make the widget redraw now: `WidgetCenter` is
-  /// Swift-only and has no Objective-C class to message, so the surface
-  /// picks the value up on the timeline its provider asked for. Saying
-  /// otherwise would be the kind of claim this file exists to avoid.
+  /// The redraw is asked for afterwards. `WidgetCenter` is Swift-only and
+  /// has no Objective-C class to message, so this cannot reach it directly;
+  /// what it reaches is a small Swift class `dartvel build` compiles into
+  /// the application, which does. An application built with plain
+  /// `flutter build` has no such class, and then the widget picks the value
+  /// up on the timeline its provider asked for -- fifteen minutes, which is
+  /// what every publish used to wait.
   static bool _publishWidget(String key, String text) {
     final defaults = _defaultsForGroup();
     if (defaults == null) return false;
@@ -248,7 +255,25 @@ class DVIosBindings {
     // shows as a widget reading an empty container.
     sendVoid2(defaults, _selector('setObject:forKey:'), _nsString(text),
         _nsString(key));
+    _reloadWidgets();
     return true;
+  }
+
+  /// Asks WidgetKit to redraw now, where the application was built to allow
+  /// it.
+  ///
+  /// Nil from `objc_getClass` is the ordinary answer for an application built
+  /// with plain `flutter build`, which has none of the Swift `dartvel build`
+  /// writes -- so this is silent rather than an error. The cost of being
+  /// wrong is the behaviour every publish had before this existed: the value
+  /// is in the container and the home screen shows it when the provider's
+  /// timeline comes round.
+  static void _reloadWidgets() {
+    final cls = _class(dvHomeWidgetAppleReloadClass);
+    if (cls == nullptr) return;
+    final send0 =
+        _objc.lookupFunction<_MsgSend0Native, _MsgSend0Dart>('objc_msgSend');
+    send0(cls, _selector(dvHomeWidgetAppleReloadSelector));
   }
 
   static Pointer<Void>? _defaultsForGroup() {
