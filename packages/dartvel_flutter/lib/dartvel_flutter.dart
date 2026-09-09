@@ -22,9 +22,9 @@ import 'src/display_platform.dart'
     if (dart.library.js_interop) 'src/display_platform_web.dart'
     as display_platform;
 import 'src/kiosk/device_kiosk.dart';
-import 'src/kiosk/session_clear.dart';
 import 'src/kiosk/kiosk.dart' show DVKioskEnforced;
 import 'src/kiosk/kiosk_keys.dart';
+import 'src/kiosk/session_clear.dart';
 import 'src/modules/module_shell.dart';
 import 'src/platform/accelerator.dart';
 import 'src/platform/dialogs.dart';
@@ -88,6 +88,10 @@ export 'package:dartvel_core/dartvel.dart'
         dvApplyKioskContainment,
         dvResetKioskContainment,
         dvRefuseIfClipboardBlocked,
+        dvKioskAllowsExternalUrl,
+        dvKioskRouteRedirect,
+        DVKioskExternal,
+        DVKioskClearable,
         DVKioskEnforcement,
         DVKioskExitRequest,
         DVKioskExitResult,
@@ -331,10 +335,10 @@ export 'src/admin/route_admin.dart';
 export 'src/admin/route_info.dart';
 export 'src/admin/telemetry_admin.dart';
 export 'src/kiosk/device_kiosk.dart';
-export 'src/kiosk/session_clear.dart';
 export 'src/kiosk/kiosk.dart';
 export 'src/kiosk/kiosk_host.dart';
 export 'src/kiosk/kiosk_keys.dart';
+export 'src/kiosk/session_clear.dart';
 export 'src/lifecycle/app_lifecycle_bridge.dart';
 export 'src/media/image_view.dart';
 export 'src/media/stored_image.dart';

@@ -76,4 +76,19 @@ void main() {
 
     expect(router, contains("path.endsWith('/index.html')"));
   });
+
+  test('a running kiosk gets to answer before anything else routes', () async {
+    // routes.allow had no runtime enforcement at all: it parsed, doctor read
+    // it, DV-KIOSK-006 was registered for a blocked route, and nothing
+    // blocked one. The router's own redirect is the only place that sees
+    // every arrival -- a deep link, an intent, an address bar, and an in-app
+    // link alike -- so it is where the allow list has to be asked.
+    //
+    // Emitted unconditionally rather than only for a kiosk project: whether
+    // a kiosk is holding is a fact about the running process, and a kiosk
+    // window's policy differs from the device's anyway.
+    final router = await routerSource();
+
+    expect(router, contains('dvKioskRouteRedirect(path)'));
+  });
 }
