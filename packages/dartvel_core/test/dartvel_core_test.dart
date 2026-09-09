@@ -344,8 +344,12 @@ void main() {
         ),
         throwsStateError,
       );
-      expect(
-        () => const DVNotificationsService().send(
+      // Awaited, because the restore below is what this send would otherwise
+      // race: routing resolves asynchronously, so an unawaited expectation
+      // lets fakeNotifications() register a provider before the send looks
+      // for one, and the test passes by delivering rather than by failing.
+      await expectLater(
+        const DVNotificationsService().send(
           'user-1',
           const DVNotificationMessage(title: 'Missing', body: 'Provider'),
         ),
