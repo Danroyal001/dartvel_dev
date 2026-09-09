@@ -162,6 +162,21 @@ dartvel:
       expect(resolved, isEmpty);
     });
 
+    test('a value the caller had configured survives the check', () {
+      // The gate must clean up after itself without clearing state it did
+      // not put there. Reaching for reset() takes the host process's own
+      // configured values and rotation hooks with it, and the caller finds
+      // out later, somewhere else.
+      DVSecrets.configure(<String, String>{'HOST_SUPPLIED': 'still_here'});
+
+      dvResolveSecrets(
+        <String>['PAYSTACK_SECRET'],
+        envFile: envFile('PAYSTACK_SECRET=sk_live_from_the_file\n'),
+      );
+
+      expect(const DVSecrets().maybeGet('HOST_SUPPLIED'), 'still_here');
+    });
+
     test('resolving does not leave the secret loaded for the next caller', () {
       // The gate runs inside the same process that goes on to build and
       // write a deployment plan. A value left in the resolver after the
