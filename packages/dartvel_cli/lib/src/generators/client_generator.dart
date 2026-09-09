@@ -466,7 +466,7 @@ import 'package:flutter/foundation.dart' show kReleaseMode, kIsWeb, defaultTarge
 import 'dart:io' show exit${dv['terminal'] == true ? ', stdin, stdout, stderr, File, Platform, Process, ProcessStartMode' : ''};
 import 'package:flutter/widgets.dart' show WidgetsFlutterBinding;
 import 'package:dartvel_core/dartvel.dart' show DVStartupProfile, dvLiveWindowsPathFor;
-${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVAppLifecycle, DVPageStore, dvStartAppLifecycleBridge,${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''}${_hasDeviceProfileDisplays(dv) || _hasSharedStoreTuning(dv) ? ' DVWindowManager,' : ''}${_hasSharedStoreTuning(dv) ? ' DVWindowSharedStore,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAndroidBindings, DVAppLaunch, DVRouteTarget, DVWindowOptions, DVRenderSurface${dv['terminal'] == true ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''};
+${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVAppLifecycle, DVPageStore, dvStartAppLifecycleBridge,${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''}${_hasDeviceProfileDisplays(dv) || _hasSharedStoreTuning(dv) || _hasWindowingDeclaration(dv) ? ' DVWindowManager,' : ''}${_hasSharedStoreTuning(dv) ? ' DVWindowSharedStore,' : ''}${_hasWindowingDeclaration(dv) ? ' DVWindowingDeclaration,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAndroidBindings, DVAppLaunch, DVRouteTarget, DVWindowOptions, DVRenderSurface${dv['terminal'] == true ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''};
 import 'dartvel_config.g.dart' as cfg;
 import 'jobs.g.dart' show registerDartvelJobs;
 import 'models.g.dart' show registerDartvelModels;
@@ -522,7 +522,7 @@ void configureDartvelRuntime({List<String> arguments = const <String>[]}) {
   // The arguments this process was started with -- a file association, a
   // dartvel:// link, a second launch -- and the launches that come after it.
   startDartvelLaunch(arguments);
-${_sharedStoreTuningSource(dv)}${_deviceKioskInstallSource(dv)}
+${_windowingDeclarationSource(dv)}${_sharedStoreTuningSource(dv)}${_deviceKioskInstallSource(dv)}
   // Every @DVClientCron schedule, registered and ticking. The entries were
   // generated and nothing started them, so a schedule declared on a page
   // never ran once. Starts no timer when the application declares none.
@@ -1678,8 +1678,55 @@ void startDartvelKiosk() {
   /// list and the code it is for have to agree, and two copies of "did the
   /// project tune the store" is how a generated file comes to name a type it
   /// does not import.
+  /// Whether [_windowingDeclarationSource] emits anything.
+  ///
+  /// Asks that function rather than repeating its conditions, for the same
+  /// reason [_hasSharedStoreTuning] does: two copies of "did the project
+  /// declare this" is how a generated file comes to name a type it does not
+  /// import.
+  static bool _hasWindowingDeclaration(YamlMap dv) =>
+      _windowingDeclarationSource(dv).isNotEmpty;
+
   static bool _hasSharedStoreTuning(YamlMap dv) =>
       _sharedStoreTuningSource(dv).isNotEmpty;
+
+  /// `dartvel.windowing.web` and `dartvel.windowing.android`.
+  ///
+  /// Three settings the specification documents and the build read none of,
+  /// so a project that wrote `openInNewWindow: false` still reported the
+  /// capability, still offered the control, and still opened a browser
+  /// window when somebody pressed it.
+  ///
+  /// Emitted only where the project wrote one. A declaration of nothing is
+  /// the platform's own answer, and a generated line setting every field to
+  /// null would be code that exists to do what not writing it does.
+  static String _windowingDeclarationSource(YamlMap dv) {
+    final Object? windowing = dv['windowing'];
+    if (windowing is! Map) return '';
+    final Object? web = windowing['web'];
+    final Object? android = windowing['android'];
+
+    // Booleans only. `auto` on freeform is the documented default and means
+    // the platform decides, which is what declaring nothing already does --
+    // so it emits nothing rather than a third state nothing reads.
+    final Object? inPage = web is Map ? web['inPageViews'] : null;
+    final Object? newWindow = web is Map ? web['openInNewWindow'] : null;
+    final Object? freeform = android is Map ? android['freeform'] : null;
+
+    final List<String> arguments = <String>[
+      if (inPage is bool) 'webInPageViews: $inPage',
+      if (newWindow is bool) 'webOpenInNewWindow: $newWindow',
+      if (freeform is bool) 'androidFreeform: $freeform',
+    ];
+    if (arguments.isEmpty) return '';
+
+    return '  // dartvel.windowing.web and .android. Narrows what the target\n'
+        '  // offers; it cannot widen it, so a phone does not gain a second\n'
+        '  // window by writing one down.\n'
+        '  DVWindowManager.useWindowingDeclaration(\n'
+        '    const DVWindowingDeclaration(${arguments.join(', ')}),\n'
+        '  );\n';
+  }
 
   static String _sharedStoreTuningSource(YamlMap dv) {
     final Object? windowing = dv['windowing'];
