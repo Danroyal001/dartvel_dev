@@ -134,6 +134,12 @@ void main() {
         'associations.register',
         'associations.unregister',
         'associations.handlerFor',
+        // The window's own fullscreen, which the kiosk already used and
+        // DV.Platform.display could not reach: the specification pins these
+        // two names and Linux registered neither, so enterFullscreen() threw
+        // on a desktop that has done fullscreen since 1998.
+        'display.enterFullscreen',
+        'display.exitFullscreen',
       },
     );
     expect(DVLinuxBindings.isRegistered, isTrue);
@@ -210,6 +216,37 @@ void main() {
       expect(await DVNativeBridge.require<bool>('window.maximize'), isTrue);
       expect(await DVNativeBridge.require<bool>('window.minimize'), isTrue);
       expect(await DVNativeBridge.require<bool>('window.restore'), isTrue);
+    });
+
+    test('DV.Platform.display drives that window fullscreen', () async {
+      createRealToplevel();
+
+      // Through the public API rather than the binding, because the public
+      // API is where this was broken: it went to display.enterFullscreen,
+      // which Linux registered nowhere, so the call threw on every Linux
+      // desktop while the kiosk path called gtk_window_fullscreen happily.
+      await DV.Platform.display.enterFullscreen();
+      expect(DV.Platform.display.isFullscreen, isTrue);
+
+      await DV.Platform.display.exitFullscreen();
+      expect(DV.Platform.display.isFullscreen, isFalse);
+    });
+
+    test('fullscreen reaches the real toplevel, not a stub', () async {
+      createRealToplevel();
+
+      // _windowAction answers false when there is no GTK toplevel, so a true
+      // here is the binding having resolved gtk_window_fullscreen and called
+      // it on a real window. Whether the server honours it is the window
+      // manager's business, and Xvfb has none.
+      expect(
+        await DVNativeBridge.require<bool>('display.enterFullscreen'),
+        isTrue,
+      );
+      expect(
+        await DVNativeBridge.require<bool>('display.exitFullscreen'),
+        isTrue,
+      );
     });
   });
 

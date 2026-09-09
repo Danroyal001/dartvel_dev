@@ -185,6 +185,8 @@ class DVLinuxBindings {
     'window.minimize',
     'window.restore',
     'window.setSize',
+    'display.enterFullscreen',
+    'display.exitFullscreen',
     'shortcuts.register',
     'shortcuts.unregister',
     'menus.setApplicationMenu',
@@ -330,6 +332,25 @@ class DVLinuxBindings {
     DVNativeBridge.register(
       'window.restore',
       (Object? _) => _windowAction('gtk_window_unmaximize'),
+    );
+
+    // Fullscreen, the same GTK call the kiosk path has always made. Nothing
+    // registered these two names, so DV.Platform.display.enterFullscreen()
+    // threw on Linux while DVLinuxKiosk went fullscreen through the identical
+    // symbol a few lines below.
+    //
+    // The options -- hideSystemUi, lockOrientation -- have no meaning on a
+    // GTK desktop: there is no system UI to hide beyond what a fullscreen
+    // window already covers, and orientation belongs to the display server.
+    // Ignored rather than half-honoured, so nothing here claims to have done
+    // something it did not.
+    DVNativeBridge.register(
+      'display.enterFullscreen',
+      (Object? _) => _windowAction('gtk_window_fullscreen'),
+    );
+    DVNativeBridge.register(
+      'display.exitFullscreen',
+      (Object? _) => _windowAction('gtk_window_unfullscreen'),
     );
 
     // Global shortcuts: a second X connection on a pump isolate, started on
