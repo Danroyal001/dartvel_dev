@@ -20,13 +20,37 @@
 /// asking for a view the application composes, and that is the page.
 library dartvel_flutter.widgets.home_widgets;
 
-import 'package:dartvel_core/dartvel.dart' show dvHomeWidgetDataKey;
+import 'package:dartvel_core/dartvel.dart'
+    show DVHomeWidgetSpec, dvHomeWidgetDataKey;
 
 import '../../dartvel_flutter.dart' show DVNativeBridge;
 
 /// The application's side of a home widget's data.
 class DVHomeWidgets {
   const DVHomeWidgets._();
+
+  /// The widgets this application declares, or empty when it has said
+  /// nothing.
+  static List<DVHomeWidgetSpec> _declared = const <DVHomeWidgetSpec>[];
+
+  /// Tells this what the application's `@DVHomeWidget`s are.
+  ///
+  /// Called by the generated runtime with `dartvelHomeWidgets`, which is the
+  /// list `home_widgets.g.dart` has always carried. It was generated,
+  /// exported from the barrel, and read by nothing -- not by the runtime,
+  /// and not by the build either, which rescans the source files for itself.
+  ///
+  /// This is what it is for. [publish] takes a bare string, and every way of
+  /// getting that string wrong is silent on the device: `order_status`
+  /// instead of `order-status` writes under a key no widget ever asks for,
+  /// and the home screen goes on showing the placeholder. Nothing else in
+  /// the process knows which ids exist.
+  static void declare(List<DVHomeWidgetSpec> widgets) {
+    _declared = List<DVHomeWidgetSpec>.unmodifiable(widgets);
+  }
+
+  /// The widgets the application declared, in the order it declared them.
+  static List<DVHomeWidgetSpec> get declared => _declared;
 
   /// Puts [text] where the home-screen widget with [id] reads it.
   ///
@@ -50,6 +74,28 @@ class DVHomeWidgets {
     // nowhere and saying it worked would send whoever wrote the call looking
     // at the home screen rather than at the empty string they passed.
     if (id.isEmpty) return false;
+    // Against what the application declared, when it declared anything.
+    //
+    // Thrown rather than answered false: false is what a target with no home
+    // screen says, and a misspelled id is a typo that cannot work on any
+    // target. The declared ids go in the message, because "order_status is
+    // not a home widget" leaves the caller guessing at the spelling of the
+    // one that is.
+    //
+    // Only when a list is present. A test, a widget built outside a Dartvel
+    // application and an application on an older generated client all have
+    // none, and refusing every publish there would break working code to
+    // catch a typo.
+    if (_declared.isNotEmpty &&
+        !_declared.any((DVHomeWidgetSpec widget) => widget.id == id)) {
+      final String known =
+          _declared.map((DVHomeWidgetSpec widget) => widget.id).join(', ');
+      throw StateError(
+        'No home widget in this application has the id "$id", so publishing '
+        'to it would write under a key nothing reads and leave the home '
+        'screen showing its placeholder. The declared ids are: $known.',
+      );
+    }
     final bool? stored = await DVNativeBridge.invoke<bool>(
       'homeWidgets.publish',
       <String, Object?>{'key': dvHomeWidgetDataKey(id), 'text': text},

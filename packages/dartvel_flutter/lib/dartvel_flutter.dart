@@ -312,6 +312,11 @@ export 'package:dartvel_core/dartvel.dart'
         // a test can hold the key the application writes against the key the
         // generated Swift and Java read.
         dvHomeWidgetDataKey,
+        // What the application declares, which the generated runtime hands
+        // to DVHomeWidgets so a publish can be checked against it. The type
+        // has to be reachable from here or the call in the generated runtime
+        // names a type this library does not export.
+        DVHomeWidgetSpec,
         dvModelDeserializers,
         dvModelFactories,
         dvModelSerializers,
