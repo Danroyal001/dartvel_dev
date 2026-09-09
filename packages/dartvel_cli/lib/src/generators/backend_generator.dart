@@ -502,6 +502,27 @@ ${backendEntries.map((e) {
       // body reads `req` whether it is traced or not.
       final StringBuffer open = StringBuffer('(dv.Request req) => ');
       int wrappers = 0;
+      // The tenant this request named, current for everything below --
+      // the chain, the policy gate and the handler.
+      //
+      // On every route, not only the ones that listed
+      // DVMiddlewares.tenant, because a tenant-scoped model does not care
+      // what the route declared. And outermost, because the chain is async
+      // too: the locale middleware asks this tenant for its default
+      // language.
+      //
+      // What this replaced was a write to a process-wide field. A server
+      // has more than one request in flight and Dart hands the isolate over
+      // at every await, so the next request to arrive decided what this
+      // handler read from there -- and the query still returned rows, of
+      // somebody else's tenant.
+      final bool inner = traces || chainKeys.isNotEmpty;
+      open.write(
+        inner
+            ? 'core.dvWithRequestTenant(req, () => '
+            : 'core.dvWithRequestTenant(req, () async {',
+      );
+      wrappers++;
       if (traces) {
         open.write('core.dvTraced(core.DVObservability.tracer, req, ');
         wrappers++;
@@ -516,8 +537,9 @@ ${backendEntries.map((e) {
         open.write('(dv.Request req) async {');
       }
 
-      final String handlerOpen =
-          wrappers == 0 ? '(dv.Request req) async {' : open.toString();
+      // Always at least the tenant scope, so there is no unwrapped form of
+      // a route left to fall back to.
+      final String handlerOpen = open.toString();
       final String handlerClose = '  }${')' * wrappers});';
 
       final String policy = e['policy'] ?? '';
@@ -532,9 +554,9 @@ ${backendEntries.map((e) {
         // on one of these was read, recorded and never emitted, so
         // @DVBackendFunction(policy: ...) on a raw handler was a route
         // anybody could call.
-        if (policyGate.isEmpty && middlewareKeys.isEmpty) {
-          return "  router.$method(cfg.apiBasePath + '$path', (dv.Request req) => Future.value(f$i.handler(req)));";
-        }
+        // No shortcut for the plainest raw handler any more. It used to be
+        // registered bare, which meant the one kind of route that reads the
+        // request itself ran with no tenant scope around it.
         return '''  router.$method(cfg.apiBasePath + '$path', $handlerOpen$policyGate
     return await f$i.handler(req);
 $handlerClose''';

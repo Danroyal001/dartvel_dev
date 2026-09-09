@@ -358,7 +358,15 @@ class CommonMiddleware {
         return;
       }
 
-      tenants.currentTenant = resolved ?? DVTenants.defaultTenant;
+      // Only when nothing has scoped this request already. Under
+      // [dvWithRequestTenant] the zone already carries the tenant, and
+      // writing the process-wide field as well would hand this request's
+      // tenant to a concurrent request that named none of its own. A
+      // hand-written server that runs this chain and no scope still gets the
+      // tenant made current, which is what it has always relied on.
+      if (!DVTenants.hasScope) {
+        tenants.currentTenant = resolved ?? DVTenants.defaultTenant;
+      }
       context.data['tenant'] = tenants.currentTenant;
     };
   }
@@ -545,4 +553,35 @@ class MiddlewareManager {
 
     return context;
   }
+}
+
+/// Runs [body] with the tenant [request] names current for all of it.
+///
+/// The generated backend wraps every request in this, before the declared
+/// middleware and around the handler both.
+///
+/// It exists because the resolved tenant used to be written to a
+/// process-wide field. A server has more than one request in flight, and
+/// Dart hands the isolate to another one at every await, so the second
+/// request to arrive decided what the first request's handler read from
+/// there. Every query that handler made after its next await ran against
+/// somebody else's tenant. It returned rows and the page rendered, which is
+/// why it could sit there: the symptom is one customer seeing another
+/// customer's orders, not an error anybody would see in a log.
+///
+/// A zone value is the fix rather than save-and-restore around the call,
+/// because a restore lands at the first await while the request it belonged
+/// to is still running.
+///
+/// A request that names no tenant keeps whatever the process was set to. A
+/// single-tenant deployment sets that once at boot and serves an apex domain
+/// that resolves to nobody; pushing those requests onto the default tenant
+/// would point every query at a tenant with no rows in it.
+Future<T> dvWithRequestTenant<T>(Object? request, Future<T> Function() body) {
+  const DVTenants tenants = DVTenants();
+  final String? resolved = tenants.resolve(
+    _requestUri(request),
+    headers: _requestHeaders(request),
+  );
+  return tenants.withTenant(resolved ?? tenants.currentTenant, body);
 }
