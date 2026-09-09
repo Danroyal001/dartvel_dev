@@ -2527,6 +2527,16 @@ class BuildCommand extends Command<void> {
         titles: dvRouteTitles(_routerSource(root)),
         text: _routeText(root),
         siteUrl: siteUrl,
+        // dartvel.seo, carried so the server can put it back. _writeSeoHead
+        // wrote these into the shell a moment ago and rendering a route
+        // replaces that whole block -- so a server without them served every
+        // page stripped of its description, image and site name.
+        site: DVSiteSeo(
+          name: seo['siteName'] as String? ??
+              dvSeoTitle(seo, _packageName(root) ?? 'Dartvel'),
+          description: dvSeoDescription(seo),
+          image: seo['image'] as String?,
+        ),
         // dartvel.web.server: how page data is waited for, and whether the
         // head goes out ahead of the body.
         server: DVWebServerSettings.parse(

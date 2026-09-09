@@ -16,7 +16,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:dartvel_core/dartvel.dart' show DVCacheAdapter, DVPageData, DVPageDataCache, DVPageDataMode, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute;
+import 'package:dartvel_core/dartvel.dart' show DVCacheAdapter, DVPageData, DVPageDataCache, DVPageDataMode, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute;
 import 'package:path/path.dart' as p;
 import 'package:shelf/shelf.dart';
 import 'package:shelf_static/shelf_static.dart';
@@ -24,7 +24,7 @@ import 'package:shelf_static/shelf_static.dart';
 import 'admin_mount.dart';
 import 'admin_serving.dart';
 
-export 'package:dartvel_core/dartvel.dart' show DVPageData, DVPageDataCache, DVPageDataMode, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVWebServerSettings, dvMatchRoute, dvRenderPage, dvRenderRoute, dvRouteParams;
+export 'package:dartvel_core/dartvel.dart' show DVPageData, DVPageDataCache, DVPageDataMode, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVSiteSeo, DVWebServerSettings, dvMatchRoute, dvRenderPage, dvRenderRoute, dvRouteParams;
 
 
 
@@ -68,10 +68,17 @@ String dvWebServerManifest({
   required Map<String, List<String>> text,
   required String? siteUrl,
   DVWebServerSettings server = const DVWebServerSettings(),
+  DVSiteSeo site = const DVSiteSeo(),
   Map<String, String> federated = const <String, String>{},
 }) =>
     const JsonEncoder.withIndent('  ').convert(<String, Object?>{
       'siteUrl': siteUrl,
+      // What dartvel.seo declared about the site. The server has no pubspec
+      // to read, and rendering a route replaces the head block the build
+      // wrote -- so anything not carried here is dropped from every page.
+      // Omitted entirely when nothing was declared: an empty object reads as
+      // a declaration that says nothing, which is a different thing.
+      if (!site.isEmpty) 'site': site.toJson(),
       'server': server.toJson(),
       'routes': <String, Object?>{
         for (final String route in routes)
@@ -195,6 +202,7 @@ Handler dvWebServerHandler({
         e.key: (e.value as Map)['location'] as String,
   };
   final siteUrl = manifest['siteUrl'] as String?;
+  final DVSiteSeo site = DVSiteSeo.parse(manifest['site']);
   final DVWebServerSettings declared = DVWebServerSettings.parse(manifest['server']);
   final DVPageDataMode mode = pageDataMode ?? declared.pageDataMode;
   final Duration ttl = cacheTtl ?? declared.cacheTtl;
@@ -339,9 +347,19 @@ Handler dvWebServerHandler({
     };
 
     final String shell = shellFile.readAsStringSync();
+    // What the head falls back to when the page says nothing itself: what
+    // this server was constructed with, then what dartvel.seo declared and
+    // the build carried in the manifest, then the shell's own title. Not
+    // optional decoration -- rendering replaces the shell's head block
+    // wholesale, so a value missing here is a value deleted from the page.
+    final String? siteDescription = description ?? site.description;
+    final String? siteImage = image ?? site.image;
+    final String? name = siteName ?? site.name ?? shellTitle;
+
     // Hidden or unauthorized: the shell with none of the data, and the
     // status that says why, so a crawler indexes nothing and the client can
-    // sign the person in.
+    // sign the person in. The site's description and image stay off too --
+    // they describe a page the reader is not being shown.
     if (data != null && data.visibility != DVPageVisibility.public) {
       final String bare = dvServeRoute(
         shell: shell,
@@ -349,7 +367,7 @@ Handler dvWebServerHandler({
         routes: const <String, String>{},
         text: const <String, List<String>>{},
         siteUrl: siteUrl,
-        siteName: siteName ?? shellTitle,
+        siteName: name,
       );
       return Response(data.visibility == DVPageVisibility.hidden ? 404 : 401, body: bare, headers: htmlHeaders);
     }
@@ -361,18 +379,18 @@ Handler dvWebServerHandler({
             routes: titles,
             text: text,
             siteUrl: siteUrl,
-            description: description,
-            image: image,
-            siteName: siteName ?? shellTitle,
+            description: siteDescription,
+            image: siteImage,
+            siteName: name,
           )
         : dvRenderPage(
             shell: shell,
             path: cleanPath,
             data: data,
             siteUrl: siteUrl,
-            siteName: siteName ?? shellTitle,
-            description: description,
-            image: image,
+            siteName: name,
+            description: siteDescription,
+            image: siteImage,
           );
 
     if (!stream) return Response.ok(page, headers: htmlHeaders);

@@ -91,6 +91,51 @@ class DVWebServerSettings {
       };
 }
 
+/// What `dartvel.seo` said about the site as a whole, carried in the
+/// manifest so a server can use it.
+///
+/// A build reads the pubspec and writes these into the shell's head. A server
+/// then renders a route over that shell, and `dvSeoApply` replaces the whole
+/// marked block -- so anything the render is not given is not merely left
+/// alone, it is removed. Without this the web-server target served every page
+/// with no description, no image and no site name, which is worse than the
+/// shell it started from and looks fine in a browser.
+///
+/// These are a floor, not an override. A page that resolved its own
+/// description keeps it; a page that resolved nothing falls back here rather
+/// than to nothing.
+class DVSiteSeo {
+  const DVSiteSeo({this.name, this.description, this.image});
+
+  /// `og:site_name` -- the site, not the page. Distinct from the shell's
+  /// `<title>`, which is the homepage's title and only looks like a name.
+  final String? name;
+  final String? description;
+
+  /// Relative is fine; it is made absolute against the site's URL where it
+  /// is written, because a link preview fetches it with no base.
+  final String? image;
+
+  bool get isEmpty => name == null && description == null && image == null;
+
+  static DVSiteSeo parse(Object? section) {
+    final Map<Object?, Object?> m =
+        section is Map ? section : const <Object?, Object?>{};
+    String? at(String key) => m[key] is String ? m[key]! as String : null;
+    return DVSiteSeo(
+      name: at('name'),
+      description: at('description'),
+      image: at('image'),
+    );
+  }
+
+  Map<String, Object?> toJson() => <String, Object?>{
+        if (name != null) 'name': name,
+        if (description != null) 'description': description,
+        if (image != null) 'image': image,
+      };
+}
+
 /// What a request resolved to: the route pattern it matched and the
 /// parameters the path filled in.
 class DVPageRequest {
