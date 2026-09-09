@@ -176,10 +176,14 @@ String _stripComments(String source) {
 /// Backend secrets reached from client-reachable code, and undeclared names.
 ///
 /// [clientFiles] is path to source for everything the client bundle can reach
-/// -- in a Dartvel project, lib/ minus the backend directory.
+/// -- in a Dartvel project, lib/ minus the backend directory. [backendFiles]
+/// is the rest, checked for undeclared names only: reaching a backend-scoped
+/// secret from the backend is the arrangement working, and a diagnostic that
+/// fires on correct code gets suppressed project-wide.
 List<DVSecretFinding> dvAnalyseSecrets({
   required Map<String, DVSecretDeclaration> declared,
   required Map<String, String> clientFiles,
+  Map<String, String> backendFiles = const <String, String>{},
 }) {
   final List<DVSecretFinding> findings = <DVSecretFinding>[];
 
@@ -190,14 +194,7 @@ List<DVSecretFinding> dvAnalyseSecrets({
       final DVSecretDeclaration? secret = declared[name];
 
       if (secret == null) {
-        findings.add(DVSecretFinding(
-          code: 'DV-SECRETS-002',
-          file: path,
-          secret: name,
-          message: '"$name" is not declared. Add it under dartvel.secrets in '
-              'pubspec.yaml, with a scope. A name that is only ever typed at '
-              'the call site fails at runtime in production instead.',
-        ));
+        findings.add(_undeclared(path, name));
         continue;
       }
 
@@ -214,8 +211,30 @@ List<DVSecretFinding> dvAnalyseSecrets({
       }
     }
   }
+
+  // The backend is where secrets are meant to be read, which made it the one
+  // place a misspelled name went unchecked -- and a misspelled name is the
+  // failure the declaration exists to move out of production and into the
+  // build.
+  final List<String> backendPaths = backendFiles.keys.toList()..sort();
+  for (final String path in backendPaths) {
+    for (final String name in dvExtractSecretUses(backendFiles[path]!).toList()
+      ..sort()) {
+      if (declared.containsKey(name)) continue;
+      findings.add(_undeclared(path, name));
+    }
+  }
   return findings;
 }
+
+DVSecretFinding _undeclared(String path, String name) => DVSecretFinding(
+      code: 'DV-SECRETS-002',
+      file: path,
+      secret: name,
+      message: '"$name" is not declared. Add it under dartvel.secrets in '
+          'pubspec.yaml, with a scope. A name that is only ever typed at the '
+          'call site fails at runtime in production instead.',
+    );
 
 /// Which of [names] resolve, asked of the same resolver the deployed process
 /// will use.
