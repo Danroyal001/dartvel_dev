@@ -3,6 +3,8 @@ import 'package:build/build.dart';
 import 'package:glob/glob.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
+import 'package:dartvel_core/dartvel.dart'
+    show DVPublicEnvLibrary, dvGeneratePublicEnvLibrary;
 import 'utils/route_utils.dart';
 
 class RouterBuilder implements Builder {
@@ -607,49 +609,17 @@ $routesSrc
         }
       }
     }
-    final publicEnv = <String, String>{
-      for (final e in envMap.entries)
-        if (e.key.startsWith('PUBLIC_')) e.key: e.value,
-    };
-
-    final sbEnv = StringBuffer();
-    sbEnv.writeln('// GENERATED CODE - DO NOT MODIFY BY HAND');
-    sbEnv.writeln('// ignore_for_file: unused_element');
-    sbEnv.writeln('library dartvel_client_env;');
-    sbEnv.writeln('');
-    sbEnv.writeln('/// Environment variables provider.');
-    sbEnv.writeln('class Env {');
-    sbEnv.writeln('  /// Decrypts obfuscated values.');
-    sbEnv.writeln(
-      '  static String _d(List<int> c, int k) => String.fromCharCodes(c.map((x) => x ^ k));',
-    );
-    for (final e in publicEnv.entries) {
-      final obf = RouteUtils.obfuscate(e.value);
-      final parts = obf.split(', ');
-      final key = parts.last;
-      final list = parts.sublist(0, parts.length - 1).join(', ');
-      sbEnv.writeln('  // ignore: non_constant_identifier_names');
-      sbEnv.writeln('  /// Value of ${e.key} environment variable.');
-      sbEnv.writeln('  static String get ${e.key} => _d($list, $key);');
+    // The same emitter the CLI's client generator uses. Two copies of the
+    // PUBLIC_ filter meant two places a backend value could start reaching
+    // the bundle, and only one of them would be looked at when it did.
+    final DVPublicEnvLibrary envLibrary = dvGeneratePublicEnvLibrary(envMap);
+    for (final skipped in envLibrary.skipped) {
+      log.warning('"$skipped" is not a usable Dart name and was left out of '
+          'env.g.dart. Rename it to letters, digits and underscores.');
     }
-    sbEnv.writeln('}');
-    sbEnv.writeln('');
-    sbEnv.writeln('/// Legacy map support for environment variables.');
-    sbEnv.writeln('final Map<String, String> dvPublicEnv = {');
-    for (final e in publicEnv.entries) {
-      sbEnv.writeln("  '${e.key}': Env.${e.key},");
-    }
-    sbEnv.writeln('};');
-    sbEnv.writeln('/// Public environment variable manager.');
-    sbEnv.writeln('class DartvelEnv {');
-    sbEnv.writeln('  /// Map of all public environment variables.');
-    sbEnv.writeln('  static final Map<String, String> public = dvPublicEnv;');
-    sbEnv.writeln('  /// Gets a public environment variable by key.');
-    sbEnv.writeln('  static String? get(String key) => dvPublicEnv[key];');
-    sbEnv.writeln('}');
     await buildStep.writeAsString(
       AssetId(buildStep.inputId.package, 'lib/dartvel_client/env.g.dart'),
-      sbEnv.toString(),
+      envLibrary.source,
     );
 
     // Write dartvel_config.g.dart

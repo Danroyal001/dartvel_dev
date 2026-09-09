@@ -1809,6 +1809,16 @@ class BuildCommand extends Command<void> {
   /// approximation -- a value routed through an indirection this cannot
   /// follow is a false negative -- which is why the structural guarantee is
   /// elsewhere: only PUBLIC_ values reach the generated env.g.dart at all.
+  /// The env files the generator will read, so the check covers exactly what
+  /// would be compiled in rather than a guess at where it lives.
+  List<String> _envFileNames(String root) {
+    final configured = _dartvelSection(root)['envFiles'];
+    if (configured is! List) return const <String>['.env', '.env.local'];
+    return <String>[
+      for (final entry in configured) '$entry',
+    ];
+  }
+
   void _checkSecrets(String root) {
     final File pubspec = File(p.join(root, 'pubspec.yaml'));
     if (!pubspec.existsSync()) return;
@@ -1825,24 +1835,51 @@ class BuildCommand extends Command<void> {
       exit(1);
     }
 
+    // Before the source scan, because this one does not depend on anybody
+    // writing a DV.Secrets call: the prefix alone puts a value in the bundle.
+    final envProblems = <DVSecretFinding>[];
+    for (final envFile in _envFileNames(root)) {
+      final file = File(p.join(root, envFile));
+      if (!file.existsSync()) continue;
+      envProblems.addAll(dvAnalysePublicEnvironment(
+        declared: declared,
+        file: envFile,
+        contents: file.readAsStringSync(),
+      ));
+    }
+    if (envProblems.isNotEmpty) {
+      for (final finding in envProblems) {
+        Logger.error('   ${finding.code} ${finding.file}: ${finding.message}');
+      }
+      Logger.log('❌ ${envProblems.length} secret problem(s)');
+      exit(1);
+    }
+
     final backendDir = '${_dartvelSection(root)['backendDir'] ?? 'lib/backend'}';
     final lib = Directory(p.join(root, 'lib'));
     if (!lib.existsSync()) return;
 
     final clientFiles = <String, String>{};
+    final backendFiles = <String, String>{};
     for (final entity in lib.listSync(recursive: true, followLinks: false)) {
       if (entity is! File || !entity.path.endsWith('.dart')) continue;
       final rel = p.relative(entity.path, from: root).replaceAll('\\', '/');
-      // The backend is where a backend-scoped secret belongs, and the
-      // generated client is written from the sources already checked.
-      if (rel.startsWith(backendDir)) continue;
+      // The generated client is written from the sources already checked.
       if (rel.contains('/dartvel_client/')) continue;
+      // The backend is where a backend-scoped secret belongs, so it is not
+      // checked for scope -- only for a name nothing declares, which is where
+      // a typo hides until production.
+      if (rel.startsWith(backendDir)) {
+        backendFiles[rel] = entity.readAsStringSync();
+        continue;
+      }
       clientFiles[rel] = entity.readAsStringSync();
     }
 
     final findings = dvAnalyseSecrets(
       declared: declared,
       clientFiles: clientFiles,
+      backendFiles: backendFiles,
     );
     if (findings.isEmpty) return;
 
