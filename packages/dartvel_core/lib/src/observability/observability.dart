@@ -13,6 +13,7 @@ import 'tracing.dart';
 export 'health.dart';
 export 'logging.dart';
 export 'metrics.dart';
+export 'runtime_config.dart';
 export 'tracing.dart';
 export 'tracing_middleware.dart';
 
@@ -23,24 +24,52 @@ class DVObservability {
   static final DVMetrics metrics = DVMetrics();
   static final DVHealth health = DVHealth();
 
+  /// Whether `GET /_dartvel/logs` and `GET /_dartvel/traces` answer.
+  ///
+  /// Off unless the process was started with them on. The log buffer of a
+  /// running service is where every password reset link, customer email and
+  /// logged request body sit together, and a diagnostics endpoint that is on
+  /// by default is that buffer published to anyone who can reach the port.
+  static bool diagnosticsEndpoints = false;
+
+  /// The finished spans this process still remembers.
+  static DVRecentSpansExporter _spans = DVRecentSpansExporter();
+
+  /// Oldest first. What `GET /_dartvel/traces` and `dartvel traces` read.
+  static List<DVSpan> get recentSpans => _spans.spans;
+
   /// The process tracer.
   ///
   /// Sampling everything by default: a framework that silently drops traces
   /// out of the box is one where the first thing anybody debugging it does is
   /// wonder whether tracing is on. Configure a ratio for production.
-  static DVTracer tracer = DVTracer(sampler: DVTraceSampler.always());
+  static DVTracer tracer = DVTracer(
+    exporter: _spans,
+    sampler: DVTraceSampler.always(),
+  );
 
   /// Points tracing at [exporter], sampling [ratio] of traces.
+  ///
+  /// The recent-span buffer stays in the chain. An application that configures
+  /// a collector still has spans to read on the machine in front of it, which
+  /// is where a developer looks first.
   static void useTracing({
     required DVTraceExporter exporter,
     double ratio = 1,
   }) {
     tracer = DVTracer(
-      exporter: exporter,
+      exporter: DVFanoutTraceExporter(<DVTraceExporter>[_spans, exporter]),
       sampler: ratio >= 1
           ? DVTraceSampler.always()
           : DVTraceSampler.ratio(ratio),
     );
+  }
+
+  /// Back to the default: sample everything, keep the last [spanCapacity]
+  /// spans, export nowhere else.
+  static void resetTracing({int spanCapacity = 200}) {
+    _spans = DVRecentSpansExporter(capacity: spanCapacity);
+    tracer = DVTracer(exporter: _spans, sampler: DVTraceSampler.always());
   }
 
   /// Where recent records are kept for `GET /_dartvel/logs` and
