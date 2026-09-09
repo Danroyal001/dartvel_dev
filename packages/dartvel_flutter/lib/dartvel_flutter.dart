@@ -22,6 +22,7 @@ import 'src/display_platform.dart'
     if (dart.library.js_interop) 'src/display_platform_web.dart'
     as display_platform;
 import 'src/kiosk/device_kiosk.dart';
+import 'src/kiosk/kiosk.dart' show DVKioskEnforced;
 import 'src/kiosk/kiosk_keys.dart';
 import 'src/modules/module_shell.dart';
 import 'src/platform/accelerator.dart';
@@ -4409,11 +4410,35 @@ class DVDisplayControls {
   static bool _isFullscreen = false;
   static bool _isKiosk = false;
 
-  bool get isFullscreen => _isFullscreen;
-  bool get isKiosk => _isKiosk;
+  /// What the platform is holding for the declared policy, or null when no
+  /// policy is installed or the kiosk has been left.
+  ///
+  /// [DVDeviceKiosk.enforced] is null between exit and resume, which is
+  /// exactly the window in which the device is no longer a kiosk.
+  static DVKioskEnforced? get _policyEnforcement =>
+      DVPlatform._deviceKiosk?.enforced;
+
+  /// Whether the surface is fullscreen.
+  ///
+  /// Two sources, because there are two ways in. `enterFullscreen()` and
+  /// `enableKiosk()` set the flag; a build whose kiosk policy was installed at
+  /// startup never calls either, and this read false on a device sitting in
+  /// fullscreen kiosk mode. The policy side reports what the platform said it
+  /// took, not what the policy asked for -- a kiosk on a target that could not
+  /// go fullscreen must not claim it did.
+  bool get isFullscreen =>
+      _isFullscreen || (_policyEnforcement?.fullscreen ?? false);
+
+  /// Whether this is specifically kiosk mode, as opposed to plain fullscreen.
+  ///
+  /// True while a declared policy is being held as well as after an
+  /// `enableKiosk()` call: installing the policy is the ordinary way a kiosk
+  /// build enters, and it goes nowhere near `enableKiosk()`.
+  bool get isKiosk => _isKiosk || _policyEnforcement != null;
+
   DVDisplayState get currentState => DVDisplayState(
-        isFullscreen: _isFullscreen,
-        isKiosk: _isKiosk,
+        isFullscreen: isFullscreen,
+        isKiosk: isKiosk,
       );
 
   // Each of the four calls below names its binding at the call site rather
