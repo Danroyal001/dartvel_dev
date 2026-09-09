@@ -16,6 +16,7 @@ library dartvel_flutter.routing.nav_link;
 
 import 'dart:async';
 
+import 'package:dartvel_core/dartvel.dart' show dvKioskAllowsExternalUrl;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -496,8 +497,18 @@ class DVLinkOpener {
   ///
   /// The two are different intentions and were one function: following a
   /// footer link should replace the page, and a middle click should not.
-  static void open(String path, {bool newTab = false}) =>
-      _opener?.call(path, newTab: newTab);
+  ///
+  /// A running kiosk policy is asked first. This is the one funnel every
+  /// external link goes through off the web, so a `routes.external` that is
+  /// not consulted here is not enforced anywhere: the browser opens over the
+  /// lobby display and the person in front of it has a machine. Nothing is
+  /// thrown -- a link the kiosk does not offer should do nothing when it is
+  /// tapped, which is what the policy asked for, and an exception out of a
+  /// tap handler on an unattended display is a red screen nobody can clear.
+  static void open(String path, {bool newTab = false}) {
+    if (!dvKioskAllowsExternalUrl(path)) return;
+    _opener?.call(path, newTab: newTab);
+  }
 
   @visibleForTesting
   static void reset() {

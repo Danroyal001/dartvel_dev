@@ -23,6 +23,7 @@ import 'policy.dart';
 
 bool _clipboard = false;
 bool _textSelection = false;
+DVKioskPolicy? _external;
 
 /// Installs [policy]'s containment for the process.
 ///
@@ -33,12 +34,14 @@ void dvApplyKioskContainment(DVKioskPolicy? policy) {
   _clipboard = policy?.enabled == true && policy?.blockClipboard == true;
   _textSelection =
       policy?.enabled == true && policy?.blockTextSelection == true;
+  _external = policy?.enabled == true ? policy : null;
 }
 
 /// Forgets any installed containment.
 void dvResetKioskContainment() {
   _clipboard = false;
   _textSelection = false;
+  _external = null;
 }
 
 /// Whether a running kiosk policy has locked the clipboard.
@@ -46,6 +49,16 @@ bool get dvKioskBlocksClipboard => _clipboard;
 
 /// Whether a running kiosk policy has locked text selection.
 bool get dvKioskBlocksTextSelection => _textSelection;
+
+/// Whether a running kiosk policy permits opening [url] outside the
+/// application, per `routes.external`.
+///
+/// True when no kiosk holds, so an ordinary build is unaffected and a link
+/// in staff mode opens the way it always did. A relative path is a route
+/// rather than a way out, and this says yes to one: `routes.allow` is the
+/// key that governs where the application may navigate itself.
+bool dvKioskAllowsExternalUrl(String url) =>
+    _external?.allowsExternal(url) ?? true;
 
 /// Throws when the clipboard is locked, naming why.
 ///

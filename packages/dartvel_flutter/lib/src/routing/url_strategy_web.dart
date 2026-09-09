@@ -110,6 +110,15 @@ void dvInterceptLinkNavigation(void Function(String path) route) {
       alreadyHandled: event.defaultPrevented,
     );
 
+    // A kiosk decides before the browser does. The anchor is real and the
+    // browser follows it on this same click, so a policy consulted after the
+    // handler returned would be consulted after the tab had opened -- and a
+    // browser window over a lobby display is the end of the kiosk.
+    if (dvKioskRefusesLink(activation)) {
+      event.preventDefault();
+      return;
+    }
+
     // A link that leaves the site opens beside it. The anchor is marked and
     // the browser is left to do it: `window.open` from here would be a popup
     // to a blocker, and preventing the default so Flutter's own handler could

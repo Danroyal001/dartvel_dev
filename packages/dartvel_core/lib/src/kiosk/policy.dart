@@ -24,6 +24,24 @@ enum DVKioskScope {
 /// What happens when the session goes idle.
 enum DVKioskIdleAction { reset, home, none }
 
+/// What a kiosk does with an address that is not this application.
+///
+/// A different question from [DVKioskPolicy.allow], which is why the
+/// specification made it a different key. The allow list says which of this
+/// application's own routes the kiosk shows; this says whether a URL may be
+/// handed to something that is not this application at all -- another origin,
+/// a mail client, a dialler. The first is navigation inside the boundary and
+/// the second is the boundary.
+enum DVKioskExternal {
+  /// Nothing leaves. The default, because a link out of the application is
+  /// the escape hatch kiosk mode exists to close, and a browser opening on
+  /// top of a lobby display has ended the kiosk.
+  block,
+
+  /// Only [DVKioskPolicy.externalAllow] leaves.
+  allowlist,
+}
+
 /// How staff leave kiosk mode.
 enum DVKioskExitMethod { none, pin, gesturePin, adminAuth, remote, hardwareCombo }
 
@@ -71,6 +89,8 @@ class DVKioskPolicy {
     required this.scope,
     required this.home,
     required this.allow,
+    required this.external,
+    required this.externalAllow,
     required this.blockSystemGestures,
     required this.blockHardwareKeys,
     required this.blockShortcuts,
@@ -103,6 +123,25 @@ class DVKioskPolicy {
   /// which is the documented default -- read as "allow nothing" it would make
   /// a kiosk show its home route and refuse every link on it.
   final List<String> allow;
+
+  /// Whether a URL that is not this application may be opened, from
+  /// `routes.external`.
+  ///
+  /// [allow] defaults to permitting everything, and this defaults to
+  /// permitting nothing, which is not an inconsistency: they are opposite
+  /// questions. The pages of the application the kiosk was built to show are
+  /// the kiosk; another origin, a mail client or a dialler is the way out of
+  /// it, and the way out is the thing being closed.
+  final DVKioskExternal external;
+
+  /// The addresses [DVKioskExternal.allowlist] permits, from
+  /// `routes.externalAllow`.
+  ///
+  /// An entry is an absolute URL: scheme and host must match exactly and the
+  /// path is globbed the way [allow] globs a route. A scheme with nothing
+  /// after it -- `tel:` -- allows that scheme, which is how a kiosk gets a
+  /// call-us button without naming a number.
+  final List<String> externalAllow;
 
   final bool blockSystemGestures;
   final bool blockHardwareKeys;
@@ -207,6 +246,44 @@ class DVKioskPolicy {
     return false;
   }
 
+  /// Whether [url] may be handed to something that is not this application.
+  ///
+  /// An address with no scheme is a route, so this answers yes and leaves it
+  /// to [allowsRoute]. Judging it here would block every in-app link the
+  /// moment `routes.external` was declared, which is not what the key says.
+  ///
+  /// Anything that will not parse is refused. A URL the framework cannot
+  /// read is one it cannot check against the list either, and the outcome of
+  /// guessing is a kiosk opening an address nobody approved.
+  bool allowsExternal(String url) {
+    final Uri? target = Uri.tryParse(url.trim());
+    if (target == null) return false;
+    if (!target.hasScheme) return true;
+    if (external == DVKioskExternal.block) return false;
+    for (final String entry in externalAllow) {
+      if (_matchesExternal(entry, target)) return true;
+    }
+    return false;
+  }
+
+  static bool _matchesExternal(String entry, Uri target) {
+    final Uri? pattern = Uri.tryParse(entry.trim());
+    if (pattern == null || !pattern.hasScheme) return false;
+    if (pattern.scheme != target.scheme) return false;
+    // `tel:` and `mailto:` name a scheme and have no host to compare, so the
+    // scheme is the whole entry.
+    if (!pattern.hasAuthority && pattern.path.isEmpty) return true;
+    // Uri lowercases a host, so this is the whole of the comparison -- and
+    // it is an equality rather than a prefix on purpose. `example.com`
+    // matched as a prefix also matches `example.com.attacker.test`, which is
+    // somebody else's machine and would pass silently.
+    if (pattern.host != target.host) return false;
+    // Uri.port reports the scheme's default when none was written, so an
+    // entry for https://example.com does not cover the same name on 8443.
+    if (pattern.port != target.port) return false;
+    return _matches(_segments(pattern.path), _segments(target.path));
+  }
+
   static List<String> _segments(String path) =>
       path.split('/').where((String s) => s.isNotEmpty).toList();
 
@@ -249,6 +326,54 @@ class DVKioskPolicy {
         if (entry is String) entry,
     ];
 
+    final DVKioskExternal external = _enum<DVKioskExternal>(
+      routes['external'],
+      const <String, DVKioskExternal>{
+        'block': DVKioskExternal.block,
+        'allowlist': DVKioskExternal.allowlist,
+      },
+      DVKioskExternal.block,
+      'dartvel.kiosk.routes.external',
+      problems,
+    );
+    final List<String> externalAllow = <String>[];
+    for (final Object? entry in _list(routes['externalAllow'])) {
+      // A dropped entry is the failure mode here. `[tel:]` written without
+      // quotes is a YAML mapping rather than a string, and skipping it
+      // quietly leaves an allow list that is short by one and an address the
+      // kiosk refuses for a reason nothing states.
+      if (entry is! String) {
+        problems.add('dartvel.kiosk.routes.externalAllow has an entry that is '
+            'not a string (${entry.runtimeType}). An address ending in a '
+            'colon needs quoting in YAML: "tel:" rather than tel:.');
+        continue;
+      }
+      final Uri? parsed = Uri.tryParse(entry.trim());
+      if (parsed == null || !parsed.hasScheme) {
+        // A bare host matches nothing, and the kiosk it is written into
+        // refuses the address it was added to allow.
+        problems.add('dartvel.kiosk.routes.externalAllow has "$entry", which '
+            'is not an absolute URL such as "https://help.example.com/**" or '
+            '"tel:", so it matches nothing.');
+        continue;
+      }
+      externalAllow.add(entry);
+    }
+    if (external == DVKioskExternal.block && externalAllow.isNotEmpty) {
+      // The list sitting under the block reads as agreement to whoever wrote
+      // it. Every address on it is refused, and the declaration says the
+      // opposite.
+      problems.add('dartvel.kiosk.routes.external is "block" but '
+          'routes.externalAllow lists ${externalAllow.length} address(es), '
+          'none of which can ever be opened. Set external to "allowlist", or '
+          'remove the list.');
+    }
+    if (external == DVKioskExternal.allowlist && externalAllow.isEmpty) {
+      problems.add('dartvel.kiosk.routes.external is "allowlist" but '
+          'routes.externalAllow has no entry, so nothing external opens and '
+          'the policy is "block" under another name.');
+    }
+
     final Map<Object?, Object?> input = _map(k['input']);
     final Map<Object?, Object?> session = _map(k['session']);
     final Map<Object?, Object?> display = _map(k['display']);
@@ -257,12 +382,11 @@ class DVKioskPolicy {
 
     // A key this parser does not read is reported rather than dropped.
     //
-    // The specification describes more containment than is built --
-    // routes.external and display.screenDim, each of which still needs
-    // something underneath it -- and every one of the five was read straight
-    // past. input.clipboard, input.textSelection and display.hideCursor are
-    // built now: the three Dartvel can honour on its own, in Dart, with no
-    // platform binding.
+    // All five of the containment keys the specification lists were read
+    // straight past at one point: the parser pulled three named children out
+    // of each map and the rest fell through. They are read now, and what is
+    // left unbuilt is the power half of display.screenDim, which needs a
+    // backlight binding rather than a rule written in Dart.
     // An unrecognised enum value has always produced a problem here; an
     // unrecognised key produced nothing, and that is the worse of the two.
     // Somebody who writes `input.clipboard: disabled` into a kiosk has
@@ -287,16 +411,17 @@ class DVKioskPolicy {
       'exit',
       'updates',
     });
-    unread('dartvel.kiosk.routes', routes, const <String>{'allow'});
+    unread('dartvel.kiosk.routes', routes, const <String>{
+      'allow',
+      'external',
+      'externalAllow',
+    });
     unread('dartvel.kiosk.input', input, const <String>{
       'systemGestures',
       'hardwareKeys',
       'shortcuts',
       // Read now, so reporting them would say a key does nothing while it
-      // does. routes.external, display.hideCursor and display.screenDim are
-      // still unbuilt and still report: naming two of the five as done would
-      // be worse than naming none, because the other three would look
-      // implemented by association.
+      // does.
       'clipboard',
       'textSelection',
     });
@@ -467,6 +592,8 @@ class DVKioskPolicy {
       scope: scope,
       home: k['home'] is String ? k['home']! as String : '/',
       allow: allow,
+      external: external,
+      externalAllow: List<String>.unmodifiable(externalAllow),
       blockSystemGestures: _blocks(input['systemGestures'], true),
       // display scope defaults to passthrough; device scope blocks.
       blockHardwareKeys:
