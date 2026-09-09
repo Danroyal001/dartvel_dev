@@ -2,7 +2,7 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:path/path.dart' as p;
 import 'package:dartvel_core/dartvel.dart'
-    show DVCacheAdapter, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVWebServerSettings, dvMatchRoute, dvRenderPage, dvRenderRoute;
+    show DVCacheAdapter, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute;
 import 'package:dartvel_core/http.dart';
 
 /// Serve the single-page app's index, with any prerendered metadata for this
@@ -111,6 +111,11 @@ Future<Response> _fromManifest(
   final Map<String, Object?> routeMap =
       (manifest['routes'] as Map?)?.cast<String, Object?>() ?? <String, Object?>{};
   final String? siteUrl = manifest['siteUrl'] as String?;
+  // What dartvel.seo declared. Rendering a route replaces the head block the
+  // build wrote into the shell, so without these every served page came out
+  // with no description, no image and no site name -- less than the shell it
+  // was rendered from, and no worse-looking in a browser.
+  final DVSiteSeo site = DVSiteSeo.parse(manifest['site']);
   final DVWebServerSettings settings = DVWebServerSettings.parse(manifest['server']);
   final String raw = req.url.path.isEmpty ? '/' : (req.url.path.startsWith('/') ? req.url.path : '/${req.url.path}');
   final String path = raw == '/' ? '/' : raw.replaceAll(RegExp(r'/+$'), '');
@@ -130,7 +135,7 @@ Future<Response> _fromManifest(
   // parent's not-found page; answered and unlisted, nobody would find it.
   final Object? location = route?['location'];
   if (matched != null && location is String) {
-    final String target = _federatedTarget(location, matched);
+    final String target = dvFederatedTarget(location, matched);
     if (target.isNotEmpty) {
       return Response(
         302,
@@ -141,43 +146,45 @@ Future<Response> _fromManifest(
   final String? shellTitle = RegExp(r'<title>(.*?)</title>', dotAll: true).firstMatch(shell)?.group(1)?.trim();
   final String title = route?['title'] is String ? route!['title']! as String : (shellTitle ?? path);
   final List<String> text = <String>[for (final Object? line in (route?['text'] as List?) ?? const <Object?>[]) '$line'];
+  // The declared name, and the shell's title only as a last resort: that
+  // title is the homepage's, so falling back to it names the site with a
+  // sentence in every link preview.
+  final String? siteName = site.name ?? shellTitle;
 
   if (data != null && data.visibility != DVPageVisibility.public) {
-    final String bare = dvRenderRoute(shell: shell, path: path, title: shellTitle ?? title, siteUrl: siteUrl, siteName: shellTitle);
+    // No description and no image: they describe a page the reader is not
+    // being shown.
+    final String bare = dvRenderRoute(shell: shell, path: path, title: shellTitle ?? title, siteUrl: siteUrl, siteName: siteName);
+    // Not streamed whatever the declaration says: there is no slow half to
+    // wait for, and a refusal is smaller than the chunk framing around it.
     return _html(bare, status: data.visibility == DVPageVisibility.hidden ? 404 : 401);
   }
   final String page = data == null
-      ? dvRenderRoute(shell: shell, path: path, title: title, text: text, siteUrl: siteUrl, siteName: shellTitle)
-      : dvRenderPage(shell: shell, path: path, data: data, siteUrl: siteUrl, siteName: shellTitle);
-  return _html(page);
+      ? dvRenderRoute(shell: shell, path: path, title: title, text: text, siteUrl: siteUrl, siteName: siteName, description: site.description, image: site.image)
+      : dvRenderPage(shell: shell, path: path, data: data, siteUrl: siteUrl, siteName: siteName, description: site.description, image: site.image);
+  return _html(page, streaming: settings.streaming);
 }
 
-/// Where a federated route sends the reader, with the request's own
-/// parameters put back into it.
-///
-/// Empty when the location is not somewhere to send anybody. A manifest is
-/// data and can be edited, and redirecting to whatever string it happens to
-/// hold is how an open redirect starts -- so only http and https, and only
-/// with a host.
-String _federatedTarget(String location, DVPageRequest matched) {
-  var target = location;
-  matched.params.forEach((String name, String value) {
-    // The reader asked for one product; sending them to the module's index
-    // would lose the only part of the request that mattered.
-    target = target.replaceAll(':$name', Uri.encodeComponent(value));
-  });
-  final Uri? parsed = Uri.tryParse(target);
-  if (parsed == null) return '';
-  if (parsed.scheme != 'http' && parsed.scheme != 'https') return '';
-  if (parsed.host.isEmpty) return '';
-  return target;
-}
-
-Response _html(String page, {int status = 200}) {
+Response _html(String page, {int status = 200, bool streaming = false}) {
   final headers = Headers()
     ..set('content-type', 'text/html; charset=utf-8')
     ..set('cache-control', 'no-store');
-  return Response(status, headers: headers, body: Stream<List<int>>.value(utf8.encode(page)));
+  if (!streaming) {
+    return Response(status, headers: headers, body: Stream<List<int>>.value(utf8.encode(page)));
+  }
+  // The head as its own write, so the title is on the wire before the body
+  // is. `isStream` is what makes that survive the trip out: the runtime
+  // gathers the whole body of anything it is not told is a stream and sends
+  // it with a content-length, which puts the split back together again and
+  // leaves the setting doing nothing.
+  return Response(
+    status,
+    headers: headers,
+    isStream: true,
+    body: Stream<List<int>>.fromIterable(
+      <List<int>>[for (final String chunk in dvPageChunks(page)) utf8.encode(chunk)],
+    ),
+  );
 }
 
 /// Escape a prerendered value for interpolation into HTML.
