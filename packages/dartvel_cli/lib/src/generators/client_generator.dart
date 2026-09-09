@@ -7,7 +7,9 @@ import 'package:dartvel_core/dartvel.dart'
         dvHomeWidgetDeclaration,
         dvHomeWidgetId,
         dvHomeWidgetRoute,
-        dvSourceDeclaresHomeWidget;
+        dvSourceDeclaresHomeWidget,
+        DVPublicEnvLibrary,
+        dvGeneratePublicEnvLibrary;
 
 import 'annotation_args.dart';
 import 'function_body.dart';
@@ -671,51 +673,17 @@ ${_moduleBackendSource(dv)}    final url = kReleaseMode ? cfg.dvProdBackendHost 
         envMap.addAll(m); // later files override earlier
       }
     }
-    final publicEnv = <String, String>{
-      for (final e in envMap.entries)
-        if (e.key.startsWith('PUBLIC_')) e.key: e.value,
-    };
-
-    final sbEnv = StringBuffer();
-    sbEnv.writeln('// GENERATED – do not edit.');
-    sbEnv.writeln(
-      '// ignore_for_file: non_constant_identifier_names, unused_element',
-    );
-    sbEnv.writeln('library dartvel_client_env;');
-    sbEnv.writeln('');
-    sbEnv.writeln('/// Environment variables provider.');
-    sbEnv.writeln('class Env {');
-    sbEnv.writeln('  /// Decrypts obfuscated values.');
-    sbEnv.writeln(
-      '  static String _d(List<int> c, int k) => String.fromCharCodes(c.map((x) => x ^ k));',
-    );
-    for (final e in publicEnv.entries) {
-      final obf = RouteUtils.obfuscate(e.value);
-      final parts = obf.split(', ');
-      final key = parts.last;
-      final list = parts.sublist(0, parts.length - 1).join(', ');
-      sbEnv.writeln('  // ignore: non_constant_identifier_names');
-      sbEnv.writeln('  /// Value of ${e.key} environment variable.');
-      sbEnv.writeln('  static String get ${e.key} => _d($list, $key);');
+    // One emitter, shared with the build_runner router builder. The PUBLIC_
+    // filter is the structural half of the secrets guarantee, and it used to
+    // exist twice -- either copy editable without the other noticing.
+    final DVPublicEnvLibrary envLibrary = dvGeneratePublicEnvLibrary(envMap);
+    for (final skipped in envLibrary.skipped) {
+      log('dartvel: "$skipped" is not a usable Dart name and was left out of '
+          'env.g.dart. Rename it to letters, digits and underscores.');
     }
-    sbEnv.writeln('}');
-    sbEnv.writeln('');
-    sbEnv.writeln('/// Legacy map support for environment variables.');
-    sbEnv.writeln('final Map<String, String> dvPublicEnv = {');
-    for (final e in publicEnv.entries) {
-      sbEnv.writeln("  '${e.key}': Env.${e.key},");
-    }
-    sbEnv.writeln('};');
-    sbEnv.writeln('/// Public environment variable manager.');
-    sbEnv.writeln('class DartvelEnv {');
-    sbEnv.writeln('  /// Map of all public environment variables.');
-    sbEnv.writeln('  static final Map<String, String> public = dvPublicEnv;');
-    sbEnv.writeln('  /// Gets a public environment variable by key.');
-    sbEnv.writeln('  static String? get(String key) => dvPublicEnv[key];');
-    sbEnv.writeln('}');
     File(
       p.join(libClientDir.path, 'env.g.dart'),
-    ).writeAsStringSync(sbEnv.toString());
+    ).writeAsStringSync(envLibrary.source);
 
     // Router
     //
