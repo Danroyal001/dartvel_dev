@@ -20,6 +20,7 @@ import 'src/notifications/web_push.dart';
 import 'src/notifications/web_push_vapid.dart';
 import 'src/scheduling/cron.dart';
 import 'src/search/search_tuning.dart';
+import 'src/tenancy/tenants.dart';
 
 export 'src/ai/ai.dart';
 export 'src/ai/mcp.dart';
@@ -1367,6 +1368,30 @@ class DVExportOptions<TModel> {
   });
 
   Iterable<TModel> apply(Iterable<TModel> items) {
+    final declared = tenantId;
+    final current = const DVTenants().currentTenant;
+    if (declared != null && declared != current) {
+      // [tenantId] used to reach the metadata and nothing else, so an export
+      // declaring a tenant wrote whichever rows it was handed and stamped
+      // the declared tenant on the file. Beside it, policyFilter did narrow
+      // -- which is what made the pair read as two filters rather than one
+      // filter and one label.
+      //
+      // Refused rather than narrowed here, because it cannot be narrowed:
+      // the rows were read before this was called and the tenant column is
+      // not a field on the generated model, so there is nothing on an item
+      // to compare. Read the rows as the tenant instead --
+      // DV.Tenants.withTenant(...) around the query and the export both --
+      // which is the only order in which the file's contents can match its
+      // label.
+      throw StateError(
+        'This export declares tenant "$declared" and is running as '
+        '"$current". The rows it was given were read as "$current", so '
+        'writing them under the other name would be a file that states a '
+        'tenant it does not hold. Read and export inside '
+        'DV.Tenants.withTenant("$declared", ...).',
+      );
+    }
     final filter = policyFilter;
     return filter == null ? items : items.where(filter);
   }
