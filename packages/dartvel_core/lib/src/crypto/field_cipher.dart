@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:meta/meta.dart';
 import 'package:pointycastle/export.dart';
 
 import '../secrets/secrets.dart';
@@ -191,8 +192,24 @@ class DVFieldCipher {
   final DVFieldKeyring keyring;
   final Random _random;
 
+  /// [random] is for tests that need a repeatable nonce, and for nothing
+  /// else.
+  ///
+  /// Marked so the analyzer says so at the call site. AES-GCM does not
+  /// survive a nonce repeating under one key: two values sealed with the same
+  /// nonce leak the difference between their plaintexts, and the
+  /// authentication key can be recovered from the pair, so an attacker can
+  /// then forge a value the reader accepts. That is not a weaker cipher, it
+  /// is no cipher. A caller who passes Random(42) to make a test
+  /// deterministic and leaves it there gets exactly that, with everything
+  /// still appearing to work.
+  @visibleForTesting
   DVFieldCipher(this.keyring, {Random? random})
     : _random = random ?? Random.secure();
+
+  /// The cipher an application uses: nonces from the platform's secure
+  /// source, with no way to ask for anything else.
+  DVFieldCipher.secure(this.keyring) : _random = Random.secure();
 
   /// Seals [plaintext] as `dvf1:<key id>:<base64 nonce||ciphertext>`.
   ///
