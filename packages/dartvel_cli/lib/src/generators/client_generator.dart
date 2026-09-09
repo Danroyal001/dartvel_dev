@@ -304,6 +304,12 @@ class ClientGenerator {
           generatedWidget: _generatedPageWidgetName(className),
           pageScaffold: _pageScaffoldSpec(src),
           policy: _pagePolicy(src),
+          // Read here because nothing else ever read it. The annotation's
+          // only reader anywhere was the backend generator's spelling check,
+          // which walks every file under lib/ and so validated the names on
+          // a page against the sets written for an HTTP chain -- a green
+          // build, a whitelisted key, and a route that ran nothing.
+          middleware: _pageMiddleware(src),
           sitemap: _pageSitemap(src),
           route: route,
           directory: dir,
@@ -805,7 +811,11 @@ ${_moduleBackendSource(dv)}    final url = kReleaseMode ? cfg.dvProdBackendHost 
       return expr;
     }
 
-    String guardRedirectFor(String dir, String? policy) {
+    String guardRedirectFor(
+      String dir,
+      String? policy, [
+      List<String> middleware = const <String>[],
+    ]) {
       // Build ancestor chain from pagesDir to dir; collect guards
       final parts = <String>[];
       var cur = dir;
@@ -824,7 +834,11 @@ ${_moduleBackendSource(dv)}    final url = kReleaseMode ? cfg.dvProdBackendHost 
       // page can be under a guarded folder and carry a policy of its own,
       // and replacing the chain with the policy would quietly drop the
       // folder's guard.
-      return dvPageGuardChain(directoryGuards: chain, policy: policy);
+      return dvPageGuardChain(
+        directoryGuards: chain,
+        policy: policy,
+        middleware: middleware,
+      );
     }
 
     // A route per model that asked Dartvel to generate its pages. Without
@@ -881,7 +895,7 @@ ${_moduleBackendSource(dv)}    final url = kReleaseMode ? cfg.dvProdBackendHost 
           (e) => '''
     GoRoute(
       path: '${esc(e.route)}',
-${guardRedirectFor(e.directory, e.policy)}      pageBuilder: (context, state) {
+${guardRedirectFor(e.directory, e.policy, e.middleware)}      pageBuilder: (context, state) {
         final params = Map<String, String>.from(state.pathParameters);
         final query  = Map<String, String>.from(state.uri.queryParameters);
         final page = const ${e.generatedWidget}();
@@ -1084,7 +1098,8 @@ ${m.auth == 'inherit' ? inheritedGuard : ''}      pageBuilder: (context, state) 
     // module mount carries its own `sitemap: include|exclude`.
     final guardedRoutes = <String>{
       for (final e in pageEntries)
-        if (guardRedirectFor(e.directory, e.policy).isNotEmpty) e.route,
+        if (guardRedirectFor(e.directory, e.policy, e.middleware).isNotEmpty)
+          e.route,
     };
     final guardedRoutesSrc = guardedRoutes.isEmpty
         ? '<String>[]'
@@ -2307,6 +2322,14 @@ void startDartvelKiosk() {
   /// carrying the annotation for guarding it was open to everybody.
   static String? _pagePolicy(String source) => dvPagePolicyFromSource(source);
 
+  /// The middleware keys `@DVUseMiddleware([...])` declares on this page.
+  ///
+  /// The same parser the backend generator uses on the same annotation, for
+  /// the reason the policy parser is shared: one annotation read by two
+  /// parsers is two answers waiting to disagree.
+  static List<String> _pageMiddleware(String source) =>
+      dvMiddlewareKeysFromSource(source);
+
   /// The `DVPageSitemap(...)` a page declares, as written, or null.
   ///
   /// Re-emitted rather than rebuilt from parsed parts, so an argument the
@@ -3156,6 +3179,14 @@ class _PageEntry {
   /// The policy this page declares, or null. Emitted into the route's
   /// redirect so the router refuses before the page builds.
   final String? policy;
+
+  /// The middleware keys this page declares, in the order it declared them.
+  ///
+  /// Order is carried rather than sorted or deduplicated: a maintenance
+  /// check behind an auth check sends a signed-out visitor to sign in to an
+  /// application that is not serving anybody, so the two orders are
+  /// different programs.
+  final List<String> middleware;
   final bool isFunctional;
   final String? expressionBody;
 
@@ -3179,6 +3210,7 @@ class _PageEntry {
 
   const _PageEntry({
     this.policy,
+    this.middleware = const <String>[],
     required this.importIndex,
     required this.className,
     required this.publicName,
