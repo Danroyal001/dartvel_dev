@@ -91,6 +91,51 @@ class DVWebServerSettings {
       };
 }
 
+/// What `dartvel.seo` said about the site as a whole, carried in the
+/// manifest so a server can use it.
+///
+/// A build reads the pubspec and writes these into the shell's head. A server
+/// then renders a route over that shell, and `dvSeoApply` replaces the whole
+/// marked block -- so anything the render is not given is not merely left
+/// alone, it is removed. Without this the web-server target served every page
+/// with no description, no image and no site name, which is worse than the
+/// shell it started from and looks fine in a browser.
+///
+/// These are a floor, not an override. A page that resolved its own
+/// description keeps it; a page that resolved nothing falls back here rather
+/// than to nothing.
+class DVSiteSeo {
+  const DVSiteSeo({this.name, this.description, this.image});
+
+  /// `og:site_name` -- the site, not the page. Distinct from the shell's
+  /// `<title>`, which is the homepage's title and only looks like a name.
+  final String? name;
+  final String? description;
+
+  /// Relative is fine; it is made absolute against the site's URL where it
+  /// is written, because a link preview fetches it with no base.
+  final String? image;
+
+  bool get isEmpty => name == null && description == null && image == null;
+
+  static DVSiteSeo parse(Object? section) {
+    final Map<Object?, Object?> m =
+        section is Map ? section : const <Object?, Object?>{};
+    String? at(String key) => m[key] is String ? m[key]! as String : null;
+    return DVSiteSeo(
+      name: at('name'),
+      description: at('description'),
+      image: at('image'),
+    );
+  }
+
+  Map<String, Object?> toJson() => <String, Object?>{
+        if (name != null) 'name': name,
+        if (description != null) 'description': description,
+        if (image != null) 'image': image,
+      };
+}
+
 /// What a request resolved to: the route pattern it matched and the
 /// parameters the path filled in.
 class DVPageRequest {
@@ -257,6 +302,49 @@ String dvRenderPage({
       ),
       data,
     );
+
+/// Where a federated route sends the reader, with the request's own
+/// parameters put back into it.
+///
+/// A mounted micro-site serves its own HTML, so the parent answers the path
+/// and hands the reader on. Empty when [location] is not somewhere to send
+/// anybody: a manifest is data and can be edited, and redirecting to whatever
+/// string it happens to hold is how an open redirect starts. Only http and
+/// https, and only with a host.
+///
+/// In core rather than in either server because both of them redirect, and a
+/// second copy of this guard is a second place for it to be relaxed.
+String dvFederatedTarget(String location, DVPageRequest matched) {
+  var target = location;
+  matched.params.forEach((String name, String value) {
+    // The reader asked for one product; sending them to the module's index
+    // would lose the only part of the request that mattered.
+    target = target.replaceAll(':$name', Uri.encodeComponent(value));
+  });
+  final Uri? parsed = Uri.tryParse(target);
+  if (parsed == null) return '';
+  if (parsed.scheme != 'http' && parsed.scheme != 'https') return '';
+  if (parsed.host.isEmpty) return '';
+  return target;
+}
+
+/// [page] cut where a streamed response should flush: the head as the first
+/// piece, the rest after it.
+///
+/// One page, one rule, because both servers stream and each had its own idea
+/// of where the cut goes. A document with no `</head>` -- a shell somebody
+/// hand-wrote, or one a plugin rewrote -- is a single piece rather than an
+/// error, since a page that arrives whole is worth more than a correct
+/// complaint.
+List<String> dvPageChunks(String page) {
+  const String close = '</head>';
+  final int end = page.indexOf(close);
+  if (end < 0) return <String>[page];
+  return <String>[
+    page.substring(0, end + close.length),
+    page.substring(end + close.length),
+  ];
+}
 
 /// [html] with the page's structured data and favicon in its head. Marked,
 /// so rendering the same page again replaces rather than adds.
