@@ -37,6 +37,7 @@ import '../build/semantics_capture.dart';
 import '../build/server_config.dart';
 import '../build/structured_data.dart';
 import '../build/supervisor_unit.dart';
+import '../build/render_backends.dart';
 import '../build/static_seo.dart';
 import '../build/static_paths_runner.dart';
 import '../build/static_generation.dart';
@@ -47,6 +48,11 @@ import '../utils/build_runner.dart';
 import '../generators/client_generator.dart' show ClientGenerator;
 import '../utils/logger.dart';
 import '../utils/toolchain.dart';
+
+// Re-exported: DVRenderBackend moved beside the other build helpers so the
+// client generator can name it without importing a command, and every caller
+// that already reached for it through this library keeps working.
+export '../build/render_backends.dart';
 
 typedef BuildPreflight = Future<bool> Function(
   String platform, {
@@ -274,13 +280,6 @@ TerminalBuildOutcome terminalBuildOutcome(
         'target is skipped rather than substituted.',
   );
 }
-
-/// A rendering backend linked into a build.
-///
-/// Which of these a binary contains is decided at build time and never at
-/// startup: resolving it on launch would mean every application shipped every
-/// backend, and paid for modes most of them never use.
-enum DVRenderBackend { gui, terminal }
 
 /// Whether `pubspec.yaml` opts this application into terminal rendering.
 ///
@@ -636,7 +635,18 @@ class BuildCommand extends Command<void> {
       DVBuildLifecycle.generating,
       () => _processRun(
         'dart',
-        ['run', 'dartvel_cli:dartvel', 'routes'],
+        [
+          'run',
+          'dartvel_cli:dartvel',
+          'routes',
+          // Generation runs in its own process and cannot see the -cli/-tui
+          // suffix that was typed here. Without being told, it re-derived the
+          // linked backends from dartvel.terminal alone -- a different
+          // question with a different answer -- and a terminal-only build
+          // generated a main that declared a GUI it does not contain.
+          '--render',
+          renderBackendsFlag(renderBackends),
+        ],
         workingDirectory: root,
         runInShell: true,
       ),
