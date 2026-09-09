@@ -265,6 +265,11 @@ class DVWindowSharedStore {
 
   Future<void> _flush(String key, DVJsonValue? value) async {
     if (value == null) {
+      // The object first, then the pointer. A crash between the two leaves an
+      // object nothing points at, which the next write of this key replaces;
+      // the other order leaves a pointer to an object that is gone, and a
+      // reader following it gets an error instead of a missing value.
+      await _dropSpill(key);
       await _backend.write(key, null);
       DVWindowPerformance.current.recordStoreFlush(key, bytes: null);
       return;
@@ -285,8 +290,39 @@ class DVWindowSharedStore {
       await _backend.write(key, _cipher.encrypt('$_spillPrefix$objectKey'));
       return;
     }
+    // Small enough to live in the preference store. If this key spilled
+    // before, the object it left is now unreferenced -- the pointer is about
+    // to be overwritten with the value itself.
+    await _dropSpill(key);
     await _backend.write(key, _cipher.encrypt(encoded));
     DVWindowPerformance.current.recordStoreFlush(key, bytes: encoded.length);
+  }
+
+  /// Deletes the spilled object for [key], if this key spilled one.
+  ///
+  /// Nothing deleted them. A removed key cleared its pointer and left the
+  /// object, and a value that shrank below the threshold was written inline
+  /// over the pointer and left the object -- so the bytes stayed on disk, or
+  /// in a bucket, for the life of the installation with nothing referring to
+  /// them.
+  ///
+  /// `sweepAfter` is the setting the specification names for cleaning these
+  /// up later and it still cannot be honoured: DVFileStorageAdapter has list
+  /// and delete and no notion of when an object was written, so "older than
+  /// 24 hours" is not a question this interface can answer. Deleting on
+  /// removal needs no age, and is the half that is correct rather than a
+  /// tidy-up after the fact.
+  ///
+  /// A rewrite that spills again is unaffected: the object name is derived
+  /// from the key, so the new write replaces the old object at the same name.
+  Future<void> _dropSpill(String key) async {
+    final storage = _spill;
+    if (storage == null) return;
+    final objectKey = 'dartvel/window-shared/${_objectName(key)}';
+    // Asked rather than assumed. A delete on a key that was never written is
+    // an error on some adapters and a no-op on others, and a store should not
+    // depend on which.
+    if (await storage.exists(objectKey)) await storage.delete(objectKey);
   }
 
   /// A file-safe name for [key]. Deterministic, so a rewrite replaces the
