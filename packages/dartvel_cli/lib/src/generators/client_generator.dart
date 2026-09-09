@@ -474,7 +474,7 @@ import 'package:flutter/foundation.dart' show kReleaseMode, kIsWeb, defaultTarge
 import 'dart:io' show exit${dv['terminal'] == true ? ', stdin, stdout, stderr, File, Platform, Process, ProcessStartMode' : ''};
 import 'package:flutter/widgets.dart' show WidgetsFlutterBinding;
 import 'package:dartvel_core/dartvel.dart' show DVStartupProfile, dvLiveWindowsPathFor;
-${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVAppLifecycle, DVPageStore, dvStartAppLifecycleBridge,${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''}${_hasDeviceProfileDisplays(dv) || _hasSharedStoreTuning(dv) || _hasWindowingDeclaration(dv) ? ' DVWindowManager,' : ''}${_hasSharedStoreTuning(dv) ? ' DVWindowSharedStore,' : ''}${_hasWindowingDeclaration(dv) ? ' DVWindowingDeclaration,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAndroidBindings, DVAppLaunch, DVRouteTarget, DVWindowOptions, DVRenderSurface${dv['terminal'] == true ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''};
+${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVAppLifecycle, DVPageStore, dvStartAppLifecycleBridge,${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''}${_hasDeviceProfileDisplays(dv) || _hasSharedStoreTuning(dv) || _hasWindowingDeclaration(dv) ? ' DVWindowManager,' : ''}${_hasSharedStoreTuning(dv) ? ' DVWindowSharedStore,' : ''}${_hasWindowingDeclaration(dv) ? ' DVWindowingDeclaration,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAndroidBindings, DVAppLaunch, DVNativeBridge, DVRouteTarget, DVWindowOptions, DVRenderSurface${dv['terminal'] == true ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''};
 import 'dartvel_config.g.dart' as cfg;
 import 'jobs.g.dart' show registerDartvelJobs;
 import 'models.g.dart' show registerDartvelModels;
@@ -580,7 +580,28 @@ ${_deviceProfileInstallSource(dv)}  if (kIsWeb) return;
     TargetPlatform.linux || TargetPlatform.windows || TargetPlatform.macOS => true,
     _ => false,
   };
-  if (!desktop) return;
+  if (!desktop) {
+    // Android and iOS carry the link on the launch rather than on argv: the
+    // Activity's intent on one, the two AppDelegate overrides dartvel build
+    // writes on the other. Both ends of that were built and nothing joined
+    // them up, because this function starts on desktop and returned here --
+    // so a home widget's tap opened the application at its own starting
+    // route. It comes up, at the wrong place, which is what makes it a bug
+    // nobody reports.
+    //
+    // After the first frame, because DV.Navigation throws without a router
+    // and this runs from the router's constructor, before runApp. invoke
+    // rather than require, because a platform with no binding for the name
+    // must still start.
+    WidgetsFlutterBinding.ensureInitialized().addPostFrameCallback((_) {
+      unawaited(DVAppLaunch.openLaunchLink(
+        link: () => DVNativeBridge.invoke<String>('deepLinks.initial'),
+        open: (String route) async =>
+            DV.Navigation.navigate(DVRouteTarget(route)),
+      ));
+    });
+    return;
+  }
   unawaited(DVAppLaunch.start(
     appId: '$pkgName',
     arguments: arguments,

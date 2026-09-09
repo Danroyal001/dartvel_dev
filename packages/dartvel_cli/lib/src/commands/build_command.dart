@@ -1298,7 +1298,7 @@ class BuildCommand extends Command<void> {
     if (has) {
       extension.createSync(recursive: true);
       File(p.join(extension.path, '$dvAppleWidgetExtensionName.swift'))
-          .writeAsStringSync(dvAppleHomeWidgetSource(widgets, 'dartvel'));
+          .writeAsStringSync(dvAppleHomeWidgetSource(widgets));
       File(p.join(extension.path, 'Info.plist'))
           .writeAsStringSync(dvAppleHomeWidgetInfoPlist());
       File(p.join(extension.path, '$dvAppleWidgetExtensionName.entitlements'))
