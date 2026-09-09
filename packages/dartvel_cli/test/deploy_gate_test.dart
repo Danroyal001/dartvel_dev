@@ -7,7 +7,10 @@
 //
 // dvValidateEnvironment existed and nothing called it, so the guarantee was
 // prose. The first request that needed the value was still where it failed.
+import 'dart:io' as io;
+
 import 'package:dartvel_cli/src/secrets/secrets_analysis.dart';
+import 'package:dartvel_core/dartvel.dart';
 import 'package:test/test.dart';
 
 const String _pubspec = '''
@@ -95,5 +98,80 @@ dartvel:
 
     expect(problems.map((String p) => p.split('"')[1]).toList(),
         <String>['ALPHA', 'MID', 'ZED']);
+  });
+
+  group('the gate resolves the way the running process will', () {
+    late io.Directory tmp;
+
+    setUp(() {
+      DVSecrets.reset();
+      tmp = io.Directory.systemTemp.createTempSync('dartvel_gate_');
+    });
+
+    tearDown(() {
+      DVSecrets.reset();
+      if (tmp.existsSync()) tmp.deleteSync(recursive: true);
+    });
+
+    String envFile(String contents) {
+      final io.File file = io.File('${tmp.path}/.env')
+        ..writeAsStringSync(contents);
+      return file.path;
+    }
+
+    test('an export-prefixed line counts as resolved', () {
+      // The gate used to parse .env with a reader of its own, and that
+      // reader did not know the `export` form. So a secret the deployed
+      // process resolves without trouble failed the gate, and the fix people
+      // reach for when a gate is wrong is to stop trusting the gate.
+      final Set<String> resolved = dvResolveSecrets(
+        <String>['PAYSTACK_SECRET'],
+        envFile: envFile('export PAYSTACK_SECRET=sk_live_from_the_file\n'),
+      );
+
+      expect(resolved, <String>{'PAYSTACK_SECRET'});
+    });
+
+    test('a blank assignment does not count as resolved', () {
+      // The direction that ships. `KEY=` is what an unset variable looks
+      // like coming through a shell, and treating it as present is how a
+      // deploy goes out with an empty credential.
+      final Set<String> resolved = dvResolveSecrets(
+        <String>['PAYSTACK_SECRET'],
+        envFile: envFile('PAYSTACK_SECRET=\n'),
+      );
+
+      expect(resolved, isEmpty);
+    });
+
+    test('a quoted value counts as resolved', () {
+      final Set<String> resolved = dvResolveSecrets(
+        <String>['PAYSTACK_SECRET'],
+        envFile: envFile('PAYSTACK_SECRET="sk_live_quoted_value"\n'),
+      );
+
+      expect(resolved, <String>{'PAYSTACK_SECRET'});
+    });
+
+    test('a name in no source at all is missing', () {
+      final Set<String> resolved = dvResolveSecrets(
+        <String>['NEVER_SET_ANYWHERE'],
+        envFile: envFile('SOMETHING_ELSE=value\n'),
+      );
+
+      expect(resolved, isEmpty);
+    });
+
+    test('resolving does not leave the secret loaded for the next caller', () {
+      // The gate runs inside the same process that goes on to build and
+      // write a deployment plan. A value left in the resolver after the
+      // check is a value that can reach an artifact.
+      dvResolveSecrets(
+        <String>['PAYSTACK_SECRET'],
+        envFile: envFile('PAYSTACK_SECRET=sk_live_from_the_file\n'),
+      );
+
+      expect(const DVSecrets().maybeGet('PAYSTACK_SECRET'), isNull);
+    });
   });
 }
