@@ -45,7 +45,16 @@ class DVSecretNotFoundException implements Exception {
 /// out loud than implied.
 String dvRedactSecrets(String text) => DVSecrets.redact(text);
 
-/// Reads secrets from the process environment.
+/// Reads secrets from the process environment, then `.env`.
+///
+/// Resolution runs configured values first, then the process environment,
+/// then the `.env` file. Configured values lead so that `DV.Test.withSecrets`
+/// works: a developer with the variable exported in their shell would
+/// otherwise break a suite that supplied its own, which is the thing that
+/// helper exists to prevent. The environment leads over `.env` because a file
+/// checked into a repository outlives the branch it was written on, and
+/// letting it shadow the running machine's own setting is how a production
+/// deploy picks up a development credential.
 ///
 /// Secrets are deliberately *not* part of the generated client. Only
 /// `PUBLIC_`-prefixed variables are compiled into `env.g.dart`; everything else
@@ -96,7 +105,17 @@ class DVSecrets {
     _overrides.clear();
     _hooks.clear();
     _redactable.clear();
+    env.resetEnvFile();
   }
+
+  /// Reads local-development values from [path] instead of `./.env`.
+  ///
+  /// For a process started somewhere other than the project root, and for
+  /// tests that need a file of their own rather than whatever the developer
+  /// happens to have checked out. On the web this does nothing, because
+  /// fetching such a file would publish the backend environment to every
+  /// visitor. [reset] puts the default back.
+  static void useEnvFile(String path) => env.useEnvFile(path);
 
   /// Remembers [value] as something [redact] must strike out.
   ///
