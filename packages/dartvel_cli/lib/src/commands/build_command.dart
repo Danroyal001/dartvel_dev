@@ -13,6 +13,7 @@ import '../build/android_home_widget.dart';
 import '../build/android_context_provider.dart';
 import '../build/android_kiosk_manifest.dart';
 import '../build/apple_home_widget.dart';
+import '../build/apple_widget_reload.dart';
 import '../build/apple_widget_target.dart';
 import '../build/ios_deep_links.dart';
 import '../build/browser_extension.dart';
@@ -1317,7 +1318,7 @@ class BuildCommand extends Command<void> {
     if (has) {
       extension.createSync(recursive: true);
       File(p.join(extension.path, '$dvAppleWidgetExtensionName.swift'))
-          .writeAsStringSync(dvAppleHomeWidgetSource(widgets, 'dartvel'));
+          .writeAsStringSync(dvAppleHomeWidgetSource(widgets));
       File(p.join(extension.path, 'Info.plist'))
           .writeAsStringSync(dvAppleHomeWidgetInfoPlist());
       File(p.join(extension.path, '$dvAppleWidgetExtensionName.entitlements'))
@@ -1349,10 +1350,30 @@ class BuildCommand extends Command<void> {
       }
     }
 
+    // The shim that lets a publish redraw the widget now rather than at the
+    // next timeline, which the generated provider sets fifteen minutes out.
+    // Written beside AppDelegate.swift because it belongs to the
+    // application, not to the extension: WidgetCenter reloads a widget from
+    // the containing app, and it is Swift-only, so Dart has nothing to
+    // message without a class of its own compiled in here.
+    final File reload =
+        File(p.join(root, platform, 'Runner', dvAppleWidgetReloadFileName));
+    if (has) {
+      reload.parent.createSync(recursive: true);
+      reload.writeAsStringSync(dvAppleWidgetReloadSource());
+    } else if (reload.existsSync()) {
+      // Taken away with the widgets. A Swift file left behind after its
+      // build-file entry went is one Xcode does not compile and does not
+      // mention, sitting in the project folder for ever.
+      reload.deleteSync();
+    }
+
     String after = dvApplePbxprojWithWidgets(before,
         hasWidgets: has, bundleId: bundleId, platform: platform);
     after = dvApplePbxprojWithAppEntitlements(after,
         hasWidgets: has && platform == 'ios', path: entitlementsPath);
+    after = dvApplePbxprojWithWidgetReload(after,
+        hasWidgets: has, platform: platform);
     if (after != before) project.writeAsStringSync(after);
 
     if (!has) return;

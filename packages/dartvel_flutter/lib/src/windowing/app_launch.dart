@@ -10,7 +10,8 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:dartvel_core/dartvel.dart' show DVInstanceLock, DVSingleInstance;
+import 'package:dartvel_core/dartvel.dart'
+    show DVInstanceLock, DVSingleInstance, dvHomeWidgetRouteForLink;
 
 import '../../dartvel_flutter.dart' show DVDeepLinks;
 
@@ -94,6 +95,14 @@ class DVAppLaunch {
       return _pathAndQuery(uri.path.isEmpty ? '/' : uri.path, uri.query);
     }
     if (uri.scheme == 'javascript' || uri.scheme == 'data') return null;
+    // A home widget's tap, before the general rule below gets hold of it.
+    // Its host says what kind of link it is rather than naming a segment, so
+    // folding the host into the path turned
+    // dartvel://widget/widgets/order-status into /widget/widgets/order-status
+    // -- a route no application has, reached by tapping a widget somebody had
+    // already placed on a home screen.
+    final String? widgetRoute = dvHomeWidgetRouteForLink(text);
+    if (widgetRoute != null) return widgetRoute;
     // dartvel://orders/42 -- the host is the first segment.
     final String path = '/${<String>[if (uri.host.isNotEmpty) uri.host, ...uri.pathSegments].join('/')}';
     return _pathAndQuery(path, uri.query);
@@ -112,6 +121,55 @@ class DVAppLaunch {
     final String last = bare.substring(bare.lastIndexOf('/') + 1);
     final int dot = last.lastIndexOf('.');
     return dot > 0 && dot < last.length - 1;
+  }
+
+  /// Opens whatever route this launch was handed a link to, and answers
+  /// with it.
+  ///
+  /// The mobile half of [start]. A desktop launch carries its link as a
+  /// command-line argument, which is why [start] takes arguments; Android
+  /// and iOS carry it on the launch itself -- the Activity's intent on one,
+  /// the two AppDelegate overrides `dartvel build` writes on the other --
+  /// and it is read back through a native binding rather than off argv.
+  ///
+  /// Everything either side of this existed and nothing joined them up. The
+  /// capture was written on both platforms, the binding that reads it was
+  /// registered on both, and the launch path returned before reaching either
+  /// because it starts on desktop. A home widget's tap therefore opened the
+  /// application at whatever route it starts at, which is a shortcut rather
+  /// than a widget, and looks enough like success that nobody reports it.
+  ///
+  /// [link] is asked once and may fail: `deepLinks.initial` is registered on
+  /// five platforms and this runs on every one, so a target that has no
+  /// binding for it must come up rather than take the application down at
+  /// startup.
+  ///
+  /// Answers null when the launch carried nothing, which is the ordinary
+  /// case -- somebody tapped the application's own icon, and navigating them
+  /// somewhere would be worse than doing nothing.
+  static Future<String?> openLaunchLink({
+    required Future<String?> Function() link,
+    required Future<void> Function(String route) open,
+    String filesRoute = '/open',
+  }) async {
+    String? value;
+    try {
+      value = await link();
+    } on Object {
+      return null;
+    }
+    final String text = value?.trim() ?? '';
+    if (text.isEmpty) return null;
+    final String? route = routeFor(text, filesRoute: filesRoute);
+    if (route == null) return null;
+    // What DV.Platform.deepLinks answers as well, so an application reading
+    // the initial link for itself sees the one the router acted on rather
+    // than nothing. Two answers to "what launched this" is a page opened
+    // twice or opened and immediately left.
+    _initialLink ??= text;
+    const DVDeepLinks().dispatch(text);
+    await open(route);
+    return route;
   }
 
   /// The primary result per lock path in this process. A second start in
