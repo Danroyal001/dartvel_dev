@@ -110,6 +110,9 @@ class DVWindowingCapability {
     required bool hasNativeWindowBinding,
     bool kioskLocked = false,
     bool enabledByConfig = true,
+    bool? webInPageViews,
+    bool? webOpenInNewWindow,
+    bool? androidFreeform,
   }) {
     if (!enabledByConfig || kioskLocked) return const DVWindowingCapability();
     if (isDesktop) {
@@ -124,15 +127,27 @@ class DVWindowingCapability {
       // Tear-out by drag is false: a drag ending on the desktop cannot open a
       // popup, because the call is no longer attributed to a user gesture.
       // Web gets the explicit affordance instead.
-      return const DVWindowingCapability(
-        multiWindow: true,
+      //
+      // The two declarations narrow this and cannot widen it: both were in
+      // the specification and read by nothing, so a project that wrote
+      // openInNewWindow: false still reported multiWindow, still offered the
+      // control, and still opened a browser window when somebody pressed it.
+      // Null is "not declared", which is the platform's own answer.
+      return DVWindowingCapability(
+        multiWindow: webOpenInNewWindow ?? true,
         sameEngine: false,
         tearOut: false,
-        inPageViews: true,
+        inPageViews: webInPageViews ?? true,
       );
     }
     if (isAndroid) {
-      return const DVWindowingCapability(multiWindow: true);
+      // freeform: auto is the default and means the platform decides, which
+      // is what declaring nothing already did. false is the project saying it
+      // does not want a second OS window, so windows become stacked routes --
+      // freeform is what makes a genuinely separate window on Android, and
+      // withdrawing it withdraws the capability rather than degrading a call
+      // that already reported it could work.
+      return DVWindowingCapability(multiWindow: androidFreeform ?? true);
     }
     // iPadOS scenes; an iPhone has no second scene to give.
     if (isIOS && isTablet) {
@@ -140,6 +155,40 @@ class DVWindowingCapability {
     }
     return const DVWindowingCapability();
   }
+}
+
+/// What a project declared under `dartvel.windowing`.
+///
+/// Three settings the specification documents and the build read none of:
+/// `web.inPageViews`, `web.openInNewWindow` and `android.freeform`. A project
+/// that wrote `openInNewWindow: false` still reported multiWindow on web,
+/// still offered the control, and still opened a browser window when somebody
+/// pressed it.
+///
+/// Null means the project said nothing, which is the platform's own answer.
+/// Not false: a default of false would withdraw windowing from every
+/// application that never wrote the block.
+///
+/// A declaration narrows and never widens. It is permission to do less, so a
+/// phone cannot be given a second window by writing one down -- a capability
+/// that lied in that direction would be worse than one that ignored the
+/// setting, because a caller would offer a control and the call behind it
+/// would degrade.
+class DVWindowingDeclaration {
+  const DVWindowingDeclaration({
+    this.webInPageViews,
+    this.webOpenInNewWindow,
+    this.androidFreeform,
+  });
+
+  /// `dartvel.windowing.web.inPageViews`.
+  final bool? webInPageViews;
+
+  /// `dartvel.windowing.web.openInNewWindow`.
+  final bool? webOpenInNewWindow;
+
+  /// `dartvel.windowing.android.freeform`, where `auto` is null.
+  final bool? androidFreeform;
 }
 
 /// What kind of surface was asked for.
@@ -744,6 +793,9 @@ class DVWindowManager {
         isTablet: _platform.type == 'tablet',
         isIOS: _platform.isIOS,
         hasNativeWindowBinding: DVNativeBridge.isRegistered('window.open'),
+        webInPageViews: _declared.webInPageViews,
+        webOpenInNewWindow: _declared.webOpenInNewWindow,
+        androidFreeform: _declared.androidFreeform,
       );
 
   static DVWindowSharedStore? _shared;
@@ -757,6 +809,23 @@ class DVWindowManager {
   /// preference-backed backend.
   static void useSharedStore(DVWindowSharedStore store) {
     _shared = store;
+  }
+
+  static DVWindowingDeclaration _declared = const DVWindowingDeclaration();
+
+  /// What the project declared under `dartvel.windowing`, from the generated
+  /// runtime.
+  ///
+  /// Set rather than read from a config file here: the runtime has no pubspec
+  /// at hand, and the generator already reads that section for the shared
+  /// store. Same hook shape as [useSharedStore] for the same reason.
+  static void useWindowingDeclaration(DVWindowingDeclaration declaration) {
+    _declared = declaration;
+  }
+
+  /// Test-only: forgets any declaration.
+  static void resetWindowingDeclaration() {
+    _declared = const DVWindowingDeclaration();
   }
 
   /// Opens whatever a second launch asked for, and clears the queue.
