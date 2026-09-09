@@ -2,7 +2,7 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:path/path.dart' as p;
 import 'package:dartvel_core/dartvel.dart'
-    show DVCacheAdapter, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute;
+    show DVCacheAdapter, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvWithRequestTenant;
 import 'package:dartvel_core/http.dart';
 
 /// Serve the single-page app's index, with any prerendered metadata for this
@@ -18,7 +18,31 @@ import 'package:dartvel_core/http.dart';
 /// is UTF-16: `é` came out as the single byte 233, which is not a valid UTF-8
 /// lead byte, and anything above U+00FF came out as a value that is not a byte
 /// at all. ASCII pages looked correct throughout, which is how it survived.
+/// The tenant is resolved here and nowhere else on this path. Rendering
+/// calls the application's page data resolver, which queries models --
+/// tenant-scoped ones included -- and that ran under whatever tenant the
+/// process happened to be set to. A customer on their own subdomain was
+/// served the default tenant's rows in the title, the description, the
+/// structured data and the crawler text, and a crawler indexed them there.
 Future<Response> handleSsrFallback(
+  Request req,
+  String spaRoot, {
+  DVPageDataResolver? pageData,
+  DVPageDataCache? cache,
+  DVCacheAdapter? pageStore,
+}) =>
+    dvWithRequestTenant(
+      req,
+      () => _handleSsrFallback(
+        req,
+        spaRoot,
+        pageData: pageData,
+        cache: cache,
+        pageStore: pageStore,
+      ),
+    );
+
+Future<Response> _handleSsrFallback(
   Request req,
   String spaRoot, {
   DVPageDataResolver? pageData,
