@@ -67,6 +67,26 @@ void main() {
     }
   });
 
+  test('the table name matches the registered one whatever its case',
+      () async {
+    // SQL identifiers are case-insensitive unquoted, so a provider built for
+    // Orders and a client that registered orders are the same table. Missing
+    // that is the silent direction: no predicate, rows returned, nothing to
+    // see.
+    dvRegisterTenantScopedTables(<String>{'orders'});
+    final _RecordingAdapter database = _RecordingAdapter();
+
+    await const DVTenants().withTenant(
+      'acme',
+      () => _provider(database, table: 'Orders').query('lamp'),
+    );
+
+    for (final ({String sql, List<Object?> params}) statement
+        in database.statements) {
+      expect(statement.sql, contains('dv_tenant = ?'));
+    }
+  });
+
   test('a table nobody scoped is searched as it always was', () async {
     // A currency list is deliberately shared. A predicate on a column that is
     // not there fails every search over it.
