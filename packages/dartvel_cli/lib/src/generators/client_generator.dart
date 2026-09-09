@@ -4,8 +4,11 @@ import 'dart:io';
 import 'package:dartvel_core/dartvel.dart'
     show
         DVHomeWidgetSpec,
+        dvHomeWidgetAnnotationArgs,
         dvHomeWidgetDeclaration,
+        dvHomeWidgetDeclaredName,
         dvHomeWidgetId,
+        dvHomeWidgetIsClass,
         dvHomeWidgetRoute,
         dvSourceDeclaresHomeWidget,
         DVPublicEnvLibrary,
@@ -509,8 +512,9 @@ import 'package:flutter/foundation.dart' show kReleaseMode, kIsWeb, defaultTarge
 import 'dart:io' show exit${dualMode ? ', stdin, stdout, stderr, File, Platform, Process, ProcessStartMode' : ''};
 import 'package:flutter/widgets.dart' show WidgetsFlutterBinding;
 import 'package:dartvel_core/dartvel.dart' show DVStartupProfile, dvLiveWindowsPathFor;
-${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVAppLifecycle, DVPageStore, dvStartAppLifecycleBridge,${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''}${_hasDeviceProfileDisplays(dv) || _hasSharedStoreTuning(dv) || _hasWindowingDeclaration(dv) ? ' DVWindowManager,' : ''}${_hasSharedStoreTuning(dv) ? ' DVWindowSharedStore,' : ''}${_hasWindowingDeclaration(dv) ? ' DVWindowingDeclaration,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAndroidBindings, DVAppLaunch, DVRouteTarget, DVWindowOptions, DVRenderSurface${dualMode ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''}${terminalOnly ? ', DVTerminalSurface' : ''};
+${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVAppLifecycle, DVPageStore, dvStartAppLifecycleBridge,${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''}${_hasDeviceProfileDisplays(dv) || _hasSharedStoreTuning(dv) || _hasWindowingDeclaration(dv) ? ' DVWindowManager,' : ''}${_hasSharedStoreTuning(dv) ? ' DVWindowSharedStore,' : ''}${_hasWindowingDeclaration(dv) ? ' DVWindowingDeclaration,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAndroidBindings, DVAppLaunch, DVHomeWidgets, DVNativeBridge, DVRouteTarget, DVWindowOptions, DVRenderSurface${dualMode ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''}${terminalOnly ? ', DVTerminalSurface' : ''};
 import 'dartvel_config.g.dart' as cfg;
+import 'home_widgets.g.dart' show dartvelHomeWidgets;
 import 'jobs.g.dart' show registerDartvelJobs;
 import 'models.g.dart' show registerDartvelModels;
 import 'modules.g.dart' show registerDartvelModules;
@@ -554,6 +558,12 @@ void configureDartvelRuntime({List<String> arguments = const <String>[]}) {
   // The modules this application mounts, so DV.Modules.<id> is the module
   // the build mounted rather than an unknown id.
   registerDartvelModules();
+  // What this application's @DVHomeWidget declarations are. The list was
+  // generated, exported from the barrel and read by nothing -- so
+  // DVHomeWidgets.publish took any string at all, and a misspelled id wrote
+  // under a key no widget asks for and left the home screen showing its
+  // placeholder, with true coming back to the caller.
+  DVHomeWidgets.declare(dartvelHomeWidgets);
   DVStartupProfile.current.mark('generated');
   // The platform's native bindings -- clipboard, window, notifications and
   // the rest. Registered here rather than left to the application, because a
@@ -615,7 +625,28 @@ ${_deviceProfileInstallSource(dv)}  if (kIsWeb) return;
     TargetPlatform.linux || TargetPlatform.windows || TargetPlatform.macOS => true,
     _ => false,
   };
-  if (!desktop) return;
+  if (!desktop) {
+    // Android and iOS carry the link on the launch rather than on argv: the
+    // Activity's intent on one, the two AppDelegate overrides dartvel build
+    // writes on the other. Both ends of that were built and nothing joined
+    // them up, because this function starts on desktop and returned here --
+    // so a home widget's tap opened the application at its own starting
+    // route. It comes up, at the wrong place, which is what makes it a bug
+    // nobody reports.
+    //
+    // After the first frame, because DV.Navigation throws without a router
+    // and this runs from the router's constructor, before runApp. invoke
+    // rather than require, because a platform with no binding for the name
+    // must still start.
+    WidgetsFlutterBinding.ensureInitialized().addPostFrameCallback((_) {
+      unawaited(DVAppLaunch.openLaunchLink(
+        link: () => DVNativeBridge.invoke<String>('deepLinks.initial'),
+        open: (String route) async =>
+            DV.Navigation.navigate(DVRouteTarget(route)),
+      ));
+    });
+    return;
+  }
   unawaited(DVAppLaunch.start(
     appId: '$pkgName',
     arguments: arguments,
@@ -736,6 +767,21 @@ ${_moduleBackendSource(dv)}    final url = kReleaseMode ? cfg.dvProdBackendHost 
     // project through no fault of theirs, in a file they are told not to
     // edit.
     //
+    // A route per home widget. The specification says a home widget acts
+    // like a page and that Dartvel generates one that centres its content --
+    // so it is a real route, which is what lets the widget launch the
+    // application at itself and a page navigate back to it. A widget in a
+    // list and in no router is a launch that opens the not-found page.
+    //
+    // Scanned here rather than beside the routes, because a widget declared
+    // as a class is the application's own and the route names it where it
+    // lives: the import has to be in the set below, which is built first.
+    final List<_HomeWidgetEntry> homeWidgetEntries =
+        _homeWidgetEntriesIn(root, pkgName);
+    final List<DVHomeWidgetSpec> homeWidgets = homeWidgetEntries
+        .map((_HomeWidgetEntry e) => e.spec)
+        .toList(growable: false);
+
     // By line rather than by URI, because two aliases for one library are
     // two different imports and both are wanted. A Set keeps insertion
     // order, so the header stays at the top.
@@ -754,6 +800,11 @@ ${_moduleBackendSource(dv)}    final url = kReleaseMode ? cfg.dvProdBackendHost 
       ...pageImports,
       ...layoutImports,
       ...guardImports,
+      // Where a home widget declared as a class lives. Not deferred and not
+      // aliased: the route names the type directly, and the file is the
+      // application's own rather than a page whose loading this splits.
+      for (final _HomeWidgetEntry e in homeWidgetEntries)
+        if (e.importPath case final String path) "import '$path';",
       // One import per mounted module: its pages are its own generated
       // widgets, under an alias so two modules cannot collide.
       for (final DVModuleMount m in modules)
@@ -862,15 +913,6 @@ ${_moduleBackendSource(dv)}    final url = kReleaseMode ? cfg.dvProdBackendHost 
         )
         .join('\n');
 
-    // A route per home widget. The specification says a home widget acts
-    // like a page and that Dartvel generates one that centres its content --
-    // so it is a real route, which is what lets the widget launch the
-    // application at itself and a page navigate back to it. A widget in a
-    // list and in no router is a launch that opens the not-found page.
-    final List<_HomeWidgetEntry> homeWidgetEntries = _homeWidgetEntriesIn(root);
-    final List<DVHomeWidgetSpec> homeWidgets = homeWidgetEntries
-        .map((_HomeWidgetEntry e) => e.spec)
-        .toList(growable: false);
     // DVPageShell, because the specification says a home widget acts like a
     // DVPage and supports the same shell properties -- and a page's
     // properties are what DVPageShell applies. Without it the declared
@@ -2532,7 +2574,11 @@ void startDartvelKiosk() {
           .map((_HomeWidgetEntry e) => e.spec)
           .toList(growable: false);
 
-  static List<_HomeWidgetEntry> _homeWidgetEntriesIn(String root) {
+  /// [pkgName] is only needed to write the import a widget class's route
+  /// requires, so callers that want the specs alone -- the Android and Apple
+  /// packaging, the build check -- may leave it out.
+  static List<_HomeWidgetEntry> _homeWidgetEntriesIn(String root,
+      [String pkgName = '']) {
     final Directory libDir = Directory(p.join(root, 'lib'));
     if (!libDir.existsSync()) return const <_HomeWidgetEntry>[];
     // The pattern is core's, shared with the build check that decides
@@ -2556,16 +2602,39 @@ void startDartvelKiosk() {
       final String rel =
           p.relative(file.path, from: root).replaceAll('\\', '/');
       for (final RegExpMatch match in declaration.allMatches(source)) {
-        final String args = match.group(1) ?? '';
-        final String declared = match.group(2)!;
-        if (!declared.startsWith('_')) {
+        final String args = dvHomeWidgetAnnotationArgs(match);
+        final String declared = dvHomeWidgetDeclaredName(match);
+        // The specification puts the annotation on any widget, and the two
+        // shapes are generated in opposite directions.
+        //
+        // A function is lowered into a widget class this generator writes,
+        // so the input is private and the public name is Dartvel's -- a
+        // public input would leave two names for one widget with the
+        // application free to use the wrong one.
+        //
+        // A class is already a widget. There is nothing to generate from it,
+        // so the route reaches the developer's own class where it lives, and
+        // a private class cannot be named from the generated router at all.
+        // That is the same rule, for the same reason, as a `@DVPage` class
+        // input.
+        final bool isClass = dvHomeWidgetIsClass(match);
+        if (isClass && declared.startsWith('_')) {
+          throw StateError(
+            'Home widget class $declared in $rel is private, so the '
+            'generated route at /widgets/... cannot name it. Make it public: '
+            'a widget class is generated from nothing, it is used where it '
+            'is, which is why this one rule runs the other way from a '
+            'private @DVHomeWidget function.',
+          );
+        }
+        if (!isClass && !declared.startsWith('_')) {
           throw StateError(
             'Dartvel generation inputs must be private. Rename $declared to '
             '_$declared in $rel: the home widget Dartvel generates is the '
             'public name, and application code refers to that.',
           );
         }
-        final String name = _publicWidgetName(declared);
+        final String name = isClass ? declared : _publicWidgetName(declared);
         final String id = dvHomeWidgetId(name);
         if (!claimed.add(id)) {
           // Two widgets under one identifier is a home screen that shows one
@@ -2599,6 +2668,12 @@ void startDartvelKiosk() {
             args,
             buildsScaffold: _sourceBuildsScaffold(source),
           ),
+          // Where the class lives, for the import the router needs. Null for
+          // a function, whose generated class the router already has through
+          // widgets.g.dart.
+          importPath: isClass
+              ? rel.replaceFirst(RegExp('^lib/'), 'package:$pkgName/')
+              : null,
         ));
       }
     }
@@ -3230,13 +3305,26 @@ String _routeTargetName(String cleanPath) {
 /// where `DVPageScaffoldSpec` -- a Flutter type -- cannot follow it. The
 /// shell is Dart source, written into the router and needed nowhere else.
 class _HomeWidgetEntry {
-  const _HomeWidgetEntry({required this.spec, required this.scaffold});
+  const _HomeWidgetEntry({
+    required this.spec,
+    required this.scaffold,
+    this.importPath,
+  });
 
   final DVHomeWidgetSpec spec;
 
   /// A `const DVPageScaffoldSpec(...)` literal, from the same parser the
   /// pages use on the same argument names.
   final String scaffold;
+
+  /// The library the widget class lives in, or null for a widget function.
+  ///
+  /// A function becomes a class this generator writes into `widgets.g.dart`,
+  /// which the router already imports. A class is the developer's own and
+  /// stays where it is, so the router has to import that file or the route
+  /// names a type it cannot see -- which is a build failure in a generated
+  /// file the developer is told not to edit.
+  final String? importPath;
 }
 
 class _PageEntry {

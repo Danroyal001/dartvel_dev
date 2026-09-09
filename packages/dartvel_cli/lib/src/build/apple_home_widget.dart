@@ -21,7 +21,9 @@ import 'package:dartvel_core/dartvel.dart'
         DVHomeWidgetSpec,
         dvHomeWidgetAppGroup,
         dvHomeWidgetDataKey,
-        dvHomeWidgetKind;
+        dvHomeWidgetKind,
+        dvHomeWidgetLaunchScheme,
+        dvHomeWidgetLaunchUrl;
 
 /// The extension target's name, used for its directory, its bundle and its
 /// build settings. Named once because the pbxproj, the Info.plist path and
@@ -95,10 +97,20 @@ String dvAppleWidgetSwiftName(DVHomeWidgetSpec widget) {
 /// them all in one place anyway, and two files that disagree about the set
 /// is the failure this shape removes.
 ///
-/// [scheme] is the application's own URL scheme. A constant here would have
-/// two Dartvel applications on one device both registering it, which is a
-/// race the second one loses without saying so.
-String dvAppleHomeWidgetSource(List<DVHomeWidgetSpec> widgets, String scheme) {
+/// [scheme] is the URL scheme the tap opens the application with, and the
+/// URL itself is built by the rule the Dart runtime reads back rather than
+/// written out here. Written out on each side, the two drifted the moment
+/// either moved, and the drift is a widget somebody has placed on a home
+/// screen opening the not-found page.
+///
+/// It defaults to the framework's own scheme, which is what every build
+/// passes today. Giving each application a scheme of its own would be
+/// better for an application that also handles `dartvel://` links from
+/// elsewhere, and is not a change that can be checked without a device.
+String dvAppleHomeWidgetSource(
+  List<DVHomeWidgetSpec> widgets, [
+  String scheme = dvHomeWidgetLaunchScheme,
+]) {
   // An @main WidgetBundle with nothing in it is an extension that installs,
   // takes a place in the gallery, and offers nothing.
   if (widgets.isEmpty) return '';
@@ -219,7 +231,7 @@ String dvAppleHomeWidgetSource(List<DVHomeWidgetSpec> widgets, String scheme) {
       // The route this widget was generated for. A widgetURL with no path
       // opens the application's home screen, which looks like it worked.
       ..writeln('        .widgetURL(URL(string:')
-      ..writeln('            "$scheme://widget${widget.route}"))')
+      ..writeln('            "${dvHomeWidgetLaunchUrl(scheme, widget.route)}"))')
       ..writeln('    }')
       ..writeln('}')
       ..writeln()

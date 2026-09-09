@@ -475,4 +475,162 @@ void _appSide() {
           _pbxproj);
     });
   });
+
+  group('a project with a test target as well', () {
+    // Every project `flutter create` makes has one, and this fixture puts it
+    // where Xcode does: the PBXNativeTarget section is sorted by id, and
+    // RunnerTests' id sorts first in a real project as often as not.
+    //
+    // The embed phase and the target dependency go onto the application, and
+    // both were reached by finding the application target and then searching
+    // forward for a list. With a test target in the way, forward from the
+    // wrong place is the test target's list -- so the extension would be
+    // built and never embedded, and the .app would install without it. The
+    // build succeeds either way.
+    const String withTests = '''
+// !\$*UTF8*\$!
+{
+	objects = {
+
+/* Begin PBXBuildFile section */
+		97C146FB1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		97C146EE1CF9000F007C117D /* Runner.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Runner.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		97C146E51CF9000F007C117D = {
+			isa = PBXGroup;
+			children = (
+			);
+			sourceTree = "<group>";
+		};
+		97C146EF1CF9000F007C117D /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		331C8080294A63A400263BE5 /* RunnerTests */ = {
+			isa = PBXNativeTarget;
+			buildPhases = (
+				331C807D294A63A400263BE5 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = RunnerTests;
+			productName = RunnerTests;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		97C146ED1CF9000F007C117D /* Runner */ = {
+			isa = PBXNativeTarget;
+			buildPhases = (
+				97C146EA1CF9000F007C117D /* Sources */,
+				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Runner;
+			productName = Runner;
+			productReference = 97C146EE1CF9000F007C117D /* Runner.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		97C146E61CF9000F007C117D /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				TargetAttributes = {
+					97C146ED1CF9000F007C117D = {
+						CreatedOnToolsVersion = 7.3.1;
+					};
+				};
+			};
+			mainGroup = 97C146E51CF9000F007C117D;
+			productRefGroup = 97C146EF1CF9000F007C117D /* Products */;
+			targets = (
+				97C146ED1CF9000F007C117D /* Runner */,
+				331C8080294A63A400263BE5 /* RunnerTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		331C807D294A63A400263BE5 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+			);
+		};
+		97C146EA1CF9000F007C117D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+			);
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+/* End XCConfigurationList section */
+	};
+	rootObject = 97C146E61CF9000F007C117D /* Project object */;
+}
+''';
+
+    String spliced() => dvApplePbxprojWithWidgets(withTests,
+        hasWidgets: true, bundleId: 'com.example.app', platform: 'ios');
+
+    String listIn(String pbxproj, String targetId, String key) {
+      final int target = pbxproj.indexOf('\t\t$targetId ');
+      final int list = pbxproj.indexOf('$key = (', target);
+      return pbxproj.substring(list, pbxproj.indexOf(');', list));
+    }
+
+    test('the extension is embedded in the application, not in the tests', () {
+      final String out = spliced();
+
+      expect(listIn(out, '97C146ED1CF9000F007C117D', 'buildPhases'),
+          contains('Embed App Extensions'));
+      expect(listIn(out, '331C8080294A63A400263BE5', 'buildPhases'),
+          isNot(contains('Embed App Extensions')));
+    });
+
+    test('the application waits for it, not the tests', () {
+      final String out = spliced();
+
+      expect(listIn(out, '97C146ED1CF9000F007C117D', 'dependencies'),
+          contains('PBXTargetDependency'));
+      expect(listIn(out, '331C8080294A63A400263BE5', 'dependencies'),
+          isNot(contains('PBXTargetDependency')));
+    });
+
+    test('taking the widgets away still gives the project back as it was', () {
+      expect(
+        dvApplePbxprojWithWidgets(spliced(),
+            hasWidgets: false, bundleId: 'com.example.app', platform: 'ios'),
+        withTests,
+      );
+    });
+  });
 }

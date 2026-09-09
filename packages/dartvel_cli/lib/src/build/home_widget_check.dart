@@ -15,7 +15,11 @@ library;
 import 'dart:io';
 
 import 'package:dartvel_core/dartvel.dart'
-    show dvHomeWidgetDeclaration, dvHomeWidgetId, dvSourceDeclaresHomeWidget;
+    show
+        dvHomeWidgetDeclaration,
+        dvHomeWidgetDeclaredName,
+        dvHomeWidgetId,
+        dvSourceDeclaresHomeWidget;
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
@@ -123,7 +127,12 @@ class DVHomeWidgetCheck {
       final String source = entity.readAsStringSync();
       if (!dvSourceDeclaresHomeWidget(source)) continue;
       for (final RegExpMatch match in declaration.allMatches(source)) {
-        final String declared = match.group(2)!;
+        // Through core's accessor rather than by group number. The pattern
+        // grew a second capture when the specification's class shape started
+        // being read, and a hand-counted index here would have gone on
+        // reading the first one -- silently, since a capture that is null
+        // for a class and a name for a function both look like a name.
+        final String declared = dvHomeWidgetDeclaredName(match);
         final String bare =
             declared.startsWith('_') ? declared.substring(1) : declared;
         if (bare.isEmpty) continue;
