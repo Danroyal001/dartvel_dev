@@ -105,6 +105,7 @@ export 'src/scheduling/cron.dart';
 export 'src/scheduling/scheduler.dart';
 export 'src/search/postgres_search.dart';
 export 'src/search/search_tuning.dart';
+export 'src/secrets/env_format.dart';
 export 'src/secrets/secrets.dart';
 export 'src/shell/shell.dart';
 export 'src/storage/adapters.dart';
