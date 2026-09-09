@@ -75,6 +75,45 @@ dartvel:
       expect(problems.single, contains('PUBLIC_'));
     });
 
+    test('a backend secret carrying the PUBLIC_ prefix is refused', () {
+      // The leak this closes. Nothing generating env.g.dart reads the
+      // declaration -- the router builder runs under build_runner and only
+      // ever sees the .env file -- so the prefix alone decides what is
+      // compiled into the bundle. A name declared backend-scoped and spelled
+      // PUBLIC_ therefore ships to every visitor while the pubspec says it
+      // never leaves the server, and no diagnostic fires because the value
+      // travels through the generated constant rather than a DV.Secrets call
+      // the analysis can see.
+      final List<String> problems = dvValidateDeclarations(
+        dvParseSecretDeclarations('''
+name: shop
+dartvel:
+  secrets:
+    PUBLIC_PAYSTACK_SECRET:
+      scope: backend
+'''),
+      );
+      expect(problems, hasLength(1));
+      expect(problems.single, contains('PUBLIC_PAYSTACK_SECRET'));
+      expect(problems.single, contains('env.g.dart'));
+    });
+
+    test('an undeclared scope on a PUBLIC_ name is refused too', () {
+      // scope: backend is the default, so omitting it is the same claim
+      // written with fewer words, and it must fail the same way.
+      final List<String> problems = dvValidateDeclarations(
+        dvParseSecretDeclarations('''
+name: shop
+dartvel:
+  secrets:
+    PUBLIC_TOKEN:
+      required: [production]
+'''),
+      );
+      expect(problems, hasLength(1));
+      expect(problems.single, contains('PUBLIC_TOKEN'));
+    });
+
     test('a correctly prefixed client secret passes', () {
       expect(dvValidateDeclarations(dvParseSecretDeclarations(_pubspec)),
           isEmpty);
@@ -160,6 +199,134 @@ final d = DV.Secrets.has('FOUR');
       ).single;
 
       expect(finding.message, contains('backend function'));
+    });
+  });
+
+  group('DV-SECRETS-002 in backend code', () {
+    test('a typo in a backend file is an error, not a production surprise', () {
+      // The spec makes an undeclared name a build error precisely because a
+      // typo is otherwise a runtime failure in production. The analysis only
+      // ever read client files, so the place secrets are actually used was
+      // the one place a misspelling went unnoticed.
+      final List<DVSecretFinding> findings = dvAnalyseSecrets(
+        declared: dvParseSecretDeclarations(_pubspec),
+        clientFiles: const <String, String>{},
+        backendFiles: <String, String>{
+          'lib/backend/pay.dart': "DV.Secrets.get('PAYSTAK_SECRET');",
+        },
+      );
+
+      expect(findings, hasLength(1));
+      expect(findings.single.code, 'DV-SECRETS-002');
+      expect(findings.single.file, 'lib/backend/pay.dart');
+      expect(findings.single.message, contains('PAYSTAK_SECRET'));
+      expect(findings.single.message, contains('pubspec.yaml'));
+    });
+
+    test('a declared backend secret in a backend file is exactly right', () {
+      // The whole point of backend scope. Reporting DV-SECRETS-001 here
+      // would make the diagnostic fire on correct code, and a diagnostic
+      // that fires on correct code gets suppressed project-wide.
+      expect(
+        dvAnalyseSecrets(
+          declared: dvParseSecretDeclarations(_pubspec),
+          clientFiles: const <String, String>{},
+          backendFiles: <String, String>{
+            'lib/backend/pay.dart': "DV.Secrets.get('PAYSTACK_SECRET');",
+          },
+        ),
+        isEmpty,
+      );
+    });
+
+    test('a client secret read on the backend is fine too', () {
+      expect(
+        dvAnalyseSecrets(
+          declared: dvParseSecretDeclarations(_pubspec),
+          clientFiles: const <String, String>{},
+          backendFiles: <String, String>{
+            'lib/backend/pay.dart': "DV.Secrets.get('PUBLIC_STRIPE_KEY');",
+          },
+        ),
+        isEmpty,
+      );
+    });
+  });
+
+  group('DV-SECRETS-003, what the prefix alone would ship', () {
+    // The generator compiles every PUBLIC_-prefixed variable it finds in the
+    // env files into env.g.dart, and that is the whole of the decision. So a
+    // name somebody typed with the prefix -- copied from another project,
+    // guessed at, or written before anyone thought about it -- reaches every
+    // visitor with nothing having reviewed it. The declaration is described
+    // as where the client opt-in is justified; this is what makes that true
+    // rather than aspirational.
+    test('a PUBLIC_ variable no declaration mentions is refused', () {
+      final List<DVSecretFinding> findings = dvAnalysePublicEnvironment(
+        declared: dvParseSecretDeclarations(_pubspec),
+        file: '.env',
+        contents: 'PUBLIC_ADMIN_TOKEN=at_9f2c4ab7\n',
+      );
+
+      expect(findings, hasLength(1));
+      expect(findings.single.code, 'DV-SECRETS-003');
+      expect(findings.single.file, '.env');
+      expect(findings.single.message, contains('PUBLIC_ADMIN_TOKEN'));
+      expect(findings.single.message, contains('dartvel.secrets'));
+    });
+
+    test('a declared client secret passes', () {
+      expect(
+        dvAnalysePublicEnvironment(
+          declared: dvParseSecretDeclarations(_pubspec),
+          file: '.env',
+          contents: 'PUBLIC_STRIPE_KEY=pk_live_abc\n',
+        ),
+        isEmpty,
+      );
+    });
+
+    test('a variable without the prefix is not reported', () {
+      // It never reaches env.g.dart, so it never leaves the server. Flagging
+      // it would turn a security diagnostic into a tidiness one, and those
+      // get switched off together.
+      expect(
+        dvAnalysePublicEnvironment(
+          declared: dvParseSecretDeclarations(_pubspec),
+          file: '.env',
+          contents: 'SOME_UNDECLARED_THING=value\n'
+              'PAYSTACK_SECRET=sk_live_abc\n',
+        ),
+        isEmpty,
+      );
+    });
+
+    test('the value never appears in the finding', () {
+      // A diagnostic that prints the secret to persuade you it found one has
+      // put it in the build log, where CI keeps it for everybody.
+      final DVSecretFinding finding = dvAnalysePublicEnvironment(
+        declared: dvParseSecretDeclarations(_pubspec),
+        file: '.env.local',
+        contents: 'PUBLIC_ADMIN_TOKEN=at_9f2c4ab7\n',
+      ).single;
+
+      expect(finding.toString(), isNot(contains('at_9f2c4ab7')));
+      expect(finding.file, '.env.local');
+    });
+
+    test('comments and the export form are read the way the runtime reads them',
+        () {
+      // One parser, or the check and the generator disagree about what the
+      // file even says.
+      final List<DVSecretFinding> findings = dvAnalysePublicEnvironment(
+        declared: dvParseSecretDeclarations(_pubspec),
+        file: '.env',
+        contents: '# PUBLIC_NOT_REAL=commented out\n'
+            'export PUBLIC_SNEAKY=value_here\n',
+      );
+
+      expect(findings.map((DVSecretFinding f) => f.secret),
+          <String>['PUBLIC_SNEAKY']);
     });
   });
 

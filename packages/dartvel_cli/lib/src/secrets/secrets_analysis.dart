@@ -13,6 +13,7 @@
 /// a hole.
 library dartvel_cli.secrets.secrets_analysis;
 
+import 'package:dartvel_core/dartvel.dart';
 import 'package:yaml/yaml.dart';
 
 enum DVSecretScope { backend, client }
@@ -106,6 +107,24 @@ List<String> dvValidateDeclarations(
         'scope if it is not meant to ship to the browser.',
       );
     }
+
+    // And the other direction, which is the one that leaks. Whatever writes
+    // env.g.dart decides by prefix alone: the router builder runs under
+    // build_runner with the .env file and no pubspec declaration in reach, so
+    // a backend-scoped name spelled PUBLIC_ is compiled into the bundle while
+    // the declaration promises it stays on the server. DV-SECRETS-001 does
+    // not catch it either, because the value arrives through a generated
+    // constant rather than a DV.Secrets call the analysis can read. Refusing
+    // the contradiction is what keeps prefix and declaration from disagreeing.
+    if (secret.scope == DVSecretScope.backend &&
+        secret.name.startsWith('PUBLIC_')) {
+      problems.add(
+        '"${secret.name}" is backend-scoped but is spelled with the PUBLIC_ '
+        'prefix, which is what puts a value into the generated env.g.dart and '
+        'so into the client bundle. Rename it without the prefix, or declare '
+        'it scope: client if shipping it to every visitor is intended.',
+      );
+    }
   }
   return problems;
 }
@@ -157,10 +176,14 @@ String _stripComments(String source) {
 /// Backend secrets reached from client-reachable code, and undeclared names.
 ///
 /// [clientFiles] is path to source for everything the client bundle can reach
-/// -- in a Dartvel project, lib/ minus the backend directory.
+/// -- in a Dartvel project, lib/ minus the backend directory. [backendFiles]
+/// is the rest, checked for undeclared names only: reaching a backend-scoped
+/// secret from the backend is the arrangement working, and a diagnostic that
+/// fires on correct code gets suppressed project-wide.
 List<DVSecretFinding> dvAnalyseSecrets({
   required Map<String, DVSecretDeclaration> declared,
   required Map<String, String> clientFiles,
+  Map<String, String> backendFiles = const <String, String>{},
 }) {
   final List<DVSecretFinding> findings = <DVSecretFinding>[];
 
@@ -171,14 +194,7 @@ List<DVSecretFinding> dvAnalyseSecrets({
       final DVSecretDeclaration? secret = declared[name];
 
       if (secret == null) {
-        findings.add(DVSecretFinding(
-          code: 'DV-SECRETS-002',
-          file: path,
-          secret: name,
-          message: '"$name" is not declared. Add it under dartvel.secrets in '
-              'pubspec.yaml, with a scope. A name that is only ever typed at '
-              'the call site fails at runtime in production instead.',
-        ));
+        findings.add(_undeclared(path, name));
         continue;
       }
 
@@ -195,7 +211,102 @@ List<DVSecretFinding> dvAnalyseSecrets({
       }
     }
   }
+
+  // The backend is where secrets are meant to be read, which made it the one
+  // place a misspelled name went unchecked -- and a misspelled name is the
+  // failure the declaration exists to move out of production and into the
+  // build.
+  final List<String> backendPaths = backendFiles.keys.toList()..sort();
+  for (final String path in backendPaths) {
+    for (final String name in dvExtractSecretUses(backendFiles[path]!).toList()
+      ..sort()) {
+      if (declared.containsKey(name)) continue;
+      findings.add(_undeclared(path, name));
+    }
+  }
   return findings;
+}
+
+DVSecretFinding _undeclared(String path, String name) => DVSecretFinding(
+      code: 'DV-SECRETS-002',
+      file: path,
+      secret: name,
+      message: '"$name" is not declared. Add it under dartvel.secrets in '
+          'pubspec.yaml, with a scope. A name that is only ever typed at the '
+          'call site fails at runtime in production instead.',
+    );
+
+/// PUBLIC_ variables in an env file that the declaration does not account for.
+///
+/// Whatever writes `env.g.dart` compiles in every PUBLIC_-prefixed variable it
+/// finds, and that is the whole of the decision -- no declaration is consulted
+/// and none is in reach under build_runner. So a name somebody typed with the
+/// prefix reaches every visitor with nothing having reviewed it: copied from
+/// another project, guessed at, or written before anyone thought about the
+/// scope. The declaration is meant to be where the client opt-in is
+/// justified, and this is what makes that so rather than aspirational.
+///
+/// Names without the prefix are not reported. They never reach the bundle, so
+/// flagging them would turn a security diagnostic into a tidiness one, and
+/// those get switched off together.
+///
+/// [contents] rather than a path, and read with the parser the runtime uses,
+/// so this and the generator cannot disagree about what the file says.
+List<DVSecretFinding> dvAnalysePublicEnvironment({
+  required Map<String, DVSecretDeclaration> declared,
+  required String file,
+  required String contents,
+}) {
+  final List<DVSecretFinding> findings = <DVSecretFinding>[];
+  final List<String> names = dvParseEnvContents(contents).keys.toList()..sort();
+  for (final String name in names) {
+    if (!name.startsWith('PUBLIC_')) continue;
+    if (declared[name]?.scope == DVSecretScope.client) continue;
+
+    // The value is never quoted back. A diagnostic that prints the secret to
+    // prove it found one has put it in the build log, where CI keeps it for
+    // everybody with access to the repository.
+    findings.add(DVSecretFinding(
+      code: 'DV-SECRETS-003',
+      file: file,
+      secret: name,
+      message: '"$name" carries the PUBLIC_ prefix, so it is compiled into '
+          'env.g.dart and ships to every visitor, but no dartvel.secrets '
+          'entry declares it scope: client. Declare it, or rename it without '
+          'the prefix so it stays on the server.',
+    ));
+  }
+  return findings;
+}
+
+/// Which of [names] resolve, asked of the same resolver the deployed process
+/// will use.
+///
+/// Not a reader of its own. The gate had one, it did not understand the
+/// `export KEY=value` form, and so it failed a deploy over a secret the
+/// running process resolves without trouble -- and the thing people do with
+/// a gate that is wrong is stop trusting it. Routing through [DVSecrets]
+/// means the check and the process it is gating cannot disagree, because
+/// there is only one answer to give.
+///
+/// Values are dropped again before returning. The gate runs inside the
+/// process that goes on to build and write the deployment artifacts, and a
+/// secret left loaded is a secret that can reach one. The state that was
+/// there beforehand is put back rather than cleared, because a plain reset
+/// would take the host's own configured values and rotation hooks with it and
+/// the caller would find out somewhere else, later.
+Set<String> dvResolveSecrets(Iterable<String> names, {String? envFile}) {
+  final DVSecretsState before = DVSecrets.captureState();
+  if (envFile != null) DVSecrets.useEnvFile(envFile);
+  try {
+    return <String>{
+      for (final String name in names)
+        if (const DVSecrets().has(name)) name,
+    };
+  } finally {
+    DVSecrets.reset();
+    DVSecrets.restoreState(before);
+  }
 }
 
 /// Declared secrets required for [environment] that did not resolve.
