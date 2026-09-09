@@ -859,18 +859,18 @@ Widget _featuresPage(BuildContext context) => SingleChildScrollView(
           children: <Widget>[
             Eyebrow('WHAT WORKS TODAY'),
             Heading('Thirty-six shipped sections.', level: 1),
+            // Two sentences that were one forty-five word sentence with a
+            // clause chain, and a second that said "partial" three times.
             Body(
-              'This list is the repository’s own record of what is built, not '
-              'a description of what is planned. A tool checks it and fails '
-              'when a section claims to be built and the evidence it names '
-              'does not exist, so this page cannot quietly get ahead of the '
-              'code.',
-              width: 660,
+              'This is the repository’s own record, not a roadmap. A checker '
+              'reads it on every build and fails the build when a section '
+              'claims to be built and the evidence it names is not there.',
+              width: 620,
             ),
             Body(
-              'Twenty-one more sections are partial. They are listed as '
-              'partial, with what is absent written next to what is present.',
-              width: 660,
+              'Twenty-one more are half done. Each says what is missing, '
+              'next to what already works.',
+              width: 620,
             ),
           ],
         ),
