@@ -82,12 +82,18 @@ void main() {
 
   testWidgets('a reset sends the app home, once', (WidgetTester tester) async {
     await tester.pumpWidget(host());
+    // Entering kiosk is a reset in its own right, so the boot is the first
+    // trip home. That is what a kiosk starting up should do: the attract
+    // route, not wherever the process happened to be when it died.
     await runtime.resume();
-    await pass(tester, const Duration(seconds: 60));
+    await tester.pump();
     expect(homes, <String>['/welcome']);
+
+    await pass(tester, const Duration(seconds: 60));
+    expect(homes, <String>['/welcome', '/welcome']);
     await runtime.reset(DVKioskResetReason.explicit);
     await tester.pump();
-    expect(homes, <String>['/welcome', '/welcome']);
+    expect(homes, <String>['/welcome', '/welcome', '/welcome']);
     runtime.stop();
   });
 
