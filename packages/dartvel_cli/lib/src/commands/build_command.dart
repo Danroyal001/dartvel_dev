@@ -2392,14 +2392,6 @@ class BuildCommand extends Command<void> {
       final String? modelTemplate =
           dvTemplateFor(route, modelSchemaTypes.keys);
       final page = dvStaticPage(
-        favicon: dvBuildFavicon(
-          root: root,
-          webRoot: web,
-          declared:
-              dvPageFavicon(route, modelFavicons, application: seoFavicon),
-        ),
-        schemaType:
-            modelTemplate == null ? null : modelSchemaTypes[modelTemplate],
         shell: shell,
         route: route,
         title: meta?.title ??
@@ -2412,6 +2404,14 @@ class BuildCommand extends Command<void> {
         siteName: settings['siteName'] as String? ?? baseTitle,
         alternates: _alternatesFor(root, route).$1,
         defaultAlternate: _alternatesFor(root, route).$2,
+        favicon: dvBuildFavicon(
+          root: root,
+          webRoot: web,
+          declared:
+              dvPageFavicon(route, modelFavicons, application: seoFavicon),
+        ),
+        schemaType:
+            modelTemplate == null ? null : modelSchemaTypes[modelTemplate],
       );
 
       // The semantics tree when there is one, the source-literal extractor
