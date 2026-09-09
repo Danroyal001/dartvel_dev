@@ -25,6 +25,7 @@ import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 import '../build/page_text.dart';
+import '../build/render_backends.dart';
 
 import '../utils/helpers.dart';
 import '../utils/logger.dart';
@@ -114,6 +115,16 @@ class ClientGenerator {
     required List<String> plugins,
     required bool webPrerender,
     required bool ota,
+
+    /// The rendering backends this build links, or null to derive them from
+    /// `dartvel.terminal` as generation always has.
+    ///
+    /// The two are different questions, which is why the build now answers
+    /// this one: the pubspec key adds the terminal to a GUI build, and the
+    /// `-cli`/`-tui` suffix removes the GUI entirely. Deriving it here meant
+    /// `dartvel build linux-cli` generated a main declaring a GUI backend the
+    /// binary does not contain.
+    Set<DVRenderBackend>? renderBackends,
     required YamlMap dv,
   }) async {
     // Scan pages
@@ -467,14 +478,30 @@ const String dvApiBasePath      = '${esc(apiBasePath)}';
 ''',
     );
 
+    // What this binary links, which decides both the imports and the launch
+    // code below. A build carrying both backends has a decision to make at
+    // startup; one carrying only the terminal has none, and instead installs
+    // the surface it is drawing on.
+    final Set<DVRenderBackend> linked = renderBackends ??
+        (dv['terminal'] == true
+            ? const <DVRenderBackend>{
+                DVRenderBackend.gui,
+                DVRenderBackend.terminal,
+              }
+            : const <DVRenderBackend>{DVRenderBackend.gui});
+    final bool dualMode = linked.contains(DVRenderBackend.gui) &&
+        linked.contains(DVRenderBackend.terminal);
+    final bool terminalOnly = linked.contains(DVRenderBackend.terminal) &&
+        !linked.contains(DVRenderBackend.gui);
+
     // Client runtime helper
     final runtimeDart = """
 import 'dart:async' show unawaited;
 import 'package:flutter/foundation.dart' show kReleaseMode, kIsWeb, defaultTargetPlatform, TargetPlatform, debugPrint;
-import 'dart:io' show exit${dv['terminal'] == true ? ', stdin, stdout, stderr, File, Platform, Process, ProcessStartMode' : ''};
+import 'dart:io' show exit${dualMode ? ', stdin, stdout, stderr, File, Platform, Process, ProcessStartMode' : ''};
 import 'package:flutter/widgets.dart' show WidgetsFlutterBinding;
 import 'package:dartvel_core/dartvel.dart' show DVStartupProfile, dvLiveWindowsPathFor;
-${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVAppLifecycle, DVPageStore, dvStartAppLifecycleBridge,${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''}${_hasDeviceProfileDisplays(dv) || _hasSharedStoreTuning(dv) || _hasWindowingDeclaration(dv) ? ' DVWindowManager,' : ''}${_hasSharedStoreTuning(dv) ? ' DVWindowSharedStore,' : ''}${_hasWindowingDeclaration(dv) ? ' DVWindowingDeclaration,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAndroidBindings, DVAppLaunch, DVRouteTarget, DVWindowOptions, DVRenderSurface${dv['terminal'] == true ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''};
+${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVAppLifecycle, DVPageStore, dvStartAppLifecycleBridge,${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''}${_hasDeviceProfileDisplays(dv) || _hasSharedStoreTuning(dv) || _hasWindowingDeclaration(dv) ? ' DVWindowManager,' : ''}${_hasSharedStoreTuning(dv) ? ' DVWindowSharedStore,' : ''}${_hasWindowingDeclaration(dv) ? ' DVWindowingDeclaration,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAndroidBindings, DVAppLaunch, DVRouteTarget, DVWindowOptions, DVRenderSurface${dualMode ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''}${terminalOnly ? ', DVTerminalSurface' : ''};
 import 'dartvel_config.g.dart' as cfg;
 import 'jobs.g.dart' show registerDartvelJobs;
 import 'models.g.dart' show registerDartvelModels;
@@ -569,7 +596,7 @@ ${_windowingDeclarationSource(dv)}${_sharedStoreTuningSource(dv)}${_deviceKioskI
   });
 }
 
-${_launchNegotiationSource(dv)}
+${_launchNegotiationSource(linked)}
 
 /// Takes the single-instance lock and opens what this launch asked for, or
 /// hands it to the process that has the lock and ends this one. Desktop
@@ -1557,8 +1584,9 @@ ${_kioskPoliciesSource(dv)}${_deviceProfilesSource(dv)}
   /// from the arguments and the display -- `--tui` starts in the terminal,
   /// no display with both backends asks -- and a terminal outcome hands the
   /// process to the terminal runner beside the GUI binary.
-  static String _launchNegotiationSource(YamlMap dv) {
-    final bool terminal = dv['terminal'] == true;
+  static String _launchNegotiationSource(Set<DVRenderBackend> renderBackends) {
+    final bool gui = renderBackends.contains(DVRenderBackend.gui);
+    final bool terminal = renderBackends.contains(DVRenderBackend.terminal);
     if (!terminal) {
       return '''
 /// The rendering backends this build links. GUI only: there is no decision
@@ -1568,6 +1596,40 @@ const Set<DVRenderSurface> dartvelLinkedSurfaces = <DVRenderSurface>{DVRenderSur
 /// Nothing to negotiate in a GUI-only build. Awaited by main so that a
 /// build with the terminal linked can put a decision here.
 Future<void> negotiateDartvelLaunch(List<String> arguments) async {}
+''';
+    }
+    if (!gui) {
+      // `dartvel build <desktop>-cli`. There is no GUI backend in this binary
+      // and therefore no second answer, so nothing is negotiated: what happens
+      // instead is that the surface gets installed.
+      //
+      // This is the only place in a shipped application that produces a
+      // DVTerminalGraphics. Without it DV.Platform.surface reports a GUI from
+      // inside a terminal and DV.Platform.terminal is null, so a layout asking
+      // how many columns it has, or whether it can draw pixels, gets the wrong
+      // answer or none.
+      //
+      // It deliberately does not reach for the terminal runner the way the
+      // dual-mode build does. This binary is that runner; launching it from
+      // here would look for a name with the suffix twice, or find itself.
+      return r'''
+/// The rendering backends this build links: the terminal alone. A `-cli` or
+/// `-tui` build contains no GUI backend -- not a window that stays closed.
+const Set<DVRenderSurface> dartvelLinkedSurfaces = <DVRenderSurface>{DVRenderSurface.terminal};
+
+/// Installs the terminal this application is drawing into.
+///
+/// Nothing to negotiate with one backend, so this asks the terminal what it
+/// can do instead: its size, which is a signal and follows a resize, and
+/// which graphics protocol it speaks. Both are read from the terminal in
+/// front of the user rather than assumed.
+Future<void> negotiateDartvelLaunch(List<String> arguments) async {
+  if (kIsWeb) return;
+  DV.Platform.useRenderSurface(
+    DVRenderSurface.terminal,
+    terminal: await DVTerminalSurface.attach(),
+  );
+}
 ''';
     }
     return r'''
