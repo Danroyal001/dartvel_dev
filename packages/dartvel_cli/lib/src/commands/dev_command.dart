@@ -249,6 +249,7 @@ Future<void> main() async {
         ...?extraEnv,
         'RUST_BACKTRACE': '1',
         'MALLOC_CHECK_': '3',
+        ...dvDevBackendEnvironment(Platform.environment),
       };
       backendEnv = extraEnv;
       backP = await _spawn(
@@ -614,3 +615,24 @@ bool dartvelChangeIsMeaningful({
   if (previousDigest == null) return true;
   return previousDigest != currentDigest;
 }
+
+/// The observability settings the development backend runs with.
+///
+/// A deployed server keeps /_dartvel/logs and /_dartvel/traces closed unless
+/// asked, because a log buffer holds everything a service has seen. On a
+/// developer's own machine that default would mean `dartvel logs` and
+/// `dartvel traces` answer "not serving that" against the very server
+/// `dartvel dev` just started, which reads as two broken commands rather than
+/// as a deliberate default.
+///
+/// [parent] wins wherever it says anything. Somebody who set
+/// DARTVEL_DIAGNOSTICS=0 has a reason -- a port that is not as private as it
+/// looks, most likely -- and a convenience default that overrode it would be
+/// a security bug wearing a helpful face.
+Map<String, String> dvDevBackendEnvironment(Map<String, String> parent) =>
+    <String, String>{
+      'DARTVEL_DIAGNOSTICS': parent['DARTVEL_DIAGNOSTICS'] ?? '1',
+      // Louder than a deployment. Development is where the detail is worth
+      // the noise.
+      'DARTVEL_LOG_LEVEL': parent['DARTVEL_LOG_LEVEL'] ?? 'debug',
+    };
