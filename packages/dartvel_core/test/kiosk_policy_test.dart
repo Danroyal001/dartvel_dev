@@ -233,22 +233,21 @@ void main() {
     // worse of the two failures -- the developer believes the kiosk is
     // locked down and it is not.
     //
-    // Four of the five are built now, so what this group protects is the
-    // rule rather than the list: a key the parser does not read says so.
-    // routes.external is the one that is left, and this file is where that
-    // has to be corrected the day it lands.
+    // All five are built now, so what this group protects is the rule rather
+    // than the list: a key the parser does not read says so, whatever it is
+    // called. The list of five kept shrinking and the rule did not move.
     test('an unparsed containment key is reported', () {
       final DVKioskPolicy policy = DVKioskPolicy.parse(
         kiosk(<String, Object?>{
           'enabled': true,
-          'routes': <String, Object?>{'external': 'block'},
+          'routes': <String, Object?>{'externalDeny': <Object?>['/x']},
         }),
       );
 
       expect(policy.problems, isNotEmpty);
       expect(
         policy.problems.join('\n'),
-        contains('dartvel.kiosk.routes.external'),
+        contains('dartvel.kiosk.routes.externalDeny'),
       );
     });
 
@@ -279,7 +278,7 @@ void main() {
           'enabled': true,
           'routes': <String, Object?>{
             'allow': <Object?>['/'],
-            'external': 'block',
+            'externalDeny': <Object?>['/x'],
           },
           'display': <String, Object?>{'fullscreen': true},
           // Not a containment key at all, and that is the point: the rule is
@@ -290,7 +289,7 @@ void main() {
       );
 
       final String said = policy.problems.join('\n');
-      expect(said, contains('dartvel.kiosk.routes.external'));
+      expect(said, contains('dartvel.kiosk.routes.externalDeny'));
       expect(said, contains('dartvel.kiosk.session.dimAfterHours'));
       // The keys that are parsed are not reported, or the message becomes
       // noise and the real one is lost in it.
