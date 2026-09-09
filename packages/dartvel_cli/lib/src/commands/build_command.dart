@@ -1987,7 +1987,20 @@ class BuildCommand extends Command<void> {
     // link lands on. A directory with an index.html in it is how a static
     // host serves a path without an extension.
     const offlinePath = '/offline/';
-    _writePage(web, 'offline', dvOfflinePage(title: name));
+    // The project's own colour, not the framework's. Both pages carried
+    // dartvel.dev's blue, so every application shipped its error pages in
+    // Dartvel's brand on the two screens a visitor sees when something has
+    // gone wrong.
+    //
+    // From the PWA block rather than this one: `settings` here is the
+    // service-worker section, and the colour a project already declares for
+    // its manifest is the colour it means.
+    final Object? pwa = _dartvelSection(root)['pwa'];
+    final String? accent =
+        pwa is Map && pwa['themeColor'] is String
+            ? pwa['themeColor']! as String
+            : null;
+    _writePage(web, 'offline', dvOfflinePage(title: name, accent: accent));
 
     // The page this used to be. build/web is not emptied between builds, so a
     // file Dartvel wrote and no longer writes stays there and gets deployed:
@@ -1997,7 +2010,7 @@ class BuildCommand extends Command<void> {
     // identical on disk.
     final File legacyOffline = File(p.join(web.path, 'offline.html'));
     if (legacyOffline.existsSync()) legacyOffline.deleteSync();
-    _writePage(web, '404', dvNotFoundPage(title: name));
+    _writePage(web, '404', dvNotFoundPage(title: name, accent: accent));
 
     // And once more at the root, under the name the hosts that cannot be told
     // otherwise look for. GitHub Pages, Netlify and S3 website hosting each
@@ -2005,7 +2018,7 @@ class BuildCommand extends Command<void> {
     // back to their branding rather than its own. Nobody navigates to this
     // one, so it is not an extension anybody sees.
     File(p.join(web.path, '404.html'))
-        .writeAsStringSync(dvNotFoundPage(title: name));
+        .writeAsStringSync(dvNotFoundPage(title: name, accent: accent));
 
     // Written over flutter_service_worker.js, which index.html already
     // registers: adding a second worker would leave two competing for the
