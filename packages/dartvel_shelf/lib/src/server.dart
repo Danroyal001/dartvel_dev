@@ -4,7 +4,8 @@ import 'dart:ffi' as ffi;
 import 'dart:isolate';
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:dartvel_core/dartvel.dart' show DVCacheAdapter, DVPageDataResolver;
+import 'package:dartvel_core/dartvel.dart'
+    show DVCacheAdapter, DVPageDataResolver, dvConfigureRuntimeLogging;
 import 'package:path/path.dart' as p;
 
 import 'generated/bindings.dart' as gen; // produced by ffigen via build hook
@@ -105,6 +106,16 @@ Future<ServerHandle> serve(
   DVCacheAdapter? pageStore, // Where the kept pages live, when they are shared
   bool compression = true, // Enable/disable compression
 }) async {
+  // Where a log line actually goes. The runtime's logger keeps records in a
+  // bounded buffer and writes nowhere else on its own, because a library that
+  // printed would put JSON into the middle of a Flutter test's output; a
+  // server is the one place stdout is the right destination, and every
+  // container runtime and hosted platform already collects it.
+  //
+  // This also decides whether the diagnostics endpoints answer, which is why
+  // it runs before the first request can arrive rather than lazily.
+  dvConfigureRuntimeLogging(Platform.environment, write: stdout.writeln);
+
   final subdir = Platform.isMacOS
       ? (Platform.version.contains('arm64') ? 'macos-arm64' : 'macos-x64')
       : Platform.isLinux
