@@ -258,6 +258,24 @@ String dvRenderPage({
       data,
     );
 
+/// [page] cut where a streamed response should flush: the head as the first
+/// piece, the rest after it.
+///
+/// One page, one rule, because both servers stream and each had its own idea
+/// of where the cut goes. A document with no `</head>` -- a shell somebody
+/// hand-wrote, or one a plugin rewrote -- is a single piece rather than an
+/// error, since a page that arrives whole is worth more than a correct
+/// complaint.
+List<String> dvPageChunks(String page) {
+  const String close = '</head>';
+  final int end = page.indexOf(close);
+  if (end < 0) return <String>[page];
+  return <String>[
+    page.substring(0, end + close.length),
+    page.substring(end + close.length),
+  ];
+}
+
 /// [html] with the page's structured data and favicon in its head. Marked,
 /// so rendering the same page again replaces rather than adds.
 String dvApplyPageExtras(String html, DVPageData data) {
