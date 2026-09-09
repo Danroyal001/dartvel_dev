@@ -153,6 +153,13 @@ class DVTenants {
   String get currentTenant =>
       (Zone.current[_zoneTenant] as String?) ?? _current;
 
+  /// Whether a [withTenant] scope is carrying the tenant for this work.
+  ///
+  /// What reads it is code deciding whether to write the process-wide
+  /// tenant. Under a scope that write reaches every other request in the
+  /// isolate and belongs to none of them.
+  static bool get hasScope => Zone.current[_zoneTenant] != null;
+
   set currentTenant(String tenant) {
     final trimmed = tenant.trim();
     _current = trimmed.isEmpty ? defaultTenant : trimmed;
