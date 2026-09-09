@@ -544,7 +544,7 @@ void main() {
       }
 
       expect(processInvocations, <String>[
-        'dart run dartvel_cli:dartvel routes',
+        'dart run dartvel_cli:dartvel routes --render gui',
         'dart run build_runner build --delete-conflicting-outputs',
       ]);
     });
@@ -603,7 +603,7 @@ dev_dependencies:
 
       expect(observedExitCode, oldExitCode);
       expect(processInvocations, <String>[
-        'dart run dartvel_cli:dartvel routes',
+        'dart run dartvel_cli:dartvel routes --render gui',
         'dart run build_runner build --delete-conflicting-outputs',
         'dart run flutter_vscode:generate_vscode_extension',
         'flutter pub get',
@@ -650,7 +650,7 @@ dependencies:
       }
 
       expect(processInvocations, <String>[
-        'dart run dartvel_cli:dartvel routes',
+        'dart run dartvel_cli:dartvel routes --render gui',
       ]);
     });
 
@@ -693,7 +693,7 @@ dev_dependencies:
       }
 
       expect(processInvocations, <String>[
-        'dart run dartvel_cli:dartvel routes',
+        'dart run dartvel_cli:dartvel routes --render gui',
         'dart run build_runner build --delete-conflicting-outputs',
         'dart run flutter_vscode:generate_vscode_extension',
         'flutter pub get',
@@ -740,7 +740,7 @@ dependencies:
       }
 
       expect(processInvocations, <String>[
-        'dart run dartvel_cli:dartvel routes',
+        'dart run dartvel_cli:dartvel routes --render gui',
       ]);
     });
   });
