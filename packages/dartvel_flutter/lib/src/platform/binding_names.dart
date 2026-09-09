@@ -70,6 +70,16 @@ const Set<String> dvNativeBindingNames = <String>{
   // Screen.
   'screen.geometry',
 
+  // Fullscreen and kiosk display control. The Platform section of the
+  // specification pins these four spellings, and until they were listed here
+  // they slipped past both directions of the check: the call went through a
+  // private helper, so the literal never sat beside `require(` and the scan
+  // never saw it.
+  'display.enterFullscreen',
+  'display.exitFullscreen',
+  'display.enableKiosk',
+  'display.disableKiosk',
+
   // Over-the-air updates.
   'updates.apply',
   'updates.check',
