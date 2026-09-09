@@ -36,7 +36,100 @@ class Router {
     return this;
   }
 
+  /// The paths that are never counted or logged.
+  ///
+  /// A scrape every fifteen seconds is the loudest client a small service
+  /// has. Counting it makes every request-rate graph a picture of Prometheus,
+  /// and logging it fills the recent-records buffer with health checks so
+  /// there is nothing left of the traffic anyone cares about.
+  static const Set<String> _unmeasured = <String>{
+    '/health',
+    '/healthz',
+    '/healths',
+    '/metrics',
+  };
+
   Future<Response> call(Request req) async {
+    if (_unmeasured.contains(req.url.path) ||
+        req.url.path.startsWith('/_dartvel/')) {
+      return _dispatch(req);
+    }
+
+    final Stopwatch clock = Stopwatch()..start();
+    try {
+      final Response response = await _dispatch(req);
+      clock.stop();
+      _record(req, response.status, clock, response.headers.get('traceparent'));
+      return response;
+    } on Object catch (error, stack) {
+      clock.stop();
+      // The server layer turns this into a 500 inside a bare `catch (_)`, so
+      // if it is not recorded here the exception is gone: no line, no count,
+      // and a client holding a 500 nobody can explain.
+      _record(req, 500, clock, null, error: error, stackTrace: stack);
+      rethrow;
+    }
+  }
+
+  void _record(
+    Request req,
+    int status,
+    Stopwatch clock,
+    String? traceparent, {
+    Object? error,
+    StackTrace? stackTrace,
+  }) {
+    final double seconds = clock.elapsedMicroseconds / 1000000;
+    DVObservability.metrics
+        .counter(
+          'http_requests_total',
+          // Method and status only. The path is what an id is in, and one
+          // series per id is how a metrics backend gets killed by the
+          // application it is watching -- the router cannot tell `42` from a
+          // route segment, so it must not put either in a label.
+          <String, String>{'method': req.method, 'status': '$status'},
+          'HTTP requests served, by method and response status.',
+        )
+        .increment();
+    DVObservability.metrics
+        .histogram(
+          'http_request_duration_seconds',
+          <String, String>{'method': req.method},
+          'How long serving a request took, in seconds.',
+        )
+        .observe(seconds);
+
+    // The span was created inside the handler, so it is out of scope by now;
+    // the header the tracing middleware set on the response is what is left
+    // of it. Reading the id back from there is what lets a support ticket
+    // quoting a traceparent find the log line for that request.
+    final DVTraceContext? context = DVTraceContext.parse(traceparent);
+    final Map<String, Object?> fields = <String, Object?>{
+      'method': req.method,
+      'path': req.url.path,
+      'status': status,
+      'durationMs': clock.elapsedMicroseconds / 1000,
+    };
+
+    if (error != null) {
+      DVObservability.logger.error(
+        '${req.method} ${req.url.path} failed',
+        context: fields,
+        error: error,
+        stackTrace: stackTrace,
+      );
+      return;
+    }
+
+    DVObservability.logger.info(
+      '${req.method} ${req.url.path} $status',
+      context: fields,
+      traceId: context?.traceId,
+      spanId: context?.parentSpanId,
+    );
+  }
+
+  Future<Response> _dispatch(Request req) async {
     for (final route in _routes) {
       if (route.method != '*' && route.method != req.method) continue;
       final match = route.pattern.exec(req.url);
