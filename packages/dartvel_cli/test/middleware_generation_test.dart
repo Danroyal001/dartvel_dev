@@ -526,6 +526,39 @@ void checkoutPage() {}
     }
   });
 
+  test('a layout declaring middleware fails rather than running nothing',
+      () async {
+    // Layout-scoped middleware is in the specification and implemented
+    // nowhere: the layout generator has never read the annotation. Until now
+    // a _layout.dart could declare a key, have its spelling checked against
+    // the sets written for an HTTP chain, and wrap nothing -- which is the
+    // worst answer available, because the whole section under that layout
+    // looks guarded and is not.
+    final root = await _createProject();
+    try {
+      File(p.join(root.path, 'lib', 'pages', '_layout.dart'))
+          .writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVUseMiddleware([DVMiddlewares.auth])
+class AppLayout {}
+''');
+
+      await expectLater(
+        () => _generate(root),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            allOf(contains('layout'), contains('@DVPage')),
+          ),
+        ),
+      );
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
   test('two declarations in one file are judged one at a time', () async {
     // A file can hold a page and a backend function, and a scope decided
     // per file rather than per declaration would refuse whichever came
