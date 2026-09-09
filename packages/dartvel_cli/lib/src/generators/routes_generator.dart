@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import '../build/render_backends.dart';
 import '../config/dartvel_config.dart';
 import '../graph/module_mounts.dart';
 import '../utils/logger.dart';
@@ -22,6 +23,9 @@ Future<void> generate({
   bool validateProd = false,
   String? root_,
   Set<String>? generated,
+  /// What the build resolved, or null when generation was not told — in which
+  /// case the project's own `dartvel.terminal` declaration stands.
+  Set<DVRenderBackend>? renderBackends,
 }) async {
   final root = root_ ?? Directory.current.path;
   final Set<String> done = generated ?? <String>{};
@@ -95,7 +99,14 @@ Future<void> generate({
     final moduleRoot = File('$root/${module.sourcePath}').absolute.path;
     if (Directory(moduleRoot).existsSync()) {
       log('dartvel: generating mounted module ${module.id}');
-      await generate(root_: moduleRoot, generated: done);
+      // The module is compiled into this binary, so it renders wherever the
+      // parent does. Letting it default would generate a GUI main inside a
+      // terminal build.
+      await generate(
+        root_: moduleRoot,
+        generated: done,
+        renderBackends: renderBackends,
+      );
     }
     if (module.routes.isNotEmpty) {
       log('dartvel: mounted module ${module.id} at ${module.mount} '
@@ -110,6 +121,7 @@ Future<void> generate({
     buildId: buildId,
     publicPageModels: publicPageModels,
     modules: modules,
+    renderBackends: renderBackends,
     backendHost: backendHost,
     backendPort: backendPort,
     devBackendHost: devBackendHost,
