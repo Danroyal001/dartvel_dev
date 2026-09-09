@@ -13,6 +13,7 @@
 /// a hole.
 library dartvel_cli.secrets.secrets_analysis;
 
+import 'package:dartvel_core/dartvel.dart';
 import 'package:yaml/yaml.dart';
 
 enum DVSecretScope { backend, client }
@@ -214,6 +215,31 @@ List<DVSecretFinding> dvAnalyseSecrets({
     }
   }
   return findings;
+}
+
+/// Which of [names] resolve, asked of the same resolver the deployed process
+/// will use.
+///
+/// Not a reader of its own. The gate had one, it did not understand the
+/// `export KEY=value` form, and so it failed a deploy over a secret the
+/// running process resolves without trouble -- and the thing people do with
+/// a gate that is wrong is stop trusting it. Routing through [DVSecrets]
+/// means the check and the process it is gating cannot disagree, because
+/// there is only one answer to give.
+///
+/// Values are dropped again before returning. The gate runs inside the
+/// process that goes on to build and write the deployment artifacts, and a
+/// secret left loaded is a secret that can reach one.
+Set<String> dvResolveSecrets(Iterable<String> names, {String? envFile}) {
+  if (envFile != null) DVSecrets.useEnvFile(envFile);
+  try {
+    return <String>{
+      for (final String name in names)
+        if (const DVSecrets().has(name)) name,
+    };
+  } finally {
+    DVSecrets.reset();
+  }
 }
 
 /// Declared secrets required for [environment] that did not resolve.
