@@ -22,6 +22,7 @@ import 'src/display_platform.dart'
     if (dart.library.js_interop) 'src/display_platform_web.dart'
     as display_platform;
 import 'src/kiosk/device_kiosk.dart';
+import 'src/kiosk/kiosk_keys.dart';
 import 'src/modules/module_shell.dart';
 import 'src/platform/accelerator.dart';
 import 'src/platform/dialogs.dart';
@@ -4449,26 +4450,88 @@ class DVDisplayControls {
     _isFullscreen = false;
   }
 
+  /// Enters kiosk mode: fullscreen plus the escape combos held.
+  ///
+  /// The specification calls this sugar over `DV.Platform.display.kiosk`, and
+  /// that is now literally how it works. A platform that binds
+  /// `display.enableKiosk` itself owns the behaviour; every platform that does
+  /// not gets the kiosk layer it already binds. Before, this went straight to
+  /// a name nothing registers anywhere, so `enableKiosk()` threw on Linux,
+  /// Windows, macOS, Android and the web while `kiosk.enforce` sat registered
+  /// beside it doing the same job.
   Future<void> enableKiosk([
     DVKioskOptions options = const DVKioskOptions(),
   ]) async {
-    _checkDisplayBinding(
-      'display.enableKiosk',
-      await DVNativeBridge.require<bool>(
+    if (DVNativeBridge.isRegistered('display.enableKiosk')) {
+      _checkDisplayBinding(
         'display.enableKiosk',
-        options.toMap(),
-      ),
-    );
+        await DVNativeBridge.require<bool>(
+          'display.enableKiosk',
+          options.toMap(),
+        ),
+      );
+    } else if (DVNativeBridge.isRegistered('kiosk.enforce')) {
+      await DVNativeBridge.invoke<Object?>(
+        'kiosk.enforce',
+        _kioskEnforcementFor(options),
+      );
+    } else {
+      throw StateError(
+        'Native binding "display.enableKiosk" is not registered, and this '
+        'platform binds no "kiosk.enforce" to fall back on. Generate and '
+        'register an FFI/ffigen or JNI/jnigen binding before calling this '
+        'API.',
+      );
+    }
     _isKiosk = true;
     if (options.fullscreen) _isFullscreen = true;
   }
 
   Future<void> disableKiosk() async {
-    _checkDisplayBinding(
-      'display.disableKiosk',
-      await DVNativeBridge.require<bool>('display.disableKiosk'),
-    );
+    if (DVNativeBridge.isRegistered('display.disableKiosk')) {
+      _checkDisplayBinding(
+        'display.disableKiosk',
+        await DVNativeBridge.require<bool>('display.disableKiosk'),
+      );
+    } else if (DVNativeBridge.isRegistered('kiosk.release')) {
+      await DVNativeBridge.invoke<Object?>('kiosk.release');
+    } else {
+      throw StateError(
+        'Native binding "display.disableKiosk" is not registered, and this '
+        'platform binds no "kiosk.release" to fall back on. Generate and '
+        'register an FFI/ffigen or JNI/jnigen binding before calling this '
+        'API.',
+      );
+    }
     _isKiosk = false;
+  }
+
+  /// [options], in the argument shape every `kiosk.enforce` binding reads.
+  ///
+  /// The whole of [DVKioskOptions] used to be serialised into a map handed to
+  /// a binding that did not exist, which made every field decoration --
+  /// `allowedExitKeys: ['Escape']` named a key that nothing ever let through,
+  /// because nothing ever grabbed any key. Here the list is what it says: the
+  /// combos named are left ungrabbed and still leave the kiosk.
+  ///
+  /// The accessibility exemption is applied on top and is not the caller's to
+  /// give up, matching the declared-policy path in [DVKiosk.enforce].
+  Map<String, Object?> _kioskEnforcementFor(DVKioskOptions options) {
+    final Set<String> allowed = <String>{
+      for (final String key in options.allowedExitKeys)
+        DVAccelerator.parse(key).canonical,
+    };
+    return <String, Object?>{
+      ...options.toMap(),
+      'combos': <String>[
+        for (final DVAccelerator combo in DVKioskEscapeKeys.combos)
+          if (!allowed.contains(combo.canonical) &&
+              !DVAccessibilityKeys.isExempt(DVKioskEscapeKeys.logical(combo)))
+            combo.canonical,
+      ],
+      'confinePointer': true,
+      'suppressNotifications': true,
+    };
   }
 
   void _checkDisplayBinding(String method, bool handled) {
