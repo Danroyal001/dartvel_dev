@@ -232,14 +232,45 @@ Widget _body(BuildContext context, String text, {double width = 640}) =>
 /// Small on purpose: a card that jumps is a card that draws attention away
 /// from the one being read.
 @DVFunctionalWidget()
-Widget _siteCard(BuildContext context, String title, String body) {
+/// A card, and whether the thing it describes exists yet.
+///
+/// [built] is a badge rather than a word at the end of the prose. Nine cards
+/// on the cloud page closed their paragraph with a bare "Built." and one with
+/// "Planned; not yet built." -- a status marker written as a sentence. It read
+/// as filler, it repeated nine times down one page, and a reader scanning for
+/// what is ready had to reach the end of every paragraph to find out. Null is
+/// a card that is not claiming anything either way.
+Widget _siteCard(
+  BuildContext context,
+  String title,
+  String body, {
+  bool? built,
+}) {
   final Palette palette = Palette.of(context);
+  // Copied to a local before it is tested. The body of a
+  // @DVFunctionalWidget is lowered into the generated widget class, where
+  // `built` is a field -- and Dart does not promote a nullable field, so
+  // `if (built != null) ... built ? a : b` compiles here and fails there,
+  // in a file nobody wrote.
+  final bool? status = built;
   return DVBox(
     DVBox.list(<Widget>[
-      DVText(title).modifier(const DVModifier()
-          .fontSize(17)
-          .fontWeight(FontWeight.w700)
-          .color(palette.ink)),
+      DVBox.wrapLine(<Widget>[
+        DVText(title).modifier(const DVModifier()
+            .fontSize(17)
+            .fontWeight(FontWeight.w700)
+            .color(palette.ink)),
+        if (status != null)
+          DVText(status ? 'Built' : 'Planned').modifier(const DVModifier()
+              .fontSize(11)
+              .fontWeight(FontWeight.w700)
+              .color(status ? palette.accent : palette.faint)
+              .paddingSymmetric(horizontal: 8, vertical: 3)
+              .backgroundColor(status
+                  ? palette.accent.withValues(alpha: 0.10)
+                  : palette.rule.withValues(alpha: 0.45))
+              .rounded(999)),
+      ], spacing: 8),
       DVText(body).modifier(
           const DVModifier().fontSize(14).color(palette.muted).lineHeight(1.55)),
     ], spacing: 8),
