@@ -89,7 +89,12 @@ class DVWindowingCapability {
         inPageViews: inPageViews,
         ownedWindows: ownedWindows,
         applicationModal: applicationModal,
-        displays: count > 1,
+        // Gated on multiWindow for the same reason displayKiosk is: a second
+        // display is only addressable if something can be put on it. A
+        // terminal build can still enumerate the monitors plugged into the
+        // machine, and a workspace reading a bare count would have offered a
+        // "move to display" control with nowhere to move anything to.
+        displays: multiWindow && count > 1,
         // Kept when declared: a test or a host that said a display can be
         // pinned is not overruled by a count read before enumeration ran.
         displayKiosk: displayKiosk || (multiWindow && count > 1),
@@ -110,11 +115,24 @@ class DVWindowingCapability {
     required bool hasNativeWindowBinding,
     bool kioskLocked = false,
     bool enabledByConfig = true,
+    bool isTerminal = false,
     bool? webInPageViews,
     bool? webOpenInNewWindow,
     bool? androidFreeform,
   }) {
     if (!enabledByConfig || kioskLocked) return const DVWindowingCapability();
+    // A terminal has no window server, which is the whole reason an
+    // application renders into one. Every branch below reports what the
+    // operating system could do for a windowed process, and a terminal build
+    // is not one -- on the machine this matters most, a host reached over
+    // ssh, there is one pty and nothing to spawn into. So open() navigates
+    // and says why (DV-WINDOW-001), exactly as it does on a phone.
+    //
+    // This is checked before the platform branches rather than inside them
+    // because the platform is still Linux, macOS or Windows: without it, a
+    // terminal build with the window binding registered would have asked the
+    // OS for a second window from a process that has no display.
+    if (isTerminal) return const DVWindowingCapability();
     if (isDesktop) {
       return DVWindowingCapability(
         multiWindow: hasNativeWindowBinding,
@@ -792,6 +810,7 @@ class DVWindowManager {
         isAndroid: _platform.isAndroid,
         isTablet: _platform.type == 'tablet',
         isIOS: _platform.isIOS,
+        isTerminal: _platform.surface == DVRenderSurface.terminal,
         hasNativeWindowBinding: DVNativeBridge.isRegistered('window.open'),
         webInPageViews: _declared.webInPageViews,
         webOpenInNewWindow: _declared.webOpenInNewWindow,
@@ -1081,6 +1100,14 @@ class DVWindowManager {
     DVWindowDegradation degradation,
     DVWindowKind requested,
   ) async {
+    // Recorded before the emit, and whether or not the emit survives. `codes`
+    // is documented as what this window degraded, refused or had placed
+    // elsewhere, and it only ever held the placement codes: the degradation
+    // that caused the whole report was readable in the log and nowhere on the
+    // object, so a caller reading the list saw an empty one on the commonest
+    // path there is.
+    final String? code = degradation.code;
+    if (code != null && !window.codes.contains(code)) window.codes.add(code);
     try {
       await _emit(window, degradation, requested);
     } catch (_) {
