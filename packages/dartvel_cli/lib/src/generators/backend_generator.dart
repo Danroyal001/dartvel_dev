@@ -335,6 +335,11 @@ $openApiJson\'\'\';
     final String? corsSource = server.corsSource;
     final String corsConstant = corsSource == null ? 'null' : corsSource;
     final String compressionLiteral = server.compression ? 'true' : 'false';
+    // dartvel.tenancy: which isolation strategy, where the tenant is read
+    // from, and whether a request naming none is refused. Emitted where the
+    // server starts, which is the only place an application has that runs
+    // before anything is served.
+    final String tenancyConfiguration = _dvTenancyConfiguration(root);
     final String? csp = _dvContentSecurityPolicy(root);
     final String cspAssignment = csp == null
         ? ''
@@ -819,7 +824,7 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   // every module as unmounted: its models resolved the plain table name in
   // a database where nothing had created it. Backend functions are where
   // model queries actually run.
-  registerDartvelModules();$cspAssignment
+  registerDartvelModules();$tenancyConfiguration$cspAssignment
   // Every @DVBackendCron schedule, registered and ticking. Nothing did this
   // before: the schedules were generated into a list and the only thing that
   // ever built a DVScheduler was the scheduler's own unit test, so a job
@@ -2715,6 +2720,92 @@ String? _dvContentSecurityPolicy(String root) {
   final Object? csp = security['csp'];
   if (csp is! String || csp.trim().isEmpty) return null;
   return csp.trim();
+}
+
+/// The Dart that configures tenancy at startup, from `dartvel.tenancy`.
+///
+/// Empty when a project declares none, so a single-tenant application gets
+/// no configuration emitted at it and keeps the shared-database default it
+/// already ran.
+///
+/// This is the only place a project can say any of it. Choosing an isolation
+/// strategy meant calling DVTenants.configure from Dart that no generated
+/// entrypoint runs, so schema-per-tenant and database-per-tenant -- the two
+/// an application picks in order to keep tenants in separate schemas or
+/// separate databases -- could not be selected, and every deployment ran the
+/// shared-database default whether that is what it wanted or not.
+/// DVMiddlewareSettings.requireTenant was in the same position: it gated a
+/// refusal and nothing set it.
+///
+/// A value nobody implements fails the build. Dropping a misspelling leaves
+/// the application on the default while the pubspec says otherwise, every
+/// query still returns rows, and nothing about running it looks wrong.
+String _dvTenancyConfiguration(String root) {
+  final File pubspec = File(p.join(root, 'pubspec.yaml'));
+  if (!pubspec.existsSync()) return '';
+  final Object? parsed = loadYaml(pubspec.readAsStringSync());
+  if (parsed is! YamlMap) return '';
+  final Object? dartvel = parsed['dartvel'];
+  if (dartvel is! YamlMap) return '';
+  final Object? tenancy = dartvel['tenancy'];
+  if (tenancy is! YamlMap) return '';
+
+  const Map<String, String> isolations = <String, String>{
+    'shared-database': 'sharedDatabase',
+    'schema-per-tenant': 'schemaPerTenant',
+    'database-per-tenant': 'databasePerTenant',
+  };
+  const Map<String, String> sources = <String, String>{
+    'subdomain': 'subdomain',
+    'header': 'header',
+    'path-prefix': 'pathPrefix',
+    'query-parameter': 'queryParameter',
+  };
+
+  String? named(String key, Map<String, String> allowed, String what) {
+    final Object? value = tenancy[key];
+    if (value == null) return null;
+    final String written = '$value'.trim();
+    final String? resolved = allowed[written];
+    if (resolved == null) {
+      throw StateError(
+        'dartvel.tenancy.$key: "$written" is not a $what Dartvel has. '
+        'Accepted: ${allowed.keys.join(', ')}.',
+      );
+    }
+    return resolved;
+  }
+
+  final String? isolation = named('isolation', isolations, 'tenant isolation');
+  final String? source = named('source', sources, 'tenant source');
+  final Object? header = tenancy['header'];
+  final Object? queryParameter = tenancy['queryParameter'];
+  final Object? ignored = tenancy['ignoredHostLabels'];
+
+  final List<String> arguments = <String>[
+    if (isolation != null) 'isolation: core.DVTenantIsolation.$isolation',
+    if (source != null) 'source: core.DVTenantSource.$source',
+    // Lower-cased here because header names are case-insensitive on the wire
+    // and the resolver looks the name up in a lower-cased map. Declared as
+    // X-Account and matched against x-account, the lookup misses and every
+    // request names no tenant.
+    if (header is String && header.trim().isNotEmpty)
+      "headerName: '${esc(header.trim().toLowerCase())}'",
+    if (queryParameter is String && queryParameter.trim().isNotEmpty)
+      "queryParameterName: '${esc(queryParameter.trim())}'",
+    if (ignored is YamlList && ignored.isNotEmpty)
+      'ignoredHostLabels: const <String>{'
+          "${ignored.map((Object? l) => "'${esc('$l'.trim().toLowerCase())}'").join(', ')}}",
+  ];
+
+  final StringBuffer out = StringBuffer();
+  if (arguments.isNotEmpty) {
+    out.write('\n  const core.DVTenants().configure(${arguments.join(', ')});');
+  }
+  if (tenancy['require'] == true) {
+    out.write('\n  core.DVMiddlewareSettings.requireTenant = true;');
+  }
+  return out.toString();
 }
 
 /// `dartvel.server` from pubspec.yaml.
