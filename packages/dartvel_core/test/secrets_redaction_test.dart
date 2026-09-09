@@ -171,6 +171,50 @@ void main() {
     });
   });
 
+  group('traces', () {
+    // The spec names traces alongside logs, and a trace is the worse of the
+    // two to get wrong: spans usually leave the building for a hosted trace
+    // backend, so a credential in an attribute is a credential handed to a
+    // third party.
+    test('a secret in a span attribute does not reach the exporter', () {
+      DVSecrets.configure(<String, String>{
+        'DATABASE_PASSWORD': 'hunter2-correct-horse',
+      });
+      const DVSecrets().get('DATABASE_PASSWORD');
+
+      final DVMemoryTraceExporter exporter = DVMemoryTraceExporter();
+      final DVSpan span = DVTracer(exporter: exporter).startSpan('query')
+        ..setAttribute(
+          'db.url',
+          'postgres://app:hunter2-correct-horse@db.internal:5432/shop',
+        )
+        ..end();
+
+      expect(
+        span.attributes['db.url'],
+        isNot(contains('hunter2-correct-horse')),
+      );
+      expect(span.attributes['db.url'], contains('db.internal'));
+      expect(exporter.spans, hasLength(1));
+    });
+
+    test('a secret quoted by a recorded error is redacted', () {
+      DVSecrets.configure(<String, String>{
+        'OPENAI_API_KEY': 'sk-proj-abcdef123456',
+      });
+      const DVSecrets().get('OPENAI_API_KEY');
+
+      final DVSpan span = DVTracer().startSpan('call')
+        ..recordError(StateError('rejected sk-proj-abcdef123456 by org'));
+
+      expect(
+        span.attributes['error'],
+        isNot(contains('sk-proj-abcdef123456')),
+      );
+      expect(span.attributes['error'], contains('by org'));
+    });
+  });
+
   group('the redactable set', () {
     test('a secret that was never resolved is not in it', () {
       // Honest about its own reach. Only a value DV.Secrets has handed out
