@@ -8,7 +8,28 @@
 /// point of a trace ID is that something else recognises it.
 library dartvel.observability.tracing;
 
+import 'dart:async';
 import 'dart:math';
+
+/// The zone key the current span hangs on.
+///
+/// A zone rather than a parameter threaded through every function: a query
+/// three calls deep has to be able to hang a child span off the request's
+/// without each function in between taking a span it does not otherwise use.
+/// That threading is exactly the boilerplate that stops people instrumenting
+/// anything.
+///
+/// It lives here rather than beside the HTTP middleware that first set it,
+/// because logging needs to read it too and a log line that cannot name the
+/// trace it happened inside is half of an investigation.
+const Object dvSpanZoneKey = #dartvelSpan;
+
+/// The span the current call is inside, if any.
+DVSpan? get dvCurrentSpan => Zone.current[dvSpanZoneKey] as DVSpan?;
+
+/// Runs [body] with [span] as the ambient span.
+R dvInSpan<R>(DVSpan span, R Function() body) =>
+    runZoned(body, zoneValues: <Object, Object?>{dvSpanZoneKey: span});
 
 /// The trace a request belongs to, as it travels between services.
 ///
