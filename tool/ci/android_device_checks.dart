@@ -163,6 +163,19 @@ Future<void> main(List<String> arguments) async {
   await _step('tap links on the device', failures,
       () => _flutterTest('integration_test/link_navigation_test.dart'));
 
+  // The permission-gated bindings, on the device that is the only place they
+  // can be wrong. Every one of them reaches Java by name -- JClass.forName
+  // for the class, staticMethodId for the method and its signature -- and
+  // none of that is checked by either compiler. A lookup that finds nothing
+  // throws where nobody is looking, and the binding answers null, which is
+  // also what an unsupported platform answers.
+  //
+  // Nothing in it opens a dialog: it asks what a permission's state is,
+  // which never prompts, and leaves the camera and the picker alone because
+  // both wait for a person.
+  await _step('ask the device about permissions', failures,
+      () => _flutterTest('integration_test/android_capture_test.dart'));
+
   // Put the application back before asking the device anything about it.
   //
   // This is the bug, and it took three checks to find because every one of
@@ -270,6 +283,30 @@ Future<void> main(List<String> arguments) async {
         ]);
         final String tree = '${dump.stdout}';
         File('$_diag/android-installed-manifest.txt').writeAsStringSync(tree);
+
+        // The capture plumbing, read back off the device rather than off the
+        // build machine. A permission that the generator wrote and the
+        // packager dropped is refused at run time with no dialog, which is
+        // the same answer a person tapping Deny gives -- so without this
+        // there is nothing anywhere that can tell the two apart.
+        for (final MapEntry<String, String> required in <String, String>{
+          'DartvelBridgeActivity': 'the Activity a permission result and an '
+              'activity result are delivered to. Without it every '
+              'permission-gated binding waits for an answer that cannot '
+              'arrive.',
+          'DartvelCaptureFiles': 'the provider a camera application writes a '
+              'photo into.',
+          'android.permission.CAMERA': 'declared by dartvel.android.'
+              'permissions in the example pubspec. Missing here, a request '
+              'is refused instantly and reads as a refusal.',
+        }.entries) {
+          if (tree.contains(required.key)) {
+            stdout.writeln('   the installed APK carries ${required.key}');
+            continue;
+          }
+          failures.add('the installed APK has no ${required.key}: '
+              '${required.value}');
+        }
         if (tree.contains('DartvelDeviceAdminReceiver')) {
           stdout.writeln('   the installed APK DOES carry the receiver, so '
               'the package is right and the query is asking the wrong '
