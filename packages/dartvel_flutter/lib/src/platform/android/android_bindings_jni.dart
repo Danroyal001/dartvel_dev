@@ -50,6 +50,7 @@ import 'generated/android/content/Intent.dart';
 import 'generated/android/hardware/Sensor.dart';
 import 'generated/android/os/VibrationEffect.dart';
 import 'generated/android/os/Vibrator.dart';
+import 'generated/android/os/VibratorManager.dart';
 // For getFilesDir()'s absolutePath. jnigen puts an extension type's methods
 // in a plain `extension ... on File`, and a Dart extension is only in scope
 // where its library is imported -- so without this line the getter is
@@ -473,14 +474,9 @@ class DVAndroidBindings {
   }
 
   /// Vibrates for [milliseconds].
-  ///
-  /// `vibrator_manager` is the API 31 way in and `vibrator` remains for older
-  /// releases. Both are tried rather than branching on the SDK level, because
-  /// reading the level is another JNI call and the fallback answers the same
-  /// question.
   static bool _vibrate(int milliseconds) {
-    final service = _service('vibrator_manager') ?? _service('vibrator');
-    if (service == null) return false;
+    final Vibrator? vibrator = _vibrator();
+    if (vibrator == null) return false;
 
     final effect = VibrationEffect.createOneShot(
       milliseconds,
@@ -491,8 +487,38 @@ class DVAndroidBindings {
     // vibrate$4 is the VibrationEffect overload. The generated names are
     // positional across Java's five vibrate() signatures, so the number
     // matters and is not guessable.
-    service.as(Vibrator.type).vibrate$4(effect);
+    vibrator.vibrate$4(effect);
     return true;
+  }
+
+  /// The device's vibrator, whichever service this API level hands it through.
+  ///
+  /// This used to ask for `vibrator_manager` and, failing that, `vibrator`,
+  /// then cast whatever came back to `Vibrator` -- on the reasoning that
+  /// trying both was cheaper than a JNI call to read the SDK level, and that
+  /// the fallback answered the same question. It does not. From API 31
+  /// `vibrator_manager` returns a **VibratorManager**, which is not a Vibrator
+  /// and holds one; the cast threw `CastError: not a subtype of
+  /// "Landroid/os/Vibrator;"` and took all three haptics bindings with it.
+  ///
+  /// It went unseen because nothing ever called it on a device. The name was
+  /// registered, the capability list claimed it, the unit tests asserted what
+  /// the Dart half decides, and every one of those passes whether or not the
+  /// call reaches Android. An emulator found it the first time one ran.
+  ///
+  /// Both are still tried, and in this order, because the manager is the
+  /// supported route where it exists and `vibrator` is deprecated from the
+  /// same release -- but the manager is now asked for its default vibrator
+  /// rather than pretended to be one.
+  static Vibrator? _vibrator() {
+    final JObject? manager = _service('vibrator_manager');
+    if (manager != null) {
+      final Vibrator? byManager =
+          manager.as(VibratorManager.type).defaultVibrator;
+      if (byManager != null) return byManager;
+    }
+    final JObject? service = _service('vibrator');
+    return service?.as(Vibrator.type);
   }
 
   /// Hand text to whatever the user picks to receive it.
