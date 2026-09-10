@@ -16,7 +16,7 @@
 // This suite runs anywhere and asserts the capability list and the refusal to
 // register off-Android. The bindings themselves need a device, and the
 // emulator job in runtime-verification is where they are exercised.
-import 'dart:io' show Platform;
+import 'dart:io' show Directory, File, FileSystemEntity, Platform;
 
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:dartvel_flutter/src/platform/android/android_capture_jni.dart';
@@ -25,38 +25,50 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   group('capability list', () {
     test('it claims clipboard, haptics, sharing and the kiosk', () {
-      expect(
-        DVAndroidBindings.implemented,
-        <String>{
-          'clipboard.copy',
-          'clipboard.paste',
-          'haptics.vibrate',
-          'haptics.lightVibrate',
-          'haptics.impact',
-          'share.text',
-          'kiosk.enforce',
-          'kiosk.release',
-          // The launch Intent's URI. It belongs to the Activity, so it
-          // arrived with the Activity -- and a home widget's tap is a deep
-          // link, so without it a widget opened the application's home route.
-          'deepLinks.initial',
-          // What a home-screen widget shows. The provider is a receiver in
-          // this application's own process, so both ends reach the same
-          // SharedPreferences -- but the launcher composes the widget, so
-          // what crosses is the data and never the tree.
-          'homeWidgets.publish',
-          // The permission dialog and the four APIs that need one. All of
-          // them wait on a result Android delivers to an Activity, which the
-          // application Context is not -- so they arrive at the transparent
-          // Activity `dartvel build android` writes.
-          'permissions.isGranted',
-          'permissions.request',
-          'camera.takePhoto',
-          'media.pick',
-          'contacts.getContacts',
-          'location.current',
-        },
-      );
+      expect(DVAndroidBindings.implemented, <String>{
+        'clipboard.copy',
+        'clipboard.paste',
+        'haptics.vibrate',
+        'haptics.lightVibrate',
+        'haptics.impact',
+        'share.text',
+        'kiosk.enforce',
+        'kiosk.release',
+        // The launch Intent's URI. It belongs to the Activity, so it
+        // arrived with the Activity -- and a home widget's tap is a deep
+        // link, so without it a widget opened the application's home route.
+        'deepLinks.initial',
+        // What a home-screen widget shows. The provider is a receiver in
+        // this application's own process, so both ends reach the same
+        // SharedPreferences -- but the launcher composes the widget, so
+        // what crosses is the data and never the tree.
+        'homeWidgets.publish',
+        // The permission dialog and the four APIs that need one. All of
+        // them wait on a result Android delivers to an Activity, which the
+        // application Context is not -- so they arrive at the transparent
+        // Activity `dartvel build android` writes.
+        'permissions.isGranted',
+        'permissions.request',
+        'camera.takePhoto',
+        'media.pick',
+        'contacts.getContacts',
+        'location.current',
+        // The display, from the Context's own DisplayMetrics. Not the
+        // window Flutter reports: on a device in split screen they are
+        // different numbers answering different questions.
+        'screen.geometry',
+        // Whether there is a reader and it is switched on. Reading and
+        // writing a tag are not here; see the absence test below.
+        'nfc.isAvailable',
+        // Bluetooth, read rather than driven. Android has no device-level
+        // connect to bind, so the four action names Linux binds cannot all
+        // be honoured -- pairing can, and is.
+        'bluetooth.isEnabled',
+        'bluetooth.adapters',
+        'bluetooth.devices',
+        'bluetooth.scanDevices',
+        'bluetooth.pair',
+      });
     });
 
     test('the capture bindings are all claimed together', () {
@@ -64,8 +76,10 @@ void main() {
       // would mean a build wrote the bridge for some and not others, and the
       // ones left out would answer null -- which reads as "this platform
       // cannot" rather than "this build is broken".
-      expect(DVAndroidBindings.implemented,
-          containsAll(DVAndroidCapture.implemented));
+      expect(
+        DVAndroidBindings.implemented,
+        containsAll(DVAndroidCapture.implemented),
+      );
     });
 
     test('the kiosk is here because the Activity is now reachable', () {
@@ -86,9 +100,12 @@ void main() {
     });
 
     test('what needs an Activity is absent', () {
-      // BiometricPrompt attaches to an Activity and NFC dispatch is delivered
-      // to one. A Context is not enough, and pretending otherwise would fail
-      // on a device rather than here.
+      // BiometricPrompt attaches to an Activity, and a tag reaches an
+      // application only through foreground dispatch or reader mode, both of
+      // which are Activity callbacks. A Context is not enough, and pretending
+      // otherwise would fail on a device rather than here. Asking whether
+      // there is a reader at all needs no Activity, which is why
+      // nfc.isAvailable is bound and nfc.readTag is not.
       for (final name in <String>[
         'biometrics.authenticate',
         'biometrics.canAuthenticate',
@@ -97,6 +114,80 @@ void main() {
       ]) {
         expect(DVAndroidBindings.implemented, isNot(contains(name)));
       }
+    });
+  });
+
+  group('the list and the registrations agree', () {
+    // There is an on-device gate that asserts every claimed name has a real
+    // handler and that nothing is registered which the list omits. It runs in
+    // the emulator job, which is slow and does not run on every push, and by
+    // then the mismatch has already been merged. This asks the same question
+    // of the source, here, in seconds.
+    //
+    // It reads the source rather than calling register(), because register()
+    // returns false off Android and there is no Android here. That is a
+    // weaker instrument -- it can only see literals -- and it is the strongest
+    // one available on this machine.
+    final RegExp binding = RegExp(
+      r"""(?:DVNativeBridge\.register|bind)\('([a-zA-Z]+\.[a-zA-Z.]+)'""",
+    );
+    final RegExp claimed = RegExp(
+      r"""^  '([a-zA-Z]+\.[a-zA-Z.]+)',""",
+      multiLine: true,
+    );
+
+    const String androidDir = 'lib/src/platform/android';
+
+    Set<String> registeredInSource() {
+      final Set<String> found = <String>{};
+      for (final FileSystemEntity entity in Directory(androidDir).listSync()) {
+        if (entity is! File || !entity.path.endsWith('.dart')) continue;
+        // Not the capability list itself: its entries are the claim, and
+        // matching them here would make the test compare the list with
+        // itself and pass whatever it said.
+        if (entity.path.endsWith('android_capabilities.dart')) continue;
+        for (final RegExpMatch m in binding.allMatches(
+          entity.readAsStringSync(),
+        )) {
+          found.add(m.group(1)!);
+        }
+      }
+      return found;
+    }
+
+    test('the scan reads both sides at all', () {
+      // Without this, a rename or a reformat could empty either set and the
+      // two assertions below would agree about nothing.
+      expect(registeredInSource(), hasLength(greaterThan(8)));
+      expect(
+        claimed
+            .allMatches(
+              File('$androidDir/android_capabilities.dart').readAsStringSync(),
+            )
+            .length,
+        greaterThan(8),
+      );
+    });
+
+    test('nothing is registered that the list does not claim', () {
+      // This is the one that matters on a device: a handler the list omits
+      // means DVNativeBridge answers a name the capability API says is
+      // unsupported, so an application branches away from something that
+      // works.
+      expect(
+        registeredInSource().difference(DVAndroidBindings.implemented),
+        isEmpty,
+      );
+    });
+
+    test('nothing is claimed that no file registers', () {
+      // And the other way: a name in the list with no handler behind it makes
+      // the capability check say yes and the call return null, which is the
+      // failure this whole layer exists to prevent.
+      expect(
+        DVAndroidBindings.implemented.difference(registeredInSource()),
+        isEmpty,
+      );
     });
   });
 
