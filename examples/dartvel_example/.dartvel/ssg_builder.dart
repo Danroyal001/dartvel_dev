@@ -7,7 +7,9 @@ import 'package:dartvel_example/dartvel_client/dartvel_client.dart';
 import 'package:flutter/material.dart';
 import 'package:dartvel_example/pages/blog/[id].page.dart' deferred as p1;
 import 'package:dartvel_example/pages/index.page.dart' deferred as p2;
-import 'package:dartvel_example/pages/pricing.dart' deferred as p3;
+import 'package:dartvel_example/pages/next_shift.page.dart' deferred as p3;
+import 'package:dartvel_example/widgets/next_shift.dart';
+import 'package:dartvel_example/pages/pricing.dart' deferred as p4;
 import 'package:flutter/widgets.dart';
 void main() async {
   final outDir = Directory('build/web/_ssg');
@@ -19,6 +21,8 @@ void main() async {
   // Skipped functional widget page: /blog/:id
   // /
   // Skipped functional widget page: /
+  // /next_shift
+  // Skipped functional widget page: /next_shift
   // /pricing
   // Skipped functional widget page: /pricing
   stdout.writeln('SSG generation complete.');

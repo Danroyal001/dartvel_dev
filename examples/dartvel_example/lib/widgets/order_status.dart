@@ -17,6 +17,10 @@ import 'package:flutter/widgets.dart';
 // is the shape that used to make a home widget disappear.
 @DVHomeWidget(title: 'Order status')
 @DVFunctionalWidget()
+// Same as every other functional widget here: the body is lowered into
+// widgets.g.dart and nothing ever calls this declaration, so the analyser is
+// right that it is unreferenced and wrong that it is unused.
+@pragma('vm:entry-point')
 Widget _orderStatusWidget(BuildContext context) => const DVBox.list(<Widget>[
       DVText('Order #4182'),
       DVText('Out for delivery'),
