@@ -57,6 +57,10 @@ typedef _GtkClipboardWaitForTextNative = Pointer<Utf8> Function(Pointer<Void>);
 typedef _GtkClipboardWaitForTextDart = Pointer<Utf8> Function(Pointer<Void>);
 typedef _GtkClipboardStoreNative = Void Function(Pointer<Void>);
 typedef _GtkClipboardStoreDart = void Function(Pointer<Void>);
+typedef _GtkClipboardClearNative = Void Function(Pointer<Void>);
+typedef _GtkClipboardClearDart = void Function(Pointer<Void>);
+typedef _GdkSelectionOwnerGetNative = Pointer<Void> Function(Uint64);
+typedef _GdkSelectionOwnerGetDart = Pointer<Void> Function(int);
 typedef _GMainContextIterationNative = Int32 Function(Pointer<Void>, Int32);
 typedef _GMainContextIterationDart = int Function(Pointer<Void>, int);
 typedef _GFreeNative = Void Function(Pointer<Void>);
@@ -103,11 +107,37 @@ class DVLinuxClipboard {
 
   /// Stops serving and forgets the libraries.
   ///
-  /// The pump has to stop with the bindings. A timer left running past
-  /// `unregister` keeps iterating a main context for a process that has said
-  /// it is done with GTK, and in a test suite that is a timer outliving the
-  /// test that made it.
+  /// Ownership goes back before the pump stops, and the order is the whole
+  /// of it. Cancelling the timer while this process still owns a selection
+  /// puts it straight back into the state this file exists to get out of:
+  /// the display records the owner, the owner has stopped answering, and
+  /// every paste anywhere on the desktop waits for a reply that is not
+  /// coming. That is not a hypothetical -- it is how the two suites sharing
+  /// a display found each other, one copying and unregistering while the
+  /// other tried to read.
+  ///
+  /// The pump has to stop too. A timer left running past `unregister` keeps
+  /// iterating a main context for a process that has said it is done with
+  /// GTK, and in a test suite that is a timer outliving the test that made
+  /// it.
   static void close() {
+    if (_gtkReady && _gtk != null) {
+      final _GtkClipboardClearDart clear =
+          _gtk!.lookupFunction<_GtkClipboardClearNative,
+              _GtkClipboardClearDart>('gtk_clipboard_clear');
+      for (final String atom in <String>[clipboardAtom, primaryAtom]) {
+        final Pointer<Void>? selection = _selection(atom);
+        // A no-op unless this process is the owner, which is what makes it
+        // safe to call for a selection somebody else holds.
+        if (selection != null) clear(selection);
+      }
+      // The release is an X request, and it has to go out before the loop
+      // that would have carried it stops. Bounded: this runs on the way out.
+      final _GMainContextIterationDart iterate = _glib!.lookupFunction<
+          _GMainContextIterationNative,
+          _GMainContextIterationDart>('g_main_context_iteration');
+      for (int i = 0; i < 64 && iterate(nullptr, 0) != 0; i++) {}
+    }
     _pump?.cancel();
     _pump = null;
     _gtk = null;
@@ -129,22 +159,40 @@ class DVLinuxClipboard {
     return _gtkReady;
   }
 
+  static int _atom(String name) {
+    final Pointer<Utf8> text = name.toNativeUtf8();
+    try {
+      return _gdk!.lookupFunction<_GdkAtomInternNative, _GdkAtomInternDart>(
+        'gdk_atom_intern',
+      )(text, 0);
+    } finally {
+      calloc.free(text);
+    }
+  }
+
   static Pointer<Void>? _selection(String atomName) {
     if (!_ensureGtk()) return null;
-    final Pointer<Utf8> name = atomName.toNativeUtf8();
-    try {
-      final int atom = _gdk!
-          .lookupFunction<_GdkAtomInternNative, _GdkAtomInternDart>(
-            'gdk_atom_intern',
-          )(name, 0);
-      final Pointer<Void> selection = _gtk!
-          .lookupFunction<_GtkClipboardGetNative, _GtkClipboardGetDart>(
-            'gtk_clipboard_get',
-          )(atom);
-      return selection == nullptr ? null : selection;
-    } finally {
-      calloc.free(name);
-    }
+    final Pointer<Void> selection = _gtk!
+        .lookupFunction<_GtkClipboardGetNative, _GtkClipboardGetDart>(
+          'gtk_clipboard_get',
+        )(_atom(atomName));
+    return selection == nullptr ? null : selection;
+  }
+
+  /// Whether this process is what the display records as the owner of
+  /// [atomName].
+  ///
+  /// `gdk_selection_owner_get` answers with a window when the owner is one of
+  /// ours and with nothing when it is anybody else's, which is the question
+  /// worth asking on the way out: a process that has stopped answering and
+  /// still owns the selection is the bug this file is about.
+  static bool ownsSelection(String atomName) {
+    if (!_ensureGtk()) return false;
+    return _gdk!.lookupFunction<_GdkSelectionOwnerGetNative,
+            _GdkSelectionOwnerGetDart>('gdk_selection_owner_get')(
+          _atom(atomName),
+        ) !=
+        nullptr;
   }
 
   /// Starts draining the default GLib main context.
