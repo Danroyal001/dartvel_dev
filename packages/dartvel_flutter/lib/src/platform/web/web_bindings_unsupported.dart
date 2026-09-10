@@ -3,6 +3,12 @@ library dartvel_flutter.platform.web.unsupported;
 
 import 'web_capabilities.dart';
 
+// Re-exported so the capability lists and DVWebPermissionDenied reach an
+// application through the package barrel. Without this an application could
+// catch nothing more specific than Exception for a refusal, which is the
+// distinction these files exist to make.
+export 'web_capabilities.dart';
+
 /// The browser bindings, unavailable here.
 ///
 /// [register] reports false rather than pretending, so every `DV.Platform`
@@ -21,6 +27,15 @@ class DVWebBindings {
   /// anywhere, and keeping it constant is what lets the capability list be
   /// asserted from an ordinary VM test.
   static const Set<String> implemented = dvWebImplementedBindings;
+
+  /// What this build actually bound, which off the web is nothing.
+  ///
+  /// Separate from [implemented] because the two answer different questions
+  /// and only one of them is constant. A browser without Web NFC registers
+  /// no `nfc.readTag` even though the web platform has one, and a caller
+  /// deciding whether to offer the feature has to read this rather than the
+  /// capability list.
+  static Set<String> get registeredNames => const <String>{};
 
   static bool register() => false;
 
