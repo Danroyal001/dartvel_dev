@@ -1816,12 +1816,12 @@ extension Context$$Methods on Context {
 
   /// from: `public abstract android.content.res.Resources$Theme getTheme()`
   /// The returned object must be released after use, by calling the [release] method.
-  resources$_.Resources$$Theme? get theme$1 {
+  resources$_.Resources$Theme? get theme$1 {
     final _$$selfRef = reference;
     return _get$theme$1(
       _$$selfRef.pointer,
       _id_get$theme$1.pointer,
-    ).object<resources$_.Resources$$Theme?>();
+    ).object<resources$_.Resources$Theme?>();
   }
 
   static final _id_obtainStyledAttributes = Context._class.instanceMethodId(
