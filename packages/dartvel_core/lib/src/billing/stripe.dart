@@ -8,6 +8,11 @@
 /// inside the tolerance, because an unsigned "subscription activated" is how
 /// someone grants themselves a plan.
 ///
+/// The third is the price. A plan declares what it costs and the price
+/// identifier says where to charge it, and until those two were compared the
+/// declared amount was decoration: a dashboard edit at Stripe moved the real
+/// price and the application went on showing the old one.
+///
 /// HTTP is an injected function and so is the clock, so the provider is
 /// tested without Stripe and the tolerance is tested at its edge.
 library dartvel.billing.stripe;
@@ -17,6 +22,7 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 
 import '../../dartvel.dart' show BillingPlan, Entitlement, DVBillingCheckoutSession, DVBillingProvider;
+import 'money.dart';
 
 /// A billing operation that could not proceed, with a message safe to show.
 class DVBillingError implements Exception {
@@ -46,11 +52,17 @@ class DVBillingWebhookResult {
   final Set<Entitlement> revoked;
 }
 
-/// `(status, body)` for a POST of [body] to [url] with [headers].
-typedef DVStripeFetch = Future<(int, String)> Function(
+/// `(status, body)` for an HTTP [method] request to [url] with [headers].
+///
+/// [body] is null for a read. It used to be a required String and the method
+/// was implied, which meant a provider could only write -- and a provider
+/// that cannot read cannot check what a price actually costs before sending
+/// somebody to pay it.
+typedef DVBillingFetch = Future<(int, String)> Function(
+  String method,
   Uri url,
   Map<String, String> headers,
-  String body,
+  String? body,
 );
 
 /// Stripe Checkout for subscriptions, with entitlements kept from webhooks.
@@ -62,7 +74,7 @@ class DVStripeBillingProvider implements DVBillingProvider {
     required this.entitlements,
     required this.successUrl,
     required this.cancelUrl,
-    DVStripeFetch? fetch,
+    DVBillingFetch? fetch,
     DateTime Function()? clock,
     this.tolerance = const Duration(minutes: 5),
   })  : _secretKey = secretKey,
@@ -72,7 +84,7 @@ class DVStripeBillingProvider implements DVBillingProvider {
 
   final String _secretKey;
   final String _webhookSecret;
-  final DVStripeFetch _fetch;
+  final DVBillingFetch _fetch;
   final DateTime Function() _clock;
 
   /// Plan id to Stripe price id.
@@ -93,7 +105,8 @@ class DVStripeBillingProvider implements DVBillingProvider {
 
   static const String _host = 'api.stripe.com';
 
-  static Future<(int, String)> _noNetwork(Uri u, Map<String, String> h, String b) =>
+  static Future<(int, String)> _noNetwork(
+          String m, Uri u, Map<String, String> h, String? b) =>
       throw const DVBillingError('No HTTP transport was configured for Stripe.');
 
   @override
@@ -105,6 +118,7 @@ class DVStripeBillingProvider implements DVBillingProvider {
     if (price == null) {
       throw DVBillingError('Plan "${plan.id}" has no Stripe price configured.');
     }
+    await _assertPriceAgrees(plan, price);
 
     final Map<String, String> form = <String, String>{
       'mode': 'subscription',
@@ -119,7 +133,8 @@ class DVStripeBillingProvider implements DVBillingProvider {
             '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}')
         .join('&');
 
-    final Map<String, Object?> json = await _post('/v1/checkout/sessions', body);
+    final Map<String, Object?> json =
+        await _request('POST', '/v1/checkout/sessions', body);
     final Object? url = json['url'];
     return DVBillingCheckoutSession(
       id: '${json['id'] ?? ''}',
@@ -129,6 +144,57 @@ class DVStripeBillingProvider implements DVBillingProvider {
       checkoutUrl: url is String ? Uri.tryParse(url) : null,
     );
   }
+
+  /// Refuses a checkout when Stripe would charge something other than what
+  /// the plan says it costs.
+  ///
+  /// The failure this stops is quiet on both sides. The application renders
+  /// the plan's own price, so the number a customer reads comes from the
+  /// declaration; the charge comes from the identifier in [prices], which
+  /// somebody can repoint or reprice in the Stripe dashboard without
+  /// touching a line of code. Nothing then disagrees out loud -- the
+  /// checkout opens, the card is charged, and the receipt is the first place
+  /// the two numbers appear together.
+  ///
+  /// A plan whose `priceMinorUnits` is zero is declaring that it has no unit
+  /// price: free, or billed by the meter. There is nothing to compare and no
+  /// request is made.
+  Future<void> _assertPriceAgrees(BillingPlan plan, String priceId) async {
+    if (plan.priceMinorUnits == 0) return;
+    final DVMoney declared =
+        DVMoney(amount: plan.priceMinorUnits, currency: plan.currency);
+
+    final Map<String, Object?> price =
+        await _request('GET', '/v1/prices/$priceId', null);
+    final Object? amount = price['unit_amount'];
+    final Object? currency = price['currency'];
+    if (amount is! int ||
+        amount < 0 ||
+        currency is! String ||
+        !_isCurrencyCode(currency)) {
+      // unit_amount is null on tiered and metered prices. Passing that as
+      // "nothing to compare" would wave through the exact mismatch this
+      // exists to catch, so the contradiction is the error.
+      throw DVBillingError(
+        'Plan "${plan.id}" declares $declared, but Stripe price $priceId has '
+        'no single unit amount -- a tiered or metered price is charged per '
+        'use rather than per subscription. Set priceMinorUnits to 0 for a '
+        'metered plan, or point the plan at a fixed price.',
+      );
+    }
+
+    final DVMoney charged = DVMoney(amount: amount, currency: currency);
+    if (charged != declared) {
+      throw DVBillingError(
+        'Plan "${plan.id}" declares $declared and Stripe price $priceId '
+        'charges $charged. No checkout was created, because the customer '
+        'would have been shown one number and billed another.',
+      );
+    }
+  }
+
+  static bool _isCurrencyCode(String value) =>
+      RegExp(r'^[A-Za-z]{3}$').hasMatch(value);
 
   @override
   Future<bool> hasEntitlement(Object customer, Entitlement entitlement) async =>
@@ -258,13 +324,20 @@ class DVStripeBillingProvider implements DVBillingProvider {
     return diff == 0;
   }
 
-  Future<Map<String, Object?>> _post(String path, String body) async {
+  Future<Map<String, Object?>> _request(
+      String method, String path, String? body) async {
+    final Map<String, String> headers = <String, String>{
+      'Authorization': 'Bearer $_secretKey',
+    };
+    // Only a request with a body declares one. Stripe reads a form-encoded
+    // content type on a GET as a malformed request rather than ignoring it.
+    if (body != null) {
+      headers['Content-Type'] = 'application/x-www-form-urlencoded';
+    }
     final (int status, String responseBody) = await _fetch(
+      method,
       Uri.https(_host, path),
-      <String, String>{
-        'Authorization': 'Bearer $_secretKey',
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
+      headers,
       body,
     );
 
