@@ -2917,11 +2917,22 @@ class DVNotifications {
   static final List<Map<String, String>> _sent = [];
 
   Future<void> sendLocalNotification(String title, String body) async {
-    final handled = await DVNativeBridge.require<bool>(
+    // Object?, not bool. The platforms disagree about how much they know:
+    // Linux answers with the notification id the daemon assigned -- a number,
+    // and the one a future close-by-id would need -- while web, Windows and
+    // Android answer true. require<bool> turned Linux's extra information into
+    // "returned int, expected bool" and made the feature unusable on the
+    // desktop where it is most complete.
+    //
+    // So the question this asks is "did it go", and anything but a refusal is
+    // a yes. null is a refusal: a kiosk holding the screen suppresses the
+    // banner and answers null, and that must not read as delivered merely
+    // because it is not false.
+    final Object? handled = await DVNativeBridge.invoke<Object?>(
       'notifications.sendLocal',
       {'title': title, 'body': body},
     );
-    if (!handled) {
+    if (handled == null || handled == false) {
       throw StateError('Native notification binding rejected the request.');
     }
     _sent.add({'title': title, 'body': body});

@@ -7,7 +7,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:dartvel_flutter/src/platform/file_bindings.dart';
+import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 
@@ -34,6 +34,35 @@ void main() {
   Object? call(String name, Map<String, Object?> arguments) =>
       handlers[name]!(arguments);
 
+// The assertion that would have caught this, at the level an application
+  // uses. Every test above calls the binding directly and reads whatever it
+  // returns, which is why a binding answering with the wrong type passed them
+  // all while DV.Platform.files.writeBytes threw on Linux, Windows and macOS.
+  test('the facade can write, read and delete a file', () async {
+    DVFileBindings.reset();
+    DVFileBindings.register(root.path, DVNativeBridge.register);
+    addTearDown(() {
+      for (final String name in <String>[
+        'files.readBytes',
+        'files.writeBytes',
+        'files.delete',
+      ]) {
+        DVNativeBridge.unregister(name);
+      }
+      DVFileBindings.reset();
+    });
+
+    const List<int> bytes = <int>[1, 2, 3, 250];
+
+    // require<bool> on the other side of each of these, so a binding that
+    // answers with a count throws "returned int, expected bool" and the
+    // feature is unusable however correct the file on disk is.
+    await DV.Platform.files.writeBytes('note.bin', bytes);
+    expect(await DV.Platform.files.readBytes('note.bin'), bytes);
+    await DV.Platform.files.delete('note.bin');
+    expect(File(p.join(root.path, 'note.bin')).existsSync(), isFalse);
+  });
+
   test('all three bindings register', () {
     expect(
       handlers.keys,
@@ -48,7 +77,7 @@ void main() {
     expect(call('files.writeBytes', <String, Object?>{
       'path': 'blob.bin',
       'bytes': bytes,
-    }), 512);
+    }), isTrue);
     expect(call('files.readBytes', <String, Object?>{'path': 'blob.bin'}), bytes);
   });
 
