@@ -471,8 +471,12 @@ Widget _targets(BuildContext context) => Section(
         'Sony eLinux',
         'webOS',
         'VS Code',
-        'Chrome',
-        'Firefox',
+        // The two extension targets, named the way you would type them.
+        // As bare browser names they sat beside 'web' and read as a third way
+        // to ship a web application, which they are not: an extension is its
+        // own artifact, with a manifest, a background worker and a review.
+        'chrome-extension',
+        'firefox-extension',
         'terminal',
       ])
         SiteChip(target, onDark: true),
