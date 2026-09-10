@@ -119,6 +119,11 @@ class DVAndroidSensors {
       // Always. A listener left registered keeps the sensor powered, which
       // on a phone is a battery drain nobody can attribute to anything.
       manager.unregisterListener$3(listener);
+      // And the proxy itself, which is a global JNI reference and an open
+      // receive port on the Dart side. One sample leaks nothing anybody
+      // notices; a page reading the accelerometer while it is open leaks one
+      // of each per reading.
+      listener.release();
     }
   }
 }
