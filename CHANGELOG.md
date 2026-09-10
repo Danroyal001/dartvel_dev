@@ -5,7 +5,42 @@ All notable changes to this project will be documented in this file.
 Dartvel is pre-1.0. Minor versions may contain breaking changes; breaking
 changes are called out explicitly below.
 
-## Unreleased
+## 0.4.0 — 2026-09-10
+
+0.3.0 and 0.3.1 shipped without their own entries here, so this covers
+everything since 0.2.1. The version is a minor rather than a patch because
+`DVFieldCipher`'s constructor changed and because eight hundred commits of
+behaviour changed underneath a number that said 0.3.2.
+
+**Android and web stopped being declarations.** Android went from 10 native
+bindings to 36 and web from 16 to 41, counted from source by
+`dart tool/binding_coverage.dart` rather than written down -- every
+per-platform figure in this repository had been wrong at some point, in both
+directions.
+
+**A new gate runs the bindings on a real device.** The emulator job asserts
+that registration completed, that every name the capability set advertises has
+a handler, that nothing is registered which the set omits, that the safe
+bindings invoke, and that text survives a clipboard round trip. It found three
+bugs in its first three runs, all of which had shipped in 0.3.1: every haptics
+binding threw on API 31 and above, and two manifest permissions were never
+written. All three were invisible to the unit suites, which call bindings
+directly and accept whatever comes back.
+
+That is the shape of most of this release. `dartvel db migrate` printed
+success and executed nothing. Declared middleware reached the generated router
+and was dropped. Two of three multi-tenancy strategies produced exactly the
+queries the shared strategy produces, so every tenant read every tenant's rows
+on the two settings chosen to prevent that. A Dartvel copy on Linux took the
+X11 clipboard away from the whole session and made every paste on the machine
+hang. `DV.Updates.check()` still throws on every platform, and this release
+says so rather than implying otherwise.
+
+**Known and stated:** nothing below the Dart layer on Android has been
+executed outside the emulator job, `updates.check`/`apply`/`rollback` are
+registered by nothing, and twenty-one specification sections remain partial
+with their gaps named in `docs/spec-status.json`.
+
 
 Two tranches of work. The first filled in provider and adapter implementations
 for subsystems that had an API surface but no way to reach a real service. The

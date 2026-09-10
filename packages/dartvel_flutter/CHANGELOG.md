@@ -1,3 +1,38 @@
+## 0.4.0
+
+Android went from 10 bound native bindings to 36, and web from 16 to 41. Both
+numbers are counted from source by `dart tool/binding_coverage.dart` rather
+than written down, because every per-platform figure in this repository has
+been wrong at some point.
+
+Android now covers runtime permissions, the camera, the media picker,
+contacts, location, sensors, biometric availability, local notifications, the
+device runtime, files, screen geometry, NFC availability and most of
+Bluetooth. The Activity that permission results and activity results are
+delivered to is written into the application by `dartvel build android`.
+
+Three Android bugs that had shipped since the capability list existed, all
+found by a new on-device gate rather than by any unit test:
+
+- All three haptics bindings threw on every device at API 31 or above. The
+  `vibrator_manager` service returns a `VibratorManager`, which holds a
+  vibrator rather than being one, and the cast to `Vibrator` threw.
+- `notifications.sendLocal` and `files.writeBytes` answered with types their
+  own callers refused. `DVFiles.writeBytes` asked through `require<bool>` and
+  the binding answered with a byte count, so the call threw on Linux, Windows
+  and macOS while writing a perfectly correct file.
+
+Web bindings are registered only after a probe for the API behind them, so a
+browser without Web NFC or the Contact Picker leaves those names unregistered
+and `DVNativeBridge.isRegistered` keeps telling the truth. A capability the
+browser has and refuses raises `DVWebPermissionDenied` carrying the browser's
+own words, so a refusal can no longer be read as an absence.
+
+The Linux clipboard was worse than unimplemented: a copy made the process the
+owner of the X11 CLIPBOARD selection without running a GLib main loop to
+answer for it, which made every paste on the machine hang until the asking
+application timed out.
+
 ## 0.3.2
 
 - Corrected the constraints on sibling Dartvel packages, which named the

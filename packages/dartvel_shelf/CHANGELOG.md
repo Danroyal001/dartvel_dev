@@ -1,3 +1,17 @@
+## 0.5.0
+
+Minor rather than patch: the request and response types this package shares
+with `dartvel_core` moved with core's 0.4.0, and the server generation reads
+`dartvel.server` for CORS and compression rather than expecting the
+application to pass them to a `serve` call nobody writes.
+
+- Saying nothing about CORS now means no CORS headers rather than answering
+  every origin, since that is the setting most likely to be wrong and a
+  default nobody chose should not be it.
+- A value the build cannot honour stops the build: credentials from any
+  origin, an origin written with a path or a trailing slash, and compression
+  written as the string `false`.
+
 ## 0.4.2
 
 - Corrected the constraints on sibling Dartvel packages, which named the
