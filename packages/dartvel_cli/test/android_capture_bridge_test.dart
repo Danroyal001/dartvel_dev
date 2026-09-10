@@ -52,6 +52,39 @@ void main() {
       expect(out, contains('android.permission.VIBRATE'));
     });
 
+    test('USE_BIOMETRIC too, for the same reason', () {
+      // biometrics.canAuthenticate is bound on every Android build -- asking
+      // whether a device has biometrics needs no dialog and no decision from
+      // anybody -- and BiometricManager.canAuthenticate() throws
+      // SecurityException without this line. USE_BIOMETRIC is normal, so it
+      // is granted at install and nobody is asked.
+      //
+      // biometrics.authenticate, the prompt itself, is a different matter and
+      // is not bound at all: it needs a Java shim, and it is the part a person
+      // actually answers.
+      final String out = dvAndroidCaptureManifest(_manifest, const <String>[]);
+      expect(out, contains('android.permission.USE_BIOMETRIC'));
+    });
+
+    test('but never a dangerous permission nobody asked for', () {
+      // The rule that keeps the always-bound list honest. Everything on it is
+      // added without the project saying so, so it has to be a permission
+      // Android grants at install with no dialog. BLUETOOTH_CONNECT and
+      // CAMERA are the project's to request, and adding either on its behalf
+      // would put a question in front of its users that its author never
+      // wrote.
+      final String out = dvAndroidCaptureManifest(_manifest, const <String>[]);
+      for (final String dangerous in <String>[
+        'BLUETOOTH_CONNECT',
+        'CAMERA',
+        'READ_CONTACTS',
+        'ACCESS_FINE_LOCATION',
+        'POST_NOTIFICATIONS',
+      ]) {
+        expect(out, isNot(contains(dangerous)), reason: dangerous);
+      }
+    });
+
     test('and is not written twice when the manifest already has it', () {
       // A hand-written manifest that already declares it is the common case
       // for a project migrating in, and a duplicate uses-permission is the
