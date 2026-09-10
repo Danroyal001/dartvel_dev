@@ -174,6 +174,15 @@ const Set<String> dvWebUnconditionalBindings = <String>{
 /// name stays out, because a shorter list that is true is worth more than a
 /// longer one that is not.
 const Map<String, String> dvWebUnavailableBindings = <String, String>{
+  'clipboard.readSelection': 'The X11 PRIMARY selection, which is what a '
+      'middle-click pastes on a Unix desktop. It is a second clipboard that '
+      'only X has -- there is no browser API for it, and aliasing it onto the '
+      'ordinary clipboard would answer with whatever was last copied, which '
+      'is a different thing that usually holds different text.',
+  'clipboard.writeSelection': 'The other half, and the more dangerous one to '
+      'fake: writing the ordinary clipboard here would destroy whatever the '
+      'person had copied, to satisfy a call that on their platform would not '
+      'have touched it.',
   'tray.show': 'A page has no system tray. The tray belongs to the desktop '
       'shell, and nothing in a tab reaches it.',
   'tray.hide': 'The other half of a tray icon a browser cannot create in the '
