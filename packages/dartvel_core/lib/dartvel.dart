@@ -101,6 +101,7 @@ export 'src/notifications/push.dart';
 export 'src/notifications/web_push.dart';
 export 'src/notifications/web_push_vapid.dart';
 export 'src/observability/observability.dart';
+export 'src/platform/android_capture.dart';
 export 'src/platform_config.dart';
 export 'src/queues/amqp_queue.dart';
 export 'src/queues/amqp_socket_io.dart';
