@@ -12,4 +12,16 @@ export 'android_capabilities.dart'
         dvAndroidShareIntentFlags,
         dvAndroidShareMimeType,
         dvAndroidShareUsesChooser,
-        dvAndroidLaunchRoute;
+        dvAndroidLaunchRoute,
+        // The decisions the sensor, biometric, notification and device
+        // bindings make before they reach Java. Exported because they are
+        // the half that can be tested off a device, and the half where a
+        // wrong answer still looks like an answer.
+        dvAndroidSensorSample,
+        dvAndroidBiometricSuccess,
+        dvAndroidBiometricAvailable,
+        dvAndroidNotificationChannelId,
+        dvAndroidNotificationChannelName,
+        dvAndroidNotificationNeedsChannel,
+        dvAndroidNotificationId,
+        dvAndroidStateDirectory;
