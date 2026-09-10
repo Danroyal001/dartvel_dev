@@ -29,6 +29,7 @@ import '../../dartvel.dart'
         DVBillingProvider,
         DVUsageMeter,
         dvBillingCustomerKey;
+import 'invoice.dart';
 import 'money.dart';
 import 'webhooks.dart';
 
@@ -246,6 +247,79 @@ class DVStripeBillingProvider
   /// `handled: false` rather than refused, because Stripe retries an
   /// unacknowledged webhook for days.
   @override
+  Future<List<DVInvoice>> invoices(Object customer, {int limit = 20}) async {
+    final String id = dvBillingCustomerKey(customer);
+    final Map<String, Object?> json = await _request(
+      'GET',
+      '/v1/invoices',
+      null,
+      <String, String>{'customer': id, 'limit': '$limit'},
+    );
+    final Object? rows = json['data'];
+    if (rows is! List) {
+      throw const DVBillingError('Stripe answered with no invoice list.');
+    }
+
+    final List<DVInvoice> invoices = <DVInvoice>[];
+    for (final Object? row in rows) {
+      if (row is! Map) continue;
+      // Stripe filters by customer, so a row for anybody else means the
+      // filter did not apply. Rendering it would show this customer
+      // somebody else's billing history on a page that looks fine.
+      if ('${row['customer'] ?? ''}' != id) continue;
+
+      final Object? total = row['total'];
+      final Object? currency = row['currency'];
+      if (total is! int || currency is! String || !_isCurrencyCode(currency)) {
+        throw DVBillingError(
+          'Stripe invoice ${row['id']} carries no amount and currency this '
+          'can read. An amount without its currency still renders as money, '
+          'and is wrong by whatever the page assumed.',
+        );
+      }
+
+      final Object? created = row['created'];
+      final int seconds = created is int ? created : 0;
+      invoices.add(DVInvoice(
+        id: '${row['id'] ?? ''}',
+        number: row['number'] is String ? row['number'] as String : null,
+        total: DVMoney(amount: total, currency: currency),
+        status: _invoiceStatus('${row['status'] ?? ''}'),
+        createdAt:
+            DateTime.fromMillisecondsSinceEpoch(seconds * 1000, isUtc: true),
+        hostedUrl: _uri(row['hosted_invoice_url']),
+        pdfUrl: _uri(row['invoice_pdf']),
+      ));
+    }
+    return invoices;
+  }
+
+  static Uri? _uri(Object? value) =>
+      value is String && value.isNotEmpty ? Uri.tryParse(value) : null;
+
+  /// Stripe's invoice statuses, and nothing else.
+  ///
+  /// An unrecognised one is [DVInvoiceStatus.unknown] rather than anything
+  /// specific: Stripe adds states, and reading a new one as paid turns an
+  /// unpaid invoice into a bill nobody chases.
+  static DVInvoiceStatus _invoiceStatus(String status) {
+    switch (status) {
+      case 'draft':
+        return DVInvoiceStatus.draft;
+      case 'open':
+        return DVInvoiceStatus.open;
+      case 'paid':
+        return DVInvoiceStatus.paid;
+      case 'uncollectible':
+        return DVInvoiceStatus.uncollectible;
+      case 'void':
+        return DVInvoiceStatus.voided;
+      default:
+        return DVInvoiceStatus.unknown;
+    }
+  }
+
+  @override
   String get signatureHeaderName => 'Stripe-Signature';
 
   @override
@@ -389,8 +463,8 @@ class DVStripeBillingProvider
     return diff == 0;
   }
 
-  Future<Map<String, Object?>> _request(
-      String method, String path, String? body) async {
+  Future<Map<String, Object?>> _request(String method, String path,
+      String? body, [Map<String, String>? query]) async {
     final Map<String, String> headers = <String, String>{
       'Authorization': 'Bearer $_secretKey',
     };
@@ -401,7 +475,7 @@ class DVStripeBillingProvider
     }
     final (int status, String responseBody) = await _fetch(
       method,
-      Uri.https(_host, path),
+      Uri.https(_host, path, query),
       headers,
       body,
     );
