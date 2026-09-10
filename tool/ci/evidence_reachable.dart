@@ -178,6 +178,7 @@ DVEvidenceReach dvEvidenceReach({
   required Map<String, Set<String>> symbolsByFile,
   required Map<String, Set<String>> referencesByLibFile,
   required Set<String> exportedFiles,
+  Map<String, String> exampleSources = const <String, String>{},
 }) {
   final List<String> unreachable = <String>[];
   final List<String> applicationOnly = <String>[];
@@ -188,6 +189,11 @@ DVEvidenceReach dvEvidenceReach({
   )) {
     if (exportedFiles.contains(path)) {
       applicationOnly.add(path);
+    } else if (dvExampleIsExercised(
+      path: path,
+      source: exampleSources[path] ?? '',
+    )) {
+      // Reached by building the example, which no scan of packages/ can see.
     } else {
       unreachable.add(path);
     }
@@ -197,4 +203,32 @@ DVEvidenceReach dvEvidenceReach({
     unreachable: unreachable,
     applicationOnly: applicationOnly,
   );
+}
+
+/// Whether an example file is exercised by building the example.
+///
+/// The caller scan reads `packages/*/lib`, which is the right question for
+/// framework code and unanswerable for an example: nothing in `packages/`
+/// imports `examples/`, and nothing should. Citing an example as evidence
+/// therefore failed by construction, however real the example was.
+///
+/// That is worth an exemption rather than a workaround, because an example is
+/// sometimes the only honest evidence there is. The Android provider, its
+/// manifest receiver and the WidgetKit extension only run for a project that
+/// declares a home widget; without one in the example, the packaging code ran
+/// on nothing in CI and every job stayed green either way.
+///
+/// The exemption is narrow on purpose. It applies to a file under an
+/// example's `lib/` that carries a Dartvel annotation, because that is what
+/// the generator scans for and what building the example puts through the
+/// generator. A helper with no annotation is not a generation input, so
+/// building the example proves nothing about it and the ordinary rule stands.
+bool dvExampleIsExercised({required String path, required String source}) {
+  final String normalised = path.replaceAll(r'\', '/');
+  if (!normalised.startsWith('examples/')) return false;
+  if (!normalised.contains('/lib/')) return false;
+  // Any Dartvel generation annotation. Matched loosely -- the question is
+  // whether the generator has a reason to read this file, not which
+  // annotation it found.
+  return RegExp(r'@DV[A-Z][A-Za-z]*\s*\(').hasMatch(source);
 }
