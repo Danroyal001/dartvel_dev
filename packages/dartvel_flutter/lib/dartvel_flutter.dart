@@ -3833,12 +3833,47 @@ class DVClipboard {
     }
   }
 
-  Future<String?> paste() {
+  // `async`, and that is the point of it rather than a style choice. The
+  // refusal used to be thrown before the future existed, so a caller who
+  // wrote `clipboard.paste().catchError(...)` -- which the signature invites
+  // -- never saw it and the error left their frame entirely.
+  Future<String?> paste() async {
     // Both directions. A kiosk that blocks copying and allows pasting is a
     // kiosk somebody can type into from whatever the last person left on the
     // clipboard, which is the half that carries other people's data.
     dvRefuseIfClipboardBlocked('paste');
     return DVNativeBridge.require<String?>('clipboard.paste');
+  }
+
+  /// Puts [text] on the PRIMARY selection, which a middle-click pastes.
+  ///
+  /// A second selection, not a second name for the clipboard. On X11 and
+  /// Wayland the text a user highlights goes here and stays out of the way of
+  /// whatever they last pressed Ctrl+C on, and an application that only ever
+  /// writes the clipboard is missing half of how text moves around a Linux
+  /// desktop.
+  ///
+  /// Windows and macOS have no such selection, so this throws there rather
+  /// than falling back to [copy]: silently overwriting what the user had
+  /// copied is a worse answer than saying the platform has no PRIMARY.
+  Future<void> writeSelection(String text) async {
+    dvRefuseIfClipboardBlocked('writing the selection');
+    final handled = await DVNativeBridge.require<bool>(
+      'clipboard.writeSelection',
+      {'text': text},
+    );
+    if (!handled) {
+      throw StateError('Native clipboard binding rejected the selection.');
+    }
+  }
+
+  /// What is on the PRIMARY selection, or null when nothing is highlighted
+  /// anywhere on the desktop.
+  Future<String?> readSelection() async {
+    // The same rule as [paste], for the same reason: this is the other way
+    // text somebody else left behind gets into a kiosk.
+    dvRefuseIfClipboardBlocked('reading the selection');
+    return DVNativeBridge.require<String?>('clipboard.readSelection');
   }
 }
 
