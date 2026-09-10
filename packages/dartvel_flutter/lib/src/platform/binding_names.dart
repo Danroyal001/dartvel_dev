@@ -39,6 +39,11 @@ const Set<String> dvNativeBindingNames = <String>{
   // Feedback and system integration.
   'clipboard.copy',
   'clipboard.paste',
+  // The PRIMARY selection, which is not the clipboard: on X11 the text a user
+  // highlights lands here and is pasted with the middle mouse button. Only
+  // Linux registers these, because only X11 and Wayland have the concept.
+  'clipboard.readSelection',
+  'clipboard.writeSelection',
   'deepLinks.initial',
   'haptics.impact',
   'haptics.lightVibrate',
