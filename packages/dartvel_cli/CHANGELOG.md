@@ -1,3 +1,25 @@
+## 0.4.0
+
+- `dartvel build android` writes the Activity, the capture provider and the
+  permissions an application declares under `dartvel.android.permissions`,
+  plus the two permissions the framework binds whether or not a project asked:
+  `VIBRATE` and `USE_BIOMETRIC`. Both are normal permissions, granted at
+  install with no dialog, which is exactly why their absence was invisible --
+  the application ran, the binding was registered, and the call threw where
+  nobody was looking.
+- Only normal permissions are ever added on a project's behalf. A dangerous
+  one would put a question in front of its users that its author never wrote,
+  and there is a test asserting `BLUETOOTH_CONNECT`, `CAMERA`,
+  `READ_CONTACTS`, `ACCESS_FINE_LOCATION` and `POST_NOTIFICATIONS` never
+  appear in a manifest that asked for nothing.
+- `dartvel db migrate` runs the statements it prints. It used to print a line
+  per model, say they were synced successfully, and execute nothing at all.
+  For Postgres or MySQL it writes the statements out and says it did not run
+  them, because the CLI has no connection to a managed database.
+- Declared middleware runs. Ten of the nineteen keys now reach the generated
+  router in the order declared; the annotation previously had one reader, a
+  check that the name was spelled correctly, which then dropped the list.
+
 ## 0.3.2
 
 - Corrected the constraints on sibling Dartvel packages, which named the

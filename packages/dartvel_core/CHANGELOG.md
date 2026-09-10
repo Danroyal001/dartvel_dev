@@ -1,3 +1,23 @@
+## 0.4.0
+
+Breaking: `DVFieldCipher` takes its randomness through a named constructor.
+`DVFieldCipher.secure(keyring)` is what an application wants; the unnamed
+constructor is `@visibleForTesting` and exists so a test can supply a
+deterministic source. A cipher that silently accepted a seeded `Random` in
+production was a key generator with no entropy.
+
+- The Android permission table gained the names the capture bridge resolves at
+  run time, so a request can never name a permission the manifest lacks --
+  Android refuses an undeclared permission instantly, with no dialog, and the
+  answer is indistinguishable from a person tapping Deny.
+- Billing gained usage meters, trials, invoices and a webhook receiver, with
+  every grant keyed by a real customer identity rather than `toString()`. The
+  default `toString()` of an ordinary object is the same constant for every
+  instance, so passing a logged-in user filed every user under one key.
+- Webhooks are applied newest-wins per subscription. Providers do not
+  guarantee order, and a stale `active` arriving behind a cancellation handed
+  a cancelled customer their entitlement back with a valid signature.
+
 ## 0.3.2
 
 - Corrected the constraints on sibling Dartvel packages, which named the

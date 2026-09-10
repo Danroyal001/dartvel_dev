@@ -1,3 +1,8 @@
+## 0.4.0
+
+Follows the 0.4.0 set. This package pins its siblings exactly, so installing
+it installs the release they were published as.
+
 ## 0.3.2
 
 - Corrected the constraints on sibling Dartvel packages, which named the
