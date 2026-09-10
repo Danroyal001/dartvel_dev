@@ -20,6 +20,7 @@ import '../../dartvel.dart'
         DVBillingProvider,
         DVUsageMeter,
         dvBillingCustomerKey;
+import 'invoice.dart';
 import 'money.dart';
 import 'webhooks.dart';
 
@@ -221,6 +222,86 @@ class DVPaddleBillingProvider
       );
 
   /// Verifies and applies a webhook. [signatureHeader] is `Paddle-Signature`.
+  /// Paddle's transactions are its invoices.
+  ///
+  /// There is no separate invoice resource: a completed transaction is what
+  /// a customer sees a receipt for, and the invoice number lives on it. The
+  /// PDF is behind a second request per transaction, so it is left null
+  /// rather than fetched for a list nobody may open.
+  @override
+  Future<List<DVInvoice>> invoices(Object customer, {int limit = 20}) async {
+    final String id = dvBillingCustomerKey(customer);
+    final Map<String, Object?> json = await _request(
+      'GET',
+      '/transactions',
+      null,
+      <String, String>{'customer_id': id, 'per_page': '$limit'},
+    );
+    final Object? rows = json['data'];
+    if (rows is! List) {
+      throw const DVBillingError('Paddle answered with no transaction list.');
+    }
+
+    final List<DVInvoice> invoices = <DVInvoice>[];
+    for (final Object? row in rows) {
+      if (row is! Map) continue;
+      // Filtered at Paddle, so anything else here means the filter did not
+      // apply and this customer is looking at another one's history.
+      if ('${row['customer_id'] ?? ''}' != id) continue;
+
+      final Object? details = row['details'];
+      final Object? totals = details is Map ? details['totals'] : null;
+      final int? total =
+          totals is Map ? int.tryParse('${totals['total'] ?? ''}') : null;
+      final Object? currency = totals is Map ? totals['currency_code'] : null;
+      if (total == null ||
+          total < 0 ||
+          currency is! String ||
+          !RegExp(r'^[A-Za-z]{3}$').hasMatch(currency)) {
+        throw DVBillingError(
+          'Paddle transaction ${row['id']} carries no total and currency '
+          'this can read.',
+        );
+      }
+
+      invoices.add(DVInvoice(
+        id: '${row['id'] ?? ''}',
+        number: row['invoice_number'] is String
+            ? row['invoice_number'] as String
+            : null,
+        total: DVMoney(amount: total, currency: currency),
+        status: _invoiceStatus('${row['status'] ?? ''}'),
+        createdAt: DateTime.tryParse('${row['billed_at'] ?? ''}')?.toUtc() ??
+            DateTime.tryParse('${row['created_at'] ?? ''}')?.toUtc() ??
+            _clock().toUtc(),
+      ));
+    }
+    return invoices;
+  }
+
+  /// Paddle's transaction statuses, and nothing else.
+  ///
+  /// Anything unrecognised is [DVInvoiceStatus.unknown]. Paddle adds states,
+  /// and reading a new one as paid turns a bill nobody has settled into one
+  /// nobody chases.
+  static DVInvoiceStatus _invoiceStatus(String status) {
+    switch (status) {
+      case 'draft':
+        return DVInvoiceStatus.draft;
+      case 'ready':
+      case 'billed':
+        return DVInvoiceStatus.open;
+      case 'completed':
+        return DVInvoiceStatus.paid;
+      case 'past_due':
+        return DVInvoiceStatus.uncollectible;
+      case 'canceled':
+        return DVInvoiceStatus.voided;
+      default:
+        return DVInvoiceStatus.unknown;
+    }
+  }
+
   @override
   String get signatureHeaderName => 'Paddle-Signature';
 
@@ -347,15 +428,15 @@ class DVPaddleBillingProvider
 
   Future<Map<String, Object?>> _get(String path) => _request('GET', path, null);
 
-  Future<Map<String, Object?>> _request(
-      String method, String path, String? body) async {
+  Future<Map<String, Object?>> _request(String method, String path,
+      String? body, [Map<String, String>? query]) async {
     final Map<String, String> headers = <String, String>{
       'Authorization': 'Bearer $_apiKey',
     };
     if (body != null) headers['Content-Type'] = 'application/json';
     final (int status, String responseBody) = await _fetch(
       method,
-      Uri.https(_host, path),
+      Uri.https(_host, path, query),
       headers,
       body,
     );

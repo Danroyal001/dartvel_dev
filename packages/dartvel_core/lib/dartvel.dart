@@ -10,6 +10,7 @@ import 'package:mime/mime.dart';
 import 'src/ai/ai.dart';
 import 'src/secrets/secrets.dart';
 import 'src/database/adapter.dart';
+import 'src/billing/invoice.dart';
 import 'src/http/aws_sigv4.dart';
 import 'src/http/flat_buffer.dart';
 import 'src/http/transport.dart';
@@ -29,6 +30,7 @@ export 'src/analytics/analytics.dart';
 export 'src/annotations/annotations.dart';
 export 'src/auth/auth.dart';
 export 'src/auth/backend_policy.dart';
+export 'src/billing/invoice.dart';
 export 'src/billing/money.dart';
 export 'src/billing/paddle.dart';
 export 'src/billing/stripe.dart';
@@ -1352,6 +1354,15 @@ abstract class DVBillingProvider {
     required String idempotencyKey,
     DateTime? at,
   });
+
+  /// [customer]'s invoices, newest first, at most [limit] of them.
+  ///
+  /// Only theirs. The provider filters server-side, so a row for anybody
+  /// else means the filter did not apply -- a renamed parameter, a copied
+  /// request, a provider that ignores a key it does not know -- and the
+  /// implementations drop those rather than render one customer another
+  /// customer's billing history on a page that looks entirely normal.
+  Future<List<DVInvoice>> invoices(Object customer, {int limit = 20});
 }
 
 class DVLocalBillingProvider implements DVBillingProvider {
@@ -1424,6 +1435,15 @@ class DVLocalBillingProvider implements DVBillingProvider {
         _usage.putIfAbsent(_customerKey(customer), () => <String, int>{});
     meters[meter.id] = (meters[meter.id] ?? 0) + quantity;
   }
+
+  /// None: nothing here charges anybody, so there is nothing to invoice.
+  ///
+  /// Empty rather than an error, because a local billing setup is a working
+  /// configuration and a billing history page against it should render an
+  /// empty history rather than fail.
+  @override
+  Future<List<DVInvoice>> invoices(Object customer, {int limit = 20}) async =>
+      const <DVInvoice>[];
 
   /// What [customer] has run up against [meter], zero if nothing.
   int usage(Object customer, DVUsageMeter meter) =>
