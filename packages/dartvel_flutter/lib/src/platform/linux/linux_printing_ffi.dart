@@ -48,6 +48,12 @@ typedef _ValueSetStrN = Void Function(Pointer<Void>, Pointer<Utf8>);
 typedef _ValueSetStrD = void Function(Pointer<Void>, Pointer<Utf8>);
 typedef _SetPropN = Void Function(Pointer<Void>, Pointer<Utf8>, Pointer<Void>);
 typedef _SetPropD = void Function(Pointer<Void>, Pointer<Utf8>, Pointer<Void>);
+typedef _GetPropN = Void Function(Pointer<Void>, Pointer<Utf8>, Pointer<Void>);
+typedef _GetPropD = void Function(Pointer<Void>, Pointer<Utf8>, Pointer<Void>);
+typedef _ValueGetStrN = Pointer<Utf8> Function(Pointer<Void>);
+typedef _ValueGetStrD = Pointer<Utf8> Function(Pointer<Void>);
+typedef _SetStrN = Void Function(Pointer<Void>, Pointer<Utf8>);
+typedef _SetStrD = void Function(Pointer<Void>, Pointer<Utf8>);
 typedef _InitCheckN = Int32 Function(Pointer<Void>, Pointer<Void>);
 typedef _InitCheckD = int Function(Pointer<Void>, Pointer<Void>);
 typedef _DoneN = Void Function(Pointer<Void>, Int32, Pointer<Void>);
@@ -129,12 +135,55 @@ class DVLinuxPrinting {
       final Map<Object?, Object?> map = arguments is Map ? arguments : const <Object?, Object?>{};
       final String path = '${map['path'] ?? ''}';
       if (path.isEmpty) throw ArgumentError('printing.toFile needs a path.');
-      return _run(_pages(map['pages']), exportTo: path);
+      return _run(_pages(map['pages']), exportTo: path, title: _title(map));
     });
     bind('printing.print', (Object? arguments) {
       final Map<Object?, Object?> map = arguments is Map ? arguments : const <Object?, Object?>{};
-      return _run(_pages(map['pages']));
+      return _run(_pages(map['pages']), title: _title(map));
     });
+  }
+
+  /// The document's name, or null to leave GTK's default alone.
+  ///
+  /// Null and not the empty string. `title` was crossing the bridge and being
+  /// read by nobody here, so the queue showed GTK's default while the caller
+  /// had named the job -- and the fix for that must not be to blank the name
+  /// when nobody passed one.
+  static String? _title(Map<Object?, Object?> map) {
+    final Object? title = map['title'];
+    if (title == null) return null;
+    final String text = '$title';
+    return text.isEmpty ? null : text;
+  }
+
+  /// The job name GTK held for the last operation, read back off the print
+  /// operation rather than remembered from the argument.
+  ///
+  /// There is no printer on a CI runner and no queue to look in, so this is
+  /// as far as the name can be followed: GTK either has it or it does not.
+  static String? get lastJobName => _lastJobName;
+  static String? _lastJobName;
+
+  /// The `job-name` GTK holds for [op].
+  ///
+  /// Asked of the object rather than echoed back from the argument, so the
+  /// answer is GTK's -- including the default it chose when nothing was set,
+  /// which is the case worth knowing was not overwritten with a blank.
+  static String? _jobNameOf(Pointer<Void> op) {
+    final DynamicLibrary gobject = _gobject!;
+    final Pointer<Utf8> property = 'job-name'.toNativeUtf8();
+    final Pointer<Void> value = calloc<Uint8>(24).cast<Void>(); // a zeroed GValue
+    try {
+      gobject.lookupFunction<_ValueInitN, _ValueInitD>('g_value_init')(value, _gTypeString);
+      gobject.lookupFunction<_GetPropN, _GetPropD>('g_object_get_property')(op, property, value);
+      final Pointer<Utf8> text =
+          gobject.lookupFunction<_ValueGetStrN, _ValueGetStrD>('g_value_get_string')(value);
+      return text == nullptr ? null : text.toDartString();
+    } finally {
+      gobject.lookupFunction<_PN, _PD>('g_value_unset')(value);
+      calloc.free(value);
+      calloc.free(property);
+    }
   }
 
   static List<Uint8List> _pages(Object? raw) => <Uint8List>[
@@ -146,7 +195,11 @@ class DVLinuxPrinting {
   /// through the dialog when null. Returns `{pages: n}`; throws
   /// [StateError] when a page could not be drawn or GTK refused, and never
   /// leaves a half-written export behind.
-  static Map<String, Object?> _run(List<Uint8List> pages, {String? exportTo}) {
+  static Map<String, Object?> _run(
+    List<Uint8List> pages, {
+    String? exportTo,
+    String? title,
+  }) {
     final DynamicLibrary gtk = _gtk!;
     final DynamicLibrary glib = _glib!;
     final DynamicLibrary gobject = _gobject!;
@@ -165,12 +218,18 @@ class DVLinuxPrinting {
     final Pointer<Utf8> signal = 'draw-page'.toNativeUtf8();
     final Pointer<Utf8> doneSignal = 'done'.toNativeUtf8();
     final Pointer<Pointer<Void>> error = calloc<Pointer<Void>>();
+    Pointer<Utf8>? jobName;
     Pointer<Utf8>? exportName;
     Pointer<Utf8>? property;
     Pointer<Void>? value;
     try {
       gtk.lookupFunction<_SetIntN, _SetIntD>('gtk_print_operation_set_n_pages')(op, pages.length);
       gtk.lookupFunction<_SetIntN, _SetIntD>('gtk_print_operation_set_unit')(op, _unitPoints);
+      if (title != null) {
+        jobName = title.toNativeUtf8();
+        gtk.lookupFunction<_SetStrN, _SetStrD>('gtk_print_operation_set_job_name')(op, jobName);
+      }
+      _lastJobName = _jobNameOf(op);
       gobject.lookupFunction<_ConnectN, _ConnectD>('g_signal_connect_data')(
           op, signal, Pointer.fromFunction<_DrawPageN>(_onDrawPage), nullptr, nullptr, 0);
       gobject.lookupFunction<_ConnectDoneN, _ConnectDoneD>('g_signal_connect_data')(
@@ -212,6 +271,7 @@ class DVLinuxPrinting {
       }
       if (property != null) calloc.free(property);
       if (exportName != null) calloc.free(exportName);
+      if (jobName != null) calloc.free(jobName);
       calloc.free(signal);
       calloc.free(doneSignal);
       calloc.free(error);
