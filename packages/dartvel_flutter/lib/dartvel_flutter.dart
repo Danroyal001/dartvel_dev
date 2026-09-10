@@ -322,6 +322,12 @@ export 'package:dartvel_core/dartvel.dart'
         DVBillingWebhookResult,
         DVBillingError,
         DVBillingFetch,
+        // A billing history, and the money on it. DVMoney is here because an
+        // amount rendered without its currency is the mistake the type
+        // exists to stop.
+        DVInvoice,
+        DVInvoiceStatus,
+        DVMoney,
         Entitlement,
         LocalAnalyticsProvider,
         formControlsFactories,
@@ -5615,6 +5621,15 @@ class DVBilling {
 
   Future<bool> hasEntitlement(Object customer, Entitlement entitlement) {
     return _configuredProvider.hasEntitlement(customer, entitlement);
+  }
+
+  /// [customer]'s billing history, newest first.
+  ///
+  /// Only theirs: the provider filters, and the implementations drop any row
+  /// that comes back for somebody else rather than render one customer
+  /// another customer's invoices on a page that looks entirely normal.
+  Future<List<DVInvoice>> invoices(Object customer, {int limit = 20}) {
+    return _configuredProvider.invoices(customer, limit: limit);
   }
 
   /// Verifies a webhook against the configured provider and applies it.
