@@ -7,9 +7,11 @@ import 'package:yaml/yaml.dart';
 import '../build/accessibility_audit.dart';
 import '../build/admin_artifact.dart';
 import '../build/admin_mount.dart';
-import 'package:dartvel_core/dartvel.dart' show DVHomeWidgetSpec, DVBuildLifecycle;
+import 'package:dartvel_core/dartvel.dart'
+    show DVHomeWidgetSpec, DVBuildLifecycle, dvAndroidPermissionNames;
 
 import '../build/android_home_widget.dart';
+import '../build/android_capture_bridge.dart';
 import '../build/android_context_provider.dart';
 import '../build/android_kiosk_manifest.dart';
 import '../build/apple_home_widget.dart';
@@ -848,6 +850,10 @@ class BuildCommand extends Command<void> {
       // Before the kiosk block, so a manifest that gets both keeps them in
       // a stable order and the diff stays readable.
       _writeAndroidContextProvider(Directory.current.path);
+      // After the Context provider and before the kiosk, because it adds to
+      // the same manifest and the order the blocks appear in is the order
+      // they are written.
+      _writeAndroidCaptureBridge(Directory.current.path);
       _writeAndroidKioskFiles(Directory.current.path);
       _writeAndroidHomeWidgets(Directory.current.path);
     }
@@ -1172,6 +1178,67 @@ class BuildCommand extends Command<void> {
     final File source = File(p.join(root, dvAndroidContextProviderPath));
     source.parent.createSync(recursive: true);
     source.writeAsStringSync(dvAndroidContextProviderSource());
+  }
+
+  /// The Activity the permission dialog, the camera and the picker come back
+  /// to, and the permissions the project asked for.
+  ///
+  /// Written for every Android build, like the Context provider: the picker
+  /// and the permission dialog itself need no permission, so an application
+  /// that declares nothing still gets working `media.pick` and
+  /// `permissions.request`. What the pubspec list adds is the manifest lines
+  /// without which a runtime request is refused instantly, with no dialog
+  /// shown and the same answer a person tapping Deny gives.
+  void _writeAndroidCaptureBridge(String root) {
+    final File manifest = File(
+        p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'));
+    if (!manifest.existsSync()) {
+      // The Context provider has already said so; saying it twice in one
+      // build is noise.
+      return;
+    }
+
+    final List<String> requested =
+        dvAndroidRequestedPermissions(_dartvelSection(root));
+    final List<String> unknown = dvAndroidUnknownPermissions(requested);
+    if (unknown.isNotEmpty) {
+      Logger.log('⚠️  dartvel.android.permissions names ${unknown.join(', ')}, '
+          'which Dartvel has no Android permission for. Nothing was declared '
+          'for it, so a request at run time is refused with no dialog. The '
+          'names it knows are ${dvAndroidPermissionNames.toList()..sort()}.');
+    }
+
+    final String before = manifest.readAsStringSync();
+    final String after = dvAndroidCaptureManifest(before, requested);
+    if (after != before) manifest.writeAsStringSync(after);
+
+    for (final MapEntry<String, String> file in <String, String>{
+      dvAndroidCaptureBridgePath: dvAndroidCaptureBridgeSource(),
+      dvAndroidBridgeActivityPath: dvAndroidBridgeActivitySource(),
+      dvAndroidCaptureFilesPath: dvAndroidCaptureFilesSource(),
+    }.entries) {
+      final File source = File(p.join(root, file.key));
+      source.parent.createSync(recursive: true);
+      source.writeAsStringSync(file.value);
+    }
+
+    if (requested.isNotEmpty) {
+      Logger.log('   Permissions declared: ${requested.join(', ')}.');
+    }
+  }
+
+  /// The `dartvel` section of the project's pubspec, or null.
+  Object? _dartvelSection(String root) {
+    final File pubspec = File(p.join(root, 'pubspec.yaml'));
+    if (!pubspec.existsSync()) return null;
+    try {
+      final Object? document = loadYaml(pubspec.readAsStringSync());
+      return document is Map ? document['dartvel'] : null;
+    } on Object {
+      // A pubspec that will not parse is the build's own message to give,
+      // and it gives it long before this.
+      return null;
+    }
   }
 
   void _writeAndroidKioskFiles(String root) {
