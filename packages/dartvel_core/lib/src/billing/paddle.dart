@@ -21,11 +21,12 @@ import '../../dartvel.dart'
         DVUsageMeter,
         dvBillingCustomerKey;
 import 'money.dart';
-import 'stripe.dart' show DVBillingError, DVBillingWebhookResult, DVBillingFetch;
+import 'webhooks.dart';
 
 /// Paddle Billing (the v2 API) for subscriptions, with entitlements kept
 /// from webhooks.
-class DVPaddleBillingProvider implements DVBillingProvider {
+class DVPaddleBillingProvider
+    implements DVBillingProvider, DVBillingWebhookReceiver {
   DVPaddleBillingProvider({
     required String apiKey,
     required String webhookSecret,
@@ -220,6 +221,10 @@ class DVPaddleBillingProvider implements DVBillingProvider {
       );
 
   /// Verifies and applies a webhook. [signatureHeader] is `Paddle-Signature`.
+  @override
+  String get signatureHeaderName => 'Paddle-Signature';
+
+  @override
   Future<DVBillingWebhookResult> handleWebhook(String payload, String signatureHeader) async {
     _verify(payload, signatureHeader);
 
