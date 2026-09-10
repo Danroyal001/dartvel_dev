@@ -1192,14 +1192,29 @@ public final class DartvelCaptureFiles extends ContentProvider {
 /// Android permissions every Dartvel build needs, whatever the project asked.
 ///
 /// A permission belongs here only when the framework binds the capability
-/// unconditionally. `android.permission.VIBRATE` qualifies because all three
-/// haptics names are registered by every Android build; a camera permission
-/// never would, because the camera is bound whether or not it is declared but
-/// the *permission* is the project's decision and the dialog is the person's.
+/// unconditionally. VIBRATE qualifies because all three haptics names are
+/// registered by every Android build; USE_BIOMETRIC because
+/// biometrics.canAuthenticate is, and asking whether a device has biometrics
+/// needs no dialog and no decision from anybody. A camera permission never
+/// would: the camera binding is registered either way, but the permission is
+/// the project's decision and the dialog is the person's.
 ///
 /// Normal permissions only, for the same reason: these are added without
 /// anybody asking, so they must be ones Android grants at install with no
 /// dialog and no entry in the install prompt. A dangerous permission added on
 /// a project's behalf would put a question in front of its users that its
-/// author never wrote.
-const List<String> _dvAlwaysBound = <String>['android.permission.VIBRATE'];
+/// author never wrote. There is a test asserting BLUETOOTH_CONNECT, CAMERA,
+/// READ_CONTACTS, ACCESS_FINE_LOCATION and POST_NOTIFICATIONS never appear
+/// here, because the pressure to add one will come from a binding that throws
+/// and the answer to that is a refusal the caller can read, not a permission
+/// nobody chose.
+///
+/// Both entries arrived the same way, one emulator run apart, and neither was
+/// visible from anywhere else. The application ran, the binding was
+/// registered, the capability list claimed it, and the call threw where
+/// nobody was looking -- because a normal permission prompts nobody, so its
+/// absence looks like nothing at all.
+const List<String> _dvAlwaysBound = <String>[
+  'android.permission.VIBRATE',
+  'android.permission.USE_BIOMETRIC',
+];
