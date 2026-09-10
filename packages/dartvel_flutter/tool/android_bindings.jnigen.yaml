@@ -102,6 +102,55 @@ classes:
   - android.os.VibratorManager
   - android.os.VibrationEffect
 
+  # Sensors. SensorManager has no "read the accelerometer now" call and never
+  # has: a reading arrives by registering a listener and waiting for the next
+  # event. SensorEventListener is an interface, so jnigen can implement it and
+  # the sample arrives in Dart without a platform channel.
+  - android.hardware.SensorManager
+  - android.hardware.Sensor
+  - android.hardware.SensorEvent
+  - android.hardware.SensorEventListener
+
+  # Biometrics, the half that needs no prompt. canAuthenticate() is a status
+  # code from a system service.
+  #
+  # The other half is not here and cannot be until something else exists.
+  # BiometricPrompt.authenticate reports through an AuthenticationCallback,
+  # which is an abstract class; jnigen implements interfaces and cannot
+  # subclass, so generating BiometricPrompt would produce a prompt whose
+  # result has nowhere to arrive. That needs a Java shim written into the
+  # application by `dartvel build android`, beside the Context provider.
+  - android.hardware.biometrics.BiometricManager
+
+  # Local notifications. A channel is required from API 26 and a notification
+  # posted without one is dropped by the system with only a log line, so the
+  # channel classes are as load-bearing as the manager.
+  - android.app.NotificationManager
+  - android.app.NotificationChannel
+  # Notification$Builder comes with it; a nested class cannot be listed
+  # separately.
+  - android.app.Notification
+
+  # The API level, which decides whether a channel is created at all. Reading
+  # it wrong in either direction is silent: too low and the notification is
+  # dropped, too high and the call is to a method that is not there.
+  - android.os.Build
+
+  # Free space for device.health. StatFs rather than statvfs through dart:ffi:
+  # the struct layout differs between bionic and glibc on 32-bit, and a
+  # misread field is a disk figure that is wrong by orders of magnitude and
+  # still looks like a number.
+  - android.os.StatFs
+
+  # Referenced by the classes above and generated as stubs until now, which is
+  # a type with none of its methods. PackageManager answers whether there is a
+  # touchscreen for the capability manifest, Resources resolves the drawable a
+  # notification needs for its small icon, and File is how getFilesDir() hands
+  # back the one directory the application may write to.
+  - android.content.pm.PackageManager
+  - android.content.res.Resources
+  - java.io.File
+
 exclude:
   methods:
     # Deprecated overloads that generate ambiguous Dart names and that nothing

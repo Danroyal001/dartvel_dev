@@ -3,6 +3,8 @@ export 'CharSequence.dart';
 export 'ClassLoader.dart';
 export 'Cloneable.dart';
 export 'Comparable.dart';
+export 'Exception.dart';
 export 'Runnable.dart';
+export 'RuntimeException.dart';
 export 'Throwable.dart';
 export 'Void.dart';

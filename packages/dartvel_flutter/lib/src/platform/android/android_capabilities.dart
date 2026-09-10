@@ -25,12 +25,13 @@ library dartvel_flutter.platform.android.capabilities;
 ///
 /// Absent, with reasons rather than "not yet":
 ///
-///   * **Notifications** need a notification channel created at run time and,
-///     since API 33, a permission the user grants. Both belong to the
-///     application, not to a binding.
-///   * **Biometrics** are not bound yet. The Activity they were blocked on
-///     now exists — `BiometricPrompt` attaches to one — so what is left is
-///     the binding rather than the way in.
+///   * **`biometrics.authenticate`** is blocked on something specific rather
+///     than on an Activity. `BiometricPrompt.authenticate` takes an
+///     `AuthenticationCallback`, and that is an abstract *class*. jnigen
+///     implements interfaces and cannot subclass, so the result of the prompt
+///     has nowhere to arrive. The fix is a small Java shim beside the Context
+///     provider, written by the build the same way, and it is not written yet.
+///     `biometrics.canAuthenticate` needs no callback and is bound.
 ///   * **Reading and writing an NFC tag** need the tag object, and a tag
 ///     reaches an application only through foreground dispatch or reader
 ///     mode. Both are Activity callbacks that fire whenever somebody taps,
@@ -49,6 +50,19 @@ library dartvel_flutter.platform.android.capabilities;
 ///     answers to one question.
 ///   * **Window controls** do not apply — an Android app owns no resizable
 ///     window.
+///
+/// Two entries left this list rather than being built around. Notifications
+/// were here because a channel and, since API 33, a permission "belong to the
+/// application, not to a binding" — but a channel is created through
+/// `NotificationManager`, a system service on the application Context like
+/// the clipboard, and the binding answers false when notifications are
+/// switched off rather than posting into a system that drops it. See
+/// [dvAndroidNotificationNeedsChannel]. `screen.geometry` was here because
+/// `WindowManager`'s modern API varies by API level and Flutter reports the
+/// same numbers; it comes from `Resources.getDisplayMetrics()` instead, which
+/// has not changed since API 1, and it answers for the default display where
+/// Flutter answers for the window — different numbers in split screen, and
+/// the name says screen.
 const Set<String> dvAndroidImplementedBindings = <String>{
   // ClipboardManager through Context.getSystemService.
   'clipboard.copy',
@@ -117,7 +131,129 @@ const Set<String> dvAndroidImplementedBindings = <String>{
   // and the write goes through the class `dartvel build android` writes
   // beside the Context holder.
   'homeWidgets.publish',
+
+  // One sample from SensorManager, taken by registering a listener and
+  // letting it go again as soon as the first event lands. The binding name
+  // is singular and so is the reading: see [dvAndroidSensorSample].
+  'sensors.accelerometer',
+  'sensors.gyroscope',
+
+  // BiometricManager.canAuthenticate, which is a plain system service and
+  // needs no prompt. The prompt itself is the part that is still absent.
+  'biometrics.canAuthenticate',
+
+  // NotificationManager, with the channel API 26 and later require.
+  'notifications.sendLocal',
+
+  // The device runtime, which is procfs and one Android class for the disk.
+  // Six names rather than two: the watchdog, provisioning and the
+  // diagnostics bundle are the same plain Dart on every platform, and
+  // registering four of the six would leave DV.Platform.device half working
+  // in a way nothing reports.
+  'device.capabilityManifest',
+  'device.health',
+  'device.watchdog.arm',
+  'device.watchdog.heartbeat',
+  'device.fleet.provision',
+  'device.diagnostics.collect',
+
+  // Files, confined to the private directory the application owns. Shared
+  // Dart, not JNI -- Android has a filesystem like any other target -- but
+  // nothing had ever registered it, on any platform.
+  'files.readBytes',
+  'files.writeBytes',
+  'files.delete',
 };
+
+/// One sample from a motion sensor, or null when the event does not carry
+/// three axes.
+///
+/// Null rather than a padded map, because a padded map is the most plausible
+/// wrong answer this binding can give: a phone lying still on a table reads
+/// near zero on two axes, so `{x: 0, y: 0, z: 0}` from a truncated event is
+/// indistinguishable from a real reading and nothing downstream can catch it.
+///
+/// Values past the third are dropped. An uncalibrated gyroscope reports six —
+/// three rates, then three drift estimates — and drift is not an axis.
+Map<String, double>? dvAndroidSensorSample(List<double> values) {
+  if (values.length < 3) return null;
+  return <String, double>{'x': values[0], 'y': values[1], 'z': values[2]};
+}
+
+/// `BiometricManager.BIOMETRIC_SUCCESS`.
+const int dvAndroidBiometricSuccess = 0;
+
+/// Whether [status] from `BiometricManager.canAuthenticate` means yes.
+///
+/// Only success does. The status that has to answer false and looks like it
+/// should answer true is `BIOMETRIC_ERROR_NONE_ENROLLED` (11): the sensor is
+/// there, so anything asking whether there is hardware says yes, and then
+/// every prompt on that device fails because nobody has enrolled a finger.
+bool dvAndroidBiometricAvailable(int status) =>
+    status == dvAndroidBiometricSuccess;
+
+/// The channel every Dartvel local notification is posted on.
+const String dvAndroidNotificationChannelId = 'dartvel.local';
+
+/// What the channel is called in the system settings, where the user sees it.
+const String dvAndroidNotificationChannelName = 'Notifications';
+
+/// Whether this API level needs a notification channel.
+///
+/// Oreo, API 26. A notification posted with no channel from 26 onwards is
+/// dropped by the system with a log line and no exception, which is the
+/// silent half of this; below 26 the method to create one is not there.
+bool dvAndroidNotificationNeedsChannel(int sdkInt) => sdkInt >= 26;
+
+/// A notification id from a running [counter].
+///
+/// `NotificationManager.notify` takes a Java int. A counter left to grow
+/// arrives negative or does not arrive at all, and the only symptom is a
+/// notification that never appears — so it is masked into the positive range
+/// here rather than trusted to stay small.
+int dvAndroidNotificationId(int counter) => counter & 0x7fffffff;
+
+/// Where the device runtime keeps its id, provisioning record and restarts,
+/// given the application's own files directory. Null when there is none.
+///
+/// The shared runtime falls back to `$HOME` and then to
+/// `Directory.systemTemp`. Android has neither: HOME is unset and /tmp
+/// belongs to no application, so `device.health` would throw on its first
+/// call — on the phone, and nowhere it was tested. Null for an empty
+/// directory rather than a path at the root of the device, which is a write
+/// that fails from a line that reads like a join.
+String? dvAndroidStateDirectory(String? filesDir) =>
+    _dvAndroidUnder(filesDir, 'dartvel-device');
+
+/// The one directory `files.readBytes`, `files.writeBytes` and `files.delete`
+/// may touch, given the application's own files directory. Null when there is
+/// none.
+///
+/// A subdirectory rather than the files directory itself, and that is the
+/// whole point of the function. Confining the file bindings to the files
+/// directory would put the device id and the provisioning record inside their
+/// root, so `files.delete('dartvel-device/provisioning.json')` from
+/// application code tidying up after itself would unprovision the device —
+/// and nothing would report it, because the next `device.health` simply
+/// carries a new id.
+String? dvAndroidFilesRoot(String? filesDir) =>
+    _dvAndroidUnder(filesDir, 'dartvel-files');
+
+/// [name] under [filesDir], or null when that directory is not usable.
+///
+/// Null rather than a path at the root of the device: `getFilesDir()`
+/// answering null or empty means this is not the application's Context, and
+/// building `/dartvel-device` out of it is a write that fails at run time
+/// from a line that reads like an ordinary join.
+String? _dvAndroidUnder(String? filesDir, String name) {
+  if (filesDir == null || filesDir.isEmpty) return null;
+  String base = filesDir;
+  while (base.length > 1 && base.endsWith('/')) {
+    base = base.substring(0, base.length - 1);
+  }
+  if (base.isEmpty || base == '/') return null;
+  return '$base/$name';
+}
 
 /// `Intent.FLAG_ACTIVITY_NEW_TASK`.
 ///
