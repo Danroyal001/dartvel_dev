@@ -75,7 +75,22 @@ Future<void> main(List<String> args) async {
     }
   }
 
+  // An example's own source, so a cited example can be judged by whether the
+  // generator has a reason to read it. Nothing under packages/ imports
+  // examples/, so the caller scan above can never reach one.
+  final Map<String, String> exampleSources = <String, String>{};
+  final Directory examples = Directory('examples');
+  if (examples.existsSync()) {
+    for (final File file in examples
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((File f) => f.path.endsWith('.dart'))) {
+      exampleSources[file.path] = file.readAsStringSync();
+    }
+  }
+
   final DVEvidenceReach reach = dvEvidenceReach(
+    exampleSources: exampleSources,
     symbolsByFile: symbolsByFile,
     referencesByLibFile: references,
     exportedFiles: dvExportedFiles(
