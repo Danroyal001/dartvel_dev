@@ -263,3 +263,26 @@ Map<String, Object?> _decode(String json, String what) {
   return decoded.map((Object? key, Object? value) =>
       MapEntry<String, Object?>('$key', value));
 }
+
+/// The binding names the capture bridge covers.
+///
+/// Here rather than in `android_capture_jni.dart` so both branches of the
+/// conditional import read one list. The JNI class held it and the stand-in
+/// could not see it, which is the drift `android_capabilities.dart` warns
+/// about at the top of its own file: two copies of a capability list agree
+/// until they do not, and a list that disagrees with the registrations is
+/// invisible from inside the application.
+///
+/// They are claimed together on purpose. All six wait on a result Android
+/// delivers to an Activity, so they arrive by the same route -- half of them
+/// present would mean a build wrote the bridge for some and not others, and
+/// the ones left out would answer null, which reads as "this platform cannot"
+/// rather than "this build is broken".
+const Set<String> dvAndroidCaptureBindings = <String>{
+  'permissions.isGranted',
+  'permissions.request',
+  'camera.takePhoto',
+  'media.pick',
+  'contacts.getContacts',
+  'location.current',
+};

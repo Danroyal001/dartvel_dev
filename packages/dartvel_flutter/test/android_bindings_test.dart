@@ -19,7 +19,6 @@
 import 'dart:io' show Directory, File, FileSystemEntity, Platform;
 
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:dartvel_flutter/src/platform/android/android_capture_jni.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

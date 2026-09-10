@@ -33,15 +33,7 @@ import 'android_capture.dart';
 class DVAndroidCapture {
   const DVAndroidCapture._();
 
-  /// The names registered here.
-  static const Set<String> implemented = <String>{
-    'permissions.isGranted',
-    'permissions.request',
-    'camera.takePhoto',
-    'media.pick',
-    'contacts.getContacts',
-    'location.current',
-  };
+  static const Set<String> implemented = dvAndroidCaptureBindings;
 
   /// Why the bridge cannot be reached, or null when it can.
   ///
