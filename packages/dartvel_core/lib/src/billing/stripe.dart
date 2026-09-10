@@ -46,6 +46,7 @@ class DVBillingWebhookResult {
     this.customer,
     this.granted = const <Entitlement>{},
     this.revoked = const <Entitlement>{},
+    this.stale = false,
   });
 
   final String type;
@@ -53,6 +54,14 @@ class DVBillingWebhookResult {
   /// Whether this provider acted on the event. False is still an
   /// acknowledgement: Stripe retries an unacknowledged webhook for days.
   final bool handled;
+
+  /// Whether the event described a moment older than one already applied to
+  /// the same subscription, and was therefore ignored.
+  ///
+  /// Being late is not being wrong, so a stale event is acknowledged like
+  /// any other. This says why nothing changed, which is otherwise
+  /// indistinguishable from an event that changed nothing.
+  final bool stale;
   final String? customer;
   final Set<Entitlement> granted;
   final Set<Entitlement> revoked;
@@ -117,6 +126,9 @@ class DVStripeBillingProvider implements DVBillingProvider {
 
   /// Entitlement ids held, by Stripe customer id.
   final Map<String, Set<String>> _grants = <String, Set<String>>{};
+
+  /// The `created` of the newest event applied, by subscription id.
+  final Map<String, int> _appliedAt = <String, int>{};
 
   static const String _host = 'api.stripe.com';
 
@@ -292,6 +304,10 @@ class DVStripeBillingProvider implements DVBillingProvider {
     final String type = '${decoded['type'] ?? ''}';
     final Object? data = decoded['data'];
     final Object? object = data is Map ? data['object'] : null;
+    // Seconds since the epoch, and the only ordering Stripe gives us.
+    final Object? createdRaw = decoded['created'];
+    final int? created =
+        createdRaw is int ? createdRaw : int.tryParse('${createdRaw ?? ''}');
 
     switch (type) {
       case 'customer.subscription.created':
@@ -300,15 +316,42 @@ class DVStripeBillingProvider implements DVBillingProvider {
         if (object is! Map) {
           throw DVBillingError('A $type event carried no subscription.');
         }
-        return _applySubscription(type, object);
+        return _applySubscription(type, object, created);
       default:
         return DVBillingWebhookResult(type: type, handled: false);
     }
   }
 
-  DVBillingWebhookResult _applySubscription(String type, Map<Object?, Object?> sub) {
+  DVBillingWebhookResult _applySubscription(
+      String type, Map<Object?, Object?> sub, int? created) {
     final String customer = '${sub['customer'] ?? ''}';
     final String status = '${sub['status'] ?? ''}';
+
+    // Stripe does not guarantee delivery order, and a retry of a failed
+    // delivery lands after whatever was sent while it was failing. Applied
+    // in arrival order, a stale "active" behind a cancellation hands the
+    // entitlement back to someone who stopped paying -- signed, genuine,
+    // answered with a 200, and visible nowhere.
+    //
+    // Per subscription, because two subscriptions move independently and one
+    // high-water mark for the provider would drop every event for a
+    // subscription that happened to be quiet. Strictly older is stale:
+    // created is whole seconds, so an update and the deletion that follows
+    // it share one, and refusing the second would leave the subscription
+    // looking alive.
+    final String subscriptionKey = '${sub['id'] ?? customer}';
+    if (created != null) {
+      final int? applied = _appliedAt[subscriptionKey];
+      if (applied != null && created < applied) {
+        return DVBillingWebhookResult(
+          type: type,
+          handled: false,
+          stale: true,
+          customer: customer,
+        );
+      }
+      _appliedAt[subscriptionKey] = created;
+    }
     final Set<Entitlement> forPrices = <Entitlement>{};
     final Object? items = sub['items'];
     final Object? rows = items is Map ? items['data'] : null;

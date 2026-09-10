@@ -52,6 +52,9 @@ class DVPaddleBillingProvider implements DVBillingProvider {
 
   final Map<String, Set<String>> _grants = <String, Set<String>>{};
 
+  /// When the newest applied event happened, by subscription id.
+  final Map<String, DateTime> _appliedAt = <String, DateTime>{};
+
   static Future<(int, String)> _noNetwork(
           String m, Uri u, Map<String, String> h, String? b) =>
       throw const DVBillingError('No HTTP transport was configured for Paddle.');
@@ -180,6 +183,8 @@ class DVPaddleBillingProvider implements DVBillingProvider {
     if (decoded is! Map) throw const DVBillingError('The webhook payload is not an event.');
     final String type = '${decoded['event_type'] ?? ''}';
     final Object? data = decoded['data'];
+    final DateTime? occurredAt =
+        DateTime.tryParse('${decoded['occurred_at'] ?? ''}')?.toUtc();
 
     switch (type) {
       case 'subscription.activated':
@@ -189,15 +194,35 @@ class DVPaddleBillingProvider implements DVBillingProvider {
       case 'subscription.paused':
       case 'subscription.past_due':
         if (data is! Map) throw DVBillingError('A $type event carried no subscription.');
-        return _apply(type, data);
+        return _apply(type, data, occurredAt);
       default:
         return DVBillingWebhookResult(type: type, handled: false);
     }
   }
 
-  DVBillingWebhookResult _apply(String type, Map<Object?, Object?> sub) {
+  DVBillingWebhookResult _apply(
+      String type, Map<Object?, Object?> sub, DateTime? occurredAt) {
     final String customer = '${sub['customer_id'] ?? ''}';
     final String status = '${sub['status'] ?? ''}';
+
+    // Paddle retries a delivery it did not get a 200 for, so a notification
+    // that failed lands behind whatever was sent while it was failing. In
+    // arrival order that hands a cancelled customer their entitlement back,
+    // and nothing about it looks wrong: the signature is valid, the payload
+    // is real, the endpoint answers 200.
+    final String subscriptionKey = '${sub['id'] ?? customer}';
+    if (occurredAt != null) {
+      final DateTime? applied = _appliedAt[subscriptionKey];
+      if (applied != null && occurredAt.isBefore(applied)) {
+        return DVBillingWebhookResult(
+          type: type,
+          handled: false,
+          stale: true,
+          customer: customer,
+        );
+      }
+      _appliedAt[subscriptionKey] = occurredAt;
+    }
     final Set<Entitlement> forPrices = <Entitlement>{};
     final Object? items = sub['items'];
     if (items is List) {
