@@ -45,11 +45,29 @@ import 'package:integration_test/integration_test.dart';
 /// this set deliberately or it is not, and guessing from the name is how a
 /// test suite starts opening the camera.
 const Map<String, Object?> _safeToInvoke = <String, Object?>{
-  'clipboard.copy': 'dartvel-probe',
+  // A map with a 'text' key, which is what DVClipboard.copy sends. Passed a
+  // bare string, the binding reads no 'text', copies an empty one, and the
+  // round trip below then fails against a clipboard that works -- which is
+  // how this probe spent its first run accusing the wrong thing.
+  'clipboard.copy': <String, Object?>{'text': 'dartvel-probe'},
   'clipboard.paste': null,
   'haptics.vibrate': null,
   'haptics.lightVibrate': null,
   'haptics.impact': null,
+  // Reads, all of them. Each answers from a system service and none raises
+  // anything or waits for a person.
+  //
+  // `clipboard` deliberately, because a permission the manifest never declared
+  // throws and names pubspec.yaml -- so this is not a place to put an
+  // arbitrary permission name to see what happens.
+  'permissions.isGranted': <String, Object?>{'permission': 'clipboard'},
+  // False on a bare emulator, which is a correct answer and not a failure.
+  // What is under test is that the call reaches BiometricManager and returns.
+  'biometrics.canAuthenticate': null,
+  'device.health': null,
+  'device.capabilityManifest': null,
+  'device.diagnostics.collect': null,
+  'device.watchdog.heartbeat': null,
   'deepLinks.initial': null,
   // `key` and `text`, and both have to be non-empty: the binding returns false
   // on an empty key before it reaches JNI at all, so a probe with the wrong
@@ -173,7 +191,8 @@ void main() {
     // Multi-byte on purpose. A JNI string conversion that truncates at the
     // first non-ASCII byte round-trips plain text perfectly.
     const String written = 'dartvel clipboard — ünïcode ✓';
-    await DVNativeBridge.invoke<void>('clipboard.copy', written);
+    await DVNativeBridge.invoke<void>(
+        'clipboard.copy', <String, Object?>{'text': written});
 
     final String? read =
         await DVNativeBridge.invoke<String>('clipboard.paste', null);
