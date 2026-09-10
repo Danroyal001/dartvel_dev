@@ -24,4 +24,5 @@ export 'android_capabilities.dart'
         dvAndroidNotificationChannelName,
         dvAndroidNotificationNeedsChannel,
         dvAndroidNotificationId,
-        dvAndroidStateDirectory;
+        dvAndroidStateDirectory,
+        dvAndroidFilesRoot;

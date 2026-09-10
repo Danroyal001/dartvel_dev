@@ -216,7 +216,8 @@ class DVAndroidBindings {
     final String? files = context.filesDir?.absolutePath
         ?.toDartString(releaseOriginal: true);
     final String? state = dvAndroidStateDirectory(files);
-    if (files == null || state == null) {
+    final String? root = dvAndroidFilesRoot(files);
+    if (state == null || root == null) {
       lastFailure = 'the application has no files directory, so the device '
           'runtime and the file bindings have nowhere they are allowed to '
           'write and were left unregistered.';
@@ -227,11 +228,13 @@ class DVAndroidBindings {
     DVDeviceRuntime.stateDirectory = state;
     DVDeviceRuntime.register(DVNativeBridge.register);
 
-    // Confined to the private directory, not to the filesystem root. An
-    // Android application can reach a good deal of shared storage, and a
-    // binding that writes wherever it is told is a file-write primitive
-    // handed to whatever can call it.
-    DVFileBindings.register(files, DVNativeBridge.register);
+    // Confined to a directory of its own inside the private one, not to the
+    // filesystem root and not to the private directory either. An Android
+    // application can reach a good deal of shared storage, and a binding
+    // that writes wherever it is told is a file-write primitive handed to
+    // whatever can call it -- while the private directory as a whole would
+    // put the device id and the provisioning record inside the confinement.
+    DVFileBindings.register(root, DVNativeBridge.register);
   }
 
   static void unregister() {
