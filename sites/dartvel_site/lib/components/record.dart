@@ -118,3 +118,24 @@ List<String> siteParagraphs(String text) {
 /// [kSiteParagraphTarget] characters, which in one column on a phone is seven
 /// lines and a card nobody can compare with its neighbour.
 const int kSiteFoldedLines = 4;
+
+/// The one line a card shows: the opening sentence of what is built.
+///
+/// A card in a grid of thirty-six is a summary, not the record. Laravel's
+/// homepage gives each thing a name and about a dozen words, and puts every
+/// detail in the docs; a card carrying four hundred characters is a card
+/// nobody compares with its neighbour, however well it is paragraphed.
+///
+/// The whole record is still on the page, under the grid, where somebody who
+/// wants it can read it without every other card shouting at them first.
+String siteLead(String body) {
+  final List<String> paragraphs = siteRecordParts(body).present;
+  if (paragraphs.isEmpty) return '';
+  final List<String> sentences = paragraphs.first.split(_sentenceBreak);
+  final String lead = sentences.first.trim();
+  if (lead.isEmpty) return '';
+  // "Present: a module is a whole application" loses its label and would open
+  // a card in lower case, which reads as a sentence fragment rather than a
+  // summary.
+  return lead[0].toUpperCase() + lead.substring(1);
+}

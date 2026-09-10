@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../dartvel_client/dartvel_client.dart';
+import '../components/record.dart';
 import '../components/site.dart';
 
 /// Every section the repository records as Shipped, and nothing else.
@@ -632,6 +633,28 @@ Widget _featuresPage(BuildContext context) => SingleChildScrollView(
         ], spacing: 14),
       ],
     ),
+    Section(
+      tint: true,
+      children: <Widget>[
+        const Eyebrow('THE FULL RECORD'),
+        const Heading(
+          'Every section, in the repository’s own words.',
+          level: 2,
+        ),
+        const Body(
+          'The cards above are summaries. This is the record they summarise: '
+          'what each section does, and where it says a thing is missing, what '
+          'is missing and why.',
+          width: 660,
+        ),
+        DVBox.list(<Widget>[
+          for (final (String area, String surface, String body) f in shipped)
+            SiteRecordEntry(area: f.$1, surface: f.$2, body: f.$3),
+          for (final (String area, String surface, String body) f in partial)
+            SiteRecordEntry(area: f.$1, surface: f.$2, body: f.$3),
+        ], spacing: 34),
+      ],
+    ),
     const SiteFooter(),
   ], spacing: 0),
 );
@@ -684,23 +707,31 @@ Widget _featureRow(
         ),
         SiteChip(surface),
       ], spacing: 10),
-      // The record, given the shape it was always two things in.
+      // One sentence, and the record lives further down the page.
       //
-      // Each of these is one string because that is how spec-status.json
-      // holds it, and one string is what it was drawn as: a single block with
-      // "Present:" and "Absent:" inside it as words. Shorter than it used to
-      // be and still a wall -- no paragraphs, and the two halves that matter
-      // most left for a reader to tell apart by punctuation.
-      //
-      // Parsed here rather than rewritten in the data, so the card cannot
-      // carry a second copy of the record that drifts from the first.
-      SiteRecord(body: body),
-    ], spacing: 12),
+      // This card used to carry the whole thing: six thousand characters at
+      // first, then five hundred, then five hundred in paragraphs with
+      // headings. Every version was a wall, because the problem was never the
+      // formatting -- a card in a grid of thirty-six is a summary, and a
+      // summary is one line. Laravel gives each of its products a name and
+      // about a dozen words and puts the rest in the docs.
+      DVText(siteLead(body)).modifier(
+        const DVModifier()
+            .fontSize(15)
+            .color(palette.muted)
+            .lineHeight(1.6)
+            // Three, so one record opening with a long sentence cannot make
+            // its card taller than the row it sits in. The whole sentence is
+            // in the record below; this is the bound on the summary.
+            .maxLines(3)
+            .overflow(TextOverflow.ellipsis),
+      ),
+    ], spacing: 10),
     const DVModifier()
         // No height: a wrap gives its children unbounded height, so
         // double.infinity here collapsed every card and the section rendered
         // empty. Cards size to their content instead.
-        .paddingOnly(left: 18, top: 16, right: 18, bottom: 18)
+        .paddingOnly(left: 20, top: 18, right: 20, bottom: 20)
         // page, not surface: the section this sits on is tinted with surface,
         // so a card in the same colour is an invisible card.
         .backgroundColor(palette.page)
