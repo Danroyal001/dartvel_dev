@@ -41,6 +41,29 @@ void main() {
           // SharedPreferences -- but the launcher composes the widget, so
           // what crosses is the data and never the tree.
           'homeWidgets.publish',
+          // One sample each, taken by registering a SensorManager listener
+          // and dropping it when the first event lands.
+          'sensors.accelerometer',
+          'sensors.gyroscope',
+          // BiometricManager, a system service like any other. The prompt is
+          // the part still missing, and it is missing for a reason the test
+          // below states.
+          'biometrics.canAuthenticate',
+          // NotificationManager. It was recorded as needing an Activity; it
+          // does not.
+          'notifications.sendLocal',
+          // The shared device runtime, reading procfs. All six, because four
+          // of six would leave DV.Platform.device half working.
+          'device.capabilityManifest',
+          'device.health',
+          'device.watchdog.arm',
+          'device.watchdog.heartbeat',
+          'device.fleet.provision',
+          'device.diagnostics.collect',
+          // Files, confined to the directory the application owns.
+          'files.readBytes',
+          'files.writeBytes',
+          'files.delete',
         },
       );
     });
@@ -62,18 +85,36 @@ void main() {
       expect(DVAndroidBindings.implemented, isNotEmpty);
     });
 
-    test('what needs an Activity is absent', () {
-      // BiometricPrompt attaches to an Activity and NFC dispatch is delivered
-      // to one. A Context is not enough, and pretending otherwise would fail
-      // on a device rather than here.
+    test('what still has nowhere to land is absent', () {
+      // This list was longer, and two of its entries were on it for a reason
+      // that did not survive being checked. NotificationManager is a system
+      // service on the application Context, not an Activity's; so is
+      // BiometricManager, which is all canAuthenticate needs.
+      //
+      // What is left is genuinely blocked, and not by the Activity either.
+      // BiometricPrompt.authenticate reports its result to an
+      // AuthenticationCallback, which is an abstract class -- jnigen
+      // implements interfaces and cannot subclass one, so the answer has
+      // nowhere to arrive. It needs a Java shim written beside the Context
+      // provider. NFC dispatch really is the Activity's.
       for (final name in <String>[
         'biometrics.authenticate',
-        'biometrics.canAuthenticate',
         'nfc.readTag',
-        'notifications.sendLocal',
       ]) {
         expect(DVAndroidBindings.implemented, isNot(contains(name)));
       }
+    });
+
+    test('a bound name is not a name proven on a device', () {
+      // The header of android_bindings_jni.dart records the case this guards
+      // against: every Android binding looked right, the capability list
+      // claimed them all, and each one was dead in a real application
+      // because the Context behind them came from a symbol with no
+      // definition. This suite never crosses into Java, and a green run here
+      // says the Dart side decided correctly and nothing more.
+      expect(DVAndroidBindings.isRegistered, isFalse,
+          reason: 'this suite does not run on Android and must not pretend '
+              'the JNI calls were exercised');
     });
   });
 
