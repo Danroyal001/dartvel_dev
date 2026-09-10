@@ -311,6 +311,7 @@ export 'package:dartvel_core/dartvel.dart'
         DVTestHarness,
         DVLocalBillingProvider,
         DVUsageMeter,
+        DVBillingCustomer,
         Entitlement,
         LocalAnalyticsProvider,
         formControlsFactories,

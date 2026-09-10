@@ -1235,6 +1235,58 @@ class Entitlement {
   static const analytics = Entitlement('analytics');
 }
 
+/// A domain object that says which billing customer it is.
+///
+/// Implement it on the user, account or tenant that pays, returning the id
+/// the provider knows -- a Stripe `cus_...`, a Paddle `ctm_...`, or whatever
+/// the application stores against the row. Two objects loaded from the same
+/// record then answer as the same customer, which is what a grant needs and
+/// what object identity does not give.
+abstract class DVBillingCustomer {
+  String get billingCustomerId;
+}
+
+/// The key entitlements and usage are stored under for [customer].
+///
+/// Providers took `customer.toString()`. For a String that is an identity;
+/// for an ordinary Dart object it is the constant "Instance of 'User'", so
+/// passing the logged-in user -- the obvious thing to do, and what a
+/// parameter typed Object invites -- filed every user in the application
+/// under one key. One person subscribes, everybody has the plan, and
+/// nothing anywhere reports a problem.
+///
+/// So an identity is required. A [DVBillingCustomer] states one, a String or
+/// a number is one, and a class with a meaningful toString has one. An
+/// object with the default toString has none, and gets an error rather than
+/// a shared key: keying on the type name is the same bug as the hash code
+/// this replaced, with better spelling.
+String dvBillingCustomerKey(Object customer) {
+  final String key = customer is DVBillingCustomer
+      ? customer.billingCustomerId
+      : customer.toString();
+
+  if (key.isEmpty) {
+    throw ArgumentError.value(
+      customer,
+      'customer',
+      'a billing customer needs an identifier, and this one is empty. An '
+          'empty key is one key, shared by everybody who has none',
+    );
+  }
+  if (RegExp(r"^Instance of '.*'$").hasMatch(key)) {
+    throw ArgumentError.value(
+      customer,
+      'customer',
+      'a ${customer.runtimeType} has no billing identity: its toString is '
+          'the same text for every instance, so entitlements and usage would '
+          'be shared by every ${customer.runtimeType} in the application. '
+          'Implement DVBillingCustomer on it, or pass the provider customer '
+          'id',
+    );
+  }
+  return key;
+}
+
 /// Something an application counts and a provider bills for.
 ///
 /// The meter is the application's name for the thing -- `api_calls`,
@@ -1390,7 +1442,7 @@ class DVLocalBillingProvider implements DVBillingProvider {
   /// customers whose hashes collided shared entitlements — one paying for a
   /// plan could unlock it for a stranger — and made the stored keys
   /// unreadable to anything inspecting them.
-  String _customerKey(Object customer) => customer.toString();
+  String _customerKey(Object customer) => dvBillingCustomerKey(customer);
 }
 
 class DVImportRowError {
