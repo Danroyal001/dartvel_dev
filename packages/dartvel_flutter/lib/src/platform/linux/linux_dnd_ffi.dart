@@ -126,6 +126,19 @@ class DVLinuxDragDrop {
   /// set its own targets would lose them too.
   static Pointer<Void>? _savedTargets;
 
+  /// What the application asked to take, kept because the target list is a
+  /// request and not a guarantee.
+  ///
+  /// The list tells the desktop what the window would like offered. It does
+  /// not stop a source offering something else, and `gtk_drag_dest_set` with
+  /// GTK's default flags lets what arrives through regardless. So the kinds
+  /// are held here and checked when the drop lands: a window that declared
+  /// files and then handed the application a URL dragged out of a browser
+  /// has broken the rule it published, and on a kiosk that URL is exactly
+  /// the thing the declaration was there to keep out.
+  static bool _wantsFiles = true;
+  static bool _wantsText = true;
+
   static void register(
     DynamicLibrary gtk,
     DynamicLibrary glib,
@@ -175,6 +188,8 @@ class DVLinuxDragDrop {
     _stop();
 
     final DynamicLibrary gtk = _gtk!;
+    _wantsFiles = types.contains('files');
+    _wantsText = types.contains('text');
 
     // What the widget already takes, kept and carried into the new list.
     final Pointer<Void> existing =
@@ -268,7 +283,9 @@ class DVLinuxDragDrop {
     int time,
     Pointer<Void> userData,
   ) {
-    final DVDropEvent event = eventFrom(selection, x: x.toDouble(), y: y.toDouble());
+    final DVDropEvent event = wanted(
+      eventFrom(selection, x: x.toDouble(), y: y.toDouble()),
+    );
     // The source is told the drop was taken, and told before anything the
     // application does can throw: a source left waiting shows the drag
     // still in flight over every other window.
@@ -277,6 +294,23 @@ class DVLinuxDragDrop {
           context, event.isEmpty ? 0 : 1, 0, time);
     }
     DVDragDrop.dispatch(event);
+  }
+
+  /// [event] if the window asked for what it carries, and an empty drop at
+  /// the same place if it did not.
+  ///
+  /// Emptied rather than dropped on the floor, so the source is still told
+  /// the drop was refused: `gtk_drag_finish` gets a false, the cursor stops
+  /// showing a drag in flight, and whoever dropped sees it bounce back
+  /// instead of watching nothing happen.
+  static DVDropEvent wanted(DVDropEvent event) {
+    if (event.paths.isNotEmpty && !_wantsFiles) {
+      return DVDropEvent(x: event.x, y: event.y);
+    }
+    if (event.text != null && !_wantsText) {
+      return DVDropEvent(x: event.x, y: event.y);
+    }
+    return event;
   }
 
   /// The drop [selection] carries, by its type: a uri-list is files, and
