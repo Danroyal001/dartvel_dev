@@ -30,59 +30,11 @@ import '../../dartvel.dart'
         DVUsageMeter,
         dvBillingCustomerKey;
 import 'money.dart';
-
-/// A billing operation that could not proceed, with a message safe to show.
-class DVBillingError implements Exception {
-  const DVBillingError(this.message);
-  final String message;
-  @override
-  String toString() => 'DVBillingError: $message';
-}
-
-/// What a webhook did.
-class DVBillingWebhookResult {
-  const DVBillingWebhookResult({
-    required this.type,
-    required this.handled,
-    this.customer,
-    this.granted = const <Entitlement>{},
-    this.revoked = const <Entitlement>{},
-    this.stale = false,
-  });
-
-  final String type;
-
-  /// Whether this provider acted on the event. False is still an
-  /// acknowledgement: Stripe retries an unacknowledged webhook for days.
-  final bool handled;
-
-  /// Whether the event described a moment older than one already applied to
-  /// the same subscription, and was therefore ignored.
-  ///
-  /// Being late is not being wrong, so a stale event is acknowledged like
-  /// any other. This says why nothing changed, which is otherwise
-  /// indistinguishable from an event that changed nothing.
-  final bool stale;
-  final String? customer;
-  final Set<Entitlement> granted;
-  final Set<Entitlement> revoked;
-}
-
-/// `(status, body)` for an HTTP [method] request to [url] with [headers].
-///
-/// [body] is null for a read. It used to be a required String and the method
-/// was implied, which meant a provider could only write -- and a provider
-/// that cannot read cannot check what a price actually costs before sending
-/// somebody to pay it.
-typedef DVBillingFetch = Future<(int, String)> Function(
-  String method,
-  Uri url,
-  Map<String, String> headers,
-  String? body,
-);
+import 'webhooks.dart';
 
 /// Stripe Checkout for subscriptions, with entitlements kept from webhooks.
-class DVStripeBillingProvider implements DVBillingProvider {
+class DVStripeBillingProvider
+    implements DVBillingProvider, DVBillingWebhookReceiver {
   DVStripeBillingProvider({
     required String secretKey,
     required String webhookSecret,
@@ -293,6 +245,10 @@ class DVStripeBillingProvider implements DVBillingProvider {
   /// changed. An event this provider does not act on is acknowledged with
   /// `handled: false` rather than refused, because Stripe retries an
   /// unacknowledged webhook for days.
+  @override
+  String get signatureHeaderName => 'Stripe-Signature';
+
+  @override
   Future<DVBillingWebhookResult> handleWebhook(
     String payload,
     String signatureHeader,

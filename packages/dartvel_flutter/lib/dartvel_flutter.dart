@@ -312,6 +312,16 @@ export 'package:dartvel_core/dartvel.dart'
         DVLocalBillingProvider,
         DVUsageMeter,
         DVBillingCustomer,
+        // The providers an application configures, and the types their
+        // webhook path deals in. Without these the only reachable provider
+        // was the local one, so anything real meant importing dartvel_core
+        // alongside this package.
+        DVStripeBillingProvider,
+        DVPaddleBillingProvider,
+        DVBillingWebhookReceiver,
+        DVBillingWebhookResult,
+        DVBillingError,
+        DVBillingFetch,
         Entitlement,
         LocalAnalyticsProvider,
         formControlsFactories,
@@ -5605,6 +5615,49 @@ class DVBilling {
 
   Future<bool> hasEntitlement(Object customer, Entitlement entitlement) {
     return _configuredProvider.hasEntitlement(customer, entitlement);
+  }
+
+  /// Verifies a webhook against the configured provider and applies it.
+  ///
+  /// [headers] is the request's headers; the signature is found under the
+  /// name the provider signs with, matched without regard to case because
+  /// servers hand header names over differently. Throws when the signature
+  /// is missing, forged, or too old, and changes nothing in that case.
+  ///
+  /// This exists so the route that receives a webhook does not have to. The
+  /// alternative was downcasting to whichever provider was configured, or
+  /// writing the HMAC comparison again next to the handler -- and a
+  /// verification written twice is the one that gets simplified until an
+  /// unsigned "subscription activated" is accepted.
+  Future<DVBillingWebhookResult> handleWebhook(
+    String payload,
+    Map<String, String> headers,
+  ) {
+    final DVBillingProvider configured = _configuredProvider;
+    if (configured is! DVBillingWebhookReceiver) {
+      throw StateError(
+        '${configured.runtimeType} does not receive webhooks, so there is no '
+        'signature to check and nothing here will apply the payload. '
+        'Configure Stripe or Paddle for webhook delivery.',
+      );
+    }
+    final DVBillingWebhookReceiver provider =
+        configured as DVBillingWebhookReceiver;
+    final String wanted = provider.signatureHeaderName.toLowerCase();
+    String? signature;
+    for (final MapEntry<String, String> header in headers.entries) {
+      if (header.key.toLowerCase() == wanted) {
+        signature = header.value;
+        break;
+      }
+    }
+    if (signature == null) {
+      throw DVBillingError(
+        'The request carries no ${provider.signatureHeaderName} header, so '
+        'nothing about it can be believed.',
+      );
+    }
+    return provider.handleWebhook(payload, signature);
   }
 
   /// Records [quantity] against [meter] for [customer].
