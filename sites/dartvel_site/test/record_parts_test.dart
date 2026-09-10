@@ -13,6 +13,7 @@ import 'package:dartvel_site/components/record.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  _leads();
   group('what is built and what is not', () {
     test('a record with both halves is split at the word', () {
       const String body = 'Present: the policy and the state machine. '
@@ -89,6 +90,35 @@ void main() {
       for (final String paragraph in siteParagraphs(text)) {
         expect(paragraph.trimLeft()[0], matches(RegExp(r'[A-Z]')));
       }
+    });
+  });
+}
+
+void _leads() {
+  group('the one line a card shows', () {
+    test('is the first sentence, and nothing after it', () {
+      expect(
+        siteLead('One layout primitive with a fluent chain. '
+            'And a great deal more about it.'),
+        'One layout primitive with a fluent chain.',
+      );
+    });
+
+    test('starts with a capital even when a label was cut off the front', () {
+      // "Present: a module is a whole application" loses its label and would
+      // otherwise open a card in lower case.
+      expect(siteLead('Present: a module is a whole application. More here.'),
+          'A module is a whole application.');
+    });
+
+    test('a record that is one sentence gives that sentence', () {
+      expect(siteLead('A file under lib/pages is a route.'),
+          'A file under lib/pages is a route.');
+    });
+
+    test('a version number does not end it early', () {
+      expect(siteLead('The floor is Dart 3.12.2 for every package. Next.'),
+          'The floor is Dart 3.12.2 for every package.');
     });
   });
 }

@@ -494,7 +494,6 @@ Widget _siteRecord(BuildContext context, {required String body}) {
   final Palette palette = Palette.of(context);
   final SiteRecordParts parts = siteRecordParts(body);
   final bool labelled = parts.absent.isNotEmpty;
-  final int total = parts.present.length + parts.absent.length;
 
   final DVModifier prose = const DVModifier()
       .fontSize(15)
@@ -503,63 +502,56 @@ Widget _siteRecord(BuildContext context, {required String body}) {
       // their place in.
       .lineHeight(1.65);
 
-  // Whole already. A record of one paragraph with nothing withheld should not
-  // be offered a control that opens nothing.
-  if (total <= 1 && !labelled) {
-    return DVText(parts.present.isEmpty ? body : parts.present.first)
-        .modifier(prose.color(palette.muted));
-  }
-
-  // Folded, still. The records are data, they grew to six thousand characters
-  // once already, and a card twenty-five times the height of the one beside
-  // it stops the page being a comparison. What changed is what gets folded:
-  // paragraphs and their headings rather than one run of text.
-  final DVSignal<bool> open = context.signal(false);
-  final bool showAll = open.value;
-
   final List<Widget> children = <Widget>[];
 
+  // Only labelled when there are two halves to tell apart. A record that is
+  // all built would be a "Built" heading over the whole thing, which is a
+  // heading that divides nothing.
   if (labelled) {
     children.add(const SiteRecordLabel(text: 'Built', tone: 'accent'));
   }
-  if (showAll) {
-    for (final String paragraph in parts.present) {
-      children.add(DVText(paragraph).modifier(prose.color(palette.muted)));
-    }
-  } else {
-    // The opening, clipped to four lines. A paragraph is up to two hundred
-    // and eighty characters, which in one column on a phone is seven lines
-    // and a card too tall to compare with the one beside it -- so the fold
-    // bounds the height as well as choosing where to stop.
-    children.add(DVText(parts.present.first).modifier(prose
-        .color(palette.muted)
-        .maxLines(kSiteFoldedLines)
-        .overflow(TextOverflow.ellipsis)));
+  for (final String paragraph in parts.present) {
+    children.add(DVText(paragraph).modifier(prose.color(palette.muted)));
   }
 
-  if (labelled && showAll) {
+  if (labelled) {
     children.add(const SiteRecordLabel(text: 'Not yet', tone: 'muted'));
     for (final String paragraph in parts.absent) {
       children.add(DVText(paragraph).modifier(prose.color(palette.muted)));
     }
   }
 
-  children.add(DVText(showAll ? 'Show less' : 'Read the whole record').modifier(
-      const DVModifier()
-          .fontSize(13)
-          .fontWeight(FontWeight.w600)
-          .color(palette.accent)
-          // A button, and announced as one. It is text that does something,
-          // which is the thing a screen reader has no way to guess.
-          .semanticButton()
-          .onTap(() => open.value = !open.value)));
-
   // Ten between paragraphs. Enough that a break reads as a break at fifteen
-  // points and 1.65, and not so much that a card becomes a list of unrelated
+  // points and 1.65, and not so much that it becomes a list of unrelated
   // sentences.
   return DVBox.list(children, spacing: 10);
 }
 
+/// One entry in the full record: what it is called, what you type, what it
+/// does and does not do.
+///
+/// The cards above are summaries and this is the thing itself, which is the
+/// split Laravel makes between a homepage and its docs. Nothing here is
+/// folded: somebody who has scrolled to the record has already said they want
+/// it, and a control that hides it again is in their way.
+@DVFunctionalWidget()
+Widget _siteRecordEntry(BuildContext context,
+    {required String area, required String surface, required String body}) {
+  final Palette palette = Palette.of(context);
+  return DVBox.list(<Widget>[
+    DVBox.wrapLine(<Widget>[
+      DVText(area).modifier(const DVModifier()
+          .fontSize(19)
+          .fontWeight(FontWeight.w700)
+          .color(palette.ink)
+          // Level 3 under the section's level 2, so the record is reachable
+          // by heading rather than being one long scroll.
+          .semanticHeading(3)),
+      SiteChip(surface),
+    ], spacing: 10),
+    SiteRecord(body: body),
+  ], spacing: 12);
+}
 /// The small heading over half a record.
 @DVFunctionalWidget()
 Widget _siteRecordLabel(BuildContext context,
