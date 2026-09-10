@@ -18,7 +18,8 @@ import '../../dartvel.dart'
         Entitlement,
         DVBillingCheckoutSession,
         DVBillingProvider,
-        DVUsageMeter;
+        DVUsageMeter,
+        dvBillingCustomerKey;
 import 'money.dart';
 import 'stripe.dart' show DVBillingError, DVBillingWebhookResult, DVBillingFetch;
 
@@ -78,7 +79,7 @@ class DVPaddleBillingProvider implements DVBillingProvider {
       'items': <Object?>[
         <String, Object?>{'price_id': price, 'quantity': 1},
       ],
-      'custom_data': <String, Object?>{'customer': customer.toString()},
+      'custom_data': <String, Object?>{'customer': dvBillingCustomerKey(customer)},
     });
     final Object? data = json['data'];
     final Map<Object?, Object?> txn = data is Map ? data : const <Object?, Object?>{};
@@ -183,7 +184,7 @@ class DVPaddleBillingProvider implements DVBillingProvider {
 
   @override
   Future<bool> hasEntitlement(Object customer, Entitlement entitlement) async =>
-      _grants[customer.toString()]?.contains(entitlement.id) ?? false;
+      _grants[dvBillingCustomerKey(customer)]?.contains(entitlement.id) ?? false;
 
   /// Not implemented for Paddle, and loudly so.
   ///
