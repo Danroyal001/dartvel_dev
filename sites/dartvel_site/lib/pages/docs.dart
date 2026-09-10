@@ -1,11 +1,85 @@
 import 'package:flutter/material.dart';
+import '../components/site.dart';
 import '../dartvel_client/dartvel_client.dart';
+
+/// Where each step of the page is, so the contents can reach it.
+///
+/// Top-level and final rather than built in the page body: a GlobalKey has to
+/// be the same object across rebuilds or the element it names is a different
+/// one every frame, and the page body is rebuilt by every signal on it.
+///
+/// A map rather than nine fields because the contents list and the page walk
+/// the same order, and two lists that have to agree are one list.
+final Map<String, GlobalKey> kDocsSteps = <String, GlobalKey>{
+  for (final String id in kDocsOrder) id: GlobalKey(),
+};
+
+/// The steps, in the order the page lays them out.
+///
+/// The number a reader sees comes from this position rather than being typed
+/// into each heading, so inserting a step cannot leave two called "4".
+const List<String> kDocsOrder = <String>[
+  'install',
+  'create',
+  'pages',
+  'models',
+  'backend',
+  'links',
+  'state',
+  'building',
+  'honesty',
+];
+
+/// What each step is called in the contents.
+const Map<String, String> kDocsTitles = <String, String>{
+  'install': 'Install',
+  'create': 'A new app',
+  'pages': 'Pages',
+  'models': 'Models',
+  'backend': 'Backend functions',
+  'links': 'Links',
+  'state': 'State',
+  'building': 'Building',
+  'honesty': 'Before you depend on it',
+};
+
+/// A one-line description of each step, the way a docs index reads.
+const Map<String, String> kDocsSummaries = <String, String>{
+  'install': 'brew, npm or pub — the command is dartvel either way',
+  'create': 'dartvel create, and what it writes',
+  'pages': 'a file under lib/pages is a route',
+  'models': 'one class gives you a table, a form and an admin',
+  'backend': 'a function is an endpoint, typed on both sides',
+  'links': 'a link is a link, not a tap handler',
+  'state': 'signals compose because they are signals',
+  'building': 'dartvel build, and the rest of the toolkit',
+  'honesty': 'what is not built, and how to check',
+};
+
+/// Puts [id]'s step at the top of the screen.
+///
+/// Flutter has no fragment navigation, so a contents entry cannot be an
+/// anchor the browser resolves. This is what an anchor does instead: find the
+/// element the key names and scroll the enclosing scrollable to it.
+///
+/// Silent when the key has no element yet, which happens if somebody taps
+/// during the first frame. A thrown error there would be a crash on a link
+/// that works a moment later.
+void dvGoToStep(String id) {
+  final BuildContext? target = kDocsSteps[id]?.currentContext;
+  if (target == null) return;
+  Scrollable.ensureVisible(
+    target,
+    duration: const Duration(milliseconds: 420),
+    curve: Curves.easeInOut,
+  );
+}
 
 @DVPage(title: 'Documentation — Dartvel', showAppBar: false)
 @pragma('vm:entry-point')
-Widget _docsPage(BuildContext context) => const SingleChildScrollView(
+Widget _docsPage(BuildContext context) => SingleChildScrollView(
       child: DVBox.list(<Widget>[
-        Section(
+        const Section(
           children: <Widget>[
             Eyebrow('DOCUMENTATION'),
             Heading('From nothing to a running app.', level: 1),
@@ -17,18 +91,75 @@ Widget _docsPage(BuildContext context) => const SingleChildScrollView(
             ),
           ],
         ),
-        Install(),
-        FirstApp(),
-        Pages(),
-        Models(),
-        Backend(),
-        Links(),
-        Signals(),
-        Building(),
-        Honesty(),
-        SiteFooter(),
+        const DocsContents(),
+        KeyedSubtree(key: kDocsSteps['install'], child: const Install()),
+        KeyedSubtree(key: kDocsSteps['create'], child: const FirstApp()),
+        KeyedSubtree(key: kDocsSteps['pages'], child: const Pages()),
+        KeyedSubtree(key: kDocsSteps['models'], child: const Models()),
+        KeyedSubtree(key: kDocsSteps['backend'], child: const Backend()),
+        KeyedSubtree(key: kDocsSteps['links'], child: const Links()),
+        KeyedSubtree(key: kDocsSteps['state'], child: const Signals()),
+        KeyedSubtree(key: kDocsSteps['building'], child: const Building()),
+        KeyedSubtree(key: kDocsSteps['honesty'], child: const Honesty()),
+        const SiteFooter(),
       ], spacing: 0),
     );
+
+/// The contents, which is what a docs page opens with.
+///
+/// Laravel's routing page begins with a nested list of everything on it, and
+/// that list is most of why the page reads as organised rather than long. A
+/// reader arriving with one question can see whether the page answers it
+/// before scrolling, and get there in one tap if it does.
+@DVFunctionalWidget()
+Widget _docsContents(BuildContext context) => Section(
+      tint: true,
+      children: <Widget>[
+        const Eyebrow('ON THIS PAGE'),
+        DVBox.list(<Widget>[
+          for (final String id in kDocsOrder)
+            DocsContentsLine(
+              id: id,
+              number: kDocsOrder.indexOf(id) + 1,
+            ),
+        ], spacing: 2),
+      ],
+    );
+
+/// One line of the contents: its number, its name, and what it covers.
+@DVFunctionalWidget()
+Widget _docsContentsLine(
+  BuildContext context, {
+  required String id,
+  required int number,
+}) {
+  final Palette palette = Palette.of(context);
+  // The last step is not a step: it is the thing to read before trusting any
+  // of the others, and numbering it nine put it at the end of a queue rather
+  // than beside the rest.
+  final bool numbered = id != 'honesty' && id != 'links';
+  final String label = kDocsTitles[id] ?? id;
+
+  return DVBox(
+    DVBox.wrapLine(<Widget>[
+      DVText(numbered ? '$number' : '—').modifier(const DVModifier()
+          .fontSize(13)
+          .fontWeight(FontWeight.w700)
+          .color(palette.faint)
+          .width(22)),
+      DVText(label).modifier(const DVModifier()
+          .fontSize(15)
+          .fontWeight(FontWeight.w600)
+          .color(palette.accent)),
+      DVText(kDocsSummaries[id] ?? '')
+          .modifier(const DVModifier().fontSize(14).color(palette.muted)),
+    ], spacing: 10),
+    const DVModifier()
+        .paddingSymmetric(vertical: 7)
+        .semanticButton()
+        .onTap(() => dvGoToStep(id)),
+  );
+}
 
 @DVFunctionalWidget()
 Widget _install() => const Section(
@@ -305,3 +436,4 @@ Widget _honesty() => const Section(
         ], spacing: 12),
       ],
     );
+
