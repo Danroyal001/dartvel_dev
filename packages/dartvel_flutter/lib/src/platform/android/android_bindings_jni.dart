@@ -34,6 +34,7 @@ import 'package:jni/jni.dart';
 
 import '../../../dartvel_flutter.dart' show DVNativeBridge;
 import 'android_capabilities.dart';
+import 'android_capture_jni.dart';
 import 'android_kiosk_jni.dart';
 import 'generated/android/app/Activity.dart';
 import 'generated/android/app/Application.dart';
@@ -44,6 +45,12 @@ import 'generated/android/content/Intent.dart';
 import 'generated/android/os/VibrationEffect.dart';
 import 'generated/android/os/Vibrator.dart';
 import 'generated/java/lang/CharSequence.dart';
+
+// The capture bindings, out where an application can name them. Their
+// registration failure is the one worth reading on a device: an APK built
+// with plain `flutter build` has no Activity for a permission result to
+// come back to.
+export 'android_capture_jni.dart' show DVAndroidCapture;
 
 /// The class that holds the application Context, written by
 /// `dartvel build android`.
@@ -90,6 +97,12 @@ class DVAndroidBindings {
     // one throws here rather than at the first callback.
     DVAndroidActivities.watch(context.as(Application.type));
     DVAndroidKiosk.register(DVNativeBridge.register);
+
+    // The permission dialog and what it guards: the camera, the picker, the
+    // address book, the device's position. Each of them needs a result
+    // delivered to an Activity, which is the one thing a Context cannot
+    // take, so they go through the transparent Activity the build writes.
+    DVAndroidCapture.register(DVNativeBridge.register);
 
     // What the application was opened with. The launch Intent belongs to the
     // Activity, so this was unanswerable until the Activity was -- and a
@@ -151,6 +164,10 @@ class DVAndroidBindings {
     for (final name in implemented) {
       DVNativeBridge.unregister(name);
     }
+    // The capture bridge holds the JClass it found. Left behind, a second
+    // registration would reuse a class from a JVM the first one was talking
+    // to, which is only ever a test.
+    DVAndroidCapture.reset();
     _context = null;
     _registered = false;
   }

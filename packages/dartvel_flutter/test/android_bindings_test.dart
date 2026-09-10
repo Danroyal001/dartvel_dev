@@ -1,14 +1,17 @@
 // Android platform bindings.
 //
 // Android was the one platform with nothing, and the reason given was that
-// package:jni exposed no application Context. That was wrong: it exports
-// GetApplicationContext() from its C header, documented as returning exactly
-// that, and reachable with plain dart:ffi.
+// package:jni exposed no application Context. The answer written here then
+// was GetApplicationContext(), from package:jni's C header — which is
+// declared there and never defined, so every binding this file asserts was
+// dead in every real application until an emulator said "undefined symbol".
+// The Context now comes from a ContentProvider `dartvel build android`
+// writes, and the Activity that the permission dialog, the camera and the
+// picker need comes from a transparent Activity written beside it.
 //
 // The intended fallback was wrong too, and generation proved it —
 // ActivityThread is hidden and absent from the public android.jar, so jnigen
-// found every other class and reported that one "Not found". The C export is
-// not a workaround for that; it is the better answer.
+// found every other class and reported that one "Not found".
 //
 // This suite runs anywhere and asserts the capability list and the refusal to
 // register off-Android. The bindings themselves need a device, and the
@@ -16,6 +19,7 @@
 import 'dart:io' show Platform;
 
 import 'package:dartvel_flutter/dartvel_flutter.dart';
+import 'package:dartvel_flutter/src/platform/android/android_capture_jni.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -41,8 +45,27 @@ void main() {
           // SharedPreferences -- but the launcher composes the widget, so
           // what crosses is the data and never the tree.
           'homeWidgets.publish',
+          // The permission dialog and the four APIs that need one. All of
+          // them wait on a result Android delivers to an Activity, which the
+          // application Context is not -- so they arrive at the transparent
+          // Activity `dartvel build android` writes.
+          'permissions.isGranted',
+          'permissions.request',
+          'camera.takePhoto',
+          'media.pick',
+          'contacts.getContacts',
+          'location.current',
         },
       );
+    });
+
+    test('the capture bindings are all claimed together', () {
+      // They share one Activity and one result map. Half of them present
+      // would mean a build wrote the bridge for some and not others, and the
+      // ones left out would answer null -- which reads as "this platform
+      // cannot" rather than "this build is broken".
+      expect(DVAndroidBindings.implemented,
+          containsAll(DVAndroidCapture.implemented));
     });
 
     test('the kiosk is here because the Activity is now reachable', () {
