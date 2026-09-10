@@ -155,14 +155,37 @@ int dvAndroidNotificationId(int counter) => counter & 0x7fffffff;
 /// call — on the phone, and nowhere it was tested. Null for an empty
 /// directory rather than a path at the root of the device, which is a write
 /// that fails from a line that reads like a join.
-String? dvAndroidStateDirectory(String? filesDir) {
+String? dvAndroidStateDirectory(String? filesDir) =>
+    _dvAndroidUnder(filesDir, 'dartvel-device');
+
+/// The one directory `files.readBytes`, `files.writeBytes` and `files.delete`
+/// may touch, given the application's own files directory. Null when there is
+/// none.
+///
+/// A subdirectory rather than the files directory itself, and that is the
+/// whole point of the function. Confining the file bindings to the files
+/// directory would put the device id and the provisioning record inside their
+/// root, so `files.delete('dartvel-device/provisioning.json')` from
+/// application code tidying up after itself would unprovision the device —
+/// and nothing would report it, because the next `device.health` simply
+/// carries a new id.
+String? dvAndroidFilesRoot(String? filesDir) =>
+    _dvAndroidUnder(filesDir, 'dartvel-files');
+
+/// [name] under [filesDir], or null when that directory is not usable.
+///
+/// Null rather than a path at the root of the device: `getFilesDir()`
+/// answering null or empty means this is not the application's Context, and
+/// building `/dartvel-device` out of it is a write that fails at run time
+/// from a line that reads like an ordinary join.
+String? _dvAndroidUnder(String? filesDir, String name) {
   if (filesDir == null || filesDir.isEmpty) return null;
   String base = filesDir;
   while (base.length > 1 && base.endsWith('/')) {
     base = base.substring(0, base.length - 1);
   }
   if (base.isEmpty || base == '/') return null;
-  return '$base/dartvel-device';
+  return '$base/$name';
 }
 
 /// `Intent.FLAG_ACTIVITY_NEW_TASK`.

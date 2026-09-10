@@ -109,12 +109,31 @@ void main() {
       expect(state, isNot(contains('/tmp')));
     });
 
+    test('the file bindings cannot reach the device state', () {
+      // Both live under the one directory Android gives the application, so
+      // the obvious thing is to point files.* at that directory and be done.
+      // That would put device-id and provisioning.json inside the confinement
+      // root, and files.delete('dartvel-device/provisioning.json') would
+      // unprovision the device from application code that thought it was
+      // tidying up its own files. Nothing would report it: the next
+      // device.health simply carries a new id.
+      const String files = '/data/user/0/dev.dartvel.example/files';
+      final String? root = dvAndroidFilesRoot(files);
+      final String? state = dvAndroidStateDirectory(files);
+      expect(root, isNotNull);
+      expect(state, isNotNull);
+      expect(state!.startsWith('$root/'), isFalse);
+      expect(root!.startsWith('$state/'), isFalse);
+      expect(root, isNot(state));
+    });
+
     test('an empty files directory is not turned into a root-level path', () {
       // getFilesDir() answering null or empty is a Context that is not the
       // application's. Building "/dartvel-device" out of it would be a write
       // attempt at the root of the device, refused at run time with an
       // exception from a line that reads as a path join.
       expect(dvAndroidStateDirectory(''), isNull);
+      expect(dvAndroidFilesRoot(''), isNull);
     });
   });
 }
