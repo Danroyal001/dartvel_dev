@@ -77,13 +77,12 @@ String? dvLockTaskDisagreement({
   if (held == platformHeld) return null;
   return held
       ? 'the kiosk test reported lock task held, and Android reports '
-          '${state.name}. One of them is wrong, and it is not worth guessing '
-          'which on a device this job can still inspect.'
+            '${state.name}. One of them is wrong, and it is not worth guessing '
+            'which on a device this job can still inspect.'
       : 'the kiosk test reported lock task released, and Android reports '
-          '${state.name}. Something is holding the task that Dartvel does '
-          'not believe it put there.';
+            '${state.name}. Something is holding the task that Dartvel does '
+            'not believe it put there.';
 }
-
 
 /// The strongest state seen across several readings.
 ///
@@ -100,11 +99,11 @@ DVLockTaskState dvStrongest(Iterable<DVLockTaskState> samples) {
 }
 
 int _rank(DVLockTaskState state) => switch (state) {
-      DVLockTaskState.locked => 3,
-      DVLockTaskState.pinned => 2,
-      DVLockTaskState.none => 1,
-      DVLockTaskState.unknown => 0,
-    };
+  DVLockTaskState.locked => 3,
+  DVLockTaskState.pinned => 2,
+  DVLockTaskState.none => 1,
+  DVLockTaskState.unknown => 0,
+};
 // ---------------------------------------------------------------------------
 // The run itself.
 
@@ -121,24 +120,29 @@ Future<void> main(List<String> arguments) async {
 
   Directory(_diag).createSync(recursive: true);
 
-  await _step('install the APK', failures, () => _adb(<String>[
-        'install',
-        '-r',
-        '$_example/build/app/outputs/flutter-apk/app-debug.apk',
-      ]));
+  await _step(
+    'install the APK',
+    failures,
+    () => _adb(<String>[
+      'install',
+      '-r',
+      '$_example/build/app/outputs/flutter-apk/app-debug.apk',
+    ]),
+  );
 
   await _step(
-      'launch it',
-      failures,
-      () => _adb(<String>[
-            'shell',
-            'monkey',
-            '-p',
-            _package,
-            '-c',
-            'android.intent.category.LAUNCHER',
-            '1',
-          ]));
+    'launch it',
+    failures,
+    () => _adb(<String>[
+      'shell',
+      'monkey',
+      '-p',
+      _package,
+      '-c',
+      'android.intent.category.LAUNCHER',
+      '1',
+    ]),
+  );
 
   // Long enough for the first frame on a software-rendered emulator. The
   // screenshot is the evidence a later step checks, so a short sleep here
@@ -146,22 +150,31 @@ Future<void> main(List<String> arguments) async {
   await Future<void>.delayed(const Duration(seconds: 25));
 
   await _step('photograph the screen', failures, () async {
-    final ProcessResult shot = await Process.run(
-        'adb', <String>['exec-out', 'screencap', '-p'],
-        stdoutEncoding: null);
+    final ProcessResult shot = await Process.run('adb', <String>[
+      'exec-out',
+      'screencap',
+      '-p',
+    ], stdoutEncoding: null);
     if (shot.exitCode != 0) throw StateError('screencap failed');
     File('$_diag/android.png').writeAsBytesSync(shot.stdout as List<int>);
   });
 
   // Diagnostics, never a reason to fail.
-  final ProcessResult logcat =
-      await Process.run('adb', <String>['logcat', '-d', '-s', 'flutter:*']);
+  final ProcessResult logcat = await Process.run('adb', <String>[
+    'logcat',
+    '-d',
+    '-s',
+    'flutter:*',
+  ]);
   File('$_diag/android-logcat.log').writeAsStringSync('${logcat.stdout}');
 
   // Links, tapped on the device. A widget test cannot tell a working link
   // from one whose handler builds a callback and never calls it.
-  await _step('tap links on the device', failures,
-      () => _flutterTest('integration_test/link_navigation_test.dart'));
+  await _step(
+    'tap links on the device',
+    failures,
+    () => _flutterTest('integration_test/link_navigation_test.dart'),
+  );
 
   // What the bindings do on a real JNI, which is the only place the question
   // can be asked. Every Android binding was dead for months behind a
@@ -172,8 +185,27 @@ Future<void> main(List<String> arguments) async {
   // Run here rather than after the reinstall below, so the one reinstall
   // covers both integration tests -- `flutter test` uninstalls the package
   // when it finishes, and the device-owner work further down needs it back.
-  await _step('the bindings answer on the device', failures,
-      () => _flutterTest('integration_test/native_bindings_test.dart'));
+  await _step(
+    'the bindings answer on the device',
+    failures,
+    () => _flutterTest('integration_test/native_bindings_test.dart'),
+  );
+
+  // The permission-gated bindings, on the device that is the only place they
+  // can be wrong. Every one of them reaches Java by name -- JClass.forName
+  // for the class, staticMethodId for the method and its signature -- and
+  // none of that is checked by either compiler. A lookup that finds nothing
+  // throws where nobody is looking, and the binding answers null, which is
+  // also what an unsupported platform answers.
+  //
+  // Nothing in it opens a dialog: it asks what a permission's state is,
+  // which never prompts, and leaves the camera and the picker alone because
+  // both wait for a person.
+  await _step(
+    'ask the device about permissions',
+    failures,
+    () => _flutterTest('integration_test/android_capture_test.dart'),
+  );
 
   // Put the application back before asking the device anything about it.
   //
@@ -206,13 +238,19 @@ Future<void> main(List<String> arguments) async {
   // And a guard, because the whole of the last three runs was a check that
   // could not fail for the reason it was looking for. If the package is not
   // here now, nothing below this line means anything.
-  final ProcessResult present =
-      await Process.run('adb', <String>['shell', 'pm', 'path', _package]);
+  final ProcessResult present = await Process.run('adb', <String>[
+    'shell',
+    'pm',
+    'path',
+    _package,
+  ]);
   if (!'${present.stdout}'.trim().startsWith('package:')) {
-    stdout.writeln('!! $_package is still not installed. Everything below '
-        'would report a missing receiver for a package that is not there. '
-        'The APK was looked for at '
-        '$_example/build/app/outputs/flutter-apk/app-debug.apk.');
+    stdout.writeln(
+      '!! $_package is still not installed. Everything below '
+      'would report a missing receiver for a package that is not there. '
+      'The APK was looked for at '
+      '$_example/build/app/outputs/flutter-apk/app-debug.apk.',
+    );
     failures.add('the application would not stay installed');
   }
 
@@ -239,17 +277,19 @@ Future<void> main(List<String> arguments) async {
       .where((String line) => line.contains(_package))
       .toList();
   if (ours.isEmpty) {
-    stdout.writeln('   none belonging to $_package. The manifest block did '
-        'not reach the installed package.');
+    stdout.writeln(
+      '   none belonging to $_package. The manifest block did '
+      'not reach the installed package.',
+    );
     // The whole list, so "ours is missing" can be told apart from "the
     // query returned nothing at all".
-    stdout.writeln('   the query returned '
-        '${const LineSplitter().convert(receivers).length} line(s).');
+    stdout.writeln(
+      '   the query returned '
+      '${const LineSplitter().convert(receivers).length} line(s).',
+    );
   } else {
     ours.take(10).forEach((String line) => stdout.writeln('   $line'));
   }
-
-
 
   // The last gap: the APK on the build machine against the one on the
   // device. The build-time check has already proven the generator wrote the
@@ -258,34 +298,82 @@ Future<void> main(List<String> arguments) async {
   // asking the wrong question. Reading the manifest back off the device
   // settles which, and nothing short of it does.
   stdout.writeln('== the manifest the device actually has');
-  final ProcessResult where =
-      await Process.run('adb', <String>['shell', 'pm', 'path', _package]);
+  final ProcessResult where = await Process.run('adb', <String>[
+    'shell',
+    'pm',
+    'path',
+    _package,
+  ]);
   final String pathLine = '${where.stdout}'.trim();
   if (!pathLine.startsWith('package:')) {
     stdout.writeln('   $_package is not installed at all: $pathLine');
   } else {
-    final String remote = pathLine.split('\n').first.substring('package:'.length).trim();
+    final String remote = pathLine
+        .split('\n')
+        .first
+        .substring('package:'.length)
+        .trim();
     stdout.writeln('   installed from $remote');
     final String local = '$_diag/installed.apk';
-    final ProcessResult pulled =
-        await Process.run('adb', <String>['pull', remote, local]);
+    final ProcessResult pulled = await Process.run('adb', <String>[
+      'pull',
+      remote,
+      local,
+    ]);
     if (pulled.exitCode != 0) {
       stdout.writeln('   could not pull it: ${pulled.stderr}');
     } else {
       final String? aapt2 = await _aapt2();
       if (aapt2 == null) {
-        stdout.writeln('   aapt2 is not on PATH, so it was not read. This is '
-            'a gap in the check, not a pass.');
+        stdout.writeln(
+          '   aapt2 is not on PATH, so it was not read. This is '
+          'a gap in the check, not a pass.',
+        );
       } else {
         final ProcessResult dump = await Process.run(aapt2, <String>[
-          'dump', 'xmltree', local, '--file', 'AndroidManifest.xml',
+          'dump',
+          'xmltree',
+          local,
+          '--file',
+          'AndroidManifest.xml',
         ]);
         final String tree = '${dump.stdout}';
         File('$_diag/android-installed-manifest.txt').writeAsStringSync(tree);
+
+        // The capture plumbing, read back off the device rather than off the
+        // build machine. A permission that the generator wrote and the
+        // packager dropped is refused at run time with no dialog, which is
+        // the same answer a person tapping Deny gives -- so without this
+        // there is nothing anywhere that can tell the two apart.
+        for (final MapEntry<String, String> required in <String, String>{
+          'DartvelBridgeActivity':
+              'the Activity a permission result and an '
+              'activity result are delivered to. Without it every '
+              'permission-gated binding waits for an answer that cannot '
+              'arrive.',
+          'DartvelCaptureFiles':
+              'the provider a camera application writes a '
+              'photo into.',
+          'android.permission.CAMERA':
+              'declared by dartvel.android.'
+              'permissions in the example pubspec. Missing here, a request '
+              'is refused instantly and reads as a refusal.',
+        }.entries) {
+          if (tree.contains(required.key)) {
+            stdout.writeln('   the installed APK carries ${required.key}');
+            continue;
+          }
+          failures.add(
+            'the installed APK has no ${required.key}: '
+            '${required.value}',
+          );
+        }
         if (tree.contains('DartvelDeviceAdminReceiver')) {
-          stdout.writeln('   the installed APK DOES carry the receiver, so '
-              'the package is right and the query is asking the wrong '
-              'question. Look at the probe, not at the build.');
+          stdout.writeln(
+            '   the installed APK DOES carry the receiver, so '
+            'the package is right and the query is asking the wrong '
+            'question. Look at the probe, not at the build.',
+          );
           for (final String line in const LineSplitter().convert(tree)) {
             if (line.contains('DartvelDeviceAdminReceiver') ||
                 line.contains('DEVICE_ADMIN_ENABLED') ||
@@ -294,10 +382,12 @@ Future<void> main(List<String> arguments) async {
             }
           }
         } else {
-          stdout.writeln('   the installed APK does NOT carry the receiver, '
-              'though the one that was built does. Something between the '
-              'build directory and the device replaced it -- look at what '
-              'runs between them, not at the generator.');
+          stdout.writeln(
+            '   the installed APK does NOT carry the receiver, '
+            'though the one that was built does. Something between the '
+            'build directory and the device replaced it -- look at what '
+            'runs between them, not at the generator.',
+          );
         }
       }
     }
@@ -306,8 +396,13 @@ Future<void> main(List<String> arguments) async {
   // And the resolver table the system actually matches against, filtered to
   // this package. `pm query-receivers` performs implicit resolution; this is
   // the table it resolves in, and the two disagreeing is itself the answer.
-  final ProcessResult resolver = await Process.run(
-      'adb', <String>['shell', 'dumpsys', 'package', 'r', 'receiver']);
+  final ProcessResult resolver = await Process.run('adb', <String>[
+    'shell',
+    'dumpsys',
+    'package',
+    'r',
+    'receiver',
+  ]);
   final List<String> mine = const LineSplitter()
       .convert('${resolver.stdout}')
       .where((String line) => line.contains(_package))
@@ -339,8 +434,11 @@ Future<void> main(List<String> arguments) async {
   // an uninstall does not, so if the two answers differ, the reinstall
   // rather than the enforcement is what to look at.
   Future<String> deviceOwner() async {
-    final ProcessResult policy = await Process.run(
-        'adb', <String>['shell', 'dumpsys', 'device_policy']);
+    final ProcessResult policy = await Process.run('adb', <String>[
+      'shell',
+      'dumpsys',
+      'device_policy',
+    ]);
     final List<String> lines = const LineSplitter().convert('${policy.stdout}');
     // The header and what follows it, not the header alone. "Device Owner:"
     // is printed with the details on the lines after it, so matching one
@@ -375,8 +473,12 @@ Future<void> main(List<String> arguments) async {
   bool sampling = true;
   final Future<void> sampler = () async {
     while (sampling) {
-      final ProcessResult dump = await Process.run(
-          'adb', <String>['shell', 'dumpsys', 'activity', 'activities']);
+      final ProcessResult dump = await Process.run('adb', <String>[
+        'shell',
+        'dumpsys',
+        'activity',
+        'activities',
+      ]);
       final DVLockTaskState seen = dvLockTaskState('${dump.stdout}');
       samples.add(seen);
       // The newest reading, until one sees the lock and freezes it. A dump
@@ -415,8 +517,10 @@ Future<void> main(List<String> arguments) async {
   stdout.writeln('   the device owner after the test: ${await deviceOwner()}');
 
   final DVLockTaskState state = dvStrongest(samples);
-  stdout.writeln('Android reported lock task: ${state.name} '
-      '(${samples.length} readings)');
+  stdout.writeln(
+    'Android reported lock task: ${state.name} '
+    '(${samples.length} readings)',
+  );
   if (state == DVLockTaskState.unknown) {
     // Nothing matched, on any reading. That is the parser and the platform
     // disagreeing about the wording, not the platform saying no -- and the
@@ -427,8 +531,10 @@ Future<void> main(List<String> arguments) async {
         .convert(dump)
         .where((String line) => line.toLowerCase().contains('locktask'))
         .toList();
-    stdout.writeln('   dumpsys said nothing this reads. Lines mentioning '
-        'lock task: ${mentions.isEmpty ? 'none at all' : ''}');
+    stdout.writeln(
+      '   dumpsys said nothing this reads. Lines mentioning '
+      'lock task: ${mentions.isEmpty ? 'none at all' : ''}',
+    );
     mentions.take(10).forEach((String line) => stdout.writeln('   $line'));
   }
 
@@ -494,11 +600,12 @@ Future<void> _step(
 
 Future<void> _adb(List<String> arguments) => _run('adb', arguments);
 
-Future<void> _flutterTest(String path) => _run(
-      'flutter',
-      <String>['test', path, '-d', _device],
-      workingDirectory: _example,
-    );
+Future<void> _flutterTest(String path) => _run('flutter', <String>[
+  'test',
+  path,
+  '-d',
+  _device,
+], workingDirectory: _example);
 
 Future<void> _run(
   String executable,
@@ -528,17 +635,19 @@ Future<String?> _aapt2() async {
   final ProcessResult which = await Process.run('which', <String>['aapt2']);
   if (which.exitCode == 0) return '${which.stdout}'.trim();
 
-  final String? sdk = Platform.environment['ANDROID_SDK_ROOT'] ??
+  final String? sdk =
+      Platform.environment['ANDROID_SDK_ROOT'] ??
       Platform.environment['ANDROID_HOME'];
   if (sdk == null) return null;
   final Directory tools = Directory('$sdk/build-tools');
   if (!tools.existsSync()) return null;
-  final List<String> versions = tools
-      .listSync()
-      .whereType<Directory>()
-      .map((Directory d) => d.path)
-      .toList()
-    ..sort();
+  final List<String> versions =
+      tools
+          .listSync()
+          .whereType<Directory>()
+          .map((Directory d) => d.path)
+          .toList()
+        ..sort();
   for (final String version in versions.reversed) {
     final File candidate = File('$version/aapt2');
     if (candidate.existsSync()) return candidate.path;
