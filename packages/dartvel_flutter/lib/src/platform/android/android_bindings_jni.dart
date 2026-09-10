@@ -33,18 +33,28 @@ import 'package:dartvel_core/dartvel.dart' show dvHomeWidgetAndroidClass;
 import 'package:jni/jni.dart';
 
 import '../../../dartvel_flutter.dart' show DVNativeBridge;
+import '../device_runtime.dart';
+import '../file_bindings.dart';
 import 'android_capabilities.dart';
 import 'android_capture_jni.dart';
+import 'android_device.dart';
 import 'android_kiosk_jni.dart';
 import 'android_radios_jni.dart';
+import 'android_system_jni.dart';
 import 'generated/android/app/Activity.dart';
 import 'generated/android/app/Application.dart';
 import 'generated/android/content/ClipData.dart';
 import 'generated/android/content/ClipboardManager.dart';
 import 'generated/android/content/Context.dart';
 import 'generated/android/content/Intent.dart';
+import 'generated/android/hardware/Sensor.dart';
 import 'generated/android/os/VibrationEffect.dart';
 import 'generated/android/os/Vibrator.dart';
+// For getFilesDir()'s absolutePath. jnigen puts an extension type's methods
+// in a plain `extension ... on File`, and a Dart extension is only in scope
+// where its library is imported -- so without this line the getter is
+// "not defined for the type File" even though the type is right there.
+import 'generated/java/io/File.dart';
 import 'generated/java/lang/CharSequence.dart';
 
 // The capture bindings, out where an application can name them. Their
@@ -167,8 +177,88 @@ class DVAndroidBindings {
       return _shareText(text, '${map['title'] ?? 'Share'}');
     });
 
+    // One sample each, not a subscription. SensorManager has no call that
+    // answers what the accelerometer reads right now; a reading arrives by
+    // registering a listener and waiting, and these register one, take the
+    // first event and let go again. See android_system_jni.dart for why the
+    // singular binding name and DVSensors's Stream do not line up.
+    DVNativeBridge.register(
+      'sensors.accelerometer',
+      (Object? _) => DVAndroidSensors.sample(
+        context,
+        Sensor.TYPE_ACCELEROMETER,
+        'accelerometer',
+      ),
+    );
+    DVNativeBridge.register(
+      'sensors.gyroscope',
+      (Object? _) => DVAndroidSensors.sample(
+        context,
+        Sensor.TYPE_GYROSCOPE,
+        'gyroscope',
+      ),
+    );
+
+    // BiometricManager is a system service like the clipboard, which is what
+    // this file was previously recorded as unable to reach. The prompt is
+    // the part that is genuinely blocked: its result arrives at an abstract
+    // callback class, and jnigen implements interfaces.
+    DVNativeBridge.register(
+      'biometrics.canAuthenticate',
+      (Object? _) => DVAndroidBiometrics.canAuthenticate(context),
+    );
+
+    DVNativeBridge.register('notifications.sendLocal', (Object? arguments) {
+      final map = arguments is Map ? arguments : const <Object?, Object?>{};
+      return DVAndroidNotifications.send(
+        context,
+        '${map['title'] ?? ''}',
+        '${map['body'] ?? ''}',
+      );
+    });
+
+    _registerDeviceAndFiles(context);
+
     _registered = true;
     return true;
+  }
+
+  /// The device runtime and the file bindings, both rooted in the one
+  /// directory an Android application owns.
+  ///
+  /// Neither is JNI beyond asking for that directory. What makes them
+  /// Android-specific is where they are allowed to write: the shared device
+  /// runtime falls back to `$HOME` and then to `Directory.systemTemp`, and
+  /// Android sets no HOME and gives no application /tmp. Left alone it would
+  /// try to create `/tmp/.dartvel/device` and `device.health` would throw on
+  /// its first call — on the phone, never in a test.
+  ///
+  /// Failing to find the directory leaves both unregistered rather than
+  /// registered against a guess. `DV.Platform` then reports them unavailable,
+  /// which is true, instead of writing somewhere nobody can read back.
+  static void _registerDeviceAndFiles(Context context) {
+    final String? files = context.filesDir?.absolutePath
+        ?.toDartString(releaseOriginal: true);
+    final String? state = dvAndroidStateDirectory(files);
+    final String? root = dvAndroidFilesRoot(files);
+    if (state == null || root == null) {
+      lastFailure = 'the application has no files directory, so the device '
+          'runtime and the file bindings have nowhere they are allowed to '
+          'write and were left unregistered.';
+      return;
+    }
+
+    DVDeviceRuntime.probes = DVAndroidDeviceProbes(context);
+    DVDeviceRuntime.stateDirectory = state;
+    DVDeviceRuntime.register(DVNativeBridge.register);
+
+    // Confined to a directory of its own inside the private one, not to the
+    // filesystem root and not to the private directory either. An Android
+    // application can reach a good deal of shared storage, and a binding
+    // that writes wherever it is told is a file-write primitive handed to
+    // whatever can call it -- while the private directory as a whole would
+    // put the device id and the provisioning record inside the confinement.
+    DVFileBindings.register(root, DVNativeBridge.register);
   }
 
   static void unregister() {
@@ -179,6 +269,12 @@ class DVAndroidBindings {
     // registration would reuse a class from a JVM the first one was talking
     // to, which is only ever a test.
     DVAndroidCapture.reset();
+    // The two that hold state of their own. Dropping the handler without
+    // these would leave a watchdog timer running against a process that has
+    // let go of its bindings, and a file root that the next register() would
+    // decline to replace.
+    DVDeviceRuntime.unregister();
+    DVFileBindings.reset();
     _context = null;
     _registered = false;
   }

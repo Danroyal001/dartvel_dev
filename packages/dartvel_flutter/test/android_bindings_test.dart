@@ -68,6 +68,28 @@ void main() {
         'bluetooth.devices',
         'bluetooth.scanDevices',
         'bluetooth.pair',
+        // One sample each, taken by registering a SensorManager listener and
+        // dropping it when the first event lands.
+        'sensors.accelerometer',
+        'sensors.gyroscope',
+        // BiometricManager, a system service like any other. The prompt is
+        // the part still missing, for the reason the absence test states.
+        'biometrics.canAuthenticate',
+        // NotificationManager. This was recorded as needing an Activity; it
+        // does not.
+        'notifications.sendLocal',
+        // The shared device runtime, reading procfs. All six, because four
+        // of six would leave DV.Platform.device half working.
+        'device.capabilityManifest',
+        'device.health',
+        'device.watchdog.arm',
+        'device.watchdog.heartbeat',
+        'device.fleet.provision',
+        'device.diagnostics.collect',
+        // Files, confined to the directory the application owns.
+        'files.readBytes',
+        'files.writeBytes',
+        'files.delete',
       });
     });
 
@@ -99,21 +121,36 @@ void main() {
       expect(DVAndroidBindings.implemented, isNotEmpty);
     });
 
-    test('what needs an Activity is absent', () {
-      // BiometricPrompt attaches to an Activity, and a tag reaches an
-      // application only through foreground dispatch or reader mode, both of
-      // which are Activity callbacks. A Context is not enough, and pretending
-      // otherwise would fail on a device rather than here. Asking whether
-      // there is a reader at all needs no Activity, which is why
-      // nfc.isAvailable is bound and nfc.readTag is not.
+    test('what still has nowhere to land is absent', () {
+      // This list was longer, and two of its entries were on it for a reason
+      // that did not survive being checked. NotificationManager is a system
+      // service on the application Context, not an Activity's; so is
+      // BiometricManager, which is all canAuthenticate needs.
+      //
+      // What is left is genuinely blocked, and not by the Activity either.
+      // BiometricPrompt.authenticate reports its result to an
+      // AuthenticationCallback, which is an abstract class -- jnigen
+      // implements interfaces and cannot subclass one, so the answer has
+      // nowhere to arrive. It needs a Java shim written beside the Context
+      // provider. NFC dispatch really is the Activity's.
       for (final name in <String>[
         'biometrics.authenticate',
-        'biometrics.canAuthenticate',
         'nfc.readTag',
-        'notifications.sendLocal',
       ]) {
         expect(DVAndroidBindings.implemented, isNot(contains(name)));
       }
+    });
+
+    test('a bound name is not a name proven on a device', () {
+      // The header of android_bindings_jni.dart records the case this guards
+      // against: every Android binding looked right, the capability list
+      // claimed them all, and each one was dead in a real application
+      // because the Context behind them came from a symbol with no
+      // definition. This suite never crosses into Java, and a green run here
+      // says the Dart side decided correctly and nothing more.
+      expect(DVAndroidBindings.isRegistered, isFalse,
+          reason: 'this suite does not run on Android and must not pretend '
+              'the JNI calls were exercised');
     });
   });
 
@@ -128,8 +165,13 @@ void main() {
     // returns false off Android and there is no Android here. That is a
     // weaker instrument -- it can only see literals -- and it is the strongest
     // one available on this machine.
+    // `\s*` after the parenthesis, because the name is not always on the same
+    // line as the call. A wrapped `DVNativeBridge.register(\n  'sensors.
+    // accelerometer',` is what the formatter produces once the handler is long
+    // enough, and the first version of this pattern read that as no
+    // registration at all -- so thirteen bindings looked claimed and unwired.
     final RegExp binding = RegExp(
-      r"""(?:DVNativeBridge\.register|bind)\('([a-zA-Z]+\.[a-zA-Z.]+)'""",
+      r"""(?:DVNativeBridge\.)?(?:register|bind)\(\s*'([a-zA-Z]+\.[a-zA-Z.]+)'""",
     );
     final RegExp claimed = RegExp(
       r"""^  '([a-zA-Z]+\.[a-zA-Z.]+)',""",
@@ -138,17 +180,52 @@ void main() {
 
     const String androidDir = 'lib/src/platform/android';
 
+    /// The android directory, plus the shared registrars it hands the bridge
+    /// to.
+    ///
+    /// `device.*` and `files.*` are registered by `device_runtime.dart` and
+    /// `file_bindings.dart`, which sit a directory up because every platform
+    /// with a filesystem or a procfs can use them. Reading only the android
+    /// directory therefore found the claim and never the registration.
+    ///
+    /// Derived from the imports rather than listed, so a registrar added later
+    /// is picked up without anyone remembering to add it here. Only `../`
+    /// imports, which is what a shared sibling looks like from in here, and
+    /// never the package barrel -- that is the bridge itself and re-exports
+    /// every platform, so following it would attribute Linux's printing to
+    /// Android.
+    List<File> androidSources() {
+      final List<File> files = <File>[
+        for (final FileSystemEntity e in Directory(androidDir).listSync())
+          if (e is File &&
+              e.path.endsWith('.dart') &&
+              // Not the capability list itself: its entries are the claim,
+              // and matching them here would make the test compare the list
+              // with itself and pass whatever it said.
+              !e.path.endsWith('android_capabilities.dart'))
+            e,
+      ];
+
+      final RegExp sibling = RegExp(r"""^import '\.\./([a-z_]+\.dart)';""",
+          multiLine: true);
+      final Set<String> shared = <String>{};
+      for (final File file in files) {
+        for (final RegExpMatch m in sibling.allMatches(file.readAsStringSync())) {
+          shared.add(m.group(1)!);
+        }
+      }
+      for (final String name in shared) {
+        final File file = File('lib/src/platform/$name');
+        if (file.existsSync()) files.add(file);
+      }
+      return files;
+    }
+
     Set<String> registeredInSource() {
       final Set<String> found = <String>{};
-      for (final FileSystemEntity entity in Directory(androidDir).listSync()) {
-        if (entity is! File || !entity.path.endsWith('.dart')) continue;
-        // Not the capability list itself: its entries are the claim, and
-        // matching them here would make the test compare the list with
-        // itself and pass whatever it said.
-        if (entity.path.endsWith('android_capabilities.dart')) continue;
-        for (final RegExpMatch m in binding.allMatches(
-          entity.readAsStringSync(),
-        )) {
+      for (final File file in androidSources()) {
+        for (final RegExpMatch m
+            in binding.allMatches(file.readAsStringSync())) {
           found.add(m.group(1)!);
         }
       }
