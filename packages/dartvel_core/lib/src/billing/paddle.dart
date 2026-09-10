@@ -12,7 +12,13 @@ import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
 
-import '../../dartvel.dart' show BillingPlan, Entitlement, DVBillingCheckoutSession, DVBillingProvider;
+import '../../dartvel.dart'
+    show
+        BillingPlan,
+        Entitlement,
+        DVBillingCheckoutSession,
+        DVBillingProvider,
+        DVUsageMeter;
 import 'money.dart';
 import 'stripe.dart' show DVBillingError, DVBillingWebhookResult, DVBillingFetch;
 
@@ -127,6 +133,32 @@ class DVPaddleBillingProvider implements DVBillingProvider {
   @override
   Future<bool> hasEntitlement(Object customer, Entitlement entitlement) async =>
       _grants[customer.toString()]?.contains(entitlement.id) ?? false;
+
+  /// Not implemented for Paddle, and loudly so.
+  ///
+  /// Paddle has no endpoint shaped like Stripe's meter events: metered items
+  /// are billed by adjusting a subscription's item quantities, which needs
+  /// the subscription identifier and a proration decision that this provider
+  /// does not carry. Rather than write that against documentation and never
+  /// run it, the call refuses. Accepting it and returning would be the worst
+  /// version -- an application counting usage that reaches nobody, and an
+  /// invoice quietly short every month.
+  @override
+  Future<void> recordUsage({
+    required Object customer,
+    required DVUsageMeter meter,
+    required int quantity,
+    required String idempotencyKey,
+    DateTime? at,
+  }) async {
+    throw UnsupportedError(
+      'Dartvel does not report usage to Paddle. Paddle bills metered items '
+      'by adjusting subscription item quantities rather than by recording '
+      'meter events, and that path is unimplemented here. Use Stripe for '
+      'usage-based billing, or update the quantities through Paddle '
+      'directly.',
+    );
+  }
 
   Map<String, Set<String>> get grants => Map<String, Set<String>>.unmodifiable(
         <String, Set<String>>{

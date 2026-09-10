@@ -21,7 +21,13 @@ import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
 
-import '../../dartvel.dart' show BillingPlan, Entitlement, DVBillingCheckoutSession, DVBillingProvider;
+import '../../dartvel.dart'
+    show
+        BillingPlan,
+        Entitlement,
+        DVBillingCheckoutSession,
+        DVBillingProvider,
+        DVUsageMeter;
 import 'money.dart';
 
 /// A billing operation that could not proceed, with a message safe to show.
@@ -74,6 +80,7 @@ class DVStripeBillingProvider implements DVBillingProvider {
     required this.entitlements,
     required this.successUrl,
     required this.cancelUrl,
+    this.meters = const <String, String>{},
     DVBillingFetch? fetch,
     DateTime Function()? clock,
     this.tolerance = const Duration(minutes: 5),
@@ -92,6 +99,14 @@ class DVStripeBillingProvider implements DVBillingProvider {
 
   /// Stripe price id to the entitlements a subscription to it grants.
   final Map<String, Set<Entitlement>> entitlements;
+
+  /// Meter id to the Stripe billing meter's `event_name`.
+  ///
+  /// Empty by default, which is why recording against a meter that is not in
+  /// here is an error rather than a no-op: an application counting usage
+  /// nobody configured would otherwise bill for none of it, quietly, until
+  /// somebody read an invoice closely.
+  final Map<String, String> meters;
 
   final Uri successUrl;
   final Uri cancelUrl;
@@ -195,6 +210,50 @@ class DVStripeBillingProvider implements DVBillingProvider {
 
   static bool _isCurrencyCode(String value) =>
       RegExp(r'^[A-Za-z]{3}$').hasMatch(value);
+
+  @override
+  Future<void> recordUsage({
+    required Object customer,
+    required DVUsageMeter meter,
+    required int quantity,
+    required String idempotencyKey,
+    DateTime? at,
+  }) async {
+    final String? eventName = meters[meter.id];
+    if (eventName == null) {
+      throw DVBillingError(
+        'Meter "${meter.id}" has no Stripe event name configured, so this '
+        'usage would be counted by the application and billed by nobody. '
+        'Add it to the provider meters map.',
+      );
+    }
+    if (quantity <= 0) {
+      throw ArgumentError.value(
+        quantity,
+        'quantity',
+        'usage is something that happened, so it is a positive number',
+      );
+    }
+
+    final DateTime when = (at ?? _clock()).toUtc();
+    // Stripe counts one event per identifier, so the caller's key is what
+    // makes a redelivered job harmless rather than expensive.
+    final Map<String, String> form = <String, String>{
+      'event_name': eventName,
+      'identifier': idempotencyKey,
+      'timestamp': '${when.millisecondsSinceEpoch ~/ 1000}',
+      'payload[stripe_customer_id]': customer.toString(),
+      'payload[value]': '$quantity',
+    };
+    await _request(
+      'POST',
+      '/v1/billing/meter_events',
+      form.entries
+          .map((MapEntry<String, String> e) =>
+              '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}')
+          .join('&'),
+    );
+  }
 
   @override
   Future<bool> hasEntitlement(Object customer, Entitlement entitlement) async =>
