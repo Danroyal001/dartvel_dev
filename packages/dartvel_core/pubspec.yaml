@@ -12,6 +12,13 @@ environment:
   # 3.12 is what dartvel_mix pins; 3.9 is only what code_assets needs.
   sdk: ">=3.12.0 <4.0.0"
 dependencies:
+  # For @visibleForTesting on DVFieldCipher.
+  #
+  # Analysis resolved it transitively and said nothing; `dart pub publish`
+  # refuses, because a consumer of the published package gets whatever meta
+  # their own resolution picks rather than whatever happened to be in this
+  # workspace. It is the one check that sees the package as a stranger does.
+  meta: ^1.12.0
   async: ^2.13.1
   crypto: ^3.0.7
   http: ^1.6.0
