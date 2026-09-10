@@ -1219,6 +1219,28 @@ class Entitlement {
   static const analytics = Entitlement('analytics');
 }
 
+/// Something an application counts and a provider bills for.
+///
+/// The meter is the application's name for the thing -- `api_calls`,
+/// `seats`, `minutes_transcribed`. What the provider calls it is provider
+/// configuration, the same way a plan's price identifier is, so a meter can
+/// be referred to from application code without the code knowing which
+/// billing account it ends up in.
+class DVUsageMeter {
+  const DVUsageMeter(this.id);
+
+  final String id;
+
+  @override
+  bool operator ==(Object other) => other is DVUsageMeter && other.id == id;
+
+  @override
+  int get hashCode => id.hashCode;
+
+  @override
+  String toString() => 'DVUsageMeter($id)';
+}
+
 class DVBillingCheckoutSession {
   final String id;
   final BillingPlan plan;
@@ -1242,6 +1264,25 @@ abstract class DVBillingProvider {
   });
 
   Future<bool> hasEntitlement(Object customer, Entitlement entitlement);
+
+  /// Records [quantity] against [meter] for [customer].
+  ///
+  /// [idempotencyKey] identifies this record and is required. Usage is
+  /// reported from jobs and queues, which redeliver, and a provider counts
+  /// one record per identifier: without one, the ordinary retry doubles
+  /// somebody's bill. There is no default worth having, because a generated
+  /// key differs on the redelivery and is the value that breaks it.
+  ///
+  /// [at] is when the usage happened, defaulting to now. It matters when a
+  /// record is written late: usage that crosses a billing period lands in
+  /// whichever period its timestamp says.
+  Future<void> recordUsage({
+    required Object customer,
+    required DVUsageMeter meter,
+    required int quantity,
+    required String idempotencyKey,
+    DateTime? at,
+  });
 }
 
 class DVLocalBillingProvider implements DVBillingProvider {
@@ -1289,6 +1330,45 @@ class DVLocalBillingProvider implements DVBillingProvider {
   Future<bool> hasEntitlement(Object customer, Entitlement entitlement) async {
     return _grants[_customerKey(customer)]?.contains(entitlement.id) ?? false;
   }
+
+  @override
+  Future<void> recordUsage({
+    required Object customer,
+    required DVUsageMeter meter,
+    required int quantity,
+    required String idempotencyKey,
+    DateTime? at,
+  }) async {
+    if (quantity <= 0) {
+      throw ArgumentError.value(
+        quantity,
+        'quantity',
+        'usage is something that happened, so it is a positive number. A '
+            'negative record reduces a bill while reading like a measurement',
+      );
+    }
+    // The local provider dedupes for the same reason a real one does: this
+    // is what a test runs against, and a double count that only shows up in
+    // production is the one nobody catches.
+    if (!_usageSeen.add(idempotencyKey)) return;
+    final Map<String, int> meters =
+        _usage.putIfAbsent(_customerKey(customer), () => <String, int>{});
+    meters[meter.id] = (meters[meter.id] ?? 0) + quantity;
+  }
+
+  /// What [customer] has run up against [meter], zero if nothing.
+  int usage(Object customer, DVUsageMeter meter) =>
+      _usage[_customerKey(customer)]?[meter.id] ?? 0;
+
+  /// Every meter's running total, by customer.
+  Map<String, Map<String, int>> get usageLedger =>
+      Map<String, Map<String, int>>.unmodifiable(<String, Map<String, int>>{
+        for (final MapEntry<String, Map<String, int>> e in _usage.entries)
+          e.key: Map<String, int>.unmodifiable(e.value),
+      });
+
+  final Map<String, Map<String, int>> _usage = <String, Map<String, int>>{};
+  final Set<String> _usageSeen = <String>{};
 
   /// Identity, not hash. Keying grants by `customer.hashCode` meant two
   /// customers whose hashes collided shared entitlements — one paying for a
