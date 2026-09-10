@@ -103,33 +103,81 @@ class DVPaddleBillingProvider implements DVBillingProvider {
   /// amount that is not what Paddle documents means the response is not the
   /// one this code was written against.
   Future<void> _assertPriceAgrees(BillingPlan plan, String priceId) async {
-    if (plan.priceMinorUnits == 0) return;
-    final DVMoney declared =
-        DVMoney(amount: plan.priceMinorUnits, currency: plan.currency);
+    // Nothing declared, nothing to compare, no request.
+    if (plan.priceMinorUnits == 0 && plan.trialDays == 0) return;
 
     final Map<String, Object?> json = await _get('/prices/$priceId');
     final Object? data = json['data'];
-    final Object? unit = data is Map ? data['unit_price'] : null;
-    final int? amount =
-        unit is Map ? int.tryParse('${unit['amount'] ?? ''}') : null;
-    final Object? currency = unit is Map ? unit['currency_code'] : null;
-    if (amount == null ||
-        amount < 0 ||
-        currency is! String ||
-        !RegExp(r'^[A-Za-z]{3}$').hasMatch(currency)) {
-      throw DVBillingError(
-        'Plan "${plan.id}" declares $declared, and Paddle price $priceId '
-        'reports no unit amount to compare it against.',
-      );
+
+    if (plan.priceMinorUnits > 0) {
+      final DVMoney declared =
+          DVMoney(amount: plan.priceMinorUnits, currency: plan.currency);
+      final Object? unit = data is Map ? data['unit_price'] : null;
+      final int? amount =
+          unit is Map ? int.tryParse('${unit['amount'] ?? ''}') : null;
+      final Object? currency = unit is Map ? unit['currency_code'] : null;
+      if (amount == null ||
+          amount < 0 ||
+          currency is! String ||
+          !RegExp(r'^[A-Za-z]{3}$').hasMatch(currency)) {
+        throw DVBillingError(
+          'Plan "${plan.id}" declares $declared, and Paddle price $priceId '
+          'reports no unit amount to compare it against.',
+        );
+      }
+
+      final DVMoney charged = DVMoney(amount: amount, currency: currency);
+      if (charged != declared) {
+        throw DVBillingError(
+          'Plan "${plan.id}" declares $declared and Paddle price $priceId '
+          'charges $charged. No transaction was created, because the '
+          'customer would have been shown one number and billed another.',
+        );
+      }
     }
 
-    final DVMoney charged = DVMoney(amount: amount, currency: currency);
-    if (charged != declared) {
+    _assertTrialAgrees(plan, priceId, data is Map ? data['trial_period'] : null);
+  }
+
+  /// Paddle keeps a trial on the price, so there is nothing to send with a
+  /// transaction and checking is the only reading of `trialDays` there is.
+  ///
+  /// Both directions are wrong and only one of them complains. A plan that
+  /// promises a fortnight against a price with no trial charges on day one,
+  /// and the customer says so. A price with a trial nobody declared gives
+  /// away a week per signup, quietly, forever.
+  void _assertTrialAgrees(BillingPlan plan, String priceId, Object? trial) {
+    final int? configured = _trialDays(trial);
+    if (configured == plan.trialDays) return;
+    if (configured == null) {
       throw DVBillingError(
-        'Plan "${plan.id}" declares $declared and Paddle price $priceId '
-        'charges $charged. No transaction was created, because the customer '
-        'would have been shown one number and billed another.',
+        'Plan "${plan.id}" declares a ${plan.trialDays}-day trial and Paddle '
+        'price $priceId has a trial this cannot count in days -- a month is '
+        'not a fixed number of them. Express the trial in days or weeks, or '
+        'set the trial on the plan to 0 and let Paddle own it.',
       );
+    }
+    throw DVBillingError(
+      'Plan "${plan.id}" declares a ${plan.trialDays}-day trial and Paddle '
+      'price $priceId gives $configured. No transaction was created: one of '
+      'these is what a customer was promised and the other is what they get.',
+    );
+  }
+
+  /// A Paddle trial period in days, 0 for none, null when it is measured in
+  /// something that is not a fixed number of days.
+  static int? _trialDays(Object? trial) {
+    if (trial == null) return 0;
+    if (trial is! Map) return null;
+    final int? frequency = int.tryParse('${trial['frequency'] ?? ''}');
+    if (frequency == null) return null;
+    switch ('${trial['interval'] ?? ''}') {
+      case 'day':
+        return frequency;
+      case 'week':
+        return frequency * 7;
+      default:
+        return null;
     }
   }
 
