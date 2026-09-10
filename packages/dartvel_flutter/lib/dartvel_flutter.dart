@@ -310,6 +310,7 @@ export 'package:dartvel_core/dartvel.dart'
         DVShellResultFuture,
         DVTestHarness,
         DVLocalBillingProvider,
+        DVUsageMeter,
         Entitlement,
         LocalAnalyticsProvider,
         formControlsFactories,
@@ -5603,6 +5604,30 @@ class DVBilling {
 
   Future<bool> hasEntitlement(Object customer, Entitlement entitlement) {
     return _configuredProvider.hasEntitlement(customer, entitlement);
+  }
+
+  /// Records [quantity] against [meter] for [customer].
+  ///
+  /// [idempotencyKey] is required, and the reason is worth repeating here
+  /// because this is where application code calls it from: usage is reported
+  /// from jobs, jobs are redelivered, and a provider counts one record per
+  /// identifier. A key derived from the work -- the job id, the request id,
+  /// the row being charged for -- is the same on the retry. A fresh one
+  /// every call bills twice.
+  Future<void> recordUsage({
+    required Object customer,
+    required DVUsageMeter meter,
+    required int quantity,
+    required String idempotencyKey,
+    DateTime? at,
+  }) {
+    return _configuredProvider.recordUsage(
+      customer: customer,
+      meter: meter,
+      quantity: quantity,
+      idempotencyKey: idempotencyKey,
+      at: at,
+    );
   }
 
   void grantLocalEntitlement(Object customer, Entitlement entitlement) {
