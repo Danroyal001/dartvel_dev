@@ -37,16 +37,27 @@ String subscriptionEvent({required String type, required String status, String c
     });
 
 void main() {
-  late List<(Uri, Map<String, String>, String)> requests;
+  late List<(Uri, Map<String, String>, String?)> requests;
 
   DVPaddleBillingProvider provider({Map<String, (int, String)> responses = const <String, (int, String)>{}, DateTime? now}) {
-    requests = <(Uri, Map<String, String>, String)>[];
+    requests = <(Uri, Map<String, String>, String?)>[];
+    // Checkout reads the price before creating a transaction, so a working
+    // Paddle answers for it. billing_declared_price_test.dart is where that
+    // check is the subject; here it is fixture.
+    responses = <String, (int, String)>{
+      '/prices/pri_pro': (
+        200,
+        '{"data":{"id":"pri_pro","unit_price":{"amount":"4000","currency_code":"USD"}}}'
+      ),
+      ...responses,
+    };
     return DVPaddleBillingProvider(
       apiKey: 'pdl_live_apikey',
       webhookSecret: 'pdl_ntf_secret',
       prices: <String, String>{'pro': 'pri_pro'},
       entitlements: <String, Set<Entitlement>>{'pri_pro': <Entitlement>{Entitlement.analytics}},
-      fetch: (Uri url, Map<String, String> headers, String body) async {
+      fetch: (String method, Uri url, Map<String, String> headers,
+          String? body) async {
         requests.add((url, headers, body));
         return responses[url.path] ?? (404, '{"error":{"detail":"no"}}');
       },
@@ -64,11 +75,12 @@ void main() {
 
       expect(s.id, 'txn_1');
       expect(s.checkoutUrl, Uri.parse('https://pay.example/txn_1'));
-      final (Uri url, Map<String, String> headers, String body) = requests.single;
+      final (Uri url, Map<String, String> headers, String? body) =
+          requests.last;
       expect(url.host, 'api.paddle.com');
       expect(headers['Authorization'], 'Bearer pdl_live_apikey');
       expect(headers['Content-Type'], contains('application/json'));
-      final Map<String, Object?> sent = jsonDecode(body) as Map<String, Object?>;
+      final Map<String, Object?> sent = jsonDecode(body!) as Map<String, Object?>;
       expect((sent['items'] as List).single, <String, Object?>{'price_id': 'pri_pro', 'quantity': 1});
       expect((sent['custom_data'] as Map)['customer'], 'user_7');
     });
@@ -79,8 +91,15 @@ void main() {
         webhookSecret: 's',
         prices: <String, String>{'pro': 'pri_pro'},
         entitlements: const <String, Set<Entitlement>>{},
-        fetch: (Uri url, Map<String, String> h, String b) async {
+        fetch: (String method, Uri url, Map<String, String> h,
+            String? b) async {
           expect(url.host, 'sandbox-api.paddle.com');
+          if (url.path == '/prices/pri_pro') {
+            return (
+              200,
+              '{"data":{"id":"pri_pro","unit_price":{"amount":"4000","currency_code":"USD"}}}'
+            );
+          }
           return (201, '{"data":{"id":"txn_1"}}');
         },
       );

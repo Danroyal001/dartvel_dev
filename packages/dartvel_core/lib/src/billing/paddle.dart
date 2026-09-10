@@ -12,18 +12,28 @@ import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
 
-import '../../dartvel.dart' show BillingPlan, Entitlement, DVBillingCheckoutSession, DVBillingProvider;
-import 'stripe.dart' show DVBillingError, DVBillingWebhookResult, DVStripeFetch;
+import '../../dartvel.dart'
+    show
+        BillingPlan,
+        Entitlement,
+        DVBillingCheckoutSession,
+        DVBillingProvider,
+        DVUsageMeter,
+        dvBillingCustomerKey;
+import 'invoice.dart';
+import 'money.dart';
+import 'webhooks.dart';
 
 /// Paddle Billing (the v2 API) for subscriptions, with entitlements kept
 /// from webhooks.
-class DVPaddleBillingProvider implements DVBillingProvider {
+class DVPaddleBillingProvider
+    implements DVBillingProvider, DVBillingWebhookReceiver {
   DVPaddleBillingProvider({
     required String apiKey,
     required String webhookSecret,
     required this.prices,
     required this.entitlements,
-    DVStripeFetch? fetch,
+    DVBillingFetch? fetch,
     DateTime Function()? clock,
     this.tolerance = const Duration(minutes: 5),
   })  : _apiKey = apiKey,
@@ -33,7 +43,7 @@ class DVPaddleBillingProvider implements DVBillingProvider {
 
   final String _apiKey;
   final String _webhookSecret;
-  final DVStripeFetch _fetch;
+  final DVBillingFetch _fetch;
   final DateTime Function() _clock;
 
   /// Plan id to Paddle price id.
@@ -45,7 +55,11 @@ class DVPaddleBillingProvider implements DVBillingProvider {
 
   final Map<String, Set<String>> _grants = <String, Set<String>>{};
 
-  static Future<(int, String)> _noNetwork(Uri u, Map<String, String> h, String b) =>
+  /// When the newest applied event happened, by subscription id.
+  final Map<String, DateTime> _appliedAt = <String, DateTime>{};
+
+  static Future<(int, String)> _noNetwork(
+          String m, Uri u, Map<String, String> h, String? b) =>
       throw const DVBillingError('No HTTP transport was configured for Paddle.');
 
   /// Sandbox keys talk to the sandbox. Decided from the key rather than a
@@ -62,11 +76,12 @@ class DVPaddleBillingProvider implements DVBillingProvider {
     if (price == null) {
       throw DVBillingError('Plan "${plan.id}" has no Paddle price configured.');
     }
+    await _assertPriceAgrees(plan, price);
     final Map<String, Object?> json = await _post('/transactions', <String, Object?>{
       'items': <Object?>[
         <String, Object?>{'price_id': price, 'quantity': 1},
       ],
-      'custom_data': <String, Object?>{'customer': customer.toString()},
+      'custom_data': <String, Object?>{'customer': dvBillingCustomerKey(customer)},
     });
     final Object? data = json['data'];
     final Map<Object?, Object?> txn = data is Map ? data : const <Object?, Object?>{};
@@ -81,9 +96,123 @@ class DVPaddleBillingProvider implements DVBillingProvider {
     );
   }
 
+  /// Refuses a checkout when Paddle would charge something other than what
+  /// the plan says it costs.
+  ///
+  /// Same reason as Stripe's, with one Paddle detail worth naming: the
+  /// amount comes back as a string of minor units, not a number, so parsing
+  /// it is the check. A quantity like "40.00" would parse as null here
+  /// rather than as forty, and the refusal that follows is right -- an
+  /// amount that is not what Paddle documents means the response is not the
+  /// one this code was written against.
+  Future<void> _assertPriceAgrees(BillingPlan plan, String priceId) async {
+    // Nothing declared, nothing to compare, no request.
+    if (plan.priceMinorUnits == 0 && plan.trialDays == 0) return;
+
+    final Map<String, Object?> json = await _get('/prices/$priceId');
+    final Object? data = json['data'];
+
+    if (plan.priceMinorUnits > 0) {
+      final DVMoney declared =
+          DVMoney(amount: plan.priceMinorUnits, currency: plan.currency);
+      final Object? unit = data is Map ? data['unit_price'] : null;
+      final int? amount =
+          unit is Map ? int.tryParse('${unit['amount'] ?? ''}') : null;
+      final Object? currency = unit is Map ? unit['currency_code'] : null;
+      if (amount == null ||
+          amount < 0 ||
+          currency is! String ||
+          !RegExp(r'^[A-Za-z]{3}$').hasMatch(currency)) {
+        throw DVBillingError(
+          'Plan "${plan.id}" declares $declared, and Paddle price $priceId '
+          'reports no unit amount to compare it against.',
+        );
+      }
+
+      final DVMoney charged = DVMoney(amount: amount, currency: currency);
+      if (charged != declared) {
+        throw DVBillingError(
+          'Plan "${plan.id}" declares $declared and Paddle price $priceId '
+          'charges $charged. No transaction was created, because the '
+          'customer would have been shown one number and billed another.',
+        );
+      }
+    }
+
+    _assertTrialAgrees(plan, priceId, data is Map ? data['trial_period'] : null);
+  }
+
+  /// Paddle keeps a trial on the price, so there is nothing to send with a
+  /// transaction and checking is the only reading of `trialDays` there is.
+  ///
+  /// Both directions are wrong and only one of them complains. A plan that
+  /// promises a fortnight against a price with no trial charges on day one,
+  /// and the customer says so. A price with a trial nobody declared gives
+  /// away a week per signup, quietly, forever.
+  void _assertTrialAgrees(BillingPlan plan, String priceId, Object? trial) {
+    final int? configured = _trialDays(trial);
+    if (configured == plan.trialDays) return;
+    if (configured == null) {
+      throw DVBillingError(
+        'Plan "${plan.id}" declares a ${plan.trialDays}-day trial and Paddle '
+        'price $priceId has a trial this cannot count in days -- a month is '
+        'not a fixed number of them. Express the trial in days or weeks, or '
+        'set the trial on the plan to 0 and let Paddle own it.',
+      );
+    }
+    throw DVBillingError(
+      'Plan "${plan.id}" declares a ${plan.trialDays}-day trial and Paddle '
+      'price $priceId gives $configured. No transaction was created: one of '
+      'these is what a customer was promised and the other is what they get.',
+    );
+  }
+
+  /// A Paddle trial period in days, 0 for none, null when it is measured in
+  /// something that is not a fixed number of days.
+  static int? _trialDays(Object? trial) {
+    if (trial == null) return 0;
+    if (trial is! Map) return null;
+    final int? frequency = int.tryParse('${trial['frequency'] ?? ''}');
+    if (frequency == null) return null;
+    switch ('${trial['interval'] ?? ''}') {
+      case 'day':
+        return frequency;
+      case 'week':
+        return frequency * 7;
+      default:
+        return null;
+    }
+  }
+
   @override
   Future<bool> hasEntitlement(Object customer, Entitlement entitlement) async =>
-      _grants[customer.toString()]?.contains(entitlement.id) ?? false;
+      _grants[dvBillingCustomerKey(customer)]?.contains(entitlement.id) ?? false;
+
+  /// Not implemented for Paddle, and loudly so.
+  ///
+  /// Paddle has no endpoint shaped like Stripe's meter events: metered items
+  /// are billed by adjusting a subscription's item quantities, which needs
+  /// the subscription identifier and a proration decision that this provider
+  /// does not carry. Rather than write that against documentation and never
+  /// run it, the call refuses. Accepting it and returning would be the worst
+  /// version -- an application counting usage that reaches nobody, and an
+  /// invoice quietly short every month.
+  @override
+  Future<void> recordUsage({
+    required Object customer,
+    required DVUsageMeter meter,
+    required int quantity,
+    required String idempotencyKey,
+    DateTime? at,
+  }) async {
+    throw UnsupportedError(
+      'Dartvel does not report usage to Paddle. Paddle bills metered items '
+      'by adjusting subscription item quantities rather than by recording '
+      'meter events, and that path is unimplemented here. Use Stripe for '
+      'usage-based billing, or update the quantities through Paddle '
+      'directly.',
+    );
+  }
 
   Map<String, Set<String>> get grants => Map<String, Set<String>>.unmodifiable(
         <String, Set<String>>{
@@ -93,6 +222,90 @@ class DVPaddleBillingProvider implements DVBillingProvider {
       );
 
   /// Verifies and applies a webhook. [signatureHeader] is `Paddle-Signature`.
+  /// Paddle's transactions are its invoices.
+  ///
+  /// There is no separate invoice resource: a completed transaction is what
+  /// a customer sees a receipt for, and the invoice number lives on it. The
+  /// PDF is behind a second request per transaction, so it is left null
+  /// rather than fetched for a list nobody may open.
+  @override
+  Future<List<DVInvoice>> invoices(Object customer, {int limit = 20}) async {
+    final String id = dvBillingCustomerKey(customer);
+    final Map<String, Object?> json = await _request(
+      'GET',
+      '/transactions',
+      null,
+      <String, String>{'customer_id': id, 'per_page': '$limit'},
+    );
+    final Object? rows = json['data'];
+    if (rows is! List) {
+      throw const DVBillingError('Paddle answered with no transaction list.');
+    }
+
+    final List<DVInvoice> invoices = <DVInvoice>[];
+    for (final Object? row in rows) {
+      if (row is! Map) continue;
+      // Filtered at Paddle, so anything else here means the filter did not
+      // apply and this customer is looking at another one's history.
+      if ('${row['customer_id'] ?? ''}' != id) continue;
+
+      final Object? details = row['details'];
+      final Object? totals = details is Map ? details['totals'] : null;
+      final int? total =
+          totals is Map ? int.tryParse('${totals['total'] ?? ''}') : null;
+      final Object? currency = totals is Map ? totals['currency_code'] : null;
+      if (total == null ||
+          total < 0 ||
+          currency is! String ||
+          !RegExp(r'^[A-Za-z]{3}$').hasMatch(currency)) {
+        throw DVBillingError(
+          'Paddle transaction ${row['id']} carries no total and currency '
+          'this can read.',
+        );
+      }
+
+      invoices.add(DVInvoice(
+        id: '${row['id'] ?? ''}',
+        number: row['invoice_number'] is String
+            ? row['invoice_number'] as String
+            : null,
+        total: DVMoney(amount: total, currency: currency),
+        status: _invoiceStatus('${row['status'] ?? ''}'),
+        createdAt: DateTime.tryParse('${row['billed_at'] ?? ''}')?.toUtc() ??
+            DateTime.tryParse('${row['created_at'] ?? ''}')?.toUtc() ??
+            _clock().toUtc(),
+      ));
+    }
+    return invoices;
+  }
+
+  /// Paddle's transaction statuses, and nothing else.
+  ///
+  /// Anything unrecognised is [DVInvoiceStatus.unknown]. Paddle adds states,
+  /// and reading a new one as paid turns a bill nobody has settled into one
+  /// nobody chases.
+  static DVInvoiceStatus _invoiceStatus(String status) {
+    switch (status) {
+      case 'draft':
+        return DVInvoiceStatus.draft;
+      case 'ready':
+      case 'billed':
+        return DVInvoiceStatus.open;
+      case 'completed':
+        return DVInvoiceStatus.paid;
+      case 'past_due':
+        return DVInvoiceStatus.uncollectible;
+      case 'canceled':
+        return DVInvoiceStatus.voided;
+      default:
+        return DVInvoiceStatus.unknown;
+    }
+  }
+
+  @override
+  String get signatureHeaderName => 'Paddle-Signature';
+
+  @override
   Future<DVBillingWebhookResult> handleWebhook(String payload, String signatureHeader) async {
     _verify(payload, signatureHeader);
 
@@ -105,6 +318,8 @@ class DVPaddleBillingProvider implements DVBillingProvider {
     if (decoded is! Map) throw const DVBillingError('The webhook payload is not an event.');
     final String type = '${decoded['event_type'] ?? ''}';
     final Object? data = decoded['data'];
+    final DateTime? occurredAt =
+        DateTime.tryParse('${decoded['occurred_at'] ?? ''}')?.toUtc();
 
     switch (type) {
       case 'subscription.activated':
@@ -114,15 +329,35 @@ class DVPaddleBillingProvider implements DVBillingProvider {
       case 'subscription.paused':
       case 'subscription.past_due':
         if (data is! Map) throw DVBillingError('A $type event carried no subscription.');
-        return _apply(type, data);
+        return _apply(type, data, occurredAt);
       default:
         return DVBillingWebhookResult(type: type, handled: false);
     }
   }
 
-  DVBillingWebhookResult _apply(String type, Map<Object?, Object?> sub) {
+  DVBillingWebhookResult _apply(
+      String type, Map<Object?, Object?> sub, DateTime? occurredAt) {
     final String customer = '${sub['customer_id'] ?? ''}';
     final String status = '${sub['status'] ?? ''}';
+
+    // Paddle retries a delivery it did not get a 200 for, so a notification
+    // that failed lands behind whatever was sent while it was failing. In
+    // arrival order that hands a cancelled customer their entitlement back,
+    // and nothing about it looks wrong: the signature is valid, the payload
+    // is real, the endpoint answers 200.
+    final String subscriptionKey = '${sub['id'] ?? customer}';
+    if (occurredAt != null) {
+      final DateTime? applied = _appliedAt[subscriptionKey];
+      if (applied != null && occurredAt.isBefore(applied)) {
+        return DVBillingWebhookResult(
+          type: type,
+          handled: false,
+          stale: true,
+          customer: customer,
+        );
+      }
+      _appliedAt[subscriptionKey] = occurredAt;
+    }
     final Set<Entitlement> forPrices = <Entitlement>{};
     final Object? items = sub['items'];
     if (items is List) {
@@ -188,14 +423,22 @@ class DVPaddleBillingProvider implements DVBillingProvider {
     return diff == 0;
   }
 
-  Future<Map<String, Object?>> _post(String path, Map<String, Object?> body) async {
+  Future<Map<String, Object?>> _post(String path, Map<String, Object?> body) =>
+      _request('POST', path, jsonEncode(body));
+
+  Future<Map<String, Object?>> _get(String path) => _request('GET', path, null);
+
+  Future<Map<String, Object?>> _request(String method, String path,
+      String? body, [Map<String, String>? query]) async {
+    final Map<String, String> headers = <String, String>{
+      'Authorization': 'Bearer $_apiKey',
+    };
+    if (body != null) headers['Content-Type'] = 'application/json';
     final (int status, String responseBody) = await _fetch(
-      Uri.https(_host, path),
-      <String, String>{
-        'Authorization': 'Bearer $_apiKey',
-        'Content-Type': 'application/json',
-      },
-      jsonEncode(body),
+      method,
+      Uri.https(_host, path, query),
+      headers,
+      body,
     );
     if (status == 401 || status == 403) {
       throw const DVBillingError('Paddle refused the API key. Check it is a live or '
