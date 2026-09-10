@@ -13,6 +13,7 @@
 // handed white.
 import 'package:flutter/material.dart';
 import '../dartvel_client/dartvel_client.dart';
+import 'record.dart';
 
 /// The palette, resolved for whichever brightness is in effect.
 ///
@@ -471,3 +472,109 @@ Widget _externalLink(BuildContext context, String label, String url) =>
           .fontWeight(FontWeight.w600)
           .color(Palette.of(context).accent)),
     );
+
+/// A feature record, drawn as the two things it says rather than one block.
+///
+/// The text arrives as a single string, which is how spec-status.json holds it
+/// and how the cards drew it: one paragraph, with "Present:" and "Absent:"
+/// inside it as words. Trimming the records made that wall shorter without
+/// making it a shape -- no paragraph breaks, and the two halves a reader most
+/// wants to tell apart distinguished only by punctuation in the middle of a
+/// line.
+///
+/// So it is parsed and laid out. Paragraphs where there were sentences, and
+/// where a record says both, a heading over each half.
+///
+/// The headings are level 3 because the area above them is level 2 and the
+/// page title is level 1. Skipping to a paragraph would leave a reader moving
+/// by heading with no way into the half of a card they came for, and the
+/// features page is a page people arrive at with one question.
+@DVFunctionalWidget()
+Widget _siteRecord(BuildContext context, {required String body}) {
+  final Palette palette = Palette.of(context);
+  final SiteRecordParts parts = siteRecordParts(body);
+  final bool labelled = parts.absent.isNotEmpty;
+  final int total = parts.present.length + parts.absent.length;
+
+  final DVModifier prose = const DVModifier()
+      .fontSize(15)
+      // 1.65 rather than 1.6: at fifteen points these run long, and the extra
+      // is the difference between lines a reader tracks and lines they lose
+      // their place in.
+      .lineHeight(1.65);
+
+  // Whole already. A record of one paragraph with nothing withheld should not
+  // be offered a control that opens nothing.
+  if (total <= 1 && !labelled) {
+    return DVText(parts.present.isEmpty ? body : parts.present.first)
+        .modifier(prose.color(palette.muted));
+  }
+
+  // Folded, still. The records are data, they grew to six thousand characters
+  // once already, and a card twenty-five times the height of the one beside
+  // it stops the page being a comparison. What changed is what gets folded:
+  // paragraphs and their headings rather than one run of text.
+  final DVSignal<bool> open = context.signal(false);
+  final bool showAll = open.value;
+
+  final List<Widget> children = <Widget>[];
+
+  if (labelled) {
+    children.add(const SiteRecordLabel(text: 'Built', tone: 'accent'));
+  }
+  if (showAll) {
+    for (final String paragraph in parts.present) {
+      children.add(DVText(paragraph).modifier(prose.color(palette.muted)));
+    }
+  } else {
+    // The opening, clipped to four lines. A paragraph is up to two hundred
+    // and eighty characters, which in one column on a phone is seven lines
+    // and a card too tall to compare with the one beside it -- so the fold
+    // bounds the height as well as choosing where to stop.
+    children.add(DVText(parts.present.first).modifier(prose
+        .color(palette.muted)
+        .maxLines(kSiteFoldedLines)
+        .overflow(TextOverflow.ellipsis)));
+  }
+
+  if (labelled && showAll) {
+    children.add(const SiteRecordLabel(text: 'Not yet', tone: 'muted'));
+    for (final String paragraph in parts.absent) {
+      children.add(DVText(paragraph).modifier(prose.color(palette.muted)));
+    }
+  }
+
+  children.add(DVText(showAll ? 'Show less' : 'Read the whole record').modifier(
+      const DVModifier()
+          .fontSize(13)
+          .fontWeight(FontWeight.w600)
+          .color(palette.accent)
+          // A button, and announced as one. It is text that does something,
+          // which is the thing a screen reader has no way to guess.
+          .semanticButton()
+          .onTap(() => open.value = !open.value)));
+
+  // Ten between paragraphs. Enough that a break reads as a break at fifteen
+  // points and 1.65, and not so much that a card becomes a list of unrelated
+  // sentences.
+  return DVBox.list(children, spacing: 10);
+}
+
+/// The small heading over half a record.
+@DVFunctionalWidget()
+Widget _siteRecordLabel(BuildContext context,
+    {required String text, required String tone}) {
+  final Palette palette = Palette.of(context);
+  // A local, because a functional widget's parameters become fields and a
+  // field does not promote -- the conditional has to read something the
+  // compiler can see is not going to change under it.
+  final String which = tone;
+  return DVText(text).modifier(const DVModifier()
+      .fontSize(12)
+      .fontWeight(FontWeight.w700)
+      // Wide, because it is two or three words set small and the spacing is
+      // what makes it read as a label rather than as a very short sentence.
+      .letterSpacing(0.8)
+      .color(which == 'accent' ? palette.accent : palette.muted)
+      .semanticHeading(3));
+}
