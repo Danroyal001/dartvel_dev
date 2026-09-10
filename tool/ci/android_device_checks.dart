@@ -163,6 +163,18 @@ Future<void> main(List<String> arguments) async {
   await _step('tap links on the device', failures,
       () => _flutterTest('integration_test/link_navigation_test.dart'));
 
+  // What the bindings do on a real JNI, which is the only place the question
+  // can be asked. Every Android binding was dead for months behind a
+  // `GetApplicationContext()` that package:jni declares and does not define,
+  // and nothing here noticed: the capability set listed them, the unit suite
+  // was green, and the failure was an "undefined symbol" on a phone.
+  //
+  // Run here rather than after the reinstall below, so the one reinstall
+  // covers both integration tests -- `flutter test` uninstalls the package
+  // when it finishes, and the device-owner work further down needs it back.
+  await _step('the bindings answer on the device', failures,
+      () => _flutterTest('integration_test/native_bindings_test.dart'));
+
   // Put the application back before asking the device anything about it.
   //
   // This is the bug, and it took three checks to find because every one of
