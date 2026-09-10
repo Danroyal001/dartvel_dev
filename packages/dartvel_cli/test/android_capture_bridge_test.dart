@@ -26,13 +26,46 @@ const String _manifest = '''
 
 void main() {
   group('what pubspec asks for', () {
-    test('an application that asks for nothing declares nothing', () {
+    test('an application that asks for nothing declares nothing of its own',
+        () {
       // The manifest of a torch application should not mention contacts.
       final String out = dvAndroidCaptureManifest(_manifest, const <String>[]);
-      expect(out, isNot(contains('uses-permission')));
+      expect(out, isNot(contains('CONTACTS')));
+      expect(out, isNot(contains('CAMERA')));
       // The plumbing is still there: media picking and the permission dialog
       // itself need no permission at all.
       expect(out, contains('DartvelBridgeActivity'));
+    });
+
+    test('VIBRATE is written whether or not anybody asked', () {
+      // Haptics is not opt-in. DVAndroidBindings.register binds all three
+      // haptics names on every Android build and the capability list claims
+      // them, so the manifest has to support them or the claim is false.
+      //
+      // Found on an emulator, and only after a different bug was out of the
+      // way: the call used to die casting VibratorManager to Vibrator, and
+      // once it stopped doing that it reached Android and was refused --
+      // "SecurityException: Neither user 10193 nor current process has
+      // android.permission.VIBRATE". A normal permission, granted at install
+      // with no dialog, which is why nothing about the app looked wrong.
+      final String out = dvAndroidCaptureManifest(_manifest, const <String>[]);
+      expect(out, contains('android.permission.VIBRATE'));
+    });
+
+    test('and is not written twice when the manifest already has it', () {
+      // A hand-written manifest that already declares it is the common case
+      // for a project migrating in, and a duplicate uses-permission is the
+      // kind of thing the manifest merger complains about at build time.
+      const String withVibrate = '''
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.VIBRATE"/>
+    <application android:label="x">
+    </application>
+</manifest>
+''';
+      final String out =
+          dvAndroidCaptureManifest(withVibrate, const <String>[]);
+      expect('android.permission.VIBRATE'.allMatches(out).length, 1);
     });
 
     test('a name Dartvel does not know is reported rather than dropped', () {

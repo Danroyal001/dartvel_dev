@@ -108,6 +108,27 @@ String dvAndroidCaptureManifest(String manifest, List<String> requested) {
   out = _replaceBlock(out, _appMarkStart, _appMarkEnd);
 
   final List<String> permissions = dvAndroidUsesPermissions(requested);
+
+  // What the framework binds whether or not the project asked, so the
+  // manifest has to support it or the capability list is claiming something
+  // that throws.
+  //
+  // Haptics is the whole of this list today. DVAndroidBindings.register binds
+  // haptics.vibrate, lightVibrate and impact on every Android build, and
+  // Vibrator.vibrate throws SecurityException without the line below. It is a
+  // normal permission -- granted at install, no dialog, and not surfaced to
+  // the person installing -- which is exactly why nothing looked wrong: the
+  // application ran, the binding was registered, and the vibrate threw where
+  // nobody was looking.
+  //
+  // Only added when it is absent. A project migrating in usually declares it
+  // already, and two uses-permission lines for one name is something the
+  // manifest merger objects to at build time.
+  for (final String required in _dvAlwaysBound) {
+    if (!out.contains(required)) {
+      permissions.add('    <uses-permission android:name="$required"/>');
+    }
+  }
   // Above <application>, which is where a uses-permission and a queries
   // element belong. Inside it the manifest merger drops them and says
   // nothing anyone reads.
@@ -118,9 +139,12 @@ String dvAndroidCaptureManifest(String manifest, List<String> requested) {
     if (permissions.isNotEmpty) {
       block
         ..writeln('    <!-- What dartvel.android.permissions in pubspec.yaml')
-        ..writeln('         asks for. A permission requested at run time and')
-        ..writeln('         missing here is refused instantly, with no')
-        ..writeln('         dialog, and reads exactly like a refusal. -->');
+        ..writeln('         asks for, plus what Dartvel binds regardless.')
+        ..writeln('         A permission requested at run time and missing')
+        ..writeln('         here is refused instantly, with no dialog, and')
+        ..writeln('         reads exactly like a refusal. VIBRATE is here')
+        ..writeln('         because haptics is bound on every Android build')
+        ..writeln('         and vibrating without it throws. -->');
       for (final String line in permissions) {
         block.writeln(line);
       }
@@ -1164,3 +1188,18 @@ public final class DartvelCaptureFiles extends ContentProvider {
   }
 }
 ''';
+
+/// Android permissions every Dartvel build needs, whatever the project asked.
+///
+/// A permission belongs here only when the framework binds the capability
+/// unconditionally. `android.permission.VIBRATE` qualifies because all three
+/// haptics names are registered by every Android build; a camera permission
+/// never would, because the camera is bound whether or not it is declared but
+/// the *permission* is the project's decision and the dialog is the person's.
+///
+/// Normal permissions only, for the same reason: these are added without
+/// anybody asking, so they must be ones Android grants at install with no
+/// dialog and no entry in the install prompt. A dangerous permission added on
+/// a project's behalf would put a question in front of its users that its
+/// author never wrote.
+const List<String> _dvAlwaysBound = <String>['android.permission.VIBRATE'];
