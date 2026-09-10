@@ -108,14 +108,15 @@ String dvAndroidCaptureManifest(String manifest, List<String> requested) {
   out = _replaceBlock(out, _appMarkStart, _appMarkEnd);
 
   final List<String> permissions = dvAndroidUsesPermissions(requested);
-  if (permissions.isNotEmpty) {
-    // Above <application>, which is where a uses-permission belongs. Inside
-    // it the manifest merger drops it and says nothing anyone reads.
-    final int application = out.indexOf('<application');
-    if (application >= 0) {
-      final int lineStart = out.lastIndexOf('\n', application) + 1;
-      final StringBuffer block = StringBuffer()
-        ..write(_markStart)
+  // Above <application>, which is where a uses-permission and a queries
+  // element belong. Inside it the manifest merger drops them and says
+  // nothing anyone reads.
+  final int application = out.indexOf('<application');
+  if (application >= 0) {
+    final int lineStart = out.lastIndexOf('\n', application) + 1;
+    final StringBuffer block = StringBuffer()..write(_markStart);
+    if (permissions.isNotEmpty) {
+      block
         ..writeln('    <!-- What dartvel.android.permissions in pubspec.yaml')
         ..writeln('         asks for. A permission requested at run time and')
         ..writeln('         missing here is refused instantly, with no')
@@ -123,9 +124,25 @@ String dvAndroidCaptureManifest(String manifest, List<String> requested) {
       for (final String line in permissions) {
         block.writeln(line);
       }
-      block.write(_markEnd);
-      out = '${out.substring(0, lineStart)}$block${out.substring(lineStart)}';
     }
+    // Package visibility. From API 30 an application cannot see what it has
+    // not declared an interest in, and Intent.resolveActivity answers null
+    // for a camera that is installed and working. Without this,
+    // camera.takePhoto reports that the phone has no camera application --
+    // on a phone with two.
+    block
+      ..writeln('    <!-- Android 11 hides other applications unless they are')
+      ..writeln('         asked about. resolveActivity answers null without')
+      ..writeln('         this, so the camera looks absent on a phone that')
+      ..writeln('         has one. -->')
+      ..writeln('    <queries>')
+      ..writeln('        <intent>')
+      ..writeln('            <action android:name="android.media.action.'
+          'IMAGE_CAPTURE"/>')
+      ..writeln('        </intent>')
+      ..writeln('    </queries>')
+      ..write(_markEnd);
+    out = '${out.substring(0, lineStart)}$block${out.substring(lineStart)}';
   }
 
   final int close = out.indexOf('</application>');
@@ -1097,10 +1114,14 @@ public final class DartvelCaptureFiles extends ContentProvider {
       throws FileNotFoundException {
     File file = resolve(uri);
     if (file == null) throw new FileNotFoundException("not this provider's");
+    // parseMode rather than flags of our own. A camera application opens
+    // with "w", which means create and truncate as well as write, and a
+    // hand-built READ_WRITE|CREATE would leave the tail of a previous photo
+    // behind the new one in a file that is reused.
     int flags = ParcelFileDescriptor.MODE_READ_WRITE
         | ParcelFileDescriptor.MODE_CREATE;
-    if (mode != null && mode.contains("t")) {
-      flags = flags | ParcelFileDescriptor.MODE_TRUNCATE;
+    if (mode != null && mode.length() > 0) {
+      flags = ParcelFileDescriptor.parseMode(mode);
     }
     return ParcelFileDescriptor.open(file, flags);
   }

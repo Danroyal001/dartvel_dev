@@ -99,6 +99,20 @@ void main() {
       expect(withdrawn, contains('DartvelBridgeActivity'));
     });
 
+    test('the camera can be seen at all on Android 11 and later', () {
+      // Package visibility. From API 30 an application cannot see what it has
+      // not asked about, and Intent.resolveActivity answers null for a camera
+      // that is installed and working. Without the queries element,
+      // camera.takePhoto reports that the phone has no camera application --
+      // on a phone with two, in a way that looks like a device problem.
+      final String out = dvAndroidCaptureManifest(_manifest, const <String>[]);
+      expect(out, contains('<queries>'));
+      expect(out, contains('android.media.action.IMAGE_CAPTURE'));
+      final int queries = out.indexOf('<queries>');
+      // A queries element inside <application> is dropped by the merger.
+      expect(queries, lessThan(out.indexOf('<application')));
+    });
+
     test('the capture provider is unexported and grants by URI', () {
       final String out = dvAndroidCaptureManifest(_manifest, const <String>[]);
       expect(out, contains('android:name="dev.dartvel.jni.DartvelCaptureFiles"'));
