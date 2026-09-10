@@ -13,7 +13,7 @@
 // This suite runs anywhere and asserts the capability list and the refusal to
 // register off-Android. The bindings themselves need a device, and the
 // emulator job in runtime-verification is where they are exercised.
-import 'dart:io' show Platform;
+import 'dart:io' show Directory, File, FileSystemEntity, Platform;
 
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -92,6 +92,74 @@ void main() {
       ]) {
         expect(DVAndroidBindings.implemented, isNot(contains(name)));
       }
+    });
+  });
+
+  group('the list and the registrations agree', () {
+    // There is an on-device gate that asserts every claimed name has a real
+    // handler and that nothing is registered which the list omits. It runs in
+    // the emulator job, which is slow and does not run on every push, and by
+    // then the mismatch has already been merged. This asks the same question
+    // of the source, here, in seconds.
+    //
+    // It reads the source rather than calling register(), because register()
+    // returns false off Android and there is no Android here. That is a
+    // weaker instrument -- it can only see literals -- and it is the strongest
+    // one available on this machine.
+    final RegExp binding =
+        RegExp(r"""(?:DVNativeBridge\.register|bind)\('([a-zA-Z]+\.[a-zA-Z.]+)'""");
+    final RegExp claimed = RegExp(r"""^  '([a-zA-Z]+\.[a-zA-Z.]+)',""", multiLine: true);
+
+    const String androidDir = 'lib/src/platform/android';
+
+    Set<String> registeredInSource() {
+      final Set<String> found = <String>{};
+      for (final FileSystemEntity entity
+          in Directory(androidDir).listSync()) {
+        if (entity is! File || !entity.path.endsWith('.dart')) continue;
+        // Not the capability list itself: its entries are the claim, and
+        // matching them here would make the test compare the list with
+        // itself and pass whatever it said.
+        if (entity.path.endsWith('android_capabilities.dart')) continue;
+        for (final RegExpMatch m in binding.allMatches(entity.readAsStringSync())) {
+          found.add(m.group(1)!);
+        }
+      }
+      return found;
+    }
+
+    test('the scan reads both sides at all', () {
+      // Without this, a rename or a reformat could empty either set and the
+      // two assertions below would agree about nothing.
+      expect(registeredInSource(), hasLength(greaterThan(8)));
+      expect(
+        claimed
+            .allMatches(File('$androidDir/android_capabilities.dart')
+                .readAsStringSync())
+            .length,
+        greaterThan(8),
+      );
+    });
+
+    test('nothing is registered that the list does not claim', () {
+      // This is the one that matters on a device: a handler the list omits
+      // means DVNativeBridge answers a name the capability API says is
+      // unsupported, so an application branches away from something that
+      // works.
+      expect(
+        registeredInSource().difference(DVAndroidBindings.implemented),
+        isEmpty,
+      );
+    });
+
+    test('nothing is claimed that no file registers', () {
+      // And the other way: a name in the list with no handler behind it makes
+      // the capability check say yes and the call return null, which is the
+      // failure this whole layer exists to prevent.
+      expect(
+        DVAndroidBindings.implemented.difference(registeredInSource()),
+        isEmpty,
+      );
     });
   });
 
