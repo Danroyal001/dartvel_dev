@@ -684,94 +684,18 @@ Widget _featureRow(
         ),
         SiteChip(surface),
       ], spacing: 10),
-      // The record, folded.
+      // The record, given the shape it was always two things in.
       //
-      // Some of these run to three thousand words, because they are the
-      // repository's own account of what is built and what is not. Printed
-      // whole they made a grid where one card was twenty-five times the
-      // height of the one beside it, so half the page was prose and the
-      // other half was the white space left over next to it -- which is not
-      // a set of things anybody can compare.
+      // Each of these is one string because that is how spec-status.json
+      // holds it, and one string is what it was drawn as: a single block with
+      // "Present:" and "Absent:" inside it as words. Shorter than it used to
+      // be and still a wall -- no paragraphs, and the two halves that matter
+      // most left for a reader to tell apart by punctuation.
       //
-      // Folded rather than cut: the opening sentences are what a reader
-      // scanning thirty-six of these needs, and the rest is one tap away.
-      LayoutBuilder(
-        builder: (BuildContext context, BoxConstraints constraints) {
-          final TextStyle style = TextStyle(
-            fontSize: 15,
-            color: palette.muted,
-            height: 1.6,
-          );
-          // Measured, not guessed at by counting characters. Whether this
-          // record overruns four lines depends on the column it is in, and
-          // the same text is in one column on a phone and two on a laptop --
-          // so a length threshold offers the control on a card that does not
-          // need it at one width and withholds it at another.
-          //
-          // Only the opening of it is measured, and the answer is still
-          // exact. Laying out six thousand characters to find out whether
-          // four lines are full is work for two hundred and fifty lines
-          // nobody will see -- once per card, and again on every relayout.
-          // On a phone, where the cards are one column and the text wraps
-          // narrow, fifty-seven of those took long enough that the first
-          // frame never arrived and the page was blank.
-          //
-          // The bound comes from the width rather than being a round number:
-          // no line can hold more than its width divided by the narrowest
-          // glyph the font has, so four lines cannot hold more than four
-          // times that. Cut there, a record that is still longer has already
-          // overrun by construction, and the measurement says so on its own.
-          final int probe =
-              (constraints.maxWidth / kNarrowestGlyph).ceil() *
-                  kFeatureRecordLines +
-              1;
-          final TextPainter painter = TextPainter(
-            text: TextSpan(
-              text: body.length <= probe ? body : body.substring(0, probe),
-              style: style,
-            ),
-            maxLines: kFeatureRecordLines,
-            textDirection: TextDirection.ltr,
-          )..layout(maxWidth: constraints.maxWidth);
-          final bool overruns = painter.didExceedMaxLines;
-          painter.dispose();
-
-          if (!overruns) {
-            return DVText(body).modifier(
-              const DVModifier()
-                  .fontSize(15)
-                  .color(palette.muted)
-                  .lineHeight(1.6),
-            );
-          }
-
-          final DVSignal<bool> open = context.signal(false);
-          return DVBox.list(<Widget>[
-            DVText(body).modifier(
-              const DVModifier()
-                  .fontSize(15)
-                  .color(palette.muted)
-                  .lineHeight(1.6)
-                  .maxLines(open.value ? 1 << 30 : kFeatureRecordLines)
-                  .overflow(
-                    open.value ? TextOverflow.clip : TextOverflow.ellipsis,
-                  ),
-            ),
-            DVText(open.value ? 'Show less' : 'Read the whole record').modifier(
-              const DVModifier()
-                  .fontSize(13)
-                  .fontWeight(FontWeight.w600)
-                  .color(palette.accent)
-                  // A button, and announced as one. It is text that does
-                  // something, which is the thing a screen reader has no
-                  // way to guess.
-                  .semanticButton()
-                  .onTap(() => open.value = !open.value),
-            ),
-          ], spacing: 8);
-        },
-      ),
-    ], spacing: 6),
+      // Parsed here rather than rewritten in the data, so the card cannot
+      // carry a second copy of the record that drifts from the first.
+      SiteRecord(body: body),
+    ], spacing: 12),
     const DVModifier()
         // No height: a wrap gives its children unbounded height, so
         // double.infinity here collapsed every card and the section rendered
