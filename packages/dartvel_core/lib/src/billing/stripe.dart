@@ -155,6 +155,12 @@ class DVStripeBillingProvider implements DVBillingProvider {
       'cancel_url': cancelUrl.toString(),
       'client_reference_id': customer.toString(),
     };
+    // Only when there is one. A Stripe price can carry its own default
+    // trial, and sending a zero would cancel it silently -- saying nothing
+    // leaves that decision where somebody made it.
+    if (plan.trialDays > 0) {
+      form['subscription_data[trial_period_days]'] = '${plan.trialDays}';
+    }
     final String body = form.entries
         .map((MapEntry<String, String> e) =>
             '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}')
