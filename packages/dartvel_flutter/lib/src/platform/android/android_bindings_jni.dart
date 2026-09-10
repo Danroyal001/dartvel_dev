@@ -35,6 +35,7 @@ import 'package:jni/jni.dart';
 import '../../../dartvel_flutter.dart' show DVNativeBridge;
 import 'android_capabilities.dart';
 import 'android_kiosk_jni.dart';
+import 'android_radios_jni.dart';
 import 'generated/android/app/Activity.dart';
 import 'generated/android/app/Application.dart';
 import 'generated/android/content/ClipData.dart';
@@ -135,6 +136,16 @@ class DVAndroidBindings {
       if (key.isEmpty) return false;
       return _publishWidget(key, '${map['text'] ?? ''}');
     });
+
+    // The display the application is on, which is not the window it draws
+    // into: in split screen or a freeform window the two differ by a lot, and
+    // this name says screen. Flutter reports the window, so the two answers
+    // are different questions rather than a disagreement.
+    DVNativeBridge.register('screen.geometry', (Object? _) => _geometry());
+
+    // NFC and Bluetooth, both reached through getSystemService on this same
+    // Context. What each can and cannot answer is in that file's header.
+    DVAndroidRadios.register(context, DVNativeBridge.register);
 
     DVNativeBridge.register('share.text', (Object? arguments) {
       final map = arguments is Map ? arguments : const <Object?, Object?>{};
@@ -295,6 +306,56 @@ class DVAndroidBindings {
       return written.toDartString(releaseOriginal: true) == key;
     } on Object {
       return false;
+    }
+  }
+
+  /// The default display, in pixels, or null when Android has nothing to say
+  /// yet.
+  ///
+  /// `Resources.getDisplayMetrics()` rather than `WindowManager`. The modern
+  /// window API returns metrics through `WindowMetrics` on API 30 and
+  /// `Display.getMetrics` before it, so binding it means branching on the SDK
+  /// level and carrying two answers; `DisplayMetrics` off the Context has
+  /// been the same three fields since API 1. It is also the one route that
+  /// needs no Activity and no window, which matters because this is called
+  /// from Dart before there is either. Why this is bound at all, against a
+  /// decision recorded in this package that it should not be, is written out
+  /// at `dvAndroidGeometry`.
+  ///
+  /// `getDisplayMetrics` and the three field reads are looked up by name, for
+  /// the same reason the radios are: `android.util.DisplayMetrics` is not in
+  /// the committed jnigen output and cannot be generated without an Android
+  /// SDK, which this workspace has none of.
+  static Map<String, Object?>? _geometry() {
+    final context = _context;
+    if (context == null) return null;
+    try {
+      final JObject? resources = context.resources;
+      if (resources == null) return null;
+
+      final JClass resourcesClass =
+          JClass.forName('android/content/res/Resources');
+      final JObject? metrics = resourcesClass
+          .instanceMethodId(
+              'getDisplayMetrics', '()Landroid/util/DisplayMetrics;')
+          .callNullable(resources, JObject.type, const <dynamic>[]);
+      if (metrics == null) return null;
+
+      final JClass metricsClass = JClass.forName('android/util/DisplayMetrics');
+      return dvAndroidGeometry(
+        widthPixels:
+            metricsClass.instanceFieldId('widthPixels', 'I').get(metrics, jint.type),
+        heightPixels: metricsClass
+            .instanceFieldId('heightPixels', 'I')
+            .get(metrics, jint.type),
+        density:
+            metricsClass.instanceFieldId('density', 'F').get(metrics, jfloat.type),
+      );
+    } on Object {
+      // Null, not zeroes. A caller that gets a map back is entitled to
+      // believe the numbers in it; one that gets null knows to ask Flutter
+      // for the window size instead.
+      return null;
     }
   }
 
