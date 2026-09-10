@@ -88,9 +88,30 @@ Verified under Xvfb with a session bus:
   GTK rather than from Dartvel's own state, and the no-window case is
   asserted to report failure rather than pretend.
 
-That is 8 of the 43 binding names `DV.Platform` and friends reference. The
-other 35 remain unimplemented on Linux, and all 43 are unimplemented on
-Android, iOS, macOS, Windows and web.
+Those eight are the ones verified by running, not the ones that exist. Linux
+registers far more than eight -- `register()` hands the bridge to fifteen or
+so sub-modules, so counting the calls in `linux_bindings_ffi.dart` alone
+undercounts it badly, and the same trap catches Windows and macOS.
+
+`binding_names.dart` declares **70** names in total. Do not read a per-platform
+count off this page: the honest source is the source, and the count moves every
+time a binding lands. What is worth recording is the shape of the gap, because
+it is not where you would guess.
+
+**Android is second from last, at 10 of 70** -- clipboard both ways, the three
+haptics, sharing, deep links, the home widget bridge, and the two kiosk names.
+No camera, no location, no biometrics, no runtime permissions, no local
+notifications, no sensors, no contacts, no media picker, no NFC, no Bluetooth,
+no screen geometry. The APK builds, the app runs, `DV.Platform` reports
+`android` correctly, and every one of those calls returns null.
+
+That last part is why this is worth a paragraph rather than a row.
+`DVNativeBridge.invoke` returns null for a name nothing registered, which is
+the right default -- an unbound capability should degrade rather than throw --
+but it means an application asking for the camera on Android cannot tell an
+unimplemented binding from a device that said no. The desktop targets are
+ahead of the mobile ones, which is the reverse of what a developer coming to
+Dartvel to build a phone app will assume.
 
 ### Web is the guard on native dependencies
 
