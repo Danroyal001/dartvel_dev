@@ -124,6 +124,75 @@ image/png=eog.desktop;gimp.desktop
     expect(await DV.Platform.associations.handlerFor('dvorder'), isNull);
   });
 
+  test('a second register keeps what the first one claimed', () async {
+    // A real application registers what it opens as it learns it -- a plugin
+    // loads, a document kind is enabled -- and every call rewrote the desktop
+    // entry from nothing, so the last one won and everything before it
+    // stopped opening. Nothing said so: the file was still there and still
+    // valid, with one line fewer.
+    await DV.Platform.associations.register(types);
+    await DV.Platform.associations.register(const <DVFileType>[
+      DVFileType(
+        mimeType: 'application/x-dartvel-invoice',
+        extensions: <String>['dvinvoice'],
+        description: 'Dartvel invoice',
+      ),
+    ]);
+
+    final String written = entry().readAsStringSync();
+    expect(written, contains('application/x-dartvel-order'));
+    expect(written, contains('application/x-dartvel-invoice'));
+
+    final String mime =
+        File('${home.path}/share/mime/packages/${_executable()}.xml')
+            .readAsStringSync();
+    expect(mime, contains('<glob pattern="*.dvorder"/>'));
+    expect(mime, contains('<glob pattern="*.dvinvoice"/>'));
+  });
+
+  test('unregistering one type leaves the others registered', () async {
+    // Deleting the whole desktop entry took the other types with it, while
+    // mimeapps.list kept naming this application as their handler -- so the
+    // desktop went on sending those files to an entry that no longer
+    // existed, which is a double-click that does nothing at all.
+    const DVFileType invoice = DVFileType(
+      mimeType: 'application/x-dartvel-invoice',
+      extensions: <String>['dvinvoice'],
+      description: 'Dartvel invoice',
+    );
+    await DV.Platform.associations
+        .register(<DVFileType>[...types, invoice]);
+
+    await DV.Platform.associations.unregister(const <DVFileType>[invoice]);
+
+    expect(entry().existsSync(), isTrue);
+    final String written = entry().readAsStringSync();
+    expect(written, contains('application/x-dartvel-order'));
+    expect(written, isNot(contains('application/x-dartvel-invoice')));
+
+    final String mime =
+        File('${home.path}/share/mime/packages/${_executable()}.xml')
+            .readAsStringSync();
+    expect(mime, contains('<glob pattern="*.dvorder"/>'));
+    expect(mime, isNot(contains('dvinvoice')));
+
+    expect(await DV.Platform.associations.handlerFor('dvorder'),
+        DVLinuxAssociations.desktopFileName);
+    expect(await DV.Platform.associations.handlerFor('dvinvoice'), isNull);
+  });
+
+  test('unregistering the last type takes the files away', () async {
+    // The other half of the same rule: an entry left behind with an empty
+    // MimeType line is an application still listed in "Open with" for
+    // nothing.
+    await DV.Platform.associations.register(types);
+    await DV.Platform.associations.unregister(types);
+
+    expect(entry().existsSync(), isFalse);
+    expect(File('${home.path}/share/mime/packages/${_executable()}.xml')
+        .existsSync(), isFalse);
+  });
+
   test('a claim somebody else has taken is not withdrawn', () async {
     // Another application took the type after we registered. Dropping its
     // line would break it while uninstalling us.

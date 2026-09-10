@@ -134,6 +134,37 @@ void main() {
     expect(targets, isNot(contains('text/plain')));
   });
 
+  test('text dropped on a window that takes only files reaches nobody', () async {
+    // The target list is a request to the desktop, not a guarantee. A source
+    // can hand over a type the window never asked for -- GTK's own
+    // gtk_drag_dest_set flags let one through, and so does a source that
+    // ignores the list -- and a window that said files only and then took a
+    // URL out of a browser has broken the rule it declared. Windows and
+    // macOS have gated this since they were written; Linux read the type off
+    // the selection and delivered whatever came.
+    final List<DVDropEvent> got = <DVDropEvent>[];
+    await const DVDragDrop().accept(
+      types: const <DVDropType>[DVDropType.files],
+      onDrop: got.add,
+    );
+
+    DVLinuxDragDrop.emitDropForTest(gtk.toplevel(), text: 'https://dartvel.dev');
+
+    expect(got, isEmpty);
+  });
+
+  test('files dropped on a window that takes only text reach nobody', () async {
+    final List<DVDropEvent> got = <DVDropEvent>[];
+    await const DVDragDrop().accept(
+      types: const <DVDropType>[DVDropType.text],
+      onDrop: got.add,
+    );
+
+    DVLinuxDragDrop.emitDropForTest(gtk.toplevel(), uriList: 'file:///tmp/one.txt\r\n');
+
+    expect(got, isEmpty);
+  });
+
   test('a real drop of files reaches Dart as paths', () async {
     final List<DVDropEvent> got = <DVDropEvent>[];
     await const DVDragDrop().accept(onDrop: got.add);

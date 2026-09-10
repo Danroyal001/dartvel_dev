@@ -7,13 +7,40 @@
 /// `python3` heredoc because the script is six lines, and the language
 /// breakdown of a project sold as "Flutter's Laravel" then says Python.
 ///
-/// So it is checked. Tracked `.py` files and inline `python3` in a workflow
-/// both fail, and the one exception is named here rather than left to
-/// judgement: the Flutter engine's build runs Chromium's own
-/// `install-sysroot.py`, which is upstream's and not ours to rewrite.
+/// So it is checked. Tracked `.py` files fail, and so does an inline
+/// `python3` anywhere a command can run — a workflow, a shell script, or a
+/// Dart file. Workflows alone was too narrow: a test in
+/// `packages/dartvel_flutter` stood a systemd notification socket up by
+/// spawning `python3 -c`, and it sat there passing because nothing looked at
+/// Dart sources. Prose is left alone, so this file and the rule files can
+/// name the thing they forbid.
+///
+/// The one exception is named here rather than left to judgement: the Flutter
+/// engine's build runs Chromium's own `install-sysroot.py`, which is
+/// upstream's and not ours to rewrite.
 library;
 
 import 'dart:io';
+
+/// Where a command can live. Markdown and the rule files are prose about the
+/// rule and are not scanned.
+const Set<String> _executableSuffixes = <String>{
+  '.dart',
+  '.sh',
+  '.yml',
+  '.yaml',
+};
+
+/// This file, which has to be able to spell what it forbids.
+const String _self = 'tool/ci/no_python_check.dart';
+
+/// Whether [line] is a comment in any of the scanned languages.
+bool _isComment(String line) {
+  final String trimmed = line.trimLeft();
+  return trimmed.startsWith('#') ||
+      trimmed.startsWith('//') ||
+      trimmed.startsWith('*');
+}
 
 /// Where a third-party build system runs its own scripts.
 const Map<String, String> _allowed = <String, String>{
@@ -43,8 +70,9 @@ void main(List<String> arguments) {
       problems.add('$path is Python. Write it in Dart under tool/ci/.');
       continue;
     }
-    if (!path.startsWith('.github/workflows/')) continue;
+    if (path == _self) continue;
     if (_allowed.containsKey(path)) continue;
+    if (!_executableSuffixes.any(path.endsWith)) continue;
     final File file = File(path);
     if (!file.existsSync()) continue;
     final List<String> lines = file.readAsLinesSync();
@@ -52,7 +80,7 @@ void main(List<String> arguments) {
       final String line = lines[i];
       // A comment is prose, and the rule itself has to be able to name the
       // thing it forbids. A command never lives in one.
-      if (line.trimLeft().startsWith('#')) continue;
+      if (_isComment(line)) continue;
       if (!line.contains('python3')) continue;
       problems.add('$path:${i + 1} runs python3. Write a Dart program under '
           'tool/ci/ and call it with `dart tool/ci/<name>.dart`.');

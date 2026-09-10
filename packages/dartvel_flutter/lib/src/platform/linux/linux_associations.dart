@@ -96,32 +96,108 @@ class DVLinuxAssociations {
     final File mime =
         File('${_dataHome()}/mime/packages/${_executableName()}.xml');
 
+    // What this call is about, in the spelling the desktop entry uses.
+    final List<String> named = <String>[
+      for (final Map<Object?, Object?> type in types) '${type['mimeType']}',
+      for (final String scheme in schemes) 'x-scheme-handler/$scheme',
+    ];
+
+    // Both halves merge with what is on disk rather than replacing it. An
+    // application registers what it opens as it finds out -- a plugin loads,
+    // a document kind is enabled -- and a rewrite from nothing meant the last
+    // call won and everything before it quietly stopped opening. The same
+    // mistake the other way round is worse: deleting the whole entry to
+    // unregister one type took the rest with it, while mimeapps.list went on
+    // naming this application as their handler, so the desktop kept sending
+    // those files to an entry that was not there.
+    final List<String> mimes = _mimesIn(entry);
     if (!add) {
-      if (entry.existsSync()) entry.deleteSync();
-      if (mime.existsSync()) mime.deleteSync();
+      mimes.removeWhere(named.contains);
+      if (mimes.isEmpty) {
+        if (entry.existsSync()) entry.deleteSync();
+      } else {
+        entry.writeAsStringSync(_desktopEntry(mimes));
+      }
+
+      final Map<String, String> definitions = _mimeDefinitionsIn(mime);
+      definitions.removeWhere((String type, String _) => named.contains(type));
+      if (definitions.isEmpty) {
+        if (mime.existsSync()) mime.deleteSync();
+      } else {
+        mime.writeAsStringSync(_mimeInfo(definitions));
+      }
+
       _forget(types, schemes);
       _refresh();
       return true;
     }
 
+    for (final String name in named) {
+      if (!mimes.contains(name)) mimes.add(name);
+    }
     entry.parent.createSync(recursive: true);
-    entry.writeAsStringSync(_desktopEntry(types, schemes));
+    entry.writeAsStringSync(_desktopEntry(mimes));
 
     // Only the types this application is introducing. A glob for a type the
     // desktop already knows -- text/plain, image/png -- would be a second
     // definition of somebody else's type.
-    final List<Map<Object?, Object?>> fresh = <Map<Object?, Object?>>[
-      for (final Map<Object?, Object?> type in types)
-        if (!_wellKnown('${type['mimeType']}')) type,
-    ];
-    if (fresh.isNotEmpty) {
+    final Map<String, String> definitions = _mimeDefinitionsIn(mime);
+    for (final Map<Object?, Object?> type in types) {
+      if (_wellKnown('${type['mimeType']}')) continue;
+      definitions['${type['mimeType']}'] = _mimeDefinition(type);
+    }
+    if (definitions.isNotEmpty) {
       mime.parent.createSync(recursive: true);
-      mime.writeAsStringSync(_mimeInfo(fresh));
+      mime.writeAsStringSync(_mimeInfo(definitions));
     }
 
     _claim(types, schemes);
     _refresh();
     return true;
+  }
+
+  /// The `MimeType=` line of [entry], or an empty list when there is none.
+  static List<String> _mimesIn(File entry) {
+    if (!entry.existsSync()) return <String>[];
+    for (final String line in entry.readAsLinesSync()) {
+      if (!line.startsWith('MimeType=')) continue;
+      return <String>[
+        for (final String mime in line.substring('MimeType='.length).split(';'))
+          if (mime.trim().isNotEmpty) mime.trim(),
+      ];
+    }
+    return <String>[];
+  }
+
+  /// The `<mime-type>` blocks in [mime], by the type each defines.
+  ///
+  /// The file is one this class wrote, so the shape is known: one block per
+  /// type, opened by a line naming it and closed by `</mime-type>`. Kept as
+  /// the text of each block rather than parsed into fields, because putting
+  /// a block back exactly as it was found is the only way a merge cannot
+  /// lose a detail it did not know to read.
+  static Map<String, String> _mimeDefinitionsIn(File mime) {
+    final Map<String, String> definitions = <String, String>{};
+    if (!mime.existsSync()) return definitions;
+    final RegExp opens = RegExp(r'<mime-type\s+type="([^"]+)"');
+    String? type;
+    StringBuffer? block;
+    for (final String line in mime.readAsLinesSync()) {
+      final RegExpMatch? match = opens.firstMatch(line);
+      if (match != null) {
+        type = match.group(1);
+        block = StringBuffer()..writeln(line);
+        continue;
+      }
+      if (block == null) continue;
+      block.writeln(line);
+      if (line.contains('</mime-type>')) {
+        definitions[type!] = block.toString();
+        type = null;
+        block = null;
+      }
+    }
+    return definitions;
   }
 
   /// A type the shared MIME database already defines.
@@ -136,14 +212,7 @@ class DVLinuxAssociations {
     return !subtype.startsWith('x-') && !subtype.startsWith('vnd.');
   }
 
-  static String _desktopEntry(
-    List<Map<Object?, Object?>> types,
-    List<String> schemes,
-  ) {
-    final List<String> mimes = <String>[
-      for (final Map<Object?, Object?> type in types) '${type['mimeType']}',
-      for (final String scheme in schemes) 'x-scheme-handler/$scheme',
-    ];
+  static String _desktopEntry(List<String> mimes) {
     return '''
 [Desktop Entry]
 Type=Application
@@ -155,22 +224,28 @@ MimeType=${mimes.join(';')};
 ''';
   }
 
-  static String _mimeInfo(List<Map<Object?, Object?>> types) {
+  static String _mimeDefinition(Map<Object?, Object?> type) {
+    final StringBuffer out = StringBuffer()
+      ..writeln('  <mime-type type="${type['mimeType']}">');
+    final Object? description = type['description'];
+    if (description != null) {
+      out.writeln('    <comment>$description</comment>');
+    }
+    final List<Object?> extensions =
+        type['extensions'] is List ? type['extensions']! as List<Object?> : const <Object?>[];
+    for (final Object? extension in extensions) {
+      out.writeln('    <glob pattern="*.$extension"/>');
+    }
+    out.writeln('  </mime-type>');
+    return out.toString();
+  }
+
+  static String _mimeInfo(Map<String, String> definitions) {
     final StringBuffer out = StringBuffer()
       ..writeln('<?xml version="1.0" encoding="UTF-8"?>')
       ..writeln('<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">');
-    for (final Map<Object?, Object?> type in types) {
-      out.writeln('  <mime-type type="${type['mimeType']}">');
-      final Object? description = type['description'];
-      if (description != null) {
-        out.writeln('    <comment>$description</comment>');
-      }
-      final List<Object?> extensions =
-          type['extensions'] is List ? type['extensions']! as List<Object?> : const <Object?>[];
-      for (final Object? extension in extensions) {
-        out.writeln('    <glob pattern="*.$extension"/>');
-      }
-      out.writeln('  </mime-type>');
+    for (final String definition in definitions.values) {
+      out.write(definition);
     }
     out.writeln('</mime-info>');
     return out.toString();

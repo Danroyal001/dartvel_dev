@@ -13,6 +13,7 @@ import '../../../dartvel_flutter.dart';
 import 'elinux_kiosk_ffi.dart';
 import 'linux_associations.dart';
 import 'linux_bluetooth.dart';
+import 'linux_clipboard_ffi.dart';
 import 'linux_device.dart';
 import 'linux_dialogs_ffi.dart';
 import 'linux_dnd_ffi.dart';
@@ -59,26 +60,6 @@ typedef _GtkInitCheckDart = int Function(
   Pointer<Int32>,
   Pointer<Pointer<Pointer<Utf8>>>,
 );
-typedef _GdkAtomInternNative = Uint64 Function(Pointer<Utf8>, Int32);
-typedef _GdkAtomInternDart = int Function(Pointer<Utf8>, int);
-typedef _GtkClipboardGetNative = Pointer<Void> Function(Uint64);
-typedef _GtkClipboardGetDart = Pointer<Void> Function(int);
-typedef _GtkClipboardSetTextNative = Void Function(
-  Pointer<Void>,
-  Pointer<Utf8>,
-  Int32,
-);
-typedef _GtkClipboardSetTextDart = void Function(
-  Pointer<Void>,
-  Pointer<Utf8>,
-  int,
-);
-typedef _GtkClipboardWaitForTextNative = Pointer<Utf8> Function(Pointer<Void>);
-typedef _GtkClipboardWaitForTextDart = Pointer<Utf8> Function(Pointer<Void>);
-typedef _GtkClipboardStoreNative = Void Function(Pointer<Void>);
-typedef _GtkClipboardStoreDart = void Function(Pointer<Void>);
-typedef _GFreeNative = Void Function(Pointer<Void>);
-typedef _GFreeDart = void Function(Pointer<Void>);
 
 // --- GTK window control ------------------------------------------------------
 
@@ -160,11 +141,12 @@ typedef _GVariantGetUint32ValueDart = int Function(Pointer<Void>);
 /// registered" error rather than returning a plausible lie — an unimplemented
 /// API that reports success is worse than one that fails loudly.
 ///
-/// Implemented: `clipboard.copy`/`clipboard.paste` (GTK's CLIPBOARD
-/// selection — the one other applications actually read), `screen.geometry`
-/// (X11 display dimensions), `notifications.sendLocal` (the freedesktop
-/// notification service over GDBus), and `window.setTitle`/`maximize`/
-/// `minimize`/`restore` (the app's own GTK toplevel).
+/// Implemented: the clipboard and the PRIMARY selection (in
+/// `linux_clipboard_ffi.dart`, which owns the main-loop pump an X selection
+/// owner needs), `screen.geometry` (X11 display dimensions),
+/// `notifications.sendLocal` (the freedesktop notification service over
+/// GDBus), and `window.setTitle`/`maximize`/`minimize`/`restore` (the app's
+/// own GTK toplevel).
 class DVLinuxBindings {
   const DVLinuxBindings._();
 
@@ -178,6 +160,10 @@ class DVLinuxBindings {
   static const Set<String> implemented = <String>{
     'clipboard.copy',
     'clipboard.paste',
+    // The PRIMARY selection: highlight here, middle-click there. X11's own,
+    // so Linux is the only desktop that registers these two.
+    'clipboard.readSelection',
+    'clipboard.writeSelection',
     'screen.geometry',
     'notifications.sendLocal',
     'window.setTitle',
@@ -286,9 +272,22 @@ class DVLinuxBindings {
 
     DVNativeBridge.register('clipboard.copy', (Object? arguments) {
       final text = arguments is Map ? '${arguments['text'] ?? ''}' : '';
-      return _copy(text);
+      return DVLinuxClipboard.copy(text);
     });
-    DVNativeBridge.register('clipboard.paste', (Object? _) => _paste());
+    DVNativeBridge.register(
+      'clipboard.paste',
+      (Object? _) => DVLinuxClipboard.paste(),
+    );
+    // The other selection, the one a middle-click pastes. X11's own idea, so
+    // it is bound here and nowhere else.
+    DVNativeBridge.register('clipboard.writeSelection', (Object? arguments) {
+      final text = arguments is Map ? '${arguments['text'] ?? ''}' : '';
+      return DVLinuxClipboard.writeSelection(text);
+    });
+    DVNativeBridge.register(
+      'clipboard.readSelection',
+      (Object? _) => DVLinuxClipboard.readSelection(),
+    );
     DVNativeBridge.register('screen.geometry', (Object? _) => _geometry());
 
     DVNativeBridge.register('notifications.sendLocal', (Object? arguments) {
@@ -428,6 +427,9 @@ class DVLinuxBindings {
     DVLinuxMenus.unregister();
     DVLinuxDialogs.unregister();
     DVLinuxDevice.unregister();
+    // Stops serving the selections this process owns. Left running, the pump
+    // is a timer that outlives the test that started it.
+    DVLinuxClipboard.close();
     DVLinuxSerial.closeAll();
     _registered = false;
     _deviceRegistered = false;
@@ -442,63 +444,6 @@ class DVLinuxBindings {
         _GtkInitCheckDart>('gtk_init_check');
     _gtkReady = initCheck(nullptr, nullptr) != 0;
     return _gtkReady;
-  }
-
-  static Pointer<Void>? _clipboard() {
-    if (!_ensureGtk()) return null;
-    final atomIntern = _gdk!
-        .lookupFunction<_GdkAtomInternNative, _GdkAtomInternDart>(
-      'gdk_atom_intern',
-    );
-    final clipboardGet = _gtk!
-        .lookupFunction<_GtkClipboardGetNative, _GtkClipboardGetDart>(
-      'gtk_clipboard_get',
-    );
-    final name = 'CLIPBOARD'.toNativeUtf8();
-    try {
-      final clipboard = clipboardGet(atomIntern(name, 0));
-      return clipboard == nullptr ? null : clipboard;
-    } finally {
-      calloc.free(name);
-    }
-  }
-
-  static bool _copy(String text) {
-    final clipboard = _clipboard();
-    if (clipboard == null) return false;
-    final setText = _gtk!
-        .lookupFunction<_GtkClipboardSetTextNative, _GtkClipboardSetTextDart>(
-      'gtk_clipboard_set_text',
-    );
-    final store = _gtk!
-        .lookupFunction<_GtkClipboardStoreNative, _GtkClipboardStoreDart>(
-      'gtk_clipboard_store',
-    );
-    final value = text.toNativeUtf8();
-    try {
-      setText(clipboard, value, -1);
-      // Hands ownership to the clipboard manager, so the value survives this
-      // process exiting — otherwise a copy vanishes when the app closes.
-      store(clipboard);
-      return true;
-    } finally {
-      calloc.free(value);
-    }
-  }
-
-  static String? _paste() {
-    final clipboard = _clipboard();
-    if (clipboard == null) return null;
-    final waitForText = _gtk!.lookupFunction<_GtkClipboardWaitForTextNative,
-        _GtkClipboardWaitForTextDart>('gtk_clipboard_wait_for_text');
-    final result = waitForText(clipboard);
-    if (result == nullptr) return null;
-    try {
-      return result.toDartString();
-    } finally {
-      // The string is GTK-allocated; freeing it with g_free is the contract.
-      _gtk!.lookupFunction<_GFreeNative, _GFreeDart>('g_free')(result.cast());
-    }
   }
 
   static Map<String, Object?>? _geometry() {

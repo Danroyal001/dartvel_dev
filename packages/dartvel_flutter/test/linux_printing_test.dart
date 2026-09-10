@@ -11,6 +11,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:dartvel_flutter/dartvel_flutter.dart';
+import 'package:dartvel_flutter/src/platform/linux/linux_printing_ffi.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -86,6 +87,40 @@ void main() {
       final ProcessResult info = await Process.run('pdfinfo', <String>[path]);
       expect(info.exitCode, 0, reason: 'pdfinfo (poppler-utils) is needed to read the page count: ${info.stderr}');
       expect('${info.stdout}', matches(RegExp(r'Pages:\s+2\b')));
+    });
+
+    test('the title becomes the job name GTK carries', () async {
+      // `title:` was accepted by the Dart API, documented, sent across the
+      // bridge and read by nobody on Linux -- so the print dialog and the
+      // queue showed GTK's default job name, while Windows had honoured the
+      // same option since it was written. What a runner cannot check is the
+      // queue itself, there being no printer; what it can check is that GTK
+      // holds the name, which is the whole of what the platform can be
+      // asked here.
+      final String path = '${dir.path}/titled.pdf';
+      await DV.Platform.Printing.toFile(
+        path,
+        title: 'Order 4821',
+        pages: <Uint8List>[await page(const Color(0xFFEEEEEE), 'Titled')],
+      );
+
+      expect(DVLinuxPrinting.lastJobName, 'Order 4821');
+    });
+
+    test('with no title, GTK keeps its own job name', () async {
+      // GtkPrintOperation names the job itself when nobody else does --
+      // `<program> job #1` -- and passing an empty string through would put
+      // a blank where a name belongs in the queue. The second expectation is
+      // about the reading rather than the writing: this is a static, and a
+      // stale value from the test above would satisfy the first on its own.
+      final String path = '${dir.path}/untitled.pdf';
+      await DV.Platform.Printing.toFile(
+        path,
+        pages: <Uint8List>[await page(const Color(0xFFEEEEEE), 'Untitled')],
+      );
+
+      expect(DVLinuxPrinting.lastJobName, isNotEmpty);
+      expect(DVLinuxPrinting.lastJobName, isNot('Order 4821'));
     });
 
     test('a page that is not a picture is refused, and no file is written', () async {
