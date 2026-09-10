@@ -48,6 +48,10 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  # The billing webhook tests sign payloads to check the signature is verified
+  # rather than trusted. Declared because publishing checks test imports too:
+  # a package that resolves only inside this workspace is not publishable.
+  crypto: ^3.0.7
   build_runner: ^2.4.0
   jnigen: ^0.17.0
 
