@@ -1193,15 +1193,31 @@ class DVUnconfiguredSearchProvider<TModel, TFacets>
 class BillingPlan {
   final String id;
   final String displayName;
+
+  /// What the plan costs, in [currency]'s minor units.
+  ///
+  /// Zero means the plan declares no unit price: free, or billed by the
+  /// meter. Anything else is checked against what the provider will actually
+  /// charge before a customer is sent to a checkout, so this is the number
+  /// the application is held to rather than a caption.
   final int priceMinorUnits;
   final String currency;
+
+  /// Free days before the first charge, zero for none.
+  ///
+  /// A plan that advertises a fortnight free and a provider that charges on
+  /// day one disagree in a way only the customer finds out about. Stripe
+  /// takes this with the checkout session; Paddle keeps trials on the price,
+  /// so the provider checks the two agree rather than sending it.
+  final int trialDays;
 
   const BillingPlan({
     required this.id,
     required this.displayName,
     required this.priceMinorUnits,
     required this.currency,
-  });
+    this.trialDays = 0,
+  }) : assert(trialDays >= 0, 'a trial is a number of free days, or none');
 
   static const pro = BillingPlan(
     id: 'pro',
