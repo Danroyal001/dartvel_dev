@@ -75,7 +75,12 @@ class DVFileBindings {
       final File file = File(_resolve(_pathOf(arguments)));
       file.parent.createSync(recursive: true);
       file.writeAsBytesSync(Uint8List.fromList(bytes), flush: true);
-      return bytes.length;
+      // True, not the count. DVFiles.writeBytes asks through require<bool>, so
+      // a count threw "returned int, expected bool" and made the binding
+      // unusable on every target with a filesystem -- while the file on disk
+      // was perfectly correct. files.delete beside it answers bool, and web
+      // answers bool, so the count was the outlier as well as the fault.
+      return true;
     });
 
     register('files.delete', (Object? arguments) {
