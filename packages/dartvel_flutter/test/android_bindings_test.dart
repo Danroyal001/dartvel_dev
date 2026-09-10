@@ -41,6 +41,21 @@ void main() {
           // SharedPreferences -- but the launcher composes the widget, so
           // what crosses is the data and never the tree.
           'homeWidgets.publish',
+          // The display, from the Context's own DisplayMetrics. Not the
+          // window Flutter reports: on a device in split screen they are
+          // different numbers answering different questions.
+          'screen.geometry',
+          // Whether there is a reader and it is switched on. Reading and
+          // writing a tag are not here; see the absence test below.
+          'nfc.isAvailable',
+          // Bluetooth, read rather than driven. Android has no device-level
+          // connect to bind, so the four action names Linux binds cannot all
+          // be honoured -- pairing can, and is.
+          'bluetooth.isEnabled',
+          'bluetooth.adapters',
+          'bluetooth.devices',
+          'bluetooth.scanDevices',
+          'bluetooth.pair',
         },
       );
     });
@@ -63,9 +78,12 @@ void main() {
     });
 
     test('what needs an Activity is absent', () {
-      // BiometricPrompt attaches to an Activity and NFC dispatch is delivered
-      // to one. A Context is not enough, and pretending otherwise would fail
-      // on a device rather than here.
+      // BiometricPrompt attaches to an Activity, and a tag reaches an
+      // application only through foreground dispatch or reader mode, both of
+      // which are Activity callbacks. A Context is not enough, and pretending
+      // otherwise would fail on a device rather than here. Asking whether
+      // there is a reader at all needs no Activity, which is why
+      // nfc.isAvailable is bound and nfc.readTag is not.
       for (final name in <String>[
         'biometrics.authenticate',
         'biometrics.canAuthenticate',
