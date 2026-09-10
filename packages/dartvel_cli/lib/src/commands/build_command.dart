@@ -1227,20 +1227,6 @@ class BuildCommand extends Command<void> {
     }
   }
 
-  /// The `dartvel` section of the project's pubspec, or null.
-  Object? _dartvelSection(String root) {
-    final File pubspec = File(p.join(root, 'pubspec.yaml'));
-    if (!pubspec.existsSync()) return null;
-    try {
-      final Object? document = loadYaml(pubspec.readAsStringSync());
-      return document is Map ? document['dartvel'] : null;
-    } on Object {
-      // A pubspec that will not parse is the build's own message to give,
-      // and it gives it long before this.
-      return null;
-    }
-  }
-
   void _writeAndroidKioskFiles(String root) {
     final DVAndroidKiosk kiosk = DVAndroidKiosk.of(root);
     final File manifest =
