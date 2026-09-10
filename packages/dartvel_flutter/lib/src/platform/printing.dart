@@ -27,11 +27,23 @@ class DVPrinting {
   }
 
   /// Writes [pages] to a PDF at [path], one picture per page.
-  Future<DVPrintResult> toFile(String path, {required List<Uint8List> pages}) async {
+  ///
+  /// [title] names the document. Where the platform has somewhere to put it
+  /// -- a job name, the PDF's own metadata -- that is where it goes; where it
+  /// has not, the file is written the same either way.
+  Future<DVPrintResult> toFile(
+    String path, {
+    required List<Uint8List> pages,
+    String? title,
+  }) async {
     _check(pages);
     final Object? result = await DVNativeBridge.require<Object?>(
       'printing.toFile',
-      <String, Object?>{'path': path, 'pages': pages},
+      <String, Object?>{
+        'path': path,
+        'pages': pages,
+        if (title != null) 'title': title,
+      },
     );
     return DVPrintResult(path: path, pages: _pages(result, pages.length));
   }
