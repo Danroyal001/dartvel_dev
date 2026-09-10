@@ -27,7 +27,8 @@ import '../../dartvel.dart'
         Entitlement,
         DVBillingCheckoutSession,
         DVBillingProvider,
-        DVUsageMeter;
+        DVUsageMeter,
+        dvBillingCustomerKey;
 import 'money.dart';
 
 /// A billing operation that could not proceed, with a message safe to show.
@@ -153,7 +154,7 @@ class DVStripeBillingProvider implements DVBillingProvider {
       'line_items[0][quantity]': '1',
       'success_url': successUrl.toString(),
       'cancel_url': cancelUrl.toString(),
-      'client_reference_id': customer.toString(),
+      'client_reference_id': dvBillingCustomerKey(customer),
     };
     // Only when there is one. A Stripe price can carry its own default
     // trial, and sending a zero would cancel it silently -- saying nothing
@@ -260,7 +261,7 @@ class DVStripeBillingProvider implements DVBillingProvider {
       'event_name': eventName,
       'identifier': idempotencyKey,
       'timestamp': '${when.millisecondsSinceEpoch ~/ 1000}',
-      'payload[stripe_customer_id]': customer.toString(),
+      'payload[stripe_customer_id]': dvBillingCustomerKey(customer),
       'payload[value]': '$quantity',
     };
     await _request(
@@ -275,7 +276,7 @@ class DVStripeBillingProvider implements DVBillingProvider {
 
   @override
   Future<bool> hasEntitlement(Object customer, Entitlement entitlement) async =>
-      _grants[customer.toString()]?.contains(entitlement.id) ?? false;
+      _grants[dvBillingCustomerKey(customer)]?.contains(entitlement.id) ?? false;
 
   /// Who holds what, for an entitlements view.
   Map<String, Set<String>> get grants => Map<String, Set<String>>.unmodifiable(
