@@ -228,6 +228,14 @@ class DVReal {}
     });
 
     test('a package: export is somebody else\'s file', () {
+      // The barrel is in the result and should be: it is the file an
+      // application imports, so a barrel cited as evidence is reachable by
+      // definition. What this asserts is that nothing was followed out of it.
+      //
+      // This asserted isEmpty until now, which conflated the two and could
+      // never have passed -- the barrel is added before its source is read.
+      // It went unnoticed because the Tests workflow runs each package's own
+      // suite and nothing runs the suite at the repository root.
       expect(
         dvExportedFiles(
           barrels: <String>['lib/dartvel.dart'],
@@ -235,7 +243,7 @@ class DVReal {}
             'lib/dartvel.dart': "export 'package:meta/meta.dart';",
           },
         ),
-        isEmpty,
+        <String>{'lib/dartvel.dart'},
       );
     });
 
