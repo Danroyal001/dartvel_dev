@@ -310,6 +310,24 @@ export 'package:dartvel_core/dartvel.dart'
         DVShellResultFuture,
         DVTestHarness,
         DVLocalBillingProvider,
+        DVUsageMeter,
+        DVBillingCustomer,
+        // The providers an application configures, and the types their
+        // webhook path deals in. Without these the only reachable provider
+        // was the local one, so anything real meant importing dartvel_core
+        // alongside this package.
+        DVStripeBillingProvider,
+        DVPaddleBillingProvider,
+        DVBillingWebhookReceiver,
+        DVBillingWebhookResult,
+        DVBillingError,
+        DVBillingFetch,
+        // A billing history, and the money on it. DVMoney is here because an
+        // amount rendered without its currency is the mistake the type
+        // exists to stop.
+        DVInvoice,
+        DVInvoiceStatus,
+        DVMoney,
         Entitlement,
         LocalAnalyticsProvider,
         formControlsFactories,
@@ -5638,6 +5656,82 @@ class DVBilling {
 
   Future<bool> hasEntitlement(Object customer, Entitlement entitlement) {
     return _configuredProvider.hasEntitlement(customer, entitlement);
+  }
+
+  /// [customer]'s billing history, newest first.
+  ///
+  /// Only theirs: the provider filters, and the implementations drop any row
+  /// that comes back for somebody else rather than render one customer
+  /// another customer's invoices on a page that looks entirely normal.
+  Future<List<DVInvoice>> invoices(Object customer, {int limit = 20}) {
+    return _configuredProvider.invoices(customer, limit: limit);
+  }
+
+  /// Verifies a webhook against the configured provider and applies it.
+  ///
+  /// [headers] is the request's headers; the signature is found under the
+  /// name the provider signs with, matched without regard to case because
+  /// servers hand header names over differently. Throws when the signature
+  /// is missing, forged, or too old, and changes nothing in that case.
+  ///
+  /// This exists so the route that receives a webhook does not have to. The
+  /// alternative was downcasting to whichever provider was configured, or
+  /// writing the HMAC comparison again next to the handler -- and a
+  /// verification written twice is the one that gets simplified until an
+  /// unsigned "subscription activated" is accepted.
+  Future<DVBillingWebhookResult> handleWebhook(
+    String payload,
+    Map<String, String> headers,
+  ) {
+    final DVBillingProvider configured = _configuredProvider;
+    if (configured is! DVBillingWebhookReceiver) {
+      throw StateError(
+        '${configured.runtimeType} does not receive webhooks, so there is no '
+        'signature to check and nothing here will apply the payload. '
+        'Configure Stripe or Paddle for webhook delivery.',
+      );
+    }
+    final DVBillingWebhookReceiver provider =
+        configured as DVBillingWebhookReceiver;
+    final String wanted = provider.signatureHeaderName.toLowerCase();
+    String? signature;
+    for (final MapEntry<String, String> header in headers.entries) {
+      if (header.key.toLowerCase() == wanted) {
+        signature = header.value;
+        break;
+      }
+    }
+    if (signature == null) {
+      throw DVBillingError(
+        'The request carries no ${provider.signatureHeaderName} header, so '
+        'nothing about it can be believed.',
+      );
+    }
+    return provider.handleWebhook(payload, signature);
+  }
+
+  /// Records [quantity] against [meter] for [customer].
+  ///
+  /// [idempotencyKey] is required, and the reason is worth repeating here
+  /// because this is where application code calls it from: usage is reported
+  /// from jobs, jobs are redelivered, and a provider counts one record per
+  /// identifier. A key derived from the work -- the job id, the request id,
+  /// the row being charged for -- is the same on the retry. A fresh one
+  /// every call bills twice.
+  Future<void> recordUsage({
+    required Object customer,
+    required DVUsageMeter meter,
+    required int quantity,
+    required String idempotencyKey,
+    DateTime? at,
+  }) {
+    return _configuredProvider.recordUsage(
+      customer: customer,
+      meter: meter,
+      quantity: quantity,
+      idempotencyKey: idempotencyKey,
+      at: at,
+    );
   }
 
   void grantLocalEntitlement(Object customer, Entitlement entitlement) {

@@ -10,6 +10,7 @@ import 'package:mime/mime.dart';
 import 'src/ai/ai.dart';
 import 'src/secrets/secrets.dart';
 import 'src/database/adapter.dart';
+import 'src/billing/invoice.dart';
 import 'src/http/aws_sigv4.dart';
 import 'src/http/flat_buffer.dart';
 import 'src/http/transport.dart';
@@ -29,9 +30,11 @@ export 'src/analytics/analytics.dart';
 export 'src/annotations/annotations.dart';
 export 'src/auth/auth.dart';
 export 'src/auth/backend_policy.dart';
+export 'src/billing/invoice.dart';
 export 'src/billing/money.dart';
 export 'src/billing/paddle.dart';
 export 'src/billing/stripe.dart';
+export 'src/billing/webhooks.dart';
 // LDAP is a raw TCP protocol, so a browser cannot speak it. Exported
 // unconditionally this pulls dart:io into every web build, which is what broke
 // the site build -- as a cascade of unrelated type errors in another file
@@ -1194,15 +1197,31 @@ class DVUnconfiguredSearchProvider<TModel, TFacets>
 class BillingPlan {
   final String id;
   final String displayName;
+
+  /// What the plan costs, in [currency]'s minor units.
+  ///
+  /// Zero means the plan declares no unit price: free, or billed by the
+  /// meter. Anything else is checked against what the provider will actually
+  /// charge before a customer is sent to a checkout, so this is the number
+  /// the application is held to rather than a caption.
   final int priceMinorUnits;
   final String currency;
+
+  /// Free days before the first charge, zero for none.
+  ///
+  /// A plan that advertises a fortnight free and a provider that charges on
+  /// day one disagree in a way only the customer finds out about. Stripe
+  /// takes this with the checkout session; Paddle keeps trials on the price,
+  /// so the provider checks the two agree rather than sending it.
+  final int trialDays;
 
   const BillingPlan({
     required this.id,
     required this.displayName,
     required this.priceMinorUnits,
     required this.currency,
-  });
+    this.trialDays = 0,
+  }) : assert(trialDays >= 0, 'a trial is a number of free days, or none');
 
   static const pro = BillingPlan(
     id: 'pro',
@@ -1218,6 +1237,80 @@ class Entitlement {
   const Entitlement(this.id);
 
   static const analytics = Entitlement('analytics');
+}
+
+/// A domain object that says which billing customer it is.
+///
+/// Implement it on the user, account or tenant that pays, returning the id
+/// the provider knows -- a Stripe `cus_...`, a Paddle `ctm_...`, or whatever
+/// the application stores against the row. Two objects loaded from the same
+/// record then answer as the same customer, which is what a grant needs and
+/// what object identity does not give.
+abstract class DVBillingCustomer {
+  String get billingCustomerId;
+}
+
+/// The key entitlements and usage are stored under for [customer].
+///
+/// Providers took `customer.toString()`. For a String that is an identity;
+/// for an ordinary Dart object it is the constant "Instance of 'User'", so
+/// passing the logged-in user -- the obvious thing to do, and what a
+/// parameter typed Object invites -- filed every user in the application
+/// under one key. One person subscribes, everybody has the plan, and
+/// nothing anywhere reports a problem.
+///
+/// So an identity is required. A [DVBillingCustomer] states one, a String or
+/// a number is one, and a class with a meaningful toString has one. An
+/// object with the default toString has none, and gets an error rather than
+/// a shared key: keying on the type name is the same bug as the hash code
+/// this replaced, with better spelling.
+String dvBillingCustomerKey(Object customer) {
+  final String key = customer is DVBillingCustomer
+      ? customer.billingCustomerId
+      : customer.toString();
+
+  if (key.isEmpty) {
+    throw ArgumentError.value(
+      customer,
+      'customer',
+      'a billing customer needs an identifier, and this one is empty. An '
+          'empty key is one key, shared by everybody who has none',
+    );
+  }
+  if (RegExp(r"^Instance of '.*'$").hasMatch(key)) {
+    throw ArgumentError.value(
+      customer,
+      'customer',
+      'a ${customer.runtimeType} has no billing identity: its toString is '
+          'the same text for every instance, so entitlements and usage would '
+          'be shared by every ${customer.runtimeType} in the application. '
+          'Implement DVBillingCustomer on it, or pass the provider customer '
+          'id',
+    );
+  }
+  return key;
+}
+
+/// Something an application counts and a provider bills for.
+///
+/// The meter is the application's name for the thing -- `api_calls`,
+/// `seats`, `minutes_transcribed`. What the provider calls it is provider
+/// configuration, the same way a plan's price identifier is, so a meter can
+/// be referred to from application code without the code knowing which
+/// billing account it ends up in.
+class DVUsageMeter {
+  const DVUsageMeter(this.id);
+
+  final String id;
+
+  @override
+  bool operator ==(Object other) => other is DVUsageMeter && other.id == id;
+
+  @override
+  int get hashCode => id.hashCode;
+
+  @override
+  String toString() => 'DVUsageMeter($id)';
 }
 
 class DVBillingCheckoutSession {
@@ -1243,6 +1336,34 @@ abstract class DVBillingProvider {
   });
 
   Future<bool> hasEntitlement(Object customer, Entitlement entitlement);
+
+  /// Records [quantity] against [meter] for [customer].
+  ///
+  /// [idempotencyKey] identifies this record and is required. Usage is
+  /// reported from jobs and queues, which redeliver, and a provider counts
+  /// one record per identifier: without one, the ordinary retry doubles
+  /// somebody's bill. There is no default worth having, because a generated
+  /// key differs on the redelivery and is the value that breaks it.
+  ///
+  /// [at] is when the usage happened, defaulting to now. It matters when a
+  /// record is written late: usage that crosses a billing period lands in
+  /// whichever period its timestamp says.
+  Future<void> recordUsage({
+    required Object customer,
+    required DVUsageMeter meter,
+    required int quantity,
+    required String idempotencyKey,
+    DateTime? at,
+  });
+
+  /// [customer]'s invoices, newest first, at most [limit] of them.
+  ///
+  /// Only theirs. The provider filters server-side, so a row for anybody
+  /// else means the filter did not apply -- a renamed parameter, a copied
+  /// request, a provider that ignores a key it does not know -- and the
+  /// implementations drop those rather than render one customer another
+  /// customer's billing history on a page that looks entirely normal.
+  Future<List<DVInvoice>> invoices(Object customer, {int limit = 20});
 }
 
 class DVLocalBillingProvider implements DVBillingProvider {
@@ -1291,11 +1412,59 @@ class DVLocalBillingProvider implements DVBillingProvider {
     return _grants[_customerKey(customer)]?.contains(entitlement.id) ?? false;
   }
 
+  @override
+  Future<void> recordUsage({
+    required Object customer,
+    required DVUsageMeter meter,
+    required int quantity,
+    required String idempotencyKey,
+    DateTime? at,
+  }) async {
+    if (quantity <= 0) {
+      throw ArgumentError.value(
+        quantity,
+        'quantity',
+        'usage is something that happened, so it is a positive number. A '
+            'negative record reduces a bill while reading like a measurement',
+      );
+    }
+    // The local provider dedupes for the same reason a real one does: this
+    // is what a test runs against, and a double count that only shows up in
+    // production is the one nobody catches.
+    if (!_usageSeen.add(idempotencyKey)) return;
+    final Map<String, int> meters =
+        _usage.putIfAbsent(_customerKey(customer), () => <String, int>{});
+    meters[meter.id] = (meters[meter.id] ?? 0) + quantity;
+  }
+
+  /// None: nothing here charges anybody, so there is nothing to invoice.
+  ///
+  /// Empty rather than an error, because a local billing setup is a working
+  /// configuration and a billing history page against it should render an
+  /// empty history rather than fail.
+  @override
+  Future<List<DVInvoice>> invoices(Object customer, {int limit = 20}) async =>
+      const <DVInvoice>[];
+
+  /// What [customer] has run up against [meter], zero if nothing.
+  int usage(Object customer, DVUsageMeter meter) =>
+      _usage[_customerKey(customer)]?[meter.id] ?? 0;
+
+  /// Every meter's running total, by customer.
+  Map<String, Map<String, int>> get usageLedger =>
+      Map<String, Map<String, int>>.unmodifiable(<String, Map<String, int>>{
+        for (final MapEntry<String, Map<String, int>> e in _usage.entries)
+          e.key: Map<String, int>.unmodifiable(e.value),
+      });
+
+  final Map<String, Map<String, int>> _usage = <String, Map<String, int>>{};
+  final Set<String> _usageSeen = <String>{};
+
   /// Identity, not hash. Keying grants by `customer.hashCode` meant two
   /// customers whose hashes collided shared entitlements — one paying for a
   /// plan could unlock it for a stranger — and made the stored keys
   /// unreadable to anything inspecting them.
-  String _customerKey(Object customer) => customer.toString();
+  String _customerKey(Object customer) => dvBillingCustomerKey(customer);
 }
 
 class DVImportRowError {
