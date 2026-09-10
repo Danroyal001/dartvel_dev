@@ -56,6 +56,18 @@ flutter:
     - assets/
 
 dartvel:
+  android:
+    # What the Android build declares in the manifest. Declared rather than
+    # inferred: what an application asks for at run time cannot be read off
+    # its source, and a framework that declared everything it can request
+    # would put "reads your contacts" on the store listing of a torch.
+    #
+    # A permission requested at run time and missing here is refused by
+    # Android instantly, with no dialog and the same answer a person tapping
+    # Deny gives -- so the emulator job asserts that camera below reaches the
+    # installed APK.
+    permissions: [camera, location, contacts]
+
   search:
     synonyms:
       admin: [administrator, superuser]
