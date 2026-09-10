@@ -66,6 +66,10 @@ void main() {
       <String>{
         'clipboard.copy',
         'clipboard.paste',
+        // The PRIMARY selection. Linux only: Windows and macOS have one
+        // clipboard and nothing that answers to a middle-click paste.
+        'clipboard.readSelection',
+        'clipboard.writeSelection',
         'screen.geometry',
         'notifications.sendLocal',
         'window.setTitle',
