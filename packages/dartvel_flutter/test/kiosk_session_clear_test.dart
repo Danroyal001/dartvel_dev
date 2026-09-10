@@ -15,8 +15,6 @@
 // Three of the five are the framework's own to clear and are covered here.
 // signals and forms are the application's state and stay the application's
 // callback; doctor says so rather than this pretending otherwise.
-import 'package:dartvel_core/dartvel.dart'
-    show DVKioskClearable, DVKioskPolicy, DVMemoryCacheAdapter;
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
