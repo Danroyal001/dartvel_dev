@@ -35,20 +35,8 @@ typedef _GetChildN = Pointer<Void> Function(Pointer<Void>);
 typedef _GetChildD = Pointer<Void> Function(Pointer<Void>);
 typedef _GetXidN = Uint64 Function(Pointer<Void>);
 typedef _GetXidD = int Function(Pointer<Void>);
-typedef _XGrabPointerN =
-    Int32 Function(
-      Pointer<Void>,
-      Uint64,
-      Int32,
-      Uint32,
-      Int32,
-      Int32,
-      Uint64,
-      Uint64,
-      Uint64,
-    );
-typedef _XGrabPointerD =
-    int Function(Pointer<Void>, int, int, int, int, int, int, int, int);
+typedef _XGrabPointerN = Int32 Function(Pointer<Void>, Uint64, Int32, Uint32, Int32, Int32, Uint64, Uint64, Uint64);
+typedef _XGrabPointerD = int Function(Pointer<Void>, int, int, int, int, int, int, int, int);
 typedef _XUngrabPointerN = Int32 Function(Pointer<Void>, Uint64);
 typedef _XUngrabPointerD = int Function(Pointer<Void>, int);
 typedef _XFlushN = Int32 Function(Pointer<Void>);
@@ -64,10 +52,14 @@ typedef _XDefaultScreenDart = int Function(Pointer<Void>);
 
 // --- libgtk-3 / libgdk-3 -----------------------------------------------------
 
-typedef _GtkInitCheckNative =
-    Int32 Function(Pointer<Int32>, Pointer<Pointer<Pointer<Utf8>>>);
-typedef _GtkInitCheckDart =
-    int Function(Pointer<Int32>, Pointer<Pointer<Pointer<Utf8>>>);
+typedef _GtkInitCheckNative = Int32 Function(
+  Pointer<Int32>,
+  Pointer<Pointer<Pointer<Utf8>>>,
+);
+typedef _GtkInitCheckDart = int Function(
+  Pointer<Int32>,
+  Pointer<Pointer<Pointer<Utf8>>>,
+);
 
 // --- GTK window control ------------------------------------------------------
 
@@ -88,46 +80,56 @@ typedef _GtkWindowResizeDart = void Function(Pointer<Void>, int, int);
 
 // --- GDBus (desktop notifications) -------------------------------------------
 
-typedef _GBusGetSyncNative =
-    Pointer<Void> Function(Int32, Pointer<Void>, Pointer<Pointer<Void>>);
-typedef _GBusGetSyncDart =
-    Pointer<Void> Function(int, Pointer<Void>, Pointer<Pointer<Void>>);
-typedef _GVariantNewParsedNative =
-    Pointer<Void> Function(Pointer<Utf8>, Pointer<Void>);
-typedef _GVariantNewParsedDart =
-    Pointer<Void> Function(Pointer<Utf8>, Pointer<Void>);
-typedef _GDBusCallSyncNative =
-    Pointer<Void> Function(
-      Pointer<Void>,
-      Pointer<Utf8>,
-      Pointer<Utf8>,
-      Pointer<Utf8>,
-      Pointer<Utf8>,
-      Pointer<Void>,
-      Pointer<Void>,
-      Int32,
-      Int32,
-      Pointer<Void>,
-      Pointer<Pointer<Void>>,
-    );
-typedef _GDBusCallSyncDart =
-    Pointer<Void> Function(
-      Pointer<Void>,
-      Pointer<Utf8>,
-      Pointer<Utf8>,
-      Pointer<Utf8>,
-      Pointer<Utf8>,
-      Pointer<Void>,
-      Pointer<Void>,
-      int,
-      int,
-      Pointer<Void>,
-      Pointer<Pointer<Void>>,
-    );
+typedef _GBusGetSyncNative = Pointer<Void> Function(
+  Int32,
+  Pointer<Void>,
+  Pointer<Pointer<Void>>,
+);
+typedef _GBusGetSyncDart = Pointer<Void> Function(
+  int,
+  Pointer<Void>,
+  Pointer<Pointer<Void>>,
+);
+typedef _GVariantNewParsedNative = Pointer<Void> Function(
+  Pointer<Utf8>,
+  Pointer<Void>,
+);
+typedef _GVariantNewParsedDart = Pointer<Void> Function(
+  Pointer<Utf8>,
+  Pointer<Void>,
+);
+typedef _GDBusCallSyncNative = Pointer<Void> Function(
+  Pointer<Void>,
+  Pointer<Utf8>,
+  Pointer<Utf8>,
+  Pointer<Utf8>,
+  Pointer<Utf8>,
+  Pointer<Void>,
+  Pointer<Void>,
+  Int32,
+  Int32,
+  Pointer<Void>,
+  Pointer<Pointer<Void>>,
+);
+typedef _GDBusCallSyncDart = Pointer<Void> Function(
+  Pointer<Void>,
+  Pointer<Utf8>,
+  Pointer<Utf8>,
+  Pointer<Utf8>,
+  Pointer<Utf8>,
+  Pointer<Void>,
+  Pointer<Void>,
+  int,
+  int,
+  Pointer<Void>,
+  Pointer<Pointer<Void>>,
+);
 typedef _GVariantUnrefNative = Void Function(Pointer<Void>);
 typedef _GVariantUnrefDart = void Function(Pointer<Void>);
-typedef _GVariantGetUint32Native =
-    Pointer<Void> Function(Pointer<Void>, Uint64);
+typedef _GVariantGetUint32Native = Pointer<Void> Function(
+  Pointer<Void>,
+  Uint64,
+);
 typedef _GVariantGetUint32Dart = Pointer<Void> Function(Pointer<Void>, int);
 typedef _GVariantGetUint32ValueNative = Uint32 Function(Pointer<Void>);
 typedef _GVariantGetUint32ValueDart = int Function(Pointer<Void>);
@@ -229,6 +231,7 @@ class DVLinuxBindings {
     'associations.handlerFor',
   };
 
+
   static DynamicLibrary? _x11;
   static DynamicLibrary? _gtk;
   static DynamicLibrary? _gdk;
@@ -299,21 +302,24 @@ class DVLinuxBindings {
       final map = arguments is Map ? arguments : const <Object?, Object?>{};
       return _setWindowTitle('${map['title'] ?? ''}');
     });
-    DVNativeBridge.register('window.setSize', (Object? arguments) {
-      final map = arguments is Map ? arguments : const <Object?, Object?>{};
-      final width = map['width'];
-      final height = map['height'];
-      // Refused rather than coerced. A resize to a nonsensical size is a
-      // caller mistake, and silently clamping it hides the mistake behind a
-      // window that is the wrong size for reasons nobody can see.
-      if (width is! int || height is! int || width <= 0 || height <= 0) {
-        throw ArgumentError(
-          'window.setSize needs positive integer width and height, '
-          'got width=$width height=$height.',
-        );
-      }
-      return _resize(width, height);
-    });
+    DVNativeBridge.register(
+      'window.setSize',
+      (Object? arguments) {
+        final map = arguments is Map ? arguments : const <Object?, Object?>{};
+        final width = map['width'];
+        final height = map['height'];
+        // Refused rather than coerced. A resize to a nonsensical size is a
+        // caller mistake, and silently clamping it hides the mistake behind a
+        // window that is the wrong size for reasons nobody can see.
+        if (width is! int || height is! int || width <= 0 || height <= 0) {
+          throw ArgumentError(
+            'window.setSize needs positive integer width and height, '
+            'got width=$width height=$height.',
+          );
+        }
+        return _resize(width, height);
+      },
+    );
     DVNativeBridge.register(
       'window.maximize',
       (Object? _) => _windowAction('gtk_window_maximize'),
@@ -367,14 +373,8 @@ class DVLinuxBindings {
     DVLinuxTray.register(DVNativeBridge.register);
     // A desktop deep link arrives as a launch argument; the launch keeps
     // the first one. The stream is fed by the launch as well.
-    DVNativeBridge.register(
-      'deepLinks.initial',
-      (Object? _) => DVAppLaunch.initialLink,
-    );
-    DVNativeBridge.register(
-      'permissions.isGranted',
-      DVDesktopPermissions.answer,
-    );
+    DVNativeBridge.register('deepLinks.initial', (Object? _) => DVAppLaunch.initialLink);
+    DVNativeBridge.register('permissions.isGranted', DVDesktopPermissions.answer);
     DVNativeBridge.register('permissions.request', DVDesktopPermissions.answer);
 
     _registered = true;
@@ -440,34 +440,36 @@ class DVLinuxBindings {
   /// process when there is no display.
   static bool _ensureGtk() {
     if (_gtkReady) return true;
-    final initCheck = _gtk!
-        .lookupFunction<_GtkInitCheckNative, _GtkInitCheckDart>(
-          'gtk_init_check',
-        );
+    final initCheck = _gtk!.lookupFunction<_GtkInitCheckNative,
+        _GtkInitCheckDart>('gtk_init_check');
     _gtkReady = initCheck(nullptr, nullptr) != 0;
     return _gtkReady;
   }
 
   static Map<String, Object?>? _geometry() {
     final openDisplay = _x11!
-        .lookupFunction<_XOpenDisplayNative, _XOpenDisplayDart>('XOpenDisplay');
+        .lookupFunction<_XOpenDisplayNative, _XOpenDisplayDart>(
+      'XOpenDisplay',
+    );
     final display = openDisplay(nullptr);
     if (display == nullptr) return null;
 
     final defaultScreen = _x11!
         .lookupFunction<_XDefaultScreenNative, _XDefaultScreenDart>(
-          'XDefaultScreen',
-        );
-    final width = _x11!.lookupFunction<_XDisplayIntNative, _XDisplayIntDart>(
+      'XDefaultScreen',
+    );
+    final width = _x11!
+        .lookupFunction<_XDisplayIntNative, _XDisplayIntDart>(
       'XDisplayWidth',
     );
-    final height = _x11!.lookupFunction<_XDisplayIntNative, _XDisplayIntDart>(
+    final height = _x11!
+        .lookupFunction<_XDisplayIntNative, _XDisplayIntDart>(
       'XDisplayHeight',
     );
     final closeDisplay = _x11!
         .lookupFunction<_XCloseDisplayNative, _XCloseDisplayDart>(
-          'XCloseDisplay',
-        );
+      'XCloseDisplay',
+    );
 
     try {
       final screen = defaultScreen(display);
@@ -489,18 +491,20 @@ class DVLinuxBindings {
   /// process.
   static Pointer<Void>? _toplevel() {
     if (!_ensureGtk()) return null;
-    final list = _gtk!.lookupFunction<_GtkWindowListNative, _GtkWindowListDart>(
+    final list = _gtk!
+        .lookupFunction<_GtkWindowListNative, _GtkWindowListDart>(
       'gtk_window_list_toplevels',
     )();
     if (list == nullptr) return null;
-    final length = _glib!.lookupFunction<_GListLengthNative, _GListLengthDart>(
+    final length = _glib!
+        .lookupFunction<_GListLengthNative, _GListLengthDart>(
       'g_list_length',
     )(list);
     if (length == 0) return null;
     final window = _glib!
         .lookupFunction<_GListNthDataNative, _GListNthDataDart>(
-          'g_list_nth_data',
-        )(list, 0);
+      'g_list_nth_data',
+    )(list, 0);
     return window == nullptr ? null : window;
   }
 
@@ -525,8 +529,8 @@ class DVLinuxBindings {
     if (window == null) return null;
     final title = _gtk!
         .lookupFunction<_GtkWindowGetTitleNative, _GtkWindowGetTitleDart>(
-          'gtk_window_get_title',
-        )(window);
+      'gtk_window_get_title',
+    )(window);
     // GTK owns this string; it must not be freed here.
     return title == nullptr ? null : title.toDartString();
   }
@@ -555,25 +559,19 @@ class DVLinuxBindings {
     final Pointer<Void>? window = _toplevel();
     if (window == null) return 'no window to confine the pointer to';
     final Pointer<Void> gdkWindow = _gtk!
-        .lookupFunction<_GetChildN, _GetChildD>(
-          'gtk_widget_get_window',
-        )(window);
+        .lookupFunction<_GetChildN, _GetChildD>('gtk_widget_get_window')(window);
     if (gdkWindow == nullptr) return 'the window is not realized yet';
-    final Pointer<Void> gdkDisplay = _gdk!.lookupFunction<_VoidPN, _VoidPD>(
-      'gdk_display_get_default',
-    )();
-    final Pointer<Void> xDisplay = _gdk!.lookupFunction<_GetChildN, _GetChildD>(
-      'gdk_x11_display_get_xdisplay',
-    )(gdkDisplay);
-    final int xid = _gdk!.lookupFunction<_GetXidN, _GetXidD>(
-      'gdk_x11_window_get_xid',
-    )(gdkWindow);
+    final Pointer<Void> gdkDisplay =
+        _gdk!.lookupFunction<_VoidPN, _VoidPD>('gdk_display_get_default')();
+    final Pointer<Void> xDisplay = _gdk!
+        .lookupFunction<_GetChildN, _GetChildD>('gdk_x11_display_get_xdisplay')(gdkDisplay);
+    final int xid =
+        _gdk!.lookupFunction<_GetXidN, _GetXidD>('gdk_x11_window_get_xid')(gdkWindow);
     // ButtonPress | ButtonRelease | PointerMotion; async modes; confine to
     // the window itself; no cursor; now.
     const int mask = 0x4 | 0x8 | 0x40;
-    final int status = _x11!.lookupFunction<_XGrabPointerN, _XGrabPointerD>(
-      'XGrabPointer',
-    )(xDisplay, xid, 1, mask, 1, 1, xid, 0, 0);
+    final int status = _x11!.lookupFunction<_XGrabPointerN, _XGrabPointerD>('XGrabPointer')(
+        xDisplay, xid, 1, mask, 1, 1, xid, 0, 0);
     _x11!.lookupFunction<_XFlushN, _XFlushD>('XFlush')(xDisplay);
     return switch (status) {
       0 => null,
@@ -586,25 +584,20 @@ class DVLinuxBindings {
   }
 
   static void _releasePointer() {
-    final Pointer<Void> gdkDisplay = _gdk!.lookupFunction<_VoidPN, _VoidPD>(
-      'gdk_display_get_default',
-    )();
-    final Pointer<Void> xDisplay = _gdk!.lookupFunction<_GetChildN, _GetChildD>(
-      'gdk_x11_display_get_xdisplay',
-    )(gdkDisplay);
-    _x11!.lookupFunction<_XUngrabPointerN, _XUngrabPointerD>('XUngrabPointer')(
-      xDisplay,
-      0,
-    );
+    final Pointer<Void> gdkDisplay =
+        _gdk!.lookupFunction<_VoidPN, _VoidPD>('gdk_display_get_default')();
+    final Pointer<Void> xDisplay = _gdk!
+        .lookupFunction<_GetChildN, _GetChildD>('gdk_x11_display_get_xdisplay')(gdkDisplay);
+    _x11!.lookupFunction<_XUngrabPointerN, _XUngrabPointerD>('XUngrabPointer')(xDisplay, 0);
     _x11!.lookupFunction<_XFlushN, _XFlushD>('XFlush')(xDisplay);
   }
 
   static bool _windowAction(String symbol) {
     final window = _toplevel();
     if (window == null) return false;
-    _gtk!.lookupFunction<_GtkWindowActionNative, _GtkWindowActionDart>(symbol)(
-      window,
-    );
+    _gtk!.lookupFunction<_GtkWindowActionNative, _GtkWindowActionDart>(
+      symbol,
+    )(window);
     return true;
   }
 
@@ -618,55 +611,53 @@ class DVLinuxBindings {
     try {
       // G_BUS_TYPE_SESSION == 2. The system bus (1) is the wrong bus and is
       // usually absent in a desktop session.
-      final bus = _gio!.lookupFunction<_GBusGetSyncNative, _GBusGetSyncDart>(
+      final bus = _gio!
+          .lookupFunction<_GBusGetSyncNative, _GBusGetSyncDart>(
         'g_bus_get_sync',
       )(2, nullptr, error);
       if (bus == nullptr) return null;
 
       // g_variant_new_parsed avoids constructing the (susssasa{sv}i)
       // signature by hand through varargs, which dart:ffi cannot express.
-      final parameters =
-          _glib!
-              .lookupFunction<_GVariantNewParsedNative, _GVariantNewParsedDart>(
-                'g_variant_new_parsed',
-              )(
-            "('${_escapeVariant(_appName)}', uint32 0, '', "
-                    "'${_escapeVariant(title)}', '${_escapeVariant(body)}', "
-                    '@as [], @a{sv} {}, 5000)'
-                .toNativeUtf8(),
-            nullptr,
-          );
+      final parameters = _glib!
+          .lookupFunction<_GVariantNewParsedNative, _GVariantNewParsedDart>(
+        'g_variant_new_parsed',
+      )(
+        "('${_escapeVariant(_appName)}', uint32 0, '', "
+                "'${_escapeVariant(title)}', '${_escapeVariant(body)}', "
+                '@as [], @a{sv} {}, 5000)'
+            .toNativeUtf8(),
+        nullptr,
+      );
       if (parameters == nullptr) return null;
 
-      final reply =
-          _gio!.lookupFunction<_GDBusCallSyncNative, _GDBusCallSyncDart>(
-            'g_dbus_connection_call_sync',
-          )(
-            bus,
-            _notificationsName,
-            _notificationsPath,
-            _notificationsName,
-            _notifyMethod,
-            parameters,
-            nullptr,
-            0,
-            5000,
-            nullptr,
-            error,
-          );
+      final reply = _gio!
+          .lookupFunction<_GDBusCallSyncNative, _GDBusCallSyncDart>(
+        'g_dbus_connection_call_sync',
+      )(
+        bus,
+        _notificationsName,
+        _notificationsPath,
+        _notificationsName,
+        _notifyMethod,
+        parameters,
+        nullptr,
+        0,
+        5000,
+        nullptr,
+        error,
+      );
       if (reply == nullptr) return null;
 
       // The reply is (u); read the id back so callers can dismiss it.
       final id = _gio!
           .lookupFunction<_GVariantGetUint32Native, _GVariantGetUint32Dart>(
-            'g_variant_get_child_value',
-          )(reply, 0);
+        'g_variant_get_child_value',
+      )(reply, 0);
       final value = id == nullptr
           ? null
-          : _glib!.lookupFunction<
-              _GVariantGetUint32ValueNative,
-              _GVariantGetUint32ValueDart
-            >('g_variant_get_uint32')(id);
+          : _glib!.lookupFunction<_GVariantGetUint32ValueNative,
+              _GVariantGetUint32ValueDart>('g_variant_get_uint32')(id);
       _glib!.lookupFunction<_GVariantUnrefNative, _GVariantUnrefDart>(
         'g_variant_unref',
       )(reply);
