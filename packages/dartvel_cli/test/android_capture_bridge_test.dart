@@ -44,7 +44,7 @@ void main() {
     });
 
     test('the pubspec section is read as a list of names', () {
-      final Object? section = <String, Object?>{
+      const Map<String, Object?> section = <String, Object?>{
         'android': <String, Object?>{
           'permissions': <Object?>['camera', 'location', 'camera'],
         },
