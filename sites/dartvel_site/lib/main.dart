@@ -14,12 +14,40 @@ Widget createDartvelApp() => MaterialApp.router(
       title: 'Dartvel — Flutter, full stack',
       debugShowCheckedModeBanner: false,
       themeMode: ThemeMode.system,
-      theme: _theme(Brightness.light),
-      darkTheme: _theme(Brightness.dark),
+      theme: dartvelSiteTheme(Brightness.light),
+      darkTheme: dartvelSiteTheme(Brightness.dark),
+      scrollBehavior: const DartvelSiteScrollBehavior(),
       routerConfig: createDartvelRouter(),
     );
 
-ThemeData _theme(Brightness brightness) {
+/// A scrollbar on every scrollable, for every input.
+///
+/// Flutter's Material behaviour draws one for a mouse or a trackpad and none
+/// for touch, which on the web means a tablet gets no indication of how long a
+/// page is. The docs page is nine sections; without a thumb it looks the same
+/// near the top as near the bottom.
+///
+/// Overridden rather than configured because the platform switch is inside
+/// `buildScrollbar` and there is no flag for "also touch". The theme handles
+/// the other half — see [dartvelSiteTheme] — since a scrollbar that exists and
+/// fades after a second is barely better than none.
+class DartvelSiteScrollBehavior extends MaterialScrollBehavior {
+  const DartvelSiteScrollBehavior();
+
+  @override
+  Widget buildScrollbar(
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) =>
+      Scrollbar(controller: details.controller, child: child);
+}
+
+/// The theme every page is given.
+///
+/// Public so a test can read what the pages actually get rather than asserting
+/// against a copy of it.
+ThemeData dartvelSiteTheme(Brightness brightness) {
   final dark = brightness == Brightness.dark;
   return ThemeData(
     useMaterial3: true,
@@ -29,6 +57,28 @@ ThemeData _theme(Brightness brightness) {
     colorScheme: ColorScheme.fromSeed(
       seedColor: const Color(0xFF2F6BFF),
       brightness: brightness,
+    ),
+    // Always drawn, never faded. thumbVisibility keeps the thumb on screen
+    // after the scroll stops; trackVisibility keeps the groove behind it, so
+    // the thumb reads as a position in a whole rather than a mark floating at
+    // the edge of the page.
+    scrollbarTheme: ScrollbarThemeData(
+      thumbVisibility: WidgetStateProperty.all(true),
+      trackVisibility: WidgetStateProperty.all(true),
+      thickness: WidgetStateProperty.all(10),
+      radius: const Radius.circular(6),
+      // Quiet against both grounds. A scrollbar that is permanently visible is
+      // permanently in the corner of somebody's eye, so it is drawn at the
+      // weight of a rule rather than of a control.
+      thumbColor: WidgetStateProperty.all(
+        dark ? const Color(0xFF39435A) : const Color(0xFFC2C9D8),
+      ),
+      trackColor: WidgetStateProperty.all(
+        dark ? const Color(0xFF161B25) : const Color(0xFFF1F3F8),
+      ),
+      trackBorderColor: WidgetStateProperty.all(
+        dark ? const Color(0xFF222A38) : const Color(0xFFE3E7EF),
+      ),
     ),
   );
 }
