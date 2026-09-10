@@ -53,13 +53,22 @@ String subscriptionEvent({
     });
 
 void main() {
-  late List<(Uri, Map<String, String>, String)> requests;
+  late List<(Uri, Map<String, String>, String?)> requests;
 
   DVStripeBillingProvider provider({
     Map<String, (int, String)> responses = const <String, (int, String)>{},
     DateTime? now,
   }) {
-    requests = <(Uri, Map<String, String>, String)>[];
+    requests = <(Uri, Map<String, String>, String?)>[];
+    // Checkout reads the price before creating a session, so a working
+    // Stripe answers for it. What that check refuses lives in
+    // billing_declared_price_test.dart; here it is only the fixture that
+    // keeps these tests about the header, the body and the error text.
+    responses = <String, (int, String)>{
+      '/v1/prices/price_pro':
+          (200, '{"id":"price_pro","unit_amount":4000,"currency":"usd"}'),
+      ...responses,
+    };
     return DVStripeBillingProvider(
       secretKey: 'sk_test_secret',
       webhookSecret: 'whsec_test',
@@ -69,7 +78,8 @@ void main() {
       },
       successUrl: Uri.parse('https://app.example/billing/success'),
       cancelUrl: Uri.parse('https://app.example/billing/cancel'),
-      fetch: (Uri url, Map<String, String> headers, String body) async {
+      fetch: (String method, Uri url, Map<String, String> headers,
+          String? body) async {
         requests.add((url, headers, body));
         return responses[url.path] ?? (404, '{"error":{"message":"no"}}');
       },
@@ -89,7 +99,8 @@ void main() {
 
       expect(session.id, 'cs_1');
       expect(session.checkoutUrl, Uri.parse('https://checkout.stripe.com/c/cs_1'));
-      final (Uri url, Map<String, String> headers, String body) = requests.single;
+      final (Uri url, Map<String, String> headers, String? body) =
+          requests.last;
       expect(url.host, 'api.stripe.com');
       expect(headers['Authorization'], 'Bearer sk_test_secret');
       expect(body, contains('line_items%5B0%5D%5Bprice%5D=price_pro'));
