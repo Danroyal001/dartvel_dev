@@ -1,3 +1,11 @@
+## 1.2.0
+
+- Follows `dartvel_core` 0.4.0.
+- Generated model queries filter by tenant where a model asks for it: a tenant
+  column, a predicate on every read, the tenant written into every write, and
+  a delete that cannot reach another tenant's row. They arrive together
+  because any one of them alone looks exactly like the feature working.
+
 ## 1.1.1
 
 - Corrected the constraints on sibling Dartvel packages, which named the
