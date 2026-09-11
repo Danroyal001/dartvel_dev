@@ -17,6 +17,15 @@
   description, the icon, the structured data. The first part is identical in
   every render of one shell, which is what makes it safe to send before the
   data exists.
+- `DVRoutePreloads` reads the prefetch manifest a web-server build writes
+  and gives a served route its own `<link rel="preload">` list, by the
+  pattern the request matched: its deferred parts as scripts, its images as
+  they are fetched, nothing the shell already names and no image drawn
+  through a variant, since which file that is depends on the screen.
+- `dvShellFirstChunks` is shell-first streaming as one function, the route's
+  preloads in its first write, and both servers stream through it -- the
+  deployed one and `dartvel preview`, which had only the older head-after-data
+  split, so the page previewed was not the page served.
 
 ## 0.4.0
 

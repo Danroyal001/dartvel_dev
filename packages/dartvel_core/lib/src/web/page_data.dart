@@ -10,8 +10,8 @@ library;
 import 'dart:async';
 import 'dart:convert';
 
-import '../tenancy/tenants.dart';
 import '../cache/adapters.dart';
+import '../tenancy/tenants.dart';
 import 'page_text.dart';
 import 'seo_head.dart';
 
@@ -455,6 +455,227 @@ List<String> dvPageChunks(String page) {
     page.substring(0, end + close.length),
     page.substring(end + close.length),
   ];
+}
+
+/// The file a web-server build writes beside its shell: each route
+/// pattern's own deferred parts and first-frame images.
+const String dvRoutePreloadsFile = 'dartvel_prefetch.json';
+
+/// Each served route's own preloads, from [dvRoutePreloadsFile].
+///
+/// A static build writes each page's preloads into that page. A server
+/// answers every route from one shell, so it has no page to write them into
+/// and names them per request instead -- by the pattern the request matched,
+/// which is what the build keyed them by.
+///
+/// Read leniently: an entry this does not recognise is skipped, and a key it
+/// does not know (an image's laid-out slot, say) is ignored, because a
+/// preload list is an optimisation and a mangled one must not stop a page.
+class DVRoutePreloads {
+  const DVRoutePreloads._(this._routes);
+
+  /// No manifest, or nothing in it.
+  static const DVRoutePreloads none =
+      DVRoutePreloads._(<String, List<(String, String)>>{});
+
+  /// Each pattern's links, as (address, `as`).
+  final Map<String, List<(String, String)>> _routes;
+
+  static DVRoutePreloads parse(String? json) {
+    if (json == null || json.isEmpty) return none;
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(json);
+    } on FormatException {
+      return none;
+    }
+    if (decoded is! Map) return none;
+    final Object? routes = decoded['routes'];
+    if (routes is! Map) return none;
+    final Map<String, List<(String, String)>> out =
+        <String, List<(String, String)>>{};
+    for (final MapEntry<Object?, Object?> route in routes.entries) {
+      final Object? pattern = route.key;
+      final Object? entry = route.value;
+      if (pattern is! String || entry is! Map) continue;
+      final Object? scripts = entry['scripts'];
+      final Object? images = entry['images'];
+      final List<(String, String)> links = <(String, String)>[
+        if (scripts is List)
+          for (final Object? script in scripts)
+            if (script is String && script.isNotEmpty) (script, 'script'),
+        if (images is List)
+          for (final Object? image in images)
+            // An image drawn through a variant is left out: which file a
+            // visitor needs depends on their screen, which a head cannot
+            // know. The static build keeps them out of its heads too.
+            if (image is Map &&
+                image['url'] is String &&
+                (image['url'] as String).isNotEmpty &&
+                image['variant'] == null)
+              (image['url'] as String, image['as'] == 'image' ? 'image' : 'fetch'),
+      ];
+      if (links.isNotEmpty) out[pattern] = links;
+    }
+    return DVRoutePreloads._(out);
+  }
+
+  bool get isEmpty => _routes.isEmpty;
+
+  /// The `<link rel="preload">` elements for [pattern], one per line, leaving
+  /// out anything [shell] already names -- the browser finds those while it
+  /// parses, so a second hint is a duplicate. Empty for a route with nothing
+  /// of its own.
+  ///
+  /// The shapes the static build writes: a part `as="script"` with no
+  /// crossorigin, as its script element asks; an image `as="fetch"` with
+  /// crossorigin for the bytes Flutter reads through fetch(), `as="image"`
+  /// for an `<img>`. A preload asked for any other way than the request it
+  /// is meant to answer is not reused, and the file downloads twice.
+  String linksFor(String pattern, {String shell = ''}) {
+    final List<(String, String)>? links = _routes[pattern];
+    if (links == null) return '';
+    final Set<String> named = _namedBy(shell);
+    final Set<String> seen = <String>{};
+    final StringBuffer out = StringBuffer();
+    for (final (String href, String kind) in links) {
+      if (named.contains(href) || !seen.add(href)) continue;
+      out.writeln(_preloadLink(href, kind));
+    }
+    return out.toString();
+  }
+}
+
+String _preloadLink(String href, String as) {
+  final String h = const HtmlEscape(HtmlEscapeMode.attribute).convert(href);
+  return switch (as) {
+    'script' => '<link rel="preload" href="$h" as="script">',
+    'image' => '<link rel="preload" href="$h" as="image">',
+    _ => '<link rel="preload" href="$h" as="fetch" crossorigin="anonymous">',
+  };
+}
+
+/// Every address [html] names itself: `src`, `href` and CSS `url(...)`.
+Set<String> _namedBy(String html) => <String>{
+      for (final RegExpMatch m
+          in RegExp(r'''\b(?:src|href)\s*=\s*["']([^"']+)["']''').allMatches(html))
+        m.group(1)!,
+      for (final RegExpMatch m
+          in RegExp(r'''url\(\s*["']?([^"')]+?)["']?\s*\)''').allMatches(html))
+        m.group(1)!,
+    };
+
+/// [page] with [links] at the end of its head. Unchanged when there is
+/// nothing to add or no head to add it to.
+String dvWithPreloads(String page, String links) {
+  if (links.isEmpty) return page;
+  final int close = page.indexOf('</head>');
+  if (close < 0) return page;
+  return '${page.substring(0, close)}$links${page.substring(close)}';
+}
+
+/// The page for [path] as three writes, the first of them before the data --
+/// `dartvel.web.server.streaming: shell`.
+///
+/// 1. The head as no render changes it -- base, charset, every preload, the
+///    splash, a preload for each script the body loads -- and [preloads], the
+///    route's own parts and images, sent at once.
+/// 2. What the data writes into the head -- title, description, canonical,
+///    Open Graph, structured data, the icon -- and `</head>`, once [resolving]
+///    has.
+/// 3. The body.
+///
+/// The first part is identical in every render of the shell ([dvHeadParts]
+/// is the rule), so the browser assembles exactly the page that was
+/// rendered, with the head's elements in a different order. [preloads]
+/// depend on the route alone, never on the data, which is what lets them go
+/// first.
+///
+/// 200 is on the wire before the data exists, so a record that turns out
+/// hidden or unauthorized, or data that could not be fetched, is sent as the
+/// page with none of the data and `noindex` -- a soft 404, which is the
+/// price of this mode. [refusedTitle] is the title such a page wears.
+///
+/// [resolving] is started by the caller before this returns, so the query
+/// runs while the head is on its way; its failure is caught here at once, so
+/// it is never an unhandled error.
+///
+/// Null when the shell has no head to split, and the caller falls back to
+/// waiting for the data. One function for both servers -- the deployed one
+/// and `dartvel preview` -- because two copies of this drifted once already.
+Stream<String>? dvShellFirstChunks({
+  required String shell,
+  required String path,
+  required String title,
+  required Future<DVPageData?> resolving,
+  List<String> text = const <String>[],
+  String? refusedTitle,
+  String? siteUrl,
+  String? siteName,
+  String? description,
+  String? image,
+  String preloads = '',
+}) {
+  final DVHeadParts? early = dvHeadParts(
+    dvRenderRoute(shell: shell, path: path, title: '', siteUrl: siteUrl, siteName: siteName),
+  );
+  if (early == null) return null;
+
+  // Handled here rather than where it is awaited: the stream below does not
+  // run until it is listened to, and an error with no handler by then is an
+  // unhandled one.
+  final Future<(DVPageData?, bool)> outcome = resolving.then(
+    (DVPageData? data) => (data, false),
+    onError: (Object _, StackTrace __) => (null, true),
+  );
+
+  Stream<String> chunks() async* {
+    yield '${early.opening}${early.fixed}${_bodyScriptPreloads(early)}$preloads';
+
+    final (DVPageData? data, bool failed) = await outcome;
+    final bool refused = data != null && data.visibility != DVPageVisibility.public;
+    final String page = refused
+        // None of the data, as the refusal would have shown: it describes a
+        // page the reader is not being shown.
+        ? dvRenderRoute(shell: shell, path: path, title: refusedTitle ?? title, siteUrl: siteUrl, siteName: siteName)
+        : data == null
+            ? dvRenderRoute(shell: shell, path: path, title: title, text: text, siteUrl: siteUrl, siteName: siteName, description: description, image: image)
+            : dvRenderPage(shell: shell, path: path, data: data, siteUrl: siteUrl, siteName: siteName, description: description, image: image);
+    final DVHeadParts late = dvHeadParts(page) ?? early;
+    // 200 is already on the wire, so a record that cannot be shown -- or data
+    // that could not be fetched -- is kept out of an index this way instead.
+    final String noindex = refused || failed ? '<meta name="robots" content="noindex">\n' : '';
+    const String close = '</head>';
+    yield '$noindex${late.written}$close';
+    yield late.rest.startsWith(close) ? late.rest.substring(close.length) : late.rest;
+  }
+
+  return chunks();
+}
+
+/// A preload for each script the page's body loads, for the part of the head
+/// sent early.
+///
+/// Flutter's template loads flutter_bootstrap.js from the body, and the body
+/// is the last thing to go out -- after the data. A preload in the early head
+/// has the browser fetch it while the server queries. As `script` and with no
+/// crossorigin, which is how the script element asks for it: a preload is
+/// only used by a request made the same way. Module scripts are left to the
+/// body, since a module is not a classic script and preloading it as one
+/// fetches it twice.
+String _bodyScriptPreloads(DVHeadParts parts) {
+  final StringBuffer out = StringBuffer();
+  final Set<String> seen = <String>{};
+  for (final RegExpMatch tag in RegExp(r'<script\b[^>]*>', caseSensitive: false).allMatches(parts.rest)) {
+    final String element = tag.group(0)!;
+    if (RegExp(r'''type\s*=\s*["']module["']''', caseSensitive: false).hasMatch(element)) continue;
+    final RegExpMatch? src = RegExp(r'''\bsrc\s*=\s*"([^"]+)"''').firstMatch(element);
+    if (src == null) continue;
+    final String href = src.group(1)!;
+    if (!seen.add(href) || parts.fixed.contains('href="$href"')) continue;
+    out.write('<link rel="preload" href="$href" as="script">\n');
+  }
+  return out.toString();
 }
 
 /// [html] wearing [href] as its icon, replacing whatever the shell declared.

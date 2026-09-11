@@ -28,6 +28,15 @@
   waits and answers 401 or 404 exactly as it did, so a signed-out request
   still looks like one for a page that does not exist. Federated routes are
   still redirected.
+- A served route names its own code and images. The static build writes each
+  page's deferred parts and first-frame images into that page's head; the
+  server answers every route from one shell and named none of them, so the
+  early head under `shell` carried the renderer and the bootstrap and nothing
+  of the page itself. It now reads the build's `dartvel_prefetch.json` --
+  kept, and read again when a deploy replaces it -- and adds the matched
+  route's list to the head: in the first write under `shell`, before the
+  data, since the list depends on the route and never on the data. Nothing
+  the shell already names is added twice.
 
 ## 0.5.0
 

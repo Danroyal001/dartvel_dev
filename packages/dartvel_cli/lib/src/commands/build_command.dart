@@ -53,6 +53,7 @@ import '../build/static_seo.dart';
 import '../build/static_paths_runner.dart';
 import '../build/static_generation.dart';
 import '../build/web_server.dart';
+import '../build/web_server_prefetch.dart';
 import '../graph/module_mounts.dart';
 import '../graph/project_graph.dart';
 import '../utils/build_runner.dart';
@@ -2817,6 +2818,19 @@ class BuildCommand extends Command<void> {
         ),
       ),
     );
+
+    // What each route loads, keyed by pattern, for the server to name in the
+    // head it sends -- the counterpart of the list the static build writes
+    // into each page. Not into the shell: it is served for every route, so
+    // one route's list would be wrong for all the others.
+    final int preloading = dvWriteWebServerPrefetch(
+      projectRoot: root,
+      webRoot: web.path,
+      routerSource: _routerSource(root),
+      routes: routes,
+    );
+    Logger.log('   Preloads: $preloading route(s) name their own code for '
+        'the server to send.');
 
     if (siteUrl != null && siteUrl.isNotEmpty) {
       // dartvel.seo.sitemap: whether to write one at all, which routes to

@@ -83,6 +83,18 @@
   loader takes them from the preload. No hints are written for a `--wasm`
   build or a loader told where CanvasKit is or which variant to use, since a
   hint for the wrong file is 7 MB for nothing.
+- A web-server build writes `dartvel_prefetch.json` too, keyed by route
+  pattern -- parameterised ones included, which the static build cannot
+  serve -- so the server can name each route's own deferred parts and images
+  in the head it sends. The shell is left alone: it is served for every
+  route, and one route's list written into it would be wrong for all the
+  others.
+- `dartvel preview` streams `shell` as the deployed server does: the head,
+  with the route's own parts, before the data; a guarded route waits and
+  keeps its status; a record found hidden after the flush is a noindex page.
+  It had only the older split, head after the data, so a developer
+  previewing `shell` watched every page wait on the resolver and deployed
+  something that behaved differently.
 
 ## 0.4.1
 
