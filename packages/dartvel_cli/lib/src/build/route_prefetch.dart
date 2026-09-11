@@ -176,6 +176,35 @@ List<DVCapturedImage> dvReadCapturedImages(String projectRoot, String route) {
   }
 }
 
+/// Every address [html] names for itself: `src` and `href` attributes, and
+/// `url(...)` in its styles.
+///
+/// The browser finds all of these while it parses, so they need no preload,
+/// and a link to the page need not prefetch them. The capture still sees
+/// them, because the document asks for them on every page -- the launch
+/// splash is the one every Dartvel page has.
+Set<String> dvNamedByPage(String html) {
+  final String page = _withoutPreloads(html);
+  return <String>{
+    for (final RegExpMatch m
+        in RegExp(r'''\b(?:src|href)\s*=\s*["']([^"']+)["']''').allMatches(page))
+      m.group(1)!,
+    for (final RegExpMatch m
+        in RegExp(r'''url\(\s*["']?([^"')]+?)["']?\s*\)''').allMatches(page))
+      m.group(1)!,
+  };
+}
+
+/// [html] with the list a previous build wrote taken out.
+///
+/// Before anything reads the page: that list names this page's images too,
+/// and a rebuild that took it for the page's own markup would decide every
+/// image was already named and preload none of them.
+String _withoutPreloads(String html) => html.replaceAll(
+      RegExp('${RegExp.escape(_open)}[\\s\\S]*?${RegExp.escape(_close)}\\n?'),
+      '',
+    );
+
 /// [html] with its preload list replaced by one naming [scripts] and
 /// [images].
 ///
@@ -187,10 +216,7 @@ String dvApplyPreloadHead(
   required List<String> scripts,
   required List<DVCapturedImage> images,
 }) {
-  final String cleared = html.replaceAll(
-    RegExp('${RegExp.escape(_open)}[\\s\\S]*?${RegExp.escape(_close)}\\n?'),
-    '',
-  );
+  final String cleared = _withoutPreloads(html);
   if (scripts.isEmpty && images.isEmpty) return cleared;
   final int at = cleared.indexOf('</head>');
   if (at < 0) return cleared;
@@ -223,7 +249,9 @@ String _attribute(String value) => value
 ///
 /// A route with no page on disk is left alone rather than created: that is a
 /// route the static build did not write, for whatever reason, and a page
-/// holding nothing but preloads would be worse than none.
+/// holding nothing but preloads would be worse than none. Its manifest entry
+/// leaves out what the shell names, since that is what the page would have
+/// been built from.
 ///
 /// The root's list goes in index.html, which is also what a host answers for
 /// a path that has no page of its own. Such a visitor downloads the home
@@ -241,14 +269,27 @@ DVPrefetchSummary dvWriteRoutePrefetch({
       ? dvDeferredParts(mainJs.readAsStringSync())
       : const <String, List<String>>{};
   final Map<String, String> prefixes = dvDeferredPrefixes(routerSource);
+  final File shell = File(p.join(webRoot, 'index.html'));
+  final Set<String> namedByShell = shell.existsSync()
+      ? dvNamedByPage(shell.readAsStringSync())
+      : const <String>{};
 
   final Map<String, Object?> manifest = <String, Object?>{};
   var pages = 0;
   var imageCount = 0;
   for (final String route in routes) {
     final List<String> scripts = parts[prefixes[route]] ?? const <String>[];
-    final List<DVCapturedImage> images =
-        dvReadCapturedImages(projectRoot, route);
+    final String? target = dvStaticRoutePath(route);
+    final File? page = target == null ? null : File(p.join(webRoot, target));
+    final String? before =
+        page != null && page.existsSync() ? page.readAsStringSync() : null;
+    final Set<String> named =
+        before == null ? namedByShell : dvNamedByPage(before);
+    final List<DVCapturedImage> images = <DVCapturedImage>[
+      for (final DVCapturedImage image
+          in dvReadCapturedImages(projectRoot, route))
+        if (!named.contains(image.url)) image,
+    ];
     manifest[route] = <String, Object?>{
       'scripts': scripts,
       'images': <Object?>[
@@ -256,11 +297,7 @@ DVPrefetchSummary dvWriteRoutePrefetch({
       ],
     };
 
-    final String? target = dvStaticRoutePath(route);
-    if (target == null) continue;
-    final File page = File(p.join(webRoot, target));
-    if (!page.existsSync()) continue;
-    final String before = page.readAsStringSync();
+    if (page == null || before == null) continue;
     final String after =
         dvApplyPreloadHead(before, scripts: scripts, images: images);
     if (after != before) page.writeAsStringSync(after);

@@ -373,6 +373,40 @@ void main() {
       expect(summary.images, 1);
     });
 
+    test('an image the page already names is not preloaded again', () {
+      // The shell's own images -- the launch splash, an icon -- are asked for
+      // by the document on every page, so the capture sees them on every
+      // page. The browser finds them while it parses; a preload for one is a
+      // duplicate hint, and listing it for links would prefetch on every
+      // link an image the visitor already has.
+      const String withSplash = '<!doctype html><html><head><base href="/">'
+          '<style>#s{background:url("icons/bg.png")}</style></head><body>'
+          '<img src="dartvel-splash.png" alt=""></body></html>';
+      File(p.join(web.path, 'docs', 'index.html'))
+          .writeAsStringSync(withSplash);
+      File(dvCapturedImagesPathFor(project.path, '/docs')).writeAsStringSync(
+        jsonEncode(<Object?>[
+          <String, Object?>{'url': 'dartvel-splash.png', 'as': 'image'},
+          <String, Object?>{'url': 'icons/bg.png', 'as': 'image'},
+          <String, Object?>{'url': 'assets/assets/hero.png', 'as': 'fetch'},
+        ]),
+      );
+
+      write();
+
+      final String docs =
+          File(p.join(web.path, 'docs', 'index.html')).readAsStringSync();
+      expect(docs, contains('href="assets/assets/hero.png"'));
+      expect(docs, isNot(contains('rel="preload" href="dartvel-splash.png"')));
+      expect(docs, isNot(contains('rel="preload" href="icons/bg.png"')));
+      final Map<String, Object?> routes = (jsonDecode(
+        File(p.join(web.path, dvPrefetchManifestFile)).readAsStringSync(),
+      ) as Map<String, Object?>)['routes']! as Map<String, Object?>;
+      expect((routes['/docs']! as Map<String, Object?>)['images'], <Object?>[
+        <String, Object?>{'url': 'assets/assets/hero.png', 'as': 'fetch'},
+      ]);
+    });
+
     test('without a main.dart.js the images are still named', () {
       File(p.join(web.path, 'main.dart.js')).deleteSync();
       write();
