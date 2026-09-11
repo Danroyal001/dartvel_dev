@@ -194,8 +194,25 @@ void main() {
     await DVNativeBridge.invoke<void>(
         'clipboard.copy', <String, Object?>{'text': written});
 
-    final String? read =
-        await DVNativeBridge.invoke<String>('clipboard.paste', null);
+    // Polled against a deadline rather than read once. From Android 10 an
+    // application may read the clipboard only while it holds input focus, and
+    // ClipboardManager answers null rather than refusing when it does not.
+    // `flutter test` starts the application and reaches this within its first
+    // frames, before the window has necessarily been given focus -- which is
+    // the likeliest reading of the one emulator run in five that read null
+    // here while the runs either side of it read the value.
+    //
+    // The assertion is unchanged. A binding that loses the text, truncates it
+    // at the first non-ASCII byte or returns nothing at all still fails; it
+    // fails after three seconds instead of at once.
+    String? read;
+    final DateTime deadline = DateTime.now().add(const Duration(seconds: 3));
+    do {
+      read = await DVNativeBridge.invoke<String>('clipboard.paste', null);
+      if (read == written) break;
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      await tester.pump();
+    } while (DateTime.now().isBefore(deadline));
 
     expect(read, written,
         reason: 'the value did not survive the trip through ClipboardManager');
