@@ -31,6 +31,7 @@ import '../build/pwa_icons.dart';
 import '../build/pwa_manifest.dart';
 import '../secrets/secrets_analysis.dart';
 import '../build/pwa_service_worker.dart';
+import '../build/renderer_hints.dart';
 import '../build/route_prefetch.dart';
 import '../build/sdk_floor.dart';
 import '../build/build_lifecycle.dart';
@@ -932,6 +933,9 @@ class BuildCommand extends Command<void> {
         // Into index.html before the route pages are made from it, so every
         // prerendered page opens on the splash rather than on a blank page.
         _writeWebSplash(root);
+        // Also into index.html first, for the same reason: every page,
+        // served or prerendered, starts fetching the renderer while it parses.
+        _writeRendererHints(root);
         if (platform == 'web-server') {
           _writeWebServerManifest(root);
           await _writeAdminDashboard(root);
@@ -1250,6 +1254,32 @@ class BuildCommand extends Command<void> {
     final DVSplash splash = DVSplash.of(root);
     _logSplash(splash,
         dvWriteWebSplash(Directory(p.join(root, 'build', 'web')), splash));
+  }
+
+  /// The renderer, asked for by index.html as it parses: a preconnect to
+  /// gstatic and a preload of the CanvasKit variant the loader will choose.
+  ///
+  /// None when the build's loader could fetch something else -- a `--wasm`
+  /// build, or an application that tells the loader where CanvasKit is or
+  /// which variant to use -- because a hint for the wrong file is a 7 MB
+  /// download for nothing. A previous build's hints are removed then too.
+  void _writeRendererHints(String root) {
+    final Directory web = Directory(p.join(root, 'build', 'web'));
+    final File index = File(p.join(web.path, 'index.html'));
+    if (!index.existsSync()) return;
+    final File bootstrap = File(p.join(web.path, 'flutter_bootstrap.js'));
+    final String? revision = bootstrap.existsSync()
+        ? dvCanvasKitRevision(bootstrap.readAsStringSync())
+        : null;
+    final String before = index.readAsStringSync();
+    final String after = dvApplyRendererHints(
+        before, revision == null ? null : dvRendererHints(revision));
+    if (after != before) index.writeAsStringSync(after);
+    Logger.log(revision == null
+        ? '   Renderer hints: none; this build does not load the default '
+            'CanvasKit, so there is nothing safe to name.'
+        : '   Renderer hints: CanvasKit ${revision.substring(0, 8)} is '
+            'preconnected and preloaded from index.html.');
   }
 
   void _logSplash(DVSplash splash, DVSplashResult result) {

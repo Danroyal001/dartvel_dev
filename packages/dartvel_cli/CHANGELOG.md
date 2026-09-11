@@ -52,6 +52,16 @@
   lint rejects. The old name is still generated, as a deprecated alias for
   the new one, so code written against it keeps compiling; it goes in the
   next minor release.
+- The renderer starts downloading while the page parses. CanvasKit is 7 MB
+  and nothing asked for it until flutter_bootstrap.js had arrived and run;
+  index.html, and so every prerendered page, now preconnects to gstatic and
+  preloads the CanvasKit files itself. The variant is chosen with the
+  loader's own test -- the smaller `chromium` build where Blink has
+  ImageDecoder and the ICU break iterators -- and each file is requested the
+  way the loader requests it, so in Chrome both are fetched once and the
+  loader takes them from the preload. No hints are written for a `--wasm`
+  build or a loader told where CanvasKit is or which variant to use, since a
+  hint for the wrong file is 7 MB for nothing.
 
 ## 0.4.1
 
