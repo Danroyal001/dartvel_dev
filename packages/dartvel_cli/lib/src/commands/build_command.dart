@@ -22,6 +22,7 @@ import '../build/browser_extension.dart';
 import '../build/desktop_entry.dart';
 import '../build/elinux_bundle.dart';
 import '../build/native_assets_config.dart';
+import '../build/native_splash.dart';
 import '../build/capture_completeness.dart';
 import '../build/home_widget_check.dart';
 import '../build/declaration_check.dart';
@@ -858,6 +859,13 @@ class BuildCommand extends Command<void> {
       _writeAndroidKioskFiles(Directory.current.path);
       _writeAndroidHomeWidgets(Directory.current.path);
     }
+    // Before the platform build reads them: the launch theme, the launch
+    // storyboard and the runner's first colour are each read once, at the
+    // start, and a splash written after that ships in the next build.
+    if (const <String>{'android', 'fireos', 'ios', 'macos', 'linux'}
+        .contains(platform)) {
+      _writeNativeSplash(Directory.current.path, platform);
+    }
 
     final args = resolveFlutterBuildArguments(
       platform: platform,
@@ -921,6 +929,9 @@ class BuildCommand extends Command<void> {
         await _captureSemantics(root);
         await _writePwaManifest(root);
         _writeSeoHead(root);
+        // Into index.html before the route pages are made from it, so every
+        // prerendered page opens on the splash rather than on a blank page.
+        _writeWebSplash(root);
         if (platform == 'web-server') {
           _writeWebServerManifest(root);
           await _writeAdminDashboard(root);
@@ -1225,6 +1236,35 @@ class BuildCommand extends Command<void> {
 
     if (requested.isNotEmpty) {
       Logger.log('   Permissions declared: ${requested.join(', ')}.');
+    }
+  }
+
+  /// The splash, into the platform files it lives in.
+  void _writeNativeSplash(String root, String platform) {
+    final DVSplash splash = DVSplash.of(root);
+    _logSplash(splash, dvWriteNativeSplash(root, platform, splash));
+  }
+
+  /// The web splash, into the built index.html.
+  void _writeWebSplash(String root) {
+    final DVSplash splash = DVSplash.of(root);
+    _logSplash(splash,
+        dvWriteWebSplash(Directory(p.join(root, 'build', 'web')), splash));
+  }
+
+  void _logSplash(DVSplash splash, DVSplashResult result) {
+    for (final String problem in splash.problems) {
+      Logger.log('⚠️  $problem');
+    }
+    if (result.written.isNotEmpty) {
+      final String dark = splash.darkColor == splash.color
+          ? ''
+          : ', ${splash.darkColor} in dark mode';
+      Logger.log('   Splash: ${splash.color}$dark; '
+          '${result.written.length} file(s) written.');
+    }
+    for (final String note in result.skipped) {
+      Logger.log('   Splash: $note');
     }
   }
 
