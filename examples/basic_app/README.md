@@ -6,7 +6,7 @@ A simple example demonstrating the core features of the Dartvel framework.
 
 - **File-based Routing**: Page in `lib/pages/index.page.dart` auto-routes to `/`
 - **Data Loading**: Using `DartvelPage.loadData()` for async data fetching
-- **Build Runner Integration**: The router and each page's body regenerate with `dart run build_runner build`
+- **Generated Client**: `dartvel routes` writes the whole client -- the barrel, the router, each page's body, widgets, models and function clients
 - **Web Build**: Production builds with `dartvel build web`
 - **Preview Server**: Preview builds with `dartvel preview`
 
@@ -20,14 +20,16 @@ flutter pub get
 ### 2. Generate the Client
 ```bash
 dart run dartvel_cli:dartvel routes
-dart run build_runner build --delete-conflicting-outputs
 ```
 
-Both, in that order. `dartvel routes` writes the whole client: the barrel
-every page imports, the functional widgets (`Button` here), models and
-functions. build_runner's builders then regenerate the router and each page's
-body over it. On their own they do not write the rest, so from a clean
-checkout build_runner alone stops at the first page.
+One command, and it writes all of `lib/dartvel_client/`: the barrel every page
+imports, the router, each page's body, the functional widgets (`Button` here),
+models and backend function clients. The directory is gitignored, so this is
+the first thing to run on a fresh clone.
+
+`dartvel dev` and `dartvel build` generate before they run, so you only need
+this when you want the client without building -- after adding a page, say, or
+before opening the project in an editor.
 
 ### 3. Run in Development
 ```bash

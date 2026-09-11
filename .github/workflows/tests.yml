@@ -627,14 +627,16 @@ jobs:
           path: sites/dartvel_site/build/web
           if-no-files-found: error
 
-  # The build_runner path. basic_app and class_widgets_app are the only
-  # applications built with `dart run build_runner build` rather than
-  # `dartvel routes`, and nothing ran them: that path shipped with every page
-  # body copied into the eager router, no link preloading, and function pages
-  # built with no data scope -- so basic_app's own page threw, in its own
-  # test, where nobody looked.
-  build-runner-examples:
-    name: ${{ matrix.example }} (build_runner)
+  # basic_app and class_widgets_app, generated the way every Dartvel
+  # application is: `dart run dartvel_cli:dartvel routes`, and nothing after
+  # it. They were the last two on dartvel_generator's build_runner builders,
+  # which are retired -- that path could not generate a client from a clean
+  # checkout at all, so it really ran `dartvel routes` first and regenerated
+  # part of its output, and three bugs lived in the difference. The job still
+  # starts from a clean checkout: lib/dartvel_client is gitignored, so what
+  # analyze and test see is exactly what one command produced.
+  examples:
+    name: ${{ matrix.example }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
@@ -662,20 +664,18 @@ jobs:
       - name: Resolve dependencies
         working-directory: examples/${{ matrix.example }}
         run: flutter pub get
-      # build_runner does not generate the whole client. Its builders write the
-      # router, env, config and each page's body; the barrel every page
-      # imports, the functional widgets (both examples' Button), models and
-      # functions come only from `dartvel routes`. From a clean checkout
-      # build_runner alone stops at the first page: its @DVPage cannot be
-      # resolved through a barrel that does not exist. So the client is
-      # generated first and build_runner regenerates its part over it, which
-      # is the order that works and the order the READMEs now give.
+      # The retirement, asserted where it would come back: a build_runner in
+      # either example's pubspec means someone reintroduced the second
+      # generator, and the job would keep passing without noticing.
+      - name: No build_runner setup
+        working-directory: examples/${{ matrix.example }}
+        run: |
+          set -euo pipefail
+          ! grep -qE '^\s+(build_runner|dartvel_generator):' pubspec.yaml
+          test ! -e build.yaml
       - name: Generate the client
         working-directory: examples/${{ matrix.example }}
         run: dart run dartvel_cli:dartvel routes
-      - name: Generate with build_runner
-        working-directory: examples/${{ matrix.example }}
-        run: dart run build_runner build --delete-conflicting-outputs
       - name: Analyze
         working-directory: examples/${{ matrix.example }}
         run: flutter analyze lib test
