@@ -1,5 +1,14 @@
 ## Unreleased
 
+- `dartvel create` no longer scaffolds a `build_runner` setup. Dartvel's code
+  generation is `dart run dartvel_cli:dartvel routes`, which `dartvel dev` and
+  `dartvel build` run for you, so a new project was resolving and downloading
+  a builder it never used -- and being pointed at the retired
+  `dartvel_generator` path. Add `build_runner` back yourself if some other
+  package's builders need it (`json_serializable`, `freezed`,
+  `flutter_vscode`); `dartvel dev` and `dartvel build` still run it when it is
+  declared. The scaffolded README now has a "Generating" section naming
+  `dartvel routes`.
 - A home widget's preview page names itself with a level-1 heading of its
   title when it has no bar to carry one. `dartvel build web` audits every
   page for a level-1 heading, and the preview route rendered the widget and

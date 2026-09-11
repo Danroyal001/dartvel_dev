@@ -698,7 +698,9 @@ class BuildCommand extends Command<void> {
         Logger.log('⚠️  build_runner failed');
       }
     } else {
-      Logger.log('📦 No build_runner dependency declared; skipping build.');
+      Logger.log(
+        '📦 No build_runner dependency declared; nothing further to generate.',
+      );
     }
 
     final buildMode =

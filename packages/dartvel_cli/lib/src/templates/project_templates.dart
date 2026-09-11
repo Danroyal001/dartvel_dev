@@ -41,7 +41,6 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  build_runner: ^2.5.4
   lints: ^4.0.0
   dartvel_cli: ${localPackagesDir == null ? '^$dartvelPackageVersion' : '\n    path: $localPackagesDir/dartvel_cli'}
 
@@ -325,8 +324,24 @@ dartvel dev
 ```
 
 This will:
+- Generate the client in `lib/dartvel_client/`
 - Start the backend server on http://localhost:3000
 - Run your Flutter app with hot reload
+
+### Generating
+
+`dartvel dev` and `dartvel build` generate before they run, so most of the
+time there is nothing to do. To generate on its own — after adding a page,
+model or backend function, or on a fresh clone before opening the project in
+an editor:
+
+```bash
+dart run dartvel_cli:dartvel routes
+```
+
+That writes everything under `lib/dartvel_client/`: the barrel your pages
+import, the router, models, backend function clients and config. It is
+gitignored and never edited by hand: a fresh clone generates it.
 
 ### Project Structure
 
