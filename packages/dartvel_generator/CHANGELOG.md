@@ -14,6 +14,11 @@
   `dartvel routes` always has. Without it no link in a build_runner
   application preloaded anything, and `dartvel build web` could not tell
   which deferred import a route loads.
+- A function page gets a data scope. The build_runner router built every
+  other route inside a `DvDataLoader` and skipped it for function pages, so a
+  function page that read `DvDataScope.of(context)` found nothing above it
+  and threw -- basic_app's own page does, and its widget test failed.
+  `dartvel routes` never had the exception.
 
 ## 1.2.0
 
