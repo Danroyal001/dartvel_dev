@@ -9,6 +9,13 @@ targets:
         enabled: true
         generate_for:
           - pubspec.yaml
+      dartvel_generator|page_body_builder:
+        enabled: true
+        generate_for:
+          include:
+            - lib/**.dart
+          exclude:
+            - lib/dartvel_client/**
 
 builders:
   route_builder:
@@ -26,3 +33,21 @@ builders:
     auto_apply: dependents
     build_to: source
     required_inputs: []
+
+  # Each lowered page's body, in a library of its own that the router imports
+  # deferred -- so on the web every page is a part its loadLibrary() fetches.
+  # Keyed on every file under lib/ because the pages directory is the
+  # project's choice; a file that is not a lowered page writes nothing.
+  # Generated code is excluded so this never runs on its own output.
+  page_body_builder:
+    import: "package:dartvel_generator/dartvel_generator.dart"
+    builder_factories: ["pageBodyBuilder"]
+    build_extensions: {"lib/{{}}.dart": ["lib/dartvel_client/pages/{{}}.g.dart"]}
+    auto_apply: dependents
+    build_to: source
+    defaults:
+      generate_for:
+        include:
+          - lib/**.dart
+        exclude:
+          - lib/dartvel_client/**

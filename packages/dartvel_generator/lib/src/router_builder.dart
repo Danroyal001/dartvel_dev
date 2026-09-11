@@ -126,9 +126,7 @@ class RouterBuilder implements Builder {
       if (!hasPageAnnotation && !isLegacyPageFile) {
         continue;
       }
-      final m = RegExp(
-        r'(?:@DVPage\([^)]*\)\s*)?(?:@pragma\([^)]*\)\s*)*class\s+([A-Za-z_][A-Za-z0-9_]*)\s+extends\s+(DartvelPage|DVClassWidget)',
-      ).firstMatch(src);
+      final m = _classPagePattern.firstMatch(src);
       String className;
       String publicName;
       bool isFunctional = false;
@@ -146,9 +144,7 @@ class RouterBuilder implements Builder {
         }
         publicName = className;
       } else {
-        final mf = RegExp(
-          r'@DVPage\([^)]*\)\s*(?:@pragma\([^)]*\)\s*)*(?:@DVFunctionalWidget\(\)\s*)?Widget\s+([A-Za-z_][A-Za-z0-9_]*)\(',
-        ).firstMatch(src);
+        final mf = _functionPagePattern.firstMatch(src);
         if (mf == null) {
           log.warning(
             'dartvel: could not find class extending DartvelPage/DVClassWidget or @DVPage function in $path',
@@ -157,33 +153,25 @@ class RouterBuilder implements Builder {
         }
         className = mf.group(1)!;
         if (className.startsWith('_')) {
-          final openParen = mf.end - 1;
-          final closeParen = _matchingParen(src, openParen);
-          if (closeParen == -1) {
-            throw StateError(
-              'Dartvel private page input $className in $path has an invalid '
-              'parameter list.',
-            );
-          }
-          final expressionBody = _expressionBodyAfter(src, closeParen);
-          if (expressionBody == null) {
-            throw StateError(
-              'Dartvel private page input $className in $path must use an '
-              'expression body for this generator pass, for example '
-              'Widget $className(...) => DVBox(...). Block-bodied private '
-              'pages require generated body lowering before they can be '
-              'emitted without per-source part files.',
-            );
-          }
-          pageExpressionBody = expressionBody;
-          pageSourceSymbols = _topLevelSourceSymbols(src);
+          final lowered = _lowerPrivatePage(src, path, mf);
+          pageExpressionBody = lowered.expression;
+          pageSourceSymbols = lowered.sourceSymbols;
         }
         publicName = className.startsWith('_')
             ? className.substring(1)
             : className;
         isFunctional = true;
       }
-      pageImports.add("import '$importPath' deferred as p$i;");
+      // A lowered page is reached only through the library PageBodyBuilder
+      // writes for it, never through the page file. The router is eager: a
+      // body copied into it, or a file it imports, is reachable from main()
+      // and dart2js keeps it in main.dart.js whatever the deferred import says.
+      pageImports.add(
+        pageExpressionBody == null
+            ? "import '$importPath' deferred as p$i;"
+            : "import 'package:$pkgName/${_pageBodyLibraryPath(path).replaceFirst('lib/', '')}' "
+                  'deferred as p$i;',
+      );
 
       String route;
       try {
@@ -435,16 +423,10 @@ ${(() {
     final generatedPageWidgets = pageEntries
         .map((e) {
           final expressionBody = e.expressionBody;
-          final sourceSymbols = e.sourceSymbols;
+          // A lowered body runs in its own library; see PageBodyBuilder.
           final buildReturn = expressionBody == null
               ? '  return ${e.isFunctional ? 'p${e.importIndex}.${e.publicName}(context)' : 'p${e.importIndex}.${e.publicName}()'};'
-              : _indentGeneratedReturn(
-                  _qualifySourceSymbols(
-                    expressionBody,
-                    'p${e.importIndex}',
-                    sourceSymbols,
-                  ),
-                );
+              : '  return p${e.importIndex}.dvPageBody(context);';
           final sourceDoc = expressionBody == null
               ? '/// Deferred generated widget wrapper for [p${e.importIndex}.${e.publicName}].'
               : '/// Deferred generated widget wrapper for a private @DVPage input.';
@@ -525,6 +507,21 @@ ${buildReturn.split('\n').map((line) => '        $line').join('\n')}
     sbRedirect.writeln('  return null;');
     sbRedirect.writeln('}');
 
+    // What each route can fetch before the visitor goes there, so DVNavLink can
+    // preload a destination. `dartvel routes` has always registered these;
+    // without them no link in a build_runner application preloaded anything.
+    // `dartvel build web` also reads this shape to tell which deferred import
+    // a route loads.
+    final preloaderRegistrations = pageEntries
+        .map(
+          (e) => '''
+  DVRoutePreloaders.register(
+    '${esc(e.route)}',
+    ${e.generatedWidget}.loadLibrary,
+  );''',
+        )
+        .join('\n');
+
     final routerContent =
         '''
 // GENERATED CODE - DO NOT MODIFY BY HAND
@@ -570,6 +567,7 @@ $routesSrc
     ],
     redirect: _globalRedirect,
   );
+$preloaderRegistrations
   // DV.Navigation is used from callbacks with no BuildContext, so it needs the
   // live router rather than looking one up from the widget tree.
   DVNavigation.attach(router);
@@ -951,3 +949,200 @@ class _PageEntry {
 }
 
 Builder routerBuilder(BuilderOptions options) => RouterBuilder(options);
+/// A page written as a class extending DartvelPage or DVClassWidget.
+final RegExp _classPagePattern = RegExp(
+  r'(?:@DVPage\([^)]*\)\s*)?(?:@pragma\([^)]*\)\s*)*class\s+([A-Za-z_][A-Za-z0-9_]*)\s+extends\s+(DartvelPage|DVClassWidget)',
+);
+
+/// A page written as an @DVPage function.
+final RegExp _functionPagePattern = RegExp(
+  r'@DVPage\([^)]*\)\s*(?:@pragma\([^)]*\)\s*)*(?:@DVFunctionalWidget\(\)\s*)?Widget\s+([A-Za-z_][A-Za-z0-9_]*)\(',
+);
+
+/// A lowered page: what its private @DVPage function returns, and the names
+/// in its file that expression may use -- which, once it is moved out of
+/// that file, it reaches through an alias.
+typedef _LoweredPage = ({String expression, Set<String> sourceSymbols});
+
+/// The body of the private @DVPage function [mf] matched in [src].
+///
+/// One implementation for both builders: the router needs the names to know
+/// the page is lowered, PageBodyBuilder needs the body to write it.
+_LoweredPage _lowerPrivatePage(String src, String path, RegExpMatch mf) {
+  final className = mf.group(1)!;
+  final openParen = mf.end - 1;
+  final closeParen = RouterBuilder._matchingParen(src, openParen);
+  if (closeParen == -1) {
+    throw StateError(
+      'Dartvel private page input $className in $path has an invalid '
+      'parameter list.',
+    );
+  }
+  final expressionBody = RouterBuilder._expressionBodyAfter(src, closeParen);
+  if (expressionBody == null) {
+    throw StateError(
+      'Dartvel private page input $className in $path must use an '
+      'expression body for this generator pass, for example '
+      'Widget $className(...) => DVBox(...). Block-bodied private '
+      'pages require generated body lowering before they can be '
+      'emitted without per-source part files.',
+    );
+  }
+  return (
+    expression: expressionBody,
+    sourceSymbols: RouterBuilder._topLevelSourceSymbols(src),
+  );
+}
+
+/// The lowered page in [src], or null for a file with none: a class page, a
+/// public function page, or no page at all.
+_LoweredPage? _loweredPageIn(String src, String path) {
+  if (!src.contains('@DVPage')) return null;
+  if (_classPagePattern.hasMatch(src)) return null;
+  final mf = _functionPagePattern.firstMatch(src);
+  if (mf == null || !mf.group(1)!.startsWith('_')) return null;
+  return _lowerPrivatePage(src, path, mf);
+}
+
+/// Where a lowered page's body is written: the page's path under lib/, moved
+/// under lib/dartvel_client/pages/. The same mapping as PageBodyBuilder's
+/// build extension, which is what lets the router name a file another
+/// builder writes.
+String _pageBodyLibraryPath(String pagePath) =>
+    'lib/dartvel_client/pages/'
+    '${p.posix.withoutExtension(pagePath.replaceFirst(RegExp('^lib/'), ''))}'
+    '.g.dart';
+
+/// The alias the page's own file is imported under in its body library.
+const String _pageBodyAlias = 'dv_page_source';
+
+/// The page's own imports, as they must be written from another directory:
+/// a relative import resolved against the page's and expressed as a package
+/// URI. Deferred imports are left out -- a const expression cannot name a
+/// type through one, and the body library is already only reached deferred.
+List<String> _pageImportsFor(String source, String path, String pkgName) {
+  final dir = p.posix.dirname(path);
+  final lines = <String>[];
+  for (final match in RegExp(
+    r"^\s*import\s+'([^']+)'([^;]*);",
+    multiLine: true,
+  ).allMatches(source)) {
+    final uri = match.group(1)!;
+    final suffix = (match.group(2) ?? '').trim();
+    if (suffix.contains('deferred')) continue;
+    final resolved = uri.startsWith('dart:') || uri.startsWith('package:')
+        ? uri
+        : 'package:$pkgName/'
+              '${p.posix.normalize(p.posix.join(dir, uri)).replaceFirst(RegExp('^lib/'), '')}';
+    lines.add("import '$resolved'${suffix.isEmpty ? '' : ' $suffix'};");
+  }
+  return lines;
+}
+
+/// The library a lowered page's body is written into.
+///
+/// Imported only by the router, and only `deferred`, so on the web this
+/// page's code is a part of its own that loadLibrary() fetches. Everything in
+/// here is imported normally: safe because the library itself is only
+/// reachable through the deferred import, and necessary because a const
+/// expression cannot name a type through a deferred prefix.
+String _pageBodyLibrary({
+  required String path,
+  required String source,
+  required String pkgName,
+  required _LoweredPage page,
+}) {
+  final code = RouterBuilder._indentGeneratedReturn(
+    RouterBuilder._qualifySourceSymbols(
+      page.expression,
+      _pageBodyAlias,
+      page.sourceSymbols,
+    ),
+  );
+  final imports = <String>{
+    "import 'package:flutter/material.dart';",
+    "import 'package:dartvel_flutter/dartvel_flutter.dart';",
+    ..._pageImportsFor(source, path, pkgName),
+    "import '${path.replaceFirst(RegExp('^lib/'), 'package:$pkgName/')}' "
+        'as $_pageBodyAlias;',
+  };
+  return '''
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: unnecessary_import, unused_import, duplicate_import, prefer_const_constructors, unnecessary_const
+//
+// The body of $path, in a library of its own so the router can import it
+// deferred and this page's code is fetched when the page is.
+${imports.join('\n')}
+
+Widget dvPageBody(BuildContext context) {
+$code
+}
+''';
+}
+
+/// Writes each lowered page's body into a library of its own.
+///
+/// The router builder cannot: its input is the pubspec and its outputs are a
+/// fixed list, while this is one file per page. Keyed on every file under
+/// lib/ because the pages directory is the project's choice, read from its
+/// pubspec; a file outside it, or one with no lowered page, writes nothing.
+///
+/// A page that is deleted takes its body library with it: build_runner
+/// removes an output whose input is gone.
+class PageBodyBuilder implements Builder {
+  final BuilderOptions options;
+
+  PageBodyBuilder(this.options);
+
+  @override
+  Map<String, List<String>> get buildExtensions => const {
+    'lib/{{}}.dart': ['lib/dartvel_client/pages/{{}}.g.dart'],
+  };
+
+  @override
+  Future<void> build(BuildStep buildStep) async {
+    final input = buildStep.inputId;
+    // Generated code, this builder's own output among it, is never a page.
+    if (input.path.startsWith('lib/dartvel_client/')) return;
+
+    final pubspecId = AssetId(input.package, 'pubspec.yaml');
+    if (!await buildStep.canRead(pubspecId)) return;
+    final Object? pubspec = loadYaml(await buildStep.readAsString(pubspecId));
+    if (pubspec is! Map) return;
+    final Object? dv = pubspec['dartvel'];
+    if (dv is! Map) return;
+    final pagesDir = (dv['pagesDir'] ?? 'lib/pages').toString();
+    if (!p.posix.isWithin(pagesDir, input.path)) return;
+
+    final basename = p.posix.basename(input.path);
+    if (basename == '_layout.dart' ||
+        basename == '_guard.dart' ||
+        basename.endsWith('.loading.dart') ||
+        basename.endsWith('.error.dart')) {
+      return;
+    }
+
+    final src = await buildStep.readAsString(input);
+    final _LoweredPage? page;
+    try {
+      page = _loweredPageIn(src, input.path);
+    } on StateError {
+      // The router builder reports a malformed page; saying so twice helps
+      // nobody.
+      return;
+    }
+    if (page == null) return;
+
+    await buildStep.writeAsString(
+      buildStep.allowedOutputs.single,
+      _pageBodyLibrary(
+        path: input.path,
+        source: src,
+        pkgName: input.package,
+        page: page,
+      ),
+    );
+  }
+}
+
+Builder pageBodyBuilder(BuilderOptions options) => PageBodyBuilder(options);
