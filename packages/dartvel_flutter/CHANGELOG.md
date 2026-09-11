@@ -1,3 +1,23 @@
+## Unreleased
+
+- A link that preloads fetches the page's document and images as well as its
+  code. `loadLibrary()` only ever fetched the Dart. On the web the link now
+  adds a `<link rel="prefetch">` for the route's prerendered HTML -- what a
+  new tab, a reload or a shared link opens -- and one for each image
+  `dartvel build web` recorded the page painting, then hands each image to
+  Flutter's image cache once the browser has it, so the page paints it on its
+  first frame. In that order so the image is downloaded once. `DVRoutePrefetch`
+  holds both steps and can be replaced; off the web it fetches nothing.
+- Links preload once they have been on screen for 300 ms, as well as on hover.
+  `DVLinkPreload.visible` is the new default: hover was the only trigger, and
+  a phone has no pointer to arrive, so no link on a touch screen preloaded
+  anything unless it was marked `immediate`.
+- A link is followed when the mouse button goes down rather than when it
+  comes up, which is the hundred-odd milliseconds a click takes. Only for a
+  mouse's primary button: touch, stylus, keyboard and screen readers keep the
+  tap, ctrl and cmd still open beside the page, and the release that follows
+  is not followed a second time on either the Flutter or the browser side.
+
 ## 0.4.0
 
 Android went from 10 bound native bindings to 36, and web from 16 to 41. Both
