@@ -1,5 +1,29 @@
 ## Unreleased
 
+- **The `build_runner` builders are retired.** Generate with `dart run
+  dartvel_cli:dartvel routes` instead, or with `dartvel build`, which
+  generates before it builds. The CLI writes the whole client -- the
+  `dartvel_client` barrel every page imports, the router, each page's body,
+  functional widgets, models, backend functions and config -- where these
+  builders wrote only the router, env, config, runtime and page bodies, and so
+  could never generate a client from a clean checkout: with no barrel the
+  first page's `@DVPage` cannot be resolved and the build stops. Every project
+  on this path was already running `dartvel routes` first.
+- Nothing breaks today. The builders still generate exactly what they
+  generated before and are still `auto_apply: dependents`; each now logs one
+  warning per build naming the command that replaces it and the release that
+  removes it. They were kept rather than deleted because a builder that
+  vanishes takes the `router.g.dart` it wrote into `lib/` with it, leaving a
+  project broken with no explanation.
+- **Removal is scheduled for `dartvel_generator` 2.0.0.** To migrate: drop
+  `build_runner` and `dartvel_generator` from `dev_dependencies` and run `dart
+  run dartvel_cli:dartvel routes`. Keep `build_runner` only for some other
+  package's builders; `dartvel build` and `dartvel dev` still run it for those.
+
+The three fixes below landed in the same release: they are what made the
+case for retiring the path rather than keeping two generators in step over
+one concern.
+
 - Pages are split out of main.dart.js on the web when built with
   `dart run build_runner build`, as `dartvel routes` has done since the
   change that introduced it. The router builder copied each private page's
