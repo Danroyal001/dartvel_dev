@@ -17,6 +17,13 @@
   mouse's primary button: touch, stylus, keyboard and screen readers keep the
   tap, ctrl and cmd still open beside the page, and the release that follows
   is not followed a second time on either the Flutter or the browser side.
+- `DVShowingPages` runs work while a page is on screen: started with the
+  first page and stopped with the last, counted because two are mounted
+  whenever one is leaving as the next arrives. Registering the same id again
+  replaces the earlier job. The generated client schedules use it, which
+  fixes three things at once: their timer was started with the router and
+  never stopped, a second router ran every schedule twice, and every widget
+  test that built the router failed with "A Timer is still pending".
 
 ## 0.4.0
 

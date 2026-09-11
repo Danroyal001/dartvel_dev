@@ -208,6 +208,14 @@ jobs:
         working-directory: examples/dartvel_example
         run: dart run dartvel_cli:dartvel routes
 
+      # The example's own tests ran nowhere, so eight of them failed without
+      # anybody seeing: the client schedules' timer outlived every widget tree
+      # that built the router. They run against the client generated above, which
+      # makes them a check on the generator as much as on the example.
+      - name: Run the example's tests
+        working-directory: examples/dartvel_example
+        run: flutter test
+
 
       # Nothing in this repository compiled generated backend output. The
       # unit tests read dartvel_backend_routes.g.dart as a string and assert
