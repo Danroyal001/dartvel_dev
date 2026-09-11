@@ -1,12 +1,13 @@
 /// Emitting `env.g.dart`, the file that decides what leaves the server.
 ///
 /// This sits in the runtime package rather than in a generator because there
-/// are two generators. The CLI writes the client directly and the build_runner
-/// router builder writes it under `dart run build_runner`, and each carried
-/// its own copy of the PUBLIC_ filter. Two implementations of a security
-/// boundary, either of which can be edited without the other noticing, is the
-/// arrangement that eventually ships a backend credential to a browser. One
-/// function, tested once, cannot drift from itself.
+/// were two generators. The CLI writes the client directly; the retired
+/// build_runner router builder still writes it for projects that have not
+/// migrated yet, and each carried its own copy of the PUBLIC_ filter. Two
+/// implementations of a security boundary, either of which can be edited
+/// without the other noticing, is the arrangement that eventually ships a
+/// backend credential to a browser. One function, tested once, cannot drift
+/// from itself.
 library dartvel.secrets.public_env_library;
 
 /// A generated `env.g.dart` and the names left out of it.

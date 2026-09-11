@@ -3853,7 +3853,7 @@ dartvel:
 
 ```bash
 # .dartvel.sh
-task clean: dart run build_runner clean
+task clean: flutter clean
 build:web: flutter build web
 ```
 
@@ -4759,7 +4759,8 @@ It follows the extension-host flow:
 
 1. Generate Dartvel routes/client/backend artifacts.
 2. Run `dart run build_runner build --delete-conflicting-outputs` so annotated
-   VS Code controller APIs produce current bindings.
+   VS Code controller APIs produce current bindings. These are
+   `flutter_vscode`'s builders; Dartvel's own generation is step 1.
 3. Run `dart run flutter_vscode:generate_vscode_extension` so the VS Code
    extension scaffold, webview helper wiring, and typed controller bindings are
    present.

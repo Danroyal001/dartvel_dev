@@ -320,7 +320,9 @@ instead of using plain `flutter build web`.
 
 1. Generate Dartvel routes/client/backend artifacts.
 2. Run `dart run build_runner build --delete-conflicting-outputs` so annotated
-   VS Code controller APIs emit current bindings.
+   VS Code controller APIs emit current bindings. This runs `flutter_vscode`'s
+   builders, not Dartvel's: Dartvel's own generation is step 1, and it is the
+   only generator Dartvel ships.
 3. Run `dart run flutter_vscode:generate_vscode_extension` to create/update
    the VS Code extension scaffold, typed controller bindings, and webview
    helper wiring.
