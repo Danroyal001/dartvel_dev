@@ -374,7 +374,10 @@ ${guardRedirectFor(e.directory)}      pageBuilder: (context, state) {
             : (DvI18n.normalize(langRaw, i18nLocales, i18nDefault.isEmpty ? (langRaw ?? '') : i18nDefault));
         final withI18n = DvI18nScope(localeTag: langTag, child: withState);
 
-        ${e.isFunctional ? 'final loaderWrapped = withI18n;' : '''final loaderWrapped = DvDataLoader(
+        // Every route, function pages included. A function page used to skip
+        // this, so one that read DvDataScope.of(context) found no scope and
+        // threw -- basic_app's own page did. `dartvel routes` never skipped it.
+        final loaderWrapped = DvDataLoader(
           load: () => page.loadData(params, query),
           child: withI18n,
 ${(() {
@@ -394,7 +397,7 @@ ${(() {
                         b.writeln("          error: const DvDefaultError(),");
                       }
                       return b.toString();
-                    })()}        );'''}
+                    })()}        );
 
         final seoWrapped = DartvelSeo(
           props: page.buildWebSeo(params, query),

@@ -133,4 +133,18 @@ void main() {
       isTrue,
     );
   });
+
+  test('a function page gets the data scope a class page gets', () async {
+    // A function page that read DvDataScope.of(context) threw in any
+    // build_runner application: its route skipped the DvDataLoader every
+    // other route is built in, so there was no scope above it to find.
+    // basic_app's own page does exactly that, and its widget test failed.
+    // `dartvel routes` never had the exception.
+    final String source = await router(<String, String>{
+      'a|lib/pages/index.dart': loweredPage,
+    });
+    expect(source, contains('final loaderWrapped = DvDataLoader('));
+    expect(source, contains('load: () => page.loadData(params, query),'));
+    expect(source, isNot(contains('final loaderWrapped = withI18n;')));
+  });
 }
