@@ -1,4 +1,4 @@
-## Unreleased
+## 1.3.0
 
 - **The `build_runner` builders are retired.** Generate with `dart run
   dartvel_cli:dartvel routes` instead, or with `dartvel build`, which

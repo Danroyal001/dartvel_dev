@@ -8,7 +8,7 @@
 ///
 /// A test asserts this admits the version each package declares, so the two
 /// cannot drift again without the suite saying so.
-const String dartvelPackageVersion = '0.4.0';
+const String dartvelPackageVersion = '0.5.0';
 
 class ProjectTemplates {
   static String pubspecTemplate({

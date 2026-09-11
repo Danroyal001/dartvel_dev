@@ -1,4 +1,4 @@
-## Unreleased
+## 0.6.0
 
 - `/_dartvel/image?src=&w=&q=` on a web-server build, NextFaster's image
   optimizer. An image in the site, or on a host listed in

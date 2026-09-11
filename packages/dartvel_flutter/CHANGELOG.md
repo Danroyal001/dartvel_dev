@@ -1,4 +1,4 @@
-## Unreleased
+## 0.5.0
 
 - A page's title in its app bar is its level-1 heading, on the Material and
   Cupertino shells alike. Both bars mark their title a header with no level,

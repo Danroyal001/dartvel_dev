@@ -1,4 +1,4 @@
-## Unreleased
+## 0.5.0
 
 - The `DV.Database` docs say whose code generation the `build_runner` step
   they describe is: drift's. Dartvel's own generation is `dart run
