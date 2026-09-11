@@ -1,3 +1,9 @@
+## 0.5.0
+
+Ships the 0.5.0 CLI: link prefetch, per-page deferred bundles, image variants,
+the launch splash, shell-first web-server streaming, and the retirement of the
+build_runner generation path. Raises its floor to dartvel_cli 0.5.0.
+
 ## 0.4.1
 
 Raises its floor to dartvel_cli 0.4.1, so an install can no longer resolve the
