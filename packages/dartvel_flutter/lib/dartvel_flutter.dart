@@ -6788,7 +6788,7 @@ class _DVPageShellState extends State<DVPageShell> {
         // with a grey strip above its own header.
         navigationBar: spec.showAppBar
             ? CupertinoNavigationBar(
-                middle: spec.title == null ? null : DVText(spec.title!),
+                middle: spec.title == null ? null : _barTitle(spec.title!),
                 backgroundColor: _color(spec.appBarBackgroundColor),
               )
             : null,
@@ -6825,7 +6825,7 @@ class _DVPageShellState extends State<DVPageShell> {
       // duplicated, so the bug was too.
       appBar: spec.showAppBar
           ? AppBar(
-              title: spec.title == null ? null : DVText(spec.title!),
+              title: spec.title == null ? null : _barTitle(spec.title!),
               centerTitle: spec.centerTitle,
               backgroundColor: _color(spec.appBarBackgroundColor),
             )
@@ -6836,6 +6836,21 @@ class _DVPageShellState extends State<DVPageShell> {
       resizeToAvoidBottomInset: spec.resizeToAvoidBottomInset,
     );
   }
+
+  /// The title in the bar, as the page's level-1 heading.
+  ///
+  /// It is what names the page. Both bars mark their title a header with no
+  /// level, which the web draws as an `<h2>`, so every page with a bar had
+  /// headings and none at level 1 -- and `dartvel build web` refused it for
+  /// that, on every page of an application that used one.
+  ///
+  /// A bare Semantics rather than [DVModifier.semanticHeading], so the level
+  /// lands on the bar's own node. The modifier merges its text into a node of
+  /// its own, which is right in a page body and wrong here: it put the level
+  /// on a child of the bar's route-naming header, and the web then drew
+  /// neither node as a heading -- the page had none at all.
+  Widget _barTitle(String title) =>
+      Semantics(headingLevel: 1, child: DVText(title));
 
   Widget _body(Widget body) {
     // Inside the safe area, not outside it: a SelectionArea above would let a

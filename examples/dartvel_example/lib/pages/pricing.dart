@@ -20,7 +20,9 @@ import '../dartvel_client/dartvel_client.dart';
 )
 @pragma('vm:entry-point')
 Widget _pricingPage(BuildContext context) => DVBox.list([
-  const DVText('Plans').modifier(const DVModifier().fontSize(24.0)),
+  // The page's level-1 heading: it has no bar to carry its title.
+  const DVText('Plans')
+      .modifier(const DVModifier().fontSize(24.0).semanticHeading(1)),
   DVBox.row([
     const DVText('Free'),
     // The price the model declares, read rather than repeated. A static

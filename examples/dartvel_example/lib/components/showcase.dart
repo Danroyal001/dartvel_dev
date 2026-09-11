@@ -93,12 +93,15 @@ Widget _featureCard(String title, String body) => DVBox.list([
 @pragma('vm:entry-point')
 Widget _showcaseHero(String platform, String deviceType, String backend) =>
     DVBox.list([
+      // The page's name, so its level-1 heading: the home page has no bar to
+      // carry one, and its only other headings are a table's column names.
       const DVText('Dartvel Platform Showcase').modifier(
         const DVModifier()
             .color(const Color(0xFFFFFFFF))
             .fontSize(30)
             .fontWeight(FontWeight.w900)
-            .padding(4),
+            .padding(4)
+            .semanticHeading(1),
       ),
       const DVText(
         'A generated full-stack Flutter app exercising routing, API clients, native bindings, services, AI, and observability.',

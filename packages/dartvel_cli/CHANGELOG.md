@@ -1,5 +1,12 @@
 ## Unreleased
 
+- A home widget's preview page names itself with a level-1 heading of its
+  title when it has no bar to carry one. `dartvel build web` audits every
+  page for a level-1 heading, and the preview route rendered the widget and
+  nothing else, so every application with a home widget failed its own web
+  build on that page. With `showAppBar: true` the bar's title is the heading
+  and the body does not repeat it; a widget that builds its own Scaffold is
+  left alone, since a heading above one would break its layout.
 - Image variants, NextFaster's other half. `dartvel build web` writes every
   raster image declared under `flutter.assets` at each configured width
   narrower than it, into `assets/_dartvel/img/<width>/`, and hands the

@@ -50,6 +50,22 @@ void main() {
 
       expect(find.byType(AppBar), findsOneWidget);
     });
+
+    testWidgets('the title in the bar is the page\'s level-1 heading',
+        (WidgetTester tester) async {
+      // The title in the bar is what names the page. Material marks it a
+      // header with no level, which the web draws as an <h2>, so every page
+      // with a bar had headings and none at level 1 -- and failed the build's
+      // own accessibility audit for it.
+      final SemanticsHandle semantics = tester.ensureSemantics();
+      await tester.pumpWidget(host(const DVPageScaffoldSpec(
+        title: 'Settings',
+        showAppBar: true,
+      )));
+
+      expect(tester.getSemantics(find.text('Settings')).headingLevel, 1);
+      semantics.dispose();
+    });
   });
 
   group('Cupertino', () {
@@ -72,6 +88,18 @@ void main() {
       ));
 
       expect(find.byType(CupertinoNavigationBar), findsOneWidget);
+    });
+
+    testWidgets('its title is the page\'s level-1 heading too',
+        (WidgetTester tester) async {
+      final SemanticsHandle semantics = tester.ensureSemantics();
+      await tester.pumpWidget(host(
+        const DVPageScaffoldSpec(title: 'Dartvel', showAppBar: true),
+        platform: TargetPlatform.iOS,
+      ));
+
+      expect(tester.getSemantics(find.text('Dartvel')).headingLevel, 1);
+      semantics.dispose();
     });
   });
 }
