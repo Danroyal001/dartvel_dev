@@ -96,6 +96,34 @@ String read(String name) =>
         .readAsStringSync();
 
 void main() {
+  // The route that shows a home widget inside the application is a page, and
+  // `dartvel build web` audits every page for a level-1 heading. With no bar
+  // the widget's title named nothing, so every application with a home widget
+  // failed its own web build on the preview page.
+  group('the preview page names itself', () {
+    const String heading =
+        "DVText('Steps today').modifier(const DVModifier().semanticHeading(1))";
+
+    test('with a level-1 heading of its title, when it has no bar', () async {
+      await generate(<String, String>{'widgets/step_counter.dart': _classWidget});
+
+      expect(read('router.g.dart'), contains(heading));
+    });
+
+    test('and not a second one when the bar already carries the title',
+        () async {
+      await generate(<String, String>{
+        'widgets/step_counter.dart': _classWidget.replaceFirst(
+            "@DVHomeWidget(title: 'Steps today')",
+            "@DVHomeWidget(title: 'Steps today', showAppBar: true)"),
+      });
+
+      final String router = read('router.g.dart');
+      expect(router, contains('showAppBar: true'));
+      expect(router, isNot(contains(heading)));
+    });
+  });
+
   test('a widget class is a home widget, with the identifier of its own name',
       () async {
     await generate(<String, String>{'widgets/step_counter.dart': _classWidget});

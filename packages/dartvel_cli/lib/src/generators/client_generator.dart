@@ -972,7 +972,7 @@ ${_moduleBackendSource(dv)}    final url = kReleaseMode ? cfg.dvProdBackendHost 
       pageBuilder: (context, state) => NoTransitionPage<void>(
         child: DVPageShell(
           spec: ${e.scaffold},
-          child: Center(child: ${e.spec.name}()),
+          child: ${e.heading == null || e.heading!.isEmpty ? 'Center(child: ${e.spec.name}())' : "Center(child: Column(mainAxisSize: MainAxisSize.min, children: <Widget>[DVText('${esc(e.heading!)}').modifier(const DVModifier().semanticHeading(1)), const SizedBox(height: 16), ${e.spec.name}()]))"},
         ),
       ),
     ),''',
@@ -2743,6 +2743,14 @@ void startDartvelKiosk() {
           importPath: isClass
               ? rel.replaceFirst(RegExp('^lib/'), 'package:$pkgName/')
               : null,
+          // The page's own heading, unless a bar carries the title or the
+          // widget brings a Scaffold of its own.
+          // The literal as written, 'true' or 'false', not a bool.
+          heading: _namedBoolArg(args, 'showAppBar') == 'true' ||
+                  _namedBoolArg(args, 'scaffold') == 'false' ||
+                  _sourceBuildsScaffold(source)
+              ? null
+              : _unquoted(_namedStringArg(args, 'title')),
         ));
       }
     }
@@ -3459,9 +3467,16 @@ class _HomeWidgetEntry {
     required this.spec,
     required this.scaffold,
     this.importPath,
+    this.heading,
   });
 
   final DVHomeWidgetSpec spec;
+
+  /// The title, when the preview page has to carry it itself: a page is
+  /// audited for a level-1 heading, and with no bar nothing else names it.
+  /// Null when a bar shows it, when the widget brings its own Scaffold -- a
+  /// heading above one would break its layout -- or when there is no title.
+  final String? heading;
 
   /// A `const DVPageScaffoldSpec(...)` literal, from the same parser the
   /// pages use on the same argument names.
