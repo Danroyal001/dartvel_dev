@@ -5,7 +5,56 @@ All notable changes to this project will be documented in this file.
 Dartvel is pre-1.0. Minor versions may contain breaking changes; breaking
 changes are called out explicitly below.
 
-## Unreleased
+## 0.5.0 — 2026-09-11
+
+Everything that makes a page arrive before it is asked for: the page itself,
+its code, its images, and the renderer underneath them. Most of it is
+NextFaster's playbook, checked in a real browser rather than assumed -- and the
+checks are most of what the rest of this release is, because each one found
+something that every unit test had passed.
+
+### Added
+
+- **A link fetches what it points at.** It preloads once it has been on screen
+  for 300 ms, or as soon as a pointer reaches it: `DVLinkPreload.visible` is
+  the default now, because hover is a desktop trigger and no link on a phone
+  ever fired. A mouse follows the link when the button goes down rather than
+  when it comes up. On the web it also prefetches the route's prerendered HTML
+  -- what a new tab, a reload or a shared link opens -- and the images the page
+  opens with, then hands each image to Flutter's cache once the browser has it,
+  so it is downloaded once rather than twice.
+- **Every page is its own bundle again.** Pages were imported `deferred` and
+  their bodies copied into the eager router, so dart2js put them in
+  main.dart.js: this site built with three of its four pages having no deferred
+  part at all. A page's body now goes in a library only its deferred import
+  reaches. The site's build went from one part file to nine, and each
+  prerendered page preloads its own in its head, so a page opened directly
+  downloads them alongside main.dart.js instead of a round trip after it boots.
+  The same lists go into `dartvel_prefetch.json` for links to read.
+- **Images in the size they are drawn at.** `dartvel build web` writes every
+  declared raster image at each configured width, `DVImageView` asks for the
+  one its slot needs on this screen, and a web-server build answers
+  `/_dartvel/image` for remote images from hosts you list and no others. A link
+  prefetches the variant for the visitor's own pixel ratio, under the same
+  cache key the widget will ask for: measured in Chrome, a phone-density screen
+  fetched the 640 and a 2x screen the 828, each exactly once.
+- **A launch splash on every platform**, from `dartvel.splash`, with nothing to
+  install and nothing to run: the web shell and every prerendered page,
+  Android's launch theme and its API 31 splash, the iOS storyboard with a
+  dark-mode colour, the macOS and Linux views. Windows already waits for the
+  first frame. With nothing configured it takes the PWA background colour and
+  the project icon.
+- **The web server can send a page's shell before its data.**
+  `dartvel.web.server.streaming: shell` writes the head, its preloads and the
+  splash while the data query is still running, then the title and body when it
+  answers -- and the route's own deferred parts are named in that first chunk.
+  A guarded route still waits and still answers 401 or 404. `dartvel preview`
+  streams through the same code, so preview and production cannot drift.
+- **The renderer starts downloading while the page is still being parsed.**
+  CanvasKit is 7 MB and nothing asked for it until flutter_bootstrap.js had
+  arrived and run. Every page now preconnects to where it lives and preloads
+  the variant the Flutter loader will choose, tested condition for condition
+  against the loader's own check; in Chrome both files are fetched once.
 
 ### Changed
 
@@ -37,6 +86,38 @@ no link preloading, and function pages built with no data scope.
 `dartvel create` no longer scaffolds `build_runner`, and the `basic_app` and
 `class_widgets_app` examples — the last two applications on the old path —
 now generate with one command.
+**Two defaults changed.** Links preload on sight rather than only on hover
+(`DVLinkPreload.visible`), and a web build that declares raster images now
+writes resized variants of each one -- up to twelve files per image, which an
+image-heavy application will notice in its build size. `dartvel.images.widths`
+sets the list.
+
+**A route's typed target is lowerCamelCase.** `/next_shift` is
+`DVRoutes.nextShift`, because `DVRoutes.next_shift` is a name Dart's own style
+lint rejects, and a Flutter project's CI fails on it. The old name is still
+generated as a deprecated alias, so code written against it keeps compiling;
+it goes in the next minor.
+
+### Fixed
+
+- **Client cron schedules ran twice and never stopped.** The timer was started
+  when the router was created, owned by nothing: a second router started a
+  second timer, and every widget test that built a router ended with "A Timer
+  is still pending" -- eight of the example's own tests, which no job ran.
+  Schedules now run while a page is on screen and stop with the last one.
+- **Generated code failed the analyzer its users run.** `flutter analyze`
+  fails on an info, and three things in generated output produced one: an AI
+  tool's schema, the sitemap entries, and route targets named after a page
+  directory with an underscore.
+- **Every page names itself with a level-1 heading.** A page's app-bar title
+  is that heading now, on both the Material and Cupertino shells, and a
+  generated home-widget page carries one of its own. Without it `dartvel build
+  web`'s own accessibility audit refused every page with a bar -- which is why
+  the example application had never produced a web build at all. CI builds it
+  now.
+- **An image variant is never a bigger download than its source.** Re-encoding
+  can undo compression the source already had; when it does, the source's own
+  bytes are written at that width.
 
 ## 0.4.1 — 2026-09-11
 

@@ -1,4 +1,4 @@
-## Unreleased
+## 0.5.0
 
 - The package no longer ships `lib/builder.dart`, a build_runner Builder that
   wrote nothing and that no `build.yaml` ever declared, so it could not run
