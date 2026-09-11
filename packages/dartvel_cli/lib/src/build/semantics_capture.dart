@@ -138,10 +138,10 @@ Future<DVCaptureRun> dvCaptureSemantics({
   try {
     browser = await puppeteer.launch(
       headless: true,
-      // The browser this machine already has. Without it puppeteer goes
-      // looking for one of its own and reports a crash when it cannot get
-      // it, which is how a build failed on a machine with Chrome installed.
-      executablePath: dvSystemChrome(),
+      // The browser this machine already has, or the one copy shared by
+      // every project on it. Left to itself puppeteer downloads into this
+      // workspace's .dart_tool, once per project -- see dvChromeExecutable.
+      executablePath: await dvChromeExecutable(),
       args: dvChromeLaunchArgs,
     );
   } on Object catch (error) {

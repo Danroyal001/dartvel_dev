@@ -7,6 +7,8 @@ library;
 
 import 'dart:io';
 
+import 'package:puppeteer/puppeteer.dart' show downloadChrome, puppeteer;
+
 /// Flags for a headless Chrome, in the environments this actually runs in.
 ///
 /// `--no-sandbox` and `--disable-setuid-sandbox` are the usual pair for a
@@ -63,4 +65,76 @@ String? dvSystemChrome({Map<String, String>? environment}) {
     if (File(candidate).existsSync()) return candidate;
   }
   return null;
+}
+
+/// The Chrome to launch: the machine's own when it has one, and otherwise a
+/// single copy shared by every Dartvel project on the machine.
+///
+/// Every launch site already passed [dvSystemChrome], so none ever lacked an
+/// executable. On a machine with no system Chrome that is null, and puppeteer
+/// then fetches its own copy into `<workspace-root>/.dart_tool/puppeteer` -- a
+/// different root for the site, the CLI and each user project, so the same
+/// 380 MB browser was downloaded once per package and kept once per package.
+/// On the machine this was written on that filled the disk: one run of the
+/// CLI's own suite re-fetched a copy deleted an hour earlier, and the next
+/// write failed with "No space left on device".
+///
+/// So the download goes to [puppeteer.userCachePath], and a build already
+/// there is reused whichever version it is. Sharing the folder alone was not
+/// enough: each puppeteer release pins its own Chrome, the site and the CLI
+/// resolved different releases, and each fetched its own build into the
+/// shared cache. [downloadChrome] returns at once for a version already
+/// present, so naming the cached one costs nothing.
+///
+/// [findSystem], [cachedVersion] and [download] are injectable so the choice
+/// can be tested without a browser or a network.
+Future<String> dvChromeExecutable({
+  String? Function()? findSystem,
+  String? Function(String cachePath)? cachedVersion,
+  Future<String> Function(String cachePath, String? version)? download,
+}) async {
+  final String? system = (findSystem ?? dvSystemChrome)();
+  if (system != null) return system;
+  final String cachePath = puppeteer.userCachePath;
+  // Null when the cache is empty, which leaves puppeteer to fetch the build
+  // it pins -- the only case in which anything is downloaded.
+  final String? have = (cachedVersion ?? dvNewestCachedChrome)(cachePath);
+  final Future<String> Function(String, String?) fetch = download ??
+      (String cache, String? version) async =>
+          (await downloadChrome(cachePath: cache, version: version))
+              .executablePath;
+  return fetch(cachePath, have);
+}
+
+/// The newest Chrome build in [cachePath], or null when there is none.
+///
+/// Compared as numbers, because as strings `99.0` sorts above `152.0`. Only
+/// folders named as a version count: puppeteer downloads into a
+/// `<version>.downloading` folder and renames it when complete, so a
+/// half-finished download is never offered as a browser.
+String? dvNewestCachedChrome(String cachePath) {
+  final Directory dir = Directory(cachePath);
+  if (!dir.existsSync()) return null;
+  final RegExp version = RegExp(r'^\d+(\.\d+)+$');
+  List<int> parts(String v) => v.split('.').map(int.parse).toList();
+  int compare(String a, String b) {
+    final List<int> x = parts(a);
+    final List<int> y = parts(b);
+    for (int i = 0; i < x.length || i < y.length; i++) {
+      final int xi = i < x.length ? x[i] : 0;
+      final int yi = i < y.length ? y[i] : 0;
+      if (xi != yi) return xi.compareTo(yi);
+    }
+    return 0;
+  }
+
+  String? best;
+  for (final FileSystemEntity entity in dir.listSync()) {
+    if (entity is! Directory) continue;
+    final String name =
+        entity.path.substring(entity.path.lastIndexOf(Platform.pathSeparator) + 1);
+    if (!version.hasMatch(name)) continue;
+    if (best == null || compare(name, best) > 0) best = name;
+  }
+  return best;
 }

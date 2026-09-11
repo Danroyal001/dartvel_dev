@@ -75,7 +75,7 @@ Future<DVPwaSyncResult> dvVerifyPwaSync({
   try {
     browser = await puppeteer.launch(
       headless: true,
-      executablePath: chromePath ?? dvSystemChrome(),
+      executablePath: chromePath ?? await dvChromeExecutable(),
       args: dvChromeLaunchArgs,
     );
   } on Object catch (error) {
