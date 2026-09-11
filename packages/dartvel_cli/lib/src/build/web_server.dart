@@ -70,6 +70,7 @@ String dvWebServerManifest({
   DVWebServerSettings server = const DVWebServerSettings(),
   DVSiteSeo site = const DVSiteSeo(),
   Map<String, String> federated = const <String, String>{},
+  Set<String> guarded = const <String>{},
 }) =>
     const JsonEncoder.withIndent('  ').convert(<String, Object?>{
       'siteUrl': siteUrl,
@@ -85,6 +86,12 @@ String dvWebServerManifest({
           route: <String, Object?>{
             'title': titles[route],
             'text': text[route] ?? const <String>[],
+            // `streaming: shell` sends a route's head before its data, and a
+            // status cannot follow a 200. A guarded route's answer depends on
+            // the request, so the server has to know before it sends
+            // anything. Absent rather than false, so a manifest from before
+            // the marker reads the same for every unguarded route.
+            if (guarded.contains(route)) 'guarded': true,
           },
         // A federated module's routes, and where each answers. The
         // specification asks for a micro-site that serves its own HTML while

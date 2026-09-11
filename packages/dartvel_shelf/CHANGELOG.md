@@ -1,3 +1,21 @@
+## Unreleased
+
+- Shell-first rendering, with `dartvel.web.server.streaming: shell`. The
+  server sends the shell's head -- base, charset, every preload, the splash,
+  and a preload for each script the body loads -- before a route's data has
+  resolved, and starts resolving it at the same moment, so the browser
+  downloads the application and the page's code while the database answers.
+  With `true` the head was a separate write but went out after the data, so
+  nothing reached the browser until the query returned. Proven through the
+  native runtime: the early bytes reach a socket while the data is held back.
+- The status code is the price. A record found hidden or unauthorized once
+  200 is on the wire is a page marked `noindex` with none of its data, a
+  soft 404; a resolver that throws gets the route's own page, marked the same
+  way, and the document still ends. A guarded route is never sent early: it
+  waits and answers 401 or 404 exactly as it did, so a signed-out request
+  still looks like one for a page that does not exist. Federated routes are
+  still redirected.
+
 ## 0.5.0
 
 Minor rather than patch: the request and response types this package shares

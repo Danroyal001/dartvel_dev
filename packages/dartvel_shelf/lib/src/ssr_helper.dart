@@ -2,7 +2,7 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:path/path.dart' as p;
 import 'package:dartvel_core/dartvel.dart'
-    show DVCacheAdapter, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvWithRequestTenant;
+    show DVCacheAdapter, DVHeadParts, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageStreaming, DVPageVisibility, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvHeadParts, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvWithRequestTenant;
 import 'package:dartvel_core/http.dart';
 
 /// Serve the single-page app's index, with any prerendered metadata for this
@@ -145,6 +145,27 @@ Future<Response> _fromManifest(
   final String path = raw == '/' ? '/' : raw.replaceAll(RegExp(r'/+$'), '');
 
   final DVPageRequest? matched = dvMatchRoute(path, routeMap.keys, headers: req.headers.singleValueMap);
+
+  // `streaming: shell`: the head goes out before the data exists. Only where
+  // nothing about the answer depends on the data -- not a guarded route, whose
+  // status does, and not a federated one, which is a redirect.
+  if (settings.streamingMode == DVPageStreaming.shell && pageData != null && matched != null) {
+    final Map<String, Object?>? route = (routeMap[matched.pattern] as Map?)?.cast<String, Object?>();
+    if (route?['guarded'] != true && route?['location'] is! String) {
+      final Response? early = _shellFirst(
+        shell: shell,
+        path: path,
+        matched: matched,
+        route: route,
+        resolving: (cache ?? _cacheFor(spaRoot, settings, pageStore))
+            .resolve(matched, pageData, settings.pageDataMode),
+        siteUrl: siteUrl,
+        site: site,
+      );
+      if (early != null) return early;
+    }
+  }
+
   DVPageData? data;
   if (pageData != null && matched != null) {
     data = await (cache ?? _cacheFor(spaRoot, settings, pageStore))
@@ -187,6 +208,109 @@ Future<Response> _fromManifest(
       ? dvRenderRoute(shell: shell, path: path, title: title, text: text, siteUrl: siteUrl, siteName: siteName, description: site.description, image: site.image)
       : dvRenderPage(shell: shell, path: path, data: data, siteUrl: siteUrl, siteName: siteName, description: site.description, image: site.image);
   return _html(page, streaming: settings.streaming);
+}
+
+/// The page for [path] as three writes, the first of them before the data.
+///
+/// 1. The head as no render changes it -- base, charset, every preload, the
+///    splash, a preload for each script the body loads -- taken from a render
+///    with no data in it and sent at once.
+/// 2. What the data writes into the head -- title, description, canonical,
+///    Open Graph, structured data, the icon -- and `</head>`, once the data
+///    has resolved.
+/// 3. The body.
+///
+/// The first part is identical in every render of the shell (dvHeadParts is
+/// the rule), so the browser assembles exactly the page that was rendered,
+/// with the head's elements in a different order.
+///
+/// [resolving] is started by the caller, inside the request's tenant zone and
+/// before this returns, so the query runs while the head is on its way; its
+/// failure is caught here at once, so it is never an unhandled error.
+///
+/// Null when the shell has no head to split, and the caller falls back to
+/// waiting for the data.
+Response? _shellFirst({
+  required String shell,
+  required String path,
+  required DVPageRequest matched,
+  required Map<String, Object?>? route,
+  required Future<DVPageData?> resolving,
+  required String? siteUrl,
+  required DVSiteSeo site,
+}) {
+  final String? shellTitle = RegExp(r'<title>(.*?)</title>', dotAll: true).firstMatch(shell)?.group(1)?.trim();
+  final String title = route?['title'] is String ? route!['title']! as String : (shellTitle ?? path);
+  final List<String> text = <String>[for (final Object? line in (route?['text'] as List?) ?? const <Object?>[]) '$line'];
+  final String? siteName = site.name ?? shellTitle;
+
+  final DVHeadParts? early = dvHeadParts(
+    dvRenderRoute(shell: shell, path: path, title: '', siteUrl: siteUrl, siteName: siteName),
+  );
+  if (early == null) return null;
+
+  // The record, or null with `failed` when the resolver threw. Handled here
+  // rather than where it is awaited: the stream below does not run until it
+  // is listened to, and an error with no handler by then is an unhandled one.
+  final Future<(DVPageData?, bool)> outcome = resolving.then(
+    (DVPageData? data) => (data, false),
+    onError: (Object _, StackTrace __) => (null, true),
+  );
+
+  Stream<List<int>> body() async* {
+    yield utf8.encode('${early.opening}${early.fixed}${_bodyScriptPreloads(early)}');
+
+    final (DVPageData? data, bool failed) = await outcome;
+    final bool refused = data != null && data.visibility != DVPageVisibility.public;
+    final String page = refused
+        // None of the data, as the refusal would have shown: it describes a
+        // page the reader is not being shown.
+        ? dvRenderRoute(shell: shell, path: path, title: shellTitle ?? title, siteUrl: siteUrl, siteName: siteName)
+        : data == null
+            ? dvRenderRoute(shell: shell, path: path, title: title, text: text, siteUrl: siteUrl, siteName: siteName, description: site.description, image: site.image)
+            : dvRenderPage(shell: shell, path: path, data: data, siteUrl: siteUrl, siteName: siteName, description: site.description, image: site.image);
+    final DVHeadParts late = dvHeadParts(page) ?? early;
+    // 200 is already on the wire, so a record that cannot be shown -- or data
+    // that could not be fetched -- is kept out of an index this way instead.
+    final String noindex = refused || failed ? '<meta name="robots" content="noindex">\n' : '';
+    const String close = '</head>';
+    yield utf8.encode('$noindex${late.written}$close');
+    yield utf8.encode(late.rest.startsWith(close) ? late.rest.substring(close.length) : late.rest);
+  }
+
+  return Response(
+    200,
+    headers: Headers()
+      ..set('content-type', 'text/html; charset=utf-8')
+      ..set('cache-control', 'no-store'),
+    isStream: true,
+    body: body(),
+  );
+}
+
+/// A preload for each script the page's body loads, for the part of the head
+/// sent early.
+///
+/// Flutter's template loads flutter_bootstrap.js from the body, and the body
+/// is the last thing to go out -- after the data. A preload in the early head
+/// has the browser fetch it while the server queries. As `script` and with no
+/// crossorigin, which is how the script element asks for it: a preload is
+/// only used by a request made the same way. Module scripts are left to the
+/// body, since a module is not a classic script and preloading it as one
+/// fetches it twice.
+String _bodyScriptPreloads(DVHeadParts parts) {
+  final StringBuffer out = StringBuffer();
+  final Set<String> seen = <String>{};
+  for (final RegExpMatch tag in RegExp(r'<script\b[^>]*>', caseSensitive: false).allMatches(parts.rest)) {
+    final String element = tag.group(0)!;
+    if (RegExp(r'''type\s*=\s*["']module["']''', caseSensitive: false).hasMatch(element)) continue;
+    final RegExpMatch? src = RegExp(r'''\bsrc\s*=\s*"([^"]+)"''').firstMatch(element);
+    if (src == null) continue;
+    final String href = src.group(1)!;
+    if (!seen.add(href) || parts.fixed.contains('href="$href"')) continue;
+    out.write('<link rel="preload" href="$href" as="script">\n');
+  }
+  return out.toString();
 }
 
 Response _html(String page, {int status = 200, bool streaming = false}) {
