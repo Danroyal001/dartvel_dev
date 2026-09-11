@@ -683,6 +683,43 @@ jobs:
         working-directory: examples/${{ matrix.example }}
         run: flutter test
 
+  # The example built for the web, which runs the build's accessibility
+  # audit over every page it has -- generated ones included: a home widget's
+  # preview page, a mounted module's pages. The site job builds only the
+  # site, which has neither, so a generated page that failed the audit
+  # reached no job at all, and the example had never produced a web build:
+  # every one of its seven pages failed it.
+  example-web:
+    name: example web build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      # The example depends on dartvel_shelf, whose native-asset build hook
+      # runs cbindgen; see the test job.
+      - name: Cache cbindgen
+        id: cbindgen-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cbindgen
+          key: cbindgen-${{ runner.os }}-${{ runner.arch }}
+      - name: Install cbindgen
+        if: steps.cbindgen-cache.outputs.cache-hit != 'true'
+        run: cargo install cbindgen --locked
+      - name: Resolve dependencies
+        working-directory: examples/dartvel_example
+        run: flutter pub get
+      # Generation, the semantics capture in the runner's Chrome, the audit
+      # and the prerendered pages, in one command. An audit finding fails it.
+      - name: Build for the web
+        working-directory: examples/dartvel_example
+        run: dart run dartvel_cli:dartvel build web --release
+
   spec:
     name: spec-status index
     runs-on: ubuntu-latest
