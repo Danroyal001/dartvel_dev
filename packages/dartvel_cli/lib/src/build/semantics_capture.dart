@@ -204,9 +204,18 @@ Future<DVCaptureRun> dvCaptureSemantics({
         }
 
         File(dvSemanticsPathFor(projectRoot, route)).writeAsStringSync(tree);
+        // Each image's slot, as DVImageView wrote it into the page while it
+        // laid out. A request for the 384-wide file says only that the slot
+        // was somewhere under 384; a link choosing the file for a denser
+        // screen needs the slot itself.
+        final Map<String, double> slots = dvImageSlotsFrom(
+          await page.evaluate<String>(
+              '() => JSON.stringify(globalThis.__dartvelImages || {})'),
+        );
         File(dvCapturedImagesPathFor(projectRoot, route)).writeAsStringSync(
           jsonEncode(<Object?>[
-            for (final DVCapturedImage image in images) image.toJson(),
+            for (final DVCapturedImage image in dvAttachImageSlots(images, slots))
+              image.toJson(),
           ]),
         );
         final int nodes = (jsonDecode(tree) as List<Object?>).length;

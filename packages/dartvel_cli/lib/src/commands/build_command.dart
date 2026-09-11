@@ -7,8 +7,13 @@ import 'package:yaml/yaml.dart';
 import '../build/accessibility_audit.dart';
 import '../build/admin_artifact.dart';
 import '../build/admin_mount.dart';
+import '../build/image_variants_build.dart';
 import 'package:dartvel_core/dartvel.dart'
-    show DVHomeWidgetSpec, DVBuildLifecycle, dvAndroidPermissionNames;
+    show
+        DVHomeWidgetSpec,
+        DVBuildLifecycle,
+        DVImageVariants,
+        dvAndroidPermissionNames;
 
 import '../build/android_home_widget.dart';
 import '../build/android_capture_bridge.dart';
@@ -48,6 +53,7 @@ import '../build/static_seo.dart';
 import '../build/static_paths_runner.dart';
 import '../build/static_generation.dart';
 import '../build/web_server.dart';
+import '../build/web_server_prefetch.dart';
 import '../graph/module_mounts.dart';
 import '../graph/project_graph.dart';
 import '../utils/build_runner.dart';
@@ -878,6 +884,9 @@ class BuildCommand extends Command<void> {
       obfuscate: obfuscate,
       treeShakeIcons: treeShakeIcons,
       deviceProfile: deviceProfile,
+      // Before the build, because the app is handed the list as a
+      // compile-time value: which images have variants, and how wide each is.
+      imageVariants: _imageVariants(Directory.current.path, platform),
     );
 
     // Check if platform is available
@@ -923,6 +932,9 @@ class BuildCommand extends Command<void> {
     if (exitCode == 0) {
       if (platform == 'web' || platform == 'web-server') {
         final root = Directory.current.path;
+        // Before the capture loads a page: the variants DVImageView asks for
+        // have to be there, or the capture records a 404 for every image.
+        _writeStaticImageVariants(root, platform);
         // Before anything reads it. The crawler-visible HTML on every page
         // comes from these trees, and a build that skipped the capture would
         // publish whatever the last one produced -- including for a route
@@ -2782,6 +2794,9 @@ class BuildCommand extends Command<void> {
         federated: dvFederatedRoutes(root),
         // So `streaming: shell` knows which routes it must not answer early.
         guarded: dvGuardedRoutes(_routerSource(root)),
+        // dartvel.images, for the server's /_dartvel/image: which widths it
+        // may resize to and which hosts it may fetch from.
+        images: _imageVariants(root, 'web-server'),
         routes: routes,
         titles: dvRouteTitles(_routerSource(root)),
         text: _routeText(root),
@@ -2935,6 +2950,55 @@ class BuildCommand extends Command<void> {
   }
 
   /// The `dartvel:` section of pubspec.yaml, or an empty map.
+  /// `dartvel.images` from pubspec.yaml, with what this build adds: the width
+  /// of each declared image it writes variants of, and on a web-server build
+  /// whether the server resizes. Inactive for anything but a web build, and
+  /// for one with no declared image and no remote host -- then there is
+  /// nothing to hand the application, and it renders exactly as it did.
+  DVImageVariants _imageVariants(String root, String platform) {
+    if (platform != 'web' && platform != 'web-server') {
+      return const DVImageVariants();
+    }
+    final DVImageVariants declared =
+        DVImageVariants.parse(_dartvelSection(root)['images']).variants;
+    Object? assets;
+    try {
+      final Object? doc =
+          loadYaml(File(p.join(root, 'pubspec.yaml')).readAsStringSync());
+      final Object? flutter = doc is Map ? doc['flutter'] : null;
+      assets = flutter is Map ? flutter['assets'] : null;
+    } on Object {
+      assets = null;
+    }
+    final Map<String, int> widths = dvDeclaredImageWidths(root, assets);
+    return DVImageVariants(
+      widths: declared.widths,
+      quality: declared.quality,
+      remoteHosts: declared.remoteHosts,
+      endpoint: platform == 'web-server' &&
+          (widths.isNotEmpty || declared.remoteHosts.isNotEmpty),
+      assetWidths: widths,
+    );
+  }
+
+  /// Every variant DVImageView can ask for, written into build/web.
+  void _writeStaticImageVariants(String root, String platform) {
+    // Said once per build, here, rather than every time the list is read.
+    for (final String problem
+        in DVImageVariants.parse(_dartvelSection(root)['images']).problems) {
+      Logger.log('   ⚠ $problem');
+    }
+    final DVImageVariants variants = _imageVariants(root, platform);
+    if (variants.assetWidths.isEmpty) return;
+    final DVStaticVariantSummary written = dvWriteStaticImageVariants(
+      projectRoot: root,
+      webRoot: p.join(root, 'build', 'web'),
+      variants: variants,
+    );
+    Logger.log('   Image variants: ${written.images} image(s), '
+        '${written.written} file(s) written.');
+  }
+
   Map<Object?, Object?> _dartvelSection(String root) {
     final file = File(p.join(root, 'pubspec.yaml'));
     if (!file.existsSync()) return const <Object?, Object?>{};
@@ -3522,6 +3586,7 @@ List<String> resolveFlutterBuildArguments({
   bool obfuscate = false,
   bool treeShakeIcons = false,
   String? deviceProfile,
+  DVImageVariants? imageVariants,
 }) {
   final command = switch (platform) {
     'android' || 'fireos' => 'apk',
@@ -3558,6 +3623,14 @@ List<String> resolveFlutterBuildArguments({
   // can tell which machine the build is on.
   if (deviceProfile != null && deviceProfile.isNotEmpty) {
     args.add('--dart-define=DARTVEL_DEVICE_PROFILE=$deviceProfile');
+  }
+
+  // What the build wrote and whether a server resizes, for DVImageView: it
+  // can find out neither at run time, and asking for a variant nobody wrote
+  // is a 404 for every image on the page. Web only -- variants are files a
+  // web host serves -- and only when there are some.
+  if (command == 'web' && imageVariants != null && imageVariants.isActive) {
+    args.add('--dart-define=DARTVEL_IMAGES=${imageVariants.toDartDefine()}');
   }
 
   if (platform == 'android' && splitPerAbi) {
