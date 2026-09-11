@@ -17,6 +17,15 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dartvel_core/dartvel.dart' show DVCacheAdapter, DVImageVariants, DVPageData, DVPageDataCache, DVPageDataMode, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvWithRequestTenant;
+// Shell-first streaming and each route's preloads, through the same core
+// functions the deployed server uses.
+import 'package:dartvel_core/dartvel.dart'
+    show
+        DVPageStreaming,
+        DVRoutePreloads,
+        dvRoutePreloadsFile,
+        dvShellFirstChunks,
+        dvWithPreloads;
 import 'package:path/path.dart' as p;
 import 'package:shelf/shelf.dart';
 import 'package:shelf_static/shelf_static.dart';
@@ -219,24 +228,35 @@ Handler dvWebServerHandler({
       if ((e.value as Map?)?['location'] is String)
         e.key: (e.value as Map)['location'] as String,
   };
+  // Routes whose answer depends on who asks, so never sent before the data.
+  final guarded = <String>{
+    for (final MapEntry<String, Object?> e in routeMap.entries)
+      if ((e.value as Map?)?['guarded'] == true) e.key,
+  };
   final siteUrl = manifest['siteUrl'] as String?;
   final DVSiteSeo site = DVSiteSeo.parse(manifest['site']);
   final DVWebServerSettings declared = DVWebServerSettings.parse(manifest['server']);
   final DVPageDataMode mode = pageDataMode ?? declared.pageDataMode;
   final Duration ttl = cacheTtl ?? declared.cacheTtl;
   final Duration stale = staleFor ?? declared.staleFor;
-  final bool stream = streaming ?? declared.streaming;
+  final DVPageStreaming streamingMode = streaming == null
+      ? declared.streamingMode
+      : (streaming ? DVPageStreaming.head : DVPageStreaming.off);
+  final bool stream = streamingMode != DVPageStreaming.off;
+  // Each route's own deferred parts and first-frame images, from the build.
+  // Read once: a preview serves one build, and a rebuild restarts it.
+  final File preloadsFile = File(p.join(webRoot, dvRoutePreloadsFile));
+  final DVRoutePreloads preloads = DVRoutePreloads.parse(
+      preloadsFile.existsSync() ? preloadsFile.readAsStringSync() : null);
   // Given a store, the kept pages live there rather than in this process,
   // so a second server serves what the first resolved.
   final DVPageDataCache cache = DVPageDataCache(ttl: ttl, staleFor: stale, shared: pageStore);
 
-  /// The data for [path], by the mode: resolved, kept, served stale, or not
-  /// asked for at all.
-  Future<DVPageData?> resolve(String path, Map<String, String> headers) async {
+  /// The data for [request], by the mode: resolved, kept, served stale, or
+  /// not asked for at all.
+  Future<DVPageData?> resolve(DVPageRequest? request) async {
     final DVPageDataResolver? resolver = pageData;
-    if (resolver == null) return null;
-    final DVPageRequest? request = dvMatchRoute(path, routeMap.keys, headers: headers);
-    if (request == null) return null;
+    if (resolver == null || request == null) return null;
     return cache.resolve(request, resolver, mode);
   }
 
@@ -373,7 +393,6 @@ Handler dvWebServerHandler({
       }
     }
 
-    final DVPageData? data = await resolve(cleanPath, request.headers);
     const Map<String, String> htmlHeaders = <String, String>{
       'content-type': 'text/html; charset=utf-8',
       // Assembled per request, so a cached copy is the thing this target
@@ -390,6 +409,43 @@ Handler dvWebServerHandler({
     final String? siteDescription = description ?? site.description;
     final String? siteImage = image ?? site.image;
     final String? name = siteName ?? site.name ?? shellTitle;
+
+    final DVPageRequest? matched =
+        dvMatchRoute(cleanPath, routeMap.keys, headers: request.headers);
+    // The route's own parts and images: they depend on the route, never on
+    // the data, so they go in whatever part of the head goes first.
+    final String routePreloads = matched == null
+        ? ''
+        : preloads.linksFor(matched.pattern, shell: shell);
+
+    // `shell`: the head goes out before the data exists, except for a
+    // guarded route, whose status depends on the data.
+    if (streamingMode == DVPageStreaming.shell &&
+        pageData != null &&
+        matched != null &&
+        !guarded.contains(matched.pattern)) {
+      final Stream<String>? chunks = dvShellFirstChunks(
+        shell: shell,
+        path: cleanPath,
+        // dvServeRoute's rule, so the title is the one this server writes
+        // without streaming.
+        title: titles[matched.pattern] ?? name ?? cleanPath,
+        text: text[matched.pattern] ?? const <String>[],
+        refusedTitle: name ?? cleanPath,
+        resolving: resolve(matched),
+        siteUrl: siteUrl,
+        siteName: name,
+        description: siteDescription,
+        image: siteImage,
+        preloads: routePreloads,
+      );
+      if (chunks != null) {
+        return Response.ok(chunks.map<List<int>>(utf8.encode),
+            headers: htmlHeaders);
+      }
+    }
+
+    final DVPageData? data = await resolve(matched);
 
     // Hidden or unauthorized: the shell with none of the data, and the
     // status that says why, so a crawler indexes nothing and the client can
@@ -428,7 +484,11 @@ Handler dvWebServerHandler({
             image: siteImage,
           );
 
-    if (!stream) return Response.ok(page, headers: htmlHeaders);
+    // The route's own parts and images at the end of its head, as the
+    // deployed server writes them.
+    final String served = dvWithPreloads(page, routePreloads);
+
+    if (!stream) return Response.ok(served, headers: htmlHeaders);
 
     // Streamed: the head goes out as its own chunk, the rest after it, so
     // the title is on the wire before the body is. Where the cut goes is
@@ -438,7 +498,7 @@ Handler dvWebServerHandler({
     // explicit chunked header as a body already encoded, which this is not.
     return Response.ok(
       Stream<List<int>>.fromIterable(
-        <List<int>>[for (final String c in dvPageChunks(page)) utf8.encode(c)],
+        <List<int>>[for (final String c in dvPageChunks(served)) utf8.encode(c)],
       ),
       headers: htmlHeaders,
     );
