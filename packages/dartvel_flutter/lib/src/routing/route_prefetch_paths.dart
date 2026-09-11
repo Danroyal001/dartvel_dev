@@ -5,6 +5,8 @@ library dartvel_flutter.routing.route_prefetch_paths;
 
 import 'dart:convert';
 
+import 'package:dartvel_core/dartvel.dart' show DVImageVariants;
+
 /// The manifest `dartvel build web` writes next to index.html.
 const String dvPrefetchManifestPath = 'dartvel_prefetch.json';
 
@@ -21,9 +23,20 @@ String dvPrefetchHref(String path) {
 
 /// The images the build recorded [path] painting on load, or none.
 ///
+/// An image drawn through a variant is recorded with the slot it was laid
+/// out in, and fetched at the variant for [devicePixelRatio] -- this screen's,
+/// not the build's -- through the same [DVImageVariants.variantUrl] the
+/// widget uses, so the link fetches the file the page will ask for. Where
+/// there is no variant for it, the image itself, as the widget would.
+///
 /// Never throws. A missing, stale or mangled manifest is a site without
 /// image prefetch, not a link that fails on the way to a tap.
-List<String> dvPrefetchImages(String? manifest, String path) {
+List<String> dvPrefetchImages(
+  String? manifest,
+  String path, {
+  DVImageVariants? variants,
+  double devicePixelRatio = 1,
+}) {
   if (manifest == null || manifest.isEmpty) return const <String>[];
   final Object? json;
   try {
@@ -40,8 +53,25 @@ List<String> dvPrefetchImages(String? manifest, String path) {
   if (images is! List) return const <String>[];
   return <String>[
     for (final Object? image in images)
-      if (image case {'url': final String url} when url.isNotEmpty) url,
+      if (image case {'url': final String url} when url.isNotEmpty)
+        _forThisScreen(image, url, variants, devicePixelRatio),
   ];
+}
+
+/// The address to prefetch for one manifest entry.
+String _forThisScreen(
+  Map<Object?, Object?> image,
+  String recorded,
+  DVImageVariants? variants,
+  double devicePixelRatio,
+) {
+  if (variants == null || !variants.isActive) return recorded;
+  if (image['variant']
+      case {'src': final String src, 'width': final num width}
+      when src.isNotEmpty) {
+    return variants.variantUrl(src, width * devicePixelRatio) ?? src;
+  }
+  return recorded;
 }
 
 /// The route as the build names it: no query, no fragment, no trailing

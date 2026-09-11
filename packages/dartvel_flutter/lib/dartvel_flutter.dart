@@ -170,6 +170,7 @@ export 'package:dartvel_core/dartvel.dart'
         DVModelWatch,
         DVImage,
         DVImageSource,
+        DVImageVariants,
         DVJob,
         DVExportResult,
         DVExportOptions,
