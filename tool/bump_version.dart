@@ -8,7 +8,8 @@
 // depending on dartvel_core ^0.2.1, a caret that stops at the next minor, so
 // everyone installing that set resolved 0.2.x for every sibling.
 //
-// Doing it by hand across eight files is how that happens. This does all of
+// Doing it by hand across ten files -- including two version constants in the
+// CLI source that no pubspec mentions -- is how that happens. This does all of
 // it, then check_constraints says whether it worked.
 //
 //   dart tool/bump_version.dart 0.4.0
@@ -118,6 +119,49 @@ void main(List<String> args) {
     if (after == before) continue;
     changed.add(manifest.path);
     if (!dryRun) manifest.writeAsStringSync(after);
+  }
+
+  // Versions that live in source rather than a pubspec. Missing these is not
+  // hypothetical: both shipped wrong in 0.4.0. dartvelCliVersion stayed 0.3.2,
+  // so the released binary reported itself as 0.3.2 and `dartvel update`
+  // offered 0.4.0 to a machine already running it. dartvelPackageVersion
+  // stayed 0.2.1, so `dartvel create` wrote ^0.2.1 into every new project and
+  // they resolved a release two minors old.
+  //
+  // The scaffold constant is the family version, [base], not any one
+  // package's: it is written as the caret for core, flutter and cli together,
+  // and check_constraints fails if it stops admitting any of them.
+  for (final (String path, String name, String value) c
+      in <(String, String, String)>[
+    (
+      'packages/dartvel_cli/lib/src/commands/version_command.dart',
+      'dartvelCliVersion',
+      target['dartvel_cli']!,
+    ),
+    (
+      'packages/dartvel_cli/lib/src/templates/project_templates.dart',
+      'dartvelPackageVersion',
+      base,
+    ),
+  ]) {
+    final File file = File(c.$1);
+    if (!file.existsSync()) {
+      stderr.writeln('missing ${c.$1}; run from the repository root');
+      exit(2);
+    }
+    final String before = file.readAsStringSync();
+    final RegExp declaration = RegExp("const String ${c.$2} = '[^']*';");
+    if (!declaration.hasMatch(before)) {
+      // Loud rather than skipped. A renamed constant is exactly how a version
+      // gets left behind without anybody noticing.
+      stderr.writeln('${c.$1} no longer declares ${c.$2}; update this tool');
+      exit(2);
+    }
+    final String after =
+        before.replaceFirst(declaration, "const String ${c.$2} = '${c.$3}';");
+    if (after == before) continue;
+    changed.add(c.$1);
+    if (!dryRun) file.writeAsStringSync(after);
   }
 
   for (final MapEntry<String, String> e in target.entries) {
