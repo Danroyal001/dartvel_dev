@@ -24,6 +24,10 @@ import 'package:flutter/services.dart';
 import '../../dartvel_flutter.dart' show DV, DVRouteTarget;
 
 /// When a link fetches the route it points at.
+/// How long a link has to stay on screen before [DVLinkPreload.visible]
+/// fetches what it points at.
+const Duration dvLinkVisibleDelay = Duration(milliseconds: 300);
+
 enum DVLinkPreload {
   /// Never. For a link into something expensive that most visitors skip.
   none,
@@ -31,6 +35,17 @@ enum DVLinkPreload {
   /// When the pointer arrives. A hover precedes the click by a few hundred
   /// milliseconds, which is most of a page load.
   hover,
+
+  /// When the link has been on screen for [dvLinkVisibleDelay], or when the
+  /// pointer arrives, whichever comes first. The default.
+  ///
+  /// Hover on its own preloads nothing on a touch screen, where there is no
+  /// pointer to arrive. NextFaster preloads a link that has stayed in the
+  /// viewport for 300 ms: a link flicked past on the way down a page costs
+  /// nothing, and one that stays long enough to be read is likely to be the
+  /// next tap. Every page's loader is memoised, so ten links to one route
+  /// still fetch it once.
+  visible,
 
   /// As soon as the link is built, for the destination most visitors take.
   immediate,
@@ -63,7 +78,7 @@ class DVNavLink extends StatefulWidget {
     super.key,
     required this.to,
     required this.child,
-    this.preload = DVLinkPreload.hover,
+    this.preload = DVLinkPreload.visible,
     this.preview = DVLinkPreview.auto,
     this.onPreload,
     this.onPreview,
@@ -160,6 +175,12 @@ class _DVNavLinkState extends State<DVNavLink> {
   /// turns a hover into a burst of requests.
   bool _preloaded = false;
   Timer? _previewTimer;
+
+  // For DVLinkPreload.visible: the scrollable the link sits in, and the timer
+  // that runs while it is on screen.
+  ScrollableState? _scrollable;
+  Timer? _visibleTimer;
+  bool _checkScheduled = false;
   OverlayEntry? _previewEntry;
   FocusNode? _ownedFocusNode;
   bool _focused = false;
@@ -175,10 +196,16 @@ class _DVNavLinkState extends State<DVNavLink> {
       WidgetsBinding.instance
           .addPostFrameCallback((_) => unawaited(_preload()));
     }
+    if (widget.preload == DVLinkPreload.visible) {
+      // After the frame, because whether the link is on screen is a question
+      // about layout, and there is none until the first frame has run.
+      WidgetsBinding.instance.addPostFrameCallback((_) => _watchVisibility());
+    }
   }
 
   @override
   void dispose() {
+    _stopWatching();
     _previewTimer?.cancel();
     _removePreview();
     _ownedFocusNode?.dispose();
@@ -188,6 +215,7 @@ class _DVNavLinkState extends State<DVNavLink> {
   Future<void> _preload() async {
     if (_preloaded || !widget.enabled) return;
     _preloaded = true;
+    _stopWatching();
     final loader = widget.onPreload ?? DVRoutePreloaders.forPath(widget.to.path);
     if (loader == null) return;
     try {
@@ -205,9 +233,74 @@ class _DVNavLinkState extends State<DVNavLink> {
     }
   }
 
+  /// Starts watching whether the link is on screen.
+  ///
+  /// The nearest scrollable only. A link inside a horizontal strip inside a
+  /// vertical page is judged against the strip; the page's own scroll is not
+  /// followed. Most links sit in one page-level scroll, and following every
+  /// ancestor would cost every link on the page a listener per scrollable.
+  void _watchVisibility() {
+    if (!mounted || _preloaded) return;
+    _scrollable = Scrollable.maybeOf(context);
+    _scrollable?.position.addListener(_onScroll);
+    _checkVisible();
+  }
+
+  /// A scroll moves the offset before the viewport lays out at it, so the
+  /// link's position is only current after the frame -- checked then, once
+  /// per frame however many scroll updates arrived.
+  void _onScroll() {
+    if (_checkScheduled) return;
+    _checkScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkScheduled = false;
+      _checkVisible();
+    });
+  }
+
+  void _checkVisible() {
+    if (!mounted || _preloaded) {
+      _stopWatching();
+      return;
+    }
+    if (_isOnScreen()) {
+      _visibleTimer ??= Timer(dvLinkVisibleDelay, () {
+        _visibleTimer = null;
+        // Checked again at the end: a link that left and the scroll listener
+        // has not reported yet is not one to fetch for.
+        if (mounted && _isOnScreen()) unawaited(_preload());
+      });
+    } else {
+      _visibleTimer?.cancel();
+      _visibleTimer = null;
+    }
+  }
+
+  bool _isOnScreen() {
+    final RenderObject? link = context.findRenderObject();
+    if (link is! RenderBox || !link.attached || !link.hasSize) return false;
+    final Rect bounds = link.localToGlobal(Offset.zero) & link.size;
+    final RenderObject? viewport = _scrollable?.context.findRenderObject();
+    final Rect visible =
+        viewport is RenderBox && viewport.attached && viewport.hasSize
+            ? viewport.localToGlobal(Offset.zero) & viewport.size
+            : Offset.zero & MediaQuery.sizeOf(context);
+    return bounds.overlaps(visible);
+  }
+
+  void _stopWatching() {
+    _visibleTimer?.cancel();
+    _visibleTimer = null;
+    _scrollable?.position.removeListener(_onScroll);
+    _scrollable = null;
+  }
+
   void _enter(PointerEnterEvent _) {
     widget.onPreview?.call(widget.to.path);
-    if (widget.preload == DVLinkPreload.hover) unawaited(_preload());
+    if (widget.preload == DVLinkPreload.hover ||
+        widget.preload == DVLinkPreload.visible) {
+      unawaited(_preload());
+    }
     _schedulePreview();
   }
 
