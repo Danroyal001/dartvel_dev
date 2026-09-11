@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 import 'package:dartvel_core/dartvel.dart'
     show DVPublicEnvLibrary, dvGeneratePublicEnvLibrary;
+import 'retired.dart';
 import 'utils/route_utils.dart';
 
 class RouterBuilder implements Builder {
@@ -951,7 +952,8 @@ class _PageEntry {
   });
 }
 
-Builder routerBuilder(BuilderOptions options) => RouterBuilder(options);
+Builder routerBuilder(BuilderOptions options) =>
+    RetiredBuilder(RouterBuilder(options));
 /// A page written as a class extending DartvelPage or DVClassWidget.
 final RegExp _classPagePattern = RegExp(
   r'(?:@DVPage\([^)]*\)\s*)?(?:@pragma\([^)]*\)\s*)*class\s+([A-Za-z_][A-Za-z0-9_]*)\s+extends\s+(DartvelPage|DVClassWidget)',
@@ -1148,4 +1150,5 @@ class PageBodyBuilder implements Builder {
   }
 }
 
-Builder pageBodyBuilder(BuilderOptions options) => PageBodyBuilder(options);
+Builder pageBodyBuilder(BuilderOptions options) =>
+    RetiredBuilder(PageBodyBuilder(options));
