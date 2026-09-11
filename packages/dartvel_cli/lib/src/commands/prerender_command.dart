@@ -48,7 +48,7 @@ class PrerenderCommand extends Command<void> {
     // Launch headless browser
     final browser = await puppeteer.launch(
       headless: true,
-      executablePath: dvSystemChrome(),
+      executablePath: await dvChromeExecutable(),
       args: dvChromeLaunchArgs,
     );
 
