@@ -90,8 +90,8 @@ Widget _siteHeader(BuildContext context) {
       const DVModifier().maxWidth(kColumn).centered(),
     ),
     const DVModifier()
-        // Opaque. In deck mode the header floats over the slides, and without
-        // its own background the slide scrolled visibly through it.
+        // Opaque, so the header paints its own ground rather than depending
+        // on whatever the layout happens to put behind it.
         .backgroundColor(palette.page)
         .border(Border(bottom: BorderSide(color: palette.rule)))
         .paddingSymmetric(horizontal: gutterFor(context), vertical: 14),

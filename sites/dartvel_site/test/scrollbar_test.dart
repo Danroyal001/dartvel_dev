@@ -67,6 +67,50 @@ void main() {
     }
   });
 
+testWidgets('and on a phone, dragging the thumb moves the page', (
+    WidgetTester tester,
+  ) async {
+    // Flutter resolves the thumb's draggability as
+    // `interactive ?? theme.interactive ?? !_useAndroidScrollbar`, and a phone
+    // browser reports Android, so the thumb was drawn and ignored every touch.
+    // A visible control that does nothing when touched reads as broken, which
+    // is what it was.
+    //
+    // Dragged downward from the top of the thumb. On the content that gesture
+    // would pull toward the top, where the page already is, so the offset only
+    // moves if the thumb took the drag.
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    try {
+      await tester.pumpWidget(_tallPage());
+      // Settled, not pumped once. The scrollbar registers its thumb-drag
+      // recognizer only when the scroll position has reported its content
+      // size, which happens a frame after the first build -- so a drag started
+      // after a single pump lands on a scrollbar that has not asked for it yet,
+      // and fails whether or not the thumb is interactive. The first version of
+      // this test did exactly that, which is how it failed identically with
+      // and without the fix and proved nothing either way.
+      await tester.pumpAndSettle();
+
+      final ScrollableState scrollable =
+          tester.state<ScrollableState>(find.byType(Scrollable).first);
+      final Size surface = tester.getSize(find.byType(Scrollable).first);
+
+      final TestGesture gesture =
+          await tester.startGesture(Offset(surface.width - 4, 20));
+      for (int i = 0; i < 10; i++) {
+        await gesture.moveBy(const Offset(0, 20));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await gesture.up();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(scrollable.position.pixels, greaterThan(0),
+          reason: 'the thumb did not respond to a touch drag');
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
+
   test('both brightnesses carry it', () {
     for (final Brightness b in Brightness.values) {
       expect(_resolve(dartvelSiteTheme(b).scrollbarTheme.thumbVisibility), isTrue,

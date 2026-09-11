@@ -12,9 +12,8 @@ import '../dartvel_client/dartvel_client.dart';
 /// something the router already knows from the file it lives in.
 ///
 /// A column rather than a stack: the header takes its height and the page gets
-/// the rest. That is what lets the landing page's deck own the scroll without
-/// nesting inside another one -- the bug that stopped a wheel or an arrow key
-/// from ever moving a slide.
+/// the rest, so each page's own scroll view is the only scrollable on screen
+/// and the header stays where it is above it.
 class Layout extends DartvelLayout {
   const Layout({super.key, required super.child});
 
