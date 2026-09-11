@@ -1,5 +1,18 @@
 ## Unreleased
 
+- `/_dartvel/image?src=&w=&q=` on a web-server build, NextFaster's image
+  optimizer. An image in the site, or on a host listed in
+  `dartvel.images.remoteHosts`, is resized to one of the configured widths,
+  once, off the event loop, and kept under the system's temporary directory.
+  A PNG goes out as WebP to a browser that accepts it; a JPEG stays a JPEG,
+  because the encoder only writes lossless WebP and that is larger than a
+  JPEG of a photograph; a GIF is passed through, since resizing keeps one
+  frame of an animation. Never larger than the source. An ETag keyed on the
+  source's bytes answers a revalidation with 304.
+- What it refuses: a width outside the set (every width is a cache entry and
+  work somebody else can make the server do), a path out of the site whether
+  by `..` or by a link inside it pointing out, a host nobody allowed, and a
+  redirect from an allowed host to anywhere, which would undo the allowlist.
 - Shell-first rendering, with `dartvel.web.server.streaming: shell`. The
   server sends the shell's head -- base, charset, every preload, the splash,
   and a preload for each script the body loads -- before a route's data has
