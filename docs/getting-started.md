@@ -103,6 +103,32 @@ build cannot know. Which models carry a tenant is per model, with
 a currency list or a country table, would be broken by a predicate it never
 asked for.
 
+Every platform shows something before an application's first frame, and the
+files `flutter create` writes make it white. `dartvel build` writes a splash
+instead, with nothing configured, and this is how to say what it looks like:
+
+```yaml
+dartvel:
+  splash:
+    color: "#0A0D13"            # default: pwa.backgroundColor, then #FFFFFF
+    darkColor: "#0A0D13"        # default: color if one is declared, then #121212
+    image: assets/splash.png    # default: the project icon, if it has one
+    darkImage: assets/splash-dark.png
+    imageWidth: 120             # logical pixels; default reads the image as 4x
+    android12Image: assets/a12.png  # Android 12+ draws this in its own splash
+    overwrite: false            # replace a launch screen designed by hand
+    enabled: true
+```
+
+Images are PNG. On the web the splash is in `index.html` and in every
+prerendered page, painted before any script runs and removed on the first
+frame. On Android it is the launch background and the Android 12 splash; on
+iOS the launch storyboard; on macOS the view's colour until it draws. Dartvel
+replaces those files only while they are still Flutter's templates or carry
+its `dartvel:splash` marker, so a launch screen you designed stays yours
+unless `overwrite` says otherwise. Per-target detail is in
+[build-targets.md](build-targets.md#launch-splash).
+
 ---
 
 ## Generate

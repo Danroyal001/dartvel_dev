@@ -1111,6 +1111,31 @@ not bundle one and does not emit a placeholder file in its place. These formats
 are excluded from `dartvel build` with no argument, since they are explicit
 packaging steps rather than part of a general build.
 
+## Launch splash
+
+`dartvel build` writes the splash each target shows before its first frame,
+from `dartvel.splash` (see [getting-started](getting-started.md)). What it
+writes, and what it leaves alone:
+
+| Target | What is written | Verified |
+|---|---|---|
+| `web`, `web-server` | A stylesheet in the head and an element first in the body of `build/web/index.html`, so every prerendered page has it; `dartvel-splash.png` beside it when there is an image. The engine appends `<flutter-view>` after the splash, so the application covers it as soon as it paints, and a `flutter-first-frame` listener then removes it. Hidden with scripting off, where the page's content is the noscript block | In Chrome, by pixels: `test/native_splash_browser_test.dart`, with a negative control for each claim |
+| `android`, `fireos` | `values/dartvel_splash.xml` and `values-night/` (the colour), `drawable/` and `drawable-v21/launch_background.xml`, `drawable-{mdpi…xxxhdpi}/dartvel_splash_image.png`, and `values-v31/styles.xml` and `values-night-v31/`, because from API 31 the system draws its own splash and ignores a layer-list window background | Files unit-tested; not yet run on a device |
+| `ios` | `Base.lproj/LaunchScreen.storyboard` naming the colour `DartvelSplashBackground`, whose colorset carries the dark appearance, and `LaunchImage.imageset` at 1x, 2x and 3x | Files unit-tested; not yet run on a simulator. iOS caches launch screens, so a change can need the app deleted and reinstalled to show |
+| `macos` | One marked line in `MainFlutterWindow.swift` setting `flutterViewController.backgroundColor`. The window is visible at launch and FlutterView is black until the first frame | Unit-tested; compiled by the macOS CI job |
+| `linux` | The template's `gdk_rgba_parse(&background_color, "#000000")` in `my_application.cc`, which is the colour behind the view. The GTK runner already shows its window only on the first frame, so there is no blank window to paint. **Light colour only**: the runner has no dependable way to read the desktop's dark preference | Unit-tested |
+| `windows` | **Nothing, deliberately.** `flutter_window.cpp` registers `SetNextFrameCallback` and shows the window from it, so the window does not exist on screen until Flutter has drawn | — |
+
+The embedder targets (`tizen`, `sony-elinux`, `webos`, `fuchsia`, `tvos`,
+`vscode`) and the browser extensions get no splash yet: their launch is owned
+by the vendor embedder or the host, and none of them was checked for what it
+shows before the first frame.
+
+A platform file is replaced only while it is still Flutter's template or
+carries the `dartvel:splash` marker. One designed by hand is left alone and
+the build says so; `dartvel.splash.overwrite: true` replaces it. Deleting the
+marker comment from a written file hands it back.
+
 ## When a target skips
 
 `dartvel build <target>` skips rather than fails when the toolchain says it
