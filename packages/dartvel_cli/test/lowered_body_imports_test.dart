@@ -1,10 +1,12 @@
 // A lowered body needs the imports the body was written against.
 //
-// Body lowering moves a page's code into the generated router. The code came
-// from a file with its own imports, and the generated file has none of them,
-// so anything the page built out of its own components stopped resolving --
-// `Section`, `SiteFooter`, a design system, whatever the application layered
-// on top of Dartvel.
+// Body lowering moves a page's code into generated code -- its own library
+// under lib/dartvel_client/pages/, which the router imports deferred so each
+// page is a bundle of its own. The code came from a file with its own
+// imports, and the generated file has none of them, so anything the page
+// built out of its own components stopped resolving -- `Section`,
+// `SiteFooter`, a design system, whatever the application layered on top of
+// Dartvel.
 //
 // The failure is not subtle once it happens, but it is invisible until a page
 // body is more than a single call: a page written as
@@ -18,7 +20,10 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 
-Future<String> routerFor(Map<String, String> files) async {
+/// The generated router, and each lowered page body's library by file name.
+typedef Generated = ({String router, Map<String, String> bodies});
+
+Future<Generated> generatedFor(Map<String, String> files) async {
   final Directory root =
       await Directory.systemTemp.createTemp('dartvel_lowered_imports_');
   addTearDown(() => root.deleteSync(recursive: true));
@@ -58,8 +63,26 @@ Future<String> routerFor(Map<String, String> files) async {
     dv: YamlMap(),
   );
 
-  return File(p.join(root.path, 'lib', 'dartvel_client', 'router.g.dart'))
-      .readAsStringSync();
+  final Directory client = Directory(p.join(root.path, 'lib', 'dartvel_client'));
+  final Directory pages = Directory(p.join(client.path, 'pages'));
+  return (
+    router: File(p.join(client.path, 'router.g.dart')).readAsStringSync(),
+    bodies: <String, String>{
+      if (pages.existsSync())
+        for (final File file in pages
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((File f) => f.path.endsWith('.dart')))
+          p.relative(file.path, from: pages.path): file.readAsStringSync(),
+    },
+  );
+}
+
+/// The one body library a single-page project generates.
+String onlyBody(Generated generated) {
+  expect(generated.bodies, hasLength(1),
+      reason: 'one lowered page, one body library: ${generated.bodies.keys}');
+  return generated.bodies.values.single;
 }
 
 const String _component = '''
@@ -75,50 +98,51 @@ class Banner_ extends StatelessWidget {
 }
 ''';
 
+const String _bannerImport =
+    r"import 'package:imports_app/components/banner\.dart'";
+
 void main() {
-  test('a component the page imports is imported by the generated router',
+  test('a component the page imports is imported where the body lands',
       () async {
-    final String router = await routerFor(<String, String>{
+    final String body = onlyBody(await generatedFor(<String, String>{
       'lib/components/banner.dart': _component,
       'lib/pages/index.page.dart': "import 'package:flutter/widgets.dart';\n"
           "import 'package:dartvel_flutter/dartvel_flutter.dart';\n"
           "import '../components/banner.dart';\n"
           "@DVPage(title: 'Home')\n"
           "Widget _homePage(BuildContext context) => const Banner_('hi');\n",
-    });
+    }));
 
     // The body is lowered, so the symbol has to resolve where it landed.
-    expect(router, contains("Banner_('hi')"));
-    expect(router, contains('package:imports_app/components/banner.dart'));
+    expect(body, contains("Banner_('hi')"));
+    expect(body, contains('package:imports_app/components/banner.dart'));
   });
 
   test('the import is not deferred, so a const body still compiles', () async {
-    // Page files are imported deferred, for code splitting. A const expression
-    // may not name a type from a deferred import, so lowering a body that says
-    // `const Banner_(...)` through a deferred alias produces "Not a constant
-    // expression" -- which is what this failed with.
-    final String router = await routerFor(<String, String>{
+    // The body's library is itself reached through a deferred import, for
+    // code splitting, and a const expression may not name a type from a
+    // deferred import. So within that library the component's import must be
+    // an ordinary one: lowering `const Banner_(...)` through a deferred alias
+    // produces "Not a constant expression" -- which is what this failed with.
+    final String body = onlyBody(await generatedFor(<String, String>{
       'lib/components/banner.dart': _component,
       'lib/pages/index.page.dart': "import 'package:flutter/widgets.dart';\n"
           "import 'package:dartvel_flutter/dartvel_flutter.dart';\n"
           "import '../components/banner.dart';\n"
           "@DVPage(title: 'Home')\n"
           "Widget _homePage(BuildContext context) => const Banner_('hi');\n",
-    });
+    }));
 
-    final RegExp bannerImport = RegExp(
-      r"import 'package:imports_app/components/banner\.dart'([^;]*);",
-    );
-    final RegExpMatch? match = bannerImport.firstMatch(router);
+    final RegExpMatch? match = RegExp('$_bannerImport([^;]*);').firstMatch(body);
     expect(match, isNotNull);
     expect(match!.group(1), isNot(contains('deferred')));
   });
 
   test('a relative import becomes a package URI', () async {
-    // The generated file lives in lib/dartvel_client, so '../components/x' is
-    // a different directory from there. Copied across as written it resolves
-    // to nothing, or worse, to something else.
-    final String router = await routerFor(<String, String>{
+    // The generated files live under lib/dartvel_client, so '../components/x'
+    // is a different directory from there. Copied across as written it
+    // resolves to nothing, or worse, to something else.
+    final Generated generated = await generatedFor(<String, String>{
       'lib/components/banner.dart': _component,
       'lib/pages/index.page.dart': "import 'package:flutter/widgets.dart';\n"
           "import 'package:dartvel_flutter/dartvel_flutter.dart';\n"
@@ -127,11 +151,18 @@ void main() {
           "Widget _homePage(BuildContext context) => const Banner_('hi');\n",
     });
 
-    expect(router, isNot(contains("import '../components/banner.dart'")));
+    for (final String file in <String>[
+      generated.router,
+      ...generated.bodies.values,
+    ]) {
+      expect(file, isNot(contains("import '../components/banner.dart'")));
+    }
+    expect(onlyBody(generated), contains('package:imports_app/components/'));
   });
 
-  test('two pages importing the same component import it once', () async {
-    final String router = await routerFor(<String, String>{
+  test('two pages importing the same component import it once each',
+      () async {
+    final Generated generated = await generatedFor(<String, String>{
       'lib/components/banner.dart': _component,
       'lib/pages/index.page.dart': "import 'package:flutter/widgets.dart';\n"
           "import 'package:dartvel_flutter/dartvel_flutter.dart';\n"
@@ -145,19 +176,19 @@ void main() {
           "Widget _aboutPage(BuildContext context) => const Banner_('b');\n",
     });
 
-    final int occurrences =
-        RegExp(r"import 'package:imports_app/components/banner\.dart'")
-            .allMatches(router)
-            .length;
-    expect(occurrences, 1, reason: 'a duplicate import will not compile');
+    expect(generated.bodies, hasLength(2));
+    for (final MapEntry<String, String> body in generated.bodies.entries) {
+      expect(RegExp(_bannerImport).allMatches(body.value), hasLength(1),
+          reason: '${body.key}: a duplicate import will not compile');
+    }
   });
 
   test('a page that is not lowered does not drag its imports in', () async {
     // A public page is called rather than inlined, so its imports stay its
-    // own. Copying them anyway would put every application file into the
-    // generated router and defeat the code splitting the deferred imports
-    // exist for.
-    final String router = await routerFor(<String, String>{
+    // own. Copying them anyway would put every application file into
+    // generated code the router reaches and defeat the code splitting the
+    // deferred imports exist for.
+    final Generated generated = await generatedFor(<String, String>{
       'lib/components/banner.dart': _component,
       'lib/pages/index.page.dart': "import 'package:flutter/widgets.dart';\n"
           "import 'package:dartvel_flutter/dartvel_flutter.dart';\n"
@@ -166,6 +197,12 @@ void main() {
           "Widget homePage(BuildContext context) => const Banner_('hi');\n",
     });
 
-    expect(router, isNot(contains('package:imports_app/components/banner.dart')));
+    for (final String file in <String>[
+      generated.router,
+      ...generated.bodies.values,
+    ]) {
+      expect(file,
+          isNot(contains('package:imports_app/components/banner.dart')));
+    }
   });
 }
