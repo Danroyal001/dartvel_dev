@@ -1,3 +1,20 @@
+## Unreleased
+
+- Pages are split out of main.dart.js on the web when built with
+  `dart run build_runner build`, as `dartvel routes` has done since the
+  change that introduced it. The router builder copied each private page's
+  body into router.g.dart, which is eager, so dart2js found all of it
+  reachable from `main()` and the page's deferred import guarded nothing. A
+  new `page_body_builder` writes each lowered body into
+  `lib/dartvel_client/pages/<path under lib>.g.dart`, and the router imports
+  that library `deferred` and calls its `dvPageBody`. The pages directory is
+  read from the pubspec, so a custom `dartvel.pagesDir` works; a deleted
+  page's body library is removed by build_runner with its input.
+- The build_runner router registers every page with `DVRoutePreloaders`, as
+  `dartvel routes` always has. Without it no link in a build_runner
+  application preloaded anything, and `dartvel build web` could not tell
+  which deferred import a route loads.
+
 ## 1.2.0
 
 - Follows `dartvel_core` 0.4.0.
