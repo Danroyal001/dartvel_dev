@@ -99,6 +99,8 @@ DVStaticVariantSummary dvWriteStaticImageVariants({
         File(p.join(projectRoot, src.substring('assets/'.length)));
     if (!source.existsSync()) continue;
     final DateTime changed = source.lastModifiedSync();
+    // Read once, and only if some variant of this image needs writing.
+    late final original = source.readAsBytesSync();
 
     img.Image? decoded;
     for (final int width in variants.widths) {
@@ -108,13 +110,22 @@ DVStaticVariantSummary dvWriteStaticImageVariants({
       if (out.existsSync() && !out.lastModifiedSync().isBefore(changed)) {
         continue;
       }
-      decoded ??= img.decodeImage(source.readAsBytesSync());
+      decoded ??= img.decodeImage(original);
       if (decoded == null) break;
       final img.Image sized = img.copyResize(decoded,
           width: width, interpolation: img.Interpolation.average);
+      final List<int> encoded =
+          _encode(sized, p.extension(src), variants.quality);
+      // Never a bigger download than the source. Re-encoding at the
+      // configured quality can undo compression the source already had -- the
+      // example's 1200-wide PNG came out larger at 1080 than the original --
+      // and then the source itself is the better file at this address. Still
+      // written, because the widget asks for every width narrower than the
+      // image, and a missing file is a broken image rather than a larger one.
       out
         ..parent.createSync(recursive: true)
-        ..writeAsBytesSync(_encode(sized, p.extension(src), variants.quality));
+        ..writeAsBytesSync(
+            encoded.length < original.length ? encoded : original);
       written++;
     }
   }

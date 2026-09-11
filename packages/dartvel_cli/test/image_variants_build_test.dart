@@ -124,6 +124,41 @@ void main() {
           img.ImageFormat.jpg);
     });
 
+    test('a variant is never a bigger download than its source', () {
+      // Found on a real build: the example's 1200-wide social card came out
+      // 290,580 bytes at 1080 against 289,804 for the original. Re-encoding
+      // at the configured quality can undo compression the source already
+      // had, and a variant bigger than its source is a download that costs
+      // more than not having variants at all. A hard-squeezed JPEG re-encoded
+      // at 90 is the reliable way to see it.
+      final img.Image noisy = img.Image(width: 1000, height: 500);
+      for (final img.Pixel pixel in noisy) {
+        final int x = pixel.x;
+        final int y = pixel.y;
+        pixel.setRgb((x * 7919 + y * 104729) & 255, (x * y + 31) & 255,
+            (x * 131 ^ y * 17) & 255);
+      }
+      put('assets/squeezed.jpg', img.encodeJpg(noisy, quality: 5));
+      final DVImageVariants built = DVImageVariants(
+        widths: const <int>[640],
+        quality: 90,
+        assetWidths:
+            dvDeclaredImageWidths(project.path, const <Object?>['assets/']),
+      );
+
+      dvWriteStaticImageVariants(
+          projectRoot: project.path, webRoot: web.path, variants: built);
+
+      final int source =
+          File(p.join(project.path, 'assets/squeezed.jpg')).lengthSync();
+      final File variant = File(p.join(web.path, dvStaticImageVariantDir,
+          '640', 'assets/assets/squeezed.jpg'));
+      // Still there: the widget asks for every width narrower than the image,
+      // and a missing file is a broken image rather than a larger one.
+      expect(variant.existsSync(), isTrue);
+      expect(variant.lengthSync(), lessThanOrEqualTo(source));
+    });
+
     test('every variant the widget can ask for exists', () {
       // The widget and the build agree through DVImageVariants.variantUrl.
       // Asked for at every width the configuration has, it names either a
