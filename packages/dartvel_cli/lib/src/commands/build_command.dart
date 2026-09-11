@@ -53,7 +53,6 @@ import '../build/static_seo.dart';
 import '../build/static_paths_runner.dart';
 import '../build/static_generation.dart';
 import '../build/web_server.dart';
-import '../build/web_server_prefetch.dart';
 import '../graph/module_mounts.dart';
 import '../graph/project_graph.dart';
 import '../utils/build_runner.dart';
