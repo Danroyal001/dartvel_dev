@@ -65,7 +65,18 @@ ThemeData dartvelSiteTheme(Brightness brightness) {
     scrollbarTheme: ScrollbarThemeData(
       thumbVisibility: WidgetStateProperty.all(true),
       trackVisibility: WidgetStateProperty.all(true),
-      thickness: WidgetStateProperty.all(10),
+      // Draggable on every platform. Flutter resolves this as
+      // `interactive ?? theme.interactive ?? !_useAndroidScrollbar`, and a
+      // phone browser reports Android, so without it the thumb was drawn and
+      // ignored every touch -- a visible control that does nothing, which
+      // reads as a broken page rather than a missing feature.
+      interactive: true,
+      // Wider while a finger holds it. Ten points is a comfortable mark for a
+      // pointer and a thin target for a thumb.
+      thickness: WidgetStateProperty.resolveWith(
+        (Set<WidgetState> states) =>
+            states.contains(WidgetState.dragged) ? 14 : 10,
+      ),
       radius: const Radius.circular(6),
       // Quiet against both grounds. A scrollbar that is permanently visible is
       // permanently in the corner of somebody's eye, so it is drawn at the

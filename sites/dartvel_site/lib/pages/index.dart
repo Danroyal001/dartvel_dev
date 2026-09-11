@@ -1,29 +1,27 @@
 import 'package:flutter/material.dart';
 import '../dartvel_client/dartvel_client.dart';
-import '../components/deck.dart';
 import '../components/site.dart';
 
 @DVPage(title: 'Dartvel — Flutter, full stack', showAppBar: false)
 @pragma('vm:entry-point')
-Widget _indexPage(BuildContext context) => const Deck(
-  // A deck rather than a scroll. Each of these is a separate claim, and a
-  // landing page that runs them together as one long column asks the
-  // reader to find the boundaries themselves.
-  //
-  // The layout gives this the height the header does not take, so the deck
-  // is the page's only scrollable. Nested inside another one it never
-  // received a gesture, and no wheel or arrow key moved a slide.
-  slides: <(String, Widget)>[
-    ('Overview', HeroSection()),
-    ('Models', Proof()),
-    ('What you get', Pillars()),
-    ('Design', FromDesign()),
-    ('Targets', Targets()),
-    ('vs Expo', ExpoComparison()),
-    ('Status', Honest()),
-    ('Links', SiteFooter()),
-  ],
-);
+Widget _indexPage(BuildContext context) => const SingleChildScrollView(
+      // A scroll, like every other page on the site. This was a deck: one
+      // section per flick, snapped by PageScrollPhysics, with a wheel handler
+      // holding a cooldown. On a phone that is a page that fights the finger --
+      // a short drag springs back, a long one jumps a whole section, and the
+      // bottom of one section and the top of the next can never be on screen
+      // together, which on a narrow screen is most of reading.
+      child: DVBox.list(<Widget>[
+        HeroSection(),
+        Proof(),
+        Pillars(),
+        FromDesign(),
+        Targets(),
+        ExpoComparison(),
+        Honest(),
+        SiteFooter(),
+      ], spacing: 0),
+    );
 
 @DVFunctionalWidget()
 Widget _heroSection(BuildContext context) {
@@ -110,7 +108,7 @@ Widget _heroCopy(BuildContext context) => DVBox.list(<Widget>[
         .maxWidth(620),
   ),
   // The two things nobody expects a Flutter framework to do. Kept near
-  // the top rather than three slides down, where they were.
+  // the top rather than three sections down, where they were.
   const DVText(
     'Paste a Figma URL and get pages you can edit, then export as '
     'ordinary Dart you own. The same application builds for a terminal, '
