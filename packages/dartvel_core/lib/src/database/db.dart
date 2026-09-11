@@ -126,7 +126,9 @@ class DartvelDatabase {
 /// }
 /// ```
 ///
-/// 3. Run code generation:
+/// 3. Run drift's code generation. This is `drift_dev`'s builder, not
+/// Dartvel's: Dartvel generates with `dart run dartvel_cli:dartvel routes`,
+/// and build_runner is here only because drift uses it.
 /// ```bash
 /// dart run build_runner build
 /// ```

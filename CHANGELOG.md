@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 Dartvel is pre-1.0. Minor versions may contain breaking changes; breaking
 changes are called out explicitly below.
 
+## Unreleased
+
+### Changed
+
+**The `build_runner` code-generation path is retired.** Dartvel generates with
+`dart run dartvel_cli:dartvel routes` — or with `dartvel build` and `dartvel
+dev`, which generate before they run. If your project has `build_runner` and
+`dartvel_generator` in `dev_dependencies` for Dartvel's sake, drop both and run
+`dart run dartvel_cli:dartvel routes` instead. Keep `build_runner` only for
+another package's builders (`drift_dev`, `json_serializable`,
+`flutter_vscode`); `dartvel build` and `dartvel dev` still run it when it is
+declared.
+
+`dartvel_generator`'s builders still work and now warn on every build, naming
+the command that replaces them. They are removed in `dartvel_generator` 2.0.0.
+Nothing breaks today: the builders were left in place because
+`auto_apply: dependents` runs them in every project that depends on the
+package, and a builder that disappears takes the `router.g.dart` it wrote into
+`lib/` with it.
+
+Why: `dartvel routes` writes the whole client — the `dartvel_client` barrel
+every page imports, the router, each page's body, functional widgets, models,
+backend function clients and config. The builders wrote only part of it, so
+they could never generate a client from a clean checkout: with no barrel, the
+first page's `@DVPage` cannot be resolved and the build stops. Every project on
+that path was really running both generators in sequence, and three bugs lived
+in the difference between them — page bodies copied into the eager router,
+no link preloading, and function pages built with no data scope.
+
+`dartvel create` no longer scaffolds `build_runner`, and the `basic_app` and
+`class_widgets_app` examples — the last two applications on the old path —
+now generate with one command.
+
 ## 0.4.1 — 2026-09-11
 
 A patch for two faults in 0.4.0, both in versions that live in source rather
