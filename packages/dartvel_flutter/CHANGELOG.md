@@ -1,5 +1,17 @@
 ## Unreleased
 
+- `DVImageView` asks for the variant its slot needs on a web build with
+  image variants: its laid-out width times the screen's pixel ratio, snapped
+  to the configured widths, the way NextFaster's `srcset` does -- so a phone
+  downloads the 640 and not the 3840. An asset uses the file the build wrote
+  at that width, a remote image on an allowed host goes through a
+  web-server's `/_dartvel/image`, and a slot wider than the image uses the
+  image itself. With no variants built it renders exactly as before, with no
+  layout pass.
+- A link prefetches that variant for the visitor's own pixel ratio, not the
+  build's, and puts it in the image cache under the provider the widget will
+  ask for. The build records each image's slot for this, since a request for
+  the 384-wide file says only that the slot was somewhere under 384.
 - A link that preloads fetches the page's document and images as well as its
   code. `loadLibrary()` only ever fetched the Dart. On the web the link now
   adds a `<link rel="prefetch">` for the route's prerendered HTML -- what a

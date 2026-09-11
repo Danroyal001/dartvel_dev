@@ -13,6 +13,7 @@
 /// browser has finished is a cache hit.
 library dartvel_flutter.routing.route_prefetch;
 
+import 'package:dartvel_core/dartvel.dart' show dvStaticImageVariantDir;
 import 'package:flutter/widgets.dart';
 
 import 'route_prefetch_stub.dart'
@@ -43,6 +44,9 @@ class DVRoutePrefetch {
   /// AssetImage picks the variant for this screen from the name the page used.
   static ImageProvider providerFor(String url) {
     final String path = url.startsWith('/') ? url.substring(1) : url;
+    // A variant the build wrote is a file the site serves, not an asset in
+    // the bundle: DVImageView fetches it by address, so that is its key.
+    if (path.startsWith('$dvStaticImageVariantDir/')) return NetworkImage(url);
     if (path.startsWith('assets/')) {
       return AssetImage(path
           .substring('assets/'.length)
