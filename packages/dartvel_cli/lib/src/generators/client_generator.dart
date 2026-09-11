@@ -1230,7 +1230,9 @@ ${m.auth == 'inherit' ? inheritedGuard : ''}      pageBuilder: (context, state) 
     final sitemapEntriesSrc = sitemapEntries.isEmpty
         ? '<String, DVPageSitemap>{}'
         : '<String, DVPageSitemap>{\n'
-              '${sitemapEntries.entries.map((en) => "  '${esc(en.key)}': const ${en.value},").join('\n')}'
+              // No const on the values: the map is declared const, so one
+              // there is unnecessary_const in every generated router.
+              '${sitemapEntries.entries.map((en) => "  '${esc(en.key)}': ${en.value},").join('\n')}'
               '\n}';
 
     final allRoutes = dvJoinRouteBlocks(<String>[
@@ -1503,9 +1505,19 @@ ${(() {
         }
         claimed[name] = routePath;
 
+        // The name this target had before it was camel-cased, kept for one
+        // release so code already written against it still compiles. It is
+        // the name the lint rejects, hence the ignore beside it.
+        final legacy = _legacyRouteTargetName(cleanPath);
         if (params.isEmpty) {
           sbRoutes
               .writeln("  static const $name = DVRouteTarget('$routePath');");
+          if (legacy != name) {
+            sbRoutes
+              ..writeln("  @Deprecated('Use DVRoutes.$name.')")
+              ..writeln('  // ignore: constant_identifier_names')
+              ..writeln('  static const $legacy = $name;');
+          }
         } else {
           final funcParams = params.map((p) => "required String $p").join(', ');
           var interpPath = routePath;
@@ -1514,6 +1526,14 @@ ${(() {
           }
           sbRoutes.writeln(
               "  static DVRouteTarget $name({$funcParams}) => DVRouteTarget('$interpPath');");
+          if (legacy != name) {
+            final forwarded = params.map((p) => '$p: $p').join(', ');
+            sbRoutes
+              ..writeln("  @Deprecated('Use DVRoutes.$name.')")
+              ..writeln('  // ignore: non_constant_identifier_names')
+              ..writeln(
+                  '  static DVRouteTarget $legacy({$funcParams}) => $name($forwarded);');
+          }
         }
       }
       sbRoutes.writeln('}');
@@ -2385,8 +2405,17 @@ void startDartvelKiosk() {
             .allMatches(route.mounted)
             .map((RegExpMatch match) => match.group(1)!)
             .toList();
+        // As for DVRoutes: the pre-camel-case name, deprecated, for one
+        // release.
+        final String legacy = _legacyRouteTargetName(clean);
         if (params.isEmpty) {
           out.writeln("  DVRouteTarget get $name => const DVRouteTarget('${route.mounted}');");
+          if (legacy != name) {
+            out
+              ..writeln("  @Deprecated('Use $className.$name.')")
+              ..writeln('  // ignore: non_constant_identifier_names')
+              ..writeln('  DVRouteTarget get $legacy => $name;');
+          }
         } else {
           final String signature = params.map((String p) => 'required String $p').join(', ');
           var interpolated = route.mounted;
@@ -2394,6 +2423,13 @@ void startDartvelKiosk() {
             interpolated = interpolated.replaceFirst(':$p', '\$$p');
           }
           out.writeln("  DVRouteTarget $name({$signature}) => DVRouteTarget('$interpolated');");
+          if (legacy != name) {
+            final String forwarded = params.map((String p) => '$p: $p').join(', ');
+            out
+              ..writeln("  @Deprecated('Use $className.$name.')")
+              ..writeln('  // ignore: non_constant_identifier_names')
+              ..writeln('  DVRouteTarget $legacy({$signature}) => $name($forwarded);');
+          }
         }
       }
       out
@@ -3384,7 +3420,23 @@ $code
 /// A leading underscore — every route under `/_dartvel_admin`, for one —
 /// makes the generated member private, so the typed target exists but no
 /// application code can reach it.
-String _routeTargetName(String cleanPath) {
+/// A route's typed target name: lowerCamelCase, so `/next_shift` is
+/// `nextShift`.
+///
+/// It used to be `next_shift`, which Dart's style lint rejects -- and a
+/// Flutter project's CI runs `flutter analyze`, where an info is a failure,
+/// so an app with an underscore in a page directory failed its own analyzer
+/// on code it never wrote. The old name is still emitted, deprecated, for
+/// one release; see [_legacyRouteTargetName].
+String _routeTargetName(String cleanPath) => _legacyRouteTargetName(cleanPath)
+    .replaceAllMapped(
+        RegExp(r'_+([A-Za-z0-9])'), (Match m) => m[1]!.toUpperCase())
+    .replaceAll('_', '');
+
+/// The name a route's target had before [_routeTargetName] was camel-cased.
+/// Where the two differ it is emitted as a deprecated alias for the new one,
+/// so `DVRoutes.next_shift` already written keeps compiling.
+String _legacyRouteTargetName(String cleanPath) {
   final name = cleanPath
       .replaceAll(RegExp(r'[^A-Za-z0-9_/]'), '')
       .replaceAll('/', '')

@@ -334,7 +334,7 @@ $openApiJson\'\'\';
         seoFavicon == null ? 'null' : "'${esc(seoFavicon)}'";
     final DVServerOptions server = dvServerOptions(root);
     final String? corsSource = server.corsSource;
-    final String corsConstant = corsSource == null ? 'null' : corsSource;
+    final String corsConstant = corsSource ?? 'null';
     final String compressionLiteral = server.compression ? 'true' : 'false';
     // dartvel.tenancy: which isolation strategy, where the tenant is read
     // from, and whether a request naming none is refused. Emitted where the
@@ -1926,8 +1926,11 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       final String alias = toolAliasByImport[entry.importUri]!;
       final String schema = entry.parameterNames.isEmpty
           ? "const <String, DVJsonValue>{}"
-          : '<String, DVJsonValue>{\n'
-              "        'type': const DVJsonString('object'),\n"
+          // One const on the map, none inside it: a const on one value and not
+          // its siblings is two lints in every application that declares a
+          // tool, and generated code has to pass the analyzer its users run.
+          : 'const <String, DVJsonValue>{\n'
+              "        'type': DVJsonString('object'),\n"
               "        'properties': DVJsonMap(<String, DVJsonValue>{\n"
               '${[
                   for (var i = 0; i < entry.parameterNames.length; i++)

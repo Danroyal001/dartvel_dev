@@ -216,6 +216,13 @@ jobs:
         working-directory: examples/dartvel_example
         run: flutter test
 
+      # Analysed as its users' CI analyses it: flutter analyze fails on an
+      # info. Most of what it reads is generated, so this is where generated
+      # code that a Dartvel app cannot pass its own analyzer with shows up.
+      - name: Analyze the example, generated code included
+        working-directory: examples/dartvel_example
+        run: flutter analyze lib test
+
 
       # Nothing in this repository compiled generated backend output. The
       # unit tests read dartvel_backend_routes.g.dart as a string and assert

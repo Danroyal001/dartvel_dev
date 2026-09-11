@@ -42,6 +42,16 @@
   it was never stopped, creating a second router started a second one so
   every schedule ran twice, and a widget test that built the router ended
   with it still running -- which is why eight of the example's tests failed.
+- Generated code passes the analyzer a Flutter project runs, where an info is
+  a failure. Three things in it did not, in any application that used them:
+  an AI tool's schema with `const` on one value and not its siblings, a
+  redundant `const` in the sitemap entries, and a route target named after a
+  page directory with an underscore in it.
+- **A route's typed target is lowerCamelCase: `/next_shift` is
+  `DVRoutes.nextShift`.** It was `DVRoutes.next_shift`, which Dart's style
+  lint rejects. The old name is still generated, as a deprecated alias for
+  the new one, so code written against it keeps compiling; it goes in the
+  next minor release.
 
 ## 0.4.1
 
