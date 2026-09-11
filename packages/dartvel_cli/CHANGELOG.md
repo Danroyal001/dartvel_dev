@@ -1,3 +1,17 @@
+## Unreleased
+
+- Pages are split out of main.dart.js on the web. Every page was imported
+  `deferred`, but the generator copied each private page's body into the
+  router, which is eager, so dart2js found all of it reachable from `main()`:
+  the site built with three of its four pages having no deferred part at all
+  (`deferredLibraryParts:{p0:[],p1:[],p2:[0],p3:[]}`). A lowered body now goes
+  into `lib/dartvel_client/pages/<page>.g.dart`, which only the router's
+  deferred import reaches, and every page gets parts of its own that
+  `loadLibrary()` fetches.
+- The service worker precaches those parts. A page's code used to be in
+  main.dart.js, which every visit caches; once it is in a part, a page never
+  opened online would fail to load offline.
+
 ## 0.4.1
 
 Fixes two faults the published 0.4.0 carried.
