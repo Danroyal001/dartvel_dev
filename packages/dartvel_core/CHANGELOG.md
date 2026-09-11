@@ -1,5 +1,13 @@
 ## Unreleased
 
+- `DVImageVariants`: the widths images are resized to (Next.js's defaults
+  unless `dartvel.images.widths` says otherwise), the one address a variant
+  is asked for by, and the checks a server applies to a request for one -- a
+  width outside the set, a path out of the site, a host not in
+  `dartvel.images.remoteHosts`, credentials in an address. The widget, the
+  link prefetch and the server all call it, so all three name the same file:
+  a prefetch of a slightly different address is a second download, not a
+  cache hit.
 - `dartvel.web.server.streaming: shell` -- `DVPageStreaming.shell`, alongside
   `head` (`true`) and `off` (`false`), which read and write exactly as
   before. `DVWebServerSettings.streaming` stays, now true for either kind of
