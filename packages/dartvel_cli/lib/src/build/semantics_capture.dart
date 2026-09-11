@@ -17,6 +17,7 @@ import 'package:shelf_static/shelf_static.dart';
 import '../utils/logger.dart';
 import 'chrome_launch.dart';
 import 'capture_completeness.dart';
+import 'route_prefetch.dart';
 
 /// Walks `flt-semantics-host` and reports the structure, not Flutter's DOM.
 ///
@@ -171,6 +172,23 @@ Future<DVCaptureRun> dvCaptureSemantics({
 
     for (final String route in routes) {
       final Page page = await browser.newPage();
+      // The images the page asks for while it renders, for its own head and
+      // for the links that point at it to fetch early. Listened to before the
+      // navigation, because the first frame's images are requested during it.
+      final List<DVCapturedImage> images = <DVCapturedImage>[];
+      final StreamSubscription<Response> watching =
+          page.onResponse.listen((Response response) {
+        final DVCapturedImage? image = dvPageImage(
+          url: response.url,
+          base: base,
+          contentType: _header(response.headers, 'content-type'),
+          resourceType: response.request.resourceType?.value ?? '',
+        );
+        if (image != null &&
+            !images.any((DVCapturedImage seen) => seen.url == image.url)) {
+          images.add(image);
+        }
+      });
       try {
         await page.goto('$base$route', wait: Until.networkIdle);
 
@@ -186,9 +204,15 @@ Future<DVCaptureRun> dvCaptureSemantics({
         }
 
         File(dvSemanticsPathFor(projectRoot, route)).writeAsStringSync(tree);
+        File(dvCapturedImagesPathFor(projectRoot, route)).writeAsStringSync(
+          jsonEncode(<Object?>[
+            for (final DVCapturedImage image in images) image.toJson(),
+          ]),
+        );
         final int nodes = (jsonDecode(tree) as List<Object?>).length;
         if (nodes > 0) captured++;
       } finally {
+        await watching.cancel();
         await page.close();
       }
     }
@@ -204,8 +228,21 @@ Future<DVCaptureRun> dvCaptureSemantics({
     final File file = File(dvSemanticsPathFor(projectRoot, route));
     if (file.existsSync() && file.readAsStringSync().trim() == '[]') {
       file.deleteSync();
+      // And its images with it: a page that did not render painted nothing,
+      // and the list from the last build that did would be preloaded on a
+      // page that no longer shows those images.
+      final File images = File(dvCapturedImagesPathFor(projectRoot, route));
+      if (images.existsSync()) images.deleteSync();
     }
   }
 
   return DVCaptureRun(captured: captured, browserAvailable: true);
+}
+
+/// A response header by name, whatever case the server wrote it in.
+String? _header(Map<String, String> headers, String name) {
+  for (final MapEntry<String, String> header in headers.entries) {
+    if (header.key.toLowerCase() == name) return header.value;
+  }
+  return null;
 }
