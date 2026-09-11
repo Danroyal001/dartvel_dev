@@ -12,6 +12,30 @@ void main() {
         isNot(contains('Map<String, dynamic>')));
   });
 
+  // `dartvel create` used to hand every new project a build_runner dev
+  // dependency, from when dartvel_generator's builders wrote part of the
+  // client. That path is retired: `dartvel routes` writes all of it, and
+  // `dartvel dev` and `dartvel build` run it for you. A scaffolded
+  // build_runner is then a dependency a new project resolves, downloads and
+  // never uses -- and an invitation to the retired path.
+  group('the scaffold does not set up code generation it does not use', () {
+    test('a new project declares neither build_runner nor dartvel_generator',
+        () {
+      final pubspec = ProjectTemplates.pubspecTemplate(
+          name: 'probe', org: 'dev.dartvel');
+
+      expect(pubspec, isNot(contains('build_runner')));
+      expect(pubspec, isNot(contains('dartvel_generator')));
+    });
+
+    test('and the readme generates with the CLI', () {
+      final readme = ProjectTemplates.readmeTemplate('probe');
+
+      expect(readme, contains('dartvel routes'));
+      expect(readme, isNot(contains('build_runner')));
+    });
+  });
+
   // The scaffold's dependency constraints are what a new project resolves
   // against, and they were hand-written numbers that nothing kept in step with
   // the packages they name. When dartvel_core reached 0.2.1 on pub.dev the
