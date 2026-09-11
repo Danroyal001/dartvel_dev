@@ -1,7 +1,18 @@
+## 0.4.1
+
+Raises its floor to dartvel_cli 0.4.1, so an install can no longer resolve the
+0.4.0 CLI that reported itself as 0.3.2 and offered itself as an update for
+ever. The `^0.4.0` it declared would already admit 0.4.1; this makes 0.4.1 the
+least it will accept.
+
 ## 0.4.0
 
-Follows the 0.4.0 set. This package pins its siblings exactly, so installing
-it installs the release they were published as.
+Follows the 0.4.0 set, depending on each sibling with a caret constraint on
+the version published beside it.
+
+The 0.4.0 entry here first said this package pins its siblings exactly. It
+does not: the constraints are carets, as they are for every package in the
+set. Corrected in 0.4.1.
 
 ## 0.3.2
 
