@@ -6,7 +6,10 @@
   application what it wrote as `DARTVEL_IMAGES`: `DVImageView` then asks for
   the width its slot needs on this screen. Never wider than the image, and
   never a width that was not written, so no variant is a 404. A GIF is left
-  out, since resizing keeps one frame of an animation.
+  out, since resizing keeps one frame of an animation. Nor is a variant ever
+  a bigger download than its source: re-encoding can undo compression the
+  source already had -- the example's 1200-wide PNG came out larger at 1080
+  -- and then the source's own bytes are written at that width instead.
 - `dartvel.images` in pubspec.yaml: `widths`, `quality` and `remoteHosts`.
   A web-server build carries it into dartvel_routes.json for the server's
   `/_dartvel/image`, which resizes images from those hosts and no others.
