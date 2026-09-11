@@ -6,8 +6,8 @@ A simple example demonstrating the core features of the Dartvel framework.
 
 - **File-based Routing**: Page in `lib/pages/index.page.dart` auto-routes to `/`
 - **Data Loading**: Using `DartvelPage.loadData()` for async data fetching
-- **Build Runner Integration**: Automatic code generation with `dart run build_runner build`
-- **Web Build**: Production builds with `flutter build web`
+- **Build Runner Integration**: The router and each page's body regenerate with `dart run build_runner build`
+- **Web Build**: Production builds with `dartvel build web`
 - **Preview Server**: Preview builds with `dartvel preview`
 
 ## Getting Started
@@ -17,10 +17,17 @@ A simple example demonstrating the core features of the Dartvel framework.
 flutter pub get
 ```
 
-### 2. Generate Router
+### 2. Generate the Client
 ```bash
+dart run dartvel_cli:dartvel routes
 dart run build_runner build --delete-conflicting-outputs
 ```
+
+Both, in that order. `dartvel routes` writes the whole client: the barrel
+every page imports, the functional widgets (`Button` here), models and
+functions. build_runner's builders then regenerate the router and each page's
+body over it. On their own they do not write the rest, so from a clean
+checkout build_runner alone stops at the first page.
 
 ### 3. Run in Development
 ```bash
@@ -29,8 +36,12 @@ flutter run -d chrome
 
 ### 4. Build for Production
 ```bash
-flutter build web --release
+dart run dartvel_cli:dartvel build web --release
 ```
+
+`dartvel build web` rather than `flutter build web`: the prerendered pages,
+the service worker, the launch splash and the preload hints are Dartvel's,
+and a plain Flutter build writes none of them.
 
 ### 5. Preview Production Build
 ```bash

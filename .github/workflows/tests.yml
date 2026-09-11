@@ -662,7 +662,17 @@ jobs:
       - name: Resolve dependencies
         working-directory: examples/${{ matrix.example }}
         run: flutter pub get
-      # The client is generated and not committed.
+      # build_runner does not generate the whole client. Its builders write the
+      # router, env, config and each page's body; the barrel every page
+      # imports, the functional widgets (both examples' Button), models and
+      # functions come only from `dartvel routes`. From a clean checkout
+      # build_runner alone stops at the first page: its @DVPage cannot be
+      # resolved through a barrel that does not exist. So the client is
+      # generated first and build_runner regenerates its part over it, which
+      # is the order that works and the order the READMEs now give.
+      - name: Generate the client
+        working-directory: examples/${{ matrix.example }}
+        run: dart run dartvel_cli:dartvel routes
       - name: Generate with build_runner
         working-directory: examples/${{ matrix.example }}
         run: dart run build_runner build --delete-conflicting-outputs
