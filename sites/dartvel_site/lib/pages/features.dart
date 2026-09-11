@@ -263,6 +263,33 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
         'build that fails when a page would ship with nothing to see.',
   ),
   (
+    'Fast Navigation',
+    'Every page its own bundle, fetched before the tap',
+    'Each page compiles to a deferred bundle of its own, and its prerendered '
+        'HTML names that bundle in its head, so a page opened directly '
+        'downloads it alongside the app instead of after the app boots. A '
+        'link fetches the page it points at once it has sat on screen for '
+        '300 ms, or as soon as a pointer reaches it -- the code, the '
+        'prerendered HTML and the images the page opens with -- and a mouse '
+        'follows the link when the button goes down. This site had three of '
+        'its four pages compiled into the main bundle, because the generator '
+        'copied every page body into the router; it builds nine parts now, '
+        'each fetched only by the pages that use it.',
+  ),
+  (
+    'Launch Splash',
+    'No white screen, on any platform',
+    'dartvel build writes a splash in the application\'s colour, with its '
+        'icon, into the web shell and every prerendered page, Android\'s '
+        'launch theme and the Android 12 splash that ignores it, the iOS '
+        'launch storyboard, and the macOS and Linux windows. Windows needs '
+        'nothing: its window appears on the first frame. With nothing '
+        'configured it takes the PWA background colour, and dark mode gets a '
+        'dark one instead of white. On the web the application covers it the '
+        'moment it paints. A launch screen somebody designed is left alone '
+        'unless dartvel.splash.overwrite says otherwise.',
+  ),
+  (
     'Internationalization and Localization',
     'Typed keys, CLDR plurals',
     'Translation keys are typed and extracted to ARB; plurals follow CLDR, '
