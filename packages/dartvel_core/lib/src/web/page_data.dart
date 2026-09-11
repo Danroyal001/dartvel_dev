@@ -30,15 +30,44 @@ enum DVPageDataMode {
   defer,
 }
 
+/// How a rendered page goes out: `dartvel.web.server.streaming`.
+enum DVPageStreaming {
+  /// One buffered response, sent when the page is done. `false`.
+  off,
+
+  /// The head as its own write, then the body -- both after the data has
+  /// resolved, because the head carries the data's title. `true`.
+  head,
+
+  /// The shell's head at once, before the data: every preload, the splash,
+  /// the bootstrap, so the browser downloads while the server queries. The
+  /// title and the rest of the head the data writes follow when the data
+  /// does, then the body. `shell`.
+  ///
+  /// What it costs is the status code. 200 is on the wire before the data
+  /// says whether the record exists or may be seen, so a missing, hidden or
+  /// unauthorized record is answered as a page marked
+  /// `<meta name="robots" content="noindex">` with none of the data in it --
+  /// a soft 404 -- and a resolver that throws gets the route's own page,
+  /// marked the same way. A route the router guards is never sent early: it
+  /// waits for the data and answers with its real status, as `head` does,
+  /// because a signed-out request to a guarded page must look exactly like
+  /// one to a page that does not exist.
+  shell,
+}
+
 /// `dartvel.web.server` in pubspec.yaml.
 class DVWebServerSettings {
   const DVWebServerSettings({
     this.pageDataMode = DVPageDataMode.await_,
     this.cacheTtl = const Duration(seconds: 60),
     Duration? staleFor,
-    this.streaming = false,
+    bool streaming = false,
+    DVPageStreaming? streamingMode,
     this.cache,
-  }) : _staleFor = staleFor;
+  })  : _staleFor = staleFor,
+        streamingMode = streamingMode ??
+            (streaming ? DVPageStreaming.head : DVPageStreaming.off);
 
   final DVPageDataMode pageDataMode;
   final Duration cacheTtl;
@@ -51,9 +80,11 @@ class DVWebServerSettings {
   /// stale-while-revalidate mean the same as awaiting.
   Duration get staleFor => _staleFor ?? cacheTtl;
 
-  /// The head first, the text after: a crawler and a person both see the
-  /// title before the data is done.
-  final bool streaming;
+  /// How a page goes out; see [DVPageStreaming].
+  final DVPageStreaming streamingMode;
+
+  /// Whether a page goes out in more than one write, whichever way.
+  bool get streaming => streamingMode != DVPageStreaming.off;
 
   /// Where a cache lives when it is shared -- `redis` -- and null for this
   /// process's memory.
@@ -77,7 +108,13 @@ class DVWebServerSettings {
       pageDataMode: _modes['${m['pageDataMode'] ?? 'await'}'] ?? DVPageDataMode.await_,
       cacheTtl: ttl is num ? Duration(seconds: ttl.toInt()) : const Duration(seconds: 60),
       staleFor: stale is num ? Duration(seconds: stale.toInt()) : null,
-      streaming: m['streaming'] == true,
+      // true and false as they always were; `shell` and `head` by name. An
+      // unknown word is off: a typo is not a way to turn it on.
+      streamingMode: switch (m['streaming']) {
+        true || 'head' => DVPageStreaming.head,
+        'shell' => DVPageStreaming.shell,
+        _ => DVPageStreaming.off,
+      },
       cache: m['cache'] is String ? m['cache']! as String : null,
     );
   }
@@ -86,9 +123,83 @@ class DVWebServerSettings {
         'pageDataMode': _name(pageDataMode),
         'cacheTtlSeconds': cacheTtl.inSeconds,
         'staleForSeconds': staleFor.inSeconds,
-        'streaming': streaming,
+        // The two old values written as they always were, so a manifest an
+        // older server reads still means what it meant.
+        'streaming': switch (streamingMode) {
+          DVPageStreaming.off => false,
+          DVPageStreaming.head => true,
+          DVPageStreaming.shell => 'shell',
+        },
         if (cache != null) 'cache': cache,
       };
+}
+
+/// A page's head, split into what no render of its shell changes and what a
+/// render writes from the page's data.
+///
+/// `streaming: shell` sends [opening] and [fixed] before the data exists and
+/// [written] after it, so the two have to be cut where rendering cannot reach
+/// across: [fixed] is identical in every render of one shell, which is the
+/// whole of what makes it safe to send first.
+class DVHeadParts {
+  const DVHeadParts({
+    required this.opening,
+    required this.fixed,
+    required this.written,
+    required this.rest,
+  });
+
+  /// Everything up to and including the `<head>` tag.
+  final String opening;
+
+  /// The head with everything data writes taken out: base, charset,
+  /// viewport, preloads, styles, scripts -- in the order the shell has them.
+  final String fixed;
+
+  /// What data writes, in document order: the marked SEO block, a stray
+  /// title or description, the icon, the structured data.
+  final String written;
+
+  /// `</head>` and everything after it.
+  final String rest;
+}
+
+/// What a render writes into a head from page data. Kept to exactly what
+/// dvSeoApply, dvApplyFavicon and dvApplyPageExtras touch: anything else here
+/// would be sent late for no reason, and anything missing would be sent early
+/// with the wrong value.
+final RegExp _writtenByData = RegExp(
+  r'<!-- dartvel:seo -->.*?<!-- /dartvel:seo -->\n?'
+  r'|<!--dv:ld-->.*?<!--/dv:ld-->\n?'
+  r'|<title>.*?</title>\n?'
+  r'''|<meta\s+name=["']description["'][^>]*>\n?'''
+  r'''|<link[^>]*rel="(?:shortcut )?icon"[^>]*>\n?''',
+  dotAll: true,
+  caseSensitive: false,
+);
+
+/// [page]'s head split by [DVHeadParts], or null when it has no head.
+DVHeadParts? dvHeadParts(String page) {
+  final RegExpMatch? open =
+      RegExp(r'<head(\s[^>]*)?>', caseSensitive: false).firstMatch(page);
+  final int close = page.indexOf('</head>');
+  if (open == null || close < open.end) return null;
+  final String inner = page.substring(open.end, close);
+  final StringBuffer fixed = StringBuffer();
+  final StringBuffer written = StringBuffer();
+  var at = 0;
+  for (final RegExpMatch piece in _writtenByData.allMatches(inner)) {
+    fixed.write(inner.substring(at, piece.start));
+    written.write(piece.group(0));
+    at = piece.end;
+  }
+  fixed.write(inner.substring(at));
+  return DVHeadParts(
+    opening: page.substring(0, open.end),
+    fixed: fixed.toString(),
+    written: written.toString(),
+    rest: page.substring(close),
+  );
 }
 
 /// What `dartvel.seo` said about the site as a whole, carried in the

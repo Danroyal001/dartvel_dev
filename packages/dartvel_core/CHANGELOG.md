@@ -1,3 +1,15 @@
+## Unreleased
+
+- `dartvel.web.server.streaming: shell` -- `DVPageStreaming.shell`, alongside
+  `head` (`true`) and `off` (`false`), which read and write exactly as
+  before. `DVWebServerSettings.streaming` stays, now true for either kind of
+  streaming; `streamingMode` says which.
+- `dvHeadParts` splits a page's head into what no render of its shell
+  changes and what page data writes -- the SEO block, a stray title or
+  description, the icon, the structured data. The first part is identical in
+  every render of one shell, which is what makes it safe to send before the
+  data exists.
+
 ## 0.4.0
 
 Breaking: `DVFieldCipher` takes its randomness through a named constructor.

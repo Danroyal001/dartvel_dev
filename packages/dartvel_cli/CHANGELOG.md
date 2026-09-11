@@ -1,5 +1,11 @@
 ## Unreleased
 
+- A web-server build marks guarded routes `"guarded": true` in
+  dartvel_routes.json, from the router's own list, and carries
+  `dartvel.web.server.streaming: shell` into the manifest. The server needs
+  both to send a route's head before its data: a guarded route's answer
+  depends on the request, so it is the one kind of route that must not be
+  sent early.
 - Pages are split out of main.dart.js on the web. Every page was imported
   `deferred`, but the generator copied each private page's body into the
   router, which is eager, so dart2js found all of it reachable from `main()`:

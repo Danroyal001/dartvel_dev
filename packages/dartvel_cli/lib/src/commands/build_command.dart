@@ -2780,6 +2780,8 @@ class BuildCommand extends Command<void> {
     File(p.join(web.path, 'dartvel_routes.json')).writeAsStringSync(
       dvWebServerManifest(
         federated: dvFederatedRoutes(root),
+        // So `streaming: shell` knows which routes it must not answer early.
+        guarded: dvGuardedRoutes(_routerSource(root)),
         routes: routes,
         titles: dvRouteTitles(_routerSource(root)),
         text: _routeText(root),
