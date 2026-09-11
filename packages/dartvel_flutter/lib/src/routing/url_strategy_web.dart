@@ -137,6 +137,10 @@ void dvInterceptLinkNavigation(void Function(String path) route) {
     if (path == null) return;
 
     event.preventDefault();
+    // The click a mouse release sends after its press already navigated here.
+    // Mouse only: an Enter on a focused link is a new intention even if a
+    // press followed the same link a moment ago.
+    if (mouse != null && DVPressedLink.consume(path)) return;
     route(path);
   }
 

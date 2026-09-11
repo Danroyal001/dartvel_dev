@@ -22,6 +22,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../dartvel_flutter.dart' show DV, DVRouteTarget;
+import 'link_interception.dart' show DVPressedLink;
 
 /// When a link fetches the route it points at.
 /// How long a link has to stay on screen before [DVLinkPreload.visible]
@@ -394,11 +395,33 @@ class _DVNavLinkState extends State<DVNavLink> {
   }
 
   void _onPointerDown(PointerDownEvent event) {
+    if (!widget.enabled) return;
     // A middle click is the reflex that costs nothing on a real site and does
     // nothing on a Flutter one. It is handled on the down event because a
     // middle button never produces a tap.
-    if (widget.enabled && event.buttons == kMiddleMouseButton) {
+    if (event.buttons == kMiddleMouseButton) {
       _openBeside();
+      return;
+    }
+    // A mouse's primary button follows the link on the press. A click is two
+    // events a hundred-odd milliseconds apart, and a link that waits for the
+    // second spends that time doing nothing; NextFaster navigates on
+    // mousedown for exactly that reason.
+    //
+    // A mouse only. A finger that lands on a link is as often starting a
+    // scroll as choosing the link, so touch still waits for the tap -- which
+    // is why the GestureDetector below does not listen to the mouse at all.
+    if (event.kind == PointerDeviceKind.mouse &&
+        event.buttons == kPrimaryMouseButton) {
+      if (_wantsNewTab) {
+        _openBeside();
+        return;
+      }
+      // On the web this link is also an anchor, and the browser will send a
+      // click when the button comes up. The record lets the interceptor know
+      // that click has already been followed.
+      if (widget.externalUrl == null) DVPressedLink.record(widget.to.path);
+      _activate();
     }
   }
 
@@ -455,6 +478,19 @@ class _DVNavLinkState extends State<DVNavLink> {
             },
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
+              // Everything but the mouse. Its primary button is handled on the
+              // press, above, and a release that also counted as a tap would
+              // follow the link twice whenever the link outlives the
+              // navigation -- a header link, the commonest kind. Keyboard and
+              // screen-reader activation do not come through here as pointer
+              // events and are unaffected.
+              supportedDevices: const <PointerDeviceKind>{
+                PointerDeviceKind.touch,
+                PointerDeviceKind.stylus,
+                PointerDeviceKind.invertedStylus,
+                PointerDeviceKind.trackpad,
+                PointerDeviceKind.unknown,
+              },
               onTap: widget.enabled ? _activate : null,
               onLongPress: widget.enabled ? _showPreview : null,
               child: DecoratedBox(
