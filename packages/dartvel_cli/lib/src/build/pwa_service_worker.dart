@@ -7,6 +7,7 @@
 library dartvel_cli.build.pwa_service_worker;
 
 import 'dart:convert';
+import 'dart:io';
 
 /// The worker source for a build.
 ///
@@ -315,6 +316,29 @@ __QUEUE_ON_FAILURE__
 /// A template is not a page. Precaching the literal `/posts/:id` caches
 /// whatever that address answers -- a 404 on any real server -- and then
 /// serves it as the offline answer for every post.
+/// Every deferred part dart2js wrote into [web], as the URLs a worker
+/// precaches, in the order dart2js numbered them.
+///
+/// Precached because a page's code is in one of these, and a page nobody has
+/// opened yet has never had its part fetched. The worker caches what passes
+/// through it, which covered every page while they were all in main.dart.js;
+/// once each is a part of its own, opening an unvisited page offline is a
+/// load error unless the part was cached up front.
+List<String> dvDeferredPartFiles(Directory web) {
+  if (!web.existsSync()) return const <String>[];
+  final RegExp part = RegExp(r'^main\.dart\.js_(\d+)\.part\.js$');
+  final List<(int, String)> found = <(int, String)>[];
+  for (final FileSystemEntity entity in web.listSync()) {
+    if (entity is! File) continue;
+    final String name = entity.uri.pathSegments.last;
+    final RegExpMatch? m = part.firstMatch(name);
+    if (m != null) found.add((int.parse(m.group(1)!), name));
+  }
+  // Numerically: _10 sorts before _2 as a string.
+  found.sort(((int, String) a, (int, String) b) => a.$1.compareTo(b.$1));
+  return <String>[for (final (int, String) f in found) '/${f.$2}'];
+}
+
 List<String> dvPrecacheRoutes(Iterable<String> routes) {
   final Set<String> precache = <String>{'/'};
   for (final String route in routes) {

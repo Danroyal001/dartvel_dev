@@ -176,6 +176,11 @@ class ClientGenerator {
     layoutFiles.sort((a, b) => a.path.compareTo(b.path));
 
     final pageImports = <String>[];
+    // Each lowered page's body, keyed by its file under dartvel_client/pages.
+    final pageBodyLibraries = <String, String>{};
+    // Which page file an alias stands for, now that a lowered page's alias
+    // names its body library rather than the file somebody wrote.
+    final pageSourceByAlias = <String, String>{};
     final pageEntries = <_PageEntry>[];
     final layoutImports = <String>[];
     final layoutMapByDir = <String, Map<String, String>>{}; // dir -> {i, class}
@@ -261,22 +266,37 @@ class ClientGenerator {
         isFunctional = true;
       }
 
-      pageImports.add("import '$importPath' deferred as p$i;");
+      pageSourceByAlias['p$i'] = importPath;
 
-      // A lowered body is the page's own code, moved here. It was written
-      // against that file's imports, and this file has none of them -- so
-      // anything the page built out of its own components stopped resolving
-      // the moment its body was inlined rather than called.
+      // A lowered body is the page's own code, moved out of its file because
+      // it may only use what the file exports. It used to be moved into the
+      // router, and the router is eager: everything the body built was then
+      // reachable from main(), so dart2js put every page in main.dart.js and
+      // left the deferred import guarding a few constants. A built site
+      // reported `deferredLibraryParts:{p0:[],p1:[],p2:[0],p3:[]}`.
       //
-      // Not deferred: a const expression may not name a type from a deferred
-      // import, and `const Banner(...)` in a page body is ordinary. Only
-      // lowered pages contribute, or every application file would be dragged
-      // into the router and the code splitting the deferred imports exist for
-      // would be undone.
+      // So the body gets a library of its own, reached only through the
+      // router's deferred import. dart2js assigns code to a part by what
+      // reaches it, and now the only way to this page's code is its
+      // loadLibrary(). A package URI, not a relative one, because the SSG
+      // builder writes these imports into a file under .dartvel/.
       if (pageBody != null) {
-        for (final String line in _importsFor(src, rel, pkgName)) {
-          if (!pageImports.contains(line)) pageImports.add(line);
-        }
+        final String file =
+            '${_snakeCase(_generatedPageWidgetName(className).replaceFirst(RegExp(r'GeneratedPage$'), ''))}.g.dart';
+        pageBodyLibraries[file] = _pageBodyLibrary(
+          rel: rel,
+          source: src,
+          pkgName: pkgName,
+          pageImport: importPath,
+          alias: 'p$i',
+          body: pageBody,
+          sourceSymbols: pageSourceSymbols,
+        );
+        pageImports.add(
+          "import 'package:$pkgName/dartvel_client/pages/$file' deferred as p$i;",
+        );
+      } else {
+        pageImports.add("import '$importPath' deferred as p$i;");
       }
 
       String route;
@@ -382,6 +402,11 @@ class ClientGenerator {
         for (final e in c.value) {
           // Best-effort: rebuild approximate file path from import alias index
           final alias = 'p${e.importIndex}';
+          final String? source = pageSourceByAlias[alias];
+          if (source != null) {
+            stderr.writeln('    - $source');
+            continue;
+          }
           // Search from pageImports for matching alias
           try {
             final line = pageImports.firstWhere(
@@ -439,6 +464,26 @@ class ClientGenerator {
     // Client runtime/helper – write only under lib/dartvel_client
     final libClientDir = Directory(p.join(root, 'lib', 'dartvel_client'))
       ..createSync(recursive: true);
+
+    // The lowered page bodies, and nothing left over from a page that is gone:
+    // a stale one still imports that page and stops the application
+    // analysing over a file nobody wrote. Only files carrying the marker are
+    // removed, so anything else put in that directory is left alone.
+    final pageBodyDir = Directory(p.join(libClientDir.path, 'pages'));
+    pageBodyLibraries.forEach((String file, String source) {
+      File(p.join(pageBodyDir.path, file))
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(source);
+    });
+    if (pageBodyDir.existsSync()) {
+      for (final FileSystemEntity f in pageBodyDir.listSync()) {
+        if (f is! File || pageBodyLibraries.containsKey(p.basename(f.path))) {
+          continue;
+        }
+        if (f.readAsStringSync().startsWith(_pageBodyMarker)) f.deleteSync();
+      }
+      if (pageBodyDir.listSync().isEmpty) pageBodyDir.deleteSync();
+    }
     // Public generated client barrel. Apps import this single file instead of
     // reaching into generated siblings.
     final clientFile = File(p.join(libClientDir.path, 'dartvel_client.dart'));
@@ -1201,23 +1246,11 @@ ${m.auth == 'inherit' ? inheritedGuard : ''}      pageBuilder: (context, state) 
       if (pageBody == null) {
         buildReturn =
             '  return ${e.isFunctional ? 'p${e.importIndex}.${e.publicName}(context)' : 'p${e.importIndex}.${e.publicName}()'};';
-      } else if (pageBody.isBlock) {
-        // The statements as written, with references to symbols that stayed
-        // in the source file qualified through its deferred import -- this
-        // code runs in another library, where those names do not exist.
-        buildReturn = _qualifySourceSymbols(
-          pageBody.statements!,
-          'p${e.importIndex}',
-          e.sourceSymbols,
-        );
       } else {
-        buildReturn = _indentGeneratedReturn(
-          _qualifySourceSymbols(
-            pageBody.expression!,
-            'p${e.importIndex}',
-            e.sourceSymbols,
-          ),
-        );
+        // The body is in the page's own deferred library; see
+        // _pageBodyLibrary. Called here, never copied, so nothing it builds is
+        // reachable from the router.
+        buildReturn = '  return p${e.importIndex}.dvPageBody(context);';
       }
       final sourceDoc = e.expressionBody == null
           ? '/// Deferred generated widget wrapper for [p${e.importIndex}.${e.publicName}].'
@@ -3233,6 +3266,71 @@ void startDartvelKiosk() {
   ///
   /// Deferred and aliased imports are skipped: an alias the body used is
   /// already qualified by the lowering, and re-declaring it here would collide.
+  static const String _pageBodyMarker =
+      '// GENERATED – do not edit. A Dartvel page body.';
+
+  /// The library a lowered page's body is written into.
+  ///
+  /// Imported only by the router, and only `deferred`, so on the web this
+  /// page's code is a part of its own that loadLibrary() fetches.
+  ///
+  /// Everything in here is imported normally. That is safe because the
+  /// library itself is only reachable through the deferred import, and it is
+  /// necessary because a const expression cannot name a type through a
+  /// deferred prefix -- `const Banner(...)` in a page body is ordinary.
+  ///
+  /// The page's file comes in under the alias the router gives it, so a
+  /// symbol the lowering qualified as `pN.rows` means the same thing here.
+  static String _pageBodyLibrary({
+    required String rel,
+    required String source,
+    required String pkgName,
+    required String pageImport,
+    required String alias,
+    required DVFunctionBody body,
+    required Set<String> sourceSymbols,
+  }) {
+    final String code = body.isBlock
+        ? _qualifySourceSymbols(body.statements!, alias, sourceSymbols)
+        : _indentGeneratedReturn(
+            _qualifySourceSymbols(body.expression!, alias, sourceSymbols),
+          );
+    // By line, in order: two aliases for one library are two imports.
+    final Set<String> imports = <String>{
+      "import 'package:flutter/material.dart';",
+      "import 'package:dartvel_flutter/dartvel_flutter.dart';",
+      // _importsFor leaves dart: libraries to its caller, which for the
+      // router meant only dart:async. The body was written against the
+      // page's own, so it gets those.
+      for (final RegExpMatch m in RegExp(
+        r"^\s*import\s+'(dart:[^']+)'([^;]*);",
+        multiLine: true,
+      ).allMatches(source))
+        "import '${m.group(1)}'${m.group(2)};",
+      ..._importsFor(source, rel, pkgName),
+      "import '$pageImport' as $alias;",
+    };
+    return '''
+$_pageBodyMarker
+// ignore_for_file: unnecessary_import, unused_import, duplicate_import, prefer_const_constructors, unnecessary_const
+//
+// The body of $rel, in a library of its own so the router can import it
+// deferred and this page's code is fetched when the page is.
+${imports.join('\n')}
+
+Widget dvPageBody(BuildContext context) {
+$code
+}
+''';
+  }
+
+  static String _snakeCase(String name) => name
+      .replaceAllMapped(
+        RegExp(r'(?<=[a-z0-9])([A-Z])'),
+        (Match m) => '_${m.group(1)}',
+      )
+      .toLowerCase();
+
   static List<String> _importsFor(String source, String rel, String pkgName) {
     final List<String> out = <String>[];
     final String dir = p.dirname(rel).replaceAll('\\', '/');

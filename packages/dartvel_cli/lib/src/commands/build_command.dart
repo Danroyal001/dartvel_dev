@@ -2154,10 +2154,14 @@ class BuildCommand extends Command<void> {
     // Written over flutter_service_worker.js, which index.html already
     // registers: adding a second worker would leave two competing for the
     // same scope, and which one wins is not something to leave to chance.
+    //
+    // With each page's deferred part, because a page's code is only in its
+    // part: one never opened while online is otherwise a load error offline.
+    final List<String> parts = dvDeferredPartFiles(web);
     File(p.join(web.path, 'flutter_service_worker.js')).writeAsStringSync(
       dvServiceWorker(
         buildId: DateTime.now().toUtc().toIso8601String(),
-        precache: routes,
+        precache: <String>[...routes, ...parts],
         offlinePath: offlinePath,
         // On unless the project says otherwise: a backend call made offline
         // is queued and replayed, which is the behaviour a PWA promises.
@@ -2166,7 +2170,8 @@ class BuildCommand extends Command<void> {
     );
 
     Logger.log('   Service worker written: '
-        '${routes.length} route(s) precached, with an offline page.');
+        '${routes.length} route(s) and ${parts.length} page part(s) '
+        'precached, with an offline page.');
   }
 
   /// Write the SEO head tags into a finished web build.

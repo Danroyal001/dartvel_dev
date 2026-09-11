@@ -516,12 +516,19 @@ final pageStyle = const DVModifier();
       expect(router, contains('class IndexPageGeneratedPage'));
       expect(router, contains("import 'models.g.dart';"));
       expect(router, contains("import 'functions.g.dart';"));
+      // The body is emitted, qualified through the page's alias -- in the
+      // page's own deferred library rather than the router, where it made
+      // every page part of main.dart.js (page_body_split_test).
+      final String body = File(
+        p.join(root.path, 'lib', 'dartvel_client', 'pages', 'index_page.g.dart'),
+      ).readAsStringSync();
       expect(
-        router,
+        body,
         contains(
           "return DVBox(const DVText('Private page')).modifier(p0.pageStyle);",
         ),
       );
+      expect(router, contains('return p0.dvPageBody(context);'));
       expect(router, isNot(contains('buildIndexPage')));
       expect(router, isNot(contains('p0._indexPage(context)')));
     } finally {
@@ -584,7 +591,11 @@ Widget _indexPage(BuildContext context) {
       final String router = File(
         p.join(root.path, 'lib', 'dartvel_client', 'router.g.dart'),
       ).readAsStringSync();
-      expect(router, contains('return const SizedBox.shrink();'));
+      final String body = File(
+        p.join(root.path, 'lib', 'dartvel_client', 'pages', 'index_page.g.dart'),
+      ).readAsStringSync();
+      expect(body, contains('return const SizedBox.shrink();'));
+      expect(router, contains('return p0.dvPageBody(context);'));
     } finally {
       root.deleteSync(recursive: true);
     }
