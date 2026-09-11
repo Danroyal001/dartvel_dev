@@ -16,7 +16,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:dartvel_core/dartvel.dart' show DVCacheAdapter, DVPageData, DVPageDataCache, DVPageDataMode, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvWithRequestTenant;
+import 'package:dartvel_core/dartvel.dart' show DVCacheAdapter, DVImageVariants, DVPageData, DVPageDataCache, DVPageDataMode, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvWithRequestTenant;
 import 'package:path/path.dart' as p;
 import 'package:shelf/shelf.dart';
 import 'package:shelf_static/shelf_static.dart';
@@ -71,9 +71,14 @@ String dvWebServerManifest({
   DVSiteSeo site = const DVSiteSeo(),
   Map<String, String> federated = const <String, String>{},
   Set<String> guarded = const <String>{},
+  DVImageVariants? images,
 }) =>
     const JsonEncoder.withIndent('  ').convert(<String, Object?>{
       'siteUrl': siteUrl,
+      // dartvel.images, for the server's /_dartvel/image: the widths it may
+      // resize to and the hosts it may fetch from. Absent when the build has
+      // no variants, and the server then answers that address like any other.
+      if (images != null && images.isActive) 'images': images.toJson(),
       // What dartvel.seo declared about the site. The server has no pubspec
       // to read, and rendering a route replaces the head block the build
       // wrote -- so anything not carried here is dropped from every page.
@@ -156,6 +161,12 @@ List<String> dvWebServerStaleFiles({required List<String> present}) =>
 /// route, including paths no route matches — a single-page application owns
 /// its own not-found page, and returning the server's would replace it with a
 /// blank one.
+///
+/// [streaming] overrides what the build declared: true is the head written
+/// ahead of the body, false one write. Left null, the declaration decides,
+/// `shell` included -- the head sent before the data, through the same
+/// [dvShellFirstChunks] the deployed server uses, so the page previewed is
+/// the page served.
 Handler dvWebServerHandler({
   required String webRoot,
   String? description,

@@ -415,5 +415,88 @@ void main() {
       expect(docs, contains('assets/assets/hero.png'));
       expect(docs, isNot(contains('part.js')));
     });
+
+    test('an image DVImageView drew keeps its slot for links, and stays out '
+        'of the head', () {
+      File(dvCapturedImagesPathFor(project.path, '/docs')).writeAsStringSync(
+        jsonEncode(<Object?>[
+          <String, Object?>{
+            'url': 'assets/_dartvel/img/384/assets/assets/hero.png',
+            'as': 'fetch',
+            'variant': <String, Object?>{
+              'src': 'assets/assets/hero.png',
+              'width': 320,
+            },
+          },
+          <String, Object?>{'url': 'assets/assets/logo.png', 'as': 'fetch'},
+        ]),
+      );
+
+      write();
+
+      final String docs =
+          File(p.join(web.path, 'docs', 'index.html')).readAsStringSync();
+      // Which file a visitor needs depends on their screen, which a page's
+      // head cannot know. Preloading the build's would be a download a
+      // denser screen then does not use.
+      expect(docs, isNot(contains('_dartvel/img/')));
+      expect(docs, contains('href="assets/assets/logo.png"'));
+      final Map<String, Object?> routes = (jsonDecode(
+        File(p.join(web.path, dvPrefetchManifestFile)).readAsStringSync(),
+      ) as Map<String, Object?>)['routes']! as Map<String, Object?>;
+      expect((routes['/docs']! as Map<String, Object?>)['images'], <Object?>[
+        <String, Object?>{
+          'url': 'assets/_dartvel/img/384/assets/assets/hero.png',
+          'as': 'fetch',
+          'variant': <String, Object?>{
+            'src': 'assets/assets/hero.png',
+            'width': 320,
+          },
+        },
+        <String, Object?>{'url': 'assets/assets/logo.png', 'as': 'fetch'},
+      ]);
+    });
+  });
+
+  group('the slots the page recorded', () {
+    // DVImageView writes each image's slot into the page as it lays out; the
+    // capture reads them back and matches each to the request it made.
+    final List<DVCapturedImage> attached = dvAttachImageSlots(
+      const <DVCapturedImage>[
+        DVCapturedImage(
+            url: 'assets/_dartvel/img/384/assets/assets/hero.png', as: 'fetch'),
+        DVCapturedImage(
+          url: '_dartvel/image?src=https%3A%2F%2Fcdn.example.com%2Fa.jpg'
+              '&w=750&q=75',
+          as: 'fetch',
+        ),
+        DVCapturedImage(url: 'assets/assets/wide.png', as: 'fetch'),
+        DVCapturedImage(url: 'assets/assets/other.png', as: 'fetch'),
+      ],
+      const <String, double>{
+        'assets/assets/hero.png': 320,
+        'https://cdn.example.com/a.jpg': 700,
+        'assets/assets/wide.png': 1200,
+      },
+    );
+
+    test('go on a written variant, by the image it is of', () {
+      expect(attached[0].variantSrc, 'assets/assets/hero.png');
+      expect(attached[0].slot, 320);
+    });
+
+    test('go on a resize from the server, by its src', () {
+      expect(attached[1].variantSrc, 'https://cdn.example.com/a.jpg');
+      expect(attached[1].slot, 700);
+    });
+
+    test('go on an image drawn wider than itself, fetched as it is', () {
+      // A denser screen may still want a variant of it; the slot says so.
+      expect(attached[2].variantSrc, 'assets/assets/wide.png');
+    });
+
+    test('and on nothing DVImageView did not draw', () {
+      expect(attached[3].isVariant, isFalse);
+    });
   });
 }

@@ -1,5 +1,20 @@
 ## Unreleased
 
+- Image variants, NextFaster's other half. `dartvel build web` writes every
+  raster image declared under `flutter.assets` at each configured width
+  narrower than it, into `assets/_dartvel/img/<width>/`, and hands the
+  application what it wrote as `DARTVEL_IMAGES`: `DVImageView` then asks for
+  the width its slot needs on this screen. Never wider than the image, and
+  never a width that was not written, so no variant is a 404. A GIF is left
+  out, since resizing keeps one frame of an animation.
+- `dartvel.images` in pubspec.yaml: `widths`, `quality` and `remoteHosts`.
+  A web-server build carries it into dartvel_routes.json for the server's
+  `/_dartvel/image`, which resizes images from those hosts and no others.
+- The semantics capture reads the slot each image was laid out in, from the
+  page, and the prefetch manifest carries it. A link can then prefetch the
+  variant for the visitor's pixel ratio rather than the build's. Those
+  images stay out of a page's head, because which file a visitor needs
+  depends on a screen the head cannot know.
 - A web-server build marks guarded routes `"guarded": true` in
   dartvel_routes.json, from the router's own list, and carries
   `dartvel.web.server.streaming: shell` into the manifest. The server needs

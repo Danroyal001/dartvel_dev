@@ -16,6 +16,8 @@ library;
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:dartvel_core/dartvel.dart'
+    show dvImageEndpointPath, dvStaticImageVariantDir;
 import 'package:path/path.dart' as p;
 
 import 'semantics_capture.dart' show dvSemanticsPathFor;
@@ -35,7 +37,12 @@ const String _close = '<!-- /dartvel:preload -->';
 /// `<img>`. A preload is only reused when it was requested the same way as
 /// the request it is meant to answer, so this is not cosmetic.
 class DVCapturedImage {
-  const DVCapturedImage({required this.url, required this.as});
+  const DVCapturedImage({
+    required this.url,
+    required this.as,
+    this.variantSrc,
+    this.slot,
+  });
 
   /// Null for anything that is not a well-formed entry.
   static DVCapturedImage? fromJson(Object? json) {
@@ -43,14 +50,43 @@ class DVCapturedImage {
     final Object? url = json['url'];
     final Object? as = json['as'];
     if (url is! String || url.isEmpty) return null;
-    return DVCapturedImage(url: url, as: as == 'image' ? 'image' : 'fetch');
+    String? src;
+    double? slot;
+    if (json['variant']
+        case {'src': final String s, 'width': final num width}
+        when s.isNotEmpty && width > 0) {
+      src = s;
+      slot = width.toDouble();
+    }
+    return DVCapturedImage(
+      url: url,
+      as: as == 'image' ? 'image' : 'fetch',
+      variantSrc: src,
+      slot: slot,
+    );
   }
 
   /// Relative to the site when it is the site's own, absolute otherwise.
   final String url;
   final String as;
 
-  Map<String, Object?> toJson() => <String, Object?>{'url': url, 'as': as};
+  /// For an image DVImageView drew: the image it is a variant of, and the
+  /// slot it was laid out in, in logical pixels. Which file a visitor needs
+  /// then depends on their screen, so it is chosen by the link at run time
+  /// and never named in a page's head.
+  final String? variantSrc;
+  final double? slot;
+
+  bool get isVariant => variantSrc != null && slot != null;
+
+  DVCapturedImage withSlot(String src, double width) =>
+      DVCapturedImage(url: url, as: as, variantSrc: src, slot: width);
+
+  Map<String, Object?> toJson() => <String, Object?>{
+        'url': url,
+        'as': as,
+        if (isVariant) 'variant': <String, Object?>{'src': variantSrc, 'width': slot},
+      };
 }
 
 /// What [dvWriteRoutePrefetch] wrote.
@@ -244,6 +280,63 @@ String _attribute(String value) => value
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;');
 
+/// The slots DVImageView recorded in the page, from the JSON the capture
+/// read: each image's address to the widest it was laid out, in logical
+/// pixels. Anything unreadable is no slots, never an exception.
+Map<String, double> dvImageSlotsFrom(String json) {
+  final Object? decoded;
+  try {
+    decoded = jsonDecode(json);
+  } on FormatException {
+    return const <String, double>{};
+  }
+  if (decoded is! Map) return const <String, double>{};
+  return <String, double>{
+    for (final MapEntry<Object?, Object?> entry in decoded.entries)
+      if (entry.key case final String src)
+        if (entry.value case final num width when width > 0)
+          src: width.toDouble(),
+  };
+}
+
+/// The image [url] is a variant of: a file the build wrote under
+/// [dvStaticImageVariantDir], or the `src` of a request to the server's
+/// [dvImageEndpointPath]. Null for anything else.
+String? dvVariantSource(String url) {
+  const String written = '$dvStaticImageVariantDir/';
+  if (url.startsWith(written)) {
+    final String rest = url.substring(written.length);
+    final int slash = rest.indexOf('/');
+    if (slash <= 0 || int.tryParse(rest.substring(0, slash)) == null) {
+      return null;
+    }
+    return rest.substring(slash + 1);
+  }
+  if (url.startsWith('$dvImageEndpointPath?')) {
+    return Uri.tryParse(url)?.queryParameters['src'];
+  }
+  return null;
+}
+
+/// [images], each one DVImageView drew carrying the slot it was laid out in.
+///
+/// Matched by the image a request was for, so the 384-wide file and the
+/// server's resize of a remote image both find their slot -- and so does an
+/// image drawn in a slot wider than itself, fetched as it is, which a denser
+/// screen may still want a variant of.
+List<DVCapturedImage> dvAttachImageSlots(
+  List<DVCapturedImage> images,
+  Map<String, double> slots,
+) =>
+    <DVCapturedImage>[
+      for (final DVCapturedImage image in images)
+        if (dvVariantSource(image.url) ?? image.url
+            case final String src when slots.containsKey(src))
+          image.withSlot(src, slots[src]!)
+        else
+          image,
+    ];
+
 /// Names each route's parts and images in the head of its page, and writes
 /// the manifest a link reads.
 ///
@@ -298,12 +391,18 @@ DVPrefetchSummary dvWriteRoutePrefetch({
     };
 
     if (page == null || before == null) continue;
+    // Not an image DVImageView drew: which file a visitor needs depends on
+    // their screen, and a head cannot know it. The link chooses at run time.
+    final List<DVCapturedImage> preloaded = <DVCapturedImage>[
+      for (final DVCapturedImage image in images)
+        if (!image.isVariant) image,
+    ];
     final String after =
-        dvApplyPreloadHead(before, scripts: scripts, images: images);
+        dvApplyPreloadHead(before, scripts: scripts, images: preloaded);
     if (after != before) page.writeAsStringSync(after);
-    if (scripts.isNotEmpty || images.isNotEmpty) {
+    if (scripts.isNotEmpty || preloaded.isNotEmpty) {
       pages++;
-      imageCount += images.length;
+      imageCount += preloaded.length;
     }
   }
 

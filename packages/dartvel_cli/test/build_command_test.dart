@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:dartvel_cli/src/commands/build_command.dart';
 import 'package:dartvel_cli/src/utils/toolchain.dart';
+import 'package:dartvel_core/dartvel.dart' show DVImageVariants;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
@@ -39,6 +40,42 @@ void main() {
 
       final plain = resolveFlutterBuildArguments(platform: 'linux', buildMode: '--release');
       expect(plain.where((String a) => a.contains('DARTVEL_DEVICE_PROFILE')), isEmpty);
+    });
+
+    test('image variants reach a web build as DARTVEL_IMAGES, and only a web build', () {
+      // What the build wrote and whether a server resizes: DVImageView cannot
+      // find out either at run time, and asking for a variant nobody wrote
+      // is a 404 for every image on the page.
+      const variants = DVImageVariants(
+        assetWidths: <String, int>{'assets/assets/hero.png': 1600},
+      );
+      for (final String platform in <String>['web', 'web-server']) {
+        expect(
+          resolveFlutterBuildArguments(
+            platform: platform,
+            buildMode: '--release',
+            imageVariants: variants,
+          ),
+          contains('--dart-define=DARTVEL_IMAGES=${variants.toDartDefine()}'),
+          reason: platform,
+        );
+      }
+
+      final linux = resolveFlutterBuildArguments(
+        platform: 'linux',
+        buildMode: '--release',
+        imageVariants: variants,
+      );
+      expect(linux.where((String a) => a.contains('DARTVEL_IMAGES')), isEmpty,
+          reason: 'variants are files a web host serves');
+
+      final none = resolveFlutterBuildArguments(
+        platform: 'web',
+        buildMode: '--release',
+        imageVariants: const DVImageVariants(),
+      );
+      expect(none.where((String a) => a.contains('DARTVEL_IMAGES')), isEmpty,
+          reason: 'nothing built, nothing handed over');
     });
 
     test('maps Android-family platforms to apk builds', () {

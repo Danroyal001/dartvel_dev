@@ -129,6 +129,43 @@ its `dartvel:splash` marker, so a launch screen you designed stays yours
 unless `overwrite` says otherwise. Per-target detail is in
 [build-targets.md](build-targets.md#launch-splash).
 
+On the web, `DVImageView` fetches an image at the width its slot needs, the
+way a `srcset` does: its laid-out width times the screen's pixel ratio,
+snapped to a fixed set of widths, so a phone downloads the 640-pixel file
+rather than the 3840. And a link that preloads a page prefetches that same
+file for the visitor's screen.
+
+```yaml
+dartvel:
+  images:
+    widths: [640, 750, 828, 1080, 1200, 1920, 2048, 3840]  # default: Next.js's, plus 16 to 384
+    quality: 75                  # JPEG quality, 1 to 100
+    remoteHosts:                 # a web server resizes images from these, and only these
+      - cdn.example.com
+      - "*.images.example.net"   # its subdomains, not images.example.net itself
+```
+
+`dartvel build web` writes every raster image declared under
+`flutter.assets` at each of those widths narrower than the image, into
+`assets/_dartvel/img/<width>/`, so a static host needs no server to serve
+them; an image narrower than a slot is used as it is, never enlarged. A
+`dartvel build web-server` also answers `/_dartvel/image?src=&w=&q=`, which
+resizes an image from one of the `remoteHosts` on its first request and keeps
+it. The limits are deliberate:
+
+- A width outside the list is refused, so the number of files per image is
+  the length of the list, and nobody else chooses how much resizing the
+  server does.
+- A host not in `remoteHosts` is refused before anything is fetched, and a
+  redirect from an allowed one is not followed. An endpoint that fetches any
+  address it is given reaches whatever the server can reach.
+- WebP only replaces PNG. The encoder writes lossless WebP, which is smaller
+  than a PNG and larger than a JPEG of a photograph, so a JPEG stays a JPEG.
+  A GIF is served as it is: resizing it would keep one frame of an animation.
+- A static build has no server, so a remote image there is fetched as it is.
+- Only `DVImageView` does this. `Image.asset` and `Image.network` fetch what
+  they are given.
+
 ---
 
 ## Generate
