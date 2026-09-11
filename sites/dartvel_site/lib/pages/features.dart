@@ -274,7 +274,11 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
         'follows the link when the button goes down. This site had three of '
         'its four pages compiled into the main bundle, because the generator '
         'copied every page body into the router; it builds nine parts now, '
-        'each fetched only by the pages that use it.',
+        'each fetched only by the pages that use it. The renderer gets the '
+        'same treatment: every page opens the connection to where CanvasKit '
+        'lives and starts its 7 MB download while the HTML is still being '
+        'read, picking the variant Flutter\'s loader will pick, so the loader '
+        'finds it already arriving instead of asking for it second.',
   ),
   (
     'Launch Splash',
