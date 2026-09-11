@@ -603,11 +603,75 @@ jobs:
             '/docs=0.5,monthly'
           grep -q 'Sitemap: https://dartvel.dev/sitemap.xml' build/web/robots.txt
 
+      # The page split, the preload lists and the splash, on the real site.
+      # Each was tested on its own while the chain between them could still
+      # fail: pages compiled into main.dart.js leave loadLibrary() fetching
+      # nothing and every head with nothing to preload, and the unit tests of
+      # the preload writer pass either way.
+      - name: Each page has its own code and preloads it, with the splash in the shell
+        working-directory: sites/dartvel_site
+        run: |
+          set -euo pipefail
+          parts=$(find build/web -maxdepth 1 -name 'main.dart.js_*.part.js' | wc -l)
+          echo "$parts deferred parts"
+          test "$parts" -ge 4
+          for page in docs features cloud; do
+            grep -q 'rel="preload" href="main.dart.js_' "build/web/$page/index.html"
+          done
+          test -f build/web/dartvel_prefetch.json
+          grep -q 'dartvel:splash' build/web/index.html
+
       - uses: actions/upload-artifact@v4
         with:
           name: dartvel-site
           path: sites/dartvel_site/build/web
           if-no-files-found: error
+
+  # The build_runner path. basic_app and class_widgets_app are the only
+  # applications built with `dart run build_runner build` rather than
+  # `dartvel routes`, and nothing ran them: that path shipped with every page
+  # body copied into the eager router, no link preloading, and function pages
+  # built with no data scope -- so basic_app's own page threw, in its own
+  # test, where nobody looked.
+  build-runner-examples:
+    name: ${{ matrix.example }} (build_runner)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        example: [basic_app, class_widgets_app]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      # Both depend on dartvel_shelf, whose native-asset build hook runs
+      # cbindgen during `flutter test`; see the test job.
+      - name: Cache cbindgen
+        id: cbindgen-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cbindgen
+          key: cbindgen-${{ runner.os }}-${{ runner.arch }}
+      - name: Install cbindgen
+        if: steps.cbindgen-cache.outputs.cache-hit != 'true'
+        run: cargo install cbindgen --locked
+      - name: Resolve dependencies
+        working-directory: examples/${{ matrix.example }}
+        run: flutter pub get
+      # The client is generated and not committed.
+      - name: Generate with build_runner
+        working-directory: examples/${{ matrix.example }}
+        run: dart run build_runner build --delete-conflicting-outputs
+      - name: Analyze
+        working-directory: examples/${{ matrix.example }}
+        run: flutter analyze lib test
+      - name: Test
+        working-directory: examples/${{ matrix.example }}
+        run: flutter test
 
   spec:
     name: spec-status index
