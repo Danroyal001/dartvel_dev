@@ -31,6 +31,11 @@ Widget _indexPage(BuildContext context) => (() {
             to: DVRouteTarget('/pricing'),
             child: DVText('Pricing'),
           ),
+          DVNavLink(
+            key: Key('link-gallery'),
+            to: DVRouteTarget('/gallery'),
+            child: DVText('Gallery'),
+          ),
         ], spacing: 12),
         ShowcaseHero(
           DV.Platform.currentPlatform,
