@@ -8,6 +8,7 @@
 library dartvel_flutter.routing.link_interception;
 
 import 'package:dartvel_core/dartvel.dart' show dvKioskAllowsExternalUrl;
+import 'package:flutter/foundation.dart' show visibleForTesting;
 
 /// What the browser reported about a link activation.
 class DVLinkActivation {
@@ -155,4 +156,57 @@ bool dvKioskRefusesLink(DVLinkActivation activation) {
   }
 
   return !dvKioskAllowsExternalUrl(activation.href);
+}
+
+/// How long a press's navigation waits for the click its release sends.
+///
+/// A click follows its press by one button's travel: a hundred-odd
+/// milliseconds, a few hundred for a slow hand. A record older than this
+/// belongs to a release that landed somewhere else and never produced a click,
+/// and it must not swallow a genuine click on the same link later.
+const Duration dvPressClickWindow = Duration(seconds: 2);
+
+/// The route a mouse press has already followed.
+///
+/// A link navigates on the press. On the web it is also a real anchor, and
+/// the browser fires `click` on it when the button comes up, which the
+/// interceptor would route a second time -- guards, redirects and page loads
+/// all run twice. The browser only sends that click when the press and the
+/// release land on the same element, so it happens exactly for links that
+/// survive the navigation: a header, a sidebar, a tab strip.
+///
+/// The link records what its press followed; the interceptor consumes the
+/// record before routing. Kept here, off the DOM, so the decision can be
+/// tested on the VM.
+class DVPressedLink {
+  const DVPressedLink._();
+
+  static String? _path;
+  static DateTime? _at;
+
+  /// Called by a link when a press has navigated to [path].
+  static void record(String path, {DateTime? now}) {
+    _path = path;
+    _at = now ?? DateTime.now();
+  }
+
+  /// Whether a click on [path] is the one a press already followed.
+  ///
+  /// True at most once per press -- any consultation clears the record -- and
+  /// never for a record older than [dvPressClickWindow].
+  static bool consume(String path, {DateTime? now}) {
+    final String? recorded = _path;
+    final DateTime? at = _at;
+    _path = null;
+    _at = null;
+    if (recorded == null || at == null) return false;
+    return recorded == path &&
+        (now ?? DateTime.now()).difference(at) <= dvPressClickWindow;
+  }
+
+  @visibleForTesting
+  static void reset() {
+    _path = null;
+    _at = null;
+  }
 }
