@@ -55,6 +55,38 @@ void main(List<String> args) {
     }
   }
 
+  // Two versions a bump has to reach that do not live in a pubspec, and both
+  // shipped wrong in 0.4.0. Checked here because this runs as a gate inside
+  // tool/publish.sh: the unit tests that cover them only help if somebody runs
+  // the CLI suite before tagging, and for 0.4.0 nobody did.
+  final String? cliDeclared = versions['dartvel_cli'];
+  final String? cliReports = _constant(packages,
+      'dartvel_cli/lib/src/commands/version_command.dart', 'dartvelCliVersion');
+  if (cliDeclared != null && cliReports != cliDeclared) {
+    problems.add('dartvel_cli declares $cliDeclared but reports '
+        '$cliReports (dartvelCliVersion in version_command.dart). '
+        '`dartvel --version` prints the constant and `dartvel update` compares '
+        'it with the latest release, so a mismatched binary offers itself as '
+        'an update for ever.');
+  }
+  final String? scaffold = _constant(packages,
+      'dartvel_cli/lib/src/templates/project_templates.dart',
+      'dartvelPackageVersion');
+  for (final String package in <String>[
+    'dartvel_core',
+    'dartvel_flutter',
+    'dartvel_cli',
+  ]) {
+    final String? version = versions[package];
+    if (scaffold == null || version == null) continue;
+    if (!_caretAllows(scaffold, version)) {
+      problems.add('dartvel create writes $package: ^$scaffold '
+          '(dartvelPackageVersion in project_templates.dart), which does not '
+          'admit the $version being published. Every new project would '
+          'resolve an older release.');
+    }
+  }
+
   if (problems.isEmpty) {
     stdout.writeln('every package accepts the sibling versions being published');
     return;
@@ -168,4 +200,38 @@ int _compare(List<int> a, List<int> b) {
     if (a[i] != b[i]) return a[i].compareTo(b[i]);
   }
   return 0;
+}
+
+/// The value of `const String [name] = '...';` in a source file under
+/// [packages], or null when the declaration is not there -- in which case the
+/// check above is skipped rather than reporting a mismatch against nothing.
+String? _constant(Directory packages, String path, String name) {
+  final File file = File('${packages.path}/$path');
+  if (!file.existsSync()) return null;
+  final RegExpMatch? m = RegExp("const String $name = '([^']+)';")
+      .firstMatch(file.readAsStringSync());
+  return m?.group(1);
+}
+
+/// Whether `^base` admits [version]. The caret stops at the first non-zero
+/// component: ^0.m.p is below 0.(m+1).0, ^M.m.p is below (M+1).0.0.
+bool _caretAllows(String base, String version) {
+  List<int> parts(String v) =>
+      v.split('+').first.split('-').first.split('.').map(int.parse).toList();
+  bool below(List<int> a, List<int> b) {
+    for (int i = 0; i < 3; i++) {
+      if (a[i] != b[i]) return a[i] < b[i];
+    }
+    return false;
+  }
+
+  final List<int> b = parts(base);
+  final List<int> v = parts(version);
+  if (below(v, b)) return false;
+  final List<int> upper = b[0] > 0
+      ? <int>[b[0] + 1, 0, 0]
+      : b[1] > 0
+          ? <int>[0, b[1] + 1, 0]
+          : <int>[0, 0, b[2] + 1];
+  return below(v, upper);
 }
