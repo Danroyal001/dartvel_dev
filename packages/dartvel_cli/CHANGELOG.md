@@ -22,6 +22,21 @@
   requested any other way is not reused and the image downloads twice.
 - The same lists are written to `dartvel_prefetch.json`, which a link reads to
   prefetch a page's images before the visitor gets there.
+- A launch splash on every platform, from `dartvel.splash`, with nothing to
+  install and nothing to run. The files `flutter create` writes open every
+  application on white -- Android's launch theme, iOS's launch storyboard,
+  and on the web a blank page for as long as main.dart.js takes -- and macOS
+  on black. `dartvel build` now writes the colour and an optional image into
+  each: the web shell and so every prerendered page, Android's launch
+  background plus the API 31 splash that ignores it, the iOS storyboard with
+  a dark-mode colour set, the macOS view and the Linux view. With nothing
+  configured the colour is `dartvel.pwa.backgroundColor`, the image the
+  project icon, and dark mode gets `#121212` rather than white. On the web
+  the splash sits under Flutter's view, so the application covers it the
+  moment it paints, and it is hidden with scripting off, where the page's
+  content is the noscript block. A launch file somebody designed is left
+  alone unless `dartvel.splash.overwrite` is set; Windows needs nothing,
+  since its runner shows the window only on the first frame.
 
 ## 0.4.1
 
