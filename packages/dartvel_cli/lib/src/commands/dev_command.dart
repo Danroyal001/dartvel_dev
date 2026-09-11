@@ -96,7 +96,9 @@ Future<void> main() async {
         Logger.log('⚠️  build_runner could not start');
       }
     } else {
-      Logger.log('📦 No build_runner dependency declared; skipping watch.');
+      Logger.log(
+        '📦 No build_runner dependency declared; nothing further to watch.',
+      );
     }
 
     // Build flutter args

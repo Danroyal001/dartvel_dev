@@ -207,7 +207,6 @@ class InitCommand extends Command<void> {
         'dartvel_shelf',
         'dartvel_flutter',
         'dartvel_cli',
-        'dartvel_generator',
       ];
       final hasAll = required.every(
         (name) =>
