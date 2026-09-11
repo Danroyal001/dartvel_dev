@@ -1,5 +1,10 @@
 ## Unreleased
 
+- The package no longer ships `lib/builder.dart`, a build_runner Builder that
+  wrote nothing and that no `build.yaml` ever declared, so it could not run
+  even if a project asked it to. With it goes the `build` dependency every
+  install of the CLI was resolving. Nothing imported it; if you did, the
+  replacement is `dart run dartvel_cli:dartvel routes`.
 - `dartvel create` no longer scaffolds a `build_runner` setup. Dartvel's code
   generation is `dart run dartvel_cli:dartvel routes`, which `dartvel dev` and
   `dartvel build` run for you, so a new project was resolving and downloading
