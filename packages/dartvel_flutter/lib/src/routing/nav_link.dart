@@ -23,6 +23,7 @@ import 'package:flutter/services.dart';
 
 import '../../dartvel_flutter.dart' show DV, DVRouteTarget;
 import 'link_interception.dart' show DVPressedLink;
+import 'route_prefetch.dart' show DVRoutePrefetch;
 
 /// When a link fetches the route it points at.
 /// How long a link has to stay on screen before [DVLinkPreload.visible]
@@ -217,6 +218,10 @@ class _DVNavLinkState extends State<DVNavLink> {
     if (_preloaded || !widget.enabled) return;
     _preloaded = true;
     _stopWatching();
+    // The page as a document and the images it paints, alongside its code.
+    // Not awaited: neither depends on the other, and a slow image must not
+    // hold up the code the tap is waiting for.
+    unawaited(_prefetchDocument());
     final loader = widget.onPreload ?? DVRoutePreloaders.forPath(widget.to.path);
     if (loader == null) return;
     try {
@@ -230,6 +235,30 @@ class _DVNavLinkState extends State<DVNavLink> {
         stack: stack,
         library: 'dartvel',
         context: ErrorDescription('preloading ${widget.to.path}'),
+      ));
+    }
+  }
+
+  /// The route's prerendered document and its images, through the browser,
+  /// and each image into Flutter's cache once the browser has it. Nothing
+  /// off the web, where there is no document.
+  Future<void> _prefetchDocument() async {
+    final String path = widget.to.path;
+    try {
+      final List<String> images = await DVRoutePrefetch.fetch(path);
+      // The link may be gone by the time the browser answers, and with it the
+      // context the image cache needs -- and the page the images were for is
+      // no longer one the visitor is about to open.
+      if (!mounted) return;
+      for (final String url in images) {
+        unawaited(DVRoutePrefetch.precache(context, url));
+      }
+    } on Object catch (error, stack) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stack,
+        library: 'dartvel',
+        context: ErrorDescription('prefetching the document for $path'),
       ));
     }
   }

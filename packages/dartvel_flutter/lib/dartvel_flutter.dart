@@ -395,6 +395,7 @@ export 'src/routing/nav_link.dart';
 export 'src/routing/page_lifecycle.dart';
 export 'src/routing/page_middleware.dart';
 export 'src/routing/page_policy.dart';
+export 'src/routing/route_prefetch.dart';
 export 'src/routing/url_strategy.dart';
 export 'src/studio/page_document.dart';
 export 'src/studio/studio_edit.dart';
