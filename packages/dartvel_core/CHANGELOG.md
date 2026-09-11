@@ -1,5 +1,10 @@
 ## Unreleased
 
+- The `DV.Database` docs say whose code generation the `build_runner` step
+  they describe is: drift's. Dartvel's own generation is `dart run
+  dartvel_cli:dartvel routes`, and the build_runner path through
+  `dartvel_generator` is retired, so a step that just said "run code
+  generation" now reads as the retired one.
 - `DVImageVariants`: the widths images are resized to (Next.js's defaults
   unless `dartvel.images.widths` says otherwise), the one address a variant
   is asked for by, and the checks a server applies to a request for one -- a

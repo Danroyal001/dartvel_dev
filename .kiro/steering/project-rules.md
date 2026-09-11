@@ -96,6 +96,27 @@ gap.
 - `dartvel build` must run route/client/backend generation automatically; normal users should not need to run `dartvel routes` separately.
 - Local development should be zero-config where possible, including SQLite for local DB/test workflows and fast watch/test loops.
 
+## Code Generation Rule
+
+- Dartvel has one code generator and it is the CLI: `dart run
+  dartvel_cli:dartvel routes`, which `dartvel build` and `dartvel dev` run
+  before anything else. It writes the whole client, including the
+  `lib/dartvel_client/dartvel_client.dart` barrel every page imports.
+- `dartvel_generator`'s `build_runner` builders are **retired**. They still
+  generate, and warn on every build, so a project that has not migrated keeps
+  working; they are removed in `dartvel_generator` 2.0.0. They were never able
+  to bootstrap a client on their own -- with no barrel the first page's
+  `@DVPage` cannot be resolved -- so every project on that path was really
+  running both generators in sequence, and three bugs lived in the difference.
+- Do not write a new `Builder` or `build.yaml` anywhere in this repository, and
+  do not put `build_runner` in an application, an example, a site or the
+  `dartvel create` scaffold. A project that declares it and has no builders
+  pays for a build that generates nothing, on every build.
+- `build_runner` belongs only where another package's builders are actually
+  run -- `drift_dev` in dartvel_core, `flutter_vscode`'s controller bindings
+  under `dartvel build vscode`. `dartvel build` and `dartvel dev` still run it
+  when a project declares it, after Dartvel's own generation.
+
 ## Native Integration Rules
 
 - Do not use Flutter platform channels, `MethodChannel`, `EventChannel`, or `BasicMessageChannel` for Dartvel native APIs.

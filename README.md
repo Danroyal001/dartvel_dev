@@ -281,8 +281,8 @@ cache, queues, auth, notifications, AI),
 [`dartvel_flutter`](https://pub.dev/packages/dartvel_flutter) (UI, routing,
 signals, native platform APIs),
 [`dartvel_shelf`](https://pub.dev/packages/dartvel_shelf) (the Rust runtime),
-[`dartvel_cli`](https://pub.dev/packages/dartvel_cli),
-[`dartvel_generator`](https://pub.dev/packages/dartvel_generator).
+[`dartvel_cli`](https://pub.dev/packages/dartvel_cli) (generation, build,
+dev server, deploy).
 
 ### 3. Start it
 
