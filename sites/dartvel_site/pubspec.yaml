@@ -87,3 +87,9 @@ dartvel:
     description: Flutter, full stack.
     themeColor: "#2F6BFF"
     backgroundColor: "#FFFFFF"
+
+  # The launch splash takes its light colour from pwa.backgroundColor. The
+  # dark one is the dark palette's page, so a phone in dark mode does not open
+  # on a white screen before a dark site.
+  splash:
+    darkColor: "#0A0D13"
