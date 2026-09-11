@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 Dartvel is pre-1.0. Minor versions may contain breaking changes; breaking
 changes are called out explicitly below.
 
+## 0.4.1 — 2026-09-11
+
+A patch for two faults in 0.4.0, both in versions that live in source rather
+than in a pubspec, which the release tooling did not know to move.
+
+The 0.4.0 CLI reported itself as 0.3.2, so `dartvel update` offered 0.4.0 to
+machines already running it, for ever. And `dartvel create` had been writing
+`^0.2.1` since 0.3.0, so new projects resolved Dartvel 0.2.x and none of the two
+releases after it. **If you created a project with 0.3.x or 0.4.0, change
+`dartvel_core`, `dartvel_flutter` and `dartvel_cli` to `^0.4.0` in its
+pubspec.** Both versions are now moved by `tool/bump_version.dart` and checked
+by `tool/check_constraints.dart`, which runs before anything is published.
+
+Headless Chrome, which `dartvel build web` uses to capture what crawlers see,
+is now one copy per machine instead of one per project.
+
 ## 0.4.0 — 2026-09-10
 
 0.3.0 and 0.3.1 shipped without their own entries here, so this covers

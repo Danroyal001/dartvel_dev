@@ -1,3 +1,25 @@
+## 0.4.1
+
+Fixes two faults the published 0.4.0 carried.
+
+- The 0.4.0 binary reported itself as 0.3.2. `dartvel --version` prints a
+  constant that no pubspec mentions, and the bump to 0.4.0 missed it. Because
+  `dartvel update` compares the same constant with the latest release, every
+  0.4.0 install offered itself 0.4.0 as an update, installed it, and offered
+  it again.
+- `dartvel create` wrote `^0.2.1` for dartvel_core, dartvel_flutter and
+  dartvel_cli, and has since 0.3.0. A caret on a 0.x version stops at the next
+  minor, so every new project resolved Dartvel 0.2.x. It writes `^0.4.0` now.
+  **A project created with 0.3.x or 0.4.0 still says `^0.2.1`; change those
+  three constraints to `^0.4.0` by hand.**
+- Both versions are now moved by the release tooling and checked by the gate
+  that runs before publishing, so a mismatch stops the publish itself.
+- Headless Chrome is one shared copy per machine, in the user cache, instead of
+  one per project under `.dart_tool`. A build already in the shared cache is
+  reused whichever puppeteer release pins which, so projects resolving
+  different puppeteer versions no longer each download their own 380 MB
+  browser.
+
 ## 0.4.0
 
 - `dartvel build android` writes the Activity, the capture provider and the
