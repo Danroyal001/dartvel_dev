@@ -3,6 +3,8 @@ import 'package:source_gen/source_gen.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:dartvel_core/dartvel.dart';
 
+import 'retired.dart';
+
 class RouteGenerator extends GeneratorForAnnotation<Route> {
   @override
   String generateForAnnotatedElement(
@@ -23,5 +25,6 @@ class RouteGenerator extends GeneratorForAnnotation<Route> {
   }
 }
 
-Builder routeBuilder(BuilderOptions options) =>
-    SharedPartBuilder([RouteGenerator()], 'route_generator');
+Builder routeBuilder(BuilderOptions options) => RetiredBuilder(
+      SharedPartBuilder([RouteGenerator()], 'route_generator'),
+    );

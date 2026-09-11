@@ -1,3 +1,9 @@
+# RETIRED. These builders are replaced by `dart run dartvel_cli:dartvel routes`
+# (or `dartvel build`, which generates first) and will be removed in
+# dartvel_generator 2.0.0. They are kept working, and warn on every build,
+# because `auto_apply: dependents` runs them in every project that depends on
+# this package: a builder that vanishes takes the router.g.dart it wrote into
+# lib/ with it. See README.md for the migration.
 targets:
   $default:
     builders:
