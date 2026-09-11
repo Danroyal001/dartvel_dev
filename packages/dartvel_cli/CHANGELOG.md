@@ -11,6 +11,17 @@
 - The service worker precaches those parts. A page's code used to be in
   main.dart.js, which every visit caches; once it is in a part, a page never
   opened online would fail to load offline.
+- Each prerendered page names its own code and first-frame images in its
+  head. dart2js writes which part files each deferred import loads into
+  main.dart.js; `dartvel build web` reads that table with the generated
+  router and adds a `<link rel="preload">` for the page's parts, so a page
+  opened directly downloads them alongside main.dart.js instead of a round
+  trip after it boots. The semantics capture now also records the images each
+  page fetches while it renders, which are preloaded the same way -- as
+  `fetch` with `crossorigin` for the bytes Flutter reads, since a preload
+  requested any other way is not reused and the image downloads twice.
+- The same lists are written to `dartvel_prefetch.json`, which a link reads to
+  prefetch a page's images before the visitor gets there.
 
 ## 0.4.1
 

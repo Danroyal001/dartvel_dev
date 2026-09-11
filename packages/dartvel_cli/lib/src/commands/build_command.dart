@@ -30,6 +30,7 @@ import '../build/pwa_icons.dart';
 import '../build/pwa_manifest.dart';
 import '../secrets/secrets_analysis.dart';
 import '../build/pwa_service_worker.dart';
+import '../build/route_prefetch.dart';
 import '../build/sdk_floor.dart';
 import '../build/build_lifecycle.dart';
 import '../build/favicon_derivative.dart';
@@ -2525,6 +2526,18 @@ class BuildCommand extends Command<void> {
             : dvApplyPageText(page, text));
       written++;
     }
+
+    // After every page is on disk, root included: each names its own
+    // deferred parts and first-frame images in its head, and the manifest
+    // tells a link to it what to fetch early.
+    final DVPrefetchSummary prefetch = dvWriteRoutePrefetch(
+      projectRoot: root,
+      webRoot: web.path,
+      routerSource: _routerSource(root),
+      routes: routes,
+    );
+    Logger.log('   Preloads: ${prefetch.pages} page(s) name their own code '
+        'and ${prefetch.images} image(s).');
 
     if (siteUrl != null && siteUrl.isNotEmpty) {
       // dartvel.seo.sitemap: whether to write one at all, which routes to
