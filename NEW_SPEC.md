@@ -4706,6 +4706,18 @@ dartvel:
       streaming: true
 ```
 
+`streaming: true` sends the head as its own write, after the page data has
+resolved. `streaming: shell` sends the shell's head before the data: base,
+charset, every preload, the splash and a preload for each script the body
+loads, so the browser downloads the application and the page's code while the
+server queries. The title and the rest of the head the data writes follow when
+the data does, then the body. The cost is the status code: 200 is on the wire
+before the data says whether the record exists, so a missing, hidden or
+unauthorized record is a page marked `noindex` with none of the data in it (a
+soft 404), and a resolver that throws gets the route's own page, marked the
+same way. A route the router guards is never sent early; it waits for the data
+and answers with its real status, exactly as with `true`.
+
 Mounted modules contribute their routes to static generation, server rendering,
 sitemap/SEO generation, and asset generation. A federated micro-site may serve
 its own HTML while still appearing in the parent route index and sitemap.
