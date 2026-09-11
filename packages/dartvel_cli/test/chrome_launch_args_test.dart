@@ -98,17 +98,33 @@ void main() {
       );
     });
 
-    test('every launch site asks for the system browser', () {
+    test('every launch site resolves its browser through dvChromeExecutable', () {
+      // It used to require dvSystemChrome here, and every launch site passed
+      // it. That was not enough: on a machine with no system Chrome the call
+      // returns null and puppeteer downloads a browser into the workspace's
+      // own .dart_tool, once per project. dvChromeExecutable asks for the
+      // system browser first and keeps any download in the one shared cache,
+      // so it is what a launch site has to go through now.
       final List<String> offenders = <String>[];
       for (final FileSystemEntity entity
           in Directory('lib').listSync(recursive: true)) {
         if (entity is! File || !entity.path.endsWith('.dart')) continue;
-        final String source = entity.readAsStringSync();
-        if (!source.contains('puppeteer.launch')) continue;
-        if (!source.contains('dvSystemChrome')) offenders.add(entity.path);
+        // Code only. chrome_launch.dart names `puppeteer.launch` in a doc
+        // comment explaining the bug it fixes, and defines the resolver rather
+        // than calling it -- so a scan of the raw text reported the file that
+        // holds the fix as the thing the fix is missing from.
+        final String source = entity
+            .readAsLinesSync()
+            .where((String line) => !line.trimLeft().startsWith('//'))
+            .join('\n');
+        if (!source.contains('puppeteer.launch(')) continue;
+        if (!source.contains('dvChromeExecutable()')) {
+          offenders.add(entity.path);
+        }
       }
       expect(offenders, isEmpty,
-          reason: 'these let puppeteer go looking for a browser of its own');
+          reason: 'these let puppeteer choose a browser itself, which it '
+              'downloads into this workspace rather than the shared cache');
     });
   });
 }
