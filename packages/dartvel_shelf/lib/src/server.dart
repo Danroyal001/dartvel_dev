@@ -13,6 +13,7 @@ import 'package:dartvel_core/http.dart';
 
 import 'ffi_string.dart';
 import 'header_codec.dart';
+import 'image_endpoint.dart';
 import 'ssr_helper.dart';
 import 'package:ffi/ffi.dart' as pkgffi;
 
@@ -138,6 +139,16 @@ Future<ServerHandle> serve(
   var effectiveHandler = handler;
   if (spaRoot != null) {
     effectiveHandler = (Request req) async {
+      // 0. A resized image, before anything else: its address is not a file
+      // under spaRoot, and falling through would answer it with the SPA.
+      final Response? variant = await dvImageVariantResponse(
+        req,
+        webRoot: spaRoot,
+        variants: dvImageVariantsFor(spaRoot),
+        cacheDir: dvImageVariantCacheDir(spaRoot),
+      );
+      if (variant != null) return variant;
+
       // 1. Try serving static file from spaRoot
       final pathPart = req.url.path.startsWith('/')
           ? req.url.path.substring(1)
