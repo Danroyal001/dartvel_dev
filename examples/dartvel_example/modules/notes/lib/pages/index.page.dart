@@ -21,6 +21,7 @@ String notesLogo() =>
 @pragma('vm:entry-point')
 Widget _notesIndexPage(BuildContext context) => DVBox.list(<Widget>[
       Image.asset(notesLogo(), width: 32, height: 32),
-      const DVText('Notes'),
+      // The page's level-1 heading: it has no bar to carry its title.
+      const DVText('Notes').modifier(const DVModifier().semanticHeading(1)),
       const DVText('A module, mounted into the example application.'),
     ]);

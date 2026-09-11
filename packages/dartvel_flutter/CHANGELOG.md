@@ -1,5 +1,11 @@
 ## Unreleased
 
+- A page's title in its app bar is its level-1 heading, on the Material and
+  Cupertino shells alike. Both bars mark their title a header with no level,
+  which the web draws as an `<h2>`, so every page with a bar had headings and
+  none at level 1 -- and `dartvel build web`'s accessibility audit refused
+  every such page, which is why the example application had never produced
+  a web build.
 - `DVImageView` asks for the variant its slot needs on a web build with
   image variants: its laid-out width times the screen's pixel ratio, snapped
   to the configured widths, the way NextFaster's `srcset` does -- so a phone
