@@ -85,8 +85,12 @@ void main() {
     // `static const _dartvel_admincache` is private: the admin's own routes
     // could not be navigated to through DVRoutes at all.
     expect(routes, isNot(contains('static const _')));
+    // lowerCamelCase since targets stopped carrying underscores the style lint
+    // rejects; the name this test first pinned is still there, as an alias.
     expect(routes,
-        contains(r"dartvel_admincache = DVRouteTarget('/_dartvel_admin/cache')"));
+        contains(r"dartvelAdmincache = DVRouteTarget('/_dartvel_admin/cache')"));
+    expect(routes,
+        contains('static const dartvel_admincache = dartvelAdmincache;'));
     expect(routes, contains("pricing = DVRouteTarget('/pricing')"));
   });
 

@@ -1,4 +1,3 @@
-import 'package:dartvel_core/dartvel.dart';
 import 'package:dartvel_example/dartvel_client/dartvel_client.dart';
 
 /// A real policy, so the generated registrations are read by a compiler.
