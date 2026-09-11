@@ -79,13 +79,88 @@ class DVPageLifecycleHost extends StatefulWidget {
   State<DVPageLifecycleHost> createState() => _DVPageLifecycleHostState();
 }
 
+/// Work that belongs to a running application: started with its first page
+/// on screen and stopped with its last.
+///
+/// A timer started anywhere else belongs to nothing. The client schedules
+/// used to start theirs when the router was created: nothing ever cancelled
+/// it, a second router started a second one beside it so every schedule ran
+/// twice, and every widget test that built the router ended with the timer
+/// still running. Every route puts its page in a [DVPageLifecycleHost], so
+/// whether a page is on screen is something the framework already knows.
+///
+/// Counted rather than tied to one page, because two are mounted at once
+/// whenever one is leaving as the next arrives, and stopping between them
+/// would restart the work on every navigation.
+class DVShowingPages {
+  const DVShowingPages._();
+
+  static int _showing = 0;
+  static final Map<String, ({void Function() start, void Function() stop})>
+      _jobs = <String, ({void Function() start, void Function() stop})>{};
+
+  /// Whether any page is on screen.
+  static bool get isShowing => _showing > 0;
+
+  /// Runs [start] while a page is on screen and [stop] when the last one
+  /// goes -- now, if one already is.
+  ///
+  /// Registering the same [id] again replaces the earlier job, stopping it
+  /// first if it was running: a second registration is a second router, and
+  /// two copies of the same work are never what either meant.
+  static void run(
+    String id, {
+    required void Function() start,
+    required void Function() stop,
+  }) {
+    final previous = _jobs.remove(id);
+    if (previous != null && isShowing) previous.stop();
+    _jobs[id] = (start: start, stop: stop);
+    if (isShowing) start();
+  }
+
+  /// Stops [id] if it is running and forgets it.
+  static void cancel(String id) {
+    final job = _jobs.remove(id);
+    if (job != null && isShowing) job.stop();
+  }
+
+  static void _enter() {
+    if (_showing++ > 0) return;
+    for (final job in _jobs.values.toList()) {
+      job.start();
+    }
+  }
+
+  static void _leave() {
+    if (_showing == 0 || --_showing > 0) return;
+    for (final job in _jobs.values.toList()) {
+      job.stop();
+    }
+  }
+
+  /// Forgets every job and every page, for tests.
+  @visibleForTesting
+  static void reset() {
+    _showing = 0;
+    _jobs.clear();
+  }
+}
+
 class _DVPageLifecycleHostState extends State<DVPageLifecycleHost> {
   final DVMutableLifecycleSignal<DVPageLifecycle> _signal =
       DVMutableLifecycleSignal<DVPageLifecycle>(DVPageLifecycle.created);
   bool _framed = false;
 
   @override
+  void initState() {
+    super.initState();
+    DVShowingPages._enter();
+  }
+
+  @override
   void dispose() {
+    DVShowingPages._leave();
     // Both, in order. A listener watching for the page going away sees the
     // intent and then the fact, which is the difference between "this is
     // ending" and "this has ended" -- and the second is the last thing it

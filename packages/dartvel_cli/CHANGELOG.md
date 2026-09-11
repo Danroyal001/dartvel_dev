@@ -37,6 +37,11 @@
   content is the noscript block. A launch file somebody designed is left
   alone unless `dartvel.splash.overwrite` is set; Windows needs nothing,
   since its runner shows the window only on the first frame.
+- `@DVClientCron` schedules run while a page is on screen rather than from the
+  moment the router is created. The timer they started there had no owner:
+  it was never stopped, creating a second router started a second one so
+  every schedule ran twice, and a widget test that built the router ended
+  with it still running -- which is why eight of the example's tests failed.
 
 ## 0.4.1
 

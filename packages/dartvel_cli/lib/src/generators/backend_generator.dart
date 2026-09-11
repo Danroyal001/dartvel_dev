@@ -1428,7 +1428,7 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       // schedules are a file of their own rather than lines in the one the
       // generated server reads.
       sb.writeln("import 'package:dartvel_flutter/dartvel_flutter.dart' "
-          "show DV, DVAppLifecycle;");
+          "show DV, DVAppLifecycle, DVShowingPages;");
     }
     for (final MapEntry<String, String> import in aliasByImport.entries) {
       sb.writeln("import '${esc(import.key)}' as ${import.value};");
@@ -1501,28 +1501,42 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       ..writeln('      catchUp: catchUp,')
       ..writeln('    );')
       ..writeln('  Timer? timer;')
-      ..writeln('  void start() {')
+      ..writeln('  StreamSubscription<DVAppLifecycle>? lifecycle;')
+      ..writeln('  void tickEvery() {')
       ..writeln('    timer ??= Timer.periodic(every, (Timer _) => scheduler.tick());')
       ..writeln('  }')
-      ..writeln('  void stop() {')
+      ..writeln('  void pause() {')
       ..writeln('    timer?.cancel();')
       ..writeln('    timer = null;')
       ..writeln('  }')
-      ..writeln('  start();')
-      ..writeln('  DV.lifecycle.app.listen((DVAppLifecycle state) {')
-      ..writeln('    switch (state) {')
-      ..writeln('      case DVAppLifecycle.ready:')
-      ..writeln('      case DVAppLifecycle.resuming:')
-      ..writeln('        scheduler.tick();')
-      ..writeln('        start();')
-      ..writeln('      case DVAppLifecycle.backgrounded:')
-      ..writeln('      case DVAppLifecycle.suspended:')
-      ..writeln('      case DVAppLifecycle.shuttingDown:')
-      ..writeln('      case DVAppLifecycle.stopped:')
-      ..writeln('        stop();')
-      ..writeln('      default:')
-      ..writeln('        break;')
-      ..writeln('    }')
+      // Owned by the pages on screen rather than started here. Started here,
+      // nothing ever stopped it: a second router ran every schedule twice,
+      // and a widget test that built the router ended with the timer still
+      // running.
+      ..writeln('  // Runs while a page is on screen. Registering again -- a')
+      ..writeln('  // second router -- replaces this rather than adding a second')
+      ..writeln('  // timer, so no schedule runs twice.')
+      ..writeln("  DVShowingPages.run('dartvel.clientSchedules', start: () {")
+      ..writeln('    tickEvery();')
+      ..writeln('    lifecycle ??= DV.lifecycle.app.listen((DVAppLifecycle state) {')
+      ..writeln('      switch (state) {')
+      ..writeln('        case DVAppLifecycle.ready:')
+      ..writeln('        case DVAppLifecycle.resuming:')
+      ..writeln('          scheduler.tick();')
+      ..writeln('          tickEvery();')
+      ..writeln('        case DVAppLifecycle.backgrounded:')
+      ..writeln('        case DVAppLifecycle.suspended:')
+      ..writeln('        case DVAppLifecycle.shuttingDown:')
+      ..writeln('        case DVAppLifecycle.stopped:')
+      ..writeln('          pause();')
+      ..writeln('        default:')
+      ..writeln('          break;')
+      ..writeln('      }')
+      ..writeln('    });')
+      ..writeln('  }, stop: () {')
+      ..writeln('    pause();')
+      ..writeln('    unawaited(lifecycle?.cancel());')
+      ..writeln('    lifecycle = null;')
       ..writeln('  });')
       ..writeln('}');
     return sb.toString();
