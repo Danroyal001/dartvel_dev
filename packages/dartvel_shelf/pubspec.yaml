@@ -20,6 +20,8 @@ dependencies:
   hooks: ^0.20.1
   code_assets: ^0.19.7
   path: ^1.9.0
+  image: ^4.9.2
+  crypto: ^3.0.7
 
 dev_dependencies:
   lints: ^3.0.0
