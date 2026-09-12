@@ -60,6 +60,7 @@ A proxy reads `DV.X` or `DV.Platform.X` and nothing else.
 | `DV.Cache.revalidateTag(...)` | `DV.CacheInvalidation` |
 | generated model sync, signals, queues | `DV.Realtime`, `DVRealtime` |
 | `context.signal(...)`, `DV.global<T>(...)` | `DV.Signals`, `context.computed(...)`, `DVService` |
+| `DV.Purchases`, entitlements as generated models | `DV.Entitlements` |
 
 `DV.Storage` is the one entry in that column that does exist: it is a third
 name for the storage `DV.FileStorage` names, deprecated, working until the next
