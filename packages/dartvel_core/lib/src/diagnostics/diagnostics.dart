@@ -1464,6 +1464,32 @@ final class DVDiagnostics {
       reason: "a destination's schema could not be evolved to match the source",
       level: 'error',
     ),
+    DVDiagnostic(
+      code: 'DV-WORKER-001',
+      reason: 'a task ran inline because the target has no threads',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-WORKER-002',
+      reason: 'a task captured state it cannot send; make it top-level or '
+          'static',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-WORKER-003',
+      reason: 'heavy synchronous work detected on the UI isolate',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-WORKER-004',
+      reason: 'shared memory unavailable; input was copied to the worker',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-WORKER-005',
+      reason: 'the worker pool is saturated and tasks are queueing behind it',
+      level: 'warning',
+    ),
   ];
 
   /// The diagnostic for [code], or null if nothing is registered under it.
