@@ -2294,6 +2294,245 @@ Automatic:
 
 ---
 
+# Feature Flags and Staged Rollout
+
+Stability: `Draft` · Status: `Designed`
+
+A flag is a decision the application ships without having made: whether the
+new checkout is on, which recommender runs, how many rows a list loads. It
+exists so the decision can change without a release — and, when something is
+wrong at two in the morning, so it can change in seconds rather than in a
+store review.
+
+Flags are declared, typed and dated. A bag of remote strings is what this
+replaces.
+
+```dart
+@DVFlags()
+abstract class _Flags {
+  /// The rewritten checkout. Kill switch for the payments team.
+  @DVFlag(owner: 'payments', expires: '2026-12-01')
+  static const bool newCheckout = false;
+
+  @DVFlag(owner: 'search', expires: '2026-11-01')
+  static const String recommender = 'baseline';
+
+  @DVFlag(owner: 'feed', expires: '2027-02-01')
+  static const int pageSize = 20;
+}
+```
+
+The generated `Flags.newCheckout` is a read-only signal, so a widget guarded
+on a flag rebuilds when the rules change under it, and a flag composes with
+the rest of the state layer without a second mechanism:
+`Flags.newCheckout & user.isStaff` is a signal too.
+
+The value written in Dart is the **default compiled into the binary**, not a
+placeholder. It is what the flag answers before anything has synced, and it is
+what every fallback below falls back to, which is why it is written where the
+reviewer of the pull request can see it.
+
+Flags carry `bool`, `String`, `int`, `double` and declared enums. They do not
+carry maps or JSON: a flag holding a structure is configuration, Configuration
+is already declared elsewhere, and the two drift the moment one of them is
+edited in a console.
+
+## Where a flag is evaluated
+
+**On the client, from rules the client has synced.** The alternative — asking
+the backend for each flag and caching the answer — is simpler to draw and
+fails the two cases that decide whether flags are usable at all: the first
+frame after a cold launch, and a device with no network.
+
+The backend publishes one `DVFlagRules` document per environment: every flag
+the deployment knows, its rules, and a `rulesVersion`. It travels on the
+channel model sync already uses and lands in the same local store, so flag
+rules are present exactly when synced models are, and a client that can read
+its own data can answer its own flags.
+
+Evaluation is a pure function of the rule set and an evaluation context —
+identity, tenant, organization role, app version, platform, locale, and any
+attributes the application declares. Given the same two inputs, a client and
+the backend reach the same answer, which is the property that makes
+client-side evaluation safe to reason about.
+
+A read resolves in this order:
+
+1. a local override, in a debug build only;
+2. the synced rule set;
+3. the default compiled into the build.
+
+## Offline
+
+A flag always has an answer, and the answer never becomes an error.
+
+With no rule set yet synced — first launch, air-gapped device, a store on the
+declared memory-backed degradation of `DV-OFFLINE-001`, which loses its
+contents at every cold start — every flag answers with its compiled default
+and `DV-FLAGS-001` says so once.
+
+With a rule set synced and the network gone, the rules stay in force. **Stale
+rules are used, not discarded.** A kill switch that expires back to "on"
+because nobody could reach the server is worse than one that is a day out of
+date, and discarding rules on a staleness deadline would turn a disabled
+feature back on for precisely the users who are hardest to reach. `flags.maxAge`
+therefore reports rather than expires: past it, `DV-FLAGS-009` fires on each
+resolve attempt and the old answers keep being given.
+
+Flag rules are not user data and hold no mutation log. Nothing is written
+offline and replayed, so none of the conflict strategies in Offline-First
+Models apply to them; a flag changed on the server while a client was offline
+simply takes effect at the next sync.
+
+## Staged rollout
+
+```dart
+DVFlagRollout.percentage(25, by: DVFlagSubject.user)
+DVFlagRollout.percentage(10, by: DVFlagSubject.tenant)
+DVFlagRollout.percentage(5, by: DVFlagSubject.device)
+```
+
+A subject's bucket is the first eight bytes of `SHA-256("$flagKey:$subjectId")`
+modulo 10,000, and the flag is on when the bucket is below the threshold.
+Three consequences follow from that arithmetic and they are the reasons for
+it: the same person gets the same answer on every device and after every
+reinstall without anything being stored; two flags at ten percent do not pick
+the same tenth of the population, because the flag key is inside the hash; and
+raising 10 to 20 never drops anyone who was already in.
+
+A rollout whose subject is absent at evaluation — `by: DVFlagSubject.user`
+while nobody is signed in — holds the flag at its default and reports
+`DV-FLAGS-005`. It does not roll a die. A flag that flickers between two
+frames is a bug report nobody can reproduce.
+
+Rules also target directly: an app-version range, a platform, a tenant, an
+organization role, a locale, or a declared attribute. Targeting composes with
+a rollout — a percentage *within* a targeted population.
+
+By default a changed rule takes effect as soon as it syncs, because a kill
+switch that waits for a relaunch has not switched anything off. A flag whose
+mid-session flip would strand somebody halfway through a flow declares
+`settle: DVFlagSettle.onNextLaunch`, and its value is then pinned for the
+process.
+
+## On the backend
+
+A backend function reads the same generated accessor. The evaluation context
+is the request's own — the authenticated identity, `DV.currentTenant`, the
+calling client's version — and the rules are the deployment's, never stale.
+
+Client and server can disagree for the length of one sync, and the
+specification says which wins rather than pretending they cannot: **the
+client's answer decides what the client shows, the server's decides what the
+server does.** Anything guarded on both sides must tolerate a client that is
+briefly ahead or behind. When a disagreement is not tolerable — a flag gating
+who may be charged — the guard belongs on the server and the client should
+ask, which is a backend function and a `@DVPolicy`, not a flag.
+
+A flag is never an authorization decision. Hiding a button is presentation;
+who may act stays in `@DVPolicy`.
+
+## Flags and OTA Updates
+
+OTA Updates stages a *binary*: which code a device runs, gated on crash and
+health signals. A flag stages *behaviour inside* a binary that every device
+already has. The flag is the faster of the two by a wide margin — no patch to
+download, no store, no restart — so a kill switch is the first response to an
+incident and a rollback is the second.
+
+The same health gates read both. A rollout whose cohort's crash rate crosses
+the declared threshold is held, and `dartvel flags off` is what the gate
+calls.
+
+## Exposure
+
+An exposure is recorded the first time a flag is resolved for a given
+evaluation context in a session, as the Product Analytics event
+`dartvel.flag_exposed` carrying the flag key, the value served, and the
+`rulesVersion` that served it. Once per session, not per read: a flag read in
+a build method would otherwise produce an event per frame.
+
+Exposure is an analytics event and obeys consent like any other. Where consent
+for the declared category is withheld, nothing is recorded and `DV-FLAGS-007`
+reports the omission, because an experiment missing exposures from everyone
+who refused tracking has a biased result, and the bias is invisible unless
+something says it is there.
+
+Dartvel assigns the cohort and records the exposure. It does not compute
+significance; the events land in Product Analytics like the rest.
+
+## Overrides
+
+```bash
+dartvel flags override newCheckout --on
+dartvel flags override --clear
+```
+
+Overrides are for development and tests, are stored locally, and are compiled
+out of release builds — a release binary has no code path that reads one. A
+debug build running with an override in force reports `DV-FLAGS-008` at each
+resolve, so a "it works on my machine" that is really "my override is on" is
+visible in the log rather than in a post-mortem.
+
+In tests, `DVFlags.withOverrides({...}, () async { ... })` scopes overrides to
+the callback, and a test's flags never leak into the next one.
+
+## CLI
+
+```bash
+dartvel flags list                       # every declared flag, rule and owner
+dartvel flags status newCheckout
+dartvel flags set newCheckout --on --environment production
+dartvel flags rollout newCheckout --percentage 25 --by user
+dartvel flags off newCheckout            # the kill switch, one word
+dartvel flags prune                      # flags past their expiry
+```
+
+Flags are debt with an owner and a date on them. `expires:` is required, the
+build warns past it with `DV-FLAGS-004`, and `dartvel flags prune` lists what
+is due for deletion — with the code paths each flag still guards, from the
+project graph.
+
+## Studio
+
+Studio shows each flag, who owns it, the rule in force per environment, the
+rollout and its bucket count, and exposures over time. A rule changed in
+Studio is a model write like any other, so Record History answers who turned
+what off at 02:00 without a second audit trail.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-FLAGS-001` | no rule set has synced; flags answered with the defaults compiled into the build | `info` |
+| `DV-FLAGS-002` | the synced rule set names a flag this build does not declare | `warning` |
+| `DV-FLAGS-003` | the rule set is newer than this build understands; unreadable rules were skipped | `warning` |
+| `DV-FLAGS-004` | a flag is past its declared expiry | `warning` |
+| `DV-FLAGS-005` | a percentage rollout was evaluated with no subject identifier; the flag held its default | `error` |
+| `DV-FLAGS-006` | a rule's value type differs from the flag's declared type; the flag held its default | `error` |
+| `DV-FLAGS-007` | exposure not recorded: consent was withheld for the declared analytics category | `info` |
+| `DV-FLAGS-008` | a local override is in force; this build is not answering from the rules | `warning` |
+| `DV-FLAGS-009` | the rule set is older than `flags.maxAge` and is still in use | `warning` |
+
+## Deliberately absent
+
+- **Remote configuration.** A flag is typed, owned, dated and pruned. An
+  untyped key-value service edited in a console is the thing this exists to
+  stop, and adding one beside it would make the flag layer optional.
+- **A per-read network call.** Every design that fetches a flag on demand has
+  a story for the offline case, and the story is always a timeout in front of
+  a frame.
+- **Random assignment.** Bucketing is a hash of a stable identifier, so
+  nothing is stored, nothing needs migrating, and nobody is reassigned by a
+  reinstall.
+- **A statistics engine.** Assignment and exposure are Dartvel's; reading the
+  result is Product Analytics' and, past that, the reader's own tooling.
+- **Flags that change schema, policy or pricing.** Schema Evolution, `@DVPolicy`
+  and Billing each have an owner, and a flag that could silently overrule one
+  of them would make all three unreadable.
+
+---
+
 # OTA Updates
 
 Stability: `Contract` · Status: `Partial`
@@ -5579,6 +5818,17 @@ dartvel deploy rollback
 dartvel compatibility-check --against production
 ```
 
+Flags
+
+```bash
+dartvel flags list
+dartvel flags status newCheckout
+dartvel flags set newCheckout --on --environment production
+dartvel flags rollout newCheckout --percentage 25 --by user
+dartvel flags off newCheckout
+dartvel flags prune
+```
+
 Observability
 
 ```bash
@@ -6879,8 +7129,9 @@ application is made of. That is one artifact, not eight — a versioned
 functions, jobs, modules, static paths, the schema, migration plans, the
 protocol version and its window, memory arenas, 3D scenes, API scopes,
 privacy declarations, release plans, analytics events and their consent
-categories, and capability metadata, each node keeping the source mapping it
-was derived from.
+categories, feature flags with their owners, expiry dates and rollout rules,
+and capability metadata, each node keeping the source mapping it was derived
+from.
 
 The graph is the contract, and `--json` is how it is read:
 
