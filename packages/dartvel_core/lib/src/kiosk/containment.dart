@@ -55,6 +55,18 @@ bool get dvKioskBlocksClipboard => _clipboard;
 /// Whether a running kiosk policy has locked text selection.
 bool get dvKioskBlocksTextSelection => _textSelection;
 
+/// Whether a running kiosk policy locks the surface to one window.
+///
+/// True only in `device` scope, which the specification defines as one
+/// application on one surface with no windows: `open()` presents in place and
+/// reports `DV-WINDOW-002`. A `display`-scope kiosk owns one display and the
+/// application keeps ordinary windows on the others, so it locks nothing.
+///
+/// Read by the windowing capability, which is why it lives beside the other
+/// containment questions rather than in the Flutter package: the capability is
+/// computed in dartvel_flutter and the policy is held here.
+bool get dvKioskLocksWindows => _holding?.scope == DVKioskScope.device;
+
 /// Whether a running kiosk policy permits opening [url] outside the
 /// application, per `routes.external`.
 ///

@@ -1,3 +1,11 @@
+## Unreleased
+
+- `dvKioskLocksWindows` reports whether a running kiosk policy holds the
+  surface to one window -- true in `device` scope, which the specification
+  defines as one application with no windows. The windowing capability reads
+  it, so `open()` under a device kiosk names the kiosk (`DV-WINDOW-002`)
+  rather than reporting the target as incapable of windows.
+
 ## 0.5.0
 
 - The `DV.Database` docs say whose code generation the `build_runner` step

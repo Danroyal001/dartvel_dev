@@ -1887,6 +1887,10 @@ void startDartvelKiosk() {
     if (windowing is! Map) return '';
     final Object? web = windowing['web'];
     final Object? android = windowing['android'];
+    // `windowing.enabled: false` is the line DV-WINDOW-005 names. The
+    // capability took the parameter from the first day and no build passed
+    // one, so the setting withdrew nothing and open() blamed the target.
+    final Object? enabled = windowing['enabled'];
 
     // Booleans only. `auto` on freeform is the documented default and means
     // the platform decides, which is what declaring nothing already does --
@@ -1896,15 +1900,16 @@ void startDartvelKiosk() {
     final Object? freeform = android is Map ? android['freeform'] : null;
 
     final List<String> arguments = <String>[
+      if (enabled is bool) 'enabled: $enabled',
       if (inPage is bool) 'webInPageViews: $inPage',
       if (newWindow is bool) 'webOpenInNewWindow: $newWindow',
       if (freeform is bool) 'androidFreeform: $freeform',
     ];
     if (arguments.isEmpty) return '';
 
-    return '  // dartvel.windowing.web and .android. Narrows what the target\n'
-        '  // offers; it cannot widen it, so a phone does not gain a second\n'
-        '  // window by writing one down.\n'
+    return '  // dartvel.windowing.enabled, .web and .android. Narrows what\n'
+        '  // the target offers; it cannot widen it, so a phone does not\n'
+        '  // gain a second window by writing one down.\n'
         '  DVWindowManager.useWindowingDeclaration(\n'
         '    const DVWindowingDeclaration(${arguments.join(', ')}),\n'
         '  );\n';

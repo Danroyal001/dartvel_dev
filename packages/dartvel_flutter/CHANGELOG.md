@@ -1,5 +1,21 @@
 ## Unreleased
 
+- Three window degradations that no window could ever carry now report where
+  their condition occurs. `kioskLocked` (`DV-WINDOW-002`) is set when a
+  device-scope kiosk holds the surface, `disabledByConfig` (`DV-WINDOW-005`)
+  when a project wrote `windowing.enabled: false`, and `gestureRequired`
+  (`DV-WINDOW-003`) when a browser refuses a window outside a user gesture.
+  All three were declared, given codes and documented, and assigned nowhere:
+  every one of those windows reported the generic "this target has no
+  windows" instead, and `dartvel explain` described situations the API could
+  not produce.
+- `open()` asks the browser for the window on the web, through
+  `DVWindowManager.browserWindowOpener`. The web has no `window.open` binding
+  and cannot have one, so every web call reported a missing binding --
+  `DV-WINDOW-006`, an `error` blaming the integration for the browser doing
+  its job. A window the browser opens is a window; one it refuses is
+  `gestureRequired`; and `close()` closes it through the handle the page
+  opened it with, since a browser lets a page close only its own windows.
 - `DVWindowDegradation.displayHintUnmatched` reports a `display:` hint that
   matched no connected display (`DV-WINDOW-013`). That situation and a kiosk
   window whose display is gone (`DV-WINDOW-010`) both reported
