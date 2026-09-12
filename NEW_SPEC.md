@@ -1548,19 +1548,121 @@ is an account takeover with a password reset attached.
 
 # Theme
 
-Stability: `Contract` · Status: `Shipped`
+Stability: `Draft` · Status: `Partial`
 
-Global
+Three lines about light, dark and system is a theme setting, not a theme. What
+an application actually needs is a vocabulary its styling can refer to — colour,
+type, spacing, radius, elevation and motion — bundled fonts that resolve per
+platform, and somewhere for a tenant's branding to live that is not a rebuild.
+
+Styling has `DVModifier` and no vocabulary for it to name, which is why every
+padding in an application ends up a number, and why the number is different on
+the fourth screen.
+
+## Modes, which is what ships today
 
 ```dart
-DV.Theme
+DV.Theme.mode;                    // ThemeMode: light | dark | system
+DV.Theme.setMode(ThemeMode.dark);
 ```
 
-- Light (fallback if platform doesn't have a supported system theme e.g embedded devices)
-- Dark
-- System (default)
+Light is the fallback where the platform reports no system preference — an
+embedded panel, a kiosk — and system is the default everywhere else. This much
+is built; everything below is designed.
 
-Dynamic (default) or manual switching
+## Tokens
+
+Stability: `Draft`
+
+```dart
+DVColor.surface; DVColor.onSurface; DVColor.accent; DVColor.danger;
+DVText.body; DVText.heading1; DVText.caption;      // type roles, not sizes
+DVSpace.xs; DVSpace.sm; DVSpace.md; DVSpace.lg;
+DVRadius.sm; DVElevation.raised; DVMotion.standard;
+
+DVBox.list([...]).padding(DVSpace.md).background(DVColor.surface)
+```
+
+Modifiers take tokens, and still take raw values — a one-off inset is a real
+thing and a framework that forbids it produces a token named `space13`. What
+raw values lose is the second half of every token's job: a token has a value
+per mode, so `DVColor.surface` is already correct in dark and high contrast,
+and `#FFFFFF` is correct in exactly one of them.
+
+Each token resolves per mode — light, dark, high contrast — and the set is
+declared in configuration, so it is one file rather than a constants class
+somebody has to be told about:
+
+```yaml
+dartvel:
+  theme:
+    tokens:
+      color:
+        surface:   { light: '#FFFFFF', dark: '#101114', highContrast: '#000000' }
+        accent:    { light: '#2C6BED', dark: '#5C8DFF' }
+      space: { xs: 4, sm: 8, md: 16, lg: 24 }
+    fonts:
+      body:    { family: Inter, fallback: [system-ui, sans-serif], variable: true }
+      mono:    { family: JetBrains Mono, fallback: [monospace] }
+    dynamicColor: platform        # platform | off — Material You where offered
+```
+
+A missing token is a build error naming the token and the mode it is missing
+in, not a transparent pixel at runtime.
+
+**Fonts are bundled per target with a fallback chain**, and the chain is not
+decoration: Flutter web cannot resolve the generic `monospace` family, so a
+developer-facing site that names it renders every code sample in proportional
+text. Declaring the family and its fallbacks is what makes that a build-time
+concern instead of a bug report with a screenshot.
+
+## Per-tenant branding
+
+Notifications promises tenant branding and nothing defines it. A tenant's
+tokens are a model — which settles every question at once. Studio edits them
+because Studio edits models; they are versioned, they take Content Workflow's
+review before publication, they reach devices as an OTA bundle, and they roll
+back the way any bundle does.
+
+A tenant overrides tokens, never structure. Overriding a colour is branding;
+overriding a layout is a fork of the application with a customer's name on it,
+and the first support request proves it.
+
+## Icons and splash
+
+One master asset per application generates the per-target set — every icon
+density, adaptive icons, and the native splash for each platform. Hand-
+maintained icon sets drift silently: nobody looks at the 48px Android icon
+until it is the wrong one in a store listing.
+
+The splash this generates is the one the launch screen shows before the first
+frame, so an application does not open on white.
+
+## Design-token import
+
+Figma variables import into these tokens, and the import is checked rather than
+one-way: `dartvel theme check` reports drift between the design file and the
+committed tokens, in both directions. A design system that has diverged from
+the application is the normal state of affairs, and the useful thing a tool can
+do is say so on a schedule rather than silently overwrite one side.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-THEME-001` | token has no value for a configured mode | build `error` |
+| `DV-THEME-002` | declared font family not bundled for this target | build `error` |
+| `DV-THEME-003` | tenant override targets structure rather than tokens | `error` |
+| `DV-THEME-004` | design tokens have drifted from the imported source | `warning` |
+
+## Deliberately absent
+
+- **A component library with opinions.** Tokens are a vocabulary; `DVBox` and
+  `DVText` remain the primitives and the generated components remain
+  restyleable.
+- **A second styling namespace.** Tokens are values that modifiers take, not a
+  parallel styling API beside `DVModifier`.
+- **Per-window theme.** Multi-Window states the rule and this does not lift it.
 
 ---
 
