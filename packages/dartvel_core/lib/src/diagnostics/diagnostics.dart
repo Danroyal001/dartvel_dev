@@ -547,6 +547,63 @@ final class DVDiagnostics {
           'held',
       level: 'error',
     ),
+    DVDiagnostic(
+      code: 'DV-PREVIEW-001',
+      reason: 'preview created; it is destroyed when the branch merges or its '
+          'TTL expires',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-PREVIEW-002',
+      reason: 'a secret required for previews has no value; the preview was '
+          'not deployed',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-PREVIEW-003',
+      reason: 'database branching refused: the source holds sensitive fields '
+          'and no sanitization is declared',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-PREVIEW-004',
+      reason: 'the concurrent preview cap was reached; the oldest idle preview '
+          'was suspended',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-PREVIEW-005',
+      reason: 'preview suspended after the declared idle interval',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-PREVIEW-006',
+      reason: 'an outbound notification was captured rather than sent, because '
+          'this is a preview',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-PREVIEW-007',
+      reason: 'the preview is declared publicly visible; it is excluded from '
+          'indexing but not from visitors',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-PREVIEW-008',
+      reason: 'a scheduled job did not run: schedules are off in previews '
+          'unless declared',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-PREVIEW-009',
+      reason: 'preview destroyed; its database and storage went with it',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-PREVIEW-010',
+      reason: 'the deployment adapter cannot host previews',
+      level: 'warning',
+    ),
   ];
 
   /// The diagnostic for [code], or null if nothing is registered under it.

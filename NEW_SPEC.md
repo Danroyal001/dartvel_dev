@@ -5935,6 +5935,175 @@ discipline `dartvel compatibility-check` applies to clients.
 
 ---
 
+# Preview Environments
+
+Stability: `Draft` · Status: `Designed`
+
+Deployment says where a backend runs and Backend Release Management says how a
+new one replaces it. This says how a branch gets one of its own, for as long as
+somebody is looking at it.
+
+A preview is a whole deployment: the backend, its database, its storage, and
+the web build, at a URL nobody has to configure. It exists because the question
+a reviewer actually has is "what does this do", and a diff does not answer it.
+
+```bash
+dartvel preview create                 # from the current branch
+dartvel preview create --from-pr 412
+dartvel preview list
+dartvel preview open
+dartvel preview logs --follow
+dartvel preview destroy
+```
+
+## The database is fresh, and that is not a limitation
+
+A preview gets an empty database, migrated by the project's own migration plan
+and filled by the project's own seeds. **It is never a copy of production.**
+
+That is the decision this section exists to make, because the other answer is
+tempting and irreversible. Production data in an environment with a generated
+URL, a short life and none of production's controls is a leak that cannot be
+walked back, and "it was only for a review" is not a thing anyone gets to say
+afterwards. The seeds are also the better test: a preview built from seeds
+fails when the seeds have rotted, which is the moment to find out.
+
+Where a provider offers database branching — Neon, PlanetScale, and the
+adapters that follow them — the branch may be used, and it is used **for the
+schema**. Branching one that holds `@DVModel.sensitiveField()` values is
+refused unless a sanitization step is declared and runs first
+(`DV-PREVIEW-003`). A refusal here is not conservatism: the field annotation
+already says these values need a policy decision to reach a client, and a
+preview is a client with a guessable address.
+
+```yaml
+dartvel:
+  preview:
+    database: fresh           # fresh | branch
+    sanitize: lib/dev/sanitize.dart   # required when database: branch
+    ttl: 7d
+    idle: 30m
+    max: 10
+    visibility: members       # members | link | public
+```
+
+## Secrets
+
+A preview is its own environment, named `preview`, and Secrets and
+Environments' `required:` lists apply to it like any other. A secret required
+in production and absent for previews is a **plan-time refusal**
+(`DV-PREVIEW-002`), not a runtime failure in front of the reviewer.
+
+Production values are never resolved for a preview. The reason is narrower
+than "hygiene": a preview holding a live payment key takes real money from
+whoever clicks the button, and the first anyone knows is the settlement report.
+
+## A preview does not send anything to anybody
+
+Notifications, queues and schedules are the part of a preview that can reach
+the outside world, so they default to the providers that cannot.
+
+- Mail goes to a capture inbox, readable with `dartvel preview mail` and in
+  Studio, and every capture reports `DV-PREVIEW-006`.
+- Push notifications are a no-op with the same report.
+- Queues are the preview's own; a preview never consumes a production queue.
+- Scheduled jobs do not run unless the preview declares which ones should,
+  because a preview left open over a weekend should not send a week of digests
+  to a seeded address list (`DV-PREVIEW-008`).
+
+Each default is overridable per preview, and overriding is a declaration in
+the project rather than a flag somebody passes once.
+
+## Who can see it
+
+`visibility: members` is the default: the preview is behind the deployment's
+own organization membership, so opening it asks for a sign-in and a person who
+is not a member does not get in. `link` gives an unguessable URL to anyone
+holding it. `public` is a declaration, reported as `DV-PREVIEW-007`, for the
+case where the preview is the demo.
+
+Every preview is excluded from indexing whatever its visibility —
+`X-Robots-Tag: noindex`, a matching `robots.txt`, and the canonical link the
+SEO section writes pointing at production. A preview outranking the product it
+previews is a well-attested way to lose traffic, and it happens because
+indexing is opt-out everywhere else.
+
+## The client half
+
+A preview builds the web target and serves it against the preview backend, so
+the URL is the whole of what a reviewer needs.
+
+For mobile there is no preview install, and Dartvel does not pretend
+otherwise: it does not push a build to a store or a device. What a preview
+gives a native application is a backend a debug build can be pointed at, and
+the web build to look at meanwhile. Reviewing a native change on a device is
+the OTA channel's job.
+
+A preview's generated protocol version is free to differ from production's. It
+serves only its own clients, so Protocol Versioning's window is not in play,
+and a preview is where a protocol change should be found to be breaking.
+
+## Lifetime and cost
+
+A preview is destroyed when its branch merges or its pull request closes, and
+after `ttl:` otherwise. It suspends after `idle:` and wakes on the next
+request — a preview nobody has opened in an hour should not be holding a
+machine.
+
+`max:` caps how many exist at once. At the cap the oldest idle preview is
+suspended rather than destroyed, and `DV-PREVIEW-004` says which: destroying
+somebody's environment to make room for another is a surprise, suspending it
+is a slow first request.
+
+Destroying takes the database and the storage bucket with it
+(`DV-PREVIEW-009`). Nothing about a preview is meant to outlive it.
+
+## What the adapter decides
+
+Whether previews are available at all is the deployment adapter's answer, the
+same way traffic weighting is in Backend Release Management. An adapter that
+cannot create an isolated environment on demand — a bare-metal target, an edge
+runtime with a single fixed deployment — reports `DV-PREVIEW-010` and
+`dartvel preview` is unavailable, rather than producing something called a
+preview that shares production's database.
+
+## CI
+
+`dartvel preview create --from-pr` is one step in a workflow, and the URL it
+prints is what the workflow comments. The preview's own diagnostics — a failed
+migration, a missing preview secret, a refused branch — are the step's exit
+code, so a preview that could not be built fails the check instead of leaving
+a stale link from the last successful run.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-PREVIEW-001` | preview created; it is destroyed when the branch merges or its TTL expires | `info` |
+| `DV-PREVIEW-002` | a secret required for previews has no value; the preview was not deployed | `error` |
+| `DV-PREVIEW-003` | database branching refused: the source holds sensitive fields and no sanitization is declared | `error` |
+| `DV-PREVIEW-004` | the concurrent preview cap was reached; the oldest idle preview was suspended | `warning` |
+| `DV-PREVIEW-005` | preview suspended after the declared idle interval | `info` |
+| `DV-PREVIEW-006` | an outbound notification was captured rather than sent, because this is a preview | `info` |
+| `DV-PREVIEW-007` | the preview is declared publicly visible; it is excluded from indexing but not from visitors | `warning` |
+| `DV-PREVIEW-008` | a scheduled job did not run: schedules are off in previews unless declared | `info` |
+| `DV-PREVIEW-009` | preview destroyed; its database and storage went with it | `info` |
+| `DV-PREVIEW-010` | the deployment adapter cannot host previews | `warning` |
+
+## Deliberately absent
+
+- **Production data in a preview.** Covered above, and it is the line the rest
+  of this section is arranged around.
+- **A preview of a native build on a device.** Stores and signing are real
+  constraints, and a command that claimed to install a branch on a phone would
+  be doing something else.
+- **Sharing production's database "just for reads".** A read of a real
+  person's row is the leak; the write was never the only risk.
+- **Previews of a preview.** A branch gets one environment. Stacking them is a
+  cost story with no reviewer asking for it.
+
+---
+
 # CLI
 
 Stability: `Contract` · Status: `Shipped`
@@ -6015,6 +6184,12 @@ dartvel deploy edge
 dartvel deploy --plan
 dartvel deploy rollback
 dartvel compatibility-check --against production
+dartvel preview create --from-pr 412
+dartvel preview list
+dartvel preview open
+dartvel preview logs --follow
+dartvel preview mail
+dartvel preview destroy
 ```
 
 Flags

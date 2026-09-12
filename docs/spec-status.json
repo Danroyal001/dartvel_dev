@@ -900,6 +900,11 @@
       "status": "Designed"
     },
     {
+      "section": "Preview Environments",
+      "stability": "Draft",
+      "status": "Designed"
+    },
+    {
       "section": "CLI",
       "stability": "Contract",
       "status": "Shipped",
