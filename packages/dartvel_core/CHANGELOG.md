@@ -1,5 +1,13 @@
 ## Unreleased
 
+- The diagnostic registry carries the codes the specification added for
+  protocol versioning, offline-first models, schema evolution, client
+  schedules, 3D scenes and PDF export. `dartvel explain` answered "unknown
+  code" for twenty codes the document publishes, and the test that exists to
+  catch exactly that disagreement was failing. Its row pattern also skipped
+  any family with a digit in it, so the whole `DV-3D` family was outside the
+  check in both directions; it is inside it now.
+
 - `dvKioskLocksWindows` reports whether a running kiosk policy holds the
   surface to one window -- true in `device` scope, which the specification
   defines as one application with no windows. The windowing capability reads

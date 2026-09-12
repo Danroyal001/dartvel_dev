@@ -83,7 +83,7 @@ void main() {
 
     Map<String, ({String reason, String level})> rows() {
       final RegExp row = RegExp(
-        r'^\|\s*`(DV-[A-Z]+-\d+)`\s*\|\s*(.+?)\s*\|\s*`([a-z]+)`',
+        r'^\|\s*`(DV-[A-Z0-9]+-\d+)`\s*\|\s*(.+?)\s*\|\s*`([a-z]+)`',
         multiLine: true,
       );
       return <String, ({String reason, String level})>{
