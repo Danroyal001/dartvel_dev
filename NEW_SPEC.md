@@ -723,7 +723,7 @@ class _Order(
 ```
 
 ```dart
-await order.history();            // who changed what, when, in which transaction
+await order.history();          // who changed what, when, in which transaction
 await order.revert(to: entry);    // a reversible transaction, not a raw write
 ```
 
@@ -1576,6 +1576,132 @@ Generated automatically.
 - OpenAPI and Swagger documentation
 
 No manual endpoint creation, but available if needed.
+
+---
+
+# Platform API: Keys, Scopes and OAuth Provider
+
+Stability: `Draft` · Status: `Designed`
+
+APIs generates RPC, REST, GraphQL and OpenAPI for the application's own
+clients, which are trusted: they ship with the application and authenticate as
+a person. An application that is itself a platform has to let somebody else's
+software in — with a key, a scope, a rate plan and an audit trail — and that is
+a different problem with none of the same defaults.
+
+## A scope is a set of policy actions
+
+Scopes are not strings invented beside the API and compared by hand. They are
+named sets of the actions authorization already defines, so the thing a key is
+allowed to do is the thing a policy already decides:
+
+```yaml
+dartvel:
+  platformApi:
+    scopes:
+      orders:read: [Order.view, Order.list]
+      orders:write: [Order.create, Order.update]
+      profile: [User.viewSelf]
+```
+
+A scope naming an action no policy defines fails the build, which is the
+failure that otherwise appears as a partner's integration silently receiving
+nothing (`DV-APIKEY-001`).
+
+A third-party request runs the **same** generated request lifecycle as any
+other call. Nothing forks: the key resolves to a principal at the
+authentication stage, its scopes become the policy context at the
+authorization stage, and every tenant filter, validation and audit step is the
+one already there. A call outside its scopes is refused by the policy engine,
+not by a gateway with its own opinion (`DV-APIKEY-002`).
+
+## Keys
+
+```dart
+final key = await ApiKey.issue(
+  organization: org,
+  scopes: const ['orders:read'],
+  expiresIn: const Duration(days: 90),
+);
+key.secret;   // shown once, at issue
+```
+
+Key material is stored hashed, like a password, with a short identifying
+prefix in clear. A database that leaks does not leak working keys, and support
+can still tell which key somebody means.
+
+**Rotation overlaps rather than replaces.** Issuing a replacement leaves both
+keys live until the old one expires, because rotating by replacement breaks
+every caller at the moment of the swap and turns a routine hygiene task into an
+outage nobody schedules. Revocation is the other operation and is immediate —
+they are deliberately separate words (`DV-APIKEY-003`).
+
+Rate plans per key ride the rate-limiting middleware that exists rather than a
+second limiter, so a partner's quota is enforced in the same place as
+everything else (`DV-APIKEY-006`).
+
+## OAuth provider
+
+Where partners need to act for the application's *users* rather than for
+themselves, the application becomes an OAuth 2.1 / OIDC provider over
+Authentication's existing session and token machinery — the same minting,
+expiry and single-use guarantees, with generated consent screens naming the
+scopes in the words the scope declaration gave them.
+
+Machine-to-machine is part of this section, not a separate one: client
+credentials is the same key and the same scope set with a grant instead of a
+header. Splitting it would put two answers in the specification for "how does
+another company's server call us", and they would drift.
+
+An OAuth client asking for a scope the application does not define is refused
+at registration, not at the first call (`DV-APIKEY-004`).
+
+## The developer portal is a module
+
+The portal — API reference from OpenAPI, the event catalogue, key management,
+usage — is a Dartvel module the application mounts, and federated deployment is
+its default:
+
+```yaml
+dartvel:
+  modules:
+    developers:
+      source: { package: dartvel_developer_portal }
+      mount: /developers
+      deployment: federated
+      auth: inherit
+```
+
+A module because that is what modules are: a full application boundary mounted
+at a path the parent chooses, inheriting theme and auth, deployable separately.
+Federated by default because a portal is public documentation with a login, its
+traffic has nothing to do with the application's, and a partner reading
+reference pages should not share a deployment with checkout.
+
+It is opt-in. An application that is not a platform has no partners and should
+not ship a portal to prove it.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-APIKEY-001` | a scope names a policy action that does not exist | `error` |
+| `DV-APIKEY-002` | call refused: the key's scopes do not cover the action | `warning` |
+| `DV-APIKEY-003` | rotation overlap expired; the previous key no longer authenticates | `info` |
+| `DV-APIKEY-004` | an OAuth client registration asked for an undefined scope | `error` |
+| `DV-APIKEY-005` | a key was issued with no expiry where the configuration requires one | `warning` |
+| `DV-APIKEY-006` | a key exceeded its rate plan; the call was throttled | `warning` |
+
+## Deliberately absent
+
+- **A second authorization system.** Scopes name policy actions; `@DVPolicy`
+  decides.
+- **A gateway.** Third-party calls run the application's own request
+  lifecycle; a parallel path would be a second place for tenant filters and
+  audit to be wrong.
+- **Dartvel as an identity provider.** The application becomes an OAuth
+  provider for its own users. Running an IdP product is not a framework
+  feature.
 
 ---
 
@@ -5329,11 +5455,11 @@ Schema Evolution's plan is not a separate ceremony run by hand; its steps are
 the deploy's steps:
 
 ```text
-1. expand        — add alongside, dual-write; the previous release still reads the old shape
+1. expand        — add alongside, dual-write; the old shape still reads
 2. deploy        — the new release rolls out under the strategy above
 3. backfill      — resumable, rate-limited, verified per chunk
 4. read switch   — after verification reports no discrepancy
-5. contract      — only once no release in the protocol window reads the old shape
+5. contract      — once no windowed release reads the old shape
 ```
 
 Step 5 is gated by Protocol Versioning and Client Compatibility, not by a
@@ -6746,8 +6872,10 @@ Every inspector above answers a question about the same thing: what this
 application is made of. That is one artifact, not eight — a versioned
 **`DartvelProjectGraph`** carrying routes, models and their fields, backend
 functions, jobs, modules, static paths, the schema, migration plans, the
-protocol version and its window, memory arenas, 3D scenes, and capability
-metadata, each node keeping the source mapping it was derived from.
+protocol version and its window, memory arenas, 3D scenes, API scopes,
+privacy declarations, release plans, analytics events and their consent
+categories, and capability metadata, each node keeping the source mapping it
+was derived from.
 
 The graph is the contract, and `--json` is how it is read:
 

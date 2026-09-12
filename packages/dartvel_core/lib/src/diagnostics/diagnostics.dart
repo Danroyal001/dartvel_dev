@@ -410,6 +410,36 @@ final class DVDiagnostics {
       reason: 'a consent choice could not be recorded; it is not treated as consent',
       level: 'error',
     ),
+    DVDiagnostic(
+      code: 'DV-APIKEY-001',
+      reason: 'a scope names a policy action that does not exist',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-APIKEY-002',
+      reason: 'call refused: the key\'s scopes do not cover the action',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-APIKEY-003',
+      reason: 'rotation overlap expired; the previous key no longer authenticates',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-APIKEY-004',
+      reason: 'an OAuth client registration asked for an undefined scope',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-APIKEY-005',
+      reason: 'a key was issued with no expiry where the configuration requires one',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-APIKEY-006',
+      reason: 'a key exceeded its rate plan; the call was throttled',
+      level: 'warning',
+    ),
   ];
 
   /// The diagnostic for [code], or null if nothing is registered under it.
