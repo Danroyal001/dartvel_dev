@@ -15,10 +15,9 @@ import 'package:test/test.dart';
 
 /// Records what reached the adapter.
 ///
-/// Not MemoryDVDatabaseAdapter: that one understands `select 1` and
-/// `select * from <table>` and refuses anything with a WHERE clause, so a
-/// test using it could not tell a statement the check allowed from one the
-/// adapter could not parse.
+/// Not MemoryDVDatabaseAdapter: that one runs the statement rather than
+/// keeping it, so a test using it could not tell a statement the check
+/// allowed from one it never saw.
 class _Recorder implements DVDatabaseAdapter {
   final List<String> statements = <String>[];
 

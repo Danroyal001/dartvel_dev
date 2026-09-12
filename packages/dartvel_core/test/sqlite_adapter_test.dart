@@ -194,6 +194,10 @@ void main() {
     });
   });
 
+  // The in-memory adapter has to run the framework's own surfaces, or nothing
+  // that uses them can be demoed or tested without a real database. Studio's
+  // page store, DVDatabaseCacheAdapter and DVDatabaseQueueAdapter issue every
+  // statement below; the adapter answered four shapes and threw on the rest.
   group('MemoryDVDatabaseAdapter', () {
     test('still serves the narrow shapes it always supported', () async {
       final db = MemoryDVDatabaseAdapter();
@@ -207,11 +211,256 @@ void main() {
       expect((await db.query('select * from users')).single['name'], 'Ada');
     });
 
-    test('rejects statements it cannot interpret', () async {
+    test('creates a table, then reads a column subset back by key', () async {
       final db = MemoryDVDatabaseAdapter();
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS dartvel_pages (
+          route TEXT,
+          title TEXT,
+          document TEXT
+        )
+      ''');
+      expect(
+        await db.query('SELECT route FROM dartvel_pages'),
+        isEmpty,
+        reason: 'a created table reads as empty, not as an unknown table',
+      );
+
+      await db.execute(
+        'INSERT INTO dartvel_pages (route, title, document) VALUES (?, ?, ?)',
+        <Object?>['/pricing', 'Pricing', '{"route":"/pricing"}'],
+      );
+      expect(
+        await db.query(
+          'SELECT document FROM dartvel_pages WHERE route = ?',
+          <Object?>['/pricing'],
+        ),
+        const [
+          {'document': '{"route":"/pricing"}'}
+        ],
+        reason: 'a column subset returns that column and no others',
+      );
+      expect(
+        await db.query(
+          'SELECT document FROM dartvel_pages WHERE route = ?',
+          <Object?>['/missing'],
+        ),
+        isEmpty,
+      );
+    });
+
+    test('a scoped delete removes the matching rows and leaves the rest',
+        () async {
+      final db = MemoryDVDatabaseAdapter();
+      for (final route in <String>['/a', '/b']) {
+        await db.execute(
+          'INSERT INTO pages (route, title) VALUES (?, ?)',
+          <Object?>[route, route],
+        );
+      }
+
+      expect(
+        await db.execute('DELETE FROM pages WHERE route = ?', <Object?>['/a']),
+        1,
+        reason: 'a delete answers with the number of rows it removed',
+      );
+      expect(
+        (await db.query('SELECT route FROM pages')).single['route'],
+        '/b',
+      );
+
+      await db.execute('DELETE FROM pages');
+      expect(await db.query('SELECT * FROM pages'), isEmpty);
+    });
+
+    test('updates rows in place, binding SET before WHERE', () async {
+      final db = MemoryDVDatabaseAdapter();
+      await db.execute(
+        'INSERT INTO jobs (id, state, attempts) VALUES (?, ?, ?)',
+        <Object?>['j1', 'reserved', 0],
+      );
+      await db.execute(
+        'INSERT INTO jobs (id, state, attempts) VALUES (?, ?, ?)',
+        <Object?>['j2', 'pending', 0],
+      );
+
+      expect(
+        await db.execute(
+          'UPDATE jobs SET attempts = ?, state = ? WHERE id = ? AND state = ?',
+          <Object?>[1, 'failed', 'j1', 'reserved'],
+        ),
+        1,
+      );
+      final rows = await db.query('SELECT id, state, attempts FROM jobs');
+      expect(rows, hasLength(2));
+      expect(rows.first, <String, Object?>{
+        'id': 'j1',
+        'state': 'failed',
+        'attempts': 1,
+      });
+      expect(rows.last['state'], 'pending',
+          reason: 'the WHERE clause scoped the update to one row');
+
+      expect(
+        await db.execute(
+          'UPDATE jobs SET state = ? WHERE id = ? AND state = ?',
+          <Object?>['reserved', 'j1', 'pending'],
+        ),
+        0,
+        reason: 'a claim that loses the race updates nothing',
+      );
+    });
+
+    test('orders, limits and counts the way the queue adapter asks', () async {
+      final db = MemoryDVDatabaseAdapter();
+      Future<void> job(String id, int priority, String createdAt) =>
+          db.execute(
+            'INSERT INTO jobs (id, queue, state, priority, created_at) '
+            'VALUES (?, ?, ?, ?, ?)',
+            <Object?>[id, 'default', 'pending', priority, createdAt],
+          );
+      await job('low', 1, '2026-01-01T00:00:00Z');
+      await job('high-late', 9, '2026-01-03T00:00:00Z');
+      await job('high-early', 9, '2026-01-02T00:00:00Z');
+
+      final next = await db.query(
+        'SELECT * FROM jobs WHERE queue = ? AND state = ? '
+        'ORDER BY priority DESC, created_at ASC LIMIT 1',
+        <Object?>['default', 'pending'],
+      );
+      expect(next.single['id'], 'high-early',
+          reason: 'highest priority first, oldest first within a priority');
+
+      expect(
+        await db.query(
+          'SELECT COUNT(*) AS total FROM jobs WHERE state = ?',
+          <Object?>['pending'],
+        ),
+        const [
+          {'total': 3}
+        ],
+      );
+      expect(
+        await db.query(
+          'SELECT COUNT(*) AS total FROM jobs WHERE state = ?',
+          <Object?>['done'],
+        ),
+        const [
+          {'total': 0}
+        ],
+        reason: 'a count of nothing is a row holding zero, not no rows',
+      );
+    });
+
+    test('compares against null and by inequality, as cache expiry does',
+        () async {
+      final db = MemoryDVDatabaseAdapter();
+      await db.execute(
+        'INSERT INTO cache (key, expires_at) VALUES (?, ?)',
+        <Object?>['forever', null],
+      );
+      await db.execute(
+        'INSERT INTO cache (key, expires_at) VALUES (?, ?)',
+        <Object?>['stale', 100],
+      );
+      await db.execute(
+        'INSERT INTO cache (key, expires_at) VALUES (?, ?)',
+        <Object?>['fresh', 900],
+      );
+
+      expect(
+        await db.execute(
+          'DELETE FROM cache WHERE expires_at IS NOT NULL AND expires_at <= ?',
+          <Object?>[500],
+        ),
+        1,
+      );
+      expect(
+        (await db.query('SELECT key FROM cache'))
+            .map((row) => row['key'])
+            .toList(),
+        <String>['forever', 'fresh'],
+        reason: 'a null expiry never expires, and = NULL never matches',
+      );
+      expect(
+        await db.query('SELECT key FROM cache WHERE expires_at IS NULL'),
+        const [
+          {'key': 'forever'}
+        ],
+      );
+    });
+
+    test('keeps a rowid, and orders and de-duplicates by column', () async {
+      final db = MemoryDVDatabaseAdapter();
+      await db.execute(
+        'INSERT INTO revisions (route, number) VALUES (?, ?)',
+        <Object?>['/pricing', 1],
+      );
+      await db.execute(
+        'INSERT INTO revisions (route, number) VALUES (?, ?)',
+        <Object?>['/about', 1],
+      );
+      await db.execute(
+        'INSERT INTO revisions (route, number) VALUES (?, ?)',
+        <Object?>['/pricing', 2],
+      );
+
+      expect(
+        (await db.query('SELECT DISTINCT route FROM revisions ORDER BY route'))
+            .map((row) => row['route'])
+            .toList(),
+        <String>['/about', '/pricing'],
+      );
+      expect(
+        (await db.query('SELECT route FROM revisions ORDER BY number, rowid'))
+            .map((row) => row['route'])
+            .toList(),
+        <String>['/pricing', '/about', '/pricing'],
+        reason: 'insertion order breaks the tie, which is what rowid means',
+      );
+      expect(
+        (await db.query('SELECT * FROM revisions')).first.containsKey('rowid'),
+        isFalse,
+        reason: 'rowid is orderable but not a column SELECT * returns',
+      );
+    });
+
+    test('rejects what it cannot interpret, and says what it was', () async {
+      final db = MemoryDVDatabaseAdapter();
+      await db.execute(
+        'INSERT INTO docs (id, body) VALUES (?, ?)',
+        <Object?>[1, 'Ada'],
+      );
+
+      // Negative controls. Full-text search is SQLite's own, a join is a
+      // second table, and a schema migration is a real database's job: each
+      // has to fail, and the message has to name the statement so a developer
+      // reads what was refused rather than guessing.
+      for (final unsupported in <String>[
+        'SELECT rowid FROM docs_fts WHERE docs_fts MATCH ?',
+        'SELECT a.id FROM docs a JOIN docs b ON a.id = b.id',
+        'SELECT body FROM docs WHERE id IN (SELECT id FROM docs)',
+      ]) {
+        await expectLater(
+          db.query(unsupported, <Object?>['x']),
+          throwsA(
+            isA<ArgumentError>().having(
+              (error) => '$error',
+              'message',
+              contains(unsupported),
+            ),
+          ),
+          reason: unsupported,
+        );
+      }
       await expectLater(
-        db.query('select * from users where name = ?'),
+        db.execute('ALTER TABLE docs ADD COLUMN title TEXT'),
         throwsArgumentError,
+      );
+      await expectLater(
+        db.query('SELECT body FROM docs WHERE id = ?'),
+        throwsArgumentError,
+        reason: 'a placeholder with no parameter is a caller bug, not a null',
       );
     });
   });

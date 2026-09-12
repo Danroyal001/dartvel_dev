@@ -1,5 +1,29 @@
 ## Unreleased
 
+- `MemoryDVDatabaseAdapter` runs the SQL Dartvel itself issues, so the
+  framework can be run and tested without a database. It understood four
+  statement shapes -- `select 1`, `select * from t`, an unscoped insert and an
+  unscoped delete -- and threw `ArgumentError` on everything else, which meant
+  the development adapter could not back the framework's own surfaces:
+  `DVPageStore`, `DVDatabaseCacheAdapter` and `DVDatabaseQueueAdapter` all
+  failed on their first statement. Studio rendered "Could not read pages"
+  where the pages should have been, and `DVTest.fakeDatabase()` was a fake no
+  Dartvel code could use. It now interprets `CREATE TABLE`/`DROP TABLE`,
+  `INSERT` (including an explicit `rowid`), `UPDATE ... SET ... WHERE`,
+  `DELETE ... WHERE`, and `SELECT` with `DISTINCT`, a column subset,
+  `COUNT(*) AS alias`, `WHERE` conditions joined by `AND` over
+  `= != <> < <= > >= IS NULL IS NOT NULL`, multi-key `ORDER BY` with `rowid`
+  and `ASC`/`DESC`, `LIMIT` and `OFFSET` -- binding `?` in the order the
+  statement writes it, and following SQL's rule that a comparison against
+  null never matches. The cache and queue adapters are now held to the same
+  shared contracts on it that they are on SQLite.
+
+  Anything outside that subset -- a join, a subquery, `OR`, SQLite's FTS5
+  `MATCH`, `ALTER TABLE` -- still throws, and the message now names the
+  statement it refused. An in-memory adapter that guessed at a query it had
+  not parsed would be worse than one that cannot run it: wrong rows look
+  exactly like right ones.
+
 - A kiosk says when it blocks a route. `routes.allow` was parsed, scanned by
   doctor and given `DV-KIOSK-006` for a route being blocked, and the redirect
   that did the blocking reported nothing -- so a kiosk sending `/admin` back

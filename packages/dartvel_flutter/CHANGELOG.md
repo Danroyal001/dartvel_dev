@@ -1,5 +1,14 @@
 ## Unreleased
 
+- **Studio runs on `MemoryDVDatabaseAdapter`, so it can be opened without a
+  database.** `DVPageStore` persists through `DV.Database`, and the in-memory
+  adapter threw on the first statement the store issues, so the Pages tab
+  rendered "Could not read pages: Invalid argument(s): ..." on every build
+  that had no SQLite or Postgres behind it -- including `DVTest.fakeDatabase()`
+  and the Studio demo. The adapter now runs the statements the store writes
+  (see dartvel_core's entry); nothing in Studio changed, and the store's
+  round trip is tested on the in-memory adapter as well as on real SQLite.
+
 - **`DV.Storage` is deprecated; use `DV.FileStorage`.** One storage had three
   names -- `DV.Storage`, `DV.FileStorage` and `DV.BlobStorage` all returned
   the same object -- while the specification named `DV.FileStorage` canonical
