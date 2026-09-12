@@ -1912,15 +1912,18 @@ Firefox extension local storage behavior, with `DV.BlobStorage.*` as an alias.
 
 Stability: `Contract` · Status: `Shipped`
 
-Supports
+Operational database adapters:
 
-* PostgreSQL
-* MySQL
-* SQLite
-* MongoDB
-* Turso
-* ClickHouse
-* BigQuery
+* PostgreSQL, and its wire-compatible variants
+* MySQL, and its wire-compatible variants
+* SQLite, including Turso and other libSQL builds
+
+MongoDB, ClickHouse and BigQuery are **out of scope as operational databases**,
+by decision rather than backlog: no model is stored in them, no query is served
+from them, and no migration runs against them. ClickHouse and BigQuery are
+supported as sync destinations in Change Data Capture and Warehouse Sync, which
+is a different job — a place writes are copied to, not a place the application
+reads from.
 
 Automatic migrations.
 Automatic CRUD.
@@ -8298,6 +8301,127 @@ and the most likely one to be emailed to somebody outside the tenant.
 | `DV-EXPORT-001` | PDF export requested for a route with no generated document | build `error` |
 | `DV-EXPORT-002` | no PDF renderer available in this deployment | build `error` |
 | `DV-EXPORT-003` | document exceeded the configured page or byte budget | `warning` |
+
+---
+
+
+# Change Data Capture and Warehouse Sync
+
+Stability: `Draft` · Status: `Designed`
+
+Data Import, Export, and Reporting moves data out of the application on
+request: somebody asks for a CSV, a report runs on a schedule, a PDF is
+rendered. That is a pull, and it is the wrong shape for two things applications
+need constantly — keeping an analytical store current, and letting another
+system follow what changed.
+
+Outbound Webhooks already delivers an event to an endpoint. A warehouse does
+not want an endpoint; it wants a table, in order, with the rows it missed while
+it was down.
+
+## The stream is the model's own writes
+
+Every model write already emits a lifecycle signal. Change data capture
+materializes those into an ordered, replayable log rather than instrumenting
+anything new:
+
+```dart
+@DVModel(capture: true)
+class _Order(
+  final String reference,
+  @DVModel.sensitiveField() final String customerEmail,
+);
+```
+
+Three properties it inherits by construction, because they are properties of
+the thing it is reading:
+
+- **Tenant scope travels with the row.** A change is captured with the tenant
+  it belongs to, so a destination that serves one tenant is not filtered after
+  the fact — which is the filtering that gets forgotten.
+- **Sensitive fields are redacted in the log itself**, not on the way out. A
+  capture log that holds a value and relies on every consumer to drop it has
+  already leaked it to the log's own storage, its backups, and whoever can read
+  those.
+- **Deletes are events.** A warehouse that only receives inserts and updates
+  silently keeps deleted rows for ever, and every count computed from it is
+  wrong in a direction nobody checks.
+
+## Destinations are adapters, and they are not databases
+
+ClickHouse, BigQuery, Snowflake-class warehouses and Parquet in object storage
+are **sync destinations**, reached through adapters that write batches.
+
+This is worth stating precisely, because the Database section lists ClickHouse
+and BigQuery among its providers while recording them as out of scope by
+decision. Both statements are now made to agree: they are not operational
+database adapters — no model is stored in them, no query is served from them,
+no migration runs against them — and they are supported here, as places a
+capture stream is written to.
+
+Schema changes at the destination follow the plan Schema Evolution already
+produces for the source. A column added by an expand step is added at the
+destination before rows carrying it arrive; a contract step removes it after.
+Reusing that plan is what keeps the two from drifting, since a warehouse whose
+schema is maintained by hand is a warehouse that breaks on the deploy nobody
+connected to it.
+
+## Backfill is a job, and lag is a metric
+
+A destination added today wants the history it missed. Backfill runs as a
+resumable durable job with progress in Studio, the same machinery Schema
+Evolution uses for its own backfills, rate-limited so filling a warehouse does
+not degrade the application serving customers.
+
+**Lag is monitored, not assumed.** The distance between the newest captured
+change and the newest delivered one is a metric with an alert rule available in
+Alerting, SLOs and Status Pages, because the failure mode here is not an error —
+it is a dashboard that is quietly four hours old while everyone reads it as
+current (`DV-CDC-003`).
+
+## Delivery is at-least-once, and says so
+
+Each adapter declares what it can promise, and none of them promises
+exactly-once, because exactly-once across a network and two systems is not a
+thing an adapter can offer honestly. Rows carry a change id and a sequence, so
+a destination that can deduplicate does, and one that cannot is told what it is
+getting (`DV-CDC-004`).
+
+Retention on the log is bounded and declared. A consumer that falls behind the
+retention window cannot be caught up by replay, so it is told to backfill
+instead of being silently handed a gap (`DV-CDC-002`) — the same rule Outbound
+Webhooks applies to replay past its window, for the same reason.
+
+## One stream, not three
+
+Product Analytics and Consent needs events; Alerting needs signals; a warehouse
+needs tables. All three read this stream rather than each instrumenting the
+model layer separately. Three pipelines over the same writes is three
+opportunities for them to disagree about what happened, and the disagreement
+always surfaces as a number somebody cannot reconcile.
+
+## Deliberately absent
+
+- **Reading another system's write-ahead log.** Capture is Dartvel's own model
+  writes. Tailing a database's replication stream would make Dartvel's
+  correctness depend on a storage engine's internals and version.
+- **Transformation.** Rows land as they were written. A warehouse has a
+  transformation layer and it is better than one invented here.
+- **Exactly-once delivery.** Stated above; a promise no adapter can keep is
+  worse than a documented at-least-once.
+- **ClickHouse or BigQuery as operational databases.** They are destinations.
+  Serving application queries from a column store is a different decision,
+  taken in Database, and it is a no.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-CDC-001` | a destination refused a batch; delivery is retrying | `warning` |
+| `DV-CDC-002` | a consumer is behind the retention window and must backfill | `error` |
+| `DV-CDC-003` | capture lag exceeded the declared threshold | `warning` |
+| `DV-CDC-004` | the destination cannot deduplicate; delivery is at-least-once | `info` |
+| `DV-CDC-005` | a destination's schema could not be evolved to match the source | `error` |
 
 ---
 

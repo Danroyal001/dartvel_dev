@@ -1439,6 +1439,31 @@ final class DVDiagnostics {
           'scaffold',
       level: 'error',
     ),
+    DVDiagnostic(
+      code: 'DV-CDC-001',
+      reason: 'a destination refused a batch; delivery is retrying',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-CDC-002',
+      reason: 'a consumer is behind the retention window and must backfill',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-CDC-003',
+      reason: 'capture lag exceeded the declared threshold',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-CDC-004',
+      reason: 'the destination cannot deduplicate; delivery is at-least-once',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-CDC-005',
+      reason: "a destination's schema could not be evolved to match the source",
+      level: 'error',
+    ),
   ];
 
   /// The diagnostic for [code], or null if nothing is registered under it.
