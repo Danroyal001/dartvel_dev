@@ -161,6 +161,52 @@ final class DVDiagnostics {
       level: 'warning',
     ),
     DVDiagnostic(
+      code: 'DV-WINDOW-014',
+      reason: 'volume requested where none can be presented; shown as a viewport',
+      level: 'debug',
+    ),
+    DVDiagnostic(
+      code: 'DV-WINDOW-015',
+      reason: 'immersive space requested where none can be presented; '
+          'shown as a fullscreen page',
+      level: 'debug',
+    ),
+    DVDiagnostic(
+      code: 'DV-XR-001',
+      reason: 'passthrough unavailable; the studio environment was used',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-XR-002',
+      reason: 'anchor type unsupported; node placed at the scene origin',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-XR-003',
+      reason: 'world anchor could not re-localize on relaunch',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-XR-004',
+      reason: 'pinned-panel persistence bounded or absent on this platform',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-XR-005',
+      reason: 'smooth locomotion offered without comfort options',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-XR-006',
+      reason: 'native XR binding missing or refused the request',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-XR-007',
+      reason: "frame rate below the device profile's target for a sustained window",
+      level: 'warning',
+    ),
+    DVDiagnostic(
       code: 'DV-CRON-001',
       reason: 'declared interval finer than the target\'s granularity; coalesced to it',
       level: 'warning',
