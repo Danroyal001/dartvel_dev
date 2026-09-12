@@ -5777,6 +5777,13 @@ The index is the single source of truth for implementation status. The agent
 rule files point at it rather than restating it; a status paragraph copied
 across eleven files is exactly the drift this section exists to end.
 
+`docs/spec-vocabulary.md` is the companion crib: one page of the words this
+specification uses precisely — generation inputs, field-scoped annotations,
+the namespaces that exist and the ones that do not, both label sets, and the
+diagnostic-code format. It records rules stated normatively here, so that a
+proposal written in prose stops drifting from the conventions the code
+already follows.
+
 ---
 
 # The Vision
