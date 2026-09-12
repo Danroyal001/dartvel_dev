@@ -2751,7 +2751,8 @@ Providers:
 
 Features
 - Chat
-- Embeddings
+- Embeddings (retrieval over the application's own models is Semantic Search
+  and Embeddings)
 - Agents
 - MCP, both directions: `DVMcpServer` exposes the registered AI tools to an
   MCP client, and `DVMcpClient.adoptTools()` registers an external
@@ -3525,6 +3526,185 @@ User.Search.useProvider(
 No provider may return rows the current user cannot access. If the provider
 cannot enforce policy filters directly, Dartvel post-filters and records the
 extra cost in observability metrics.
+
+Semantic retrieval over the same models — embeddings, hybrid ranking, and
+what a vector query does to the post-filter rule — is Semantic Search and
+Embeddings, immediately below.
+
+---
+
+# Semantic Search and Embeddings
+
+Stability: `Draft` · Status: `Designed`
+
+Search indexes words. AI answers questions. Between them is retrieval over the
+application's own models — "orders where the customer sounded unhappy" — which
+keyword search cannot do and a language model cannot do without being handed
+the right rows first. That layer is declared on the model, like everything
+else the framework generates:
+
+```dart
+@DVModel(searchable: true)
+class _Ticket(
+    @DVModel.searchableField(semantic: true) String body,
+    String status,
+);
+
+final page = await Ticket.Search.query(
+  'customer sounded unhappy about delivery',
+  mode: DVSearchMode.hybrid,
+);
+```
+
+`mode` is `keyword`, `semantic` or `hybrid`, and `keyword` stays the default:
+it is what the existing generated index does, it costs nothing per query, and
+a section that silently changed the meaning of every existing call would be a
+breaking change wearing a feature's name.
+
+## Embeddings are durable jobs
+
+A write enqueues an embedding job through `DV.Jobs` — the same machinery as
+every index update — and the vector lands in the configured adapter. Nothing
+embeds inline on the write path: an embedder is a network call with a rate
+limit, and a model save that waits on one turns a form submission into a
+timeout during somebody else's outage.
+
+Long fields are chunked, each chunk embedded and stored with its offset, and a
+match on a chunk returns the record with the chunk that matched. A record is
+one row in results however many chunks it has, because a search that returns
+the same ticket five times is a search nobody uses twice.
+
+## The embedder is declared, and pinned
+
+```yaml
+dartvel:
+  search:
+    semantic:
+      embedder: openai/text-embedding-3-small
+      dimensions: 1536
+      vectorAdapter: DVPgVectorAdapter
+```
+
+There is **no default embedder**, and `semantic: true` without one is a build
+error (`DV-SEMANTIC-001`). Vectors from two different models are not
+comparable — not worse, *meaningless*: the nearest neighbours of a query
+embedded by one model among vectors written by another are noise that looks
+exactly like results. A default would pick an embedder for an application that
+had not thought about it, and the index would be wrong in a way no test
+notices and no user can report.
+
+pgvector is the adapter to reach for when the application already has
+PostgreSQL, and the search adapters that carry vectors themselves —
+Meilisearch, OpenSearch, Algolia — are configured the same way. On-device
+semantic search is off unless asked for; see the budget below.
+
+## Changing the embedder builds a second index
+
+The index records which embedder and which chunking produced it. When either
+changes, Dartvel **builds a new index alongside the old one** and keeps
+answering from the old one until the backfill finishes, then switches
+(`DV-SEMANTIC-003`). It is the expand/contract choreography Safe Schema
+Evolution uses, for the same reason: re-embedding in place leaves the index
+holding two vintages of vector at once, and during that window every query
+silently mixes them.
+
+Backfill is a resumable, rate-limited durable job with progress in Studio,
+because re-embedding a corpus is measured in hours and costs money per
+thousand records.
+
+## Authorization is in the query, not after it
+
+A semantic index that leaks across policies is worse than no index, and
+retrieval makes the usual answer insufficient. Search's rule — post-filter
+what the provider cannot filter — works for keyword results because the
+provider returns everything matching and the filter removes rows. A vector
+query returns the **k nearest**, so filtering afterwards does not narrow a
+result set, it empties one: ask for ten, have nine belong to another tenant,
+show one, and the page reads as "nothing found" while the data is there.
+
+So:
+
+- **Tenant scope and every policy predicate the adapter can express are
+  pushed into the vector query.** An adapter that cannot filter at all is
+  refused for a multi-tenant or policy-scoped model at build time
+  (`DV-SEMANTIC-002`) rather than serving one tenant's tickets to another.
+- What genuinely cannot be pushed down is post-filtered **with refill**:
+  Dartvel re-queries for more neighbours until it has `k` the caller may see
+  or the index is exhausted, bounded by a configured multiple of `k`. Hitting
+  that bound returns fewer results and says so (`DV-SEMANTIC-005`) rather than
+  presenting a short page as a complete one.
+
+The same policy engine decides both, so a semantic result set can never
+contain a row `Ticket.find` would have refused.
+
+## Costs are metered, and a budget refuses
+
+Embedding a corpus and embedding every query both cost money per token, and
+the meters already exist: an embedding job and a query embedding record
+against Usage Metering and Quotas like any other unit. A tenant over its
+budget gets a refusal with `DV-SEMANTIC-007`, which is a search that says it
+cannot run, not a search that quietly falls back to keyword and returns
+something different from what it returned yesterday.
+
+## On-device
+
+Semantic search on the device is opt-in and budgeted:
+
+```yaml
+dartvel:
+  search:
+    semantic:
+      onDevice:
+        maxBytes: 200MB
+```
+
+A vector index is dense — roughly `dimensions × 4` bytes per chunk before any
+quantization — so a corpus that is unremarkable on a server is hundreds of
+megabytes on a phone. Over the declared budget the device keeps the keyword
+index and reports `DV-SEMANTIC-006`; it does not evict silently, because a
+half-populated semantic index returns confidently wrong neighbours and there
+is no way for the application to tell.
+
+## Retrieval for AI features
+
+```dart
+final context = await Ticket.Search.retrieve(
+  question,
+  limit: 8,
+  mode: DVSearchMode.hybrid,
+);
+```
+
+`retrieve` is the shape an AI feature needs: the rows, their matched chunks,
+and their scores, already filtered by the caller's own policies. It is the
+same query path as `query`, so a feature cannot accidentally read through a
+wider lens than the search page beside it, and what it returns is subject to
+`@DVModel.sensitiveField()` exclusion before it reaches a prompt.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-SEMANTIC-001` | a `semantic: true` field with no declared embedder | build `error` |
+| `DV-SEMANTIC-002` | the vector adapter cannot filter; semantic search refused on a scoped model | build `error` |
+| `DV-SEMANTIC-003` | embedder or chunking changed; a new index is building and queries use the previous one | `info` |
+| `DV-SEMANTIC-004` | an embedding job failed permanently; the record is absent from the index | `warning` |
+| `DV-SEMANTIC-005` | refill bound reached; fewer results returned than asked for | `info` |
+| `DV-SEMANTIC-006` | on-device index over its declared budget; keyword only | `warning` |
+| `DV-SEMANTIC-007` | embedding budget exhausted for this tenant; the search was refused | `warning` |
+
+## Deliberately absent
+
+- **A default embedder.** Covered above; it is the one default in this
+  section that would corrupt an index rather than inconvenience somebody.
+- **A vector store of Dartvel's own.** pgvector and the search adapters that
+  carry vectors are enough; a hand-rolled index would be the slowest and
+  least-tested part of the framework.
+- **Re-ranking models.** Hybrid scoring combines the two existing rankings;
+  a cross-encoder re-ranker is a model call, and an application that wants
+  one writes it as an AI feature over `retrieve`.
+- **Semantic search as a default.** `keyword` stays the default mode, and
+  nothing changes meaning for an application that does not opt in.
 
 ---
 
