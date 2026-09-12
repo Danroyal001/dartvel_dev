@@ -11368,6 +11368,90 @@ thing that catches an unsorted map before a reviewer does.
 ---
 
 
+# Documentation Generation
+
+Stability: `Draft` · Status: `Designed`
+
+The Platform API section generates a developer portal for the people outside
+the application — OpenAPI, the event catalog, keys and usage. The team inside
+it has nothing. There is no reference for its own models, functions, routes,
+jobs, policies and modules, no place decisions are recorded next to what they
+decided, and no documentation site that stays true because it is built rather
+than maintained.
+
+The material already exists. The project graph carries every one of those
+nodes with the source mapping it came from, and `dartvel explain` already turns
+a diagnostic code into a sentence. Documentation here is a second rendering of
+data the framework already holds, not a second copy of it maintained by hand —
+which is the only version that stays true, because the alternative goes stale
+on the first refactor nobody remembers to document.
+
+```bash
+dartvel docs             # build the site
+dartvel docs --serve     # and watch, for writing against
+```
+
+## What it renders
+
+- **Models and fields**, with types, relations, policies and generated
+  surfaces. Sensitive fields are **named and never valued** — a documentation
+  site that printed an example row would be the leak the annotation exists to
+  prevent, and example data is generated from the field's type rather than
+  from the database.
+- **Backend functions**, with their signatures and the request-lifecycle
+  stages they pass through, so "what runs before this" has an answer that is
+  not a reading of the middleware chain.
+- **The route index**, including generated model pages and static paths.
+- **Jobs and cron**, with their schedules and the per-target honesty
+  `@DVClientCron` already carries, because "every five minutes" means
+  different things on a phone and a server.
+- **The policy matrix** — who may do what, as a table rather than as
+  annotations scattered across files.
+- **The module map**, including what each module was granted at its mount
+  point, which is where a reader asks the question Module Distribution and
+  Trust answers.
+- **The diagnostics glossary**, from the same registry `dartvel explain`
+  reads.
+
+## Decisions live beside what they decided
+
+Architecture decision records are markdown in the repository, and the build
+links each to the graph nodes it names — a decision about the checkout flow is
+reachable from the checkout route and from the models it touches. A decision
+nobody can find from the code it constrains gets re-litigated every year,
+which is the failure this exists to prevent.
+
+## One body of data, two readers
+
+The AI section assembles project context for a model; this assembles a site
+for a person. They are the same graph rendered twice, and they must not drift:
+a fact true in one and stale in the other is worse than either alone, because
+whichever the reader trusts is now a coin flip. The site is a federated
+micro-site, like the status page, so it mounts inside the application it
+documents and inherits its authentication — internal documentation is usually
+not public, and a separately hosted copy is one nobody updates.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-DOCS-001` | a decision record names a node that no longer exists | `warning` |
+| `DV-DOCS-002` | a documented surface has no source mapping to render from | `warning` |
+
+Both are drift, which is the only failure a generated site can have: it cannot
+be out of date with the code, so what it can be is pointed at something gone.
+
+## Deliberately absent
+
+- **Prose Dartvel writes for you.** The site renders structure; the sentences
+  explaining *why* are the team's, in decision records and doc comments.
+- **A hosted documentation product.** It builds a site; where it is served is
+  the deployment's business.
+- **A second source of truth.** Nothing here is authored twice. A field's
+  description is its doc comment, read from the source.
+
+---
+
 # Mental Model
 
 ```text
