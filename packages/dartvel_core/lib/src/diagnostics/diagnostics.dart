@@ -715,6 +715,60 @@ final class DVDiagnostics {
           'period was used',
       level: 'info',
     ),
+    DVDiagnostic(
+      code: 'DV-TRACE-001',
+      reason: 'an inbound `traceparent` was malformed; a new trace was started',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-TRACE-002',
+      reason: 'the export queue was full; spans were dropped',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-TRACE-003',
+      reason: 'the collector could not be reached; spans were dropped after '
+          'the declared retries',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-TRACE-004',
+      reason: 'a span attribute names a sensitive model field',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-TRACE-005',
+      reason: "a job ran outside its originating trace's window; its span is "
+          'linked rather than nested',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-TRACE-006',
+      reason: 'no exporter is configured; spans stay in the in-process buffer',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-TRACE-007',
+      reason: 'the trace diagnostics endpoint is enabled; it is off by default',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-TRACE-008',
+      reason: 'a client span was refused: client ingest is not enabled on this '
+          'deployment',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-TRACE-009',
+      reason: 'a span passed its maximum duration and was closed as incomplete',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-TRACE-010',
+      reason: 'a span reached its attribute limit; further attributes were '
+          'dropped',
+      level: 'warning',
+    ),
   ];
 
   /// The diagnostic for [code], or null if nothing is registered under it.
