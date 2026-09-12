@@ -13,6 +13,7 @@ import 'dart:async';
 
 import '../lifecycle/lifecycle.dart' show DVLifecycleRegistry;
 import 'containment.dart';
+import 'enforcement.dart' show DVKioskDegradation, DVKioskDegradationX;
 import 'policy.dart';
 
 /// Where a kiosk is.
@@ -46,7 +47,7 @@ class DVKioskExitResult {
   const DVKioskExitResult({
     required this.granted,
     required this.message,
-    this.code,
+    this.degradation = DVKioskDegradation.none,
   });
 
   final bool granted;
@@ -55,8 +56,17 @@ class DVKioskExitResult {
   /// how close the wrong one came.
   final String message;
 
+  /// Why the attempt was refused, in the enum that names it.
+  ///
+  /// The codes used to be written here as string literals beside the members
+  /// that mean the same thing, which is two places to change and one of them
+  /// silently stale -- and it left `DVKioskDegradation.lockedOut` assigned
+  /// nowhere at all, so a caller could not ask the result what happened
+  /// without matching on the text of a code.
+  final DVKioskDegradation degradation;
+
   /// The diagnostic code, when something was worth reporting.
-  final String? code;
+  String? get code => degradation.code;
 }
 
 /// What a reset cleared, and where it left the kiosk.
@@ -310,7 +320,7 @@ class DVKioskRuntime {
         granted: false,
         message: 'This build declares no kiosk policy, so there is nothing to '
             'exit.',
-        code: 'DV-KIOSK-005',
+        degradation: DVKioskDegradation.noPolicy,
       );
     }
 
@@ -318,7 +328,7 @@ class DVKioskRuntime {
       return const DVKioskExitResult(
         granted: false,
         message: 'Too many attempts. Try again later.',
-        code: 'DV-KIOSK-003',
+        degradation: DVKioskDegradation.lockedOut,
       );
     }
     // The lockout has run out, so the next attempt starts clean.
@@ -366,7 +376,7 @@ class DVKioskRuntime {
       return const DVKioskExitResult(
         granted: false,
         message: 'Too many attempts. Try again later.',
-        code: 'DV-KIOSK-003',
+        degradation: DVKioskDegradation.lockedOut,
       );
     }
     // Never says what the right answer was, or how close this one came.
