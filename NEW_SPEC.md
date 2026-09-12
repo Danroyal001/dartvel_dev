@@ -114,6 +114,8 @@ Including
 
 # UI
 
+Stability: `Contract` · Status: `Shipped`
+
 Two primitives.
 Dartvel keeps the primitive surface area small:
 
@@ -276,6 +278,8 @@ from models.
 
 # Styling
 
+Stability: `Contract` · Status: `Shipped`
+
 Built on Mix.
 
 Supports EVERY Mix modifier.
@@ -321,6 +325,8 @@ No manual Mix `.wrap()`. Dartvel handles wrapping where necessary.
 ---
 
 # Pages
+
+Stability: `Contract` · Status: `Shipped`
 
 Pages are private generation inputs. The currently supported page input shape
 is a private expression-bodied function:
@@ -394,6 +400,8 @@ pages working, while Dartvel-authored pages should move scaffold properties to
 ---
 
 # Routing
+
+Stability: `Contract` · Status: `Shipped`
 
 Pages Router.
 
@@ -492,6 +500,8 @@ without breaking application code.
 
 # State
 
+Stability: `Contract` · Status: `Shipped`
+
 Local
 
 ```dart
@@ -577,6 +587,8 @@ previous value for that type.
 
 # Models
 
+Stability: `Contract` · Status: `Shipped`
+
 ```dart
 @DVModel()
 class _User(
@@ -636,6 +648,8 @@ Using the new native Dart data-class syntax. Automatically generates:
 
 # Forms
 
+Stability: `Contract` · Status: `Shipped`
+
 Automatic
 
 ```dart
@@ -690,6 +704,8 @@ Generated submit ( formControls.submit(), .reset() ).
 
 # Backend
 
+Stability: `Contract` · Status: `Shipped`
+
 Backend code is ordinary Dart.
 
 ```dart
@@ -726,6 +742,8 @@ Under the hood, Dartvel compiles backend functions into a high-performance Rust 
 
 # Streaming Functions
 
+Stability: `Contract` · Status: `Shipped`
+
 Backend functions may return
 
 ```dart
@@ -749,6 +767,8 @@ All backend data is transmitted as form-data to allow large request sizes if nec
 
 # Scheduling
 
+Stability: `Draft` · Status: `Shipped`
+
 Backend
 
 ```dart
@@ -764,6 +784,8 @@ Client
 ---
 
 # Queues, Jobs, and Signals
+
+Stability: `Contract` · Status: `Shipped`
 
 Dartvel has a durable background work layer inspired by Laravel queues and a
 typed signal model inspired by Qt signals/slots, Dart streams, Riverpod, and
@@ -899,6 +921,8 @@ Signal guarantees:
 
 # Authorization
 
+Stability: `Contract` · Status: `Shipped`
+
 Authentication identifies users. Authorization decides what they can do.
 
 ```dart
@@ -948,6 +972,8 @@ structured observability events.
 ---
 
 # Middleware
+
+Stability: `Contract` · Status: `Partial`
 
 Dartvel supports middleware for both pages and backend functions.
 
@@ -1000,6 +1026,8 @@ fails validation during `dartvel build`.
 
 # Authentication
 
+Stability: `Contract` · Status: `Shipped`
+
 Like Firebase, WorkOS and Clerk.
 
 ```dart
@@ -1051,6 +1079,8 @@ Providers
 
 # Theme
 
+Stability: `Contract` · Status: `Shipped`
+
 Global
 
 ```dart
@@ -1066,6 +1096,8 @@ Dynamic (default) or manual switching
 ---
 
 # Platform
+
+Stability: `Contract` · Status: `Partial`
 
 ```dart
 DV.Platform.*
@@ -1146,6 +1178,8 @@ Firefox extension local storage behavior, with `DV.BlobStorage.*` as an alias.
 
 # Database
 
+Stability: `Contract` · Status: `Shipped`
+
 Supports
 
 * PostgreSQL
@@ -1176,6 +1210,8 @@ development and test workflows.
 
 # APIs
 
+Stability: `Contract` · Status: `Shipped`
+
 Generated automatically.
 
 - RPC
@@ -1188,6 +1224,8 @@ No manual endpoint creation, but available if needed.
 ---
 
 # Model Sync and Presence
+
+Stability: `Contract` · Status: `Shipped`
 
 Dartvel does not expose a separate `DV.Realtime` namespace. Do not add one.
 Model sync and presence are generated capabilities built from models, signals,
@@ -1223,6 +1261,8 @@ await User.watch((users) {
 ---
 
 # Mail and Notifications
+
+Stability: `Contract` · Status: `Partial`
 
 Dartvel provides an application notification layer, not just low-level device
 notification APIs.
@@ -1320,6 +1360,8 @@ Notification features:
 
 # File Storage
 
+Stability: `Contract` · Status: `Shipped`
+
 Unified API, supports:
 
 - S3 (And s3 compatible, e.g MiniIO)
@@ -1352,6 +1394,8 @@ Just proxies to DV.FileStorage
 
 
 # Cache
+
+Stability: `Contract` · Status: `Shipped`
 
 Unified cache layer.
 
@@ -1410,6 +1454,8 @@ dartvel cache inspect users:list
 
 # Multi-tenancy
 
+Stability: `Contract` · Status: `Partial`
+
 - Enabled by default
 - Shared database or Schema per tenant or Database per tenant
 - Automatic tenant resolution
@@ -1422,6 +1468,8 @@ DV.currentTenant // alias for DV.Tenants.currentTenant
 ---
 
 # SEO
+
+Stability: `Contract` · Status: `Shipped`
 
 Global defaults
 
@@ -1443,6 +1491,8 @@ Supports:
 
 # PWA
 
+Stability: `Draft` · Status: `Shipped`
+
 - Enabled by default.
 
 Automatic:
@@ -1458,6 +1508,8 @@ Automatic:
 ---
 
 # OTA Updates
+
+Stability: `Contract` · Status: `Partial`
 
 Dartvel uses Shorebird for Flutter OTA updates.
 
@@ -1516,6 +1568,8 @@ Release safety:
 ---
 
 # AI
+
+Stability: `Contract` · Status: `Shipped`
 
 First-class.
 
@@ -1630,6 +1684,8 @@ testable behavior so tests do not pass through ignored or empty AI paths.
 
 # Monitoring and Observability
 
+Stability: `Draft` · Status: `Partial`
+
 Inspired by:
 - Laravel Nightwatch
 - Hasura
@@ -1664,6 +1720,8 @@ await DV.ObservabilityAndLogging.event(
 ---
 
 # Testing
+
+Stability: `Draft` · Status: `Shipped`
 
 Dartvel has a first-class testing layer.
 
@@ -1736,6 +1794,8 @@ app flows.
 
 # Search
 
+Stability: `Contract` · Status: `Shipped`
+
 Dartvel should provide a generated search abstraction for models and content.
 
 Providers:
@@ -1794,6 +1854,8 @@ extra cost in observability metrics.
 
 # Billing
 
+Stability: `Draft` · Status: `Partial`
+
 Dartvel should include an optional billing layer for SaaS/mobile apps.
 
 Providers:
@@ -1843,6 +1905,8 @@ overridden.
 ---
 
 # Internationalization and Localization
+
+Stability: `Draft` · Status: `Shipped`
 
 Qt treats internationalization as a core app concern; Dartvel should too.
 
@@ -1900,6 +1964,8 @@ Rules:
 
 # Accessibility
 
+Stability: `Draft` · Status: `Shipped`
+
 Dartvel-generated UI must preserve Flutter semantics and add generated checks for:
 - semantic labels
 - keyboard navigation
@@ -1951,6 +2017,8 @@ fail on exact accessibility regressions instead of relying on ignored warnings.
 ---
 
 # Desktop, Embedded, and Qt-Critical Capabilities
+
+Stability: `Draft` · Status: `Partial`
 
 Qt is strong on desktop, embedded, and device-creation workflows. Dartvel should
 cover the same categories while keeping Flutter as the renderer.
@@ -2072,7 +2140,7 @@ JNI/jnigen only, no Flutter platform channels.
 ---
 # Kiosk Mode
 
-Stability: `Contract` · Status: `Designed`
+Stability: `Contract` · Status: `Partial`
 
 (The `## Bindings` subsection declares Stability `Draft`; every other
 subsection inherits the section labels, per Specification Status.)
@@ -2537,6 +2605,8 @@ externally, and a kiosk-window reset that touched state outside its namespace.
 
 # Terminal Rendering
 
+Stability: `Draft` · Status: `Partial`
+
 A Dartvel application can present itself in a terminal instead of a window,
 without being a different application. The same widgets, the same pages, the
 same generated model pages and Studio documents — drawn as cells rather than
@@ -2704,7 +2774,7 @@ a development run, and whatever else Dartvel requires, is work the fork carries
 rather than a reason to wait.
 # Multi-Window
 
-Stability: `Contract` · Status: `Designed`
+Stability: `Contract` · Status: `Partial`
 
 (The `## Bindings` subsection below declares its own labels — Stability
 `Draft` — because it tracks a flag-gated upstream surface; every other
@@ -3337,7 +3407,7 @@ Closed as a list so they are not reopened item by item:
 
 # Tab Workspaces
 
-Stability: `Contract` · Status: `Designed`
+Stability: `Contract` · Status: `Partial`
 
 `DVTabWorkspace` is a generated application component — like `User.Table()`,
 composed from `DVBox` and `DVText`, introducing no new primitive — that owns
@@ -3408,6 +3478,8 @@ arbitrary signal values are both a redaction risk and a write-amplification
 one.
 
 # Dartvel Studio
+
+Stability: `Draft` · Status: `Shipped`
 
 Dartvel Studio is the admin section every Dartvel application ships with —
 WordPress's admin for a Flutter platform. Every app is fully self-contained,
@@ -3497,6 +3569,8 @@ await DVPageStore().save(document) // persisted, immediately publishable
 
 # Admin, Devtools, and Scaffolding
 
+Stability: `Draft` · Status: `Shipped`
+
 Other batteries-included frameworks provide strong admin and tooling surfaces.
 Dartvel should generate them from the same metadata used by models, pages,
 jobs, signals, policies, and middleware.
@@ -3525,6 +3599,8 @@ modifiers. It must not introduce new primitive widgets.
 ---
 
 # Data Import, Export, and Reporting
+
+Stability: `Draft` · Status: `Shipped`
 
 Dartvel should include typed bulk data workflows:
 - CSV, JSON, NDJSON, and Excel import/export
@@ -3575,6 +3651,8 @@ retry, queue selection, priority, and report-period metadata.
 ---
 
 # Secrets and Environments
+
+Stability: `Draft` · Status: `Partial`
 
 A secret compiled into a client bundle ships to every visitor. Because Dartvel
 compiles both ends from one project, it can make that a build error rather than
@@ -3718,6 +3796,8 @@ environment and a forgotten override cannot leak into the next test.
 
 # Deployment
 
+Stability: `Draft` · Status: `Shipped`
+
 ## Monolith
 Single native backend binary. x64 linux by default, can be targeted optionally.
 
@@ -3736,6 +3816,8 @@ Targets:
 ---
 
 # CLI
+
+Stability: `Contract` · Status: `Shipped`
 
 Dartvel should feel like a single fast toolkit, not a bag of unrelated tools.
 Bun is a useful benchmark here: runtime, package/task runner, shell, test
@@ -3934,6 +4016,8 @@ Automatically handles FFI on native native platforms and WASM on web
 
 # Home Widgets
 
+Stability: `Draft` · Status: `Partial`
+
 Allows building home-screen and lock-screen widgets on supported platforms,
 such as Jetpack Glance or Remote Compose on Android, using `@DVHomeWidget` on
 any widget, whether Flutter-native, `DVClassWidget`, or `DVFunctionalWidget`.
@@ -3962,6 +4046,9 @@ Shares widget tree and state with the parent app
 ---
 
 # CSRF Protection
+
+Stability: `Contract` · Status: `Shipped`
+
 In:
 - Backend functions
 - Forms
@@ -4089,6 +4176,8 @@ escape hatches (see Pluggability).
 
 # Lifecycle Signals
 
+Stability: `Contract` · Status: `Partial`
+
 Dartvel does not introduce a `DVService` lifecycle abstraction. Lifecycle state
 is modelled as generated, read-only **enum signals** — the same signal system
 described under State. Their conceptual type is `DVSignal<TEnum>`: a read-only
@@ -4174,6 +4263,8 @@ The CLI, Studio, analyzer, and external tools observe the same canonical state.
 
 # Backend Function Request Lifecycle
 
+Stability: `Contract` · Status: `Shipped`
+
 Every `@DVBackendFunction` runs through a generated request lifecycle. When the
 first parameter is a `DVContext`, it is injected automatically and is never
 treated as a client-supplied argument.
@@ -4245,6 +4336,8 @@ are mutually exclusive.
 ---
 
 # Modules
+
+Stability: `Contract` · Status: `Partial`
 
 A Dartvel module is a **complete, composable Dartvel application boundary**. A
 module may contain pages, models, backend functions, components, styles, assets,
@@ -4401,6 +4494,8 @@ dartvel:
 
 # Generated Model Pages
 
+Stability: `Contract` · Status: `Partial`
+
 Every model generates a semantic page for one record: `User.Page()`,
 `Post.Page()`, `Product.Page()`. Default composition inspects the model's public
 fields in this order:
@@ -4469,6 +4564,8 @@ structured data, canonical route → canonical URL); all values can be overridde
 
 # Reversible Transactions
 
+Stability: `Contract` · Status: `Shipped`
+
 The canonical transaction API is:
 
 ```dart
@@ -4521,6 +4618,8 @@ await DV.transaction((context) async {
 
 # Background and Durable Work
 
+Stability: `Contract` · Status: `Shipped`
+
 Signals and cron functions remain the primary reactive and scheduled
 primitives, and `@DVJob`/`DV.Jobs`/`DVQueues` (see Queues, Jobs, and Signals)
 remain the durable background-work layer. To keep common cases ergonomic, a
@@ -4557,6 +4656,8 @@ cron functions, and models.
 ---
 
 # Sensitive Model Fields
+
+Stability: `Contract` · Status: `Partial`
 
 `@DVModel.sensitiveField()` marks a model field as sensitive. By default such a
 field is redacted from logs; excluded from AI context, traces, analytics, public
@@ -4606,6 +4707,8 @@ themselves.
 ---
 
 # Static Web Generation
+
+Stability: `Draft` · Status: `Shipped`
 
 `dartvel build web` does not ship a single shared `index.html`. Dartvel
 generates a route-specific HTML document for every known static page:
@@ -4697,6 +4800,8 @@ Widget _productsPage(BuildContext context) => Product.List();
 
 # Web Server Rendering
 
+Stability: `Draft` · Status: `Partial`
+
 `dartvel build web-server` creates a Dartvel web server that generates
 route-specific HTML on demand:
 
@@ -4740,6 +4845,8 @@ its own HTML while still appearing in the parent route index and sitemap.
 ---
 
 # Embedded, Television, and Extension Build Targets
+
+Stability: `Contract` · Status: `Partial`
 
 Beyond mobile, web, and desktop, Dartvel supports dedicated builds for webOS,
 Tizen, Sony's Flutter Embedded Linux ecosystem, and VS Code extensions.
@@ -5258,6 +5365,8 @@ Dartvel automatically provides:
 while Flutter remains the rendering engine and Dart remains the only language developers write.
 
 # App store publishing
+
+Stability: `Draft` · Status: `Partial`
 
 Automatically handles publishing and distribution for all platforms, similar in
 scope to EAS Deploy and Firebase App Distribution.

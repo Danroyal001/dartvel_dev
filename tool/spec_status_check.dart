@@ -121,6 +121,31 @@ int main(List<String> arguments) {
     }
   }
 
+  // The labels the specification prints, against the ones the index records.
+  // The Specification Status section says every h1 carries both, and a label
+  // in prose that disagrees with the index is the drift this file exists to
+  // end -- with the added sting that the prose is what a reader believes.
+  final labels = dvSpecLabels(specFile.readAsStringSync());
+  for (final entry in decoded['sections']! as List<Object?>) {
+    if (entry is! Map<String, Object?>) continue;
+    final name = entry['section'];
+    if (name is! String || entry['kind'] == 'narrative') continue;
+    if (!specSections.contains(name)) continue;
+
+    final printed = labels[name];
+    if (printed == null) {
+      problems.add('$name: the section prints no '
+          '"Stability: ... · Status: ..." line.');
+      continue;
+    }
+    if (printed.stability != entry['stability'] ||
+        printed.status != entry['status']) {
+      problems.add('$name: the section prints '
+          '${printed.stability}/${printed.status}; the index records '
+          '${entry['stability']}/${entry['status']}.');
+    }
+  }
+
   if (problems.isNotEmpty) return _fail(problems);
 
   // The README's feature table makes the same claim in a second place, and a
