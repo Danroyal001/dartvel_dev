@@ -4875,8 +4875,10 @@ and owned windows outliving the frame budget on close.
 ## Compatibility
 
 `DV.Platform.Window.setTitle` / `persistState` / `restoreState` continue to
-work as sugar over `DV.Window.current`; `dartvel migrate-code` rewrites them to
-the explicit form on request. No existing surface is removed.
+work as sugar over `DV.Window.current`. No existing surface is removed, so no
+project has to move. `dartvel migrate-code` is where a rewrite to the explicit
+form would live, and that command is designed and not built; see *Upgrade and
+compatibility*.
 
 ## Deliberately absent
 
@@ -6946,10 +6948,9 @@ dartvel doctor --targets android,ios,web,vscode
 
 Dartvel upgrades preserve source, generated-code, protocol, database, module,
 plugin, and deployment compatibility. Automated code migrations handle changes
-such as `DVStyleModifier → DVModifier`, `.styleModifier() → .modifier()`,
-`DV.Storage → DV.FileStorage`, and `DV.BlobStorage → DV.FileStorage`. Module
-manifests declare compatible Dartvel versions, validated before compiling or
-mounting.
+such as `DVStyleModifier → DVModifier`, `.styleModifier() → .modifier()` and
+`DV.Storage → DV.FileStorage`. Module manifests declare compatible Dartvel
+versions, validated before compiling or mounting.
 
 ```bash
 dartvel upgrade --plan
@@ -6957,6 +6958,19 @@ dartvel compatibility-check
 dartvel migrate-code
 dartvel upgrade
 ```
+
+**Designed, not built.** None of those four commands exists yet. There is no
+`upgrade`, no `compatibility-check` and no `migrate-code` under
+`packages/dartvel_cli`, and no rewrite-rule list for one to run, so every
+rename above is a manual edit today. `dartvel update` updates the CLI itself
+and `dartvel updates` ships over-the-air patches to a released application;
+neither is this, and the near-miss in the names is worth stating once.
+
+`DV.Storage → DV.FileStorage` is the first rule waiting for the command.
+`DV.Storage` is deprecated in the current release and goes in the next minor,
+which is the shape of change `migrate-code` exists to absorb. `DV.BlobStorage`
+is deliberately not in the list: it is a supported alias, not a name on its way
+out, and rewriting it would churn working code for nothing.
 
 ## Performance contracts
 
