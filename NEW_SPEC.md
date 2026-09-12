@@ -2867,7 +2867,8 @@ Built in:
 - Traces
 - Profiling
 - Performance analysis
-- Error reporting
+- Error reporting -- see Crash Reporting and Release Health, which is that
+  line written out
 - Structured diagnostics and fix-recommendations
 - Structured, AI-readable logs
 
@@ -2885,6 +2886,204 @@ await DV.ObservabilityAndLogging.event(
   {"orderId": order.id},
 );
 ```
+
+---
+
+# Crash Reporting and Release Health
+
+Stability: `Draft` · Status: `Designed`
+
+Monitoring and Observability lists error reporting among the things that are
+built in. This section is that line, written out, because a crash is not a log
+with a higher severity and treating it as one loses most of them.
+
+The difference is what the process is doing at the time. A log is written by a
+program that will still be running afterwards, so it can allocate, await, and
+put something on the network. A crash handler runs inside a process that is
+already going down — often with a corrupt heap, sometimes on a signal handler
+where allocation is not allowed at all. Anything that waits for a round trip
+finishes after the process does.
+
+So: **a crash is written to disk by the handler and sent by the next launch.**
+The record is small, its buffer is reserved when the handler is installed, and
+writing it is the only thing the handler does. `DV-CRASH-001` reports the
+report that was recovered and sent.
+
+## What is captured
+
+| Where | Source |
+| --- | --- |
+| Flutter | `FlutterError.onError` and `PlatformDispatcher.onError` |
+| Dart | uncaught errors in the guarded zone, and errors on every spawned isolate |
+| Android | the JVM's uncaught-exception handler and a native signal handler |
+| iOS and macOS | `NSException`, Mach exceptions, and signals |
+| Linux and Windows | signal handlers and structured exception handling |
+| Web | `error` and `unhandledrejection` on the window, plus the isolate's own |
+| Backend | the server isolate's errors, and the Rust runtime's panics |
+
+Application hangs are captured too: a watchdog notes when the platform thread
+has not answered for the declared interval and files the stack it was on, as
+`DV-CRASH-007`. An application that freezes is a crash to everyone except the
+crash reporter.
+
+Non-fatal errors — a caught exception the application wants recorded — go
+through the same path with `DV.Crashes.record(error, stack)`, and are the only
+thing here that is sampled.
+
+## What a report carries
+
+The stack, the release and patch it came from, the platform and device class,
+the locale, the session length, the flags in force at the time, and the last
+breadcrumbs.
+
+Breadcrumbs are the navigations, backend calls, lifecycle transitions and
+logged events that preceded the crash — a ring buffer with a declared size, so
+a long session costs the same as a short one.
+
+**Sensitive model fields never enter a report.** A value declared with
+`@DVModel.sensitiveField()` is excluded by construction, the way it already is
+from logs, traces and AI context, and breadcrumb payloads pass the redaction
+the log path uses.
+
+Local variables are not captured at all. A variable dump is the most useful
+thing a crash reporter could send and the one thing it cannot make safe: the
+values are whatever was in scope, which on a checkout screen is a card number.
+
+## Identity and consent
+
+A crash report is operational. It is sent without an analytics consent grant,
+because the application cannot be fixed otherwise, and it carries no
+advertising identifier and no user identity by default — an install-scoped
+random id groups a device's own reports and is reset when the application is
+reinstalled or when the person clears data.
+
+An application that wants the reports tied to an account declares it, and that
+declaration binds the reporting to the consent category it names — no grant,
+no identity on the report, and the report still arrives. The same declaration
+flows into the privacy manifest that App Store Publishing writes, so the store
+answer and the running behaviour come from one place.
+
+## Symbols
+
+A release build is obfuscated and stripped, which is what makes its stacks
+unreadable. `dartvel build` writes the debug information for each target as
+part of the build rather than as a step somebody remembers, and `dartvel
+crashes symbols upload` puts it in the symbol store keyed by release and
+build id.
+
+A build that obfuscates and keeps no symbols is refused (`DV-CRASH-002`).
+Shipping one produces crash reports that can never be read, and the failure
+arrives weeks later when somebody needs them.
+
+On the web the source maps are **archived with the release and not deployed**.
+Serving them publishes the source, and not serving them makes every web stack
+a list of minified names; uploading them to the symbol store is how both are
+true at once.
+
+A report naming a release whose symbols never arrived is kept and symbolicated
+later, if they turn up. Until then it says it is unsymbolicated
+(`DV-CRASH-003`) rather than showing a plausible-looking frame list that is
+the compiler's naming rather than the program's.
+
+## Grouping
+
+Reports group by a fingerprint taken from the top frames of the stack with
+framework frames trimmed, so the group is named after the application's own
+code rather than after `runApp`. A group keeps its identity across releases as
+long as that signature holds, which is what makes "this regressed in 1.4.0"
+answerable.
+
+An application can override the fingerprint where the default is wrong — one
+crash site reached from twenty callers, or twenty sites that are really one
+bug behind a shared helper.
+
+## Rate limits
+
+A device in a crash loop restarts and crashes again, forever. Reports are
+limited per device per release: the first few in full, then counted, with
+`DV-CRASH-004` saying what was elided. A counted crash still contributes to
+release health; it is the payload that stops, not the arithmetic.
+
+## Release health
+
+Two numbers per release and per OTA patch: **crash-free sessions** and
+**crash-free users**. The second is the one that matters to a person, and the
+first is the one that moves fast enough to act on.
+
+Both are declared thresholds, and both are what the OTA rollback gate reads.
+A patch whose crash-free sessions fall below its threshold is held and
+`DV-CRASH-010` fires; the rollout stops, the gate calls `dartvel flags off`
+for anything the release staged behind a flag, and `dartvel updates rollback`
+is a decision somebody makes with the number in front of them.
+
+Health is computed per cohort, not just per release, because a crash that
+takes only the ten percent in a rollout disappears into a whole-release
+average.
+
+## Where reports go
+
+```dart
+DVCrashReporting(
+  sink: DVCrashSink.dartvel(),        // the deployment's own backend
+  hangThreshold: Duration(seconds: 5),
+  breadcrumbs: 64,
+  nonFatalSampleRate: 0.25,
+)
+```
+
+`DVCrashSink` has adapters — the Dartvel backend, Sentry, Crashlytics, or an
+application's own — and the capture path above is the same whichever is
+configured. A deployment with no sink configured still captures and still
+computes release health locally; it simply has nowhere to send the detail.
+
+Disabling crash reporting for a build is a declaration, not an accident, and
+the build says so (`DV-CRASH-009`).
+
+## CLI
+
+```bash
+dartvel crashes list --release 1.4.0
+dartvel crashes show <group>
+dartvel crashes symbols upload
+dartvel crashes health --release 1.4.0 --by cohort
+```
+
+## Studio
+
+Studio shows groups ordered by the number of people affected rather than by
+event count, each group's first and last sighting, the releases it appears in,
+and release health per cohort next to the rollout that produced the cohort.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-CRASH-001` | a report was recovered from the previous run and sent at launch | `info` |
+| `DV-CRASH-002` | the build obfuscates and kept no symbols; its reports could never be read | `error` |
+| `DV-CRASH-003` | no symbols for the release a report names; the stack is unsymbolicated | `warning` |
+| `DV-CRASH-004` | reports from this device were rate-limited for this release | `warning` |
+| `DV-CRASH-005` | a report was dropped: the on-disk record was truncated by the crash that wrote it | `warning` |
+| `DV-CRASH-006` | the native crash handler could not be installed; only Dart-level errors are captured | `warning` |
+| `DV-CRASH-007` | an application hang exceeded the declared threshold | `warning` |
+| `DV-CRASH-008` | a non-fatal error was dropped by the declared sampling rate | `debug` |
+| `DV-CRASH-009` | crash reporting is disabled for this build | `info` |
+| `DV-CRASH-010` | release health crossed its declared threshold; the rollout was held | `error` |
+
+## Deliberately absent
+
+- **Sending from inside the handler.** Every design that does it works in
+  testing, where the crash is thrown by a button, and loses the reports that
+  matter, where the process is already unwinding.
+- **Local variable capture.** See above: it cannot be redacted, because
+  nothing declares what those values are.
+- **Sampling crashes.** Non-fatal errors are sampled. A crash is not: the
+  hundredth occurrence is the one that tells you it is not rare.
+- **A second breadcrumb API.** Breadcrumbs are the logs, navigations and
+  lifecycle transitions already produced. An application that has to remember
+  to leave them will not.
+- **Screenshots and view hierarchies on crash.** They carry whatever was on
+  screen, which is the same problem as variable capture with a wider blast
+  radius.
 
 ---
 
@@ -5835,6 +6034,10 @@ Observability
 dartvel logs
 dartvel traces
 dartvel metrics
+dartvel crashes list --release 1.4.0
+dartvel crashes show <group>
+dartvel crashes symbols upload
+dartvel crashes health --release 1.4.0 --by cohort
 ```
 
 AI

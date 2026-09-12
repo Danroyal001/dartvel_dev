@@ -492,6 +492,61 @@ final class DVDiagnostics {
       reason: 'the rule set is older than `flags.maxAge` and is still in use',
       level: 'warning',
     ),
+    DVDiagnostic(
+      code: 'DV-CRASH-001',
+      reason: 'a report was recovered from the previous run and sent at launch',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-CRASH-002',
+      reason: 'the build obfuscates and kept no symbols; its reports could '
+          'never be read',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-CRASH-003',
+      reason: 'no symbols for the release a report names; the stack is '
+          'unsymbolicated',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-CRASH-004',
+      reason: 'reports from this device were rate-limited for this release',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-CRASH-005',
+      reason: 'a report was dropped: the on-disk record was truncated by the '
+          'crash that wrote it',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-CRASH-006',
+      reason: 'the native crash handler could not be installed; only '
+          'Dart-level errors are captured',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-CRASH-007',
+      reason: 'an application hang exceeded the declared threshold',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-CRASH-008',
+      reason: 'a non-fatal error was dropped by the declared sampling rate',
+      level: 'debug',
+    ),
+    DVDiagnostic(
+      code: 'DV-CRASH-009',
+      reason: 'crash reporting is disabled for this build',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-CRASH-010',
+      reason: 'release health crossed its declared threshold; the rollout was '
+          'held',
+      level: 'error',
+    ),
   ];
 
   /// The diagnostic for [code], or null if nothing is registered under it.
