@@ -82,8 +82,15 @@ void main() {
     final File spec = File('../../NEW_SPEC.md');
 
     Map<String, ({String reason, String level})> rows() {
+      // The level column is not always the level alone: the document writes
+      // `build `error`` and `gate `error`` for the codes reported by a build
+      // or a deploy gate rather than at runtime. Requiring the column to open
+      // with the backtick skipped every one of those rows, which is not a
+      // stricter check but a blind one -- twelve codes the document listed
+      // were registered nowhere and both directions of this comparison said
+      // nothing, because neither side could see them.
       final RegExp row = RegExp(
-        r'^\|\s*`(DV-[A-Z0-9]+-\d+)`\s*\|\s*(.+?)\s*\|\s*`([a-z]+)`',
+        r'^\|\s*`(DV-[A-Z0-9]+-\d+)`\s*\|\s*(.+?)\s*\|\s*(?:[a-z]+\s+)?`([a-z]+)`',
         multiLine: true,
       );
       return <String, ({String reason, String level})>{
@@ -98,6 +105,17 @@ void main() {
       expect(spec.existsSync(), isTrue);
       expect(rows(), isNotEmpty);
       expect(rows().keys, contains('DV-WINDOW-001'));
+    });
+
+    test('a code reported by the build or a gate is read too', () {
+      // The rows whose level column reads `build `error`` or `gate `error``.
+      // Without them the two assertions below compare a subset of the
+      // document against the whole registry, which passes while a code that
+      // only a build can report is registered nowhere.
+      final Map<String, ({String reason, String level})> table = rows();
+      expect(table['DV-PROTO-001']?.level, 'error');
+      expect(table['DV-SCHEMA-002']?.level, 'error');
+      expect(table['DV-3D-008']?.level, 'error');
     });
 
     test('every code the specification lists is registered', () {
