@@ -143,6 +143,15 @@ void main(List<String> args) {
       'dartvelPackageVersion',
       base,
     ),
+    // dartvel_shelf is a minor ahead of the family, so it needs its own
+    // constant and its own line here. It used to be a literal in the
+    // template with nothing to update it, and it stayed at ^0.3.0 while
+    // shelf reached 0.6.0.
+    (
+      'packages/dartvel_cli/lib/src/templates/project_templates.dart',
+      'dartvelShelfVersion',
+      target['dartvel_shelf']!,
+    ),
   ]) {
     final File file = File(c.$1);
     if (!file.existsSync()) {
@@ -162,6 +171,18 @@ void main(List<String> args) {
     if (after == before) continue;
     changed.add(c.$1);
     if (!dryRun) file.writeAsStringSync(after);
+  }
+
+  // The applications checked into this repository. They are not published, so
+  // they were never in the loop above -- and because each resolves from its
+  // own pubspec_overrides.yaml, nothing here ever built against the constraint
+  // they declare. All three sat at ^0.2.1 through three releases.
+  for (final File pubspec in _appPubspecs()) {
+    final String before = pubspec.readAsStringSync();
+    final String after = _setSiblingConstraints(before, target);
+    if (after == before) continue;
+    changed.add(pubspec.path);
+    if (!dryRun) pubspec.writeAsStringSync(after);
   }
 
   for (final MapEntry<String, String> e in target.entries) {
@@ -193,6 +214,28 @@ String _setVersion(String pubspec, String version) => pubspec.replaceFirst(
 /// `dartvel_core: ^0.3.2` and the long form with a nested `version:` under the
 /// package name. Missing the long one leaves exactly the stale caret the
 /// constraint checker was written for.
+/// The pubspecs of the applications in this repository: the site and the
+/// examples.
+///
+/// Found by walking rather than listed, so an example added later is bumped
+/// with the rest instead of being discovered stale three releases on.
+List<File> _appPubspecs() {
+  final List<File> out = <File>[];
+  for (final String dir in <String>['sites', 'examples']) {
+    final Directory base = Directory(dir);
+    if (!base.existsSync()) continue;
+    for (final FileSystemEntity entity in base.listSync(recursive: true)) {
+      if (entity is! File) continue;
+      if (!entity.path.endsWith('/pubspec.yaml')) continue;
+      if (entity.path.contains('/build/')) continue;
+      if (entity.path.contains('/.dart_tool/')) continue;
+      out.add(entity);
+    }
+  }
+  out.sort((File a, File b) => a.path.compareTo(b.path));
+  return out;
+}
+
 String _setSiblingConstraints(String pubspec, Map<String, String> target) {
   String out = pubspec;
   for (final MapEntry<String, String> e in target.entries) {

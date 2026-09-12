@@ -69,23 +69,37 @@ void main(List<String> args) {
         'it with the latest release, so a mismatched binary offers itself as '
         'an update for ever.');
   }
-  final String? scaffold = _constant(packages,
-      'dartvel_cli/lib/src/templates/project_templates.dart',
-      'dartvelPackageVersion');
-  for (final String package in <String>[
-    'dartvel_core',
-    'dartvel_flutter',
-    'dartvel_cli',
-  ]) {
+  // Every constraint the scaffold writes, read from the template's own text
+  // rather than from a list of package names kept here. dartvel_shelf was a
+  // bare '^0.3.0' literal beside three interpolated constraints, so a loop
+  // over <core, flutter, cli> checked every constraint except the wrong one,
+  // and `dartvel create` asked for a shelf three releases old.
+  _scaffoldConstraints(packages).forEach((String package, String base) {
     final String? version = versions[package];
-    if (scaffold == null || version == null) continue;
-    if (!_caretAllows(scaffold, version)) {
-      problems.add('dartvel create writes $package: ^$scaffold '
-          '(dartvelPackageVersion in project_templates.dart), which does not '
-          'admit the $version being published. Every new project would '
-          'resolve an older release.');
+    if (version == null) return;
+    if (!_caretAllows(base, version)) {
+      problems.add('dartvel create writes $package: ^$base '
+          '(project_templates.dart), which does not admit the $version being '
+          'published. Every new project would resolve an older release.');
     }
-  }
+  });
+
+  // The applications checked into this repository. Each resolves from its own
+  // overrides, so a stale constraint never shows up in a build here; it shows
+  // up for the reader who copies the file, which is what the site and the
+  // examples are for.
+  _appConstraints(packages.parent).forEach((String where, String constraint) {
+    final int split = where.lastIndexOf(' ');
+    final String label = where.substring(0, split);
+    final String package = where.substring(split + 1);
+    final String? version = versions[package];
+    if (version == null) return;
+    if (!_allows(constraint, version)) {
+      problems.add('$label declares $package: $constraint, which does not '
+          'admit the $package $version in this repository. It is what a '
+          'reader copying the file gets.');
+    }
+  });
 
   if (problems.isEmpty) {
     stdout.writeln('every package accepts the sibling versions being published');
@@ -211,6 +225,68 @@ String? _constant(Directory packages, String path, String name) {
   final RegExpMatch? m = RegExp("const String $name = '([^']+)';")
       .firstMatch(file.readAsStringSync());
   return m?.group(1);
+}
+
+/// Each Dartvel constraint `dartvel create` writes, by package, caret
+/// stripped, resolved through the constant when the template interpolates one.
+///
+/// Reads the template's source text, so a constraint added as a literal is
+/// covered the day it is added rather than when somebody remembers to name it
+/// here.
+Map<String, String> _scaffoldConstraints(Directory packages) {
+  const String path =
+      'dartvel_cli/lib/src/templates/project_templates.dart';
+  final File template = File('${packages.path}/$path');
+  if (!template.existsSync()) return <String, String>{};
+  final String source = template.readAsStringSync();
+
+  final Map<String, String> out = <String, String>{};
+  for (final RegExpMatch m in RegExp(
+    r"^\s+(dartvel_\w+):.*\?\s*'\^\$?(\w[\w.]*)'",
+    multiLine: true,
+  ).allMatches(source)) {
+    final String value = m.group(2)!;
+    // Either a version, or the name of the constant holding one.
+    final String? resolved = RegExp(r'^\d').hasMatch(value)
+        ? value
+        : _constant(packages, path, value);
+    if (resolved != null) out[m.group(1)!] = resolved;
+  }
+  return out;
+}
+
+/// Each Dartvel constraint declared by an application in this repository,
+/// keyed by '<path> <package>'.
+///
+/// Runtime and dev dependencies alike: in a published package a stale dev
+/// constraint ships to nobody, but in an application it ships to everybody who
+/// copies the file, and `dartvel_cli` -- a dev dependency -- is the build tool.
+Map<String, String> _appConstraints(Directory root) {
+  final Map<String, String> out = <String, String>{};
+
+  for (final String dir in <String>['sites', 'examples']) {
+    final Directory base = Directory('${root.path}/$dir');
+    if (!base.existsSync()) continue;
+
+    for (final FileSystemEntity entity in base.listSync(recursive: true)) {
+      if (entity is! File) continue;
+      if (!entity.path.endsWith('/pubspec.yaml')) continue;
+      if (entity.path.contains('/build/')) continue;
+      if (entity.path.contains('/.dart_tool/')) continue;
+
+      final String label = entity.path.substring(root.path.length + 1);
+      final String source = entity.readAsStringSync();
+
+      // A path dependency has no version to be stale about, and the regex
+      // below does not match one.
+      for (final RegExpMatch m
+          in RegExp(r'^  (dartvel_\w+):\s*(\S+)\s*$', multiLine: true)
+              .allMatches(source)) {
+        out['$label ${m.group(1)}'] = m.group(2)!;
+      }
+    }
+  }
+  return out;
 }
 
 /// Whether `^base` admits [version]. The caret stops at the first non-zero

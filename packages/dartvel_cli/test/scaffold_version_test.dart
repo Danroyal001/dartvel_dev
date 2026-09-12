@@ -66,17 +66,42 @@ void main() {
     expect(caretAdmits('1.2.0', '2.0.0'), isFalse);
   });
 
-  for (final String package in <String>[
-    'dartvel_core',
-    'dartvel_flutter',
-    'dartvel_cli',
-  ]) {
+  // Read from what the template writes, not from the list of names the
+  // constant happens to feed. dartvel_shelf was written as a bare '^0.3.0'
+  // literal beside three interpolated constraints, so a loop over
+  // <core, flutter, cli> asserted about every constraint except the one that
+  // was wrong -- and it was wrong for three releases.
+  final Map<String, String> scaffolded = scaffoldConstraints();
+
+  test('the scaffold declares the Dartvel packages this test is about', () {
+    expect(scaffolded.keys,
+        containsAll(<String>['dartvel_core', 'dartvel_flutter', 'dartvel_cli']));
+  });
+
+  scaffolded.forEach((String package, String constraint) {
     test('a new project admits the $package being published', () {
       final String version = declared(package);
-      expect(caretAdmits(dartvelPackageVersion, version), isTrue,
-          reason: 'dartvel create writes $package: ^$dartvelPackageVersion, '
-              'which does not admit $version -- a new project resolves an '
-              'older release and none of this one');
+      expect(caretAdmits(constraint, version), isTrue,
+          reason: 'dartvel create writes $package: ^$constraint, which does '
+              'not admit $version -- a new project resolves an older release '
+              'and none of this one');
     });
+  });
+}
+
+/// Every Dartvel constraint in the pubspec `dartvel create` writes, by
+/// package, with the caret stripped.
+///
+/// The hosted form: `localPackagesDir` is what this repository's own examples
+/// use, and a path dependency has no version to be stale.
+Map<String, String> scaffoldConstraints() {
+  final String pubspec =
+      ProjectTemplates.pubspecTemplate(name: 'example_app', org: 'com.example');
+  final Map<String, String> out = <String, String>{};
+  for (final RegExpMatch m
+      in RegExp(r'^\s+(dartvel_\w+):\s*\^(\S+)\s*$', multiLine: true)
+          .allMatches(pubspec)) {
+    out[m.group(1)!] = m.group(2)!;
   }
+  return out;
 }
