@@ -97,6 +97,11 @@
       "absent": "A model is discovered by a pattern over its source, and that pattern could not read its own annotation twice over. It stopped at the first close parenthesis, so a string argument containing one -- schemaType: 'Product (beta)' -- ended the annotation early and the model was not found at all: no generated class, no table, no admin row, no graph node, no static paths, on a build that succeeded. Six parsers carried that pattern -- the model generator, the project graph, the admin scaffold, the schema snapshot, the static-paths generator and the kiosk check -- and a model one of them missed while another found it is a table in the database with no row anywhere else. Each is now matched against a copy whose annotation arguments are blanked to spaces, which keeps every offset so the arguments themselves are still read from the original. The same scan skips string literals and comments, because an annotation described in prose is not an annotation: the marketing site describes one in a paragraph above the annotation its page carries, and a parser that searched the file for the first occurrence read the paragraph. Absent: nothing named here yet beyond what the sections for forms, model pages and multi-tenancy record."
     },
     {
+      "section": "Record History and Optimistic Concurrency",
+      "stability": "Draft",
+      "status": "Designed"
+    },
+    {
       "section": "Forms",
       "stability": "Contract",
       "status": "Shipped",
