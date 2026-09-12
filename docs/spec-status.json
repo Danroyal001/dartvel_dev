@@ -390,6 +390,11 @@
       "absent": "Shorebird-backed native patch application; page bundles ship as data and do not need it. check() joins every rule into one decision -- the channel's offer, this device's place in the staged rollout, a version the application pinned, a version somebody skipped, and a kiosk's maintenance window -- so they cannot disagree and none of them is enforced nowhere. What that decision is made about has no source, though, and that is the larger gap. updates.check, updates.apply and updates.rollback are declared binding names that nothing registers on any platform; DVUpdates.check reaches updates.check through DVNativeBridge.require, which throws when nothing is registered, and the only registrations anywhere are the stubs three test files install. So the rules are right, well tested, and unreachable: DV.Updates.check() throws in every real application on every target until something binds those three names to an update source. Found by dart tool/binding_coverage.dart, which counts registrations from the source instead of reading a claim written here."
     },
     {
+      "section": "Protocol Versioning and Client Compatibility",
+      "stability": "Draft",
+      "status": "Designed"
+    },
+    {
       "section": "AI",
       "stability": "Contract",
       "status": "Shipped",
