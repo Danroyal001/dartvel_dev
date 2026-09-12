@@ -4806,6 +4806,139 @@ Targets:
 
 ---
 
+# Backend Release Management
+
+Stability: `Draft` · Status: `Designed`
+
+Deployment says where a backend runs. This says how a new one replaces the one
+already running, and how it goes back.
+
+OTA Updates gives clients channels, staged rollout, health gates and rollback
+with a provenance record. The backend serving those clients has none of that,
+and it is the half that cannot be rolled back by asking a device to fetch an
+older bundle. Schema Evolution's expand and contract steps also have to be
+sequenced against a deploy that can move backwards: a contract that runs while
+the previous release is still serving takes the column that release reads.
+
+## Strategies, and what an adapter can actually do
+
+```yaml
+dartvel:
+  deploy:
+    strategy: canary          # recreate | blue-green | canary
+    canary:
+      steps: [5, 25, 50, 100]
+      hold: 10m
+```
+
+Whether a strategy is available is the **adapter's** answer, not the
+planner's — the same rule Schema Evolution uses for migration classification,
+and for the same reason: a closed list in the planner cannot be taught by a new
+adapter, and platforms differ in what they can weight.
+
+| Adapter | Canary | How |
+|---|---|---|
+| Cloud Run | yes | revision traffic weights |
+| AWS Lambda | yes | alias weights per version |
+| Fly.io | yes | per-machine rollout |
+| Kubernetes-style containers | yes | replica-set weighting through the configured ingress |
+| Bare metal, single container, edge runtimes with no weighting | no | blue-green with a health gate |
+
+**Where a platform cannot weight traffic, Dartvel does not simulate it.**
+Splitting by DNS or by starting a second fleet and hoping looks like a canary
+and is not one: DNS caches for as long as a resolver feels like, so neither the
+split nor the rollback is a measurement anybody can trust. Such an adapter
+degrades to blue-green, says so in the plan, and keeps the health gate
+(`DV-RELEASE-002`).
+
+## Health is the request lifecycle, not a ping
+
+A canary is promoted or rolled back on what the Backend Function Request
+Lifecycle already reports. Its stages are numbered, so a failure has a place
+rather than a rate: authorization refusals at stage 12 rising against the
+previous release is a different fault from transactions failing at stage 17,
+and a `/healthz` that answers 200 while both happen is the reason a ping is not
+a health check.
+
+```yaml
+dartvel:
+  deploy:
+    gate:
+      errorRate: 1%           # against the release being replaced, not absolute
+      stages:
+        commit: 0.1%          # stage 17 failures
+        authorization: 2%     # stage 12 refusals
+      latencyP95: +20%
+```
+
+Thresholds are relative to the release being replaced, because absolute numbers
+encode one deployment's traffic and are wrong on the next. A gate with no
+previous release to compare against — a first deploy — holds the rollout and
+says so rather than passing vacuously.
+
+## Rollback, and what a release is
+
+```bash
+dartvel deploy --plan          # the sequence, before anything runs
+dartvel deploy rollback        # to the previous release, by provenance record
+dartvel deploy rollback --to 2026-09-11T14:02Z
+```
+
+A release carries the provenance record OTA patches carry: what was built, from
+which commit, with which generated protocol version, which migration plan ran,
+and who released it.
+
+**The release is the unit of rollback, including in function mode.** Rolling
+back one function and leaving its neighbours is a state nobody described: the
+functions in a release share generated serialization, one protocol version and
+one schema expectation, so a mixed fleet answers the same client two ways. Per
+function rollback is refused, naming the release to roll back instead
+(`DV-RELEASE-004`). Function mode still deploys functions independently — that
+is what it is for — but a rollback restores the set that was released together.
+
+## The deploy is the migration's choreography
+
+Schema Evolution's plan is not a separate ceremony run by hand; its steps are
+the deploy's steps:
+
+```text
+1. expand        — add alongside, dual-write; the previous release still reads the old shape
+2. deploy        — the new release rolls out under the strategy above
+3. backfill      — resumable, rate-limited, verified per chunk
+4. read switch   — after verification reports no discrepancy
+5. contract      — only once no release in the protocol window reads the old shape
+```
+
+Step 5 is gated by Protocol Versioning and Client Compatibility, not by a
+timer: contract is refused while a client inside the window still reads what it
+would drop (`DV-RELEASE-005`). A deploy that would run a blocking migration
+against production is refused without an explicit, logged override — the same
+discipline `dartvel compatibility-check` applies to clients.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-RELEASE-001` | health gate tripped; the rollout was rolled back | `error` |
+| `DV-RELEASE-002` | the adapter cannot weight traffic; canary degraded to blue-green | `warning` |
+| `DV-RELEASE-003` | no previous release to compare against; the gate held the rollout | `warning` |
+| `DV-RELEASE-004` | per-function rollback requested; the release is the unit | `error` |
+| `DV-RELEASE-005` | contract step refused while a windowed client still reads the old shape | `error` |
+| `DV-RELEASE-006` | a release was deployed with no provenance record; rollback cannot name it | `warning` |
+
+## Deliberately absent
+
+- **A traffic manager of Dartvel's own.** Weighting belongs to the platform;
+  where there is none, the plan says so.
+- **Service mesh and multi-region orchestration.** Region pinning and a
+  multi-region backplane are their own question, and pretending a deploy
+  strategy answers it would be worse than the gap.
+- **Rollback of data.** A migration's contract step is refused while it is
+  unsafe; it is not undone afterwards by guessing. Restoring data is the
+  database's own backup and recovery story.
+
+---
+
 # CLI
 
 Stability: `Contract` · Status: `Shipped`
@@ -4883,6 +5016,8 @@ Deploy
 dartvel deploy
 dartvel deploy lambda
 dartvel deploy edge
+dartvel deploy --plan
+dartvel deploy rollback
 dartvel compatibility-check --against production
 ```
 
