@@ -4418,6 +4418,129 @@ and release health per cohort next to the rollout that produced the cohort.
 
 ---
 
+
+# Alerting, SLOs and Status Pages
+
+Stability: `Draft` · Status: `Designed`
+
+Monitoring collects logs, metrics and traces; Crash Reporting collects the
+crashes. Between all of that and a person there is nothing. No rule fires, no
+budget is tracked, no incident is recorded, and a customer asking "is it down?"
+gets an answer from whoever happens to reply.
+
+This section is the part of observability that turns data into a phone call and
+a public sentence. It adds no new collector: every signal it reads is one the
+sections above already produce.
+
+## Rules read the signals that already exist
+
+An alert rule is typed configuration over a measured signal — a metric, a trace
+latency, a crash rate, queue depth, kiosk fleet health, a quota breach from
+Usage Metering. There is no separate alerting agent and no second definition of
+what "slow" means.
+
+```dart
+const DVAlertRule(
+  name: 'checkout-latency',
+  signal: DVSignalRef.trace('createOrder', DVTraceStat.p95),
+  condition: DVAlertWhen.above(Duration(milliseconds: 800)),
+  forDuration: Duration(minutes: 5),
+  notify: <DVAlertTarget>[DVAlertTarget.team('payments')],
+);
+```
+
+`forDuration` is not optional decoration. A rule that fires on a single sample
+fires on a garbage-collection pause, and the third time that happens at 03:00
+the rule gets muted and never comes back.
+
+Delivery goes through Mail and Notifications — the channels an application
+already has, to people it already knows — plus pager adapters for the
+PagerDuty-class services, because rotas and escalation are somebody else's
+product and integrating is cheaper than owning.
+
+## An SLO is a promise with a budget attached
+
+```dart
+const DVServiceLevel(
+  name: 'checkout',
+  objective: DVObjective.successRate(0.999, over: Duration(days: 30)),
+  applies: DVAppliesTo.backendFunction('createOrder'),
+);
+```
+
+Objectives are declared per backend function, page or kiosk fleet, and what is
+alerted on is **error-budget burn rate, not the instantaneous number**. The
+difference matters: a 99.9% monthly target is breached by forty-three minutes
+of failure, and an alert that fires the moment the rate dips fires constantly
+while an alert on burn rate fires when the month is actually in danger.
+
+An objective with no budget left is a fact worth surfacing before the next
+deploy rather than after it, so Backend Release Management can read it as a
+gate.
+
+## Incidents are models, so they are ordinary data
+
+An incident is a generated model with a timeline, not a row in somebody's
+notebook. Alerts open one, crash-rate spikes link into one, and the record
+outlives the outage — which is the only reason a postmortem can be written from
+evidence rather than memory.
+
+Being a model means the things Dartvel already does to models apply: it is
+queryable, policy-scoped, exportable, and visible in Studio without a bespoke
+screen.
+
+## The status page is a module
+
+A status page is a small public site driven by health checks and incident
+state, and Dartvel already has a way to ship one of those: it is a federated
+micro-site module, mounted like any other.
+
+That is not a packaging convenience. **A status page hosted inside the
+application it reports on is a status page that goes down with it**, and the
+first thing a customer sees during an outage is a blank page where the
+explanation should be. So the module is deployable separately, reads incident
+state through the API rather than the database, and degrades to the last known
+state with its timestamp when it cannot reach the application at all — a stale
+answer that says when it went stale, rather than a spinner.
+
+Subscribers are notified through the same Notifications channels.
+
+## Alert noise is a defect, and is reported as one
+
+A rule that fires daily and is acknowledged daily without anything changing is
+not monitoring; it is a habit. `dartvel analyze` reports it the way it reports
+a stale feature flag or a WAF rule that matches everything
+(`DV-ALERT-005`), because noisy rules are how a team learns to ignore the one
+that matters.
+
+The same check reports a rule with no target — an alert that fires into nothing
+is worse than no alert, since it makes the dashboard look covered.
+
+## Deliberately absent
+
+- **An on-call scheduling product.** Rotas, escalation policies and overrides
+  belong to the pager services; Dartvel routes to them.
+- **A hosted status-page service.** The module is the deliverable; where it is
+  hosted is a deployment decision, and it should not be the same place as the
+  thing it reports on.
+- **Automated remediation.** A rule that restarts a service on its own turns a
+  visible outage into an invisible loop. Alerting says what is wrong; the
+  rollback machinery in Backend Release Management and OTA Updates is where
+  acting on it already lives.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-ALERT-001` | an alert rule fired and was delivered | `info` |
+| `DV-ALERT-002` | an alert could not be delivered on any configured channel | `error` |
+| `DV-ALERT-003` | an error budget is exhausted for the current window | `warning` |
+| `DV-ALERT-004` | the status page served a stale snapshot; the application was unreachable | `warning` |
+| `DV-ALERT-005` | a rule fires routinely without action, or has no target | `warning` |
+| `DV-ALERT-006` | a rule names a signal that no longer exists | `error` |
+
+---
+
 # Product Analytics and Consent
 
 Stability: `Draft` · Status: `Designed`
