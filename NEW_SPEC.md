@@ -7560,6 +7560,171 @@ await DVPageStore().save(document) // persisted, immediately publishable
 
 ---
 
+# Content Workflow
+
+Stability: `Draft` · Status: `Designed`
+
+Studio publishes on save, and for one person editing their own site that is
+exactly right — the shortest path from a change to the thing being changed.
+It is wrong the moment there is a colleague. A draft that cannot be held back
+is a change nobody can review; a correction that has to go live at 09:00 has
+to be made at 09:00 by whoever is awake; and "who approved this" has no answer
+because approving was never a step.
+
+This section adds the states, not a second editor. Everything in Studio still
+edits the same documents through the same four operations; what changes is that
+a document has a **state**, and only one of those states is what a running
+application is served.
+
+## One workflow, four document kinds
+
+Page documents, scene documents, theme overrides and translation catalogs are
+all stored, versioned data edited in Studio, so they take one workflow rather
+than four:
+
+```text
+draft → review → scheduled → published
+          ↑                      │
+          └──────── changes ─────┘
+```
+
+- **draft** is private to the people who can edit. It is never served, never
+  prerendered, and never reachable by a crawler.
+- **review** is a draft with a reviewer asked. The document is frozen against
+  further edits for the length of the review, because a reviewer approving a
+  moving document approves nothing.
+- **scheduled** is an approved version with a time on it.
+- **published** is the one version served, and the only state a running
+  application can be given.
+
+A published document is never edited in place. Editing one opens a new draft
+beside it, so the live version keeps serving while the next one is written —
+which is also why rollback is possible at all.
+
+```dart
+final draft = await DVContent.draft(document);        // a new draft beside live
+await DVContent.submit(draft, to: reviewers);          // → review
+await DVContent.approve(draft, as: reviewer);          // → approved
+await DVContent.schedule(draft, at: opensAt);          // → scheduled
+await DVContent.publish(draft);                        // → published, now
+
+draft.state;        // DVContentState.review
+draft.history;      // versions, with who moved each one and when
+draft.diff(against: DVContentVersion.published);
+```
+
+## Preview is a signed URL on the real site
+
+An unpublished version has to be viewable, and the only view worth anything is
+the one on the production host: a preview rendered by a different server, at a
+different address, with different data is a preview of a different thing.
+
+So a preview is the production application serving a named version to a bearer
+of a signed, expiring link — the same signing the Media Pipeline uses for
+transformation URLs, for the same reason. The link carries the document id, the
+version and an expiry, and the server verifies before it renders. An expired or
+altered link renders the published version and reports `DV-CONTENT-001`; it
+does not render the draft and it does not 404, because the published page is
+the honest answer to "show me this route".
+
+Preview versions are excluded from static generation, from `sitemap.xml`, and
+carry `noindex` — a draft that a crawler can reach is a draft that is published,
+whatever the state field says.
+
+## Scheduling is durable work, and a missed slot says so
+
+A scheduled publish is a job on the existing durable-work layer, not a timer in
+a Studio tab. It survives a deploy, a restart and the person who scheduled it
+going home.
+
+Two honesty rules, because both failures are quiet:
+
+- If the document changed after approval, the scheduled publish **refuses** and
+  reports `DV-CONTENT-002`. Publishing the newer text would ship something
+  nobody approved, and publishing the approved version would silently discard
+  an edit. Neither is a decision a scheduler should make.
+- If the slot passes without the job running — the worker was down, the queue
+  was drained — the miss is reported as `DV-CONTENT-005` rather than published
+  late without comment. A press release that goes out four hours after the
+  embargo is a different event from one that goes out on time.
+
+## Roles are policy actions, not a Studio setting
+
+Studio does not grow a permissions system of its own. `edit`, `review`,
+`publish` and `schedule` are policy actions like `update` and `delete`, checked
+through `DV.Auth.authorize` against the same policies everything else uses, and
+assigned per organization by the machinery in Organizations, Membership and
+Invitations.
+
+```dart
+@DVPolicy(DVPageDocument)
+class PageDocumentPolicy {
+  bool publish(User user, DVPageDocument document) =>
+      user.membership.role.isAtLeast(DVStudioRole.publisher);
+}
+```
+
+A publish attempted without the action is refused with `DV-CONTENT-003`, and
+refused in the backend rather than by hiding the button — a hidden button is
+not an authorization check.
+
+The consequence worth stating: a reviewer cannot approve their own draft unless
+the policy says so. That is a policy decision an application makes, not a rule
+Dartvel imposes, and the default generated policy says no.
+
+## Translation catalogs take the same path
+
+Catalogs are documents too, so they inherit all of the above rather than
+growing a parallel flow. What they add is where a draft comes from: a machine
+translation, produced through the AI adapters and charged to the same token
+meters as any other AI feature.
+
+A machine-translated string enters as a **draft, marked machine-translated**,
+never as a publish. If one reaches `published` without a human having touched
+it, that is reported as `DV-CONTENT-004` — not refused, because for some
+applications and some locales it is the right trade, but never silent, because
+the usual way a bad translation ships is that nobody knew a machine wrote it.
+
+Catalogs travel to installed applications the way pages do, as a versioned
+bundle with idempotent apply and previous-bundle rollback.
+
+## What bundles already had, and what this adds
+
+`DVPageBundle` already ships a versioned set of documents, applies twice
+without harm, and rolls back by shipping the previous bundle rather than
+inverting the current one. None of that changes.
+
+What workflow adds is the record: **which version was approved, by whom, and
+when** travels with the bundle. Without it, a rollback restores content but
+loses the fact that the restored version was the reviewed one, and the next
+question after an incident — "was this signed off?" — has no answer in the
+system that shipped it.
+
+## Deliberately absent
+
+- **A second editor, or a second store.** These are states on the documents
+  Studio already edits, persisted through `DV.Database` like everything else.
+- **Workflow for compiled `@DVPage` sources.** A page in the repository already
+  has a review workflow, and it is git. Compiled pages participate only as the
+  thing a stored document overrides, exactly as today.
+- **Approval quorum, parallel reviewers, and conditional routing.** One
+  reviewer, one approval, in v1. Multi-party approval is an organization policy
+  question, and inventing a rule engine before anyone has asked for one is how
+  a workflow becomes the product.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-CONTENT-001` | a preview link failed verification or had expired; the published version was served | `warning` |
+| `DV-CONTENT-002` | a scheduled publish was refused because the document changed after approval | `warning` |
+| `DV-CONTENT-003` | a publish or schedule was refused; the actor lacks the policy action | `error` |
+| `DV-CONTENT-004` | a machine-translated string reached `published` without human review | `warning` |
+| `DV-CONTENT-005` | a scheduled publish missed its slot and did not run | `warning` |
+
+---
+
+
 # Admin, Devtools, and Scaffolding
 
 Stability: `Draft` · Status: `Shipped`
