@@ -1,3 +1,11 @@
+## Unreleased
+
+- `dartvel.windowing.enabled` reaches the runtime. The capability has taken
+  the parameter since it was written and no build ever passed one, so a
+  project that switched windows off still got them, and a window that
+  degraded blamed the target rather than the line that withdrew them
+  (`DV-WINDOW-005`).
+
 ## 0.5.0
 
 - The package no longer ships `lib/builder.dart`, a build_runner Builder that

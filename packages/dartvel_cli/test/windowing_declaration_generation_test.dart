@@ -119,4 +119,29 @@ void main() {
 ''');
     expect(runtime, isNot(contains('androidFreeform')));
   });
+
+  // `windowing.enabled: false` is the line DV-WINDOW-005 names. It was
+  // documented, the capability took it as a parameter, and no build ever
+  // passed one -- so a project that switched windows off still got them, and
+  // a window that degraded for any other reason blamed the target.
+  test('enabled: false reaches the runtime', () async {
+    final String runtime = await runtimeFor('''
+  windowing:
+    enabled: false
+''');
+    expect(runtime, contains('useWindowingDeclaration'));
+    expect(runtime, contains('enabled: false'));
+  });
+
+  test('enabled: true is emitted as declared, not dropped as a default',
+      () async {
+    // It reads the same as saying nothing today, and it is not the same
+    // thing: a project that wrote the line has stated a position, and a
+    // later default of false would otherwise silently change its meaning.
+    final String runtime = await runtimeFor('''
+  windowing:
+    enabled: true
+''');
+    expect(runtime, contains('enabled: true'));
+  });
 }

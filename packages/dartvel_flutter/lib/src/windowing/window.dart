@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui show Display;
 
-import 'package:dartvel_core/dartvel.dart' show DVDiagnostics, DVInstanceLock, DVStartupProfile, DVKioskClearable, DVKioskEnforcement, DVKioskExitRequest, DVKioskExitResult, DVKioskPolicy, DVKioskReset, DVKioskResetReason, DVKioskRuntime, DVKioskSignal, DVKioskState, DVKioskTarget, DVTenants;
+import 'package:dartvel_core/dartvel.dart' show DVDiagnostics, DVInstanceLock, DVStartupProfile, dvKioskLocksWindows, DVKioskClearable, DVKioskEnforcement, DVKioskExitRequest, DVKioskExitResult, DVKioskPolicy, DVKioskReset, DVKioskResetReason, DVKioskRuntime, DVKioskSignal, DVKioskState, DVKioskTarget, DVTenants;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
@@ -194,10 +194,17 @@ class DVWindowingCapability {
 /// would degrade.
 class DVWindowingDeclaration {
   const DVWindowingDeclaration({
+    this.enabled,
     this.webInPageViews,
     this.webOpenInNewWindow,
     this.androidFreeform,
   });
+
+  /// `dartvel.windowing.enabled`. False withdraws windows from every target,
+  /// and `open()` says so (`DV-WINDOW-005`) rather than reporting the target
+  /// as incapable -- the project turned them off, which is a different thing
+  /// to act on from a phone that never had them.
+  final bool? enabled;
 
   /// `dartvel.windowing.web.inPageViews`.
   final bool? webInPageViews;
@@ -530,7 +537,11 @@ class DVWindow {
         owned: ownedWindows.length,
       );
     }
-    if (!isVirtual) {
+    // A browser window closes through the handle the page opened it with: a
+    // browser lets a page close only a window that page opened, and the
+    // `window.close` binding it would otherwise ask for does not exist there.
+    // False when this is not one, so every other target is unaffected.
+    if (!isVirtual && !dvCloseBrowserWindow(nativeId)) {
       await DVNativeBridge.invoke<bool>(
         'window.close',
         <String, Object?>{'id': nativeId},
@@ -613,6 +624,14 @@ class DVWindowManager {
     _capabilityOverride = value;
   }
 
+  /// How a browser window is opened, on the web.
+  ///
+  /// A seam rather than a direct call, so the two answers a browser gives --
+  /// it opened, it refused -- can both be exercised without a browser. Off
+  /// the web the default reports [DVBrowserWindowOutcome.notWeb] and open()
+  /// carries on down the native path.
+  static DVBrowserWindowOpener browserWindowOpener = dvOpenBrowserWindow;
+
   /// Clears every window and any override. Tests use this so one test cannot
   /// see another's windows.
   static void reset() {
@@ -627,6 +646,7 @@ class DVWindowManager {
     _shouldExit.value = false;
     exitPolicy = DVWindowExitPolicy.lastWindow;
     _capabilityOverride = null;
+    browserWindowOpener = dvOpenBrowserWindow;
     _shared = null;
   }
 
@@ -822,6 +842,12 @@ class DVWindowManager {
         isIOS: _platform.isIOS,
         isTerminal: _platform.surface == DVRenderSurface.terminal,
         hasNativeWindowBinding: DVNativeBridge.isRegistered('window.open'),
+        // The two reasons a capability is empty while the target itself is
+        // able: the project withdrew windows, or a device-scope kiosk holds
+        // the surface. Passed here so the capability tells the truth, and
+        // read again in open() so the degradation can name which it was.
+        enabledByConfig: _declared.enabled ?? true,
+        kioskLocked: dvKioskLocksWindows,
         webInPageViews: _declared.webInPageViews,
         webOpenInNewWindow: _declared.webOpenInNewWindow,
         androidFreeform: _declared.androidFreeform,
@@ -965,13 +991,40 @@ class DVWindowManager {
       // opening as a browser popup is worse than one drawn in the page.
       degradation = DVWindowDegradation.capabilityUnsupported;
     } else if (!cap.multiWindow) {
-      degradation = DVWindowDegradation.capabilityUnsupported;
+      // Which of the three, because they are three different things to act
+      // on. Configuration first: `windowing.enabled: false` withdraws windows
+      // everywhere, kiosk or not, and it is the project's own line to change.
+      // Then a device-scope kiosk, which holds the surface for as long as it
+      // runs. Anything else is the target simply not having windows.
+      degradation = _declared.enabled == false
+          ? DVWindowDegradation.disabledByConfig
+          : dvKioskLocksWindows
+              ? DVWindowDegradation.kioskLocked
+              : DVWindowDegradation.capabilityUnsupported;
     } else if (!DVNativeBridge.isRegistered('window.open')) {
-      // The capability was claimed and nothing is there to honour it. That is
-      // an integration defect (DV-WINDOW-006, error), not the platform
-      // declining -- the bridge would answer null for a missing binding, and
-      // that read as an OS refusal.
-      degradation = DVWindowDegradation.bindingRefused;
+      // No binding is the ordinary state of one target: a browser has no
+      // `window.open` binding and cannot have one. What it has is a popup,
+      // which it opens inside a user gesture and refuses outside one. Asked
+      // here, so the browser's own refusal is reported as itself
+      // (DV-WINDOW-003) instead of as the integration defect below.
+      final DVBrowserWindowResult browser = browserWindowOpener(
+        route.path,
+        title: options.title,
+        width: options.size?.width,
+        height: options.size?.height,
+      );
+      switch (browser.outcome) {
+        case DVBrowserWindowOutcome.opened:
+          nativeId = browser.id;
+        case DVBrowserWindowOutcome.blocked:
+          degradation = DVWindowDegradation.gestureRequired;
+        case DVBrowserWindowOutcome.notWeb:
+          // The capability was claimed and nothing is there to honour it.
+          // That is an integration defect (DV-WINDOW-006, error), not the
+          // platform declining -- the bridge would answer null for a missing
+          // binding, and that read as an OS refusal.
+          degradation = DVWindowDegradation.bindingRefused;
+      }
     } else {
       try {
         nativeId = await DVNativeBridge.invoke<String>(
