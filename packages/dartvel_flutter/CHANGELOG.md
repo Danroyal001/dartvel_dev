@@ -1,5 +1,30 @@
 ## Unreleased
 
+- **Studio's panes stand beside each other at full height instead of floating
+  in the middle of the screen.** Both of its two-pane layouts — the route list
+  beside the editor, and the palette, canvas and inspector inside it — were
+  built with `DVBox.row`, which resolves `DVCrossAlign.stretch` to
+  `CrossAxisAlignment.center` on purpose: a row of cards or a button pair
+  should not run the full height of whatever contains it. An application
+  layout should, and Studio is one. Each pane was therefore as tall as its own
+  contents and centred vertically, which is why a Studio with three pages drew
+  a short list adrift in an empty page and the builder's three panes each sat
+  at a different height. Both rows are plain `Row`s now, with the reason
+  written where the next reader will look for it.
+
+- **Studio looks like a tool rather than a page of unstyled text.** It had no
+  padding, no surfaces, no rules and no affordances: tabs, routes, toolbar
+  actions and "Create page" were all bare `DVText` with a tap handler, and the
+  new-route field was an undecorated `EditableText` beside its label, which
+  draws as two pieces of plain text. There is now a tab strip with the current
+  section underlined, a bordered sidebar whose route list scrolls and marks the
+  open page, a toolbar of real buttons that dim when their action is
+  unavailable, a bordered input that shows focus, and panes divided by rules.
+  Studio keeps a small fixed palette rather than following the application's
+  theme — it edits that application, so its own chrome has to stay readable
+  over whatever the page being built looks like. The exported-source view
+  scrolls, where a page of any size used to overflow it.
+
 - **Studio runs on `MemoryDVDatabaseAdapter`, so it can be opened without a
   database.** `DVPageStore` persists through `DV.Database`, and the in-memory
   adapter threw on the first statement the store issues, so the Pages tab
