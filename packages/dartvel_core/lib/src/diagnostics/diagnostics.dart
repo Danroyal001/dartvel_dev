@@ -382,6 +382,62 @@ final class DVDiagnostics {
       level: 'error',
     ),
     DVDiagnostic(
+      code: 'DV-PURCHASE-001',
+      reason:
+          'a `billable: true` model is sold on a store target without being '
+          'classified digital or physical',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-PURCHASE-002',
+      reason:
+          'a digital product has no store product identifier for a target '
+          'being built',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-PURCHASE-003',
+      reason:
+          'the store refused a receipt or purchase token; no entitlement was '
+          'written',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-PURCHASE-004',
+      reason:
+          'a store server notification named a product the project does not '
+          'declare',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-PURCHASE-005',
+      reason:
+          'an entitlement snapshot passed its `notAfter` while offline; '
+          'access refused',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-PURCHASE-006',
+      reason:
+          'a purchase was granted and not acknowledged to the store within '
+          'its window',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-PURCHASE-007',
+      reason:
+          'store prices could not be read; no price is shown rather than a '
+          'converted one',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-PURCHASE-008',
+      reason:
+          'an offline conflict strategy is declared on a server-authored '
+          'entitlement model',
+      level: 'error',
+    ),
+    DVDiagnostic(
       code: 'DV-RELEASE-001',
       reason: 'health gate tripped; the rollout was rolled back',
       level: 'error',
