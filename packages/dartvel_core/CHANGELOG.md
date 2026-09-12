@@ -1,5 +1,23 @@
 ## Unreleased
 
+- **A Postgres server that declines TLS no longer breaks the connection that
+  asked.** `sslMode: prefer` is the default and its whole purpose is to ask
+  for TLS and carry on without it — the ordinary shape of a local or
+  containerised Postgres that was never given a certificate. Asking means
+  listening to the socket for the single byte the server answers with, and a
+  `Socket` is a single-subscription stream. When the answer is `S` the socket
+  is replaced by a `SecureSocket`, which is a new stream, so the adapter could
+  listen to it; when the answer is `N` the code carried on with the *same*
+  socket and the adapter's first act — `connection.input.listen(...)` — threw
+  `Bad state: Stream has already been listened to`. The mode whose job is
+  falling back to plaintext could not produce a usable connection at all, and
+  the state error masked whatever the server had really said, so every
+  failure in that path reported the same Dart-level symptom instead of its
+  cause. The subscription that read the answer now stays and feeds the stream
+  the adapter reads, which is what the MySQL adapter had already been doing
+  for the same reason. Bytes the server sends in the same segment as its
+  refusal are relayed rather than dropped.
+
 - `MemoryDVDatabaseAdapter` runs the SQL Dartvel itself issues, so the
   framework can be run and tested without a database. It understood four
   statement shapes -- `select 1`, `select * from t`, an unscoped insert and an

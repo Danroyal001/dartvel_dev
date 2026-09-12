@@ -30,16 +30,29 @@ Future<DVPostgresConnection> dvConnectPostgres(
     await socket.flush();
 
     // Exactly one byte, and it must be read before anything else is sent.
+    //
+    // Everything after that byte is the protocol's, so it is relayed rather
+    // than dropped: a server may put its answer and its first protocol bytes
+    // in one segment, and this listener is the only reader at the time.
     final Completer<int> answer = Completer<int>();
+    final StreamController<List<int>> relay = StreamController<List<int>>();
     late StreamSubscription<List<int>> waiting;
     waiting = socket.listen(
       (List<int> chunk) {
-        if (chunk.isNotEmpty && !answer.isCompleted) {
+        if (!answer.isCompleted) {
+          if (chunk.isEmpty) return;
           answer.complete(chunk.first);
+          if (chunk.length > 1) relay.add(chunk.sublist(1));
+          return;
         }
+        relay.add(chunk);
       },
       onError: (Object error, StackTrace stack) {
-        if (!answer.isCompleted) answer.completeError(error, stack);
+        if (!answer.isCompleted) {
+          answer.completeError(error, stack);
+        } else if (!relay.isClosed) {
+          relay.addError(error, stack);
+        }
       },
       onDone: () {
         if (!answer.isCompleted) {
@@ -49,20 +62,30 @@ Future<DVPostgresConnection> dvConnectPostgres(
             ),
           );
         }
+        // The socket is done, so nothing more can arrive to relay. Nothing
+        // waits on this close: onDone cannot be async, and a reader of the
+        // relay learns the stream ended from the stream itself.
+        if (!relay.isClosed) unawaited(relay.close());
       },
     );
 
     final DVPostgresSslReply reply;
     try {
       reply = dvPostgresSslReply(await answer.future);
-    } finally {
-      // Cancelled before the socket is upgraded: a subscription left on the
-      // raw socket would swallow the first bytes of the encrypted stream.
+    } on Object {
       await waiting.cancel();
+      if (!relay.isClosed) await relay.close();
+      rethrow;
     }
 
     switch (reply) {
       case DVPostgresSslReply.proceed:
+        // Cancelled before the socket is upgraded: a subscription left on the
+        // raw socket would swallow the first bytes of the encrypted stream.
+        // The relay goes with it — what follows arrives on the SecureSocket,
+        // which is a stream of its own and can be listened to.
+        await waiting.cancel();
+        if (!relay.isClosed) await relay.close();
         socket = await SecureSocket.secure(
           socket,
           host: host,
@@ -77,6 +100,8 @@ Future<DVPostgresConnection> dvConnectPostgres(
         );
       case DVPostgresSslReply.refused:
         if (dvPostgresRefusalIsFatal(sslMode)) {
+          await waiting.cancel();
+          if (!relay.isClosed) await relay.close();
           await socket.close();
           throw DVPostgresException(
             'The server refused TLS and sslMode is '
@@ -84,7 +109,15 @@ Future<DVPostgresConnection> dvConnectPostgres(
             'clear while the connection looked encrypted.',
           );
         }
+        // Carrying on in plaintext, on the socket that was just listened to.
+        // A Socket is a single-subscription stream, so it cannot be handed to
+        // the adapter to listen to a second time -- the negotiation spent it.
+        // The subscription that read the answer stays, feeding the relay the
+        // adapter reads instead.
+        return _RelayedPostgresConnection(socket, relay, waiting);
       case DVPostgresSslReply.error:
+        await waiting.cancel();
+        if (!relay.isClosed) await relay.close();
         await socket.close();
         throw const DVPostgresException(
           'The server answered the TLS request with an error rather than a '
@@ -94,6 +127,32 @@ Future<DVPostgresConnection> dvConnectPostgres(
   }
 
   return _SocketPostgresConnection(socket);
+}
+
+/// A plaintext connection whose socket has already been read once.
+///
+/// Only the declined-TLS path produces one: the bytes arrive through the
+/// subscription the negotiation opened, because the socket cannot be listened
+/// to again.
+class _RelayedPostgresConnection implements DVPostgresConnection {
+  final Socket _socket;
+  final StreamController<List<int>> _relay;
+  final StreamSubscription<List<int>> _subscription;
+
+  _RelayedPostgresConnection(this._socket, this._relay, this._subscription);
+
+  @override
+  Stream<List<int>> get input => _relay.stream;
+
+  @override
+  void write(List<int> bytes) => _socket.add(bytes);
+
+  @override
+  Future<void> close() async {
+    await _subscription.cancel();
+    if (!_relay.isClosed) await _relay.close();
+    await _socket.close();
+  }
 }
 
 class _SocketPostgresConnection implements DVPostgresConnection {
