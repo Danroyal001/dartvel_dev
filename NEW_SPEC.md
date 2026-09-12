@@ -3479,10 +3479,17 @@ written to observability through `DV.log`, and is readable on the window.
 ```dart
 enum DVWindowDegradation {
   none, capabilityUnsupported, kioskLocked, gestureRequired,
-  platformRefused, disabledByConfig, ownerClosed, modalityReduced,
-  displayUnavailable, displayOwned, displayHintUnmatched, pinned,
+  platformRefused, bindingRefused, disabledByConfig,
+  displayUnavailable, displayHintUnmatched, restoredRouteUnresolvable,
+  ownerClosed, modalityReduced,
 }
 ```
+
+Not every code is a member. `DV-WINDOW-011` and `DV-WINDOW-012` are reported
+on the window's `codes` and nowhere else, because each describes one
+placement or one refused call rather than the state the window came to rest
+in: a window placed away from a kiosk-owned display is otherwise ordinary,
+and a pinned window refusing a move is still pinned afterwards.
 
 | Code | Reason | Level |
 |---|---|---|
