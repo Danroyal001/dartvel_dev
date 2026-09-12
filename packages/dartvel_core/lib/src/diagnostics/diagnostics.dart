@@ -1344,6 +1344,37 @@ final class DVDiagnostics {
           'problem',
       level: 'error',
     ),
+    DVDiagnostic(
+      code: 'DV-ALERT-001',
+      reason: 'an alert rule fired and was delivered',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-ALERT-002',
+      reason: 'an alert could not be delivered on any configured channel',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-ALERT-003',
+      reason: 'an error budget is exhausted for the current window',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-ALERT-004',
+      reason: 'the status page served a stale snapshot; the application was '
+          'unreachable',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-ALERT-005',
+      reason: 'a rule fires routinely without action, or has no target',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-ALERT-006',
+      reason: 'a rule names a signal that no longer exists',
+      level: 'error',
+    ),
   ];
 
   /// The diagnostic for [code], or null if nothing is registered under it.
