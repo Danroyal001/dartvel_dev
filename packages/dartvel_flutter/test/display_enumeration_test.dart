@@ -228,7 +228,7 @@ void _openWiring() {
         options: DVWindowOptions(display: DVDisplayHint.byName('Missing')),
       );
 
-      expect(window.degradation, DVWindowDegradation.displayUnavailable);
+      expect(window.degradation, DVWindowDegradation.displayHintUnmatched);
       expect(opens.single.containsKey('displayId'), isFalse);
       expect(window.presentation, DVWindowPresentation.window,
           reason: 'it still opened');
