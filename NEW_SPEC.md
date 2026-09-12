@@ -2192,9 +2192,172 @@ canonical name, and a test fails if anything under `lib/` reaches for the
 deprecated one, because a framework that calls its own deprecated name teaches
 every reader to call it too.
 
+File Storage stores bytes. Images are bytes with a width, a format and a
+size that decides whether a page is fast, and what Dartvel does with them is
+Media Pipeline, immediately below.
+
 
 ---
 
+
+# Media Pipeline
+
+Stability: `Draft` · Status: `Partial`
+
+File Storage stores bytes. An application has images, and an image is not a
+file: it has a width the page needs, a format the browser will accept, and a
+size that decides whether the page is fast. Monitoring has carried a
+performance diagnostic for uncompressed large model images since before
+anything could fix one.
+
+Half of this exists and ships today. That half is the web, and it is written
+first so the rest reads as what is missing rather than as a plan with a gap in
+the middle.
+
+## What ships: image variants on the web
+
+`dartvel build web` writes every declared raster asset at each configured
+width narrower than the image, and `DVImageView` asks for the one its slot
+needs — its laid-out width times the device pixel ratio, snapped to the
+configured set — so a phone downloads the 640 and not the 3840. This is
+NextFaster's `srcset` behaviour, arrived at from the same measurement.
+
+```yaml
+dartvel:
+  images:
+    widths: [16, 32, 48, 64, 96, 128, 256, 384, 640, 750, 828, 1080, 1200, 1920, 2048, 3840]
+    quality: 75
+    remoteHosts: ['images.example.com', '*.cdn.example.com']
+```
+
+- A **static** build writes variants to `assets/_dartvel/img/<width>/<path>`
+  at build time, because a static host cannot run anything.
+- A **web-server** build also answers `/_dartvel/image?src=&w=&q=`, resizing on
+  first request and caching the result. It negotiates format from the request's
+  `Accept`: a PNG or WebP source is served as WebP to a browser that says it
+  takes one.
+- A link that preloads fetches the variant for the **visitor's** pixel ratio
+  and puts it in Flutter's image cache under the provider the widget will ask
+  for, so the page paints it on its first frame and downloads it once.
+- The address is computed in one place (`DVImageVariants`), because the
+  widget, the prefetch and the server have to agree on it byte for byte: a
+  prefetch of a nearly-identical URL is a second download, not a cache hit.
+
+What the endpoint refuses is most of what it does: a width outside the
+configured set, a path that leaves the site by `..` or by a link, a host the
+application did not allow, a redirect from an allowed host to one it did not,
+and a source over 25 MB. An animated GIF is served as it is — resizing one
+keeps the first frame, which is a silent way to break an image.
+
+Variants are written in the source's own format on a static build, so there is
+no AVIF anywhere and no WebP without a server. That is the honest edge of the
+shipped half.
+
+## What is designed: media on model fields
+
+An uploaded image is the case the shipped half does not cover, because a build
+cannot resize a file that did not exist when it ran.
+
+```dart
+@DVModel()
+class _Product(
+    String name,
+    @DVModel.imageField(
+      variants: <int>[256, 640, 1280],
+      formats: <DVImageFormat>[DVImageFormat.webp, DVImageFormat.avif],
+      maxBytes: 10 * 1024 * 1024,
+    )
+    DVImage cover,
+);
+```
+
+On upload, variant generation is a durable job through `DV.Jobs` — the same
+machinery as search indexing, for the same reason: an encode is CPU that a
+request should not wait on. Generated widgets and server rendering pick the
+variant the way they already do for assets, so the two halves converge on one
+selection rule rather than two.
+
+Validation happens before the bytes are stored, and it reads the bytes:
+
+- The declared format is checked by **decoding**, never by the extension or the
+  client's `Content-Type`. Both are supplied by whoever is uploading.
+- Dimension and byte ceilings are declared and enforced at the same point — a
+  decompression bomb is a small file with an enormous decoded size.
+- A scan hook (`DVUploadScanner`) runs before the file becomes readable, so an
+  application can put a malware scanner in the path. Dartvel ships no scanner
+  and never will; what it ships is the place to put one, and the guarantee that
+  nothing is served before it answers.
+
+A stored image is addressed by a **signed** transformation URL. The declared
+assets are covered by an allowlist because the build knows them; an uploaded
+one is not in any list, so the width, the format and the expiry are signed and
+the endpoint verifies before it does any work. Otherwise the resizer is an open
+one, and an open resizer is somebody else's CPU budget.
+
+## Local by default, provider by adapter
+
+Resizing happens locally: the build does it, the server does it, and neither
+needs an account, a per-image fee, or a network. An application that would
+rather offload to an image provider configures an adapter, and **the adapter
+replaces URL construction, not the pipeline** — the same `DVImageVariants`
+call produces the provider's URL, so the widget, the prefetch and the server
+keep agreeing with each other. A provider that forked that agreement would
+reintroduce the double download this whole design exists to avoid.
+
+## Off the web
+
+No target resizes at runtime except a web server. A device ships the variants
+the build wrote for its device profile, and a slot asking for a width the
+build did not write uses the image itself — which is what the shipped web half
+already does, applied to the targets that have no server to ask.
+
+That rule is what makes the embedded targets work rather than a special case
+for them: a webOS television has no `ffmpeg`, no spare CPU and no business
+decoding a 4K JPEG to make a thumbnail.
+
+## Video is out of scope for v1, and this is why
+
+Video is thumbnail extraction plus transcode profiles, and both need an
+encoder. An encoder is a 30–100 MB native dependency that every Dartvel
+application would carry to get it by default, a transcode is minutes of CPU
+rather than milliseconds, and no embedded target can run one at all. So:
+
+- Dartvel bundles **no** encoder, in v1 or later.
+- Video, when it lands, is a `DVVideoEncoder` adapter — a local `ffmpeg` the
+  developer installed, or a provider — with thumbnail extraction and named
+  transcode profiles declared on the field the way image variants are.
+- A media field declaring video with no encoder adapter configured is a build
+  error (`DV-MEDIA-007`) rather than an upload that silently stores an
+  unplayable file.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-MEDIA-001` | an image could not be decoded at build; no variants were written | `warning` |
+| `DV-MEDIA-002` | a variant was requested at a width outside the configured set; refused | `info` |
+| `DV-MEDIA-003` | a remote image host is not allowed, or a redirect left the allowed host | `warning` |
+| `DV-MEDIA-004` | an upload's decoded format or dimensions do not match what it declared; rejected | `warning` |
+| `DV-MEDIA-005` | the upload scan hook refused a file; it was never served | `warning` |
+| `DV-MEDIA-006` | a signed transformation URL failed verification or had expired | `warning` |
+| `DV-MEDIA-007` | a media field declares video and no encoder adapter is configured | build `error` |
+
+`DV-MEDIA-002` and `DV-MEDIA-003` describe refusals the shipped server already
+makes, which it answers today with a 400 and a sentence; the codes name them so
+`dartvel explain` can, and the rest are registered meanings for the designed
+half. `docs/spec-status.json` records which is which.
+
+## Deliberately absent
+
+- **A bundled encoder.** Covered above.
+- **A second job system for media.** Variant generation is durable work like
+  any other.
+- **Runtime resizing off a web server.** The build writes what a device needs.
+- **A scanner.** The hook exists; the scanner is the application's.
+- **Image editing.** Cropping, filters and focal points are an editor's job,
+  not a storage pipeline's.
+
+---
 
 # Cache
 

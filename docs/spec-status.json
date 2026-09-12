@@ -340,6 +340,24 @@
       "absent": null
     },
     {
+      "section": "Media Pipeline",
+      "stability": "Draft",
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_core/lib/src/media/image_variants.dart",
+        "packages/dartvel_core/test/image_variants_test.dart",
+        "packages/dartvel_cli/lib/src/build/image_variants_build.dart",
+        "packages/dartvel_cli/test/image_variants_build_test.dart",
+        "packages/dartvel_shelf/lib/src/image_endpoint.dart",
+        "packages/dartvel_shelf/test/image_endpoint_test.dart",
+        "packages/dartvel_flutter/lib/src/media/image_view.dart",
+        "packages/dartvel_flutter/test/image_variants_view_test.dart",
+        "packages/dartvel_flutter/lib/src/routing/route_prefetch_web.dart",
+        "packages/dartvel_cli/test/web_server_images_manifest_test.dart"
+      ],
+      "absent": "Everything on the upload side. There is no @DVModel.imageField, so nothing generates variants for a file a user uploaded, and no upload validation, dimension or byte ceiling, scan hook or signed transformation URL exists -- the endpoint is reachable only for assets the build declared and hosts the application allowed, which is what stands in for signing today. No AVIF anywhere. WebP only from a web-server build, negotiated from the request's Accept for a PNG or WebP source; a static build writes each variant in the source's own format. No provider adapter: resizing is local, in the build and in the server, and there is no path that hands an image to an image service. No video of any kind, by decision rather than backlog -- no thumbnail extraction, no transcode profiles, no DVVideoEncoder. Off the web nothing is wired: the build writes variants for a web build only, so a device ships its original assets and the device-profile rule in the section is a design, not a behaviour. The DV-MEDIA codes are registered meanings and none is emitted yet: the two that describe refusals the server already makes (a width outside the set, a host or redirect that is not allowed) are answered today with a 400 and a sentence rather than with a code. What is real: dartvel build web writes a variant per configured width narrower than each declared raster asset, a web-server build resizes on request and caches, DVImageView asks for its slot's width times the device pixel ratio snapped to the configured set, a link prefetches the variant for the visitor's own pixel ratio into Flutter's image cache under the provider the widget will ask for, and every one of those computes the address through DVImageVariants so the three agree byte for byte. GIF is never resized."
+    },
+    {
       "section": "Cache",
       "stability": "Contract",
       "status": "Shipped",
