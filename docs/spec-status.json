@@ -1,7 +1,7 @@
 {
   "$comment": "Implementation status per NEW_SPEC.md h1 section. See the \"Specification Status\" section of NEW_SPEC.md. Validate with: dart run tool/spec_status_check.dart",
   "specFile": "NEW_SPEC.md",
-  "updated": "2026-09-10",
+  "updated": "2026-09-12",
   "sections": [
     {
       "section": "New Spec v2",
@@ -399,6 +399,11 @@
         "packages/dartvel_cli/test/pwa_sync_verification_test.dart"
       ],
       "absent": "Nothing this section lists is unbuilt. Background sync is exercised in a real browser: the generated worker keeps an IndexedDB outbox of same-origin non-GET requests that could not be sent, answers the caller with a 202 and X-Dartvel-Queued, and replays the outbox in order when the network is back, stopping at the first failure and one replay at a time (a sync event and the client's replay message arriving together sent everything twice until they shared one in-flight promise). dartvel capture pwa-sync loads the built worker in Chrome, takes the server away, makes a POST, brings the server back and expects the POST to arrive; the Runtime verification workflow runs it against the site's own build on every push, and it is what found the double replay. Everything else the section lists is built: manifest, viewport, service worker, offline page, install prompt, and icon generation from web/icon.png through the CLI own PNG codec. The install prompt had two defects in one path until they were found by asking which enum values nothing produces. DVInstallOutcome.dismissed was produced by nothing: show returned a static that only a test seam ever set, so a browser reported accepted whatever the person at the screen chose, and then marked the application installed -- which hides the affordance, so an application somebody declined could never be installed from inside it again. And the binding that calls the browser own prompt was written and called by nothing, so tapping Install opened no dialog at all: the feature flipped two flags and returned. The outcome comes from the browser now, through the bridge like every other platform call, and the binding waits for it, since prompt only opens the dialog and the choice arrives on userChoice afterwards. Anything other than the word accepted is a dismissal, because treating an unrecognised third answer as acceptance would install nothing and say it had. The tests that existed set the outcome themselves and asserted it came back, which proves the seam rather than the path, and is why this survived"
+    },
+    {
+      "section": "Feature Flags and Staged Rollout",
+      "stability": "Draft",
+      "status": "Designed"
     },
     {
       "section": "OTA Updates",
