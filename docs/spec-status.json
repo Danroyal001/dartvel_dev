@@ -1321,6 +1321,13 @@
       "absent": "The contract is not met today, and the section names the reason: routes_generator.dart takes a wall-clock build id per generation and writes it into every generated file as a `// BUILD: <iso>#<millis>` header, so every regeneration modifies every file whether or not the project changed. Nothing else of this exists: there is no `dartvel generate --check`, no second-run comparison behind DV-GEN-002, no sorting guarantee for anything derived from a directory listing or a map, no CODEOWNERS template in the scaffold, and `dartvel upgrade --plan` -- which DV-GEN-003 reports through -- is itself unbuilt, as Unified Development and The Golden Path both record. The output is not run through dart format on the way out either."
     },
     {
+      "section": "Documentation Generation",
+      "stability": "Draft",
+      "status": "Designed",
+      "evidence": [],
+      "absent": "There is no dartvel docs command. The material it would render does exist in part -- dartvel inspect answers routes, models, functions, jobs, windows and kiosk, dartvel explain reads the diagnostics registry, and source mappings are kept -- but nothing assembles any of it into a site, and the four inspectors Unified Development records as missing (module, transaction, schema, generated) are four of the renderings this section describes. Nothing links decision records to graph nodes, so DV-DOCS-001's drift check has nothing to check; the policy matrix and module-grant map are renderings of sections that are themselves Designed; and the federated micro-site mounting it shares with the status page is unbuilt."
+    },
+    {
       "section": "Mental Model",
       "kind": "narrative"
     },

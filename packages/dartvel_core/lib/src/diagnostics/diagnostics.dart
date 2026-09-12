@@ -1505,6 +1505,16 @@ final class DVDiagnostics {
       reason: 'a generator upgrade changes output shape; see the plan',
       level: 'info',
     ),
+    DVDiagnostic(
+      code: 'DV-DOCS-001',
+      reason: 'a decision record names a node that no longer exists',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-DOCS-002',
+      reason: 'a documented surface has no source mapping to render from',
+      level: 'warning',
+    ),
   ];
 
   /// The diagnostic for [code], or null if nothing is registered under it.
