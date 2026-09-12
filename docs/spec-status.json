@@ -510,6 +510,11 @@
       "absent": "Algolia is exercised only against a recorded transport: it is a hosted service with no local server, so its request shape is pinned by unit tests rather than by a round trip. Meilisearch and OpenSearch are verified live in CI."
     },
     {
+      "section": "Semantic Search and Embeddings",
+      "stability": "Draft",
+      "status": "Designed"
+    },
+    {
       "section": "Billing",
       "stability": "Draft",
       "status": "Partial",

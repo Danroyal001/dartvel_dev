@@ -382,6 +382,45 @@ final class DVDiagnostics {
       level: 'error',
     ),
     DVDiagnostic(
+      code: 'DV-SEMANTIC-001',
+      reason: 'a `semantic: true` field with no declared embedder',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-SEMANTIC-002',
+      reason: 'the vector adapter cannot filter; semantic search refused on a '
+          'scoped model',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-SEMANTIC-003',
+      reason: 'embedder or chunking changed; a new index is building and '
+          'queries use the previous one',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-SEMANTIC-004',
+      reason: 'an embedding job failed permanently; the record is absent from '
+          'the index',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-SEMANTIC-005',
+      reason: 'refill bound reached; fewer results returned than asked for',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-SEMANTIC-006',
+      reason: 'on-device index over its declared budget; keyword only',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-SEMANTIC-007',
+      reason: 'embedding budget exhausted for this tenant; the search was '
+          'refused',
+      level: 'warning',
+    ),
+    DVDiagnostic(
       code: 'DV-PURCHASE-001',
       reason:
           'a `billable: true` model is sold on a store target without being '
