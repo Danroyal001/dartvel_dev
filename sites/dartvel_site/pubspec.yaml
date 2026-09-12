@@ -11,9 +11,9 @@ dependencies:
     sdk: flutter
   go_router: ^14.2.0
   dio: ^5.5.0
-  dartvel_core: ^0.2.1
-  dartvel_shelf: ^0.3.0
-  dartvel_flutter: ^0.2.1
+  dartvel_core: ^0.5.0
+  dartvel_shelf: ^0.6.0
+  dartvel_flutter: ^0.5.0
   flutter_web_plugins:
     sdk: flutter
 
@@ -25,7 +25,7 @@ dev_dependencies:
   integration_test:
     sdk: flutter
   lints: ^4.0.0
-  dartvel_cli: ^0.2.1
+  dartvel_cli: ^0.5.0
 
 
 flutter:
