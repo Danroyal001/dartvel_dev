@@ -10085,6 +10085,8 @@ dartvel build sony-elinux-img
 
 # Unified Development, Transparency, and Contracts
 
+Stability: `Contract` · Status: `Partial`
+
 ## Unified development
 
 `dartvel dev` owns the complete development loop, watching pages, models, backend
@@ -10279,8 +10281,19 @@ time** — that is the method working, not a defect. A single ladder ending in
 `Implemented` would rank a frozen, fully designed contract below a shipped one
 and quietly pressure the spec toward describing only what exists.
 
-So status is **two independent axes**, and every h1 section carries both. An h2
-subsection inherits its parent's labels unless it declares its own.
+So status is **two independent axes**, and every h1 section that describes a
+surface carries both. An h2 subsection inherits its parent's labels unless it
+declares its own.
+
+The exception is a section that describes **no surface at all** — the
+philosophy, the mental model, the golden path, this section. Those are
+`"kind": "narrative"` in the index and carry no labels, because `Draft` and
+`Designed` said of a paragraph about design goals are words with nothing
+behind them. Thirteen sections are narrative today. The distinction is
+load-bearing rather than cosmetic: it is the one way a section can legitimately
+have no labels, so a section wrongly marked narrative is a section that has
+escaped the evidence rule, and `kind` is the first thing to check when one
+looks unaccountably quiet.
 
 **Stability** — how much the surface can still move:
 
