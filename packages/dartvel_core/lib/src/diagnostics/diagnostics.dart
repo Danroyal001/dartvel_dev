@@ -382,6 +382,43 @@ final class DVDiagnostics {
       level: 'error',
     ),
     DVDiagnostic(
+      code: 'DV-WEBHOOK-001',
+      reason: 'a payload names a field the model marks sensitive',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-WEBHOOK-002',
+      reason: 'endpoint resolved to a private, loopback, link-local or '
+          'metadata address; refused',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-WEBHOOK-003',
+      reason: 'endpoint disabled after the configured run of failures',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-WEBHOOK-004',
+      reason: 'delivery exhausted its retries and moved to dead letters',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-WEBHOOK-005',
+      reason: 'replay requested after the payload retention window',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-WEBHOOK-006',
+      reason: 'an emitted event name is not in the declared catalog',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-WEBHOOK-007',
+      reason: 'signing key rotated; both signatures are sent until the '
+          'overlap ends',
+      level: 'info',
+    ),
+    DVDiagnostic(
       code: 'DV-SEMANTIC-001',
       reason: 'a `semantic: true` field with no declared embedder',
       level: 'error',
