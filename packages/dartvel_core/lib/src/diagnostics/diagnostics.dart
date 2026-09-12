@@ -207,6 +207,21 @@ final class DVDiagnostics {
       level: 'warning',
     ),
     DVDiagnostic(
+      code: 'DV-DEVCLIENT-001',
+      reason: 'dev client could not reach the named dev server or preview',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-DEVCLIENT-002',
+      reason: 'bundle needs a native binding this shell was not built with',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-DEVCLIENT-003',
+      reason: 'dev-client artifact submitted to a public track',
+      level: 'error',
+    ),
+    DVDiagnostic(
       code: 'DV-MEDIA-101',
       reason: 'adaptive source on a target with no streaming support; '
           'fell back to progressive',
