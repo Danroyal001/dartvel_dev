@@ -1209,6 +1209,18 @@
       "absent": "A generated page's favicon is now derived rather than linked as it was written: dartvel build web decodes the image the model or the project named, resizes it to 32, re-encodes it and names the file after a hash of its own bytes, so it can be served immutable and two models sharing a source share one file. A value the build cannot read off its own disk -- a CDN URL, an SVG, an ICO -- passes through untouched, because rewriting it to a name the build invented would point every page at a missing file. Three declarations reached one deployment each before this. @DVModel(favicon:) reached the web server's page resolver and nothing static, so a statically hosted site wore the shell icon on every product and article. dartvel.seo.favicon reached the server and no static page at all. @DVModel(schemaType:) was in the same state, so a static build labelled every product and job posting a plain WebPage, which is structured data that validates and says the wrong thing. All three now reach the written page: model first, then application, with the module level the specification names folded into the first because a module's models are generated from the module's own project. Absent, and named rather than half-built. First, the derivative of a row's featured image: that image is a URL the database supplied, so deriving one means fetching an arbitrary host during the build -- which makes the build depend on somebody else's uptime and on a CDN free to serve other bytes tomorrow -- or fetching it per request in the server, which adds a round trip to a page load in order to save one. Second, the on-demand derivative for web-server rendering: the favicon that path serves is still the raw declared value out of the generated spec. The build pieces are there, since a web-server build writes build/web and could derive into it, and what is missing is a way for the resolver to learn the derived name, because the spec values are compiled into generated Dart before any build output exists. Deriving the files without that would leave icons nothing points at, which is the same bug as a declaration nothing reads."
     },
     {
+      "section": "Error, Empty, and Loading States",
+      "stability": "Draft",
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_cli/lib/src/generators/client_generator.dart",
+        "packages/dartvel_flutter/lib/src/table/table.dart",
+        "sites/dartvel_site/lib/pages/index.loading.dart",
+        "sites/dartvel_site/lib/pages/index.error.dart"
+      ],
+      "absent": "Built: a page may sit beside <page>.loading.dart and <page>.error.dart companions, which the client generator recognises and wires to the route, and DVTable takes an emptyLabel that an empty table announces once rather than twice. Everything else is designed. There is no page-level error boundary, no generated status pages per code, no skeleton derived from a model's field layout, no offline banner bound to a connectivity signal -- Offline-First Models, which would define that signal, is itself Designed -- and no background-task tray over the typed progress events. The three empty states the section distinguishes (nothing yet, nothing matching, nothing visible to you) are one state in the code, and generated collections take no typed call-to-action slot. DVTable's emptyLabel defaults to the literal 'No rows' rather than an i18n key, so DV-STATE-003 has a finding in the framework's own widget before it has an implementation."
+    },
+    {
       "section": "Reversible Transactions",
       "stability": "Contract",
       "status": "Shipped",
