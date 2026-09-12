@@ -3580,6 +3580,207 @@ overridden.
 
 ---
 
+# Purchases and Entitlements
+
+Stability: `Draft` · Status: `Designed`
+
+Billing sells through a payment gateway. On iOS and Android, digital goods
+sold inside the application must go through StoreKit or Play Billing instead:
+a gateway checkout for digital content is a rejected build, not a warning, and
+Dartvel generates the purchase flow. Shipping the non-compliant path by default
+would make that a framework bug wearing an application's name.
+
+So the route is decided by the platform and the goods, and the application
+writes one call:
+
+```dart
+await DV.Purchases.buy(Book.pro, customer: user);
+```
+
+On iOS, iPadOS, tvOS, macOS from the App Store and Android from Play, a
+digital product goes to the store. On the web, on desktop outside a store, and
+for anything physical, it goes to Billing's gateway. Nothing in application
+code branches on the platform, because a branch written once in an application
+is a branch nobody revisits when a store changes its rules.
+
+## Digital or physical is declared, never guessed
+
+```dart
+@DVModel(billable: DVBillable.digital(
+  appStore: 'com.example.book.pro',
+  play: 'book_pro',
+))
+class _Book(String title);
+
+@DVModel(billable: DVBillable.physical(nativePrice: 1200))
+class _Mug(String colour);
+```
+
+A classifier that guesses from a model's fields would be wrong in both
+directions, and each direction costs something different: a physical good sent
+through the store loses 15–30% on a margin that cannot carry it, and a digital
+good sent through the gateway is a rejected submission. **Dartvel never
+guesses.** `billable: true` keeps its current meaning — gateway, and nothing
+about stores — and a store build that finds it on a model refuses with
+`DV-PURCHASE-001`, naming the model and the two things it could be. The build
+that cannot finish is the cheap failure here; the one that ships is not.
+
+`DVBillable.digital` requires a product identifier for every store target the
+project builds for. A missing one is `DV-PURCHASE-002` at build time rather
+than a purchase sheet that fails to open in front of a customer.
+
+## The store owns the price
+
+A store product's price comes from the store, in the customer's own currency,
+through the tier the developer chose in App Store Connect or Play Console.
+Dartvel displays that number and never a converted one. Billing's
+`nativePrice`/`nativeCurrency` conversion stays where it is — on gateway
+sales — because a page showing £7.99 above a sheet charging the €9.99 tier is
+a mismatch the customer sees at the exact moment they are deciding to pay, and
+it is also the kind of thing a store reviewer opens first.
+
+When the store cannot be reached to read its prices, a purchase button shows
+no price rather than a guessed one (`DV-PURCHASE-007`). A price that is wrong
+by a currency is worse than a price that is missing for a moment.
+
+## Receipts are validated on the server
+
+The device reports what it bought; the server decides whether it did.
+
+```dart
+// Generated, one per store the project targets.
+@DVBackendFunction(rawPath: '/_dartvel/purchases/apple')
+Future<void> _appleNotifications(DVContext context) =>
+    DV.Purchases.acceptNotification(context, DVStore.appStore);
+```
+
+Client-side receipt checks are worth nothing: the code doing the checking is
+the code an attacker controls. Validation is a generated backend function that
+calls the store's own verification endpoint with credentials held in Secrets
+and Environments, and an entitlement is written only from that answer
+(`DV-PURCHASE-003` when the store refuses a receipt).
+
+Store server notifications — App Store Server Notifications v2, Play's
+Real-Time Developer Notifications — arrive at generated endpoints and write
+the same entitlement models, so a renewal, a refund, a chargeback and a family
+sharing revocation all land the same way a purchase does. A notification for a
+product the project does not declare is `DV-PURCHASE-004` rather than a silent
+drop: it usually means a product was added in a console and not in the code.
+
+**A purchase Play has not been told about is refunded after three days.**
+Acknowledgement is part of granting the entitlement, in the same transaction,
+not a step an application is expected to remember: `DV.transaction` writes the
+grant and acknowledges, `context.compensate` releases it if acknowledgement
+fails, and a grant that is somehow still unacknowledged when the window closes
+reports `DV-PURCHASE-006`.
+
+## Entitlements are synced, server-authored state
+
+An entitlement bought on a phone unlocks the desktop session through ordinary
+model sync. There is no second replication path and no `DV.Entitlements`
+store: entitlements are generated models like any other, and they reach the
+device the way a model does.
+
+They are **server-authored**, which settles what would otherwise be a conflict
+question. A device never writes an entitlement — it cannot, since the only
+evidence that would justify one is a receipt the server validates — so the
+offline conflict strategies do not apply to it. `DVOffline(strategy: ...)` on
+an entitlement model is a build error (`DV-PURCHASE-008`) rather than a
+strategy that would never fire, and `DVConflict.ask` in particular has no
+meaning here: Record History and Optimistic Concurrency asks the writer to
+choose between two versions, and there is only ever one writer.
+
+What the device does hold is a snapshot with an end:
+
+```dart
+if (await DV.Purchases.entitled(user, Entitlement.analytics)) {
+  return AnalyticsDashboard();
+}
+```
+
+Each synced entitlement carries a `notAfter`, set from the subscription's paid
+period with the store's own grace period added. Offline, access holds until
+that moment and then stops (`DV-PURCHASE-005`). Without it a refunded annual
+subscription would keep working on a device that never reconnected, which is
+the failure mode every hand-rolled entitlement cache has; with it, a plane
+journey is covered and a year of unpaid access is not.
+
+`restore()` is generated and required — the App Store rejects an application
+that sells a non-consumable with no way to get it back on a new device:
+
+```dart
+await DV.Purchases.restore();
+```
+
+Restoration asks the store what this store account owns and revalidates each
+receipt server-side. A receipt that validates under a different application
+user grants nothing and says so: two people sharing a device is ordinary, and
+silently moving somebody's subscription to whoever is signed in is not a merge
+problem, it is a refusal.
+
+## Store policy is an adapter, never framework code
+
+Which goods may be sold outside the store, whether an application may link to
+its own checkout, and what that link must say, are decided by courts and
+regulators and change between releases of this framework. The DMA, the US
+anti-steering rulings and each store's response to them have all moved more
+than once. **Nothing about them is compiled into Dartvel.**
+
+```yaml
+dartvel:
+  purchases:
+    policy: DVAppleStorePolicy   # or the application's own
+```
+
+A `DVStorePolicy` adapter answers one question — given a product, a platform
+and a jurisdiction, where does this purchase go — and Dartvel ships the
+conservative default for each store. An application operating under a regime
+that permits an external purchase link supplies its own adapter and carries
+that decision itself, which is the honest place for it: the framework cannot
+know where a customer is standing or what a regulator decided last week.
+
+## Development and the doctor
+
+`dartvel dev` uses each store's sandbox — StoreKit's local `.storekit`
+configuration and Play's licence testers — so a purchase flow can be walked
+end to end without a real charge, with the same generated code the release
+build runs.
+
+`dartvel doctor --purchases` lints the policy before a submission does:
+digital goods routed to a gateway, a missing product identifier, a store
+credential that does not resolve in the environment being built for, and an
+entitlement model carrying an offline strategy. Each is a typed finding with
+the code that explains it, which is the difference between reading it here and
+reading it in a rejection notice a week later.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-PURCHASE-001` | a `billable: true` model is sold on a store target without being classified digital or physical | build `error` |
+| `DV-PURCHASE-002` | a digital product has no store product identifier for a target being built | build `error` |
+| `DV-PURCHASE-003` | the store refused a receipt or purchase token; no entitlement was written | `warning` |
+| `DV-PURCHASE-004` | a store server notification named a product the project does not declare | `warning` |
+| `DV-PURCHASE-005` | an entitlement snapshot passed its `notAfter` while offline; access refused | `info` |
+| `DV-PURCHASE-006` | a purchase was granted and not acknowledged to the store within its window | `error` |
+| `DV-PURCHASE-007` | store prices could not be read; no price is shown rather than a converted one | `warning` |
+| `DV-PURCHASE-008` | an offline conflict strategy is declared on a server-authored entitlement model | build `error` |
+
+## Deliberately absent
+
+- **Hard-coded store policy.** Covered above, and it is the one thing in this
+  section that would age badly enough to be dangerous.
+- **A receipt validator in the client.** There is no configuration that moves
+  validation to the device, because every application that offers one is asked
+  for it by somebody who wants to test faster and then ships it.
+- **A `DV.Entitlements` namespace.** Entitlements are models. The purchase
+  surface is `DV.Purchases`; what you own is data.
+- **Cross-store transfer.** A purchase on Play does not become a purchase on
+  the App Store. Dartvel syncs the entitlement, which is what an application
+  actually wants; the receipt stays with the store that issued it.
+
+---
+
 # Usage Metering and Quotas
 
 Stability: `Draft` · Status: `Designed`
