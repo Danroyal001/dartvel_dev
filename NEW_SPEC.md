@@ -9376,6 +9376,49 @@ diagnostic-code format. It records rules stated normatively here, so that a
 proposal written in prose stops drifting from the conventions the code
 already follows.
 
+## Conformance suites
+
+A label and a list of evidence paths still come down to somebody having
+looked. For a `Contract` section — a frozen surface that third parties write
+adapters against — that is not enough, so each one carries a **conformance
+suite**: the behaviour the section states normatively, executable.
+
+```bash
+dartvel conformance list
+dartvel conformance run --section "Queues, Jobs, and Signals"
+dartvel conformance run --suite-version 2
+```
+
+- **One suite per `Contract` section, and none for a `Draft` one.** A suite
+  over a surface that is still moving would freeze it by accident, which is
+  the opposite of what the two-axis labelling is for.
+- A suite asserts **behaviour**, never shape. `expect(plan.executable,
+  'dartvel_fuchsia')` passed for weeks while that target could not build; a
+  conformance assertion that a name exists proves the same nothing.
+- A suite is **versioned with the contract**. Removing an assertion from a
+  published suite is the same act as a breaking change to the section, and
+  takes the migration path rather than an edit.
+- An implementation says which suite version it passes. That is how a
+  third-party adapter — another queue broker, another vector store, another
+  storage backend — can be validated mechanically instead of by reading its
+  README.
+
+The suites run against Dartvel's own implementation too, and that is the point
+where this stops being documentation: **a `Contract` section whose suite does
+not pass cannot be labelled `Shipped`.** It is the mechanical version of the
+evidence rule — today a `Shipped` label is substantiated by paths that exist,
+which proves a file is there rather than that it does what the section says.
+
+`docs/spec-status.json` gains a `conformance` field naming the suite and the
+version an entry's evidence comes from, so the index says which claims were
+checked by running something and which were checked by a person.
+
+None of this is built yet: `dart run tool/spec_status_check.dart` does not
+require a suite for a `Contract` section, and there are no suites to require.
+The sequencing is the labelling pass first — which sections are genuinely
+frozen — because a suite written for a section that turns out to be `Draft`
+is work that has to be thrown away.
+
 ---
 
 # The Vision
