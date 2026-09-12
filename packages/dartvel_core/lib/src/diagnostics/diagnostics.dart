@@ -207,6 +207,26 @@ final class DVDiagnostics {
       level: 'warning',
     ),
     DVDiagnostic(
+      code: 'DV-THEME-001',
+      reason: 'token has no value for a configured mode',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-THEME-002',
+      reason: 'declared font family not bundled for this target',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-THEME-003',
+      reason: 'tenant override targets structure rather than tokens',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-THEME-004',
+      reason: 'design tokens have drifted from the imported source',
+      level: 'warning',
+    ),
+    DVDiagnostic(
       code: 'DV-DEVCLIENT-001',
       reason: 'dev client could not reach the named dev server or preview',
       level: 'warning',
