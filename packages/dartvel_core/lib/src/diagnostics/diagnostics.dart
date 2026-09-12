@@ -382,6 +382,45 @@ final class DVDiagnostics {
       level: 'error',
     ),
     DVDiagnostic(
+      code: 'DV-MEDIA-001',
+      reason: 'an image could not be decoded at build; no variants were written',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-MEDIA-002',
+      reason: 'a variant was requested at a width outside the configured set; '
+          'refused',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-MEDIA-003',
+      reason: 'a remote image host is not allowed, or a redirect left the '
+          'allowed host',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-MEDIA-004',
+      reason: "an upload's decoded format or dimensions do not match what it "
+          'declared; rejected',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-MEDIA-005',
+      reason: 'the upload scan hook refused a file; it was never served',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-MEDIA-006',
+      reason: 'a signed transformation URL failed verification or had expired',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-MEDIA-007',
+      reason: 'a media field declares video and no encoder adapter is '
+          'configured',
+      level: 'error',
+    ),
+    DVDiagnostic(
       code: 'DV-AIOPS-001',
       reason: 'a stored prompt version has no counterpart in the repository; '
           'the next deploy reverts it',
