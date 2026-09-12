@@ -18,6 +18,9 @@
 /// shares, is not covered by a rule written in Dart.
 library;
 
+import '../observability/logging.dart' show DVLogLevel;
+import '../observability/observability.dart' show DVObservability;
+import 'enforcement.dart' show DVKioskDegradation, DVKioskDegradationX;
 import 'policy.dart';
 
 bool _clipboard = false;
@@ -95,12 +98,29 @@ bool dvKioskAllowsExternalUrl(String url) =>
 /// Null when no kiosk holds and in staff mode, where the rest of the policy
 /// lifts too: an engineer standing at the machine with the exit method needs
 /// the pages the queue must not reach.
+/// Reported when it blocks one, rather than blocking in silence.
+///
+/// `DVKioskDegradation.routeBlocked` was declared with a code of its own and
+/// assigned nowhere, so the one thing this function exists to do was the one
+/// thing a kiosk could not say it had done. A deep link, a notification or a
+/// stale link on an attract screen all arrive here, and a screen that
+/// answered with the home page told whoever was watching nothing about why.
+///
+/// At `debug`, which is what the registry says DV-KIOSK-006 is: a kiosk
+/// refusing a route it was told to refuse is ordinary, and every navigation
+/// passes through this gate.
 String? dvKioskRouteRedirect(String path) {
   final DVKioskPolicy? policy = _holding;
   if (policy == null) return null;
   final String route = path.split('?').first.split('#').first;
   if (route == policy.home) return null;
   if (policy.allowsRoute(route)) return null;
+  DVObservability.log(
+    'Kiosk blocked $route; sent to ${policy.home}.',
+    level: DVLogLevel.debug,
+    code: DVKioskDegradation.routeBlocked.code,
+    context: <String, Object?>{'route': route, 'home': policy.home},
+  );
   return policy.home;
 }
 
