@@ -204,6 +204,11 @@
       "absent": "Biometric sign-in, which is a device capability rather than a server one and is tracked under Platform bindings. LDAP, SAML, passkey and Web3 ship."
     },
     {
+      "section": "Sessions and Account Management",
+      "stability": "Draft",
+      "status": "Designed"
+    },
+    {
       "section": "Theme",
       "stability": "Contract",
       "status": "Shipped",

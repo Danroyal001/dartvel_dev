@@ -1286,6 +1286,138 @@ Providers
 
 ---
 
+# Sessions and Account Management
+
+Stability: `Draft` · Status: `Designed`
+
+Authentication says how somebody signs in. This says what exists afterwards:
+the session that carries them, the second factor that protects it, and the
+account page every application needs and nobody wants to write.
+
+The gap is specific. Authentication lists passkeys, biometrics and OTP as
+*sign-in methods*, which is a way in; it never says multi-factor is a *policy*
+a route can require. And "session storage" appears in this specification
+exactly once, as a SQLite detail — so the thing that carries every
+authenticated request has a storage driver and no stated behaviour.
+
+## Sessions
+
+```dart
+DV.Session.current;                  // DVSession? — this device's session
+DV.Session.id;                       // opaque; rotated, never a user identifier
+DV.Session.claims;                   // typed, server-issued; never client-written
+
+await DV.Auth.sessions();            // List<DVSession> — every device, newest first
+await DV.Auth.revoke(sessionId);     // one device
+await DV.Auth.revokeOthers();        // everything except this one
+```
+
+A `DVSession` is a record of a device, not a cookie with a friendly name:
+
+```dart
+session.id;
+session.createdAt; session.lastSeenAt;
+session.device;        // model and OS, from the platform, never fingerprinted
+session.location;      // coarse, from the request, and only if configured
+session.isCurrent;
+session.mfaSatisfiedAt; // null until a second factor was presented
+```
+
+Drivers follow the pattern the rest of the platform uses — SQLite by default so
+a new project needs no infrastructure, Redis or a database table when there is
+more than one backend process, and the driver is configuration rather than
+code. Server-rendered targets get a cookie whose attributes are not left to
+the application: `HttpOnly`, `SameSite=Lax`, `Secure` outside development, and
+a host-prefixed name. These are not defaults to be overridden; a project that
+wants `SameSite=None` is asking for a cross-site session, and that is a
+deploy-time error naming the setting rather than a silently weaker cookie.
+
+**Rotation is not optional.** The session identifier is reissued on sign-in, on
+privilege change, and on second-factor completion. Fixation is the attack that
+a stable identifier across a privilege boundary hands over for free, and it is
+prevented here rather than documented as a risk.
+
+Revocation is immediate rather than eventual. A revoked session fails its next
+request, and on a device holding an offline-first cache it also clears the
+models that session's policies gated — a signed-out device that still renders
+the last screen is a data leak with a plausible explanation.
+
+## Multi-factor as a policy
+
+The second factor is declared where the risk is, not at sign-in:
+
+```dart
+@DVPage(path: '/billing', mfa: DVMfa.required)
+Widget _billingPage(BuildContext context) => Billing.Page();
+
+@DVBackendFunction(mfa: DVMfa.recent(Duration(minutes: 15)))
+Future<void> _transferFunds(String to, int cents) async => Ledger.transfer(to, cents);
+```
+
+- `DVMfa.required` needs a second factor at some point in this session.
+- `DVMfa.recent(...)` needs one within a window — step-up authentication, which
+  is what a payout or a permission change actually wants. The session records
+  `mfaSatisfiedAt`; the middleware compares it and challenges when it is stale.
+- An unsatisfied requirement is not an error page. It suspends the call,
+  presents the generated challenge, and resumes — the same shape a page
+  middleware redirect already has, so application code does not handle it.
+
+Enrollment is generated: TOTP with a QR code, passkeys through the method
+Authentication already has, and recovery codes. **Recovery codes are
+`@DVModel.sensitiveField()` values** — hashed, shown exactly once, and excluded
+from logs, traces, AI context and export by construction. A recovery code in a
+support ticket is how accounts get taken over, and the field annotation is what
+keeps it out of one.
+
+MFA policy is per-tenant configurable where Organizations exist: an
+organization may require a second factor of its members, which is the form the
+requirement actually takes in a business.
+
+## Account management
+
+The account page is a set of generated components, replaceable individually:
+
+```dart
+DV.Auth.ProfilePage();       // name, email with re-verification, avatar
+DV.Auth.SecurityPage();      // password, MFA enrollment, recovery codes
+DV.Auth.SessionsPage();      // every device, with revoke
+DV.Auth.DeletePage();        // account deletion
+```
+
+They follow the existing `DV.Auth.<Name>Page()` convention, so they navigate
+and are overridden like the sign-in pages already are.
+
+Deletion is the one that matters and the one usually done wrong. It does not
+delete a row. It invokes the erasure Data Compliance and Lifecycle defines —
+the same cascade across models, relations, storage and search indexes, with the
+same signed receipt — after a confirmation step and a grace period the project
+configures. An account deletion that leaves the person's data in a search index
+is not a deletion, and the only reason to build it twice would be to get it
+wrong in a second place.
+
+Email changes re-verify before they take effect, because an unverified change
+is an account takeover with a password reset attached.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-SESSION-001` | multi-factor required by policy and not yet satisfied | `info` |
+| `DV-SESSION-002` | session revoked elsewhere; this device was signed out | `info` |
+| `DV-SESSION-003` | cookie configuration weaker than the deployment allows | gate `error` |
+| `DV-SESSION-004` | recovery codes generated but never downloaded | `warning` |
+
+## Deliberately absent
+
+- **A second identity namespace.** Sessions live under `DV.Session` and
+  `DV.Auth`; there is no `DV.Identity` and no `DV.Users`.
+- **Device fingerprinting.** `session.device` is what the platform reports, not
+  a derived identifier that follows somebody across sign-outs.
+- **Being an identity provider.** Making the application one is Platform API's
+  job; this section is about the application's own sessions.
+
+---
+
 # Theme
 
 Stability: `Contract` · Status: `Shipped`
