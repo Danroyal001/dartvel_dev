@@ -3297,6 +3297,44 @@ Evals run against the local adapter's deterministic behaviour in CI and
 against the real provider on demand, because a feature that only passes
 against a fake has proven that the fake agrees with it.
 
+## Evaluating Dartvel itself
+
+The same command, pointed the other way:
+
+```bash
+dartvel ai eval                 # every declared feature in this application
+dartvel ai eval --feature X     # one of them
+dartvel ai eval --framework     # the golden paths, scored against a coding agent
+```
+
+Dartvel is meant to be a framework an agent can build with — that claim runs
+through the whole AI section, the project graph, `dartvel mcp` and the
+provenance in source mappings — and a claim like that is worth exactly as much
+as the measurement behind it. `--framework` runs the golden-path scenarios
+against a coding agent and scores them: define a model, add a backend
+function, migrate the schema, build for a target, fix the error the build
+reported.
+
+**A scenario passes when the project builds and its generated tests pass.**
+The outcome is machine-checkable, for the same reason a rubric does not gate
+an application feature: the moment a model's opinion decides the result, a
+regression in the framework is indistinguishable from a change in the model.
+
+Runs are recorded per agent and per Dartvel version, and the artifact is the
+**trend**, not a single number. A scenario that took one step in 0.5.0 and
+four in 0.6.0 says a surface got harder to use — which is the only way a
+framework finds that out short of a user complaining, since the people who
+built it can no longer read it fresh.
+
+It is deliberately not part of the ordinary test gate. It depends on a third
+party's model version and on a network, and a suite with either in it stops
+being a gate and becomes a source of flakes to re-run. It runs on a schedule
+and when a surface changes on purpose.
+
+This is distinct from `--feature`, which scores what an application's own AI
+features produce. One measures the framework; the other measures what somebody
+built with it.
+
 ## Diagnostics
 
 | Code | Reason | Level |
