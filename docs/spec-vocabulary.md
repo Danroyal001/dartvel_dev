@@ -118,3 +118,8 @@ which stage raises it. Every code in a table is registered in
 `native`, `accessibility` and `release`. `dartvel build` and `dartvel dev`
 generate before they run, so `dartvel routes` is only needed to generate
 without building.
+
+`dartvel conformance run` executes a `Contract` section's conformance suite —
+the behaviour that section states normatively, executable, versioned with the
+contract. A `Draft` section has no suite, because one would freeze a surface
+that is still moving. See *Specification Status*.
