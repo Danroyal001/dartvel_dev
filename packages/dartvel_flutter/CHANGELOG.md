@@ -1,5 +1,15 @@
 ## Unreleased
 
+- A `DVTable` column header announces as a column header rather than as a
+  document heading. It was marked `header: true`, the heading flag, which
+  Flutter web draws as an `<h2>`: a six-column table put six headings into the
+  page's outline between the page's real ones, which is what makes an outline
+  useless to someone navigating by heading. The table now carries the roles
+  Flutter defines for one -- table, row, cell and column header -- so a screen
+  reader also gets the row and column relationship it announces cells with.
+- An empty `DVTable` announces its "no rows" label once rather than twice. The
+  label sat on a `Semantics` that did not exclude the `Text` under it, so the
+  node carried it twice over.
 - Three window degradations that no window could ever carry now report where
   their condition occurs. `kioskLocked` (`DV-WINDOW-002`) is set when a
   device-scope kiosk holds the surface, `disabledByConfig` (`DV-WINDOW-005`)
