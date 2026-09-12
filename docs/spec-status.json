@@ -215,11 +215,12 @@
     },
     {
       "section": "Theme",
-      "stability": "Contract",
-      "status": "Shipped",
+      "stability": "Draft",
+      "status": "Partial",
       "evidence": [
         "packages/dartvel_flutter/test/dartvel_flutter_test.dart"
-      ]
+      ],
+      "absent": "Built: DV.Theme.mode and setMode, which is light/dark/system switching and the whole of what DVTheme is -- a mode holder. Designed: the token vocabulary (colour, type, spacing, radius, elevation, motion) that modifiers name, per-mode token resolution including high contrast, fonts declared in configuration and bundled per target with fallback chains, per-tenant token overrides as a model, icon and splash generation from one master, and Figma variable import with two-way drift reporting. The section was labelled Contract/Shipped against a class with one field, which is why the stability drops to Draft: a surface this far from finished cannot promise that a breaking change takes the migration path rather than a spec edit."
     },
     {
       "section": "Platform",
