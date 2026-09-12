@@ -2992,6 +2992,150 @@ testable behavior so tests do not pass through ignored or empty AI paths.
 
 ---
 
+# AI Operations
+
+Stability: `Draft` · Status: `Designed`
+
+The AI section wires intelligence into an application. This is what happens to
+that feature after it ships: the prompt changes and nobody can say what it used
+to be, one tenant's usage costs more than their subscription, the same question
+is answered from scratch a thousand times a day, a provider has an outage at
+four in the afternoon, and nobody can tell whether last week's version was
+better than this week's.
+
+Every one of those has an answer elsewhere in Dartvel — versioned documents,
+meters, cache tags, typed degradation, golden tests — and this section is
+those answers pointed at AI features rather than a new set of machinery.
+
+## A prompt is a versioned asset
+
+```dart
+@DVPrompt(id: 'ticket.summary', version: 4)
+const ticketSummary = DVPromptTemplate(
+  system: 'Summarize the ticket for a support agent.',
+  input: <String, Type>{'body': String, 'status': String},
+  output: TicketSummary,
+);
+```
+
+Prompts live in the repository, typed on both sides, so a change to one is a
+diff in a pull request rather than a field somebody edited in a console at
+half past five. Editing a prompt without incrementing its version is a build
+error (`DV-AIOPS-006`): a prompt whose version did not move cannot be told
+apart from the one an eval was scored against.
+
+They also travel like page documents, and for the same reason — a wording fix
+should not need a store release:
+
+- A **stored** prompt version overrides the compiled one, and deleting the
+  stored version restores the compiled one, so an edit is always revertible.
+- `dartvel updates patch` ships prompt versions in the same `DVPageBundle`
+  machinery that ships pages.
+- A rollback ships the previous version rather than inverting the change.
+- A stored version with no counterpart in the repository is reported
+  (`DV-AIOPS-001`), because the next deploy would silently revert it. Studio
+  exports it back to source; that is the fix, not a warning to live with.
+
+The repository is the source of truth. The store is how a change gets out
+quickly, exactly as it is for pages.
+
+## Budgets, and what happens at the end of one
+
+Per-feature and per-tenant token budgets are meters from Usage Metering and
+Quotas — AI is not a second accounting system — and a feature declares what it
+does when one runs out:
+
+```dart
+@DVAIFeature(
+  budget: DVMeterRef.tenant('aiTokens'),
+  fallback: <DVAIFallback>[
+    DVAIFallback.model('claude-haiku-4-5'),
+    DVAIFallback.degrade,
+  ],
+)
+```
+
+**The default at exhaustion is to refuse, not to quietly use a cheaper
+model.** A degraded answer is indistinguishable from a good one to the person
+reading it, and an application that silently drops to a smaller model gets
+worse without anybody being able to say when. Every step down a declared
+fallback chain is reported (`DV-AIOPS-003`), the degrade step is a typed state
+the UI renders rather than an exception in a log, and a provider failure with
+no declared fallback makes the feature unavailable and says so
+(`DV-AIOPS-004`).
+
+The chain answers provider outages as well as budgets, which is the same
+problem seen from the other side: something is not available and the
+application has to behave predictably.
+
+## Caching
+
+An AI response is cached under the prompt version, the model, and a hash of
+the resolved input, with the tags the Cache section already defines:
+
+```dart
+@DVAIFeature(cache: DVCache.tags(<String>['ticket:{id}']))
+```
+
+The prompt version is part of the key, so shipping version 5 does not serve
+version 4's answers, and `DV.Cache.revalidateTag('ticket:42')` drops what a
+changed ticket made stale. There is no AI-specific cache.
+
+## What a feature is allowed to see
+
+```dart
+@DVAIFeature(context: <Type>[Ticket, Customer])
+```
+
+The manifest is enforced, not documentation: a feature reads the models it
+names and nothing else, `@DVModel.sensitiveField()` exclusion applies inside
+those, and naming a model or field the caller's policy forbids is a build
+error (`DV-AIOPS-005`). This extends the rule the AI section already states
+for tools — a sensitive field is described, never valued — to everything that
+reaches a prompt, including retrieved rows from Semantic Search and
+Embeddings.
+
+## Evaluation
+
+```bash
+dartvel ai eval --feature ticket.summary
+```
+
+Golden transcripts are the gate, and a rubric model is a signal. A transcript
+is deterministic, costs nothing to compare, and fails for a reason a reader
+can see; a rubric scored by a language model makes the build depend on a third
+party's model version, so its score is recorded beside the run and never
+decides it. A release gate below the declared threshold refuses the deploy
+(`DV-AIOPS-007`) the way the compatibility check does.
+
+Evals run against the local adapter's deterministic behaviour in CI and
+against the real provider on demand, because a feature that only passes
+against a fake has proven that the fake agrees with it.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-AIOPS-001` | a stored prompt version has no counterpart in the repository; the next deploy reverts it | `warning` |
+| `DV-AIOPS-002` | feature over its token budget; the declared behaviour was taken | `warning` |
+| `DV-AIOPS-003` | a fallback step was taken (provider outage, budget, or refusal) | `info` |
+| `DV-AIOPS-004` | provider failed and no fallback is declared; the feature is unavailable | `error` |
+| `DV-AIOPS-005` | a context manifest names a model or field the policy forbids | build `error` |
+| `DV-AIOPS-006` | a prompt changed without incrementing its version | build `error` |
+| `DV-AIOPS-007` | eval scored below the declared threshold | gate `error` |
+
+## Deliberately absent
+
+- **A second cache, meter, or update channel.** Cache tags, meters and
+  `DVPageBundle` already exist; this section uses them.
+- **Automatic prompt optimization.** A framework that rewrites prompts on its
+  own removes the one artifact a team can review.
+- **A rubric model as a gate.** Recorded, never deciding — covered above.
+- **Silent model substitution.** Every step of a fallback chain is declared
+  and reported.
+
+---
+
 # Monitoring and Observability
 
 Stability: `Draft` · Status: `Partial`
