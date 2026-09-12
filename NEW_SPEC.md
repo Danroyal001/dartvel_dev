@@ -921,6 +921,134 @@ All backend data is transmitted as form-data to allow large request sizes if nec
 
 ---
 
+# Outbound HTTP
+
+Stability: `Draft` · Status: `Designed`
+
+Backend functions are how the world calls the application. This is how the
+application calls the world — the payment gateway, the shipping API, the
+partner's webhook endpoint — and it is the surface every third-party
+integration in the specification is built on.
+
+Without it each integration hand-rolls the same retry loop, and none of them
+can be tested without a network. That is the actual cost: an integration you
+cannot exercise offline is an integration whose failure path has never run.
+
+## One client, the wire types it already has
+
+```dart
+final response = await DV.Http.get('https://api.example.com/v1/rates');
+final created = await DV.Http.post(uri, json: <String, Object?>{'amount': 500});
+```
+
+`DV.Http` sends and receives the **same `Request`, `Response`, `Headers` and
+`Body` types `package:dartvel_core/http.dart` already defines** for inbound
+traffic. They are the WinterCG fetch types; a fetch type is the same type
+whichever direction it travels, so there is no second `DVHttpResponse` to
+learn and no conversion between an inbound body and an outbound one. A backend
+function that proxies is one object handed along.
+
+This is also why the name is `DV.Http` and not something that avoids the word:
+the outbound client and the inbound wire types are deliberately the same
+vocabulary, and calling one of them something else to keep them apart would
+hide the fact that they are not apart.
+
+## Hosts are declared, not concatenated
+
+```yaml
+dartvel:
+  http:
+    hosts:
+      paystack:
+        baseUrl: https://api.paystack.co
+        auth: { bearer: PAYSTACK_SECRET_KEY }   # resolved through Secrets
+        timeout: 10s
+        retries: { attempts: 3, backoff: exponential, jitter: true }
+        circuitBreaker: { failureRate: 0.5, window: 30s, cooldown: 60s }
+        pool: { maxConcurrent: 8 }
+```
+
+```dart
+final paystack = DV.Http.host('paystack');
+final charge = await paystack.post('/transaction/initialize', json: body);
+```
+
+A declared host is the unit everything hangs off. Credentials resolve by name
+through Secrets and are never interpolated into a URL or a header by
+application code, which is how they end up in a log. Timeouts, retries,
+breaker and pool are per host, because "the payment gateway is slow" and "the
+geocoder is slow" call for different answers and a global setting gives them
+the same one.
+
+**Retries are idempotency-aware.** `GET`, `HEAD` and `PUT` retry by default;
+`POST` does not, unless the call carries an idempotency key — retrying a
+charge because a response was slow is how a customer gets billed twice. A
+retried call sends the same key, so the server can collapse it.
+
+The breaker is per host and reports rather than hides: an open breaker fails
+fast with a typed error naming the host and the time it will retry, so the
+caller's own degradation path runs instead of a queue of requests piling into
+a service that is already down.
+
+Every call propagates trace context automatically (Distributed Tracing), so an
+outbound request is a span under the backend function that made it — which is
+what turns "the checkout is slow" into "the gateway is slow".
+
+## Testing is the point
+
+```dart
+DV.Test.fakeHttp(<String, DVHttpStub>{
+  'paystack': DVHttpStub.json(<String, Object?>{'status': true}),
+  'shipping': DVHttpStub.status(503),        // exercise the degradation path
+  'geocoder': DVHttpStub.timeout(),
+});
+```
+
+No network, no flake, and — the part that matters — the failure paths are as
+easy to write as the happy one. An integration test that can only produce a
+200 has tested the half that was never going to be the problem.
+
+Fixtures can be recorded from a real call and replayed, so a stub stays honest
+about the shape the service actually returns. A test that reaches the network
+without a fake fails rather than passing slowly: a suite whose result depends
+on somebody else's uptime is not a suite.
+
+## Where it runs
+
+Backend by default. A client may call a third party directly — a mobile app
+talking to a maps service — and the same API works there, with one rule
+enforced at build time: a declared host whose `auth:` names a backend-scoped
+secret cannot be used from client code. That is the existing `DV-SECRETS-001`
+violation, raised where it is introduced rather than discovered in a bundle.
+
+Every provider adapter in this specification — mail, search, billing, storage,
+AI, semantic search, webhooks, tax — is built on this client. That is the
+reason it is worth being a section rather than a utility: it is what makes
+their behaviour under failure uniform, observable, and testable in one place
+instead of eight.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-HTTP-001` | request to an undeclared host | build `error` |
+| `DV-HTTP-002` | circuit breaker open; request failed fast | `warning` |
+| `DV-HTTP-003` | non-idempotent request retried without an idempotency key | `warning` |
+| `DV-HTTP-004` | a test reached the network with no fake configured | `error` |
+| `DV-HTTP-005` | declared host used from client code with a backend-scoped secret | build `error` |
+
+## Deliberately absent
+
+- **A second HTTP surface.** `DV.Http` is the whole of it, and it uses the wire
+  types that already exist rather than defining a parallel set.
+- **A response cache.** Caching belongs to `DV.Cache` with its tags and
+  invalidation; a second cache with its own expiry rules is how two answers to
+  the same question start disagreeing.
+- **Replacing `package:http` or `dio`.** An application may use either
+  directly; they simply get none of the above.
+
+---
+
 # Scheduling
 
 Stability: `Draft` · Status: `Partial`
