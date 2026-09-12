@@ -181,6 +181,16 @@ final class DVDiagnostics {
       level: 'warning',
     ),
     DVDiagnostic(
+      code: 'DV-SCHEMA-001',
+      reason: 'a blocking change was written where an expand/contract plan exists',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-SCHEMA-002',
+      reason: 'blocking migration against production without an override',
+      level: 'error',
+    ),
+    DVDiagnostic(
       code: 'DV-SCHEMA-003',
       reason: 'backfill throttled below its floor for longer than the configured patience',
       level: 'warning',
@@ -188,6 +198,12 @@ final class DVDiagnostics {
     DVDiagnostic(
       code: 'DV-SCHEMA-004',
       reason: 'chunk verification mismatch; the read switch is refused',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-SCHEMA-005',
+      reason: 'contract phase requested while clients inside the protocol window '
+          'read the old shape',
       level: 'error',
     ),
     DVDiagnostic(
@@ -221,9 +237,19 @@ final class DVDiagnostics {
       level: 'warning',
     ),
     DVDiagnostic(
+      code: 'DV-OFFLINE-005',
+      reason: 'offline model has no conflict strategy for a field type it merges',
+      level: 'error',
+    ),
+    DVDiagnostic(
       code: 'DV-OFFLINE-006',
       reason: 'local store schema behind the protocol; store rebuilt from the server',
       level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-PROTO-001',
+      reason: 'contract shape changed without incrementing the protocol version',
+      level: 'error',
     ),
     DVDiagnostic(
       code: 'DV-PROTO-002',
@@ -236,6 +262,16 @@ final class DVDiagnostics {
       level: 'debug',
     ),
     DVDiagnostic(
+      code: 'DV-PROTO-004',
+      reason: 'a lossy adaptation was requested with no declared adapter',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-PROTO-005',
+      reason: 'deploy would strand clients above the threshold',
+      level: 'error',
+    ),
+    DVDiagnostic(
       code: 'DV-PROTO-006',
       reason: 'enum member added with no declared fallback, narrowing the window',
       level: 'warning',
@@ -244,6 +280,26 @@ final class DVDiagnostics {
       code: 'DV-3D-001',
       reason: 'scene presented as poster (unsupported target / disabled / GPU init failed)',
       level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-3D-002',
+      reason: 'asset failed to import or is missing at build',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-3D-003',
+      reason: 'shader failed to compile for a configured target',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-3D-004',
+      reason: '`scene3d` API used without `scene3d.enabled`',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-3D-005',
+      reason: 'physics backend needs a toolchain the machine lacks',
+      level: 'error',
     ),
     DVDiagnostic(
       code: 'DV-3D-006',
@@ -256,8 +312,43 @@ final class DVDiagnostics {
       level: 'warning',
     ),
     DVDiagnostic(
+      code: 'DV-3D-008',
+      reason: '`syncTransform` bound to a non-synced model',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-EXPORT-001',
+      reason: 'PDF export requested for a route with no generated document',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-EXPORT-002',
+      reason: 'no PDF renderer available in this deployment',
+      level: 'error',
+    ),
+    DVDiagnostic(
       code: 'DV-EXPORT-003',
       reason: 'document exceeded the configured page or byte budget',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-LINKS-001',
+      reason: 'deep-link domains declared with no application identifier for a target',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-LINKS-002',
+      reason: 'verification file unreachable, redirected, or not served as JSON',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-LINKS-003',
+      reason: 'fingerprint in the served file does not match the signing certificate',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-LINKS-004',
+      reason: 'a route the application handles is not covered by the served patterns',
       level: 'warning',
     ),
     DVDiagnostic(
