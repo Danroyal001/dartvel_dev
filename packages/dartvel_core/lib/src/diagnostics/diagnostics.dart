@@ -1278,6 +1278,35 @@ final class DVDiagnostics {
           'dropped',
       level: 'warning',
     ),
+    DVDiagnostic(
+      code: 'DV-CONTENT-001',
+      reason: 'a preview link failed verification or had expired; the '
+          'published version was served',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-CONTENT-002',
+      reason: 'a scheduled publish was refused because the document changed '
+          'after approval',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-CONTENT-003',
+      reason: 'a publish or schedule was refused; the actor lacks the policy '
+          'action',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-CONTENT-004',
+      reason: 'a machine-translated string reached published without human '
+          'review',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-CONTENT-005',
+      reason: 'a scheduled publish missed its slot and did not run',
+      level: 'warning',
+    ),
   ];
 
   /// The diagnostic for [code], or null if nothing is registered under it.
