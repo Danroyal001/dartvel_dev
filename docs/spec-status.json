@@ -1314,6 +1314,13 @@
       "absent": "This section was marked narrative, which is the index's one legitimate way to carry no labels -- and it describes dartvel inspect, dartvel explain and a versioned DartvelProjectGraph, so marking it narrative exempted a real surface from the evidence rule rather than describing a paragraph of prose. Built: dartvel inspect routes, models, model, functions, function, jobs, kiosk and windows; dartvel explain over the diagnostic registry; a versioned project graph carrying graphVersion, routes, models and their fields including sensitive marking, functions and jobs. Absent: the inspectors this section also lists -- module, transaction, schema and generated -- and the node types the graph is described as carrying whose own sections are Designed rather than built: the protocol version and its window, memory arenas, 3D scenes, API scopes, privacy declarations, release plans, analytics events and consent categories, feature flags with owners and rollout rules, per-model subject paths and retention, and usage meters with their limits."
     },
     {
+      "section": "Generated Code Determinism",
+      "stability": "Draft",
+      "status": "Designed",
+      "evidence": [],
+      "absent": "The contract is not met today, and the section names the reason: routes_generator.dart takes a wall-clock build id per generation and writes it into every generated file as a `// BUILD: <iso>#<millis>` header, so every regeneration modifies every file whether or not the project changed. Nothing else of this exists: there is no `dartvel generate --check`, no second-run comparison behind DV-GEN-002, no sorting guarantee for anything derived from a directory listing or a map, no CODEOWNERS template in the scaffold, and `dartvel upgrade --plan` -- which DV-GEN-003 reports through -- is itself unbuilt, as Unified Development and The Golden Path both record. The output is not run through dart format on the way out either."
+    },
+    {
       "section": "Mental Model",
       "kind": "narrative"
     },
