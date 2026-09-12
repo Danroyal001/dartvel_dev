@@ -290,6 +290,36 @@ final class DVDiagnostics {
       reason: 'required-reason API used by a binding that declares no reason',
       level: 'error',
     ),
+    DVDiagnostic(
+      code: 'DV-RELEASE-001',
+      reason: 'health gate tripped; the rollout was rolled back',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-RELEASE-002',
+      reason: 'the adapter cannot weight traffic; canary degraded to blue-green',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-RELEASE-003',
+      reason: 'no previous release to compare against; the gate held the rollout',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-RELEASE-004',
+      reason: 'per-function rollback requested; the release is the unit',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-RELEASE-005',
+      reason: 'contract step refused while a windowed client still reads the old shape',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-RELEASE-006',
+      reason: 'a release was deployed with no provenance record; rollback cannot name it',
+      level: 'warning',
+    ),
   ];
 
   /// The diagnostic for [code], or null if nothing is registered under it.
