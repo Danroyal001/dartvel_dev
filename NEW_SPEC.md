@@ -865,6 +865,27 @@ Generated validation, such as `formControls.emailIsValid`.
 
 Generated submit ( formControls.submit(), .reset() ).
 
+
+## A half-filled form survives
+
+A long form loses everything to a crash, a dead battery, or a tab closed by
+mistake, and the framework already has the place to keep it:
+
+```dart
+DVForm<Application>(autosave: true)
+```
+
+The draft goes to the shared store the page builder and window state already
+use — local first, and synced under the user's own key where the model syncs,
+so a form begun on a phone is finished on a laptop. It is a draft and never a
+record: nothing is persisted to the model, no validation runs against it, and
+no policy sees it, because a half-filled application is not an application.
+
+Drafts expire, and sensitive fields are excluded from them by construction —
+the same exclusion set that keeps them out of logs and AI context, for the same
+reason. A recovered draft is offered rather than restored silently, since
+someone who abandoned a form deliberately should not find it waiting.
+
 ---
 
 # Backend
@@ -1073,6 +1094,35 @@ Client
 ```dart
 @DVClientCron(...)
 ```
+
+## Whose midnight
+
+A schedule written as `0 0 * * *` runs at midnight somewhere. For a
+single-tenant application that is the server's midnight and nobody minds. For a
+multi-tenant one it is wrong for almost everybody: a daily summary for a
+customer in Lagos that arrives at their 01:00 is not a daily summary, and a
+billing period that closes on the server's date closes on the wrong day for
+half the world.
+
+```dart
+@DVCron('0 0 * * *', timezone: DVCronTimezone.tenant)
+```
+
+`tenant` expands one schedule into one run per distinct tenant timezone, each
+with its tenant already resolved, so the job body does not query for who it is
+running for. `utc` is the default and stays the right answer for anything
+whose meaning is not local — retention sweeps, index rebuilds, anything
+comparing against a stored timestamp.
+
+Daylight saving is the part that has to be decided rather than left to a
+library: a run at a local time that does not exist on the spring-forward date
+runs once at the following hour, and one at a time that happens twice on the
+autumn date runs once, on the first. Written down because "runs twice a year
+on a Sunday in October" is a bug nobody reproduces.
+
+Reports carry the same rule. A report grouped by day is grouped by the reader's
+day, not the server's, since a dashboard whose Monday starts at 01:00 Monday is
+a dashboard whose weekly totals never agree with anyone's.
 
 ## A client schedule is a request, not a guarantee
 
@@ -10266,6 +10316,32 @@ Per-module modes:
 A parent cannot mount a module on a target that cannot satisfy the module's
 required capabilities unless a configured fallback exists (see Platform
 Compatibility).
+
+## The recommended layout: one repository, several applications
+
+A product is rarely one application. There is the customer app, the staff
+admin, the kiosk build, and one backend they share. The layout for that is a
+pub workspace, and it is recommended rather than merely possible:
+
+```yaml
+# pubspec.yaml at the root
+workspace:
+  - apps/customer
+  - apps/admin
+  - apps/kiosk
+  - packages/domain
+```
+
+One resolution for the whole tree, so three applications cannot drift onto
+three versions of the same dependency — which is the failure this prevents, and
+the one that is invisible until two of them disagree about a model's shape.
+
+Each application generates its own client, because each has its own pages,
+policies and platform targets; what they share is the domain package holding
+the models and backend functions, mounted as a module. A kiosk build carries no
+admin pages and an admin build links no kiosk policy, which is the usage-driven
+bundling rule Adoption states, applied across applications rather than within
+one.
 
 ## Module globals
 
