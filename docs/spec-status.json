@@ -523,6 +523,11 @@
       "status": "Designed"
     },
     {
+      "section": "Alerting, SLOs and Status Pages",
+      "stability": "Draft",
+      "status": "Designed"
+    },
+    {
       "section": "Product Analytics and Consent",
       "stability": "Draft",
       "status": "Designed"
