@@ -207,6 +207,26 @@ final class DVDiagnostics {
       level: 'warning',
     ),
     DVDiagnostic(
+      code: 'DV-INFRA-001',
+      reason: 'host has drifted from the manifest',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-INFRA-002',
+      reason: 'certificate expires within the renewal window and renewal is failing',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-INFRA-003',
+      reason: 'a declared service is not running',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-INFRA-004',
+      reason: 'no verified restore within the configured window',
+      level: 'warning',
+    ),
+    DVDiagnostic(
       code: 'DV-THEME-001',
       reason: 'token has no value for a configured mode',
       level: 'error',
