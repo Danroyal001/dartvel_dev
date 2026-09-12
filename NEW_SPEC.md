@@ -7862,6 +7862,95 @@ Targets:
 
 ---
 
+# Server Provisioning
+
+Stability: `Draft` · Status: `Designed`
+
+Deployment lists bare metal and containers as targets. "Bare metal" is a lie
+until somebody has terminated TLS, renewed a certificate, put a reverse proxy
+in front of the backend, run the queue workers and the cron as services that
+survive a reboot, and arranged for the database to be backed up.
+
+The Sony eLinux images already do exactly this for *devices* — a system image
+with services configured and a watchdog. The backend has no equivalent, which
+means the deployment target this specification recommends for anyone who
+cannot use a managed host is the one with the most undocumented manual work
+behind it.
+
+```bash
+dartvel infra provision production
+dartvel infra check production          # drift, not just reachability
+```
+
+## What a provisioned host has
+
+```yaml
+dartvel:
+  infra:
+    production:
+      adapter: ssh                 # ssh | container | onprem
+      hosts: [app-1.example.com]
+      tls:
+        domains: [api.example.com]
+        acme: { email: ops@example.com }     # renewal is a timer, not a reminder
+      proxy: { adapter: caddy }
+      services:
+        backend:  { instances: 2 }
+        workers:  { queues: [default, mail], instances: 2 }
+        cron:     { enabled: true }
+      database:
+        adapter: postgres
+        backup: { schedule: '0 3 * * *', retain: 30d }
+      logs: { ship: monitoring }
+```
+
+Certificates renew on a timer the provisioner installs, because a certificate
+that renews when somebody remembers is a certificate that expires on a
+Saturday. The firewall baseline closes everything the manifest did not open.
+Services are supervised units, so the queue workers come back after a reboot —
+which is the failure this catches most often, and the one that looks like "jobs
+stopped running" three days later.
+
+Backups are scheduled here and their retention is declared here, feeding the
+`dartvel db backup` / `restore` commands Data Compliance and Lifecycle defines.
+A backup nobody has restored is a hope, so `dartvel infra check` reports the
+age of the last *verified* restore, not the last backup written.
+
+## Drift is the point
+
+`dartvel infra check` compares the host against the manifest and reports what
+has changed underneath it — a package upgraded, a service edited by hand, a
+firewall rule added during an incident and never removed, a certificate about
+to expire. Reported as typed findings like everything else, so an infrastructure
+problem arrives in the same channel as a code one rather than as folklore.
+
+The same manifest is what Backend Release Management deploys onto, so a
+provisioned host is a deploy target with health checks by construction rather
+than a machine somebody has to describe in a runbook.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-INFRA-001` | host has drifted from the manifest | `warning` |
+| `DV-INFRA-002` | certificate expires within the renewal window and renewal is failing | `error` |
+| `DV-INFRA-003` | a declared service is not running | `error` |
+| `DV-INFRA-004` | no verified restore within the configured window | `warning` |
+
+## Deliberately absent
+
+- **A configuration-management product.** This provisions what a Dartvel
+  deployment needs and stops; a fleet of heterogeneous servers is Ansible's
+  job, and pretending otherwise would make Dartvel a worse one of those.
+- **Kubernetes as the default.** A container adapter exists; a cluster is an
+  escape hatch for teams who already have one, not the recommended path for an
+  application that fits on a host.
+- **Provisioning the database *service*.** Managed Postgres is the right answer
+  for almost everyone; the adapter configures access and backups, and does not
+  install a database server for people who did not ask for one.
+
+---
+
 # Backend Release Management
 
 Stability: `Draft` · Status: `Designed`
