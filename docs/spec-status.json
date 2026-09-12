@@ -455,6 +455,11 @@
       "absent": "Logs, profiling, performance analysis, error reporting, structured diagnostics with fix-recommendations, structured AI-readable logs, and the DV.log / DV.ObservabilityAndLogging.event API the spec names are all unbuilt -- there is no log sink anywhere in the runtime, so nothing an application logs goes anywhere. What is real: DVMetrics renders Prometheus text exposition and GET /metrics serves it, DVHealth backs GET /health with real checks on a deadline, and tracing carries W3C Trace Context across the request boundary with sampling decided from the trace id alone -- a per-process decision samples a four-service request with probability p^4, which reads as tracing being on and finding nothing. Spans are captured but only into an in-process list nothing exports or serves, so nothing outside that process can ever read one back. dartvel logs, dartvel traces and dartvel metrics used to paper over this with hardcoded sample output; dartvel metrics now fetches the real GET /metrics endpoint and reports plainly when no server answers or nothing has been recorded, and dartvel logs / dartvel traces now say outright that they have nothing to read instead of inventing a trace id or a log line"
     },
     {
+      "section": "Crash Reporting and Release Health",
+      "stability": "Draft",
+      "status": "Designed"
+    },
+    {
       "section": "Product Analytics and Consent",
       "stability": "Draft",
       "status": "Designed"
