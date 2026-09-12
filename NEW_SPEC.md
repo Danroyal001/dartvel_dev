@@ -8049,6 +8049,169 @@ dartvel:
 
 ---
 
+# Module Distribution and Trust
+
+Stability: `Draft` · Status: `Designed`
+
+Modules are specified as units of composition and not as units of
+distribution. A module contributes backend functions, native bindings and raw
+SQL to the application that mounts it, which makes mounting one an act of
+trust — and the trust model has to exist before the marketplace does, not
+after the first incident.
+
+## Publishing
+
+Modules are published to pub.dev like any Dart package. `dartvel module
+publish` runs the ordinary publish and attaches a manifest: the module's
+version, the Dartvel range it supports, and the **complete list of
+capabilities it uses**.
+
+```yaml
+dartvel:
+  module:
+    capabilities:
+      secrets: [STRIPE_KEY]
+      rawSql: true
+      egress: ['api.stripe.com']
+```
+
+The manifest is not a promise the module makes about itself. `dartvel module
+publish` derives the list from the code by the same reachability analysis
+Secrets and Environments uses, and refuses to publish when the declaration and
+the code disagree — in either direction. A capability declared and never used
+is as wrong as one used and never declared: it asks a parent to grant
+something for no reason, and least privilege only works if the ask is accurate
+(`DV-MODULE-007`).
+
+## Granting at the mount point
+
+A module mounted with no grants has no capabilities. Ordinary work — models,
+pages, backend functions, queues, the generated client — needs none; what
+needs a grant is the small set of surfaces that can reach past the module's
+own boundary.
+
+```yaml
+dartvel:
+  modules:
+    payments:
+      package: acme_payments
+      grant:
+        secrets: [STRIPE_KEY]
+        egress: ['api.stripe.com']
+```
+
+An ungranted use is a **build error where it is resolvable** and a typed
+runtime failure where it is not (`DV-MODULE-001`, `DV-MODULE-002`). It is
+never a silent no-op, and never an exception that reads like a bug in the
+module: the failure says the parent did not grant the capability and names
+both.
+
+| Capability | What it covers |
+|---|---|
+| `secrets` | named secrets, not the namespace — a grant lists the keys |
+| `rawSql` | raw statements; generated queries need no grant |
+| `nativeBindings` | FFI and JNI registration |
+| `egress` | outbound network, **per domain** |
+| `filesystem` | a named root, not the disk |
+| `cron` | scheduled work in the parent's scheduler |
+
+**Egress is per domain, and that is the decision the rest depends on.** A
+single `network: true` capability makes every other grant decorative: a module
+that can read a tenant's rows and reach any host it likes needs no other
+permission to be a data breach. Per domain is enforceable because Dartvel
+generates or owns every call a module is meant to make — the generated
+clients, the provider adapters, the fetches a backend function declares. A
+module that opens its own socket or `HttpClient` instead is refused at build
+time (`DV-MODULE-008`) by the same analysis that derives the manifest.
+
+## What pub.dev does, and what Dartvel has to do itself
+
+pub.dev is the distribution channel and not the trust anchor, and it is worth
+being exact about the division, because assuming the registry enforces more
+than it does is how this goes wrong:
+
+- **pub.dev provides** package identity, immutable versions, and verified
+  publishers tied to a domain.
+- **pub.dev does not** know what a Dartvel capability is, cannot tell that a
+  module declaring `egress: ['api.stripe.com']` also opens a socket elsewhere,
+  and will not fail an install over any of it.
+
+So the enforcement is Dartvel's. The manifest is checked against the code at
+build, the grant is checked at mount, and the module lockfile pins what was
+resolved:
+
+```yaml
+# dartvel.module.lock
+acme_payments:
+  version: 2.1.0
+  sha256: 9f2c...
+  publisher: acme.example
+  capabilities: [secrets, egress]
+```
+
+## Signing, without Dartvel becoming a certificate authority
+
+**Dartvel runs no key server and issues no certificates.** A module is signed
+by its publisher, and the trust anchor is the publisher identity pub.dev
+already verifies. On first resolution the publisher, the key and the archive
+digest are pinned into the lockfile; every resolution after that compares
+against the pin.
+
+- A digest that does not match the lockfile is a build error
+  (`DV-MODULE-004`) — the same discipline the rest of the toolchain applies to
+  a downloaded engine.
+- A **publisher or signing key that changes** for a module already pinned is a
+  build error too (`DV-MODULE-005`), and the fix is an explicit re-pin rather
+  than a flag. Package takeover is how supply-chain attacks in every other
+  ecosystem have actually happened, and it looks exactly like a routine
+  upgrade until somebody is made to look.
+
+Trust on first use, pinned afterwards, is a weaker guarantee than a PKI and a
+much stronger one than nothing. It is also the one Dartvel can actually
+operate: a framework that issued certificates would have to run key custody,
+revocation and recovery for every publisher, and would do all three badly.
+
+## Capability drift
+
+`dartvel doctor --modules` verifies every pin, compares the installed
+manifest against the granted one, and reports a module that has grown a
+capability since the grant (`DV-MODULE-003`). A module that wanted
+`egress: ['api.stripe.com']` in 2.1.0 and wants `rawSql` in 2.2.0 does not
+get it by being upgraded; the parent grants it again, deliberately, or stays
+on 2.1.0.
+
+This is the check that makes the rest of the section worth having. A
+capability list nobody compares between versions is a list that was accurate
+once.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-MODULE-001` | a module uses a capability the parent did not grant | build `error` |
+| `DV-MODULE-002` | the same, reached at runtime where the build could not resolve it | `error` |
+| `DV-MODULE-003` | the installed module's capabilities differ from what was granted | build `error` |
+| `DV-MODULE-004` | a module archive's digest does not match the lockfile | build `error` |
+| `DV-MODULE-005` | a module's publisher or signing key changed since it was pinned | build `error` |
+| `DV-MODULE-006` | egress to a domain outside the module's allowlist | `error` |
+| `DV-MODULE-007` | a manifest declares a capability the code never uses | `warning` |
+| `DV-MODULE-008` | a module opens its own socket or `HttpClient` instead of a generated call | build `error` |
+
+## Deliberately absent
+
+- **A Dartvel registry.** pub.dev is the registry. A second one would split
+  the ecosystem and give Dartvel an availability problem it has no reason to
+  own.
+- **A certificate authority.** Covered above.
+- **A `network: true` capability.** Per domain or not at all.
+- **Runtime sandboxing.** Capabilities are enforced at the boundaries Dartvel
+  generates. A module is Dart running in the application's isolate, and
+  pretending otherwise would be a security claim the framework cannot keep.
+- **A review or rating system.** Trust here is mechanical — signatures,
+  digests, declared capabilities. Judgement about a module is the ecosystem's.
+
+---
+
 # Generated Model Pages
 
 Stability: `Contract` · Status: `Partial`

@@ -382,6 +382,49 @@ final class DVDiagnostics {
       level: 'error',
     ),
     DVDiagnostic(
+      code: 'DV-MODULE-001',
+      reason: 'a module uses a capability the parent did not grant',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-MODULE-002',
+      reason: 'the same, reached at runtime where the build could not resolve '
+          'it',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-MODULE-003',
+      reason: "the installed module's capabilities differ from what was "
+          'granted',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-MODULE-004',
+      reason: "a module archive's digest does not match the lockfile",
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-MODULE-005',
+      reason: "a module's publisher or signing key changed since it was pinned",
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-MODULE-006',
+      reason: "egress to a domain outside the module's allowlist",
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-MODULE-007',
+      reason: 'a manifest declares a capability the code never uses',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-MODULE-008',
+      reason: 'a module opens its own socket or `HttpClient` instead of a '
+          'generated call',
+      level: 'error',
+    ),
+    DVDiagnostic(
       code: 'DV-MEDIA-001',
       reason: 'an image could not be decoded at build; no variants were written',
       level: 'warning',
