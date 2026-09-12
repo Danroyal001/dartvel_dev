@@ -1206,6 +1206,153 @@ This is inspired by Bun's built-in SQLite approach: the local database should be
 fast, available by default, and require no separate service for common
 development and test workflows.
 
+Automatic migrations stay automatic as a table grows, which is where the cost
+of a change stops being obvious: see Schema Evolution for how each change is
+classified and how a blocking one is choreographed rather than simply run.
+
+---
+
+# Schema Evolution
+
+Stability: `Draft` · Status: `Designed`
+
+Migrations alter a schema and Protocol Versioning and Client Compatibility
+keeps old clients alive. Between the two sits the change that locks a
+hundred-million-row table for forty minutes. Automatic migrations are only
+automatic while the table is small; at scale the same one-line model edit is an
+outage, and nothing in the specification told anyone which one they had just
+written.
+
+## Every change is classified
+
+The migration planner classifies each change before it runs:
+
+| Class | Meaning |
+|---|---|
+| `instant` | metadata only; the table is not rewritten and the lock is momentary |
+| `online` | the table stays readable and writable throughout |
+| `blocking` | readers or writers are held for the duration |
+
+**The classification comes from the adapter, not the planner.** A planner with
+the rules baked in would be wrong the day a database ships a new version, and
+wrong for every adapter somebody else writes: adding a column with a default is
+instant on PostgreSQL 11 and a rewrite on 10, and a new adapter cannot teach a
+closed planner anything. `DVDatabaseAdapter.classify(change)` answers for the
+server it is connected to, including its version.
+
+What the shipped adapters report today:
+
+| Change | PostgreSQL | MySQL 8 | SQLite / Turso | MongoDB | ClickHouse | BigQuery |
+|---|---|---|---|---|---|---|
+| add nullable column | instant | instant | instant | instant | instant | instant |
+| add column with default | instant (11+) | instant | instant | instant | instant | blocking |
+| add index | online (`CONCURRENTLY`) | online | blocking | online (4.2+) | online | instant |
+| add `NOT NULL` | online (validated check, 12+) | blocking | blocking | n/a | n/a | blocking |
+| change column type | blocking | blocking | blocking | n/a | blocking | blocking |
+| rename column | instant | instant | instant | n/a | instant | blocking |
+| drop column | instant | instant | blocking | instant | instant | blocking |
+
+A rename is instant on the server and still breaking for a client, which is the
+distinction the class alone does not carry: the cost of a change and its
+compatibility are separate questions, answered here and in Protocol Versioning
+respectively.
+
+## Expand and contract
+
+A `blocking` change is refused as written. The planner generates the safe
+version of it instead, as five phases with a gate between each:
+
+1. **Expand** — add the new column, table or index alongside the old shape.
+   Nothing reads it yet.
+2. **Dual-write** — generated model code writes both shapes. Reads stay on the
+   old one.
+3. **Backfill** — a resumable, rate-limited durable job copies the existing
+   rows in chunks, with progress in Studio. It is an ordinary job on the
+   existing queue machinery, so it survives a restart and can be paused.
+4. **Verify** — every chunk is compared, and the switch is refused until they
+   agree.
+5. **Contract** — reads move to the new shape, dual-write stops, and the old
+   column is dropped in a later release.
+
+Each phase is a separate deploy. That is the point: a phase boundary is where
+a rollback is still cheap, and an expand/contract compressed into one release
+is the outage it was supposed to avoid.
+
+## Verification, and why it is per chunk
+
+The read switch requires three things at once: every chunk backfilled, every
+chunk verified, and the dual-write discrepancy counter at zero for the whole
+verification window.
+
+Verification hashes each chunk on both shapes and compares the hashes — the
+same chunks the backfill used, by the same job. Not `COUNT(*)`: counts agree
+while values differ, which is the failure worth catching, and a single
+whole-table hash can only say that something somewhere is wrong. A per-chunk
+hash names the chunk, so the mismatch can be read, fixed and re-verified
+without starting again (`DV-SCHEMA-004`).
+
+## Throttling
+
+A backfill competes with production traffic, so it is throttled against what
+the database is doing rather than at a fixed speed — a fixed rows-per-second is
+too slow on one deployment and an outage on another.
+
+```yaml
+dartvel:
+  database:
+    tier: standard        # small | standard | large; embedded targets declare
+                          # this in the device profile instead
+    backfill:
+      targetReplicaLag: 5s
+      maxWriteLatencyIncrease: 10%
+```
+
+| Tier | Starting rate |
+|---|---|
+| `small` | 500 rows/s |
+| `standard` | 2,000 rows/s |
+| `large` | 10,000 rows/s |
+
+The starting rate is a starting point only. The job halves its rate when
+replica lag or write latency crosses the budget and steps back up while they
+stay under it, so a backfill finds the speed the database can actually take
+and gives it back when traffic arrives.
+
+## The deploy gate
+
+```bash
+dartvel db migrate --plan                        # classification per change
+dartvel db migrate --dry-run --against snapshot  # rehearse on production shape
+```
+
+`--against snapshot` rehearses the plan against a snapshot of the production
+schema and row counts, so the classification a developer sees is the one
+production will apply, not the one their empty local database implies.
+
+A `blocking` change reaching production is refused unless an explicit,
+logged override accompanies it (`DV-SCHEMA-002`) — the same discipline as
+`dartvel compatibility-check`, and for the same reason: sometimes the forty
+minutes are worth it, at three in the morning, with everyone told. The gates
+are sequenced with each other, too. A contract-breaking change raises the
+protocol version in the release that expands, and the contract phase is refused
+while any client inside the window still reads the old shape.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-SCHEMA-001` | a blocking change was written where an expand/contract plan exists | build `warning` |
+| `DV-SCHEMA-002` | blocking migration against production without an override | gate `error` |
+| `DV-SCHEMA-003` | backfill throttled below its floor for longer than the configured patience | `warning` |
+| `DV-SCHEMA-004` | chunk verification mismatch; the read switch is refused | `error`, names the chunk |
+| `DV-SCHEMA-005` | contract phase requested while clients inside the protocol window read the old shape | gate `error` |
+| `DV-SCHEMA-006` | adapter cannot classify a change; treated as blocking | `warning` |
+| `DV-SCHEMA-007` | dual-write discrepancy detected during verification | `error` |
+
+`DV-SCHEMA-006` fails towards the expensive answer deliberately. An unknown
+change treated as instant is an outage nobody predicted; treated as blocking it
+is a plan somebody has to read.
+
 ---
 
 # APIs
@@ -4593,6 +4740,8 @@ Database
 
 ```bash
 dartvel db migrate
+dartvel db migrate --plan                        # classification per change
+dartvel db migrate --dry-run --against snapshot  # rehearse on production shape
 dartvel db push
 dartvel db pull
 dartvel db seed
@@ -4619,6 +4768,7 @@ Deploy
 dartvel deploy
 dartvel deploy lambda
 dartvel deploy edge
+dartvel compatibility-check --against production
 ```
 
 Observability
@@ -5869,9 +6019,9 @@ dartvel explain DV001
 Every inspector above answers a question about the same thing: what this
 application is made of. That is one artifact, not eight — a versioned
 **`DartvelProjectGraph`** carrying routes, models and their fields, backend
-functions, jobs, modules, static paths, the schema, memory arenas, 3D
-scenes, and capability metadata, each node keeping the source mapping it was
-derived from.
+functions, jobs, modules, static paths, the schema, migration plans, the
+protocol version and its window, memory arenas, 3D scenes, and capability
+metadata, each node keeping the source mapping it was derived from.
 
 The graph is the contract, and `--json` is how it is read:
 
