@@ -1567,6 +1567,149 @@ Release safety:
 
 ---
 
+# Protocol Versioning and Client Compatibility
+
+Stability: `Draft` · Status: `Designed`
+
+The backend deploys daily; installed binaries live for weeks. Migrations handle
+schema change on the server, OTA handles code change on the client, and neither
+answers the question between them: what happens when a three-week-old binary
+calls today's backend. On mobile that is not an edge case, it is the permanent
+condition — the framework does not decide when people update — and with no
+answer here the problem lands on every application team separately, which is
+the situation Dartvel exists to end.
+
+## The protocol version
+
+Every build embeds a **protocol version**: an integer over the shapes a client
+and a backend must agree on — model fields and their types, backend function
+signatures, and the sync schema. It is derived from the project graph, so it
+moves when the contract moves and not when anything else does. Most releases do
+not touch it. Renaming a field, narrowing a type, or adding a required argument
+does.
+
+```json
+{ "protocol": 7, "shape": "3f2ad9c1", "released": "2026-09-12" }
+```
+
+`shape` is the digest of the contract the integer stands for, and the build
+compares the two: a change that alters the shape without incrementing the
+integer fails the build (`DV-PROTO-001`) rather than shipping two different
+contracts under one number. The lockfile is committed, so the history of the
+protocol is in the repository next to the code that changed it.
+
+## The window
+
+The backend declares how far back it serves:
+
+```yaml
+dartvel:
+  protocol:
+    window: 3          # this version plus three previous
+    minimumAge: 90d    # and never narrower than this
+```
+
+The default is three protocol versions or 90 days, whichever is **longer**.
+Two numbers rather than one because either alone is wrong on a real schedule:
+a team that ships weekly would strand a month-old install with three versions,
+and a team that ships twice a year would carry adapters nobody needs with 90
+days. The window is a floor, not a policy — what actually gates a deploy is the
+client histogram below.
+
+Serving a windowed version needs serialization adapters between it and the
+current shape. They are **generated at build, for every version in the window**,
+from the same schema diffs that produce migrations. Not lazily, per observed
+client version: a lazy adapter is generated on a production server, in response
+to a request from a stale client, along a path no test ever ran — and Dartvel
+generates at build everywhere else for the same reason. The set is bounded by
+the window, the diff already exists, and a generated adapter can be read in
+review before it runs.
+
+## Handshake
+
+```dart
+switch (await DV.Protocol.handshake()) {
+  case DVProtocolResult.compatible:
+    break;
+  case DVProtocolResult.degraded:
+    break;                       // typed, reported, and already applied
+  case DVProtocolResult.upgradeRequired:
+    break;                       // generated upgrade flow
+}
+```
+
+The handshake runs before the first call a page makes, and its result is a
+signal (`DV.Protocol.state`) so a page can show what it means rather than
+discovering it through a failure.
+
+**`degraded` may only hide what the old client never knew.** Without an
+explicit opt-in, an adapter may:
+
+- omit a field the old client's shape does not contain
+- supply the server-side default for a new optional argument the old client
+  does not send
+- map a new enum member to the fallback member that enum declares — and where
+  it declares none, this is `upgradeRequired`, not a guess
+- serve a model, route, or function the old client never calls
+
+It may not, without opt-in, change the meaning of anything the old client
+already understands: no narrowing a type, no dropping a field the old shape
+requires, no changing units or semantics in place, no rename without an alias,
+and no loosening of authorization or validation. The line is that a degraded
+response must still be *true* in the old client's vocabulary. Anything lossy is
+a declared adapter, reviewed like any other code.
+
+## Upgrading
+
+Falling outside the window fires `DV.Upgrade.required`. Dartvel tries OTA first
+— a patch that lands is an upgrade nobody had to visit a store for — and routes
+to the generated upgrade page only when OTA cannot close the gap, which is the
+case whenever the protocol change came with native code. The page is built from
+`DVBox` and `DVText` like every other generated page, and an application may
+replace it.
+
+## The deploy gate
+
+```bash
+dartvel compatibility-check --against production
+```
+
+The candidate build's protocol is compared with the live client histogram from
+monitoring — which versions are actually calling, and how much traffic each
+carries. The deploy is refused when a version outside the candidate's window
+still accounts for more than `protocol.strandThreshold` of sessions over the
+last seven days (default `0.5%`). An override exists, takes an explicit flag,
+and is logged with the histogram it overrode; stranding users is sometimes the
+right call and is never a quiet one.
+
+This is the same discipline as the migration gate in Schema Evolution, applied
+to the other artifact, and the two are sequenced: a contract-breaking change
+expands the schema and raises the protocol in one release, and contracts only
+after the window has moved past the clients that read the old shape.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-PROTO-001` | contract shape changed without incrementing the protocol version | build `error` |
+| `DV-PROTO-002` | a client outside the window called; upgrade required | `info`, per session |
+| `DV-PROTO-003` | response degraded for a windowed client | `debug` |
+| `DV-PROTO-004` | a lossy adaptation was requested with no declared adapter | build `error` |
+| `DV-PROTO-005` | deploy would strand clients above the threshold | gate `error` |
+| `DV-PROTO-006` | enum member added with no declared fallback, narrowing the window | `warning` (analyze) |
+
+## Deliberately absent
+
+- **Negotiation of arbitrary shapes at runtime.** The window is a declared,
+  generated, reviewable set. A server that reshapes itself per caller is a
+  server nobody can reason about.
+- **A second transport or envelope.** The handshake rides the generated client
+  and the existing sync transport.
+- **Version pinning by the client.** A client states what it is; the backend
+  decides what it serves.
+
+---
+
 # AI
 
 Stability: `Contract` · Status: `Shipped`
