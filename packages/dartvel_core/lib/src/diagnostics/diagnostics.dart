@@ -160,6 +160,106 @@ final class DVDiagnostics {
       reason: '`display:` hint matched no connected display; the OS placed the window',
       level: 'warning',
     ),
+    DVDiagnostic(
+      code: 'DV-CRON-001',
+      reason: 'declared interval finer than the target\'s granularity; coalesced to it',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-CRON-002',
+      reason: 'client schedule on a target that runs nothing in the background',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-CRON-003',
+      reason: 'a run was skipped because the previous one was still running',
+      level: 'debug',
+    ),
+    DVDiagnostic(
+      code: 'DV-CRON-004',
+      reason: 'the platform refused to register background work (permission or battery policy)',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-SCHEMA-003',
+      reason: 'backfill throttled below its floor for longer than the configured patience',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-SCHEMA-004',
+      reason: 'chunk verification mismatch; the read switch is refused',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-SCHEMA-006',
+      reason: 'adapter cannot classify a change; treated as blocking',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-SCHEMA-007',
+      reason: 'dual-write discrepancy detected during verification',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-OFFLINE-001',
+      reason: 'no writable storage; the store is memory-backed for this session',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-OFFLINE-002',
+      reason: 'mutation log at its bound; the write was refused',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-OFFLINE-003',
+      reason: 'mutation permanently rejected by the server; moved to dead letters',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-OFFLINE-004',
+      reason: 'device clock skew beyond the configured tolerance',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-OFFLINE-006',
+      reason: 'local store schema behind the protocol; store rebuilt from the server',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-PROTO-002',
+      reason: 'a client outside the window called; upgrade required',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-PROTO-003',
+      reason: 'response degraded for a windowed client',
+      level: 'debug',
+    ),
+    DVDiagnostic(
+      code: 'DV-PROTO-006',
+      reason: 'enum member added with no declared fallback, narrowing the window',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-3D-001',
+      reason: 'scene presented as poster (unsupported target / disabled / GPU init failed)',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-3D-006',
+      reason: 'texture/mesh over the device-profile budget',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-3D-007',
+      reason: 'per-frame allocation detected in a scene callback',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-EXPORT-003',
+      reason: 'document exceeded the configured page or byte budget',
+      level: 'warning',
+    ),
   ];
 
   /// The diagnostic for [code], or null if nothing is registered under it.
