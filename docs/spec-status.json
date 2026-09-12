@@ -865,6 +865,11 @@
       "absent": "Calling the clouds themselves, which needs credentials rather than code. dartvel deploy --functions writes a deployment artifact per backend function for lambda, cloud-run, container, edge, fly, railway and bare-metal, and refuses to ship an environment whose declared required secrets do not resolve"
     },
     {
+      "section": "Backend Release Management",
+      "stability": "Draft",
+      "status": "Designed"
+    },
+    {
       "section": "CLI",
       "stability": "Contract",
       "status": "Shipped",
