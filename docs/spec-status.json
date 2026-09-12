@@ -248,6 +248,11 @@
       "absent": "Migrations run now, and did not: dartvel db migrate discovered a list of table names, printed a line per model saying it had migrated it and a total saying they were synced successfully, wrote a JSON snapshot, and executed nothing. The generated createTableSql -- one per model, correct, carrying the tenant column -- was called by nothing anywhere in the repository. The generator now writes the statements where something other than Dart can read them, built from the same column list the model itself carries, and the command runs them: SQLite because that is the one the framework can reach, through the framework own adapter rather than a second way to open the same file. Any other provider gets the statements written out with the reason they were not run, because the CLI has no connection to a managed Postgres and saying so is worth more than the green line it replaces. A table that already exists gains the columns its model gained, since CREATE TABLE IF NOT EXISTS is a no-op against one that is there and a query naming a column the table lacks fails against a database just reported as migrated. The tenant column is the one that cannot be added quietly: rows written before it existed belong to no tenant, a predicate on every read hides all of them from everybody, and the table reads as empty in a way that cannot be told from data loss -- so such a table is left entirely alone, not half migrated, and the command asks whose the rows are. Absent: nothing. SQLite, PostgreSQL and MySQL, each with their wire-compatible variants, and TLS on both network engines so managed endpoints are reachable. MongoDB, ClickHouse and BigQuery are out of scope by decision, not backlog. Also absent: applying a migration to Postgres or MySQL from the CLI, which needs a connection it does not have; dropping or altering a column, since every generated column is TEXT and nothing has yet needed to change one; and a module tables, which are named at run time by how the module was mounted and are recorded by the parent own generation."
     },
     {
+      "section": "Schema Evolution",
+      "stability": "Draft",
+      "status": "Designed"
+    },
+    {
       "section": "APIs",
       "stability": "Contract",
       "status": "Shipped",
