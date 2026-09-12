@@ -194,7 +194,7 @@ final class DVDisplays {
   /// is unplugged must not resolve to the primary display: the output would
   /// appear on the operator's own screen, in front of the room, and it would
   /// look like it had worked. A miss returns a null display and
-  /// [DVWindowDegradation.displayUnavailable], and the caller decides -- which
+  /// [DVWindowDegradation.displayHintUnmatched], and the caller decides -- which
   /// for `open()` means letting the OS place the window, exactly as if no hint
   /// had been given, while still reporting the miss.
   static DVDisplayResolution resolve(
@@ -215,7 +215,7 @@ final class DVDisplays {
       return const DVDisplayResolution(
         display: null,
         exact: false,
-        degradation: DVWindowDegradation.displayUnavailable,
+        degradation: DVWindowDegradation.displayHintUnmatched,
       );
     }
     return DVDisplayResolution(

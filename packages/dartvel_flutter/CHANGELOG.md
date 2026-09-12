@@ -1,3 +1,16 @@
+## Unreleased
+
+- `DVWindowDegradation.displayHintUnmatched` reports a `display:` hint that
+  matched no connected display (`DV-WINDOW-013`). That situation and a kiosk
+  window whose display is gone (`DV-WINDOW-010`) both reported
+  `displayUnavailable`, whose `code` said 013 -- so a kiosk window presenting
+  in place logged 010 and carried a degradation naming 013, and `dartvel
+  explain` on either described the other. `displayUnavailable` keeps the kiosk
+  meaning and now names the code that path has always logged. **A window whose
+  `display:` hint went unhonoured reports `displayHintUnmatched` rather than
+  `displayUnavailable`**; the behaviour is unchanged, and a hint still never
+  falls back to another display.
+
 ## 0.5.0
 
 - A page's title in its app bar is its level-1 heading, on the Material and
