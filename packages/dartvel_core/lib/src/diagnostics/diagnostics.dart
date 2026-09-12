@@ -1375,6 +1375,42 @@ final class DVDiagnostics {
       reason: 'a rule names a signal that no longer exists',
       level: 'error',
     ),
+    DVDiagnostic(
+      code: 'DV-COMMERCE-001',
+      reason: 'a sale was priced from the offline tax table and is marked for '
+          're-rating',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-COMMERCE-002',
+      reason: 'tax could not be resolved and the sale was refused',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-COMMERCE-003',
+      reason: 'a promotion was refused by its eligibility policy',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-COMMERCE-004',
+      reason: "a refund's compensation failed; the reversal is incomplete",
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-COMMERCE-005',
+      reason: 'a dispute is open with an evidence deadline approaching',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-COMMERCE-006',
+      reason: 'a payout is held: the connected account is not fully verified',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-COMMERCE-007',
+      reason: 'the offline tax table is past staleAfter; sales are refused',
+      level: 'error',
+    ),
   ];
 
   /// The diagnostic for [code], or null if nothing is registered under it.

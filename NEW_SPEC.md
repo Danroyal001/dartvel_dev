@@ -5431,6 +5431,161 @@ belongs to.
 
 ---
 
+
+# Commerce: Tax, Promotions, Disputes and Payouts
+
+Stability: `Draft` · Status: `Designed`
+
+Billing takes money for a subscription, Purchases and Entitlements takes it
+through a store, and Usage Metering says how much to take. What none of them
+covers is what surrounds a real sale: the tax that has to be added and
+remitted, the discount that made the customer buy, the refund and the
+chargeback that follow, and — for an application that is a marketplace — paying
+out to somebody who is not the application's owner.
+
+Each of these is a place where being approximately right is a legal problem
+rather than a bug report, so the rule throughout is the same: **Dartvel carries
+the data and the decisions, and a provider carries the liability.**
+
+## Tax is asked for, never calculated
+
+Dartvel does not ship rates. Rates change by jurisdiction on legislative
+timetables, and a rate compiled into a framework release is wrong somewhere
+before the release finishes rolling out. Jurisdiction is resolved from the
+address model, and the amount comes from an adapter — Stripe Tax, Avalara, a
+tax service a finance team already pays for.
+
+```dart
+final DVTaxQuote quote = await DV.Tax.quote(
+  amount: order.subtotal,
+  to: customer.billingAddress,
+  of: DVTaxCategory.digitalService,
+);
+```
+
+Category is declared, not inferred: the same price is taxed differently as a
+digital service, a physical good and a piece of professional advice, and
+guessing wrong is an under-collection that surfaces at audit.
+
+**A tax call that fails must not resolve to zero.** Nothing about a failed
+lookup means "no tax is due", and the difference between the two is money the
+application owes and did not collect. A failure refuses the sale by default
+(`DV-COMMERCE-002`).
+
+Invoices are produced by the provider, in the provider's compliant format.
+Dartvel keeps the reference and renders the customer-facing copy through the
+currency formatting Internationalization already has, alongside the
+`nativePrice` and `nativeCurrency` that Billing declares.
+
+### The kiosk that cannot ask
+
+A point-of-sale kiosk that loses connectivity still has customers, and refusing
+every sale for the length of an outage is not obviously better than charging
+yesterday's rate. So a **declared fallback table with an expiry** is allowed,
+and it is a decision the application makes explicitly rather than a default it
+inherits:
+
+```yaml
+dartvel:
+  tax:
+    offline:
+      table: assets/tax/gb-2026.json
+      staleAfter: 14d          # past this, refuse rather than guess
+```
+
+Every sale priced from the fallback is marked as such on the record and
+reported with `DV-COMMERCE-001`, so the reconciliation afterwards knows exactly
+which transactions to re-rate. An unmarked offline sale is indistinguishable
+from a correctly taxed one a month later, which is the failure this avoids.
+
+## Promotions are models, and eligibility is a policy
+
+Coupons, referral credits and trial extensions are generated models with typed
+eligibility, evaluated the way everything else in Dartvel is evaluated:
+
+```dart
+@DVPolicy(Coupon)
+class CouponPolicy {
+  bool redeem(User user, Coupon coupon) =>
+      coupon.isLive && !user.hasRedeemed(coupon) && user.tenant.isEligible;
+}
+```
+
+Two rules that exist because their absence is how discount fraud works:
+
+- **Eligibility is decided at charge time on the server**, never at display
+  time on the client. A price shown in a widget is a rendering; the amount
+  charged is a decision, and a promotion that was only ever checked in the UI
+  is a promotion anyone can apply with a debugger.
+- **Stacking is explicit.** Promotions declare whether they combine, and the
+  generated resolver applies at most one from each declared group. Silent
+  stacking is how a 20% coupon meets a 30% campaign and sells at half price to
+  everybody who reads a forum.
+
+## Refunds, and the difference between a refund and a dispute
+
+A refund is a reversal the application chooses, so it is a reversible
+transaction with compensation — the primitive Dartvel already has. Revoking the
+entitlement, restocking the item and crediting the customer either all happen
+or none do, and a compensation that fails is surfaced (`DV-COMMERCE-004`)
+rather than left as a half-reversed order nobody notices.
+
+A **dispute is not a refund**. It is initiated by the customer's bank, it has
+evidence deadlines the application does not control, and losing it costs the
+amount plus a fee. Disputes arrive as provider webhooks — typed backend
+functions with signature validation, exactly like every other webhook — and
+open a dispute record with a deadline, an evidence checklist, and the same
+timeline shape an incident has.
+
+The deadline is the point. A dispute that expires unanswered is lost by
+default, so it is modelled as something with a clock rather than a status
+field, and `DV-COMMERCE-005` fires while there is still time to act.
+
+## Payouts, and the money Dartvel never touches
+
+A marketplace pays somebody who is not its owner, which makes it a money
+transmitter unless the payments provider is. So payouts are connected-account
+adapters — Stripe Connect and its equivalents — and **funds never flow through
+the application**.
+
+What the application does hold is the onboarding state: identity documents,
+verification status, payout schedules. Every field of it is sensitive by
+declaration, excluded from logs, AI context, traces and analytics through the
+machinery Sensitive Model Fields already provides, and subject to the retention
+and erasure rules in Data Compliance and Lifecycle.
+
+A payout to an account whose verification is incomplete is **held, not
+attempted** (`DV-COMMERCE-006`). A failed transfer is a support conversation
+with a person who expected money; a held one is a task.
+
+## Deliberately absent
+
+- **A tax engine, a rate table, or tax advice.** Adapters over services whose
+  business is being right about this.
+- **Dartvel holding funds, issuing invoices, or being the merchant of record.**
+  The provider is. Dartvel supplies the data and keeps the evidence, which is
+  the same division Usage Metering already draws.
+- **A discount rule engine.** Eligibility is a policy and stacking is a
+  declared group. An application that needs campaign logic beyond that is
+  describing a marketing product.
+- **Automatic dispute responses.** Evidence is assembled from records the
+  application holds; a machine deciding what to argue is a machine losing money
+  on the application's behalf.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-COMMERCE-001` | a sale was priced from the offline tax table and is marked for re-rating | `warning` |
+| `DV-COMMERCE-002` | tax could not be resolved and the sale was refused | `error` |
+| `DV-COMMERCE-003` | a promotion was refused by its eligibility policy | `info` |
+| `DV-COMMERCE-004` | a refund's compensation failed; the reversal is incomplete | `error` |
+| `DV-COMMERCE-005` | a dispute is open with an evidence deadline approaching | `warning` |
+| `DV-COMMERCE-006` | a payout is held: the connected account is not fully verified | `warning` |
+| `DV-COMMERCE-007` | the offline tax table is past `staleAfter`; sales are refused | `error` |
+
+---
+
 # Internationalization and Localization
 
 Stability: `Draft` · Status: `Shipped`

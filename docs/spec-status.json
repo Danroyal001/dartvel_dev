@@ -609,6 +609,11 @@
       "status": "Designed"
     },
     {
+      "section": "Commerce: Tax, Promotions, Disputes and Payouts",
+      "stability": "Draft",
+      "status": "Designed"
+    },
+    {
       "section": "Internationalization and Localization",
       "stability": "Draft",
       "status": "Shipped",
