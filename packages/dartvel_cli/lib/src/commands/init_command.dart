@@ -5,6 +5,38 @@ import 'package:path/path.dart' as p;
 import '../templates/project_templates.dart';
 import '../utils/logger.dart';
 
+/// Why `create` must not scaffold in [root], or null when it may.
+///
+/// `create` replaces `pubspec.yaml` with the Dartvel template. In an empty
+/// directory that file is the one `flutter create` wrote a moment earlier, so
+/// replacing it costs nothing. In a directory that already holds an
+/// application it costs the team every dependency, version and setting they
+/// had declared — and `init` and `new`, the words someone with an existing
+/// project reaches for, are aliases of this same command.
+///
+/// The marker is the `dartvel:` key at the top level: the template writes it
+/// and nothing else does, so a pubspec carrying one came from here and may be
+/// written again. A pubspec without one belongs to somebody else.
+String? dvForeignProjectRefusal(String root) {
+  final File pubspec = File(p.join(root, 'pubspec.yaml'));
+  if (!pubspec.existsSync()) return null;
+
+  final String source = pubspec.readAsStringSync();
+  // At the start of a line and not inside a comment: a commented-out example
+  // is something a reader pasted while reading the documentation, and their
+  // file is still theirs.
+  if (RegExp(r'^dartvel:', multiLine: true).hasMatch(source)) return null;
+
+  return 'DV-ADOPT-005: ${pubspec.path} was not written by Dartvel, and '
+      '`dartvel create` would replace it — every dependency and setting in '
+      'it. Refusing.\n'
+      '  create makes a project that does not exist yet; run it in an empty '
+      'directory, or pass a new directory name.\n'
+      '  To add Dartvel to this project, add the dependency and a `dartvel:` '
+      'section to the pubspec yourself; `dartvel routes` generates against '
+      'whatever is there.';
+}
+
 class InitCommand extends Command<void> {
   @override
   final String name = 'create';
@@ -68,6 +100,18 @@ class InitCommand extends Command<void> {
     final desktop = argResults?['desktop'] as bool;
     // SSR flag is currently unused but reserved for future use
     // final ssr = argResults?['ssr'] as bool? ?? false;
+
+    // Before anything writes. `flutter create` runs next and produces a
+    // pubspec of its own, so after that point there is no way to tell whose
+    // file is on disk.
+    final String? refusal = dvForeignProjectRefusal(root);
+    if (refusal != null) {
+      Logger.log(refusal);
+      throw UsageException(
+        'refusing to scaffold over a project Dartvel did not create',
+        'dartvel create [<new-directory>]',
+      );
+    }
 
     Logger.log('🚀 Initializing Dartvel project: $projectName in $root');
 
