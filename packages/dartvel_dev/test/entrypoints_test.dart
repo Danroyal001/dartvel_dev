@@ -76,10 +76,10 @@ void main() {
   test('dartvel_storage can configure the facade it exposes', () async {
     final adapter = storage.DVMemoryFileStorageAdapter();
     expect(adapter, isA<storage.DVFileStorageAdapter>());
-    storage.DV.Storage.configure(adapter);
+    storage.DV.FileStorage.configure(adapter);
 
-    await storage.DV.Storage.put('a.bin', <int>[1, 2, 3]);
-    expect(await storage.DV.Storage.get('a.bin'), <int>[1, 2, 3]);
+    await storage.DV.FileStorage.put('a.bin', <int>[1, 2, 3]);
+    expect(await storage.DV.FileStorage.get('a.bin'), <int>[1, 2, 3]);
 
     expect(
       storage.S3FileStorageAdapter(

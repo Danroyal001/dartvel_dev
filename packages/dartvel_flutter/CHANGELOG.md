@@ -1,5 +1,15 @@
 ## Unreleased
 
+- **`DV.Storage` is deprecated; use `DV.FileStorage`.** One storage had three
+  names -- `DV.Storage`, `DV.FileStorage` and `DV.BlobStorage` all returned
+  the same object -- while the specification named `DV.FileStorage` canonical
+  with `DV.BlobStorage` as its only alias. `DV.FileStorage` is canonical,
+  `DV.BlobStorage` stays as the documented alias, and `DV.Storage` keeps
+  working, deprecated, until the next minor removes it. The framework no
+  longer calls the deprecated name itself, and a test fails if it starts
+  again: a framework that calls its own deprecated name teaches every reader
+  to call it too.
+
 - A `DVTable` column header announces as a column header rather than as a
   document heading. It was marked `header: true`, the heading flag, which
   Flutter web draws as an `<h2>`: a six-column table put six headings into the

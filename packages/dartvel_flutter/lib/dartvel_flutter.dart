@@ -5518,7 +5518,7 @@ extension DVFlutterTestHarness on DVTestHarness {
 
   DVMemoryFileStorageAdapter fakeStorage() {
     final adapter = DVMemoryFileStorageAdapter();
-    DV.Storage.configure(adapter);
+    DV.FileStorage.configure(adapter);
     return adapter;
   }
 
@@ -5547,7 +5547,7 @@ extension DVFlutterTestHarness on DVTestHarness {
   }
 
   void resetStorage() {
-    DV.Storage.configure(DVMemoryFileStorageAdapter());
+    DV.FileStorage.configure(DVMemoryFileStorageAdapter());
   }
 
   void refreshDatabase() {
@@ -6336,6 +6336,10 @@ class DV {
   static DVDatabase get DB => const DVDatabase();
   static DVDatabase get Database => const DVDatabase();
   static DVCache get Cache => const DVCache();
+  // One storage, three names. FileStorage is canonical and BlobStorage is the
+  // documented alias; Storage is the third name nothing needed, deprecated
+  // rather than removed because 0.5.0 shipped with it.
+  @Deprecated('Use DV.FileStorage. DV.Storage is removed in the next minor.')
   static DVStorage get Storage => const DVStorage();
   static DVStorage get FileStorage => const DVStorage();
   static DVStorage get BlobStorage => const DVStorage();
