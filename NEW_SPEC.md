@@ -1979,6 +1979,152 @@ DV.currentTenant // alias for DV.Tenants.currentTenant
 
 ---
 
+# Organizations, Membership and Invitations
+
+Stability: `Draft` · Status: `Designed`
+
+Multi-tenancy resolves a tenant and filters every query by it. It says nothing
+about the people inside one. Organizations, roles per organization,
+invitations, seats and ownership transfer are in every business application,
+and today each is a hand-written model set that authorization, billing and
+Studio then have to be taught about one at a time.
+
+## A tenant is not an organization
+
+They are related and they are not the same thing, and the specification says
+which is which because leaving it ambiguous puts the question in every
+application's schema.
+
+**A tenant is a data boundary.** It decides which rows a request may see,
+which schema or database it reads, and how a request resolves to one. It has
+to be stable for the life of the data: it appears in every row, in the
+schema or database name, and in backups.
+
+**An organization is a group of people.** It has a name somebody chose, roles,
+members who come and go, an owner who may hand it over, and it can be renamed,
+merged or closed.
+
+One organization has exactly one tenant. A tenant may exist with no
+organization at all.
+
+Merging them reads as a simplification until the first rename: renaming a
+group of people would move data, transferring ownership would rewrite a
+boundary that backups refer to, and closing an organization would mean dropping
+a database while an export is still running. Keeping them apart costs one
+reference:
+
+```dart
+DV.currentTenant                 // the boundary, resolved per request
+DV.Auth.currentMembership        // this person's role in the organization on it
+```
+
+## What is generated
+
+```yaml
+dartvel:
+  organizations:
+    roles: [owner, admin, member, billing]
+    personalTenants: true       # consumer default; see below
+    seats: paid                 # counted for Billing
+```
+
+`Organization`, `Membership` and `Invitation` are generated models with their
+policies attached, so authorization sees them like any other model rather than
+through a parallel permission system. Roles are a typed enum, not strings: a
+policy that names a role that does not exist fails the build rather than
+silently refusing everybody at run time (`DV-ORG-001`).
+
+```dart
+@DVPolicy()
+bool _canInvite(DVContext context) =>
+    context.membership.role >= DVOrgRole.admin;
+```
+
+Generated components come with them — `Organization.Members()`,
+`Organization.Invitations()`, the accept-invitation page — assembled from the
+same primitives as `User.Table()` and replaceable the same way.
+
+## Invitations
+
+Invitations reuse Authentication's token machinery rather than inventing a
+second one: `DVAuthTokens.issueMagicLink` and `issueOtp` already mint,
+expire and redeem single-use tokens, and an invitation is one of those with a
+membership attached.
+
+```dart
+await Organization.invite(email, role: DVOrgRole.member);
+```
+
+Three ways in, all landing on the same `Membership`:
+
+- an emailed link or code, redeemed by whoever holds it;
+- SSO domain auto-join, where an identity from a verified domain becomes a
+  member on first sign-in at a declared role;
+- a per-organization SAML or LDAP bind, using the providers Authentication
+  already lists, for tenants whose identity is their own.
+
+An invitation to an address that is already a member is refused rather than
+creating a second membership (`DV-ORG-002`), and a redeemed invitation cannot
+be redeemed again, which is the token machinery's own guarantee rather than a
+check somebody remembered to write.
+
+## Personal tenants
+
+**Consumer applications get a tenant per person and no organization.**
+`personalTenants: true` is the default when no roles are declared. The boundary
+is worth having even for one person — it is what makes "export my data" and
+"delete my account" answerable — but a membership table for a party of one is
+ceremony, and it turns every query in a consumer app into a join nobody needs.
+
+An application that later declares roles does not migrate its data: the tenant
+each person already has acquires an organization, and their membership is the
+owner.
+
+## Seats and ownership
+
+Seat count is a query over memberships, and Billing reads it rather than
+keeping a second counter that drifts from the truth. What counts as a seat is
+declared, because the answer differs by product: every member, or only those at
+a role, or only those who signed in this period.
+
+Ownership transfer and closing an organization are reversible transactions.
+Transfer moves the owner role and records who did it; closing is a soft delete
+with a grace period, restorable until its retention expires, because an
+organization closed by accident takes everybody's work with it
+(`DV-ORG-004`). The last owner cannot leave or be demoted without naming a
+successor (`DV-ORG-003`).
+
+## Studio
+
+Studio shows the organizations on a deployment, their members and pending
+invitations, and who changed a role and when — which is Record History and
+Optimistic Concurrency reading `Membership.history()`, not a second audit
+trail.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-ORG-001` | a policy names a role the application does not declare | `error` |
+| `DV-ORG-002` | invitation refused: the address is already a member | `warning` |
+| `DV-ORG-003` | the last owner cannot leave or be demoted without a successor | `error` |
+| `DV-ORG-004` | organization closed; restorable until the declared grace period expires | `info` |
+| `DV-ORG-005` | SSO domain auto-join declined: the identity's domain is not verified | `warning` |
+| `DV-ORG-006` | membership resolved on a tenant that has no organization | `error` |
+
+## Deliberately absent
+
+- **Nested organizations.** A parent and child tree changes every
+  authorization question — whether a parent's admin reads a child's data is
+  product-specific, and the framework answering it wrongly is worse than not
+  answering. Applications that need a hierarchy model it over memberships.
+- **A second permission system.** Roles feed `@DVPolicy`; authorization stays
+  where it is.
+- **Organization-scoped billing accounts as a separate concept.** An
+  organization has one tenant and Billing bills a tenant.
+
+---
+
 # SEO
 
 Stability: `Contract` · Status: `Shipped`

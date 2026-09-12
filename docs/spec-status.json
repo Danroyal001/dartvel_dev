@@ -362,6 +362,11 @@
       ]
     },
     {
+      "section": "Organizations, Membership and Invitations",
+      "stability": "Draft",
+      "status": "Designed"
+    },
+    {
       "section": "SEO",
       "stability": "Contract",
       "status": "Shipped",
