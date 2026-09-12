@@ -6190,6 +6190,10 @@ dartvel preview open
 dartvel preview logs --follow
 dartvel preview mail
 dartvel preview destroy
+dartvel privacy check
+dartvel privacy export --subject user:1042
+dartvel privacy erase --subject user:1042 --reason "DSAR 2026-114"
+dartvel privacy retention --plan
 ```
 
 Flags
@@ -7027,6 +7031,211 @@ themselves.
 
 ---
 
+# Data Compliance and Lifecycle
+
+Stability: `Draft` · Status: `Designed`
+
+Sensitive Model Fields says which values are sensitive and who may read them.
+This says how long they are kept, what happens when somebody asks for a copy,
+and what happens when somebody asks to be forgotten — the three questions a
+data protection request turns into, and the three no application answers by
+having a `delete` button.
+
+None of it works without one declaration, so it comes first.
+
+## The subject path
+
+Erasure and export are walks over the model graph, and a walk needs to know
+which rows belong to whom.
+
+```dart
+@DVModel(subject: DVSubject.self)
+class _User(
+  final String email,
+  @DVModel.sensitiveField() final String nationalId,
+);
+
+@DVModel(subject: #user)
+class _Order(
+  final User user,
+  final Money total,
+  @DVModel.retain(years: 7, because: 'tax law')
+  final Invoice invoice,
+);
+
+@DVModel(subject: #author)
+class _Message(
+  final User author,
+  final Conversation conversation,
+  final String body,
+);
+```
+
+**A model that carries a sensitive field and declares no subject path is a
+build error** (`DV-PRIVACY-001`). The alternative is the failure this whole
+section exists to prevent: an erasure that runs, reports success, and leaves a
+table nobody remembered behind. A declaration the generator can enumerate is
+the only thing that makes "everything" checkable, and it is checkable —
+`dartvel privacy check` lists every model, its subject path, and its
+retention.
+
+Models with no personal data declare nothing. A `Currency` lookup table is not
+a compliance question and should not be made to look like one.
+
+## Retention
+
+```dart
+@DVModel(retain: DVRetention.days(90))          // then deleted
+@DVModel(retain: DVRetention.indefinite)        // deliberately, and it says so
+@DVModel(retain: DVRetention.days(30, then: DVRetention.anonymize))
+```
+
+Retention is swept by a durable job on the schedule the deployment declares,
+and the sweep is resumable and rate-limited like any other backfill — deleting
+four million rows in one transaction is how a retention policy takes a
+database down.
+
+A model carrying personal data with no declared retention is kept for ever and
+`DV-PRIVACY-002` says so at build time. It is a warning rather than an error
+because "indefinitely" is a legitimate answer for an account record; it is not
+a legitimate answer nobody made.
+
+## Erasure
+
+```dart
+final result = await DV.Privacy.erase(subject: user, reason: 'DSAR 2026-114');
+```
+
+The walk visits every model whose subject path reaches the subject and applies
+what each field declared:
+
+| Declaration | What happens |
+| --- | --- |
+| default | the row is deleted |
+| `@DVModel.sensitiveField(onErase: DVErase.anonymize)` | the field is replaced with a tombstone value; the row stays |
+| `@DVModel.retain(years: 7, because: ...)` | the row is kept and its personal fields are anonymized |
+
+**The conflict between erasure and retention is reported, not resolved
+silently.** An invoice a tax authority requires for seven years cannot be
+deleted because somebody asked, and an erasure that quietly kept it — or
+quietly deleted it — is the same bug with two different regulators. The result
+names every row kept, the declaration that kept it, and the `because:` string
+that was written when somebody decided (`DV-PRIVACY-003`). That string exists
+so the answer to "why do you still have my invoice" is in the codebase rather
+than in somebody's memory.
+
+Erasure is a durable job with a declared deadline, because the deadline is the
+regulation's — thirty days under GDPR, and an erasure still running on day
+thirty-one is the breach (`DV-PRIVACY-004`). It reports progress, survives a
+restart, and an adapter it could not reach is an error rather than a silent
+partial success (`DV-PRIVACY-009`): a subject's rows removed from the database
+and left in the search index have not been erased.
+
+The walk covers what the framework owns — the database, File Storage objects
+the subject's rows reference, cache entries under the subject's tags, the
+analytics store, and crash reports carrying a declared identity. It cannot
+cover a third-party sink it does not know about, and that is exactly why an
+unreachable adapter is reported instead of assumed clean.
+
+## Backups
+
+A backup is immutable, so nothing can be deleted from it. Pretending otherwise
+is the most common false claim in this area.
+
+Erasure writes a **tombstone** — the subject's pseudonymous id and the time —
+to a log that is itself backed up. A restore replays the log before the
+restored deployment serves anything, so a subject erased in March is erased
+again the moment a February backup comes back (`DV-PRIVACY-005`). The backup
+still holds the bytes until it ages out of its own retention; what changes is
+that no restored system ever serves them.
+
+## Export
+
+```dart
+final archive = await DV.Privacy.export(subject: user);
+```
+
+The same walk, producing a machine-readable archive — JSON per model plus the
+referenced files — which is the portability half of the same right.
+
+A record naming more than one subject exports **the requesting subject's own
+contribution and nothing else**. A conversation is the ordinary case: the
+person's messages are theirs, the other person's messages are the other
+person's, and an export containing both would be a data protection breach
+performed in the name of data protection (`DV-PRIVACY-006`).
+
+## Analytics and consent records
+
+Events keyed to the subject are deleted or de-identified with everything else.
+Aggregates are not: a funnel count of nine hundred is not personal data and
+recomputing every historical aggregate to make it eight hundred and
+ninety-nine is not what anybody asked for.
+
+Consent records outlive the erasure, holding the pseudonymous id, what was
+asked, what was answered and when — no personal fields (`DV-PRIVACY-010`).
+They are the evidence that the consent existed and that the erasure ran, and
+evidence destroyed on request stops being evidence.
+
+## The audit trail
+
+Every export and erasure is recorded through Record History, carrying who
+asked, who ran it, when, what the walk covered and what was kept. The record
+holds the pseudonymous id and no personal field, so it proves the erasure
+happened without holding what was erased.
+
+## CLI
+
+```bash
+dartvel privacy check                       # every model: subject path, retention
+dartvel privacy export --subject user:1042
+dartvel privacy erase --subject user:1042 --reason "DSAR 2026-114"
+dartvel privacy retention --plan            # what the next sweep would delete
+```
+
+`--plan` before a sweep is the same discipline `dartvel deploy --plan` and
+`dartvel db migrate --plan` already apply: a deletion nobody previewed is one
+nobody can be talked out of.
+
+## Studio
+
+Studio lists open requests, their deadlines and how far each walk has got,
+which is what makes a thirty-day clock something a team can see rather than
+something a lawyer discovers.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-PRIVACY-001` | a model carries a sensitive field and declares no subject path; erasure cannot reach it | `error` |
+| `DV-PRIVACY-002` | a model carrying personal data declares no retention; it is kept indefinitely | `warning` |
+| `DV-PRIVACY-003` | rows were kept under a declared retention; their personal fields were anonymized | `info` |
+| `DV-PRIVACY-004` | an erasure passed its declared deadline | `error` |
+| `DV-PRIVACY-005` | a restore replayed the erasure tombstone log | `info` |
+| `DV-PRIVACY-006` | an exported record names another subject; only the requesting subject's contribution was included | `info` |
+| `DV-PRIVACY-007` | a retention sweep deleted rows | `info` |
+| `DV-PRIVACY-008` | a retention sweep would delete rows a longer retention holds; the longer one won | `warning` |
+| `DV-PRIVACY-009` | an erasure could not reach a configured adapter; the subject's data there was not removed | `error` |
+| `DV-PRIVACY-010` | a consent record was retained after erasure as evidence, carrying no personal fields | `info` |
+
+## Deliberately absent
+
+- **Legal advice.** Dartvel makes retention, erasure and export declarable,
+  enumerable and checkable. Which regulation applies, and what it requires, is
+  not a framework's answer, and a built-in "GDPR mode" would be a claim nobody
+  can stand behind.
+- **Deleting from backups.** See above. A tombstone replayed on restore is the
+  honest version; a command that claims to reach into an immutable archive is
+  not.
+- **Data residency and multi-region placement.** Backend Release Management
+  leaves the multi-region backplane out for the same reason, and pinning rows
+  to a region is that question rather than this one.
+- **Erasure of another controller's copy.** An export tells the subject where
+  their data went; a framework cannot delete from a third party that never
+  agreed to be deleted from.
+- **A second audit log.** Record History already answers who did what.
+
+---
+
 # Static Web Generation
 
 Stability: `Draft` · Status: `Shipped`
@@ -7508,8 +7717,8 @@ functions, jobs, modules, static paths, the schema, migration plans, the
 protocol version and its window, memory arenas, 3D scenes, API scopes,
 privacy declarations, release plans, analytics events and their consent
 categories, feature flags with their owners, expiry dates and rollout rules,
-and capability metadata, each node keeping the source mapping it was derived
-from.
+each model's subject path and retention, and capability metadata, each node
+keeping the source mapping it was derived from.
 
 The graph is the contract, and `--json` is how it is read:
 
