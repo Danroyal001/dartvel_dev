@@ -2619,6 +2619,129 @@ half. `docs/spec-status.json` records which is which.
 
 ---
 
+# Media Playback and Capture
+
+Stability: `Draft` · Status: `Designed`
+
+Media Pipeline processes media; Platform can reach a camera. Nothing plays
+anything. For webOS and Tizen — television targets this specification builds
+for — the application *is* a media player, so the gap is not a missing
+convenience, it is a missing reason to use Dartvel on the platforms it goes
+furthest to support.
+
+## A player is a box mode
+
+Per the two-primitive rule, playback is not a third primitive:
+
+```dart
+DVBox.video(
+  DVMediaSource.url('https://cdn.example.com/launch.m3u8'),
+  poster: product.video.poster,        // Media Pipeline's generated poster
+  captions: DVCaptions.track('en'),    // i18n keys, not baked pixels
+  controls: DVMediaControls.standard,
+).aspectRatio(16 / 9)
+
+DVBox.audio(DVMediaSource.asset(DVAudio.chime))
+```
+
+The box owns size, modifiers, gestures and semantics as it always does; the
+source owns what is played. Playback state is a signal, so a play button, a
+scrubber and a "now playing" row in another window are three readers of one
+value rather than three listeners to be kept in step:
+
+```dart
+final player = DVBox.video(source).controller;
+player.position;     // DVSignal<Duration>
+player.state;        // DVSignal<DVPlaybackState>
+player.buffered;     // DVSignal<List<DVRange>>
+await player.seek(Duration(seconds: 30));
+```
+
+Adaptive streaming (HLS and DASH) is the default for a remote source, because
+a fixed-bitrate file is the wrong answer on every network a television or a
+phone actually sits on.
+
+## What playback drags in with it
+
+The unglamorous half, which is the half applications are judged on:
+
+- **Background audio and lock-screen controls.** Declared, not improvised:
+  `DVMediaSession` publishes title, artwork and position to the OS's now-playing
+  surface, and the transport controls it shows are wired to the same controller.
+- **Picture-in-picture** where the platform has it, reported where it does not.
+- **Casting** — AirPlay and Chromecast — as adapters, so a route can hand off
+  to a device without the application knowing which protocol answered.
+- **Television transport controls.** Remote-control play/pause/seek keys map to
+  the controller by default. This is the one that decides whether an
+  application feels native on a television, and leaving it to each application
+  is how it gets forgotten on the platform that needs it most.
+- **Captions are i18n**, carrying catalog keys rather than burned-in text, so
+  they localize like every other string and can be read by accessibility.
+
+## Capture
+
+```dart
+final recording = await DV.Platform.Media.recordAudio(
+  format: DVAudioFormat.aac,
+  maxDuration: Duration(minutes: 5),
+);
+final clip = await DV.Platform.Media.recordVideo(quality: DVVideoQuality.hd720);
+```
+
+Capture is a platform capability behind generated bindings like every other —
+permission through the existing runtime permission flow, a typed refusal when
+the person says no, and a capability report rather than an assumption. What
+comes back is a `DVFile`, so it flows straight into Media Pipeline's upload
+validation and variant generation without an intermediate format.
+
+## DRM
+
+DRM is adapters, labelled per target, and deliberately not a promise: Widevine
+on Android and web, FairPlay on Apple platforms, PlayReady on Tizen and webOS,
+each behind `DVDrmAdapter`. A target with no adapter configured refuses to play
+protected content with a typed error rather than showing a black rectangle,
+which is the failure mode every DRM integration actually produces.
+
+Dartvel ships no licence server and brokers no keys. That is a commercial
+relationship between the application and its content provider.
+
+## Platform matrix
+
+| Target | Playback | Background audio | PiP | Casting | Label |
+|---|---|---|---|---|---|
+| Android / iOS | platform player | yes | yes | yes | `Supported with limitations` |
+| Web | `<video>`/`<audio>` via generated bindings, MSE for adaptive | media session | yes | Cast only | `Supported with limitations` |
+| Windows / macOS / Linux | platform player | yes | no | AirPlay on macOS | `Supported with limitations` |
+| Tizen / webOS | vendor player through the embedder fork | yes | vendor-dependent | no | `Experimental` |
+| eLinux | GStreamer through the embedder fork | n/a | no | no | `Experimental` |
+| Terminal | poster and metadata only | no | no | no | `Unsupported` → poster |
+
+The television rows are `Experimental` for the reason that decides every
+television row in this specification: the embedder forks pin a Flutter the
+vendor's player integration has not been verified against, and until
+`docs/build-targets.md` records a run on a device, a table is a plan.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-MEDIA-101` | adaptive source on a target with no streaming support; fell back to progressive | `info` |
+| `DV-MEDIA-102` | protected content with no DRM adapter configured for this target | `error` |
+| `DV-MEDIA-103` | background audio requested without the platform capability declared | `warning` |
+| `DV-MEDIA-104` | capture permission refused by the person using the application | `info` |
+
+## Deliberately absent
+
+- **A media server, a transcoder, or a licence server.** Adapters over what the
+  platform and the provider supply; Media Pipeline does what processing there
+  is, and it says where that stops.
+- **A second player namespace.** `DVBox.video` / `DVBox.audio` and
+  `DV.Platform.Media`; no `DV.Player`, no `DV.Video`.
+- **Editing.** Trimming, filters and composition are an application concern
+  built on capture output, not a framework surface.
+
+---
+
 # Cache
 
 Stability: `Contract` · Status: `Shipped`
