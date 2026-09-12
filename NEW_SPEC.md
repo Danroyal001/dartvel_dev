@@ -1415,6 +1415,28 @@ This is inspired by Bun's built-in SQLite approach: the local database should be
 fast, available by default, and require no separate service for common
 development and test workflows.
 
+**With no database configured at all, the in-memory adapter runs the SQL
+Dartvel itself writes.** Every framework surface that persists through
+`DV.Database` — Studio's page store, the database cache adapter, the database
+queue adapter, Studio Pro's stores, and `DVTest.fakeDatabase()` — works on it,
+so a freshly created project opens Studio and edits a page before anybody has
+chosen a database. An in-memory adapter that cannot run the framework it ships
+with is not a test double; it is a fake that agrees with nothing.
+
+It interprets the statements the generated code emits: `CREATE TABLE` and
+`DROP TABLE`, parameterised `INSERT`, `UPDATE ... WHERE` and `DELETE ...
+WHERE`, and `SELECT` with `DISTINCT`, a column subset, aliases, `COUNT(*)`,
+`ORDER BY`, `LIMIT` and `OFFSET`; a `WHERE` joins conditions with `AND` over
+the six comparisons, `IS NULL` and `IS NOT NULL`, and a comparison against
+null never matches, as in SQL.
+
+Anything past that subset — a join, a subquery, `OR`, FTS5 `MATCH`, `ALTER
+TABLE`, `CREATE INDEX` — needs a real adapter, and **fails loudly naming the
+statement it refused** rather than approximating one. An adapter that guessed
+at a query it had not parsed would be worse than one that cannot run it: wrong
+rows look exactly like right ones, and the test that passes against them
+proves nothing.
+
 Automatic migrations stay automatic as a table grows, which is where the cost
 of a change stops being obvious: see Schema Evolution for how each change is
 classified and how a blocking one is choreographed rather than simply run.
