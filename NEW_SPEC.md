@@ -10860,6 +10860,9 @@ dartvel build sony-elinux
 dartvel build sony-elinux-iso
 dartvel build sony-elinux-img
 dartvel build vscode
+
+# Designed, not built: no command routes these yet. See XR — Spatial
+# Presentation, which carries them as Draft/Designed.
 dartvel build android-xr
 dartvel build horizon
 dartvel build visionos
