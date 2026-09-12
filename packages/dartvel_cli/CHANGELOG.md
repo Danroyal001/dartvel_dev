@@ -1,5 +1,19 @@
 ## Unreleased
 
+- **`dartvel create` refuses to scaffold over a project it did not create
+  (`DV-ADOPT-005`).** One of its steps replaces `pubspec.yaml` with the
+  scaffold template. In an empty directory the file being replaced is the one
+  `flutter create` wrote a second earlier, which is the intent. In a directory
+  that already holds an application it replaced every dependency, version and
+  setting the team had declared — and `init` and `new` are aliases of this
+  same command, so the word someone with an existing project reaches for first
+  was the destructive one. It announced itself as an information line reading
+  "Overwriting pubspec.yaml with Dartvel configuration...". Nothing else in
+  the CLI destroys a file it did not write. The check runs before
+  `flutter create`, because after that there is no way to tell whose pubspec
+  is on disk; a `dartvel:` key marks one the template wrote, and a
+  commented-out example does not count as one.
+
 - **`dartvel create` no longer pins a new project to a three-release-old
   `dartvel_shelf`.** The scaffold interpolates a version constant for
   dartvel_core, dartvel_flutter and dartvel_cli, but wrote `dartvel_shelf:
