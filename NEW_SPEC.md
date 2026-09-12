@@ -1705,6 +1705,146 @@ not ship a portal to prove it.
 
 ---
 
+# Outbound Webhooks
+
+Stability: `Draft` · Status: `Designed`
+
+The security scope verifies webhooks the application *receives*. An
+application that is a platform for its own customers has to *send* them, and
+that is a queue, a signing scheme, a retry policy, a dead-letter list and a
+delivery log — built badly once by every team that needs it, usually the week
+after a customer asks why an event never arrived.
+
+Subscriptions are generated models, so an endpoint belongs to a tenant, is
+listed on a settings page and is authorized like any other row:
+
+```dart
+await DV.Webhooks.emit('order.shipped', order);
+```
+
+## The catalog is declared
+
+```dart
+@DVWebhookEvents()
+abstract class _Events {
+  @DVWebhookEvent(payload: Order)
+  static const orderShipped = 'order.shipped';
+
+  @DVWebhookEvent(payload: Order, on: DVModelLifecycle.created)
+  static const orderCreated = 'order.created';
+}
+```
+
+An event either comes from a model's lifecycle or is emitted explicitly; both
+are declared in one place, and emitting a name that is not there is a build
+error (`DV-WEBHOOK-006`). The same declaration generates the event catalog
+the application publishes in its own API documentation, so the list a customer
+reads cannot drift from the list the code can send.
+
+Payload shape is versioned by the machinery Protocol Versioning and Client
+Compatibility already defines. A subscription records the protocol version it
+was created against, and a shape change that would break it is the same
+build-time refusal a client-facing change is — a customer's endpoint is a
+client, and it is the one client that cannot be asked to upgrade.
+
+**Serialization honours `@DVModel.sensitiveField()` by construction.** A
+sensitive field is absent from a delivery the way it is absent from a log,
+and asking for one explicitly in a payload is a build error
+(`DV-WEBHOOK-001`) rather than a runtime redaction somebody can configure
+away. The endpoint at the other end belongs to somebody else; this is the one
+serializer whose output the application cannot recall.
+
+## Signing, and rotating without a gap
+
+Each delivery carries a timestamp and an HMAC-SHA256 signature over
+`timestamp.body`, with the key held in Secrets and Environments and scoped to
+the subscription. Rotation sends **both** signatures for an overlap the
+application configures, so a customer can switch keys without a window in
+which every delivery fails verification (`DV-WEBHOOK-007`). A rotation that
+requires simultaneous deployment on both sides is a rotation nobody performs.
+
+The timestamp is in the signed material so a captured delivery cannot be
+replayed a month later, and the documentation Dartvel generates for the
+customer says to compare in constant time and to bound the age — the two
+things a consumer implementation gets wrong.
+
+## Delivery is durable work, partitioned per endpoint
+
+Deliveries ride `DV.Jobs` with the retry, backoff and dead-letter behaviour
+that already exists. What this section adds is the partitioning:
+
+- Ordering is per subscription. Two events for one endpoint arrive in the
+  order they were emitted, and head-of-line blocking within that endpoint is
+  the point rather than a defect.
+- Concurrency and in-flight depth are per subscription too, so **a consumer
+  that takes thirty seconds to answer delays its own deliveries and nobody
+  else's**. Without that, one customer's degraded endpoint is an outage for
+  every other customer's webhooks, which is the failure this design exists to
+  prevent.
+- Delivery is at-least-once and each carries a stable delivery id in a
+  header, because the honest alternative — exactly-once across a network to
+  somebody else's server — does not exist.
+
+An endpoint that keeps failing is disabled rather than retried forever: after
+the configured run of consecutive failures it is marked disabled, the owner is
+notified through `DV.Notifications`, and its queue stops (`DV-WEBHOOK-003`).
+A dead endpoint that is retried indefinitely is a slow, permanent tax on the
+queue and on the receiving host.
+
+## The endpoint address is untrusted input
+
+A subscription URL is supplied by a customer and fetched by the application's
+own server, which is a server-side request forgery in every deployment that
+does not think about it. **Dartvel resolves the host and refuses private,
+loopback, link-local and cloud-metadata addresses** (`DV-WEBHOOK-002`), and
+refuses a redirect that lands on one. `169.254.169.254` is not an edge case;
+it is the first thing anyone tries.
+
+```yaml
+dartvel:
+  webhooks:
+    allowPrivateAddresses: false   # true only for a deployment with no metadata service
+    retention: 30d
+    disableAfter: 20
+```
+
+## Retention and replay
+
+Every delivery is recorded — the event, the endpoint, the attempt count, the
+response status and the timing — and Studio's inspector shows them with the
+payload, which is what turns "we never got it" into an answer.
+
+The **payload** is kept for `retention` and the **record** is kept
+indefinitely. Replay works while the payload is there, and a replay requested
+after retention is refused with `DV-WEBHOOK-005` rather than resent with an
+empty body: a delivery whose payload is gone can be explained, and one that
+arrives empty cannot be distinguished from a real event.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-WEBHOOK-001` | a payload names a field the model marks sensitive | build `error` |
+| `DV-WEBHOOK-002` | endpoint resolved to a private, loopback, link-local or metadata address; refused | `warning` |
+| `DV-WEBHOOK-003` | endpoint disabled after the configured run of failures | `warning` |
+| `DV-WEBHOOK-004` | delivery exhausted its retries and moved to dead letters | `warning` |
+| `DV-WEBHOOK-005` | replay requested after the payload retention window | `warning` |
+| `DV-WEBHOOK-006` | an emitted event name is not in the declared catalog | build `error` |
+| `DV-WEBHOOK-007` | signing key rotated; both signatures are sent until the overlap ends | `info` |
+
+## Deliberately absent
+
+- **A second queue.** Deliveries are jobs. There is no webhook worker, no
+  webhook broker and no `DV.Webhooks` scheduler beyond the emit call.
+- **Exactly-once delivery.** At-least-once with a delivery id, and the
+  documentation tells the consumer to deduplicate on it.
+- **Consumer SDKs.** Dartvel generates the catalog and the verification
+  instructions; a customer's language is their business.
+- **Arbitrary transports.** HTTPS POST. A queue-to-queue integration is a
+  different feature and would not share this section's answers.
+
+---
+
 # Model Sync and Presence
 
 Stability: `Contract` · Status: `Shipped`

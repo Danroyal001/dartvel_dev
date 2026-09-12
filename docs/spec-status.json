@@ -284,6 +284,11 @@
       "status": "Designed"
     },
     {
+      "section": "Outbound Webhooks",
+      "stability": "Draft",
+      "status": "Designed"
+    },
+    {
       "section": "Model Sync and Presence",
       "stability": "Contract",
       "status": "Shipped",
