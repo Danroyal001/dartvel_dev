@@ -108,4 +108,98 @@ void main() {
       });
     }
   }
+
+  final Directory root = findRepoRoot();
+  final List<File> apps = appPubspecs(root);
+
+  test('the applications this test is about are here', () {
+    // Without this the loop below asserts nothing when the layout moves, and
+    // an empty loop is a green suite that checks no application at all.
+    final List<String> paths =
+        apps.map((File f) => f.path.substring(root.path.length + 1)).toList();
+    expect(paths, contains('sites/dartvel_site/pubspec.yaml'));
+    expect(paths.length, greaterThanOrEqualTo(3));
+  });
+
+  for (final File pubspec in apps) {
+    final String label = pubspec.path.substring(root.path.length + 1);
+    final Map<String, String> constraints = appConstraints(pubspec);
+
+    for (final MapEntry<String, String> entry in constraints.entries) {
+      test('$label accepts the ${entry.key} in this repository', () {
+        final String? actual = versions[entry.key];
+        expect(actual, isNotNull,
+            reason: '$label depends on ${entry.key}, which is not here');
+
+        expect(
+          VersionConstraint.parse(entry.value).allows(Version.parse(actual!)),
+          isTrue,
+          reason: '$label declares ${entry.key}: ${entry.value}, which does '
+              'not admit the ${entry.key} $actual in this repository. The '
+              'application resolves from pubspec_overrides.yaml here, so it '
+              'builds against the working tree and the stale constraint is '
+              'never exercised -- but it is what a reader copying this file '
+              'gets, and it pins them to a release from before most of what '
+              'the application demonstrates existed.',
+        );
+      });
+    }
+  }
+}
+
+/// The repository root: the directory holding `packages/`.
+Directory findRepoRoot() => findPackagesDir().parent;
+
+/// Every application checked into this repository. Applications, not packages:
+/// the site and the examples are what a reader copies from, and none of them
+/// is published.
+List<File> appPubspecs(Directory root) {
+  final List<File> out = <File>[];
+  for (final String dir in <String>['sites', 'examples']) {
+    final Directory base = Directory('${root.path}/$dir');
+    if (!base.existsSync()) continue;
+    for (final FileSystemEntity entity in base.listSync(recursive: true)) {
+      if (entity is! File) continue;
+      if (entity.uri.pathSegments.last != 'pubspec.yaml') continue;
+      final String path = entity.path;
+      if (path.contains('/build/') || path.contains('/.dart_tool/')) continue;
+      out.add(entity);
+    }
+  }
+  out.sort((File a, File b) => a.path.compareTo(b.path));
+  return out;
+}
+
+/// The hosted constraint [pubspec] declares on each Dartvel package, across
+/// `dependencies` and `dev_dependencies` alike.
+///
+/// Both, unlike the package check above, which reads runtime dependencies only
+/// because a stale dev constraint in a published package ships to nobody. In
+/// an application it ships to everybody who copies the file: `dartvel_cli` is
+/// a dev dependency and is the build tool, so a constraint that stops at 0.2.x
+/// hands the reader a CLI that cannot build the very app it came with.
+///
+/// A path dependency yields nothing, which is how the example applications
+/// that resolve from the working tree are skipped: they declare no version to
+/// be wrong about.
+Map<String, String> appConstraints(File pubspec) {
+  final Object? doc = loadYaml(pubspec.readAsStringSync());
+  if (doc is! YamlMap) return <String, String>{};
+
+  final Map<String, String> out = <String, String>{};
+  for (final String block in <String>['dependencies', 'dev_dependencies']) {
+    final Object? deps = doc[block];
+    if (deps is! YamlMap) continue;
+    for (final MapEntry<Object?, Object?> entry in deps.entries) {
+      final String name = '${entry.key}';
+      if (!name.startsWith('dartvel_')) continue;
+      final Object? value = entry.value;
+      if (value is String) {
+        out[name] = value;
+      } else if (value is YamlMap && value['version'] != null) {
+        out[name] = '${value['version']}';
+      }
+    }
+  }
+  return out;
 }

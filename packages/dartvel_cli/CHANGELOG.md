@@ -1,5 +1,26 @@
 ## Unreleased
 
+- **`dartvel create` no longer pins a new project to a three-release-old
+  `dartvel_shelf`.** The scaffold interpolates a version constant for
+  dartvel_core, dartvel_flutter and dartvel_cli, but wrote `dartvel_shelf:
+  ^0.3.0` as a literal beside them. A caret on a 0.x version stops at the next
+  minor, so every project created since shelf 0.4.0 asked for `>=0.3.0 <0.4.0`
+  and resolved a shelf from before most of what the project used existed. It
+  is `dartvelShelfVersion` now, bumped by `tool/bump_version.dart` with
+  everything else. The test that was supposed to cover this read the list of
+  packages the constant feeds rather than the constraints the template writes,
+  so the one wrong constraint was the one it could not see; it now reads the
+  rendered pubspec.
+- The site and the example applications declare the packages they are built
+  against. All three said `^0.2.1` -- core, flutter and cli -- and `^0.3.0`
+  for shelf, while the packages were at 0.5.0 and 0.6.0. Each resolves through
+  `pubspec_overrides.yaml`, so nothing here ever built against the constraint
+  and nothing failed; a reader copying the file got a release from before the
+  features the application demonstrates. `tool/bump_version.dart` bumps them
+  with the packages, and `tool/check_constraints.dart` fails the release if
+  any application, or any scaffold constraint, stops admitting what is being
+  published.
+
 - `dartvel.windowing.enabled` reaches the runtime. The capability has taken
   the parameter since it was written and no build ever passed one, so a
   project that switched windows off still got them, and a window that

@@ -10,6 +10,15 @@
 /// cannot drift again without the suite saying so.
 const String dartvelPackageVersion = '0.5.0';
 
+/// The same, for dartvel_shelf, which is a minor ahead of the others.
+///
+/// Its own constant rather than a literal in the template below. It was
+/// written there as `^0.3.0` beside three interpolated constraints, and
+/// because it was a literal, nothing bumped it and nothing checked it: the
+/// scaffold asked for a shelf from three releases back while the other three
+/// constraints tracked correctly.
+const String dartvelShelfVersion = '0.6.0';
+
 class ProjectTemplates {
   static String pubspecTemplate({
     required String name,
@@ -34,7 +43,7 @@ dependencies:
   go_router: ^14.2.0
   dio: ^5.5.0
   dartvel_core: ${localPackagesDir == null ? '^$dartvelPackageVersion' : '\n    path: $localPackagesDir/dartvel_core'}
-  dartvel_shelf: ${localPackagesDir == null ? '^0.3.0' : '\n    path: $localPackagesDir/dartvel_shelf'}
+  dartvel_shelf: ${localPackagesDir == null ? '^$dartvelShelfVersion' : '\n    path: $localPackagesDir/dartvel_shelf'}
   dartvel_flutter: ${localPackagesDir == null ? '^$dartvelPackageVersion' : '\n    path: $localPackagesDir/dartvel_flutter'}
   ${web ? 'flutter_web_plugins:\n    sdk: flutter' : ''}
 
