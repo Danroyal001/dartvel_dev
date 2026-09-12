@@ -2864,7 +2864,7 @@ Inspired by:
 Built in:
 - Logs
 - Metrics
-- Traces
+- Traces -- see Distributed Tracing
 - Profiling
 - Performance analysis
 - Error reporting -- see Crash Reporting and Release Health, which is that
@@ -2886,6 +2886,190 @@ await DV.ObservabilityAndLogging.event(
   {"orderId": order.id},
 );
 ```
+
+---
+
+# Distributed Tracing
+
+Stability: `Draft` · Status: `Partial`
+
+Monitoring and Observability lists traces. This is what a trace is here, what
+gets a span without anybody writing one, and where the spans go — the third of
+which is the part that is still missing, and is named as missing below rather
+than described as though it were there.
+
+## The wire format is not Dartvel's
+
+Trace context travels as W3C `traceparent`:
+`00-<32 hex trace id>-<16 hex span id>-<2 hex flags>`. The whole point of a
+trace id is that something else recognises it — a load balancer's log, a
+managed database's slow-query record, another team's service in another
+language — and a proprietary header would make Dartvel the only thing that
+could read its own traces.
+
+## Sampling is decided from the trace id, once
+
+The decision is a function of the trace id and the configured ratio, and it
+**travels in the flags rather than being re-made**.
+
+A service that rolls its own dice per process does not sample ten percent of
+traces at ten percent; it keeps the whole of a four-service request with
+probability 0.1⁴, which is one request in ten thousand. Everything else
+becomes a fragment with a hole in the middle, and the symptom is tracing that
+looks switched on and finds nothing. Deciding from the id means every service
+in a trace reaches the same answer without coordinating, and a trace is whole
+or absent.
+
+Errors do not retroactively rescue an unsampled trace, and this section will
+not claim they do. Keeping a whole trace because one span in it failed is
+tail sampling, which needs something that has buffered the entire trace — a
+collector, not a process inside it. What Dartvel does instead is local: a span
+that records an error is kept in the process's own ring buffer whatever the
+sampling said, and the crash report for a failure carries the trace id, so an
+unsampled failure is still traceable to the request it happened in even when
+the trace never left.
+
+## What gets a span
+
+Instrumented by the framework, from generated code rather than from calls
+somebody remembered to write:
+
+| Span | Named for |
+| --- | --- |
+| the inbound request | the route, and the Backend Function Request Lifecycle stage within it |
+| a backend function | the function, with its arguments' shapes and none of their values |
+| a database query | the statement shape — parameters are never attributes |
+| an outbound HTTP call | host and path template |
+| a queue publish, and the consume that follows it | the queue and the job type |
+| a transaction | the `DV.transaction` boundary, with the compensations that ran |
+| an AI call | the model and the token counts, not the prompt |
+
+The ambient span hangs on the zone, so a query three calls deep becomes a
+child of the request without every function in between taking a span
+parameter it does not otherwise use. That threading is what stops people
+instrumenting anything.
+
+`DV.trace('name', () async { ... })` is there for the rest.
+
+## Sensitive values are never attributes
+
+A span attribute naming a `@DVModel.sensitiveField()` value is a build error
+(`DV-TRACE-004`), the same rule analytics payloads already carry. Query spans
+record the statement's shape and never its parameters, because a parameter is
+where the personal data is.
+
+Attributes are also bounded per span (`DV-TRACE-010`). An unbounded attribute
+map is how a trace backend's bill becomes the reason tracing gets switched
+off.
+
+## Jobs are linked, not nested
+
+A job enqueued by a request and run four hours later is part of the same
+story and is not part of the same waterfall. The trace context travels in the
+job envelope, and when the job runs outside the originating trace's window it
+starts its **own** trace carrying a link back to the one that enqueued it
+(`DV-TRACE-005`).
+
+Nesting it would produce a trace whose root span lasted four hours, which no
+viewer renders usefully and no p95 can be computed from. The link keeps the
+connection navigable in both directions without pretending the two are one
+operation.
+
+A span still open past its declared maximum is closed as incomplete rather
+than held for ever (`DV-TRACE-009`) — a leaked span is otherwise a memory leak
+that also silently loses its parent's children.
+
+## Client spans
+
+A tap that leads to a backend call is one trace, and it starts on the device.
+The generated client opens a span per call and sends the `traceparent`, so the
+waterfall includes the time the network took, which is the part the server's
+own numbers can never show.
+
+**Client spans are exported through the deployment's own backend, never
+straight to a collector.** Shipping an application with a collector endpoint
+and a write key in it publishes both to everyone who downloads it, and what
+gets written to that endpoint afterwards is no longer under anybody's control.
+Ingest is off by default; a client span arriving at a deployment that has not
+enabled it is refused and counted (`DV-TRACE-008`).
+
+The client's sampling ratio is part of its build configuration and is applied
+to the trace id the same way, so a client and the backend agree on the same
+trace without a negotiation.
+
+## Where spans go
+
+```yaml
+dartvel:
+  tracing:
+    ratio: 0.1
+    exporter: otlp                # otlp | none
+    endpoint: https://collector.internal:4318
+    queue: 2048
+    maxSpanDuration: 5m
+```
+
+OTLP over HTTP is the exporter, because Jaeger, Tempo, Honeycomb, Datadog and
+the rest all accept it, and an adapter per vendor would be five copies of one
+protocol.
+
+Export is batched on a bounded queue and **never blocks a request**. A full
+queue drops spans and counts them (`DV-TRACE-002`); a collector that cannot be
+reached retries and then drops with a count (`DV-TRACE-003`). Neither is
+allowed to add latency to the thing being measured, which is the failure mode
+that makes people remove tracing rather than fix it.
+
+With no exporter configured, spans stay in the in-process ring buffer and
+`DV-TRACE-006` says so. That buffer is served at `/_dartvel/traces`, off
+unless the process was started with diagnostics endpoints on — and when it is
+on, `DV-TRACE-007` reports it, because an endpoint listing recent requests is
+not something to discover later.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-TRACE-001` | an inbound `traceparent` was malformed; a new trace was started | `warning` |
+| `DV-TRACE-002` | the export queue was full; spans were dropped | `warning` |
+| `DV-TRACE-003` | the collector could not be reached; spans were dropped after the declared retries | `error` |
+| `DV-TRACE-004` | a span attribute names a sensitive model field | `error` |
+| `DV-TRACE-005` | a job ran outside its originating trace's window; its span is linked rather than nested | `info` |
+| `DV-TRACE-006` | no exporter is configured; spans stay in the in-process buffer | `info` |
+| `DV-TRACE-007` | the trace diagnostics endpoint is enabled; it is off by default | `warning` |
+| `DV-TRACE-008` | a client span was refused: client ingest is not enabled on this deployment | `warning` |
+| `DV-TRACE-009` | a span passed its maximum duration and was closed as incomplete | `warning` |
+| `DV-TRACE-010` | a span reached its attribute limit; further attributes were dropped | `warning` |
+
+## What is built, and what is not
+
+Built: the W3C context type and its parsing, spans with attributes, errors and
+status, the sampler that decides from the trace id, the exporter interface
+with in-memory and ring-buffer implementations, the HTTP server middleware
+that starts a span per request and propagates context, the trace id on every
+log line, and `/_dartvel/traces` serving the ring buffer when diagnostics
+endpoints are on.
+
+Not built: the OTLP exporter, so nothing reaches a collector; spans for
+database queries, outbound HTTP, queue publish and consume, transactions and
+AI calls, so the only span most requests have is the request itself; trace
+context in the job envelope and the links that follow from it; client spans
+and their ingest; span attribute and duration limits; and `dartvel traces`
+reading anything but the local buffer. The diagnostics above are registered
+meanings, not emitted signals: nothing raises one yet, and a code that is
+emitted for the wrong situation is worse than one that is not emitted at all.
+
+## Deliberately absent
+
+- **A Dartvel trace header.** W3C or nothing.
+- **Tail sampling.** It needs a component that has seen the whole trace.
+  Dartvel emits honestly and a collector decides; claiming otherwise in-process
+  would be claiming to know the future of a request.
+- **Per-vendor exporters.** They all take OTLP.
+- **Blocking export.** Covered above, and it is why a bounded queue that drops
+  with a count is the right behaviour rather than a backlog that grows.
+- **A trace viewer of Dartvel's own.** `/_dartvel/traces` is a debugging
+  buffer, not a product. Studio links a request to the trace in whatever
+  backend the deployment sends spans to.
 
 ---
 
