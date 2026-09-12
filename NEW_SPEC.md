@@ -534,8 +534,14 @@ DV.global<Cart>(Cart());
 Retrieve
 
 ```dart
-DV.global<Cart>(); // To retrieve, don't pass a value, just the type.
+DV.global<Cart>();              // no instance passed: a read
+DV.global<Cart>(null, 'store'); // a read from a module's namespace
 ```
+
+The signature is `T global<T>([T? instance, String namespace = ''])`. Passing an
+instance registers it; passing none — or `null`, when a namespace argument
+follows — reads. [Modules](#modules) uses the second form, which is the same
+call rather than a different one.
 
 Reactive
 
@@ -2976,7 +2982,7 @@ written to observability through `DV.log`, and is readable on the window.
 enum DVWindowDegradation {
   none, capabilityUnsupported, kioskLocked, gestureRequired,
   platformRefused, disabledByConfig, ownerClosed, modalityReduced,
-  displayUnavailable, displayOwned, pinned,
+  displayUnavailable, displayOwned, displayHintUnmatched, pinned,
 }
 ```
 
@@ -3547,7 +3553,7 @@ final tenantExport = User.Export.csv(
   ),
 );
 await for (final chunk in User.Export.streamNdjson(users)) {
-  await DV.Storage.put(chunk.fileName, chunk.bytes);
+  await DV.FileStorage.put(chunk.fileName, chunk.bytes);
 }
 final report = await Order.Report.monthly(...);
 final scheduled = Order.Report.scheduleMonthly(cron: '0 8 1 * *');
@@ -3934,12 +3940,17 @@ any widget, whether Flutter-native, `DVClassWidget`, or `DVFunctionalWidget`.
 Unsupported targets are excluded from the compiled binary/artifact or fail
 validation based on project configuration.
 
+`DVClassWidget` is the class form of a Dartvel widget — `abstract class
+DVClassWidget extends DartvelPage` — for a widget that wants a class rather
+than an annotated function. It carries the same shell properties a page does,
+and the generators recognise it wherever they recognise an `@DVPage` function,
+so a home widget may be written either way.
+
 ```dart
 @DVHomeWidget()
 @DVFunctionalWidget()
-Widget _stepCounterWidget(
-    BuildContext context
-) {...}
+Widget _stepCounterWidget(BuildContext context) =>
+    DVBox.list([DVText('Steps'), DVText('${DV.global<StepCounter>().today}')]);
 ```
 
 Home widgets act like `DVPage` and support the same shell properties. They can
@@ -4062,7 +4073,7 @@ final user = await createUser(name, email);
 ```bash
 dartvel generate
 dartvel db migrate
-dartvel test          # or: unit | widget | backend | integration | migration | platform
+dartvel test          # or: e2e | golden | native | accessibility | release
 dartvel build android # see Build targets
 dartvel deploy        # or: cloud-run | lambda | container | fly | railway
 dartvel logs          # dartvel metrics | dartvel traces | dartvel studio
@@ -4565,11 +4576,15 @@ class _User(
 ```
 
 `encrypted: true` seals the value with AES-256-GCM before it is written and
-opens it when the row is read. The keyring comes from `DARTVEL_FIELD_KEYS` in
-the server process environment, written newest first as
-`<id>:<base64 32-byte key>`, and from nowhere else: generated model code is
-compiled into the application bundle as well as the server, so a key the
-generator could reach would ship to every visitor. A process with no keyring
+opens it when the row is read. The keyring is `DARTVEL_FIELD_KEYS`, written
+newest first as `<id>:<base64 32-byte key>`. It is a backend-scoped secret and
+resolves through [Secrets and Environments](#secrets-and-environments) like any
+other, so a vault or KMS adapter can serve it without generated code learning
+where the value came from. The scope is the part that may not move: generated
+model code is compiled into the application bundle as well as the server, so a
+key reachable from client code would ship to every visitor. Backend scope is
+what prevents that, and it is structural rather than advisory — a web build
+resolves no backend secret at all. A process with no keyring
 raises on the field rather than falling back to plaintext, which also settles
 where such a model lives: the server persists it, and a device reading or
 writing the same model against its local database gets that refusal instead of
@@ -5075,9 +5090,10 @@ dartvel doctor --targets android,ios,web,vscode
 
 Dartvel upgrades preserve source, generated-code, protocol, database, module,
 plugin, and deployment compatibility. Automated code migrations handle changes
-such as `DVStyleModifier → DVModifier`, `.styleModifier() → .modifier()`, and
-`DV.BlobStorage → DV.FileStorage`. Module manifests declare compatible Dartvel
-versions, validated before compiling or mounting.
+such as `DVStyleModifier → DVModifier`, `.styleModifier() → .modifier()`,
+`DV.Storage → DV.FileStorage`, and `DV.BlobStorage → DV.FileStorage`. Module
+manifests declare compatible Dartvel versions, validated before compiling or
+mounting.
 
 ```bash
 dartvel upgrade --plan
