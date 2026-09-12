@@ -207,6 +207,31 @@ final class DVDiagnostics {
       level: 'warning',
     ),
     DVDiagnostic(
+      code: 'DV-HTTP-001',
+      reason: 'request to an undeclared host',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-HTTP-002',
+      reason: 'circuit breaker open; request failed fast',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-HTTP-003',
+      reason: 'non-idempotent request retried without an idempotency key',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-HTTP-004',
+      reason: 'a test reached the network with no fake configured',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-HTTP-005',
+      reason: 'declared host used from client code with a backend-scoped secret',
+      level: 'error',
+    ),
+    DVDiagnostic(
       code: 'DV-SESSION-001',
       reason: 'multi-factor required by policy and not yet satisfied',
       level: 'info',
