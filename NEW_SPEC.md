@@ -2901,6 +2901,305 @@ Upstream is a research project and does not need to already do everything —
 that is what the fork is for. Producing a distributable binary rather than only
 a development run, and whatever else Dartvel requires, is work the fork carries
 rather than a reason to wait.
+# 3D Scenes
+
+Stability: `Draft` · Status: `Designed`
+
+Dartvel applications get real-time 3D — product viewers, configurators,
+data visualization, signage, games — rendered by Impeller through Flutter
+GPU, with the same conventions as everything else in the platform: typed and
+generated, signal-reactive, asset-validated at build time, degradation
+reported rather than silent, and no new primitive.
+
+## The viewport is a box
+
+```dart
+@DVPage(title: 'Espresso M3')
+Widget _productPage(BuildContext context) => DVBox.list([
+    DVText('Espresso M3').modifier(heading),
+    DVBox.scene(
+      DVScene(
+        environment: DVEnvironments.studio,   // IBL; procedural studio default
+        nodes: [
+          DVModel3D(DVScenes.espressoM3)
+              .rotationY(context.signal(0.0)) // a signal is a valid argument
+              .animation(DVAnimations.espressoM3.steamLoop),
+          DVCamera.orbit(
+            target: DVVec3.zero,
+            distance: 2.4,
+            controls: true,                   // drag/pinch orbit built in
+          ),
+          DVLight.directional(direction: DVVec3(-1, -2, -1)).shadows(),
+        ],
+      ),
+    ).aspectRatio(16 / 9).rounded(12),
+  ]);
+```
+
+(Expression body per the generator rule for private `@DVPage` inputs; the
+field-scoped annotation lives under the `DVModel` parent per the model
+conventions — there is no standalone field annotation.)
+
+`DVBox.scene` is a layout mode like `.grid` or `.stack`: the box owns size,
+modifiers, gestures and accessibility semantics; the `DVScene` owns 3D
+content. Scene nodes — `DVNode`, `DVModel3D`, `DVMesh`, `DVCamera`,
+`DVLight`, `DVEnvironment` — are typed scene objects, not widgets, because a
+scene graph and a widget tree have different lifecycles and a pretend-widget
+node would be a lie with a `build` method. Node modifiers (`.rotationY`,
+`.position`, `.scale`, `.material`, `.visible`, `.onTap` via GPU picking)
+follow the fluent style of `DVModifier` and accept plain values **or
+signals** — a signal-valued transform re-renders the frame when it changes,
+so a turntable is one derived signal and no tickers.
+
+Rendering: PBR materials with image-based lighting, directional/point/spot
+lights with shadow casting (cached shadow tiles for static geometry), and a
+blended animation system — surfaced as typed Dartvel API over the pinned
+engine, not re-implemented.
+
+## Assets: imported at build, typed at use
+
+```text
+assets/
+  models/espresso_m3.glb
+  materials/brushed_steel.fmat
+  environments/showroom.hdr
+```
+
+`dartvel build` (and incrementally, `dartvel dev`) runs the import pipeline —
+the engine's native-assets/data-assets build hooks, wrapped so applications
+never configure them — and generates:
+
+```dart
+DVScenes.espressoM3                       // imported model, with its meshes
+DVAnimations.espressoM3.steamLoop         // typed animation handles per model
+DVMaterials.brushedSteel                  // .fmat material
+DVEnvironments.showroom                   // IBL environment
+```
+
+- Import failures are build errors with codes (`DV-3D-002`), naming the file
+  and the reason; a viewport cannot ship pointing at an asset that does not
+  exist or did not convert.
+- Custom shaders live in `shaders/` and are bundled by the same build step;
+  a shader that fails to compile fails the build, per target API (Metal,
+  Vulkan, GLES, WebGL2), not on the user's device.
+- Asset variants (texture sizes, KTX2 compression) follow the Media Pipeline
+  section's variant model; `dartvel analyze` flags textures over budget for
+  the configured device profiles (`DV-3D-006`).
+
+## Model-driven 3D
+
+A model field can be a 3D asset, and the generated layer treats it like any
+other media field:
+
+```dart
+@DVModel()
+class _Product(
+  final String name,
+  @DVModel.model3dField(poster: true, maxSizeMb: 25) final DVFile? asset,
+);
+
+product.viewer3D()        // generated orbit viewer: DVBox.scene + camera + studio env
+Product.Page()            // model page renders the viewer where the field appears
+```
+
+Uploads are validated (format, size, triangle budget) and processed by
+generated jobs — poster render, optional compressed variants — through the
+Media Pipeline's queue machinery. The generated viewer is an application
+component like `User.Table()`: composed from `DVBox.scene`, replaceable, no
+new primitive.
+
+## Reactivity, sync, and multiplayer
+
+Scene state is signal state; shared scene state is model state. Both rules
+already exist — 3D just inherits them.
+
+```dart
+// Local: signals drive nodes directly (see the turntable above).
+
+// Shared: a synced model binds to a node with interpolation, so remote
+// transforms render smoothly under network jitter:
+DVModel3D(DVScenes.kart)
+    .syncTransform(kart.signal(context), interpolation: 120.ms)
+```
+
+`syncTransform` is a generated binding between a synced model's transform
+fields and a node, with a fixed-delay interpolation buffer. Delivery, auth,
+tenant filters and policy checks are model sync's, unchanged. There is no
+scene-specific networking, no room/host API, and no second transport — a
+"scene host" is an application that syncs models, which Dartvel apps already
+are.
+
+## Games: the flame_3d adapter
+
+For game loops, Dartvel does not reinvent Flame. The optional
+`dartvel_flame3d` adapter (a plugin package, per Pluggability) hosts a
+flame_3d game inside `DVBox.scene`, maps Dartvel assets and signals into
+Flame components, and keeps navigation, auth, billing and model sync on the
+Dartvel side:
+
+```dart
+DVBox.scene.game(KartGame())   // Flame3DGame subclass; Dartvel owns the shell
+```
+
+Labelled `Experimental` on its own: flame_3d states plainly that it does not
+guarantee semver, and the adapter's version pins flame_3d exactly. An
+application that wants app-3D (viewers, configurators, dashboards) never
+touches the adapter.
+
+## Physics
+
+The engine's abstract physics contract is surfaced as a typed choice, not a
+Dartvel-built engine:
+
+```yaml
+dartvel:
+  scene3d:
+    physics: rapier        # none (default) | box3d | rapier
+```
+
+```dart
+DVScene(
+  physics: DVPhysics.enabled(gravity: DVVec3(0, -9.81, 0)),
+  nodes: [
+    DVModel3D(DVScenes.crate).rigidBody(mass: 4).collider.box(),
+  ],
+)
+```
+
+Backends ship prebuilt binaries for mainstream targets; exotic architectures
+build from source and require a Rust toolchain — which `dartvel doctor
+--target <t>` reports before the build fails halfway (`DV-3D-005`). Physics
+state that must be shared follows the sync rule above; the physics world
+itself is local simulation.
+
+## Degradation: the poster contract
+
+`DVBox.scene` never renders a hole. Where the target cannot render 3D — no
+Flutter GPU on the embedder, `scene3d` disabled, GPU init failure — the box
+renders the scene's **poster**: a build-time render of the scene's initial
+frame (or the model field's generated poster), with typed degradation
+readable on the viewport and reported once through `DV.log`.
+
+```dart
+enum DV3DDegradation { none, unsupportedTarget, disabledByConfig, gpuInitFailed, assetMissing }
+```
+
+Posters are also what Static Web Generation embeds, what the `<noscript>`
+fallback shows, and what model-page SEO uses as the Open Graph image for a 3D
+field — the degraded path and the crawler path are the same true image.
+
+## Platform matrix
+
+| Target | Renderer | Label |
+|---|---|---|
+| iOS | Impeller (Metal), default | `Supported` |
+| Android | Impeller (Vulkan/GLES), default | `Supported` |
+| macOS | Impeller — enabled by Dartvel's build config | `Supported with limitations`¹ |
+| Windows | Impeller — enabled by Dartvel's build config | `Supported with limitations`¹ |
+| Linux | Impeller — enabled by Dartvel's build config | `Supported with limitations`¹ |
+| Web (JS and wasm) | engine WebGL2 backend; no Flutter GPU in browsers | `Supported with limitations`² |
+| eLinux (Sony) | Impeller GLES on device GPU | `Experimental`³ |
+| Tizen / webOS | embedder forks lack Flutter GPU today | `Unsupported` → poster⁴ |
+| Watch | — | `Unsupported` → poster |
+| Terminal (`-cli`/`-tui`) | cells, not pixels | `Unsupported` → poster |
+
+¹ Impeller is not the default on desktop; `dartvel build` enables it for
+`scene3d` projects and `dartvel doctor` verifies the driver story per machine.
+Desktop rows carry the same upstream caveat as windowing: flag-gated upstream,
+absorbed by the pinned toolchain.
+
+² The engine's built-in WebGL2 backend runs under both CanvasKit and Skwasm
+with no flags; feature gaps versus native (shadow fidelity, compressed
+texture formats) are reported through capability, not discovered visually.
+The flame_3d adapter's web path uses its experimental WebGPU backend and
+inherits that label.
+
+³ The signage case — a 3D product loop on a kiosk — is exactly Dartvel's
+embedded identity, and exactly where GPU drivers vary most. `Experimental`
+until per-board evidence exists in `docs/build-targets.md`; device profiles
+declare the GPU, and `dartvel doctor --target sony-elinux` validates it.
+
+⁴ "Unsupported → poster" is honest twice over: the capability is absent, and
+the API still renders something true. No target throws.
+
+## Configuration
+
+```yaml
+dartvel:
+  scene3d:
+    enabled: true
+    physics: none                  # none | box3d | rapier
+    assets:
+      models: assets/models
+      materials: assets/materials
+      environments: assets/environments
+      compressTextures: auto       # auto | ktx2 | off
+    poster:
+      generate: true
+      size: 1200x630               # OG-friendly default
+    budgets:                       # feed dartvel analyze / performance contracts
+      frameMs: 8                   # per viewport, on the profile device
+      maxDrawCalls: 300
+      maxTextureMb: 128
+```
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-3D-001` | scene presented as poster (unsupported target / disabled / GPU init failed) | `info`, once per boot |
+| `DV-3D-002` | asset failed to import or is missing at build | build `error` |
+| `DV-3D-003` | shader failed to compile for a configured target | build `error` |
+| `DV-3D-004` | `scene3d` API used without `scene3d.enabled` | build `error` |
+| `DV-3D-005` | physics backend needs a toolchain the machine lacks | build `error` via doctor |
+| `DV-3D-006` | texture/mesh over the device-profile budget | `warning` (analyze) |
+| `DV-3D-007` | per-frame allocation detected in a scene callback | `warning` (analyze) |
+| `DV-3D-008` | `syncTransform` bound to a non-synced model | build `error` |
+
+## Studio and scene documents
+
+The engine serializes scenes as documents (`.fscene`), which slots straight
+into Studio's existing shape: a `DV3DSceneDocument` is stored through
+`DV.Database`, rendered by the same runtime the app uses, versioned and
+delivered like a `DVPageBundle` — so a signage fleet's scene can be updated
+OTA without an app release, with the same idempotent-apply and
+previous-bundle-rollback rules. Studio v1 exposes inspect-and-edit of node
+properties; a full 3D editor canvas is a later phase and is not promised
+here.
+
+`dartvel inspect scene3d --json` lists scenes, their assets, budgets and
+per-target support through the project graph, like every other inspector.
+
+## Testing and performance
+
+- Golden 3D tests render with a fixed camera, the procedural studio
+  environment, and deterministic time, per target renderer:
+  `dartvel test golden` covers viewports like any widget.
+- `DV.Test.fake3D()` substitutes a headless backend so scene *logic* (signals,
+  sync bindings, physics stepping) tests without a GPU.
+- Performance contracts gain: viewport frame time against `budgets.frameMs`,
+  draw calls, texture memory, shader compile time at build, poster generation
+  time. Diagnostics `DV-3D-006/007` land in `dartvel analyze performance`.
+
+## Deliberately absent
+
+- **A second realtime stack.** No scene networking, rooms, or hosts; model
+  sync is the delivery system, with `syncTransform` as the binding.
+- **An audio engine.** The ecosystem's FMOD integration is commercially
+  licensed; Dartvel does not bundle a licensing obligation into a framework
+  feature. Audio remains pluggable.
+- **A Dartvel-built renderer or physics engine.** Pinned engines behind a
+  typed surface, per the `go_router` precedent.
+- **Scene nodes as widgets.** Widgets lay out; nodes render. `DVBox.scene` is
+  the one place the trees meet.
+- **AR/VR/XR.** A different input, display and permission model; a separate
+  proposal if ever.
+- **A promise of `Contract` stability today.** Upstream is experimental and
+  says so; this section is `Draft` until Flutter GPU stops renaming its
+  verbs, and the promotion to `Contract` is a status change, not a redesign.
+
+---
+
 # Multi-Window
 
 Stability: `Contract` · Status: `Partial`
@@ -4652,12 +4951,18 @@ Explicit overrides:
 @DVModel.mainContent()   final String body;
 @DVModel.pageOrder(3)    final String author;
 @DVModel.hideFromPage()  final String internalReference;
+@DVModel.model3dField()  final DVFile? asset;
 ```
 
 Field-scoped model annotations live under the `DVModel` parent, alongside
-`@DVModel.sensitiveField()` and `@DVModel.searchableField()`. There are no
-standalone `@DVFeaturedImage`, `@DVPageTitle`, `@DVMainContent`, `@DVPageOrder`
-or `@DVHideFromPage` annotations.
+`@DVModel.sensitiveField()`, `@DVModel.searchableField()` and
+`@DVModel.model3dField()`. There are no standalone `@DVFeaturedImage`,
+`@DVPageTitle`, `@DVMainContent`, `@DVPageOrder` or `@DVHideFromPage`
+annotations.
+
+A `@DVModel.model3dField()` renders through the generated viewer where the
+field appears, and contributes its poster to the page's Open Graph image; see
+[3D Scenes](#3d-scenes).
 
 ## Page data modes
 
@@ -4866,6 +5171,12 @@ favicon, the Flutter bootstrap/loader, preload hints, and a raw-text fallback:
 The raw text is generated from `DVText`, model-page fields, SEO descriptions,
 static page content, and accessible semantic labels. When scripting is enabled
 and Flutter is supported, the Flutter application takes over.
+
+A page carrying a `DVBox.scene` viewport contributes its **poster** — the
+build-time render described in [3D Scenes](#3d-scenes) — to the generated
+page, to the `<noscript>` fallback, and to the Open Graph image of a model
+page whose 3D field it is. The degraded path and the crawler path are the same
+true image, so neither is a placeholder nobody checks.
 
 ## Dynamic routes during SSG
 
@@ -5257,9 +5568,9 @@ dartvel explain DV001
 Every inspector above answers a question about the same thing: what this
 application is made of. That is one artifact, not eight — a versioned
 **`DartvelProjectGraph`** carrying routes, models and their fields, backend
-functions, jobs, modules, static paths, the schema, memory arenas, and
-capability metadata, each node keeping the source mapping it was derived
-from.
+functions, jobs, modules, static paths, the schema, memory arenas, 3D
+scenes, and capability metadata, each node keeping the source mapping it was
+derived from.
 
 The graph is the contract, and `--json` is how it is read:
 
