@@ -105,6 +105,12 @@ in use include `DV-KIOSK`, `DV-WINDOW`, `DV-SECRETS`, `DV-ELINUX`,
 the level, and every enumerated degradation has a member in the matching
 enum — the level is calibrated to whether the developer can act on it.
 
+A level may be qualified by where it is reported — `build `error``,
+`gate `error``, `doctor `warning`` — and the qualifier is prose, not part of
+the level: the code is registered at the bare level and the qualifier says
+which stage raises it. Every code in a table is registered in
+`DVDiagnostics.all`, and a test compares the two in both directions.
+
 ## Commands
 
 `dartvel test` runs the fast suites; the named ones are `e2e`, `golden`,
