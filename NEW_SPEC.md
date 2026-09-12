@@ -771,7 +771,7 @@ All backend data is transmitted as form-data to allow large request sizes if nec
 
 # Scheduling
 
-Stability: `Draft` · Status: `Shipped`
+Stability: `Draft` · Status: `Partial`
 
 Backend
 
@@ -784,6 +784,59 @@ Client
 ```dart
 @DVClientCron(...)
 ```
+
+## A client schedule is a request, not a guarantee
+
+`@DVClientCron(every: 5.minutes)` reads like a promise, and on a phone it is
+not one. iOS decides when a background refresh task runs and may decide never;
+Android's WorkManager will not schedule periodic work more often than every
+fifteen minutes and Doze defers it to a maintenance window; a browser throttles
+timers in a background tab. Dartvel states what each target really does rather
+than letting the annotation imply a clock it does not have.
+
+**Lifetime.** A client schedule ticks while the application is showing a page
+and stops with the last one, and coming back ticks once straight away — what
+came due while the application was away is due now, not up to an interval from
+now. Registering again replaces the previous registration rather than adding to
+it, so a second router cannot double a schedule.
+
+| Target | What "every 5 minutes" becomes |
+|---|---|
+| iOS | a `BGTaskScheduler` refresh request; the system chooses the moment and may skip it, each run is seconds long, and a user force-quit stops it until the app is opened again |
+| Android | `WorkManager` periodic work, floor of 15 minutes, deferred to Doze maintenance windows and to whatever the OEM's battery policy adds |
+| Web | while the tab is open; a background tab is throttled to roughly one wakeup a minute, and a closed tab runs nothing |
+| macOS, Windows, Linux | while the application runs; App Nap and timer coalescing shift the wakeup, and nothing runs once it is closed |
+| Embedded, TV, kiosk | while the application runs, which on a kiosk is usually always; a restart restarts the schedule |
+
+Dartvel does not install a launch agent, a scheduled task, or a service to make
+a closed desktop application tick. That is a system-level install with its own
+consent and its own uninstall story, and a framework that did it quietly would
+be leaving something behind on a machine after the application was gone.
+
+**The capability is typed**, like every other platform difference:
+
+```dart
+final report = DV.Schedules.capability(Schedules.refreshDashboard);
+report.granularity;      // the finest interval this target will honour
+report.whenBackgrounded; // runs | deferred | suspended
+report.whenTerminated;   // never | wakesOnSchedule
+```
+
+`dartvel doctor` reads the same report, so a schedule asking for something the
+target will not do is a finding at build time rather than a bug report about a
+feature that "sometimes does not run".
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-CRON-001` | declared interval finer than the target's granularity; coalesced to it | `warning` (analyze) |
+| `DV-CRON-002` | client schedule on a target that runs nothing in the background | `info` at boot |
+| `DV-CRON-003` | a run was skipped because the previous one was still running | `debug` |
+| `DV-CRON-004` | the platform refused to register background work (permission or battery policy) | `warning` |
+
+Work that must happen on time happens on the server. `@DVBackendCron` runs on a
+machine that is awake, and a schedule that matters to somebody else's data or
+to a deadline belongs there; `@DVClientCron` is for refreshing what this device
+is showing.
 
 ---
 
