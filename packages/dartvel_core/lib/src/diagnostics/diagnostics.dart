@@ -1490,6 +1490,21 @@ final class DVDiagnostics {
       reason: 'the worker pool is saturated and tasks are queueing behind it',
       level: 'warning',
     ),
+    DVDiagnostic(
+      code: 'DV-GEN-001',
+      reason: 'committed generated output is stale; run the generator',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-GEN-002',
+      reason: 'generated output differs between two runs on the same input',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-GEN-003',
+      reason: 'a generator upgrade changes output shape; see the plan',
+      level: 'info',
+    ),
   ];
 
   /// The diagnostic for [code], or null if nothing is registered under it.

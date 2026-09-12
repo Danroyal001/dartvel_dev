@@ -11273,6 +11273,97 @@ panels, analyzer rules, and build hooks. Raw HTTP behavior stays on
 `@DVBackendFunction`, so no separate raw-route abstraction is required.
 
 ---
+# Generated Code Determinism
+
+Stability: `Draft` · Status: `Designed`
+
+Unified Development promises generated code is inspectable: real Dart, in the
+repository, with source mappings back to what produced it. Inspectable is not
+the same as reviewable. A team adopting Dartvel into an existing application
+reads diffs, and generated output that reorders itself, restamps itself, or
+changes shape between generator patch versions makes every pull request
+unreadable — which trains reviewers to skip `dartvel_client/` entirely, and
+then the transparency the section promised is worth nothing.
+
+## The contract
+
+Identical inputs produce **byte-identical** output. That is the whole of it,
+and everything below is a consequence:
+
+- **Stable ordering.** Anything derived from a directory listing, a map, or a
+  set is sorted before it is written. A filesystem that enumerates in a
+  different order on another machine must not produce a different file.
+- **No timestamps, no build ids, no machine names, no absolute paths.** A
+  value that changes when nothing changed is a value that rewrites every file
+  on every build.
+- **One version record.** The generator's version is written once, in a header
+  the file already has, so a generator upgrade produces one deliberate diff
+  rather than a header change per file.
+- **Formatted on the way out**, with `dart format`, so the output does not
+  reformat under a reviewer's editor.
+
+## What this is fixing
+
+Today every generated file opens with a line of this shape:
+
+```dart
+// BUILD: 2026-09-11T21:14:10.766826Z#1789161250766
+```
+
+It is a wall-clock stamp taken once per generation and written into each file,
+so **every regeneration modifies every generated file** whether or not
+anything about the project changed. A team cannot tell a real change from a
+rebuild, `git status` is never clean after a build, and a reviewer learns that
+the whole directory is noise. The build id is not useless — it belongs in the
+build's own record, where Unified Development already keeps provenance — it
+just must not be in the files.
+
+## Stale output is a failure, not a warning
+
+```bash
+dartvel generate --check
+```
+
+Regenerates into a scratch location and compares. Identical, it exits zero;
+different, it fails and prints the paths, which makes stale committed output a
+CI failure rather than something discovered when a reader wonders why the
+router disagrees with the pages. This is the same shape as
+`dart run tool/spec_status_check.dart`: a claim checked mechanically rather
+than by discipline.
+
+A `CODEOWNERS` template for the generated directory ships with the scaffold,
+so review of generated output is routed rather than assumed.
+
+## Generator upgrades that change shape
+
+A generator that never changed its output would never improve. When an upgrade
+does change shape, `dartvel upgrade --plan` lists it with the diff it will
+cause, so the change arrives as a reviewed step rather than as an unexplained
+thousand-line commit. That is the same plan-before-acting rule the migration
+planner and the deploy gate already follow.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-GEN-001` | committed generated output is stale; run the generator | build `error` (`--check`) |
+| `DV-GEN-002` | generated output differs between two runs on the same input | build `error` |
+| `DV-GEN-003` | a generator upgrade changes output shape; see the plan | `info` |
+
+`DV-GEN-002` is the one that keeps the contract honest. A determinism promise
+nothing verifies is the kind of claim this specification has already had to
+withdraw elsewhere: generating twice and comparing is cheap, and it is the only
+thing that catches an unsorted map before a reviewer does.
+
+## Deliberately absent
+
+- **Checking generated code into review as if it were written.** It is
+  reviewed as output — read to confirm it matches the input, not edited.
+- **A diffing format of Dartvel's own.** `git diff` is the tool; the work is
+  making the output worth diffing.
+
+---
+
 
 # Mental Model
 
