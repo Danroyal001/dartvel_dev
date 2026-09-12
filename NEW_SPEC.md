@@ -650,6 +650,158 @@ Using the new native Dart data-class syntax. Automatically generates:
 
 ---
 
+# Record History and Optimistic Concurrency
+
+Stability: `Draft` · Status: `Designed`
+
+Offline-First Models answers what happens when a device that was disconnected
+reconnects. Two people editing the same order on two desks, both online, is the
+ordinary case, and it has the same shape: a write landing on a record that has
+moved since it was read. This section answers it with the same vocabulary, and
+keeps the record of what changed.
+
+## One version, one conflict vocabulary
+
+Every model carries a generated version. It is the same version offline replay
+compares to decide whether a queued mutation is stale, so there is one notion
+of "the row moved" rather than two that disagree at the edges.
+
+Writes are checked against it by default:
+
+```dart
+final order = await Order.find(id);
+await order.copyWith(quantity: 3).save();   // refused if the row moved
+```
+
+```dart
+try {
+  await order.save();
+} on DVConflictError catch (conflict) {
+  conflict.mine;    // what this session wrote
+  conflict.theirs;  // what the row holds now
+  conflict.base;    // what this session read
+}
+```
+
+**Versioning is on by default, and opt-out.** A lost update is silent: the
+second writer sees success, the first writer's change is gone, and nothing in
+the system knows. Making the safe behaviour opt-in means every application has
+it wrong until somebody notices in production. The cost is one integer column
+and one predicate on update, which is the cheapest correctness in the
+specification. `@DVModel(version: false)` exists for append-only tables where
+writes never contend, and says so at the declaration.
+
+`DVConflict` is the enum Offline-First Models already defines, with one member
+added for the online case:
+
+| Strategy | Resolution |
+|---|---|
+| `DVConflict.ask` | refuse the write and hand both versions to the caller — the online default |
+| `lastWriteWins` | the later write by declared clock, whole model |
+| `serverWins` | the local change is discarded and reported |
+| `fieldMerge` | per field, the later write by declared clock |
+| `DVConflict.resolver(fn)` | a typed resolver the application writes, given both versions |
+
+The difference between online and offline is not the vocabulary; it is whether
+anybody is there to ask. Online, the writer is present, so the default refuses
+and lets them decide. Offline, nobody is present at the moment of the merge, so
+a strategy has to decide in advance — which is why `DVConflict.ask` is not a
+legal offline strategy and is refused at build time (`DV-HISTORY-002`).
+
+Generated forms know the outcome: a refused save reloads the record, shows what
+changed underneath, and offers the merge rather than throwing the person's
+typing away.
+
+## History
+
+```dart
+@DVModel(history: DVHistory(keep: Duration(days: 365)))
+class _Order(
+    String reference,
+    int quantity,
+);
+```
+
+```dart
+await order.history();            // who changed what, when, in which transaction
+await order.revert(to: entry);    // a reversible transaction, not a raw write
+```
+
+Each entry records the actor, the tenant, the transaction identifier, and the
+fields that changed. It is written **in the same transaction as the change**,
+because a change log that can miss entries when a separate write fails is not
+a record of anything (`DV-HISTORY-005`).
+
+**History is opt-in, and retention is declared with it.** A change log is a
+second copy of the data with a different lifetime, so switching it on for every
+model would double storage quietly and put values somewhere the application's
+own retention rules were never applied. Retention is enforced by the generated
+scheduled jobs the rest of the platform uses, not a new sweeper
+(`DV-HISTORY-004`).
+
+Volume has somewhere to go: history is stored in the application's database by
+default and can be pointed at another adapter, ClickHouse among the databases
+already supported, without changing what `order.history()` returns.
+
+**Sensitive fields are recorded as changed, never as values.**
+`@DVModel.sensitiveField()` excludes a field from logs, traces and analytics;
+copying it into a history table would defeat that in the one place nobody
+thinks to look. An entry says the field changed and by whom. The honest
+consequence is that `revert` cannot restore one: it restores what it holds,
+reports the fields it could not, and leaves them to be set deliberately
+(`DV-HISTORY-003`).
+
+## Soft delete
+
+```dart
+@DVModel(softDelete: true)
+class _Invoice(
+    String number,
+);
+```
+
+```dart
+await invoice.delete();     // marked, not removed
+await Invoice.restore(id);
+Invoice.find(id);           // excludes soft-deleted rows
+Invoice.withDeleted.find(id);
+```
+
+Queries, model pages, tables, search indexes and sync all exclude soft-deleted
+rows by default — Search already assumes this filter exists, and this is where
+it is specified. Restoring is refused rather than forced when a unique field
+has since been taken by a live record, because the alternative is two rows
+claiming one invoice number (`DV-HISTORY-006`).
+
+## Studio
+
+Studio's undo over page documents and this are the same mechanism seen twice:
+a versioned record with entries that can be reverted in a reversible
+transaction. Studio reads `history()` for any model with it enabled, so an
+administrator can see who changed a price and put it back without SQL.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-HISTORY-001` | write refused: the record changed since it was read | `error` |
+| `DV-HISTORY-002` | `DVConflict.ask` declared as an offline strategy, where nobody is present to ask | `error` |
+| `DV-HISTORY-003` | revert could not restore a sensitive field; history records the change, not the value | `warning` |
+| `DV-HISTORY-004` | history entries removed by the declared retention | `info` |
+| `DV-HISTORY-005` | history entry could not be written; the transaction was rolled back | `error` |
+| `DV-HISTORY-006` | restore refused: a unique field is held by a live record | `error` |
+
+## Deliberately absent
+
+- **A second conflict vocabulary.** `DVConflict` is Offline-First Models', with
+  `ask` added for the case where somebody is present.
+- **History on by default.** It is a copy of the data with its own retention;
+  turning it on for a model is a decision with a storage bill.
+- **Reverting someone else's concurrent change silently.** `revert` is a
+  reversible transaction and takes the same version check as any other write.
+
+---
+
 # Forms
 
 Stability: `Contract` · Status: `Shipped`
@@ -1557,6 +1709,11 @@ class _Profile(
 | `serverWins` | the local change is discarded and reported |
 | `fieldMerge` | per field, the later write by declared clock |
 | `DVConflict.resolver(fn)` | a typed resolver the application writes, given both versions |
+
+The same enum answers the online case, where the writer is present to be
+asked: see Record History and Optimistic Concurrency. `DVConflict.ask` is
+that section's online default and is not legal as an offline strategy,
+because offline there is nobody to ask (`DV-HISTORY-002`).
 
 `fieldMerge` is per-field last-writer-wins, and it is deliberately not a CRDT.
 A CRDT for collaborative text needs per-field merge state in both the stored
