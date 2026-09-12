@@ -21,7 +21,13 @@
     },
     {
       "section": "Project Structure",
-      "kind": "narrative"
+      "stability": "Contract",
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_cli/lib/src/config/dartvel_config.dart",
+        "packages/dartvel_cli/lib/src/generators/routes_generator.dart"
+      ],
+      "absent": "Absent: the glob patterns. The section offers glob patterns for file groups, directories and subdirectories under the dartvel: key, and nothing in dartvel_config.dart reads one -- the path options are plain strings with defaults, so a project whose pages live in two directories cannot say so. The rest is built: the default paths, the per-key overrides, and the Dart config file, whose public class extending DartvelConfig is found by the regex at dartvel_config.dart:189 and must start with an uppercase letter so the CLI can import it."
     },
     {
       "section": "Configuration",
@@ -1039,7 +1045,14 @@
     },
     {
       "section": "Package Structure",
-      "kind": "narrative"
+      "stability": "Draft",
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_dev/lib/dartvel.dart",
+        "packages/dartvel_dev/lib/dartvel_ui.dart",
+        "packages/dartvel_dev/lib/dartvel_rust_bindings.dart"
+      ],
+      "absent": "Absent: most of DV.Rust. The barrels all exist under dartvel_dev and each re-exports its implementation package. The Rust bindings are one integer type: DVRust and DVRustInt in dartvel_flutter, which is enough for the DV.Rust.Int example in the section and nothing further -- no float, no string, no struct, and no way to write a kernel in Rust and call it. Until this audit every import path in the section named package:dartvel/, a package that does not exist and cannot: the name was taken on pub.dev on 2026-08-06."
     },
     {
       "section": "Home Widgets",
@@ -1092,7 +1105,17 @@
     },
     {
       "section": "The Golden Path",
-      "kind": "narrative"
+      "stability": "Contract",
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_cli/lib/src/commands/init_command.dart",
+        "packages/dartvel_cli/lib/src/commands/dev_command.dart",
+        "packages/dartvel_cli/lib/src/commands/generate_command.dart",
+        "packages/dartvel_cli/lib/src/commands/db_command.dart",
+        "packages/dartvel_cli/lib/src/commands/build_command.dart",
+        "packages/dartvel_cli/lib/src/commands/deploy_command.dart"
+      ],
+      "absent": "Absent: the last step. dartvel upgrade, dartvel compatibility-check and dartvel migrate-code do not exist, which the section now says where it prints them rather than leaving the reader to find it in Unified Development, Transparency, and Contracts. dartvel init also does not yet mean what Adoption needs it to mean: it is an alias of create, which overwrites pubspec.yaml with the scaffold template. Everything before that step is built -- create, dev, generate, db migrate, test, build, deploy and logs are all real commands."
     },
     {
       "section": "Adoption",
