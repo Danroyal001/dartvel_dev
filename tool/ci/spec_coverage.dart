@@ -75,3 +75,54 @@ String dvNormaliseSection(String name) => name
         .toList(growable: false),
   );
 }
+
+/// A section's two labels, as the specification prints them.
+typedef DVSpecLabel = ({String stability, String status});
+
+/// The `Stability: X · Status: Y` line under each `#` heading of [markdown].
+///
+/// The specification prints the pair and `docs/spec-status.json` records it,
+/// and two places holding one fact is where a fact goes stale. This is the
+/// reading half of the comparison `tool/spec_status_check.dart` makes.
+///
+/// A label is attributed to the nearest preceding `#` heading, and only while
+/// no `##` has intervened: a subsection may carry its own labels, and reading
+/// one of those as its parent's would report a pair the section never claimed.
+/// Fenced code blocks are skipped, for the same reason [dvSpecHeadings] skips
+/// them — a sample that prints a status line is not a status.
+Map<String, DVSpecLabel> dvSpecLabels(String markdown) {
+  final Map<String, DVSpecLabel> labels = <String, DVSpecLabel>{};
+  final RegExp label =
+      RegExp(r'^Stability:\s*`(\w+)`\s*·\s*Status:\s*`(\w+)`\s*$');
+  String? section;
+  bool fenced = false;
+
+  for (final String line in const LineSplitter().convert(markdown)) {
+    final String trimmed = line.trimLeft();
+    if (trimmed.startsWith('```') || trimmed.startsWith('~~~')) {
+      fenced = !fenced;
+      continue;
+    }
+    if (fenced) continue;
+
+    final RegExpMatch? heading = RegExp(r'^#\s+(.+?)\s*$').firstMatch(line);
+    if (heading != null) {
+      section = heading.group(1)!;
+      continue;
+    }
+    // Any deeper heading ends the section's own preamble.
+    if (line.startsWith('#')) {
+      section = null;
+      continue;
+    }
+
+    final RegExpMatch? match = label.firstMatch(line.trim());
+    if (match == null || section == null) continue;
+    labels.putIfAbsent(
+      section,
+      () => (stability: match.group(1)!, status: match.group(2)!),
+    );
+    section = null;
+  }
+  return labels;
+}
