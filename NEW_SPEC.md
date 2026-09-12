@@ -2138,6 +2138,135 @@ JNI/jnigen only, no Flutter platform channels.
 ---
 
 ---
+# Platform Memory
+
+Stability: `Draft` · Status: `Designed`
+
+Deterministic, preallocated, reusable memory on every Dartvel target. Apps that
+process large data — media pipelines, analytics, ML pre/post-processing,
+embedded kiosk workloads — should not depend on GC timing or per-job
+reallocation. `DVPlatformMemory` reserves a memory budget once at startup and
+hands out typed scalars and arrays from it for the lifetime of the app,
+arena-style.
+
+One API, every target. The backing store is selected automatically:
+
+- Android, iOS, Windows, Linux, macOS, Fuchsia, sony-elinux, Tizen, webOS —
+  native-heap segments through generated FFI (outside the Dart GC; stable
+  addresses, shareable with isolates and Rust bindings zero-copy).
+- Web (JS and wasm) — `ArrayBuffer`-backed segments. Same API, best-effort
+  budget: the browser may grant less than asked and the allocator degrades
+  gracefully.
+
+Memory is allocated in fixed power-of-two segments (default 256 MB native,
+128 MB web, 64 MB mobile, 32 MB embedded). A single typed array never spans a
+segment invisibly — larger arrays are chunked internally with constant-time
+index math, and hot paths iterate contiguous chunks at full typed-data speed.
+
+## Usage
+
+```dart
+final memoryAllocator = DV.Memory.allocate(gigabytes: 4);
+
+final a = memoryAllocator.int(2);
+final b = memoryAllocator.int(1);
+final c = a.add(b); // 3 — result lives in the same preallocated memory
+
+final samples = memoryAllocator.doubleList(50_000_000);
+samples.fill(0.0);
+await samples.transformAsync((v) => v * 2.0 + 1.0); // yields; UI stays live
+
+memoryAllocator.reset(); // whole arena reusable instantly for the next job
+```
+
+Scalars (`DVInt`, `DVDouble`, `DVBool`) and lists (`MemorySlice<int>`,
+`MemorySlice<double>`) expose standard primitive types; the storage
+representation (float32, int16, uint8, int64-vs-float64 on JS) is converted
+under the hood. No byte-level code in application logic; `rawBytes` /
+`rawStruct` remain available for binary interop.
+
+## Allocation through DV.Memory
+
+`DV.Memory` is a factory, not a singleton arena. `DV.Memory.allocate(...)`
+constructs and returns a `DVPlatformMemory` instance under the hood; every
+call produces an independent arena with its own budget, segments, cursor, and
+lifecycle. Applications may hold several at once — one per subsystem, one per
+job class, one per module:
+
+```dart
+final memoryAllocator = DV.Memory.allocate(gigabytes: 4);
+final frames = DV.Memory.allocate(megabytes: 512, segment: DVSize.mb(64));
+
+final buffer = memoryAllocator.uint8(width * height * 4);
+memoryAllocator.reset();   // resets this arena only
+frames.dispose();          // releases this arena only
+```
+
+`DV.Memory.allocate` accepts the same parameters as the `DVPlatformMemory`
+constructor (`gigabytes`, `megabytes`, `profile`, `segment`, `touchPages`) and
+applies the per-target defaults and ceilings from configuration before
+allocating. The factory also registers each live arena so diagnostics,
+performance contracts, and the Studio memory panel can report per-arena and
+aggregate usage. `DVPlatformMemory(...)` remains directly constructible;
+factory-created arenas are simply the instrumented path.
+
+## Configuration
+
+Configuration supplies defaults and per-target ceilings that
+`DV.Memory.allocate` applies to every arena it creates; it does not create a
+global arena itself.
+
+```yaml
+dartvel:
+  memory:
+    budget: 4GB              # default budget when allocate() omits a size
+    segment: 256MB
+    touchPages: desktop      # commit physical pages at startup; never on
+                             # mobile/embedded (OOM-killer pressure), no-op web
+    targets:
+      web:      { budget: 512MB, segment: 128MB }
+      android:  { budget: 512MB, segment: 64MB }
+      ios:      { budget: 512MB, segment: 64MB }
+      tizen:    { budget: 128MB, segment: 32MB }
+      webos:    { budget: 128MB, segment: 32MB }
+      sony-elinux: { budget: 256MB, segment: 32MB }
+```
+
+Device profiles may override memory settings; `dartvel doctor` validates the
+configured budget against the device profile's declared RAM.
+
+## Platform semantics
+
+- Preallocation is best-effort by contract. Each arena's `securedBytes`
+  reports the capacity actually granted; applications size workloads from it.
+- On native targets, segment addresses are stable and may be passed to
+  isolates and generated Rust/FFI bindings for zero-copy shared-memory
+  processing. On web, per-segment chunks align with worker transfer
+  boundaries.
+- `int64` scalars and lists are Supported on native and web-wasm, Supported
+  with limitations on web-js (transparent float64 backing, exact to 2^53 —
+  the ceiling of `int` under dart2js). Bitwise index math stays within
+  32-bit-safe ranges on JS.
+- `reset()` invalidates all previously handed-out scalars and slices; use
+  after each processing job instead of reallocating.
+
+## Diagnostics
+
+Typed and explained, consistent with build validation:
+
+```text
+DV-MEMORY-001  Configured budget not fully secured (asked 4GB, granted 1.5GB).
+DV-MEMORY-002  Arena exhausted; increase budget, reset(), or reduce workload.
+DV-MEMORY-003  int64 requested on web-js; use intList()/int32()/float64().
+DV-MEMORY-004  touchPages enabled on a mobile/embedded target.
+```
+
+Performance contracts add memory-arena metrics: secured capacity, high-water
+usage, reset frequency, and segment fragmentation. Studio exposes the same
+signals in a memory panel.
+
+---
+
 # Kiosk Mode
 
 Stability: `Contract` · Status: `Partial`
@@ -5128,8 +5257,9 @@ dartvel explain DV001
 Every inspector above answers a question about the same thing: what this
 application is made of. That is one artifact, not eight — a versioned
 **`DartvelProjectGraph`** carrying routes, models and their fields, backend
-functions, jobs, modules, static paths, the schema, and capability metadata,
-each node keeping the source mapping it was derived from.
+functions, jobs, modules, static paths, the schema, memory arenas, and
+capability metadata, each node keeping the source mapping it was derived
+from.
 
 The graph is the contract, and `--json` is how it is read:
 
