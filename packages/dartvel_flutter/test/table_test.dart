@@ -10,6 +10,7 @@
 // at the rendered pixels: what a screen reader is told, and where focus goes.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -53,6 +54,7 @@ Future<void> show(
 }
 
 void main() {
+  _roles();
   _onAPhone();
   group('what it renders', () {
     testWidgets('a header and every row', (WidgetTester tester) async {
@@ -74,14 +76,14 @@ void main() {
   });
 
   group('what a screen reader is told', () {
-    testWidgets('a header cell is announced as a header',
+    testWidgets('a header cell announces its column name',
         (WidgetTester tester) async {
       final SemanticsHandle handle = tester.ensureSemantics();
       await show(tester);
 
       expect(
         tester.getSemantics(find.byType(DVTableHeaderCell).first),
-        matchesSemantics(label: 'Name', isHeader: true, hasTapAction: false),
+        matchesSemantics(label: 'Name', hasTapAction: false),
       );
       handle.dispose();
     });
@@ -285,4 +287,74 @@ void _onAPhone() {
       expect(find.byIcon(Icons.arrow_upward), findsOneWidget);
     });
   });
+}
+
+// Appended: the table's roles.
+//
+// A column header was marked `header: true`, which is the flag for a document
+// heading -- Flutter web draws it as an <h2>. A six-column table therefore put
+// six headings into the page outline between the page's real ones, which is
+// what makes an outline useless to someone navigating by heading. A column
+// header is a table role, not a heading, and the roles below are also what
+// tell a screen reader which column a cell belongs to.
+void _roles() {
+  group('the roles a screen reader reads', () {
+    testWidgets('a header cell is a column header, not a document heading',
+        (WidgetTester tester) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+      await show(tester);
+
+      final SemanticsNode header =
+          tester.getSemantics(find.byType(DVTableHeaderCell).first);
+      expect(header.role, SemanticsRole.columnHeader);
+      expect(header.getSemanticsData().flagsCollection.isHeader, isFalse,
+          reason: 'isHeader is a document heading; it is what puts a column '
+              'name in the page outline');
+      handle.dispose();
+    });
+
+    testWidgets('the table, its rows and its cells carry their roles',
+        (WidgetTester tester) async {
+      // Flutter asserts this hierarchy in debug: a row must be a child of a
+      // table, and a cell or column header a child of a row. A test that only
+      // checked the header would pass against a tree Flutter rejects.
+      final SemanticsHandle handle = tester.ensureSemantics();
+      await show(tester);
+
+      final SemanticsNode? table = _firstWithRole(
+          tester.getSemantics(find.byType(DVTable<Person>)), SemanticsRole.table);
+      expect(table, isNotNull, reason: 'no node carries the table role');
+
+      final List<SemanticsRole> childRoles = <SemanticsRole>[];
+      table!.visitChildren((SemanticsNode child) {
+        childRoles.add(child.role);
+        return true;
+      });
+      expect(childRoles, isNotEmpty);
+      expect(childRoles.every((SemanticsRole r) => r == SemanticsRole.row), isTrue,
+          reason: 'every child of a table must be a row: $childRoles');
+      handle.dispose();
+    });
+
+    testWidgets('an empty table still says so', (WidgetTester tester) async {
+      // The empty label is not a row, so it cannot sit inside the table node.
+      // It still has to be announced.
+      final SemanticsHandle handle = tester.ensureSemantics();
+      await show(tester, rows: <Person>[]);
+
+      expect(find.bySemanticsLabel('No rows'), findsOneWidget);
+      handle.dispose();
+    });
+  });
+}
+
+/// The first node in [node]'s subtree carrying [role], or null.
+SemanticsNode? _firstWithRole(SemanticsNode node, SemanticsRole role) {
+  if (node.role == role) return node;
+  SemanticsNode? found;
+  node.visitChildren((SemanticsNode child) {
+    found ??= _firstWithRole(child, role);
+    return found == null;
+  });
+  return found;
 }
