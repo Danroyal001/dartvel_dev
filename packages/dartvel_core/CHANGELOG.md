@@ -1,5 +1,28 @@
 ## Unreleased
 
+- A kiosk says when it blocks a route. `routes.allow` was parsed, scanned by
+  doctor and given `DV-KIOSK-006` for a route being blocked, and the redirect
+  that did the blocking reported nothing -- so a kiosk sending `/admin` back
+  to its home page looked exactly like a link that was wrong.
+  `DVKioskDegradation.routeBlocked` is the member that names it, and it was
+  assigned nowhere until now. The block is logged at `debug`, the level the
+  registry gives that code, with the route and where it went.
+- An exit result carries the degradation rather than a code spelled out
+  beside it. `DVKioskExitResult.degradation` is `lockedOut` after
+  `maxAttempts`, `noPolicy` in a build with no kiosk policy, and `none`
+  otherwise; `code` derives from it. The codes were string literals written
+  next to the enum members that mean the same thing -- two places to change
+  and one of them silently stale -- and `DVKioskDegradation.lockedOut` was
+  assigned nowhere at all, so a caller could only learn what had happened by
+  matching the text of a code.
+
+- Diagnostic codes for the sections the third pass added: `DV-STORE` (store
+  publishing and privacy declarations), `DV-RELEASE` (backend release
+  management), `DV-HISTORY` (record history and optimistic concurrency),
+  `DV-ORG` (organizations and invitations), `DV-ANALYTICS` (product analytics
+  and consent) and `DV-APIKEY` (platform API keys, scopes and the OAuth
+  provider). Specified, not built; `dartvel explain` can answer them.
+
 - The diagnostic registry carries the codes the specification added for
   protocol versioning, offline-first models, schema evolution, client
   schedules, 3D scenes and PDF export. `dartvel explain` answered "unknown
