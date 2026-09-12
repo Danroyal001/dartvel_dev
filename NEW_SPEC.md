@@ -50,6 +50,8 @@ make true for a project that already exists.
 
 # Project Structure
 
+Stability: `Contract` · Status: `Partial`
+
 ```text
 lib/
 
@@ -9258,21 +9260,29 @@ need to remember separate generation commands for normal workflows.
 
 # Package Structure
 
-```dart
-package:dartvel/dartvel.dart
+Stability: `Draft` · Status: `Partial`
 
-package:dartvel/dartvel_core.dart
-package:dartvel/dartvel_ui.dart
-package:dartvel/dartvel_backend.dart
-package:dartvel/dartvel_database.dart
-package:dartvel/dartvel_auth.dart
-package:dartvel/dartvel_ai.dart
-package:dartvel/dartvel_platform.dart
-package:dartvel/dartvel_storage.dart
-package:dartvel/dartvel_cli.dart
-package:dartvel/dartvel_observability.dart
-package:dartvel/dartvel_rust_bindings.dart
+```dart
+package:dartvel_dev/dartvel.dart
+
+package:dartvel_dev/dartvel_core.dart
+package:dartvel_dev/dartvel_ui.dart
+package:dartvel_dev/dartvel_backend.dart
+package:dartvel_dev/dartvel_database.dart
+package:dartvel_dev/dartvel_auth.dart
+package:dartvel_dev/dartvel_ai.dart
+package:dartvel_dev/dartvel_platform.dart
+package:dartvel_dev/dartvel_storage.dart
+package:dartvel_dev/dartvel_cli.dart
+package:dartvel_dev/dartvel_observability.dart
+package:dartvel_dev/dartvel_rust_bindings.dart
 ```
+
+`dartvel_dev`, not `dartvel`: the shorter name was taken on pub.dev on
+2026-08-06 by an unrelated package, so the published identifier carries the
+suffix while the command stays `dartvel`. Each of these is a facade over the
+implementation packages — `dartvel_core`, `dartvel_flutter`, `dartvel_shelf`,
+`dartvel_cli`, `dartvel_generator` — which may also be depended on directly.
 
 All Dartvel code is valid on all platforms. Native integrations must use FFI/ffigen or JNI/jnigen bindings; unsupported platform targets fail during validation or are excluded from the generated artifact rather than silently ignoring work.
 
@@ -9337,6 +9347,8 @@ In:
 
 
 # The Golden Path
+
+Stability: `Contract` · Status: `Partial`
 
 Dartvel provides one clearly recommended path from project creation to
 production. Advanced customization is always available, but the default
@@ -11202,14 +11214,22 @@ surface carries both. An h2 subsection inherits its parent's labels unless it
 declares its own.
 
 The exception is a section that describes **no surface at all** — the
-philosophy, the mental model, the golden path, this section. Those are
+philosophy, the mental model, the vision, this section. Those are
 `"kind": "narrative"` in the index and carry no labels, because `Draft` and
 `Designed` said of a paragraph about design goals are words with nothing
-behind them. Thirteen sections are narrative today. The distinction is
+behind them. Nine sections are narrative today. The distinction is
 load-bearing rather than cosmetic: it is the one way a section can legitimately
 have no labels, so a section wrongly marked narrative is a section that has
 escaped the evidence rule, and `kind` is the first thing to check when one
 looks unaccountably quiet.
+
+Four sections have failed that check so far. *Unified Development,
+Transparency, and Contracts* described `dartvel inspect`, `dartvel explain` and
+a versioned project graph; *Project Structure* specifies the default paths and
+the `DartvelConfig` contract the CLI imports; *Package Structure* lists the
+published barrels; and *The Golden Path* prescribes a dozen commands, three of
+which did not exist. A section that tells a reader what to type is describing a
+surface, whatever its tone.
 
 **Stability** — how much the surface can still move:
 
