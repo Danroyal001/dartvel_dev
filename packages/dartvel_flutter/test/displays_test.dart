@@ -245,7 +245,7 @@ void main() {
       final DVDisplayResolution result =
           DVDisplays.resolve(undesignated, DVDisplayHint.secondary);
       expect(result.display, isNull);
-      expect(result.degradation, DVWindowDegradation.displayUnavailable);
+      expect(result.degradation, DVWindowDegradation.displayHintUnmatched);
     });
 
     test('secondary on a single-display machine resolves to nothing', () {
@@ -256,7 +256,7 @@ void main() {
 
       expect(result.display, isNull);
       expect(result.exact, isFalse);
-      expect(result.degradation, DVWindowDegradation.displayUnavailable);
+      expect(result.degradation, DVWindowDegradation.displayHintUnmatched);
     });
 
     test('byIndex addresses displays in reported order', () {
@@ -269,7 +269,7 @@ void main() {
           DVDisplays.resolve(three, DVDisplayHint.byIndex(9));
       expect(result.display, isNull);
       expect(result.exact, isFalse);
-      expect(result.degradation, DVWindowDegradation.displayUnavailable);
+      expect(result.degradation, DVWindowDegradation.displayHintUnmatched);
     });
 
     test('a negative index does not wrap or throw', () {
@@ -299,23 +299,28 @@ void main() {
 
       expect(result.display, isNull);
       expect(result.exact, isFalse);
-      expect(result.degradation, DVWindowDegradation.displayUnavailable);
+      expect(result.degradation, DVWindowDegradation.displayHintUnmatched);
     });
 
     test('with no displays at all it resolves to nothing, not a crash', () {
       final DVDisplayResolution result =
           DVDisplays.resolve(const <DVDisplay>[], DVDisplayHint.primary);
       expect(result.display, isNull);
-      expect(result.degradation, DVWindowDegradation.displayUnavailable);
+      expect(result.degradation, DVWindowDegradation.displayHintUnmatched);
     });
   });
 
   group('the diagnostic code', () {
-    test('displayUnavailable has a stable code and is developer-actionable',
+    test('displayHintUnmatched has a stable code and is developer-actionable',
         () {
-      expect(DVWindowDegradation.displayUnavailable.code, 'DV-WINDOW-013');
-      expect(DVWindowDegradation.displayUnavailable.level, 'warning');
-      expect(DVWindowDegradation.displayUnavailable.reason, isNotEmpty);
+      // 013 is the unhonoured hint. The kiosk window whose display is gone is
+      // 010, a different situation with a different fix, and displayUnavailable
+      // is its member. One name each, or `dartvel explain` on a window's own
+      // code describes the other situation.
+      expect(DVWindowDegradation.displayHintUnmatched.code, 'DV-WINDOW-013');
+      expect(DVWindowDegradation.displayHintUnmatched.level, 'warning');
+      expect(DVWindowDegradation.displayHintUnmatched.reason, isNotEmpty);
+      expect(DVWindowDegradation.displayUnavailable.code, 'DV-WINDOW-010');
     });
 
     test('every degradation code is unique', () {

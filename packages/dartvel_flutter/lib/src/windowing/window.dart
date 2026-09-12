@@ -284,7 +284,16 @@ enum DVWindowDegradation {
   platformRefused,
   bindingRefused,
   disabledByConfig,
+
+  /// A kiosk window whose display is not connected: presented in place,
+  /// fullscreen, with its policy still running (DV-WINDOW-010).
   displayUnavailable,
+
+  /// A `display:` hint that matched no connected display. The window opened
+  /// and the OS placed it, exactly as if no hint had been given -- never on
+  /// another display of the framework's choosing (DV-WINDOW-013).
+  displayHintUnmatched,
+
   restoredRouteUnresolvable,
   ownerClosed,
   modalityReduced,
@@ -303,7 +312,8 @@ extension DVWindowDegradationX on DVWindowDegradation {
         DVWindowDegradation.platformRefused => 'DV-WINDOW-004',
         DVWindowDegradation.bindingRefused => 'DV-WINDOW-006',
         DVWindowDegradation.disabledByConfig => 'DV-WINDOW-005',
-        DVWindowDegradation.displayUnavailable => 'DV-WINDOW-013',
+        DVWindowDegradation.displayUnavailable => 'DV-WINDOW-010',
+        DVWindowDegradation.displayHintUnmatched => 'DV-WINDOW-013',
         DVWindowDegradation.restoredRouteUnresolvable => 'DV-WINDOW-009',
         DVWindowDegradation.ownerClosed => 'DV-WINDOW-007',
         DVWindowDegradation.modalityReduced => 'DV-WINDOW-008',
@@ -1001,7 +1011,7 @@ class DVWindowManager {
     final presentation = kioskInPlace
         ? DVWindowPresentation.page
         : degradation == DVWindowDegradation.none ||
-                degradation == DVWindowDegradation.displayUnavailable ||
+                degradation == DVWindowDegradation.displayHintUnmatched ||
                 degradation == DVWindowDegradation.modalityReduced
             ? DVWindowPresentation.window
             : _presentationFor(options.kind);
