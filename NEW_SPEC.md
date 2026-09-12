@@ -1361,6 +1361,160 @@ fails validation during `dartvel build`.
 
 ---
 
+
+# Edge Security
+
+Stability: `Draft` · Status: `Designed`
+
+Middleware already carries rate limiting, CSRF, CORS, body limits and security
+headers. They defend the requests an application meant to serve. This section
+is about the surface it did not decide to expose: **APIs generates a public
+GraphQL endpoint, a REST surface and an OpenAPI document from the models, and
+all three are live from the first deploy.** A generated endpoint is not a
+smaller attack surface than a hand-written one — it is a larger one, because
+nobody chose each field, and because the schema tells an attacker what to ask
+for.
+
+Everything here is a typed diagnostic and a middleware, like the defences that
+already exist. Dartvel is not a firewall vendor; what it has that a firewall
+does not is the model graph, which is where the limits come from.
+
+## Query cost is computed, not configured
+
+A depth limit written as a number in a config file is a guess that ages badly:
+it is too low for the one legitimate deep query and too high for the abusive
+one. The generator knows the model graph, so it computes the cost of a query
+against the shape of the schema it generated — list fields multiply by their
+page size, a relation costs its target's cost, and a field that resolves
+through a backend function costs what that function declares.
+
+```yaml
+dartvel:
+  api:
+    graphql:
+      maxDepth: auto        # auto | <int> — auto is derived from the graph
+      maxCost: auto
+      introspection: development   # development | never | authenticated
+```
+
+A query over budget is **refused, not truncated**, with a typed error naming
+the budget it exceeded and by how much (`DV-EDGE-001`). Returning a partial
+result would be worse than refusing: a client cannot tell a trimmed answer from
+a real one, and neither can a cache.
+
+Introspection defaults to development only. It is the fastest way to learn a
+schema, and the generated schema is the whole data model.
+
+## Persisted queries, and why the application's own clients use them
+
+An allow-list of known queries is the strongest defence there is — an endpoint
+that only answers queries it has seen before cannot be asked a new expensive
+one. It is also the defence teams never turn on, because by the time they want
+it their clients send arbitrary documents and switching would break them.
+
+So the generated clients send **persisted query hashes by default**, from the
+first day, whether or not enforcement is on. The build extracts every query the
+application can send, hashes it, and ships the manifest with the backend. That
+makes the allow-list a switch rather than a migration:
+
+```yaml
+dartvel:
+  api:
+    graphql:
+      persistedQueries: require   # off | prefer | require
+```
+
+`require` refuses an unknown document with `DV-EDGE-002`. A third-party
+integration that needs ad-hoc queries gets a key whose scope permits them,
+through the Platform API — which is the honest place for that decision,
+because it is a decision about who, not about what.
+
+## WAF rules are typed middleware over an adapter
+
+Rules are declared and generated like every other middleware, so they are
+reviewable in a diff and testable without a network:
+
+```dart
+const DVWafRule(
+  name: 'block-admin-from-outside',
+  paths: <String>['/admin/**'],
+  methods: <String>['POST', 'PUT', 'DELETE'],
+  from: DVWafSource.notIn(<String>['GB', 'IE']),
+  action: DVWafAction.refuse,
+);
+```
+
+Where a platform firewall exists — a CDN, a load balancer, a cloud WAF — an
+adapter pushes the same rules to it, so they run before the request reaches the
+application and cost nothing to refuse. Where one does not, the same rules run
+as middleware. **The rule is written once and the adapter decides where it
+executes**; an application that moves from a VPS to a CDN does not rewrite its
+rules, and one that has no CDN is not undefended.
+
+A rule that has matched nothing for ninety days, or that matches every request,
+is reported by `dartvel analyze` the way a stale feature flag is
+(`DV-EDGE-006`). A rule nobody can explain is a rule nobody dares delete.
+
+## Bots and credentials
+
+Bot protection is an adapter interface — Turnstile, hCaptcha, reCAPTCHA, a
+private scorer — because captcha providers are a market with jurisdictional and
+privacy trade-offs an application must be free to make, and because bundling
+one would make Dartvel's sign-up form depend on somebody else's uptime. The
+generated auth pages have the challenge slot; which provider fills it is
+configuration.
+
+Credential stuffing is defended in Authentication, where the credentials are:
+
+- **Breached-password checks** on registration and password change, through a
+  k-anonymity range query — the first five characters of the hash go to the
+  service, the password and its full hash never leave the process. A match is
+  refused with `DV-EDGE-004`, because a password known to be in a breach corpus
+  is not a password.
+- **Velocity limits** per account and per source, distinct from the global rate
+  limit: a hundred failures spread across a hundred accounts from one source is
+  the attack that a per-account limit cannot see, and a per-source limit alone
+  punishes an office behind one address.
+- Refusals are **the same shape and the same duration** whether the account
+  exists or not. A faster "no such user" is an account-enumeration oracle.
+
+## Scanning belongs in the gate, not in a report nobody reads
+
+```bash
+dartvel doctor --security
+```
+
+Dependency advisories, committed secrets, and licence obligations, as typed
+findings in the same format as every other diagnostic, exiting non-zero in CI
+(`DV-EDGE-007`). The point of putting it behind `doctor` rather than a separate
+tool is that it is the command people already run, and a security check that
+runs on a schedule nobody watches is a security check that runs never.
+
+## Deliberately absent
+
+- **A Dartvel WAF, bot scorer, or breach corpus.** Adapters over providers. The
+  rules, the budgets and the diagnostics are Dartvel's; the intelligence is
+  bought or borrowed, and stating that keeps the trust boundary honest.
+- **Anomaly detection and "AI-powered" threat scoring.** A defence that cannot
+  say why it refused a request cannot be reviewed, and an application owner who
+  cannot explain a refusal to a customer will turn it off.
+- **Truncating an over-budget query into a partial answer.** Refuse, and say
+  what the budget was.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-EDGE-001` | a query exceeded the depth or cost budget and was refused | `warning` |
+| `DV-EDGE-002` | a document not in the persisted-query manifest was refused | `warning` |
+| `DV-EDGE-003` | a WAF rule matched and the request was refused | `info` |
+| `DV-EDGE-004` | a credential was refused: the password appears in a breach corpus | `warning` |
+| `DV-EDGE-005` | a velocity limit tripped for an account or a source | `warning` |
+| `DV-EDGE-006` | a WAF rule matched everything, or nothing for ninety days | `warning` |
+| `DV-EDGE-007` | a security scan found an advisory, a secret, or a licence problem | gate `error` |
+
+---
+
 # Authentication
 
 Stability: `Contract` · Status: `Shipped`

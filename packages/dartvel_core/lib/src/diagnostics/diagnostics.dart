@@ -1307,6 +1307,43 @@ final class DVDiagnostics {
       reason: 'a scheduled publish missed its slot and did not run',
       level: 'warning',
     ),
+    DVDiagnostic(
+      code: 'DV-EDGE-001',
+      reason: 'a query exceeded the depth or cost budget and was refused',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-EDGE-002',
+      reason: 'a document not in the persisted-query manifest was refused',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-EDGE-003',
+      reason: 'a WAF rule matched and the request was refused',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-EDGE-004',
+      reason: 'a credential was refused: the password appears in a breach '
+          'corpus',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-EDGE-005',
+      reason: 'a velocity limit tripped for an account or a source',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-EDGE-006',
+      reason: 'a WAF rule matched everything, or nothing for ninety days',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-EDGE-007',
+      reason: 'a security scan found an advisory, a secret, or a licence '
+          'problem',
+      level: 'error',
+    ),
   ];
 
   /// The diagnostic for [code], or null if nothing is registered under it.
