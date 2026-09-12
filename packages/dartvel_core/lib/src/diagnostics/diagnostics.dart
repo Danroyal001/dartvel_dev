@@ -350,6 +350,36 @@ final class DVDiagnostics {
       reason: 'restore refused: a unique field is held by a live record',
       level: 'error',
     ),
+    DVDiagnostic(
+      code: 'DV-ORG-001',
+      reason: 'a policy names a role the application does not declare',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-ORG-002',
+      reason: 'invitation refused: the address is already a member',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-ORG-003',
+      reason: 'the last owner cannot leave or be demoted without a successor',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-ORG-004',
+      reason: 'organization closed; restorable until the declared grace period expires',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-ORG-005',
+      reason: 'SSO domain auto-join declined: the identity\'s domain is not verified',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-ORG-006',
+      reason: 'membership resolved on a tenant that has no organization',
+      level: 'error',
+    ),
   ];
 
   /// The diagnostic for [code], or null if nothing is registered under it.
