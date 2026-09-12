@@ -4000,6 +4000,10 @@ windows). Middleware and policies run before presentation as for any route.
 Single-instance behaviour on desktop is on by default (`singleInstance: true`)
 and is what makes "second launch focuses the running app" true.
 
+What makes the OS deliver that request in the first place is verification, and
+its two files are generated from the route index: see
+[Deep-link verification files](#deep-link-verification-files).
+
 ## Shared window state
 
 Two handover modes, chosen automatically from `capability.sameEngine`:
@@ -5690,6 +5694,55 @@ dartvel:
 )
 Widget _productsPage(BuildContext context) => Product.List();
 ```
+
+## Deep-link verification files
+
+Android App Links and iOS Universal Links are only links until the platform
+verifies them, and verification is two JSON documents served from the site the
+links point at. Both are functions of things Dartvel already holds — the route
+index and the application identifiers, both nodes in the project graph — so
+`dartvel build web` writes them:
+
+```text
+build/web/
+  .well-known/assetlinks.json
+  .well-known/apple-app-site-association
+```
+
+```yaml
+dartvel:
+  deepLinks:
+    domains: [example.com, www.example.com]
+    android:
+      package: com.example.app
+      fingerprints: playAppSigning      # or an explicit SHA-256 list
+    ios:
+      appId: ABCDE12345.com.example.app
+    exclude: [/admin/**, /account/**]
+```
+
+The path patterns come from the route index and exclude authenticated and
+sensitive routes by the same rule the sitemap uses, so a link file cannot claim
+a route the application will refuse to open. A URL-first framework that made
+people hand-write this JSON would be asking them to keep a second copy of their
+routing table in a file no compiler reads.
+
+`dartvel doctor --target android,ios` checks the deployed reality rather than
+the generated file: both documents reachable over HTTPS at the exact path, no
+redirect, served as JSON, listing this application, and covering the routes it
+claims. It also compares the Android fingerprints with the certificate the
+build is actually signed by — the usual cause of links that work in debug and
+open a browser in production is a file carrying the local keystore's
+fingerprint while the store serves a Play-signed binary, so `playAppSigning`
+reads the configured upload and signing certificates rather than assuming the
+one on the machine.
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-LINKS-001` | deep-link domains declared with no application identifier for a target | build `error` |
+| `DV-LINKS-002` | verification file unreachable, redirected, or not served as JSON | doctor `error` |
+| `DV-LINKS-003` | fingerprint in the served file does not match the signing certificate | doctor `error` |
+| `DV-LINKS-004` | a route the application handles is not covered by the served patterns | doctor `warning` |
 
 ---
 
