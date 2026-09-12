@@ -207,6 +207,27 @@ final class DVDiagnostics {
       level: 'warning',
     ),
     DVDiagnostic(
+      code: 'DV-MEDIA-101',
+      reason: 'adaptive source on a target with no streaming support; '
+          'fell back to progressive',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-MEDIA-102',
+      reason: 'protected content with no DRM adapter configured for this target',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-MEDIA-103',
+      reason: 'background audio requested without the platform capability declared',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-MEDIA-104',
+      reason: 'capture permission refused by the person using the application',
+      level: 'info',
+    ),
+    DVDiagnostic(
       code: 'DV-HTTP-001',
       reason: 'request to an undeclared host',
       level: 'error',
