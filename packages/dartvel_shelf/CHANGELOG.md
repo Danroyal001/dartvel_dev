@@ -1,3 +1,36 @@
+## Unreleased
+
+- **Two servers started at the same moment no longer share a request
+  handler.** `0.4.0`'s fix made each server snapshot the registered handler
+  at `aw_start`, which closed the request-time half: one global was no longer
+  read on every request. The window between the two calls stayed open, and it
+  is the one `dart test` walks into every run — one library load, a suite per
+  isolate, a thread per isolate. Two isolates interleave as register A,
+  register B, start A, start B, and A's snapshot is B's handler, so A answers
+  its own port out of B's router: a plausible 404 for a route A registered
+  itself, or B's body for a path they share, with nothing thrown. When B then
+  stops and frees the callback A is still holding, the next request into A
+  aborts the process on "Callback invoked after it has been deleted". The
+  pending registrations are keyed by thread now, so the two calls cannot
+  interleave: `serve()` makes both without yielding, and an isolate has a
+  thread of its own. `test/concurrent_serve_test.dart` races two isolates
+  through `serve()` twenty-five times; it fails on the first pass without the
+  fix.
+
+- **The committed library and its bindings no longer carry symbols this crate
+  cannot build.** `a7ea535f` moved the HTTP client to dartvel_core and removed
+  `dv_http_send`, `dv_http_cancel`, `dv_http_next_event` and
+  `dv_http_free_buf` from the cbindgen header; the generated bindings and the
+  committed `.so` were never regenerated, so both kept them. Nothing in this
+  package has ever called them — they resolve out of dartvel_core's own
+  library, where they belong — but anyone who rebuilt from source got a
+  library without them and a red `native_symbols_test`, for doing exactly
+  what that test's failure message says to do. The bindings are regenerated
+  and the library rebuilt. The guard now checks the other direction too: when
+  a refactor removes a symbol, the bindings and the binary are left behind
+  *together*, still agree with each other, and the old one-way comparison
+  stays green.
+
 ## 0.6.0
 
 - `/_dartvel/image?src=&w=&q=` on a web-server build, NextFaster's image

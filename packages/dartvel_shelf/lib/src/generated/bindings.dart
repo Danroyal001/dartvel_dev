@@ -165,70 +165,6 @@ class DartvelShelfBindings {
       );
   late final _aw_stream_complete = _aw_stream_completePtr
       .asFunction<int Function(int)>();
-
-  /// Starts a request and returns a handle, or 0 if it could not be started.
-  ///
-  /// # Safety
-  /// `request_json` and `body` must be valid for their stated lengths for the
-  /// duration of this call. Both are copied before returning, so the caller may
-  /// free them immediately afterwards.
-  int dv_http_send(FfiStr request_json, FfiBuf body) {
-    return _dv_http_send(request_json, body);
-  }
-
-  late final _dv_http_sendPtr =
-      _lookup<ffi.NativeFunction<ffi.Uint64 Function(FfiStr, FfiBuf)>>(
-        'dv_http_send',
-      );
-  late final _dv_http_send = _dv_http_sendPtr
-      .asFunction<int Function(FfiStr, FfiBuf)>();
-
-  /// Blocks until the next event for [handle].
-  ///
-  /// Returns one of the `DV_HTTP_EVENT_*` codes and writes the payload to `out`.
-  /// A payload with a non-null pointer must be released with
-  /// [`dv_http_free_buf`]; `DONE`, `INVALID` and any empty payload write a null
-  /// pointer and need no release.
-  ///
-  /// # Safety
-  /// `out` must point to a writable `FfiBuf`.
-  int dv_http_next_event(int handle, ffi.Pointer<FfiBuf> out) {
-    return _dv_http_next_event(handle, out);
-  }
-
-  late final _dv_http_next_eventPtr =
-      _lookup<
-        ffi.NativeFunction<ffi.Int32 Function(ffi.Uint64, ffi.Pointer<FfiBuf>)>
-      >('dv_http_next_event');
-  late final _dv_http_next_event = _dv_http_next_eventPtr
-      .asFunction<int Function(int, ffi.Pointer<FfiBuf>)>();
-
-  /// Releases a payload returned by [`dv_http_next_event`].
-  ///
-  /// # Safety
-  /// `buf` must be a buffer this library produced and not already freed.
-  void dv_http_free_buf(FfiBuf buf) {
-    return _dv_http_free_buf(buf);
-  }
-
-  late final _dv_http_free_bufPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(FfiBuf)>>(
-        'dv_http_free_buf',
-      );
-  late final _dv_http_free_buf = _dv_http_free_bufPtr
-      .asFunction<void Function(FfiBuf)>();
-
-  /// Asks an in-flight request to stop. Safe to call on an unknown handle.
-  int dv_http_cancel(int handle) {
-    return _dv_http_cancel(handle);
-  }
-
-  late final _dv_http_cancelPtr =
-      _lookup<ffi.NativeFunction<ffi.Int32 Function(ffi.Uint64)>>(
-        'dv_http_cancel',
-      );
-  late final _dv_http_cancel = _dv_http_cancelPtr
-      .asFunction<int Function(int)>();
 }
 
 final class FfiStr extends ffi.Struct {
@@ -279,15 +215,3 @@ typedef DartStreamCancelHandlerFunction = ffi.Void Function(ffi.Uint64);
 typedef DartDartStreamCancelHandlerFunction = void Function(int);
 
 const int AW_FLAG_H2C = 1;
-
-const int DV_HTTP_EVENT_DONE = 0;
-
-const int DV_HTTP_EVENT_EARLY_HINTS = 1;
-
-const int DV_HTTP_EVENT_HEAD = 2;
-
-const int DV_HTTP_EVENT_BODY = 3;
-
-const int DV_HTTP_EVENT_ERROR = -1;
-
-const int DV_HTTP_EVENT_INVALID = -2;
