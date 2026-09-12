@@ -11,6 +11,7 @@
 library dartvel_flutter.table;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 
 /// One column: its heading, how to read a cell out of a row, and optionally
@@ -77,7 +78,10 @@ class DVTableHeaderCell extends StatelessWidget {
         : '$label, sorted ${sortDirection! ? 'ascending' : 'descending'}';
 
     final Widget content = Semantics(
-      header: true,
+      // A column header, not a document heading. `header: true` is the
+      // heading flag, which Flutter web draws as an <h2>: a six-column table
+      // put six headings into the page outline between the page's real ones.
+      role: SemanticsRole.columnHeader,
       label: announcement,
       button: sortable,
       excludeSemantics: true,
@@ -231,21 +235,53 @@ class DVTableState<T> extends State<DVTable<T>> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          DecoratedBox(
-            decoration: BoxDecoration(
-              border: Border(
-                bottom: BorderSide(color: theme.dividerColor),
-              ),
-            ),
-            child: Row(
+          // The table's own node. Flutter asserts the hierarchy in debug --
+          // every child of a table is a row, and every child of a row a cell
+          // or a column header -- which is why the empty label below sits
+          // outside this node rather than inside it: it is not a row.
+          Semantics(
+            container: true,
+            explicitChildNodes: true,
+            role: SemanticsRole.table,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                for (int c = 0; c < widget.columns.length; c += 1)
-                  DVTableHeaderCell(
-                    label: widget.columns[c].label,
-                    sortable: widget.columns[c].sortable,
-                    sortDirection: _sortColumn == c ? _ascending : null,
-                    width: widget.columns[c].width,
-                    onTap: () => _toggleSort(c),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(color: theme.dividerColor),
+                    ),
+                  ),
+                  child: Semantics(
+                    container: true,
+                    explicitChildNodes: true,
+                    role: SemanticsRole.row,
+                    child: Row(
+                      children: <Widget>[
+                        for (int c = 0; c < widget.columns.length; c += 1)
+                          DVTableHeaderCell(
+                            label: widget.columns[c].label,
+                            sortable: widget.columns[c].sortable,
+                            sortDirection: _sortColumn == c ? _ascending : null,
+                            width: widget.columns[c].width,
+                            onTap: () => _toggleSort(c),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+                for (int r = 0; r < rows.length; r += 1)
+                  Semantics(
+                    container: true,
+                    explicitChildNodes: true,
+                    role: SemanticsRole.row,
+                    child: Row(
+                      children: <Widget>[
+                        for (int c = 0; c < widget.columns.length; c += 1)
+                          _cell(rows[r], r, c, rows.length),
+                      ],
+                    ),
                   ),
               ],
             ),
@@ -254,18 +290,14 @@ class DVTableState<T> extends State<DVTable<T>> {
             Padding(
               padding: const EdgeInsets.all(24),
               child: Semantics(
+                // Excluded, or the node carries the label twice -- once from
+                // here and once from the Text under it -- and a screen
+                // reader announces "no rows" twice.
+                excludeSemantics: true,
                 label: widget.emptyLabel,
                 child: Text(widget.emptyLabel),
               ),
-            )
-          else
-            for (int r = 0; r < rows.length; r += 1)
-              Row(
-                children: <Widget>[
-                  for (int c = 0; c < widget.columns.length; c += 1)
-                    _cell(rows[r], r, c, rows.length),
-                ],
-              ),
+            ),
         ],
       ),
     );
@@ -279,6 +311,7 @@ class DVTableState<T> extends State<DVTable<T>> {
     // "Grace" alone tells a screen reader user nothing. Which column, and
     // which row of how many, is the whole content of a table cell.
     final Widget cell = Semantics(
+      role: SemanticsRole.cell,
       label: '${column.label}, $text, row ${r + 1} of $total',
       excludeSemantics: true,
       child: GestureDetector(
