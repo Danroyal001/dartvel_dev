@@ -260,6 +260,36 @@ final class DVDiagnostics {
       reason: 'document exceeded the configured page or byte budget',
       level: 'warning',
     ),
+    DVDiagnostic(
+      code: 'DV-STORE-001',
+      reason: 'a declared store credential is not resolvable in this environment',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-STORE-002',
+      reason: 'privacy declaration drift between the application and the store form',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-STORE-003',
+      reason: 'a store screenshot size has no declared golden',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-STORE-004',
+      reason: 'a store-supported locale has no metadata written for it',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-STORE-005',
+      reason: 'the store does not support an option the publish asked for',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-STORE-006',
+      reason: 'required-reason API used by a binding that declares no reason',
+      level: 'error',
+    ),
   ];
 
   /// The diagnostic for [code], or null if nothing is registered under it.

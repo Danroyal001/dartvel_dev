@@ -6427,12 +6427,154 @@ Dartvel automatically provides:
 
 while Flutter remains the rendering engine and Dart remains the only language developers write.
 
-# App store publishing
+# App Store Publishing and Privacy Manifests
 
 Stability: `Draft` · Status: `Partial`
 
-Automatically handles publishing and distribution for all platforms, similar in
-scope to EAS Deploy and Firebase App Distribution.
+`dartvel publish <store>` takes a built application to Google Play, App Store
+Connect, TestFlight or Firebase App Distribution, declared under
+`dartvel.publish` in `pubspec.yaml`. The plan is resolved and validated before
+anything runs, because the expensive part is an upload of a binary that took
+minutes to produce: a track nobody publishes to is refused rather than
+corrected to the nearest, credentials that were never declared are refused
+rather than left to a tool that stops to ask, and App Store Connect is refused
+off macOS at the start rather than with "command not found" at the end.
+`--dry-run` prints what would run.
+
+What follows is the rest of the story — credentials, tracks, metadata, and the
+two store declarations that are questions about the project rather than about
+the developer.
+
+## Credentials: declared here, held elsewhere
+
+**Dartvel holds no signing key and no store credential.** It declares which
+ones a publish needs, resolves them through Secrets and Environments at the
+moment of use, and refuses before the upload when one is missing.
+
+```yaml
+dartvel:
+  publish:
+    play:
+      track: internal
+      credentials: PLAY_SERVICE_ACCOUNT   # a secret name, not a path
+    appstore:
+      keyId: APPSTORE_KEY_ID
+      issuerId: APPSTORE_ISSUER_ID
+      privateKey: APPSTORE_API_KEY
+```
+
+The reason is custody, not convenience. An Android app signing key cannot be
+rotated without losing the listing, so a framework that kept one would be
+holding something irreplaceable on behalf of every application built with it —
+a key-custody product wearing a build tool's clothes. Signing identities stay
+where their platforms already keep them: the macOS keychain for certificates
+and provisioning profiles, the CI secret store for service accounts and API
+keys, Google Play App Signing for the upload key's counterpart.
+
+That splits cleanly:
+
+| Dartvel resolves and passes through | The developer or CI holds |
+|---|---|
+| store API keys and service accounts, by secret name | the secret values themselves |
+| which identity a build signs with, by name | keystores, certificates, provisioning profiles |
+| the track, rollout and locale a publish targets | store account access |
+
+A publish from a laptop reads the same declaration as a publish from CI; only
+the secret resolver differs, which is the point of naming rather than
+embedding (`DV-STORE-001`).
+
+## Tracks, rollout and metadata
+
+```bash
+dartvel publish play --track beta --rollout 10
+dartvel publish testflight --group "Internal QA"
+dartvel publish appstore --phased
+```
+
+Store metadata is versioned in the repository and localized through
+Internationalization and Localization, so the description a store shows is
+reviewed like any other text and translated by the same pipeline. A locale the
+store lists as supported with no metadata written for it is reported before the
+upload rather than published in English (`DV-STORE-004`).
+
+**Screenshots come from golden tests.** The application already renders
+deterministic goldens at declared device sizes under `dartvel test golden`; a
+second screenshot pipeline would drift from what ships, and the drift is
+invisible until somebody compares a store listing with a running app. A store
+size with no declared golden is refused rather than filled with a stretched
+image (`DV-STORE-003`).
+
+```yaml
+dartvel:
+  publish:
+    screenshots:
+      appstore-6.7: golden/checkout_iphone_67.png
+      play-phone: golden/checkout_pixel.png
+```
+
+## Privacy manifests and Data Safety are generated
+
+Apple's `PrivacyInfo.xcprivacy` and Google Play's Data Safety form ask two
+questions: which personal data the application collects, and which
+required-reason APIs it uses. Both are already in the project graph. The model
+graph knows which fields are declared `@DVModel.sensitiveField()` and what they
+are; the native binding manifest knows which platform APIs the build actually
+registers; the configured providers know whether anything leaves for analytics
+or advertising.
+
+So Dartvel writes both declarations from the application rather than asking a
+developer to describe their own app from memory a year after writing it:
+
+```bash
+dartvel publish appstore --plan     # shows the declaration it will submit
+```
+
+- Collected data types come from sensitive fields and the models reachable from
+  backend functions the client calls, each naming the field it was derived
+  from.
+- Required-reason API entries come from the binding manifest: the file
+  timestamp, user defaults, disk space, active keyboard and boot time APIs
+  Apple enumerates, with the reason code the binding declares. A binding that
+  uses one and declares no reason fails the build, because the store rejects
+  the upload for it and the rejection arrives days later (`DV-STORE-006`).
+- Purpose and linkage — whether data is linked to the person, whether it is
+  used for tracking — are declared per data type. Dartvel proposes a default
+  from the graph and refuses to guess where the answer is a legal judgement
+  rather than a fact about the code.
+
+`dartvel doctor` compares the declaration against the application on every run
+and reports drift in either direction: a field added since the form was
+written, a binding removed that the form still claims, a tracking provider
+configured that the manifest does not mention (`DV-STORE-002`). This is the
+half that decays — the declaration is written once and the application keeps
+moving — and it is the half a store checks.
+
+## Other stores
+
+Extension marketplaces (VS Code, browser stores) and television stores publish
+through the same command and the same plan-first discipline, each driven by its
+own vendor tool. What a store cannot do is not simulated: a store with no
+staged rollout refuses `--rollout` rather than uploading and ignoring it.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-STORE-001` | a declared store credential is not resolvable in this environment | `error` |
+| `DV-STORE-002` | privacy declaration drift between the application and the store form | `error` |
+| `DV-STORE-003` | a store screenshot size has no declared golden | `error` |
+| `DV-STORE-004` | a store-supported locale has no metadata written for it | `warning` |
+| `DV-STORE-005` | the store does not support an option the publish asked for | `error` |
+| `DV-STORE-006` | required-reason API used by a binding that declares no reason | `error` |
+
+## Deliberately absent
+
+- **Credential custody.** Declared, resolved, never held. See the table above.
+- **Answering the store's judgement calls.** Linkage and tracking purposes are
+  declared by the developer with a proposed default; a framework that guessed
+  would be filing a legal statement on somebody's behalf.
+- **Store account provisioning.** Creating accounts, agreements and bundle
+  identifiers is the developer's, once, in the store's own console.
 
 # Takeaway
 
