@@ -4537,10 +4537,10 @@ modifiers. It must not introduce new primitive widgets.
 
 # Data Import, Export, and Reporting
 
-Stability: `Draft` · Status: `Shipped`
+Stability: `Draft` · Status: `Partial`
 
 Dartvel should include typed bulk data workflows:
-- CSV, JSON, NDJSON, and Excel import/export
+- CSV, JSON, NDJSON, and Excel import/export, and PDF export
 - generated import validation
 - row-level error reports
 - resumable imports through queues
@@ -4557,6 +4557,8 @@ await User.Import.resumableNdjson(lines, queue: 'imports', chunkSize: 500);
 await User.Import.excel(tabSeparatedRows);
 final export = User.Export.ndjson(users);
 final spreadsheet = User.Export.excel(users);
+final document = await User.Export.pdf(users);
+final invoice = await order.Export.pdf();  // one record, the instance alias
 final tenantExport = User.Export.csv(
   users,
   options: DVExportOptions<User>(
@@ -4584,6 +4586,58 @@ metadata to `DVExportResult`, and can stream CSV/NDJSON chunks for large files.
 Scheduled reports generate typed `DVScheduledReport` payloads and dispatch them
 through `DVQueues`, so cron workers can execute report generation with durable
 retry, queue selection, priority, and report-period metadata.
+
+## PDF
+
+Billing implies invoices and this section implies reports, and both of those
+are documents somebody prints, attaches to an email, or files for seven years.
+PDF is an export format here:
+
+```dart
+final receipt = await Order.Export.pdf(
+  orders,
+  options: DVExportOptions<Order>(tenantId: 'tenant_123'),
+  document: const DVPdfOptions(
+    paper: DVPaper.a4,
+    margins: DVInsets.mm(18),
+    header: DVPdfRunning.title,
+    footer: DVPdfRunning.pageNumbers,
+  ),
+);
+```
+
+**It is the same rendering path as everything else.** A PDF is produced by
+printing the document Static Web Generation already produces for that route or
+model page — the same semantic HTML, the same generated styles, the same
+fonts as the application's own, embedded. Dartvel does not carry a second
+layout engine for paper. A separate PDF widget tree would mean every invoice
+existed twice, diverging quietly until somebody noticed the printed total was
+from last year's template, and it would need its own tables, pagination and
+text shaping, which a print stylesheet already has.
+
+Paged behaviour — repeating a table's header row across pages, keeping a total
+with its table, page breaks between records — is CSS, in the print stylesheet
+that generated pages already carry. An application overrides it the way it
+overrides any other generated style.
+
+Rendering runs where a browser engine is: the web-server or the backend, using
+the same headless browser `dartvel build web` uses to capture semantics. A
+client asks the backend for the document rather than rendering one, because
+putting a rendering engine on a phone to produce a file it is about to upload
+is the second path this section refuses. A deployment with no renderer
+available fails typed at build (`DV-EXPORT-002`) rather than at the moment
+somebody presses Download.
+
+Exports are policy-filtered and tenant-scoped as above, and
+`@DVModel.sensitiveField()` values are excluded from the document by the same
+rule that excludes them from a CSV — a PDF is a serialization like any other,
+and the most likely one to be emailed to somebody outside the tenant.
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-EXPORT-001` | PDF export requested for a route with no generated document | build `error` |
+| `DV-EXPORT-002` | no PDF renderer available in this deployment | build `error` |
+| `DV-EXPORT-003` | document exceeded the configured page or byte budget | `warning` |
 
 ---
 
