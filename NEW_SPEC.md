@@ -328,8 +328,9 @@ No manual Mix `.wrap()`. Dartvel handles wrapping where necessary.
 
 Stability: `Contract` · Status: `Shipped`
 
-Pages are private generation inputs. The currently supported page input shape
-is a private expression-bodied function:
+Pages are private generation inputs. A page input is a private function, with
+either an expression body or a block body — the generator lowers the body into
+the generated page either way:
 
 ```dart
 @DVPage()
@@ -340,17 +341,18 @@ Widget _usersPage(
 ]);
 ```
 
-If a page needs a larger body while full body lowering is still in progress,
-wrap that body in a public helper and keep the annotated input expression-bodied:
+A page needing statements writes them, and the body is lowered as it stands:
 
 ```dart
 @DVPage()
 @pragma('vm:entry-point')
-Widget _usersPage(BuildContext context) => buildUsersPage(context);
-
-Widget buildUsersPage(BuildContext context) {
+Widget _usersPage(BuildContext context) {
+    final users = context.signal(<User>[]);
+    if (users.value.isEmpty) {
+        return DVText('Nobody here yet');
+    }
     return DVBox.list([
-        DVText('Users'),
+        for (final user in users.value) DVText(user.name),
     ]);
 }
 ```
@@ -613,10 +615,10 @@ code references only the generated public API from
 `dartvel_client/dartvel_client.dart`, such as `UsersPage`, `Button`,
 `getUser`, and `User`.
 
-Until full body lowering is implemented, private `@DVPage`,
-`@DVFunctionalWidget`, and `@DVBackendFunction` function inputs must use
-expression bodies so Dartvel can emit readable generated public code without
-source-local `part` files:
+Private `@DVPage`, `@DVFunctionalWidget`, `@DVBackendFunction` and
+`@DVJob.handler()` function inputs take either body. The generator lowers the
+body into the generated public code, so no source-local `part` file is needed
+and the generated file reads as ordinary Dart:
 
 ```dart
 @DVPage()
@@ -629,9 +631,11 @@ Widget _featureCard(String title) => DVBox(DVText(title));
 Future<String> _getEcho(String input) async => 'Echo: $input';
 ```
 
-Generated page and backend scaffolds use that shape. Block-bodied private page,
-functional widget, and backend function inputs fail until full body lowering is
-implemented. Public annotated functional widget inputs always fail.
+Generated page and backend scaffolds use that shape. A lowered body is moved
+into generated code, so it cannot reach a private top-level symbol in the file
+it came from: the generator refuses one that does, naming the symbol, rather
+than emitting generated code that does not compile. Public annotated functional
+widget inputs always fail.
 
 Using the new native Dart data-class syntax. Automatically generates:
 * Database schema
@@ -817,7 +821,7 @@ Job metadata is grouped under the job annotation: the handler is
 `@DVJob.handler()`, not a standalone `@DVJobHandler`. That also leaves the
 `DVJobHandler` typedef — the runtime handler function type — meaning what it
 already means. Like private page and backend-function inputs, a private handler
-must use an expression body until generated body lowering exists.
+takes either body and is lowered into the generated handler.
 
 Queues support:
 - named queues and generated queue constants
