@@ -61,6 +61,11 @@ A proxy reads `DV.X` or `DV.Platform.X` and nothing else.
 | generated model sync, signals, queues | `DV.Realtime`, `DVRealtime` |
 | `context.signal(...)`, `DV.global<T>(...)` | `DV.Signals`, `context.computed(...)`, `DVService` |
 
+`DV.Storage` is the one entry in that column that does exist: it is a third
+name for the storage `DV.FileStorage` names, deprecated, working until the next
+minor removes it. Write the canonical name; the column says what not to write,
+not what the runtime refuses.
+
 A derived signal is the result of operating on signals — `price * quantity`
 is already a signal — so there is no separate constructor for one.
 

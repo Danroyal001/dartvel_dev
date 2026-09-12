@@ -552,7 +552,7 @@ memory. `S3FileStorageAdapter` covers AWS S3 and S3-compatible stores
 (Cloudflare R2, MinIO), signing each request with SigV4:
 
 ```dart
-DV.Storage.configure(S3FileStorageAdapter(
+DV.FileStorage.configure(S3FileStorageAdapter(
   bucket: 'assets',
   region: 'us-east-1',
   credentials: DVAwsCredentials(
@@ -562,8 +562,8 @@ DV.Storage.configure(S3FileStorageAdapter(
   endpoint: Uri.https('minio.internal:9000'),   // optional; R2/MinIO
 ));
 
-await DV.Storage.put('avatar.png', bytes, contentType: 'image/png');
-final keys = await DV.Storage.list(prefix: 'avatars/');
+await DV.FileStorage.put('avatar.png', bytes, contentType: 'image/png');
+final keys = await DV.FileStorage.list(prefix: 'avatars/');
 ```
 
 Path-style addressing (`{endpoint}/{bucket}/{key}`) is the default because R2
