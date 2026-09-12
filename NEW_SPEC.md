@@ -2709,6 +2709,26 @@ Notification features:
 - per-channel rate limits
 - tenant-aware branding
 
+
+## Mail arrives as well as leaves
+
+A reply-to address that reaches a backend function closes the loop an
+application opens every time it sends something a person would naturally answer
+— a support thread, a ticket comment, an approval request.
+
+```dart
+@DVInboundMail(address: 'support+*@example.com')
+Future<void> _supportReply(DVInboundMessage message) async { ... }
+```
+
+The wildcard is what makes it useful: the local part carries the thread it
+belongs to, so a reply lands on the right record without parsing quoted text.
+It is an ordinary backend function — the same request lifecycle, the same
+policies, the same durable-work options — reached through a provider's inbound
+webhook, whose signature is verified before the message is trusted. Attachments
+go through File Storage's validation rather than being taken on trust, because
+an inbound mailbox is an upload endpoint that anyone on the internet can reach.
+
 ---
 
 # File Storage
@@ -3315,6 +3335,31 @@ Supports:
 - Structured data and content schema
 - Meta tags
 
+
+## Open Graph images are rendered, not uploaded
+
+A model page's social image is generated from a template — the record's title,
+its featured image, the site's theme tokens — and cached like any other
+variant. An application that requires an editor to upload a 1200×630 image per
+record gets one for the first ten and none after, and the pages with none are
+the ones shared as a bare URL.
+
+The 3D and scene sections already produce a build-time poster for exactly this
+slot, so a model with a 3D field has its Open Graph image without a second
+mechanism.
+
+## Machine readers get a document too
+
+Crawlers are no longer the only non-human readers. A build writes `llms.txt`
+describing what the application is and which routes carry content worth
+reading, alongside the sitemap it already writes and from the same route
+index. Model pages expose their structured data as the same typed JSON the AI
+section uses, so an agent reading the site and a model calling the application
+through WebMCP see one description rather than two that drift.
+
+This costs nothing to keep true — it is the route index and the model graph
+rendered once more — and the alternative is a hand-written file that describes
+last year's routes.
 ---
 
 # PWA
@@ -3555,11 +3600,39 @@ what off at 02:00 without a second audit trail.
 | `DV-FLAGS-008` | a local override is in force; this build is not answering from the rules | `warning` |
 | `DV-FLAGS-009` | the rule set is older than `flags.maxAge` and is still in use | `warning` |
 
+## Values, not only switches
+
+A flag answers yes or no. A good deal of what ships beside flags is not a
+switch — a page size, a retry budget, a banner's text, a JSON shape a client
+reads — and an application with flags but no typed values grows a second
+mechanism for those, usually a table somebody edits by hand.
+
+```dart
+DV.Flags.checkoutV2.enabled      // bool
+DV.Config.pageSize.value         // int
+DV.Config.supportHours.value     // String
+DV.Config.pricingTiers.value     // a typed JSON shape
+```
+
+Declared, typed, owned, dated and targeted by exactly the machinery above, so
+a value takes the same tenant, platform and percentage rules a flag does, is
+read through the same offline-safe path, and is pruned by the same staleness
+diagnostic. A typo is a compile error for the same reason.
+
+This is not the console-edited key-value service the next section rules out.
+The distinction is where the schema lives: a declared value has a type the
+build knows and a Dart accessor the analyzer checks, and a change to it is a
+change to a file somebody reviews. A service where a string appears because
+somebody typed it into a box is the thing that makes the flag layer optional,
+and it stays out.
+
 ## Deliberately absent
 
-- **Remote configuration.** A flag is typed, owned, dated and pruned. An
-  untyped key-value service edited in a console is the thing this exists to
-  stop, and adding one beside it would make the flag layer optional.
+- **A remote configuration service.** Typed values are declared above and are
+  part of this layer. What stays out is the other thing that wears the name: an
+  untyped key-value store edited in a console, where a value exists because
+  somebody typed it into a box. That is what would make the flag layer
+  optional, and the difference is whether the schema is in the repository.
 - **A per-read network call.** Every design that fetches a flag on demand has
   a story for the offline case, and the story is always a timeout in front of
   a frame.
@@ -4717,6 +4790,32 @@ Funnels, retention and cohorts are queries over the store, and Studio renders
 them beside the model and queue explorers rather than in a separate product.
 Questions are declared like any other generated query, so a funnel is
 inspectable in the project graph and cannot drift from the events it counts.
+
+## Agreements are versioned, and acceptance is a record
+
+Consent above is about measurement. The other thing a person agrees to is the
+terms, and it has the same shape: a document with a version, an acceptance with
+a timestamp, and a question — *did this user accept the version that was in
+force?* — that an application must be able to answer years later, in a dispute,
+without inference.
+
+```yaml
+dartvel:
+  agreements:
+    terms:   { version: "2026-09-01", route: /legal/terms }
+    privacy: { version: "2026-09-01", route: /legal/privacy }
+```
+
+A version bump prompts for re-acceptance on next use, gated where the
+application says rather than everywhere at once. Acceptances are ordinary
+models with the actor, the version, the timestamp and the tenant, so they
+export through subject access and are held for as long as the retention policy
+in Data Compliance says — which is longer than most data, because the reason to
+keep one is precisely that somebody may dispute it.
+
+The version is a date somebody sets, never a hash of the document: a typo fix
+is not a new agreement, and a framework that re-prompted a million users for
+one is a framework nobody bumps the version in.
 
 ## Diagnostics
 
@@ -10976,6 +11075,41 @@ dartvel:
 )
 Widget _productsPage(BuildContext context) => Product.List();
 ```
+
+## A static page can be rebuilt without a build
+
+A statically generated page is correct at build time and progressively less so
+afterwards. The two ways out are both here, because a static host is where most
+Dartvel sites land and redeploying the world to correct one product page is not
+a strategy.
+
+```yaml
+dartvel:
+  web:
+    static:
+      revalidate: 3600          # seconds; per route, overridable per page
+```
+
+**By age.** A page older than its window is served as it is and rebuilt behind
+the request, so no visitor waits for a rebuild and the next one gets the new
+copy. Stale-while-revalidate, which the cache section already uses for page
+data, applied to the document.
+
+**On demand.** A write that invalidates a page rebuilds it:
+
+```dart
+await DV.Cache.revalidateTag('product:${product.id}');
+```
+
+The tag is the one the page already declares, so nothing new is named and a
+model page's tag is derived from the model. Which routes a rebuild touches
+comes from the route index, so a page reached by three routes is rebuilt for
+all three rather than for the one somebody remembered.
+
+Hosting adapters differ in what they can do, and that is reported rather than
+assumed: a host with no rebuild hook falls back to age-based rebuilding on the
+next deploy and says so, because a revalidation that silently never happens is
+worse than one that was never offered.
 
 ## Deep-link verification files
 
