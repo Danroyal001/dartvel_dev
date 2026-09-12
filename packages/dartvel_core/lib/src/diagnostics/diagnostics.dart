@@ -320,6 +320,36 @@ final class DVDiagnostics {
       reason: 'a release was deployed with no provenance record; rollback cannot name it',
       level: 'warning',
     ),
+    DVDiagnostic(
+      code: 'DV-HISTORY-001',
+      reason: 'write refused: the record changed since it was read',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-HISTORY-002',
+      reason: '`DVConflict.ask` declared as an offline strategy, where nobody is present to ask',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-HISTORY-003',
+      reason: 'revert could not restore a sensitive field; history records the change, not the value',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-HISTORY-004',
+      reason: 'history entries removed by the declared retention',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-HISTORY-005',
+      reason: 'history entry could not be written; the transaction was rolled back',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-HISTORY-006',
+      reason: 'restore refused: a unique field is held by a live record',
+      level: 'error',
+    ),
   ];
 
   /// The diagnostic for [code], or null if nothing is registered under it.
