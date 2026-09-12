@@ -440,6 +440,58 @@ final class DVDiagnostics {
       reason: 'a key exceeded its rate plan; the call was throttled',
       level: 'warning',
     ),
+    DVDiagnostic(
+      code: 'DV-FLAGS-001',
+      reason:
+          'no rule set has synced; flags answered with the defaults compiled '
+          'into the build',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-FLAGS-002',
+      reason: 'the synced rule set names a flag this build does not declare',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-FLAGS-003',
+      reason: 'the rule set is newer than this build understands; unreadable '
+          'rules were skipped',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-FLAGS-004',
+      reason: 'a flag is past its declared expiry',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-FLAGS-005',
+      reason: 'a percentage rollout was evaluated with no subject identifier; '
+          'the flag held its default',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-FLAGS-006',
+      reason: "a rule's value type differs from the flag's declared type; the "
+          'flag held its default',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-FLAGS-007',
+      reason: 'exposure not recorded: consent was withheld for the declared '
+          'analytics category',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-FLAGS-008',
+      reason: 'a local override is in force; this build is not answering from '
+          'the rules',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-FLAGS-009',
+      reason: 'the rule set is older than `flags.maxAge` and is still in use',
+      level: 'warning',
+    ),
   ];
 
   /// The diagnostic for [code], or null if nothing is registered under it.
