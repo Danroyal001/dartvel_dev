@@ -2520,6 +2520,130 @@ await DV.ObservabilityAndLogging.event(
 
 ---
 
+# Product Analytics and Consent
+
+Stability: `Draft` · Status: `Designed`
+
+Monitoring and Observability watches the system: logs, metrics, traces,
+diagnostics. Nothing measures the product — which screens people reach, which
+steps they abandon, whether the ones who signed up last month came back. And
+measuring at all is a consent question before it is a data question: GDPR
+consent records, a cookie banner on the web, App Tracking Transparency on iOS.
+Analytics without consent is the compliance breach; consent without analytics
+is a banner in front of nothing. They are one section because they are one
+decision.
+
+## Events are types
+
+```dart
+class CheckoutCompleted extends DVAnalyticsEvent {
+  const CheckoutCompleted(this.order, {this.coupon});
+  final Order order;
+  final String? coupon;
+}
+
+DV.Analytics.track(CheckoutCompleted(order));
+```
+
+An event is an ordinary data class, so its fields are checked by the compiler
+and its name cannot be misspelled into a second funnel that nobody notices for
+a quarter. Page views and model actions are generated from the route index and
+the model graph, so the common events exist without anybody writing them.
+
+**Payloads honour `@DVModel.sensitiveField()` by construction.** An event
+carrying a model serializes the model's analytics shape, which excludes
+sensitive fields the way logs and traces already do; naming one directly is a
+build error rather than a value discovered later in somebody else's warehouse
+(`DV-ANALYTICS-004`).
+
+## Consent is generated policy
+
+```yaml
+dartvel:
+  analytics:
+    store: database              # or a configured adapter
+    consent:
+      categories:
+        essential: { required: true }
+        product: { default: denied }
+        marketing: { default: denied }
+```
+
+Each event declares its category; `essential` covers what the application needs
+to function and the rest default to denied until somebody says otherwise. The
+generated `DV.Analytics.track` checks the category's consent state **before the
+event leaves the device**: a denied category is dropped at the call, not
+filtered later by a server that has already received it (`DV-ANALYTICS-001`).
+That is the difference between a consent feature and a consent guarantee, and
+it is only available to a framework that owns both ends.
+
+The prompt is generated per platform: a banner on the web, the App Tracking
+Transparency prompt on iOS where a category implies tracking, a settings screen
+everywhere. A declared category with no way to ask on a platform the
+application builds for is a build error, because the alternative is a category
+that is denied for ever on that platform and nobody knowing why
+(`DV-ANALYTICS-002`).
+
+Consent records are models, with the retention the compliance rules of the
+deployment require: what was asked, what was answered, when, and under which
+version of the categories. A consent choice that cannot be written is not
+treated as consent (`DV-ANALYTICS-006`).
+
+## The store
+
+The default store is the application's own database, which makes local
+development zero-config and works on SQLite. Volume has an answer already in
+the platform: ClickHouse is a supported database adapter, and event data is
+exactly what it is for — append-heavy, column-shaped, read as aggregates. The
+generated queries do not change when the store does, because both are database
+adapters.
+
+Provider adapters cover the hosted services — PostHog, Mixpanel, GA-class —
+for applications that already have one. An adapter receives what consent
+allowed and nothing else.
+
+## No sampling, and a cap that is not sampling
+
+**Product events are not sampled by default.** A trace answers "what happened
+in this request" and survives sampling; a funnel answers "how many people
+reached step three", and a sampled denominator is wrong in a way that looks
+plausible on a chart. Tracing samples; this does not.
+
+What is bounded is a runaway: a per-session event cap catches a loop firing the
+same event thousands of times, drops the excess, and says so, which is a
+different thing from quietly keeping one event in ten (`DV-ANALYTICS-003`).
+
+## Funnels and retention
+
+Funnels, retention and cohorts are queries over the store, and Studio renders
+them beside the model and queue explorers rather than in a separate product.
+Questions are declared like any other generated query, so a funnel is
+inspectable in the project graph and cannot drift from the events it counts.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-ANALYTICS-001` | event dropped on the device: its category has no consent | `debug` |
+| `DV-ANALYTICS-002` | a declared consent category has no way to ask on a target the application builds for | `error` |
+| `DV-ANALYTICS-003` | per-session event cap reached; further events dropped | `warning` |
+| `DV-ANALYTICS-004` | an event payload names a sensitive field | `error` |
+| `DV-ANALYTICS-005` | an analytics provider is configured with no consent category declared | `error` |
+| `DV-ANALYTICS-006` | a consent choice could not be recorded; it is not treated as consent | `error` |
+
+## Deliberately absent
+
+- **Sampling product events.** See above; a sampled funnel is a wrong answer
+  that looks like a right one.
+- **Dartvel as a hosted analytics service.** A self-hosted default and
+  adapters; running somebody's analytics for them is a commercial decision,
+  not a specification item.
+- **Identity resolution across devices and vendors.** Stitching anonymous
+  sessions to people is where analytics becomes tracking, and it belongs to the
+  application's own declared purposes, not to a default.
+
+---
+
 # Testing
 
 Stability: `Draft` · Status: `Shipped`

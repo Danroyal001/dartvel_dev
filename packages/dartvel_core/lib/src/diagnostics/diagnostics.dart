@@ -380,6 +380,36 @@ final class DVDiagnostics {
       reason: 'membership resolved on a tenant that has no organization',
       level: 'error',
     ),
+    DVDiagnostic(
+      code: 'DV-ANALYTICS-001',
+      reason: 'event dropped on the device: its category has no consent',
+      level: 'debug',
+    ),
+    DVDiagnostic(
+      code: 'DV-ANALYTICS-002',
+      reason: 'a declared consent category has no way to ask on a target the application builds for',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-ANALYTICS-003',
+      reason: 'per-session event cap reached; further events dropped',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-ANALYTICS-004',
+      reason: 'an event payload names a sensitive field',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-ANALYTICS-005',
+      reason: 'an analytics provider is configured with no consent category declared',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-ANALYTICS-006',
+      reason: 'a consent choice could not be recorded; it is not treated as consent',
+      level: 'error',
+    ),
   ];
 
   /// The diagnostic for [code], or null if nothing is registered under it.
