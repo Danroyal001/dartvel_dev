@@ -274,4 +274,35 @@ void main() {
       );
     });
   });
+
+  group('a device-scope kiosk locks the surface to one window', () {
+    // Read by the windowing capability: `device` scope is one application on
+    // one surface with no windows, and open() reports DV-WINDOW-002. It was
+    // the one containment question nothing could ask, so every kiosk window
+    // request was reported as the target lacking windows instead.
+    test('device scope locks windows', () {
+      dvApplyKioskContainment(_scoped('device'));
+      expect(dvKioskLocksWindows, isTrue);
+    });
+
+    test('display scope does not', () {
+      // The control: a display-scope kiosk owns one display and the
+      // application keeps ordinary windows on the others.
+      dvApplyKioskContainment(_scoped('display'));
+      expect(dvKioskLocksWindows, isFalse);
+    });
+
+    test('no kiosk holding does not', () {
+      dvResetKioskContainment();
+      expect(dvKioskLocksWindows, isFalse);
+    });
+  });
 }
+
+DVKioskPolicy _scoped(String scope) => DVKioskPolicy.parse(<String, Object?>{
+      'kiosk': <String, Object?>{
+        'enabled': true,
+        'scope': scope,
+        'home': '/home',
+      },
+    });

@@ -89,6 +89,7 @@ export 'package:dartvel_core/dartvel.dart'
         dvKioskHidesCursor,
         dvKioskBlocksClipboard,
         dvKioskBlocksTextSelection,
+        dvKioskLocksWindows,
         dvApplyKioskContainment,
         dvResetKioskContainment,
         dvRefuseIfClipboardBlocked,
@@ -405,6 +406,7 @@ export 'src/studio/studio_screen.dart';
 export 'src/table/table.dart';
 export 'src/widgets/home_widgets.dart';
 export 'src/windowing/app_launch.dart';
+export 'src/windowing/browser_window.dart';
 export 'src/windowing/displays.dart';
 export 'src/windowing/performance.dart';
 export 'src/windowing/shared_store.dart';
