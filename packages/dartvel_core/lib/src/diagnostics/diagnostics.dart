@@ -661,6 +661,60 @@ final class DVDiagnostics {
           'carrying no personal fields',
       level: 'info',
     ),
+    DVDiagnostic(
+      code: 'DV-METER-001',
+      reason: 'a meter is recorded from client-reachable code',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-METER-002',
+      reason: 'a duplicate recording was discarded by its idempotency key',
+      level: 'debug',
+    ),
+    DVDiagnostic(
+      code: 'DV-METER-003',
+      reason: 'a meter passed a declared notification threshold',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-METER-004',
+      reason: 'a meter reached its limit; the declared behaviour was applied',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-METER-005',
+      reason: 'a meter declares a limit and no behaviour at the limit',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-METER-006',
+      reason: 'usage could not be reported to the billing provider; it is '
+          'queued, not dropped',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-METER-007',
+      reason: 'a record arrived after its period closed and was accepted into '
+          'it under the declared grace',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-METER-008',
+      reason: 'a record arrived after the grace; it counts in the open period',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-METER-009',
+      reason: 'a metered entitlement has no price on the plan; usage is '
+          'counted and not billed',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-METER-010',
+      reason: "the tenant has no billing period; the deployment's calendar "
+          'period was used',
+      level: 'info',
+    ),
   ];
 
   /// The diagnostic for [code], or null if nothing is registered under it.
