@@ -982,6 +982,11 @@
       "status": "Designed"
     },
     {
+      "section": "Dev Client",
+      "stability": "Draft",
+      "status": "Designed"
+    },
+    {
       "section": "CLI",
       "stability": "Contract",
       "status": "Shipped",
