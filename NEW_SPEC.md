@@ -2023,9 +2023,12 @@ await DV.FileStorage.putStream("avatar.png", bytesStream);
 final bytesStream = await DV.FileStorage.getStream("avatar.png");
 ```
 
-Alias:
-`DV.BlobStorage.*`
-Just proxies to DV.FileStorage
+`DV.FileStorage` is the canonical surface, and `DV.BlobStorage` is an alias
+for it. `DV.Storage` is a third name for the same storage, deprecated: it keeps
+working and is removed in the next minor. The framework's own code calls the
+canonical name, and a test fails if anything under `lib/` reaches for the
+deprecated one, because a framework that calls its own deprecated name teaches
+every reader to call it too.
 
 
 ---
