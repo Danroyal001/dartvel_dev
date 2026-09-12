@@ -604,6 +604,63 @@ final class DVDiagnostics {
       reason: 'the deployment adapter cannot host previews',
       level: 'warning',
     ),
+    DVDiagnostic(
+      code: 'DV-PRIVACY-001',
+      reason: 'a model carries a sensitive field and declares no subject path; '
+          'erasure cannot reach it',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-PRIVACY-002',
+      reason: 'a model carrying personal data declares no retention; it is '
+          'kept indefinitely',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-PRIVACY-003',
+      reason: 'rows were kept under a declared retention; their personal '
+          'fields were anonymized',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-PRIVACY-004',
+      reason: 'an erasure passed its declared deadline',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-PRIVACY-005',
+      reason: 'a restore replayed the erasure tombstone log',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-PRIVACY-006',
+      reason: 'an exported record names another subject; only the requesting '
+          "subject's contribution was included",
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-PRIVACY-007',
+      reason: 'a retention sweep deleted rows',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-PRIVACY-008',
+      reason: 'a retention sweep would delete rows a longer retention holds; '
+          'the longer one won',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-PRIVACY-009',
+      reason: 'an erasure could not reach a configured adapter; the subject\'s '
+          'data there was not removed',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-PRIVACY-010',
+      reason: 'a consent record was retained after erasure as evidence, '
+          'carrying no personal fields',
+      level: 'info',
+    ),
   ];
 
   /// The diagnostic for [code], or null if nothing is registered under it.
