@@ -496,8 +496,8 @@ void main() {
       {'id': 1, 'name': 'Ada'}
     ]);
 
-    await DV.Storage.put('avatar', [1, 2, 3]);
-    expect(await DV.Storage.get('avatar'), [1, 2, 3]);
+    await DV.FileStorage.put('avatar', [1, 2, 3]);
+    expect(await DV.FileStorage.get('avatar'), [1, 2, 3]);
     await DV.FileStorage.put('file-avatar', [4, 5, 6]);
     expect(await DV.BlobStorage.get('file-avatar'), [4, 5, 6]);
 
@@ -862,13 +862,13 @@ void main() {
   test('DV.Test provides explicit fake storage AI and native bindings',
       () async {
     final storage = DV.Test.fakeStorage();
-    await DV.Storage.put('test.bin', <int>[1, 2, 3]);
+    await DV.FileStorage.put('test.bin', <int>[1, 2, 3]);
     expect(await storage.get('test.bin'), <int>[1, 2, 3]);
-    expect(await DV.Storage.exists('test.bin'), isTrue);
-    expect(await DV.Storage.list(), <String>['test.bin']);
+    expect(await DV.FileStorage.exists('test.bin'), isTrue);
+    expect(await DV.FileStorage.list(), <String>['test.bin']);
     DV.Test.resetStorage();
     expect(
-      DV.Storage.get('test.bin'),
+      DV.FileStorage.get('test.bin'),
       throwsA(isA<DVFileStorageException>()
           .having((error) => error.isNotFound, 'isNotFound', isTrue)),
     );

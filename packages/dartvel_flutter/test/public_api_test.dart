@@ -4,6 +4,7 @@
 // applications even though its own tests pass. This file imports only the
 // public barrel; if it compiles, the surface is wired up.
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -272,6 +273,32 @@ void main() {
       DV.Platform.Notifications.runtimeType,
       DV.Notifications.runtimeType,
     );
+  });
+
+  test('storage has one canonical name, and the framework uses it', () {
+    // Three getters, one object. DV.FileStorage is canonical, DV.BlobStorage
+    // is the documented alias, and DV.Storage is deprecated: an application
+    // written against any of them reaches the same storage.
+    // ignore: deprecated_member_use_from_same_package
+    expect(DV.Storage.runtimeType, DV.FileStorage.runtimeType);
+    expect(DV.BlobStorage.runtimeType, DV.FileStorage.runtimeType);
+
+    // And the framework does not call its own deprecated name. A framework
+    // that does teaches every reader to call it too, and cannot remove it
+    // later without breaking the code it taught. Mentions in comments and in
+    // the deprecation message itself are not uses.
+    final List<String> callers = <String>[
+      for (final FileSystemEntity entity
+          in Directory('lib').listSync(recursive: true))
+        if (entity is File && entity.path.endsWith('.dart'))
+          for (final String line in entity.readAsLinesSync())
+            if (!line.trimLeft().startsWith('//') &&
+                !line.contains('@Deprecated') &&
+                RegExp(r'\bDV\.Storage\b').hasMatch(line))
+              '${entity.path}: ${line.trim()}',
+    ];
+    expect(callers, isEmpty,
+        reason: 'these call DV.Storage rather than DV.FileStorage: $callers');
   });
 }
 
