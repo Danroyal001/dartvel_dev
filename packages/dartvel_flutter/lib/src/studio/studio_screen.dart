@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/material.dart' show Material;
 import 'package:flutter/widgets.dart';
 
 import '../../dartvel_flutter.dart';
@@ -207,7 +208,12 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
     );
     // A Column rather than DVBox.list: the strip sits above a body that takes
     // the rest of the height, and the two want no spacing between them.
-    return Container(
+    //
+    // Material rather than a coloured Container, because a section is free to
+    // use material widgets and several do: a ColoredBox between a ListTile and
+    // its nearest Material hides the tile's background and its ink, which
+    // Flutter asserts on rather than drawing wrongly.
+    return Material(
       color: DVStudioStyle.canvas,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
