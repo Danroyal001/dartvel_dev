@@ -95,6 +95,13 @@ void main() {
     'DVDatabaseCacheAdapter',
     () => DVDatabaseCacheAdapter(SqliteDVDatabaseAdapter.memory()),
   );
+  // The same contract on the in-memory adapter: the development adapter has
+  // to serve the framework's own surfaces, or nothing can be run or tested
+  // without a real database.
+  sharedContract(
+    'DVDatabaseCacheAdapter (MemoryDVDatabaseAdapter)',
+    () => DVDatabaseCacheAdapter(MemoryDVDatabaseAdapter()),
+  );
 
   group('DVDatabaseCacheAdapter', () {
     test('survives a restart when backed by a database file', () async {

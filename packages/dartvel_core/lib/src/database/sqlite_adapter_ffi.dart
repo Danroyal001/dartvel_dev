@@ -8,8 +8,8 @@ import 'package:sqlite3/sqlite3.dart' as sqlite;
 
 import 'adapter.dart';
 
-/// A real SQLite adapter. Unlike [MemoryDVDatabaseAdapter] — which understands
-/// only a handful of statement shapes — this executes arbitrary SQL.
+/// A real SQLite adapter. Unlike [MemoryDVDatabaseAdapter] — which interprets
+/// the subset of SQL Dartvel itself issues — this executes arbitrary SQL.
 class SqliteDVDatabaseAdapter implements DVDatabaseAdapter {
   final sqlite.Database _db;
   final String location;

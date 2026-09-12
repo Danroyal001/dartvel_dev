@@ -125,6 +125,35 @@ void main() {
     expect(await store.load('/pricing'), isNull);
   });
 
+  // The same round trip on the in-memory adapter. Studio cannot be run or
+  // tested without a database otherwise: a demo, a widget test, or a project
+  // with no database configured all reach this store, and the Pages tab then
+  // renders the read failure instead of the builder.
+  test('and through the in-memory adapter, so Studio runs without a database',
+      () async {
+    DV.Database.configure(MemoryDVDatabaseAdapter());
+    addTearDown(DV.Database.unconfigure);
+    DVPageStore.resetCache();
+    const store = DVPageStore();
+
+    await store.save(pricingPage());
+    expect(await store.routes(), <String>['/pricing']);
+
+    final loaded = await store.load('/pricing');
+    expect(loaded, isNotNull);
+    expect(loaded!.title, 'Pricing');
+    expect(loaded.root.children[1].children, hasLength(2));
+
+    loaded.title = 'Pricing v2';
+    await store.save(loaded);
+    expect(await store.routes(), <String>['/pricing'],
+        reason: 'a re-save is an edit, not a duplicate row');
+    expect((await store.load('/pricing'))!.title, 'Pricing v2');
+
+    await store.delete('/pricing');
+    expect(await store.load('/pricing'), isNull);
+  });
+
   test('code export emits ordinary @DVPage source', () {
     final source = pricingPage().toDartSource();
 

@@ -169,6 +169,11 @@ void main() {
     'DVDatabaseQueueAdapter',
     () => DVDatabaseQueueAdapter(SqliteDVDatabaseAdapter.memory()),
   );
+  // The same contract on the in-memory adapter; see cache_adapters_test.
+  sharedContract(
+    'DVDatabaseQueueAdapter (MemoryDVDatabaseAdapter)',
+    () => DVDatabaseQueueAdapter(MemoryDVDatabaseAdapter()),
+  );
 
   group('DVDatabaseQueueAdapter', () {
     test('a dispatched job survives a restart', () async {
