@@ -1515,6 +1515,21 @@ final class DVDiagnostics {
       reason: 'a documented surface has no source mapping to render from',
       level: 'warning',
     ),
+    DVDiagnostic(
+      code: 'DV-STATE-001',
+      reason: 'a generated collection has no empty-state action declared',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-STATE-002',
+      reason: 'a page threw and its error boundary caught it',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-STATE-003',
+      reason: 'a framework string is a literal rather than an i18n key',
+      level: 'warning',
+    ),
   ];
 
   /// The diagnostic for [code], or null if nothing is registered under it.
