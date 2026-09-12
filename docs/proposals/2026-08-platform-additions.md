@@ -1,7 +1,10 @@
 # Dartvel Platform Additions — Proposal
 
-**Status: Reviewed 2026-08-15 — all ten approved with amendments. Nothing in
-this document is part of NEW_SPEC.md yet.** See [Review outcome](#review-outcome--2026-08-15)
+**Status: Reviewed 2026-08-15 — all ten approved with amendments. All ten are
+now in NEW_SPEC.md, drafted 2026-09-12 with the rest of the consolidated
+proposal; `docs/spec-status.json` carries their labels and is the current
+record.** This document is kept as the reasoning behind them, including the
+rejections. See [Review outcome](#review-outcome--2026-08-15)
 for verdicts, the corrected drafting order, and the cross-item conflicts.
 Each item below is a candidate section; on approval, it gets written into the
 spec in house style at the placement noted. Rejected items stay here with a
