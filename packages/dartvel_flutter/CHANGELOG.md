@@ -1,5 +1,17 @@
 ## Unreleased
 
+- **`DVStudioStyle` is Studio's style vocabulary, and it is public.**
+  `DVStudioSection` is an extension seam — the Pro workflow builder attaches
+  through it, and so does anything a team writes — and a seam with no style
+  vocabulary produces sections that look foreign to the tool hosting them.
+  Worse, a section written by copying an existing one inherits whatever was
+  wrong with it, which is exactly what happened: Studio's own Pages section
+  was never styled, the Pro workflow builder was written from it, and the copy
+  came out identical. It carries the surface colours, `control()` for
+  something that must read as pressable and say when it cannot be pressed,
+  `panes()` for the list-beside-editor shape every section has, and
+  `placeholder()` for what a section shows before anything is chosen.
+
 - **Studio's panes stand beside each other at full height instead of floating
   in the middle of the screen.** Both of its two-pane layouts — the route list
   beside the editor, and the palette, canvas and inspector inside it — were

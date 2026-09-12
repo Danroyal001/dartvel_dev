@@ -66,44 +66,110 @@ class DVStudioSection {
   });
 }
 
-/// Studio's own surface colours.
+/// Studio's own surface vocabulary, for the sections attached to it.
 ///
 /// A fixed palette rather than the application's theme: Studio edits the
 /// application, so it has to stay readable over whatever that application's
 /// theme happens to be, and a builder whose chrome changes colour with the
 /// page being built is a builder you cannot trust what you are seeing in.
-const Color _dvLine = Color(0xFFE2E2EA);
-const Color _dvMuted = Color(0xFF6B6B7B);
-const Color _dvAccent = Color(0xFF6C4BF4);
-const Color _dvSelected = Color(0xFFF1EDFF);
-const Color _dvSurface = Color(0xFFFFFFFF);
+///
+/// Public because [DVStudioSection] is an extension seam, and a seam with no
+/// style vocabulary produces sections that look foreign to the tool hosting
+/// them. That is not hypothetical: Studio's own Pages section went unstyled
+/// for its whole life, and the Pro workflow builder was written by copying
+/// it, so the copy inherited the absence.
+abstract final class DVStudioStyle {
+  /// Rules between panes, and control borders.
+  static const Color line = Color(0xFFE2E2EA);
 
-/// A control that reads as one: padded, bordered, and dimmed when it does
-/// nothing. Every tappable thing in Studio was bare text, which is legible
-/// and gives no sign it can be pressed.
-Widget _dvControl(String label, {required bool enabled, bool primary = false}) {
-  return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-    decoration: BoxDecoration(
-      color: !enabled
-          ? const Color(0xFFF4F4F7)
-          : primary
-              ? _dvAccent
-              : _dvSurface,
-      border: Border.all(color: enabled && primary ? _dvAccent : _dvLine),
-      borderRadius: BorderRadius.circular(7),
-    ),
-    child: DVText(label).modifier(
-      const DVModifier()
-          .fontSize(13)
-          .color(!enabled
-              ? _dvMuted
-              : primary
-                  ? const Color(0xFFFFFFFF)
-                  : const Color(0xFF1A1A22))
-          .fontWeight(primary ? FontWeight.w600 : FontWeight.w500),
-    ),
-  );
+  /// Secondary text: headings over a list, labels, unavailable actions.
+  static const Color muted = Color(0xFF6B6B7B);
+
+  /// The selected tab, the open row, a primary action.
+  static const Color accent = Color(0xFF6C4BF4);
+
+  /// The background of the row that is open.
+  static const Color selected = Color(0xFFF1EDFF);
+
+  /// Panes that hold controls, as opposed to the canvas behind them.
+  static const Color surface = Color(0xFFFFFFFF);
+
+  /// Behind the panes.
+  static const Color canvas = Color(0xFFF7F7FB);
+
+  /// Ordinary body text on [surface].
+  static const Color ink = Color(0xFF1A1A22);
+
+  /// A control that reads as one: padded, bordered, and dimmed when it does
+  /// nothing.
+  ///
+  /// Pass `enabled: false` for an action with nothing to do — Undo with no
+  /// history, Publish while publishing — so that it says so rather than
+  /// looking identical to one that works.
+  static Widget control(
+    String label, {
+    required bool enabled,
+    bool primary = false,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: !enabled
+            ? const Color(0xFFF4F4F7)
+            : primary
+                ? accent
+                : surface,
+        border: Border.all(color: enabled && primary ? accent : line),
+        borderRadius: BorderRadius.circular(7),
+      ),
+      child: DVText(label).modifier(
+        const DVModifier()
+            .fontSize(13)
+            .color(!enabled
+                ? muted
+                : primary
+                    ? const Color(0xFFFFFFFF)
+                    : ink)
+            .fontWeight(primary ? FontWeight.w600 : FontWeight.w500),
+      ),
+    );
+  }
+
+  /// The two-pane shape every Studio section has: a list of things beside the
+  /// one being edited.
+  ///
+  /// A plain [Row], because `DVBox.row` resolves `DVCrossAlign.stretch` to
+  /// `CrossAxisAlignment.center` on purpose — right for a header or a button
+  /// pair, and wrong for panes that have to run the full height beside each
+  /// other. Centred is what left every Studio section's list and editor
+  /// floating in the middle of an empty screen.
+  static Widget panes({
+    required Widget list,
+    required Widget detail,
+    double listWidth = 260,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Container(
+          width: listWidth,
+          decoration: const BoxDecoration(
+            color: surface,
+            border: Border(right: BorderSide(color: line)),
+          ),
+          child: list,
+        ),
+        Expanded(child: detail),
+      ],
+    );
+  }
+
+  /// The placeholder a section shows before anything is chosen.
+  static Widget placeholder(String message) => Center(
+        child: DVText(message).modifier(
+          const DVModifier().fontSize(13).color(muted),
+        ),
+      );
 }
 
 class _DVStudioScreenState extends State<DVStudioScreen> {
@@ -142,14 +208,14 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
     // A Column rather than DVBox.list: the strip sits above a body that takes
     // the rest of the height, and the two want no spacing between them.
     return Container(
-      color: const Color(0xFFF7F7FB),
+      color: DVStudioStyle.canvas,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           Container(
             decoration: const BoxDecoration(
-              color: _dvSurface,
-              border: Border(bottom: BorderSide(color: _dvLine)),
+              color: DVStudioStyle.surface,
+              border: Border(bottom: BorderSide(color: DVStudioStyle.line)),
             ),
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Wrap(
@@ -186,7 +252,7 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
           decoration: BoxDecoration(
             border: Border(
               bottom: BorderSide(
-                color: selected ? _dvAccent : const Color(0x00000000),
+                color: selected ? DVStudioStyle.accent : const Color(0x00000000),
                 width: 2,
               ),
             ),
@@ -194,7 +260,7 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
           child: DVText(section.label).modifier(
             const DVModifier()
                 .fontSize(13)
-                .color(selected ? _dvAccent : _dvMuted)
+                .color(selected ? DVStudioStyle.accent : DVStudioStyle.muted)
                 .fontWeight(selected ? FontWeight.w600 : FontWeight.w500),
           ),
         ),
@@ -347,8 +413,8 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
         Container(
           width: 260,
           decoration: const BoxDecoration(
-            color: _dvSurface,
-            border: Border(right: BorderSide(color: _dvLine)),
+            color: DVStudioStyle.surface,
+            border: Border(right: BorderSide(color: DVStudioStyle.line)),
           ),
           child: _pageList(),
         ),
@@ -374,7 +440,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
           child: const DVText('Pages').modifier(
             const DVModifier()
                 .fontSize(12)
-                .color(_dvMuted)
+                .color(DVStudioStyle.muted)
                 .fontWeight(FontWeight.w600),
           ),
         ),
@@ -403,12 +469,12 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 9),
-                      color: route == open ? _dvSelected : null,
+                      color: route == open ? DVStudioStyle.selected : null,
                       child: DVText(route).modifier(
                         const DVModifier()
                             .fontSize(13)
                             .color(route == open
-                                ? _dvAccent
+                                ? DVStudioStyle.accent
                                 : const Color(0xFF1A1A22))
                             .fontWeight(route == open
                                 ? FontWeight.w600
@@ -422,7 +488,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
                   padding: const EdgeInsets.symmetric(
                       horizontal: 16, vertical: 8),
                   child: const DVText('No stored pages yet.').modifier(
-                    const DVModifier().fontSize(13).color(_dvMuted),
+                    const DVModifier().fontSize(13).color(DVStudioStyle.muted),
                   ),
                 ),
             ],
@@ -430,7 +496,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
         ),
         Container(
           decoration: const BoxDecoration(
-            border: Border(top: BorderSide(color: _dvLine)),
+            border: Border(top: BorderSide(color: DVStudioStyle.line)),
           ),
           padding: const EdgeInsets.all(12),
           child: Column(
@@ -447,7 +513,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
                 onTap: _create,
                 child: MouseRegion(
                   cursor: SystemMouseCursors.click,
-                  child: _dvControl('Create page',
+                  child: DVStudioStyle.control('Create page',
                       enabled: true, primary: true),
                 ),
               ),
@@ -468,7 +534,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
           // editor is tall, and an unscrollable Text overflows instead.
           Expanded(
             child: Container(
-              color: _dvSurface,
+              color: DVStudioStyle.surface,
               padding: const EdgeInsets.all(16),
               child: SingleChildScrollView(
                 child: DVText(controller.document.toDartSource()),
@@ -494,8 +560,8 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
                   flex: 2,
                   child: Container(
                     decoration: const BoxDecoration(
-                      color: _dvSurface,
-                      border: Border(right: BorderSide(color: _dvLine)),
+                      color: DVStudioStyle.surface,
+                      border: Border(right: BorderSide(color: DVStudioStyle.line)),
                     ),
                     padding: const EdgeInsets.all(12),
                     child: DVStudioPalette(items: widget.palette),
@@ -512,8 +578,8 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
                   flex: 3,
                   child: Container(
                     decoration: const BoxDecoration(
-                      color: _dvSurface,
-                      border: Border(left: BorderSide(color: _dvLine)),
+                      color: DVStudioStyle.surface,
+                      border: Border(left: BorderSide(color: DVStudioStyle.line)),
                     ),
                     padding: const EdgeInsets.all(12),
                     child: DVStudioInspector(controller: controller),
@@ -532,8 +598,8 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
     // fell off the end.
     return Container(
       decoration: const BoxDecoration(
-        color: _dvSurface,
-        border: Border(bottom: BorderSide(color: _dvLine)),
+        color: DVStudioStyle.surface,
+        border: Border(bottom: BorderSide(color: DVStudioStyle.line)),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: DVBox.wrapLine(<Widget>[
@@ -608,14 +674,14 @@ class _DVStudioTextFieldState extends State<_DVStudioTextField> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: _dvSurface,
-        border: Border.all(color: _focus.hasFocus ? _dvAccent : _dvLine),
+        color: DVStudioStyle.surface,
+        border: Border.all(color: _focus.hasFocus ? DVStudioStyle.accent : DVStudioStyle.line),
         borderRadius: BorderRadius.circular(7),
       ),
       child: Row(
         children: <Widget>[
           DVText(widget.label).modifier(
-            const DVModifier().fontSize(12).color(_dvMuted),
+            const DVModifier().fontSize(12).color(DVStudioStyle.muted),
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -623,7 +689,7 @@ class _DVStudioTextFieldState extends State<_DVStudioTextField> {
               controller: _text,
               focusNode: _focus,
               style: const TextStyle(fontSize: 13, color: Color(0xFF1A1A22)),
-              cursorColor: _dvAccent,
+              cursorColor: DVStudioStyle.accent,
               backgroundCursorColor: const Color(0xFFCCCCCC),
               onChanged: widget.onChanged,
             ),
@@ -648,7 +714,7 @@ Widget _action(String label, VoidCallback? onTap, {required String key}) {
       cursor: onTap == null
           ? SystemMouseCursors.basic
           : SystemMouseCursors.click,
-      child: _dvControl(label, enabled: onTap != null),
+      child: DVStudioStyle.control(label, enabled: onTap != null),
     ),
   );
 }
