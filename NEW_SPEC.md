@@ -1260,6 +1260,157 @@ await User.watch((users) {
 
 ---
 
+# Offline-First Models
+
+Stability: `Draft` · Status: `Designed`
+
+Model Sync and Presence specifies the connected case. Devices are not reliably
+connected: phones lose signal in lifts, on trains and in basements, and a kiosk
+may run isolated for days. Without a framework answer every application
+hand-rolls a cache, a queue and a merge — the highest-defect corner of mobile
+work, and three chances to lose somebody's writes.
+
+Offline behaviour is declared on the model and generated:
+
+```dart
+@DVModel(offline: DVOffline(strategy: DVConflict.lastWriteWins, encrypt: true))
+class _Order(
+    String reference,
+    int quantity,
+);
+```
+
+Application code does not branch on connectivity. `Order.find`, `order.save`
+and `Order.watch` read and write the same way in a tunnel as on Wi-Fi; what
+changes is where the answer comes from and when the write reaches the server.
+
+## The local store
+
+The generated store is per target, and its schema comes from the same schema
+diff that generates the server migration — not a second description of the same
+model, which is how the two drift:
+
+| Target | Store |
+|---|---|
+| Android, iOS, macOS, Windows, Linux, embedded, TV | SQLite through the adapter Dartvel already ships, WAL where supported |
+| Web (JS and wasm) | IndexedDB |
+| Any target with no writable storage | memory-backed, and it says so |
+
+The memory-backed case is a declared degradation (`DV-OFFLINE-001`), not a
+silent one: an application that cannot persist should know before somebody
+closes the lid, and a kiosk with a read-only root is a real deployment.
+
+A device holds only what its session may read. The local store is written
+through the same policy engine and tenant scope as any query, so signing out
+clears it, and a user cannot end up holding rows a server would have refused
+them. Fields marked `@DVModel.sensitiveField()` are encrypted at rest with the
+per-device application key from Secrets and Environments; `encrypt: true`
+extends that to the whole model.
+
+## The mutation log
+
+Writes made offline append to a per-model mutation log and replay **in order**
+through the existing sync transport when the device reconnects. There is no new
+transport, no new namespace, and no second queue: replay is dispatched through
+`DV.Jobs`/`DVQueues` like any other durable work, and reuses its retries,
+backoff and dead letters.
+
+```yaml
+dartvel:
+  offline:
+    queue:
+      maxMutations: 10000
+      maxAge: 7d
+```
+
+The log is bounded, because an unbounded one on a device is a disk filling up
+where nobody can see it. **At the bound, the next write is refused with a typed
+failure; the oldest is never dropped.** Dropping the oldest keeps the app
+feeling fine while silently discarding work somebody believed was saved, and no
+later sync can recover it. A refusal is visible at the moment it happens, which
+is when the application can tell the person and when they still remember what
+they were doing (`DV-OFFLINE-002`).
+
+A mutation the server rejects permanently — failed validation, refused
+authorization — is not retried forever. It moves to the dead-letter list the
+queue machinery already has, where `Order.pendingMutations` exposes it, so the
+application can show the conflict and let somebody resolve it
+(`DV-OFFLINE-003`).
+
+## Conflicts
+
+```dart
+@DVModel(offline: DVOffline(strategy: DVConflict.fieldMerge))
+class _Profile(
+    String displayName,
+    String bio,
+);
+```
+
+| Strategy | Resolution |
+|---|---|
+| `lastWriteWins` | the later write by declared clock, whole model |
+| `serverWins` | the local change is discarded and reported |
+| `fieldMerge` | per field, the later write by declared clock |
+| `DVConflict.resolver(fn)` | a typed resolver the application writes, given both versions |
+
+`fieldMerge` is per-field last-writer-wins, and it is deliberately not a CRDT.
+A CRDT for collaborative text needs per-field merge state in both the stored
+representation and the wire format, and shipping half of one would freeze a
+format that the full version then has to break. Collaborative editing rides
+generated model operations over live sync, where it already belongs; CRDT
+merge, if it lands, extends `fieldMerge` later without changing what
+applications wrote against it.
+
+Clocks are declared rather than assumed: a device clock that is wrong by a day
+would otherwise win every conflict for a day. The default is the server's
+commit timestamp with a per-device monotonic counter for ordering local writes
+between syncs, and skew beyond `offline.maxClockSkew` reports
+`DV-OFFLINE-004`.
+
+## What the application sees
+
+```dart
+final orders = Order.watch();          // local first, then live
+order.syncState.listen((state) { });   // pending, syncing, synced, conflicted, rejected
+Order.pendingMutations;                // what has not reached the server yet
+```
+
+Sync state is generated signals on the model, like every other reactive value
+in Dartvel. There is no `DV.Offline` facade to consult, because the state
+belongs to the data, not to a global.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-OFFLINE-001` | no writable storage; the store is memory-backed for this session | `warning` at boot, once |
+| `DV-OFFLINE-002` | mutation log at its bound; the write was refused | `error`, surfaced to the application |
+| `DV-OFFLINE-003` | mutation permanently rejected by the server; moved to dead letters | `warning` |
+| `DV-OFFLINE-004` | device clock skew beyond the configured tolerance | `warning`, once per session |
+| `DV-OFFLINE-005` | offline model has no conflict strategy for a field type it merges | build `error` |
+| `DV-OFFLINE-006` | local store schema behind the protocol; store rebuilt from the server | `info` |
+
+`DV-OFFLINE-006` is the tie to Protocol Versioning and Client Compatibility:
+the local store is a client-side copy of a shape, so when the protocol moves
+past what the device holds, the store is rebuilt rather than migrated in place.
+Rebuilding is cheap and always correct; migrating a device database through a
+schema change nobody can inspect is neither.
+
+## Deliberately absent
+
+- **A second realtime or offline namespace.** Replay rides model sync and the
+  queue machinery. There is no `DV.Offline`, `DVOfflineManager`, or offline
+  event system.
+- **Offline authorization decisions.** A device enforces what it was told when
+  it last synced and never invents a permission; a write that needed a check
+  the device could not make is queued and decided by the server.
+- **Background replay with no app.** Replay happens when the application runs;
+  what a platform allows in the background is the client-schedule question, and
+  it is answered there.
+
+---
+
 # Mail and Notifications
 
 Stability: `Contract` · Status: `Partial`

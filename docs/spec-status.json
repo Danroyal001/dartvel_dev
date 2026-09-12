@@ -279,6 +279,11 @@
       "absent": "Absent: DVModelChangeKind.restored, which nothing publishes. A watcher handling it will never see that branch taken, because nothing in the framework restores a deleted model -- there is no soft delete to restore from. Named rather than published on some change that merely resembles one."
     },
     {
+      "section": "Offline-First Models",
+      "stability": "Draft",
+      "status": "Designed"
+    },
+    {
       "section": "Mail and Notifications",
       "stability": "Contract",
       "status": "Partial",
