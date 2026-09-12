@@ -240,6 +240,32 @@ static DART_REQUEST_HANDLER: OnceCell<Mutex<Option<DartReqHandler>>> = OnceCell:
 /// the FFI call order (register, then start) unchanged.
 static SERVER_REQUEST_HANDLERS: OnceCell<Mutex<HashMap<u64, DartReqHandler>>> = OnceCell::new();
 
+/// What a thread registered but has not yet started a server with.
+///
+/// Registering and starting are two calls, and the global slots between
+/// them belong to whichever thread wrote last. Two isolates starting a
+/// server at the same moment -- what `dart test` does on an ordinary run,
+/// one loaded library and a suite per isolate -- interleave as register A,
+/// register B, start A, start B. Server A then takes B's callbacks: it
+/// answers its own port out of B's router, which is a plausible 404 rather
+/// than an error, and it holds a callback B frees when B stops, so the
+/// next request into A invokes a deleted Dart callback and the process
+/// aborts on "Callback invoked after it has been deleted".
+///
+/// Keyed by thread, the two calls cannot interleave: serve() makes both
+/// without yielding, and an isolate has a thread of its own.
+static PENDING_REQUEST_HANDLERS: OnceCell<Mutex<HashMap<std::thread::ThreadId, DartReqHandler>>> =
+    OnceCell::new();
+static PENDING_CANCEL_HANDLERS: OnceCell<
+    Mutex<HashMap<std::thread::ThreadId, DartStreamCancelHandler>>,
+> = OnceCell::new();
+
+/// Each server's own stream-cancel callback, for the reason the request
+/// handlers are per server: a stream dropping under one server must not
+/// reach for a callback another server has already freed.
+static SERVER_CANCEL_HANDLERS: OnceCell<Mutex<HashMap<u64, DartStreamCancelHandler>>> =
+    OnceCell::new();
+
 /// Rides along in the request extensions so a handler can tell which server
 /// took the request. Cheaper than threading state through every route.
 #[derive(Clone, Copy)]
@@ -303,6 +329,9 @@ pub const AW_FLAG_H2C: u32 = 0x01;
 struct CancelOnDropStream<S> {
     inner: S,
     req_id: u64,
+    /// The server this stream belongs to, so the cancel goes to that
+    /// server's Dart callback rather than to whichever was registered last.
+    server_id: Option<u64>,
 }
 
 impl<S> futures_util::stream::Stream for CancelOnDropStream<S>
@@ -328,11 +357,16 @@ impl<S> Drop for CancelOnDropStream<S> {
         if let Some(map_mutex) = PENDING_STREAM_RECEIVERS.get() {
             safe_lock(map_mutex).remove(&self.req_id);
         }
-        if let Some(slot) = DART_CANCEL_HANDLER.get() {
-            let cb = *safe_lock(slot);
-            if let Some(cb) = cb {
-                (cb)(self.req_id);
-            }
+        let cb = self
+            .server_id
+            .and_then(|id| {
+                SERVER_CANCEL_HANDLERS
+                    .get()
+                    .and_then(|handlers| safe_lock(handlers).get(&id).copied())
+            })
+            .or_else(|| DART_CANCEL_HANDLER.get().and_then(|slot| *safe_lock(slot)));
+        if let Some(cb) = cb {
+            (cb)(self.req_id);
         }
     }
 }
@@ -342,6 +376,9 @@ impl<S> Drop for CancelOnDropStream<S> {
 pub extern "C" fn aw_register_handler(cb: DartReqHandler) {
     let slot = DART_REQUEST_HANDLER.get_or_init(|| Mutex::new(None));
     *safe_lock(slot) = Some(cb);
+    // And against this thread, which is where aw_start takes it from.
+    let pending = PENDING_REQUEST_HANDLERS.get_or_init(|| Mutex::new(HashMap::new()));
+    safe_lock(pending).insert(std::thread::current().id(), cb);
     let _ = SERVER_THREADS.set(Mutex::new(HashMap::new()));
     let _ = PENDING_RESPONSES.set(Mutex::new(HashMap::new()));
     let _ = NEXT_ID.set(AtomicU64::new(1));
@@ -355,6 +392,8 @@ pub extern "C" fn aw_register_handler(cb: DartReqHandler) {
 pub extern "C" fn aw_register_cancel_handler(cb: DartStreamCancelHandler) {
     let slot = DART_CANCEL_HANDLER.get_or_init(|| Mutex::new(None));
     *safe_lock(slot) = Some(cb);
+    let pending = PENDING_CANCEL_HANDLERS.get_or_init(|| Mutex::new(HashMap::new()));
+    safe_lock(pending).insert(std::thread::current().id(), cb);
     let _ = PENDING_STREAM_SENDERS.set(Mutex::new(HashMap::new()));
     let _ = PENDING_STREAM_RECEIVERS.set(Mutex::new(HashMap::new()));
 }
@@ -587,13 +626,26 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, _flags: u32) -> i32 {
     if let Some(ports) = SERVER_PORTS.get() {
         safe_lock(ports).insert(server_id, bound_port);
     }
-    // Taken now rather than read at request time: aw_register_handler is
-    // called immediately before this, and a later server registering its own
-    // must not redirect this one's traffic.
-    if let Some(handler) = DART_REQUEST_HANDLER.get().and_then(|slot| *safe_lock(slot)) {
-        if let Some(handlers) = SERVER_REQUEST_HANDLERS.get() {
-            safe_lock(handlers).insert(server_id, handler);
-        }
+    // This thread's, not the global slot's: another thread registering
+    // between our register and this call would otherwise hand this server
+    // that thread's router and its callbacks. The global stays as the
+    // fallback for a caller that registered on some other thread.
+    let this_thread = std::thread::current().id();
+    let request_handler = PENDING_REQUEST_HANDLERS
+        .get()
+        .and_then(|pending| safe_lock(pending).remove(&this_thread))
+        .or_else(|| DART_REQUEST_HANDLER.get().and_then(|slot| *safe_lock(slot)));
+    if let Some(handler) = request_handler {
+        let handlers = SERVER_REQUEST_HANDLERS.get_or_init(|| Mutex::new(HashMap::new()));
+        safe_lock(handlers).insert(server_id, handler);
+    }
+    let cancel_handler = PENDING_CANCEL_HANDLERS
+        .get()
+        .and_then(|pending| safe_lock(pending).remove(&this_thread))
+        .or_else(|| DART_CANCEL_HANDLER.get().and_then(|slot| *safe_lock(slot)));
+    if let Some(handler) = cancel_handler {
+        let handlers = SERVER_CANCEL_HANDLERS.get_or_init(|| Mutex::new(HashMap::new()));
+        safe_lock(handlers).insert(server_id, handler);
     }
 
     let handle_clone = handle.clone();
@@ -651,6 +703,9 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, _flags: u32) -> i32 {
                 safe_lock(ports).remove(&server_id);
             }
             if let Some(handlers) = SERVER_REQUEST_HANDLERS.get() {
+                safe_lock(handlers).remove(&server_id);
+            }
+            if let Some(handlers) = SERVER_CANCEL_HANDLERS.get() {
                 safe_lock(handlers).remove(&server_id);
             }
         });
@@ -931,6 +986,7 @@ async fn dart_proxy_with_fallback(
                 let cancel_stream = CancelOnDropStream {
                     inner: receiver_stream,
                     req_id,
+                    server_id,
                 };
                 
                 builder.body(Body::from_stream(cancel_stream)).unwrap()

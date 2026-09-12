@@ -56,6 +56,49 @@ void main() {
           'result over ${libraryFile.path}. Missing: $missing',
     );
   });
+
+  // The other direction, which the check above cannot see.
+  //
+  // When a refactor *removes* a symbol, the bindings and the committed library
+  // are both left behind together, so they still agree with each other and the
+  // comparison above stays green. That is not hypothetical: `a7ea535f` moved
+  // the HTTP client to dartvel_core, and `dv_http_send`, `dv_http_cancel`,
+  // `dv_http_next_event` and `dv_http_free_buf` stayed in this package's
+  // bindings and in its committed library for weeks afterwards -- symbols
+  // belonging to another package's library, which nothing here has ever
+  // called. Anyone who followed the advice above and rebuilt from source got a
+  // library without them, and the green test turned red for doing the right
+  // thing.
+  //
+  // The header is the source of truth: cbindgen writes it from the Rust that
+  // exists, so a symbol the header does not declare is one this crate no
+  // longer builds.
+  test('the bindings declare nothing the header no longer does', () {
+    final File header = File('rust/include/dartvel_shelf.h');
+    expect(header.existsSync(), isTrue,
+        reason: 'the cbindgen header is missing: ${header.path}');
+
+    final String source = header.readAsStringSync();
+    final File bindings = File('lib/src/generated/bindings.dart');
+    final Set<String> declared = RegExp(
+      r"_lookup<.*?>\(\s*'([A-Za-z0-9_]+)'\s*\)",
+      dotAll: true,
+    ).allMatches(bindings.readAsStringSync()).map((m) => m.group(1)!).toSet();
+
+    final List<String> orphaned = <String>[
+      for (final String symbol in declared)
+        if (!RegExp('\\b$symbol\\s*\\(').hasMatch(source)) symbol,
+    ]..sort();
+
+    expect(
+      orphaned,
+      isEmpty,
+      reason: 'the bindings bind symbols this crate no longer declares, so '
+          'they can only resolve against a stale committed library. '
+          'Regenerate them: dart run ffigen --config ffigen.yaml. '
+          'Orphaned: $orphaned',
+    );
+  });
 }
 
 bool _exports(ffi.DynamicLibrary library, String symbol) {
