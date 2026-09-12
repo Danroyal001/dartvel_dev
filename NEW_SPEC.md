@@ -3396,6 +3396,207 @@ overridden.
 
 ---
 
+# Usage Metering and Quotas
+
+Stability: `Draft` · Status: `Designed`
+
+Billing lists usage meters among its typed config and says nothing about where
+the numbers come from. Multi-tenancy says who the numbers belong to. This is
+the part between them: what is counted, who is allowed to count it, what
+happens when a tenant reaches a limit, and which number the invoice is made
+from.
+
+```dart
+@DVMeters()
+abstract class _Meters {
+  @DVMeter(unit: 'call', limit: DVLimit.entitlement)
+  static const apiCalls = DVMeter.counter;
+
+  @DVMeter(unit: 'GB-month')
+  static const storedBytes = DVMeter.gauge;
+
+  @DVMeter(unit: 'token')
+  static const aiTokens = DVMeter.counter;
+}
+
+Meters.apiCalls.record(1);
+Meters.aiTokens.record(response.usage.totalTokens);
+```
+
+A meter is scoped to `DV.currentTenant` without being told to. A recording
+that reaches the store without a tenant is not a usage number, it is a number
+with nowhere to go.
+
+## Counting happens on the backend, and only there
+
+**A meter cannot be recorded from client-reachable code, and trying is a build
+error** (`DV-METER-001`) — the same shape of rule, for the same reason, as a
+backend-scoped secret reached from a client.
+
+A client-reported usage number is a number the customer controls. Every
+metering system that trusted one has the same story afterwards, and it is not
+a story about malice so much as about a retry loop in somebody's script. The
+backend already sees the call it would have counted.
+
+Some meters need nothing written at all: backend function invocations, storage
+bytes, queue jobs and AI tokens are known to the framework, and declaring one
+of those meters instruments it from the project graph rather than from calls
+somebody remembered to add.
+
+## Recording twice is the default failure
+
+A metered call that is retried — by the client, by a queue, by a load balancer
+that gave up early — arrives more than once, and a counter that takes both has
+overcharged somebody.
+
+Every recording carries an idempotency key, defaulting to the request id from
+the Backend Function Request Lifecycle, and the store discards a key it has
+already seen inside the period (`DV-METER-002`). A job records under the job's
+own id, so a retried job counts once however many attempts it took.
+
+Counters accumulate. Gauges are the current value at a sample, and a gauge is
+billed on its average or its peak over the period, declared per meter, because
+"gigabytes stored" is not a number you add up.
+
+## Limits are declared over two different quantities
+
+This is where seats come in, and the answer is not the obvious one.
+
+A **flow** is a meter: events accumulating over a period. API calls, tokens,
+messages sent. It is recorded.
+
+A **level** is a query: how many of something exist right now. Seats,
+projects, connected devices. It is counted when asked.
+
+`DVLimit` covers both, and only one of them is metered:
+
+```dart
+@DVMeter(unit: 'call', limit: DVLimit.entitlement)      // flow: from the meter
+static const apiCalls = DVMeter.counter;
+
+DVLimit.query(Membership.seats, entitlement: Entitlement.seats)  // level
+```
+
+**Seats stay what Organizations, Membership and Invitations said they were: a
+query over memberships that Billing reads, not a meter.** Metering them would
+mean recording an increment when somebody is invited and a decrement when
+somebody is removed, which is precisely the second counter that section
+refused — and it drifts the first time a membership is deleted by a cascade,
+a restore, or an organization closing. The quota layer covers levels and
+flows alike; the recording layer covers flows only, because a level has an
+authoritative answer already and recording it would be storing a derivative
+of the truth beside the truth.
+
+## What happens at the limit
+
+```dart
+@DVMeter(
+  unit: 'call',
+  limit: DVLimit.entitlement,
+  atLimit: DVQuota.block,      // block | throttle | allowAndBill
+  notifyAt: [0.8, 1.0],
+)
+```
+
+`atLimit` is required wherever a limit is declared (`DV-METER-005`). There is
+no default, because each of the three is somebody's correct answer and picking
+one silently means a deployment finds out which it got during an incident:
+`block` turns a customer's integration off, `throttle` makes it slow enough to
+notice, and `allowAndBill` produces an invoice nobody expected.
+
+`notifyAt` thresholds send through Notifications before the limit rather than
+at it (`DV-METER-003`). A quota reached with no warning is a support ticket; a
+quota approached with two is a renewal conversation.
+
+Reaching a limit reports `DV-METER-004` with the behaviour that was applied,
+so the log says what happened to the request rather than only that a number
+was exceeded.
+
+## The period, and what arrives late
+
+The period is the tenant's **billing period**, taken from the provider, not a
+calendar month — an invoice cut on the eleventh and usage counted from the
+first is a reconciliation argument every month. A tenant with no billing
+period falls back to the deployment's calendar period and says so
+(`DV-METER-010`).
+
+A record can arrive after its period closed: a queued job draining, a device
+that was offline, a retry. Within a declared grace it is accepted into the
+period it belongs to (`DV-METER-007`). After the grace it counts in the open
+period (`DV-METER-008`) rather than being dropped, because usage that
+happened is usage that happened, and an invoice already sent is not something
+a framework should quietly reopen.
+
+## Reconciliation, and which number is the invoice
+
+Usage is reported to the billing provider at period close, and **the
+provider's invoice is the customer-facing truth**. Dartvel's own store is the
+evidence behind it: the same figures, per record, with the idempotency keys
+and the timestamps that produced them.
+
+They can disagree — a report that failed and retried, a provider that rounds,
+a plan changed mid-period. `dartvel meters reconcile` produces the difference
+per tenant per meter and does not resolve it automatically. Usage that could
+not be reported is queued and retried, never dropped (`DV-METER-006`), because
+a dropped report is revenue that silently did not exist.
+
+A metered entitlement with no price on the plan is counted and not billed, and
+says so (`DV-METER-009`) — that is a legitimate state while a meter is being
+watched before it is charged for, and an illegitimate one that lasts a quarter
+if nothing reports it.
+
+## The store
+
+Meters aggregate in the application's own database, which keeps local
+development zero-config. High-volume deployments point the same generated
+queries at ClickHouse, exactly as Product Analytics does, because the shape of
+the data is the same: append-heavy, read as aggregates.
+
+## CLI
+
+```bash
+dartvel meters list
+dartvel meters usage --tenant acme --period current
+dartvel meters reconcile --period 2026-08
+```
+
+## Studio
+
+Studio shows usage per tenant against each tenant's own limits, the tenants
+approaching one, and the reconciliation difference beside the invoice it
+belongs to.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-METER-001` | a meter is recorded from client-reachable code | `error` |
+| `DV-METER-002` | a duplicate recording was discarded by its idempotency key | `debug` |
+| `DV-METER-003` | a meter passed a declared notification threshold | `warning` |
+| `DV-METER-004` | a meter reached its limit; the declared behaviour was applied | `warning` |
+| `DV-METER-005` | a meter declares a limit and no behaviour at the limit | `error` |
+| `DV-METER-006` | usage could not be reported to the billing provider; it is queued, not dropped | `error` |
+| `DV-METER-007` | a record arrived after its period closed and was accepted into it under the declared grace | `info` |
+| `DV-METER-008` | a record arrived after the grace; it counts in the open period | `warning` |
+| `DV-METER-009` | a metered entitlement has no price on the plan; usage is counted and not billed | `warning` |
+| `DV-METER-010` | the tenant has no billing period; the deployment's calendar period was used | `info` |
+
+## Deliberately absent
+
+- **Client-side metering.** Covered above. There is no configuration that
+  turns it on.
+- **A second counter for seats.** Levels are queried, flows are metered, and
+  the drift this avoids is the one Organizations already named.
+- **Dartvel issuing the invoice.** The provider does that. Dartvel supplies
+  the usage and keeps the evidence.
+- **Automatic reconciliation.** A difference between two systems of record is
+  something a person decides about. Resolving it silently would hide the class
+  of bug the reconciliation exists to find.
+- **Rating and pricing rules of its own.** Tiers, overage curves and discounts
+  live in the provider's plan, where the finance team can already see them.
+
+---
+
 # Internationalization and Localization
 
 Stability: `Draft` · Status: `Shipped`
@@ -6194,6 +6395,9 @@ dartvel privacy check
 dartvel privacy export --subject user:1042
 dartvel privacy erase --subject user:1042 --reason "DSAR 2026-114"
 dartvel privacy retention --plan
+dartvel meters list
+dartvel meters usage --tenant acme --period current
+dartvel meters reconcile --period 2026-08
 ```
 
 Flags
@@ -7717,8 +7921,8 @@ functions, jobs, modules, static paths, the schema, migration plans, the
 protocol version and its window, memory arenas, 3D scenes, API scopes,
 privacy declarations, release plans, analytics events and their consent
 categories, feature flags with their owners, expiry dates and rollout rules,
-each model's subject path and retention, and capability metadata, each node
-keeping the source mapping it was derived from.
+each model's subject path and retention, usage meters and their limits, and
+capability metadata, each node keeping the source mapping it was derived from.
 
 The graph is the contract, and `--json` is how it is read:
 
