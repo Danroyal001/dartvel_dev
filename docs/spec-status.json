@@ -127,6 +127,11 @@
       ]
     },
     {
+      "section": "Outbound HTTP",
+      "stability": "Draft",
+      "status": "Designed"
+    },
+    {
       "section": "Scheduling",
       "stability": "Draft",
       "status": "Partial",
