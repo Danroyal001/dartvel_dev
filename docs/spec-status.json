@@ -689,6 +689,11 @@
       "absent": "A Dartvel application renders in a terminal, which it could not before: `flutter build bundle` reads the compiler configuration a project's build hooks need -- every Dartvel application has one, the Rust runtime -- and looks for it at build/flutter_assets/linux/x64/<mode>/CMakeCache.txt, which nothing writes. The desktop build writes one two directories away, so a terminal build runs that first and copies the cache across; it is a configuration step and nothing from it ships. Absent: the fork's own renderer -- the Kitty protocol with an ANSI fallback -- and a distributable runner. Both live in dartvel_cli_flt, a Rust custom-embedder project that no machine here has installed, so `dartvel build linux-cli` still stops at the toolchain check and says so rather than substituting a desktop build. Everything the Dart side owns is now wired end to end. Built: terminal size as a signal (DV.Platform.terminal.size, read from the attached terminal and again on SIGWINCH); DV.Platform.terminal.graphics, which is asked of the terminal rather than guessed from TERM -- Kitty's a=q query paired with a Device Attributes request so a terminal without graphics support answers no instead of timing out, with the reply reader treating a partial reply, an id that belongs to somebody else and an outright refusal as three different things; launch negotiation for a dual-mode build (arguments and display decide, the spec's wording asks when there is no display, a terminal outcome goes to the runner beside the GUI binary); a terminal-only build that generates a main for the binary it is actually producing -- `dartvel build <desktop>-cli` now carries its resolved backends to generation through --render, so the main declares the terminal alone, installs the surface at startup, and never goes looking for the -cli runner it already is; and DV.Window.open in a terminal, which navigates and reports DVWindowPresentation.page with DV-WINDOW-001 rather than asking an operating system for a window on a machine that has no display server"
     },
     {
+      "section": "3D Scenes",
+      "stability": "Draft",
+      "status": "Designed"
+    },
+    {
       "section": "Multi-Window",
       "stability": "Contract",
       "status": "Partial",
