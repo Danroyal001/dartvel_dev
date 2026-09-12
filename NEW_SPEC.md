@@ -8062,6 +8062,83 @@ a stale link from the last successful run.
 
 ---
 
+# Dev Client
+
+Stability: `Draft` · Status: `Designed`
+
+`dartvel dev` reloads a running application. Getting that application onto a
+colleague's phone is the step nobody has specified, and Preview Environments
+already refers to "the installed dev-client shell" as though it exists.
+
+```bash
+dartvel build dev-client --target android
+dartvel build dev-client --target ios
+```
+
+The output is a signed shell: an application that contains the engine, the
+native bindings the project declares, and no application code. It connects to
+a `dartvel dev` server or a preview environment and loads bundles in the OTA
+format — the same format, the same signature check, and the same idempotent
+apply, because a second delivery mechanism for the same bytes is a second
+thing to keep correct.
+
+A QR code or a deep link points it at a branch. A designer scans it, sees the
+branch, and nobody rebuilt anything native; the next branch is another scan.
+
+## The dev menu
+
+The shell carries what a build under test needs and a release build must never
+have: reload, the inspectors `dartvel inspect` answers, the capability report
+for the device it is actually running on, a log view, and kiosk staff mode so
+a locked surface can be inspected without unlocking the policy.
+
+This is why it is a separate artifact rather than a flag. A dev menu compiled
+into a release build behind a runtime check is one condition away from
+shipping, and the condition is usually an environment variable somebody set in
+the wrong place. On store-signed targets the shell takes its own application
+id, so it installs beside the real application instead of replacing it; on
+desktop and embedded it is a launch flag, because those targets have no store
+identity to collide with.
+
+## What it cannot do
+
+**A native change still needs a rebuilt shell.** Adding a binding, a plugin, or
+a permission changes what is compiled in, and no bundle can add it afterwards.
+The shell records the binding manifest it was built from, and a bundle that
+needs something absent refuses to load with `DV-DEVCLIENT-002` naming the
+binding — rather than loading and failing at the call site, which is where this
+goes wrong in every system that does not check.
+
+That is the same caveat Expo's development builds carry, and stating it plainly
+is the difference between a tool people trust and a tool people work around.
+
+## Distribution
+
+Shells are distributed as internal builds through the tracks App Store
+Publishing already defines — TestFlight, Play internal testing, or a direct
+install on desktop and embedded. They are never published to a public track;
+`dartvel publish` refuses a dev-client artifact rather than relying on nobody
+selecting it.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-DEVCLIENT-001` | dev client could not reach the named dev server or preview | `warning` |
+| `DV-DEVCLIENT-002` | bundle needs a native binding this shell was not built with | `error` |
+| `DV-DEVCLIENT-003` | dev-client artifact submitted to a public track | gate `error` |
+
+## Deliberately absent
+
+- **A hosted playground.** A browser-based Dartvel sandbox is a service with
+  running costs and a commercial decision behind it, not a specification item.
+- **Loading unsigned bundles.** The shell verifies signatures exactly as OTA
+  does; a development shell that skips the check is the one people then use to
+  demonstrate the product.
+- **A release-mode dev menu.** Separate artifact, no runtime flag.
+
+---
+
 # CLI
 
 Stability: `Contract` · Status: `Shipped`
