@@ -744,6 +744,13 @@
       "status": "Designed"
     },
     {
+      "section": "Compute: Workers and Native Offload",
+      "stability": "Draft",
+      "status": "Designed",
+      "evidence": [],
+      "absent": "Nothing of this is built. DV.Workers does not exist: there is no task surface, no pool, no progress or cancellation plumbed to Background and Durable Work's typed events, and no device-profile sizing. DVRust is one integer type (DVRustInt, with +, - and *), so the Rust-kernel-in-a-worker path and the zero-copy arena hand-off both rest on bindings that are not generated yet; Platform Memory is itself Designed, so the arenas they would share do not exist either. dartvel analyze performance exists and reads a live performance map, but registers none of DV-WORKER-003's UI-isolate detection. The web half is the part with no prototype at all -- no web-worker bridge, and no capability reporting of the structured-clone-versus-shared-memory distinction the section turns on."
+    },
+    {
       "section": "Kiosk Mode",
       "stability": "Contract",
       "status": "Partial",

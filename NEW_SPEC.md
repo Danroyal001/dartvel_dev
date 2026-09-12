@@ -5961,6 +5961,104 @@ signals in a memory panel.
 
 ---
 
+# Compute: Workers and Native Offload
+
+Stability: `Draft` · Status: `Designed`
+
+Three things in this specification do heavy work on the client and none of
+them names the others. Package Structure binds Rust through FFI. Platform
+Memory reserves arenas large enough that whatever fills them is not cheap.
+And every page in the UI section assumes the frame budget is intact while an
+import is parsed, a report is aggregated, or an image is decoded.
+
+Dart's answer is an isolate. The web has no isolates, and a framework that
+says "use an isolate" has told half its targets nothing.
+
+## One surface, and the pool is not the caller's problem
+
+```dart
+final DVWorkerResult<Ledger> result = await DV.Workers.run(
+  parseLedger,
+  input: bytes,
+  onProgress: (DVProgress progress) => parsing.value = progress.fraction,
+);
+```
+
+A task is a top-level or static function with typed input and output, because
+that is what can cross an isolate boundary and what a web worker can be handed.
+A closure over the calling scope cannot, and is a compile-time error naming the
+capture rather than a runtime send failure naming a port.
+
+Progress and cancellation are the typed events Background and Durable Work
+already defines. A worker is not a job — it is in-process, it does not survive
+a restart, and it has no queue — but a caller watching one should not have to
+learn a second vocabulary for "it is 40% through" and "stop".
+
+The pool is sized from the device profile, the same declaration Platform
+Memory sizes arenas from. Four cores on a desktop and one on a television is
+not a tuning parameter an application should carry, and a pool sized from
+`Platform.numberOfProcessors` on an embedded board is how a kiosk's UI loses
+its frame budget to its own background work.
+
+## What a worker is, per target
+
+| Target | Mechanism | Label |
+|---|---|---|
+| Android, iOS, desktop, embedded | isolate | `Supported` |
+| Web | web worker | `Supported with limitations`¹ |
+| Targets without threads | inline on the calling isolate | `Unsupported → inline`² |
+
+¹ A web worker communicates by structured clone — the input is **copied**, not
+shared — unless the buffer is transferable, and shared memory needs
+cross-origin isolation the page may not have. That distinction is reported
+through capability rather than hidden, because a design that assumed sharing
+and got copying is slower in a way no profile explains.
+
+² Running inline is the honest degradation: the work still happens and the
+result is still correct, the frame budget is what is lost. It is reported once
+through `DV.log` rather than silently, so "why does this stutter only here" has
+an answer.
+
+## Rust kernels and zero-copy
+
+On native targets a worker may call generated Rust bindings, and a Platform
+Memory arena may be passed to one without copying: arena addresses are stable
+and outside the Dart heap, which is what makes them shareable in the first
+place. On the web the same call marshals through the worker boundary, and the
+capability report says so rather than leaving a performance difference to be
+discovered.
+
+This is the join the three sections were missing: an arena is where the data
+sits, a Rust binding is what processes it, and a worker is where that happens
+without the UI waiting.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-WORKER-001` | a task ran inline because the target has no threads | `info`, once per boot |
+| `DV-WORKER-002` | a task captured state it cannot send; make it top-level or static | build `error` |
+| `DV-WORKER-003` | heavy synchronous work detected on the UI isolate | `warning` (analyze) |
+| `DV-WORKER-004` | shared memory unavailable; input was copied to the worker | `info`, once |
+| `DV-WORKER-005` | the pool is saturated and tasks are queueing behind it | `warning` |
+
+`DV-WORKER-003` is the one that earns the section. It lands in `dartvel
+analyze performance`, which is the existing command, next to the frame-budget
+diagnostics already there.
+
+## Deliberately absent
+
+- **A thread pool an application configures by number.** The device profile
+  knows what the device is; a hand-tuned count is wrong on the next device.
+- **Long-lived background execution.** A worker is in-process and dies with
+  the process. Work that must outlive it is a job, and Background and Durable
+  Work owns that — including the platform limits `@DVClientCron` documents.
+- **Shared mutable state between workers.** Arenas are passed, not shared
+  concurrently; two workers writing one arena is a data race Dart's own model
+  exists to prevent.
+
+---
+
 # Kiosk Mode
 
 Stability: `Contract` · Status: `Partial`
