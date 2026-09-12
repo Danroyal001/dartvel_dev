@@ -10304,6 +10304,101 @@ structured data, canonical route → canonical URL); all values can be overridde
 
 ---
 
+# Error, Empty, and Loading States
+
+Stability: `Draft` · Status: `Partial`
+
+Batteries-included UI is measured in the screens nobody designs. A framework
+that generates a table and leaves "what it looks like with no rows" to the
+application has generated the easy half. The states below are the other half,
+and they are generated with defaults that can be replaced rather than left as
+an exercise:
+
+- the list with nothing in it,
+- the load that failed, and the retry,
+- the page that threw,
+- the route that does not exist,
+- the device that is offline,
+- the upload that will take a minute.
+
+## What exists, and what it does not
+
+A page may sit beside two companions, and the generator wires them to the
+route:
+
+```text
+lib/pages/index.dart
+lib/pages/index.loading.dart
+lib/pages/index.error.dart
+```
+
+`DVTable` takes an `emptyLabel`, and an empty table announces it once. That
+much is built. What is missing is everything below, and one thing about what
+is built: the default label is the literal string `'No rows'`, so a Dartvel
+application localised into six languages still says `No rows` in all of them.
+Framework strings — `Save`, `Retry`, `No results` — are i18n keys with catalog
+defaults, so they localise and rebrand like everything else the application
+says. A hardcoded English default is a hole in the i18n section's promise, not
+a small nicety.
+
+## Errors
+
+An error boundary wraps each page, so a widget that throws takes down the page
+rather than the application, and reports through Crash Reporting with the same
+source mappings — an exception inside generated code points at the model that
+generated it.
+
+Status pages are generated per code. A 404 is not a blank screen; a 500 is not
+a stack trace in front of a customer, and the detail a developer needs goes to
+the log while the visitor gets a sentence.
+
+## Empty is not one state
+
+The distinction generated components make, because the answers differ:
+
+- **Nothing yet** — an empty collection, which wants the action that creates
+  the first one. The generated list, table and grid each take a typed slot for
+  that call to action rather than inventing one.
+- **Nothing matching** — a filter or search with no results, which wants the
+  filter cleared, not a create button.
+- **Nothing visible to you** — a policy filtered everything out. Worth
+  separating, because "no records" when the truth is "not yours to see" sends
+  a reader to support with the wrong question.
+
+## Loading
+
+Skeletons are derived from the model's field layout, so the placeholder is the
+shape of what is coming rather than a spinner — a generated table knows its
+columns before it has rows.
+
+An offline banner is driven by the connectivity signal Offline-First Models
+defines, and a background-task tray shows uploads, exports and imports from
+the typed progress events jobs already emit. Neither is a new mechanism; both
+are the rendering of state the framework already has and currently shows
+nobody.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-STATE-001` | a generated collection has no empty-state action declared | `info` |
+| `DV-STATE-002` | a page threw and its error boundary caught it | `error` |
+| `DV-STATE-003` | a framework string is a literal rather than an i18n key | `warning` (analyze) |
+
+`DV-STATE-003` is the one with work behind it today, and `emptyLabel` is its
+first finding.
+
+## Deliberately absent
+
+- **A designed look.** These are defaults built from the two primitives and
+  the theme tokens, replaceable per application. A framework that shipped an
+  opinionated illustration would be overridden everywhere and localised
+  nowhere.
+- **Automatic retry.** A retry is offered, not performed: a failed load
+  retried silently is how a broken endpoint becomes a traffic pattern.
+
+---
+
 # Reversible Transactions
 
 Stability: `Contract` · Status: `Shipped`
