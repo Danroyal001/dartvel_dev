@@ -207,6 +207,26 @@ final class DVDiagnostics {
       level: 'warning',
     ),
     DVDiagnostic(
+      code: 'DV-SESSION-001',
+      reason: 'multi-factor required by policy and not yet satisfied',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-SESSION-002',
+      reason: 'session revoked elsewhere; this device was signed out',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-SESSION-003',
+      reason: 'cookie configuration weaker than the deployment allows',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-SESSION-004',
+      reason: 'recovery codes generated but never downloaded',
+      level: 'warning',
+    ),
+    DVDiagnostic(
       code: 'DV-CRON-001',
       reason: 'declared interval finer than the target\'s granularity; coalesced to it',
       level: 'warning',
