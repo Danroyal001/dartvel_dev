@@ -796,6 +796,11 @@
       "status": "Designed"
     },
     {
+      "section": "XR — Spatial Presentation",
+      "stability": "Draft",
+      "status": "Designed"
+    },
+    {
       "section": "Multi-Window",
       "stability": "Contract",
       "status": "Partial",

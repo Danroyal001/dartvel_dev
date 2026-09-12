@@ -5957,11 +5957,303 @@ per-target support through the project graph, like every other inspector.
   typed surface, per the `go_router` precedent.
 - **Scene nodes as widgets.** Widgets lay out; nodes render. `DVBox.scene` is
   the one place the trees meet.
-- **AR/VR/XR.** A different input, display and permission model; a separate
-  proposal if ever.
+- **AR/VR/XR as part of *this* section.** Spatial presentation has a different
+  input, display and permission model, so it is its own section — see XR —
+  Spatial Presentation, which builds on this one rather than extending it.
 - **A promise of `Contract` stability today.** Upstream is experimental and
   says so; this section is `Draft` until Flutter GPU stops renaming its
   verbs, and the promotion to `Contract` is a status change, not a redesign.
+
+---
+
+# XR — Spatial Presentation
+
+Stability: `Draft` · Status: `Designed`
+
+(The `## Bindings` subsection declares Stability `Draft`; every other
+subsection inherits the section labels, per Specification Status. `Draft`
+because every platform surface this section sits on is either flag-gated,
+community-maintained, or moving between OS releases; the Dartvel surface is
+designed to be promoted to `Contract` without change.)
+
+XR is not a new kind of application. It is a new **surface** for three things
+Dartvel already has: a window is a route (Multi-Window), a scene is a box mode
+(3D Scenes), and a surface that cannot honour a request presents the route
+another way and says why. Headsets and glasses add three ways to present a
+route in space — as a panel, as a volume, as an immersive space — and this
+section defines those three, what they degrade to everywhere else, and what
+the platforms actually enforce.
+
+## Three presentations, one verb
+
+| Presentation | What it is | How it is asked for | Where XR is absent |
+|---|---|---|---|
+| **panel** | a 2D route floating in space; what the OS auto-spatializes | `DV.Window.open(route)` — nothing new | an ordinary window or page |
+| **volume** | a bounded 3D region showing a scene page | `DV.Window.open(route, kind: DVWindowKind.volume)` | the scene as a `DVBox.scene` viewport in a window or page (`DV-WINDOW-014`) |
+| **immersive** | a scene that surrounds the user: passthrough (AR) or full (VR) | `DV.Window.open(route, kind: DVWindowKind.immersive)` | a fullscreen scene page (`DV-WINDOW-015`) |
+
+A panel is not a new kind: every Dartvel window is a panel on a headset, which
+is why an existing application arrives on Android XR, Horizon OS and visionOS
+with no XR code at all, exactly as those platforms' compatibility modes intend.
+`volume` and `immersive` are new kinds, and `open()` still never fails: on a
+phone, a desktop, a television or a terminal they present as the table says,
+reported through the same degradation channel as every other kind.
+**Application code never branches on whether it is in a headset.**
+
+A volume or immersive route's page returns a `DVScene` through `DVBox.scene`,
+and the same page renders as a viewport when it is not in space. One page,
+three presentations; the scene is written once.
+
+```dart
+final showroom = await DV.Window.open(
+  DVPages.showroom,
+  options: DVWindowOptions(
+    kind: DVWindowKind.volume,
+    volume: DVVolumeOptions(size: DVVec3(1.2, 0.8, 0.8)),
+  ),
+);
+
+final tour = await DV.Window.open(
+  DVPages.factoryTour,
+  options: DVWindowOptions(
+    kind: DVWindowKind.immersive,
+    immersion: DVImmersion.passthrough,   // passthrough | full
+  ),
+);
+
+tour.presentation;      // window | page | dialog | overlay | volume | immersive
+tour.degradation;       // none, or why it is not what was asked
+tour.codes;             // DV-WINDOW-015 where the target has no immersive space
+```
+
+Immersive spaces are exclusive: one at a time per application, owned by the
+window that opened it, closed when that window closes. Panels and volumes
+coexist with an immersive space where the OS allows (visionOS mixed spaces,
+Android XR full space with panels) and hide where it does not, reported once.
+
+**`volume` and `immersive` are spatial-only kinds**, and this section is
+`Designed` precisely because nothing assigns them yet. They join `DVWindowKind`
+and `DVWindowPresentation` as part of this contract, and the first target that
+can present in space is what makes them reachable. They are deliberately *not*
+new `DVWindowDegradation` members: a degradation nothing can set is the defect
+four window degradations already shipped with, so `DV-WINDOW-014` and
+`DV-WINDOW-015` are reported on the window's `codes` — the same treatment
+`DV-WINDOW-011` and `DV-WINDOW-012` get, and for the same reason.
+
+## Placement is still not the contract
+
+The multi-window rule holds in space: Dartvel does not position panels or
+volumes. The OS places them and the user moves them; the only hints are the
+volume's requested size and, for immersive scenes, the user's origin.
+
+Pinning and persistence of panels are OS features with different guarantees per
+platform — visionOS and Horizon OS persist pinned windows across reboot,
+Android XR restores a bounded number — and `capability.spatial.persistence`
+reports which, rather than the framework pretending to remember placements it
+cannot (`DV-XR-004`).
+
+## Anchors
+
+Content that must stay where the world is — a virtual sign on a real wall, a
+product on a real counter — uses anchors, and anchors are typed data on scene
+nodes:
+
+```dart
+DVModel3D(DVScenes.priceTag).anchor(DVAnchor.plane(DVPlane.vertical))
+DVModel3D(DVScenes.demoUnit).anchor(DVAnchor.image(DVMarkers.counterTag))
+DVModel3D(DVScenes.sign).anchor(DVAnchor.world(id: 'lobby-sign'))
+```
+
+- Plane, image/marker, hand and world anchors as a closed set per platform
+  capability; an unsupported anchor type degrades to an unanchored node at the
+  scene origin and reports `DV-XR-002`.
+- **World anchors persist through the shared window store** under `xr.anchors.*`
+  — encrypted with the application key like everything else in that store — and
+  through the OS's own persistence where it exists. A world anchor that cannot
+  be re-localized on relaunch reports (`DV-XR-003`) rather than drifts.
+- **Shared anchors are model state.** Two headsets seeing one sign is model
+  sync: an anchor's transform is a synced model bound with `syncTransform`
+  (3D Scenes), with cloud-anchor providers as adapters behind it. There is no
+  XR-specific networking, per the one-realtime-system rule.
+
+## Input
+
+Spatial input arrives through the modifiers that already exist. `.onTap()`
+fires on gaze-and-pinch, hand-ray select, or controller trigger; `.onHover()`
+fires on gaze or ray hover where the platform exposes it; scene nodes gain
+`.onGrab()` and `.onRelease()` for direct manipulation. Which inputs exist is
+reported by `capability.spatial.input` and never assumed.
+
+**Raw eye-gaze data is never exposed.** The platforms forbid it and the spec
+agrees by construction: an application receives "this node was selected", never
+where the user is looking.
+
+## Passthrough, environment and comfort
+
+`DVScene(environment: DVEnvironments.passthrough)` lights the scene from the
+real environment where a probe is available and from the studio environment
+where it is not, reported (`DV-XR-001`). Plane detection, hand occlusion and
+room meshes are capability-gated.
+
+Environment data is **sensitive by construction**: room geometry, hand and body
+data never leave the device, are never logged, and fall under the exclusion set
+Sensitive Model Fields defines without having to be declared. There is no
+annotation to forget.
+
+Comfort is policy, not advice. Locomotion in immersive scenes requires comfort
+options — teleport, snap turn, vignette — from a generated set, and
+`dartvel analyze` flags smooth locomotion without them (`DV-XR-005`).
+Reduced-motion settings apply. Seated mode, height calibration and a generated
+recenter action are default affordances.
+
+## Kiosk, workspaces and multi-window in space
+
+- **Tab Workspaces** work unchanged: `capability.tearOut` is true on headsets,
+  and tearing a tab out yields a panel.
+- **Displays do not exist in space.** `DV.Window.displays` is empty,
+  `capability.displayKiosk` is false, and a `display:` hint is ignored with
+  `DV-WINDOW-013`, as on any target with no matching display.
+- **Kiosk in space is device scope only** — an enterprise headset locked to one
+  application (Android XR under Android Enterprise, visionOS under
+  supervision). Enforcement reports `supervised` strength, because a headset's
+  home gesture belongs to the OS; kiosk on XR means "single application, return
+  to it", as it does on televisions.
+
+## Capability
+
+```dart
+final s = DV.Window.capability.spatial;
+s.panels; s.volumes; s.immersive; s.passthrough;
+s.persistence;      // DVSpatialPersistence: full | bounded(n) | none
+s.input;            // hands, controllers, gaze, voice
+s.anchors;          // plane, image, hand, world, shared
+s.occlusion; s.sceneMesh;
+```
+
+`capability.spatial` is null on every target that is not a headset or glasses,
+which is the one place application code may branch — to decide whether to
+*offer* a spatial control, never to decide whether `open()` will work.
+
+## Platform matrix
+
+| Target | Panel | Volume | Immersive | Mechanism | Label |
+|---|---|---|---|---|---|
+| Android XR (headsets) | yes — auto-spatialized | yes | yes | Jetpack XR via generated JNI bindings; OpenXR | `Experimental`¹ |
+| Android XR (glasses) | HUD-class surfaces | no | no | notification/glanceable surfaces | `Experimental`² |
+| Meta Horizon OS | yes — Android panel | yes | yes | Spatial SDK via JNI; OpenXR | `Experimental`¹ |
+| Pico OS | yes | plausible | plausible | Android-based; OpenXR | `Community supported` |
+| visionOS | yes — compatibility mode | no³ | no³ | iPad-compatible app; native spaces need generated FFI over SwiftUI/RealityKit | `Supported with limitations`³ |
+| Web (WebXR) | n/a | via WebXR | via WebXR | 3D Scenes' WebGL2 backend plus a WebXR session | `Experimental` |
+| Everything else | n/a | viewport | fullscreen page | degradation | per the base target |
+
+¹ Volumes and immersive spaces depend on the flag-gated Flutter GPU / Flutter
+Scene stack (3D Scenes) and on native SDKs Dartvel reaches through generated
+JNI or FFI only. The community `flutter_xr` proof of concept reaches Android XR
+through pigeon platform channels, which the standing rule forbids; Dartvel's
+bindings are generated, or it does not ship.
+
+² Glasses are not headsets: no volumes, no immersive spaces, a HUD. The right
+primitives are Home Widgets and ongoing notifications extended to glasses
+surfaces, not this section's kinds.
+
+³ Flutter is not an officially supported visionOS target; a Dartvel application
+runs there as a compatible iPad app, which is a panel. Volumes and immersive
+spaces on visionOS require generated FFI bindings over native spatial
+frameworks; until those exist and are evidenced in `docs/build-targets.md`,
+`open()` presents a viewport and reports.
+
+## Configuration
+
+```yaml
+dartvel:
+  xr:
+    enabled: true            # linked only when a volume, an immersive space or an anchor is used
+    immersion: [passthrough, full]
+    comfort:
+      locomotion: [teleport, snapTurn]
+      vignette: true
+    anchors:
+      shared: cloudAnchorsAdapter    # optional
+    performance:
+      targetFps: 90
+```
+
+Per the compatibility principle, an application that opens only regular windows
+carries no XR code and still arrives on every headset as panels. `xr:` is
+linked when a volume, an immersive space, or an anchor is used — usage decides,
+as it does for terminal rendering and 3D.
+
+## Build targets
+
+```bash
+dartvel build android-xr      # APK/AAB with the XR manifest and Jetpack XR bindings
+dartvel build horizon         # Android APK with the Horizon OS manifest
+dartvel build visionos        # iPad-compatible build; native spaces when bindings exist
+dartvel build web             # WebXR session support when scene3d and xr are both used
+```
+
+`dartvel doctor --target android-xr|horizon|visionos` validates SDKs, emulators
+and bindings before a build starts, per the build toolchain rule; `dartvel dev`
+attaches to the Android XR and visionOS simulators.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-XR-001` | passthrough unavailable; the studio environment was used | `info` |
+| `DV-XR-002` | anchor type unsupported; node placed at the scene origin | `info` |
+| `DV-XR-003` | world anchor could not re-localize on relaunch | `warning` |
+| `DV-XR-004` | pinned-panel persistence bounded or absent on this platform | `info`, once |
+| `DV-XR-005` | smooth locomotion offered without comfort options | `warning` (analyze) |
+| `DV-XR-006` | native XR binding missing or refused the request | `error` |
+| `DV-XR-007` | frame rate below the device profile's target for a sustained window | `warning` |
+
+`DV-XR-006` is the one `error`, for the same reason `DV-WINDOW-006` is: a
+binding that is present and refuses is an integration defect, not a capability
+limit, and dressing it up as graceful degradation hides a bug.
+
+The two codes for a presentation that could not be honoured — `DV-WINDOW-014`
+and `DV-WINDOW-015` — belong to the window family and are listed with it.
+
+## Bindings
+
+Stability: `Draft` · Status: `Designed`
+
+Generated FFI/ffigen or JNI/jnigen bindings only, per the standing rule:
+`xr.session.open`, `xr.session.close`, `xr.space.open`, `xr.space.close`,
+`xr.anchor.create`, `xr.anchor.persist`, `xr.anchor.resolve`,
+`xr.input.observe`, `xr.passthrough.set`, `xr.environment.probe`,
+`xr.capability.query`.
+
+Android XR and Horizon OS through JNI over their SDKs; visionOS through FFI
+over the native spatial frameworks; web through generated bindings over WebXR.
+A missing or refusing binding fails typed (`DV-XR-006`), never silently.
+
+## Testing and performance
+
+```dart
+DV.Test.fakeXR(DVSpatialCapability.headset());
+DV.Test.fakeXR(DVSpatialCapability.glasses());
+DV.Test.fakeXR(null);                      // a phone: volumes degrade
+```
+
+Golden renders per presentation mode with a fixed head pose; `dartvel test e2e`
+drives the Android XR and visionOS simulators. Performance contracts: sustained
+frame rate against the device profile's target (90 fps default on headsets,
+`DV-XR-007`), reprojection misses, panel count against budget, and anchor
+re-localization time.
+
+## Deliberately absent
+
+- **An XR game engine, or spatial OS conventions.** Home spaces, panel
+  placement, hand menus and system gestures belong to the OS.
+- **Raw eye-gaze, room-mesh or biometric data as application input.** Selection
+  events only; environment data stays on the device and is never logged.
+- **A separate spatial windowing namespace.** Volumes and immersive spaces are
+  window kinds on `DV.Window`; there is no `DV.XR.open`, and there will not be.
+- **Glasses as headsets.** HUD surfaces extend Home Widgets and ongoing
+  notifications; they do not get volumes.
+- **Platform channels**, even though the only existing plugin uses them.
 
 ---
 
@@ -6026,12 +6318,14 @@ final win = await DV.Window.open(
     size: Size(900, 620),
     constraints: BoxConstraints(minWidth: 480, minHeight: 320),
     title: 'Orders',
-    kind: DVWindowKind.regular,      // regular | dialog | popup | tooltip | satellite | kiosk
+    kind: DVWindowKind.regular,      // regular | dialog | popup | tooltip | satellite | kiosk | volume | immersive
     owner: null,                     // required for dialog/popup/tooltip/satellite
     modality: DVWindowModality.none, // none | window | application
     duplicate: false,                // true: a second window on the same URL
     display: null,                   // DVDisplayHint — which display, never where on it
     kiosk: null,                     // DVWindowKiosk — kiosk kind only
+    volume: null,                    // DVVolumeOptions — volume kind only, see XR
+    immersion: null,                 // DVImmersion — immersive kind only, see XR
   ),
 );
 
@@ -6069,7 +6363,7 @@ win.route;           // DVRoute — what it shows, including parameters
 win.kind;            // DVWindowKind
 win.owner;           // DVWindow? — null for regular windows
 win.lifecycle;       // DVSignal<DVWindowLifecycle>
-win.presentation;    // DVWindowPresentation: window | page | dialog | overlay
+win.presentation;    // DVWindowPresentation: window | page | dialog | overlay | volume | immersive
 win.degradation;     // DVWindowDegradation
 win.isVirtual;       // presentation != window
 win.isMain;
@@ -6106,6 +6400,8 @@ and it is best-effort by name.
 | `tooltip` | owned, non-interactive, follows anchor | required | overlay |
 | `satellite` | owned, non-modal companion (palette, inspector) | required | overlay |
 | `kiosk` | owns one display; fullscreen, pinned, exit-protected | none | fullscreen page in the current surface |
+| `volume` | a bounded 3D region in space; the route's page is a scene | none | the scene as a viewport (`DV-WINDOW-014`) |
+| `immersive` | a scene surrounding the user, passthrough or full | none | fullscreen scene page (`DV-WINDOW-015`) |
 
 - Owned windows close when their owner closes, in reverse open order. An owned
   window cannot outlive its owner; a request with a closed owner fails typed
@@ -6255,6 +6551,10 @@ on the window's `codes` and nowhere else, because each describes one
 placement or one refused call rather than the state the window came to rest
 in: a window placed away from a kiosk-owned display is otherwise ordinary,
 and a pinned window refusing a move is still pinned afterwards.
+`DV-WINDOW-014` and `DV-WINDOW-015` are on `codes` for a different reason:
+the spatial kinds they belong to are `Designed` and nothing presents them
+yet, and a degradation member nothing can set is exactly the defect four of
+these shipped with. They become members when a target can set them.
 
 | Code | Reason | Level |
 |---|---|---|
@@ -6271,6 +6571,8 @@ and a pinned window refusing a move is still pinned afterwards.
 | `DV-WINDOW-011` | window requested on a kiosk-owned display; placed elsewhere | `info` |
 | `DV-WINDOW-012` | move/resize/minimize/close refused on a pinned kiosk window | `debug` |
 | `DV-WINDOW-013` | `display:` hint matched no connected display; the OS placed the window | `warning` |
+| `DV-WINDOW-014` | volume requested where none can be presented; shown as a viewport | `debug` |
+| `DV-WINDOW-015` | immersive space requested where none can be presented; shown as a fullscreen page | `debug` |
 
 Levels are calibrated to whether the developer can act. A phone has no windows
 and the fallback is the intended behaviour, so warning on every call would
@@ -8882,6 +9184,9 @@ dartvel build sony-elinux
 dartvel build sony-elinux-iso
 dartvel build sony-elinux-img
 dartvel build vscode
+dartvel build android-xr
+dartvel build horizon
+dartvel build visionos
 ```
 
 Each target is driven by the platform's dedicated Flutter embedder or host
@@ -8891,6 +9196,17 @@ extension generator rather than plain `flutter build`:
 - **Tizen** → `flutter-tizen` (Samsung)
 - **Sony eLinux** → `flutter-elinux` (Sony)
 - **VS Code** → `flutter_vscode` extension generator and webview helper
+- **Android XR** and **Horizon OS** → the Android toolchain with the platform's
+  XR manifest and generated JNI bindings over Jetpack XR or the Spatial SDK
+- **visionOS** → the iOS toolchain producing an iPad-compatible application;
+  native volumes and immersive spaces wait on generated FFI bindings over the
+  native spatial frameworks
+
+The three spatial targets are the newest and least proven of these, and they
+inherit the rule the rest of the table already follows: `dartvel doctor
+--target <t>` reports whether the SDK is present before a build starts, and an
+absent toolchain skips with a message rather than failing the build. See XR —
+Spatial Presentation for what each one can actually present.
 
 Dartvel shells out to these embedders, adapting their invocation behind the
 stable `dartvel build` surface. When an embedder is not installed, the target is
