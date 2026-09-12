@@ -1241,7 +1241,17 @@
     },
     {
       "section": "Unified Development, Transparency, and Contracts",
-      "kind": "narrative"
+      "stability": "Contract",
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_cli/lib/src/commands/inspect_command.dart",
+        "packages/dartvel_cli/lib/src/commands/explain_command.dart",
+        "packages/dartvel_cli/lib/src/graph/project_graph.dart",
+        "packages/dartvel_cli/test/project_graph_test.dart",
+        "packages/dartvel_cli/test/inspect_command_test.dart",
+        "packages/dartvel_core/test/diagnostics_test.dart"
+      ],
+      "absent": "This section was marked narrative, which is the index's one legitimate way to carry no labels -- and it describes dartvel inspect, dartvel explain and a versioned DartvelProjectGraph, so marking it narrative exempted a real surface from the evidence rule rather than describing a paragraph of prose. Built: dartvel inspect routes, models, model, functions, function, jobs, kiosk and windows; dartvel explain over the diagnostic registry; a versioned project graph carrying graphVersion, routes, models and their fields including sensitive marking, functions and jobs. Absent: the inspectors this section also lists -- module, transaction, schema and generated -- and the node types the graph is described as carrying whose own sections are Designed rather than built: the protocol version and its window, memory arenas, 3D scenes, API scopes, privacy declarations, release plans, analytics events and consent categories, feature flags with owners and rollout rules, per-model subject paths and retention, and usage meters with their limits."
     },
     {
       "section": "Mental Model",
