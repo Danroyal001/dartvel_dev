@@ -440,6 +440,11 @@
       "absent": "@DVAITool is generated and registered now. It was generated only: the list carried a name, a description, an import URI and a file path, and nothing anywhere turned one into something callable -- an assistant could read that a function existed and had no way to run it. The generated file now emits a JSON Schema per tool, because every provider requires one on each tool, and a handler that reads the arguments out of the input object and calls the function; the generated backend registers them before it serves. An argument of the wrong type is refused by name rather than coerced, since a tool that quietly received 0 for a number it could not read would run and be wrong, which is what a schema exists to prevent. Absent: a tool returning a type DVJsonCodec cannot represent throws when the result is encoded rather than being converted, because guessing at a model class serialization would produce a shape no provider was told about; and the schema advertises a type per parameter and nothing else -- no descriptions, enums or required-field list beyond nullability."
     },
     {
+      "section": "AI Operations",
+      "stability": "Draft",
+      "status": "Designed"
+    },
+    {
       "section": "Monitoring and Observability",
       "stability": "Draft",
       "status": "Partial",

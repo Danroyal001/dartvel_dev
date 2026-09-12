@@ -382,6 +382,43 @@ final class DVDiagnostics {
       level: 'error',
     ),
     DVDiagnostic(
+      code: 'DV-AIOPS-001',
+      reason: 'a stored prompt version has no counterpart in the repository; '
+          'the next deploy reverts it',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-AIOPS-002',
+      reason: 'feature over its token budget; the declared behaviour was taken',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-AIOPS-003',
+      reason: 'a fallback step was taken (provider outage, budget, or refusal)',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-AIOPS-004',
+      reason: 'provider failed and no fallback is declared; the feature is '
+          'unavailable',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-AIOPS-005',
+      reason: 'a context manifest names a model or field the policy forbids',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-AIOPS-006',
+      reason: 'a prompt changed without incrementing its version',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-AIOPS-007',
+      reason: 'eval scored below the declared threshold',
+      level: 'error',
+    ),
+    DVDiagnostic(
       code: 'DV-WEBHOOK-001',
       reason: 'a payload names a field the model marks sensitive',
       level: 'error',
