@@ -1411,6 +1411,34 @@ final class DVDiagnostics {
       reason: 'the offline tax table is past staleAfter; sales are refused',
       level: 'error',
     ),
+    DVDiagnostic(
+      code: 'DV-ADOPT-001',
+      reason: 'multi-tenancy scopes Dartvel-managed models only in this '
+          'project',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-ADOPT-002',
+      reason: 'a route is defined by both the host router and a generated '
+          'route',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-ADOPT-003',
+      reason: 'an annotated model already has a generated serializer',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-ADOPT-004',
+      reason: 'an imported schema changed; regenerate and review the diff',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-ADOPT-005',
+      reason: 'dartvel init found a project it did not create and refused to '
+          'scaffold',
+      level: 'error',
+    ),
   ];
 
   /// The diagnostic for [code], or null if nothing is registered under it.

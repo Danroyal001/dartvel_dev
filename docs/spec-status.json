@@ -1090,6 +1090,11 @@
       "kind": "narrative"
     },
     {
+      "section": "Adoption",
+      "stability": "Draft",
+      "status": "Designed"
+    },
+    {
       "section": "Lifecycle Signals",
       "stability": "Contract",
       "status": "Partial",

@@ -39,6 +39,13 @@ Everything else should be generated.
 * Native performance
 * Flutter compatible
 
+A Dartvel application is a normal Flutter and Dart application. Every Flutter
+and Dart feature works exactly as it does without Dartvel, every Dartvel
+feature works beside it, and **an application never carries a subsystem it did
+not use**. There is no profile to choose, no compatibility mode, and nothing to
+eject from, because nothing was taken away. Adoption says what that costs to
+make true for a project that already exists.
+
 ---
 
 # Project Structure
@@ -9225,15 +9232,30 @@ Create
 → Upgrade
 ```
 
-## Create the project
+## Create the project — or adopt one
+
+Two doors, one path. Everything after this step is identical.
 
 ```bash
-dartvel new my_app
+dartvel create my_app   # a project that does not exist yet
+dartvel init            # Dartvel inside a project that does
+```
+
+`dartvel init` adds the dependency and the `dartvel:` key and nothing else; it
+never writes a scaffold over work that is already there. What Dartvel then *is*
+in that project follows from what the project uses, so a Dart server that never
+declares a page never links a UI runtime. Adoption is the whole of it —
+coexistence with an existing router, state library, models and database
+included.
+
+
+```bash
+dartvel create my_app   # aliases: dartvel new
 cd my_app
 dartvel dev
 ```
 
-`dartvel new` scaffolds the default project structure (`lib/pages`,
+`dartvel create` scaffolds the default project structure (`lib/pages`,
 `lib/models`, `lib/backend`, `lib/components`, `lib/styles`, `lib/services`,
 `main.dart`, `pubspec.yaml`).
 
@@ -9309,13 +9331,185 @@ dartvel test          # or: e2e | golden | native | accessibility | release
 dartvel build android # see Build targets
 dartvel deploy        # or: cloud-run | lambda | container | fly | railway
 dartvel logs          # dartvel metrics | dartvel traces | dartvel studio
-dartvel upgrade --plan && dartvel compatibility-check && dartvel upgrade
 ```
+
+`dartvel upgrade --plan`, `dartvel compatibility-check` and `dartvel
+migrate-code` complete the last step and none of them exists yet; Unified
+Development, Transparency, and Contracts says so in full, and `dartvel update`
+and `dartvel updates` are different commands despite the near-miss in the
+names.
 
 During development, generation happens incrementally through `dartvel dev`.
 
 The golden path is the recommended path, not the only path. Every layer retains
 escape hatches (see Pluggability).
+
+---
+
+
+# Adoption
+
+Stability: `Draft` · Status: `Designed`
+
+Every other section of this specification describes a project that began with
+`dartvel create`. Most projects did not. They have an app, a backend, a
+database and a state-management library already; some are a Dart server or CLI
+that wants the half of Dartvel that has no widgets in it; some will add their
+first page next year.
+
+This section is what the compatibility principle in Design Goals costs to make
+true for them. Nothing here is a compatibility mode or a reduced Dartvel: it is
+the same platform, entered from a different door.
+
+## What `dartvel init` does, and what it must stop doing
+
+```bash
+dartvel init          # in a project that already exists
+```
+
+It adds the dependency and the `dartvel:` key. That is all. It writes no
+scaffold, moves no files, and rewrites no `pubspec.yaml` beyond those two
+additions.
+
+That is a change, and the change is the point. **`init` is today an alias of
+`create`, and `create` overwrites `pubspec.yaml` with the scaffold template.**
+Run in an existing application — which is exactly where somebody adopting
+Dartvel would run it, and exactly what the word invites — it replaces every
+dependency the project declared and reports it as an information line. The two
+words mean different things and must stop being synonyms: `create` makes a
+project that did not exist, `init` initializes Dartvel inside one that does.
+`dartvel init` refuses rather than scaffolds when it finds a `pubspec.yaml` it
+did not write (`DV-ADOPT-005`).
+
+## Usage decides what is linked
+
+After `init`, what Dartvel *is* in the project follows from what the project
+uses. There is no profile to pick, no template, and no "add UI" step:
+
+- No `@DVPage` and no primitives → **no UI runtime is linked.** A Dart server
+  or CLI that uses models and backend functions gets models and backend
+  functions.
+- No models and no backend functions → **no backend artifact** — unless the
+  application has pages, in which case the backend is Studio's page store and
+  nothing else, so builder-made pages have somewhere to live.
+- The first `@DVPage` is what makes it a UI application, and the artifacts
+  change to match, on the next build.
+
+This is the Terminal Rendering rule made framework-wide: an application never
+carries a subsystem it did not use. The preprocessor resolves the subsystem set
+from the project graph at build time and strips the rest.
+
+```bash
+dartvel inspect bundle
+```
+
+reports which subsystems are linked **and the usage that pulled each one in**,
+so "why is there a backend in my CLI" has a source location as an answer rather
+than a shrug. Designed, not built: `dartvel inspect` today answers `routes`,
+`models`, `model <Name>`, `functions`, `function <name>`, `jobs`, `windows` and
+`kiosk`, and `bundle` is not among them.
+
+## Coexistence, by what teams already have
+
+**Routing.** The generated router mounts into an existing `GoRouter` as a
+sub-tree rather than replacing it. A route defined in both is a build error
+naming both sources (`DV-ADOPT-002`) — not a precedence rule, because a
+silently shadowed route is a page that stops being reachable and nobody
+notices. For Navigator 1.0 and other routers the generated router mounts at a
+prefix as a nested navigator, and `DV.Navigation` delegates to the host router
+for routes it does not own.
+
+**State.** Signals are Riverpod-powered already, so interoperation is
+exposure rather than translation: a signal is readable as a provider, and an
+existing provider is wrappable as a signal. Streams — and therefore Bloc — go
+both directions the same way. Designed: `DVSignal` today carries the numeric,
+string, boolean, context and model extensions, and none of these four bridges.
+
+**Models.** A `freezed` or `json_serializable` class stays exactly what it is.
+A class becomes a Dartvel model when it is annotated, and not before. Where a
+class already has a generated serializer, annotating it is a build error
+(`DV-ADOPT-003`) rather than a second `toJson` quietly winning — two
+serializers for one type is a bug that shows up as data, not as a stack trace.
+
+**Local databases.** `dartvel db pull` introspects `drift`, `isar` and
+`sqflite` schemas as it already introspects a server, and suggests model
+annotations. Suggestions are printed, never applied — a `sensitiveField`
+candidate is a judgement about meaning, and a tool that guessed would either
+over-redact or, worse, under-redact silently.
+
+**Identity and data providers.** `DVAuthProvider` adapters for Firebase Auth
+and Supabase Auth let an application keep its identity provider while adopting
+everything else. The database side is narrower than it looks: Supabase is
+PostgreSQL and reaches the existing adapter. Firestore does not — it is a
+document store, and Database records MongoDB, ClickHouse and BigQuery as out of
+scope by decision rather than backlog, so a Firestore adapter would be a
+reversal of that decision and is not assumed here.
+
+**Platform channels.** Allowed, like any Flutter feature. The
+no-platform-channels rule binds Dartvel's own APIs; it has never bound the host
+application, and an adopted app keeps every channel it has.
+
+**Existing scaffolds, localization and themes.** A page that returns its own
+`Scaffold` is already left alone. `.arb` catalogs import into typed keys, and
+an existing `ThemeData` imports into the token system in Theme, with a report
+of what did not map rather than a silent approximation.
+
+**Multi-tenancy** applies to Dartvel-managed models only. Existing queries are
+never tenant-filtered behind the team's back, and `init` states that scope once
+(`DV-ADOPT-001`) rather than leaving it to be discovered.
+
+**Tests, CI and layout.** Existing tests keep running and `dartvel test` runs
+beside them. The path overrides and globs under `dartvel:` map whatever
+structure the project has; `init` writes the mapping it inferred instead of
+moving anybody's files.
+
+## Importing an API the application does not own
+
+An OpenAPI or GraphQL schema generates typed clients into `dartvel_client`,
+called exactly like backend functions and built on `DV.Http`, with drift
+detection when the upstream schema changes (`DV-ADOPT-004`).
+
+Generated components for imported types are **read-only by default** — lists,
+tables, pages. Forms and sync are opt-in, because both imply write semantics
+that a schema cannot promise: an OpenAPI document describes a shape, not
+whether a field is writable, whether a write is idempotent, or whether the
+server will accept a partial one.
+
+## Measuring the migration
+
+```bash
+dartvel inspect adoption
+```
+
+reports what is Dartvel-managed and what is not — routes, models, screens,
+functions — as a project-graph query. Designed, not built, like `inspect
+bundle`.
+
+It exists to make stopping legitimate. A team that adopts routing and models
+and never adopts the rest has not left a migration half-finished; the
+un-managed half is a normal Flutter application, which is what it was before.
+There is no eject command because there is nothing to eject from.
+
+## Deliberately absent
+
+- **An eject command, adoption profiles, or an "add UI" step.** Usage decides
+  what is linked; there is nothing to opt into and nothing to leave.
+- **Automatic conversion of anything.** Every codemod offered here is offered
+  per class, printed before applied. A framework that rewrites an existing
+  codebase on first run is a framework nobody adopts twice.
+- **A compatibility layer for other frameworks' primitives.** Interoperation is
+  exposure — a signal as a provider, a stream as a signal — not a translation
+  of Bloc or Redux idioms into Dartvel ones.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-ADOPT-001` | multi-tenancy scopes Dartvel-managed models only in this project | `info` |
+| `DV-ADOPT-002` | a route is defined by both the host router and a generated route | build `error` |
+| `DV-ADOPT-003` | an annotated model already has a generated serializer | build `error` |
+| `DV-ADOPT-004` | an imported schema changed; regenerate and review the diff | `warning` |
+| `DV-ADOPT-005` | `dartvel init` found a project it did not create and refused to scaffold | `error` |
 
 ---
 
@@ -10861,6 +11055,7 @@ DVBox defines layout, collections, and surfaces; DVText defines text.
 Modifiers define styling, interaction, accessibility, and behavior.
 The generated route index powers navigation, SSG, server rendering, SEO, sitemaps.
 Flutter remains the renderer. Dart remains the language. Dartvel is the platform.
+A Dartvel app is a normal Flutter and Dart app, and carries no subsystem it did not use.
 ```
 
 The rule for scope: design the contracts for the full vision from the beginning,
