@@ -224,7 +224,16 @@ class DVStudioPaletteItem {
 class DVStudioPalette extends StatelessWidget {
   final List<DVStudioPaletteItem> items;
 
-  const DVStudioPalette({super.key, this.items = const <DVStudioPaletteItem>[]});
+  /// When given, tapping an item inserts it — into the selected container, or
+  /// into the page when nothing that can hold children is selected. Without
+  /// one the palette is drag-only, which is all it could ever be before.
+  final DVStudioEditorController? controller;
+
+  const DVStudioPalette({
+    super.key,
+    this.items = const <DVStudioPaletteItem>[],
+    this.controller,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -240,6 +249,56 @@ class DVStudioPalette extends StatelessWidget {
   }
 }
 
+/// The document as a tree: every node, nested the way the page nests it.
+///
+/// The canvas shows what a page looks like; this shows what it is made of,
+/// which is the only way to reach a node the canvas cannot — a spacer with no
+/// height, a box whose children cover it completely.
+class DVStudioLayers extends StatelessWidget {
+  final DVStudioEditorController controller;
+
+  const DVStudioLayers({super.key, required this.controller});
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+        listenable: controller,
+        builder: (BuildContext context, Widget? _) => ListView(
+          children: <Widget>[
+            for (final (DVPageNode node, int depth)
+                in _dvStudioWalk(controller.document.root))
+              GestureDetector(
+                key: ValueKey<String>('dv-studio-layer-${node.id}'),
+                behavior: HitTestBehavior.opaque,
+                onTap: () => controller.select(node.id),
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(8.0 + depth * 14, 6, 8, 6),
+                  child: Text(_dvStudioNodeLabel(node, controller.document)),
+                ),
+              ),
+          ],
+        ),
+      );
+}
+
+/// Every node under [root], depth first, with how deep it sits.
+Iterable<(DVPageNode, int)> _dvStudioWalk(DVPageNode root,
+    [int depth = 0]) sync* {
+  yield (root, depth);
+  for (final DVPageNode child in root.children) {
+    yield* _dvStudioWalk(child, depth + 1);
+  }
+}
+
+/// What a node is called in Layers and the inspector: the page, a leaf's
+/// palette label, or a box's layout label.
+String _dvStudioNodeLabel(DVPageNode node, DVPageDocument document) {
+  if (identical(node, document.root) || node.id == document.root.id) {
+    return 'Page';
+  }
+  final DVStudioLeafType? leaf = dvStudioLeafTypeFor(node);
+  return leaf?.label ?? dvStudioLayoutLabel(node.layout);
+}
+
 /// The editing canvas.
 ///
 /// Renders the document as the real widgets it describes — the same
@@ -248,7 +307,19 @@ class DVStudioPalette extends StatelessWidget {
 class DVStudioCanvas extends StatefulWidget {
   final DVStudioEditorController controller;
 
-  const DVStudioCanvas({super.key, required this.controller});
+  /// The width the page is laid out at — a device's — or null to fill the
+  /// space the canvas has.
+  final double? viewportWidth;
+
+  /// How far the artboard is magnified, from its top centre.
+  final double zoom;
+
+  const DVStudioCanvas({
+    super.key,
+    required this.controller,
+    this.viewportWidth,
+    this.zoom = 1.0,
+  });
 
   @override
   State<DVStudioCanvas> createState() => _DVStudioCanvasState();
