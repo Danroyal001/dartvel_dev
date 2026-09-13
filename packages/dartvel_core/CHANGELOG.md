@@ -39,6 +39,28 @@
   request no stub answers (`DV-HTTP-004`), and replays fixtures recorded from
   real responses.
 
+- **Usage metering, as a runtime (`DVMeters`).** A `DVMeterDefinition`
+  records against the current tenant — never the process — so each customer's
+  total is theirs, and two instances on one database see one number. Every
+  recording carries an idempotency key, from the call or from a
+  `DVMeters.withIdempotencyKey` scope (the request or job id), and a key seen
+  before is discarded (`DV-METER-002`) — including a late retry that would
+  otherwise land in the next period; a recording with no key is refused
+  rather than given a generated one that differs on the retry. A limit needs
+  a declared behaviour (`DV-METER-005`): `block` refuses and does not count,
+  `throttle` counts and admits, `allowAndBill` counts and reports the overage,
+  each raising `DV-METER-004`. Enforcement is serialised per tenant and meter,
+  so ten simultaneous calls against a limit of three admit three. `notifyAt`
+  thresholds are announced once, as they are crossed (`DV-METER-003`). Usage
+  lands in the tenant's billing period, falling back to the calendar month
+  and saying so (`DV-METER-010`); periods are half-open, a resolver answering
+  a period that does not contain the instant is refused, and a late record is
+  accepted into its closed period within the grace (`DV-METER-007`) or counted
+  in the open one after it (`DV-METER-008`). Gauges bill on their average or
+  peak. `DVLevelLimit` checks a level such as seats by querying it and writes
+  nothing. `DVMemoryMeterStore` and `DVDatabaseMeterStore`, tested on the
+  in-memory adapter and SQLite.
+
 - **Versioned writes, record history and soft delete, as a runtime
   (`DVRecordTable`).** A write carries the version it read and lands through a
   conditional `UPDATE ... WHERE _dv_version = ?`, so a write against a row that
