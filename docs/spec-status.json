@@ -623,7 +623,15 @@
     {
       "section": "Usage Metering and Quotas",
       "stability": "Draft",
-      "status": "Designed"
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_core/lib/src/metering/meters.dart",
+        "packages/dartvel_core/lib/src/metering/reporting.dart",
+        "packages/dartvel_core/test/usage_meters_test.dart",
+        "packages/dartvel_core/test/usage_meters_database_test.dart",
+        "packages/dartvel_core/test/usage_meters_reporting_test.dart"
+      ],
+      "absent": "The runtime is built (per-tenant counters and gauges in memory or DV.Database, idempotency keys required and deduplicated across periods, fixed and entitlement limits with block, throttle and allowAndBill serialised per tenant and meter, notifyAt thresholds announced once, half-open billing periods with grace and late placement, level limits such as seats, and period reporting to DVBillingProvider under a stable key with a durable retry queue and a reconcile that changes nothing). Absent: @DVMeters and @DVMeter annotations and generated Meters.* accessors; meters instrumented from the project graph (function invocations, storage bytes, queue jobs, AI tokens); DV-METER-001 as a build error; the request and job runtimes do not set DVMeters.withIdempotencyKey; notifyAt is not wired to Notifications; no scheduled period-close job; no provider-supplied billing period; throttle reports but does not delay; hard limits are serialised per process only, and the unique key that stops duplicate records across instances is not enforced by the in-memory adapter; dartvel meters list, usage and reconcile; the Studio usage view; the ClickHouse path."
     },
     {
       "section": "Commerce: Tax, Promotions, Disputes and Payouts",

@@ -5458,7 +5458,7 @@ reading it in a rejection notice a week later.
 
 # Usage Metering and Quotas
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
 
 Billing lists usage meters among its typed config and says nothing about where
 the numbers come from. Multi-tenancy says who the numbers belong to. This is
