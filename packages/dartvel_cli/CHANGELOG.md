@@ -1,4 +1,16 @@
 ## Unreleased
+- **`@DVFlags()` generates typed `Flags` accessors** into
+  `lib/dartvel_client/flags.g.dart`. A flag named by a string can be misspelt,
+  and a misspelt flag does not throw — it misses and answers its default for
+  ever — so each `@DVFlag` field becomes a `DVFeatureFlag<T>` member carrying
+  its key, compiled default, owner, expiry, settle mode and, for an enum, its
+  values, with its doc comment. `Flags.all` and `registerDartvelFlags()`
+  declare them to the runtime. Refused rather than generated around: a flag
+  with no `expires:` or `owner:`, a public `@DVFlags` class, a type a flag
+  cannot carry (flags hold `bool`, `String`, `int`, `double` and enums; a
+  structure is configuration), an impossible date, and a name declared twice.
+  A flag past its expiry is a `DV-FLAGS-004` warning naming its owner.
+
 
 - **`dartvel create` refuses to scaffold over a project it did not create
   (`DV-ADOPT-005`).** One of its steps replaces `pubspec.yaml` with the
