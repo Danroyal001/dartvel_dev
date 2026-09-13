@@ -487,6 +487,12 @@ class DVMeters {
 
   DVLogger get _log => _logger ?? DVObservability.logger;
 
+  /// The time these meters consider current, in UTC.
+  ///
+  /// Public so that what reports and reconciles usage decides "is this period
+  /// closed" by the same clock that placed the records in it.
+  DateTime get now => _clock().toUtc();
+
   static DVMeters? _current;
 
   /// Sets the meters [DVMeterDefinition.record] records through.
