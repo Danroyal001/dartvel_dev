@@ -1,4 +1,28 @@
 ## Unreleased
+- **Offline-first stores, as a runtime (`DVOfflineStore`).** A model's writes
+  go to a local `DVRecordTable` at once — so the same read and write calls
+  work in a tunnel as on Wi-Fi — and to an ordered mutation log that `replay`
+  sends to the server. The failures it exists for are the silent ones, and
+  each has a test that fails when the guard is removed: two replays started
+  by one reconnect share one run instead of sending the log twice; a mutation
+  whose acknowledgement was lost is resent with the same id and the server
+  side (`DVRecordTableRemote`) applies it once; a transient failure stops
+  replay rather than sending later writes ahead of an earlier one; a write at
+  the log's bound — by count or by the age of the oldest queued write — is
+  refused with `DVOfflineQueueFullError` (`DV-OFFLINE-002`) and nothing
+  queued is dropped; a permanent refusal moves to the dead letters
+  (`DV-OFFLINE-003`) and replay continues. Conflicts use the `DVConflict`
+  vocabulary record history already has, and `DVConflict.ask` is refused for
+  an offline model (`DV-HISTORY-002`), since offline there is nobody to ask.
+  `lastWriteWins` compares the declared clock rather than arrival order, and
+  `DVOfflineClock` stamps writes with the offset the server last reported, so
+  a device with the wrong date does not win every conflict
+  (`DV-OFFLINE-004`, once). Each record has a `DVSyncState` — pending,
+  syncing, synced, conflicted or rejected — readable and watchable. A
+  memory-backed store says it will not survive the application closing
+  (`DV-OFFLINE-001`). Not yet generated from `@DVModel(offline:)`: see the
+  specification's status for what is absent.
+
 - **Feature flags, as a runtime: `DVFeatureFlag` and `DVFlags`.** A flag
   answers from one pure function of a rule set and an evaluation context —
   identity, tenant, device, organization role, app version, platform, locale
