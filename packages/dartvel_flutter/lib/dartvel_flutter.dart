@@ -6350,6 +6350,7 @@ class DV {
       const DVNotificationsService();
   static DVUpdates get Updates => const DVUpdates();
   static DVSecrets get Secrets => const DVSecrets();
+  static DVHttp get Http => const DVHttp();
   static DVTestHarness get Test => const DVTestHarness();
   static DVCSRF get CSRF => const DVCSRF();
   static DVCSRF get Csrf => const DVCSRF();
