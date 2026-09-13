@@ -80,6 +80,7 @@ export 'src/http/transport.dart';
 // `package:dartvel_core/http.dart`.
 export 'src/http/wintercg.dart' show Request, Response, Headers;
 export 'src/data/import_chunking.dart';
+export 'src/data/record_history.dart';
 export 'src/diagnostics/diagnostics.dart';
 export 'src/i18n/locale_negotiation.dart';
 export 'src/i18n/plural_rules.dart';

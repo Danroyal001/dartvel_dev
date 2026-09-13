@@ -1,5 +1,33 @@
 ## Unreleased
 
+- **Versioned writes, record history and soft delete, as a runtime
+  (`DVRecordTable`).** A write carries the version it read and lands through a
+  conditional `UPDATE ... WHERE _dv_version = ?`, so a write against a row that
+  moved is refused with `DVConflictError` (`DV-HISTORY-001`) holding what this
+  session wrote, what the row holds and what was read — instead of silently
+  replacing the change that moved it, which is the lost update both writers
+  would have seen as success. A write to an existing row with no version read
+  is refused for the same reason. `DVConflict` resolves a conflict when the
+  caller says how: `ask` (the default, and not a legal offline strategy),
+  `serverWins`, `lastWriteWins`, `fieldMerge` and a typed `resolver`.
+  `history: DVHistory(keep: ...)` records each change's actor, tenant,
+  transaction and changed fields, with `sensitive` fields recorded as changed
+  and never as values — the history table is checked for the plaintext, not
+  just the returned object. A change whose entry cannot be written is undone
+  (`DV-HISTORY-005`). `revert(to:)` adds a change rather than rewinding, keeps
+  every entry in between, reports the sensitive fields it could not put back
+  (`DV-HISTORY-003`) and takes the same version check as any write.
+  `softDelete` marks rather than removes; `restore` is refused when a live
+  record holds a unique field (`DV-HISTORY-006`). Inside `DV.transaction` every
+  write registers its own inverse, so a later failure takes the write and its
+  entry with it. Tested on the in-memory adapter and SQLite; the statements are
+  the subset Postgres and MySQL already run.
+
+- **A transaction has an identifier: `DVContext.transactionId`.** The same
+  for every context in one unit of work — a nested call joins the outer one —
+  and different between two, so a history entry can name the transaction that
+  wrote it.
+
 - **A Postgres server that declines TLS no longer breaks the connection that
   asked.** `sslMode: prefer` is the default and its whole purpose is to ask
   for TLS and carry on without it — the ordinary shape of a local or
