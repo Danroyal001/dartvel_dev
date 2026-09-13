@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import '../lifecycle/lifecycle.dart';
 
@@ -98,6 +99,7 @@ class DVContext {
     DVMutableLifecycleSignal<DVPageLifecycle>? pageLifecycle,
     DVContext? parent,
   })  : _parent = parent,
+        _id = parent == null ? _dvNewTransactionId() : '',
         lifecycle = DVContextLifecycle(
           transaction: transactionLifecycle,
           request: requestLifecycle,
@@ -106,6 +108,17 @@ class DVContext {
 
   /// The enclosing context when transactions are nested.
   final DVContext? _parent;
+
+  /// This transaction's identifier, held by the outermost context.
+  final String _id;
+
+  /// The identifier of the unit of work this context belongs to.
+  ///
+  /// The same for every context in one transaction -- a nested call joins the
+  /// outer one -- and different between two, so a change recorded with it can
+  /// be traced back to the unit of work that made it. Record history stores it
+  /// on every entry.
+  String get transactionId => _root._id;
 
   /// Lifecycle signals scoped to this context.
   final DVContextLifecycle lifecycle;
@@ -255,3 +268,18 @@ class DVTransactionRunner {
     }
   }
 }
+
+int _dvTransactionCounter = 0;
+
+/// A process-unique transaction identifier: a timestamp, a counter and a
+/// random suffix, so two transactions started in the same microsecond still
+/// differ and two processes are unlikely to collide.
+String _dvNewTransactionId() {
+  _dvTransactionCounter = (_dvTransactionCounter + 1) & 0xFFFFFF;
+  final int now = DateTime.now().microsecondsSinceEpoch;
+  final int noise = _dvTransactionRandom.nextInt(0x7FFFFFFF);
+  return 'tx-${now.toRadixString(36)}-'
+      '${_dvTransactionCounter.toRadixString(36)}-${noise.toRadixString(36)}';
+}
+
+final math.Random _dvTransactionRandom = math.Random();
