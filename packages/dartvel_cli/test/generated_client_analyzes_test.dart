@@ -27,6 +27,48 @@ import 'package:test/test.dart';
 
 /// A model covering the field shapes that broke: nullable and non-nullable,
 /// defaultable and not, a type with no sensible default, and a sensitive one.
+// Flags declared the way an application declares them, and a page that reads
+// them as a signal. The chain this proves compiles is the whole of it: the
+// generator writes Flags, the barrel exports it, the runtime registers it, and
+// context.flag(...) composes with another operand in a build method.
+// The one declaration shape found to analyze without warnings. A private class
+// nothing references draws unused_element, and its static const fields draw
+// unused_field whatever pragma they carry; the class pragma clears the first,
+// and a pragma'd member reading each flag clears the second. The
+// specification's example omits both, so a project written from it warns on
+// every flag — reported, rather than hidden here with ignore comments.
+const String _flags = '''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVFlags()
+@pragma('vm:entry-point')
+abstract class _Flags {
+  /// The rewritten checkout.
+  @DVFlag(owner: 'payments', expires: '2099-12-01')
+  static const bool newCheckout = false;
+
+  @DVFlag(owner: 'feed', expires: '2099-12-01')
+  static const int pageSize = 20;
+
+  @pragma('vm:entry-point')
+  static List<Object?> get declared => <Object?>[newCheckout, pageSize];
+}
+''';
+
+const String _checkoutPage = '''
+import 'package:flutter/widgets.dart';
+
+import '../dartvel_client/dartvel_client.dart';
+
+@DVPage(title: 'Checkout')
+@pragma('vm:entry-point')
+Widget _checkoutPage(BuildContext context) => DVText(
+      (context.flag(Flags.newCheckout) & true).value
+          ? 'New checkout, \${Flags.pageSize.value} rows'
+          : 'Checkout',
+    );
+''';
+
 const String _model = '''
 import 'package:dartvel_core/dartvel.dart';
 
@@ -137,6 +179,9 @@ void main() {
     write(p.join(project.path, 'lib', 'pages', 'account.page.dart'),
         _guardedPage);
     write(p.join(project.path, 'lib', 'backend', 'ping.dart'), _backendFunction);
+    write(p.join(project.path, 'lib', 'flags', 'flags.dart'), _flags);
+    write(p.join(project.path, 'lib', 'pages', 'checkout.page.dart'),
+        _checkoutPage);
     write(p.join(project.path, 'pubspec.yaml'), '''
 name: generated_client_probe
 publish_to: none

@@ -185,4 +185,40 @@ abstract class _Flags {
     expect(warnings.join('\n'), contains('newCheckout'));
     expect(warnings.join('\n'), contains('payments'));
   });
+
+  // A private declaration nothing can reference draws unused_element and
+  // unused_field, and the repository's answer for private generation inputs is
+  // @pragma('vm:entry-point'). A generator that stopped recognising the class
+  // or the field once that pragma is added would make the flags silently
+  // vanish from Flags — the fix for a warning turning into a missing flag.
+  test('a pragma on the class or a field does not hide a flag', () async {
+    for (final String source in <String>[
+      '''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVFlags()
+@pragma('vm:entry-point')
+abstract class _Flags {
+  @DVFlag(owner: 'payments', expires: '2099-12-01')
+  @pragma('vm:entry-point')
+  static const bool newCheckout = false;
+}
+''',
+      '''
+import 'package:dartvel_core/dartvel.dart';
+
+@pragma('vm:entry-point')
+@DVFlags()
+abstract class _Flags {
+  @pragma('vm:entry-point')
+  @DVFlag(owner: 'payments', expires: '2099-12-01')
+  static const bool newCheckout = false;
+}
+''',
+    ]) {
+      final (String generated, List<String> _) = await generate(source);
+      expect(generated, contains('DVFeatureFlag<bool> newCheckout'),
+          reason: 'the pragma must not stop the flag being generated:\n$source');
+    }
+  });
 }
