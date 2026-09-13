@@ -1,4 +1,41 @@
 ## Unreleased
+
+- **Sessions, as a runtime (`DVSessions`).** A session is a record of a
+  signed-in device, and its token is a bearer credential, so the store holds
+  only the token's hash: a dump of the session table is not a list of working
+  sessions. The token is reissued on every privilege boundary — `rotate`,
+  `elevate` (claims) and `completeMfa` (second factor) — and the old one stops
+  authenticating in the same write, because a stable identifier across a
+  boundary is session fixation. Revocation is checked on the next request, so
+  `revoke(id)` and `revokeOthers(token)` sign a device out at once rather than
+  at expiry (`DV-SESSION-002`). Idle and absolute timeouts both apply, and
+  rotation keeps the original sign-in time, so a session kept alive by
+  rotating still ends. `list(userId, currentToken:)` shows every live device,
+  newest first, by a listed id that is never the token. Memory and
+  `DVDatabaseSessionStore` drivers; the database one issues only the SQL the
+  in-memory adapter runs, so it works with no database configured and on
+  SQLite alike.
+- **`DVMfa` is a policy, not a sign-in method.** `DVMfa.required` needs a
+  second factor at some point in the session and `DVMfa.recent(window)` needs
+  one within the window — step-up, which is what a payout wants.
+  `requireMfa(token, policy)` answers with the session, `DVMfaRequired`
+  (`DV-SESSION-001`) when the factor is missing or stale, or `DVSessionInvalid`
+  when there is no live session to ask about.
+- **Second factors: TOTP and recovery codes (`DVSecondFactors`).** TOTP per
+  RFC 6238, checked against the RFC's own test vectors, with a provisioning
+  URI for a QR code. Every account records the last time step it accepted and
+  advancing it is a compare-and-set in the store, so the same six digits
+  cannot sign in twice — not inside their window, and not from two requests
+  racing. The secret is sealed with `DVFieldCipher` and never stored as the
+  base32 an app is shown; enrollment stays pending until a code proves the app
+  has it, and that code cannot then sign in. Recovery codes are kept only as
+  salted HMACs, shown once, spent on use, and replaced wholesale on
+  regeneration; a `DVRecoveryCodes` printed into a log prints a count.
+- **`DVSessionCookie` sets the session cookie with attributes an application
+  cannot weaken:** `HttpOnly`, `SameSite=Lax` or `Strict`, and `Secure` with a
+  `__Host-` name outside development. `SameSite=None` is refused as a
+  configuration error naming the setting (`DV-SESSION-003`) rather than set as
+  a quietly cross-site cookie.
 - **Offline-first stores, as a runtime (`DVOfflineStore`).** A model's writes
   go to a local `DVRecordTable` at once — so the same read and write calls
   work in a tunnel as on Wi-Fi — and to an ordered mutation log that `replay`
