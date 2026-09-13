@@ -53,14 +53,14 @@
   padding, no surfaces, no rules and no affordances: tabs, routes, toolbar
   actions and "Create page" were all bare `DVText` with a tap handler, and the
   new-route field was an undecorated `EditableText` beside its label, which
-  draws as two pieces of plain text. There is now a tab strip with the current
-  section underlined, a bordered sidebar whose route list scrolls and marks the
-  open page, a toolbar of real buttons that dim when their action is
-  unavailable, a bordered input that shows focus, and panes divided by rules.
-  Studio keeps a small fixed palette rather than following the application's
-  theme — it edits that application, so its own chrome has to stay readable
-  over whatever the page being built looks like. The exported-source view
-  scrolls, where a page of any size used to overflow it.
+  draws as two pieces of plain text. Every control is one now — bordered,
+  padded, marked when selected, and dimmed when its action is unavailable, as
+  Undo is with no history and Publish is mid-publish — inputs show focus, and
+  rules divide the panes; the layout they sit in is the entry above. Studio
+  keeps a small fixed palette rather than following the application's theme —
+  it edits that application, so its own chrome has to stay readable over
+  whatever the page being built looks like. The exported-source view scrolls,
+  where a page of any size used to overflow it.
 
 - **Studio runs on `MemoryDVDatabaseAdapter`, so it can be opened without a
   database.** `DVPageStore` persists through `DV.Database`, and the in-memory
