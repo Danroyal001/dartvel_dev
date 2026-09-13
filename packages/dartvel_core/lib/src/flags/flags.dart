@@ -450,7 +450,8 @@ final class DVFlags {
   static final Map<String, Object?> _pins = <String, Object?>{};
   static final Set<String> _exposed = <String>{};
   static final Set<String> _reportedOnce = <String>{};
-  static StreamController<void> _changes = StreamController<void>.broadcast();
+  static StreamController<void> _changes =
+      StreamController<void>.broadcast(sync: true);
   static final DVLogger _logger = DVLogger();
 
   /// Past this age a synced rule set is reported on every resolve — and still
@@ -757,7 +758,7 @@ final class DVFlags {
     onExposure = null;
     exposureConsent = null;
     unawaited(_changes.close());
-    _changes = StreamController<void>.broadcast();
+    _changes = StreamController<void>.broadcast(sync: true);
   }
 }
 
