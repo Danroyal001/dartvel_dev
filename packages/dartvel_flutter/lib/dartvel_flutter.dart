@@ -6352,6 +6352,10 @@ class DV {
   static DVUpdates get Updates => const DVUpdates();
   static DVSecrets get Secrets => const DVSecrets();
   static DVHttp get Http => const DVHttp();
+
+  /// `DV.Webhooks`: the events this application sends to its customers'
+  /// servers — declared, signed, delivered per endpoint and recorded.
+  static DVWebhooks get Webhooks => const DVWebhooks();
   static DVTestHarness get Test => const DVTestHarness();
   static DVCSRF get CSRF => const DVCSRF();
   static DVCSRF get Csrf => const DVCSRF();
