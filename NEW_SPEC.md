@@ -2484,7 +2484,7 @@ await User.watch((users) {
 
 # Offline-First Models
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
 
 Model Sync and Presence specifies the connected case. Devices are not reliably
 connected: phones lose signal in lifts, on trains and in basements, and a kiosk
