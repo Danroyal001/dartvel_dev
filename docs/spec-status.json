@@ -141,7 +141,12 @@
     {
       "section": "Outbound HTTP",
       "stability": "Draft",
-      "status": "Designed"
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_core/lib/src/http/outbound.dart",
+        "packages/dartvel_core/test/http_outbound_test.dart"
+      ],
+      "absent": "The client is built (DV.Http and DVHttp over the WinterCG wire types: declared hosts with timeouts, idempotency-aware retries with backoff, per-host circuit breaker, a concurrency pool, bearer credentials resolved through DVSecrets at send time, trace-context propagation, and DV.Test.fakeHttp with stubs, recorded calls and fixtures). Absent: DV-HTTP-001 and DV-HTTP-005 are build-time diagnostics that no analyzer or build step raises, and at runtime an absolute-URL call is still allowed; nothing reads the dartvel.http.hosts block from pubspec.yaml at startup; no provider adapter (mail, search, billing, storage, AI, webhooks, tax) is built on DV.Http yet; fixtures are recorded in memory with no file format or capture command; bearer is the only auth scheme; DV.Http is on the Flutter DV facade only, and backend code constructs DVHttp."
     },
     {
       "section": "Scheduling",

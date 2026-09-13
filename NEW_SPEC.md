@@ -953,7 +953,7 @@ All backend data is transmitted as form-data to allow large request sizes if nec
 
 # Outbound HTTP
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
 
 Backend functions are how the world calls the application. This is how the
 application calls the world — the payment gateway, the shipping API, the
