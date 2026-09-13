@@ -48,13 +48,21 @@ const Set<String> _primitiveTypes = <String>{'bool', 'String', 'int', 'double'};
 /// throw — it misses, and answers its default for ever. So flags are declared
 /// once, in Dart, and read through generated members the analyzer checks.
 class FlagGenerator {
+  // A doc comment or an `@pragma(...)` may sit between the annotation and the
+  // class. The pragma is how a private generation input tells the analyzer it
+  // is used, and a pattern that stopped at it would drop every flag in the
+  // class from `Flags` without a word.
   static final RegExp _classRegex = RegExp(
-    r'@DVFlags\s*\(\s*\)\s*(?:///[^\n]*\n\s*)*(?:abstract\s+)?(?:final\s+)?'
-    r'class\s+([A-Za-z0-9_]+)[^{]*\{',
+    r'@DVFlags\s*\(\s*\)\s*(?:(?:///[^\n]*\n|@pragma\([^)]*\))\s*)*'
+    r'(?:abstract\s+)?(?:final\s+)?class\s+([A-Za-z0-9_]+)[^{]*\{',
   );
 
+  // The field straight after its annotation, with any pragmas between them.
+  // Anchored at the start: the annotation must mark this field, not whatever
+  // `static const` happens to come next.
   static final RegExp _fieldRegex = RegExp(
-    r'^\s*static\s+const\s+([A-Za-z0-9_<>?, ]+?)\s+([A-Za-z0-9_]+)\s*=\s*'
+    r'^\s*(?:@pragma\([^)]*\)\s*)*'
+    r'static\s+const\s+([A-Za-z0-9_<>?, ]+?)\s+([A-Za-z0-9_]+)\s*=\s*'
     r'([^;]+);',
   );
 
@@ -167,8 +175,7 @@ class FlagGenerator {
       final int argsEnd = rest.indexOf(args) + args.length + 1;
       final String afterAnnotation = rest.substring(argsEnd);
       final RegExpMatch? field = _fieldRegex.firstMatch(afterAnnotation);
-      if (field == null || field.start > 2 &&
-          afterAnnotation.substring(0, field.start).trim().isNotEmpty) {
+      if (field == null) {
         throw StateError(
           '$path: @DVFlag must mark a `static const` field with an '
           'initializer; the initializer is the default compiled into the build',
