@@ -1629,7 +1629,7 @@ Providers
 
 # Sessions and Account Management
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
 
 Authentication says how somebody signs in. This says what exists afterwards:
 the session that carries them, the second factor that protects it, and the

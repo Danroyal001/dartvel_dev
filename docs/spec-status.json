@@ -233,7 +233,14 @@
     {
       "section": "Sessions and Account Management",
       "stability": "Draft",
-      "status": "Designed"
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_core/lib/src/auth/sessions.dart",
+        "packages/dartvel_core/lib/src/auth/second_factor.dart",
+        "packages/dartvel_core/test/auth_sessions_test.dart",
+        "packages/dartvel_core/test/auth_second_factor_test.dart"
+      ],
+      "absent": "The runtime is built (DVSessions with tokens stored only as hashes, a new token at every privilege boundary through rotate, elevate and completeMfa, revocation effective on the next request, idle and absolute expiry, device listing and revokeOthers, memory and database drivers; DVMfa policies with step-up and requireMfa; DVSecondFactors with RFC 6238 TOTP, replay refused at the verifier and by compare-and-set in the store, secrets sealed with DVFieldCipher, and salted, single-use recovery codes; DVSessionCookie refusing SameSite=None). Absent: DV.Session and DV.Auth.sessions, revoke and revokeOthers on the Flutter facade, and any client-to-server transport that reaches DVSessions; @DVPage(mfa:) and @DVBackendFunction(mfa:), which need the annotation fields and generator output, and the generated suspend-challenge-resume flow; the prebuilt ProfilePage, SecurityPage, SessionsPage and DeletePage, QR rendering, and email-change re-verification; account deletion, which waits on Data Compliance erasure; passkeys as a second factor; per-tenant MFA policy, which waits on Organizations; a Redis driver; clearing a device's DVOfflineStore when its session is revoked, which nothing connects; DV-SESSION-003 as a deploy-time gate rather than a runtime refusal; DV-SESSION-004, which nothing emits; session.location, which nothing populates from a request. Recovery codes are stored as salted HMACs in DVSecondFactorStore rather than as a generated model's sensitive field, because no model path exists for framework-owned auth tables."
     },
     {
       "section": "Theme",
