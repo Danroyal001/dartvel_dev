@@ -336,7 +336,12 @@
     {
       "section": "Offline-First Models",
       "stability": "Draft",
-      "status": "Designed"
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_core/lib/src/data/offline_store.dart",
+        "packages/dartvel_core/test/offline_store_test.dart"
+      ],
+      "absent": "The runtime is built (DVOfflineStore: a local DVRecordTable written at once, an ordered persisted mutation log, replay that runs once per reconnect, stops on a transient failure and dead-letters a permanent refusal; DVRecordTableRemote deduplicating by mutation id and resolving last-write-wins by the declared clock rather than arrival order; a bound by count and age that refuses rather than drops; DVConflict.ask refused offline; DVOfflineClock correction with skew reported once; DVSyncState per record; DV-OFFLINE-001 to 004). Absent: @DVModel(offline:) is not on the annotation and nothing is generated, so Order.find, save and watch, order.syncState and Order.pendingMutations do not exist; replay is not dispatched through DVQueues and is not carried by the model sync transport, so the log keeps its own dead letters; the local store schema does not come from the migration schema diff; there is no IndexedDB store on web; writes are not routed through the policy engine or tenant scope, and signing out does not clear the store automatically; encrypt: true and sensitive-field encryption at rest are not applied; maxClockSkew and the queue bounds are not read from pubspec.yaml; DV-OFFLINE-005 and DV-OFFLINE-006 have nothing that emits them; DV.Platform.network.status and .since do not exist."
     },
     {
       "section": "Mail and Notifications",
