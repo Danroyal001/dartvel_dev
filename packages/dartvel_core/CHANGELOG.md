@@ -1,4 +1,32 @@
 ## Unreleased
+- **Outbound webhooks (`DVWebhooks`, `DV.Webhooks`).** Events are declared
+  (`DVWebhookEvent`) and emitting a name that is not declared is refused
+  (`DV-WEBHOOK-006`), so the catalog a customer reads cannot drift from what
+  the code sends. A payload is serialized once at emit: a model through
+  `toPublicJson`, so its sensitive fields are absent by construction, with the
+  event's declared sensitive fields removed wherever they appear in a map.
+  Each delivery is signed with HMAC-SHA256 over `timestamp.body`, the key read
+  from `DVSecrets` at every attempt, and a rotation sends both signatures only
+  until its overlap ends (`DV-WEBHOOK-007`) — a retry after that is not signed
+  with the rotated-out key. Delivery rides the job layer and goes out through
+  `DV.Http`, one queue per subscription, and a job always attempts the oldest
+  undelivered delivery for its endpoint: the queue re-queues a failed job at
+  the back, so a job that named its own delivery would have let event 2
+  overtake a failing event 1. Subscriptions drain concurrently, so an endpoint
+  that takes thirty seconds to answer delays its own deliveries and nobody
+  else's. A delivery that exhausts its attempts is dead-lettered
+  (`DV-WEBHOOK-004`) and the next proceeds; an endpoint that keeps failing is
+  disabled, its owner told through `onDisabled`, and its queue flushed
+  (`DV-WEBHOOK-003`). The endpoint address is untrusted input: it must be
+  HTTPS, and it is refused when it resolves to a private, loopback,
+  link-local, carrier-grade NAT, reserved or cloud-metadata address — IPv4
+  mapped or embedded in IPv6 is judged as the IPv4 address it is — both at
+  subscribe time and again at every attempt, since DNS can change in between,
+  and every redirect hop is checked the same way (`DV-WEBHOOK-002`). Every
+  delivery is recorded; the payload is dropped after `retention` while the
+  record is kept, and a replay past the window is refused (`DV-WEBHOOK-005`)
+  rather than sent with an empty body.
+
 
 - **Sessions, as a runtime (`DVSessions`).** A session is a record of a
   signed-in device, and its token is a bearer credential, so the store holds
