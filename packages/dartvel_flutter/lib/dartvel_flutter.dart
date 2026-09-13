@@ -403,6 +403,7 @@ export 'src/studio/page_document.dart';
 export 'src/studio/studio_edit.dart';
 export 'src/studio/studio_editor.dart';
 export 'src/studio/studio_screen.dart';
+export 'src/flags/flag_signal.dart';
 export 'src/studio/studio_style.dart';
 export 'src/table/table.dart';
 export 'src/widgets/home_widgets.dart';
