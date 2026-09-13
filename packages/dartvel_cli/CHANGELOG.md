@@ -1,4 +1,14 @@
 ## Unreleased
+- **`dartvel flags list` and `dartvel flags prune`.** `list` prints every
+  declared flag with its type, compiled default, owner, expiry and settle
+  mode. `prune` prints the flags past their expiry, each with every
+  `file:line` of application code that still reads it — generated output and
+  the declarations themselves excluded — or says it has no remaining reads and
+  can be deleted outright. The reads are the point: deleting a flag means
+  deleting the branches it guards, and a list of due names without them is a
+  list of reasons to leave the flags in. `set`, `rollout`, `off` and
+  `override` change rules a deployment serves and are not here yet.
+
 - **`@DVFlags()` generates typed `Flags` accessors** into
   `lib/dartvel_client/flags.g.dart`. A flag named by a string can be misspelt,
   and a misspelt flag does not throw — it misses and answers its default for

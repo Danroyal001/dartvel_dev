@@ -71,8 +71,34 @@ class FlagGenerator {
     DateTime? now,
   }) async {
     final DateTime at = now ?? DateTime.now().toUtc();
-    final List<DiscoveredFlag> flags = <DiscoveredFlag>[];
+    final List<DiscoveredFlag> flags =
+        await discover(root: root, pkgName: pkgName);
 
+    final File output =
+        File(p.join(root, 'lib', 'dartvel_client', 'flags.g.dart'));
+    output.parent.createSync(recursive: true);
+    output.writeAsStringSync(_render(flags, buildId));
+
+    return <String>[
+      for (final DiscoveredFlag flag in flags)
+        if (flag.expires.isBefore(at))
+          'DV-FLAGS-004: flag "${flag.name}" (owner ${flag.owner}) passed its '
+              'expiry on ${_date(flag.expires)}; delete it, or extend '
+              '`expires:` with the reason it is still needed',
+    ];
+  }
+
+  /// Every flag declared in the project under [root], without writing
+  /// anything: what `generate` writes and what `dartvel flags` reports.
+  ///
+  /// Throws [StateError] for a declaration that cannot be generated, the same
+  /// refusals `generate` makes, and for a flag declared twice — a rule set
+  /// names flags by key and could not say which of two it means.
+  static Future<List<DiscoveredFlag>> discover({
+    required String root,
+    required String pkgName,
+  }) async {
+    final List<DiscoveredFlag> flags = <DiscoveredFlag>[];
     for (final File file in _dartFiles(root)) {
       final String source = await file.readAsString();
       if (!source.contains('@DVFlags')) continue;
@@ -92,19 +118,7 @@ class FlagGenerator {
         );
       }
     }
-
-    final File output =
-        File(p.join(root, 'lib', 'dartvel_client', 'flags.g.dart'));
-    output.parent.createSync(recursive: true);
-    output.writeAsStringSync(_render(flags, buildId));
-
-    return <String>[
-      for (final DiscoveredFlag flag in flags)
-        if (flag.expires.isBefore(at))
-          'DV-FLAGS-004: flag "${flag.name}" (owner ${flag.owner}) passed its '
-              'expiry on ${_date(flag.expires)}; delete it, or extend '
-              '`expires:` with the reason it is still needed',
-    ];
+    return flags;
   }
 
   static void _collect(
