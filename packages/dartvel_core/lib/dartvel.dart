@@ -96,6 +96,7 @@ export 'src/lifecycle/lifecycle.dart';
 export 'src/mail/smtp.dart';
 export 'src/media/image.dart';
 export 'src/media/image_variants.dart';
+export 'src/metering/meters.dart';
 export 'src/middleware/body_limit.dart';
 export 'src/middleware/middleware.dart';
 export 'src/middleware/middleware_runtime.dart';
