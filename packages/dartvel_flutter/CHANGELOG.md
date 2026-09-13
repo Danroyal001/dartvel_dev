@@ -1,4 +1,21 @@
 ## Unreleased
+
+- **Studio is laid out like the tools it has to stand beside.** A dark
+  navigation rail replaces the tab strip, with an icon and a label per
+  section; `DVStudioSection` takes an optional `icon` for it, and a section
+  without one gets a generic glyph rather than no way to be told apart. Pages
+  opens on a site overview instead of "Select or create a page to edit." beside
+  an empty pane: a page list with titles and a new-page field, four numbers
+  that are all true — pages stored, windows the application has open, sections
+  installed, and when this session last published — and a card for every
+  stored page with a live thumbnail drawn by the same renderer the running
+  application uses. Opening a page gives the editor its own toolbar — back to
+  the overview, the route with a Published or Draft badge, a device switcher
+  for desktop, tablet and phone widths, Fit / 50% / 100% zoom, undo and redo,
+  Code, Revert and Publish — above an Insert / Layers panel, the page on an
+  artboard, and the inspector. The exported source is shown on a dark code
+  surface. Windows lists each open window as a card with its kind and
+  presentation. Every key and string the Studio tests drive is unchanged.
 - **`context.flag(Flags.name)` reads a feature flag as a signal.** Read in a
   build method, it subscribes the element, so a widget guarded on a flag
   rebuilds when the synced rules change under it — a kill switch reaches the
