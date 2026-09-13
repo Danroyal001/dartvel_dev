@@ -38,27 +38,6 @@
   for a child span. `DV.Test.fakeHttp` answers by host name, refuses any
   request no stub answers (`DV-HTTP-004`), and replays fixtures recorded from
   real responses.
-- **Feature flags, as a runtime: `DVFeatureFlag` and `DVFlags`.** A flag
-  answers from one pure function of a rule set and an evaluation context —
-  identity, tenant, device, organization role, app version, platform, locale
-  and declared attributes — so a phone and a backend function given the same
-  two reach the same answer. A read resolves a debug-only override, then the
-  synced `DVFlagRules`, then the default compiled into the build; with nothing
-  synced it answers the default and says so once (`DV-FLAGS-001`). A
-  percentage rollout buckets on the first eight bytes of
-  `SHA-256("key:subject")` mod 10,000, so a person keeps their answer across
-  devices and reinstalls, two 10% flags pick different tenths, and raising a
-  percentage only adds people; a rollout with no subject holds the default
-  rather than rolling a die (`DV-FLAGS-005`). A rule value of the wrong type
-  holds the default instead of being coerced (`DV-FLAGS-006`) — `"true"` is not
-  a bool and `2.5` is not an int. Stale rules stay in force and report past
-  `maxAge` (`DV-FLAGS-009`), because a kill switch that expires back to on is
-  worse than one a day old. `onNextLaunch` pins a flag for the process,
-  `withOverrides` scopes overrides to a zone so a test's flags never leak, and
-  an exposure is recorded once per flag per context per session, or reported
-  as withheld when consent is (`DV-FLAGS-007`). `@DVFlags()` and `@DVFlag` are
-  the declarations the generator reads.
-
 
 - **Versioned writes, record history and soft delete, as a runtime
   (`DVRecordTable`).** A write carries the version it read and lands through a
