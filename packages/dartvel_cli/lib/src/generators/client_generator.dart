@@ -499,6 +499,7 @@ export 'dartvel_runtime.dart';
 export 'env.g.dart';
 export 'ai_tools.g.dart';
 export 'functions.g.dart';
+export 'flags.g.dart';
 export 'jobs.g.dart';
 export 'models.g.dart';
 export 'openapi.g.dart';
@@ -560,6 +561,7 @@ import 'package:dartvel_core/dartvel.dart' show DVStartupProfile, dvLiveWindowsP
 ${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVAppLifecycle, DVPageStore, dvStartAppLifecycleBridge,${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''}${_hasDeviceProfileDisplays(dv) || _hasSharedStoreTuning(dv) || _hasWindowingDeclaration(dv) ? ' DVWindowManager,' : ''}${_hasSharedStoreTuning(dv) ? ' DVWindowSharedStore,' : ''}${_hasWindowingDeclaration(dv) ? ' DVWindowingDeclaration,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAndroidBindings, DVAppLaunch, DVHomeWidgets, DVNativeBridge, DVRouteTarget, DVWindowOptions, DVRenderSurface${dualMode ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''}${terminalOnly ? ', DVTerminalSurface' : ''};
 import 'dartvel_config.g.dart' as cfg;
 import 'home_widgets.g.dart' show dartvelHomeWidgets;
+import 'flags.g.dart' show registerDartvelFlags;
 import 'jobs.g.dart' show registerDartvelJobs;
 import 'models.g.dart' show registerDartvelModels;
 import 'modules.g.dart' show registerDartvelModules;
@@ -599,6 +601,9 @@ void configureDartvelRuntime({List<String> arguments = const <String>[]}) {
   // Startup, phase by phase: what a device fleet is asked to answer for.
   DVStartupProfile.current.mark('configure');
   registerDartvelJobs();
+  // The flags this build declares, so a synced rule set naming one it does
+  // not know is reported rather than silently ignored.
+  registerDartvelFlags();
   registerDartvelModels();
   // The modules this application mounts, so DV.Modules.<id> is the module
   // the build mounted rather than an unknown id.

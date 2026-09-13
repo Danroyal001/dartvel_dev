@@ -7,6 +7,7 @@ import '../graph/module_mounts.dart';
 import '../utils/logger.dart';
 import 'backend_generator.dart';
 import 'client_generator.dart';
+import 'flag_generator.dart';
 import 'job_generator.dart';
 import 'model_generator.dart';
 import 'static_paths_generator.dart';
@@ -158,6 +159,18 @@ Future<void> generate({
     pkgName: pkgName,
     buildId: buildId,
   );
+
+  // Typed flag accessors from @DVFlags() declarations. A flag named by a
+  // string can be misspelt and misses silently; a generated member is a
+  // compile error instead. A flag past its expiry warns here, at build time.
+  final List<String> flagWarnings = await FlagGenerator.generate(
+    root: root,
+    pkgName: pkgName,
+    buildId: buildId,
+  );
+  for (final String warning in flagWarnings) {
+    stderr.writeln(warning);
+  }
 
   // Generate static paths for parameterized routes. Static generation cannot
   // enumerate a parameterized route on its own, so @DVStaticPaths() providers
