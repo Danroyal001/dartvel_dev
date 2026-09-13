@@ -1,17 +1,18 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart' show Material;
+import 'package:flutter/material.dart' show Icon, IconData, Icons, Material;
 import 'package:flutter/widgets.dart';
 
 import '../../dartvel_flutter.dart';
 
-/// The Studio admin surface: the section switcher and the page builder,
-/// assembled, plus whatever sections it is given.
+/// The Studio admin surface: a navigation rail, and the section it opens.
 ///
-/// The palettes, canvases and inspectors each edit one document; this is what
-/// chooses which document, creates new ones, publishes them, and reverts one
-/// to its compiled form. Without it the builders have no entry point in a
-/// running application.
+/// Pages is the builder: a site overview with a thumbnail of every stored
+/// page, and — once a page is open — the editor, with the site's pages and an
+/// insert panel or layer tree on the left, the page on an artboard in the
+/// middle, and its properties on the right. Windows lists what the
+/// application has open. Any other section is whatever the application
+/// attaches; the Pro workflow builder is one.
 class DVStudioScreen extends StatefulWidget {
   /// The store page documents are read from and published to.
   final DVPageStore store;
@@ -44,18 +45,22 @@ class DVStudioScreen extends StatefulWidget {
 
 /// A section in Studio's switcher.
 ///
-/// Studio ships one section — Pages — and takes the rest. That is not
-/// generality for its own sake: the workflow builder is a Pro feature and
-/// lives in dartvel_enterprise, while Studio itself is free and has to be
-/// complete without it. A switcher that named its sections could not have one
-/// of them removed, and a tab for a feature the build does not contain opens
-/// onto nothing.
+/// Studio ships Pages and Windows and takes the rest. That is not generality
+/// for its own sake: the workflow builder is a Pro feature and lives in
+/// dartvel_enterprise, while Studio itself is free and has to be complete
+/// without it. A switcher that named its sections could not have one of them
+/// removed, and a tab for a feature the build does not contain opens onto
+/// nothing.
 class DVStudioSection {
   /// Stable identifier, used for the tab's widget key.
   final String id;
 
   /// What the tab reads.
   final String label;
+
+  /// The glyph on the navigation rail. Optional: a section without one gets a
+  /// generic extension glyph rather than no way to be told apart.
+  final IconData? icon;
 
   /// Builds the section body when its tab is selected.
   final Widget Function(BuildContext context) build;
@@ -64,6 +69,7 @@ class DVStudioSection {
     required this.id,
     required this.label,
     required this.build,
+    this.icon,
   });
 }
 
@@ -74,11 +80,16 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
         DVStudioSection(
           id: 'pages',
           label: 'Pages',
+          icon: DVStudioIcons.pages,
           build: (BuildContext context) => _DVStudioPagesSection(
             key: const ValueKey<String>('dv-studio-pages'),
             store: widget.store,
             palette: widget.palette,
             editorHooks: widget.editorHooks,
+            attached: <String>[
+              for (final DVStudioSection section in widget.sections)
+                section.label,
+            ],
           ),
         ),
         // Every window the application has open, with a way to close one.
@@ -86,6 +97,7 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
         DVStudioSection(
           id: 'windows',
           label: 'Windows',
+          icon: DVStudioIcons.windows,
           build: (BuildContext context) => const _DVStudioWindowsSection(
             key: ValueKey<String>('dv-studio-windows'),
           ),
@@ -95,35 +107,20 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final sections = _sections;
-    final current = sections.firstWhere(
+    final List<DVStudioSection> sections = _sections;
+    final DVStudioSection current = sections.firstWhere(
       (DVStudioSection section) => section.id == _selected,
       orElse: () => sections.first,
     );
-    // A Column rather than DVBox.list: the strip sits above a body that takes
-    // the rest of the height, and the two want no spacing between them.
-    //
-    // Material rather than a coloured Container, because a section is free to
-    // use material widgets and several do: a ColoredBox between a ListTile and
-    // its nearest Material hides the tile's background and its ink, which
-    // Flutter asserts on rather than drawing wrongly.
+    // A Material, not a coloured box: sections are free to use material
+    // widgets, and a ColoredBox between a ListTile and its nearest Material
+    // hides the tile's background and ink, which Flutter asserts on.
     return Material(
       color: DVStudioStyle.canvas,
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          Container(
-            decoration: const BoxDecoration(
-              color: DVStudioStyle.surface,
-              border: Border(bottom: BorderSide(color: DVStudioStyle.line)),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Wrap(
-              children: <Widget>[
-                for (final section in sections) _tab(section),
-              ],
-            ),
-          ),
+          _rail(sections),
           Expanded(
             // Keyed per section so switching away disposes the controller
             // rather than leaving an edit of one kind live under the other.
@@ -137,31 +134,131 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
     );
   }
 
-  Widget _tab(DVStudioSection section) {
-    final bool selected = _selected == section.id;
-    return GestureDetector(
-      key: ValueKey<String>('dv-studio-section-${section.id}'),
-      onTap: () => setState(() => _selected = section.id),
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(12, 14, 12, 11),
-          // The selected tab is marked by a rule under it as well as by its
-          // weight: weight alone moves the text a pixel and says little at a
-          // glance across eight tabs.
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(
-                color: selected ? DVStudioStyle.accent : const Color(0x00000000),
-                width: 2,
+  /// The dark rail down the left: the product mark, then one item per
+  /// section. Dark so the workspace beside it reads as the bright thing, the
+  /// way every tool this has to stand beside does it.
+  Widget _rail(List<DVStudioSection> sections) {
+    return Container(
+      width: 76,
+      color: DVStudioStyle.rail,
+      child: Column(
+        children: <Widget>[
+          const SizedBox(height: DVStudioStyle.space3),
+          DVStudioStyle.tooltip(
+            'Dartvel Studio',
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: <Color>[Color(0xFF8B6DFF), DVStudioStyle.accent],
+                ),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.diamond_outlined,
+                  size: 19, color: Color(0xFFFFFFFF)),
+            ),
+          ),
+          const SizedBox(height: DVStudioStyle.space4),
+          Container(height: 1, width: 36, color: DVStudioStyle.railSelected),
+          const SizedBox(height: DVStudioStyle.space2),
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                children: <Widget>[
+                  for (final DVStudioSection section in sections)
+                    _DVStudioRailItem(
+                      section: section,
+                      selected: section.id == _selected,
+                      onTap: () => setState(() => _selected = section.id),
+                    ),
+                ],
               ),
             ),
           ),
-          child: DVText(section.label).modifier(
-            const DVModifier()
-                .fontSize(13)
-                .color(selected ? DVStudioStyle.accent : DVStudioStyle.muted)
-                .fontWeight(selected ? FontWeight.w600 : FontWeight.w500),
+        ],
+      ),
+    );
+  }
+}
+
+class _DVStudioRailItem extends StatefulWidget {
+  final DVStudioSection section;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _DVStudioRailItem({
+    required this.section,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  State<_DVStudioRailItem> createState() => _DVStudioRailItemState();
+}
+
+class _DVStudioRailItemState extends State<_DVStudioRailItem> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool selected = widget.selected;
+    final Color foreground =
+        selected ? const Color(0xFFFFFFFF) : DVStudioStyle.railInk;
+    return GestureDetector(
+      key: ValueKey<String>('dv-studio-section-${widget.section.id}'),
+      behavior: HitTestBehavior.opaque,
+      onTap: widget.onTap,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hover = true),
+        onExit: (_) => setState(() => _hover = false),
+        child: Container(
+          width: 64,
+          margin: const EdgeInsets.symmetric(vertical: 2),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: selected
+                ? DVStudioStyle.railSelected
+                : _hover
+                    ? const Color(0xFF1F1F29)
+                    : const Color(0x00000000),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Column(
+            children: <Widget>[
+              Container(
+                width: 32,
+                height: 26,
+                decoration: BoxDecoration(
+                  color: selected
+                      ? DVStudioStyle.accent
+                      : const Color(0x00000000),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  widget.section.icon ?? DVStudioIcons.section,
+                  size: 17,
+                  color: foreground,
+                ),
+              ),
+              const SizedBox(height: 5),
+              // Scaled down rather than clipped: a section's name is how the
+              // rail is read, and a longer one (or a larger system font) must
+              // still fit the rail's width.
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: DVText(widget.section.label).modifier(
+                  const DVModifier()
+                      .fontSize(10.5)
+                      .color(foreground)
+                      .fontWeight(
+                          selected ? FontWeight.w600 : FontWeight.w500),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -169,18 +266,36 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
   }
 }
 
-/// Page management: choose a page, create one, publish it, or revert a route
-/// to the page the app was compiled with.
+/// Which panel the editor's left column shows.
+enum _DVStudioLeftPanel { insert, layers }
+
+/// The artboard widths the device switcher offers.
+enum _DVStudioDevice {
+  desktop(1280, 'Desktop'),
+  tablet(834, 'Tablet'),
+  phone(390, 'Phone');
+
+  const _DVStudioDevice(this.width, this.label);
+  final double width;
+  final String label;
+}
+
+/// Page management: an overview of the site, and the editor for one page.
 class _DVStudioPagesSection extends StatefulWidget {
   final DVPageStore store;
   final List<DVStudioPaletteItem> palette;
   final List<DVStudioEditorHook> editorHooks;
+
+  /// The labels of the sections attached beyond Pages and Windows, for the
+  /// overview.
+  final List<String> attached;
 
   const _DVStudioPagesSection({
     super.key,
     required this.store,
     required this.palette,
     required this.editorHooks,
+    required this.attached,
   });
 
   @override
@@ -189,12 +304,27 @@ class _DVStudioPagesSection extends StatefulWidget {
 
 class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
   List<String> _routes = <String>[];
+  final Map<String, DVPageDocument> _documents = <String, DVPageDocument>{};
   DVStudioEditorController? _controller;
   String? _error;
   bool _loading = true;
   bool _saving = false;
   bool _showingCode = false;
   String _newRoute = '';
+  DateTime? _lastPublished;
+  _DVStudioLeftPanel _left = _DVStudioLeftPanel.insert;
+  _DVStudioDevice _device = _DVStudioDevice.desktop;
+
+  /// Null is "fit the artboard to the space available", which is what a
+  /// 1280-wide page on a laptop needs and what nobody wants to work out.
+  double? _zoom;
+
+  /// Below this the side panels give the canvas back some of their width. At
+  /// full width the editor needs about 1100 pixels before the artboard has
+  /// room to be worth looking at, and a laptop split with a browser does not
+  /// always have them.
+  bool get _narrow =>
+      (MediaQuery.maybeSizeOf(context)?.width ?? 1440) < 1100;
 
   @override
   void initState() {
@@ -222,10 +352,24 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
 
   Future<void> _loadRoutes() async {
     try {
-      final routes = await widget.store.routes();
+      final List<String> routes = await widget.store.routes();
+      // The documents too, for the overview's thumbnails. A page that fails
+      // to load is shown without one rather than taking the list down.
+      final Map<String, DVPageDocument> documents = <String, DVPageDocument>{};
+      for (final String route in routes) {
+        try {
+          final DVPageDocument? document = await widget.store.load(route);
+          if (document != null) documents[route] = document;
+        } on Object {
+          // Listed without a thumbnail.
+        }
+      }
       if (!mounted) return;
       setState(() {
         _routes = routes;
+        _documents
+          ..clear()
+          ..addAll(documents);
         _loading = false;
         _error = null;
       });
@@ -241,7 +385,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
   }
 
   Future<void> _open(String route) async {
-    final document = await widget.store.load(route);
+    final DVPageDocument? document = await widget.store.load(route);
     if (!mounted || document == null) return;
     _select(document);
   }
@@ -261,7 +405,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
   }
 
   void _create() {
-    final route = _newRoute.trim();
+    final String route = _newRoute.trim();
     if (route.isEmpty) return;
     // Editing a route that already has a document would otherwise start from
     // a blank page and overwrite it on the first save.
@@ -273,11 +417,12 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
   }
 
   Future<void> _publish() async {
-    final controller = _controller;
+    final DVStudioEditorController? controller = _controller;
     if (controller == null || _saving) return;
     setState(() => _saving = true);
     try {
       await controller.save();
+      _lastPublished = DateTime.now();
       await _loadRoutes();
     } catch (error) {
       if (mounted) setState(() => _error = '$error');
@@ -289,7 +434,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
   /// Removes the stored document, which restores the compiled page for that
   /// route. Deleting an edit is how an edit is reverted.
   Future<void> _revert() async {
-    final controller = _controller;
+    final DVStudioEditorController? controller = _controller;
     if (controller == null) return;
     await widget.store.delete(controller.document.route);
     if (!mounted) return;
@@ -300,123 +445,99 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Center(child: DVText('Loading pages…'));
+      return DVStudioStyle.placeholder('Loading pages…');
     }
-    final controller = _controller;
-    // A plain Row, because DVBox.row resolves stretch to centre on purpose —
-    // right for a header or a button pair, and wrong for two panes that have
-    // to run the full height beside each other. Centred is what made the
-    // route list and the editor float in the middle of an empty screen.
+    final DVStudioEditorController? controller = _controller;
+    if (controller == null) return _overview();
+    return ListenableBuilder(
+      listenable: controller,
+      builder: (BuildContext context, Widget? _) => _editor(controller),
+    );
+  }
+
+  // --- overview -------------------------------------------------------------
+
+  Widget _overview() {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         Container(
-          width: 260,
+          width: 280,
           decoration: const BoxDecoration(
             color: DVStudioStyle.surface,
             border: Border(right: BorderSide(color: DVStudioStyle.line)),
           ),
           child: _pageList(),
         ),
-        if (controller != null)
-          Expanded(child: _builder(controller))
-        else
-          const Expanded(
-            child: Center(
-              child: DVText('Select or create a page to edit.'),
-            ),
-          ),
+        Expanded(child: _dashboard()),
       ],
     );
   }
 
   Widget _pageList() {
-    final String? open = _controller?.document.route;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
+        DVStudioStyle.panelHeader(
+          title: 'Pages',
+          subtitle: '${_routes.length}',
+        ),
+        // The new-page field comes first: it is the one thing on this panel
+        // that starts work, and it is what the tests type into.
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: const DVText('Pages').modifier(
-            const DVModifier()
-                .fontSize(12)
-                .color(DVStudioStyle.muted)
-                .fontWeight(FontWeight.w600),
-          ),
-        ),
-        // Scrollable: a site with forty routes should not push the field that
-        // creates the forty-first off the bottom of the pane.
-        Expanded(
-          child: ListView(
-            padding: EdgeInsets.zero,
-            children: <Widget>[
-              if (_error != null)
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 8),
-                  child: DVText('Could not read pages: $_error').modifier(
-                    const DVModifier()
-                        .fontSize(13)
-                        .color(const Color(0xFFB3261E)),
-                  ),
-                ),
-              for (final route in _routes)
-                GestureDetector(
-                  key: ValueKey<String>('dv-studio-route-$route'),
-                  onTap: () => _open(route),
-                  child: MouseRegion(
-                    cursor: SystemMouseCursors.click,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 9),
-                      color: route == open ? DVStudioStyle.selected : null,
-                      child: DVText(route).modifier(
-                        const DVModifier()
-                            .fontSize(13)
-                            .color(route == open
-                                ? DVStudioStyle.accent
-                                : const Color(0xFF1A1A22))
-                            .fontWeight(route == open
-                                ? FontWeight.w600
-                                : FontWeight.normal),
-                      ),
-                    ),
-                  ),
-                ),
-              if (_routes.isEmpty && _error == null)
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 8),
-                  child: const DVText('No stored pages yet.').modifier(
-                    const DVModifier().fontSize(13).color(DVStudioStyle.muted),
-                  ),
-                ),
-            ],
-          ),
-        ),
-        Container(
-          decoration: const BoxDecoration(
-            border: Border(top: BorderSide(color: DVStudioStyle.line)),
-          ),
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(DVStudioStyle.space3),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              _DVStudioTextField(
-                label: 'new route',
+              DVStudioTextInput(
                 value: _newRoute,
+                placeholder: '/new-page',
+                icon: DVStudioIcons.page,
                 onChanged: (String value) => _newRoute = value,
+                onSubmitted: (_) => _create(),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: DVStudioStyle.space2),
               GestureDetector(
                 key: const ValueKey<String>('dv-studio-create'),
                 onTap: _create,
                 child: MouseRegion(
                   cursor: SystemMouseCursors.click,
-                  child: DVStudioStyle.control('Create page',
-                      enabled: true, primary: true),
+                  child: DVStudioStyle.control(
+                    'Create page',
+                    enabled: true,
+                    primary: true,
+                    icon: DVStudioIcons.add,
+                  ),
                 ),
               ),
+            ],
+          ),
+        ),
+        Container(height: 1, color: DVStudioStyle.line),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(DVStudioStyle.space4,
+              DVStudioStyle.space4, DVStudioStyle.space4, DVStudioStyle.space2),
+          child: DVStudioStyle.overline('Site'),
+        ),
+        if (_error != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(
+                horizontal: DVStudioStyle.space4, vertical: DVStudioStyle.space2),
+            child: DVStudioStyle.caption('Could not read pages: $_error',
+                color: DVStudioStyle.danger),
+          ),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.only(bottom: DVStudioStyle.space4),
+            children: <Widget>[
+              ..._routeRows(withSubtitles: true),
+              if (_routes.isEmpty && _error == null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: DVStudioStyle.space4,
+                      vertical: DVStudioStyle.space2),
+                  child: DVStudioStyle.caption('No stored pages yet.'),
+                ),
             ],
           ),
         ),
@@ -424,203 +545,706 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
     );
   }
 
-  Widget _builder(DVStudioEditorController controller) {
-    return ListenableBuilder(
-      listenable: controller,
-      builder: (BuildContext context, Widget? _) => DVBox.list(<Widget>[
-        _toolbar(controller),
-        if (_showingCode)
-          // Scrollable: a page of any size exports more source than the
-          // editor is tall, and an unscrollable Text overflows instead.
-          Expanded(
-            child: Container(
-              color: DVStudioStyle.surface,
-              padding: const EdgeInsets.all(16),
-              child: SingleChildScrollView(
-                child: DVText(controller.document.toDartSource()),
-              ),
-            ),
-          )
-        else
-          // Proportional rather than fixed: the palette and inspector have to
-          // survive a narrow window, and fixed sidebars plus an expanded
-          // canvas overflow before the canvas ever gives up space.
-          // Expanded so the three panes share the height left by the
-          // toolbar. Unbounded, the inspector's own scroll view has no height
-          // to scroll within and overflows instead.
-          // A plain Row for the same reason the page list uses one: DVBox.row
-          // resolves stretch to centre, which left the palette, the canvas and
-          // the inspector each floating at its own height in the middle of the
-          // editor instead of standing beside each other full height.
-          Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                Expanded(
-                  flex: 2,
-                  child: Container(
-                    decoration: const BoxDecoration(
-                      color: DVStudioStyle.surface,
-                      border: Border(right: BorderSide(color: DVStudioStyle.line)),
-                    ),
-                    padding: const EdgeInsets.all(12),
-                    child: DVStudioPalette(items: widget.palette),
-                  ),
-                ),
-                Expanded(
-                  flex: 5,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: DVStudioCanvas(controller: controller),
-                  ),
-                ),
-                Expanded(
-                  flex: 3,
-                  child: Container(
-                    decoration: const BoxDecoration(
-                      color: DVStudioStyle.surface,
-                      border: Border(left: BorderSide(color: DVStudioStyle.line)),
-                    ),
-                    padding: const EdgeInsets.all(12),
-                    child: DVStudioInspector(controller: controller),
-                  ),
-                ),
-              ],
-            ),
-          ),
-      ]),
-    );
-  }
-
-  Widget _toolbar(DVStudioEditorController controller) {
-    // Wraps rather than rows: six actions plus a route name do not fit a
-    // narrow editor pane, and a toolbar that overflows hides the action that
-    // fell off the end.
-    return Container(
-      decoration: const BoxDecoration(
-        color: DVStudioStyle.surface,
-        border: Border(bottom: BorderSide(color: DVStudioStyle.line)),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: DVBox.wrapLine(<Widget>[
-        DVText(controller.document.route).modifier(
-          const DVModifier().fontSize(15).fontWeight(FontWeight.w600),
+  /// One row per stored page, keyed by route. The overview and the editor
+  /// both show these — one at a time — so a published page appears in the
+  /// list the moment it is published, whichever view is open.
+  List<Widget> _routeRows({required bool withSubtitles}) {
+    final String? open = _controller?.document.route;
+    return <Widget>[
+      for (final String route in _routes)
+        DVStudioListRow(
+          key: ValueKey<String>('dv-studio-route-$route'),
+          title: route,
+          subtitle: withSubtitles ? _subtitleFor(route) : null,
+          icon: route == '/' ? DVStudioIcons.home : DVStudioIcons.page,
+          selected: route == open,
+          trailing: DVStudioStyle.dot(DVStudioStyle.success),
+          onTap: () => unawaited(_open(route)),
         ),
-      _action('Undo', controller.canUndo ? controller.undo : null,
-          key: 'dv-studio-undo'),
-      _action('Redo', controller.canRedo ? controller.redo : null,
-          key: 'dv-studio-redo'),
-      _action(_showingCode ? 'Design' : 'View code',
-          () => setState(() => _showingCode = !_showingCode),
-          key: 'dv-studio-view-code'),
-      _action(_saving ? 'Publishing…' : 'Publish',
-          _saving ? null : _publish,
-          key: 'dv-studio-publish'),
-        _action('Revert to compiled', _revert, key: 'dv-studio-revert'),
-      ]),
+    ];
+  }
+
+  /// A page's title beside its route, when it has one of its own.
+  String? _subtitleFor(String route) {
+    final String? title = _documents[route]?.title;
+    if (title == null || title.isEmpty || title == route) return null;
+    return title;
+  }
+
+  Widget _dashboard() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(DVStudioStyle.space8),
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1120),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              DVStudioStyle.title('Site overview'),
+              const SizedBox(height: DVStudioStyle.space1),
+              DVStudioStyle.body('Select or create a page to edit.',
+                  color: DVStudioStyle.muted),
+              const SizedBox(height: DVStudioStyle.space6),
+              _stats(),
+              const SizedBox(height: DVStudioStyle.space6),
+              LayoutBuilder(
+                builder: (BuildContext context, BoxConstraints box) {
+                  final bool wide = box.maxWidth >= 860;
+                  final Widget pages = _pagesCard();
+                  final Widget guide = _guideCard();
+                  if (!wide) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        pages,
+                        const SizedBox(height: DVStudioStyle.space4),
+                        guide,
+                      ],
+                    );
+                  }
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Expanded(flex: 7, child: pages),
+                      const SizedBox(width: DVStudioStyle.space4),
+                      Expanded(flex: 3, child: guide),
+                    ],
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
-}
 
-
-/// A plain text input for the Studio's own fields.
-///
-/// Private on purpose: the Studio must not add a primitive to the public
-/// widget surface, and `DVForm` inputs are bound to model fields.
-class _DVStudioTextField extends StatefulWidget {
-  final String label;
-  final String value;
-  final ValueChanged<String> onChanged;
-
-  const _DVStudioTextField({
-    required this.label,
-    required this.value,
-    required this.onChanged,
-  });
-
-  @override
-  State<_DVStudioTextField> createState() => _DVStudioTextFieldState();
-}
-
-class _DVStudioTextFieldState extends State<_DVStudioTextField> {
-  late final TextEditingController _text =
-      TextEditingController(text: widget.value);
-  late final FocusNode _focus = FocusNode();
-
-  @override
-  void initState() {
-    super.initState();
-    // The border marks focus, so the border has to be repainted when focus
-    // changes; nothing else here rebuilds on it.
-    _focus.addListener(_onFocusChanged);
-  }
-
-  void _onFocusChanged() {
-    if (mounted) setState(() {});
-  }
-
-  @override
-  void dispose() {
-    _focus.removeListener(_onFocusChanged);
-    _text.dispose();
-    _focus.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // Bordered, so it reads as somewhere to type. It was an undecorated
-    // EditableText beside its label, which draws as two pieces of plain text.
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: DVStudioStyle.surface,
-        border: Border.all(color: _focus.hasFocus ? DVStudioStyle.accent : DVStudioStyle.line),
-        borderRadius: BorderRadius.circular(7),
+  /// Four numbers, every one of them true: what the store holds, what the
+  /// application has open, what is installed, and when this session last
+  /// published. No invented traffic figures on a builder's front page.
+  Widget _stats() {
+    final List<Widget> cards = <Widget>[
+      DVStudioStyle.statCard(
+        label: 'Pages',
+        value: '${_routes.length}',
+        icon: DVStudioIcons.pages,
+        detail: 'Stored in Studio',
       ),
-      child: Row(
+      ValueListenableBuilder<List<DVWindow>>(
+        valueListenable: DV.Platform.Window.all,
+        builder: (BuildContext context, List<DVWindow> windows, Widget? _) =>
+            DVStudioStyle.statCard(
+          label: 'Open windows',
+          value: '${windows.length}',
+          icon: DVStudioIcons.windows,
+          tone: const Color(0xFF0E8FC7),
+          detail: windows.isEmpty ? 'None right now' : 'Live from the app',
+        ),
+      ),
+      DVStudioStyle.statCard(
+        label: 'Sections',
+        value: '${2 + widget.attached.length}',
+        icon: DVStudioIcons.components,
+        tone: const Color(0xFFB2479B),
+        detail: widget.attached.isEmpty
+            ? 'Pages and Windows'
+            : 'Including ${widget.attached.join(', ')}',
+      ),
+      DVStudioStyle.statCard(
+        label: 'Last publish',
+        value: _lastPublished == null ? '—' : _ago(_lastPublished!),
+        icon: DVStudioIcons.publish,
+        tone: DVStudioStyle.success,
+        detail: _lastPublished == null
+            ? 'Nothing published this session'
+            : 'This session',
+      ),
+    ];
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints box) {
+        final int columns = box.maxWidth >= 900
+            ? 4
+            : box.maxWidth >= 520
+                ? 2
+                : 1;
+        final double width =
+            (box.maxWidth - DVStudioStyle.space4 * (columns - 1)) / columns;
+        return Wrap(
+          spacing: DVStudioStyle.space4,
+          runSpacing: DVStudioStyle.space4,
+          children: <Widget>[
+            for (final Widget card in cards)
+              SizedBox(width: width, child: card),
+          ],
+        );
+      },
+    );
+  }
+
+  static String _ago(DateTime at) {
+    final Duration since = DateTime.now().difference(at);
+    if (since.inMinutes < 1) return 'Just now';
+    if (since.inHours < 1) return '${since.inMinutes}m ago';
+    return '${since.inHours}h ago';
+  }
+
+  Widget _pagesCard() {
+    return DVStudioStyle.card(
+      padding: const EdgeInsets.all(DVStudioStyle.space5),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          DVText(widget.label).modifier(
-            const DVModifier().fontSize(12).color(DVStudioStyle.muted),
+          Row(
+            children: <Widget>[
+              Expanded(child: DVStudioStyle.heading('All pages')),
+              DVStudioStyle.badge(
+                '${_routes.length} stored',
+                tone: DVStudioStyle.muted,
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: EditableText(
-              controller: _text,
-              focusNode: _focus,
-              style: const TextStyle(fontSize: 13, color: Color(0xFF1A1A22)),
-              cursorColor: DVStudioStyle.accent,
-              backgroundCursorColor: const Color(0xFFCCCCCC),
-              onChanged: widget.onChanged,
+          const SizedBox(height: DVStudioStyle.space4),
+          if (_routes.isEmpty)
+            SizedBox(
+              height: 220,
+              child: DVStudioStyle.emptyState(
+                icon: DVStudioIcons.pages,
+                title: 'Build your first page',
+                message: 'Name a route in the panel on the left and press '
+                    'Create page. It goes live the moment you publish.',
+              ),
+            )
+          else
+            LayoutBuilder(
+              builder: (BuildContext context, BoxConstraints box) {
+                final int columns = box.maxWidth >= 640
+                    ? 3
+                    : box.maxWidth >= 400
+                        ? 2
+                        : 1;
+                final double width =
+                    (box.maxWidth - DVStudioStyle.space4 * (columns - 1)) /
+                        columns;
+                return Wrap(
+                  spacing: DVStudioStyle.space4,
+                  runSpacing: DVStudioStyle.space4,
+                  children: <Widget>[
+                    for (final String route in _routes)
+                      SizedBox(
+                        width: width,
+                        child: _DVStudioPageCard(
+                          route: route,
+                          document: _documents[route],
+                          onOpen: () => unawaited(_open(route)),
+                        ),
+                      ),
+                  ],
+                );
+              },
             ),
-          ),
         ],
       ),
     );
   }
+
+  Widget _guideCard() {
+    Widget step(IconData icon, String title, String body) => Padding(
+          padding: const EdgeInsets.only(bottom: DVStudioStyle.space4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: DVStudioStyle.accentSoft,
+                  borderRadius: BorderRadius.circular(DVStudioStyle.radius),
+                ),
+                child: Icon(icon, size: 16, color: DVStudioStyle.accent),
+              ),
+              const SizedBox(width: DVStudioStyle.space3),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    DVText(title).modifier(const DVModifier()
+                        .fontSize(13)
+                        .color(DVStudioStyle.ink)
+                        .fontWeight(FontWeight.w600)),
+                    const SizedBox(height: 2),
+                    DVStudioStyle.caption(body),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+    return DVStudioStyle.card(
+      padding: const EdgeInsets.all(DVStudioStyle.space5),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          DVStudioStyle.heading('How Studio works'),
+          const SizedBox(height: DVStudioStyle.space4),
+          step(DVStudioIcons.insert, 'Drag in elements',
+              'Text, images, buttons and layouts, from the Insert panel.'),
+          step(DVStudioIcons.design, 'Style what you select',
+              'Every property the renderer honours is in the inspector.'),
+          step(DVStudioIcons.publish, 'Publish to go live',
+              'Stored pages take over their routes without a rebuild.'),
+          step(DVStudioIcons.revert, 'Revert any time',
+              'Deleting a stored page brings the compiled one back.'),
+        ],
+      ),
+    );
+  }
+
+  // --- editor ---------------------------------------------------------------
+
+  Widget _editor(DVStudioEditorController controller) {
+    final bool narrow = _narrow;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        _toolbar(controller),
+        Expanded(
+          child: _showingCode
+              ? _code(controller)
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    Container(
+                      width: narrow ? 220 : 264,
+                      decoration: const BoxDecoration(
+                        color: DVStudioStyle.surface,
+                        border: Border(
+                            right: BorderSide(color: DVStudioStyle.line)),
+                      ),
+                      child: _leftColumn(controller),
+                    ),
+                    Expanded(
+                      child: LayoutBuilder(
+                        builder: (BuildContext context, BoxConstraints box) {
+                          final double fit =
+                              ((box.maxWidth - 96) / _device.width)
+                                  .clamp(0.25, 1.0);
+                          return DVStudioCanvas(
+                            controller: controller,
+                            viewportWidth: _device.width,
+                            zoom: _zoom ?? fit,
+                          );
+                        },
+                      ),
+                    ),
+                    Container(
+                      width: narrow ? 248 : 300,
+                      decoration: const BoxDecoration(
+                        color: DVStudioStyle.surface,
+                        border:
+                            Border(left: BorderSide(color: DVStudioStyle.line)),
+                      ),
+                      child: DVStudioInspector(controller: controller),
+                    ),
+                  ],
+                ),
+        ),
+      ],
+    );
+  }
+
+  /// The site's pages, then the Insert panel or the layer tree.
+  ///
+  /// The pages stay in reach while a page is open, the way every site builder
+  /// keeps them: switching page should not mean leaving the editor, and a
+  /// page that has just been published should appear in the list at once.
+  Widget _leftColumn(DVStudioEditorController controller) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(DVStudioStyle.space4,
+              DVStudioStyle.space3, DVStudioStyle.space4, DVStudioStyle.space1),
+          child: DVStudioStyle.overline('Pages'),
+        ),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 184),
+          child: ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.only(bottom: DVStudioStyle.space2),
+            children: _routeRows(withSubtitles: false),
+          ),
+        ),
+        Container(
+          height: 48,
+          padding: const EdgeInsets.symmetric(horizontal: DVStudioStyle.space3),
+          decoration: const BoxDecoration(
+            border: Border(
+              top: BorderSide(color: DVStudioStyle.line),
+              bottom: BorderSide(color: DVStudioStyle.line),
+            ),
+          ),
+          alignment: Alignment.centerLeft,
+          // Scaled down rather than overflowing: the panel narrows on a small
+          // screen, and a label wider than it was measured for must not break
+          // the layout.
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: DVStudioSegmented<_DVStudioLeftPanel>(
+              segments: const <DVStudioSegment<_DVStudioLeftPanel>>[
+                DVStudioSegment<_DVStudioLeftPanel>(
+                  value: _DVStudioLeftPanel.insert,
+                  label: 'Insert',
+                  icon: DVStudioIcons.insert,
+                ),
+                DVStudioSegment<_DVStudioLeftPanel>(
+                  value: _DVStudioLeftPanel.layers,
+                  label: 'Layers',
+                  icon: DVStudioIcons.layers,
+                ),
+              ],
+              value: _left,
+              onChanged: (_DVStudioLeftPanel panel) =>
+                  setState(() => _left = panel),
+            ),
+          ),
+        ),
+        Expanded(
+          child: _left == _DVStudioLeftPanel.insert
+              ? DVStudioPalette(items: widget.palette, controller: controller)
+              : DVStudioLayers(controller: controller),
+        ),
+      ],
+    );
+  }
+
+  Widget _toolbar(DVStudioEditorController controller) {
+    final String route = controller.document.route;
+    final bool stored = _routes.contains(route);
+    return Container(
+      height: 52,
+      padding: const EdgeInsets.symmetric(horizontal: DVStudioStyle.space3),
+      decoration: const BoxDecoration(
+        color: DVStudioStyle.surface,
+        border: Border(bottom: BorderSide(color: DVStudioStyle.line)),
+      ),
+      // Sized to what is there. Every control at once needs about 760 pixels,
+      // and a laptop with Studio beside a browser's own panels does not have
+      // them: the viewport controls go first, then the labels on Code and
+      // Revert, and anything still too wide scales down rather than pushing
+      // Publish off the end of the bar.
+      child: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints box) {
+          final bool viewport = box.maxWidth >= 1000 && !_showingCode;
+          final bool compact = box.maxWidth < 780;
+          return Row(
+            children: <Widget>[
+              DVStudioIconButton(
+                icon: Icons.arrow_back,
+                tooltip: 'All pages',
+                onTap: () => setState(_closeEditor),
+              ),
+              const SizedBox(width: DVStudioStyle.space2),
+              Flexible(
+                flex: 4,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      DVStudioStyle.heading(route),
+                      const SizedBox(width: DVStudioStyle.space2),
+                      stored
+                          ? DVStudioStyle.badge('Published',
+                              tone: DVStudioStyle.success)
+                          : DVStudioStyle.badge('Draft',
+                              tone: DVStudioStyle.warning),
+                    ],
+                  ),
+                ),
+              ),
+              const Spacer(),
+              if (viewport) ...<Widget>[
+                _viewportControls(),
+                const Spacer(),
+              ],
+              Flexible(
+                flex: 5,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerRight,
+                  child: _actions(controller, compact: compact),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _viewportControls() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        DVStudioSegmented<_DVStudioDevice>(
+          segments: <DVStudioSegment<_DVStudioDevice>>[
+            for (final _DVStudioDevice device in _DVStudioDevice.values)
+              DVStudioSegment<_DVStudioDevice>(
+                value: device,
+                icon: switch (device) {
+                  _DVStudioDevice.desktop => DVStudioIcons.desktop,
+                  _DVStudioDevice.tablet => DVStudioIcons.tablet,
+                  _DVStudioDevice.phone => DVStudioIcons.phone,
+                },
+                tooltip: '${device.label} · ${device.width.round()}',
+              ),
+          ],
+          value: _device,
+          onChanged: (_DVStudioDevice device) => setState(() {
+            _device = device;
+            _zoom = null;
+          }),
+        ),
+        const SizedBox(width: DVStudioStyle.space2),
+        DVStudioSegmented<double?>(
+          segments: const <DVStudioSegment<double?>>[
+            DVStudioSegment<double?>(value: null, label: 'Fit'),
+            DVStudioSegment<double?>(value: 0.5, label: '50%'),
+            DVStudioSegment<double?>(value: 1.0, label: '100%'),
+          ],
+          value: _zoom,
+          onChanged: (double? zoom) => setState(() => _zoom = zoom),
+        ),
+      ],
+    );
+  }
+
+  Widget _actions(DVStudioEditorController controller,
+      {required bool compact}) {
+    final VoidCallback toggleCode =
+        () => setState(() => _showingCode = !_showingCode);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        _keyedIcon('dv-studio-undo', DVStudioIcons.undo, 'Undo',
+            controller.canUndo ? controller.undo : null),
+        _keyedIcon('dv-studio-redo', DVStudioIcons.redo, 'Redo',
+            controller.canRedo ? controller.redo : null),
+        const SizedBox(width: DVStudioStyle.space2),
+        Container(width: 1, height: 24, color: DVStudioStyle.line),
+        const SizedBox(width: DVStudioStyle.space2),
+        if (compact)
+          _keyedIcon(
+            'dv-studio-view-code',
+            _showingCode ? DVStudioIcons.design : DVStudioIcons.code,
+            _showingCode ? 'Design' : 'Code',
+            toggleCode,
+          )
+        else
+          _keyedControl(
+            'dv-studio-view-code',
+            _showingCode ? 'Design' : 'Code',
+            toggleCode,
+            icon: _showingCode ? DVStudioIcons.design : DVStudioIcons.code,
+          ),
+        const SizedBox(width: DVStudioStyle.space2),
+        if (compact)
+          _keyedIcon('dv-studio-revert', DVStudioIcons.revert, 'Revert', _revert)
+        else
+          _keyedControl('dv-studio-revert', 'Revert', _revert,
+              icon: DVStudioIcons.revert),
+        const SizedBox(width: DVStudioStyle.space2),
+        _keyedControl(
+          'dv-studio-publish',
+          _saving ? 'Publishing…' : 'Publish',
+          _saving ? null : _publish,
+          icon: DVStudioIcons.publish,
+          primary: true,
+        ),
+      ],
+    );
+  }
+
+  Widget _code(DVStudioEditorController controller) {
+    return Container(
+      color: const Color(0xFF12121C),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(DVStudioStyle.space6),
+        child: DVText(controller.document.toDartSource()).modifier(
+          const DVModifier()
+              .fontSize(13)
+              .color(const Color(0xFFD9D6F2))
+              .lineHeight(1.55),
+        ),
+      ),
+    );
+  }
 }
 
-
-/// A toolbar action. A null [onTap] renders the label without making it
-/// pressable, which is how an unavailable undo says so.
-Widget _action(String label, VoidCallback? onTap, {required String key}) {
-  return GestureDetector(
-    key: ValueKey<String>(key),
-    onTap: onTap,
-    child: MouseRegion(
-      // basic, not click, when there is nothing to press: Undo with no history
-      // and Publish mid-publish both arrive here with a null callback, and a
-      // pointer that still promises a click is the wrong answer.
-      cursor: onTap == null
-          ? SystemMouseCursors.basic
-          : SystemMouseCursors.click,
-      child: DVStudioStyle.control(label, enabled: onTap != null),
+/// A toolbar icon whose key sits on the GestureDetector itself, with a null
+/// callback when there is nothing to do.
+///
+/// Not a [DVStudioIconButton]: tests — and anything else inspecting the tree —
+/// ask the keyed widget whether it can be pressed, and an undo that says it
+/// can when there is no history is the bug that asking catches.
+Widget _keyedIcon(
+    String key, IconData icon, String tooltip, VoidCallback? onTap) {
+  return DVStudioStyle.tooltip(
+    tooltip,
+    GestureDetector(
+      key: ValueKey<String>(key),
+      onTap: onTap,
+      child: MouseRegion(
+        cursor:
+            onTap == null ? SystemMouseCursors.basic : SystemMouseCursors.click,
+        child: SizedBox(
+          width: 32,
+          height: 32,
+          child: Icon(icon,
+              size: 18,
+              color: onTap == null ? DVStudioStyle.faint : DVStudioStyle.ink),
+        ),
+      ),
     ),
   );
 }
 
-/// The window inspector: the window manager's list, live, each with a
-/// close.
+Widget _keyedControl(String key, String label, VoidCallback? onTap,
+    {IconData? icon, bool primary = false}) {
+  return GestureDetector(
+    key: ValueKey<String>(key),
+    onTap: onTap,
+    child: MouseRegion(
+      cursor:
+          onTap == null ? SystemMouseCursors.basic : SystemMouseCursors.click,
+      child: DVStudioStyle.control(label,
+          enabled: onTap != null, primary: primary, icon: icon),
+    ),
+  );
+}
+
+/// A page on the overview: a live thumbnail of the stored document, rendered
+/// by the same renderer the running application uses, and its name.
+class _DVStudioPageCard extends StatefulWidget {
+  final String route;
+  final DVPageDocument? document;
+  final VoidCallback onOpen;
+
+  const _DVStudioPageCard({
+    required this.route,
+    required this.document,
+    required this.onOpen,
+  });
+
+  @override
+  State<_DVStudioPageCard> createState() => _DVStudioPageCardState();
+}
+
+class _DVStudioPageCardState extends State<_DVStudioPageCard> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final DVPageDocument? document = widget.document;
+    final String route = widget.route;
+    // Not the route verbatim: the page list beside this already shows it, and
+    // one piece of text should be one widget a reader — or a test — finds.
+    final String name = document == null || document.title == route
+        ? (route == '/' ? 'Home page' : route.substring(1))
+        : document.title;
+    return GestureDetector(
+      onTap: widget.onOpen,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hover = true),
+        onExit: (_) => setState(() => _hover = false),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          decoration: BoxDecoration(
+            color: DVStudioStyle.surface,
+            border: Border.all(
+                color: _hover ? DVStudioStyle.accent : DVStudioStyle.line),
+            borderRadius: BorderRadius.circular(DVStudioStyle.radiusLarge),
+            boxShadow: _hover ? DVStudioStyle.shadow : null,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(DVStudioStyle.radiusLarge - 1)),
+                child: Container(
+                  height: 150,
+                  color: DVStudioStyle.canvas,
+                  child: document == null
+                      ? const Center(
+                          child: Icon(DVStudioIcons.page,
+                              size: 28, color: DVStudioStyle.faint),
+                        )
+                      : _thumbnail(document),
+                ),
+              ),
+              Container(height: 1, color: DVStudioStyle.line),
+              Padding(
+                padding: const EdgeInsets.all(DVStudioStyle.space3),
+                child: Row(
+                  children: <Widget>[
+                    Icon(route == '/' ? DVStudioIcons.home : DVStudioIcons.page,
+                        size: 15, color: DVStudioStyle.muted),
+                    const SizedBox(width: DVStudioStyle.space2),
+                    Expanded(
+                      child: DVText(name).modifier(const DVModifier()
+                          .fontSize(13)
+                          .color(DVStudioStyle.ink)
+                          .fontWeight(FontWeight.w600)),
+                    ),
+                    DVStudioStyle.dot(DVStudioStyle.success),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// The page drawn at desktop width and scaled into the card, clipped to the
+  /// top of it — what a person recognises a page by.
+  static Widget _thumbnail(DVPageDocument document) {
+    return IgnorePointer(
+      child: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints box) {
+          const double pageWidth = 1280;
+          final double scale = box.maxWidth / pageWidth;
+          return ClipRect(
+            child: OverflowBox(
+              alignment: Alignment.topLeft,
+              minWidth: pageWidth,
+              maxWidth: pageWidth,
+              minHeight: 0,
+              maxHeight: double.infinity,
+              child: Transform.scale(
+                scale: scale,
+                alignment: Alignment.topLeft,
+                child: Container(
+                  width: pageWidth,
+                  color: const Color(0xFFFFFFFF),
+                  child: DVPageDocumentRenderer(document),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// The window inspector: the window manager's list, live, each with a close.
 class _DVStudioWindowsSection extends StatelessWidget {
   const _DVStudioWindowsSection({super.key});
 
@@ -630,26 +1254,101 @@ class _DVStudioWindowsSection extends StatelessWidget {
   Widget build(BuildContext context) => ValueListenableBuilder<List<DVWindow>>(
         valueListenable: DV.Platform.Window.all,
         builder: (BuildContext context, List<DVWindow> windows, Widget? _) {
-          if (windows.isEmpty) return const DVText('No windows open.');
-          return DVBox.list(<Widget>[
-            for (final DVWindow w in windows)
-              KeyedSubtree(
-                key: ValueKey<String>('dv-studio-window-${_idOf(w)}'),
-                child: DVBox.row(<Widget>[
-                Expanded(
-                  child: DVText(
-                    '${w.route.path}  ${w.kind.name}  ${w.presentation.name}'
-                    '${w.nativeId != null ? '  ${w.nativeId}' : ''}',
-                  ),
-                ),
-                GestureDetector(
-                  key: ValueKey<String>('dv-studio-window-close-${_idOf(w)}'),
-                  onTap: () => unawaited(w.close()),
-                  child: const DVText('Close').modifier(const DVModifier().padding(6)),
-                ),
-              ]),
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              DVStudioStyle.panelHeader(
+                title: 'Windows',
+                subtitle: '${windows.length} open',
               ),
-          ], spacing: 6);
+              Expanded(
+                child: windows.isEmpty
+                    ? DVStudioStyle.emptyState(
+                        icon: DVStudioIcons.windows,
+                        title: 'No windows open.',
+                        message: 'Windows, tabs and panels the application '
+                            'opens appear here while they are open.',
+                      )
+                    : ListView(
+                        padding: const EdgeInsets.all(DVStudioStyle.space6),
+                        children: <Widget>[
+                          for (final DVWindow w in windows)
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                  bottom: DVStudioStyle.space3),
+                              child: KeyedSubtree(
+                                key: ValueKey<String>(
+                                    'dv-studio-window-${_idOf(w)}'),
+                                child: _windowCard(w),
+                              ),
+                            ),
+                        ],
+                      ),
+              ),
+            ],
+          );
         },
       );
+
+  Widget _windowCard(DVWindow w) {
+    return DVStudioStyle.card(
+      padding: const EdgeInsets.all(DVStudioStyle.space4),
+      child: Row(
+        children: <Widget>[
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: DVStudioStyle.accentSoft,
+              borderRadius: BorderRadius.circular(DVStudioStyle.radius),
+            ),
+            child: const Icon(DVStudioIcons.windows,
+                size: 18, color: DVStudioStyle.accent),
+          ),
+          const SizedBox(width: DVStudioStyle.space3),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                DVStudioStyle.heading(w.route.path),
+                if (w.nativeId != null)
+                  DVStudioStyle.caption('Native id ${w.nativeId}',
+                      color: DVStudioStyle.faint),
+              ],
+            ),
+          ),
+          // Scaled rather than overflowing when the window list is narrow:
+          // the close button has to stay on screen.
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerRight,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  DVStudioStyle.badge(w.kind.name),
+                  const SizedBox(width: DVStudioStyle.space2),
+                  DVStudioStyle.badge(w.presentation.name,
+                      tone: DVStudioStyle.muted),
+                  const SizedBox(width: DVStudioStyle.space4),
+                  GestureDetector(
+                    key: ValueKey<String>('dv-studio-window-close-${_idOf(w)}'),
+                    onTap: () => unawaited(w.close()),
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: DVStudioStyle.control(
+                        'Close',
+                        enabled: true,
+                        icon: DVStudioIcons.close,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
