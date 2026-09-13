@@ -84,6 +84,7 @@ export 'src/data/record_history.dart';
 export 'src/diagnostics/diagnostics.dart';
 export 'src/i18n/locale_negotiation.dart';
 export 'src/i18n/plural_rules.dart';
+export 'src/flags/flags.dart';
 export 'src/kiosk/enforcement.dart';
 export 'src/kiosk/containment.dart';
 export 'src/kiosk/policy.dart';
