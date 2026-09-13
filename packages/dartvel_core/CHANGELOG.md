@@ -20,7 +20,6 @@
   as withheld when consent is (`DV-FLAGS-007`). `@DVFlags()` and `@DVFlag` are
   the declarations the generator reads.
 
-
 - **`DV.Http`: outbound HTTP with the failure paths built in.** Declared hosts
   (`DV.Http.declare`, or the `dartvel.http.hosts` block through
   `declareFromConfig`) carry a base URL, a bearer credential named by secret
@@ -60,6 +59,20 @@
   peak. `DVLevelLimit` checks a level such as seats by querying it and writes
   nothing. `DVMemoryMeterStore` and `DVDatabaseMeterStore`, tested on the
   in-memory adapter and SQLite.
+
+- **Metered usage reaches the billing provider (`DVMeterReporter`).** A
+  closed period's usage is sent through `DVBillingProvider.recordUsage` under
+  a key made of the tenant, the meter and the period, so a report sent twice —
+  or retried after a response was lost — is billed once. A period is refused
+  while it can still receive usage, before its end plus the grace, because a
+  report sent then leaves out whatever arrives late. A gauge is billed as a
+  whole number rounded up. A period with no usage sends nothing; a meter with
+  no price on the tenant's plan is counted and not billed (`DV-METER-009`). A
+  report that fails, or a tenant with no billing customer, is queued rather
+  than dropped (`DV-METER-006`), and `retryPending` sends the queue again;
+  `DVDatabaseMeterReportQueue` keeps it across restarts and instances.
+  `reconcile` lists where Dartvel's figure and the provider's differ, per
+  tenant per meter, and changes nothing.
 
 - **Versioned writes, record history and soft delete, as a runtime
   (`DVRecordTable`).** A write carries the version it read and lands through a
