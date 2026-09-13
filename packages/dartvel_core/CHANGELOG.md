@@ -21,6 +21,45 @@
   the declarations the generator reads.
 
 
+- **`DV.Http`: outbound HTTP with the failure paths built in.** Declared hosts
+  (`DV.Http.declare`, or the `dartvel.http.hosts` block through
+  `declareFromConfig`) carry a base URL, a bearer credential named by secret
+  and resolved through Secrets when the request is sent, a timeout, a retry
+  policy, a circuit breaker and a concurrency limit. Requests and responses are
+  the same WinterCG `Response` and `Headers` the inbound side uses. Retries are
+  idempotency-aware: `GET`, `HEAD`, `PUT` and `DELETE` retry on 429, 5xx and
+  transport failures; a `POST` retries only with an idempotency key, sending
+  the same key each time, and asking to retry one without a key sends it once
+  and logs `DV-HTTP-003`. An open breaker fails fast with a typed error naming
+  the host and when it will try again (`DV-HTTP-002`), and lets exactly one
+  probe through after its cooldown. A timed-out request keeps its pool slot
+  until it really finishes, and its later failure is observed rather than
+  escaping as an uncaught error. A call inside a span sends a `traceparent`
+  for a child span. `DV.Test.fakeHttp` answers by host name, refuses any
+  request no stub answers (`DV-HTTP-004`), and replays fixtures recorded from
+  real responses.
+- **Feature flags, as a runtime: `DVFeatureFlag` and `DVFlags`.** A flag
+  answers from one pure function of a rule set and an evaluation context —
+  identity, tenant, device, organization role, app version, platform, locale
+  and declared attributes — so a phone and a backend function given the same
+  two reach the same answer. A read resolves a debug-only override, then the
+  synced `DVFlagRules`, then the default compiled into the build; with nothing
+  synced it answers the default and says so once (`DV-FLAGS-001`). A
+  percentage rollout buckets on the first eight bytes of
+  `SHA-256("key:subject")` mod 10,000, so a person keeps their answer across
+  devices and reinstalls, two 10% flags pick different tenths, and raising a
+  percentage only adds people; a rollout with no subject holds the default
+  rather than rolling a die (`DV-FLAGS-005`). A rule value of the wrong type
+  holds the default instead of being coerced (`DV-FLAGS-006`) — `"true"` is not
+  a bool and `2.5` is not an int. Stale rules stay in force and report past
+  `maxAge` (`DV-FLAGS-009`), because a kill switch that expires back to on is
+  worse than one a day old. `onNextLaunch` pins a flag for the process,
+  `withOverrides` scopes overrides to a zone so a test's flags never leak, and
+  an exposure is recorded once per flag per context per session, or reported
+  as withheld when consent is (`DV-FLAGS-007`). `@DVFlags()` and `@DVFlag` are
+  the declarations the generator reads.
+
+
 - **Versioned writes, record history and soft delete, as a runtime
   (`DVRecordTable`).** A write carries the version it read and lands through a
   conditional `UPDATE ... WHERE _dv_version = ?`, so a write against a row that

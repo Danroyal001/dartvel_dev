@@ -12,6 +12,7 @@ import 'src/secrets/secrets.dart';
 import 'src/database/adapter.dart';
 import 'src/billing/invoice.dart';
 import 'src/http/aws_sigv4.dart';
+import 'src/http/outbound.dart';
 import 'src/http/flat_buffer.dart';
 import 'src/http/transport.dart';
 // import 'dart:io'; // Removed to avoid breaking web builds
@@ -67,6 +68,7 @@ export 'src/http/flat_buffer.dart';
 // nothing built web afterwards.
 export 'src/http/native_client_web.dart'
     if (dart.library.ffi) 'src/http/native_client.dart';
+export 'src/http/outbound.dart';
 export 'src/http/transport.dart';
 // Re-export common types so backends can import only dartvel_core.
 // The wire types live here now. dartvel_core is on both sides of the wire, so
@@ -3906,6 +3908,13 @@ class DVCacheTags {
 
 class DVTestHarness {
   const DVTestHarness();
+
+  /// Answers outbound `DV.Http` requests from [stubs], by declared host name
+  /// or by the host of an absolute URL, and refuses any request no stub
+  /// answers (`DV-HTTP-004`) -- a suite whose result depends on somebody
+  /// else's uptime is not a suite. `DVHttp.reset()` puts the real wire back.
+  DVHttpFake fakeHttp(Map<String, DVHttpStub> stubs) =>
+      const DVHttp().fake(stubs);
 
   /// Supplies [secrets] for the duration of [body], then puts everything
   /// back -- values that were there before, values that were not, and any
