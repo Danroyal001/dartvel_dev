@@ -1,4 +1,12 @@
 ## Unreleased
+- **`context.flag(Flags.name)` reads a feature flag as a signal.** Read in a
+  build method, it subscribes the element, so a widget guarded on a flag
+  rebuilds when the synced rules change under it — a kill switch reaches the
+  screens already open rather than the next one somebody navigates to. It is
+  a `DVReadableSignal`, so it composes: `context.flag(Flags.newCheckout) &
+  user.isStaff` is a signal too. `read()` answers without subscribing. A
+  widget that has gone is unsubscribed on the next change rather than rebuilt.
+
 
 - **`DVStudioStyle` is Studio's style vocabulary, and it is public.**
   `DVStudioSection` is an extension seam — the Pro workflow builder attaches
