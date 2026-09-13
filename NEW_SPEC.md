@@ -661,7 +661,7 @@ Using the new native Dart data-class syntax. Automatically generates:
 
 # Record History and Optimistic Concurrency
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
 
 Offline-First Models answers what happens when a device that was disconnected
 reconnects. Two people editing the same order on two desks, both online, is the

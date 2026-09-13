@@ -105,7 +105,13 @@
     {
       "section": "Record History and Optimistic Concurrency",
       "stability": "Draft",
-      "status": "Designed"
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_core/lib/src/data/record_history.dart",
+        "packages/dartvel_core/test/record_history_test.dart",
+        "packages/dartvel_core/test/transaction_id_test.dart"
+      ],
+      "absent": "The runtime is built (DVRecordTable: versioned conditional writes refused with DVConflictError and every DVConflict strategy, opt-in history with sensitive fields recorded as changed and never as values, revert that adds a change and keeps every entry between, soft delete with restore refused on a held unique field, compensation inside DV.transaction, and DVContext.transactionId). Absent: generated models do not use it yet, so @DVModel(version:, history:, softDelete:) does not exist on the annotation and generated save() is still an unversioned delete-then-insert; the build-time DV-HISTORY-002 check and the DV-HISTORY-004 log line have nothing that emits them; generated form reload-and-merge; the Studio history view; pointing history at a separate adapter; scheduled retention jobs; tenant scoping and field encryption inside DVRecordTable; and database-level atomic transactions."
     },
     {
       "section": "Forms",
