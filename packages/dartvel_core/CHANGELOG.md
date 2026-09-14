@@ -1,5 +1,16 @@
 ## Unreleased
 
+- **An LDAP username the directory does not hold costs a bind.**
+  `DVLdapAuthenticator.authenticate` returned as soon as the user search came
+  back empty, skipping the password bind, so a miss answered a whole round
+  trip to the directory sooner than a wrong password and the difference
+  listed the usernames that exist. A miss now binds the supplied password to
+  a random DN under no entry, and discards the answer: RFC 4513 asks for
+  invalidCredentials there, and a directory answering noSuchObject has still
+  refused a sign-in rather than failed. The stand-in DN is never the typed
+  username, because a failed bind against a real entry counts toward its
+  lockout.
+
 - **A sign-in no longer says whether the account exists.**
   `LocalAuthProvider.signIn` threw `AuthFailure.unknownAccount` with "No
   account exists for that e-mail address." for a missing account and

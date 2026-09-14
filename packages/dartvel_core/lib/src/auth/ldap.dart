@@ -18,6 +18,7 @@ library dartvel_core.auth.ldap;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 
 /// Thrown when a directory refuses or cannot be reached.
@@ -450,7 +451,14 @@ class DVLdapAuthenticator {
         filter: '$userFilter=${_escapeFilter(username)}',
         attributes: attributes,
       );
-      if (found.isEmpty) return null;
+      if (found.isEmpty) {
+        // Bind anyway, as a DN no entry has, so a username the directory does
+        // not hold costs the same round trip as a wrong password. Returning
+        // straight away answers a miss sooner, and that difference is a list
+        // of the usernames that exist.
+        await _standInBind(client, password);
+        return null;
+      }
 
       // More than one match means the filter is not unique. Binding as the
       // first would authenticate whichever account the directory happened to
@@ -467,6 +475,26 @@ class DVLdapAuthenticator {
       return ok ? user : null;
     } finally {
       await client.close();
+    }
+  }
+
+  /// The bind a missing username gets in place of its password bind.
+  ///
+  /// The DN is under [baseDn] with a random value, never the typed username:
+  /// a failed bind against a real entry counts toward that entry's lockout.
+  /// Whatever the directory answers is discarded -- RFC 4513 asks for
+  /// invalidCredentials for a DN that does not exist, and a server answering
+  /// noSuchObject instead has still refused a sign-in rather than failed.
+  static Future<void> _standInBind(DVLdapClient client, String password) async {
+    final Random random = Random.secure();
+    final String value = <String>[
+      for (int i = 0; i < 16; i += 1)
+        random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+    ].join();
+    try {
+      await client.bind('cn=dartvel-absent-$value', password);
+    } on DVLdapException {
+      // A refusal either way.
     }
   }
 
