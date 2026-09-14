@@ -1,5 +1,13 @@
 ## Unreleased
 
+- **A public update on an incident an alert named asks for a public title
+  first.** Studio's composer shows a Public title field for an incident whose
+  `titleSource` is not `human`, and Post stays disabled until it is filled;
+  the title goes with the update in the same `DVIncidents.update`. The preview
+  carries the typed title, or, while the field is empty, the neutral title
+  the runtime would publish. The rename card says what the status page calls
+  the incident until a person titles it.
+
 - **World anchor tokens are encrypted at rest whatever the shared store's
   cipher.** A token under `xr.anchors.*` was encrypted only when the shared
   store had been given a cipher, and its default has none, so a token that

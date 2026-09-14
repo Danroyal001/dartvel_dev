@@ -112,8 +112,9 @@ class DVStatusSnapshot {
   /// detail is where a connection string or an internal host ends up, and a
   /// public page is the last place it should. Incidents appear once someone
   /// has written a public update -- an alert opens one internally, and what it
-  /// wrote is for the people fixing it. Resolved incidents stay listed for
-  /// [resolvedWithin].
+  /// wrote is for the people fixing it. That includes the title it gave the
+  /// incident, so a listed incident is named by [DVIncident.publicTitle].
+  /// Resolved incidents stay listed for [resolvedWithin].
   static DVStatusSnapshot build({
     required DVHealthReport health,
     required List<DVIncident> incidents,
@@ -145,7 +146,7 @@ class DVStatusSnapshot {
         for (final DVIncident incident in listed)
           DVPublicIncident(
             id: incident.id,
-            title: incident.title,
+            title: incident.publicTitle,
             status: incident.status,
             openedAt: incident.openedAt,
             resolvedAt: incident.resolvedAt,
@@ -378,7 +379,7 @@ class DVStatusSubscribers {
     if (latest == null) return 0;
 
     final DVNotificationMessage message = DVNotificationMessage(
-      title: incident.title,
+      title: incident.publicTitle,
       body: latest.message,
       channels: channels,
       data: <String, String>{

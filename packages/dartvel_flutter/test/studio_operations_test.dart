@@ -661,8 +661,11 @@ void main() {
         'Search has recovered for most users.',
       );
       await tapKey(tester, 'dv-studio-incident-status-monitoring');
+      await type(tester, 'dv-studio-incident-public-title', 'Slow search');
 
       const String preview = 'dv-studio-incident-public-preview';
+      expect(inKey(preview, find.text('Slow search')), findsOneWidget);
+      expect(inKey(preview, find.text('Alert search-burn')), findsNothing);
       expect(
         inKey(preview, find.text('Search has recovered for most users.')),
         findsOneWidget,
@@ -688,8 +691,64 @@ void main() {
       expect(stored.timeline.last.public, isTrue);
       expect(stored.timeline.last.actor, 'dana');
       expect(stored.status, DVIncidentStatus.monitoring);
+      expect(stored.title, 'Slow search');
+      expect(stored.publicTitle, 'Slow search');
       // Now in monitoring, it can be resolved.
       expect(byKey('dv-studio-incident-resolve'), findsOneWidget);
+    });
+
+    testWidgets('a public update on an incident named after its alert asks for '
+        'the public title first, and previews the title that will be '
+        'published', (WidgetTester tester) async {
+      await pumpStudio(tester);
+      await openIncident(tester, searchIncident);
+      await tapKey(tester, 'dv-studio-incident-mode-public');
+      await type(
+        tester,
+        'dv-studio-incident-message',
+        'Search is back to normal speed.',
+      );
+
+      // No title typed: nothing can be posted, and the preview shows what the
+      // runtime publishes in its place -- never the rule name.
+      expect(detector(tester, 'dv-studio-incident-post').onTap, isNull);
+      expect(
+        find.textContaining('Give it a public title'),
+        findsWidgets,
+      );
+      const String preview = 'dv-studio-incident-public-preview';
+      expect(inKey(preview, find.text('Service issue')), findsOneWidget);
+      expect(
+        inKey(preview, find.textContaining('search-burn')),
+        findsNothing,
+      );
+
+      await type(tester, 'dv-studio-incident-public-title', 'Slow search');
+      expect(inKey(preview, find.text('Slow search')), findsOneWidget);
+      expect(inKey(preview, find.text('Service issue')), findsNothing);
+      expect(detector(tester, 'dv-studio-incident-post').onTap, isNotNull);
+
+      await tapKey(tester, 'dv-studio-incident-post');
+      final DVIncident stored = (await tester.runAsync<DVIncident?>(
+        () => incidents.find(searchIncident),
+      ))!;
+      expect(stored.publicTitle, 'Slow search');
+      expect(stored.timeline.last.public, isTrue);
+      expect(stored.timeline.last.message, 'Search is back to normal speed.');
+
+      // Titled now: the next public update does not ask again.
+      await tapKey(tester, 'dv-studio-incident-mode-public');
+      expect(byKey('dv-studio-incident-public-title'), findsNothing);
+    });
+
+    testWidgets('a public update on an incident a person named asks for no '
+        'title', (WidgetTester tester) async {
+      await pumpStudio(tester);
+      await openIncident(tester, paymentsIncident);
+      await tapKey(tester, 'dv-studio-incident-mode-public');
+      expect(byKey('dv-studio-incident-public-title'), findsNothing);
+      await type(tester, 'dv-studio-incident-message', 'Still watching.');
+      expect(detector(tester, 'dv-studio-incident-post').onTap, isNotNull);
     });
 
     testWidgets('renaming for the public changes the title the status page '
@@ -815,6 +874,10 @@ void main() {
       );
       // Opened by an alert and never given a public update: not listed.
       expect(inKey(page, find.text('Alert exports-queue')), findsNothing);
+      // Opened by an alert, given a public update, never renamed: listed,
+      // under a title that names no rule.
+      expect(inKey(page, find.textContaining('search-burn')), findsNothing);
+      expect(inKey(page, find.text('Service issue')), findsOneWidget);
       expect(inKey(page, find.textContaining('db-7')), findsNothing);
       expect(inKey(page, find.textContaining('worker-3')), findsNothing);
       expect(

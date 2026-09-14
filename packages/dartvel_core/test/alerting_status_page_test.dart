@@ -138,6 +138,131 @@ void main() {
       expect(jsonEncode(snapshot.toJson()), isNot(contains('mail-backlog')));
     });
 
+    test('an incident an alert opened is never published under its rule name, '
+        'once a person writes in public without renaming it', () async {
+      // The alert titles its incident after the rule. A person posts a public
+      // update and forgets the rename, which is the normal order of things at
+      // 03:00. The update belongs on the page; the rule name does not.
+      final DVIncidents incidents =
+          DVIncidents(store: DVMemoryIncidentStore(), newId: () => 'inc-9');
+      final DVIncident opened = await incidents.openIncident(
+        title: 'Alert catalog-search-burn',
+        message: 'alert catalog-search-burn fired: errorBudgetBurn '
+            'catalog-search is 6.7×, above 6.0×, for 5 minutes',
+        rule: 'catalog-search-burn',
+        source: 'alert',
+        now: t0.subtract(const Duration(minutes: 10)),
+      );
+      await incidents.update(opened.id,
+          message: 'Search is slow for some customers.',
+          public: true,
+          actor: 'sam',
+          now: t0.subtract(const Duration(minutes: 5)));
+
+      final DVStatusSnapshot snapshot = DVStatusSnapshot.build(
+        health: health(<String, DVHealthResult>{'api': DVHealthResult.up()}),
+        incidents: await incidents.store.all(),
+        now: t0,
+      );
+      final DVPublicIncident published = snapshot.incidents.single;
+      expect(published.title, 'Service issue');
+      expect(published.updates.single.message,
+          'Search is slow for some customers.');
+      expect(snapshot.overall, DVComponentStatus.degraded);
+      final String json = jsonEncode(snapshot.toJson());
+      expect(json, isNot(contains('catalog-search')));
+      expect(json, isNot(contains('Alert ')));
+    });
+
+    test('the neutral title names the public components it affects', () {
+      DVIncident opened(List<String> components) => DVIncident(
+            id: 'inc-${components.length}',
+            title: 'Alert payments-5xx',
+            openedAt: t0,
+            components: components,
+            titleSource: 'alert',
+            timeline: <DVIncidentEntry>[
+              DVIncidentEntry(at: t0, message: 'fired', source: 'alert'),
+              DVIncidentEntry(at: t0, message: 'Looking into it.', public: true),
+            ],
+          );
+      expect(opened(<String>['Payments']).publicTitle,
+          'Issue affecting Payments');
+      expect(opened(<String>['Payments', 'API']).publicTitle,
+          'Issue affecting Payments and API');
+      expect(opened(<String>['Payments', 'API', 'Search']).publicTitle,
+          'Issue affecting Payments, API and Search');
+    });
+
+    test('a crash spike\'s title names a release, and is not published either',
+        () async {
+      final DVIncidents incidents =
+          DVIncidents(store: DVMemoryIncidentStore());
+      final DVIncident opened = await incidents.linkCrashSpike(
+        fingerprint: 'fp-1',
+        release: '2.0.0+build.4411-internal',
+        message: 'crash-free sessions fell to 91%',
+        now: t0,
+      );
+      await incidents.update(opened.id,
+          message: 'Some customers see the app close.', public: true, now: t0);
+      final DVStatusSnapshot snapshot = DVStatusSnapshot.build(
+        health: health(<String, DVHealthResult>{'api': DVHealthResult.up()}),
+        incidents: await incidents.store.all(),
+        now: t0,
+      );
+      expect(snapshot.incidents.single.title, 'Service issue');
+      expect(jsonEncode(snapshot.toJson()), isNot(contains('4411')));
+    });
+
+    test('a title a person gives is published as given', () async {
+      final DVIncidents incidents =
+          DVIncidents(store: DVMemoryIncidentStore());
+      final DVIncident opened = await incidents.openIncident(
+          title: 'Alert checkout-latency',
+          message: 'fired',
+          source: 'alert',
+          now: t0);
+      await incidents.update(opened.id,
+          title: 'Slow checkout',
+          message: 'We are looking into slow payments.',
+          public: true,
+          now: t0);
+      final DVStatusSnapshot snapshot = DVStatusSnapshot.build(
+        health: health(<String, DVHealthResult>{'api': DVHealthResult.up()}),
+        incidents: await incidents.store.all(),
+        now: t0,
+      );
+      expect(snapshot.incidents.single.title, 'Slow checkout');
+
+      // So is the title of an incident a person opened.
+      final DVIncident human = await incidents.openIncident(
+          title: 'Sign-in failures',
+          message: 'Sign-in is failing for some users.',
+          public: true,
+          now: t0);
+      expect(human.publicTitle, 'Sign-in failures');
+    });
+
+    test('an alert incident stored before titles were attributed is still not '
+        'published under its rule name', () async {
+      final DVIncidents incidents =
+          DVIncidents(store: DVMemoryIncidentStore());
+      final DVIncident opened = await incidents.openIncident(
+          title: 'Alert mail-backlog',
+          message: 'queueDepth mail is 500',
+          source: 'alert',
+          now: t0);
+      await incidents.update(opened.id,
+          message: 'Emails are delayed.', public: true, now: t0);
+      final Map<String, Object?> row = (await incidents.find(opened.id))!
+          .toJson()
+        ..remove('titleSource');
+      final DVIncident legacy = DVIncident.fromJson(row);
+      expect(legacy.publicTitle, 'Service issue');
+      expect(DVIncident.fromJson(legacy.toJson()).publicTitle, 'Service issue');
+    });
+
     test('an open incident is not reported as all systems operational', () {
       final DVStatusSnapshot snapshot = DVStatusSnapshot.build(
         health: health(<String, DVHealthResult>{'api': DVHealthResult.up()}),
@@ -402,6 +527,23 @@ void main() {
           <String>['ana', 'cy']);
       expect(provider.sent.first.message.body,
           'We are investigating failed payments.');
+    });
+
+    test('hear an alert-opened incident under its public title, not its rule',
+        () async {
+      final DVStatusSubscribers subscribers =
+          DVStatusSubscribers(notifications: notifications)..subscribe('ana');
+      final DVIncidents incidents =
+          DVIncidents(store: DVMemoryIncidentStore());
+      final DVIncident opened = await incidents.openIncident(
+          title: 'Alert catalog-search-burn',
+          message: 'fired',
+          source: 'alert',
+          now: t0);
+      final DVIncident updated = await incidents.update(opened.id,
+          message: 'Search is slow.', public: true, now: t0);
+      expect(await subscribers.announce(updated), 1);
+      expect(provider.sent.single.message.title, 'Service issue');
     });
 
     test('hear nothing from an incident with no public update', () async {
