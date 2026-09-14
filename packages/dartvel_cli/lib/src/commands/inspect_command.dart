@@ -5,6 +5,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
+import '../adoption/adoption_inventory.dart';
 import '../graph/kiosk_inspection.dart';
 import '../graph/live_windows.dart';
 import '../graph/project_graph.dart';
@@ -29,7 +30,7 @@ class InspectCommand extends Command<void> {
 
   @override
   String get invocation =>
-      'dartvel inspect [routes|models|model <Name>|functions|function <name>|jobs|windows|kiosk] [--json] [--device-profile <id>]';
+      'dartvel inspect [routes|models|model <Name>|functions|function <name>|jobs|windows|kiosk|adoption] [--json] [--device-profile <id>]';
 
   InspectCommand() {
     argParser.addFlag(
@@ -103,6 +104,8 @@ class InspectCommand extends Command<void> {
         _emitWindows(root, graph, asJson);
       case 'kiosk':
         _emitKiosk(root, asJson);
+      case 'adoption':
+        _emitAdoption(root, graph, asJson);
       case 'model':
         _emitModel(graph, rest.length > 1 ? rest[1] : null, asJson);
       case 'function':
@@ -194,6 +197,23 @@ class InspectCommand extends Command<void> {
     _emit('The live window list needs a running application to ask.');
   }
 
+  /// What is Dartvel-managed and what is not: routes, models, screens and
+  /// functions. See Adoption: this is what makes stopping part way legitimate.
+  void _emitAdoption(String root, DartvelProjectGraph graph, bool asJson) {
+    final Object? section = _dartvelSection(root);
+    final Object? pagesDir = section is YamlMap ? section['pagesDir'] : null;
+    final DVAdoptionInventory inventory = dvAdoptionInventory(
+      root: root,
+      pagesDir: pagesDir is String ? pagesDir : 'lib/pages',
+      graph: graph,
+    );
+    if (asJson) {
+      _emit(const JsonEncoder.withIndent('  ').convert(inventory.toJson()));
+      return;
+    }
+    inventory.lines().forEach(_emit);
+  }
+
   /// The `dartvel:` section of the project's pubspec, or null.
   static Object? _dartvelSection(String root) {
     final File pubspec = File(p.join(root, 'pubspec.yaml'));
@@ -279,6 +299,7 @@ class InspectCommand extends Command<void> {
     _emit('');
     _emit('dartvel inspect routes | models | functions | jobs');
     _emit('dartvel inspect model <Name> | function <name>');
+    _emit('dartvel inspect adoption');
     _emit('dartvel inspect --json');
   }
 
