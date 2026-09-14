@@ -8944,7 +8944,7 @@ Targets:
 
 # Server Provisioning
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
 
 Deployment lists bare metal and containers as targets. "Bare metal" is a lie
 until somebody has terminated TLS, renewed a certificate, put a reverse proxy
