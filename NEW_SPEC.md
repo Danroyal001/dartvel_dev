@@ -11829,7 +11829,7 @@ thing that catches an unsorted map before a reviewer does.
 
 # Documentation Generation
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
 
 The Platform API section generates a developer portal for the people outside
 the application — OpenAPI, the event catalog, keys and usage. The team inside
