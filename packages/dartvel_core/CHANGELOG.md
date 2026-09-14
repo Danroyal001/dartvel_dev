@@ -1,5 +1,16 @@
 ## Unreleased
 
+- **`dartvel.crashes` is read strictly.** `DVCrashConfig.parse` reads
+  `enabled`, `disabledIn` (debug, profile, release), `sink`,
+  `nonFatalSampleRate` (0 to 1), `breadcrumbs`, `fullReportsPerRelease` and
+  `identity.consent`, and refuses anything it cannot honour with an
+  `ArgumentError` naming the key: a string where a boolean belongs, a sample
+  rate of 25, a misspelt or unknown key, a sink this build does not have.
+  Every setting has a default, which is why none is defaulted when it is
+  wrong -- a replaced setting looks exactly like an honoured one.
+  `toDeclaration` writes back what `parse` reads, so a generated runtime
+  parses the rules its build checked.
+
 - **A crash report's user id is bound to consent, and its flags are the ones
   in force.** `DVCrashIdentity` holds the account an install is signed in as
   and hands a report the id only through `DVConsent.boundIdentity`, read when
