@@ -380,7 +380,18 @@ void main() {
         test(
           'two exchanges of one code racing give tokens to at most one',
           () async {
+            // Both exchanges read the code before either spends it, so the
+            // `used_at` check alone cannot tell them apart and only the
+            // versioned write can. Without the gate the second exchange
+            // reads after the first has written, and this proves nothing.
+            final _GatedCodeReads gated = _GatedCodeReads(database);
+            oauth = DVOAuthProvider(
+              database: gated,
+              scopes: _scopes,
+              clock: () => now,
+            );
             final DVIssuedAuthorizationCode code = await authorize();
+            gated.arm(2);
             final List<Object> outcomes = await Future.wait(<Future<Object>>[
               for (int i = 0; i < 2; i++)
                 exchange(code).then<Object>(
@@ -861,4 +872,41 @@ void main() {
 
 class _Order {
   const _Order();
+}
+
+/// Holds the next [arm]ed reads of `dv_oauth_codes` until all of them have
+/// arrived, so concurrent callers see the same row before any writes it.
+class _GatedCodeReads implements DVDatabaseAdapter {
+  _GatedCodeReads(this.inner);
+
+  final DVDatabaseAdapter inner;
+  int _waiting = 0;
+  Completer<void>? _gate;
+
+  void arm(int readers) {
+    _waiting = readers;
+    _gate = Completer<void>();
+  }
+
+  @override
+  Future<List<Map<String, Object?>>> query(
+    String sql, [
+    List<Object?>? params,
+  ]) async {
+    final Completer<void>? gate = _gate;
+    if (gate != null && _waiting > 0 && sql.contains('FROM dv_oauth_codes')) {
+      final List<Map<String, Object?>> rows = await inner.query(sql, params);
+      if (--_waiting == 0) {
+        _gate = null;
+        gate.complete();
+      }
+      await gate.future;
+      return rows;
+    }
+    return inner.query(sql, params);
+  }
+
+  @override
+  Future<int> execute(String sql, [List<Object?>? params]) =>
+      inner.execute(sql, params);
 }
