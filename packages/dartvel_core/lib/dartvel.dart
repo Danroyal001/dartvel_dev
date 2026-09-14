@@ -24,6 +24,8 @@ import 'src/notifications/web_push_vapid.dart';
 import 'src/observability/observability.dart';
 import 'src/preview/preview_outbound.dart' show DVPreviewOutbound;
 import 'src/scene3d/scene3d.dart' show DV3DDegradation, DVSceneFake;
+import 'src/preview/preview_secrets.dart' show dvPreviewEnvironment;
+import 'src/preview/process_environment.dart' show dvProcessEnvironment;
 import 'src/scheduling/cron.dart';
 import 'src/search/search_tuning.dart';
 import 'src/tenancy/tenants.dart';
@@ -2284,6 +2286,80 @@ class DVQueues {
     _adapter = adapter;
   }
 
+  static String? _namespace;
+  static bool _namespaceSettled = false;
+  static final RegExp _namespacePattern = RegExp(r'^[A-Za-z0-9][A-Za-z0-9_-]*$');
+
+  /// Puts every queue this process dispatches to, works, lists or flushes
+  /// under [namespace], as `<namespace>.<queue>`. Null for none.
+  ///
+  /// Read from `DARTVEL_QUEUE_NAMESPACE` when nothing set it, which is what
+  /// a preview deployment writes: a preview on production's broker would
+  /// otherwise reserve from production's `default` queue and run production's
+  /// jobs against a seeded database, and nothing would throw. Applied here
+  /// rather than in each adapter, so an adapter added later cannot forget it.
+  ///
+  /// A process in a preview with no namespace uses no queue at all, and a
+  /// process with no namespace cannot name a preview's queue.
+  void useNamespace(String? namespace) {
+    if (namespace != null) _checkNamespace(namespace);
+    _namespace = namespace;
+    _namespaceSettled = true;
+  }
+
+  /// The namespace this process's queues are under, or null.
+  String? get namespace => _resolvedNamespace();
+
+  static String? _resolvedNamespace() {
+    if (!_namespaceSettled) {
+      final Map<String, String> environment = dvProcessEnvironment();
+      final String? declared = environment['DARTVEL_QUEUE_NAMESPACE'];
+      if (declared != null && declared.isNotEmpty) {
+        _checkNamespace(declared);
+        _namespace = declared;
+      } else if (environment['DARTVEL_ENVIRONMENT'] == dvPreviewEnvironment) {
+        // Not settled, so every use refuses rather than only the first.
+        throw StateError(
+          'This process runs as a preview and DARTVEL_QUEUE_NAMESPACE is not '
+          'set, so its queues would be production\'s: it would consume '
+          'production\'s jobs and production would consume its own. No queue '
+          'is used until the deployment names the preview\'s namespace.',
+        );
+      }
+      _namespaceSettled = true;
+    }
+    return _namespace;
+  }
+
+  static void _checkNamespace(String namespace) {
+    if (!_namespacePattern.hasMatch(namespace)) {
+      throw ArgumentError.value(
+        namespace,
+        'namespace',
+        'a queue namespace is letters, digits, "-" and "_", starting with a '
+            'letter or digit, so that "<namespace>.<queue>" reads back one way',
+      );
+    }
+  }
+
+  static String _queue(String queue) {
+    final String? namespace = _resolvedNamespace();
+    if (namespace != null) return '$namespace.$queue';
+    final int dot = queue.indexOf('.');
+    if (dot > 0 &&
+        queue.startsWith('preview-') &&
+        _namespacePattern.hasMatch(queue.substring(0, dot))) {
+      throw ArgumentError.value(
+        queue,
+        'queue',
+        'names a preview\'s queue, and this process is not that preview; a '
+            'queue under a preview\'s namespace is reached only from the '
+            'preview',
+      );
+    }
+    return queue;
+  }
+
   void register<TPayload>(DVJobHandler<TPayload> handler) {
     _handlers[TPayload] = _DVTypedRegisteredJobHandler<TPayload>(handler);
   }
@@ -2296,7 +2372,7 @@ class DVQueues {
     Duration backoff = const Duration(seconds: 30),
   }) {
     return _adapter.enqueue<TPayload>(
-      queue,
+      _queue(queue),
       payload,
       priority: priority,
       maxAttempts: maxAttempts,
@@ -2308,9 +2384,10 @@ class DVQueues {
     String queue = 'default',
     int maxJobs = 1,
   }) async {
+    final String qualified = _queue(queue);
     var completed = 0;
     for (var i = 0; i < maxJobs; i++) {
-      final envelope = await _adapter.reserve(queue);
+      final envelope = await _adapter.reserve(qualified);
       if (envelope == null) break;
       final handler = _handlers[envelope.payloadType];
       if (handler == null) {
@@ -2335,13 +2412,13 @@ class DVQueues {
   Future<List<DVJobEnvelope<DVJobPayload>>> pending([
     String queue = 'default',
   ]) {
-    return _adapter.pending(queue);
+    return _adapter.pending(_queue(queue));
   }
 
   Future<List<DVJobEnvelope<DVJobPayload>>> deadLetters([
     String queue = 'default',
   ]) {
-    return _adapter.deadLetters(queue);
+    return _adapter.deadLetters(_queue(queue));
   }
 
   Future<bool> retry(String id) {
@@ -2354,7 +2431,7 @@ class DVQueues {
   }
 
   Future<int> flush({String queue = 'default'}) {
-    return _adapter.flush(queue);
+    return _adapter.flush(_queue(queue));
   }
 }
 
