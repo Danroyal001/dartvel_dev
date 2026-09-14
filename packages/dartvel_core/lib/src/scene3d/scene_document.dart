@@ -712,6 +712,15 @@ final class DV3DSceneDocument {
   /// without an asset.
   static const String studioEnvironment = 'studio';
 
+  /// The real world, through a headset's cameras, lit from an environment
+  /// probe where one is available. Presented flat, the studio environment is
+  /// used instead and `DV-XR-001` says so.
+  static const String passthroughEnvironment = 'passthrough';
+
+  /// Whether [environment] names something a document need not declare.
+  static bool isBuiltInEnvironment(String? environment) =>
+      environment == studioEnvironment || environment == passthroughEnvironment;
+
   final String id;
   final DVSceneUnits units;
   final DVSceneUpAxis upAxis;
@@ -831,7 +840,7 @@ final class DV3DSceneDocument {
       throw const DV3DSceneFormatException('id', 'must not be empty');
     }
     final String? env = environment;
-    if (env != null && env != studioEnvironment) {
+    if (env != null && !isBuiltInEnvironment(env)) {
       final DVSceneAsset? asset = assets[env];
       if (asset == null || asset.kind != DVSceneAssetKind.environment) {
         throw DV3DSceneFormatException('environment',
