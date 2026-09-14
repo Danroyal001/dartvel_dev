@@ -90,6 +90,17 @@ class DVAndroidBindings {
 
   static bool get isRegistered => _registered;
 
+  /// The application Context: the one [register] found, or looked up now
+  /// for code that needs it before or without registration -- the Keystore
+  /// key store, which the generated runtime can ask for at any point.
+  ///
+  /// Null off Android and when the provider `dartvel build android` writes
+  /// is not in this application; [lastFailure] then says which.
+  static Context? get applicationContext {
+    if (!Platform.isAndroid) return null;
+    return _context ??= _applicationContext();
+  }
+
   static const Set<String> implemented = dvAndroidImplementedBindings;
 
   static bool register() {

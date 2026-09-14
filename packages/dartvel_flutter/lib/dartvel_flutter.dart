@@ -440,6 +440,10 @@ export 'package:dartvel_core/dartvel.dart'
         DVAppKey,
         DVAppKeyCipher,
         DVAppKeyStore,
+        // What a key store throws when the platform keyring cannot answer --
+        // on a phone, instead of falling back to a file. Exported so an
+        // application can catch that one case.
+        DVAppKeyStoreUnavailable,
         DVFieldCipher,
         DVFieldDecryptionFailure,
         DVFieldEncryption,
