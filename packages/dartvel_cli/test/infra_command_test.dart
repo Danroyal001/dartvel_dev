@@ -218,6 +218,23 @@ void main() {
       expect(host.calls, isEmpty);
     });
 
+    test('a secret declaration dartvel build would refuse stops here too',
+        () async {
+      // A client-scoped name without the PUBLIC_ prefix, or a backend one
+      // spelt with it, says two things about the same value. dartvel build
+      // refuses it; a provision that went ahead would deliver by one reading
+      // of it and the bundle would ship by the other.
+      File('${root.path}/pubspec.yaml').writeAsStringSync(pubspec().replaceFirst(
+        '  infra:\n',
+        '    MAP_TOKEN:\n      scope: client\n      required: []\n  infra:\n',
+      ));
+      secrets['MAP_TOKEN'] = 'map-token-value-123';
+      expect(await cli().plan('production'), 1);
+      expect(printed(), contains('MAP_TOKEN'));
+      expect(printed(), contains('PUBLIC_'));
+      expect(hostsBuilt, 0);
+    });
+
     test('a missing known_hosts file is refused with how to make one',
         () async {
       File('${root.path}/infra/known_hosts').deleteSync();
