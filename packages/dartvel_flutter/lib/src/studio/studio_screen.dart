@@ -750,12 +750,22 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
   Widget _stateMarker(String route,
       {required String key, required bool badge}) {
     final DVContentVersion<DVPageDocument>? version = _stateVersion(route);
+    // An approval that no longer covers the content is not one: a badge
+    // reading Approved over it is the quiet version of DV-CONTENT-002.
+    final bool changed = version != null &&
+        (version.state == DVContentState.approved ||
+            version.state == DVContentState.scheduled) &&
+        version.changedSinceApproval;
     final String label = version == null
         ? 'Published'
-        : studioContentStateLabel(version.state);
+        : changed
+            ? 'Changed'
+            : studioContentStateLabel(version.state);
     final Color tone = version == null
         ? DVStudioStyle.success
-        : studioContentStateTone(version.state);
+        : changed
+            ? DVStudioStyle.warning
+            : studioContentStateTone(version.state);
     return KeyedSubtree(
       key: ValueKey<String>(key),
       child: badge
@@ -1466,9 +1476,11 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
         _keyedIcon('dv-studio-review', DVStudioIcons.approvals,
             _reviewOpen ? 'Close review' : 'Review', _toggleReview),
         if (review.versions.isNotEmpty)
+          // Not the revert glyph: beside History's clock it read as a second
+          // History, and this one withdraws a version.
           _keyedIcon(
             'dv-studio-revert',
-            DVStudioIcons.revert,
+            open != null ? DVStudioIcons.delete : Icons.unpublished_outlined,
             open != null ? 'Discard draft' : 'Unpublish',
             review.busy ? null : _revert,
           ),

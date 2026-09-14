@@ -196,6 +196,28 @@ void main() {
   });
 
   group('the page overview', () {
+    testWidgets('a page edited after its approval is badged as changed, not '
+        'as approved', (WidgetTester tester) async {
+      final DVContentVersion<DVPageDocument> ok = await approved('/p');
+      await wf().edit(ok, documentFor('/p', 'Changed after'), as: ada);
+
+      await pumpStudio(tester, actor: grace);
+
+      expect(
+        inKey('dv-studio-route-state-/p', find.text('Approved')),
+        findsNothing,
+        reason: 'an approval that no longer covers the content is not one',
+      );
+      expect(
+        inKey('dv-studio-route-state-/p', find.text('Changed')),
+        findsOneWidget,
+      );
+      expect(
+        inKey('dv-studio-card-state-/p', find.text('Changed')),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('shows each page\'s state, lists draft-only pages, and counts '
         'what needs review', (WidgetTester tester) async {
       await published('/pricing');
@@ -375,6 +397,16 @@ void main() {
 
       expect(
         find.byKey(const ValueKey<String>('dv-studio-content-changed')),
+        findsOneWidget,
+      );
+      // The pill says so too: "Approved" over content the approval does not
+      // cover is the same quiet failure as a Publish button.
+      expect(
+        inKey('dv-studio-content-state', find.textContaining('Approved')),
+        findsNothing,
+      );
+      expect(
+        inKey('dv-studio-content-state', find.textContaining('Changed')),
         findsOneWidget,
       );
       expect(primaryLabel(tester), isNot(contains('Publish')));
