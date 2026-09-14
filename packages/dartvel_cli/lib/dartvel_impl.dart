@@ -23,6 +23,7 @@ import 'src/commands/cache_command.dart';
 import 'src/commands/db_command.dart';
 import 'src/commands/deploy_command.dart';
 import 'src/commands/import_command.dart';
+import 'src/commands/infra_command.dart';
 import 'src/commands/publish_command.dart';
 import 'src/commands/dev_command.dart';
 import 'src/commands/doctor_command.dart';
@@ -70,6 +71,7 @@ Future<void> main(List<String> args) async {
     ..addCommand(EngineCommand())
     ..addCommand(EnsurePathCommand())
     ..addCommand(DeployCommand())
+    ..addCommand(InfraCommand())
     ..addCommand(PublishCommand())
     ..addCommand(ImportCommand())
     ..addCommand(PreviewCommand())
