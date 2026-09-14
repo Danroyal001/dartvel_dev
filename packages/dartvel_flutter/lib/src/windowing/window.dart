@@ -531,8 +531,6 @@ class DVWindow {
   /// space that got one. Ends when the window closes.
   DVSpatialSession? spatial;
 
-  bool _closing = false;
-
   void _code(String code, String detail) {
     codes.add(code);
     unawaited(_logCode(code, detail));
@@ -588,11 +586,6 @@ class DVWindow {
       _code('DV-WINDOW-012', 'close refused on a pinned kiosk window');
       return;
     }
-    // A close already under way, or done. A space the system ended closes its
-    // window, and that close ends the space, which would otherwise close the
-    // window a second time.
-    if (_closing || _lifecycle.value == DVWindowLifecycle.closed) return;
-    _closing = true;
     _lifecycle.value = DVWindowLifecycle.closing;
 
     // Owned windows go first, and in reverse open order: the last opened is

@@ -105,8 +105,16 @@ void main() {
         options: const DVWindowOptions(kind: DVWindowKind.volume),
       );
 
-      await window.close();
+      final List<DVWindowLifecycle> seen = <DVWindowLifecycle>[];
+      window.lifecycle.addListener(() => seen.add(window.lifecycle.value));
 
+      await window.close();
+      for (int i = 0; i < 10; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+
+      expect(seen, <DVWindowLifecycle>[DVWindowLifecycle.closing, DVWindowLifecycle.closed],
+          reason: 'the ended session must not close the window a second time');
       expect(window.spatial!.state.value, DVSpatialSessionState.ended);
       expect(device.openSpaces, 0);
       expect(device.openSessions, 0);
@@ -191,8 +199,16 @@ void main() {
     test('a display hint in space is ignored with DV-WINDOW-013, never matched to the headset', () async {
       DV.Test.fakeWindowing(DVWindowingCapability.desktop());
       DV.Test.fakeXR(DVSpatialCapability.headset());
+      // A display the hint would match anywhere else: primary, and connected.
+      // Without it the miss below would happen whether or not space is checked.
       DVNativeBridge.register('window.displays', (Object? _) => <Object?>[
-            <String, Object?>{'id': 'panel', 'width': 1920.0, 'height': 1080.0, 'primary': true},
+            <String, Object?>{
+              'id': 'panel',
+              'width': 1920.0,
+              'height': 1080.0,
+              'devicePixelRatio': 1.0,
+              'isPrimary': true,
+            },
           ]);
       addTearDown(() => DVNativeBridge.unregister('window.displays'));
       DVNativeBridge.register('window.open', (Object? arguments) => 'w1');
