@@ -468,6 +468,24 @@ void main() {
       expect(timers.pending, 0);
     });
 
+    test('cancels its subscription to the application lifecycle', () async {
+      final _CountingLifecycle counted = _CountingLifecycle(app);
+      final DVMediaController c = DVMediaController(
+        const DVMediaSource.url('https://cdn.test/a.mp4'),
+        environment: DVMediaEnvironment(
+          lifecycle: counted,
+          focus: focus,
+          timers: timers,
+          diagnostics: (String code, String message) => codes.add(code),
+        ),
+      );
+      await c.attach(backend);
+      expect(counted.active, 1);
+      await c.dispose();
+      // Guarded or not, a live subscription per dead player is a leak.
+      expect(counted.active, 0);
+    });
+
     test('a disposed controller refuses to play', () async {
       final c = controller(const DVMediaSource.url('https://cdn.test/a.mp4'));
       await c.attach(backend);
@@ -519,4 +537,36 @@ void main() {
       await expectLater(reader.play(), throwsStateError);
     });
   });
+}
+
+/// A lifecycle signal that counts the subscriptions still open on it.
+final class _CountingLifecycle implements DVLifecycleSignal<DVAppLifecycle> {
+  _CountingLifecycle(this._inner);
+
+  final DVLifecycleSignal<DVAppLifecycle> _inner;
+  int active = 0;
+
+  @override
+  DVAppLifecycle get value => _inner.value;
+
+  @override
+  DVAppLifecycle read() => _inner.read();
+
+  @override
+  Stream<DVAppLifecycle> get changes => _inner.changes;
+
+  @override
+  StreamSubscription<DVAppLifecycle> listen(
+      FutureOr<void> Function(DVAppLifecycle state) onState) {
+    active++;
+    late final StreamController<DVAppLifecycle> relay;
+    final StreamSubscription<DVAppLifecycle> inner = _inner.listen(
+        (DVAppLifecycle s) => relay.add(s));
+    relay = StreamController<DVAppLifecycle>(onCancel: () {
+      active--;
+      unawaited(relay.close());
+      return inner.cancel();
+    });
+    return relay.stream.listen(onState);
+  }
 }
