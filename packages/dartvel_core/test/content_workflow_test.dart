@@ -91,6 +91,9 @@ class _Harness {
     onPublished: (DVContentVersion<_Page> version) async {
       published.add(version.id);
     },
+    onWithdrawn: (DVContentVersion<_Page> version) async {
+      withdrawn.add(version.id);
+    },
     clock: () => _now,
     missedAfter: const Duration(minutes: 5),
   );
@@ -99,6 +102,7 @@ class _Harness {
   final List<(String, DVNotificationMessage)> notified =
       <(String, DVNotificationMessage)>[];
   final List<String> published = <String>[];
+  final List<String> withdrawn = <String>[];
 
   /// A document approved by grace and ready to publish or schedule.
   Future<DVContentVersion<_Page>> approved(
@@ -621,6 +625,7 @@ void main() {
           await wf.withdraw(live, as: grace);
           expect(await wf.resolve('/about'), isNull);
           expect(h.revalidated, contains('dv-content:page:/about'));
+          expect(h.withdrawn, <String>[live.id]);
         });
 
         test('a review request notifies the reviewer after commit', () async {
@@ -782,6 +787,7 @@ void main() {
           expect(await queue.pending('default'), isEmpty);
           expect(await queue.deadLetters('default'), isEmpty);
           expect(await wf.resolve('/about'), isNull);
+          expect(h.withdrawn, isEmpty, reason: 'nothing was live to take down');
           expect(
             (await wf.version(approved.id))!.state,
             DVContentState.withdrawn,
