@@ -174,11 +174,27 @@ class DVContext {
 class DVTransactionRunner {
   DVTransactionRunner();
 
-  /// The transaction currently in progress on this zone, if any.
-  static DVContext? _active;
+  /// The zone value key under which a transaction body finds its transaction.
+  ///
+  /// The active transaction used to be a static field, so it belonged to the
+  /// isolate rather than to the flow that opened it. Two requests served by
+  /// one isolate interleave at every await, and each would find the other's
+  /// transaction: a DV.transaction in one joined the other's, one request's
+  /// failure ran the other's compensations, and after-commit work fired on
+  /// the wrong commit. A zone value follows the body through every await,
+  /// timer and microtask it schedules, and no further.
+  static final Object _zoneKey = Object();
 
-  /// The context of the transaction in progress, or null outside one.
-  static DVContext? get activeContext => _active;
+  /// The context of the transaction in progress on this flow, or null
+  /// outside one.
+  ///
+  /// Null once that transaction has committed or rolled back, even to work
+  /// the body scheduled and did not await: that work runs after the unit of
+  /// work is over, and joining it would attach compensations nothing runs.
+  static DVContext? get activeContext {
+    final Object? scope = Zone.current[_zoneKey];
+    return scope is _DVTransactionScope && scope.open ? scope.context : null;
+  }
 
   /// Runs [body] as a transaction.
   ///
@@ -193,7 +209,7 @@ class DVTransactionRunner {
     FutureOr<T> Function(DVContext context) body, {
     bool isolated = false,
   }) async {
-    final parent = isolated ? null : _active;
+    final parent = isolated ? null : activeContext;
 
     if (parent != null) {
       // Joining: the outer transaction owns commit and rollback, so the body
@@ -212,12 +228,23 @@ class DVTransactionRunner {
     );
     final context = DVContext(transactionLifecycle: signal);
 
-    final previous = _active;
-    _active = context;
+    final scope = _DVTransactionScope(context);
     signal.set(DVTransactionLifecycle.active);
 
     try {
-      final result = await body(context);
+      final T result;
+      try {
+        // Only the body runs in the transaction's zone. After-commit work and
+        // compensations run in the caller's, outside the transaction, so a
+        // DV.transaction they open is a new one rather than a join onto a
+        // unit of work that is already over.
+        result = await runZoned(
+          () => body(context),
+          zoneValues: <Object, Object>{_zoneKey: scope},
+        );
+      } finally {
+        scope.open = false;
+      }
 
       signal.set(DVTransactionLifecycle.preparing);
       signal.set(DVTransactionLifecycle.committing);
@@ -263,10 +290,17 @@ class DVTransactionRunner {
             : DVTransactionLifecycle.compensated,
       );
       rethrow;
-    } finally {
-      _active = previous;
     }
   }
+}
+
+/// What a transaction's zone carries: its context, and whether it is still
+/// open to the work that finds it there.
+class _DVTransactionScope {
+  _DVTransactionScope(this.context);
+
+  final DVContext context;
+  bool open = true;
 }
 
 int _dvTransactionCounter = 0;

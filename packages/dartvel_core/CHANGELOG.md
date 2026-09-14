@@ -1,5 +1,19 @@
 ## Unreleased
 
+- **A transaction belongs to the flow that opened it.** The active
+  transaction was a static field, so two requests served by one isolate found
+  each other's: a `DV.transaction` in one joined the other's open transaction,
+  one request's failure ran the other's compensations, and `afterCommit` work
+  fired on the wrong commit or not at all. The transaction now lives in the
+  zone its body runs in, so nesting within one flow still joins -- through
+  every await, timer and microtask the body schedules -- and an unrelated flow
+  never does. `DVTransactionRunner.activeContext` is null once the transaction
+  has committed or rolled back, including to work the body left unawaited, and
+  `afterCommit` callbacks and compensations run outside the transaction: a
+  `DV.transaction` opened from one is a new transaction rather than a join onto
+  one that is over, whose callbacks were silently dropped. `isolated: true` is
+  unchanged.
+
 - **Schema changes are classified by the adapter, and planned.** A schema
   change is described (`DVAddColumn`, `DVAddIndex`, `DVAddNotNull`,
   `DVChangeColumnType`, `DVRenameColumn`, `DVDropColumn`, `DVCreateTable`,
