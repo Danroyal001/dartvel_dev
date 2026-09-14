@@ -171,6 +171,24 @@ export 'package:dartvel_core/dartvel.dart'
         DVUnknownModuleException,
         // Transactions
         DVContext,
+        DVContentAction,
+        DVContentApproval,
+        DVContentChangedAfterApproval,
+        DVContentError,
+        DVContentFrozen,
+        DVContentInvalidTransition,
+        DVContentOpenDraft,
+        DVContentRefused,
+        DVContentReport,
+        DVContentReportKind,
+        DVContentScheduleOutcome,
+        DVContentScheduledAction,
+        DVContentScheduledJob,
+        DVContentServed,
+        DVContentState,
+        DVContentTransition,
+        DVContentVersion,
+        DVContentWorkflow,
         DVContextLifecycle,
         DVCompensationException,
         DVTransactionRunner,
@@ -472,6 +490,7 @@ export 'src/routing/page_policy.dart';
 export 'src/routing/route_prefetch.dart';
 export 'src/routing/url_strategy.dart';
 export 'src/studio/page_document.dart';
+export 'src/studio/studio_content.dart';
 export 'src/studio/studio_edit.dart';
 export 'src/studio/studio_editor.dart';
 export 'src/studio/studio_screen.dart';
