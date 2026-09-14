@@ -811,7 +811,21 @@ const bool dartvelCompression = $compressionLiteral;
 /// [cors] and [compression] override the configuration for a caller that
 /// passes them; a generated entrypoint passes neither, so what an
 /// application gets is what `dartvel.server` says.
-Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls, bool h2c = false, dv.CorsOptions? cors, String? spaRoot, core.DVCacheAdapter? pageStore, bool? compression}) {
+///
+/// [previewMembership] answers whether a request belongs to the deployment's
+/// organization, for a preview deployed with `visibility: members`. Core has
+/// no request-layer user or organization to ask, so without one a members
+/// preview refuses to start rather than admitting everybody.
+Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls, bool h2c = false, dv.CorsOptions? cors, String? spaRoot, core.DVCacheAdapter? pageStore, bool? compression, core.DVPreviewMembership? previewMembership}) {
+  // Preview Environments, before anything else runs. In a process deployed
+  // as a preview this captures mail and notifications, puts every queue
+  // under the preview's namespace and points DV.Database at the preview's
+  // own database -- and refuses to start at all when any of that cannot be
+  // established, because a preview that starts as production mails real
+  // people and consumes production's jobs. In any other environment it
+  // returns without touching anything. serve() installs the same preview's
+  // access gate around everything it answers.
+  core.DVPreviewServer.start(Platform.environment, membership: previewMembership);
   // The modules this application mounts, before anything is served. The
   // registry decides where a schema-isolated module's tables are and which
   // database its models use, and a backend that registered nothing saw
@@ -837,7 +851,7 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   // second entrypoint can still override either; the configuration is
   // what an application gets when it says nothing here, which is what
   // every generated entrypoint does.
-  return dv.serve(router.call, host: bindHost, port: bindPort, tls: tls, h2c: h2c, cors: cors ?? dartvelConfiguredCors, spaRoot: spaRoot, pageData: dartvelPageData, pageStore: pageStore, compression: compression ?? dartvelCompression);
+  return dv.serve(router.call, host: bindHost, port: bindPort, tls: tls, h2c: h2c, cors: cors ?? dartvelConfiguredCors, spaRoot: spaRoot, pageData: dartvelPageData, pageStore: pageStore, compression: compression ?? dartvelCompression, previewMembership: previewMembership);
 }
 ''';
     File(p.join(backendOut.path, 'dartvel_backend_routes.g.dart'))
