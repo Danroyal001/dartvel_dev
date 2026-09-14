@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import '../adoption/adoption_build_checks.dart';
 import '../build/render_backends.dart';
 import '../config/dartvel_config.dart';
 import '../graph/module_mounts.dart';
@@ -85,6 +86,26 @@ Future<void> generate({
     root: root,
     pkgName: pkgName,
   ).where((p) => p.route != null && p.generatesPage).toList();
+
+  // Adoption's build errors, before anything is written: a route both the
+  // host router and a page define (DV-ADOPT-002), and a model that already
+  // has a generated serializer (DV-ADOPT-003). Checked here rather than in
+  // the generators because a build that is going to fail must not leave half
+  // a client behind it.
+  final adoption = dvAdoptionBuildCheck(
+    root: root,
+    pagesDir: pagesDir,
+    extraRoutes: <(String, String)>[
+      for (final model in publicPageModels)
+        (model.route!, 'the generated page of ${model.className ?? model.functionName}'),
+    ],
+  );
+  for (final String note in adoption.unchecked) {
+    log('dartvel: $note');
+  }
+  if (adoption.errors.isNotEmpty) {
+    throw StateError(adoption.errors.join('\n'));
+  }
 
   // Modules this application mounts. Their pages become the parent's routes
   // under the mount point, so the route index, the sitemap, static
