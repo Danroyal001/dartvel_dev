@@ -29,16 +29,136 @@ Future<void> until(bool Function() condition,
 
 const String testSource = 'audiotestsrc is-live=true wave=sine';
 
+/// Every element the playback and capture tests build or autoplug. All of
+/// them ship in libgstreamer1.0-0 and gstreamer1.0-plugins-base.
+const List<String> suiteElements = <String>[
+  // core
+  'fakesrc', 'fakesink', 'filesrc', 'filesink', 'typefind',
+  // plugins-base
+  'audiotestsrc', 'audioconvert', 'audioresample', 'volume',
+  'playbin', 'uridecodebin', 'decodebin',
+  'oggmux', 'oggdemux', 'vorbisenc', 'vorbisdec', 'opusenc', 'opusdec',
+];
+
 void main() {
   final bool available = DVGStreamer.load();
-  final String? skip = available ? null : 'GStreamer is not installed here';
+  final List<String> missing = available
+      ? suiteElements
+          .where((String e) => !DVGStreamer.hasElement(e))
+          .toList()
+      : const <String>[];
+  // Read from the registry, not found out by a pipeline that never finishes:
+  // a machine with libgstreamer and no plugins built a lone filesink with no
+  // bus, and the suite spent 30 seconds polling nothing.
+  final String? skip = !available
+      ? 'GStreamer is not installed here'
+      : missing.isEmpty
+          ? null
+          : 'these GStreamer elements are not installed: ${missing.join(', ')} '
+              '(gstreamer1.0-plugins-base)';
+  final String? unavailable = available ? null : 'GStreamer is not installed here';
 
   late Directory dir;
   late String tone;
 
+  // A skip is a pass that ran nothing. Where the workflow installs the
+  // plugins, their absence is a broken runner, not a reason to skip.
+  test('on CI the elements this suite needs are installed', () {
+    expect(skip, isNull);
+  },
+      skip: Platform.environment['GITHUB_ACTIONS'] == 'true'
+          ? null
+          : 'only enforced on CI');
+
+  group('an element that is not installed', () {
+    test('fails the pipeline at once, naming it, instead of polling', () async {
+      final Stopwatch clock = Stopwatch()..start();
+      await expectLater(
+        DVGStreamer.runToEos('fakesrc num-buffers=1 ! dvnosuchelement ! '
+            'dvnosuchother ! fakesink'),
+        throwsA(isA<DVGStreamerPipelineError>().having(
+            (DVGStreamerPipelineError e) => e.missingElements,
+            'missingElements',
+            containsAll(<String>['dvnosuchelement', 'dvnosuchother']))),
+      );
+      expect(clock.elapsed, lessThan(const Duration(seconds: 2)));
+    }, skip: unavailable, timeout: const Timeout(Duration(seconds: 10)));
+
+    test('a description that builds no pipeline fails instead of polling',
+        () async {
+      await expectLater(
+        DVGStreamer.runToEos('fakesink'),
+        throwsA(isA<DVGStreamerPipelineError>()),
+      );
+    },
+        skip: unavailable ??
+            (DVGStreamer.hasElement('fakesink') ? null : 'no fakesink'),
+        timeout: const Timeout(Duration(seconds: 10)));
+
+    test('is read from the registry', () {
+      expect(
+        DVGStreamer.missingElements('dvnosuchelement ! dvnosuchother'),
+        containsAll(<String>['dvnosuchelement', 'dvnosuchother']),
+      );
+      if (DVGStreamer.hasElement('fakesrc') &&
+          DVGStreamer.hasElement('fakesink')) {
+        expect(DVGStreamer.missingElements('fakesrc ! fakesink'), isEmpty);
+      }
+      expect(
+        DVGStreamerPlayer.missingElements(
+            audioSink: 'dvnosuchsink', videoSink: 'dvnosuchvideosink'),
+        containsAll(<String>['dvnosuchsink', 'dvnosuchvideosink']),
+      );
+    }, skip: unavailable);
+
+    test('a player whose video sink is not installed fails at once',
+        () async {
+      final DVGStreamerPlayer backend = DVGStreamerPlayer(
+          audioSink: 'fakesink', videoSink: 'dvnosuchvideosink');
+      addTearDown(backend.dispose);
+      final List<DVMediaBackendEvent> events = <DVMediaBackendEvent>[];
+      final StreamSubscription<DVMediaBackendEvent> sub =
+          backend.events.listen(events.add);
+      addTearDown(sub.cancel);
+      await backend.open(DVMediaSource.file('${dir.path}/any.ogg'));
+      await Future<void>.delayed(Duration.zero);
+      expect(
+          events.whereType<DVMediaFailed>().map((DVMediaFailed e) => e.message),
+          <Matcher>[contains('dvnosuchvideosink')]);
+      expect(backend.isPolling, isFalse);
+    }, skip: unavailable);
+
+    test('a microphone that is not installed is reported unavailable', () {
+      expect(DVGStreamerCapture.probe(audioSource: 'dvnosuchsrc').microphone,
+          isFalse);
+    }, skip: unavailable);
+
+    test('a recording from a source that is not installed fails at once',
+        () async {
+      final DVGStreamerCapture backend =
+          DVGStreamerCapture(audioSource: 'dvnosuchsrc');
+      addTearDown(backend.dispose);
+      final List<DVCaptureBackendEvent> events = <DVCaptureBackendEvent>[];
+      final StreamSubscription<DVCaptureBackendEvent> sub =
+          backend.events.listen(events.add);
+      addTearDown(sub.cancel);
+      await backend.start(
+          const DVCaptureRequest.audio(audioFormat: DVAudioFormat.opus),
+          '${dir.path}/never.ogg');
+      await Future<void>.delayed(Duration.zero);
+      expect(
+          events
+              .whereType<DVCaptureFailed>()
+              .map((DVCaptureFailed e) => e.message),
+          <Matcher>[contains('dvnosuchsrc')]);
+      expect(events.whereType<DVCaptureStarted>(), isEmpty);
+      expect(backend.isPolling, isFalse);
+    }, skip: unavailable);
+  });
+
   setUpAll(() async {
     dir = Directory.systemTemp.createTempSync('dv-gst-');
-    if (!available) return;
+    if (skip != null) return;
     tone = '${dir.path}/tone.ogg';
     // 130 buffers of 1024 samples at 44.1 kHz: 3.02 seconds.
     await DVGStreamer.runToEos('audiotestsrc num-buffers=130 ! audioconvert ! '

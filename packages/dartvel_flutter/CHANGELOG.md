@@ -1,5 +1,18 @@
 ## Unreleased
 
+- **A GStreamer element that is not installed fails at once, by name.** The
+  Linux media backend built pipelines with `gst_parse_launch` and no error
+  out-parameter, which drops an element it cannot find and returns what is
+  left. On a machine with libgstreamer and no plugins that was a lone
+  filesink with no bus, polled for thirty seconds under a flood of
+  GStreamer-CRITICAL messages. Pipelines are now built with fatal errors and
+  a parse context: `DVGStreamer.runToEos` throws `DVGStreamerPipelineError`
+  with the missing elements, a player or recorder emits its failed event
+  naming them before any polling starts, a capture source that is not
+  installed is reported as no microphone, and a format is reported only when
+  every element of its chain is installed. `DVGStreamer.missingElements` and
+  `DVGStreamerPlayer.missingElements` read the same answer from the registry.
+
 - **A rule's reading and threshold use the runtime's wording.** The alert
   detail formats both through `DVSignalRef.format`, the same call that writes
   the alert's incident entry, so the rule on screen and the line on the

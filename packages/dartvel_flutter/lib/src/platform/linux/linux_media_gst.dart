@@ -37,6 +37,9 @@ const int _msgStateChanged = 1 << 6;
 const int _msgDurationChanged = 1 << 18;
 const int _msgAsyncDone = 1 << 21;
 
+// GstParseFlags
+const int _parseFatalErrors = 1 << 0;
+
 const int _formatTime = 3;
 const int _seekFlush = 1 << 0;
 const int _seekAccurate = 1 << 1;
@@ -57,8 +60,20 @@ final class _Gst {
             _PV Function(Pointer<Utf8>, Pointer<Utf8>)>(
           'gst_element_factory_make',
         ),
-        parseLaunch = gst.lookupFunction<_PV Function(Pointer<Utf8>, Pointer<_PV>),
-            _PV Function(Pointer<Utf8>, Pointer<_PV>)>('gst_parse_launch'),
+        parseLaunchFull = gst.lookupFunction<
+            _PV Function(Pointer<Utf8>, _PV, Int32, Pointer<_PV>),
+            _PV Function(Pointer<Utf8>, _PV, int, Pointer<_PV>)>(
+          'gst_parse_launch_full',
+        ),
+        parseContextNew = gst.lookupFunction<_PV Function(), _PV Function()>(
+            'gst_parse_context_new'),
+        parseContextFree = gst.lookupFunction<Void Function(_PV),
+            void Function(_PV)>('gst_parse_context_free'),
+        parseContextMissing = gst.lookupFunction<
+            Pointer<Pointer<Utf8>> Function(_PV),
+            Pointer<Pointer<Utf8>> Function(_PV)>(
+          'gst_parse_context_get_missing_elements',
+        ),
         setState = gst.lookupFunction<Int32 Function(_PV, Int32),
             int Function(_PV, int)>('gst_element_set_state'),
         getBus = gst.lookupFunction<_PV Function(_PV), _PV Function(_PV)>(
@@ -121,12 +136,65 @@ final class _Gst {
         errorFree = glib.lookupFunction<Void Function(_PV), void Function(_PV)>(
             'g_error_free'),
         gFree = glib.lookupFunction<Void Function(_PV), void Function(_PV)>(
-            'g_free');
+            'g_free'),
+        strfreev = glib.lookupFunction<Void Function(Pointer<Pointer<Utf8>>),
+            void Function(Pointer<Pointer<Utf8>>)>('g_strfreev');
 
   final int Function(_PV, _PV, _PV) initCheck;
   final _PV Function(Pointer<Utf8>) factoryFind;
   final _PV Function(Pointer<Utf8>, Pointer<Utf8>) factoryMake;
-  final _PV Function(Pointer<Utf8>, Pointer<_PV>) parseLaunch;
+  final _PV Function(Pointer<Utf8>, _PV, int, Pointer<_PV>) parseLaunchFull;
+  final _PV Function() parseContextNew;
+  final void Function(_PV) parseContextFree;
+  final Pointer<Pointer<Utf8>> Function(_PV) parseContextMissing;
+  final void Function(Pointer<Pointer<Utf8>>) strfreev;
+
+  /// Builds [description], or throws [DVGStreamerPipelineError].
+  ///
+  /// Never `gst_parse_launch` with no error out-parameter: given an element
+  /// that is not installed it drops the element and returns what is left --
+  /// on a machine with libgstreamer and no plugins, a lone filesink with no
+  /// bus, which the caller then polled for thirty seconds. Fatal errors and a
+  /// parse context turn that into a refusal naming the missing elements.
+  _PV launch(String description) => using((Arena arena) {
+        final _PV context = parseContextNew();
+        final Pointer<_PV> error = arena<_PV>()..value = nullptr;
+        final _PV built = parseLaunchFull(
+            description.toNativeUtf8(allocator: arena),
+            context,
+            _parseFatalErrors,
+            error);
+        final List<String> missing = <String>[];
+        if (context != nullptr) {
+          final Pointer<Pointer<Utf8>> names = parseContextMissing(context);
+          if (names != nullptr) {
+            for (int i = 0; names[i] != nullptr; i++) {
+              missing.add(names[i].toDartString());
+            }
+            strfreev(names);
+          }
+          parseContextFree(context);
+        }
+        String? message;
+        if (error.value != nullptr) {
+          message = gerrorText(error.value);
+          errorFree(error.value);
+        }
+        if (message == null && built != nullptr) return built;
+        if (built != nullptr) objectUnref(built);
+        throw DVGStreamerPipelineError(
+          description,
+          missing.isNotEmpty
+              ? 'these GStreamer elements are not installed: '
+                  '${missing.join(', ')}'
+              : message ?? 'GStreamer could not build $description',
+          missingElements: List<String>.unmodifiable(missing),
+        );
+      });
+
+  /// A GError's message: a GQuark and an int, then the string.
+  static String gerrorText(_PV error) =>
+      (error.cast<Pointer<Utf8>>() + 1).value.toDartString();
   final int Function(_PV, int) setState;
   final _PV Function(_PV) getBus;
   final _PV Function(_PV, Pointer<Utf8>) binByName;
@@ -207,10 +275,9 @@ final class _Gst {
         final Pointer<_PV> error = arena<_PV>();
         final Pointer<Pointer<Utf8>> debug = arena<Pointer<Utf8>>();
         parseError(message, error, debug);
-        // GError: a GQuark and an int, then the message.
         final String text = error.value == nullptr
             ? 'GStreamer reported an error'
-            : (error.value.cast<Pointer<Utf8>>() + 1).value.toDartString();
+            : gerrorText(error.value);
         if (error.value != nullptr) errorFree(error.value);
         if (debug.value != nullptr) gFree(debug.value.cast());
         return text;
@@ -223,8 +290,44 @@ final class _Gst {
       (message.cast<_PV>() + _messageSourceOffset ~/ 8).value;
 }
 
+/// A pipeline GStreamer could not build: an element that is not installed,
+/// a description that does not parse, or one that is not a pipeline at all.
+final class DVGStreamerPipelineError implements Exception {
+  const DVGStreamerPipelineError(this.description, this.reason,
+      {this.missingElements = const <String>[]});
+
+  final String description;
+  final String reason;
+
+  /// The element factories GStreamer's registry does not have, as GStreamer
+  /// named them. Empty when the failure is something else.
+  final List<String> missingElements;
+
+  @override
+  String toString() => 'DVGStreamerPipelineError: $reason';
+}
+
 /// GStreamer, loaded once for the process.
 abstract final class DVGStreamer {
+  /// Why [description] cannot be built here, or null when it can. Builds and
+  /// discards it; an element left in the NULL state opens no device.
+  static DVGStreamerPipelineError? check(String description) {
+    if (!load()) {
+      return DVGStreamerPipelineError(description, 'GStreamer is not installed');
+    }
+    try {
+      _gst!.objectUnref(_gst!.launch(description));
+      return null;
+    } on DVGStreamerPipelineError catch (error) {
+      return error;
+    }
+  }
+
+  /// The elements [description] names that are not installed, from the
+  /// registry. Empty when GStreamer itself is not installed: see [load].
+  static List<String> missingElements(String description) =>
+      check(description)?.missingElements ?? const <String>[];
+
   static _Gst? _gst;
   static bool _tried = false;
 
@@ -258,16 +361,24 @@ abstract final class DVGStreamer {
         _gst!.factoryFind(name.toNativeUtf8(allocator: arena)) != nullptr);
   }
 
-  /// Runs a `gst-launch`-style pipeline until it ends. Throws on an error.
+  /// Runs a `gst-launch`-style pipeline until it ends. Throws on an error,
+  /// and throws [DVGStreamerPipelineError] before running when the pipeline
+  /// cannot be built.
   static Future<void> runToEos(
     String description, {
     Duration timeout = const Duration(seconds: 30),
   }) async {
     final _Gst gst = _api;
-    final _PV pipeline = using((Arena arena) =>
-        gst.parseLaunch(description.toNativeUtf8(allocator: arena), nullptr));
-    if (pipeline == nullptr) throw StateError('could not parse $description');
+    final _PV pipeline = gst.launch(description);
     final _PV bus = gst.getBus(pipeline);
+    if (bus == nullptr) {
+      // One element parses to that element, not a pipeline, and nothing
+      // posts to a bus it does not have.
+      gst.objectUnref(pipeline);
+      throw DVGStreamerPipelineError(
+          description, '$description is a single element with no bus, '
+          'not a pipeline');
+    }
     gst.setState(pipeline, _statePlaying);
     final DateTime end = DateTime.now().add(timeout);
     try {
@@ -342,6 +453,21 @@ final class DVGStreamerPlayer implements DVMediaPlayerBackend {
   int? _pendingSeek;
   int _lastState = 0;
 
+  /// The elements [open] would need that are not installed: playbin, the
+  /// audio output -- [audioSink], or every default when none of them is --
+  /// and [videoSink] or fakesink. Empty when this machine can play.
+  static List<String> missingElements({String? audioSink, String? videoSink}) {
+    final String video = videoSink ?? 'fakesink';
+    return <String>[
+      if (!DVGStreamer.hasElement('playbin')) 'playbin',
+      if (audioSink != null && !DVGStreamer.hasElement(audioSink))
+        audioSink
+      else if (audioSink == null && !_audioOutputs.any(DVGStreamer.hasElement))
+        ..._audioOutputs,
+      if (!DVGStreamer.hasElement(video)) video,
+    ];
+  }
+
   /// Whether the bus is still being polled.
   bool get isPolling => _timer?.isActive ?? false;
 
@@ -371,43 +497,51 @@ final class DVGStreamerPlayer implements DVMediaPlayerBackend {
     }
     final _Gst gst = DVGStreamer._api;
 
-    final String? audioName = audioSink ??
-        _audioOutputs.cast<String?>().firstWhere(
-              (String? name) => DVGStreamer.hasElement(name!),
-              orElse: () => null,
-            );
-    if (audioName == null) {
-      _emit(const DVMediaFailed('no audio output element is installed '
-          '(pipewiresink, pulsesink, alsasink or autoaudiosink)'));
+    // Every element is looked up before one is made, so a missing one fails
+    // the open with its name instead of leaving a half-built player polling.
+    final List<String> missing =
+        missingElements(audioSink: audioSink, videoSink: videoSink);
+    if (missing.isNotEmpty) {
+      final bool noOutput =
+          audioSink == null && _audioOutputs.every(missing.contains);
+      final List<String> named = <String>[
+        ...missing.where((String e) => !noOutput || !_audioOutputs.contains(e)),
+        if (noOutput)
+          'an audio output (pipewiresink, pulsesink, alsasink or '
+              'autoaudiosink)',
+      ];
+      _emit(DVMediaFailed(
+          'these GStreamer elements are not installed: ${named.join(', ')}'));
       return;
     }
+    final String audioName = audioSink ??
+        _audioOutputs.firstWhere(DVGStreamer.hasElement);
+    final String videoName = videoSink ?? 'fakesink';
+
     final _PV audio = gst.make(audioName);
-    if (audio == nullptr) {
-      _emit(DVMediaFailed('the audio output element $audioName is not '
-          'installed'));
+    final _PV video = gst.make(videoName);
+    final _PV playbin = gst.make('playbin');
+    if (audio == nullptr || video == nullptr || playbin == nullptr) {
+      for (final _PV made in <_PV>[audio, video, playbin]) {
+        if (made != nullptr) gst.objectUnref(made);
+      }
+      _emit(DVMediaFailed('GStreamer could not create playbin, $audioName '
+          'and $videoName'));
       return;
     }
-    final _PV video = gst.make(videoSink ?? 'fakesink');
     for (final (_PV sink, String name) in <(_PV, String)>[
       (audio, audioName),
-      (video, videoSink ?? 'fakesink'),
+      (video, videoName),
     ]) {
       // A fakesink that does not sync runs as fast as the decoder can go,
       // and a position that races to the end is not playback.
-      if (name == 'fakesink' && sink != nullptr) {
-        gst.setBoolProperty(sink, 'sync', true);
-      }
+      if (name == 'fakesink') gst.setBoolProperty(sink, 'sync', true);
     }
 
-    final _PV playbin = gst.make('playbin');
-    if (playbin == nullptr) {
-      _emit(const DVMediaFailed('the playbin element is not installed'));
-      return;
-    }
     _playbin = playbin;
     gst.setStringProperty(playbin, 'uri', _uriFor(source));
     gst.setPointerProperty(playbin, 'audio-sink', audio);
-    if (video != nullptr) gst.setPointerProperty(playbin, 'video-sink', video);
+    gst.setPointerProperty(playbin, 'video-sink', video);
     _bus = gst.getBus(playbin);
     gst.setState(playbin, _statePaused);
     _timer = Timer.periodic(pollInterval, (_) => _poll());
@@ -575,19 +709,39 @@ final class DVGStreamerCapture implements DVCaptureBackend {
       .firstWhere((String? e) => DVGStreamer.hasElement(e!),
           orElse: () => null);
 
+  /// The elements between the microphone and the file, for [format]. One
+  /// list for both [probe] and [start], so a format is never reported that
+  /// the pipeline built for it cannot run.
+  static List<String> _chain(DVAudioFormat format) => switch (format) {
+        DVAudioFormat.opus => <String>[
+            'audioconvert',
+            'audioresample',
+            'opusenc',
+            'oggmux',
+          ],
+        DVAudioFormat.wav => <String>['audioconvert', 'wavenc'],
+        DVAudioFormat.aac => <String>[
+            'audioconvert',
+            'audioresample',
+            _aacEncoder() ?? 'avenc_aac',
+            'mp4mux',
+          ],
+      };
+
   /// What this machine can record, from the elements installed.
   static DVCaptureCapabilities probe({String? audioSource}) {
     if (!DVGStreamer.load()) return DVCaptureCapabilities.none;
     return DVCaptureCapabilities(
-      microphone:
-          audioSource != null || _microphones.any(DVGStreamer.hasElement),
+      // A source fragment is built and discarded, so one naming an element
+      // that is not installed is reported as no microphone.
+      microphone: audioSource != null
+          ? DVGStreamer.check(audioSource) == null
+          : _microphones.any(DVGStreamer.hasElement),
       audioFormats: <DVAudioFormat>{
-        if (DVGStreamer.hasElement('opusenc') &&
-            DVGStreamer.hasElement('oggmux'))
-          DVAudioFormat.opus,
-        if (DVGStreamer.hasElement('wavenc')) DVAudioFormat.wav,
-        if (_aacEncoder() != null && DVGStreamer.hasElement('mp4mux'))
-          DVAudioFormat.aac,
+        for (final DVAudioFormat format in DVAudioFormat.values)
+          if (<String>[..._chain(format), 'filesink']
+              .every(DVGStreamer.hasElement))
+            format,
       },
     );
   }
@@ -602,6 +756,9 @@ final class DVGStreamerCapture implements DVCaptureBackend {
   bool _stopped = false;
   Duration _recorded = Duration.zero;
   DateTime? _eosDeadline;
+
+  /// Whether the bus is still being polled.
+  bool get isPolling => _timer?.isActive ?? false;
 
   @override
   DVCaptureCapabilities get capabilities =>
@@ -633,29 +790,35 @@ final class DVGStreamerCapture implements DVCaptureBackend {
       _emit(const DVCaptureFailed('no microphone source element is installed'));
       return;
     }
-    final String chain = switch (request.audioFormat!) {
-      DVAudioFormat.opus => 'audioconvert ! audioresample ! opusenc ! oggmux',
-      DVAudioFormat.wav => 'audioconvert ! wavenc',
-      DVAudioFormat.aac =>
-        'audioconvert ! audioresample ! ${_aacEncoder()} ! mp4mux',
-    };
     final _Gst gst = DVGStreamer._api;
-    final String description = '$source ! $chain ! filesink name=dvsink';
-    final _PV pipeline = using((Arena arena) =>
-        gst.parseLaunch(description.toNativeUtf8(allocator: arena), nullptr));
-    if (pipeline == nullptr) {
+    final String description =
+        '$source ! ${_chain(request.audioFormat!).join(' ! ')} ! '
+        'filesink name=dvsink';
+    final _PV pipeline;
+    try {
+      pipeline = gst.launch(description);
+    } on DVGStreamerPipelineError catch (error) {
+      // Failed before a timer exists: nothing polls a bus that is not there.
+      _emit(DVCaptureFailed(error.reason));
+      return;
+    }
+    final _PV bus = gst.getBus(pipeline);
+    final _PV sink = using((Arena arena) =>
+        gst.binByName(pipeline, 'dvsink'.toNativeUtf8(allocator: arena)));
+    if (bus == nullptr || sink == nullptr) {
+      if (sink != nullptr) gst.objectUnref(sink);
+      if (bus != nullptr) gst.objectUnref(bus);
+      gst.objectUnref(pipeline);
       _emit(DVCaptureFailed('could not build the pipeline $description'));
       return;
     }
     _pipeline = pipeline;
-    final _PV sink = using((Arena arena) =>
-        gst.binByName(pipeline, 'dvsink'.toNativeUtf8(allocator: arena)));
+    _bus = bus;
     // Set as a property rather than written into the description, so a path
     // is never parsed as pipeline syntax. filesink opens the reserved file
     // for writing without recreating it, which keeps its 0600 mode.
     gst.setStringProperty(sink, 'location', outputPath);
     gst.objectUnref(sink);
-    _bus = gst.getBus(pipeline);
     gst.setState(pipeline, _statePlaying);
     _timer = Timer.periodic(pollInterval, (_) => _poll());
   }
