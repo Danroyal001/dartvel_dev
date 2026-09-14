@@ -778,7 +778,7 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
                   ),
                 ),
                 const SizedBox(width: DVStudioStyle.space2),
-                Flexible(
+                opsTrailing(
                   child: KeyedSubtree(
                     key: ValueKey<String>('$k-state'),
                     child: opsBadge(label, tone: tone),
@@ -824,7 +824,7 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
                         weight: FontWeight.w600,
                       ),
                     ),
-                    Flexible(
+                    opsTrailing(
                       child: opsText(
                         budget,
                         size: 13,
@@ -1180,7 +1180,7 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
                 ),
               ),
               const SizedBox(width: DVStudioStyle.space2),
-              Flexible(child: badge),
+              opsTrailing(child: badge),
               const Icon(
                 DVStudioIcons.chevronRight,
                 size: 16,
@@ -1254,7 +1254,7 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
                   weight: FontWeight.w600,
                 ),
               ),
-              Flexible(
+              opsTrailing(
                 child: KeyedSubtree(
                   key: const ValueKey<String>('dv-studio-alerts-findings'),
                   child: opsBadge(
@@ -1340,7 +1340,7 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
                     ),
                   ),
                   const SizedBox(width: 6),
-                  Flexible(
+                  opsTrailing(
                     child: KeyedSubtree(
                       key: ValueKey<String>('$k-state'),
                       child: opsBadge(
@@ -1484,7 +1484,7 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
                 ),
               ),
               const SizedBox(width: DVStudioStyle.space2),
-              Flexible(
+              opsTrailing(
                 child: opsBadge(
                   opsAlertLabel(state),
                   tone: opsAlertTone(state),
@@ -1508,7 +1508,7 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
             icon: Icons.notifications_off_outlined,
             title:
                 '${state.missed.length} of $targets '
-                '${targets == 1 ? 'target' : 'targets'} missed this alert',
+                '${targets == 1 ? 'recipient' : 'recipients'} missed this alert',
             detail:
                 '${state.missed.keys.map(_targetName).join(', ')}. Each is '
                 'tried again at the next evaluation while it fires'
@@ -1804,7 +1804,7 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
             ),
           ),
           const SizedBox(width: DVStudioStyle.space2),
-          Flexible(child: opsBadge(label, tone: tone)),
+          opsTrailing(child: opsBadge(label, tone: tone)),
         ],
       ),
     );

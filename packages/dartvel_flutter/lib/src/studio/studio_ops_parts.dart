@@ -138,7 +138,7 @@ Widget opsCardHeader(
         ),
         if (trailing != null) ...<Widget>[
           const SizedBox(width: DVStudioStyle.space2),
-          Flexible(child: trailing),
+          opsTrailing(child: trailing),
         ],
       ],
     ),
@@ -411,7 +411,7 @@ class OpsPublicIncidentView extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: DVStudioStyle.space2),
-                Flexible(
+                opsTrailing(
                   child: opsBadge(
                     opsIncidentLabel(incident.status),
                     tone: tone,
@@ -493,3 +493,15 @@ IconData opsIncidentIcon(DVIncidentStatus status) => switch (status) {
   DVIncidentStatus.monitoring => Icons.visibility_outlined,
   DVIncidentStatus.resolved => Icons.check_circle_outline,
 };
+
+/// Something at the end of a row whose label is [Expanded]: as wide as it
+/// needs up to [maxWidth], so the label keeps the rest of the row.
+///
+/// Not a Flexible: beside an Expanded that splits the free space in half,
+/// which parks a short badge in the middle of the row and cuts the label at
+/// half its width.
+Widget opsTrailing({required Widget child, double maxWidth = 200}) =>
+    ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxWidth),
+      child: child,
+    );
