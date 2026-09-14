@@ -9,6 +9,18 @@
   beside them; with `sink: dartvel` they are kept in the application's own
   crash table. A process that cannot install crash reporting says so and
   serves anyway.
+- **`dartvel privacy check | export | erase | retention --plan`.** `check`
+  lists every model's subject path and retention and fails on
+  `DV-PRIVACY-001`. `erase --subject model:id --reason` runs against
+  `DATABASE_URL` or the existing SQLite file `dartvel.database` names, under
+  `DARTVEL_PRIVACY_KEY`, with the analytics adapters when analytics is
+  declared; it needs `--yes`, or a typed `yes` at a terminal outside CI, and
+  refuses before deleting anything when a table it reaches is missing or has
+  no `_dv_version`. Its output names the subject by pseudonym. `export`
+  writes the archive to `--out`, and replaces a file only with `--force`.
+  `retention --plan` reports deletions, anonymizations and rows held by a
+  longer retention without creating a table or writing a row; `retention`
+  without `--plan` is refused.
 - **Privacy declarations are read at generation.** `dartvel routes` reads
   every `@DVModel`'s `subject:`, `retain:`, `@DVModel.retain` and `onErase`
   before writing anything, stops on a sensitive field no subject path reaches
