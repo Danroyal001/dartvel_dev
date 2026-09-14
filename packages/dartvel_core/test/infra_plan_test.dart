@@ -410,12 +410,18 @@ void main() {
 
     test('an unsupported declaration refuses the apply', () async {
       final FakeHost host = FakeHost();
+      // logs.ship is still not built. Two instances were the refusal here
+      // until the generated backend read DARTVEL_PORT and DARTVEL_ROLE.
+      final Map<Object?, Object?> config = manifestConfig();
+      (config['production']! as Map<Object?, Object?>)['logs'] =
+          <Object?, Object?>{'ship': 'monitoring'};
       final DVInfraDesiredState d = dvInfraDesiredState(
-        DVInfraManifest.fromConfig(manifestConfig())['production']!,
+        DVInfraManifest.fromConfig(config)['production']!,
         appName: 'shop',
         backendPort: 8080,
         secretNames: const <String>{'DATABASE_URL', 'PAYSTACK_SECRET'},
       );
+      expect(d.unsupported, isNotEmpty);
       final DVInfraApplyResult result = await provision(host, desired: d);
       expect(result.status, DVInfraApplyStatus.refused);
       expect(host.calls, isEmpty);
