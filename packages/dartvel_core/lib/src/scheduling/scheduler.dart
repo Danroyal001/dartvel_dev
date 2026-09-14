@@ -12,8 +12,51 @@ library dartvel.scheduling.scheduler;
 import 'dart:async';
 
 import '../../dartvel.dart' show DVCronEntry;
+import '../cache/adapters.dart' show DVAtomicCacheAdapter;
 import '../preview/preview_outbound.dart' show DVPreviewOutbound;
 import 'cron.dart';
+
+/// Decides which process runs an occurrence when several tick the same
+/// schedules.
+///
+/// Every process that ticks sees the same occurrence come due. Without a
+/// lease each one runs it, which is the nightly job firing once per process.
+abstract interface class DVScheduleLease {
+  /// Claims [occurrence] of [task]. True for exactly one claimant across
+  /// every process sharing the lease's store; false for the rest.
+  Future<bool> claim(String task, DateTime occurrence);
+}
+
+/// A [DVScheduleLease] on a cache store with compare-and-set: Redis,
+/// Memcached, or any [DVAtomicCacheAdapter].
+///
+/// The claim is keyed to the occurrence -- the instant the schedule named,
+/// not the wall time a process ticked at -- so processes whose timers land
+/// seconds apart, or whose clocks read different time zones, claim the same
+/// key. It is held for [hold] and never released: a released claim is one a
+/// late ticker takes again.
+///
+/// An occurrence is claimed before it runs, so a process that dies while
+/// running it does not have it re-run elsewhere. At most once, deliberately:
+/// the alternative is at least once, which is the double fire this prevents.
+final class DVCacheScheduleLease implements DVScheduleLease {
+  DVCacheScheduleLease(
+    this.store, {
+    this.prefix = 'dartvel:schedule',
+    this.hold = const Duration(days: 2),
+  });
+
+  final DVAtomicCacheAdapter store;
+  final String prefix;
+  final Duration hold;
+
+  @override
+  Future<bool> claim(String task, DateTime occurrence) => store.writeIfAbsent(
+        '$prefix:$task:${occurrence.toUtc().toIso8601String()}',
+        DateTime.now().toUtc().toIso8601String(),
+        hold,
+      );
+}
 
 /// A task that failed, kept so the process can report it.
 class DVScheduledFailure {
@@ -57,12 +100,15 @@ class _DVTask {
 
 /// The schedule registry and the thing that fires it.
 class DVScheduler {
-  DVScheduler({DateTime Function()? clock})
+  /// [lease], when given, is claimed for each occurrence before it runs, so
+  /// processes sharing its store run each occurrence once between them.
+  DVScheduler({DateTime Function()? clock, this.lease})
       : _clock = clock ?? DateTime.now {
     _startedAt = _clock();
   }
 
   final DateTime Function() _clock;
+  final DVScheduleLease? lease;
   late final DateTime _startedAt;
   final Map<String, _DVTask> _tasks = <String, _DVTask>{};
   final List<DVScheduledFailure> _failures = <DVScheduledFailure>[];
@@ -195,6 +241,13 @@ class DVScheduler {
     try {
       for (final DateTime occurrence in toRun) {
         try {
+          final DVScheduleLease? lease = this.lease;
+          // Claimed inside the try: a store that cannot be reached runs
+          // nothing and is recorded. Running unguarded would be the double
+          // fire the lease is for.
+          if (lease != null && !await lease.claim(task.name, occurrence)) {
+            continue;
+          }
           await task.handler();
         } on Object catch (error, stack) {
           // Recorded, not rethrown: one bad job must not silence every other

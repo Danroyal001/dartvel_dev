@@ -170,6 +170,8 @@ export 'src/platform/android_capture.dart';
 export 'src/platform_config.dart';
 export 'src/preview/preview.dart';
 export 'src/privacy/privacy.dart';
+export 'src/process/process_configuration.dart';
+export 'src/process/queue_worker.dart';
 export 'src/protocol/protocol.dart';
 export 'src/queues/amqp_queue.dart';
 export 'src/queues/amqp_socket_io.dart';
@@ -2286,7 +2288,17 @@ class DVQueues {
 
   void useAdapter(DVQueueAdapter adapter) {
     _adapter = adapter;
+    _adapterConfigured = true;
   }
+
+  static bool _adapterConfigured = false;
+
+  /// Whether anything configured an adapter. False means this process is on
+  /// the process-local default, which no other process can reach.
+  bool get adapterConfigured => _adapterConfigured;
+
+  /// Whether any job handler is registered in this process.
+  bool get hasHandlers => _handlers.isNotEmpty;
 
   static String? _namespace;
   static bool _namespaceSettled = false;
