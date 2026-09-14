@@ -11,14 +11,21 @@ class AiCommand extends Command<void> {
   @override
   final String description = 'Leverage Dartvel AI integration helper commands.';
 
-  AiCommand() {
-    addSubcommand(AiContextSubcommand());
-    addSubcommand(AiDoctorSubcommand());
-    addSubcommand(AiGenerateSubcommand());
+  /// [root] is the project; null reads the working directory when the command
+  /// runs. A test passes its own, because that directory is one value shared
+  /// by every suite in the process.
+  AiCommand({String? root}) {
+    addSubcommand(AiContextSubcommand(root: root));
+    addSubcommand(AiDoctorSubcommand(root: root));
+    addSubcommand(AiGenerateSubcommand(root: root));
   }
 }
 
 class AiContextSubcommand extends Command<void> {
+  AiContextSubcommand({this._root});
+
+  final String? _root;
+
   @override
   final String name = 'context';
   @override
@@ -27,7 +34,7 @@ class AiContextSubcommand extends Command<void> {
 
   @override
   Future<void> run() async {
-    final root = Directory.current.path;
+    final root = _root ?? Directory.current.path;
     final context = buildAiProjectContext(root);
     final output = aiContextFile(root);
     output.parent.createSync(recursive: true);
@@ -38,6 +45,10 @@ class AiContextSubcommand extends Command<void> {
 }
 
 class AiDoctorSubcommand extends Command<void> {
+  AiDoctorSubcommand({this._root});
+
+  final String? _root;
+
   @override
   final String name = 'doctor';
   @override
@@ -47,7 +58,7 @@ class AiDoctorSubcommand extends Command<void> {
   @override
   Future<void> run() async {
     Logger.log('Running AI Diagnostic Doctor...');
-    final diagnostics = inspectAiProject(Directory.current.path);
+    final diagnostics = inspectAiProject(_root ?? Directory.current.path);
     for (final message in diagnostics.messages) {
       Logger.log(message, isError: message.startsWith('[error]'));
     }
@@ -60,6 +71,10 @@ class AiDoctorSubcommand extends Command<void> {
 }
 
 class AiGenerateSubcommand extends Command<void> {
+  AiGenerateSubcommand({this._root});
+
+  final String? _root;
+
   @override
   final String name = 'generate';
   @override
@@ -83,12 +98,13 @@ class AiGenerateSubcommand extends Command<void> {
       exitCode = 78;
       return;
     }
-    final request = aiGenerateRequestFile(Directory.current.path);
+    final String root = _root ?? Directory.current.path;
+    final request = aiGenerateRequestFile(root);
     request.parent.createSync(recursive: true);
     request.writeAsStringSync('${prompt.trim()}\n');
     Logger.log(
       'AI generation request recorded at '
-      '${p.relative(request.path, from: Directory.current.path)}.',
+      '${p.relative(request.path, from: root)}.',
     );
   }
 }

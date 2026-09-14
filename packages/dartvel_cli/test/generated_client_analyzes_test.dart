@@ -241,19 +241,14 @@ dependency_overrides:
     path: ${p.join(root, 'packages', 'dartvel_shelf')}
 ''');
 
-    // The orchestrator reads the project from the working directory, which is
-    // also why this package pins test concurrency to one.
-    final previous = Directory.current;
-    Directory.current = project;
-    try {
-      // Admin pages first: they are ordinary pages, so the router has to see
-      // them. Generating them afterwards leaves their routes out of DVRoutes
-      // entirely, which is also how a bug in route naming went unnoticed.
-      DartvelAdminGenerator.generate(root: project, force: true);
-      await routes.generate();
-    } finally {
-      Directory.current = previous;
-    }
+    // Admin pages first: they are ordinary pages, so the router has to see
+    // them. Generating them afterwards leaves their routes out of DVRoutes
+    // entirely, which is also how a bug in route naming went unnoticed.
+    //
+    // The project is handed over rather than made the working directory,
+    // which is one value shared by every suite running beside this one.
+    DartvelAdminGenerator.generate(root: project, force: true);
+    await routes.generate(root_: project.path);
 
     final resolved = await Process.run('flutter', <String>['pub', 'get'],
         workingDirectory: project.path);

@@ -204,9 +204,9 @@ void main() {
     Future<List<String>> generationArgumentsFor(List<String> command) async {
       final Directory temp =
           Directory.systemTemp.createTempSync('dartvel_render_flag_');
-      final Directory old = Directory.current;
       final List<String> invocations = <String>[];
       final BuildCommand build = BuildCommand(
+        root: temp.path,
         preflight: (String platform, {bool? autoInstall}) async => true,
         // Nothing is installed, so every target skips its actual build after
         // generation has already run. That is the part under test.
@@ -225,10 +225,8 @@ void main() {
       );
       final runner = CommandRunner<void>('dartvel', 'test')..addCommand(build);
       try {
-        Directory.current = temp;
         await runner.run(command);
       } finally {
-        Directory.current = old;
         temp.deleteSync(recursive: true);
       }
       return invocations

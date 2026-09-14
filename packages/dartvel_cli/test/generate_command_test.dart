@@ -6,23 +6,12 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 void main() {
-  late String originalCwd;
-
-  setUp(() {
-    originalCwd = Directory.current.path;
-  });
-
-  tearDown(() {
-    Directory.current = originalCwd;
-  });
-
   test('page template uses a private expression-bodied DVPage input', () async {
     final root = await Directory.systemTemp.createTemp(
       'dartvel_generate_page_',
     );
     try {
-      Directory.current = root.path;
-      await _runGenerate(<String>['generate', 'page', 'dashboard']);
+      await _runGenerate(root, <String>['generate', 'page', 'dashboard']);
 
       final source = File(
         p.join(root.path, 'lib', 'pages', 'dashboard.dart'),
@@ -48,8 +37,7 @@ void main() {
         'dartvel_generate_model_',
       );
       try {
-        Directory.current = root.path;
-        await _runGenerate(<String>['generate', 'model', 'account']);
+        await _runGenerate(root, <String>['generate', 'model', 'account']);
 
         final source = File(
           p.join(root.path, 'lib', 'models', 'account.dart'),
@@ -73,8 +61,7 @@ void main() {
         'dartvel_generate_backend_',
       );
       try {
-        Directory.current = root.path;
-        await _runGenerate(<String>['generate', 'backend-function', 'echo']);
+        await _runGenerate(root, <String>['generate', 'backend-function', 'echo']);
 
         final source = File(
           p.join(root.path, 'lib', 'backend', 'functions', 'echo.dart'),
@@ -100,8 +87,7 @@ void main() {
       'dartvel_generate_form_',
     );
     try {
-      Directory.current = root.path;
-      await _runGenerate(<String>['generate', 'form', 'user']);
+      await _runGenerate(root, <String>['generate', 'form', 'user']);
 
       final source = File(
         p.join(root.path, 'lib', 'forms', 'user_form.dart'),
@@ -127,9 +113,8 @@ void main() {
       'dartvel_generate_form_usage_',
     );
     try {
-      Directory.current = root.path;
       exitCode = 0;
-      await _runGenerate(<String>['generate', 'form']);
+      await _runGenerate(root, <String>['generate', 'form']);
 
       expect(exitCode, 64);
       expect(
@@ -141,10 +126,10 @@ void main() {
   });
 }
 
-Future<void> _runGenerate(List<String> args) {
+Future<void> _runGenerate(Directory root, List<String> args) {
   return (CommandRunner<void>(
     'dartvel',
     'test',
-  )..addCommand(GenerateCommand()))
+  )..addCommand(GenerateCommand(root: root.path)))
       .run(args);
 }

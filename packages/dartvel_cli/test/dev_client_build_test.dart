@@ -158,24 +158,21 @@ packages:
   });
 
   group('the command', () {
-    late Directory previous;
     late List<List<String>> ran;
 
     setUp(() {
-      previous = Directory.current;
-      Directory.current = root;
       ran = <List<String>>[];
       exitCode = 0;
     });
 
     tearDown(() {
-      Directory.current = previous;
       exitCode = 0;
     });
 
     Future<void> build(List<String> args, {bool Function(String)? onPath}) =>
         (CommandRunner<void>('dartvel', 'test')..addCommand(
               BuildCommand(
+                root: root.path,
                 onPath: onPath ?? (_) => true,
                 processRun:
                     (

@@ -11,8 +11,11 @@ class AdminCommand extends Command<void> {
   @override
   String get description => 'Generate Dartvel admin surfaces.';
 
-  AdminCommand() {
-    addSubcommand(AdminGenerateCommand());
+  /// [root] is the project; null reads the working directory when the command
+  /// runs. A test passes its own, because that directory is one value shared
+  /// by every suite in the process.
+  AdminCommand({String? root}) {
+    addSubcommand(AdminGenerateCommand(root: root));
   }
 }
 
@@ -23,7 +26,7 @@ class AdminGenerateCommand extends Command<void> {
   @override
   String get description => 'Generate Dartvel admin and devtools pages.';
 
-  AdminGenerateCommand() {
+  AdminGenerateCommand({this._root}) {
     argParser.addFlag(
       'force',
       abbr: 'f',
@@ -32,20 +35,21 @@ class AdminGenerateCommand extends Command<void> {
     );
   }
 
+  final String? _root;
+
   @override
   void run() {
+    final String root = _root ?? Directory.current.path;
     final result = DartvelAdminGenerator.generate(
-      root: Directory.current,
+      root: Directory(root),
       force: argResults?['force'] == true,
     );
     for (final file in result.writtenFiles) {
-      stdout.writeln(
-          'generated ${p.relative(file.path, from: Directory.current.path)}');
+      stdout.writeln('generated ${p.relative(file.path, from: root)}');
     }
     if (result.skippedFiles.isNotEmpty) {
       for (final file in result.skippedFiles) {
-        stdout.writeln(
-            'exists ${p.relative(file.path, from: Directory.current.path)}');
+        stdout.writeln('exists ${p.relative(file.path, from: root)}');
       }
     }
   }
@@ -59,7 +63,7 @@ class DevtoolsCommand extends Command<void> {
   String get description =>
       'Generate and open Dartvel devtools metadata pages.';
 
-  DevtoolsCommand() {
+  DevtoolsCommand({this._root}) {
     argParser.addFlag(
       'force',
       abbr: 'f',
@@ -68,10 +72,12 @@ class DevtoolsCommand extends Command<void> {
     );
   }
 
+  final String? _root;
+
   @override
   void run() {
     final result = DartvelAdminGenerator.generate(
-      root: Directory.current,
+      root: Directory(_root ?? Directory.current.path),
       force: argResults?['force'] == true,
     );
     stdout.writeln('Dartvel devtools generated at /_dartvel_admin');

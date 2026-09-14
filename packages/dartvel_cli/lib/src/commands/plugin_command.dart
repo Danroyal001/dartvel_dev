@@ -10,10 +10,13 @@ class PluginCommand extends Command<void> {
   @override
   String get description => 'Manage Dartvel plugins.';
 
-  PluginCommand() {
-    addSubcommand(_PluginAddCommand());
+  /// [root] is the project; null reads the working directory when the command
+  /// runs. A test passes its own, because that directory is one value shared
+  /// by every suite in the process.
+  PluginCommand({String? root}) {
+    addSubcommand(_PluginAddCommand(root: root));
     addSubcommand(_PluginListCommand());
-    addSubcommand(_PluginRemoveCommand());
+    addSubcommand(_PluginRemoveCommand(root: root));
   }
 }
 
@@ -24,7 +27,9 @@ class _PluginAddCommand extends Command<void> {
   @override
   String get description => 'Add a plugin to your project.';
 
-  _PluginAddCommand() {
+  final String? _root;
+
+  _PluginAddCommand({this._root}) {
     argParser.addOption('name',
         abbr: 'n', help: 'Plugin name (e.g., auth, analytics)');
   }
@@ -43,7 +48,7 @@ class _PluginAddCommand extends Command<void> {
       return;
     }
 
-    final root = Directory.current.path;
+    final root = _root ?? Directory.current.path;
 
     Logger.log('📦 Adding plugin: $plugin');
 
@@ -274,6 +279,10 @@ class _PluginListCommand extends Command<void> {
 }
 
 class _PluginRemoveCommand extends Command<void> {
+  _PluginRemoveCommand({this._root});
+
+  final String? _root;
+
   @override
   final String name = 'remove';
 
@@ -282,7 +291,7 @@ class _PluginRemoveCommand extends Command<void> {
 
   @override
   Future<void> run() async {
-    final root = Directory.current.path;
+    final root = _root ?? Directory.current.path;
     final targets = [
       File(p.join(root, 'lib/pages/login.page.dart')),
       Directory(p.join(root, 'lib/backend/functions/auth')),

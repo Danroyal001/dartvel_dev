@@ -16,23 +16,17 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 Future<String> runAnalyze(List<String> args, Directory root) async {
-  final Directory previous = Directory.current;
-  Directory.current = root;
   final StringBuffer out = StringBuffer();
-  try {
-    await runZoned(
-      () async {
-        final CommandRunner<void> runner =
-            CommandRunner<void>('dartvel', 'Test runner')..addCommand(AnalyzeCommand());
-        await runner.run(<String>['analyze', ...args]);
-      },
-      zoneSpecification: ZoneSpecification(
-        print: (Zone _, ZoneDelegate __, Zone ___, String line) => out.writeln(line),
-      ),
-    );
-  } finally {
-    Directory.current = previous;
-  }
+  await runZoned(
+    () async {
+      final CommandRunner<void> runner = CommandRunner<void>('dartvel', 'Test runner')
+        ..addCommand(AnalyzeCommand(root: root.path));
+      await runner.run(<String>['analyze', ...args]);
+    },
+    zoneSpecification: ZoneSpecification(
+      print: (Zone _, ZoneDelegate __, Zone ___, String line) => out.writeln(line),
+    ),
+  );
   return out.toString();
 }
 

@@ -26,7 +26,10 @@ typedef PublishProcessRun = Future<ProcessResult> Function(
 });
 
 class PublishCommand extends Command<void> {
-  PublishCommand({PublishProcessRun? processRun})
+  /// [root] is the project; null reads the working directory when the command
+  /// runs. A test passes its own, because that directory is one value shared
+  /// by every suite in the process.
+  PublishCommand({PublishProcessRun? processRun, this._root})
       : _processRun = processRun ?? _defaultRun {
     argParser
       ..addFlag('dry-run',
@@ -47,6 +50,7 @@ class PublishCommand extends Command<void> {
           workingDirectory: workingDirectory, runInShell: runInShell);
 
   final PublishProcessRun _processRun;
+  final String? _root;
 
   @override
   final String name = 'publish';
@@ -68,7 +72,7 @@ class PublishCommand extends Command<void> {
     }
 
     final String store = rest.first;
-    final String root = Directory.current.path;
+    final String root = _root ?? Directory.current.path;
     final DVPublishPlan plan = dvPublishPlan(
       store: store,
       root: root,

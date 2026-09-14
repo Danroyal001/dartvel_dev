@@ -8,18 +8,14 @@ import 'package:test/test.dart';
 
 void main() {
   group('DbCommand', () {
-    late Directory previous;
     late Directory root;
 
     setUp(() {
-      previous = Directory.current;
       root = Directory.systemTemp.createTempSync('dartvel_db_command_');
-      Directory.current = root;
       exitCode = 0;
     });
 
     tearDown(() {
-      Directory.current = previous;
       root.deleteSync(recursive: true);
       exitCode = 0;
     });
@@ -36,7 +32,7 @@ class _User {
 }
 ''');
 
-      await _runDb(<String>['db', 'migrate']);
+      await _runDb(<String>['db', 'migrate'], root);
 
       final snapshot = localSchemaSnapshotFile(root.path);
       expect(snapshot.existsSync(), isTrue);
@@ -74,7 +70,7 @@ class User {}
     });
 
     test('push requires a local migrated schema snapshot', () async {
-      await _runDb(<String>['db', 'push']);
+      await _runDb(<String>['db', 'push'], root);
 
       expect(exitCode, 1);
       expect(remoteSchemaSnapshotFile(root.path).existsSync(), isFalse);
@@ -89,13 +85,13 @@ import 'package:dartvel_core/dartvel.dart';
 class _Account {}
 ''');
 
-      await _runDb(<String>['db', 'migrate']);
-      await _runDb(<String>['db', 'push']);
+      await _runDb(<String>['db', 'migrate'], root);
+      await _runDb(<String>['db', 'push'], root);
       expect(exitCode, 0);
       expect(remoteSchemaSnapshotFile(root.path).existsSync(), isTrue);
 
       localSchemaSnapshotFile(root.path).deleteSync();
-      await _runDb(<String>['db', 'pull']);
+      await _runDb(<String>['db', 'pull'], root);
       expect(exitCode, 0);
       expect(pulledSchemaSnapshotFile(root.path).existsSync(), isTrue);
       expect(
@@ -105,7 +101,7 @@ class _Account {}
     });
 
     test('seed reports missing seed files instead of succeeding', () async {
-      await _runDb(<String>['db', 'seed']);
+      await _runDb(<String>['db', 'seed'], root);
 
       expect(exitCode, 1);
     });
@@ -128,8 +124,9 @@ class _Account {}
   });
 }
 
-Future<void> _runDb(List<String> args) {
-  return (CommandRunner<void>('dartvel', 'test')..addCommand(DbCommand()))
+Future<void> _runDb(List<String> args, Directory root) {
+  return (CommandRunner<void>('dartvel', 'test')
+        ..addCommand(DbCommand(root: root.path)))
       .run(args);
 }
 

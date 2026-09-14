@@ -15,7 +15,10 @@ class GenerateCommand extends Command<void> {
       'Generate Dartvel template files for pages, models, forms, and backend '
       'functions. With --check, fail when generated output is stale.';
 
-  GenerateCommand() {
+  /// [root] is the project; null reads the working directory when the command
+  /// runs. A test passes its own, because that directory is one value shared
+  /// by every suite in the process.
+  GenerateCommand({String? root}) {
     argParser
       ..addFlag(
         'check',
@@ -30,10 +33,10 @@ class GenerateCommand extends Command<void> {
         help: 'The rendering backends the checked output was generated for '
             '(gui, terminal, or both), as `dartvel routes --render`.',
       );
-    addSubcommand(GeneratePageSubcommand());
-    addSubcommand(GenerateModelSubcommand());
-    addSubcommand(GenerateBackendSubcommand());
-    addSubcommand(GenerateFormSubcommand());
+    addSubcommand(GeneratePageSubcommand(root: root));
+    addSubcommand(GenerateModelSubcommand(root: root));
+    addSubcommand(GenerateBackendSubcommand(root: root));
+    addSubcommand(GenerateFormSubcommand(root: root));
   }
 }
 
@@ -87,6 +90,10 @@ Future<int> runGenerateCheck(
 }
 
 class GeneratePageSubcommand extends Command<void> {
+  GeneratePageSubcommand({this._root});
+
+  final String? _root;
+
   @override
   final String name = 'page';
   @override
@@ -99,7 +106,8 @@ class GeneratePageSubcommand extends Command<void> {
       return;
     }
     final pageName = argResults!.rest.first;
-    final pagesDir = Directory(p.join(Directory.current.path, 'lib', 'pages'));
+    final pagesDir =
+        Directory(p.join(_root ?? Directory.current.path, 'lib', 'pages'));
     if (!pagesDir.existsSync()) {
       pagesDir.createSync(recursive: true);
     }
@@ -124,6 +132,10 @@ Widget _${pageName.toLowerCase()}Page(BuildContext context) => DVBox(
 }
 
 class GenerateModelSubcommand extends Command<void> {
+  GenerateModelSubcommand({this._root});
+
+  final String? _root;
+
   @override
   final String name = 'model';
   @override
@@ -137,7 +149,7 @@ class GenerateModelSubcommand extends Command<void> {
     }
     final modelName = argResults!.rest.first;
     final modelsDir = Directory(
-      p.join(Directory.current.path, 'lib', 'models'),
+      p.join(_root ?? Directory.current.path, 'lib', 'models'),
     );
     if (!modelsDir.existsSync()) {
       modelsDir.createSync(recursive: true);
@@ -166,6 +178,10 @@ class _$capitalized {
 }
 
 class GenerateBackendSubcommand extends Command<void> {
+  GenerateBackendSubcommand({this._root});
+
+  final String? _root;
+
   @override
   final String name = 'backend-function';
   @override
@@ -179,7 +195,7 @@ class GenerateBackendSubcommand extends Command<void> {
     }
     final funcName = argResults!.rest.first;
     final backendDir = Directory(
-      p.join(Directory.current.path, 'lib', 'backend', 'functions'),
+      p.join(_root ?? Directory.current.path, 'lib', 'backend', 'functions'),
     );
     if (!backendDir.existsSync()) {
       backendDir.createSync(recursive: true);
@@ -203,6 +219,10 @@ Future<String> _get$capitalized(String input) async => 'Echo: \$input';
 }
 
 class GenerateFormSubcommand extends Command<void> {
+  GenerateFormSubcommand({this._root});
+
+  final String? _root;
+
   @override
   final String name = 'form';
   @override
@@ -216,7 +236,8 @@ class GenerateFormSubcommand extends Command<void> {
       return;
     }
     final modelName = argResults!.rest.first;
-    final formsDir = Directory(p.join(Directory.current.path, 'lib', 'forms'));
+    final formsDir =
+        Directory(p.join(_root ?? Directory.current.path, 'lib', 'forms'));
     if (!formsDir.existsSync()) {
       formsDir.createSync(recursive: true);
     }

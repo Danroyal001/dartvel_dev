@@ -36,6 +36,10 @@ class PreviewCommand extends Command<void> {
     DateTime Function()? clock,
     void Function(String line)? out,
     Map<String, String>? environment,
+    // The project; null reads the working directory when the command runs.
+    // A test passes its own, because that directory is one value shared by
+    // every suite in the process.
+    this._root,
   })  : _previewHost = previewHost ?? dvNoPreviewHost,
         _git = git ?? dvRunGit,
         _clock = clock ?? DateTime.now,
@@ -49,6 +53,7 @@ class PreviewCommand extends Command<void> {
       ..addOption('host', defaultsTo: '127.0.0.1', help: 'Host to bind to');
   }
 
+  final String? _root;
   final DVPreviewHostResolver _previewHost;
   final DVPreviewGit _git;
   final DateTime Function() _clock;
@@ -77,7 +82,7 @@ class PreviewCommand extends Command<void> {
     if (rest.isNotEmpty && dvPreviewVerbs.contains(rest.first)) {
       exitCode = await dvRunPreviewLifecycle(
         rest,
-        root: Directory.current.path,
+        root: _root ?? Directory.current.path,
         host: _previewHost,
         git: _git,
         clock: _clock,
@@ -105,7 +110,7 @@ class PreviewCommand extends Command<void> {
       );
     }
 
-    final root = Directory.current.path;
+    final root = _root ?? Directory.current.path;
     final buildDir = Directory(p.join(root, 'build', 'web'));
 
     if (!buildDir.existsSync()) {

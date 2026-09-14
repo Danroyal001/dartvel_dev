@@ -7,20 +7,16 @@ import 'package:test/test.dart';
 void main() {
   group('PluginCommand', () {
     late Directory tempDir;
-    late Directory previousDirectory;
     late CommandRunner<void> runner;
 
     setUp(() {
-      previousDirectory = Directory.current;
       tempDir = Directory.systemTemp.createTempSync('dartvel_plugin_test');
       runner = CommandRunner<void>('dartvel', 'Test runner')
-        ..addCommand(PluginCommand());
-      Directory.current = tempDir;
+        ..addCommand(PluginCommand(root: tempDir.path));
       exitCode = 0;
     });
 
     tearDown(() {
-      Directory.current = previousDirectory;
       tempDir.deleteSync(recursive: true);
       exitCode = 0;
     });
