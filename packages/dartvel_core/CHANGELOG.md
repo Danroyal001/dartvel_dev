@@ -1,5 +1,13 @@
 ## Unreleased
 
+- **`DVDatabaseConnection` resolves a database from the environment.**
+  `DATABASE_URL` (postgres, mysql, sqlite, with `sslmode`) gives the server
+  and credentials and `DARTVEL_DATABASE` names the database on it, so one
+  preview secret with no database in it serves every branch.
+  `DVDatabaseConnection.parse` refuses a server URL that names no database,
+  `open()` returns the matching adapter, and printing a connection never
+  prints its password.
+
 - **Queues live under `DARTVEL_QUEUE_NAMESPACE`.** `DVQueues` dispatches,
   works, lists and flushes `<namespace>.<queue>` when the process environment
   names a namespace or `useNamespace` sets one, so a preview never reserves a
