@@ -293,12 +293,19 @@ class DVCredentialGuard {
   final Future<void> Function(Duration duration) _delay;
 
   /// The one refusal a bad sign-in gets, whether or not the account exists.
-  static const AuthException credentialsRefused = AuthException(
-    AuthFailure.invalidPassword,
-    'That e-mail address and password do not match an account.',
-  );
+  ///
+  /// The same refusal the Dartvel providers give unguarded, so wrapping a
+  /// provider changes when a refusal arrives and never what it says.
+  static const AuthException credentialsRefused =
+      AuthException.invalidCredentials;
 
   /// Signs in, or throws [credentialsRefused] or a [DVVelocityRefusal].
+  ///
+  /// The Dartvel providers already refuse a missing account and a wrong
+  /// password alike after the same hashing work. What the guard adds is what
+  /// a provider cannot do alone: a refusal floor, which hides the time a
+  /// remote identity service or a database lookup takes, the velocity counts,
+  /// and collapsing a provider that still throws the two distinct failures.
   ///
   /// A tripped limit is refused without trying the password, so a locked
   /// account cannot confirm a guess.
@@ -323,10 +330,7 @@ class DVCredentialGuard {
     try {
       user = await provider.signIn(email, password);
     } on AuthException catch (error) {
-      if (error.failure != AuthFailure.unknownAccount &&
-          error.failure != AuthFailure.invalidPassword) {
-        rethrow;
-      }
+      if (!_refusesCredentials(error.failure)) rethrow;
     }
     if (user == null) {
       await velocity.recordFailure(account: email, source: source);
@@ -336,6 +340,14 @@ class DVCredentialGuard {
     await velocity.recordSuccess(account: email);
     return user;
   }
+
+  static bool _refusesCredentials(AuthFailure failure) => switch (failure) {
+        AuthFailure.invalidCredentials => true,
+        // A provider written against the old contract; collapsed here.
+        // ignore: deprecated_member_use_from_same_package
+        AuthFailure.unknownAccount || AuthFailure.invalidPassword => true,
+        _ => false,
+      };
 
   /// Signs up after the challenge and the breach check pass.
   Future<AuthUser?> signUp(

@@ -1,5 +1,18 @@
 ## Unreleased
 
+- **`DVLocalAuthProvider` no longer says whether an account exists.**
+  `signInWithEmailAndPassword` threw `unknownAccount` ("No account exists for
+  that e-mail address. Call signUp first.") for a missing account and
+  `invalidPassword` for a wrong password, so `DV.Auth` handed every caller a
+  way to test which addresses were registered. Both are now
+  `AuthException.invalidCredentials`, after one verification either way: a
+  miss is checked against a dummy hash the provider makes once at
+  construction, where it used to hash and then verify, which was twice the
+  work of a wrong password. `signUp` judged whether an address was taken
+  before whether the password was long enough, so a short password answered
+  "taken" for a registered address and "too short" for a free one; it now
+  checks the password, hashes it, and only then looks the address up.
+
 - **A GStreamer element that is not installed fails at once, by name.** The
   Linux media backend built pipelines with `gst_parse_launch` and no error
   out-parameter, which drops an element it cannot find and returns what is

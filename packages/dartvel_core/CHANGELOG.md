@@ -1,5 +1,26 @@
 ## Unreleased
 
+- **A sign-in no longer says whether the account exists.**
+  `LocalAuthProvider.signIn` threw `AuthFailure.unknownAccount` with "No
+  account exists for that e-mail address." for a missing account and
+  `AuthFailure.invalidPassword` with "That password is incorrect." for a
+  wrong password, which let anyone test which e-mail addresses had accounts;
+  only an application that wrapped its provider in `DVCredentialGuard` was
+  spared. Both are now `AuthException.invalidCredentials`
+  (`AuthFailure.invalidCredentials`, "That e-mail address and password do
+  not match an account."), the same refusal the guard gives. The work is the
+  same too: a miss verifies the password against a dummy hash made once, by
+  the provider's own hasher, when the provider is constructed. It used to
+  hash the password and then verify it, which is twice the work of a wrong
+  password and answered a miss measurably slower. `signUp` hashes the
+  password before looking the address up, so a taken address no longer
+  answers before the hash. `AuthFailure.unknownAccount` and
+  `AuthFailure.invalidPassword` are deprecated rather than removed, so
+  existing switches compile; no Dartvel provider throws them, and
+  `DVCredentialGuard` still collapses a provider that does, behind its
+  refusal floor, which remains the defence for a provider whose lookup
+  itself takes time.
+
 - **The processes of a deployment share a store, from `DATABASE_URL`.**
   `DVProcessStores.install` puts `DVQueues` on a database with
   `DVDatabaseQueueAdapter`, unless an adapter was already configured. Outside

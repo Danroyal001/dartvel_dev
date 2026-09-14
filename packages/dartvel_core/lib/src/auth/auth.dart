@@ -1,7 +1,15 @@
 // Authentication system
 import 'dart:async';
+import 'dart:convert';
+import 'dart:math';
 
 import 'password.dart';
+
+/// A password nobody knows, for a dummy hash that no guess should match.
+String _dummySecret() {
+  final random = Random.secure();
+  return base64Encode(List<int>.generate(32, (_) => random.nextInt(256)));
+}
 
 /// User model
 class AuthUser {
@@ -94,11 +102,28 @@ class Auth {
 
 /// Why an authentication attempt failed.
 enum AuthFailure {
+  /// Never thrown by a Dartvel provider: an unknown account is
+  /// [invalidCredentials], because telling it apart from a wrong password
+  /// tells anyone which e-mail addresses have accounts.
+  @Deprecated('An unknown account is AuthFailure.invalidCredentials. Kept so '
+      'existing switches compile, and so DVCredentialGuard can collapse a '
+      'provider that still throws it.')
   unknownAccount,
+
+  /// Never thrown by a Dartvel provider: a wrong password is
+  /// [invalidCredentials], for the same reason as [unknownAccount].
+  @Deprecated('A wrong password is AuthFailure.invalidCredentials. Kept so '
+      'existing switches compile, and so DVCredentialGuard can collapse a '
+      'provider that still throws it.')
   invalidPassword,
   accountExists,
   weakPassword,
   invalidEmail,
+
+  /// The e-mail address and password do not match an account: either there
+  /// is no such account or the password is wrong, and the caller is not told
+  /// which.
+  invalidCredentials,
 }
 
 class AuthException implements Exception {
@@ -106,6 +131,15 @@ class AuthException implements Exception {
   final String message;
 
   const AuthException(this.failure, this.message);
+
+  /// The one refusal a sign-in gets, whether or not the account exists.
+  ///
+  /// Why a sign-in failed is known on the server and belongs in its logs and
+  /// its velocity counts, never in the answer.
+  static const AuthException invalidCredentials = AuthException(
+    AuthFailure.invalidCredentials,
+    'That e-mail address and password do not match an account.',
+  );
 
   @override
   String toString() => 'AuthException(${failure.name}): $message';
@@ -134,38 +168,41 @@ class LocalAuthProvider implements AuthProvider {
       <String, _StoredCredential>{};
   final DVPasswordHasher _hasher;
 
+  /// What a password is checked against when no account matches, so a miss
+  /// does one verification like a wrong password does. Made once, by the same
+  /// hasher, so it costs what a stored hash costs; hashing on every miss would
+  /// make a miss do twice the work and answer measurably slower. Made at
+  /// construction rather than on the first miss, which would otherwise be the
+  /// one sign-in slower than a wrong password.
+  final String _dummyHash;
+
   AuthUser? _currentUser;
   int _nextId = 1;
 
   LocalAuthProvider({DVPasswordHasher? hasher})
-      : _hasher = hasher ??
+      : this._(hasher ??
             DVPasswordHasher(
               // Development default: strong enough to exercise the real code
               // path without making every test sign-in slow.
               iterations: 10000,
-            );
+            ));
+
+  LocalAuthProvider._(this._hasher)
+      : _dummyHash = _hasher.hash(_dummySecret());
 
   /// Registered account e-mails, for test assertions and dev tooling.
   List<String> get accounts => List<String>.unmodifiable(_accounts.keys);
 
+  /// Signs in, or throws [AuthException.invalidCredentials] whether the
+  /// account is missing or the password is wrong, after the same work.
   @override
   Future<AuthUser?> signIn(String email, String password) async {
     final key = _normalize(email);
     final stored = _accounts[key];
-    if (stored == null) {
-      // Hash anyway so a missing account and a wrong password take comparable
-      // time, rather than leaking which e-mails are registered.
-      _hasher.verify(password, _hasher.hash(password));
-      throw const AuthException(
-        AuthFailure.unknownAccount,
-        'No account exists for that e-mail address.',
-      );
-    }
-    if (!_hasher.verify(password, stored.passwordHash)) {
-      throw const AuthException(
-        AuthFailure.invalidPassword,
-        'That password is incorrect.',
-      );
+    final matched =
+        _hasher.verify(password, stored?.passwordHash ?? _dummyHash);
+    if (stored == null || !matched) {
+      throw AuthException.invalidCredentials;
     }
 
     _currentUser = stored.user;
@@ -189,6 +226,9 @@ class LocalAuthProvider implements AuthProvider {
         'Passwords must be at least $minimumPasswordLength characters.',
       );
     }
+    // Hashed before the address is looked up, so a taken address does not
+    // answer sooner than a free one.
+    final passwordHash = _hasher.hash(password);
     if (_accounts.containsKey(key)) {
       throw const AuthException(
         AuthFailure.accountExists,
@@ -197,7 +237,7 @@ class LocalAuthProvider implements AuthProvider {
     }
 
     final user = AuthUser(id: 'local_${_nextId++}', email: key, name: name);
-    _accounts[key] = _StoredCredential(user, _hasher.hash(password));
+    _accounts[key] = _StoredCredential(user, passwordHash);
 
     _currentUser = user;
     _controller.add(_currentUser);
