@@ -118,6 +118,7 @@ export 'src/observability/observability.dart';
 export 'src/platform/android_capture.dart';
 export 'src/platform_config.dart';
 export 'src/privacy/privacy.dart';
+export 'src/protocol/protocol.dart';
 export 'src/queues/amqp_queue.dart';
 export 'src/queues/amqp_socket_io.dart';
 export 'src/queues/kafka_queue.dart';
