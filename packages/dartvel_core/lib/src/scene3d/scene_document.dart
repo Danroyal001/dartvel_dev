@@ -599,7 +599,7 @@ final class DVSceneNodeData {
       if (camera != null) 'camera': camera!.toJson(),
       if (children.isNotEmpty)
         'children': <Object?>[for (final DVSceneNodeData c in children) c.toJson()],
-      ...extra,
+      ..._canonicalMap(extra),
     };
   }
 
@@ -759,7 +759,7 @@ final class DV3DSceneDocument {
             e.key: e.value.toJson(),
         },
         'nodes': <Object?>[for (final DVSceneNodeData n in nodes) n.toJson()],
-        ...extra,
+        ..._canonicalMap(extra),
       };
 
   String encode() => jsonEncode(toJson());
@@ -865,6 +865,25 @@ final class DV3DSceneDocument {
 }
 
 // --- reading helpers ---------------------------------------------------------
+
+/// [map] with its keys sorted, at every depth.
+///
+/// Keys this version does not understand arrive in whatever order the writer,
+/// or a canonicalising store in between, put them. Written back in that order,
+/// one document would encode to different bytes depending on its route here.
+Map<String, Object?> _canonicalMap(Map<String, Object?> map) {
+  Object? canonical(Object? value) {
+    if (value is Map) {
+      final List<String> keys =
+          <String>[for (final Object? k in value.keys) k.toString()]..sort();
+      return <String, Object?>{for (final String k in keys) k: canonical(value[k])};
+    }
+    if (value is List) return <Object?>[for (final Object? v in value) canonical(v)];
+    return value;
+  }
+
+  return canonical(map)! as Map<String, Object?>;
+}
 
 Map<String, Object?> _map(Object? json, String path) {
   if (json is Map) {

@@ -135,6 +135,36 @@ void main() {
       );
     });
 
+    test('keys a newer version wrote encode in one order however they arrived',
+        () {
+      // A content version is stored as canonical JSON with its keys sorted, so
+      // a document read back from the workflow meets its extra keys in a
+      // different order from the one it was written in.
+      DV3DSceneDocument withExtra(Map<String, Object?> extra) =>
+          DV3DSceneDocument(
+            id: 'e',
+            extra: extra,
+            nodes: <DVSceneNodeData>[
+              DVSceneNodeData(
+                id: 'n',
+                kind: DVSceneNodeKind.group,
+                extra: extra,
+              ),
+            ],
+          );
+
+      expect(
+        withExtra(<String, Object?>{
+          'zeta': 1,
+          'alpha': <String, Object?>{'y': 2, 'b': 3},
+        }).encode(),
+        withExtra(<String, Object?>{
+          'alpha': <String, Object?>{'b': 3, 'y': 2},
+          'zeta': 1,
+        }).encode(),
+      );
+    });
+
     test('encoding is byte-identical however the assets were inserted', () {
       DV3DSceneDocument withAssets(List<String> order) => DV3DSceneDocument(
             id: 'a',
