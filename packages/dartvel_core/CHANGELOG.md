@@ -45,6 +45,16 @@
   `DVModel3DFieldPolicy.accept` turns a valid upload into the field value,
   pinned to its bytes by SHA-256 and under the tenant's storage key.
 
+- **Scene documents are content.** `DV3DSceneContent` runs scene documents
+  through the content workflow as the `scene` kind, and only a published
+  version reaches `DV3DSceneStore`; a withdrawal removes it. A
+  `DV3DSceneBundle` carries published scenes and their approvals to installed
+  applications, decodes every scene before anything is applied, and refuses a
+  scene shipped twice or shipped and removed at once; `DV3DSceneBundleInstaller`
+  applies a version once and rolls back by forgetting and re-shipping the
+  previous bundle. A document's keys from a newer version now encode in sorted
+  order, so a scene read back from the workflow encodes to the same bytes.
+
 - **Schema Evolution's tracker and Backend Release Management agree on where
   a migration stands and whether it may contract.** Verification is now its
   own recorded state: `DVSchemaEvolution.verify` records that every chunk

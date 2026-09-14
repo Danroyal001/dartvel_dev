@@ -10,6 +10,7 @@ export 'gltf.dart';
 export 'scene_assets.dart';
 export 'scene_camera.dart';
 export 'scene_config.dart';
+export 'scene_content.dart';
 export 'scene_document.dart';
 export 'scene_graph.dart';
 export 'scene_math.dart';
