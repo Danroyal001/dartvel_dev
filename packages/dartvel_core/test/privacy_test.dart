@@ -9,6 +9,7 @@
 // the other regulator's problem. A receipt that still verifies after it was
 // edited proves nothing. Each has a test below that fails if the behaviour
 // quietly regresses.
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:dartvel_core/dartvel.dart';
@@ -281,6 +282,46 @@ class _RecordingAdapter implements DVPrivacyAdapter {
       <String, Object?>{
         'documents': <String>['doc-for-${subject.id}'],
       };
+}
+
+/// A database that holds one statement back until the test lets it through,
+/// so another writer can run between a walk's read and its write -- in order,
+/// every time, rather than when a sleep happens to line it up.
+class _PausingAdapter implements DVDatabaseAdapter {
+  _PausingAdapter(this.inner);
+
+  final DVDatabaseAdapter inner;
+  bool Function(String sql, List<Object?> params)? _when;
+  Completer<void>? _reached;
+  Completer<void>? _proceed;
+
+  /// Holds the next statement [when] matches. `reached` completes once it is
+  /// held; completing `proceed` sends it on.
+  ({Future<void> reached, Completer<void> proceed}) pauseBefore(
+    bool Function(String sql, List<Object?> params) when,
+  ) {
+    _when = when;
+    _reached = Completer<void>();
+    _proceed = Completer<void>();
+    return (reached: _reached!.future, proceed: _proceed!);
+  }
+
+  @override
+  Future<List<Map<String, Object?>>> query(
+    String sql, [
+    List<Object?>? params,
+  ]) => inner.query(sql, params);
+
+  @override
+  Future<int> execute(String sql, [List<Object?>? params]) async {
+    final bool Function(String, List<Object?>)? when = _when;
+    if (when != null && when(sql, params ?? const <Object?>[])) {
+      _when = null;
+      _reached!.complete();
+      await _proceed!.future;
+    }
+    return inner.execute(sql, params);
+  }
 }
 
 DVPrivacy _privacy(
@@ -929,6 +970,280 @@ void main() {
             );
             expect(sweep.held['orders'], 1);
             expect(sweep.codes, contains('DV-PRIVACY-008'));
+          },
+        );
+      });
+
+      // A sweep and an erasure read their rows, then write them. A row
+      // rewritten in between -- a session renewed, an order moved to another
+      // customer -- is a different row by the time the write lands, and
+      // deleting or anonymizing it from the stale read destroys data nobody
+      // asked to remove, with nothing in the result to say so.
+      group('a write between the walk and its write', () {
+        late _PausingAdapter db;
+        late DVCapture capture;
+        late DVRecordTable visits;
+
+        setUp(() async {
+          db = _PausingAdapter(adapter.$2());
+          capture = DVCapture(
+            database: db,
+            retention: const Duration(days: 7),
+            clock: () => _now,
+          );
+          await capture.ensureSchema();
+          visits = DVRecordTable(
+            table: 'visits',
+            key: 'id',
+            columns: const <String>['id', 'user_id', 'ip', 'created_at'],
+            history: const DVHistory(),
+            capture: capture,
+            database: db,
+          );
+          await visits.ensureSchema();
+        });
+
+        Future<DVRecord> visit(
+          String id,
+          String user,
+          String ip,
+          Duration age,
+        ) async => (await visits.write(<String, Object?>{
+          'id': id,
+          'user_id': user,
+          'ip': ip,
+          'created_at': _ago(age),
+        })).record;
+
+        DVPrivacy over({
+          DVRetention retention = DVRetention.indefinite,
+          DVRetain? retain,
+        }) => DVPrivacy(
+          models: <DVPrivacyModel>[
+            DVPrivacyModel(
+              name: 'visits',
+              table: visits,
+              subject: const DVSubject.field('user_id'),
+              personal: const <String>{'ip'},
+              retain: retain,
+              retention: retention,
+            ),
+          ],
+          database: db,
+          signingKey: _signingKey,
+          now: () => _now,
+        );
+
+        /// Holds the walk's write to row [key] of visits.
+        ({Future<void> reached, Completer<void> proceed}) pauseWriteTo(
+          String key,
+        ) => db.pauseBefore(
+          (String sql, List<Object?> params) =>
+              RegExp(r'^(DELETE FROM|UPDATE) visits ').hasMatch(sql) &&
+              params.contains(key),
+        );
+
+        Future<List<DVCapturedChange>> capturedFor(String key) async =>
+            <DVCapturedChange>[
+              for (final DVCapturedChange c in await capture.changes())
+                if ('${c.key}' == key) c,
+            ];
+
+        for (final DVRetentionAction action in DVRetentionAction.values) {
+          test(
+            'a sweep that would ${action.name} leaves a row renewed after it '
+            'was read, with its history and its captured changes',
+            () async {
+              await visit('old', 'u1', '10.1.0.1', const Duration(days: 45));
+              await visit('stale', 'u1', '10.1.0.2', const Duration(days: 45));
+              final DVPrivacy privacy = over(
+                retention: DVRetention.days(
+                  30,
+                  from: 'created_at',
+                  then: action,
+                ),
+              );
+              await privacy.ensureSchema();
+              final ({Future<void> reached, Completer<void> proceed}) pause =
+                  pauseWriteTo('old');
+
+              final Future<DVRetentionSweep> sweeping = privacy
+                  .sweepRetention();
+              await pause.reached;
+              final DVRecord read = (await visits.read('old'))!;
+              final DVRecord renewed = (await visits.write(<String, Object?>{
+                ...read.values,
+                'ip': '10.9.9.9',
+                'created_at': _now.toIso8601String(),
+              }, base: read)).record;
+              final int history = (await visits.history('old')).length;
+              final List<DVCapturedChange> captured = await capturedFor('old');
+              pause.proceed.complete();
+              final DVRetentionSweep sweep = await sweeping;
+
+              final DVRecord? kept = await visits.read('old');
+              expect(
+                kept,
+                isNotNull,
+                reason: 'the row was renewed; it is no longer expired',
+              );
+              expect(kept!.version, renewed.version);
+              expect(kept.values['ip'], '10.9.9.9');
+              expect(kept.values['created_at'], _now.toIso8601String());
+              expect(
+                (await visits.history('old')).length,
+                history,
+                reason: "a skipped row's change log is its own",
+              );
+              expect(
+                (await capturedFor('old')).map((DVCapturedChange c) => c.id),
+                captured.map((DVCapturedChange c) => c.id),
+                reason: 'nothing is captured for a write that did not apply',
+              );
+              expect(
+                (await capturedFor(
+                  'old',
+                )).any((DVCapturedChange c) => c.erased),
+                isFalse,
+              );
+
+              final Map<String, int> done = action == DVRetentionAction.delete
+                  ? sweep.deleted
+                  : sweep.anonymized;
+              expect(done['visits'], 1, reason: 'the uncontended row is swept');
+              expect(sweep.skipped['visits'], 1);
+              expect(
+                sweep.remaining,
+                0,
+                reason: 'a renewed row is not left for the next run',
+              );
+            },
+          );
+        }
+
+        test(
+          'a row rewritten but still expired is skipped, counted as remaining, '
+          'and swept on the next run',
+          () async {
+            await visit('old', 'u1', '10.1.0.1', const Duration(days: 45));
+            final DVPrivacy privacy = over(
+              retention: const DVRetention.days(30, from: 'created_at'),
+            );
+            await privacy.ensureSchema();
+            final ({Future<void> reached, Completer<void> proceed}) pause =
+                pauseWriteTo('old');
+
+            final Future<DVRetentionSweep> sweeping = privacy.sweepRetention();
+            await pause.reached;
+            final DVRecord read = (await visits.read('old'))!;
+            await visits.write(<String, Object?>{
+              ...read.values,
+              'ip': '10.9.9.9',
+            }, base: read);
+            pause.proceed.complete();
+            final DVRetentionSweep first = await sweeping;
+
+            final DVRecord? rewritten = await visits.read('old');
+            expect(rewritten, isNotNull, reason: 'it changed after the read');
+            expect(rewritten!.values['ip'], '10.9.9.9');
+            expect(first.deleted['visits'], isNull);
+            expect(first.skipped['visits'], 1);
+            expect(first.remaining, 1, reason: 'still expired; not lost');
+
+            final DVRetentionSweep second = await privacy.sweepRetention();
+            expect(await visits.read('old'), isNull);
+            expect(second.deleted['visits'], 1);
+            expect(second.skipped, isEmpty);
+            expect(second.remaining, 0);
+            expect(
+              (await capturedFor(
+                'old',
+              )).where((DVCapturedChange c) => c.erased),
+              hasLength(1),
+            );
+          },
+        );
+
+        test(
+          'an erasure leaves a row moved to another subject after its walk',
+          () async {
+            await visit('mine', 'u1', '10.1.0.1', const Duration(days: 1));
+            await visit('also', 'u1', '10.1.0.2', const Duration(days: 1));
+            final DVPrivacy privacy = over();
+            await privacy.ensureSchema();
+            final ({Future<void> reached, Completer<void> proceed}) pause =
+                pauseWriteTo('mine');
+
+            final Future<DVErasureResult> erasing = privacy.erase(
+              subject: 'u1',
+              reason: 'DSAR',
+            );
+            await pause.reached;
+            final DVRecord read = (await visits.read('mine'))!;
+            await visits.write(<String, Object?>{
+              ...read.values,
+              'user_id': 'u2',
+            }, base: read);
+            final int history = (await visits.history('mine')).length;
+            final List<DVCapturedChange> captured = await capturedFor('mine');
+            pause.proceed.complete();
+            final DVErasureResult result = await erasing;
+
+            final DVRecord? moved = await visits.read('mine');
+            expect(moved, isNotNull, reason: "it is u2's row now");
+            expect(moved!.values['user_id'], 'u2');
+            expect(moved.values['ip'], '10.1.0.1');
+            expect((await visits.history('mine')).length, history);
+            expect(
+              (await capturedFor('mine')).map((DVCapturedChange c) => c.id),
+              captured.map((DVCapturedChange c) => c.id),
+            );
+            expect(await visits.read('also'), isNull);
+            expect(result.deleted['visits'], 1);
+          },
+        );
+
+        test(
+          'an erasure anonymizes a kept row rewritten after its walk past the '
+          'rewrite, so the rewriting writer conflicts',
+          () async {
+            await visit('kept', 'u1', '10.1.0.1', const Duration(days: 1));
+            final DVPrivacy privacy = over(
+              retain: const DVRetain(years: 7, because: 'audit'),
+            );
+            await privacy.ensureSchema();
+            final ({Future<void> reached, Completer<void> proceed}) pause =
+                pauseWriteTo('kept');
+
+            final Future<DVErasureResult> erasing = privacy.erase(
+              subject: 'u1',
+              reason: 'DSAR',
+            );
+            await pause.reached;
+            final DVRecord read = (await visits.read('kept'))!;
+            final DVRecord rewritten = (await visits.write(<String, Object?>{
+              ...read.values,
+              'ip': '10.9.9.9',
+            }, base: read)).record;
+            pause.proceed.complete();
+            final DVErasureResult result = await erasing;
+
+            final DVRecord erased = (await visits.read('kept'))!;
+            expect(erased.values['ip'], DVPrivacy.tombstone);
+            expect(erased.values['user_id'], privacy.pseudonym('u1'));
+            expect(erased.version, greaterThan(rewritten.version));
+            expect(result.kept.single.key, 'kept');
+            await expectLater(
+              visits.write(rewritten.values, base: rewritten),
+              throwsA(isA<DVConflictError>()),
+              reason:
+                  'otherwise the writer that raced the erasure re-saves the '
+                  'value it removed',
+            );
+            expect(
+              jsonEncode(await db.query('SELECT * FROM visits')),
+              isNot(contains('10.9.9.9')),
+            );
           },
         );
       });

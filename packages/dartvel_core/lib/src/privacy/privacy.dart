@@ -312,6 +312,7 @@ class DVRetentionSweep {
     required this.deleted,
     required this.anonymized,
     required this.held,
+    this.skipped = const <String, int>{},
     required this.remaining,
     required this.codes,
   });
@@ -320,7 +321,14 @@ class DVRetentionSweep {
   final Map<String, int> anonymized;
   final Map<String, int> held;
 
-  /// Expired rows this run did not reach; the next run continues.
+  /// Rows rewritten between the sweep's read and its write, which it left
+  /// alone: deleting or anonymizing one from the stale read would remove a row
+  /// that may have been renewed. Each is re-read, and one still expired is
+  /// counted in [remaining].
+  final Map<String, int> skipped;
+
+  /// Expired rows this run did not reach, including skipped rows still
+  /// expired; the next run reads them again and continues.
   final int remaining;
   final List<String> codes;
 }
@@ -568,14 +576,32 @@ class DVPrivacy {
     }
 
     final Map<String, List<DVRecord>> walk = await _walk(subject);
+    // Whether a row, as it is now, still belongs to the subject: the walk
+    // resolved it earlier, and a row moved to someone else since is theirs.
+    bool belongs(DVPrivacyModel model, DVRecord row) {
+      final DVSubject path = model.subject!;
+      return switch (path._kind) {
+        _DVSubjectKind.self => '${row.key}' == '$subject',
+        _DVSubjectKind.field => '${row.values[path.column]}' == '$subject',
+        _DVSubjectKind.through =>
+          (walk[path.parent!] ?? const <DVRecord>[]).any(
+            (DVRecord p) => '${p.key}' == '${row.values[path.column]}',
+          ),
+      };
+    }
+
+    final List<DVErasedRecord> reached = <DVErasedRecord>[];
     for (final DVPrivacyModel model in models) {
       for (final DVRecord row in walk[model.name] ?? const <DVRecord>[]) {
-        final _DVRowOutcome outcome = await _eraseRow(
+        final _DVRowOutcome? outcome = await _eraseRow(
           model,
           row,
           ref,
           capture: !_captureAdapterErases(model.table),
+          belongs: (DVRecord now) => belongs(model, now),
         );
+        if (outcome == null) continue;
+        reached.add(DVErasedRecord(table: model.table, key: row.key));
         switch (outcome) {
           case _DVRowOutcome.deleted:
             deleted.update(model.name, (int n) => n + 1, ifAbsent: () => 1);
@@ -603,11 +629,6 @@ class DVPrivacy {
       );
     }
 
-    final List<DVErasedRecord> reached = <DVErasedRecord>[
-      for (final DVPrivacyModel model in models)
-        for (final DVRecord row in walk[model.name] ?? const <DVRecord>[])
-          DVErasedRecord(table: model.table, key: row.key),
-    ];
     for (final DVPrivacyAdapter adapter in adapters) {
       try {
         if (adapter is DVPrivacyRecordAdapter) {
@@ -696,58 +717,75 @@ class DVPrivacy {
   /// the row's change log either way: a log entry holds earlier values, and a
   /// revert would put them back. With [capture], a captured model's log is
   /// purged and the removal captured too.
-  Future<_DVRowOutcome> _eraseRow(
+  ///
+  /// The write applies only at the version the walk read. A row rewritten
+  /// since is read again: one that [belongs] to the subject no longer is left
+  /// alone and returns null, one that still does is written at its new
+  /// version, and one gone already has only its copies to forget.
+  Future<_DVRowOutcome?> _eraseRow(
     DVPrivacyModel model,
     DVRecord row,
     DVPrivacySubjectRef ref, {
     required bool capture,
+    required bool Function(DVRecord row) belongs,
   }) async {
     final DVRecordTable table = model.table;
-    final _DVRowOutcome outcome;
-    if (model.retain != null || model.anonymizeOnErase.isNotEmpty) {
-      await _anonymize(model, row, ref);
-      outcome = model.retain != null
-          ? _DVRowOutcome.kept
-          : _DVRowOutcome.anonymized;
-    } else {
-      // Removed outright, even from a soft-delete table: a row marked deleted
-      // still holds everything it held.
-      await database.execute(
-        'DELETE FROM ${table.table} WHERE ${table.key} = ?',
-        <Object?>[row.key],
-      );
-      outcome = _DVRowOutcome.deleted;
-    }
-    await _forgetRow(database, table, row, capture: capture);
-    return outcome;
+    final bool anonymizing =
+        model.retain != null || model.anonymizeOnErase.isNotEmpty;
+    final ({DVRecord row, bool gone})? written = await _writeAtVersion(
+      table,
+      row,
+      belongs: belongs,
+      write: (DVRecord at) => anonymizing
+          ? _anonymize(model, at, ref)
+          // Removed outright, even from a soft-delete table: a row marked
+          // deleted still holds everything it held.
+          : _deleteAt(database, table, at),
+    );
+    if (written == null) return null;
+    await _forgetRow(database, table, written.row, capture: capture);
+    if (written.gone || !anonymizing) return _DVRowOutcome.deleted;
+    return model.retain != null ? _DVRowOutcome.kept : _DVRowOutcome.anonymized;
   }
 
   /// Tombstones every personal field of a kept row and replaces the subject
   /// column with the pseudonym, bumping the version so a writer holding the
   /// old row conflicts rather than writing it back.
-  Future<void> _anonymize(
+  ///
+  /// Applied only while the row is still at [row]'s version and holds each
+  /// value in [unchanged]; returns whether it was. A write at a stale version
+  /// would also set the version the rewrite had already taken, and the writer
+  /// holding that rewrite would not conflict.
+  Future<bool> _anonymize(
     DVPrivacyModel model,
     DVRecord row,
-    DVPrivacySubjectRef ref,
-  ) async {
+    DVPrivacySubjectRef ref, {
+    Map<String, Object?> unchanged = const <String, Object?>{},
+  }) async {
     final DVRecordTable table = model.table;
     final Map<String, Object?> set = <String, Object?>{
       for (final String field in model.personalFields) field: tombstone,
       if (model.subject?._kind == _DVSubjectKind.field)
         model.subject!.column!: ref.pseudonym,
     };
-    if (set.isEmpty) return;
+    if (set.isEmpty) return true;
     final List<String> columns = set.keys.toList();
-    await database.execute(
+    final (String where, List<Object?> params) = _atVersion(
+      table,
+      row,
+      unchanged,
+    );
+    final int affected = await database.execute(
       'UPDATE ${table.table} SET '
       '${<String>[for (final String c in columns) '$c = ?', '${DVRecordTable.versionColumn} = ?'].join(', ')} '
-      'WHERE ${table.key} = ?',
+      'WHERE $where',
       <Object?>[
         for (final String c in columns) set[c],
         row.version + 1,
-        row.key,
+        ...params,
       ],
     );
+    return affected > 0;
   }
 
   bool verifyReceipt(DVErasureReceipt receipt) {
@@ -837,8 +875,25 @@ class DVPrivacy {
     }
     // A restore brings back the capture log with the rows, so the log is
     // purged again here; no adapter runs on a replay to do it instead.
+    bool stillErased(DVPrivacyModel model, DVRecord row) {
+      final DVSubject path = model.subject!;
+      final Object? id = switch (path._kind) {
+        _DVSubjectKind.self => row.key,
+        _DVSubjectKind.field => row.values[path.column],
+        _DVSubjectKind.through =>
+          subjectOf[path.parent!]?['${row.values[path.column]}'],
+      };
+      return id != null && erased.contains(_ref(id).pseudonym);
+    }
+
     for (final (DVPrivacyModel, DVRecord, DVPrivacySubjectRef) item in due) {
-      await _eraseRow(item.$1, item.$2, item.$3, capture: true);
+      await _eraseRow(
+        item.$1,
+        item.$2,
+        item.$3,
+        capture: true,
+        belongs: (DVRecord now) => stillErased(item.$1, now),
+      );
     }
     if (due.isNotEmpty) {
       _report(
@@ -937,19 +992,27 @@ class DVPrivacy {
         <(DVPrivacyModel, DVRecord, bool)>[];
     for (final DVPrivacyModel model in models) {
       final DVRetention? retention = model.retention;
-      final Duration? keep = retention?.duration;
-      if (retention == null || keep == null) continue;
+      if (retention == null || retention.isIndefinite) continue;
       for (final DVRecord row in await model.table.all(withDeleted: true)) {
-        final DateTime? at = DateTime.tryParse('${row.values[retention.from]}');
-        if (at == null) continue;
-        final Duration age = now.difference(at);
-        if (age <= keep) continue;
-        final DVRetain? longer = model.retain;
-        final bool held = longer != null && age <= longer.duration;
-        out.add((model, row, held));
+        final bool? held = _heldOrDue(model, row, now);
+        if (held != null) out.add((model, row, held));
       }
     }
     return out;
+  }
+
+  /// Null when [row] has not outlived [model]'s retention at [now]; otherwise
+  /// whether a longer retention still holds it.
+  static bool? _heldOrDue(DVPrivacyModel model, DVRecord row, DateTime now) {
+    final DVRetention? retention = model.retention;
+    final Duration? keep = retention?.duration;
+    if (retention == null || keep == null) return null;
+    final DateTime? at = DateTime.tryParse('${row.values[retention.from]}');
+    if (at == null) return null;
+    final Duration age = now.difference(at);
+    if (age <= keep) return null;
+    final DVRetain? longer = model.retain;
+    return longer != null && age <= longer.duration;
   }
 
   /// What the next sweep would do, changing nothing.
@@ -985,9 +1048,10 @@ class DVPrivacy {
     final Map<String, int> deleted = <String, int>{};
     final Map<String, int> anonymized = <String, int>{};
     final Map<String, int> held = <String, int>{};
-    final List<(DVPrivacyModel, DVRecord, bool)> expired = await _expired(
-      now ?? _now(),
-    );
+    final Map<String, int> skipped = <String, int>{};
+    int skippedDue = 0;
+    final DateTime at = now ?? _now();
+    final List<(DVPrivacyModel, DVRecord, bool)> expired = await _expired(at);
     final List<(DVPrivacyModel, DVRecord)> due = <(DVPrivacyModel, DVRecord)>[];
     for (final (DVPrivacyModel model, DVRecord row, bool isHeld) in expired) {
       if (isHeld) {
@@ -1008,20 +1072,39 @@ class DVPrivacy {
         end,
       )) {
         final DVRecordTable table = model.table;
-        if (model.retention!.then == DVRetentionAction.anonymize) {
-          await _anonymize(
-            model,
-            row,
-            _ref(row.values[model.subject?.column] ?? row.key),
+        final DVRetention retention = model.retention!;
+        // Only the row as it was read, still expired from the timestamp that
+        // made it so: a row renewed since is not this sweep's to remove.
+        final Map<String, Object?> unchanged = <String, Object?>{
+          retention.from!: row.values[retention.from],
+        };
+        final bool anonymizing = retention.then == DVRetentionAction.anonymize;
+        final bool applied = anonymizing
+            ? await _anonymize(
+                model,
+                row,
+                _ref(row.values[model.subject?.column] ?? row.key),
+                unchanged: unchanged,
+              )
+            : await _deleteAt(database, table, row, unchanged: unchanged);
+        if (!applied) {
+          // Left for the next run, which reads it afresh; counted in
+          // [remaining] only while it is still due.
+          skipped.update(model.name, (int n) => n + 1, ifAbsent: () => 1);
+          final DVRecord? current = await table.read(
+            row.key,
+            withDeleted: true,
           );
-          anonymized.update(model.name, (int n) => n + 1, ifAbsent: () => 1);
-        } else {
-          await database.execute(
-            'DELETE FROM ${table.table} WHERE ${table.key} = ?',
-            <Object?>[row.key],
-          );
-          deleted.update(model.name, (int n) => n + 1, ifAbsent: () => 1);
+          if (current != null && _heldOrDue(model, current, at) == false) {
+            skippedDue++;
+          }
+          continue;
         }
+        (anonymizing ? anonymized : deleted).update(
+          model.name,
+          (int n) => n + 1,
+          ifAbsent: () => 1,
+        );
         // Retention applies to every copy of the row: its change log, and
         // the capture log and each destination it feeds.
         await _forgetRow(database, table, row);
@@ -1056,7 +1139,8 @@ class DVPrivacy {
       deleted: deleted,
       anonymized: anonymized,
       held: held,
-      remaining: due.length - done,
+      skipped: skipped,
+      remaining: due.length - done + skippedDue,
       codes: codes,
     );
   }
@@ -1186,6 +1270,76 @@ Future<void> _forgetRow(
   }
 }
 
+/// The `WHERE` that matches [row] only as it was read: its key, its version,
+/// and each value in [unchanged].
+(String, List<Object?>) _atVersion(
+  DVRecordTable table,
+  DVRecord row,
+  Map<String, Object?> unchanged,
+) => (
+  <String>[
+    '${table.key} = ?',
+    '${DVRecordTable.versionColumn} = ?',
+    for (final String column in unchanged.keys) '$column = ?',
+  ].join(' AND '),
+  <Object?>[row.key, row.version, ...unchanged.values],
+);
+
+/// Deletes [row] if it is still at the version it was read and holds each
+/// value in [unchanged]; returns whether it was.
+Future<bool> _deleteAt(
+  DVDatabaseAdapter database,
+  DVRecordTable table,
+  DVRecord row, {
+  Map<String, Object?> unchanged = const <String, Object?>{},
+}) async {
+  final (String where, List<Object?> params) = _atVersion(
+    table,
+    row,
+    unchanged,
+  );
+  return await database.execute(
+        'DELETE FROM ${table.table} WHERE $where',
+        params,
+      ) >
+      0;
+}
+
+/// How many times an erasure reads a row again that keeps being rewritten
+/// under it before giving up. A writer that wins every time is not one the
+/// erasure can outrun, and failing loudly leaves the durable job to retry.
+const int _erasureAttempts = 5;
+
+/// Applies an erasure's [write] to [row] at the version it was read, reading
+/// the row again whenever a rewrite got there first.
+///
+/// Returns the row as written, or as last read with `gone` when it no longer
+/// exists -- its copies are the subject's to forget either way -- and null
+/// when the row, as rewritten, no longer [belongs] to the subject, so it is
+/// someone else's and left alone.
+Future<({DVRecord row, bool gone})?> _writeAtVersion(
+  DVRecordTable table,
+  DVRecord row, {
+  required Future<bool> Function(DVRecord at) write,
+  required bool Function(DVRecord row) belongs,
+}) async {
+  DVRecord at = row;
+  for (int attempt = 1; ; attempt++) {
+    if (await write(at)) return (row: at, gone: false);
+    final DVRecord? current = await table.read(at.key, withDeleted: true);
+    if (current == null) return (row: at, gone: true);
+    if (!belongs(current)) return null;
+    if (attempt >= _erasureAttempts) {
+      throw StateError(
+        '${table.table}[${at.key}] was rewritten $attempt times while it was '
+        'being erased; it still belongs to the subject and was not erased. '
+        'Run the erasure again.',
+      );
+    }
+    at = current;
+  }
+}
+
 /// The erasure and export of one device's offline copy.
 ///
 /// A local store holds the subject's rows and, in its mutation log, writes not
@@ -1243,12 +1397,17 @@ class DVOfflineStorePrivacyAdapter implements DVPrivacyAdapter {
     final Set<String> keys = <String>{};
     for (final DVRecord row in await table.all(withDeleted: true)) {
       if (!_belongs(row.key, row.values, ref.id)) continue;
-      keys.add(jsonEncode(row.key));
-      await db.execute(
-        'DELETE FROM ${table.table} WHERE ${table.key} = ?',
-        <Object?>[row.key],
+      final ({DVRecord row, bool gone})? removed = await _writeAtVersion(
+        table,
+        row,
+        write: (DVRecord at) => _deleteAt(db, table, at),
+        belongs: (DVRecord now) => _belongs(now.key, now.values, ref.id),
       );
-      await _forgetRow(db, table, row);
+      // Moved to someone else since it was read: theirs, and so are the
+      // server copy and queued writes its key would otherwise match.
+      if (removed == null) continue;
+      keys.add(jsonEncode(row.key));
+      await _forgetRow(db, table, removed.row);
     }
     // A server copy or a queued write can outlive the local row it came from,
     // so each is matched on its own values, not only on a local row's key.

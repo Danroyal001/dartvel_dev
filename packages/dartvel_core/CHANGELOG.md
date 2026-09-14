@@ -1,5 +1,22 @@
 ## Unreleased
 
+- **A sweep or erasure no longer removes a row rewritten after it was read.**
+  `DVPrivacy.sweepRetention` read the expired rows, then deleted or
+  anonymized each by key alone, so a session renewed between the read and
+  the write was removed anyway, and its history and captured changes with it.
+  An erasure had the same gap: a row moved to another customer after the walk
+  was deleted as the subject's, and a kept row anonymized from a stale read
+  took the version the rewrite already held, so the writer that raced it
+  could save the erased value back without a conflict. Each write now applies
+  only at the version read (a sweep also requires the retention timestamp it
+  read), and history purge and capture follow only a write that applied. A
+  sweep leaves a contended row for the next run, reports it in the new
+  `DVRetentionSweep.skipped`, and counts it in `remaining` while it is still
+  expired. An erasure, `replayErasures` and `DVOfflineStorePrivacyAdapter`
+  read the row again and erase it at its new version while it still belongs
+  to the subject; a row that no longer does is left alone and kept out of
+  what record adapters are handed.
+
 - **A retention sweep's deletes reach the capture log and the warehouse.**
   `DVPrivacy.sweepRetention` removed and anonymized expired rows with SQL of
   its own beside `DVRecordTable`, so no change was captured: a warehouse fed
