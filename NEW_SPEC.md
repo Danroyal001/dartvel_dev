@@ -1704,11 +1704,12 @@ Future<void> _transferFunds(String to, int cents) async => Ledger.transfer(to, c
   middleware redirect already has, so application code does not handle it.
 
 Enrollment is generated: TOTP with a QR code, passkeys through the method
-Authentication already has, and recovery codes. **Recovery codes are
-`@DVModel.sensitiveField()` values** — hashed, shown exactly once, and excluded
-from logs, traces, AI context and export by construction. A recovery code in a
-support ticket is how accounts get taken over, and the field annotation is what
-keeps it out of one.
+Authentication already has, and recovery codes. **Recovery codes are stored
+only as salted hashes** — shown exactly once, used once, and excluded from
+logs, traces, AI context and export by construction. They live in a store the
+framework owns rather than on an application model, so they carry the
+guarantees `@DVModel.sensitiveField()` gives a field without being one. A
+recovery code in a support ticket is how accounts get taken over.
 
 MFA policy is per-tenant configurable where Organizations exist: an
 organization may require a second factor of its members, which is the form the
@@ -2367,6 +2368,12 @@ The timestamp is in the signed material so a captured delivery cannot be
 replayed a month later, and the documentation Dartvel generates for the
 customer says to compare in constant time and to bound the age — the two
 things a consumer implementation gets wrong.
+
+A delivery carries four headers: `dartvel-webhook-id`, `dartvel-webhook-event`,
+`dartvel-webhook-timestamp` and `dartvel-webhook-signature`. The signature
+header lists `v1=` entries — one normally, two through a rotation overlap — so
+a consumer verifies against whichever key it holds. The names are fixed here
+because the consumer documentation has to describe what is actually sent.
 
 ## Delivery is durable work, partitioned per endpoint
 
@@ -3458,10 +3465,21 @@ abstract class _Flags {
 }
 ```
 
-The generated `Flags.newCheckout` is a read-only signal, so a widget guarded
-on a flag rebuilds when the rules change under it, and a flag composes with
-the rest of the state layer without a second mechanism:
-`Flags.newCheckout & user.isStaff` is a signal too.
+Each field becomes a generated `DVFeatureFlag<T>` member of `Flags`, carrying
+its key, default, owner and expiry. A widget reads one as a signal through its
+context — `context.flag(Flags.newCheckout)` — so it rebuilds when the rules
+change under it, and a flag composes with the rest of the state layer without
+a second mechanism: `context.flag(Flags.newCheckout) & user.isStaff` is a
+signal too. The context is what makes it a signal: a static member has no
+element to subscribe, so `Flags.newCheckout` on its own is the flag's
+description, not its live value.
+
+The declaration class is never referenced by application code, which the
+analyzer reports as an unused class with unused fields. No placement of an
+annotation clears the unused-field warning, so this example draws warnings a
+real project has to live with until the generator emits a reference the
+analyzer can see. That is an open problem in this section, not a convention to
+copy.
 
 The value written in Dart is the **default compiled into the binary**, not a
 placeholder. It is what the flag answers before anything has synced, and it is
@@ -3658,11 +3676,14 @@ reads — and an application with flags but no typed values grows a second
 mechanism for those, usually a table somebody edits by hand.
 
 ```dart
-DV.Flags.checkoutV2.enabled      // bool
-DV.Config.pageSize.value         // int
-DV.Config.supportHours.value     // String
-DV.Config.pricingTiers.value     // a typed JSON shape
+context.flag(Flags.checkoutV2)     // bool
+context.flag(Flags.pageSize)       // int
+context.flag(Flags.supportHours)   // String
+context.flag(Flags.pricingTiers)   // a typed JSON shape
 ```
+
+There is no separate `DV.Config`: a value is a flag whose type is not `bool`,
+declared in the same `@DVFlags` class and read the same way.
 
 Declared, typed, owned, dated and targeted by exactly the machinery above, so
 a value takes the same tenant, platform and percentage rules a flag does, is
