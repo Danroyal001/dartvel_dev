@@ -1,5 +1,14 @@
 ## Unreleased
 
+- **Queues live under `DARTVEL_QUEUE_NAMESPACE`.** `DVQueues` dispatches,
+  works, lists and flushes `<namespace>.<queue>` when the process environment
+  names a namespace or `useNamespace` sets one, so a preview never reserves a
+  production job and production never reserves a preview's. A process with no
+  namespace cannot name a queue under a `preview-` namespace, and a process in
+  a preview with no namespace uses no queue at all. Applied in `DVQueues`
+  rather than in each adapter, so every adapter gets it. `retry` and
+  `discard` still take a job id as given.
+
 - **3D Scenes: the platform-independent runtime.** `DV3DSceneDocument`
   states its units, up axis and handedness, keeps node ids, child order and
   keys a newer version wrote, encodes canonically, and refuses a duplicate id,
