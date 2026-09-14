@@ -1,6 +1,46 @@
 import 'package:dartvel_core/dartvel.dart';
 import 'package:test/test.dart';
 
+/// Counts the hashing work a provider does, so equal work is asserted by
+/// counting rather than by a stopwatch that a busy machine makes flaky.
+class CountingHasher extends DVPasswordHasher {
+  CountingHasher({this.match = false}) : super(iterations: 1000);
+
+  /// Accept every password: a dummy hash that happens to match must still
+  /// not sign anybody in.
+  final bool match;
+
+  int hashes = 0;
+  int verifies = 0;
+  final List<String> _iterations = <String>[];
+
+  void clear() {
+    hashes = 0;
+    verifies = 0;
+    _iterations.clear();
+  }
+
+  ({int hashes, int verifies, List<String> iterationsVerified}) snapshot() => (
+        hashes: hashes,
+        verifies: verifies,
+        iterationsVerified: List<String>.of(_iterations),
+      );
+
+  @override
+  String hash(String password) {
+    hashes++;
+    return super.hash(password);
+  }
+
+  @override
+  bool verify(String password, String encoded) {
+    verifies++;
+    final parts = encoded.split(r'$');
+    _iterations.add(parts.length > 1 ? parts[1] : '');
+    return match || super.verify(password, encoded);
+  }
+}
+
 void main() {
   group('DVPasswordHasher', () {
     // Low iteration count keeps the suite fast; the algorithm is identical.
@@ -100,7 +140,7 @@ void main() {
           isA<AuthException>().having(
             (error) => error.failure,
             'failure',
-            AuthFailure.invalidPassword,
+            AuthFailure.invalidCredentials,
           ),
         ),
       );
@@ -114,10 +154,96 @@ void main() {
           isA<AuthException>().having(
             (error) => error.failure,
             'failure',
-            AuthFailure.unknownAccount,
+            AuthFailure.invalidCredentials,
           ),
         ),
       );
+    });
+
+    group('does not reveal which e-mails have accounts', () {
+      Future<AuthException> refusal(
+        LocalAuthProvider provider,
+        String email,
+        String password,
+      ) async {
+        try {
+          await provider.signIn(email, password);
+        } on AuthException catch (error) {
+          return error;
+        }
+        fail('$email was signed in');
+      }
+
+      test('an unknown account fails exactly as a wrong password does',
+          () async {
+        await auth.signUp('ada@example.com', 'lovelace-1843');
+        await auth.signOut();
+
+        final missing =
+            await refusal(auth, 'nobody@example.com', 'lovelace-1843');
+        final wrong = await refusal(auth, 'ada@example.com', 'not-it-at-all');
+
+        expect(missing.failure, wrong.failure);
+        expect(missing.message, wrong.message);
+        expect(missing.toString(), wrong.toString());
+        expect(missing.message, isNot(contains('No account')));
+      });
+
+      test('an unknown account costs one verification and no hashing, the '
+          'same work as a wrong password', () async {
+        final hasher = CountingHasher();
+        final provider = LocalAuthProvider(hasher: hasher);
+        await provider.signUp('ada@example.com', 'lovelace-1843');
+        await provider.signOut();
+
+        hasher.clear();
+        await refusal(provider, 'nobody@example.com', 'lovelace-1843');
+        final missing = hasher.snapshot();
+
+        hasher.clear();
+        await refusal(provider, 'ada@example.com', 'not-it-at-all');
+        final wrong = hasher.snapshot();
+
+        expect(missing.verifies, 1,
+            reason: 'the password is checked against a dummy hash');
+        expect(missing.hashes, 0,
+            reason: 'hashing on every miss doubles the work a miss costs');
+        expect(missing.verifies, wrong.verifies);
+        expect(missing.hashes, wrong.hashes);
+        expect(missing.iterationsVerified, wrong.iterationsVerified,
+            reason: 'the dummy hash is as expensive as a real one');
+      });
+
+      test('an unknown account is refused even if the dummy hash matched',
+          () async {
+        final provider = LocalAuthProvider(hasher: CountingHasher(match: true));
+        await expectLater(
+          provider.signIn('nobody@example.com', 'anything-at-all'),
+          throwsA(isA<AuthException>()),
+        );
+        expect(await provider.currentUser(), isNull);
+      });
+
+      test('signing up an existing address hashes the password as a new one '
+          'does', () async {
+        final hasher = CountingHasher();
+        final provider = LocalAuthProvider(hasher: hasher);
+        await provider.signUp('ada@example.com', 'lovelace-1843');
+
+        hasher.clear();
+        await provider.signUp('grace@example.com', 'hopper-1906');
+        final fresh = hasher.snapshot();
+
+        hasher.clear();
+        await expectLater(
+          provider.signUp('ada@example.com', 'another-password'),
+          throwsA(isA<AuthException>()),
+        );
+        final taken = hasher.snapshot();
+
+        expect(taken.hashes, fresh.hashes,
+            reason: 'a taken address must not answer before the hash');
+      });
     });
 
     test('will not silently overwrite an existing account', () async {

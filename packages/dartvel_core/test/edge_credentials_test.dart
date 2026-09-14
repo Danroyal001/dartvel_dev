@@ -38,6 +38,33 @@ class SlowProvider implements AuthProvider {
   Stream<AuthUser?> get authStateChanges => inner.authStateChanges;
 }
 
+/// A provider written against the old contract, answering an unknown account
+/// and a wrong password with different failures and different words.
+class LeakyProvider implements AuthProvider {
+  @override
+  Future<AuthUser?> signIn(String email, String password) async {
+    if (email == 'ada@x.com') {
+      // ignore: deprecated_member_use_from_same_package
+      throw const AuthException(AuthFailure.invalidPassword, 'Wrong password.');
+    }
+    // ignore: deprecated_member_use_from_same_package
+    throw const AuthException(AuthFailure.unknownAccount, 'No such user.');
+  }
+
+  @override
+  Future<AuthUser?> signUp(String email, String password, {String? name}) =>
+      throw UnimplementedError();
+
+  @override
+  Future<void> signOut() async {}
+
+  @override
+  Future<AuthUser?> currentUser() async => null;
+
+  @override
+  Stream<AuthUser?> get authStateChanges => const Stream<AuthUser?>.empty();
+}
+
 void main() {
   late DateTime now;
   DateTime clock() => now;
@@ -235,6 +262,37 @@ void main() {
       final again =
           await g.signIn('ada@x.com', 'correct-horse', source: '10.0.0.1');
       expect(again, isNotNull);
+    });
+
+    test('a guarded refusal is the refusal the provider itself gives',
+        () async {
+      Object? unguarded;
+      try {
+        await local.signIn('nobody@x.com', 'whatever-1');
+      } catch (error) {
+        unguarded = error;
+      }
+      final (guarded, _) = await refusedSignIn(guard(), 'nobody@x.com', 'x');
+      expect((guarded as AuthException).failure,
+          (unguarded as AuthException).failure);
+      expect(guarded.message, unguarded.message);
+    });
+
+    test('a provider that still tells the two apart is collapsed by the guard',
+        () async {
+      final leaky = DVCredentialGuard(
+        provider: LeakyProvider(),
+        refusalFloor: const Duration(milliseconds: 400),
+        clock: clock,
+        delay: (duration) async => advance(duration),
+      );
+      final (missing, missingTook) =
+          await refusedSignIn(leaky, 'nobody@x.com', 'x');
+      final (wrong, wrongTook) = await refusedSignIn(leaky, 'ada@x.com', 'x');
+      expect((missing as AuthException).failure,
+          (wrong as AuthException).failure);
+      expect(missing.message, wrong.message);
+      expect(missingTook, wrongTook);
     });
 
     test('a breached password is refused at sign-up, before an account exists',

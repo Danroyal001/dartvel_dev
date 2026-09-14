@@ -149,8 +149,8 @@ void main() {
     expect(DVPasswordHasher(iterations: 1000).hash('pw'), isNotEmpty);
     expect(LocalAuthProvider(), isA<AuthProvider>());
     expect(
-      const AuthException(AuthFailure.invalidPassword, 'no').failure,
-      AuthFailure.invalidPassword,
+      AuthException.invalidCredentials.failure,
+      AuthFailure.invalidCredentials,
     );
 
     final oauth = DVOAuth2Client(

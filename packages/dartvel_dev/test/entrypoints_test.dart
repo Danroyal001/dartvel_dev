@@ -47,8 +47,8 @@ void main() {
 
     expect(auth.LocalAuthProvider(), isA<auth.AuthProvider>());
     expect(
-      const auth.AuthException(auth.AuthFailure.unknownAccount, 'no').failure,
-      auth.AuthFailure.unknownAccount,
+      auth.AuthException.invalidCredentials.failure,
+      auth.AuthFailure.invalidCredentials,
     );
 
     final oauth = auth.DVOAuth2Client(
