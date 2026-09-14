@@ -1222,7 +1222,23 @@
     {
       "section": "Dev Client",
       "stability": "Draft",
-      "status": "Designed"
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_core/lib/src/devclient/dev_client.dart",
+        "packages/dartvel_core/test/dev_client_test.dart",
+        "packages/dartvel_flutter/lib/dev_client.dart",
+        "packages/dartvel_flutter/lib/src/devclient/dev_client.dart",
+        "packages/dartvel_flutter/test/dev_client_load_test.dart",
+        "packages/dartvel_flutter/test/dev_client_menu_test.dart",
+        "packages/dartvel_flutter/test/dev_client_release_exclusion_test.dart",
+        "packages/dartvel_cli/lib/src/devclient/dev_client_project.dart",
+        "packages/dartvel_cli/lib/src/devclient/dev_client_server.dart",
+        "packages/dartvel_cli/lib/src/devclient/dev_client_artifact.dart",
+        "packages/dartvel_cli/test/dev_client_server_test.dart",
+        "packages/dartvel_cli/test/dev_client_build_test.dart",
+        "packages/dartvel_cli/test/publish_dev_client_test.dart"
+      ],
+      "absent": "Built: a bundle is a signed ES256 envelope over canonical payload bytes, stamped with branch, sequence and the binding manifest it needs; its version is its content digest, so a rebuild is never taken for the bundle already applied. A shell opens a bundle only with the key from its pairing link (dartvel-dev://pair?server&branch&key&token) and refuses an unsigned bundle, another key, another branch, a replayed older sequence, a bundle stating no manifest, and one needing a binding the shell was not built with (DV-DEVCLIENT-002, naming every missing entry); an unreachable or token-refusing server is DV-DEVCLIENT-001. Loading applies through the OTA page-bundle installer, and DV.Updates.applyPages takes the same key check when given signedBy. The shell, dev menu (reload, bindings registered on this device, load log) and loader live in package:dartvel_flutter/dev_client.dart, which nothing reachable from the application barrel imports, so a release build cannot compile them in. dartvel dev --dev-client serves the bundle with a fresh key and token per run, prints the pairing link, answers 401 without the token, re-reads pages and resolved plugins on every request, and refuses rather than serve an empty manifest. dartvel build dev-client --target android|ios checks target, host, flutter and the Android SDK or xcodebuild (never installed), a declared devclient flavor with its own application id, and resolved plugins before writing anything, then generates an entrypoint recording the manifest with no application code and runs flutter build apk|ipa --release --flavor devclient. dartvel publish recognises a shell by a marker in the compiled snapshot inside the artifact and refuses it for Play alpha, beta and production and the App Store with DV-DEVCLIENT-003, allowing Play internal, TestFlight and Firebase. Not built: no shell has been built or installed on any device (no Android SDK or macOS host was available), so signing, the generated entrypoint compiling and the marker surviving a real Flutter AOT build are unverified; the devclient flavor or scheme is not generated, only required; the dartvel-dev URL scheme is not registered in the shell's native manifests, so a link reaches the shell only where the deepLinks binding delivers it; no QR code is rendered, only the link; no preview-environment connection; the dev menu has no dartvel inspect inspectors and no kiosk staff mode; the desktop and embedded launch flag is not built; the token travels over plain http, so the key stops another machine pushing code but the token does not stop a device sniffing the LAN from reading pages. Where the section and the code disagree: the section has a shell load the project's own pages and logic, but a release-mode Flutter shell cannot load compiled Dart, and bundles in the OTA page format carry Studio page documents, which are data, so a shell renders stored pages but cannot run a project's compiled pages, backend functions or other Dart code; OTA page bundles had no signature check to share, so one was added as an opt-in to applyPages and OTA still accepts unsigned bundles by default; there was no on-disk home for page documents, so the dev server reads studio/pages/*.json; the binding manifest is resolved native plugins plus the dartvel_flutter version rather than individual binding names; --target already meant the entrypoint for dartvel build and names the platform only for dev-client."
     },
     {
       "section": "CLI",
