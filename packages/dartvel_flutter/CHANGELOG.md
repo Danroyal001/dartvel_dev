@@ -1,5 +1,18 @@
 ## Unreleased
 
+- **`DVBox.scene`.** A 3D viewport as a box layout mode:
+  `DVBox.scene(DVScene(nodes: [...]))` with `DVModel3D`, `DVMesh`, `DVNode`,
+  `DVSceneCamera` and `DVLight` as typed scene objects rather than widgets.
+  Node modifiers take a value or a signal; a signal moves a node on the next
+  frame without reloading the scene. A tap reaches the nearest node under the
+  pointer, blocked by anything in front and passed up to an ancestor's
+  handler. An orbit camera with `controls: true` turns on drag. Where the scene
+  cannot render -- no renderer on the target, `scene3d` disabled, the GPU
+  failing to start, an asset that did not load -- the box shows the poster
+  labelled with why, and `DVSceneController.degradation` says the same.
+  `DVSceneCamera` is not the specification's `DVCamera`, which is already the
+  device camera.
+
 - **`DV.Workers`.** The application's worker pool is reachable from a page as
   `DV.Workers`, the pool `DVWorkers.configure` installed, and the types a run
   hands back -- `DVWorkerResult`, `DVProgress`, `DVCancellation`,
