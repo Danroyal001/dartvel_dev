@@ -151,6 +151,23 @@ void main() {
       expect(c.state.value, DVPlaybackState.completed);
     });
 
+    test('a failed player stays failed when a late report arrives', () async {
+      final c = controller(const DVMediaSource.url('https://cdn.test/a.mp4'));
+      await c.attach(backend);
+      backend.emit(const DVMediaFailed('Resource not found.'));
+      await pump();
+      // A backend that says "playing" after it failed -- one answering a play
+      // request, or a report already queued -- must not revive the player.
+      backend
+        ..emit(const DVMediaPlaying())
+        ..emit(const DVMediaPosition(Duration(seconds: 3)))
+        ..emit(const DVMediaReady(duration: Duration(minutes: 1)));
+      await pump();
+      expect(c.state.value, DVPlaybackState.failed);
+      expect(c.position.value, Duration.zero);
+      expect(c.error.value, 'Resource not found.');
+    });
+
     test('a backend error fails the player and says why', () async {
       final c = controller(const DVMediaSource.url('https://cdn.test/a.mp4'));
       await c.attach(backend);
