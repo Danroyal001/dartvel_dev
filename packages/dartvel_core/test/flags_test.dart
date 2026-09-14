@@ -532,5 +532,34 @@ void main() {
       expect(exposures, isEmpty);
       expect(reported, contains('DV-FLAGS-007'));
     });
+
+    test('an exposure withheld for consent is recorded once consent is given',
+        () {
+      // Marking the context as exposed while consent was withheld would keep
+      // it out of the experiment for the rest of the session after the person
+      // said yes, and nothing would say so.
+      final List<DVFlagExposure> exposures = <DVFlagExposure>[];
+      bool granted = false;
+      DVFlags.onExposure = exposures.add;
+      DVFlags.exposureConsent = () => granted;
+      DVFlags.context = () => alice;
+      DVFlags.resolve(newCheckout);
+      expect(exposures, isEmpty);
+      granted = true;
+      DVFlags.resolve(newCheckout);
+      DVFlags.resolve(newCheckout);
+      expect(exposures, hasLength(1));
+    });
+
+    test('withheld consent is reported once per context, not on every read',
+        () {
+      DVFlags.onExposure = (DVFlagExposure _) {};
+      DVFlags.exposureConsent = () => false;
+      DVFlags.context = () => alice;
+      for (int i = 0; i < 10; i++) {
+        DVFlags.resolve(newCheckout);
+      }
+      expect(reported.where((String c) => c == 'DV-FLAGS-007'), hasLength(1));
+    });
   });
 }
