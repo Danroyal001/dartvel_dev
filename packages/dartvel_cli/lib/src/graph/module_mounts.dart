@@ -20,6 +20,7 @@ import 'package:yaml/yaml.dart';
 
 import '../generators/page_names.dart';
 import '../generators/route_utils.dart';
+import '../module_trust/module_trust.dart' show dvResolvePackageRoot;
 
 /// How a mounted module is built and deployed.
 enum DVModuleDeployment {
@@ -93,7 +94,16 @@ class DVModuleMount {
     this.theme = 'inherit',
     this.data = 'shared',
     this.problems = const <String>[],
+    this.fromPackage = false,
   });
+
+  /// Whether the module is mounted as a dependency (`package:`) rather than
+  /// from a source path beside the parent.
+  ///
+  /// A dependency's project is wherever pub resolved it -- the pub cache, for
+  /// a published module -- so it ships its own generated client and the
+  /// parent does not generate into it.
+  final bool fromPackage;
 
   /// The id the parent knows it by: `DV.Modules.<id>`.
   final String id;
@@ -328,7 +338,9 @@ List<DVModuleMount> dvDiscoverModuleMounts(String root) {
       return;
     }
 
-    final String? sourcePath = _sourceOf(body, problems, id);
+    final bool fromPackage = body['package'] is String &&
+        (body['package']! as String).isNotEmpty;
+    final String? sourcePath = _sourceOf(root, body, problems, id);
 
     if (sourcePath == null) {
       mounts.add(DVModuleMount(
@@ -446,6 +458,7 @@ List<DVModuleMount> dvDiscoverModuleMounts(String root) {
       theme: modes.theme,
       data: modes.data,
       problems: problems,
+      fromPackage: fromPackage,
     ));
   });
   mounts.sort((DVModuleMount a, DVModuleMount b) => a.id.compareTo(b.id));
@@ -689,7 +702,26 @@ String _mountOf(Map<Object?, Object?> body, List<String> problems) {
   return _normalise(mount);
 }
 
-String? _sourceOf(Map<Object?, Object?> body, List<String> problems, String id) {
+String? _sourceOf(
+  String root,
+  Map<Object?, Object?> body,
+  List<String> problems,
+  String id,
+) {
+  // A dependency, as the specification's grant example mounts one: resolved
+  // where pub resolved it, and returned relative to the parent like a source
+  // path so everything downstream reads it the same way.
+  final Object? package = body['package'];
+  if (package is String && package.isNotEmpty) {
+    final String? resolved = dvResolvePackageRoot(root, package);
+    if (resolved == null) {
+      problems.add('dartvel.modules.$id.package is "$package", and it does not '
+          'resolve from .dart_tool/package_config.json. Add it as a '
+          'dependency and run pub get.');
+      return null;
+    }
+    return p.relative(resolved, from: root);
+  }
   final Object? source = body['source'];
   final Object? path = source is Map ? source['path'] : source;
   if (path is String && path.isNotEmpty) return path;

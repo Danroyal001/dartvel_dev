@@ -97,7 +97,10 @@ Future<void> generate({
     if (module.sourcePath.isEmpty) continue;
     // Generated before the parent, because the parent imports its client.
     final moduleRoot = File('$root/${module.sourcePath}').absolute.path;
-    if (Directory(moduleRoot).existsSync()) {
+    // A module mounted as a dependency ships its generated client. Its
+    // project is wherever pub resolved it, usually the pub cache, which is
+    // not this build's to write into.
+    if (!module.fromPackage && Directory(moduleRoot).existsSync()) {
       log('dartvel: generating mounted module ${module.id}');
       // The module is compiled into this binary, so it renders wherever the
       // parent does. Letting it default would generate a GUI main inside a
