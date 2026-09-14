@@ -3432,7 +3432,7 @@ Automatic:
 
 # Feature Flags and Staged Rollout
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
 
 A flag is a decision the application ships without having made: whether the
 new checkout is on, which recommender runs, how many rows a list loads. It
