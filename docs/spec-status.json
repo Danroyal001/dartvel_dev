@@ -1442,9 +1442,17 @@
     {
       "section": "Documentation Generation",
       "stability": "Draft",
-      "status": "Designed",
-      "evidence": [],
-      "absent": "There is no dartvel docs command. The material it would render does exist in part -- dartvel inspect answers routes, models, functions, jobs, windows and kiosk, dartvel explain reads the diagnostics registry, and source mappings are kept -- but nothing assembles any of it into a site, and the four inspectors Unified Development records as missing (module, transaction, schema, generated) are four of the renderings this section describes. Nothing links decision records to graph nodes, so DV-DOCS-001's drift check has nothing to check; the policy matrix and module-grant map are renderings of sections that are themselves Designed; and the federated micro-site mounting it shares with the status page is unbuilt."
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_cli/lib/src/docs/docs_site.dart",
+        "packages/dartvel_cli/lib/src/docs/docs_server.dart",
+        "packages/dartvel_cli/lib/src/commands/docs_command.dart",
+        "packages/dartvel_cli/test/docs_site_test.dart",
+        "packages/dartvel_cli/test/docs_request_stages_test.dart",
+        "packages/dartvel_cli/test/docs_command_test.dart",
+        "packages/dartvel_cli/test/project_graph_annotations_test.dart"
+      ],
+      "absent": "Built: dartvel docs renders the project graph into a static site covering models and fields (types, doc comments, relations, policies, generated surfaces, and type-derived example data in which a sensitive field is named, marked and never valued), backend functions (signature, doc comment, and the request lifecycle stages in the order the generated backend runs them, held to a really generated handler by a test), the route index (pages, generated model pages, embedded and federated module pages), jobs and backend and client cron, a policy matrix of resource against action with guarded surfaces, the module map with modes, requires, exports and globals, and the diagnostics glossary from the DVDiagnostics registry. Decision records in docs/decisions link to the nodes they name as kind:target code spans, and those nodes link back; DV-DOCS-001 is emitted for a name that is gone and DV-DOCS-002 for a node whose source mapping no longer holds its declaration. graph.json in the site is byte-identical to what dartvel mcp returns, and every node in it has an anchor in the site. Output is byte-deterministic; --fatal-warnings fails on drift; --serve serves on loopback and rebuilds on change. Building it fixed two project-graph defects that reached inspect and MCP: a sensitive field with stacked or parameterised annotations read as ordinary, and a backend function under @DVUseMiddleware read as unannotated. Not built: the site is not mounted as a federated micro-site inside the application and does not inherit its authentication, and is written to a directory instead; model relations are inferred from field types naming another model rather than declared relations; the policy matrix shows which actions a policy class answers, not whom they allow; the module map shows declared grants, not a Module Distribution and Trust evaluation; client cron states that a schedule is a request, not a guarantee, but has no per-target table because DV.Schedules.capability does not exist; no build or dev run invokes dartvel docs, and generate --check does not cover docs output; the graph still reads fields with initializers and functions whose return type nests generics by regex. Where the section and the code disagree: the section says docs and the MCP context are one graph rendered twice, but the graph has no module routes, cron, policies or doc comments, so the site adds them from the generators' own readers and only the shared part is compared; the section speaks of surfaces without a source mapping, but every node is built with one, so DV-DOCS-002 fires only when a mapping stops resolving; decision records are said to name graph nodes with no syntax given, and kind:target code spans were chosen."
     },
     {
       "section": "Mental Model",
