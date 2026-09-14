@@ -633,10 +633,12 @@ List<String> _coexistence(YamlMap pubspec) {
       .any((String s) => pubspec[s] is YamlMap && (pubspec[s] as YamlMap).containsKey(name));
   return <String>[
     if (has('go_router'))
-      'go_router: your routes stay yours; init does not touch them.',
+      'go_router: your routes stay yours. `dartvel routes` fails with '
+          'DV-ADOPT-002 when a GoRoute path is also a generated page route.',
     if (has('freezed') || has('json_serializable'))
       'freezed / json_serializable: those classes stay as they are. A class '
-          'becomes a Dartvel model only when it is annotated.',
+          'becomes a Dartvel model only when it is annotated, and annotating '
+          'one that already has a generated serializer fails with DV-ADOPT-003.',
     if (has('build_runner'))
       'build_runner: kept for your own builders. Dartvel adds none; its '
           'generator is `dartvel routes`.',
