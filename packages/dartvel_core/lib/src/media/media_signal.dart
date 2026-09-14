@@ -51,6 +51,9 @@ final class DVMutableMediaSignal<T> implements DVMediaSignal<T> {
   StreamSubscription<T> listen(void Function(T value) onValue) =>
       _controller.stream.listen(onValue);
 
+  /// Whether anything is subscribed to [changes].
+  bool get hasListener => _controller.hasListener;
+
   /// Moves the value. Setting the value it already holds emits nothing, so a
   /// reader only ever sees real changes.
   void set(T next) {
@@ -68,27 +71,48 @@ final class DVMutableMediaSignal<T> implements DVMediaSignal<T> {
 /// What lets `DVBox.video(source).controller` be taken before the box is
 /// mounted, and still read the player the mounted box ends up driving: the
 /// reader holds this, and the runtime moves what it points at.
+///
+/// Subscribes to its target only while something listens to it. A box rebuilt
+/// by its parent makes a new handle every build; if each handle subscribed on
+/// construction, the player would carry one more subscription per rebuild for
+/// as long as it played.
 final class DVForwardingMediaSignal<T> implements DVMediaSignal<T> {
   DVForwardingMediaSignal(DVMediaSignal<T> target) : _target = target {
-    _subscription = target.changes.listen(_forward);
+    _controller = StreamController<T>.broadcast(
+      onListen: _subscribe,
+      onCancel: _unsubscribe,
+    );
   }
 
   DVMediaSignal<T> _target;
-  late StreamSubscription<T> _subscription;
-  final StreamController<T> _controller = StreamController<T>.broadcast();
+  StreamSubscription<T>? _subscription;
+  late final StreamController<T> _controller;
+
+  void _subscribe() {
+    _subscription ??= _target.changes.listen(_forward);
+  }
+
+  void _unsubscribe() {
+    unawaited(_subscription?.cancel());
+    _subscription = null;
+  }
 
   void _forward(T value) {
     if (!_controller.isClosed) _controller.add(value);
   }
 
-  /// Points this signal at [target], emitting its value when it differs.
+  /// Points this signal at [target]. A listener sees the new target's value
+  /// when it differs from the old one's.
   void retarget(DVMediaSignal<T> target) {
     if (identical(target, _target)) return;
     final T before = _target.value;
-    unawaited(_subscription.cancel());
+    final bool listening = _subscription != null;
+    _unsubscribe();
     _target = target;
-    _subscription = target.changes.listen(_forward);
-    if (target.value != before) _forward(target.value);
+    if (listening) {
+      _subscribe();
+      if (target.value != before) _forward(target.value);
+    }
   }
 
   @override
@@ -105,7 +129,7 @@ final class DVForwardingMediaSignal<T> implements DVMediaSignal<T> {
       _controller.stream.listen(onValue);
 
   Future<void> close() async {
-    await _subscription.cancel();
+    _unsubscribe();
     await _controller.close();
   }
 }
