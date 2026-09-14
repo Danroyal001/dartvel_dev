@@ -8,4 +8,5 @@
 /// deploy gate that refuses to strand the clients actually calling.
 library dartvel_core.protocol;
 
+export 'compatibility.dart';
 export 'contract.dart';
