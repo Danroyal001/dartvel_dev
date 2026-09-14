@@ -11,6 +11,10 @@ enum DVCrashSinkChoice {
   /// Nowhere: reports are captured and kept, and release health is computed
   /// locally, with nowhere to send the detail.
   none,
+
+  /// The deployment's own backend, which serves the crash endpoint when this
+  /// is declared.
+  dartvel,
 }
 
 /// Crash reporting as a project declares it.
@@ -28,6 +32,8 @@ final class DVCrashConfig {
     this.breadcrumbs = 64,
     this.fullReportsPerRelease = 5,
     this.identityConsent,
+    this.ingestPerInstallPerHour = 30,
+    this.ingestMaxBytes = 262144,
   });
 
   /// The builds crash reporting is off in. Off is a declaration the build
@@ -50,6 +56,13 @@ final class DVCrashConfig {
   /// no report is ever tied to an account.
   final DVConsentCategory? identityConsent;
 
+  /// With `sink: dartvel`, the reports the backend stores per install per
+  /// hour; past it they are counted.
+  final int ingestPerInstallPerHour;
+
+  /// With `sink: dartvel`, the largest report body the backend accepts.
+  final int ingestMaxBytes;
+
   bool enabledIn(DVCrashBuildMode mode) => !disabledIn.contains(mode);
 
   /// The settings `dartvel.crashes` accepts.
@@ -61,6 +74,7 @@ final class DVCrashConfig {
     'breadcrumbs',
     'fullReportsPerRelease',
     'identity',
+    'ingest',
   ];
 
   static const String _section = 'dartvel.crashes';
@@ -164,6 +178,42 @@ final class DVCrashConfig {
       identityConsent = DVConsentCategory(category.trim());
     }
 
+    int perInstallPerHour = 30;
+    int maxBytes = 262144;
+    final Object? ingest = section['ingest'];
+    if (ingest != null) {
+      if (ingest is! Map) {
+        throw ArgumentError.value(ingest, '$_section.ingest',
+            'must be a map of what the backend accepts: perInstallPerHour, '
+            'maxBytes');
+      }
+      for (final Object? key in ingest.keys) {
+        if (key != 'perInstallPerHour' && key != 'maxBytes') {
+          throw ArgumentError.value(ingest[key], '$_section.ingest.$key',
+              'is not an ingest setting; the settings are perInstallPerHour '
+              'and maxBytes');
+        }
+      }
+      final Object? perInstall = ingest['perInstallPerHour'];
+      if (perInstall != null) {
+        if (perInstall is! int || perInstall < 1) {
+          throw ArgumentError.value(
+              perInstall,
+              '$_section.ingest.perInstallPerHour',
+              'must be a whole number of reports, 1 or more');
+        }
+        perInstallPerHour = perInstall;
+      }
+      final Object? bytes = ingest['maxBytes'];
+      if (bytes != null) {
+        if (bytes is! int || bytes < 1024) {
+          throw ArgumentError.value(bytes, '$_section.ingest.maxBytes',
+              'must be a whole number of bytes, 1024 or more');
+        }
+        maxBytes = bytes;
+      }
+    }
+
     return DVCrashConfig(
       disabledIn: disabledIn,
       sink: sink,
@@ -171,6 +221,8 @@ final class DVCrashConfig {
       breadcrumbs: breadcrumbs == null ? 64 : breadcrumbs as int,
       fullReportsPerRelease: full == null ? 5 : full as int,
       identityConsent: identityConsent,
+      ingestPerInstallPerHour: perInstallPerHour,
+      ingestMaxBytes: maxBytes,
     );
   }
 
@@ -189,5 +241,9 @@ final class DVCrashConfig {
         'fullReportsPerRelease': fullReportsPerRelease,
         if (identityConsent != null)
           'identity': <String, Object?>{'consent': identityConsent!.name},
+        'ingest': <String, Object?>{
+          'perInstallPerHour': ingestPerInstallPerHour,
+          'maxBytes': ingestMaxBytes,
+        },
       };
 }

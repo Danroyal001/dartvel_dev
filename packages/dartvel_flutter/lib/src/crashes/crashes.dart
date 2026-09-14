@@ -292,6 +292,7 @@ final class DVCrashes {
     DVConsentCategory? identityConsent,
     DVCrashConfig config = const DVCrashConfig(),
     void Function(String code, String message)? onDiagnostic,
+    Uri Function(String path)? api,
     bool evenUnderTest = false,
   }) {
     if (hostedByTestRunner && !evenUnderTest) return null;
@@ -313,6 +314,22 @@ final class DVCrashes {
       return null;
     }
     identityConsent ??= config.identityConsent;
+    DVCrashSink? resolvedSink = sink;
+    if (resolvedSink == null && config.sink == DVCrashSinkChoice.dartvel) {
+      final Uri Function(String path)? reach = api;
+      if (reach == null) {
+        throw ArgumentError.value(
+          null,
+          'api',
+          'dartvel.crashes.sink is dartvel and there is no API to send reports '
+              'to; the generated runtime passes DartvelRuntime.api',
+        );
+      }
+      // Resolved when a report is sent, so the base URL in force then is
+      // the one used.
+      resolvedSink =
+          DVCrashSink.dartvel(endpoint: () => reach(DVCrashIngest.path));
+    }
     DVCrashStore? resolved = store ?? defaultStore(appId);
     if (resolved == null) {
       debugPrint('[dartvel] DV.Crashes has nowhere on this platform that '
@@ -342,7 +359,7 @@ final class DVCrashes {
     final DVCrashInstallation installation = this.install(
       DVCrashReporting(
         store: resolved,
-        sink: sink,
+        sink: resolvedSink,
         // Read when each report is written, so a withdrawal or a changed
         // flag is on the next crash rather than the next launch.
         context: () => DVCrashContext(

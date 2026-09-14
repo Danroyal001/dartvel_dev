@@ -1,5 +1,24 @@
 ## Unreleased
 
+- **Crash reports can go to the deployment's own backend.**
+  `DVCrashSink.dartvel(endpoint:)` posts a report and returns when the
+  backend has it or has refused it for good (400, 413, 422), so a report the
+  backend will never accept is not sent again on every launch; a 5xx, a 404
+  or no answer throws and leaves the record for the next launch. On the
+  backend, `DVCrashIngest` accepts a body, refuses one over `maxBytes` (413)
+  or one that is not a whole report with a usable id, install id and release
+  (400), treats a resend as delivered (200) without storing it twice or
+  spending the install's budget, counts rather than stores past
+  `perInstallPerHour` (202, with `DV-CRASH-004` once an hour), and answers
+  503 when the store fails, without the failed attempt spending the budget.
+  Nothing a report carries is logged or answered on any of those paths, and
+  a store's error is logged by its type alone, because a database error
+  quotes the values it could not insert. `DVDatabaseCrashReportRepository`
+  keeps reports in `dv_crash_reports`, and `.application()` asks the
+  application's `DV.Database` on each call. `dartvel.crashes` accepts
+  `sink: dartvel` and `ingest: {perInstallPerHour, maxBytes}`, read as
+  strictly as the rest.
+
 - **`dartvel.crashes` is read strictly.** `DVCrashConfig.parse` reads
   `enabled`, `disabledIn` (debug, profile, release), `sink`,
   `nonFatalSampleRate` (0 to 1), `breadcrumbs`, `fullReportsPerRelease` and
