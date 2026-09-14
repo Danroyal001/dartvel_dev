@@ -27,8 +27,10 @@
   prints its password.
 
 - **Queues live under `DARTVEL_QUEUE_NAMESPACE`.** `DVQueues` dispatches,
-  works, lists and flushes `<namespace>.<queue>` when the process environment
-  names a namespace or `useNamespace` sets one, so a preview never reserves a
+  works, lists and flushes `<namespace>.<queue>` when `useNamespace` sets a
+  namespace or, in a process whose environment says preview,
+  `DARTVEL_QUEUE_NAMESPACE` names one; outside a preview the variable is
+  ignored. A preview therefore never reserves a
   production job and production never reserves a preview's. A process with no
   namespace cannot name a queue under a `preview-` namespace, and a process in
   a preview with no namespace uses no queue at all. Applied in `DVQueues`

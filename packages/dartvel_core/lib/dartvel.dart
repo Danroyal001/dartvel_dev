@@ -2294,8 +2294,9 @@ class DVQueues {
   /// Puts every queue this process dispatches to, works, lists or flushes
   /// under [namespace], as `<namespace>.<queue>`. Null for none.
   ///
-  /// Read from `DARTVEL_QUEUE_NAMESPACE` when nothing set it, which is what
-  /// a preview deployment writes: a preview on production's broker would
+  /// In a preview, read from `DARTVEL_QUEUE_NAMESPACE` when nothing set it,
+  /// which is what a preview deployment writes, and ignored in every other
+  /// environment: a preview on production's broker would
   /// otherwise reserve from production's `default` queue and run production's
   /// jobs against a seeded database, and nothing would throw. Applied here
   /// rather than in each adapter, so an adapter added later cannot forget it.
@@ -2315,10 +2316,16 @@ class DVQueues {
     if (!_namespaceSettled) {
       final Map<String, String> environment = dvProcessEnvironment();
       final String? declared = environment['DARTVEL_QUEUE_NAMESPACE'];
-      if (declared != null && declared.isNotEmpty) {
+      // Only a preview's. The variable is what a preview deployment writes,
+      // and a production deploy whose settings were copied from a preview's
+      // would otherwise dispatch into the preview's queues and stop
+      // consuming its own.
+      if (environment['DARTVEL_ENVIRONMENT'] != dvPreviewEnvironment) {
+        // Nothing to take from the environment.
+      } else if (declared != null && declared.isNotEmpty) {
         _checkNamespace(declared);
         _namespace = declared;
-      } else if (environment['DARTVEL_ENVIRONMENT'] == dvPreviewEnvironment) {
+      } else {
         // Not settled, so every use refuses rather than only the first.
         throw StateError(
           'This process runs as a preview and DARTVEL_QUEUE_NAMESPACE is not '
