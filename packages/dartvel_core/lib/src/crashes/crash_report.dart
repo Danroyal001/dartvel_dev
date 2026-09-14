@@ -151,19 +151,34 @@ abstract final class DVCrashFingerprint {
     ].join('\n'));
   }
 
-  /// Two FNV-1a passes with different offsets: stable across Dart versions,
-  /// which a group id has to be, and wide enough not to merge groups.
+  /// Two FNV-1a passes with different offsets: stable across Dart versions
+  /// and platforms, which a group id has to be, and wide enough not to merge
+  /// groups.
   static String _hash(String text) {
     int a = 0x811c9dc5;
     int b = 0x01234567;
     for (final int unit in text.codeUnits) {
-      a = ((a ^ (unit & 0xff)) * 0x01000193) & 0xffffffff;
-      a = ((a ^ (unit >> 8)) * 0x01000193) & 0xffffffff;
-      b = ((b ^ (unit & 0xff)) * 0x01000193) & 0xffffffff;
-      b = ((b ^ (unit >> 8)) * 0x01000193) & 0xffffffff;
+      a = _mul32(a ^ (unit & 0xff), _prime);
+      a = _mul32(a ^ (unit >> 8), _prime);
+      b = _mul32(b ^ (unit & 0xff), _prime);
+      b = _mul32(b ^ (unit >> 8), _prime);
     }
     return a.toRadixString(16).padLeft(8, '0') +
         b.toRadixString(16).padLeft(8, '0');
+  }
+
+  static const int _prime = 0x01000193;
+
+  /// `(x * y) mod 2^32`, exact on the web too.
+  ///
+  /// Web integers are doubles, and a 32-bit value times the FNV prime is past
+  /// 2^53, where they round: the same crash hashed to a different group in a
+  /// browser than on a phone. Split into 16-bit halves every intermediate
+  /// stays below 2^42, and the VM's answer is the one it always gave.
+  static int _mul32(int x, int y) {
+    final int low = (x & 0xffff) * y;
+    final int high = ((x >>> 16) * y) & 0xffff;
+    return (low + (high << 16)) & 0xffffffff;
   }
 }
 
@@ -487,10 +502,15 @@ final Random _ids = Random();
 int _idCounter = 0;
 
 /// A report id: unique on the device without asking anything that can fail.
+///
+/// The random part is two 16-bit draws rather than one below `1 << 32`: on
+/// the web shifts are 32-bit, `1 << 32` is 0, and `nextInt(0)` throws -- from
+/// the session a crash reporter starts at install, before the first frame.
 String dvCrashReportId(DateTime at) =>
     '${at.microsecondsSinceEpoch.toRadixString(16)}-'
     '${(_idCounter++).toRadixString(16)}-'
-    '${_ids.nextInt(1 << 32).toRadixString(16)}';
+    '${_ids.nextInt(0x10000).toRadixString(16).padLeft(4, '0')}'
+    '${_ids.nextInt(0x10000).toRadixString(16).padLeft(4, '0')}';
 
 final DVLogger _crashLogger = DVLogger();
 

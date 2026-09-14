@@ -49,6 +49,36 @@ void main() {
         stack: StackTrace.current,
       );
 
+  test('installation that fails does not take the application down with it',
+      () {
+    // The generated runtime installs crash reporting from the router's
+    // constructor, before the first frame. An exception here is an
+    // application that never draws -- on the web the site build said only
+    // "Captured 0 of N routes" -- so a failure is taken back and reported,
+    // never thrown.
+    final FlutterExceptionHandler? before = FlutterError.onError;
+    final ErrorCallback? dispatcher = PlatformDispatcher.instance.onError;
+
+    DVCrashInstallation? installation;
+    expect(
+      () => installation = const DVCrashes().installApplication(
+        appId: 'crash_config_install_test',
+        release: '1.0.0',
+        store: DVMemoryCrashStore(),
+        installId: 'install-1',
+        onDiagnostic: (String code, String message) =>
+            throw StateError('diagnostics sink is down'),
+        evenUnderTest: true,
+      ),
+      returnsNormally,
+    );
+
+    expect(installation, isNull);
+    expect(const DVCrashes().installation, isNull);
+    expect(FlutterError.onError, same(before));
+    expect(PlatformDispatcher.instance.onError, same(dispatcher));
+  });
+
   test('disabled for this build: no hooks go in, and the build says so', () {
     // flutter test runs a debug build.
     final FlutterExceptionHandler? before = FlutterError.onError;

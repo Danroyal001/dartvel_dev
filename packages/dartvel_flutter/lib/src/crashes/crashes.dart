@@ -246,7 +246,14 @@ final class DVCrashes {
     }
     final DVCrashInstallation installation = DVCrashInstallation._(reporter);
     _installation = installation;
-    installation._install(platformHooks: platformHooks, sessionId: sessionId);
+    try {
+      installation._install(platformHooks: platformHooks, sessionId: sessionId);
+    } on Object {
+      // Nothing half-installed is left behind: a hook chained to a reporter
+      // that never started would swallow nothing and record nothing.
+      installation.uninstall();
+      rethrow;
+    }
     return installation;
   }
 
@@ -283,7 +290,58 @@ final class DVCrashes {
   /// installation when there is one, since the runtime can be configured more
   /// than once in a process, and null under `flutter test` unless
   /// [evenUnderTest].
+  ///
+  /// Never throws. The generated runtime calls this from the router's
+  /// constructor, before the first frame, and an exception there is an
+  /// application that never draws -- which on the web the site build
+  /// reported only as "Captured 0 of N routes". A failure is taken back,
+  /// printed, and answered with null: this launch records no crash, and the
+  /// application still starts.
   DVCrashInstallation? installApplication({
+    required String appId,
+    required String release,
+    DVCrashStore? store,
+    DVCrashSink? sink,
+    String? installId,
+    DVConsentCategory? identityConsent,
+    DVCrashConfig config = const DVCrashConfig(),
+    void Function(String code, String message)? onDiagnostic,
+    Uri Function(String path)? api,
+    bool evenUnderTest = false,
+  }) {
+    // A caller's wiring mistake is refused here, outside the guard: it is
+    // the same answer on every run, and quietly recording nothing would turn
+    // it into a launch that looks installed. The generated runtime always
+    // passes api, so only hand-written code can reach this.
+    if (config.sink == DVCrashSinkChoice.dartvel && sink == null && api == null) {
+      throw ArgumentError.value(
+        null,
+        'api',
+        'dartvel.crashes.sink is dartvel and there is no API to send reports '
+            'to; the generated runtime passes DartvelRuntime.api',
+      );
+    }
+    try {
+      return _installApplication(
+        appId: appId,
+        release: release,
+        store: store,
+        sink: sink,
+        installId: installId,
+        identityConsent: identityConsent,
+        config: config,
+        onDiagnostic: onDiagnostic,
+        api: api,
+        evenUnderTest: evenUnderTest,
+      );
+    } on Object catch (error) {
+      debugPrint('[dartvel] DV.Crashes could not be installed '
+          '(${error.runtimeType}: $error); this launch records no crash.');
+      return null;
+    }
+  }
+
+  DVCrashInstallation? _installApplication({
     required String appId,
     required String release,
     DVCrashStore? store,
