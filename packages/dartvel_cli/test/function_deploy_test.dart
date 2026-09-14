@@ -9,7 +9,12 @@
 // not, and that is the part that is wrong or right regardless of who runs it:
 // a handler name a provider rejects, a port the container never listens on, a
 // manifest missing the function it was generated for.
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:dartvel_cli/src/deploy/function_deploy.dart';
+import 'package:dartvel_core/dartvel.dart'
+    show DVProcessConfiguration, DVProcessRole;
 import 'package:test/test.dart';
 
 const List<DVDeployableFunction> _functions = <DVDeployableFunction>[
@@ -124,6 +129,103 @@ void main() {
       ).files['Dockerfile']!;
 
       expect(dockerfile, contains(r'$PORT'));
+    });
+  });
+
+  group('the runtime reads what the image sets', () {
+    // Asserted by running the image's command -- with the server swapped for
+    // env -- and reading the result through the backend's own resolver. An
+    // `ENV DARTVEL_PORT=$PORT` line reads like the Cloud Run port and is
+    // expanded when the image is built, when PORT is not set.
+    Future<Map<String, String>> runtimeEnvironment(
+      String dockerfile, [
+      Map<String, String> container = const <String, String>{},
+    ]) async {
+      final Map<String, String> image = <String, String>{
+        for (final String line in dockerfile.split('\n'))
+          if (line.startsWith('ENV '))
+            line.substring(4).split('=').first:
+                line.substring(4).split('=').skip(1).join('='),
+      };
+      final String cmd =
+          dockerfile.split('\n').singleWhere((String l) => l.startsWith('CMD '));
+      final List<String> command = <String>[
+        for (final Object? part in jsonDecode(cmd.substring(4)) as List<Object?>)
+          '$part'.replaceAll('/app/server', '/usr/bin/env'),
+      ];
+      final ProcessResult result = await Process.run(
+        command.first,
+        command.sublist(1),
+        includeParentEnvironment: false,
+        environment: <String, String>{...image, ...container},
+      );
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      return <String, String>{
+        for (final String line in '${result.stdout}'.split('\n'))
+          if (line.contains('='))
+            line.split('=').first: line.split('=').skip(1).join('='),
+      };
+    }
+
+    DVProcessConfiguration resolve(Map<String, String> environment) =>
+        // A generated port nobody would publish, so falling back to it fails.
+        DVProcessConfiguration.resolve(
+          environment: environment,
+          generatedPort: 1,
+        );
+
+    for (final String target in <String>[
+      'container',
+      'railway',
+      'bare-metal',
+      'fly',
+    ]) {
+      test('$target: the port bound is the port exposed', () async {
+        final String dockerfile = dvFunctionDeployPlan(
+          functions: _functions,
+          target: target,
+          appName: 'shop',
+          port: 8085,
+        ).files['Dockerfile']!;
+        expect(dockerfile, contains('EXPOSE 8085'));
+        expect(resolve(await runtimeEnvironment(dockerfile)).port, 8085);
+      });
+    }
+
+    test('cloud-run: the port bound is the one Cloud Run assigns at run time',
+        () async {
+      final String dockerfile = dvFunctionDeployPlan(
+        functions: _functions,
+        target: 'cloud-run',
+        appName: 'shop',
+      ).files['Dockerfile']!;
+      final Map<String, String> environment = await runtimeEnvironment(
+        dockerfile,
+        const <String, String>{'PORT': '9123'},
+      );
+      expect(resolve(environment).port, 9123);
+    });
+
+    test('the image is one whole process unless a role is given', () async {
+      final String dockerfile = dvFunctionDeployPlan(
+        functions: _functions,
+        target: 'container',
+        appName: 'shop',
+      ).files['Dockerfile']!;
+      final DVProcessConfiguration alone =
+          resolve(await runtimeEnvironment(dockerfile));
+      expect(alone.role, DVProcessRole.web);
+      expect(alone.ticksSchedules, isTrue);
+      // The same image runs as a worker when the platform says so; the
+      // image must not overwrite what the container was given.
+      final DVProcessConfiguration worker = resolve(
+        await runtimeEnvironment(
+          dockerfile,
+          const <String, String>{'DARTVEL_ROLE': 'worker'},
+        ),
+      );
+      expect(worker.role, DVProcessRole.worker);
+      expect(worker.servesHttp, isFalse);
     });
   });
 
