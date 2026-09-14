@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 import 'package:shelf/shelf_io.dart' as shelf_io;
@@ -9,25 +10,95 @@ import 'package:yaml/yaml.dart';
 
 import '../build/admin_mount.dart';
 import '../build/web_server.dart';
+import '../preview/preview_cli.dart';
 
 import '../utils/logger.dart';
 
+/// `dartvel preview` serves the production build locally, as it always has.
+/// `dartvel preview create | list | open | destroy | sweep` manage Preview
+/// Environments -- a branch's own deployment -- through a deployment adapter.
+///
+/// One command with verbs in front rather than subcommands, because a
+/// command with subcommands cannot also run on its own, and `dartvel preview`
+/// with nothing after it is already documented to serve the build.
 class PreviewCommand extends Command<void> {
   @override
   final String name = 'preview';
 
   @override
-  String get description => 'Preview the production build locally.';
+  String get description =>
+      'Preview the production build locally, or manage preview environments '
+      '(create, list, open, destroy, sweep).';
 
-  PreviewCommand() {
-    argParser
+  PreviewCommand({
+    DVPreviewHostResolver? previewHost,
+    DVPreviewGit? git,
+    DateTime Function()? clock,
+    void Function(String line)? out,
+    Map<String, String>? environment,
+  })  : _previewHost = previewHost ?? dvNoPreviewHost,
+        _git = git ?? dvRunGit,
+        _clock = clock ?? DateTime.now,
+        _out = out ?? print,
+        _environment = environment ?? Platform.environment {
+    _serve
       ..addOption('port',
           abbr: 'p', defaultsTo: '8080', help: 'Port to serve on')
       ..addOption('host', defaultsTo: '127.0.0.1', help: 'Host to bind to');
   }
 
+  final DVPreviewHostResolver _previewHost;
+  final DVPreviewGit _git;
+  final DateTime Function() _clock;
+  final void Function(String line) _out;
+  final Map<String, String> _environment;
+
+  final ArgParser _args = ArgParser.allowAnything();
+  final ArgParser _serve = ArgParser();
+
+  @override
+  ArgParser get argParser => _args;
+
+  @override
+  String get usageFooter =>
+      '\nServing the build:\n${_serve.usage}\n\n'
+      'Preview environments:\n'
+      '  create [--branch] [--from-pr]  create or redeploy a branch\'s preview\n'
+      '  list                           list this project\'s previews\n'
+      '  open [--branch]                print a preview\'s URL\n'
+      '  destroy [--branch]             destroy a preview and its resources\n'
+      '  sweep [--closed-pr]            destroy what is over, suspend what is idle';
+
   @override
   Future<void> run() async {
+    final List<String> rest = argResults?.rest ?? const <String>[];
+    if (rest.isNotEmpty && dvPreviewVerbs.contains(rest.first)) {
+      exitCode = await dvRunPreviewLifecycle(
+        rest,
+        root: Directory.current.path,
+        host: _previewHost,
+        git: _git,
+        clock: _clock,
+        out: _out,
+        environment: _environment,
+      );
+      return;
+    }
+
+    final ArgResults serve;
+    try {
+      serve = _serve.parse(rest);
+    } on FormatException catch (error) {
+      throw UsageException(error.message, usage);
+    }
+    if (serve.rest.isNotEmpty) {
+      throw UsageException(
+        '"${serve.rest.first}" is not a preview verb; expected one of '
+        '${dvPreviewVerbs.join(', ')}, or no verb to serve the build.',
+        usage,
+      );
+    }
+
     final root = Directory.current.path;
     final buildDir = Directory(p.join(root, 'build', 'web'));
 
@@ -36,8 +107,8 @@ class PreviewCommand extends Command<void> {
       exit(1);
     }
 
-    final port = int.parse(argResults?['port'] as String);
-    final host = argResults?['host'] as String;
+    final port = int.parse(serve['port'] as String);
+    final host = serve['host'] as String;
 
     Logger.log('📦 Serving build/web on http://$host:$port');
     Logger.log('Press Ctrl+C to stop');
