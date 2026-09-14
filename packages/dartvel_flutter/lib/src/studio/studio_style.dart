@@ -407,32 +407,39 @@ abstract final class DVStudioStyle {
   }) {
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 320),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: accentSoft,
-                borderRadius: BorderRadius.circular(radiusLarge),
+        constraints: const BoxConstraints(maxWidth: 320 + space4 * 2),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: space4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: accentSoft,
+                  borderRadius: BorderRadius.circular(radiusLarge),
+                ),
+                child: Icon(icon, size: 22, color: accent),
               ),
-              child: Icon(icon, size: 22, color: accent),
-            ),
-            const SizedBox(height: space3),
-            heading(title),
-            if (message != null) ...<Widget>[
-              const SizedBox(height: space1),
-              DVText(message).modifier(
-                const DVModifier().fontSize(13).color(muted),
-              ),
+              const SizedBox(height: space3),
+              heading(title),
+              if (message != null) ...<Widget>[
+                const SizedBox(height: space1),
+                // Text rather than DVText: a wrapped message under a centred
+                // title has to be centred too, and DVModifier has no alignment.
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 13, color: muted),
+                ),
+              ],
+              if (action != null) ...<Widget>[
+                const SizedBox(height: space4),
+                action,
+              ],
             ],
-            if (action != null) ...<Widget>[
-              const SizedBox(height: space4),
-              action,
-            ],
-          ],
+          ),
         ),
       ),
     );
