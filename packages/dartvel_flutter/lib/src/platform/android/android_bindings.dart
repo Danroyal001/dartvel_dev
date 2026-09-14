@@ -29,6 +29,12 @@ export 'android_capabilities.dart'
         dvAndroidStateDirectory,
         dvAndroidFilesRoot;
 
+// The application key in the Android Keystore, and the pure decisions about
+// what it keeps on disk, which are tested off a device.
+export 'android_keystore_shapes.dart';
+export 'android_keystore_unsupported.dart'
+    if (dart.library.ffi) 'android_keystore_jni.dart';
+
 // The answers the NFC and Bluetooth bindings hand back, apart from the JNI
 // calls that fetch them. Shared by both branches for the same reason: a bond
 // state read one value too wide produces a well-formed wrong answer, and that

@@ -150,4 +150,12 @@ class DVWebCryptoAppKeyStore implements DVAppKeyStore {
 }
 
 /// The key store for [app] on the web: the WebCrypto-sealed one.
-Future<DVAppKeyStore> dvAppKeyStoreFor(String app) async => DVWebCryptoAppKeyStore(app: app);
+///
+/// [platform] and [home] match the native signature and change nothing here:
+/// a browser has one custody for the key.
+Future<DVAppKeyStore> dvAppKeyStoreFor(
+  String app, {
+  String? platform,
+  String? home,
+}) async =>
+    DVWebCryptoAppKeyStore(app: app);
