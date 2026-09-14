@@ -11,6 +11,7 @@
 @Timeout(Duration(minutes: 5))
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:test/test.dart';
@@ -69,8 +70,14 @@ Future<String?> _compile(String source, String output) async {
 }
 
 void main() {
-  final bool hasNode =
-      Process.runSync('node', <String>['--version'], runInShell: true).exitCode == 0;
+  bool hasNode;
+  try {
+    hasNode = Process.runSync('node', <String>['--version'], runInShell: true)
+            .exitCode ==
+        0;
+  } on ProcessException {
+    hasNode = false;
+  }
 
   test('the browser runner, end to end through dart2js', () async {
     final Directory dir = Directory.systemTemp.createTempSync('dv_workers_web');
@@ -86,19 +93,35 @@ void main() {
     ]);
     expect(failures, everyElement(isNull));
 
-    final ProcessResult run = await Process.run(
-      'timeout',
-      <String>['-k', '5', '90', 'node', harness, page, worker],
+    // Bounded here rather than with a `timeout` binary, which macOS runners
+    // do not have: a page that hangs -- a worker that never answers, which is
+    // exactly the failure under test -- is killed and reported, not waited on.
+    final Process node = await Process.start(
+      'node',
+      <String>[harness, page, worker],
+      runInShell: Platform.isWindows,
     );
-    final List<String> lines = '${run.stdout}'.trim().split('\n');
-    addTearDown(() {
-      if (run.exitCode != 0) printOnFailure('${run.stdout}\n${run.stderr}');
-    });
+    final Future<String> stdoutText = node.stdout.transform(utf8.decoder).join();
+    final Future<String> stderrText = node.stderr.transform(utf8.decoder).join();
+    final int exitCode = await node.exitCode.timeout(
+      const Duration(seconds: 90),
+      onTimeout: () {
+        node.kill(ProcessSignal.sigkill);
+        return -1;
+      },
+    );
+    final String out = await stdoutText;
+    final String err = await stderrText;
+    final List<String> lines =
+        out.trim().split('\n').map((String l) => l.trimRight()).toList();
     String line(String prefix) => lines.firstWhere(
         (String l) => l.startsWith('$prefix '),
-        orElse: () => '$prefix <missing>\n${run.stdout}\n${run.stderr}');
+        orElse: () => '$prefix <missing>\n$out\n$err');
 
-    expect(run.exitCode, 0, reason: '${run.stdout}\n${run.stderr}');
+    expect(exitCode, 0,
+        reason: exitCode == -1
+            ? 'node was killed after 90 s\n$out\n$err'
+            : '$out\n$err');
     expect(line('capability'),
         'capability webWorker | Supported with limitations | shared=false');
     expect(line('sum'), 'sum completed webWorker 10 0.25,0.50,0.75,1.00');
