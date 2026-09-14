@@ -1,5 +1,19 @@
 ## Unreleased
 
+- **A crash reporter no longer stops a web application from starting, and a
+  crash has one fingerprint on every platform.** `dvCrashReportId` drew its
+  random part below `1 << 32`, which is 0 on the web, where shifts are
+  32-bit, so `nextInt(0)` threw. Installation starts a session with a report
+  id, so every generated web application threw before its first frame, and
+  the site build reported it only as "Captured 0 of N routes". The id now
+  draws two 16-bit halves. The fingerprint hash multiplied past 2^53, where
+  web integers are doubles and round, so one bug reported from a browser
+  and from a phone fell into two groups. Each 32-bit multiply is now done in
+  16-bit halves, exact on both; the value the VM computes is unchanged, so
+  existing groups keep their names. `crash_web_numbers_test` compiles a probe
+  with dart2js and runs it under node, since the VM every other test runs on
+  shows neither.
+
 - **A server process records its unhandled errors, with its role.**
   `DVServerCrashes.install` puts the crash runtime in a web, worker or cron
   process, and every report it writes carries `DVCrashContext.role` and the

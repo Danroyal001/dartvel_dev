@@ -1,5 +1,15 @@
 ## Unreleased
 
+- **`DV.Crashes.installApplication` never takes the application down.** The
+  generated runtime calls it from the router's constructor, before the first
+  frame, so an exception there was an application that never drew. A
+  failure while installing is now taken back -- no hook is left chained to a
+  reporter that never started -- printed, and answered with null, and the
+  application starts. `install` takes back a partial installation the same
+  way and still throws to a caller who called it directly. Declaring the
+  Dartvel sink with no API is still refused with an `ArgumentError`: that is
+  the caller's wiring, the same on every run, not something to hide.
+
 - **`sink: dartvel` sends reports to the application's own backend.**
   `installApplication` takes the runtime's API resolver (`api`) and, when
   `dartvel.crashes.sink` is `dartvel`, sends what the previous run left to
