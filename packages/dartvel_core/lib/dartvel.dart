@@ -83,6 +83,8 @@ export 'src/database/adapters.dart';
 export 'src/database/mysql.dart';
 export 'src/database/postgres.dart';
 export 'src/diagnostics/startup_profile.dart';
+export 'src/edge/bot_protection.dart';
+export 'src/edge/credentials.dart';
 export 'src/edge/waf.dart';
 export 'src/graphql/graphql.dart';
 export 'src/http/aws_sigv4.dart';
