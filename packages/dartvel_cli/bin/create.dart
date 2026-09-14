@@ -1,15 +1,16 @@
 #!/usr/bin/env dart
 
-// Alias for 'dartvel new' command
+// `dartvel create`: make a new project.
+//
+// This used to forward to `dartvel_cli:new`, an executable that does not
+// exist.
 import 'dart:io';
 
 void main(List<String> args) async {
-  // Forward to the 'new' command
   final process = await Process.start(
     'dart',
-    ['run', 'dartvel_cli:new', ...args],
+    ['run', 'dartvel_cli:dartvel', 'create', ...args],
     mode: ProcessStartMode.inheritStdio,
   );
-  final exitCode = await process.exitCode;
-  exit(exitCode);
+  exit(await process.exitCode);
 }

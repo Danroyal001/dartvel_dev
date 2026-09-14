@@ -1,4 +1,22 @@
 ## Unreleased
+- **`dartvel init` adds Dartvel to a project that already exists, and is no
+  longer an alias of `create`.** As an alias it replaced the adopting
+  project's pubspec with the scaffold template. It now inserts the Dartvel
+  dependency (`dartvel_core`, plus `dartvel_flutter` for a Flutter
+  application) and a `dartvel:` key, and nothing else: every original line,
+  comment and blank line is kept, and the edit is refused rather than written
+  when it cannot be proven to be insertions only. The plan is printed first
+  with a compatibility report -- the SDK constraint against Dartvel's floor,
+  and every package the project shares with Dartvel against Dartvel's
+  constraint, with a blocked `mix` pin naming the `dartvel_mix` drop-in. A
+  check that cannot be made is reported as unchecked, never as compatible.
+  `pagesDir` and `backendDir` are written out, and mapped away from
+  `lib/pages` or `lib/backend` when the project's own files there would be
+  claimed as pages or served as endpoints. `--dry-run` writes nothing;
+  applying needs a yes at a terminal or `--yes`, refuses a blocked plan, and
+  replaces the pubspec with one rename, refusing if it changed after the plan
+  was shown. `create`'s DV-ADOPT-005 refusal now points at `init`.
+
 - **`dartvel docs` builds the application's own reference from the project
   graph.** It covers models and fields (types, relations, policies, generated
   surfaces, and example data built from each field's type), backend functions

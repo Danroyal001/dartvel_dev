@@ -39,12 +39,12 @@ dartvel:
       }
     });
 
-    test('dartvel init creates project structure', () async {
+    test('dartvel create creates project structure', () async {
       final tempDir = Directory.systemTemp.createTempSync('dartvel_test_init_');
       try {
         final result = await Process.run(
           'dart',
-          ['run', 'packages/dartvel_cli/bin/init.dart', 'test_app'],
+          ['run', 'packages/dartvel_cli/bin/create.dart', 'test_app'],
           workingDirectory: tempDir.path,
         );
 

@@ -28,6 +28,7 @@ import 'src/commands/dev_command.dart';
 import 'src/commands/doctor_command.dart';
 import 'src/commands/generate_command.dart';
 import 'src/commands/i18n_command.dart';
+import 'src/commands/adopt_command.dart';
 import 'src/commands/init_command.dart';
 import 'src/commands/observability_commands.dart';
 import 'src/commands/plugin_command.dart';
@@ -50,6 +51,7 @@ Future<void> main(List<String> args) async {
 
   final runner = DartvelCommandRunner('dartvel', 'The Dartvel CLI tool.')
     ..addCommand(InitCommand())
+    ..addCommand(AdoptCommand())
     ..addCommand(DoctorCommand())
     ..addCommand(DevCommand())
     // run and start are aliases in DevCommand

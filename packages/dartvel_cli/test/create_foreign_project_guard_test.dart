@@ -2,7 +2,7 @@
 //
 // `create` scaffolds a project, and one of its steps replaces `pubspec.yaml`
 // with the Dartvel template -- correct in an empty directory, where the file
-// it replaces is the one `flutter create` just wrote. `init` and `new` are
+// it replaces is the one `flutter create` just wrote. `init` and `new` were
 // aliases of that same command, and `init` is the word a team with an existing
 // application reaches for. Running it in their repository rewrote their
 // pubspec: every dependency, every version, every bit of configuration they

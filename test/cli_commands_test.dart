@@ -46,7 +46,7 @@ void main() {
       expect(output, contains('build'));
     });
 
-    test('dartvel init creates new project', () async {
+    test('dartvel create creates new project', () async {
       final result = await Process.run(
         Platform.resolvedExecutable,
         [
@@ -54,7 +54,7 @@ void main() {
           'global',
           'run',
           'dartvel_cli:dartvel',
-          'init',
+          'create',
           testProjectDir.path,
           '--org',
           'com.test'
@@ -77,7 +77,7 @@ void main() {
       stdout.writeln('✅ Project structure created successfully');
     }, timeout: const Timeout(Duration(minutes: 2)));
 
-    test('dartvel create is alias for init', () async {
+    test('dartvel create makes a project in a new directory', () async {
       final createDir = Directory(p.join(tempDir.path, 'create_test'));
       final result = await Process.run(
         Platform.resolvedExecutable,
@@ -96,7 +96,7 @@ void main() {
 
       expect(result.exitCode, 0);
       expect(createDir.existsSync(), true);
-      stdout.writeln('✅ Create alias works correctly');
+      stdout.writeln('✅ create works in a new directory');
     }, timeout: const Timeout(Duration(minutes: 2)));
 
     test('dartvel doctor checks dependencies', () async {
