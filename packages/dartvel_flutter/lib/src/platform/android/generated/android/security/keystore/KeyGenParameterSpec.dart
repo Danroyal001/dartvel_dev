@@ -36,15 +36,2036 @@ import 'dart:core' show Object, String;
 import 'package:jni/_internal.dart' as jni$_;
 import 'package:jni/jni.dart' as jni$_;
 
-/// from: `android.security.keystore.KeyGenParameterSpec`
-///
-/// WARNING: KeyGenParameterSpec is a stub. To generate bindings for this class, include
-/// android.security.keystore.KeyGenParameterSpec in your config's classes list.
-///
-extension type KeyGenParameterSpec._(jni$_.JObject _$this)
+import '../../../java/math/BigInteger.dart' as biginteger$_;
+
+import '../../../java/security/spec/AlgorithmParameterSpec.dart'
+    as algorithmparameterspec$_;
+
+import '../../../java/util/Date.dart' as date$_;
+
+import '../../../javax/security/auth/x500/X500Principal.dart'
+    as x500principal$_;
+
+/// from: `android.security.keystore.KeyGenParameterSpec$Builder`
+extension type KeyGenParameterSpec$Builder._(jni$_.JObject _$this)
     implements jni$_.JObject {
+  static final _class = jni$_.JClass.forName(
+    r'android/security/keystore/KeyGenParameterSpec$Builder',
+  );
+
+  /// The type which includes information such as the signature of this class.
+  static const jni$_.JType<KeyGenParameterSpec$Builder> type =
+      $KeyGenParameterSpec$Builder$Type$();
+  static final _id_new$ = _class.constructorId(r'(Ljava/lang/String;I)V');
+
+  static final _new$ =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>, jni$_.Int32)>,
+              )
+            >
+          >('globalEnv_NewObject')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public void <init>(java.lang.String string, int i)`
+  /// The returned object must be released after use, by calling the [release] method.
+  factory KeyGenParameterSpec$Builder(jni$_.JString? string, core$_.int i) {
+    final _$$classRef = _class.reference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    return _new$(
+      _$$classRef.pointer,
+      _id_new$.pointer,
+      _$string.pointer,
+      i,
+    ).object<KeyGenParameterSpec$Builder>();
+  }
+}
+
+extension KeyGenParameterSpec$Builder$$Methods on KeyGenParameterSpec$Builder {
+  static final _id_setKeySize = KeyGenParameterSpec$Builder._class
+      .instanceMethodId(
+        r'setKeySize',
+        r'(I)Landroid/security/keystore/KeyGenParameterSpec$Builder;',
+      );
+
+  static final _setKeySize =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Int32,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public android.security.keystore.KeyGenParameterSpec$Builder setKeySize(int i)`
+  /// The returned object must be released after use, by calling the [release] method.
+  KeyGenParameterSpec$Builder? setKeySize(core$_.int i) {
+    final _$$selfRef = reference;
+    return _setKeySize(
+      _$$selfRef.pointer,
+      _id_setKeySize.pointer,
+      i,
+    ).object<KeyGenParameterSpec$Builder?>();
+  }
+
+  static final _id_setAlgorithmParameterSpec = KeyGenParameterSpec$Builder
+      ._class
+      .instanceMethodId(
+        r'setAlgorithmParameterSpec',
+        r'(Ljava/security/spec/AlgorithmParameterSpec;)Landroid/security/keystore/KeyGenParameterSpec$Builder;',
+      );
+
+  static final _setAlgorithmParameterSpec =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public android.security.keystore.KeyGenParameterSpec$Builder setAlgorithmParameterSpec(java.security.spec.AlgorithmParameterSpec algorithmParameterSpec)`
+  /// The returned object must be released after use, by calling the [release] method.
+  KeyGenParameterSpec$Builder? setAlgorithmParameterSpec(
+    algorithmparameterspec$_.AlgorithmParameterSpec? algorithmParameterSpec,
+  ) {
+    final _$$selfRef = reference;
+    final _$algorithmParameterSpec =
+        algorithmParameterSpec?.reference ?? jni$_.jNullReference;
+    return _setAlgorithmParameterSpec(
+      _$$selfRef.pointer,
+      _id_setAlgorithmParameterSpec.pointer,
+      _$algorithmParameterSpec.pointer,
+    ).object<KeyGenParameterSpec$Builder?>();
+  }
+
+  static final _id_setCertificateSubject = KeyGenParameterSpec$Builder._class
+      .instanceMethodId(
+        r'setCertificateSubject',
+        r'(Ljavax/security/auth/x500/X500Principal;)Landroid/security/keystore/KeyGenParameterSpec$Builder;',
+      );
+
+  static final _setCertificateSubject =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public android.security.keystore.KeyGenParameterSpec$Builder setCertificateSubject(javax.security.auth.x500.X500Principal x500Principal)`
+  /// The returned object must be released after use, by calling the [release] method.
+  KeyGenParameterSpec$Builder? setCertificateSubject(
+    x500principal$_.X500Principal? x500Principal,
+  ) {
+    final _$$selfRef = reference;
+    final _$x500Principal = x500Principal?.reference ?? jni$_.jNullReference;
+    return _setCertificateSubject(
+      _$$selfRef.pointer,
+      _id_setCertificateSubject.pointer,
+      _$x500Principal.pointer,
+    ).object<KeyGenParameterSpec$Builder?>();
+  }
+
+  static final _id_setCertificateSerialNumber = KeyGenParameterSpec$Builder
+      ._class
+      .instanceMethodId(
+        r'setCertificateSerialNumber',
+        r'(Ljava/math/BigInteger;)Landroid/security/keystore/KeyGenParameterSpec$Builder;',
+      );
+
+  static final _setCertificateSerialNumber =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public android.security.keystore.KeyGenParameterSpec$Builder setCertificateSerialNumber(java.math.BigInteger bigInteger)`
+  /// The returned object must be released after use, by calling the [release] method.
+  KeyGenParameterSpec$Builder? setCertificateSerialNumber(
+    biginteger$_.BigInteger? bigInteger,
+  ) {
+    final _$$selfRef = reference;
+    final _$bigInteger = bigInteger?.reference ?? jni$_.jNullReference;
+    return _setCertificateSerialNumber(
+      _$$selfRef.pointer,
+      _id_setCertificateSerialNumber.pointer,
+      _$bigInteger.pointer,
+    ).object<KeyGenParameterSpec$Builder?>();
+  }
+
+  static final _id_setCertificateNotBefore = KeyGenParameterSpec$Builder._class
+      .instanceMethodId(
+        r'setCertificateNotBefore',
+        r'(Ljava/util/Date;)Landroid/security/keystore/KeyGenParameterSpec$Builder;',
+      );
+
+  static final _setCertificateNotBefore =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public android.security.keystore.KeyGenParameterSpec$Builder setCertificateNotBefore(java.util.Date date)`
+  /// The returned object must be released after use, by calling the [release] method.
+  KeyGenParameterSpec$Builder? setCertificateNotBefore(date$_.Date? date) {
+    final _$$selfRef = reference;
+    final _$date = date?.reference ?? jni$_.jNullReference;
+    return _setCertificateNotBefore(
+      _$$selfRef.pointer,
+      _id_setCertificateNotBefore.pointer,
+      _$date.pointer,
+    ).object<KeyGenParameterSpec$Builder?>();
+  }
+
+  static final _id_setCertificateNotAfter = KeyGenParameterSpec$Builder._class
+      .instanceMethodId(
+        r'setCertificateNotAfter',
+        r'(Ljava/util/Date;)Landroid/security/keystore/KeyGenParameterSpec$Builder;',
+      );
+
+  static final _setCertificateNotAfter =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public android.security.keystore.KeyGenParameterSpec$Builder setCertificateNotAfter(java.util.Date date)`
+  /// The returned object must be released after use, by calling the [release] method.
+  KeyGenParameterSpec$Builder? setCertificateNotAfter(date$_.Date? date) {
+    final _$$selfRef = reference;
+    final _$date = date?.reference ?? jni$_.jNullReference;
+    return _setCertificateNotAfter(
+      _$$selfRef.pointer,
+      _id_setCertificateNotAfter.pointer,
+      _$date.pointer,
+    ).object<KeyGenParameterSpec$Builder?>();
+  }
+
+  static final _id_setKeyValidityStart = KeyGenParameterSpec$Builder._class
+      .instanceMethodId(
+        r'setKeyValidityStart',
+        r'(Ljava/util/Date;)Landroid/security/keystore/KeyGenParameterSpec$Builder;',
+      );
+
+  static final _setKeyValidityStart =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public android.security.keystore.KeyGenParameterSpec$Builder setKeyValidityStart(java.util.Date date)`
+  /// The returned object must be released after use, by calling the [release] method.
+  KeyGenParameterSpec$Builder? setKeyValidityStart(date$_.Date? date) {
+    final _$$selfRef = reference;
+    final _$date = date?.reference ?? jni$_.jNullReference;
+    return _setKeyValidityStart(
+      _$$selfRef.pointer,
+      _id_setKeyValidityStart.pointer,
+      _$date.pointer,
+    ).object<KeyGenParameterSpec$Builder?>();
+  }
+
+  static final _id_setKeyValidityEnd = KeyGenParameterSpec$Builder._class
+      .instanceMethodId(
+        r'setKeyValidityEnd',
+        r'(Ljava/util/Date;)Landroid/security/keystore/KeyGenParameterSpec$Builder;',
+      );
+
+  static final _setKeyValidityEnd =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public android.security.keystore.KeyGenParameterSpec$Builder setKeyValidityEnd(java.util.Date date)`
+  /// The returned object must be released after use, by calling the [release] method.
+  KeyGenParameterSpec$Builder? setKeyValidityEnd(date$_.Date? date) {
+    final _$$selfRef = reference;
+    final _$date = date?.reference ?? jni$_.jNullReference;
+    return _setKeyValidityEnd(
+      _$$selfRef.pointer,
+      _id_setKeyValidityEnd.pointer,
+      _$date.pointer,
+    ).object<KeyGenParameterSpec$Builder?>();
+  }
+
+  static final _id_setKeyValidityForOriginationEnd = KeyGenParameterSpec$Builder
+      ._class
+      .instanceMethodId(
+        r'setKeyValidityForOriginationEnd',
+        r'(Ljava/util/Date;)Landroid/security/keystore/KeyGenParameterSpec$Builder;',
+      );
+
+  static final _setKeyValidityForOriginationEnd =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public android.security.keystore.KeyGenParameterSpec$Builder setKeyValidityForOriginationEnd(java.util.Date date)`
+  /// The returned object must be released after use, by calling the [release] method.
+  KeyGenParameterSpec$Builder? setKeyValidityForOriginationEnd(
+    date$_.Date? date,
+  ) {
+    final _$$selfRef = reference;
+    final _$date = date?.reference ?? jni$_.jNullReference;
+    return _setKeyValidityForOriginationEnd(
+      _$$selfRef.pointer,
+      _id_setKeyValidityForOriginationEnd.pointer,
+      _$date.pointer,
+    ).object<KeyGenParameterSpec$Builder?>();
+  }
+
+  static final _id_setKeyValidityForConsumptionEnd = KeyGenParameterSpec$Builder
+      ._class
+      .instanceMethodId(
+        r'setKeyValidityForConsumptionEnd',
+        r'(Ljava/util/Date;)Landroid/security/keystore/KeyGenParameterSpec$Builder;',
+      );
+
+  static final _setKeyValidityForConsumptionEnd =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public android.security.keystore.KeyGenParameterSpec$Builder setKeyValidityForConsumptionEnd(java.util.Date date)`
+  /// The returned object must be released after use, by calling the [release] method.
+  KeyGenParameterSpec$Builder? setKeyValidityForConsumptionEnd(
+    date$_.Date? date,
+  ) {
+    final _$$selfRef = reference;
+    final _$date = date?.reference ?? jni$_.jNullReference;
+    return _setKeyValidityForConsumptionEnd(
+      _$$selfRef.pointer,
+      _id_setKeyValidityForConsumptionEnd.pointer,
+      _$date.pointer,
+    ).object<KeyGenParameterSpec$Builder?>();
+  }
+
+  static final _id_setDigests = KeyGenParameterSpec$Builder._class.instanceMethodId(
+    r'setDigests',
+    r'([Ljava/lang/String;)Landroid/security/keystore/KeyGenParameterSpec$Builder;',
+  );
+
+  static final _setDigests =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public android.security.keystore.KeyGenParameterSpec$Builder setDigests(java.lang.String[] strings)`
+  /// The returned object must be released after use, by calling the [release] method.
+  KeyGenParameterSpec$Builder? setDigests(
+    jni$_.JArray<jni$_.JString?>? strings,
+  ) {
+    final _$$selfRef = reference;
+    final _$strings = strings?.reference ?? jni$_.jNullReference;
+    return _setDigests(
+      _$$selfRef.pointer,
+      _id_setDigests.pointer,
+      _$strings.pointer,
+    ).object<KeyGenParameterSpec$Builder?>();
+  }
+
+  static final _id_setEncryptionPaddings = KeyGenParameterSpec$Builder._class
+      .instanceMethodId(
+        r'setEncryptionPaddings',
+        r'([Ljava/lang/String;)Landroid/security/keystore/KeyGenParameterSpec$Builder;',
+      );
+
+  static final _setEncryptionPaddings =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public android.security.keystore.KeyGenParameterSpec$Builder setEncryptionPaddings(java.lang.String[] strings)`
+  /// The returned object must be released after use, by calling the [release] method.
+  KeyGenParameterSpec$Builder? setEncryptionPaddings(
+    jni$_.JArray<jni$_.JString?>? strings,
+  ) {
+    final _$$selfRef = reference;
+    final _$strings = strings?.reference ?? jni$_.jNullReference;
+    return _setEncryptionPaddings(
+      _$$selfRef.pointer,
+      _id_setEncryptionPaddings.pointer,
+      _$strings.pointer,
+    ).object<KeyGenParameterSpec$Builder?>();
+  }
+
+  static final _id_setSignaturePaddings = KeyGenParameterSpec$Builder._class
+      .instanceMethodId(
+        r'setSignaturePaddings',
+        r'([Ljava/lang/String;)Landroid/security/keystore/KeyGenParameterSpec$Builder;',
+      );
+
+  static final _setSignaturePaddings =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public android.security.keystore.KeyGenParameterSpec$Builder setSignaturePaddings(java.lang.String[] strings)`
+  /// The returned object must be released after use, by calling the [release] method.
+  KeyGenParameterSpec$Builder? setSignaturePaddings(
+    jni$_.JArray<jni$_.JString?>? strings,
+  ) {
+    final _$$selfRef = reference;
+    final _$strings = strings?.reference ?? jni$_.jNullReference;
+    return _setSignaturePaddings(
+      _$$selfRef.pointer,
+      _id_setSignaturePaddings.pointer,
+      _$strings.pointer,
+    ).object<KeyGenParameterSpec$Builder?>();
+  }
+
+  static final _id_setBlockModes = KeyGenParameterSpec$Builder._class
+      .instanceMethodId(
+        r'setBlockModes',
+        r'([Ljava/lang/String;)Landroid/security/keystore/KeyGenParameterSpec$Builder;',
+      );
+
+  static final _setBlockModes =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public android.security.keystore.KeyGenParameterSpec$Builder setBlockModes(java.lang.String[] strings)`
+  /// The returned object must be released after use, by calling the [release] method.
+  KeyGenParameterSpec$Builder? setBlockModes(
+    jni$_.JArray<jni$_.JString?>? strings,
+  ) {
+    final _$$selfRef = reference;
+    final _$strings = strings?.reference ?? jni$_.jNullReference;
+    return _setBlockModes(
+      _$$selfRef.pointer,
+      _id_setBlockModes.pointer,
+      _$strings.pointer,
+    ).object<KeyGenParameterSpec$Builder?>();
+  }
+
+  static final _id_setRandomizedEncryptionRequired = KeyGenParameterSpec$Builder
+      ._class
+      .instanceMethodId(
+        r'setRandomizedEncryptionRequired',
+        r'(Z)Landroid/security/keystore/KeyGenParameterSpec$Builder;',
+      );
+
+  static final _setRandomizedEncryptionRequired =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Int32,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public android.security.keystore.KeyGenParameterSpec$Builder setRandomizedEncryptionRequired(boolean z)`
+  /// The returned object must be released after use, by calling the [release] method.
+  KeyGenParameterSpec$Builder? setRandomizedEncryptionRequired(core$_.bool z) {
+    final _$$selfRef = reference;
+    return _setRandomizedEncryptionRequired(
+      _$$selfRef.pointer,
+      _id_setRandomizedEncryptionRequired.pointer,
+      z ? 1 : 0,
+    ).object<KeyGenParameterSpec$Builder?>();
+  }
+
+  static final _id_setUserAuthenticationRequired = KeyGenParameterSpec$Builder
+      ._class
+      .instanceMethodId(
+        r'setUserAuthenticationRequired',
+        r'(Z)Landroid/security/keystore/KeyGenParameterSpec$Builder;',
+      );
+
+  static final _setUserAuthenticationRequired =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Int32,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public android.security.keystore.KeyGenParameterSpec$Builder setUserAuthenticationRequired(boolean z)`
+  /// The returned object must be released after use, by calling the [release] method.
+  KeyGenParameterSpec$Builder? setUserAuthenticationRequired(core$_.bool z) {
+    final _$$selfRef = reference;
+    return _setUserAuthenticationRequired(
+      _$$selfRef.pointer,
+      _id_setUserAuthenticationRequired.pointer,
+      z ? 1 : 0,
+    ).object<KeyGenParameterSpec$Builder?>();
+  }
+
+  static final _id_setUserConfirmationRequired = KeyGenParameterSpec$Builder
+      ._class
+      .instanceMethodId(
+        r'setUserConfirmationRequired',
+        r'(Z)Landroid/security/keystore/KeyGenParameterSpec$Builder;',
+      );
+
+  static final _setUserConfirmationRequired =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Int32,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public android.security.keystore.KeyGenParameterSpec$Builder setUserConfirmationRequired(boolean z)`
+  /// The returned object must be released after use, by calling the [release] method.
+  KeyGenParameterSpec$Builder? setUserConfirmationRequired(core$_.bool z) {
+    final _$$selfRef = reference;
+    return _setUserConfirmationRequired(
+      _$$selfRef.pointer,
+      _id_setUserConfirmationRequired.pointer,
+      z ? 1 : 0,
+    ).object<KeyGenParameterSpec$Builder?>();
+  }
+
+  static final _id_setUserAuthenticationValidityDurationSeconds =
+      KeyGenParameterSpec$Builder._class.instanceMethodId(
+        r'setUserAuthenticationValidityDurationSeconds',
+        r'(I)Landroid/security/keystore/KeyGenParameterSpec$Builder;',
+      );
+
+  static final _setUserAuthenticationValidityDurationSeconds =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Int32,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public android.security.keystore.KeyGenParameterSpec$Builder setUserAuthenticationValidityDurationSeconds(int i)`
+  /// The returned object must be released after use, by calling the [release] method.
+  @core$_.Deprecated('This Java method is deprecated.')
+  KeyGenParameterSpec$Builder? setUserAuthenticationValidityDurationSeconds(
+    core$_.int i,
+  ) {
+    final _$$selfRef = reference;
+    return _setUserAuthenticationValidityDurationSeconds(
+      _$$selfRef.pointer,
+      _id_setUserAuthenticationValidityDurationSeconds.pointer,
+      i,
+    ).object<KeyGenParameterSpec$Builder?>();
+  }
+
+  static final _id_setUserAuthenticationParameters = KeyGenParameterSpec$Builder
+      ._class
+      .instanceMethodId(
+        r'setUserAuthenticationParameters',
+        r'(II)Landroid/security/keystore/KeyGenParameterSpec$Builder;',
+      );
+
+  static final _setUserAuthenticationParameters =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Int32, jni$_.Int32)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public android.security.keystore.KeyGenParameterSpec$Builder setUserAuthenticationParameters(int i, int i1)`
+  /// The returned object must be released after use, by calling the [release] method.
+  KeyGenParameterSpec$Builder? setUserAuthenticationParameters(
+    core$_.int i,
+    core$_.int i1,
+  ) {
+    final _$$selfRef = reference;
+    return _setUserAuthenticationParameters(
+      _$$selfRef.pointer,
+      _id_setUserAuthenticationParameters.pointer,
+      i,
+      i1,
+    ).object<KeyGenParameterSpec$Builder?>();
+  }
+
+  static final _id_setUserPresenceRequired = KeyGenParameterSpec$Builder._class
+      .instanceMethodId(
+        r'setUserPresenceRequired',
+        r'(Z)Landroid/security/keystore/KeyGenParameterSpec$Builder;',
+      );
+
+  static final _setUserPresenceRequired =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Int32,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public android.security.keystore.KeyGenParameterSpec$Builder setUserPresenceRequired(boolean z)`
+  /// The returned object must be released after use, by calling the [release] method.
+  KeyGenParameterSpec$Builder? setUserPresenceRequired(core$_.bool z) {
+    final _$$selfRef = reference;
+    return _setUserPresenceRequired(
+      _$$selfRef.pointer,
+      _id_setUserPresenceRequired.pointer,
+      z ? 1 : 0,
+    ).object<KeyGenParameterSpec$Builder?>();
+  }
+
+  static final _id_setAttestationChallenge = KeyGenParameterSpec$Builder._class
+      .instanceMethodId(
+        r'setAttestationChallenge',
+        r'([B)Landroid/security/keystore/KeyGenParameterSpec$Builder;',
+      );
+
+  static final _setAttestationChallenge =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public android.security.keystore.KeyGenParameterSpec$Builder setAttestationChallenge(byte[] bs)`
+  /// The returned object must be released after use, by calling the [release] method.
+  KeyGenParameterSpec$Builder? setAttestationChallenge(jni$_.JByteArray? bs) {
+    final _$$selfRef = reference;
+    final _$bs = bs?.reference ?? jni$_.jNullReference;
+    return _setAttestationChallenge(
+      _$$selfRef.pointer,
+      _id_setAttestationChallenge.pointer,
+      _$bs.pointer,
+    ).object<KeyGenParameterSpec$Builder?>();
+  }
+
+  static final _id_setDevicePropertiesAttestationIncluded =
+      KeyGenParameterSpec$Builder._class.instanceMethodId(
+        r'setDevicePropertiesAttestationIncluded',
+        r'(Z)Landroid/security/keystore/KeyGenParameterSpec$Builder;',
+      );
+
+  static final _setDevicePropertiesAttestationIncluded =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Int32,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public android.security.keystore.KeyGenParameterSpec$Builder setDevicePropertiesAttestationIncluded(boolean z)`
+  /// The returned object must be released after use, by calling the [release] method.
+  KeyGenParameterSpec$Builder? setDevicePropertiesAttestationIncluded(
+    core$_.bool z,
+  ) {
+    final _$$selfRef = reference;
+    return _setDevicePropertiesAttestationIncluded(
+      _$$selfRef.pointer,
+      _id_setDevicePropertiesAttestationIncluded.pointer,
+      z ? 1 : 0,
+    ).object<KeyGenParameterSpec$Builder?>();
+  }
+
+  static final _id_setUserAuthenticationValidWhileOnBody =
+      KeyGenParameterSpec$Builder._class.instanceMethodId(
+        r'setUserAuthenticationValidWhileOnBody',
+        r'(Z)Landroid/security/keystore/KeyGenParameterSpec$Builder;',
+      );
+
+  static final _setUserAuthenticationValidWhileOnBody =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Int32,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public android.security.keystore.KeyGenParameterSpec$Builder setUserAuthenticationValidWhileOnBody(boolean z)`
+  /// The returned object must be released after use, by calling the [release] method.
+  KeyGenParameterSpec$Builder? setUserAuthenticationValidWhileOnBody(
+    core$_.bool z,
+  ) {
+    final _$$selfRef = reference;
+    return _setUserAuthenticationValidWhileOnBody(
+      _$$selfRef.pointer,
+      _id_setUserAuthenticationValidWhileOnBody.pointer,
+      z ? 1 : 0,
+    ).object<KeyGenParameterSpec$Builder?>();
+  }
+
+  static final _id_setInvalidatedByBiometricEnrollment =
+      KeyGenParameterSpec$Builder._class.instanceMethodId(
+        r'setInvalidatedByBiometricEnrollment',
+        r'(Z)Landroid/security/keystore/KeyGenParameterSpec$Builder;',
+      );
+
+  static final _setInvalidatedByBiometricEnrollment =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Int32,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public android.security.keystore.KeyGenParameterSpec$Builder setInvalidatedByBiometricEnrollment(boolean z)`
+  /// The returned object must be released after use, by calling the [release] method.
+  KeyGenParameterSpec$Builder? setInvalidatedByBiometricEnrollment(
+    core$_.bool z,
+  ) {
+    final _$$selfRef = reference;
+    return _setInvalidatedByBiometricEnrollment(
+      _$$selfRef.pointer,
+      _id_setInvalidatedByBiometricEnrollment.pointer,
+      z ? 1 : 0,
+    ).object<KeyGenParameterSpec$Builder?>();
+  }
+
+  static final _id_setIsStrongBoxBacked = KeyGenParameterSpec$Builder._class
+      .instanceMethodId(
+        r'setIsStrongBoxBacked',
+        r'(Z)Landroid/security/keystore/KeyGenParameterSpec$Builder;',
+      );
+
+  static final _setIsStrongBoxBacked =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Int32,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public android.security.keystore.KeyGenParameterSpec$Builder setIsStrongBoxBacked(boolean z)`
+  /// The returned object must be released after use, by calling the [release] method.
+  KeyGenParameterSpec$Builder? setIsStrongBoxBacked(core$_.bool z) {
+    final _$$selfRef = reference;
+    return _setIsStrongBoxBacked(
+      _$$selfRef.pointer,
+      _id_setIsStrongBoxBacked.pointer,
+      z ? 1 : 0,
+    ).object<KeyGenParameterSpec$Builder?>();
+  }
+
+  static final _id_setUnlockedDeviceRequired = KeyGenParameterSpec$Builder
+      ._class
+      .instanceMethodId(
+        r'setUnlockedDeviceRequired',
+        r'(Z)Landroid/security/keystore/KeyGenParameterSpec$Builder;',
+      );
+
+  static final _setUnlockedDeviceRequired =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Int32,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public android.security.keystore.KeyGenParameterSpec$Builder setUnlockedDeviceRequired(boolean z)`
+  /// The returned object must be released after use, by calling the [release] method.
+  KeyGenParameterSpec$Builder? setUnlockedDeviceRequired(core$_.bool z) {
+    final _$$selfRef = reference;
+    return _setUnlockedDeviceRequired(
+      _$$selfRef.pointer,
+      _id_setUnlockedDeviceRequired.pointer,
+      z ? 1 : 0,
+    ).object<KeyGenParameterSpec$Builder?>();
+  }
+
+  static final _id_setMaxUsageCount = KeyGenParameterSpec$Builder._class
+      .instanceMethodId(
+        r'setMaxUsageCount',
+        r'(I)Landroid/security/keystore/KeyGenParameterSpec$Builder;',
+      );
+
+  static final _setMaxUsageCount =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Int32,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+            )
+          >();
+
+  /// from: `public android.security.keystore.KeyGenParameterSpec$Builder setMaxUsageCount(int i)`
+  /// The returned object must be released after use, by calling the [release] method.
+  KeyGenParameterSpec$Builder? setMaxUsageCount(core$_.int i) {
+    final _$$selfRef = reference;
+    return _setMaxUsageCount(
+      _$$selfRef.pointer,
+      _id_setMaxUsageCount.pointer,
+      i,
+    ).object<KeyGenParameterSpec$Builder?>();
+  }
+
+  static final _id_setAttestKeyAlias = KeyGenParameterSpec$Builder._class
+      .instanceMethodId(
+        r'setAttestKeyAlias',
+        r'(Ljava/lang/String;)Landroid/security/keystore/KeyGenParameterSpec$Builder;',
+      );
+
+  static final _setAttestKeyAlias =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public android.security.keystore.KeyGenParameterSpec$Builder setAttestKeyAlias(java.lang.String string)`
+  /// The returned object must be released after use, by calling the [release] method.
+  KeyGenParameterSpec$Builder? setAttestKeyAlias(jni$_.JString? string) {
+    final _$$selfRef = reference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    return _setAttestKeyAlias(
+      _$$selfRef.pointer,
+      _id_setAttestKeyAlias.pointer,
+      _$string.pointer,
+    ).object<KeyGenParameterSpec$Builder?>();
+  }
+
+  static final _id_build = KeyGenParameterSpec$Builder._class.instanceMethodId(
+    r'build',
+    r'()Landroid/security/keystore/KeyGenParameterSpec;',
+  );
+
+  static final _build =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public android.security.keystore.KeyGenParameterSpec build()`
+  /// The returned object must be released after use, by calling the [release] method.
+  KeyGenParameterSpec? build() {
+    final _$$selfRef = reference;
+    return _build(
+      _$$selfRef.pointer,
+      _id_build.pointer,
+    ).object<KeyGenParameterSpec?>();
+  }
+}
+
+final class $KeyGenParameterSpec$Builder$Type$
+    extends jni$_.JType<KeyGenParameterSpec$Builder> {
+  @jni$_.internal
+  const $KeyGenParameterSpec$Builder$Type$();
+
+  @jni$_.internal
+  @core$_.override
+  String get signature =>
+      r'Landroid/security/keystore/KeyGenParameterSpec$Builder;';
+}
+
+/// from: `android.security.keystore.KeyGenParameterSpec`
+extension type KeyGenParameterSpec._(jni$_.JObject _$this)
+    implements jni$_.JObject, algorithmparameterspec$_.AlgorithmParameterSpec {
+  static final _class = jni$_.JClass.forName(
+    r'android/security/keystore/KeyGenParameterSpec',
+  );
+
+  /// The type which includes information such as the signature of this class.
   static const jni$_.JType<KeyGenParameterSpec> type =
       $KeyGenParameterSpec$Type$();
+}
+
+extension KeyGenParameterSpec$$Methods on KeyGenParameterSpec {
+  static final _id_get$keystoreAlias = KeyGenParameterSpec._class
+      .instanceMethodId(r'getKeystoreAlias', r'()Ljava/lang/String;');
+
+  static final _get$keystoreAlias =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public java.lang.String getKeystoreAlias()`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JString? get keystoreAlias {
+    final _$$selfRef = reference;
+    return _get$keystoreAlias(
+      _$$selfRef.pointer,
+      _id_get$keystoreAlias.pointer,
+    ).object<jni$_.JString?>();
+  }
+
+  static final _id_get$keySize = KeyGenParameterSpec._class.instanceMethodId(
+    r'getKeySize',
+    r'()I',
+  );
+
+  static final _get$keySize =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public int getKeySize()`
+  core$_.int get keySize {
+    final _$$selfRef = reference;
+    return _get$keySize(_$$selfRef.pointer, _id_get$keySize.pointer).integer;
+  }
+
+  static final _id_get$algorithmParameterSpec = KeyGenParameterSpec._class
+      .instanceMethodId(
+        r'getAlgorithmParameterSpec',
+        r'()Ljava/security/spec/AlgorithmParameterSpec;',
+      );
+
+  static final _get$algorithmParameterSpec =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public java.security.spec.AlgorithmParameterSpec getAlgorithmParameterSpec()`
+  /// The returned object must be released after use, by calling the [release] method.
+  algorithmparameterspec$_.AlgorithmParameterSpec? get algorithmParameterSpec {
+    final _$$selfRef = reference;
+    return _get$algorithmParameterSpec(
+      _$$selfRef.pointer,
+      _id_get$algorithmParameterSpec.pointer,
+    ).object<algorithmparameterspec$_.AlgorithmParameterSpec?>();
+  }
+
+  static final _id_get$certificateSubject = KeyGenParameterSpec._class
+      .instanceMethodId(
+        r'getCertificateSubject',
+        r'()Ljavax/security/auth/x500/X500Principal;',
+      );
+
+  static final _get$certificateSubject =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public javax.security.auth.x500.X500Principal getCertificateSubject()`
+  /// The returned object must be released after use, by calling the [release] method.
+  x500principal$_.X500Principal? get certificateSubject {
+    final _$$selfRef = reference;
+    return _get$certificateSubject(
+      _$$selfRef.pointer,
+      _id_get$certificateSubject.pointer,
+    ).object<x500principal$_.X500Principal?>();
+  }
+
+  static final _id_get$certificateSerialNumber = KeyGenParameterSpec._class
+      .instanceMethodId(
+        r'getCertificateSerialNumber',
+        r'()Ljava/math/BigInteger;',
+      );
+
+  static final _get$certificateSerialNumber =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public java.math.BigInteger getCertificateSerialNumber()`
+  /// The returned object must be released after use, by calling the [release] method.
+  biginteger$_.BigInteger? get certificateSerialNumber {
+    final _$$selfRef = reference;
+    return _get$certificateSerialNumber(
+      _$$selfRef.pointer,
+      _id_get$certificateSerialNumber.pointer,
+    ).object<biginteger$_.BigInteger?>();
+  }
+
+  static final _id_get$certificateNotBefore = KeyGenParameterSpec._class
+      .instanceMethodId(r'getCertificateNotBefore', r'()Ljava/util/Date;');
+
+  static final _get$certificateNotBefore =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public java.util.Date getCertificateNotBefore()`
+  /// The returned object must be released after use, by calling the [release] method.
+  date$_.Date? get certificateNotBefore {
+    final _$$selfRef = reference;
+    return _get$certificateNotBefore(
+      _$$selfRef.pointer,
+      _id_get$certificateNotBefore.pointer,
+    ).object<date$_.Date?>();
+  }
+
+  static final _id_get$certificateNotAfter = KeyGenParameterSpec._class
+      .instanceMethodId(r'getCertificateNotAfter', r'()Ljava/util/Date;');
+
+  static final _get$certificateNotAfter =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public java.util.Date getCertificateNotAfter()`
+  /// The returned object must be released after use, by calling the [release] method.
+  date$_.Date? get certificateNotAfter {
+    final _$$selfRef = reference;
+    return _get$certificateNotAfter(
+      _$$selfRef.pointer,
+      _id_get$certificateNotAfter.pointer,
+    ).object<date$_.Date?>();
+  }
+
+  static final _id_get$keyValidityStart = KeyGenParameterSpec._class
+      .instanceMethodId(r'getKeyValidityStart', r'()Ljava/util/Date;');
+
+  static final _get$keyValidityStart =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public java.util.Date getKeyValidityStart()`
+  /// The returned object must be released after use, by calling the [release] method.
+  date$_.Date? get keyValidityStart {
+    final _$$selfRef = reference;
+    return _get$keyValidityStart(
+      _$$selfRef.pointer,
+      _id_get$keyValidityStart.pointer,
+    ).object<date$_.Date?>();
+  }
+
+  static final _id_get$keyValidityForConsumptionEnd = KeyGenParameterSpec._class
+      .instanceMethodId(
+        r'getKeyValidityForConsumptionEnd',
+        r'()Ljava/util/Date;',
+      );
+
+  static final _get$keyValidityForConsumptionEnd =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public java.util.Date getKeyValidityForConsumptionEnd()`
+  /// The returned object must be released after use, by calling the [release] method.
+  date$_.Date? get keyValidityForConsumptionEnd {
+    final _$$selfRef = reference;
+    return _get$keyValidityForConsumptionEnd(
+      _$$selfRef.pointer,
+      _id_get$keyValidityForConsumptionEnd.pointer,
+    ).object<date$_.Date?>();
+  }
+
+  static final _id_get$keyValidityForOriginationEnd = KeyGenParameterSpec._class
+      .instanceMethodId(
+        r'getKeyValidityForOriginationEnd',
+        r'()Ljava/util/Date;',
+      );
+
+  static final _get$keyValidityForOriginationEnd =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public java.util.Date getKeyValidityForOriginationEnd()`
+  /// The returned object must be released after use, by calling the [release] method.
+  date$_.Date? get keyValidityForOriginationEnd {
+    final _$$selfRef = reference;
+    return _get$keyValidityForOriginationEnd(
+      _$$selfRef.pointer,
+      _id_get$keyValidityForOriginationEnd.pointer,
+    ).object<date$_.Date?>();
+  }
+
+  static final _id_get$purposes = KeyGenParameterSpec._class.instanceMethodId(
+    r'getPurposes',
+    r'()I',
+  );
+
+  static final _get$purposes =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public int getPurposes()`
+  core$_.int get purposes {
+    final _$$selfRef = reference;
+    return _get$purposes(_$$selfRef.pointer, _id_get$purposes.pointer).integer;
+  }
+
+  static final _id_get$digests = KeyGenParameterSpec._class.instanceMethodId(
+    r'getDigests',
+    r'()[Ljava/lang/String;',
+  );
+
+  static final _get$digests =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public java.lang.String[] getDigests()`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JArray<jni$_.JString?>? get digests {
+    final _$$selfRef = reference;
+    return _get$digests(
+      _$$selfRef.pointer,
+      _id_get$digests.pointer,
+    ).object<jni$_.JArray<jni$_.JString?>?>();
+  }
+
+  static final _id_get$isDigestsSpecified = KeyGenParameterSpec._class
+      .instanceMethodId(r'isDigestsSpecified', r'()Z');
+
+  static final _get$isDigestsSpecified =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public boolean isDigestsSpecified()`
+  core$_.bool get isDigestsSpecified {
+    final _$$selfRef = reference;
+    return _get$isDigestsSpecified(
+      _$$selfRef.pointer,
+      _id_get$isDigestsSpecified.pointer,
+    ).boolean;
+  }
+
+  static final _id_get$encryptionPaddings = KeyGenParameterSpec._class
+      .instanceMethodId(r'getEncryptionPaddings', r'()[Ljava/lang/String;');
+
+  static final _get$encryptionPaddings =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public java.lang.String[] getEncryptionPaddings()`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JArray<jni$_.JString?>? get encryptionPaddings {
+    final _$$selfRef = reference;
+    return _get$encryptionPaddings(
+      _$$selfRef.pointer,
+      _id_get$encryptionPaddings.pointer,
+    ).object<jni$_.JArray<jni$_.JString?>?>();
+  }
+
+  static final _id_get$signaturePaddings = KeyGenParameterSpec._class
+      .instanceMethodId(r'getSignaturePaddings', r'()[Ljava/lang/String;');
+
+  static final _get$signaturePaddings =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public java.lang.String[] getSignaturePaddings()`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JArray<jni$_.JString?>? get signaturePaddings {
+    final _$$selfRef = reference;
+    return _get$signaturePaddings(
+      _$$selfRef.pointer,
+      _id_get$signaturePaddings.pointer,
+    ).object<jni$_.JArray<jni$_.JString?>?>();
+  }
+
+  static final _id_get$blockModes = KeyGenParameterSpec._class.instanceMethodId(
+    r'getBlockModes',
+    r'()[Ljava/lang/String;',
+  );
+
+  static final _get$blockModes =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public java.lang.String[] getBlockModes()`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JArray<jni$_.JString?>? get blockModes {
+    final _$$selfRef = reference;
+    return _get$blockModes(
+      _$$selfRef.pointer,
+      _id_get$blockModes.pointer,
+    ).object<jni$_.JArray<jni$_.JString?>?>();
+  }
+
+  static final _id_get$isRandomizedEncryptionRequired = KeyGenParameterSpec
+      ._class
+      .instanceMethodId(r'isRandomizedEncryptionRequired', r'()Z');
+
+  static final _get$isRandomizedEncryptionRequired =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public boolean isRandomizedEncryptionRequired()`
+  core$_.bool get isRandomizedEncryptionRequired {
+    final _$$selfRef = reference;
+    return _get$isRandomizedEncryptionRequired(
+      _$$selfRef.pointer,
+      _id_get$isRandomizedEncryptionRequired.pointer,
+    ).boolean;
+  }
+
+  static final _id_get$isUserAuthenticationRequired = KeyGenParameterSpec._class
+      .instanceMethodId(r'isUserAuthenticationRequired', r'()Z');
+
+  static final _get$isUserAuthenticationRequired =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public boolean isUserAuthenticationRequired()`
+  core$_.bool get isUserAuthenticationRequired {
+    final _$$selfRef = reference;
+    return _get$isUserAuthenticationRequired(
+      _$$selfRef.pointer,
+      _id_get$isUserAuthenticationRequired.pointer,
+    ).boolean;
+  }
+
+  static final _id_get$isUserConfirmationRequired = KeyGenParameterSpec._class
+      .instanceMethodId(r'isUserConfirmationRequired', r'()Z');
+
+  static final _get$isUserConfirmationRequired =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public boolean isUserConfirmationRequired()`
+  core$_.bool get isUserConfirmationRequired {
+    final _$$selfRef = reference;
+    return _get$isUserConfirmationRequired(
+      _$$selfRef.pointer,
+      _id_get$isUserConfirmationRequired.pointer,
+    ).boolean;
+  }
+
+  static final _id_get$userAuthenticationValidityDurationSeconds =
+      KeyGenParameterSpec._class.instanceMethodId(
+        r'getUserAuthenticationValidityDurationSeconds',
+        r'()I',
+      );
+
+  static final _get$userAuthenticationValidityDurationSeconds =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public int getUserAuthenticationValidityDurationSeconds()`
+  core$_.int get userAuthenticationValidityDurationSeconds {
+    final _$$selfRef = reference;
+    return _get$userAuthenticationValidityDurationSeconds(
+      _$$selfRef.pointer,
+      _id_get$userAuthenticationValidityDurationSeconds.pointer,
+    ).integer;
+  }
+
+  static final _id_get$userAuthenticationType = KeyGenParameterSpec._class
+      .instanceMethodId(r'getUserAuthenticationType', r'()I');
+
+  static final _get$userAuthenticationType =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public int getUserAuthenticationType()`
+  core$_.int get userAuthenticationType {
+    final _$$selfRef = reference;
+    return _get$userAuthenticationType(
+      _$$selfRef.pointer,
+      _id_get$userAuthenticationType.pointer,
+    ).integer;
+  }
+
+  static final _id_get$isUserPresenceRequired = KeyGenParameterSpec._class
+      .instanceMethodId(r'isUserPresenceRequired', r'()Z');
+
+  static final _get$isUserPresenceRequired =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public boolean isUserPresenceRequired()`
+  core$_.bool get isUserPresenceRequired {
+    final _$$selfRef = reference;
+    return _get$isUserPresenceRequired(
+      _$$selfRef.pointer,
+      _id_get$isUserPresenceRequired.pointer,
+    ).boolean;
+  }
+
+  static final _id_get$attestationChallenge = KeyGenParameterSpec._class
+      .instanceMethodId(r'getAttestationChallenge', r'()[B');
+
+  static final _get$attestationChallenge =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public byte[] getAttestationChallenge()`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JByteArray? get attestationChallenge {
+    final _$$selfRef = reference;
+    return _get$attestationChallenge(
+      _$$selfRef.pointer,
+      _id_get$attestationChallenge.pointer,
+    ).object<jni$_.JByteArray?>();
+  }
+
+  static final _id_get$isDevicePropertiesAttestationIncluded =
+      KeyGenParameterSpec._class.instanceMethodId(
+        r'isDevicePropertiesAttestationIncluded',
+        r'()Z',
+      );
+
+  static final _get$isDevicePropertiesAttestationIncluded =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public boolean isDevicePropertiesAttestationIncluded()`
+  core$_.bool get isDevicePropertiesAttestationIncluded {
+    final _$$selfRef = reference;
+    return _get$isDevicePropertiesAttestationIncluded(
+      _$$selfRef.pointer,
+      _id_get$isDevicePropertiesAttestationIncluded.pointer,
+    ).boolean;
+  }
+
+  static final _id_get$isUserAuthenticationValidWhileOnBody =
+      KeyGenParameterSpec._class.instanceMethodId(
+        r'isUserAuthenticationValidWhileOnBody',
+        r'()Z',
+      );
+
+  static final _get$isUserAuthenticationValidWhileOnBody =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public boolean isUserAuthenticationValidWhileOnBody()`
+  core$_.bool get isUserAuthenticationValidWhileOnBody {
+    final _$$selfRef = reference;
+    return _get$isUserAuthenticationValidWhileOnBody(
+      _$$selfRef.pointer,
+      _id_get$isUserAuthenticationValidWhileOnBody.pointer,
+    ).boolean;
+  }
+
+  static final _id_get$isInvalidatedByBiometricEnrollment = KeyGenParameterSpec
+      ._class
+      .instanceMethodId(r'isInvalidatedByBiometricEnrollment', r'()Z');
+
+  static final _get$isInvalidatedByBiometricEnrollment =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public boolean isInvalidatedByBiometricEnrollment()`
+  core$_.bool get isInvalidatedByBiometricEnrollment {
+    final _$$selfRef = reference;
+    return _get$isInvalidatedByBiometricEnrollment(
+      _$$selfRef.pointer,
+      _id_get$isInvalidatedByBiometricEnrollment.pointer,
+    ).boolean;
+  }
+
+  static final _id_get$isStrongBoxBacked = KeyGenParameterSpec._class
+      .instanceMethodId(r'isStrongBoxBacked', r'()Z');
+
+  static final _get$isStrongBoxBacked =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public boolean isStrongBoxBacked()`
+  core$_.bool get isStrongBoxBacked {
+    final _$$selfRef = reference;
+    return _get$isStrongBoxBacked(
+      _$$selfRef.pointer,
+      _id_get$isStrongBoxBacked.pointer,
+    ).boolean;
+  }
+
+  static final _id_get$isUnlockedDeviceRequired = KeyGenParameterSpec._class
+      .instanceMethodId(r'isUnlockedDeviceRequired', r'()Z');
+
+  static final _get$isUnlockedDeviceRequired =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public boolean isUnlockedDeviceRequired()`
+  core$_.bool get isUnlockedDeviceRequired {
+    final _$$selfRef = reference;
+    return _get$isUnlockedDeviceRequired(
+      _$$selfRef.pointer,
+      _id_get$isUnlockedDeviceRequired.pointer,
+    ).boolean;
+  }
+
+  static final _id_get$maxUsageCount = KeyGenParameterSpec._class
+      .instanceMethodId(r'getMaxUsageCount', r'()I');
+
+  static final _get$maxUsageCount =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public int getMaxUsageCount()`
+  core$_.int get maxUsageCount {
+    final _$$selfRef = reference;
+    return _get$maxUsageCount(
+      _$$selfRef.pointer,
+      _id_get$maxUsageCount.pointer,
+    ).integer;
+  }
+
+  static final _id_get$attestKeyAlias = KeyGenParameterSpec._class
+      .instanceMethodId(r'getAttestKeyAlias', r'()Ljava/lang/String;');
+
+  static final _get$attestKeyAlias =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public java.lang.String getAttestKeyAlias()`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JString? get attestKeyAlias {
+    final _$$selfRef = reference;
+    return _get$attestKeyAlias(
+      _$$selfRef.pointer,
+      _id_get$attestKeyAlias.pointer,
+    ).object<jni$_.JString?>();
+  }
 }
 
 final class $KeyGenParameterSpec$Type$

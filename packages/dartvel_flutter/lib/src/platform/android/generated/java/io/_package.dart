@@ -6,5 +6,6 @@ export 'FileInputStream.dart';
 export 'FileOutputStream.dart';
 export 'FilenameFilter.dart';
 export 'InputStream.dart';
+export 'OutputStream.dart';
 export 'PrintWriter.dart';
 export 'Serializable.dart';
