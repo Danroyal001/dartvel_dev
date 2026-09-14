@@ -32,7 +32,10 @@ class InspectCommand extends Command<void> {
   String get invocation =>
       'dartvel inspect [routes|models|model <Name>|functions|function <name>|jobs|windows|kiosk|adoption] [--json] [--device-profile <id>]';
 
-  InspectCommand() {
+  /// [root] is the project; null reads the working directory when the command
+  /// runs. A test passes its own, because that directory is one value shared
+  /// by every suite in the process.
+  InspectCommand({this._root}) {
     argParser.addFlag(
       'json',
       negatable: false,
@@ -45,11 +48,13 @@ class InspectCommand extends Command<void> {
     );
   }
 
+  final String? _root;
+
   @override
   Future<void> run() async {
     final bool asJson = argResults!['json'] as bool;
     final List<String> rest = argResults!.rest;
-    final String root = Directory.current.path;
+    final String root = _root ?? Directory.current.path;
 
     final DartvelProjectGraph graph = await DartvelProjectGraph.build(
       root: root,

@@ -21,9 +21,12 @@ import '../import/postman_import.dart';
 import '../utils/logger.dart';
 
 class ImportCommand extends Command<void> {
-  ImportCommand() {
-    addSubcommand(ImportOpenApiSubcommand());
-    addSubcommand(ImportPostmanSubcommand());
+  /// [root] is the project; null reads the working directory when the command
+  /// runs. A test passes its own, because that directory is one value shared
+  /// by every suite in the process.
+  ImportCommand({String? root}) {
+    addSubcommand(ImportOpenApiSubcommand(root: root));
+    addSubcommand(ImportPostmanSubcommand(root: root));
   }
 
   @override
@@ -43,7 +46,7 @@ typedef DVImportResult = ({Map<String, String> sources, List<String> problems});
 /// is overridden — two copies of the overwrite rule would be two chances to
 /// get it wrong, and the one that got it wrong would destroy somebody's work.
 abstract class DVImportSubcommand extends Command<void> {
-  DVImportSubcommand() {
+  DVImportSubcommand({this._root}) {
     argParser
       ..addFlag('dry-run',
           defaultsTo: false,
@@ -54,6 +57,8 @@ abstract class DVImportSubcommand extends Command<void> {
           negatable: false,
           help: 'Replace files that are already there.');
   }
+
+  final String? _root;
 
   /// What this kind of document is called, with its article, for the
   /// messages -- "a Postman collection", "an OpenAPI document".
@@ -106,7 +111,7 @@ abstract class DVImportSubcommand extends Command<void> {
       return;
     }
 
-    final String root = Directory.current.path;
+    final String root = _root ?? Directory.current.path;
     final bool dryRun = argResults?['dry-run'] == true;
     final bool overwrite = argResults?['overwrite'] == true;
     final List<String> skipped = <String>[];
@@ -160,6 +165,8 @@ abstract class DVImportSubcommand extends Command<void> {
 }
 
 class ImportOpenApiSubcommand extends DVImportSubcommand {
+  ImportOpenApiSubcommand({super.root});
+
   @override
   final String name = 'openapi';
 
@@ -178,6 +185,8 @@ class ImportOpenApiSubcommand extends DVImportSubcommand {
 }
 
 class ImportPostmanSubcommand extends DVImportSubcommand {
+  ImportPostmanSubcommand({super.root});
+
   @override
   final String name = 'postman';
 

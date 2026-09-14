@@ -11,7 +11,10 @@ class TestCommand extends Command<void> {
   @override
   String get description => 'Run Dartvel tests.';
 
-  TestCommand() {
+  /// [root] is the project; null reads the working directory when the command
+  /// runs. A test passes its own, because that directory is one value shared
+  /// by every suite in the process.
+  TestCommand({this._root}) {
     argParser
       ..addFlag(
         'flutter',
@@ -58,8 +61,11 @@ class TestCommand extends Command<void> {
       );
   }
 
+  final String? _root;
+
   @override
   Future<void> run() async {
+    final Directory root = Directory(_root ?? Directory.current.path);
     final rest = argResults?.rest ?? const <String>[];
     final mode = rest.isEmpty ? 'unit' : rest.first;
     if (!const <String>{
@@ -81,7 +87,7 @@ class TestCommand extends Command<void> {
     // on a directory that was never there or, once that was fixed, ran the
     // whole suite under the name of a mode that has no tests -- and a green
     // tick that checked nothing is worse than a clear "no tests".
-    final plan = DartvelTestPlan.forMode(mode: mode, root: Directory.current);
+    final plan = DartvelTestPlan.forMode(mode: mode, root: root);
     if (!plan.found && mode != 'unit') {
       Logger.log(plan.message!);
       // Not a failure: a project with no native code has no native tests, and
@@ -100,7 +106,7 @@ class TestCommand extends Command<void> {
       isolate: argResults?['isolate'] == true,
       updateGoldens: argResults?['update-goldens'] == true,
       forwardedArgs: forwarded,
-      root: Directory.current,
+      root: root,
     );
     if (argResults?['dry-run'] == true) {
       stdout.writeln(invocation.printable);
@@ -109,6 +115,9 @@ class TestCommand extends Command<void> {
     final process = await Process.start(
       invocation.executable,
       invocation.arguments,
+      // The resolved arguments are relative to the project, so the runner is
+      // started in it rather than wherever this process happens to be.
+      workingDirectory: root.path,
       runInShell: false,
     );
     await stdout.addStream(process.stdout);

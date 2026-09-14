@@ -461,6 +461,10 @@ class BuildCommand extends Command<void> {
     BuildProcessRun? processRun,
     BuildRunnerDependencyCheck? hasBuildRunner,
     bool Function(String)? onPath,
+    // The project; null reads the working directory when the command runs.
+    // A test passes its own, because that directory is one value shared by
+    // every suite in the process.
+    this._root,
   })  : _preflightOverride = preflight,
         _onPathOverride = onPath,
         _processRun = processRun ?? _defaultProcessRun,
@@ -506,6 +510,13 @@ class BuildCommand extends Command<void> {
               'prompting when interactive, and to installing in CI. Use '
               '--no-auto-install to require a pre-provisioned toolchain.');
   }
+
+  final String? _root;
+
+  /// The project being built, read once per use rather than cached, so a
+  /// command constructed before the CLI knows its directory still builds the
+  /// directory it is run in.
+  String get _projectRoot => _root ?? Directory.current.path;
 
   final BuildPreflight? _preflightOverride;
   final bool Function(String)? _onPathOverride;
@@ -581,7 +592,7 @@ class BuildCommand extends Command<void> {
 
   @override
   Future<void> run() async {
-    final root = Directory.current.path;
+    final root = _projectRoot;
 
     // `dartvel build dev-client --target <platform>`. Here --target names the
     // platform, as the specification writes it, rather than an entrypoint: a
@@ -905,33 +916,33 @@ class BuildCommand extends Command<void> {
     Logger.log('🔨 Building for $platform...');
     // Before Xcode packages the bundle: the document and URL types live in
     // its Info.plist.
-    if (platform == 'macos') _writeMacosDesktopEntries(Directory.current.path);
+    if (platform == 'macos') _writeMacosDesktopEntries(_projectRoot);
     // Before Xcode reads the project: an extension target cannot be added to
     // a build that has already started, and a widget with no target is Swift
     // that nothing compiles.
     if (platform == 'ios' || platform == 'macos') {
-      _writeAppleHomeWidgets(Directory.current.path, platform);
+      _writeAppleHomeWidgets(_projectRoot, platform);
     }
-    if (platform == 'ios') _writeIosDeepLinks(Directory.current.path);
+    if (platform == 'ios') _writeIosDeepLinks(_projectRoot);
     // Before Gradle reads the manifest: a lock-task launcher is two things
     // in it, and neither can be added at run time.
     if (platform == 'android' || platform == 'fireos') {
       // Before the kiosk block, so a manifest that gets both keeps them in
       // a stable order and the diff stays readable.
-      _writeAndroidContextProvider(Directory.current.path);
+      _writeAndroidContextProvider(_projectRoot);
       // After the Context provider and before the kiosk, because it adds to
       // the same manifest and the order the blocks appear in is the order
       // they are written.
-      _writeAndroidCaptureBridge(Directory.current.path);
-      _writeAndroidKioskFiles(Directory.current.path);
-      _writeAndroidHomeWidgets(Directory.current.path);
+      _writeAndroidCaptureBridge(_projectRoot);
+      _writeAndroidKioskFiles(_projectRoot);
+      _writeAndroidHomeWidgets(_projectRoot);
     }
     // Before the platform build reads them: the launch theme, the launch
     // storyboard and the runner's first colour are each read once, at the
     // start, and a splash written after that ships in the next build.
     if (const <String>{'android', 'fireos', 'ios', 'macos', 'linux'}
         .contains(platform)) {
-      _writeNativeSplash(Directory.current.path, platform);
+      _writeNativeSplash(_projectRoot, platform);
     }
 
     final args = resolveFlutterBuildArguments(
@@ -946,7 +957,7 @@ class BuildCommand extends Command<void> {
       deviceProfile: deviceProfile,
       // Before the build, because the app is handed the list as a
       // compile-time value: which images have variants, and how wide each is.
-      imageVariants: _imageVariants(Directory.current.path, platform),
+      imageVariants: _imageVariants(_projectRoot, platform),
     );
 
     // Check if platform is available
@@ -962,7 +973,7 @@ class BuildCommand extends Command<void> {
     // and scaled down, which makes every breakpoint report "desktop" on a
     // phone.
     if (platform == 'web' || platform == 'web-server') {
-      if (dvEnsureProjectViewport(Directory.current.path)) {
+      if (dvEnsureProjectViewport(_projectRoot)) {
         Logger.log('   Added a viewport meta to web/index.html.');
       }
     }
@@ -975,6 +986,7 @@ class BuildCommand extends Command<void> {
     final proc = await Process.start(
       'flutter',
       args,
+      workingDirectory: _projectRoot,
       runInShell: true,
       environment: _buildEnvironment,
     );
@@ -991,7 +1003,7 @@ class BuildCommand extends Command<void> {
 
     if (exitCode == 0) {
       if (platform == 'web' || platform == 'web-server') {
-        final root = Directory.current.path;
+        final root = _projectRoot;
         // Before the capture loads a page: the variants DVImageView asks for
         // have to be there, or the capture records a 404 for every image.
         _writeStaticImageVariants(root, platform);
@@ -1015,8 +1027,8 @@ class BuildCommand extends Command<void> {
           await _writeStaticPages(root);
         }
       }
-      if (platform == 'linux') _writeLinuxDesktopFiles(Directory.current.path);
-      if (platform == 'windows') _writeWindowsDesktopFiles(Directory.current.path);
+      if (platform == 'linux') _writeLinuxDesktopFiles(_projectRoot);
+      if (platform == 'windows') _writeWindowsDesktopFiles(_projectRoot);
       Logger.log('✅ $platform build successful');
       return _PlatformBuildResult.succeeded;
     } else {
@@ -1039,7 +1051,7 @@ class BuildCommand extends Command<void> {
     // looks. The desktop build writes one; this is a configuration step, not
     // a second artifact, and nothing from it ships.
     final String mode = plan.arguments.contains('--release') ? 'release' : 'debug';
-    final String root = Directory.current.path;
+    final String root = _projectRoot;
     if (!await _configureNativeAssets(root, mode: mode, timeout: timeout)) {
       return _PlatformBuildResult.failed;
     }
@@ -1049,6 +1061,7 @@ class BuildCommand extends Command<void> {
     final process = await Process.start(
       plan.toolchain,
       plan.arguments,
+      workingDirectory: root,
       mode: ProcessStartMode.inheritStdio,
     );
     final exitCode =
@@ -1080,6 +1093,7 @@ class BuildCommand extends Command<void> {
     final Process process = await Process.start(
       'flutter',
       <String>['build', 'linux', '--$mode'],
+      workingDirectory: root,
       mode: ProcessStartMode.inheritStdio,
       runInShell: true,
     );
@@ -1713,7 +1727,7 @@ class BuildCommand extends Command<void> {
       target: target,
       // The project being built. The Fuchsia embedder takes a package path
       // rather than a name, because it builds apps from outside its workspace.
-      appPath: Directory.current.path,
+      appPath: _projectRoot,
     );
     if (plan == null) {
       Logger.log('❌ Unsupported embedded platform: $platform');
@@ -1751,7 +1765,7 @@ class BuildCommand extends Command<void> {
     // failing with the vendor's "not configured" message and a manual step.
     final scaffoldDir = plan.scaffoldDirectory;
     if (scaffoldDir != null &&
-        !Directory(p.join(Directory.current.path, scaffoldDir)).existsSync()) {
+        !Directory(p.join(_projectRoot, scaffoldDir)).existsSync()) {
       Logger.log('   No $scaffoldDir/ scaffold; generating it...');
       // Started the same way as the build below, with [_buildEnvironment]: an
       // embedder auto-installed moments ago lives on a PATH this process was
@@ -1760,7 +1774,7 @@ class BuildCommand extends Command<void> {
       final scaffold = await Process.start(
         plan.executable,
         plan.scaffoldArguments,
-        workingDirectory: Directory.current.path,
+        workingDirectory: _projectRoot,
         runInShell: true,
         environment: _buildEnvironment,
       );
@@ -1794,7 +1808,7 @@ class BuildCommand extends Command<void> {
         description: 'generating the $scaffoldDir/ scaffold',
       );
       if (scaffoldCode == null) return _PlatformBuildResult.failed;
-      final generated = Directory(p.join(Directory.current.path, scaffoldDir));
+      final generated = Directory(p.join(_projectRoot, scaffoldDir));
       if (scaffoldCode != 0 || !generated.existsSync()) {
         // A vendor `create` that fails partway still leaves the directory
         // behind. Left in place it would satisfy the check above on the next
@@ -1825,6 +1839,7 @@ class BuildCommand extends Command<void> {
     final proc = await Process.start(
       plan.executable,
       plan.arguments,
+      workingDirectory: _projectRoot,
       runInShell: true,
       environment: _environmentFor(plan),
     );

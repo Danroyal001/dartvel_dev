@@ -1,4 +1,21 @@
 ## Unreleased
+- **No test in the CLI moves the process working directory, and the suite
+  runs at the default concurrency again.** Twenty-four suites set
+  `Directory.current` so the command under test would find their temporary
+  project. That value is one for the whole process, so whichever suite ran
+  beside them read the wrong tree -- `release_coupling`, `middleware_keys`,
+  `banned_names` and `shell_command` failed in turn, a different one each
+  run. `concurrency: 1` narrowed it without ending it, because the engine
+  hands a suite's slot on before the suite has closed. `admin`, `devtools`,
+  `ai`, `analyze`, `build`, `db`, `generate`, `import`, `inspect`, `plugin`,
+  `preview`, `publish`, `task` and `test` now take a `root` and read the
+  working directory only when given none, which is what the CLI does;
+  `task` runs its command in that root and `test` starts its runner there,
+  as `build` now starts `flutter`, the terminal toolchain and the embedders,
+  rather than wherever the process happens to be. `readDartvelCliVersion`
+  takes `from`. `working_directory_test` runs every suite that mentions the
+  working directory with a setter that refuses, and fails naming the suites
+  that tried.
 - **`dartvel infra plan` and `provision` accept several backend instances,
   workers and cron `enabled: false`.** The command hands the renderer the
   default capabilities, which now say the generated backend reads

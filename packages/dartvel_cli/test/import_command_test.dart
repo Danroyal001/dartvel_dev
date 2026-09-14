@@ -44,23 +44,19 @@ void main() {
   _postman();
   group('dartvel import openapi', () {
     late Directory project;
-    late Directory previous;
     late CommandRunner<void> runner;
     late File spec;
 
     setUp(() {
-      previous = Directory.current;
       project = Directory.systemTemp.createTempSync('dartvel_import_');
-      Directory.current = project;
       spec = File('${project.path}/catalog.json')
         ..writeAsStringSync(_document);
       runner = CommandRunner<void>('dartvel', 'Test runner')
-        ..addCommand(ImportCommand());
+        ..addCommand(ImportCommand(root: project.path));
       exitCode = 0;
     });
 
     tearDown(() {
-      Directory.current = previous;
       project.deleteSync(recursive: true);
       exitCode = 0;
     });
@@ -136,14 +132,11 @@ void main() {
 void _postman() {
   group('dartvel import postman', () {
     late Directory project;
-    late Directory previous;
     late CommandRunner<void> runner;
     late File collection;
 
     setUp(() {
-      previous = Directory.current;
       project = Directory.systemTemp.createTempSync('dartvel_postman_');
-      Directory.current = project;
       collection = File('${project.path}/catalog.json')
         ..writeAsStringSync('''
 {
@@ -157,12 +150,11 @@ void _postman() {
 }
 ''');
       runner = CommandRunner<void>('dartvel', 'Test runner')
-        ..addCommand(ImportCommand());
+        ..addCommand(ImportCommand(root: project.path));
       exitCode = 0;
     });
 
     tearDown(() {
-      Directory.current = previous;
       project.deleteSync(recursive: true);
       exitCode = 0;
     });

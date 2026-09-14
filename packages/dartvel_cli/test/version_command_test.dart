@@ -6,16 +6,13 @@ import 'package:test/test.dart';
 
 void main() {
   group('readDartvelCliVersion', () {
-    late Directory previous;
     late Directory root;
 
     setUp(() {
-      previous = Directory.current;
       root = Directory.systemTemp.createTempSync('dartvel_version_');
     });
 
     tearDown(() {
-      Directory.current = previous;
       root.deleteSync(recursive: true);
     });
 
@@ -25,9 +22,10 @@ name: dartvel_cli
 version: 9.8.7
 ''');
       Directory(p.join(root.path, 'bin')).createSync();
-      Directory.current = Directory(p.join(root.path, 'bin'));
-
-      expect(readDartvelCliVersion(), '9.8.7');
+      expect(
+        readDartvelCliVersion(from: Directory(p.join(root.path, 'bin'))),
+        '9.8.7',
+      );
     });
 
     test('ignores non-cli pubspec files while walking upward', () {
@@ -41,9 +39,7 @@ version: 1.2.3
 name: example_app
 version: 0.0.1
 ''');
-      Directory.current = nested;
-
-      expect(readDartvelCliVersion(), '1.2.3');
+      expect(readDartvelCliVersion(from: nested), '1.2.3');
     });
   });
 }

@@ -25,9 +25,14 @@ class AnalyzeCommand extends Command<void> {
   @override
   String get invocation => 'dartvel analyze performance [--json]';
 
-  AnalyzeCommand() {
+  /// [root] is the project; null reads the working directory when the command
+  /// runs. A test passes its own, because that directory is one value shared
+  /// by every suite in the process.
+  AnalyzeCommand({this._root}) {
     argParser.addFlag('json', negatable: false, help: 'Emit the published measurements as JSON.');
   }
+
+  final String? _root;
 
   @override
   Future<void> run() async {
@@ -39,7 +44,7 @@ class AnalyzeCommand extends Command<void> {
         invocation,
       );
     }
-    final DVLiveWindowsFile file = DVLiveWindowsFile.read(Directory.current.path);
+    final DVLiveWindowsFile file = DVLiveWindowsFile.read(_root ?? Directory.current.path);
     final Map<String, Object?>? live = file.live;
 
     if (live == null) {

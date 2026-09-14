@@ -87,20 +87,16 @@ List<int> snapshot({required bool shell}) => <int>[
 ];
 
 void main() {
-  late Directory previous;
   late Directory root;
   late List<List<String>> ran;
 
   setUp(() {
-    previous = Directory.current;
     root = Directory.systemTemp.createTempSync('dartvel_publish_devclient_');
-    Directory.current = root;
     ran = <List<String>>[];
     exitCode = 0;
   });
 
   tearDown(() {
-    Directory.current = previous;
     root.deleteSync(recursive: true);
     exitCode = 0;
   });
@@ -124,6 +120,7 @@ $yaml
     final CommandRunner<void> runner = CommandRunner<void>('dartvel', 'test')
       ..addCommand(
         PublishCommand(
+          root: root.path,
           processRun:
               (
                 String executable,

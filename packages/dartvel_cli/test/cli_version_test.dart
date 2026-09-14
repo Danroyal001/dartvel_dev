@@ -33,19 +33,19 @@ void main() {
       // The property that failed. A compiled binary run inside a user's
       // project must not pick up their pubspec.
       final before = dartvelCliVersion;
-      final previous = Directory.current;
       final elsewhere = Directory.systemTemp.createTempSync('dartvel-ver-');
-      addTearDown(() {
-        Directory.current = previous;
-        elsewhere.deleteSync(recursive: true);
-      });
+      addTearDown(() => elsewhere.deleteSync(recursive: true));
 
       File(p.join(elsewhere.path, 'pubspec.yaml'))
           .writeAsStringSync('name: someones_app\nversion: 9.9.9\n');
-      Directory.current = elsewhere;
 
-      expect(dartvelCliVersion, before);
-      expect(dartvelCliVersion, isNot('9.9.9'));
+      // Moved inside a zone, not for the process: setting it for the process
+      // moves every other suite running beside this one.
+      IOOverrides.runZoned(() {
+        expect(Directory.current.path, elsewhere.path);
+        expect(dartvelCliVersion, before);
+        expect(dartvelCliVersion, isNot('9.9.9'));
+      }, getCurrentDirectory: () => elsewhere);
     });
 
     test('it is a version, not a placeholder', () {

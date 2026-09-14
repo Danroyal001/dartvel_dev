@@ -79,31 +79,27 @@ Map<String, Object?> _ordersSnapshot(String provider, String version) =>
       },
     };
 
-Future<void> _migrate(List<String> args) => (CommandRunner<void>(
-  'dartvel',
-  'test',
-)..addCommand(DbCommand())).run(<String>['db', 'migrate', ...args]);
+Future<void> _migrate(Directory root, List<String> args) =>
+    (CommandRunner<void>('dartvel', 'test')
+          ..addCommand(DbCommand(root: root.path)))
+        .run(<String>['db', 'migrate', ...args]);
 
 File _overrideLog(Directory root) =>
     File(p.join(root.path, '.dartvel', 'db', 'schema_overrides.jsonl'));
 
 void main() {
-  late Directory previous;
   late Directory root;
 
   setUp(() {
-    previous = Directory.current;
     root = Directory.systemTemp.createTempSync('dartvel_migrate_plan_');
     Directory(
       p.join(root.path, 'lib', 'dartvel_client'),
     ).createSync(recursive: true);
     _pubspec(root);
-    Directory.current = root;
     exitCode = 0;
   });
 
   tearDown(() {
-    Directory.current = previous;
     root.deleteSync(recursive: true);
     exitCode = 0;
   });
@@ -170,7 +166,7 @@ void main() {
       await dvApplyMigrations(root.path);
       await _generate(root, _orderWithNote, 'b2');
 
-      await _migrate(<String>['--plan']);
+      await _migrate(root, <String>['--plan']);
 
       expect(exitCode, 0);
       expect(
@@ -182,7 +178,7 @@ void main() {
     test('does not create a database that is not there', () async {
       await _generate(root, _order, 'b1');
 
-      await _migrate(<String>['--plan']);
+      await _migrate(root, <String>['--plan']);
 
       expect(exitCode, 0);
       expect(File(p.join(root.path, 'app.db')).existsSync(), isFalse);
@@ -211,7 +207,7 @@ void main() {
         expect(plan.steps.single.rows, 120000000);
         expect(plan.steps.single.classifiedByAdapter, isTrue);
 
-        await _migrate(<String>['--dry-run', '--against', 'snapshot']);
+        await _migrate(root, <String>['--dry-run', '--against', 'snapshot']);
         expect(exitCode, 0);
         // A rehearsal: no database was touched.
         expect(File(p.join(root.path, 'app.db')).existsSync(), isFalse);
@@ -224,7 +220,7 @@ void main() {
       await _generate(root, _orderWithNote, 'b1');
       _snapshot(root, _ordersSnapshot('mysql', '5.7.44'));
 
-      await _migrate(<String>['--dry-run', '--against', 'snapshot']);
+      await _migrate(root, <String>['--dry-run', '--against', 'snapshot']);
 
       expect(exitCode, 1);
       expect(_overrideLog(root).existsSync(), isFalse);
@@ -236,7 +232,7 @@ void main() {
         await _generate(root, _orderWithNote, 'b1');
         _snapshot(root, _ordersSnapshot('mysql', '5.7.44'));
 
-        await _migrate(<String>[
+        await _migrate(root, <String>[
           '--dry-run',
           '--against',
           'snapshot',
@@ -254,7 +250,7 @@ void main() {
       final String elsewhere = p.join(root.path, 'prod.json');
       _snapshot(root, _ordersSnapshot('mysql', '5.7.44'), path: elsewhere);
 
-      await _migrate(<String>[
+      await _migrate(root, <String>[
         '--dry-run',
         '--against',
         'snapshot',
@@ -267,7 +263,7 @@ void main() {
     test('a missing snapshot is an error, not an empty production', () async {
       await _generate(root, _orderWithNote, 'b1');
 
-      await _migrate(<String>['--dry-run', '--against', 'snapshot']);
+      await _migrate(root, <String>['--dry-run', '--against', 'snapshot']);
 
       expect(exitCode, 1);
     });
@@ -278,7 +274,7 @@ void main() {
       // runs, so nothing is planned against a production that means nothing.
       await _generate(root, _orderWithNote, 'b1');
       await expectLater(
-        _migrate(<String>['--dry-run', '--against', 'production']),
+        _migrate(root, <String>['--dry-run', '--against', 'production']),
         throwsA(isA<UsageException>()),
       );
       expect(File(p.join(root.path, 'app.db')).existsSync(), isFalse);
@@ -290,7 +286,7 @@ void main() {
       await _generate(root, _orderWithNote, 'b1');
       _snapshot(root, _ordersSnapshot('postgres', '16.2'));
 
-      await _migrate(<String>['--against', 'snapshot']);
+      await _migrate(root, <String>['--against', 'snapshot']);
 
       expect(exitCode, 1);
       expect(File(p.join(root.path, 'app.db')).existsSync(), isFalse);
@@ -304,7 +300,7 @@ void main() {
       _pubspec(root, provider: 'postgres');
       await _generate(root, _order, 'b1');
 
-      await _migrate(<String>['--production']);
+      await _migrate(root, <String>['--production']);
 
       expect(exitCode, 1);
       expect(
@@ -319,7 +315,7 @@ void main() {
       _pubspec(root, provider: 'postgres');
       await _generate(root, _order, 'b1');
 
-      await _migrate(<String>[
+      await _migrate(root, <String>[
         '--production',
         '--allow-blocking',
         '3am, everyone told',
@@ -344,7 +340,7 @@ void main() {
     test('an instant change on SQLite needs no override', () async {
       await _generate(root, _order, 'b1');
 
-      await _migrate(<String>['--production']);
+      await _migrate(root, <String>['--production']);
 
       expect(exitCode, 0);
       expect(

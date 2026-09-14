@@ -61,9 +61,11 @@ class VersionCommand extends Command<void> {
   }
 }
 
-String? readDartvelCliVersion() {
+/// The version of the nearest dartvel_cli pubspec above [from], which defaults
+/// to the working directory, then above the running script.
+String? readDartvelCliVersion({Directory? from}) {
   final candidates = <Directory>[
-    Directory.current,
+    from ?? Directory.current,
     if (Platform.script.scheme == 'file')
       File(Platform.script.toFilePath()).parent,
   ];

@@ -111,13 +111,10 @@ void main() {
   });
 
   group('TaskCommand', () {
-    late Directory previous;
     late Directory temp;
 
     setUp(() {
-      previous = Directory.current;
       temp = Directory.systemTemp.createTempSync('dartvel_task_command');
-      Directory.current = temp;
       File(p.join(temp.path, 'pubspec.yaml')).writeAsStringSync('''
 name: task_test
 dartvel:
@@ -127,13 +124,12 @@ dartvel:
     });
 
     tearDown(() {
-      Directory.current = previous;
       temp.deleteSync(recursive: true);
     });
 
     test('lists tasks from pubspec.yaml dartvel.tasks', () async {
       final runner = CommandRunner<void>('dartvel', 'Test runner')
-        ..addCommand(TaskCommand());
+        ..addCommand(TaskCommand(root: temp.path));
 
       await runner.run(<String>['task', '--list']);
 
@@ -142,7 +138,7 @@ dartvel:
 
     test('runs tasks from pubspec.yaml dartvel.tasks', () async {
       final runner = CommandRunner<void>('dartvel', 'Test runner')
-        ..addCommand(TaskCommand());
+        ..addCommand(TaskCommand(root: temp.path));
 
       await runner.run(<String>['task', 'sdk', '--quiet']);
     });

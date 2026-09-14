@@ -34,19 +34,13 @@ Widget _homePage(BuildContext context) => const DVText('hi');
 ''';
 
 Future<String> runInspect(List<String> args, Directory root) async {
-  final Directory previous = Directory.current;
-  Directory.current = root;
   final StringBuffer out = StringBuffer();
-  try {
-    await runZonedOutput(out, () async {
-      final CommandRunner<void> runner =
-          CommandRunner<void>('dartvel', 'Test runner')
-            ..addCommand(InspectCommand());
-      await runner.run(<String>['inspect', ...args]);
-    });
-  } finally {
-    Directory.current = previous;
-  }
+  await runZonedOutput(out, () async {
+    final CommandRunner<void> runner =
+        CommandRunner<void>('dartvel', 'Test runner')
+          ..addCommand(InspectCommand(root: root.path));
+    await runner.run(<String>['inspect', ...args]);
+  });
   return out.toString();
 }
 

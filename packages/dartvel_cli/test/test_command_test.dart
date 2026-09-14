@@ -7,20 +7,16 @@ import 'package:test/test.dart';
 
 void main() {
   group('TestCommand', () {
-    late Directory previous;
     late Directory temp;
     late CommandRunner<void> runner;
 
     setUp(() {
-      previous = Directory.current;
       temp = Directory.systemTemp.createTempSync('dartvel_test_command');
-      Directory.current = temp;
       runner = CommandRunner<void>('dartvel', 'Test runner')
-        ..addCommand(TestCommand());
+        ..addCommand(TestCommand(root: temp.path));
     });
 
     tearDown(() {
-      Directory.current = previous;
       temp.deleteSync(recursive: true);
     });
 
@@ -245,18 +241,14 @@ void main() {
     // tests, says where it looked, and returns without running anything --
     // so the assertions below check the property that actually mattered:
     // neither a made-up path nor the whole suite standing in for the mode.
-    late Directory previous;
     late Directory temp;
 
     setUp(() {
-      previous = Directory.current;
       temp = Directory.systemTemp.createTempSync('dartvel_test_missing_mode');
-      Directory.current = temp;
       Directory(p.join(temp.path, 'test')).createSync();
     });
 
     tearDown(() {
-      Directory.current = previous;
       temp.deleteSync(recursive: true);
     });
 
