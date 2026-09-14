@@ -178,4 +178,41 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(tester.getSize(find.text('Publish')).width, closeTo(91, 0.5));
   });
+
+  testWidgets('an empty state keeps its message off the edges and centred', (
+    WidgetTester tester,
+  ) async {
+    // An empty state fills an inspector or a detail pane, and those are often
+    // narrower than the message. It had no side padding and a left-aligned
+    // message, so in the inspector the wrapped sentence ran flush against the
+    // pane's left edge under a centred title and read as a layout fault.
+    const String message = 'Select an element on the canvas or in Layers to '
+        'edit how it looks and behaves.';
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Center(
+          child: SizedBox(
+            width: 300,
+            height: 400,
+            child: DVStudioStyle.emptyState(
+              icon: DVStudioIcons.publish,
+              title: 'Nothing selected',
+              message: message,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+    final Rect pane = tester.getRect(find.byType(SizedBox).first);
+    final Rect text = tester.getRect(find.text(message));
+    expect(text.left - pane.left, greaterThanOrEqualTo(DVStudioStyle.space4),
+        reason: 'the message touches the left edge of its pane');
+    expect(pane.right - text.right, greaterThanOrEqualTo(DVStudioStyle.space4),
+        reason: 'the message touches the right edge of its pane');
+    expect(tester.widget<Text>(find.text(message)).textAlign, TextAlign.center,
+        reason: 'a wrapped message under a centred title must be centred too');
+  });
 }
