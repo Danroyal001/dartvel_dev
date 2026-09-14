@@ -266,6 +266,59 @@ void main() {
       );
     });
 
+    test('two workers reserving one job at once: exactly one gets it',
+        () async {
+      // Two worker processes over one database. Reserving was a SELECT of
+      // the next queued row and then an UPDATE of it by id, so both workers
+      // read the same row before either marked it, both ran the job, and
+      // nothing threw -- the welcome mail simply went out twice.
+      final dir = Directory.systemTemp.createTempSync('dartvel_queue_race_');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final path = '${dir.path}/jobs.db';
+      final firstDb = SqliteDVDatabaseAdapter.file(path);
+      final secondDb = SqliteDVDatabaseAdapter.file(path);
+      addTearDown(firstDb.close);
+      addTearDown(secondDb.close);
+      final first = DVDatabaseQueueAdapter(firstDb);
+      final second = DVDatabaseQueueAdapter(secondDb);
+      await first.initialize();
+      await second.initialize();
+      await first.enqueue('mail', const SendWelcomeEmail('ada'));
+
+      final reserved = await Future.wait(<Future<Object?>>[
+        first.reserve('mail'),
+        second.reserve('mail'),
+      ]);
+
+      expect(reserved.whereType<DVJobEnvelope<DVJobPayload>>(), hasLength(1));
+    });
+
+    test('a worker losing the race takes the next job instead', () async {
+      final dir = Directory.systemTemp.createTempSync('dartvel_queue_next_');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final path = '${dir.path}/jobs.db';
+      final firstDb = SqliteDVDatabaseAdapter.file(path);
+      final secondDb = SqliteDVDatabaseAdapter.file(path);
+      addTearDown(firstDb.close);
+      addTearDown(secondDb.close);
+      final first = DVDatabaseQueueAdapter(firstDb);
+      final second = DVDatabaseQueueAdapter(secondDb);
+      await first.initialize();
+      await second.initialize();
+      await first.enqueue('mail', const SendWelcomeEmail('ada'));
+      await first.enqueue('mail', const SendWelcomeEmail('grace'));
+
+      final reserved = await Future.wait(<Future<DVJobEnvelope<DVJobPayload>?>>[
+        first.reserve('mail'),
+        second.reserve('mail'),
+      ]);
+
+      // Not one job and a null: the loser of the first row is not a worker
+      // that found the queue empty while a job waited.
+      expect(reserved.map((j) => j?.id).toSet(), hasLength(2));
+      expect(reserved.every((j) => j != null), isTrue);
+    });
+
     test('rejects an unsafe table name', () {
       final db = SqliteDVDatabaseAdapter.memory();
       addTearDown(db.close);

@@ -2126,19 +2126,30 @@ class DVDatabaseQueueAdapter implements DVQueueAdapter {
   @override
   Future<DVJobEnvelope<DVJobPayload>?> reserve(String queue) async {
     await initialize();
-    final rows = await database.query(
-      'SELECT * FROM $tableName WHERE queue = ? AND state = ? '
-      'ORDER BY priority DESC, created_at ASC LIMIT 1',
-      <Object?>[queue, DVJobState.queued.name],
-    );
-    if (rows.isEmpty) return null;
+    // Several workers share this table. The row is claimed by an UPDATE that
+    // only matches while it is still queued, and the claim counts only when
+    // it changed the row: reading the next row and then marking it by id let
+    // two workers read the same row before either marked it, and both ran
+    // the job. A worker whose claim changed nothing lost that row to another
+    // and reads the next one, rather than reporting an empty queue while a
+    // job waits. Each lost claim is a row some worker took, so this ends.
+    while (true) {
+      final rows = await database.query(
+        'SELECT * FROM $tableName WHERE queue = ? AND state = ? '
+        'ORDER BY priority DESC, created_at ASC LIMIT 1',
+        <Object?>[queue, DVJobState.queued.name],
+      );
+      if (rows.isEmpty) return null;
 
-    final id = rows.first['id'] as String;
-    await database.execute(
-      'UPDATE $tableName SET state = ? WHERE id = ?',
-      <Object?>[DVJobState.running.name, id],
-    );
-    return _toEnvelope(rows.first, state: DVJobState.running);
+      final id = rows.first['id'] as String;
+      final claimed = await database.execute(
+        'UPDATE $tableName SET state = ? WHERE id = ? AND state = ?',
+        <Object?>[DVJobState.running.name, id, DVJobState.queued.name],
+      );
+      if (claimed == 1) {
+        return _toEnvelope(rows.first, state: DVJobState.running);
+      }
+    }
   }
 
   @override
