@@ -2307,7 +2307,7 @@ not ship a portal to prove it.
 
 # Outbound Webhooks
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
 
 The security scope verifies webhooks the application *receives*. An
 application that is a platform for its own customers has to *send* them, and
