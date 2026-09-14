@@ -21,6 +21,21 @@
   nothing to classify its changes with, so against production they need the
   override. `--against` without `--dry-run` or `--plan` is refused rather than
   applied.
+
+- **A string earlier in a file no longer hides a secret read from the
+  secrets check.** `dvExtractSecretUses` stripped `//` and `/*` without
+  knowing where a Dart string began, so
+  `final u = 'https://api.example.com'; DV.Secrets.get('STRIPE_KEY');` lost
+  everything after the URL's `//` and the read was never reported. A `/*` in
+  a string, such as a glob, hid every read to the end of the file. Raw strings,
+  triple-quoted strings, interpolations holding quotes and escaped quotes
+  broke it the same way, and an undeclared or backend-scoped secret passed
+  DV-SECRETS-001 and DV-SECRETS-002. The check now reads source with the lexer
+  module trust uses, moved to `lib/src/analysis/dart_source_lexer.dart`, so
+  there is one lexer and not two. It also no longer reports a read written
+  inside a string or a nested block comment, it counts `DVSecrets().get(...)`
+  as module trust already did, and each finding carries the line of the read.
+
 - **`dartvel inspect adoption` reports what is Dartvel-managed and what is
   not: routes, models, screens and functions.** The managed half is generated
   pages, the graph's models and backend functions. The unmanaged half is host

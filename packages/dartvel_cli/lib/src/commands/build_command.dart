@@ -2086,7 +2086,7 @@ class BuildCommand extends Command<void> {
     }
     if (envProblems.isNotEmpty) {
       for (final finding in envProblems) {
-        Logger.error('   ${finding.code} ${finding.file}: ${finding.message}');
+        Logger.error('   $finding');
       }
       Logger.log('❌ ${envProblems.length} secret problem(s)');
       exit(1);
@@ -2121,7 +2121,7 @@ class BuildCommand extends Command<void> {
     if (findings.isEmpty) return;
 
     for (final finding in findings) {
-      Logger.error('   ${finding.code} ${finding.file}: ${finding.message}');
+      Logger.error('   $finding');
     }
     Logger.log('❌ ${findings.length} secret problem(s)');
     exit(1);

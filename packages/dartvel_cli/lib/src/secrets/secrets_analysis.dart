@@ -16,6 +16,8 @@ library dartvel_cli.secrets.secrets_analysis;
 import 'package:dartvel_core/dartvel.dart';
 import 'package:yaml/yaml.dart';
 
+import '../analysis/dart_source_lexer.dart';
+
 enum DVSecretScope { backend, client }
 
 /// One declared secret: a name and a scope, never a value.
@@ -40,6 +42,7 @@ class DVSecretFinding {
     required this.file,
     required this.secret,
     required this.message,
+    this.line,
   });
 
   final String code;
@@ -47,8 +50,11 @@ class DVSecretFinding {
   final String secret;
   final String message;
 
+  /// The 1-based line of the read, when the finding is about one.
+  final int? line;
+
   @override
-  String toString() => '$code $file: $message';
+  String toString() => '$code $file${line == null ? '' : ':$line'}: $message';
 }
 
 /// Reads `dartvel.secrets` out of a pubspec.
@@ -129,49 +135,37 @@ List<String> dvValidateDeclarations(
   return problems;
 }
 
+/// One read of a secret: the name and the 1-based line it is on.
+class DVSecretUse {
+  const DVSecretUse({required this.name, required this.line});
+
+  final String name;
+  final int line;
+}
+
+/// Every read of a secret through `DV.Secrets` in [source], in order.
+///
+/// Read with the lexer module trust uses, which knows where Dart's strings
+/// and comments begin and end. Stripping `//` and `/*` without that knowledge
+/// let a URL or a glob earlier on the line erase the read after it, so an
+/// undeclared secret passed the check for being written after a string.
+List<DVSecretUse> dvFindSecretUses(String source) {
+  final DVDartSourceView view = dvDartSourceView(source);
+  final List<DVSecretUse> uses = <DVSecretUse>[];
+  for (final RegExpMatch match in dvSecretReadCall.allMatches(view.masked)) {
+    // A name assembled at runtime cannot be checked, and reporting a literal
+    // fragment of it would be a finding about a secret that does not exist.
+    final String? name = dvDartStringLiteralAt(view.code, match.end);
+    if (name == null || name.isEmpty) continue;
+    uses.add(DVSecretUse(name: name, line: dvDartLineOf(source, match.start)));
+  }
+  return uses;
+}
+
 /// Every secret name reached through `DV.Secrets` in [source].
-Set<String> dvExtractSecretUses(String source) {
-  final String stripped = _stripComments(source);
-  final RegExp pattern = RegExp(
-    r'''DV\.Secrets\.(?:get|maybeGet|getOr|has)\s*\(\s*(['"])(.*?)\1''',
-  );
-
-  final Set<String> used = <String>{};
-  for (final RegExpMatch match in pattern.allMatches(stripped)) {
-    final String name = match.group(2)!;
-    if (name.isEmpty) continue;
-    // A name assembled at runtime cannot be checked, and reporting the
-    // literal fragment would be a finding about a secret that does not exist.
-    if (name.contains(r'$')) continue;
-    used.add(name);
-  }
-  return used;
-}
-
-String _stripComments(String source) {
-  final StringBuffer out = StringBuffer();
-  int i = 0;
-  while (i < source.length) {
-    if (source[i] == '/' && i + 1 < source.length && source[i + 1] == '/') {
-      while (i < source.length && source[i] != '\n') {
-        i += 1;
-      }
-      continue;
-    }
-    if (source[i] == '/' && i + 1 < source.length && source[i + 1] == '*') {
-      i += 2;
-      while (i + 1 < source.length &&
-          !(source[i] == '*' && source[i + 1] == '/')) {
-        i += 1;
-      }
-      i += 2;
-      continue;
-    }
-    out.write(source[i]);
-    i += 1;
-  }
-  return out.toString();
-}
+Set<String> dvExtractSecretUses(String source) => <String>{
+      for (final DVSecretUse use in dvFindSecretUses(source)) use.name,
+    };
 
 /// Backend secrets reached from client-reachable code, and undeclared names.
 ///
@@ -189,12 +183,12 @@ List<DVSecretFinding> dvAnalyseSecrets({
 
   final List<String> paths = clientFiles.keys.toList()..sort();
   for (final String path in paths) {
-    for (final String name in dvExtractSecretUses(clientFiles[path]!).toList()
-      ..sort()) {
+    for (final DVSecretUse use in _firstUses(clientFiles[path]!)) {
+      final String name = use.name;
       final DVSecretDeclaration? secret = declared[name];
 
       if (secret == null) {
-        findings.add(_undeclared(path, name));
+        findings.add(_undeclared(path, use));
         continue;
       }
 
@@ -202,6 +196,7 @@ List<DVSecretFinding> dvAnalyseSecrets({
         findings.add(DVSecretFinding(
           code: 'DV-SECRETS-001',
           file: path,
+          line: use.line,
           secret: name,
           message: '"$name" is backend-scoped and is reached from client code. '
               'A secret in a client bundle ships to every visitor. Fetch it '
@@ -218,20 +213,31 @@ List<DVSecretFinding> dvAnalyseSecrets({
   // build.
   final List<String> backendPaths = backendFiles.keys.toList()..sort();
   for (final String path in backendPaths) {
-    for (final String name in dvExtractSecretUses(backendFiles[path]!).toList()
-      ..sort()) {
-      if (declared.containsKey(name)) continue;
-      findings.add(_undeclared(path, name));
+    for (final DVSecretUse use in _firstUses(backendFiles[path]!)) {
+      if (declared.containsKey(use.name)) continue;
+      findings.add(_undeclared(path, use));
     }
   }
   return findings;
 }
 
-DVSecretFinding _undeclared(String path, String name) => DVSecretFinding(
+/// The first read of each name in [source], ordered by name: one finding per
+/// name per file, pointing at where it is first read.
+List<DVSecretUse> _firstUses(String source) {
+  final Map<String, DVSecretUse> first = <String, DVSecretUse>{};
+  for (final DVSecretUse use in dvFindSecretUses(source)) {
+    first.putIfAbsent(use.name, () => use);
+  }
+  final List<String> names = first.keys.toList()..sort();
+  return <DVSecretUse>[for (final String name in names) first[name]!];
+}
+
+DVSecretFinding _undeclared(String path, DVSecretUse use) => DVSecretFinding(
       code: 'DV-SECRETS-002',
       file: path,
-      secret: name,
-      message: '"$name" is not declared. Add it under dartvel.secrets in '
+      line: use.line,
+      secret: use.name,
+      message: '"${use.name}" is not declared. Add it under dartvel.secrets in '
           'pubspec.yaml, with a scope. A name that is only ever typed at the '
           'call site fails at runtime in production instead.',
     );

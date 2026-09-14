@@ -143,8 +143,182 @@ final d = DV.Secrets.has('FOUR');
       );
     });
 
+    test('the DVSecrets() constructor form is a read too', () {
+      // Module trust already counted it. A secret read through the
+      // constructor was a way around the declaration check.
+      expect(
+        dvExtractSecretUses("final k = const DVSecrets().get('CTOR_KEY');\n"
+            "final j = DV . Secrets . maybeGet('SPACED_KEY');\n"),
+        <String>{'CTOR_KEY', 'SPACED_KEY'},
+      );
+    });
+
     test('an interpolated name is skipped rather than guessed at', () {
       expect(dvExtractSecretUses(r"DV.Secrets.get('KEY_$env')"), isEmpty);
+    });
+  });
+
+  group('a string literal does not hide a read', () {
+    // The analysis used to strip `//` and `/*` without knowing where a string
+    // began or ended, so a URL earlier on the line erased the rest of it and
+    // a glob opened a comment that ran to the end of the file. The read after
+    // it was never reported, and an undeclared secret passed the check.
+    List<String> sites(String source) => <String>[
+          for (final DVSecretUse use in dvFindSecretUses(source))
+            '${use.line}:${use.name}',
+        ];
+
+    test('a URL in a single-quoted string', () {
+      expect(
+        sites("final u = 'https://api.example.com'; "
+            "final k = DV.Secrets.get('STRIPE_KEY');"),
+        <String>['1:STRIPE_KEY'],
+      );
+    });
+
+    test('a URL in a double-quoted string', () {
+      expect(
+        sites('final u = "https://api.example.com"; '
+            "final k = DV.Secrets.get('DOUBLE_KEY');"),
+        <String>['1:DOUBLE_KEY'],
+      );
+    });
+
+    test('a /* in a string, with the read on the same line', () {
+      expect(
+        sites("final g = 'lib/*.dart'; final k = DV.Secrets.get('GLOB_KEY');"),
+        <String>['1:GLOB_KEY'],
+      );
+    });
+
+    test('a /* in a string, with the read on a later line', () {
+      expect(
+        sites("final g = 'lib/*.dart';\n"
+            '\n'
+            "final k = DV.Secrets.get('GLOB_NEXT_KEY');\n"),
+        <String>['3:GLOB_NEXT_KEY'],
+      );
+    });
+
+    test('a raw string, including one that ends in a backslash', () {
+      expect(
+        sites(r"final r = r'https://example.com\'; "
+            r"final k = DV.Secrets.get('RAW_KEY');"),
+        <String>['1:RAW_KEY'],
+      );
+    });
+
+    test('a raw string with /* and the read on a later line', () {
+      expect(
+        sites("final r = r'C:\\dir\\/*';\n"
+            "final k = DV.Secrets.get('RAW_NEXT_KEY');\n"),
+        <String>['2:RAW_NEXT_KEY'],
+      );
+    });
+
+    test('a triple-quoted string over several lines', () {
+      expect(
+        sites("final doc = '''\n"
+            "it's every lib/*.dart file, not a comment\n"
+            "''';\n"
+            "final k = DV.Secrets.get('TRIPLE_KEY');\n"),
+        <String>['4:TRIPLE_KEY'],
+      );
+    });
+
+    test('a triple-quoted string closing on the line of the read', () {
+      expect(
+        sites('final doc = """\n'
+            'see "the docs"\n'
+            'at https://example.com """; '
+            'final k = DV.Secrets.get(\'TRIPLE_SAME_KEY\');\n'),
+        <String>['3:TRIPLE_SAME_KEY'],
+      );
+    });
+
+    test('an interpolation holding quotes and //', () {
+      expect(
+        sites(r"final m = 'a ${x ?? '//'} b'; "
+            r"final k = DV.Secrets.get('INTERP_KEY');"),
+        <String>['1:INTERP_KEY'],
+      );
+    });
+
+    test('an interpolation holding /*, with the read on a later line', () {
+      expect(
+        sites("final m = \"\${map['/*']}\";\n"
+            "final k = DV.Secrets.get('INTERP_NEXT_KEY');\n"),
+        <String>['2:INTERP_NEXT_KEY'],
+      );
+    });
+
+    test('an escaped quote before //', () {
+      expect(
+        sites(r"final e = 'it\'s // not a comment'; "
+            r"final k = DV.Secrets.get('ESCAPED_KEY');"),
+        <String>['1:ESCAPED_KEY'],
+      );
+    });
+
+    test('an escaped double quote before /*', () {
+      expect(
+        sites(r'final e = "say \"/*\""; '
+            "final k = DV.Secrets.get('ESCAPED_DOUBLE_KEY');\n"
+            "final j = DV.Secrets.get('ESCAPED_NEXT_KEY');\n"),
+        <String>['1:ESCAPED_DOUBLE_KEY', '2:ESCAPED_NEXT_KEY'],
+      );
+    });
+
+    test('the line counts a block comment that spans lines', () {
+      expect(
+        sites("/*\n * notes\n */\nfinal k = DV.Secrets.get('AFTER_BLOCK');\n"),
+        <String>['4:AFTER_BLOCK'],
+      );
+    });
+
+    test('an undeclared read behind a URL is DV-SECRETS-002 on its line', () {
+      final List<DVSecretFinding> findings = dvAnalyseSecrets(
+        declared: dvParseSecretDeclarations(_pubspec),
+        clientFiles: const <String, String>{},
+        backendFiles: <String, String>{
+          'lib/backend/pay.dart': "import 'x.dart';\n"
+              "final u = 'https://api.paystack.co'; "
+              "final k = DV.Secrets.get('UNDECLARED_KEY');\n",
+        },
+      );
+
+      expect(findings, hasLength(1));
+      expect(findings.single.code, 'DV-SECRETS-002');
+      expect(findings.single.secret, 'UNDECLARED_KEY');
+      expect(findings.single.line, 2);
+      expect(findings.single.toString(), contains('lib/backend/pay.dart:2'));
+    });
+
+    test('a secret name in a block comment is not a read', () {
+      expect(sites("/* DV.Secrets.get('BLOCK_COMMENT') */"), isEmpty);
+    });
+
+    test('a read inside a nested block comment is not a read', () {
+      // Block comments nest in Dart, so the first */ does not end this one.
+      expect(
+        sites("/* outer /* inner */ DV.Secrets.get('NESTED_COMMENT') */"),
+        isEmpty,
+      );
+    });
+
+    test('a read spelled inside a plain string is not a read', () {
+      expect(sites("final s = \"DV.Secrets.get('IN_A_STRING')\";"), isEmpty);
+    });
+
+    test('a read spelled inside a triple-quoted template is not a read', () {
+      expect(
+        sites("final t = '''\nfinal k = DV.Secrets.get('IN_TEMPLATE');\n''';"),
+        isEmpty,
+      );
+    });
+
+    test('a secret name in a string that no call reads is not a read', () {
+      expect(sites("final s = 'STRIPE_KEY'; // STRIPE_KEY"), isEmpty);
     });
   });
 
