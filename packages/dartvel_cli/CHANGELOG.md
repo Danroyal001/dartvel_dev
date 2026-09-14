@@ -1,4 +1,13 @@
 ## Unreleased
+- **The generated runtime gives the shared window store its application
+  key store.** The store now encrypts world anchor tokens under the
+  application key and refuses them when it has no key store, and it has no
+  application id to name one by, so an application nobody wired refused every
+  anchor even on a desktop with a keyring. The generated runtime sets
+  `DVWindowSharedStore.defaultAppKeys = () => dvAppKeyStoreFor('<package>')`,
+  the key store `dartvel key` manages under the same name, before any tuned
+  store is made. Nothing asks the keyring anything until a token is written;
+  where the platform has no key custody the token is still refused.
 - **The generated backend starts a preview before anything else runs.**
   `startBackend` calls `DVPreviewServer.start(Platform.environment)` as its
   first statement, so a backend deployed as a preview captures outbound mail
