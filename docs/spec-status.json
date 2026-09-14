@@ -436,7 +436,28 @@
     {
       "section": "Media Playback and Capture",
       "stability": "Draft",
-      "status": "Designed"
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_core/lib/src/media/media_controller.dart",
+        "packages/dartvel_core/lib/src/media/media_signal.dart",
+        "packages/dartvel_core/lib/src/media/media_source.dart",
+        "packages/dartvel_core/lib/src/media/player_backend.dart",
+        "packages/dartvel_core/lib/src/media/audio_focus.dart",
+        "packages/dartvel_core/lib/src/media/media_fakes.dart",
+        "packages/dartvel_core/lib/src/media/capture.dart",
+        "packages/dartvel_core/lib/src/media/capture_backend.dart",
+        "packages/dartvel_core/lib/src/media/capture_fakes.dart",
+        "packages/dartvel_core/lib/src/media/capture_files_io.dart",
+        "packages/dartvel_core/lib/src/storage/file.dart",
+        "packages/dartvel_core/test/media_playback_test.dart",
+        "packages/dartvel_core/test/media_capture_test.dart",
+        "packages/dartvel_core/test/media_signal_test.dart",
+        "packages/dartvel_flutter/lib/src/media/media_box.dart",
+        "packages/dartvel_flutter/test/media_box_test.dart",
+        "packages/dartvel_flutter/lib/src/platform/linux/linux_media_gst.dart",
+        "packages/dartvel_flutter/test/linux_media_gst_test.dart"
+      ],
+      "absent": "Built: the player and capture state machines as read-only DVMediaSignal values that move only when the backend reports: a player is not playing until the backend says so, a decoder that stops advancing is stalled, a position report from before a seek is dropped, failed is final, and leaving the page releases the backend, audio focus and timers. Protected content with no DRM adapter is refused before the backend sees it (DV-MEDIA-102), an adaptive stream falls back to its progressive version (DV-MEDIA-101) or is refused, and undeclared background audio logs DV-MEDIA-103 and pauses. Capture checks capabilities before asking permission and refuses with a typed error and DV-MEDIA-104; capturing follows what the device confirms; backgrounding, a revoked permission or a lost device ends the session as DVCaptureInterrupted with the partial file rather than a success; disposing aborts and deletes the partial file; recording files are created 0600 in a 0700 directory before the device writes and re-tightened if the device replaced them. Every backend contract has a fake. DVBox.video and DVBox.audio own their player for as long as the box is mounted (a parent rebuild reuses it, a new source replaces it, a controller the application passes in outlives the box), DVBox.controller and DVBox.aspectRatio exist, and DV.Platform.Media.recordAudio and recordVideo return a DVCaptureSession. On Linux, GStreamer over dart:ffi plays files, assets and URLs with duration, position, accurate seek, pause, volume, completion and errors, and records audio to Opus/Ogg, WAV or AAC through the installed encoders, verified into fakesink and from audiotestsrc. Absent: audible output and a real microphone were not verified (the machine has neither); Linux does not draw video frames into Flutter, so DVBox.video plays audio under the poster; camera capture exists on no target and recordVideo is refused everywhere; no player or capture backend for Android, iOS, macOS, Windows, web, Tizen, webOS or tvOS, and eLinux reaching the GStreamer backend is unverified; audio focus is arbitrated only between the application's own players, with no platform focus binding; DVMediaSession lock-screen and now-playing controls, picture-in-picture, AirPlay and Chromecast; captions (DVCaptions does not exist); any DRM adapter, beyond the DVDrmAdapter interface and its refusal; the build generating the background-audio declaration, so every background-audio request gets DV-MEDIA-103 today; remote-control keys run on a television embedder; Media Pipeline's upload validation and variants accepting a capture DVFile; decode offloaded through DV.Workers or DV.Memory; usage metering of playback. Where the section and the code disagree: player.position is written as a DVSignal, but a player exists outside any widget, so its signals are DVMediaSignal values read with watch(context) that do not compose with signal operators; await recordAudio(...) is written as returning a DVFile, and it returns a DVCaptureSession that implements Future<DVFile> and also exposes stop, dispose, state and capturing; DVFile did not exist and a minimal one was added; the DVAudio asset constants and poster generation from Media Pipeline do not exist, so DVMediaSource.asset takes an asset key and the poster is a DVImage; DV.Platform.Media sits beside the existing lowercase media getter."
     },
     {
       "section": "Cache",
