@@ -39,10 +39,11 @@ void main() {
     });
 
     test('Create new project', () async {
-      // Run dartvel init
+      // Run dartvel create. `init` adds Dartvel to an existing project and
+      // no longer scaffolds one.
       final result = await Process.run(
         'dart',
-        [dartvelBin, 'init', 'test_app'],
+        [dartvelBin, 'create', 'test_app'],
         workingDirectory: tempDir.path,
       );
 
@@ -51,7 +52,7 @@ void main() {
       stdout.writeln('Exit code: ${result.exitCode}');
 
       expect(result.exitCode, 0,
-          reason: 'dartvel init should succeed. Stderr: ${result.stderr}');
+          reason: 'dartvel create should succeed. Stderr: ${result.stderr}');
       expect(await Directory(projectPath).exists(), true,
           reason: 'Project directory should be created');
 

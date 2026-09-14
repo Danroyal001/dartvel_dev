@@ -11,8 +11,8 @@ import '../utils/logger.dart';
 /// directory that file is the one `flutter create` wrote a moment earlier, so
 /// replacing it costs nothing. In a directory that already holds an
 /// application it costs the team every dependency, version and setting they
-/// had declared — and `init` and `new`, the words someone with an existing
-/// project reaches for, are aliases of this same command.
+/// had declared. `init` used to be an alias of this command, and it is the
+/// word someone with an existing project reaches for; it is AdoptCommand now.
 ///
 /// The marker is the `dartvel:` key at the top level: the template writes it
 /// and nothing else does, so a pubspec carrying one came from here and may be
@@ -32,9 +32,38 @@ String? dvForeignProjectRefusal(String root) {
       'it. Refusing.\n'
       '  create makes a project that does not exist yet; run it in an empty '
       'directory, or pass a new directory name.\n'
-      '  To add Dartvel to this project, add the dependency and a `dartvel:` '
-      'section to the pubspec yourself; `dartvel routes` generates against '
-      'whatever is there.';
+      '  To add Dartvel to this project instead, run `dartvel init`: it adds '
+      'the dependency and a `dartvel:` key, shows the change first, and '
+      'writes nothing else.';
+}
+
+/// Where the Dartvel packages sit when this CLI runs from the monorepo, or
+/// null when it runs from an installed package.
+///
+/// Both `create` and `init` write path dependencies in that case, so a
+/// project made or adopted from a checkout resolves against that checkout.
+Future<String?> dvLocalPackagesDir() async {
+  try {
+    final uri = await Isolate.resolvePackageUri(
+      Uri.parse('package:dartvel_cli/dartvel_impl.dart'),
+    );
+    if (uri == null || !uri.isScheme('file')) return null;
+    final packageDir = Directory(p.dirname(p.dirname(uri.toFilePath())));
+    final packagesDir = packageDir.parent;
+    final required = [
+      'dartvel_core',
+      'dartvel_shelf',
+      'dartvel_flutter',
+      'dartvel_cli',
+    ];
+    final hasAll = required.every(
+      (name) =>
+          File(p.join(packagesDir.path, name, 'pubspec.yaml')).existsSync(),
+    );
+    return hasAll ? packagesDir.path : null;
+  } catch (_) {
+    return null;
+  }
 }
 
 class InitCommand extends Command<void> {
@@ -45,8 +74,11 @@ class InitCommand extends Command<void> {
   String get description =>
       'Initialize a new Dartvel project with best practices.${aliases.isEmpty ? '' : ' (Aliases: ${aliases.join(', ')})'}';
 
+  // Not `init`: that initializes Dartvel inside a project that already
+  // exists, and is AdoptCommand. As an alias of this command it replaced
+  // the adopting project's pubspec with the scaffold template.
   @override
-  final List<String> aliases = ['init', 'new'];
+  final List<String> aliases = ['new'];
   InitCommand() {
     argParser
       ..addFlag('web', defaultsTo: true, help: 'Include web platform')
@@ -147,7 +179,7 @@ class InitCommand extends Command<void> {
       Logger.log('ℹ️  Overwriting pubspec.yaml with Dartvel configuration...');
     }
 
-    final localPackagesDir = await _localPackagesDir();
+    final localPackagesDir = await dvLocalPackagesDir();
     pubspecFile.writeAsStringSync(ProjectTemplates.pubspecTemplate(
       name: projectName,
       org: org,
@@ -236,29 +268,5 @@ class InitCommand extends Command<void> {
     Logger.log('  3. Open http://localhost:3000 in your browser');
     Logger.log('');
     Logger.log('📚 Docs: https://dartvel.dev');
-  }
-
-  Future<String?> _localPackagesDir() async {
-    try {
-      final uri = await Isolate.resolvePackageUri(
-        Uri.parse('package:dartvel_cli/dartvel_impl.dart'),
-      );
-      if (uri == null || !uri.isScheme('file')) return null;
-      final packageDir = Directory(p.dirname(p.dirname(uri.toFilePath())));
-      final packagesDir = packageDir.parent;
-      final required = [
-        'dartvel_core',
-        'dartvel_shelf',
-        'dartvel_flutter',
-        'dartvel_cli',
-      ];
-      final hasAll = required.every(
-        (name) =>
-            File(p.join(packagesDir.path, name, 'pubspec.yaml')).existsSync(),
-      );
-      return hasAll ? packagesDir.path : null;
-    } catch (_) {
-      return null;
-    }
   }
 }
