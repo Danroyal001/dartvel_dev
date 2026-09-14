@@ -1,4 +1,11 @@
 ## Unreleased
+- **The generated client installs crash reporting.** `configureDartvelRuntime`
+  calls the new `installDartvelCrashReporting()`, after the platform
+  bindings (on Android they find the directory records are kept in), which
+  installs `DV.Crashes` for the application under the pubspec's `version` as
+  its release -- `unversioned`, said in every report, when there is none.
+  Nothing installed the crash runtime before, so a real application recorded
+  no crash at all.
 - **A generated worker runs the application's `@DVJob` handlers.**
   `jobs.g.dart` imported `dartvel_flutter`, which a server cannot load, so
   the generated backend registered no handler and every `DARTVEL_ROLE=worker`

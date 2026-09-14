@@ -1,5 +1,14 @@
 ## Unreleased
 
+- **Crash records have somewhere to go in a browser.** `DVFileCrashStore`
+  throws on the web by design, so a web build had no store a crash handler
+  could write to before the page went away. `DVKeyValueCrashStore` keeps
+  records, sent notes and the per-release count in any synchronous
+  `DVCrashKeyValue` -- `localStorage` in dartvel_flutter -- under a prefix,
+  so it shares the page's storage without reading other keys as records,
+  and the count survives a reload loop the way the file store's survives a
+  restart.
+
 - **Sign-ups that hit a taken address count against the source.** A sign-up
   that signs somebody in cannot hide that an address was free, so
   `DVCredentialGuard.signUp` makes probing for accounts through it expensive
