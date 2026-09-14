@@ -5586,8 +5586,19 @@ class DVLocalAuthProvider implements DVAuthProvider {
       <String, _DVLocalCredential>{};
   bool _signedIn = false;
 
+  /// What a password is checked against when no account matches, so a miss
+  /// does one verification like a wrong password does. Made once, by the same
+  /// hasher, at construction: hashing on every miss would double the work a
+  /// miss costs, and making it on the first miss would slow that one.
+  final String _dummyHash;
+
   DVLocalAuthProvider({DVPasswordHasher? hasher})
-      : _hasher = hasher ?? DVPasswordHasher(iterations: 10000);
+      : this._(hasher ?? DVPasswordHasher(iterations: 10000));
+
+  DVLocalAuthProvider._(this._hasher)
+      : _dummyHash = _hasher.hash(String.fromCharCodes(
+          List<int>.generate(32, (_) => 33 + math.Random.secure().nextInt(94)),
+        ));
 
   /// Registered account e-mails, for test assertions and dev tooling.
   List<String> get accounts => List<String>.unmodifiable(_accounts.keys);
@@ -5613,20 +5624,13 @@ class DVLocalAuthProvider implements DVAuthProvider {
       throw ArgumentError('Email and password are required.');
     }
     final stored = _accounts[key];
-    if (stored == null) {
-      // Hash anyway so a missing account does not answer faster than a wrong
-      // password, which would leak which e-mails are registered.
-      _hasher.verify(password, _hasher.hash(password));
-      throw const AuthException(
-        AuthFailure.unknownAccount,
-        'No account exists for that e-mail address. Call signUp first.',
-      );
-    }
-    if (!_hasher.verify(password, stored.passwordHash)) {
-      throw const AuthException(
-        AuthFailure.invalidPassword,
-        'That password is incorrect.',
-      );
+    // One verification either way, and one refusal: a missing account and a
+    // wrong password are not told apart, which would list the e-mails that
+    // have accounts.
+    final matched =
+        _hasher.verify(password, stored?.passwordHash ?? _dummyHash);
+    if (stored == null || !matched) {
+      throw AuthException.invalidCredentials;
     }
     _signedIn = true;
     return stored.user;
@@ -5688,17 +5692,22 @@ class DVLocalAuthProvider implements DVAuthProvider {
       throw ArgumentError('Email or metadata is required to create a user.');
     }
 
+    String? passwordHash;
     if (normalizedEmail != null && normalizedEmail.isNotEmpty) {
-      if (_accounts.containsKey(normalizedEmail)) {
-        throw const AuthException(
-          AuthFailure.accountExists,
-          'An account already exists for that e-mail address.',
-        );
-      }
+      // The password is judged, then hashed, before the address is looked
+      // up: a check that only runs for a free address, or a taken address
+      // that answers before the hash, says which addresses are taken.
       if (password != null && password.length < minimumPasswordLength) {
         throw const AuthException(
           AuthFailure.weakPassword,
           'Passwords must be at least $minimumPasswordLength characters.',
+        );
+      }
+      if (password != null) passwordHash = _hasher.hash(password);
+      if (_accounts.containsKey(normalizedEmail)) {
+        throw const AuthException(
+          AuthFailure.accountExists,
+          'An account already exists for that e-mail address.',
         );
       }
     }
@@ -5712,9 +5721,8 @@ class DVLocalAuthProvider implements DVAuthProvider {
     // Only an account created with a password can sign in with one later.
     if (normalizedEmail != null &&
         normalizedEmail.isNotEmpty &&
-        password != null) {
-      _accounts[normalizedEmail] =
-          _DVLocalCredential(user, _hasher.hash(password));
+        passwordHash != null) {
+      _accounts[normalizedEmail] = _DVLocalCredential(user, passwordHash);
     }
     return user;
   }
