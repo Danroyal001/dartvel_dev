@@ -11,6 +11,8 @@ import '../generators/policy_classes.dart';
 import '../generators/static_paths_generator.dart';
 import '../graph/module_mounts.dart';
 import '../graph/project_graph.dart';
+import '../module_trust/capabilities.dart';
+import '../module_trust/module_trust.dart';
 import 'docs_html.dart';
 
 /// Something the documentation build found wrong with what it was asked to
@@ -1094,6 +1096,43 @@ class _Builder {
         ..writeln(
           '<tr><th>Inherited globals</th><td>${list(m.inheritedGlobals)}</td></tr>',
         );
+      // What the parent grants, and what Module Distribution and Trust says
+      // of it. Showing only what a module was declared to need left a reader
+      // unable to tell a granted module from one the build refuses.
+      Object? declaredBody;
+      try {
+        final Object? doc = loadYaml(
+          File(p.join(root, 'pubspec.yaml')).readAsStringSync(),
+        );
+        final Object? dartvel = doc is Map ? doc['dartvel'] : null;
+        final Object? modules = dartvel is Map ? dartvel['modules'] : null;
+        declaredBody = modules is Map ? modules[m.id] : null;
+      } on Object {
+        declaredBody = null;
+      }
+      final Object? grant = declaredBody is Map ? declaredBody['grant'] : null;
+      b.writeln(
+        '<tr><th>Grant</th><td>${list(dvParseModuleCapabilities(grant, where: 'grant').capabilities.items())}</td></tr>',
+      );
+      final String trust;
+      if (m.deployment == DVModuleDeployment.federated) {
+        trust = 'deployed elsewhere and trusted through its signed manifest';
+      } else {
+        final List<DVModuleTrustFinding> found = dvEvaluateModuleTrust(
+          root,
+        ).findings.where((DVModuleTrustFinding f) => f.module == m.id).toList();
+        trust = found.isEmpty
+            ? 'verifies against its pin where it has one, and uses only what '
+                  'it is granted'
+            : found
+                  .map(
+                    (DVModuleTrustFinding f) =>
+                        '${f.code == null ? '' : '<code>${dvDocsText(f.code!)}</code> '}'
+                        '${f.isError ? '' : '(warning) '}${dvDocsText(f.message)}',
+                  )
+                  .join('<br>');
+      }
+      b.writeln('<tr><th>Trust</th><td>$trust</td></tr>');
       if (m.backend != null) {
         b.writeln(
           '<tr><th>Backend</th><td><code>${dvDocsText(m.backend!)}</code></td></tr>',
