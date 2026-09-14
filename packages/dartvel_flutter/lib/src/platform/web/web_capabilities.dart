@@ -311,6 +311,42 @@ const Map<String, String> dvWebUnavailableBindings = <String, String>{
   'associations.handlerFor': 'A page is not told what else on the machine '
       'opens a file type. That would be a fingerprinting surface, and no '
       'browser exposes it.',
+
+  // XR. WebXR is a browser API, so these are not things a browser forbids:
+  // each needs a live XRSession, and an XRSession draws only into an
+  // XR-compatible WebGL2 context that a renderer owns. 3D Scenes ships no
+  // WebGL2 renderer, so there is nothing for a session to present, and every
+  // entry here is stale the day one lands.
+  'xr.capability.query': 'navigator.xr.isSessionSupported answers whether the '
+      'device could run a session, not whether this page can present one. With '
+      'no WebGL2 renderer to draw into, reporting volumes or an immersive space '
+      'would offer a control whose open() then degrades.',
+  'xr.session.open': 'requestSession must run inside a user gesture and needs '
+      'an XR-compatible WebGL2 context to draw into; 3D Scenes has no WebGL2 '
+      'renderer, so a session opened here would present nothing.',
+  'xr.session.close': 'XRSession.end() on a session this platform cannot open '
+      'without a WebGL2 renderer to present it.',
+  'xr.space.open': 'A WebXR volume or immersive space is the session itself, '
+      'drawn through a WebGL2 layer that 3D Scenes does not provide.',
+  'xr.space.close': 'The other half of a space that has no WebGL2 layer to be '
+      'drawn through on this platform.',
+  'xr.passthrough.set': 'Passthrough is the immersive-ar session mode, fixed '
+      'when the session is requested and not switched afterwards, and there is '
+      'no session to request without a WebGL2 renderer.',
+  'xr.anchor.create': 'WebXR Anchors live inside an XRSession and are located '
+      'against its reference space, which does not exist here without a '
+      'WebGL2 renderer to run the session.',
+  'xr.anchor.persist': 'Persistent WebXR anchors are Chromium-only on Android, '
+      'and like every anchor they need a running XRSession this platform has '
+      'no WebGL2 renderer to start.',
+  'xr.anchor.resolve': 'restorePersistentAnchor is Chromium-only and needs a '
+      'running XRSession, which this platform cannot start without a WebGL2 '
+      'renderer.',
+  'xr.input.observe': 'XRInputSource events arrive from a running XRSession; '
+      'with no WebGL2 renderer to start one there is no input stream to observe.',
+  'xr.environment.probe': 'WebXR Lighting Estimation is requested as a feature '
+      'of an immersive-ar session, which this platform cannot start without a '
+      'WebGL2 renderer.',
 };
 
 /// The browser had the API and the answer was no.
