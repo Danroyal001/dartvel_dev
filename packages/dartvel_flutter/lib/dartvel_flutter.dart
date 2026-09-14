@@ -18,6 +18,7 @@ import 'src/accessibility/switch_control.dart';
 import 'src/browser_extension_platform_memory.dart'
     if (dart.library.html) 'src/browser_extension_platform_web.dart'
     as browser_extension_platform;
+import 'src/crashes/crashes.dart';
 import 'src/display_platform.dart'
     if (dart.library.js_interop) 'src/display_platform_web.dart'
     as display_platform;
@@ -636,6 +637,7 @@ export 'src/admin/queue_admin.dart';
 export 'src/admin/route_admin.dart';
 export 'src/admin/route_info.dart';
 export 'src/admin/telemetry_admin.dart';
+export 'src/crashes/crashes.dart';
 export 'src/flags/flag_signal.dart';
 export 'src/kiosk/device_kiosk.dart';
 export 'src/kiosk/kiosk.dart';
@@ -6807,6 +6809,10 @@ class DV {
   static DVObservabilityAndLogging get ObservabilityAndLogging =>
       const DVObservabilityAndLogging();
   static DVTenants get Tenants => const DVTenants();
+
+  /// The crash reporter: installed by the generated runtime, and where an
+  /// application records a caught error with `DV.Crashes.record`.
+  static DVCrashes get Crashes => const DVCrashes();
 
   /// Alias for `DV.Tenants.currentTenant`, as the spec defines it. Both read
   /// and write the same state, so setting one is visible through the other.

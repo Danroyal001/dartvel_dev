@@ -558,14 +558,26 @@ const String dvApiBasePath      = '${esc(apiBasePath)}';
     final bool terminalOnly = linked.contains(DVRenderBackend.terminal) &&
         !linked.contains(DVRenderBackend.gui);
 
+    // The release a crash report names: the pubspec's version, which is what
+    // a store listing and an OTA patch are keyed by. A project without one
+    // says so in every report rather than borrowing a number.
+    final Object? pubspecVersion = (() {
+      final File pubspec = File(p.join(root, 'pubspec.yaml'));
+      if (!pubspec.existsSync()) return null;
+      final Object? doc = loadYaml(pubspec.readAsStringSync());
+      return doc is Map ? doc['version'] : null;
+    })();
+    final String crashRelease =
+        pubspecVersion == null ? 'unversioned' : '$pubspecVersion';
+
     // Client runtime helper
     final runtimeDart = """
 import 'dart:async' show unawaited;
 import 'package:flutter/foundation.dart' show kReleaseMode, kIsWeb, defaultTargetPlatform, TargetPlatform, debugPrint;
 import 'dart:io' show exit${dualMode ? ', stdin, stdout, stderr, File, Platform, Process, ProcessStartMode' : ''};
 import 'package:flutter/widgets.dart' show WidgetsFlutterBinding;
-import 'package:dartvel_core/dartvel.dart' show DVStartupProfile, dvLiveWindowsPathFor;
-${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVAppLifecycle, DVPageStore, dvStartAppLifecycleBridge,${_hasMemoryConfig(dv) ? ' DVMemory, DVMemoryConfig,' : ''}${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''}${_hasDeviceProfileDisplays(dv) || _hasSharedStoreTuning(dv) || _hasWindowingDeclaration(dv) ? ' DVWindowManager,' : ''} DVWindowSharedStore, dvAppKeyStoreFor,${_hasWindowingDeclaration(dv) ? ' DVWindowingDeclaration,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAndroidBindings, DVAppLaunch, DVHomeWidgets, DVNativeBridge, DVRouteTarget, DVWindowOptions, DVRenderSurface${dualMode ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''}${terminalOnly ? ', DVTerminalSurface' : ''};
+import 'package:dartvel_core/dartvel.dart' show DVCrashSink, DVCrashStore, DVStartupProfile, dvLiveWindowsPathFor;
+${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVAppLifecycle, DVCrashInstallation, DVPageStore, dvStartAppLifecycleBridge,${_hasMemoryConfig(dv) ? ' DVMemory, DVMemoryConfig,' : ''}${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''}${_hasDeviceProfileDisplays(dv) || _hasSharedStoreTuning(dv) || _hasWindowingDeclaration(dv) ? ' DVWindowManager,' : ''} DVWindowSharedStore, dvAppKeyStoreFor,${_hasWindowingDeclaration(dv) ? ' DVWindowingDeclaration,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAndroidBindings, DVAppLaunch, DVHomeWidgets, DVNativeBridge, DVRouteTarget, DVWindowOptions, DVRenderSurface${dualMode ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''}${terminalOnly ? ', DVTerminalSurface' : ''};
 import 'dartvel_config.g.dart' as cfg;
 import 'home_widgets.g.dart' show dartvelHomeWidgets;
 import 'flags.g.dart' show registerDartvelFlags;
@@ -630,6 +642,10 @@ void configureDartvelRuntime({List<String> arguments = const <String>[]}) {
   // DV.Platform.Clipboard.copy().
   registerPlatformBindings();
   DVStartupProfile.current.mark('bindings');
+  // Crash reporting, after the bindings: on Android the directory the records
+  // are kept in is the files directory they found. Before this nothing
+  // installed the crash runtime, so a real application recorded no crash.
+  installDartvelCrashReporting();
   // The arguments this process was started with -- a file association, a
   // dartvel:// link, a second launch -- and the launches that come after it.
   startDartvelLaunch(arguments);
@@ -677,6 +693,22 @@ ${_memoryConfigSource(dv)}${_windowingDeclarationSource(dv)}${_sharedStoreTuning
     DV.lifecycle.setApp(DVAppLifecycle.ready);
   });
 }
+
+/// Installs DV.Crashes for this application: FlutterError.onError,
+/// PlatformDispatcher.onError and the isolate's (or the window's) error
+/// listeners, each chained to whatever handler was already there, and the
+/// reports the previous run left sent now.
+///
+/// Returns null under `flutter test`, where the test framework owns those
+/// hooks, unless [evenUnderTest]. [store] and [sink] replace the defaults.
+DVCrashInstallation? installDartvelCrashReporting({DVCrashStore? store, DVCrashSink? sink, bool evenUnderTest = false}) =>
+    DV.Crashes.installApplication(
+      appId: '$pkgName',
+      release: '${esc(crashRelease)}',
+      store: store,
+      sink: sink,
+      evenUnderTest: evenUnderTest,
+    );
 
 ${_launchNegotiationSource(linked)}
 
