@@ -577,6 +577,69 @@ void main() {
     });
   });
 
+  group('what an alert writes', () {
+    test('a burn rate reads as 6.7×, not as the float that was divided', () async {
+      const DVSignalRef burn = DVSignalRef.errorBudgetBurn('catalog-search');
+      readers.register(burn, () => 6.703703703703697);
+      final DVIncidents incidents =
+          DVIncidents(store: DVMemoryIncidentStore());
+      final DVAlerting alerting = engine(incidents: incidents)
+        ..addRule(const DVAlertRule(
+          name: 'catalog-search-burn',
+          signal: burn,
+          condition: DVAlertWhen.above(6),
+          forDuration: Duration(minutes: 5),
+          notify: <DVAlertTarget>[DVAlertTarget.user('ops-1')],
+        ));
+      for (int minute = 0; minute <= 6; minute++) {
+        await alerting.evaluate(now: at(minute));
+      }
+      final DVIncident incident = (await incidents.open()).single;
+      final String entry = incident.timeline.first.message;
+      expect(entry, contains('is 6.7×, above 6.0×'));
+      expect(entry, isNot(contains('6.70')));
+      expect(inApp.sent.single.message.body, contains('is 6.7×, above 6.0×'));
+    });
+
+    test('each kind of signal is written with the precision it is read at', () {
+      expect(
+          const DVSignalRef.errorBudgetBurn('checkout').format(6.703703703703697),
+          '6.7×');
+      expect(const DVSignalRef.errorBudgetBurn('checkout').format(6), '6.0×');
+      expect(const DVSignalRef.errorBudgetBurn('checkout').format(412.3), '412×');
+      expect(
+          const DVSignalRef.trace('createOrder', DVTraceStat.p95)
+              .format(const Duration(microseconds: 812540)),
+          '812.5ms');
+      expect(
+          const DVSignalRef.trace('createOrder', DVTraceStat.p95)
+              .format(const Duration(milliseconds: 800)),
+          '800ms');
+      expect(const DVSignalRef.crashRate('2.0.0').format(0.012345), '1.23%');
+      expect(
+          const DVSignalRef.kioskFleetHealth('lobby').format(0.9), '90%');
+      expect(const DVSignalRef.queueDepth('mail').format(500), '500');
+      expect(const DVSignalRef.quotaBreaches('api').format(3.0), '3');
+      expect(const DVSignalRef.metric('load').format(1.23456), '1.23');
+      // Rounding a small, real value to 0 is a reading of nothing.
+      expect(const DVSignalRef.metric('ratio').format(0.000412), '0.000412');
+    });
+
+    test('a latency threshold keeps its sub-millisecond part', () async {
+      // An 812.5ms p95 above an 812.2ms limit written as "812ms, above 812ms"
+      // reads as a rule that fired on nothing.
+      const DVSignalRef latency = DVSignalRef.trace('createOrder', DVTraceStat.p95);
+      expect(
+          const DVAlertRule(
+            name: 'latency',
+            signal: latency,
+            condition: DVAlertWhen.above(Duration(microseconds: 812200)),
+            forDuration: Duration(minutes: 5),
+          ).signal.format(const Duration(microseconds: 812200)),
+          '812.2ms');
+    });
+  });
+
   group('noise', () {
     test('a rule that fires every day and changes nothing is reported, and '
         'one that fires ten times in one day is not', () async {

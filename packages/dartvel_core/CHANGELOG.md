@@ -1,5 +1,16 @@
 ## Unreleased
 
+- **What an alert writes reads its value the way Studio shows it.** A firing
+  rule's summary -- the first line of its incident, the notification body,
+  the pager summary and `DV-ALERT-001` -- printed the raw reading, so an
+  incident read "errorBudgetBurn catalog-search is 6.703703703703697, above 6".
+  `DVSignalRef.format(value)` is new and writes a burn rate as `6.7×`, a
+  latency in milliseconds to a tenth, a crash rate or fleet health as a
+  percentage, and a count or metric with at most two decimals, never rounding
+  a real value to `0`. The summary uses it for the reading and the threshold
+  alike, so a latency threshold keeps its fraction of a millisecond. Only the
+  text changed; readings keep their numbers.
+
 - **A service level whose window saw no requests has no budget reading, not
   a full one.** `DVServiceLevels.status` reported `budgetConsumed: 0` when
   samples were read and no request arrived between them, so a service that
