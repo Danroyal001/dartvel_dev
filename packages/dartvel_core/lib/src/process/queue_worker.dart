@@ -2,6 +2,7 @@
 library;
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import '../../dartvel.dart' show DVQueues;
 
@@ -34,15 +35,26 @@ final class DVQueueWorker {
   /// so a flooded queue does not starve the others.
   final int batch;
 
-  /// Runs until [until] completes, finishing the job in hand first.
-  Future<void> run({Future<void>? until}) async {
+  /// Runs until [until] completes, finishing the job in hand first, and
+  /// returns how many jobs completed.
+  ///
+  /// With [maxJobs] it also returns once that many jobs have completed, or
+  /// after a pass over every queue completes none -- `dartvel queue work
+  /// --max-jobs` draining a bounded number and going back to the shell. A job
+  /// that fails is not a completed one, so a pass of only failures ends it
+  /// rather than retrying the same poison job until the bound is reached.
+  Future<int> run({Future<void>? until, int? maxJobs}) async {
+    if (maxJobs != null && maxJobs < 1) {
+      throw ArgumentError.value(maxJobs, 'maxJobs', 'must be positive');
+    }
     const DVQueues queue = DVQueues();
     if (!queue.adapterConfigured) {
       throw StateError(
         'This worker has no queue adapter configured. It would work the '
         'process-local queue, which no other process can dispatch to, and '
-        'never receive a job. Configure one with DVQueues().useAdapter before '
-        'the worker starts.',
+        'never receive a job. The generated backend puts the queue on the '
+        'database DATABASE_URL names; a process started some other way '
+        'configures one with DVQueues().useAdapter before the worker starts.',
       );
     }
     if (!queue.hasHandlers) {
@@ -62,12 +74,18 @@ final class DVQueueWorker {
       }),
     );
 
+    int total = 0;
     while (!stopped) {
       int done = 0;
       for (final String name in queues) {
         if (stopped) break;
-        done += await queue.work(queue: name, maxJobs: batch);
+        final int take =
+            maxJobs == null ? batch : math.min(batch, maxJobs - total - done);
+        if (take < 1) break;
+        done += await queue.work(queue: name, maxJobs: take);
       }
+      total += done;
+      if (maxJobs != null && (done == 0 || total >= maxJobs)) break;
       if (stopped) break;
       if (done == 0) {
         await Future.any(<Future<void>>[
@@ -76,5 +94,6 @@ final class DVQueueWorker {
         ]);
       }
     }
+    return total;
   }
 }

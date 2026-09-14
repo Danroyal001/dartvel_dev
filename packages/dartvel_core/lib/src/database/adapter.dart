@@ -580,6 +580,14 @@ class DVDatabase {
     _adapter = adapter;
   }
 
+  /// The adapter [configure] was given, or null when nothing configured one.
+  ///
+  /// Unlike [adapter] this never throws and never resolves a tenant's
+  /// database: it is for a process deciding whether something already chose
+  /// its database -- a preview does, before anything else runs -- rather
+  /// than opening a second connection beside it.
+  DVDatabaseAdapter? get configuredAdapter => _adapter;
+
   /// How to open the database for one tenant, under
   /// [DVTenantIsolation.databasePerTenant].
   ///

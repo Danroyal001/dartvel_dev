@@ -219,4 +219,152 @@ void main() {
       );
     });
   });
+
+  group('health port', () {
+    test('a worker or a cron process serves health on DARTVEL_HEALTH_PORT', () {
+      expect(
+        resolve(const <String, String>{
+          'DARTVEL_ROLE': 'worker',
+          'DARTVEL_HEALTH_PORT': '9090',
+        }).healthPort,
+        9090,
+      );
+      expect(
+        resolve(const <String, String>{
+          'DARTVEL_ROLE': 'cron',
+          'DARTVEL_HEALTH_PORT': '9091',
+        }).healthPort,
+        9091,
+      );
+    });
+
+    test('with no DARTVEL_HEALTH_PORT there is no health endpoint', () {
+      expect(
+        resolve(const <String, String>{'DARTVEL_ROLE': 'worker'}).healthPort,
+        isNull,
+      );
+    });
+
+    for (final String bad in <String>['', 'abc', '0', '65536', ' 9090']) {
+      test('"$bad" is refused rather than serving health somewhere else', () {
+        expect(
+          () => resolve(<String, String>{
+            'DARTVEL_ROLE': 'worker',
+            'DARTVEL_HEALTH_PORT': bad,
+          }),
+          refusedNaming('DARTVEL_HEALTH_PORT'),
+        );
+      });
+    }
+
+    test('a web process is refused one: it answers on DARTVEL_PORT', () {
+      expect(
+        () => resolve(const <String, String>{'DARTVEL_HEALTH_PORT': '9090'}),
+        refusedNaming('DARTVEL_HEALTH_PORT'),
+      );
+      expect(
+        () => resolve(const <String, String>{
+          'DARTVEL_ROLE': 'web',
+          'DARTVEL_HEALTH_PORT': '9090',
+        }),
+        refusedNaming('DARTVEL_HEALTH_PORT'),
+      );
+    });
+  });
+
+  group('schedule lease', () {
+    test('a ticking process may waive it with DARTVEL_SCHEDULE_LEASE=none', () {
+      expect(
+        resolve(const <String, String>{
+          'DARTVEL_ROLE': 'cron',
+          'DARTVEL_SCHEDULE_LEASE': 'none',
+        }).scheduleLeaseWaived,
+        isTrue,
+      );
+      expect(
+        resolve(const <String, String>{'DARTVEL_SCHEDULE_LEASE': 'none'})
+            .scheduleLeaseWaived,
+        isTrue,
+      );
+      expect(
+        resolve(const <String, String>{'DARTVEL_ROLE': 'cron'})
+            .scheduleLeaseWaived,
+        isFalse,
+      );
+    });
+
+    for (final String bad in <String>['', 'None', 'off', 'database']) {
+      test('"$bad" is refused, naming the one value it takes', () {
+        expect(
+          () => resolve(<String, String>{
+            'DARTVEL_ROLE': 'cron',
+            'DARTVEL_SCHEDULE_LEASE': bad,
+          }),
+          refusedNaming('DARTVEL_SCHEDULE_LEASE'),
+        );
+      });
+    }
+
+    test('a process that ticks nothing is refused a lease setting', () {
+      for (final String r in <String>['worker', 'web']) {
+        expect(
+          () => resolve(<String, String>{
+            'DARTVEL_ROLE': r,
+            'DARTVEL_SCHEDULE_LEASE': 'none',
+          }),
+          refusedNaming('DARTVEL_SCHEDULE_LEASE'),
+        );
+      }
+    });
+  });
+
+  group('max jobs', () {
+    test('--max-jobs bounds a worker, in either spelling', () {
+      expect(
+        resolve(
+          const <String, String>{'DARTVEL_ROLE': 'worker'},
+          arguments: <String>['--max-jobs=3'],
+        ).maxJobs,
+        3,
+      );
+      expect(
+        resolve(
+          const <String, String>{'DARTVEL_ROLE': 'worker'},
+          arguments: <String>['--max-jobs', '2'],
+        ).maxJobs,
+        2,
+      );
+      expect(
+        resolve(const <String, String>{'DARTVEL_ROLE': 'worker'}).maxJobs,
+        isNull,
+      );
+    });
+
+    for (final List<String> bad in <List<String>>[
+      <String>['--max-jobs=0'],
+      <String>['--max-jobs=-1'],
+      <String>['--max-jobs=x'],
+      <String>['--max-jobs'],
+    ]) {
+      test('${bad.join(' ')} is refused', () {
+        expect(
+          () => resolve(
+            const <String, String>{'DARTVEL_ROLE': 'worker'},
+            arguments: bad,
+          ),
+          refusedNaming('--max-jobs'),
+        );
+      });
+    }
+
+    test('--max-jobs on a process that works no queue is refused', () {
+      expect(
+        () => resolve(
+          const <String, String>{},
+          arguments: <String>['--max-jobs=1'],
+        ),
+        refusedNaming('--max-jobs'),
+      );
+    });
+  });
 }

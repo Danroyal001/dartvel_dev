@@ -13,6 +13,7 @@ import 'dart:async';
 
 import '../../dartvel.dart' show DVCronEntry;
 import '../cache/adapters.dart' show DVAtomicCacheAdapter;
+import '../database/adapter.dart' show DVDatabaseAdapter;
 import '../preview/preview_outbound.dart' show DVPreviewOutbound;
 import 'cron.dart';
 
@@ -56,6 +57,74 @@ final class DVCacheScheduleLease implements DVScheduleLease {
         DateTime.now().toUtc().toIso8601String(),
         hold,
       );
+}
+
+/// A [DVScheduleLease] on the application's database, for a deployment whose
+/// processes share one but no cache store with compare-and-set.
+///
+/// A claim is a row whose primary key is the occurrence -- the task and the
+/// instant the schedule named, in UTC -- so the database's own uniqueness
+/// decides between two processes inserting it at once, on Postgres, MySQL
+/// and a SQLite file alike. An insert that fails is a lost claim only when
+/// the row is there afterwards; anything else is a database that cannot be
+/// reached and is rethrown, so the scheduler records it and runs nothing.
+///
+/// Held for [hold] like [DVCacheScheduleLease], and never released. A SQLite
+/// file is shared by the processes of one host only: cron processes on two
+/// hosts need a database both reach.
+final class DVDatabaseScheduleLease implements DVScheduleLease {
+  DVDatabaseScheduleLease(
+    this.database, {
+    this.tableName = 'dartvel_schedule_leases',
+    this.hold = const Duration(days: 2),
+  }) {
+    if (!RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$').hasMatch(tableName)) {
+      throw ArgumentError.value(
+        tableName,
+        'tableName',
+        'Lease table names must be plain SQL identifiers.',
+      );
+    }
+  }
+
+  final DVDatabaseAdapter database;
+  final String tableName;
+  final Duration hold;
+  bool _initialized = false;
+
+  @override
+  Future<bool> claim(String task, DateTime occurrence) async {
+    if (!_initialized) {
+      await database.execute(
+        'CREATE TABLE IF NOT EXISTS $tableName ('
+        'lease_key VARCHAR(255) PRIMARY KEY, '
+        'claimed_at BIGINT NOT NULL, '
+        'expires_at BIGINT NOT NULL)',
+      );
+      _initialized = true;
+    }
+    final String key = '$task:${occurrence.toUtc().toIso8601String()}';
+    final int now = DateTime.now().millisecondsSinceEpoch;
+    await database.execute(
+      'DELETE FROM $tableName WHERE expires_at < ?',
+      <Object?>[now],
+    );
+    try {
+      await database.execute(
+        'INSERT INTO $tableName (lease_key, claimed_at, expires_at) '
+        'VALUES (?, ?, ?)',
+        <Object?>[key, now, now + hold.inMilliseconds],
+      );
+      return true;
+    } on Object {
+      final List<Map<String, Object?>> held = await database.query(
+        'SELECT lease_key FROM $tableName WHERE lease_key = ?',
+        <Object?>[key],
+      );
+      if (held.isNotEmpty) return false;
+      rethrow;
+    }
+  }
 }
 
 /// A task that failed, kept so the process can report it.
