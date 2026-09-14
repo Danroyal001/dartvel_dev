@@ -9,6 +9,13 @@
 library dartvel_core.graphql;
 
 import 'dart:async';
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
+
+import '../observability/observability.dart';
+
+part 'limits.dart';
 
 /// A resolvable field on a registered type.
 class DVGraphQLField {
@@ -27,11 +34,23 @@ class DVGraphQLField {
     Object? parent,
   )? resolve;
 
+  /// What resolving this field counts toward an operation's cost budget,
+  /// before a list multiplies it. A field that resolves through a backend
+  /// function declares what that function costs; absent, a field costs 1, and
+  /// nothing costs less.
+  final int? cost;
+
+  /// The page size a list field is priced at when the query passes none.
+  /// Absent, [DVGraphQLLimits.defaultPageSize].
+  final int? pageSize;
+
   const DVGraphQLField(
     this.name,
     this.type, {
     this.args = const <String, String>{},
     this.resolve,
+    this.cost,
+    this.pageSize,
   });
 }
 
@@ -55,30 +74,91 @@ class DVGraphQL {
   static final Map<String, DVGraphQLField> _mutations = {};
   static final Map<String, DVGraphQLField> _subscriptions = {};
 
+  /// The depth, cost and introspection budget every operation is checked
+  /// against before any resolver runs. On by default: a generated endpoint is
+  /// public from its first deploy.
+  static DVGraphQLLimits limits = const DVGraphQLLimits();
+
+  /// The persisted-query manifest and whether it is enforced.
+  static DVPersistedQueries persistedQueries = DVPersistedQueries();
+
+  static int? _autoDepth;
+  static (int, int)? _autoCost;
+
+  /// The depth budget `maxDepth: auto` derives from the registered schema.
+  static int get autoMaxDepth => _autoDepth ??= _computeAutoMaxDepth();
+
+  /// The cost budget `maxCost: auto` derives from the registered schema at
+  /// the current [DVGraphQLLimits.defaultPageSize].
+  static int get autoMaxCost {
+    final pageSize = limits.defaultPageSize;
+    final cached = _autoCost;
+    if (cached != null && cached.$1 == pageSize) return cached.$2;
+    final cost = _computeAutoMaxCost(pageSize);
+    _autoCost = (pageSize, cost);
+    return cost;
+  }
+
+  static void _schemaChanged() {
+    _autoDepth = null;
+    _autoCost = null;
+  }
+
+  /// The depth and cost [document] is priced at, without running it.
+  ///
+  /// Throws a [FormatException] for a document that cannot run at all.
+  static DVGraphQLQueryCost analyze(
+    String document, {
+    Map<String, Object?>? variables,
+    String? operationName,
+  }) {
+    final parsed = _Parser(document).parseDocument();
+    final operation = parsed.operation(operationName);
+    if (operation == null) {
+      throw const FormatException('No operation to analyse.');
+    }
+    return _CostAnalyzer(
+      _ExecutionContext(
+        variables: variables ?? const <String, Object?>{},
+        fragments: parsed.fragments,
+        errors: <Map<String, Object?>>[],
+      ),
+      limits,
+    ).operation(operation);
+  }
+
   static void registerType(DVGraphQLObjectType type) {
     _types[type.name] = type;
+    _schemaChanged();
   }
 
   static void registerQuery(DVGraphQLField field) {
     _queries[field.name] = field;
+    _schemaChanged();
   }
 
   static void registerMutation(DVGraphQLField field) {
     _mutations[field.name] = field;
+    _schemaChanged();
   }
 
   /// Registers a subscription. Its resolver returns a [Stream]; each event
   /// becomes one `{data}` payload shaped by the client's selection set.
   static void registerSubscription(DVGraphQLField field) {
     _subscriptions[field.name] = field;
+    _schemaChanged();
   }
 
-  /// Drops every registration. Intended for tests.
+  /// Drops every registration, and puts the limits and the persisted-query
+  /// manifest back to their defaults. Intended for tests.
   static void reset() {
     _types.clear();
     _queries.clear();
     _mutations.clear();
     _subscriptions.clear();
+    limits = const DVGraphQLLimits();
+    persistedQueries = DVPersistedQueries();
+    _schemaChanged();
   }
 
   /// The schema as SDL, for humans and for tooling that prefers it to an
@@ -132,11 +212,24 @@ class DVGraphQL {
   /// `errors`; a field-level failure nulls that field and appends an error,
   /// as the GraphQL spec requires — one bad resolver does not take down the
   /// whole response.
+  ///
+  /// Before anything resolves, the document is checked against
+  /// [persistedQueries] (a request may send only [persistedQueryHash]) and
+  /// the operation against [limits]; a refusal is the whole response.
+  /// [authenticated] is whether the caller authenticated the request, which
+  /// is what [DVGraphQLIntrospection.authenticated] asks.
   static Future<Map<String, Object?>> execute(
     String document, {
     Map<String, Object?>? variables,
     String? operationName,
+    String? persistedQueryHash,
+    bool authenticated = false,
   }) async {
+    final (persisted, manifestRefusal) =
+        _persistedDocument(document, persistedQueryHash);
+    if (manifestRefusal != null) return manifestRefusal;
+    document = persisted!;
+
     _ParsedDocument parsed;
     try {
       parsed = _Parser(document).parseDocument();
@@ -177,6 +270,14 @@ class DVGraphQL {
         ],
       };
     }
+
+    final refusal = _edgeRefusal(
+      parsed,
+      operation,
+      variables ?? const <String, Object?>{},
+      authenticated: authenticated,
+    );
+    if (refusal != null) return refusal;
 
     final errors = <Map<String, Object?>>[];
     final context = _ExecutionContext(
@@ -257,7 +358,16 @@ class DVGraphQL {
     String document, {
     Map<String, Object?>? variables,
     String? operationName,
+    String? persistedQueryHash,
+    bool authenticated = false,
   }) {
+    final (persisted, manifestRefusal) =
+        _persistedDocument(document, persistedQueryHash);
+    if (manifestRefusal != null) {
+      return Stream<Map<String, Object?>>.value(manifestRefusal);
+    }
+    document = persisted!;
+
     _ParsedDocument parsed;
     try {
       parsed = _Parser(document).parseDocument();
@@ -281,6 +391,14 @@ class DVGraphQL {
         ],
       });
     }
+
+    final refusal = _edgeRefusal(
+      parsed,
+      operation,
+      variables ?? const <String, Object?>{},
+      authenticated: authenticated,
+    );
+    if (refusal != null) return Stream<Map<String, Object?>>.value(refusal);
 
     // One root field per subscription: the spec requires it, and a client
     // subscribing to two streams at once has no defined event ordering.
