@@ -9886,7 +9886,7 @@ escape hatches (see Pluggability).
 
 # Adoption
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
 
 Every other section of this specification describes a project that began with
 `dartvel create`. Most projects did not. They have an app, a backend, a

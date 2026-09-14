@@ -1278,7 +1278,20 @@
     {
       "section": "Adoption",
       "stability": "Draft",
-      "status": "Designed"
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_cli/lib/src/adoption/adoption_plan.dart",
+        "packages/dartvel_cli/lib/src/commands/adopt_command.dart",
+        "packages/dartvel_cli/lib/src/adoption/adoption_build_checks.dart",
+        "packages/dartvel_cli/lib/src/adoption/adoption_inventory.dart",
+        "packages/dartvel_cli/lib/src/adoption/local_schema.dart",
+        "packages/dartvel_cli/test/adoption_init_test.dart",
+        "packages/dartvel_cli/test/adoption_build_checks_test.dart",
+        "packages/dartvel_cli/test/inspect_adoption_test.dart",
+        "packages/dartvel_cli/test/db_pull_local_test.dart",
+        "packages/dartvel_cli/test/create_foreign_project_guard_test.dart"
+      ],
+      "absent": "Built: dartvel init is its own command and no longer an alias of create. It inserts the Dartvel dependency (dartvel_core, plus dartvel_flutter for a Flutter application) and a dartvel: key and nothing else, keeps every original line and comment, and refuses an edit it cannot prove is insertions only. It prints a compatibility report first: the SDK constraint against Dart 3.12.0, an already-declared Dartvel package, and every package shared with dartvel_core or dartvel_flutter against their constraints, with a blocked mix pin naming the dartvel_mix drop-in; a check it cannot make is unchecked, never compatible. It writes pagesDir and backendDir, mapped away from lib/pages or lib/backend when the project's own files would be claimed, and moves nothing. It states DV-ADOPT-001 once. --dry-run writes nothing; applying needs a yes or --yes, refuses a blocked plan, refuses if the pubspec changed after the plan was shown, and replaces the file with one rename; it never adds build_runner. create refuses a pubspec it did not write with DV-ADOPT-005. dartvel routes fails with DV-ADOPT-002 before writing anything when a GoRoute path read from source (nested routes joined, shell routes not prefixing, parameter names ignored) matches a generated page or model public page route, and logs a non-literal path as unchecked. It fails with DV-ADOPT-003 when a @DVModel class carries @freezed, @JsonSerializable or @MappableClass or refers to generated _$Name code, which before produced no model and no message. dartvel inspect adoption reports routes, models, screens and functions as managed and not managed, with --json and a stated counting method per kind. dartvel db pull --local prints @DVModel suggestions from drift tables, isar collections and sqflite CREATE TABLE strings, lists unmapped columns, and never writes or guesses a sensitive field. Not built: usage-decided linking and dartvel inspect bundle; the generated router mounting into a host GoRouter as a sub-tree or at a prefix, and DV.Navigation delegating to the host router; the signal-as-provider, provider-as-signal and stream bridges; DVAuthProvider adapters for Firebase Auth and Supabase Auth; .arb import into typed keys, ThemeData import, and per-class codemods; OpenAPI and GraphQL typed clients with drift detection, so nothing emits DV-ADOPT-004; DV-ADOPT-002 for mounted-module routes, routers other than go_router, or GoRoute paths built from constants; the unmanaged half of inspect adoption uses pattern rules rather than the analyzer. Where the section and the code disagree: the section says dartvel init refuses a pubspec it did not write (DV-ADOPT-005), but that is exactly the project init exists to adopt, so the refusal belongs to create and DV-ADOPT-005's reason should name create; the section says db pull introspects local schemas like a server, but the local path reads source rather than a database file; dartvel init adds only the runtime dependency, not dartvel_cli, so running the generator needs a globally activated dartvel or a dev dependency added by hand."
     },
     {
       "section": "Lifecycle Signals",
