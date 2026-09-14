@@ -401,10 +401,21 @@ class DVFlagResolution<T> {
     required this.source,
     this.rulesVersion,
     this.codes = const <String>[],
+    this.rule,
   });
 
   final T value;
   final DVFlagSource source;
+
+  /// The index, in the flag's list of rules, of the rule that decided this
+  /// answer: the one that served [value], or the one that held the default
+  /// because its rollout had no subject (`DV-FLAGS-005`) or its value was the
+  /// wrong type (`DV-FLAGS-006`). Null when no rule decided it.
+  ///
+  /// So a tool showing "which rule produced this" reads it from the
+  /// resolution rather than walking the rules a second time, where it could
+  /// come to a different answer.
+  final int? rule;
 
   /// The rule set that served [value], when one did.
   final int? rulesVersion;
@@ -561,6 +572,58 @@ final class DVFlags {
       (Zone.current[_zoneOverrides] as Map<String, Object?>?) ??
       const <String, Object?>{};
 
+  /// The overrides a read in this zone is answered with: the process-wide
+  /// debug overrides, under whatever [withOverrides] put in force here.
+  ///
+  /// What [resolve] passes to [evaluate], and public so a tool evaluating a
+  /// context the application is not in hands [evaluate] the same map and
+  /// cannot answer differently from the application.
+  static Map<String, Object?> get overridesInForce => <String, Object?>{
+        ..._debugOverrides,
+        ..._currentOverrides(),
+      };
+
+  /// Whether overrides are read at all: false in a release build, where
+  /// neither kind has a path to an answer.
+  static bool get overridesAllowed => !_dvReleaseBuild;
+
+  static final Map<String, Object?> _debugOverrides = <String, Object?>{};
+
+  /// Overrides in force for every read in this process, keyed by flag.
+  ///
+  /// Always empty in a release build.
+  static Map<String, Object?> get debugOverrides =>
+      Map<String, Object?>.unmodifiable(_debugOverrides);
+
+  /// Makes [flag] answer [value] for every read in this process, until
+  /// [clearDebugOverride] — for a developer trying a branch in a running
+  /// debug build, where [withOverrides] reaches only its own callback.
+  ///
+  /// Ignored in a release build, like every override. A value the flag cannot
+  /// read — `'10'` for an `int` flag — throws rather than being stored,
+  /// because [evaluate] would skip it and the override would look set while
+  /// doing nothing. An enum value is stored by name, as a rule carries it.
+  static void setDebugOverride<T>(DVFeatureFlag<T> flag, T value) {
+    if (_dvReleaseBuild) return;
+    final Object? raw = value is Enum ? value.name : value;
+    if (!_read(flag, raw).$1) {
+      throw ArgumentError.value(
+        value,
+        'value',
+        'is not a value of the flag "${flag.key}"',
+      );
+    }
+    _debugOverrides[flag.key] = raw;
+    _changes.add(null);
+  }
+
+  /// Removes the process-wide override on [flag], if there is one.
+  static void clearDebugOverride(DVFeatureFlag<Object?> flag) {
+    if (!_debugOverrides.containsKey(flag.key)) return;
+    _debugOverrides.remove(flag.key);
+    _changes.add(null);
+  }
+
   /// The answer for [flag], reported, pinned and exposed as the spec says.
   static DVFlagResolution<T> resolve<T>(
     DVFeatureFlag<T> flag, {
@@ -587,8 +650,8 @@ final class DVFlags {
       flag,
       _rules,
       ctx,
-      overrides: _currentOverrides(),
-      allowOverrides: !_dvReleaseBuild,
+      overrides: overridesInForce,
+      allowOverrides: overridesAllowed,
     );
 
     for (final String code in resolution.codes) {
@@ -677,10 +740,12 @@ final class DVFlags {
     Map<String, Object?> overrides = const <String, Object?>{},
     bool allowOverrides = true,
   }) {
-    DVFlagResolution<T> fallback(List<String> codes) => DVFlagResolution<T>(
+    DVFlagResolution<T> fallback(List<String> codes, {int? rule}) =>
+        DVFlagResolution<T>(
           value: flag.defaultValue,
           source: DVFlagSource.defaults,
           codes: codes,
+          rule: rule,
         );
 
     if (allowOverrides && overrides.containsKey(flag.key)) {
@@ -699,7 +764,8 @@ final class DVFlags {
     final List<DVFlagRule>? entry = rules.flags[flag.key];
     if (entry == null) return fallback(const <String>[]);
 
-    for (final DVFlagRule rule in entry) {
+    for (int index = 0; index < entry.length; index++) {
+      final DVFlagRule rule = entry[index];
       final DVFlagTarget? target = rule.target;
       if (target != null && !target.matches(context)) continue;
       final DVFlagRollout? rollout = rule.rollout;
@@ -707,15 +773,20 @@ final class DVFlags {
         final String? subject = context.subjectFor(rollout.by);
         // Held, not rolled: a flag that flickers between two frames is a bug
         // report nobody can reproduce.
-        if (subject == null) return fallback(const <String>['DV-FLAGS-005']);
+        if (subject == null) {
+          return fallback(const <String>['DV-FLAGS-005'], rule: index);
+        }
         if (!rollout.includes(flag.key, subject)) continue;
       }
       final (bool, T?) read = _read(flag, rule.value);
-      if (!read.$1) return fallback(const <String>['DV-FLAGS-006']);
+      if (!read.$1) {
+        return fallback(const <String>['DV-FLAGS-006'], rule: index);
+      }
       return DVFlagResolution<T>(
         value: read.$2 as T,
         source: DVFlagSource.rules,
         rulesVersion: rules.rulesVersion,
+        rule: index,
       );
     }
     return fallback(const <String>[]);
@@ -755,6 +826,7 @@ final class DVFlags {
     _receivedAt = null;
     _declared.clear();
     _pins.clear();
+    _debugOverrides.clear();
     _exposed.clear();
     _reportedOnce.clear();
     maxAge = null;
