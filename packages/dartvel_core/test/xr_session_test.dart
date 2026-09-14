@@ -328,6 +328,20 @@ void main() {
       expect(device.openSessions, 0);
     });
 
+    test('an event stream that breaks ends the session: nothing would hear a revocation', () async {
+      final DVXRRuntime xr = runtime();
+      final DVSpatialSession session = (await xr.present(_passthrough)).session!;
+      expect(device.cameraOn, isTrue);
+
+      device.emitError(const DVXRBindingException('xr.input.observe', 'the pipe closed'));
+      await _settle();
+
+      expect(session.state.value, DVSpatialSessionState.ended);
+      expect(device.cameraOn, isFalse);
+      expect(device.openSessions, 0);
+      expect(session.codes, contains('DV-XR-006'));
+    });
+
     test('the system ending the space ends the session', () async {
       final DVXRRuntime xr = runtime();
       final DVSpatialSession session = (await xr.present(_passthrough)).session!;

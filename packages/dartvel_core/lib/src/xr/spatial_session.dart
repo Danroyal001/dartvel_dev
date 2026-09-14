@@ -403,7 +403,16 @@ final class DVSpatialSession {
     if (session == null) return (DVSpatialRefusal.platformRefused, 'xr.session.open');
     _session = session;
     try {
-      _events = _device.observe(session).listen(_onEvent);
+      _events = _device.observe(session).listen(
+        _onEvent,
+        // A broken event stream means a revoked camera or a closed space
+        // would go unheard, so the session ends rather than running blind.
+        onError: (Object error) => unawaited(_serial(() async {
+          if (_ended) return;
+          _bindingFailed('xr.input.observe', error);
+          await _end();
+        })),
+      );
     } on Object catch (error) {
       if (!initial) _bindingFailed('xr.input.observe', error);
       return (DVSpatialRefusal.bindingFailed, 'xr.input.observe');
