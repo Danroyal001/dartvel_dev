@@ -14,24 +14,24 @@ import 'infra_manifest.dart';
 /// What the built backend binary honours when a unit starts it.
 ///
 /// The provisioner can only supervise what the binary can be told to be. The
-/// generated `startBackend` binds the port fixed at generation, reads none
-/// from its environment, ticks every `@DVBackendCron` schedule in every
-/// process, and has no worker entry point -- so the defaults are all false,
-/// and a manifest that needs one of them is refused rather than rendered
-/// into units that would crash-loop on a taken port or run each schedule
-/// once per instance.
+/// generated backend (`dartvelMain`, read through `DVProcessConfiguration`)
+/// honours all three, so they default to true. A flag set false describes a
+/// backend generated before it did, and a manifest that needs it is refused
+/// rather than rendered into units that would crash-loop on a taken port or
+/// run each schedule once per instance.
 ///
 /// The contract, when a flag is true:
 ///  * [portFromEnvironment]: the process binds `DARTVEL_PORT`;
 ///  * [workerRole]: `DARTVEL_ROLE=worker` with `DARTVEL_QUEUE` works that
 ///    queue and serves nothing;
-///  * [cronRole]: `DARTVEL_ROLE=cron` ticks the schedules, and
-///    `DARTVEL_ROLE=backend` does not.
+///  * [cronRole]: `DARTVEL_ROLE=cron` ticks the schedules and serves nothing,
+///    `DARTVEL_ROLE=web` serves and does not tick, and a process given no
+///    role serves and ticks.
 final class DVInfraBackendCapabilities {
   const DVInfraBackendCapabilities({
-    this.portFromEnvironment = false,
-    this.workerRole = false,
-    this.cronRole = false,
+    this.portFromEnvironment = true,
+    this.workerRole = true,
+    this.cronRole = true,
   });
 
   final bool portFromEnvironment;
@@ -231,7 +231,24 @@ DVInfraDesiredState dvInfraDesiredState(
     );
   }
   final bool cronUnit = services.cron == true && capabilities.cronRole;
-  if (!capabilities.cronRole) {
+  if (capabilities.cronRole) {
+    // Every unit below is resolved by the backend the same way: a unit with
+    // no DARTVEL_ROLE ticks, DARTVEL_ROLE=web does not, DARTVEL_ROLE=cron
+    // does. Exactly one process ticks, or none when the manifest says so.
+    if (services.cron == false) {
+      notes.add(
+        '$env.services.cron.enabled: false. Every backend unit runs as '
+        'DARTVEL_ROLE=web and no cron unit is installed, so no @DVBackendCron '
+        'schedule runs on this host',
+      );
+    } else if (services.cron == null) {
+      notes.add(
+        'Schedules tick in $appName-backend-1.service and in no other unit: '
+        '$env.services.cron is not declared, so no separate cron unit is '
+        'installed',
+      );
+    }
+  } else {
     if (services.cron == false) {
       unsupported.add(
         '$env.services.cron.enabled: false. The generated backend ticks its '
@@ -369,7 +386,10 @@ DVInfraDesiredState dvInfraDesiredState(
         environment: <String, String>{
           'DARTVEL_ENVIRONMENT': manifest.environment,
           if (capabilities.portFromEnvironment) 'DARTVEL_PORT': '${backendPort + i - 1}',
-          if (capabilities.cronRole) 'DARTVEL_ROLE': 'backend',
+          // With cron unstated the first instance keeps no role and ticks;
+          // otherwise the cron unit ticks, or nothing does.
+          if (capabilities.cronRole && (services.cron != null || i > 1))
+            'DARTVEL_ROLE': 'web',
         },
         credentials: credentials,
       ),
@@ -481,8 +501,16 @@ String _caddyfile(String marker, DVInfraTls? tls, List<int> ports) {
   } else {
     b.writeln(':80 {');
   }
+  // Every instance in one directive, balanced in turn. Caddy's default policy
+  // is random; `first` would send everything to one instance. Named here so
+  // the file says what it does, with passive health so a stopped instance
+  // leaves the rotation and a request it refused is tried on another.
   b
-    ..writeln('\treverse_proxy ${ports.map((int p) => '127.0.0.1:$p').join(' ')}')
+    ..writeln('\treverse_proxy ${ports.map((int p) => '127.0.0.1:$p').join(' ')} {')
+    ..writeln('\t\tlb_policy round_robin')
+    ..writeln('\t\tlb_try_duration 5s')
+    ..writeln('\t\tfail_duration 30s')
+    ..writeln('\t}')
     ..writeln('}');
   return b.toString();
 }

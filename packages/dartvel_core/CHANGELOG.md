@@ -1,5 +1,21 @@
 ## Unreleased
 
+- **`dartvel.infra` provisions several backend instances, workers and a cron
+  unit.** `DVInfraBackendCapabilities` now defaults every flag to true,
+  because the generated backend reads `DARTVEL_PORT` and `DARTVEL_ROLE`; a
+  flag set false still refuses the declaration, for a backend generated
+  before. Backend units bind `dartvel.server.port`, `+1`, `+2`... through
+  `DARTVEL_PORT`. With `cron: { enabled: true }` every backend unit is
+  `DARTVEL_ROLE=web` and `<app>-cron.service` is `DARTVEL_ROLE=cron`; with
+  `enabled: false` every backend unit is `web`, no unit ticks the schedules
+  and a note says so (this was refused); with cron unstated the first
+  backend unit keeps no role and ticks and the rest are `web`. Worker units
+  are `DARTVEL_ROLE=worker` with `DARTVEL_QUEUE`. A unit that used to say
+  `DARTVEL_ROLE=backend`, which the backend refuses as unknown, no longer
+  does. The Caddyfile balances every instance in one `reverse_proxy` with
+  `lb_policy round_robin`, `lb_try_duration 5s` and `fail_duration 30s`, so
+  a stopped instance leaves the rotation. `logs.ship` and the container and
+  onprem adapters are still refused.
 - **A backend process is told its role and port, and refuses what it cannot
   honour.** `DVProcessConfiguration.resolve` reads `DARTVEL_ROLE` (or
   `--role`) as `web`, `worker` or `cron`, `DARTVEL_PORT`, and a worker's

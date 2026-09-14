@@ -45,6 +45,13 @@ const DVInfraBackendCapabilities everything = DVInfraBackendCapabilities(
   cronRole: true,
 );
 
+/// A backend generated before it read DARTVEL_PORT and DARTVEL_ROLE.
+const DVInfraBackendCapabilities beforeRoles = DVInfraBackendCapabilities(
+  portFromEnvironment: false,
+  workerRole: false,
+  cronRole: false,
+);
+
 DVInfraDesiredState desired(
   DVInfraManifest manifest, {
   DVInfraBackendCapabilities capabilities = everything,
@@ -349,7 +356,7 @@ void main() {
         () {
       final DVInfraDesiredState state = desired(
         production(),
-        capabilities: const DVInfraBackendCapabilities(),
+        capabilities: beforeRoles,
       );
       // Two instances bind the same generated port; workers and a separate
       // cron have no entry point; and logs have nowhere to ship to.
@@ -375,7 +382,7 @@ void main() {
       );
       final DVInfraDesiredState state = desired(
         m,
-        capabilities: const DVInfraBackendCapabilities(),
+        capabilities: beforeRoles,
       );
       expect(state.unsupported, isEmpty);
       expect(state.byId('shop-cron.service'), isNull);
@@ -407,6 +414,194 @@ void main() {
           .map((DVInfraResource r) => '${r.id}:${r.content}')
           .toList();
       expect(a, b);
+    });
+  });
+
+  group('process roles', () {
+    // Asserted through the runtime's own reading of each unit's environment,
+    // so a unit that spells a role or a port the backend does not honour
+    // fails here rather than crash looping on a host.
+    Map<String, String> unitEnvironment(DVInfraResource unit) =>
+        <String, String>{
+          for (final String line in unit.content!.split('\n'))
+            if (line.startsWith('Environment='))
+              line
+                  .substring('Environment='.length)
+                  .split('=')
+                  .first: line.substring('Environment='.length).split('=').skip(1).join('='),
+        };
+
+    Map<String, DVProcessConfiguration> processes(DVInfraDesiredState state) =>
+        <String, DVProcessConfiguration>{
+          for (final DVInfraResource r in state.resources)
+            if (r.kind == DVInfraResourceKind.unit &&
+                r.requiresRelease &&
+                r.content != null)
+              r.id: DVProcessConfiguration.resolve(
+                environment: unitEnvironment(r),
+                generatedPort: 8080,
+              ),
+        };
+
+    DVInfraManifest services(Map<Object?, Object?> declared) => production(
+          edited((Map<Object?, Object?> e) {
+            e['services'] = declared;
+            e.remove('logs');
+          }),
+        );
+
+    List<String> upstreams(DVInfraDesiredState state) {
+      final String caddy = state.byId('/etc/caddy/Caddyfile')!.content!;
+      final List<String> lines = caddy
+          .split('\n')
+          .map((String l) => l.trim())
+          .where((String l) => l.startsWith('reverse_proxy '))
+          .toList();
+      // One directive: two reverse_proxy lines in one site do not balance,
+      // the first matching one takes every request.
+      expect(lines, hasLength(1), reason: caddy);
+      return lines.single
+          .substring('reverse_proxy '.length)
+          .replaceAll('{', '')
+          .trim()
+          .split(RegExp(r'\s+'));
+    }
+
+    test('the specification example provisions with the default backend',
+        () {
+      final DVInfraDesiredState state = dvInfraDesiredState(
+        production(edited((Map<Object?, Object?> e) => e.remove('logs'))),
+        appName: 'shop',
+        backendPort: 8080,
+        secretNames: const <String>{'DATABASE_URL', 'PAYSTACK_SECRET'},
+      );
+      expect(state.unsupported, isEmpty);
+      expect(
+        processes(state).keys,
+        unorderedEquals(<String>[
+          'shop-backend-1.service',
+          'shop-backend-2.service',
+          'shop-worker-default-1.service',
+          'shop-worker-default-2.service',
+          'shop-worker-mail-1.service',
+          'shop-worker-mail-2.service',
+          'shop-cron.service',
+        ]),
+      );
+    });
+
+    test('with a cron unit, it and only it ticks the schedules', () {
+      final Map<String, DVProcessConfiguration> all =
+          processes(desired(production()));
+      expect(
+        all.entries
+            .where((MapEntry<String, DVProcessConfiguration> e) =>
+                e.value.ticksSchedules)
+            .map((MapEntry<String, DVProcessConfiguration> e) => e.key),
+        <String>['shop-cron.service'],
+      );
+    });
+
+    test('web instances bind distinct ports, and the proxy balances across '
+        'exactly those', () {
+      final DVInfraDesiredState state = desired(
+        services(<Object?, Object?>{
+          'backend': <Object?, Object?>{'instances': 3},
+          'cron': <Object?, Object?>{'enabled': true},
+        }),
+      );
+      final List<int> bound = <int>[
+        for (final DVProcessConfiguration c in processes(state).values)
+          if (c.servesHttp) c.port,
+      ];
+      expect(bound.toSet(), hasLength(3));
+      expect(
+        upstreams(state).toSet(),
+        bound.map((int port) => '127.0.0.1:$port').toSet(),
+      );
+      final String caddy = state.byId('/etc/caddy/Caddyfile')!.content!;
+      // Named rather than left to a default: `first` sends every request to
+      // one instance while the others idle, and passive health is what takes
+      // a stopped instance out of rotation.
+      expect(caddy, contains('lb_policy round_robin'));
+      expect(caddy, contains('fail_duration'));
+    });
+
+    test('workers work their queue, serve nothing and tick nothing', () {
+      final Map<String, DVProcessConfiguration> all =
+          processes(desired(production()));
+      for (final String queue in <String>['default', 'mail']) {
+        for (int i = 1; i <= 2; i++) {
+          final DVProcessConfiguration worker =
+              all['shop-worker-$queue-$i.service']!;
+          expect(worker.role, DVProcessRole.worker);
+          expect(worker.queues, <String>[queue]);
+          expect(worker.servesHttp, isFalse);
+          expect(worker.ticksSchedules, isFalse);
+        }
+      }
+    });
+
+    test('with cron unstated, one web instance ticks and the rest do not', () {
+      final DVInfraDesiredState state = desired(
+        services(<Object?, Object?>{
+          'backend': <Object?, Object?>{'instances': 2},
+        }),
+      );
+      expect(state.unsupported, isEmpty);
+      expect(state.byId('shop-cron.service'), isNull);
+      final Map<String, DVProcessConfiguration> all = processes(state);
+      expect(all['shop-backend-1.service']!.ticksSchedules, isTrue);
+      expect(all['shop-backend-2.service']!.ticksSchedules, isFalse);
+      expect(all.values.where((DVProcessConfiguration c) => c.servesHttp),
+          hasLength(2));
+    });
+
+    test('with cron enabled false, nothing ticks the schedules, and it says '
+        'so', () {
+      final DVInfraDesiredState state = desired(
+        services(<Object?, Object?>{
+          'backend': <Object?, Object?>{'instances': 2},
+          'cron': <Object?, Object?>{'enabled': false},
+        }),
+      );
+      expect(state.unsupported, isEmpty);
+      expect(state.byId('shop-cron.service'), isNull);
+      expect(
+        processes(state).values.where(
+              (DVProcessConfiguration c) => c.ticksSchedules,
+            ),
+        isEmpty,
+      );
+      expect(state.notes, anyElement(contains('cron.enabled: false')));
+    });
+
+    test('with one instance and no cron stated, the one process ticks', () {
+      final DVInfraDesiredState state = desired(
+        services(<Object?, Object?>{
+          'backend': <Object?, Object?>{'instances': 1},
+        }),
+      );
+      final Map<String, DVProcessConfiguration> all = processes(state);
+      expect(all.keys, <String>['shop-backend-1.service']);
+      expect(all.values.single.ticksSchedules, isTrue);
+      expect(all.values.single.port, 8080);
+    });
+
+    test('without a proxy every instance port is opened', () {
+      final DVInfraDesiredState state = desired(
+        production(
+          edited((Map<Object?, Object?> e) {
+            e.remove('proxy');
+            e.remove('tls');
+            e.remove('logs');
+          }),
+        ),
+      );
+      final DVInfraResource fw = state.resources.singleWhere(
+        (DVInfraResource r) => r.kind == DVInfraResourceKind.firewall,
+      );
+      expect(fw.firewall!.tcpPorts, containsAll(<int>[8080, 8081]));
     });
   });
 }

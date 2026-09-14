@@ -58,8 +58,9 @@ class DVInfraCli {
 
   final String root;
 
-  /// What the built backend honours. The generated backend honours none of
-  /// the roles yet, so a manifest needing one is refused.
+  /// What the built backend honours. The generated backend reads
+  /// DARTVEL_PORT and DARTVEL_ROLE, so every flag defaults to true; false
+  /// describes a backend generated before it did.
   final DVInfraBackendCapabilities capabilities;
 
   final Map<String, String> _environment;
