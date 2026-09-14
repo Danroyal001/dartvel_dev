@@ -511,6 +511,7 @@ class DVContentWorkflow<T> {
     Future<void> Function(String recipient, DVNotificationMessage message)?
     notify,
     FutureOr<void> Function(DVContentVersion<T> version)? onPublished,
+    FutureOr<void> Function(DVContentVersion<T> version)? onWithdrawn,
     this.queue = 'default',
     this.requireApproval = true,
     this.missedAfter = const Duration(minutes: 5),
@@ -530,6 +531,7 @@ class DVContentWorkflow<T> {
            ((String tag) => const DVCacheTags().revalidateTag(tag)),
        _notify = notify ?? const DVNotificationsService().send,
        _onPublished = onPublished,
+       _onWithdrawn = onWithdrawn,
        _clock = clock ?? (() => DateTime.now().toUtc()),
        _table = DVRecordTable(
          table: table,
@@ -619,6 +621,10 @@ class DVContentWorkflow<T> {
   final Future<void> Function(String recipient, DVNotificationMessage message)
   _notify;
   final FutureOr<void> Function(DVContentVersion<T> version)? _onPublished;
+
+  /// Runs after commit when a published version stops being served, so
+  /// whatever [_onPublished] wrote for it can be taken down.
+  final FutureOr<void> Function(DVContentVersion<T> version)? _onWithdrawn;
   final DateTime Function() _clock;
   final DVRecordTable _table;
   final DVTransactionRunner _transactions = DVTransactionRunner();
@@ -1433,7 +1439,12 @@ class DVContentWorkflow<T> {
             ..._cleared(_scheduleColumns),
             ..._cleared(_withdrawColumns),
           });
-      if (wasLive) context.afterCommit(() => _invalidate(withdrawn));
+      if (wasLive) {
+        context.afterCommit(() async {
+          await _invalidate(withdrawn);
+          await _onWithdrawn?.call(withdrawn);
+        });
+      }
       return withdrawn;
     });
   }
