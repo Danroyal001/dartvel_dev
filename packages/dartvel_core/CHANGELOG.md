@@ -1,5 +1,23 @@
 ## Unreleased
 
+- **A retention sweep's deletes reach the capture log and the warehouse.**
+  `DVPrivacy.sweepRetention` removed and anonymized expired rows with SQL of
+  its own beside `DVRecordTable`, so no change was captured: a warehouse fed
+  by `DVCaptureConsumer` kept exactly the rows the source removed for
+  retention, an anonymizing sweep left the personal values standing there,
+  and the capture log kept every earlier value of both. The same was true of
+  an erasure with no `DVCapturePrivacyAdapter` registered, of
+  `replayErasures` after a restore, and of `DVOfflineStorePrivacyAdapter`
+  over a captured table. Each removal now purges the log's values for the
+  row and captures an erased delete, or the anonymized row, through the new
+  `DVCapture.recordErasure` -- once per row, since the walk leaves a record
+  to the capture adapter when one is registered -- while sweeps stay batched
+  and resumable and `planRetention` still captures nothing. Separately, an
+  erasure captured the delete of a row already gone at version 0, which
+  `DVWarehouseSink` rightly ignores as older than the row it holds, so an
+  erasure only reached the sinks the adapter erased directly; the delete is
+  now one version past the newest the log or the removed row knows of.
+
 - **A transaction belongs to the flow that opened it.** The active
   transaction was a static field, so two requests served by one isolate found
   each other's: a `DV.transaction` in one joined the other's open transaction,
