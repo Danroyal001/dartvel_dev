@@ -85,6 +85,7 @@ export 'src/crypto/app_key.dart';
 export 'src/crypto/field_cipher.dart';
 export 'src/crypto/key_stores.dart';
 export 'src/database/adapters.dart';
+export 'src/database/connection.dart';
 export 'src/database/mysql.dart';
 export 'src/database/postgres.dart';
 export 'src/diagnostics/startup_profile.dart';
