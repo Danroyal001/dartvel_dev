@@ -6763,6 +6763,16 @@ class DV {
   static DVContacts get Contacts => Platform.Contacts;
 
   static DVAuth get Auth => const DVAuth();
+
+  /// `DV.Analytics`: typed events checked against consent before they leave
+  /// the device. Started by the generated runtime from `dartvel.analytics`,
+  /// and throws in an application that declares none.
+  static DVAnalyticsRuntime get Analytics => DVAnalyticsRuntime.current;
+
+  /// `DV.Privacy`: erasure, export and retention over the declared models,
+  /// with the framework's own adapters installed. Throws until configured,
+  /// which the generated server does from `DARTVEL_PRIVACY_KEY`.
+  static DVPrivacy get Privacy => DVPrivacyRuntime.current;
   static DVTheme get Theme => const DVTheme();
   static DVAI get AI => const DVAI();
   static DVBilling get Billing => const DVBilling();

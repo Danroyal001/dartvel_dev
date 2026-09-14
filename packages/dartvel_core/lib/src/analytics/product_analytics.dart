@@ -278,6 +278,11 @@ class DVAnalyticsDatabaseStore implements DVAnalyticsErasableSink {
 final class DVTrackResult {
   const DVTrackResult._(this.accepted, this.code, this.reason);
 
+  /// An event that was not recorded for a reason outside the pipeline, such
+  /// as a pipeline that could not start.
+  const DVTrackResult.refused({this.code, required String this.reason})
+      : accepted = false;
+
   final bool accepted;
 
   /// The diagnostic that explains a drop, when there is one.

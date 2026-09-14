@@ -6,6 +6,7 @@ import '../build/render_backends.dart';
 import '../config/dartvel_config.dart';
 import '../graph/module_mounts.dart';
 import '../utils/logger.dart';
+import 'analytics_generator.dart';
 import 'backend_generator.dart';
 import 'client_generator.dart';
 import 'flag_generator.dart';
@@ -46,6 +47,12 @@ Future<void> generate({
   }
   final pkgName = config.packageName;
   final dv = config.raw;
+
+  // dartvel.analytics, checked before anything is written. A misspelt key
+  // or a value nobody implements stops the build here rather than being
+  // skipped into a running app that does something other than what the
+  // pubspec says.
+  final analyticsSettings = AnalyticsGenerator.read(dv);
 
   final backendHost = config.backendHost;
   final backendPort = config.backendPort;
@@ -166,6 +173,10 @@ Future<void> generate({
     ota: ota,
     dv: dv,
   );
+
+  // DV.Analytics and DV.Privacy, which the client runtime and the generated
+  // server start from these files.
+  AnalyticsGenerator.generate(root: root, settings: analyticsSettings);
 
   // Generate Models
   await ModelGenerator.generate(
