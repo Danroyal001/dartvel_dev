@@ -4443,7 +4443,7 @@ emitted for the wrong situation is worse than one that is not emitted at all.
 
 # Crash Reporting and Release Health
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
 
 Monitoring and Observability lists error reporting among the things that are
 built in. This section is that line, written out, because a crash is not a log

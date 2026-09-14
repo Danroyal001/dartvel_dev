@@ -566,7 +566,15 @@
     {
       "section": "Crash Reporting and Release Health",
       "stability": "Draft",
-      "status": "Designed"
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_core/lib/src/crashes/crash_reporting.dart",
+        "packages/dartvel_core/lib/src/crashes/crash_report.dart",
+        "packages/dartvel_core/lib/src/crashes/crash_store.dart",
+        "packages/dartvel_core/lib/src/crashes/release_health.dart",
+        "packages/dartvel_core/test/crash_reporting_test.dart"
+      ],
+      "absent": "Built: the runtime (DVCrashReporting, with reports written synchronously and sent at the next launch with a sent note so none is sent twice, truncated records dropped and failed sends kept; breadcrumbs redacted as they are added; fingerprints from the error type and top application frames, with an override; a per-release limit persisted in the store; sampling of non-fatal errors only; DVHangWatchdog; DVReleaseHealth over started sessions per release, patch and cohort; DVReleaseHealthGate holding when any cohort is below threshold; DV-CRASH-001 and 003 to 010). Absent: nothing installs it. There is no FlutterError.onError, PlatformDispatcher.onError or isolate error listener hook in dartvel_flutter, no JVM, NSException, Mach, signal or structured-exception handler (so DV-CRASH-006 is always reported), no web error listener and no Rust panic capture; no watchdog timer on a platform thread; no DV.Crashes facade; the flags snapshot is not read from DV.Flags; no install-id generation or consent-bound identity; no Sentry, Crashlytics or Dartvel backend sink; symbols are a membership check only, so dartvel build writes no debug info, DV-CRASH-002 is not raised, and nothing uploads symbols or archives source maps; no symbolication and no mapping of generated frames to their model or page; the gate returns a decision and does not itself stop an OTA rollout or turn flags off; no dartvel crashes CLI; no Studio view. Where the section cannot be followed as written: it says the handler's buffer is reserved when the handler is installed, but the Dart runtime cannot reserve memory up front, so the report is encoded when the handler runs."
     },
     {
       "section": "Alerting, SLOs and Status Pages",
