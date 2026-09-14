@@ -331,6 +331,41 @@ export 'package:dartvel_core/dartvel.dart'
         DVInvoiceStatus,
         DVMoney,
         Entitlement,
+        // Store purchases and the ledger entitlements are read from, reached
+        // through DV.Purchases. Every type its methods take or return is here,
+        // or a route calling it names a type this library does not export.
+        DVBillable,
+        DVConservativeStorePolicy,
+        DVAppleStorePolicy,
+        DVDatabasePurchaseLedger,
+        DVDigitalBillable,
+        DVEntitlementSnapshot,
+        DVEntitlementSnapshots,
+        DVFakeStoreAdapter,
+        DVMemoryPurchaseLedger,
+        DVPhysicalBillable,
+        DVPlayStorePolicy,
+        DVPurchaseChange,
+        DVPurchaseChannel,
+        DVPurchaseGrant,
+        DVPurchaseKind,
+        DVPurchaseLedger,
+        DVPurchaseProduct,
+        DVPurchaseRefused,
+        DVPurchaseResult,
+        DVPurchaseRoute,
+        DVPurchases,
+        DVSignedStoreNotification,
+        DVStore,
+        DVStoreAdapter,
+        DVStoreMoney,
+        DVStoreNotification,
+        DVStorePolicy,
+        DVStorePriceSource,
+        DVStorePrices,
+        DVStoreRefusal,
+        DVStoreTransaction,
+        DVStoreUnavailable,
         LocalAnalyticsProvider,
         formControlsFactories,
         registerFormControlsFactory,
@@ -6335,6 +6370,11 @@ class DV {
   static DVTheme get Theme => const DVTheme();
   static DVAI get AI => const DVAI();
   static DVBilling get Billing => const DVBilling();
+
+  /// `DV.Purchases`: store purchases, verified on the server. Throws until
+  /// `DVPurchases.configure(...)` has run, rather than inventing a store that
+  /// believes whatever it is told.
+  static DVPurchases get Purchases => DVPurchases.current;
   static DVDatabase get DB => const DVDatabase();
   static DVDatabase get Database => const DVDatabase();
   static DVCache get Cache => const DVCache();
