@@ -11,6 +11,8 @@ library dartvel_flutter.studio.content;
 
 import '../../dartvel_flutter.dart';
 
+export 'studio_content_diff.dart';
+
 /// The content workflow for Studio page documents, wired to the page store
 /// and to `DV.Cache`.
 class DVStudioContent {
