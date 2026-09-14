@@ -1,0 +1,1227 @@
+/// Data compliance and lifecycle: erasure, subject-access export, retention,
+/// and the evidence each leaves behind.
+///
+/// Everything here walks one declaration — which rows belong to whom — and
+/// every failure it guards against is a silent one: an erasure that reports
+/// success while a soft-deleted row, an old value in a change log or a
+/// ciphertext survives; an export that forgets a relation or carries another
+/// person's identifier; a retention sweep that deletes what a longer
+/// retention holds; a receipt that still verifies after it was edited.
+library dartvel_core.privacy;
+
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
+
+import '../../dartvel.dart';
+
+enum _DVSubjectKind { self, field, through }
+
+/// How a model's rows reach the person they belong to.
+///
+/// A walk over the model graph needs this and nothing else: erasure and
+/// export both start from a subject and visit every row whose path leads to
+/// it.
+final class DVSubject {
+  const DVSubject._self()
+    : _kind = _DVSubjectKind.self,
+      column = null,
+      parent = null;
+
+  /// The row's column [column] holds the subject's id.
+  const DVSubject.field(String this.column)
+    : _kind = _DVSubjectKind.field,
+      parent = null;
+
+  /// The row's column [column] holds the key of a row of the model named
+  /// [parent], and that row belongs to the subject — an order line through
+  /// its order.
+  const DVSubject.through(String this.column, {required String this.parent})
+    : _kind = _DVSubjectKind.through;
+
+  /// The row is the subject: its key is the subject's id.
+  static const DVSubject self = DVSubject._self();
+
+  final _DVSubjectKind _kind;
+  final String? column;
+  final String? parent;
+
+  @override
+  String toString() => switch (_kind) {
+    _DVSubjectKind.self => 'DVSubject.self',
+    _DVSubjectKind.field => 'DVSubject.field($column)',
+    _DVSubjectKind.through => 'DVSubject.through($column -> $parent)',
+  };
+}
+
+/// What a retention sweep does to an expired row.
+enum DVRetentionAction { delete, anonymize }
+
+/// How long a model's rows are kept before a sweep removes them.
+final class DVRetention {
+  /// Kept [days] after the timestamp in column [from], then [then].
+  const DVRetention.days(
+    int this.days, {
+    required String this.from,
+    this.then = DVRetentionAction.delete,
+  });
+
+  const DVRetention._indefinite()
+    : days = null,
+      from = null,
+      then = DVRetentionAction.delete;
+
+  /// Kept for ever — deliberately, and declared so.
+  static const DVRetention indefinite = DVRetention._indefinite();
+
+  final int? days;
+  final String? from;
+  final DVRetentionAction then;
+
+  bool get isIndefinite => days == null;
+  Duration? get duration => days == null ? null : Duration(days: days!);
+}
+
+/// A retention an erasure cannot override: the row is kept and its personal
+/// fields are anonymized, and [because] is the answer to "why do you still
+/// have my invoice".
+final class DVRetain {
+  const DVRetain({required this.years, required this.because});
+
+  final int years;
+  final String because;
+
+  Duration get duration => Duration(days: years * 365);
+}
+
+/// One model as the privacy walk sees it.
+class DVPrivacyModel {
+  DVPrivacyModel({
+    required this.name,
+    required this.table,
+    this.subject,
+    Set<String> personal = const <String>{},
+    Set<String> anonymizeOnErase = const <String>{},
+    Set<String> otherSubjects = const <String>{},
+    this.retain,
+    this.retention,
+  }) : personal = Set<String>.unmodifiable(personal),
+       anonymizeOnErase = Set<String>.unmodifiable(anonymizeOnErase),
+       otherSubjects = Set<String>.unmodifiable(otherSubjects) {
+    for (final String field in <String>{
+      ...personal,
+      ...anonymizeOnErase,
+      ...otherSubjects,
+      if (subject?.column != null) subject!.column!,
+      if (retention?.from != null) retention!.from!,
+    }) {
+      if (!table.columns.contains(field)) {
+        throw ArgumentError.value(
+          field,
+          'field',
+          'is not a column of ${table.table}',
+        );
+      }
+    }
+  }
+
+  final String name;
+  final DVRecordTable table;
+
+  /// Null for a model that holds nobody's data, such as a currency table.
+  final DVSubject? subject;
+
+  /// Personal fields beyond the table's sensitive ones.
+  final Set<String> personal;
+
+  /// Fields replaced with [DVPrivacy.tombstone] on erasure rather than the row
+  /// being deleted.
+  final Set<String> anonymizeOnErase;
+
+  /// Columns naming a different subject. An export carries the requesting
+  /// subject's contribution only, so these are cleared in it.
+  final Set<String> otherSubjects;
+
+  final DVRetain? retain;
+  final DVRetention? retention;
+
+  /// Every field that is personal data: the declared ones and the sensitive
+  /// ones.
+  Set<String> get personalFields => <String>{...personal, ...table.sensitive};
+}
+
+/// A problem with the declarations, found before anything runs.
+class DVPrivacyFinding {
+  const DVPrivacyFinding({
+    required this.code,
+    required this.model,
+    required this.message,
+    required this.level,
+  });
+
+  final String code;
+  final String model;
+  final String message;
+  final DVLogLevel level;
+
+  @override
+  String toString() => '$code ($model): $message';
+}
+
+/// Declarations an erasure could not honour (`DV-PRIVACY-001`).
+class DVPrivacyDeclarationError implements Exception {
+  DVPrivacyDeclarationError(this.findings);
+
+  final List<DVPrivacyFinding> findings;
+
+  @override
+  String toString() => 'DVPrivacyDeclarationError: ${findings.join('; ')}';
+}
+
+/// The subject a walk is about: its id, and the pseudonym every record the
+/// walk leaves behind uses instead.
+class DVPrivacySubjectRef {
+  const DVPrivacySubjectRef({required this.id, required this.pseudonym});
+
+  final Object id;
+  final String pseudonym;
+}
+
+/// A store outside the database that holds a subject's data — a search index,
+/// a cache, file storage, a device's offline copy.
+///
+/// An erasure that cannot reach one is reported as incomplete
+/// (`DV-PRIVACY-009`), never as a success.
+abstract interface class DVPrivacyAdapter {
+  String get name;
+  Future<void> erase(DVPrivacySubjectRef subject);
+  Future<Map<String, Object?>> export(DVPrivacySubjectRef subject);
+}
+
+/// A row an erasure kept under a declared retention.
+class DVKeptRecord {
+  const DVKeptRecord({
+    required this.model,
+    required this.key,
+    required this.because,
+  });
+
+  final String model;
+  final Object key;
+  final String because;
+
+  Map<String, Object?> toJson() => <String, Object?>{
+    'model': model,
+    'key': '$key',
+    'because': because,
+  };
+}
+
+/// A signed account of one erasure, naming the subject by pseudonym only.
+class DVErasureReceipt {
+  const DVErasureReceipt({required this.payload, required this.signature});
+
+  final Map<String, Object?> payload;
+
+  /// Lowercase hex HMAC-SHA256 over the canonical JSON of [payload].
+  final String signature;
+
+  Map<String, Object?> toJson() => <String, Object?>{
+    'payload': payload,
+    'signature': signature,
+  };
+}
+
+class DVErasureResult {
+  DVErasureResult._({
+    required this.deleted,
+    required this.anonymized,
+    required this.kept,
+    required this.unreached,
+    required this.late,
+    required this.codes,
+    required this.receipt,
+  });
+
+  final Map<String, int> deleted;
+  final Map<String, int> anonymized;
+  final List<DVKeptRecord> kept;
+
+  /// Adapters the erasure could not reach.
+  final List<String> unreached;
+  final bool late;
+  final List<String> codes;
+  final DVErasureReceipt receipt;
+
+  /// Whether every store the walk covers was reached.
+  bool get complete => unreached.isEmpty;
+}
+
+class DVExportArchive {
+  DVExportArchive._({
+    required this.records,
+    required this.adapters,
+    required this.unreached,
+    required this.codes,
+  });
+
+  final Map<String, List<Map<String, Object?>>> records;
+  final Map<String, Map<String, Object?>> adapters;
+  final List<String> unreached;
+  final List<String> codes;
+
+  String toJson() =>
+      jsonEncode(<String, Object?>{'records': records, 'adapters': adapters});
+}
+
+class DVRetentionPlan {
+  DVRetentionPlan._(this.deletions, this.anonymizations, this.held);
+
+  final Map<String, int> deletions;
+  final Map<String, int> anonymizations;
+
+  /// Expired under the model's retention, but held by a longer one.
+  final Map<String, int> held;
+}
+
+class DVRetentionSweep {
+  DVRetentionSweep._({
+    required this.deleted,
+    required this.anonymized,
+    required this.held,
+    required this.remaining,
+    required this.codes,
+  });
+
+  final Map<String, int> deleted;
+  final Map<String, int> anonymized;
+  final Map<String, int> held;
+
+  /// Expired rows this run did not reach; the next run continues.
+  final int remaining;
+  final List<String> codes;
+}
+
+class DVErasureReplay {
+  DVErasureReplay._(this.records, this.codes);
+
+  final int records;
+  final List<String> codes;
+}
+
+/// The payload of an erasure queued on [DVQueues].
+class DVPrivacyErasureRequest {
+  const DVPrivacyErasureRequest({
+    required this.subject,
+    required this.reason,
+    this.requestedAt,
+    this.requestedBy,
+    this.runBy,
+  });
+
+  final Object subject;
+  final String reason;
+  final DateTime? requestedAt;
+  final String? requestedBy;
+  final String? runBy;
+}
+
+/// The payload of a retention sweep queued on [DVQueues].
+class DVPrivacyRetentionRequest {
+  const DVPrivacyRetentionRequest({this.batchSize = 500, this.maxBatches});
+
+  final int batchSize;
+  final int? maxBatches;
+}
+
+/// Erasure, export and retention over a set of declared models.
+class DVPrivacy {
+  DVPrivacy({
+    required List<DVPrivacyModel> models,
+    required this.database,
+    required List<int> signingKey,
+    List<DVPrivacyAdapter> adapters = const <DVPrivacyAdapter>[],
+    this.deadline = const Duration(days: 30),
+    DateTime Function()? now,
+  }) : models = List<DVPrivacyModel>.unmodifiable(models),
+       adapters = List<DVPrivacyAdapter>.unmodifiable(adapters),
+       _key = List<int>.unmodifiable(signingKey),
+       _now = now ?? DateTime.now {
+    if (signingKey.length < 32) {
+      throw ArgumentError.value(
+        signingKey.length,
+        'signingKey',
+        'must be at least 32 bytes; it signs receipts and derives pseudonyms',
+      );
+    }
+    final Set<String> names = <String>{};
+    for (final DVPrivacyModel model in models) {
+      if (!names.add(model.name)) {
+        throw ArgumentError.value(model.name, 'name', 'is declared twice');
+      }
+    }
+    for (final DVPrivacyModel model in models) {
+      final String? parent = model.subject?.parent;
+      if (parent != null && !names.contains(parent)) {
+        throw ArgumentError.value(
+          parent,
+          'parent',
+          'of ${model.name} is not a declared model',
+        );
+      }
+    }
+    final List<DVPrivacyFinding> errors = <DVPrivacyFinding>[
+      for (final DVPrivacyFinding finding in check(models))
+        if (finding.level == DVLogLevel.error) finding,
+    ];
+    if (errors.isNotEmpty) throw DVPrivacyDeclarationError(errors);
+  }
+
+  /// The value an anonymized field holds.
+  static const String tombstone = '[erased]';
+
+  final List<DVPrivacyModel> models;
+  final DVDatabaseAdapter database;
+  final List<DVPrivacyAdapter> adapters;
+
+  /// How long an erasure has from its request, which is the regulation's
+  /// clock rather than the framework's.
+  final Duration deadline;
+
+  final List<int> _key;
+  final DateTime Function() _now;
+
+  static const String tombstoneTable = 'dv_privacy_tombstones';
+
+  /// Every export and erasure, through Record History, by pseudonym.
+  late final DVRecordTable requests = DVRecordTable(
+    table: 'dv_privacy_requests',
+    key: 'id',
+    columns: const <String>[
+      'id',
+      'kind',
+      'subject',
+      'reason',
+      'requested_by',
+      'run_by',
+      'requested_at',
+      'completed_at',
+      'covered',
+      'kept',
+      'complete',
+    ],
+    history: const DVHistory(keep: Duration(days: 3650)),
+    versioned: false,
+    database: database,
+  );
+
+  /// The declarations, checked. `DV-PRIVACY-001` for personal data no subject
+  /// path reaches; `DV-PRIVACY-002` for personal data with no retention.
+  static List<DVPrivacyFinding> check(List<DVPrivacyModel> models) {
+    final List<DVPrivacyFinding> findings = <DVPrivacyFinding>[];
+    for (final DVPrivacyModel model in models) {
+      final Set<String> personal = model.personalFields;
+      if (personal.isEmpty) continue;
+      if (model.subject == null) {
+        findings.add(
+          DVPrivacyFinding(
+            code: 'DV-PRIVACY-001',
+            model: model.name,
+            message:
+                '${model.name} carries personal data '
+                '(${(personal.toList()..sort()).join(', ')}) and declares no '
+                'subject path, so an erasure cannot reach it.',
+            level: DVLogLevel.error,
+          ),
+        );
+      }
+      if (model.retention == null) {
+        findings.add(
+          DVPrivacyFinding(
+            code: 'DV-PRIVACY-002',
+            model: model.name,
+            message:
+                '${model.name} carries personal data and declares no '
+                'retention, so it is kept indefinitely.',
+            level: DVLogLevel.warn,
+          ),
+        );
+      }
+    }
+    return findings;
+  }
+
+  Future<void> ensureSchema() async {
+    await requests.ensureSchema();
+    await database.execute(
+      'CREATE TABLE IF NOT EXISTS $tombstoneTable (subject, erased_at)',
+    );
+  }
+
+  /// The id every record the walk leaves behind uses instead of [subject].
+  String pseudonym(Object subject) => Hmac(
+    sha256,
+    _key,
+  ).convert(utf8.encode('dv-privacy-subject:$subject')).toString();
+
+  DVPrivacySubjectRef _ref(Object subject) =>
+      DVPrivacySubjectRef(id: subject, pseudonym: pseudonym(subject));
+
+  DVPrivacyModel _model(String name) =>
+      models.firstWhere((DVPrivacyModel m) => m.name == name);
+
+  // --- the walk -------------------------------------------------------------
+
+  /// Every row of every subject-bearing model that belongs to [subject],
+  /// resolved before anything is changed: a row reached through its parent
+  /// has to be found while the parent still exists.
+  Future<Map<String, List<DVRecord>>> _walk(Object subject) async {
+    final Map<String, List<DVRecord>> rows = <String, List<DVRecord>>{};
+    Future<List<DVRecord>> rowsFor(DVPrivacyModel model) async {
+      final List<DVRecord>? known = rows[model.name];
+      if (known != null) return known;
+      final DVSubject path = model.subject!;
+      final List<DVRecord> all = await model.table.all(withDeleted: true);
+      final List<DVRecord> found;
+      switch (path._kind) {
+        case _DVSubjectKind.self:
+          found = <DVRecord>[
+            for (final DVRecord r in all)
+              if ('${r.key}' == '$subject') r,
+          ];
+        case _DVSubjectKind.field:
+          found = <DVRecord>[
+            for (final DVRecord r in all)
+              if ('${r.values[path.column]}' == '$subject') r,
+          ];
+        case _DVSubjectKind.through:
+          final Set<String> parents = <String>{
+            for (final DVRecord p in await rowsFor(_model(path.parent!)))
+              '${p.key}',
+          };
+          found = <DVRecord>[
+            for (final DVRecord r in all)
+              if (parents.contains('${r.values[path.column]}')) r,
+          ];
+      }
+      rows[model.name] = found;
+      return found;
+    }
+
+    for (final DVPrivacyModel model in models) {
+      if (model.subject != null) await rowsFor(model);
+    }
+    return rows;
+  }
+
+  // --- erasure --------------------------------------------------------------
+
+  Future<DVErasureResult> erase({
+    required Object subject,
+    required String reason,
+    DateTime? requestedAt,
+    String? requestedBy,
+    String? runBy,
+  }) async {
+    final DVPrivacySubjectRef ref = _ref(subject);
+    final DateTime started = _now();
+    final DateTime asked = requestedAt ?? started;
+    final List<String> codes = <String>[];
+    final Map<String, int> deleted = <String, int>{};
+    final Map<String, int> anonymized = <String, int>{};
+    final List<DVKeptRecord> kept = <DVKeptRecord>[];
+    final List<String> unreached = <String>[];
+
+    final bool late = started.difference(asked) > deadline;
+    if (late) {
+      _report(
+        codes,
+        'DV-PRIVACY-004',
+        'An erasure requested ${asked.toIso8601String()} is past its '
+            '${deadline.inDays}-day deadline; it is running now.',
+        DVLogLevel.error,
+        ref,
+      );
+    }
+
+    final Map<String, List<DVRecord>> walk = await _walk(subject);
+    for (final DVPrivacyModel model in models) {
+      for (final DVRecord row in walk[model.name] ?? const <DVRecord>[]) {
+        final _DVRowOutcome outcome = await _eraseRow(model, row, ref);
+        switch (outcome) {
+          case _DVRowOutcome.deleted:
+            deleted.update(model.name, (int n) => n + 1, ifAbsent: () => 1);
+          case _DVRowOutcome.anonymized:
+            anonymized.update(model.name, (int n) => n + 1, ifAbsent: () => 1);
+          case _DVRowOutcome.kept:
+            kept.add(
+              DVKeptRecord(
+                model: model.name,
+                key: row.key,
+                because: model.retain!.because,
+              ),
+            );
+        }
+      }
+    }
+    if (kept.isNotEmpty) {
+      _report(
+        codes,
+        'DV-PRIVACY-003',
+        '${kept.length} rows were kept under a declared retention and their '
+            'personal fields anonymized.',
+        DVLogLevel.info,
+        ref,
+      );
+    }
+
+    for (final DVPrivacyAdapter adapter in adapters) {
+      try {
+        await adapter.erase(ref);
+      } on Object catch (error) {
+        unreached.add(adapter.name);
+        _report(
+          codes,
+          'DV-PRIVACY-009',
+          'The erasure could not reach ${adapter.name}; the subject\'s data '
+              'there was not removed ($error).',
+          DVLogLevel.error,
+          ref,
+        );
+      }
+    }
+
+    await database.execute(
+      'INSERT INTO $tombstoneTable (subject, erased_at) VALUES (?, ?)',
+      <Object?>[ref.pseudonym, started.toUtc().toIso8601String()],
+    );
+
+    final DateTime finished = _now();
+    final Map<String, Object?> payload = <String, Object?>{
+      'version': 1,
+      'subject': ref.pseudonym,
+      'reason': reason,
+      'requested_at': asked.toUtc().toIso8601String(),
+      'completed_at': finished.toUtc().toIso8601String(),
+      'deleted': deleted,
+      'anonymized': anonymized,
+      'kept': <Map<String, Object?>>[
+        for (final DVKeptRecord k in kept) k.toJson(),
+      ],
+      'unreached': unreached,
+      'complete': unreached.isEmpty,
+      'late': late,
+    };
+    final DVErasureReceipt receipt = DVErasureReceipt(
+      payload: payload,
+      signature: _sign(payload),
+    );
+
+    await _record(
+      'erase',
+      ref,
+      reason: reason,
+      requestedAt: asked,
+      completedAt: finished,
+      requestedBy: requestedBy,
+      runBy: runBy,
+      covered: <String>[
+        for (final DVPrivacyModel m in models)
+          if (m.subject != null) m.name,
+        for (final DVPrivacyAdapter a in adapters) a.name,
+      ],
+      kept: kept.length,
+      complete: unreached.isEmpty,
+    );
+
+    return DVErasureResult._(
+      deleted: deleted,
+      anonymized: anonymized,
+      kept: kept,
+      unreached: unreached,
+      late: late,
+      codes: codes,
+      receipt: receipt,
+    );
+  }
+
+  /// Applies what [model] declared to one of the subject's rows, and removes
+  /// the row's change log either way: a log entry holds earlier values, and a
+  /// revert would put them back.
+  Future<_DVRowOutcome> _eraseRow(
+    DVPrivacyModel model,
+    DVRecord row,
+    DVPrivacySubjectRef ref,
+  ) async {
+    final DVRecordTable table = model.table;
+    final _DVRowOutcome outcome;
+    if (model.retain != null || model.anonymizeOnErase.isNotEmpty) {
+      await _anonymize(model, row, ref);
+      outcome = model.retain != null
+          ? _DVRowOutcome.kept
+          : _DVRowOutcome.anonymized;
+    } else {
+      // Removed outright, even from a soft-delete table: a row marked deleted
+      // still holds everything it held.
+      await database.execute(
+        'DELETE FROM ${table.table} WHERE ${table.key} = ?',
+        <Object?>[row.key],
+      );
+      outcome = _DVRowOutcome.deleted;
+    }
+    if (table.historyPolicy != null) {
+      await database.execute(
+        'DELETE FROM ${table.historyTable} WHERE record_key = ?',
+        <Object?>[row.key],
+      );
+    }
+    return outcome;
+  }
+
+  /// Tombstones every personal field of a kept row and replaces the subject
+  /// column with the pseudonym, bumping the version so a writer holding the
+  /// old row conflicts rather than writing it back.
+  Future<void> _anonymize(
+    DVPrivacyModel model,
+    DVRecord row,
+    DVPrivacySubjectRef ref,
+  ) async {
+    final DVRecordTable table = model.table;
+    final Map<String, Object?> set = <String, Object?>{
+      for (final String field in model.personalFields) field: tombstone,
+      if (model.subject?._kind == _DVSubjectKind.field)
+        model.subject!.column!: ref.pseudonym,
+    };
+    if (set.isEmpty) return;
+    final List<String> columns = set.keys.toList();
+    await database.execute(
+      'UPDATE ${table.table} SET '
+      '${<String>[for (final String c in columns) '$c = ?', '${DVRecordTable.versionColumn} = ?'].join(', ')} '
+      'WHERE ${table.key} = ?',
+      <Object?>[
+        for (final String c in columns) set[c],
+        row.version + 1,
+        row.key,
+      ],
+    );
+  }
+
+  bool verifyReceipt(DVErasureReceipt receipt) {
+    final String expected = _sign(receipt.payload);
+    final String actual = receipt.signature;
+    if (expected.length != actual.length) return false;
+    int diff = 0;
+    for (int i = 0; i < expected.length; i++) {
+      diff |= expected.codeUnitAt(i) ^ actual.codeUnitAt(i);
+    }
+    return diff == 0;
+  }
+
+  String _sign(Map<String, Object?> payload) => Hmac(
+    sha256,
+    _key,
+  ).convert(utf8.encode(jsonEncode(_canonical(payload)))).toString();
+
+  static Object? _canonical(Object? value) {
+    if (value is Map) {
+      final List<String> keys = <String>[
+        for (final Object? k in value.keys) '$k',
+      ]..sort();
+      return <String, Object?>{
+        for (final String k in keys) k: _canonical(value[k]),
+      };
+    }
+    if (value is Iterable) {
+      return <Object?>[for (final Object? v in value) _canonical(v)];
+    }
+    return value;
+  }
+
+  /// Re-erases every row belonging to a subject in the tombstone log. Run it
+  /// before a restored deployment serves anything: a backup cannot be
+  /// edited, but no restored system has to serve what it holds.
+  Future<DVErasureReplay> replayErasures() async {
+    final Set<String> erased = <String>{
+      for (final Map<String, Object?> row in await database.query(
+        'SELECT subject FROM $tombstoneTable',
+      ))
+        '${row['subject']}',
+    };
+    final List<String> codes = <String>[];
+    if (erased.isEmpty) return DVErasureReplay._(0, codes);
+
+    final Map<String, Map<String, Object?>> subjectOf =
+        <String, Map<String, Object?>>{};
+    Future<Map<String, Object?>> subjectsFor(DVPrivacyModel model) async {
+      final Map<String, Object?>? known = subjectOf[model.name];
+      if (known != null) return known;
+      final DVSubject path = model.subject!;
+      final Map<String, Object?> map = <String, Object?>{};
+      final List<DVRecord> all = await model.table.all(withDeleted: true);
+      switch (path._kind) {
+        case _DVSubjectKind.self:
+          for (final DVRecord r in all) {
+            map['${r.key}'] = r.key;
+          }
+        case _DVSubjectKind.field:
+          for (final DVRecord r in all) {
+            map['${r.key}'] = r.values[path.column];
+          }
+        case _DVSubjectKind.through:
+          final Map<String, Object?> parents = await subjectsFor(
+            _model(path.parent!),
+          );
+          for (final DVRecord r in all) {
+            map['${r.key}'] = parents['${r.values[path.column]}'];
+          }
+      }
+      subjectOf[model.name] = map;
+      return map;
+    }
+
+    final List<(DVPrivacyModel, DVRecord, DVPrivacySubjectRef)> due =
+        <(DVPrivacyModel, DVRecord, DVPrivacySubjectRef)>[];
+    for (final DVPrivacyModel model in models) {
+      if (model.subject == null) continue;
+      final Map<String, Object?> subjects = await subjectsFor(model);
+      for (final DVRecord row in await model.table.all(withDeleted: true)) {
+        final Object? id = subjects['${row.key}'];
+        if (id == null) continue;
+        final DVPrivacySubjectRef ref = _ref(id);
+        if (erased.contains(ref.pseudonym)) due.add((model, row, ref));
+      }
+    }
+    for (final (DVPrivacyModel, DVRecord, DVPrivacySubjectRef) item in due) {
+      await _eraseRow(item.$1, item.$2, item.$3);
+    }
+    if (due.isNotEmpty) {
+      _report(
+        codes,
+        'DV-PRIVACY-005',
+        'A restore replayed the erasure tombstone log; ${due.length} rows '
+            'belonging to erased subjects were erased again.',
+        DVLogLevel.info,
+        null,
+      );
+    }
+    return DVErasureReplay._(due.length, codes);
+  }
+
+  // --- export ---------------------------------------------------------------
+
+  Future<DVExportArchive> export({
+    required Object subject,
+    String? requestedBy,
+    String? runBy,
+  }) async {
+    final DVPrivacySubjectRef ref = _ref(subject);
+    final List<String> codes = <String>[];
+    final Map<String, List<Map<String, Object?>>> records =
+        <String, List<Map<String, Object?>>>{};
+    int redacted = 0;
+
+    final Map<String, List<DVRecord>> walk = await _walk(subject);
+    for (final DVPrivacyModel model in models) {
+      final List<DVRecord> rows = walk[model.name] ?? const <DVRecord>[];
+      if (rows.isEmpty) continue;
+      records[model.name] = <Map<String, Object?>>[
+        for (final DVRecord row in rows)
+          <String, Object?>{
+            for (final String column in model.table.columns)
+              column:
+                  model.otherSubjects.contains(column) &&
+                      row.values[column] != null &&
+                      '${row.values[column]}' != '$subject'
+                  ? () {
+                      redacted++;
+                      return null;
+                    }()
+                  : row.values[column],
+          },
+      ];
+    }
+    if (redacted > 0) {
+      _report(
+        codes,
+        'DV-PRIVACY-006',
+        '$redacted fields naming another subject were left out of the '
+            'export; only the requesting subject\'s contribution is included.',
+        DVLogLevel.info,
+        ref,
+      );
+    }
+
+    final Map<String, Map<String, Object?>> fromAdapters =
+        <String, Map<String, Object?>>{};
+    final List<String> unreached = <String>[];
+    for (final DVPrivacyAdapter adapter in adapters) {
+      try {
+        fromAdapters[adapter.name] = await adapter.export(ref);
+      } on Object {
+        unreached.add(adapter.name);
+      }
+    }
+
+    await _record(
+      'export',
+      ref,
+      requestedAt: _now(),
+      completedAt: _now(),
+      requestedBy: requestedBy,
+      runBy: runBy,
+      covered: <String>[...records.keys, ...fromAdapters.keys],
+      kept: 0,
+      complete: unreached.isEmpty,
+    );
+
+    return DVExportArchive._(
+      records: records,
+      adapters: fromAdapters,
+      unreached: unreached,
+      codes: codes,
+    );
+  }
+
+  // --- retention ------------------------------------------------------------
+
+  Future<List<(DVPrivacyModel, DVRecord, bool held)>> _expired(
+    DateTime now,
+  ) async {
+    final List<(DVPrivacyModel, DVRecord, bool)> out =
+        <(DVPrivacyModel, DVRecord, bool)>[];
+    for (final DVPrivacyModel model in models) {
+      final DVRetention? retention = model.retention;
+      final Duration? keep = retention?.duration;
+      if (retention == null || keep == null) continue;
+      for (final DVRecord row in await model.table.all(withDeleted: true)) {
+        final DateTime? at = DateTime.tryParse('${row.values[retention.from]}');
+        if (at == null) continue;
+        final Duration age = now.difference(at);
+        if (age <= keep) continue;
+        final DVRetain? longer = model.retain;
+        final bool held = longer != null && age <= longer.duration;
+        out.add((model, row, held));
+      }
+    }
+    return out;
+  }
+
+  /// What the next sweep would do, changing nothing.
+  Future<DVRetentionPlan> planRetention({DateTime? now}) async {
+    final Map<String, int> deletions = <String, int>{};
+    final Map<String, int> anonymizations = <String, int>{};
+    final Map<String, int> held = <String, int>{};
+    for (final (DVPrivacyModel model, DVRecord _, bool isHeld)
+        in await _expired(now ?? _now())) {
+      final Map<String, int> into = isHeld
+          ? held
+          : model.retention!.then == DVRetentionAction.anonymize
+          ? anonymizations
+          : deletions;
+      into.update(model.name, (int n) => n + 1, ifAbsent: () => 1);
+    }
+    return DVRetentionPlan._(deletions, anonymizations, held);
+  }
+
+  /// Removes expired rows in batches of [batchSize], stopping after
+  /// [maxBatches] when given. Each batch stands on its own, so a sweep that
+  /// stops part-way resumes where it left off rather than taking a database
+  /// down in one transaction.
+  Future<DVRetentionSweep> sweepRetention({
+    DateTime? now,
+    int batchSize = 500,
+    int? maxBatches,
+  }) async {
+    if (batchSize < 1) {
+      throw ArgumentError.value(batchSize, 'batchSize', 'must be at least 1');
+    }
+    final List<String> codes = <String>[];
+    final Map<String, int> deleted = <String, int>{};
+    final Map<String, int> anonymized = <String, int>{};
+    final Map<String, int> held = <String, int>{};
+    final List<(DVPrivacyModel, DVRecord, bool)> expired = await _expired(
+      now ?? _now(),
+    );
+    final List<(DVPrivacyModel, DVRecord)> due = <(DVPrivacyModel, DVRecord)>[];
+    for (final (DVPrivacyModel model, DVRecord row, bool isHeld) in expired) {
+      if (isHeld) {
+        held.update(model.name, (int n) => n + 1, ifAbsent: () => 1);
+      } else {
+        due.add((model, row));
+      }
+    }
+
+    int batches = 0;
+    int done = 0;
+    while (done < due.length && (maxBatches == null || batches < maxBatches)) {
+      final int end = done + batchSize < due.length
+          ? done + batchSize
+          : due.length;
+      for (final (DVPrivacyModel model, DVRecord row) in due.sublist(
+        done,
+        end,
+      )) {
+        final DVRecordTable table = model.table;
+        if (model.retention!.then == DVRetentionAction.anonymize) {
+          await _anonymize(
+            model,
+            row,
+            _ref(row.values[model.subject?.column] ?? row.key),
+          );
+          anonymized.update(model.name, (int n) => n + 1, ifAbsent: () => 1);
+        } else {
+          await database.execute(
+            'DELETE FROM ${table.table} WHERE ${table.key} = ?',
+            <Object?>[row.key],
+          );
+          deleted.update(model.name, (int n) => n + 1, ifAbsent: () => 1);
+        }
+        if (table.historyPolicy != null) {
+          await database.execute(
+            'DELETE FROM ${table.historyTable} WHERE record_key = ?',
+            <Object?>[row.key],
+          );
+        }
+      }
+      done = end;
+      batches++;
+    }
+
+    final int removed =
+        deleted.values.fold(0, (int a, int b) => a + b) +
+        anonymized.values.fold(0, (int a, int b) => a + b);
+    if (removed > 0) {
+      _report(
+        codes,
+        'DV-PRIVACY-007',
+        'A retention sweep removed $removed expired rows.',
+        DVLogLevel.info,
+        null,
+      );
+    }
+    if (held.isNotEmpty) {
+      _report(
+        codes,
+        'DV-PRIVACY-008',
+        'A retention sweep left ${held.values.fold(0, (int a, int b) => a + b)} '
+            'rows a longer retention holds; the longer one won.',
+        DVLogLevel.warn,
+        null,
+      );
+    }
+    return DVRetentionSweep._(
+      deleted: deleted,
+      anonymized: anonymized,
+      held: held,
+      remaining: due.length - done,
+      codes: codes,
+    );
+  }
+
+  // --- durable jobs ---------------------------------------------------------
+
+  /// Results of erasures run from the queue, most recent last.
+  final List<DVErasureResult> jobResults = <DVErasureResult>[];
+
+  /// Registers the erasure and retention handlers on the durable job layer.
+  void registerJobs(DVQueues queues) {
+    queues
+      ..register<DVPrivacyErasureRequest>((
+        DVPrivacyErasureRequest request,
+      ) async {
+        jobResults.add(
+          await erase(
+            subject: request.subject,
+            reason: request.reason,
+            requestedAt: request.requestedAt,
+            requestedBy: request.requestedBy,
+            runBy: request.runBy,
+          ),
+        );
+      })
+      ..register<DVPrivacyRetentionRequest>((
+        DVPrivacyRetentionRequest request,
+      ) async {
+        await sweepRetention(
+          batchSize: request.batchSize,
+          maxBatches: request.maxBatches,
+        );
+      });
+  }
+
+  /// Queues an erasure; a worker runs it.
+  Future<DVJobEnvelope<DVPrivacyErasureRequest>> requestErasure({
+    required Object subject,
+    required String reason,
+    String? requestedBy,
+    DVQueues queues = const DVQueues(),
+    String queue = 'default',
+  }) => queues.dispatch<DVPrivacyErasureRequest>(
+    DVPrivacyErasureRequest(
+      subject: subject,
+      reason: reason,
+      requestedAt: _now(),
+      requestedBy: requestedBy,
+    ),
+    queue: queue,
+  );
+
+  // --- records --------------------------------------------------------------
+
+  Future<void> _record(
+    String kind,
+    DVPrivacySubjectRef ref, {
+    String? reason,
+    required DateTime requestedAt,
+    required DateTime completedAt,
+    String? requestedBy,
+    String? runBy,
+    required List<String> covered,
+    required int kept,
+    required bool complete,
+  }) async {
+    await requests.write(<String, Object?>{
+      'id':
+          '$kind-${ref.pseudonym.substring(0, 16)}-'
+          '${completedAt.microsecondsSinceEpoch}',
+      'kind': kind,
+      'subject': ref.pseudonym,
+      'reason': reason,
+      'requested_by': requestedBy,
+      'run_by': runBy,
+      'requested_at': requestedAt.toUtc().toIso8601String(),
+      'completed_at': completedAt.toUtc().toIso8601String(),
+      'covered': jsonEncode(covered),
+      'kept': kept,
+      'complete': complete ? 1 : 0,
+    });
+  }
+
+  void _report(
+    List<String> codes,
+    String code,
+    String message,
+    DVLogLevel level,
+    DVPrivacySubjectRef? ref,
+  ) {
+    codes.add(code);
+    DVObservability.log(
+      message,
+      level: level,
+      code: code,
+      context: <String, Object?>{if (ref != null) 'subject': ref.pseudonym},
+    );
+  }
+}
+
+enum _DVRowOutcome { deleted, anonymized, kept }
+
+/// The erasure and export of one device's offline copy.
+///
+/// A local store holds the subject's rows and, in its mutation log, writes not
+/// yet sent — both are the subject's data. The server cannot run this on a
+/// device; the application runs it there, and until it has, that copy has not
+/// been erased.
+class DVOfflineStorePrivacyAdapter implements DVPrivacyAdapter {
+  DVOfflineStorePrivacyAdapter({
+    required this.store,
+    required this.subject,
+    String? name,
+  }) : name = name ?? 'offline:${store.table.table}' {
+    if (subject._kind == _DVSubjectKind.through) {
+      throw ArgumentError.value(
+        subject,
+        'subject',
+        'an offline store has no parent table to walk through',
+      );
+    }
+  }
+
+  final DVOfflineStore store;
+  final DVSubject subject;
+
+  @override
+  final String name;
+
+  bool _belongs(Object? key, Map<String, Object?> values, Object id) =>
+      subject._kind == _DVSubjectKind.self
+      ? '$key' == '$id'
+      : '${values[subject.column]}' == '$id';
+
+  /// The store writes keys and payloads as JSON: a queued write nests its
+  /// values under `values`, a server copy is the values themselves.
+  static Object? _decode(Object? stored) {
+    if (stored is! String) return stored;
+    try {
+      return jsonDecode(stored);
+    } on FormatException {
+      return stored;
+    }
+  }
+
+  static Map<String, Object?> _map(Object? value) => value is Map
+      ? <String, Object?>{
+          for (final MapEntry<Object?, Object?> e in value.entries)
+            '${e.key}': e.value,
+        }
+      : const <String, Object?>{};
+
+  @override
+  Future<void> erase(DVPrivacySubjectRef ref) async {
+    final DVRecordTable table = store.table;
+    final DVDatabaseAdapter db = table.database;
+    final Set<String> keys = <String>{};
+    for (final DVRecord row in await table.all(withDeleted: true)) {
+      if (!_belongs(row.key, row.values, ref.id)) continue;
+      keys.add(jsonEncode(row.key));
+      await db.execute(
+        'DELETE FROM ${table.table} WHERE ${table.key} = ?',
+        <Object?>[row.key],
+      );
+      if (table.historyPolicy != null) {
+        await db.execute(
+          'DELETE FROM ${table.historyTable} WHERE record_key = ?',
+          <Object?>[row.key],
+        );
+      }
+    }
+    // A server copy or a queued write can outlive the local row it came from,
+    // so each is matched on its own values, not only on a local row's key.
+    for (final Map<String, Object?> s in await db.query(
+      'SELECT * FROM ${store.serverTable}',
+    )) {
+      final String key = '${s['record_key']}';
+      if (keys.contains(key) ||
+          _belongs(_decode(key), _map(_decode(s['payload'])), ref.id)) {
+        await db.execute(
+          'DELETE FROM ${store.serverTable} WHERE record_key = ?',
+          <Object?>[key],
+        );
+      }
+    }
+    for (final Map<String, Object?> m in await db.query(
+      'SELECT * FROM ${store.logTable}',
+    )) {
+      final String key = '${m['record_key']}';
+      final Map<String, Object?> values = _map(
+        _map(_decode(m['payload']))['values'],
+      );
+      if (keys.contains(key) || _belongs(_decode(key), values, ref.id)) {
+        await db.execute(
+          'DELETE FROM ${store.logTable} WHERE mutation_id = ?',
+          <Object?>[m['mutation_id']],
+        );
+      }
+    }
+  }
+
+  @override
+  Future<Map<String, Object?>> export(DVPrivacySubjectRef ref) async =>
+      <String, Object?>{
+        'records': <Map<String, Object?>>[
+          for (final DVRecord row in await store.table.all(withDeleted: true))
+            if (_belongs(row.key, row.values, ref.id)) row.values,
+        ],
+      };
+}

@@ -1,5 +1,34 @@
 ## Unreleased
 
+- **Erasure, subject-access export and retention, as a runtime (`DVPrivacy`).**
+  Each model declares how its rows reach the person they belong to —
+  `DVSubject.self`, `.field(column)`, or `.through(column, parent:)` for a row
+  that belongs to somebody through another row — and the walk over those
+  declarations is resolved before anything is changed, so a row reached
+  through a parent the same erasure deletes is still found. Personal data no
+  subject path reaches is refused at construction (`DV-PRIVACY-001`); personal
+  data with no retention is a warning (`DV-PRIVACY-002`). `erase` removes a row
+  outright even from a soft-delete table, because a row marked deleted still
+  holds everything it held; deletes the change log of every erased or
+  anonymized row, because a log entry holds earlier values and a revert would
+  put them back; and removes a sensitive field's ciphertext rather than
+  trusting a key it cannot destroy. A row kept under `DVRetain(years:,
+  because:)` is anonymized, names the subject by pseudonym, bumps its version
+  so a writer holding the old row conflicts instead of re-saving it, and is
+  reported with its `because:` (`DV-PRIVACY-003`). An adapter the erasure could
+  not reach makes it incomplete (`DV-PRIVACY-009`), never a quiet success. The
+  signed receipt names the subject by pseudonym and stops verifying the moment
+  a field of it is edited. A tombstone log lets `replayErasures` erase a
+  subject again when a backup is restored (`DV-PRIVACY-005`). `export` walks
+  the same graph and leaves out another subject's identifier
+  (`DV-PRIVACY-006`). Retention sweeps run in resumable batches, preview with
+  `planRetention`, and let a longer retention hold what a shorter one would
+  delete (`DV-PRIVACY-007`, `DV-PRIVACY-008`). Erasures and sweeps run on
+  `DVQueues`; every export and erasure is recorded through Record History by
+  pseudonym. `DVOfflineStorePrivacyAdapter` erases a device's copy, queued
+  writes included.
+
+
 - **Semantic search, as a runtime (`DVSemanticIndex`).** Search over a
   model's records by meaning, built on what already exists: writes enqueue an
   embedding job on `DVQueues` and embed nothing inline, keyword and hybrid
