@@ -22,6 +22,30 @@
   the runtime would publish. The rename card says what the status page calls
   the incident until a person titles it.
 
+- **On Android the application key is sealed by the Android Keystore, and
+  `dvAppKeyStoreFor` hands phones their keyring with no application
+  change.** `DVAndroidKeystoreAppKeyStore` generates an AES-256 key inside
+  `AndroidKeyStore` under a per-application alias (`dartvel.appkey.<app>`);
+  that key never leaves the Keystore. The 32-byte application key is sealed
+  under it with AES/GCM/NoPadding. Only the Keystore's nonce and the sealed
+  bytes reach storage, in the no-backup directory, so a restored copy on
+  another device opens under nothing. It goes through jnigen-generated
+  bindings for `KeyStore`, `KeyGenerator`, `Cipher`, `GCMParameterSpec` and
+  `KeyGenParameterSpec`, never a platform channel. With no Context, no
+  Keystore, or a Keystore that refuses, every call throws
+  `DVAppKeyStoreUnavailable` rather than writing a file. A tag that does not
+  verify, or a sealing key the platform deleted, reads as no key.
+  `dvAppKeyStoreFor`, which the generated runtime calls for
+  `DVWindowSharedStore.defaultAppKeys`, supplies it to
+  `DVAppKeyStores.platform`. Android and iOS now get the Keystore and the
+  Keychain, and a key an earlier version left in the old file is moved in
+  once. It takes `platform:` and `home:` for tests; the web signature matches.
+  `dvAndroidSealKeyBlob` refuses anything that is not a nonce and a sealed
+  key, so a bare key cannot be written. `dvAndroidOpenKeyBlob`,
+  `dvAndroidSealedKeyPath` and `dvAndroidKeystoreAlias` are the pure halves,
+  tested off a device. `DVAndroidBindings.applicationContext` exposes the
+  Context the bindings reach, and `DVAppKeyStoreUnavailable` is exported.
+
 - **World anchor tokens are encrypted at rest whatever the shared store's
   cipher.** A token under `xr.anchors.*` was encrypted only when the shared
   store had been given a cipher, and its default has none, so a token that
