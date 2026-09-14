@@ -394,7 +394,11 @@ void main() {
     late DVPurchases purchases;
     late FutureOr<void> Function(DVContext, DVPurchaseChange) reverse;
 
-    DVStoreTransaction bought({DateTime? revokedAt, DateTime? signedAt}) =>
+    DVStoreTransaction bought({
+      DateTime? revokedAt,
+      DateTime? signedAt,
+      Duration expiresIn = const Duration(hours: 2),
+    }) =>
         DVStoreTransaction(
           store: DVStore.play,
           originalTransactionId: 'otx',
@@ -402,7 +406,7 @@ void main() {
           storeProductId: 'book_pro',
           purchasedAt: now,
           signedAt: signedAt ?? now,
-          expiresAt: now.add(const Duration(hours: 2)),
+          expiresAt: now.add(expiresIn),
           revokedAt: revokedAt,
           acknowledged: true,
         );
@@ -450,9 +454,15 @@ void main() {
     });
 
     test('does not run it for a subscription that simply lapsed', () async {
-      final DateTime at = now.add(const Duration(hours: 3));
+      // The store says the period ended half an hour in, while the grant still
+      // stood: the entitlement is revoked and no money moves. A notification
+      // arriving after the grant had already expired would revoke nothing
+      // and prove nothing.
+      final DateTime at = now.add(const Duration(hours: 1));
       clock = at;
-      await notify('n1', bought(signedAt: at));
+      await notify(
+          'n1', bought(signedAt: at, expiresIn: const Duration(minutes: 30)));
+      expect(await purchases.entitled(alice, pro), isFalse);
       expect(reversed, isEmpty);
     });
 
