@@ -81,6 +81,20 @@ void main() {
     // The registry is only worth having if it says what the document says.
     final File spec = File('../../NEW_SPEC.md');
 
+    // Codes the document lists outside a table, as `DV-MEMORY-002  Arena
+    // exhausted; ...` lines in a text block. They carry no level, so they take
+    // part in both directions of the membership comparison and not in the
+    // level one. Reading only tables left every such code free to be emitted
+    // unregistered, or registered and then refused by the check below.
+    Map<String, String> listed() {
+      final RegExp line = RegExp(r'^(DV-[A-Z0-9]+-\d+) {2,}(\S.*)$',
+          multiLine: true);
+      return <String, String>{
+        for (final RegExpMatch m in line.allMatches(spec.readAsStringSync()))
+          m.group(1)!: m.group(2)!,
+      };
+    }
+
     Map<String, ({String reason, String level})> rows() {
       // The level column is not always the level alone: the document writes
       // `build `error`` and `gate `error`` for the codes reported by a build
@@ -118,15 +132,20 @@ void main() {
       expect(table['DV-3D-008']?.level, 'error');
     });
 
+    test('a code listed in a text block rather than a table is read too', () {
+      expect(listed()['DV-MEMORY-002'], contains('Arena exhausted'));
+      expect(rows(), isNot(contains('DV-MEMORY-002')));
+    });
+
     test('every code the specification lists is registered', () {
-      for (final String code in rows().keys) {
+      for (final String code in <String>{...rows().keys, ...listed().keys}) {
         expect(DVDiagnostics.find(code), isNotNull,
             reason: 'the specification lists $code and the registry does not');
       }
     });
 
     test('and no code is registered that the specification does not list', () {
-      final Map<String, ({String reason, String level})> table = rows();
+      final Set<String> table = <String>{...rows().keys, ...listed().keys};
       for (final DVDiagnostic entry in DVDiagnostics.all) {
         expect(table, contains(entry.code),
             reason: '${entry.code} is registered but the specification does '
