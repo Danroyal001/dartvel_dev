@@ -1343,7 +1343,24 @@
     {
       "section": "Module Distribution and Trust",
       "stability": "Draft",
-      "status": "Designed"
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_cli/lib/src/module_trust/capabilities.dart",
+        "packages/dartvel_cli/lib/src/module_trust/capability_analysis.dart",
+        "packages/dartvel_cli/lib/src/module_trust/package_digest.dart",
+        "packages/dartvel_cli/lib/src/module_trust/module_signature.dart",
+        "packages/dartvel_cli/lib/src/module_trust/module_lock.dart",
+        "packages/dartvel_cli/lib/src/module_trust/module_trust.dart",
+        "packages/dartvel_cli/lib/src/module_trust/module_publish.dart",
+        "packages/dartvel_cli/lib/src/build/declaration_check.dart",
+        "packages/dartvel_cli/test/module_capabilities_test.dart",
+        "packages/dartvel_cli/test/module_capability_analysis_test.dart",
+        "packages/dartvel_cli/test/module_package_digest_test.dart",
+        "packages/dartvel_cli/test/module_trust_test.dart",
+        "packages/dartvel_cli/test/module_trust_commands_test.dart",
+        "packages/dartvel_cli/test/module_package_mount_test.dart"
+      ],
+      "absent": "Built, in the CLI: the six capabilities with exact per-domain and per-key grants, with network: true and wildcards refused; capabilities read from a module's code by a lexical analysis that knows Dart strings and comments, reports targets built at runtime as unresolved, and flags raw sockets, HttpClient and package:http as DV-MODULE-008; a sha256 digest of the module package that refuses symlinks; ES256 publisher signatures over the exact payload bytes, with non-canonical payloads refused; dartvel.module.lock pinning version, digest, signing key, verified publisher and capability kinds, with signatures verified against the pinned key rather than the one a file names; DV-MODULE-004 for a digest or statement that does not match and for a version older than the pin, prereleases included, unless re-pinned with --allow-downgrade; DV-MODULE-005 for a changed key, a stripped signature, a key revoked in dartvel.moduleTrust.revokedKeys, or a publisher change reported by an injected registry lookup, never taken from the module's own claim; DV-MODULE-001 and DV-MODULE-003 checking code and manifest against dartvel.modules.<id>.grant in both directions, with pinning granting nothing; dartvel modules publish, which refuses a declaration that disagrees with the code (DV-MODULE-007), signs, and then runs dart pub publish, with no unsigned path; dartvel modules pin; dartvel doctor --modules; the build's declaration check refusing all of these before generation; modules mounted with package:, resolved through package_config.json; and the docs module map showing each grant with its trust findings. Not built: DV-MODULE-002 and DV-MODULE-006 runtime enforcement, so a module's egress and secret access are not checked while it runs; any pub.dev call, so without a registry lookup the publisher is recorded as null and not verified; an attached manifest on pub.dev beyond the signature file in the package; the Dartvel range checked at mount; the digest honouring .pubignore or .gitignore, so a file present at publish but left out by pub fails verification loudly; trust checks for federated modules, which keep their existing signed-manifest verification. Where the section and the code disagree: the diagnostics registry test forbids codes the section does not list, so revocation and stripped signatures share DV-MODULE-005 and downgrades share DV-MODULE-004; the section's prose makes publish refuse on DV-MODULE-007 in both directions while its table lists 007 as a warning, so the parent reports it as a warning and publish refuses on it; the section defines no revocation, so it is a parent-side list of key fingerprints; the existing federated manifest already uses capabilities as a list of target requirements, which is treated as asking for nothing; the section's reachability analysis is lexical, as it is in Secrets and Environments."
     },
     {
       "section": "Generated Model Pages",

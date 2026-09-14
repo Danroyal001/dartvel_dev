@@ -10396,7 +10396,7 @@ dartvel:
 
 # Module Distribution and Trust
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
 
 Modules are specified as units of composition and not as units of
 distribution. A module contributes backend functions, native bindings and raw
