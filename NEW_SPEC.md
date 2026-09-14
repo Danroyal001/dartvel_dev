@@ -1423,7 +1423,7 @@ fails validation during `dartvel build`.
 
 # Edge Security
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
 
 Middleware already carries rate limiting, CSRF, CORS, body limits and security
 headers. They defend the requests an application meant to serve. This section
