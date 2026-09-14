@@ -6,6 +6,28 @@
   block plans: one unit per instance on its own port, one per worker and
   queue, and a cron unit. `logs.ship` is still refused and still applies
   nothing.
+- **The generated backend runs as `web`, `worker` or `cron`, on
+  `DARTVEL_PORT`.** `dartvel routes` writes `.dart_tool/dartvel_server.dart`,
+  the entry point a deployment compiles, which calls the new generated
+  `dartvelMain(arguments)`. It reads `DARTVEL_ROLE` or `--role`,
+  `DARTVEL_PORT` and `DARTVEL_QUEUE` through `DVProcessConfiguration`, and
+  exits 78 naming the variable when one cannot be honoured -- a port that is
+  not 1 to 65535, an unknown role -- instead of falling back to the generated
+  port. `web` serves on `DARTVEL_PORT`, else the generated port; given no
+  role it is the whole deployment and ticks the schedules, and declared
+  `web` it leaves them to the cron process and says so. `worker` works
+  `DVQueueWorker` over `DARTVEL_QUEUE` and serves nothing. `cron` ticks the
+  schedules and serves nothing. Worker and cron start the preview, modules,
+  tenancy and AI tools the way `startBackend` does. `startBackend` binds
+  `port`, then `DARTVEL_PORT`, then the generated port, refuses in a worker or
+  cron process, starts the schedules only where the process ticks them, and
+  takes `process`, `scheduleLease`, `scheduleClock` and `scheduleTick`.
+  `dartvelStartBackendSchedules` takes `clock` and `lease`, so cron processes
+  sharing a `DVCacheScheduleLease` fire an occurrence once. The preview still
+  starts before anything else. The entry point cannot register `@DVJob`
+  handlers or a queue adapter itself (`jobs.g.dart` imports
+  `dartvel_flutter`), so a worker started from it refuses to start until
+  something that runs first registers them.
 - **`dartvel deploy --functions` for Cloud Run binds the port Cloud Run
   assigns.** Its Dockerfile set `ENV DARTVEL_PORT=$PORT`, which Docker
   expands when the image is built, when `PORT` is unset, so the server was

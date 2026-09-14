@@ -353,7 +353,7 @@ import 'package:mime/mime.dart';
 import 'dartvel_backend.g.dart' as cfg;
 import 'package:$pkgName/dartvel_client/model_pages.g.dart' show dartvelModelPages;
 import 'package:$pkgName/dartvel_client/modules_data.g.dart' show registerDartvelModules;
-import 'package:$pkgName/dartvel_client/schedules.g.dart' show dartvelStartBackendSchedules;
+import 'package:$pkgName/dartvel_client/schedules.g.dart' show dartvelBackendCronEntries, dartvelStartBackendSchedules;
 import 'package:$pkgName/dartvel_client/ai_tools.g.dart' show registerDartvelAITools;
 ${backendImports.join('\n')}
 
@@ -816,7 +816,13 @@ const bool dartvelCompression = $compressionLiteral;
 /// organization, for a preview deployed with `visibility: members`. Core has
 /// no request-layer user or organization to ask, so without one a members
 /// preview refuses to start rather than admitting everybody.
-Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls, bool h2c = false, dv.CorsOptions? cors, String? spaRoot, core.DVCacheAdapter? pageStore, bool? compression, core.DVPreviewMembership? previewMembership}) {
+///
+/// [process] is what this process was told to be; read from DARTVEL_ROLE and
+/// DARTVEL_PORT when null. Only a web process serves, and only one that
+/// ticks the schedules starts them -- with [scheduleLease] claimed per
+/// occurrence, [scheduleClock] as the time and [scheduleTick] as the cadence.
+/// [port] wins over DARTVEL_PORT, which wins over the generated port.
+Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls, bool h2c = false, dv.CorsOptions? cors, String? spaRoot, core.DVCacheAdapter? pageStore, bool? compression, core.DVPreviewMembership? previewMembership, core.DVProcessConfiguration? process, core.DVScheduleLease? scheduleLease, DateTime Function()? scheduleClock, Duration scheduleTick = const Duration(seconds: 20)}) {
   // Preview Environments, before anything else runs. In a process deployed
   // as a preview this captures mail and notifications, puts every queue
   // under the preview's namespace and points DV.Database at the preview's
@@ -826,6 +832,14 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   // returns without touching anything. serve() installs the same preview's
   // access gate around everything it answers.
   core.DVPreviewServer.start(Platform.environment, membership: previewMembership);
+  // What this process was told to be, validated: a DARTVEL_PORT that is not
+  // a port refuses the start rather than binding the generated one, and a
+  // worker or cron process refuses to serve the application as well.
+  final core.DVProcessConfiguration processConfiguration = process ??
+      core.DVProcessConfiguration.resolve(environment: Platform.environment, generatedPort: cfg.backendPort);
+  if (!processConfiguration.servesHttp) {
+    throw StateError('This process is DARTVEL_ROLE=\${processConfiguration.role.name}, which serves no HTTP, so startBackend will not serve the application from it. dartvelMain starts what each role runs.');
+  }
   // The modules this application mounts, before anything is served. The
   // registry decides where a schema-isolated module's tables are and which
   // database its models use, and a backend that registered nothing saw
@@ -843,19 +857,106 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   // which is a catalogue rather than a tool: an assistant could read that a
   // function existed and had no way to run it.
   registerDartvelAITools();
-  dartvelStartBackendSchedules();
+  // Only in a process that ticks them: one given no role, which is the whole
+  // deployment. A declared web process is one of several, and every one of
+  // them ticking would fire each schedule once per instance.
+  if (processConfiguration.ticksSchedules) {
+    _dartvelScheduleTimer?.cancel();
+    _dartvelScheduleTimer = dartvelStartBackendSchedules(every: scheduleTick, clock: scheduleClock, lease: scheduleLease);
+  } else if (dartvelBackendCronEntries.isNotEmpty) {
+    stdout.writeln('dartvel: DARTVEL_ROLE=web, so this process does not tick the \${dartvelBackendCronEntries.length} backend schedule(s); the DARTVEL_ROLE=cron process runs them.');
+  }
   final router = buildBackendRouter();
   final bindHost = host ?? cfg.backendHost;
-  final bindPort = port ?? cfg.backendPort;
+  final bindPort = port ?? processConfiguration.port;
   // A caller's argument wins over the configuration, so a test or a
   // second entrypoint can still override either; the configuration is
   // what an application gets when it says nothing here, which is what
   // every generated entrypoint does.
   return dv.serve(router.call, host: bindHost, port: bindPort, tls: tls, h2c: h2c, cors: cors ?? dartvelConfiguredCors, spaRoot: spaRoot, pageData: dartvelPageData, pageStore: pageStore, compression: compression ?? dartvelCompression, previewMembership: previewMembership);
 }
+
+/// The schedule timer this process started, so a stopped process stops it.
+Timer? _dartvelScheduleTimer;
+
+/// Runs the backend as what this process was told to be.
+///
+/// The one entry point every deployment starts: `.dart_tool/dartvel_server.dart`
+/// calls it, and a provisioned unit or a container runs the same binary under
+/// a different DARTVEL_ROLE (or `--role` in [arguments]):
+///
+///  * `web`, and a process given no role: serves on DARTVEL_PORT, else the
+///    generated port. Given no role it is the whole deployment and ticks the
+///    schedules; declared `web` it leaves them to the cron process.
+///  * `worker`: works the DVQueues jobs in DARTVEL_QUEUE and serves nothing.
+///    It refuses to start with no queue adapter or no job handler registered,
+///    so whatever configures them runs before this.
+///  * `cron`: ticks the schedules, claiming each occurrence through
+///    [scheduleLease] when one is given, and serves nothing.
+///
+/// Throws core.DVProcessConfigurationError, before anything starts, for a
+/// role, port or queue it cannot honour. Returns when [until] completes.
+Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPreviewMembership? previewMembership, core.DVScheduleLease? scheduleLease, DateTime Function()? scheduleClock, Duration scheduleTick = const Duration(seconds: 20)}) async {
+  final core.DVProcessConfiguration process = core.DVProcessConfiguration.resolve(environment: Platform.environment, arguments: arguments, generatedPort: cfg.backendPort);
+  final Future<void> stopped = until ?? Completer<void>().future;
+  switch (process.role) {
+    case core.DVProcessRole.web:
+      final handle = await startBackend(previewMembership: previewMembership, process: process, scheduleLease: scheduleLease, scheduleClock: scheduleClock, scheduleTick: scheduleTick);
+      stdout.writeln('dartvel backend listening on http://\${handle.host}:\${handle.port}\${cfg.apiBasePath}');
+      await stopped;
+      _dartvelScheduleTimer?.cancel();
+      await handle.stop();
+    case core.DVProcessRole.worker:
+      // The same start a web process makes, less what only serving needs: a
+      // preview's worker must consume the preview's queues, and a module's
+      // models resolve their tables the same way in a job as in a request.
+      core.DVPreviewServer.start(Platform.environment, membership: previewMembership);
+      registerDartvelModules();$tenancyConfiguration
+      registerDartvelAITools();
+      stdout.writeln('dartvel worker working \${process.queues.join(', ')}');
+      await core.DVQueueWorker(queues: process.queues).run(until: stopped);
+    case core.DVProcessRole.cron:
+      core.DVPreviewServer.start(Platform.environment, membership: previewMembership);
+      registerDartvelModules();$tenancyConfiguration
+      registerDartvelAITools();
+      final Timer? timer = dartvelStartBackendSchedules(every: scheduleTick, clock: scheduleClock, lease: scheduleLease);
+      stdout.writeln(timer == null ? 'dartvel cron: this application declares no backend schedule' : 'dartvel cron ticking \${dartvelBackendCronEntries.length} backend schedule(s)');
+      await stopped;
+      timer?.cancel();
+  }
+}
 ''';
     File(p.join(backendOut.path, 'dartvel_backend_routes.g.dart'))
         .writeAsStringSync(backendRoutes);
+
+    // The binary a deployment runs. Every unit dartvel infra renders and the
+    // image dartvel deploy writes start this one program and tell it its role
+    // and port through the environment; before it there was no entry point
+    // but the dev server's, which bound the generated port and nothing else.
+    File(p.join(backendOut.path, 'dartvel_server.dart')).writeAsStringSync('''
+// GENERATED – do not edit.
+//
+// The backend's entry point, compiled with
+//   dart compile exe .dart_tool/dartvel_server.dart -o server
+// One binary, run as the web server, a queue worker or the schedules:
+// DARTVEL_ROLE (or --role) is web, worker or cron, DARTVEL_PORT is the port a
+// web process binds, and DARTVEL_QUEUE the queues a worker works.
+import 'dart:io';
+
+import 'package:dartvel_core/dartvel.dart' as core;
+
+import 'dartvel_backend_routes.g.dart' as gen;
+
+Future<void> main(List<String> arguments) async {
+  try {
+    await gen.dartvelMain(arguments);
+  } on core.DVProcessConfigurationError catch (error) {
+    // EX_CONFIG: a supervisor restarting this will not fix it.
+    stderr.writeln('dartvel: \$error');
+    exit(78);
+  }
+}
+''');
 
     // Backend bind config. `dartvel dev` prints dvGenBuildId when the backend
     // starts, to say which generated backend is the one running. That was a
@@ -1854,12 +1955,18 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       ..writeln('/// a little after the boundary is what keeps a minute')
       ..writeln('/// schedule from skipping one. Ticking often is safe: a')
       ..writeln('/// task is keyed to the occurrence it last ran for.')
+      ..writeln('///')
+      ..writeln('/// [lease] is claimed for each occurrence before it runs, so')
+      ..writeln('/// several processes sharing its store run it once between')
+      ..writeln('/// them. [clock] is the time the schedules are read against.')
       ..writeln('Timer? dartvelStartBackendSchedules({')
       ..writeln('  Duration every = const Duration(seconds: 20),')
       ..writeln('  bool catchUp = false,')
+      ..writeln('  DateTime Function()? clock,')
+      ..writeln('  DVScheduleLease? lease,')
       ..writeln('}) {')
       ..writeln('  if (dartvelBackendCronEntries.isEmpty) return null;')
-      ..writeln('  final DVScheduler scheduler = DVScheduler()')
+      ..writeln('  final DVScheduler scheduler = DVScheduler(clock: clock, lease: lease)')
       ..writeln('    ..registerAll(')
       ..writeln('      dartvelBackendCronEntries,')
       ..writeln('      handlers: dartvelBackendCronHandlers,')
