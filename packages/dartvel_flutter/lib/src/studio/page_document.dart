@@ -1888,10 +1888,19 @@ class DVPageBundle {
   /// pages. Without this an edit could be shipped but never withdrawn.
   final List<String> removedRoutes;
 
+  /// Which version of each page was approved, by whom and when, by route.
+  ///
+  /// Travels with the pages so a rollback -- shipping the previous bundle --
+  /// restores the record that the restored content was the reviewed one, and
+  /// "was this signed off?" has an answer in the thing that shipped it. Empty
+  /// for a bundle built without the content workflow.
+  final Map<String, DVContentApproval> approvals;
+
   const DVPageBundle({
     required this.version,
     this.pages = const <DVPageDocument>[],
     this.removedRoutes = const <String>[],
+    this.approvals = const <String, DVContentApproval>{},
   });
 
   factory DVPageBundle.fromJson(Map<String, Object?> json) {
@@ -1915,6 +1924,14 @@ class DVPageBundle {
             in (json['removedRoutes'] as List?) ?? const <Object?>[])
           route! as String,
       ],
+      approvals: <String, DVContentApproval>{
+        for (final MapEntry<Object?, Object?> entry
+            in ((json['approvals'] as Map?) ?? const <Object?, Object?>{})
+                .entries)
+          entry.key! as String: DVContentApproval.fromJson(
+            (entry.value! as Map).cast<String, Object?>(),
+          ),
+      },
     );
   }
 
@@ -1922,6 +1939,12 @@ class DVPageBundle {
         'version': version,
         'pages': <Object?>[for (final page in pages) page.toJson()],
         if (removedRoutes.isNotEmpty) 'removedRoutes': removedRoutes,
+        if (approvals.isNotEmpty)
+          'approvals': <String, Object?>{
+            for (final MapEntry<String, DVContentApproval> entry
+                in approvals.entries)
+              entry.key: entry.value.toJson(),
+          },
       };
 
   String encode() => jsonEncode(toJson());
