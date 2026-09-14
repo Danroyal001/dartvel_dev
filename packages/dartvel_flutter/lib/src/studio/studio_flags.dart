@@ -1795,13 +1795,19 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
                   borderRadius:
                       BorderRadius.circular(DVStudioStyle.radiusSmall),
                 ),
-                child: _text(
-                  option,
-                  size: 12,
-                  color: option == value
-                      ? DVStudioStyle.accent
-                      : DVStudioStyle.ink,
-                  weight: option == value ? FontWeight.w600 : FontWeight.w500,
+                // Centred at its own size: the Container's height is tight on
+                // its child, and a label handed all of it paints at the top.
+                child: Center(
+                  widthFactor: 1,
+                  child: _text(
+                    option,
+                    size: 12,
+                    color: option == value
+                        ? DVStudioStyle.accent
+                        : DVStudioStyle.ink,
+                    weight:
+                        option == value ? FontWeight.w600 : FontWeight.w500,
+                  ),
                 ),
               ),
             ),

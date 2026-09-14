@@ -598,6 +598,17 @@ void main() {
       final double row = tester.getSize(byKey('dv-studio-flag-rule-0-value')).width;
       expect(tester.getSize(express).width, lessThan(row / 2),
           reason: 'three options should sit in one row, not stack as bars');
+      // A label given the pill's whole height paints at the top of it and
+      // still reports the pill's centre as its own, so its height is what
+      // shows whether it was centred or stretched.
+      final Finder label =
+          inKey('dv-studio-flag-rule-0-value', find.text('express'));
+      expect(tester.getSize(label).height,
+          lessThan(tester.getSize(express).height - 4),
+          reason: 'the label is laid out at its own height, not the pill\'s');
+      expect(tester.getCenter(label).dy,
+          closeTo(tester.getCenter(express).dy, 1),
+          reason: 'the label sits in the middle of its pill');
     });
 
     testWidgets('discarding leaves the rules as they were',
