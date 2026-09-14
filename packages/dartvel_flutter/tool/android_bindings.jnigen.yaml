@@ -151,6 +151,26 @@ classes:
   - android.content.res.Resources
   - java.io.File
 
+  # Key custody. The application key is 32 raw bytes that AES-GCM in Dart
+  # uses directly, so it cannot itself be a non-exportable Keystore key.
+  # Instead an AES-256 key is generated inside the AndroidKeyStore provider
+  # and never leaves it; the application key is sealed under it with
+  # AES/GCM/NoPadding, and only the sealed bytes reach storage.
+  #
+  # KeyGenParameterSpec was already referenced, and generated as a stub:
+  # the type with none of its constructors, so no spec could be built.
+  # KeyGenParameterSpec$Builder comes with it; a nested class cannot be listed
+  # separately.
+  - android.security.keystore.KeyGenParameterSpec
+  - android.security.keystore.KeyProperties
+  - java.security.KeyStore
+  - java.security.Key
+  - java.security.spec.AlgorithmParameterSpec
+  - javax.crypto.KeyGenerator
+  - javax.crypto.SecretKey
+  - javax.crypto.Cipher
+  - javax.crypto.spec.GCMParameterSpec
+
 exclude:
   methods:
     # Deprecated overloads that generate ambiguous Dart names and that nothing

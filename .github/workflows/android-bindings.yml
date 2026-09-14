@@ -30,7 +30,10 @@ jobs:
     permissions:
       contents: write
     steps:
+      # Full history: the commit step rebases onto whatever reached main while
+      # jnigen ran, and a depth-1 clone has no merge base to rebase from.
       - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
 
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: '17' }
@@ -171,4 +174,15 @@ jobs:
             echo "_internal.dart, for generated code."
           } > /tmp/commit-message
           git commit -F /tmp/commit-message
-          git push
+          # main moves while jnigen runs -- several agents push to it -- and a
+          # plain push was rejected as non-fast-forward, throwing the
+          # generation away. The commit touches only the generated tree, so a
+          # rebase onto whatever landed meanwhile is safe to retry.
+          for attempt in 1 2 3 4 5; do
+            if git push origin HEAD:main; then exit 0; fi
+            echo "push attempt $attempt rejected; rebasing onto origin/main"
+            git fetch origin main
+            git rebase origin/main
+          done
+          echo "::error::could not push the generated bindings after 5 attempts"
+          exit 1
