@@ -683,4 +683,148 @@ void main() {
     expect(device.calls.toSet().difference(DVXRDevice.bindingNames), isEmpty);
     unawaited(Future<void>.value());
   });
+
+  group('when a token cannot be kept', () {
+    late DVMemoryLogSink logs;
+
+    DV3DSceneDocument scene(List<DVAnchor> anchors) => DV3DSceneDocument(
+          id: 'shop',
+          nodes: <DVSceneNodeData>[
+            for (int i = 0; i < anchors.length; i++)
+              DVSceneNodeData(
+                id: 'n$i',
+                kind: DVSceneNodeKind.mesh,
+                primitive: const DVScenePrimitive.box(DVVec3(0.1, 0.1, 0.1)),
+                anchor: anchors[i],
+              ),
+          ],
+        );
+
+    setUp(() {
+      logs = DVMemoryLogSink();
+      DVObservability.useLogging(sinks: <DVLogSink>[logs]);
+    });
+    tearDown(DVObservability.resetLogging);
+
+    test('a store that refuses it leaves the anchor unpersisted, and says so without the token',
+        () async {
+      consent.allowed = <DVSpatialDataUse>{DVSpatialDataUse.persistAnchors};
+      final DVXRRuntime xr = DVXRRuntime(
+        device: device,
+        capability: DVSpatialCapability.headset(),
+        permissions: permissions,
+        lifecycle: lifecycle,
+        consent: consent,
+        anchorStore: _RefusingAnchorStore(),
+        diagnostics: (String code, String message, Map<String, Object?> context) =>
+            reports.add(_Report(code, message, context)),
+      );
+      final DVSpatialSession session = (await xr.present(_volume)).session!;
+      await session.attach(DVSceneGraph(scene(<DVAnchor>[const DVAnchor.world(id: 'lobby-sign')])));
+      device.emit(DVXRAnchorChanged(device.anchors.single,
+          position: const DVVec3(1, 1, 1), orientation: DVQuat.identity));
+      await _settle();
+
+      expect(device.calls, contains('xr.anchor.persist'),
+          reason: 'the store is only reached once the OS has handed over a token');
+      expect(session.isPersisted('n0'), isFalse,
+          reason: 'nothing was stored, so claiming otherwise would stop the next attempt');
+      final List<DVLogRecord> errors = <DVLogRecord>[
+        for (final DVLogRecord r in logs.records)
+          if (r.level == DVLogLevel.error) r,
+      ];
+      expect(errors, hasLength(1));
+      expect(errors.single.context['anchor'], 'lobby-sign');
+      expect(errors.single.toJsonLine(), isNot(contains('token-')));
+      await xr.dispose();
+    });
+
+    test('consent withdrawn while the OS persists: the token it hands back is not stored', () async {
+      consent.allowed = <DVSpatialDataUse>{DVSpatialDataUse.persistAnchors};
+      final _HeldPersist held = _HeldPersist(device);
+      final DVXRRuntime xr = runtime(withDevice: held);
+      final DVSpatialSession session = (await xr.present(_volume)).session!;
+      await session.attach(DVSceneGraph(scene(<DVAnchor>[const DVAnchor.world(id: 'lobby-sign')])));
+      device.emit(DVXRAnchorChanged(device.anchors.single,
+          position: const DVVec3(1, 1, 1), orientation: DVQuat.identity));
+      await _settle();
+      expect(held.persisting, isTrue);
+
+      consent.allowed = const <DVSpatialDataUse>{};
+      held.release();
+      await _settle();
+
+      expect(await store.read('lobby-sign'), isNull);
+      expect(session.isPersisted('n0'), isFalse);
+      await xr.dispose();
+    });
+  });
+}
+
+/// A store with no key to write under.
+final class _RefusingAnchorStore implements DVSpatialAnchorStore {
+  @override
+  Future<String?> read(String id) async => null;
+
+  @override
+  Future<void> write(String id, String token) async =>
+      throw StateError('the key store is locked');
+
+  @override
+  Future<void> remove(String id) async {}
+
+  @override
+  Future<List<String>> ids() async => const <String>[];
+}
+
+/// The fake device, with `xr.anchor.persist` held open until [release].
+final class _HeldPersist implements DVXRDevice {
+  _HeldPersist(this.inner);
+
+  final DVXRFakeDevice inner;
+  final Completer<void> _gate = Completer<void>();
+  bool persisting = false;
+
+  void release() => _gate.complete();
+
+  @override
+  DVSpatialConvention get convention => inner.convention;
+
+  @override
+  Future<DVSpatialCapability?> queryCapability() => inner.queryCapability();
+
+  @override
+  Future<String?> openSession() => inner.openSession();
+
+  @override
+  Future<void> closeSession(String session) => inner.closeSession(session);
+
+  @override
+  Future<String?> openSpace(String session, DVSpatialSpaceRequest request) =>
+      inner.openSpace(session, request);
+
+  @override
+  Future<void> closeSpace(String space) => inner.closeSpace(space);
+
+  @override
+  Future<void> setPassthrough(String space, bool enabled) => inner.setPassthrough(space, enabled);
+
+  @override
+  Future<String?> createAnchor(String session, DVAnchor anchor) => inner.createAnchor(session, anchor);
+
+  @override
+  Future<String?> persistAnchor(String session, String anchor) async {
+    persisting = true;
+    await _gate.future;
+    return inner.persistAnchor(session, anchor);
+  }
+
+  @override
+  Future<String?> resolveAnchor(String session, String token) => inner.resolveAnchor(session, token);
+
+  @override
+  Future<DVSpatialLightProbe?> probeEnvironment(String session) => inner.probeEnvironment(session);
+
+  @override
+  Stream<DVXRDeviceEvent> observe(String session) => inner.observe(session);
 }

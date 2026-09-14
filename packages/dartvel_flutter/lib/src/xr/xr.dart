@@ -171,6 +171,12 @@ final class DVSharedStoreAnchorStore implements DVSpatialAnchorStore {
 
   @override
   Future<void> remove(String id) => store.setReserved('$prefix$id', null);
+
+  @override
+  Future<List<String>> ids() async => <String>[
+        for (final String key in await store.keys())
+          if (key.startsWith(prefix)) key.substring(prefix.length),
+      ];
 }
 
 /// The XR device reached through generated native bindings.
