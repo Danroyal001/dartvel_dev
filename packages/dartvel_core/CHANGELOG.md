@@ -1,5 +1,35 @@
 ## Unreleased
 
+- **Semantic search, as a runtime (`DVSemanticIndex`).** Search over a
+  model's records by meaning, built on what already exists: writes enqueue an
+  embedding job on `DVQueues` and embed nothing inline, keyword and hybrid
+  modes use the model's `DVSearchProvider`, and `DVAIEmbedder` wraps any
+  `DVAIAdapter`. Keyword stays the default mode. There is no default
+  embedder (`DV-SEMANTIC-001`): vectors from two models are not comparable,
+  so an index is a generation named after its embedder, dimensions and
+  chunking. A new embedder builds its generation alongside the old one
+  (`DV-SEMANTIC-003`); writes land in both, queries keep answering from the
+  old one, embedded with the old model, until `backfill(complete: true)`
+  switches over, and a backfill that fails part-way resumes rather than
+  re-embedding what it already did. Vectors of another length are refused.
+- **Scope goes into the vector query.** A k-nearest query filtered afterwards
+  shows one tenant another's rows or none of their own, so a tenant- or
+  policy-scoped model on an adapter that cannot filter is refused
+  (`DV-SEMANTIC-002`), and
+  expressible predicates are pushed down. Every loaded row is still checked
+  against the caller's tenant and policy, whatever the adapter was asked to
+  do. What only a policy can decide is post-filtered with refill up to a
+  bound, and a page cut short by that bound says so (`bounded`,
+  `DV-SEMANTIC-005`) rather than looking complete. Long fields are chunked,
+  a record is returned once with the chunk that matched, and `retrieve`
+  hands an AI feature rows without sensitive fields; a sensitive field cannot
+  be embedded at all. A record whose embedding job dead-lettered is reported
+  by `absentRecords()` (`DV-SEMANTIC-004`), since nobody reports a result
+  they never saw. Embedding costs are recorded on a `DVMeters` counter, and a
+  tenant past a blocking limit is refused (`DV-SEMANTIC-007`) before the
+  query is embedded, not quietly answered by keyword search.
+  `DVInMemoryVectorAdapter` is the reference adapter for development and
+  tests; pgvector and the search services' vector APIs are not built yet.
 - **Crash reporting and release health, as a runtime (`DVCrashReporting`).**
   A crash is written to disk by the handler, synchronously and with nothing
   awaited, and sent by the next launch: a handler runs in a process that is
