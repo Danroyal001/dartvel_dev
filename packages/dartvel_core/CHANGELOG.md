@@ -1,5 +1,23 @@
 ## Unreleased
 
+- **A preview process starts as a preview or not at all.**
+  `DVPreviewServer.start(environment)` returns null and installs nothing
+  outside `DARTVEL_ENVIRONMENT=preview`. In a preview it switches capture on
+  first, then refuses to start (`DVPreviewStartupException`) when the preview
+  settings cannot be read, when `DARTVEL_QUEUE_NAMESPACE` is not
+  `preview-<name>`, when `DARTVEL_DATABASE` is missing, does not carry the
+  preview's digest or equals `DARTVEL_PRODUCTION_DATABASE`, when
+  `DATABASE_URL` cannot be read, or when a members preview has no membership
+  check. Only after every check passes are the queues namespaced and
+  `DV.Database` configured from `DATABASE_URL` aimed at the preview's own
+  database; `DV.Database.configure` then refuses a server adapter naming any
+  other database. `wrap(handler)` puts a handler behind the preview's access
+  gate. Capture no longer waits for a startup call either: a process whose
+  environment says preview captures mail and notifications, and runs no
+  undeclared schedule, from its first send, including a job worker that never
+  starts a server. Preview deployments now also write
+  `DARTVEL_PRODUCTION_DATABASE`, on create and on redeploy.
+
 - **`DVDatabaseConnection` resolves a database from the environment.**
   `DATABASE_URL` (postgres, mysql, sqlite, with `sslmode`) gives the server
   and credentials and `DARTVEL_DATABASE` names the database on it, so one
