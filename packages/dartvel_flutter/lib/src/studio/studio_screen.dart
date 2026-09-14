@@ -4,6 +4,7 @@ import 'package:flutter/material.dart' show Icon, IconData, Icons, Material;
 import 'package:flutter/widgets.dart';
 
 import '../../dartvel_flutter.dart';
+import 'studio_review.dart';
 
 /// The Studio admin surface: a navigation rail, and the section it opens.
 ///
@@ -31,12 +32,19 @@ class DVStudioScreen extends StatefulWidget {
   /// The seam collaboration and permissions attach through.
   final List<DVStudioEditorHook> editorHooks;
 
+  final DVStudioContent? content;
+  final Object? actor;
+  final List<String> reviewers;
+
   const DVStudioScreen({
     super.key,
     this.store = const DVPageStore(),
     this.palette = const <DVStudioPaletteItem>[],
     this.sections = const <DVStudioSection>[],
     this.editorHooks = const <DVStudioEditorHook>[],
+    this.content,
+    this.actor,
+    this.reviewers = const <String>[],
   });
 
   @override
@@ -86,6 +94,9 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
             store: widget.store,
             palette: widget.palette,
             editorHooks: widget.editorHooks,
+            content: widget.content,
+            actor: widget.actor,
+            reviewers: widget.reviewers,
             attached: <String>[
               for (final DVStudioSection section in widget.sections)
                 section.label,
@@ -290,12 +301,19 @@ class _DVStudioPagesSection extends StatefulWidget {
   /// overview.
   final List<String> attached;
 
+  final DVStudioContent? content;
+  final Object? actor;
+  final List<String> reviewers;
+
   const _DVStudioPagesSection({
     super.key,
     required this.store,
     required this.palette,
     required this.editorHooks,
     required this.attached,
+    this.content,
+    this.actor,
+    this.reviewers = const <String>[],
   });
 
   @override
@@ -305,6 +323,18 @@ class _DVStudioPagesSection extends StatefulWidget {
 class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
   List<String> _routes = <String>[];
   final Map<String, DVPageDocument> _documents = <String, DVPageDocument>{};
+
+  /// Each route's versions, when the content workflow is attached, for the
+  /// state badges on the page list and the cards.
+  final Map<String, List<DVContentVersion<DVPageDocument>>> _versions =
+      <String, List<DVContentVersion<DVPageDocument>>>{};
+
+  /// The open page's workflow state and actions, when the workflow is
+  /// attached.
+  StudioReviewSession? _review;
+  bool _reviewOpen = false;
+  bool _historyOpen = false;
+  bool _scheduling = false;
   DVStudioEditorController? _controller;
   String? _error;
   bool _loading = true;
@@ -341,6 +371,23 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
     super.dispose();
   }
 
+  @override
+  void didUpdateWidget(_DVStudioPagesSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final DVStudioContent? content = widget.content;
+    // Compared by the id the workflow records rather than by identity, so an
+    // application that builds a fresh user object on every frame does not
+    // close the editor on every frame.
+    final bool actorChanged = content != null &&
+        oldWidget.content == content &&
+        content.actorIdOf(oldWidget.actor) != content.actorIdOf(widget.actor);
+    if (oldWidget.content != content || actorChanged) {
+      // An editor opened for one person must not keep acting as them.
+      setState(_closeEditor);
+      unawaited(_loadRoutes());
+    }
+  }
+
   void _closeEditor() {
     for (final VoidCallback detach in _detach) {
       detach();
@@ -348,17 +395,40 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
     _detach = const <VoidCallback>[];
     _controller?.dispose();
     _controller = null;
+    _review?.dispose();
+    _review = null;
+    _reviewOpen = false;
+    _historyOpen = false;
+    _scheduling = false;
   }
 
   Future<void> _loadRoutes() async {
     try {
-      final List<String> routes = await widget.store.routes();
+      final DVStudioContent? content = widget.content;
+      final List<String> stored = await widget.store.routes();
+      // With the workflow attached the store holds only what is published,
+      // so a page that has only been a draft is listed from its versions.
+      final List<String> routes = content == null
+          ? stored
+          : (<String>{...stored, ...await content.routes()}.toList()..sort());
+      final Map<String, List<DVContentVersion<DVPageDocument>>> versions =
+          <String, List<DVContentVersion<DVPageDocument>>>{};
+      if (content != null) {
+        for (final String route in routes) {
+          versions[route] = await content.workflow.versions(route);
+        }
+      }
       // The documents too, for the overview's thumbnails. A page that fails
       // to load is shown without one rather than taking the list down.
       final Map<String, DVPageDocument> documents = <String, DVPageDocument>{};
       for (final String route in routes) {
         try {
-          final DVPageDocument? document = await widget.store.load(route);
+          final List<DVContentVersion<DVPageDocument>> of =
+              versions[route] ?? const <DVContentVersion<DVPageDocument>>[];
+          final DVPageDocument? document =
+              studioOpenVersion(of)?.document ??
+                  await widget.store.load(route) ??
+                  studioPublishedVersion(of)?.document;
           if (document != null) documents[route] = document;
         } on Object {
           // Listed without a thumbnail.
@@ -370,6 +440,9 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
         _documents
           ..clear()
           ..addAll(documents);
+        _versions
+          ..clear()
+          ..addAll(versions);
         _loading = false;
         _error = null;
       });
@@ -385,17 +458,55 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
   }
 
   Future<void> _open(String route) async {
-    final DVPageDocument? document = await widget.store.load(route);
-    if (!mounted || document == null) return;
-    _select(document);
+    final DVStudioContent? content = widget.content;
+    if (content == null) {
+      final DVPageDocument? document = await widget.store.load(route);
+      if (!mounted || document == null) return;
+      _select(document);
+      return;
+    }
+    try {
+      // The open version is what is being written; the published page is
+      // what an edit starts from when nothing is open.
+      final List<DVContentVersion<DVPageDocument>> versions =
+          await content.workflow.versions(route);
+      final DVPageDocument? document =
+          studioOpenVersion(versions)?.document ??
+              await widget.store.load(route) ??
+              studioPublishedVersion(versions)?.document;
+      if (!mounted || document == null) return;
+      _select(document);
+    } catch (error) {
+      if (mounted) setState(() => _error = '$error');
+    }
   }
 
-  void _select(DVPageDocument document) {
+  void _select(DVPageDocument document, {bool keepPanels = false}) {
+    final bool review = _reviewOpen;
+    final bool history = _historyOpen;
     setState(() {
       _closeEditor();
       final DVStudioEditorController controller =
           DVStudioEditorController(document);
       _controller = controller;
+      final DVStudioContent? content = widget.content;
+      if (content != null) {
+        // Before the hooks, so a hook can still take the publisher over.
+        content.attach(controller, as: widget.actor);
+        final StudioReviewSession session = StudioReviewSession(
+          content: content,
+          actor: widget.actor,
+          route: document.route,
+          onSettled: () => unawaited(_loadRoutes()),
+        );
+        _review = session;
+        unawaited(session.reload());
+        if (keepPanels) {
+          _reviewOpen = review;
+          _historyOpen = history;
+          if (history) unawaited(session.loadHistory());
+        }
+      }
       _detach = <VoidCallback>[
         for (final DVStudioEditorHook hook in widget.editorHooks)
           hook(controller),
@@ -419,6 +530,12 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
   Future<void> _publish() async {
     final DVStudioEditorController? controller = _controller;
     if (controller == null || _saving) return;
+    final StudioReviewSession? review = _review;
+    if (review != null) {
+      // Opens or edits a draft; the session shows a refusal where it happened.
+      await review.saveDraft(controller);
+      return;
+    }
     setState(() => _saving = true);
     try {
       await controller.save();
@@ -436,6 +553,22 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
   Future<void> _revert() async {
     final DVStudioEditorController? controller = _controller;
     if (controller == null) return;
+    final StudioReviewSession? review = _review;
+    if (review != null) {
+      // Through the workflow, never around it: withdrawing the open version
+      // abandons the draft, and withdrawing the published one takes the
+      // override down. Either way the refusal, if any, is shown.
+      if (!await review.discard()) return;
+      final DVPageDocument? standing =
+          studioPublishedVersion(review.versions)?.document;
+      if (!mounted) return;
+      if (standing == null) {
+        setState(_closeEditor);
+      } else {
+        _select(standing);
+      }
+      return;
+    }
     await widget.store.delete(controller.document.route);
     if (!mounted) return;
     setState(_closeEditor);
@@ -449,10 +582,41 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
     }
     final DVStudioEditorController? controller = _controller;
     if (controller == null) return _overview();
+    final StudioReviewSession? review = _review;
     return ListenableBuilder(
-      listenable: controller,
+      listenable: review == null
+          ? controller
+          : Listenable.merge(<Listenable>[controller, review]),
       builder: (BuildContext context, Widget? _) => _editor(controller),
     );
+  }
+
+  /// Restores a superseded version, then reopens the editor on it, so what
+  /// is on the canvas is what is now published rather than an unsaved
+  /// difference from it.
+  Future<void> _restoreVersion(
+      StudioReviewSession review, DVContentVersion<DVPageDocument> version) async {
+    if (!await review.restore(version)) return;
+    final DVPageDocument? standing =
+        studioPublishedVersion(review.versions)?.document;
+    if (!mounted || standing == null) return;
+    _select(standing, keepPanels: true);
+  }
+
+  void _toggleReview() => setState(() {
+        _reviewOpen = !_reviewOpen;
+        if (_reviewOpen) {
+          _historyOpen = false;
+          _showingCode = false;
+        }
+      });
+
+  void _toggleHistory() {
+    setState(() {
+      _historyOpen = !_historyOpen;
+      if (_historyOpen) _showingCode = false;
+    });
+    if (_historyOpen) unawaited(_review?.loadHistory());
   }
 
   // --- overview -------------------------------------------------------------
@@ -558,10 +722,46 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
           subtitle: withSubtitles ? _subtitleFor(route) : null,
           icon: route == '/' ? DVStudioIcons.home : DVStudioIcons.page,
           selected: route == open,
-          trailing: DVStudioStyle.dot(DVStudioStyle.success),
+          trailing: widget.content == null
+              ? DVStudioStyle.dot(DVStudioStyle.success)
+              : _stateMarker(
+                  route,
+                  key: 'dv-studio-route-state-$route',
+                  badge: withSubtitles,
+                ),
           onTap: () => unawaited(_open(route)),
         ),
     ];
+  }
+
+  /// The version a page's badge describes: the one being written, else the
+  /// one being served, else the last there was.
+  DVContentVersion<DVPageDocument>? _stateVersion(String route) {
+    final List<DVContentVersion<DVPageDocument>> versions =
+        _versions[route] ?? const <DVContentVersion<DVPageDocument>>[];
+    return studioOpenVersion(versions) ??
+        studioPublishedVersion(versions) ??
+        (versions.isEmpty ? null : versions.last);
+  }
+
+  /// A page's workflow state: a badge where there is room for the word, a
+  /// dot with the word as its tooltip where there is not. A page stored
+  /// before the workflow was attached is served, so it reads as published.
+  Widget _stateMarker(String route,
+      {required String key, required bool badge}) {
+    final DVContentVersion<DVPageDocument>? version = _stateVersion(route);
+    final String label = version == null
+        ? 'Published'
+        : studioContentStateLabel(version.state);
+    final Color tone = version == null
+        ? DVStudioStyle.success
+        : studioContentStateTone(version.state);
+    return KeyedSubtree(
+      key: ValueKey<String>(key),
+      child: badge
+          ? DVStudioStyle.badge(label, tone: tone)
+          : DVStudioStyle.tooltip(label, DVStudioStyle.dot(tone)),
+    );
   }
 
   /// A page's title beside its route, when it has one of its own.
@@ -642,24 +842,30 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
           detail: windows.isEmpty ? 'None right now' : 'Live from the app',
         ),
       ),
-      DVStudioStyle.statCard(
-        label: 'Sections',
-        value: '${2 + widget.attached.length}',
-        icon: DVStudioIcons.components,
-        tone: const Color(0xFFB2479B),
-        detail: widget.attached.isEmpty
-            ? 'Pages and Windows'
-            : 'Including ${widget.attached.join(', ')}',
-      ),
-      DVStudioStyle.statCard(
-        label: 'Last publish',
-        value: _lastPublished == null ? '—' : _ago(_lastPublished!),
-        icon: DVStudioIcons.publish,
-        tone: DVStudioStyle.success,
-        detail: _lastPublished == null
-            ? 'Nothing published this session'
-            : 'This session',
-      ),
+      if (widget.content == null)
+        DVStudioStyle.statCard(
+          label: 'Sections',
+          value: '${2 + widget.attached.length}',
+          icon: DVStudioIcons.components,
+          tone: const Color(0xFFB2479B),
+          detail: widget.attached.isEmpty
+              ? 'Pages and Windows'
+              : 'Including ${widget.attached.join(', ')}',
+        )
+      else
+        _needsReview(),
+      if (widget.content == null)
+        DVStudioStyle.statCard(
+          label: 'Last publish',
+          value: _lastPublished == null ? '—' : _ago(_lastPublished!),
+          icon: DVStudioIcons.publish,
+          tone: DVStudioStyle.success,
+          detail: _lastPublished == null
+              ? 'Nothing published this session'
+              : 'This session',
+        )
+      else
+        _lastWorkflowPublish(),
     ];
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints box) {
@@ -679,6 +885,62 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
           ],
         );
       },
+    );
+  }
+
+  /// How many pages wait on a reviewer, and how many are scheduled: the two
+  /// numbers somebody opening Studio in the morning needs first.
+  Widget _needsReview() {
+    int review = 0;
+    int scheduled = 0;
+    for (final String route in _routes) {
+      switch (_stateVersion(route)?.state) {
+        case DVContentState.review:
+          review++;
+        case DVContentState.scheduled:
+          scheduled++;
+        default:
+          break;
+      }
+    }
+    return KeyedSubtree(
+      key: const ValueKey<String>('dv-studio-needs-review'),
+      child: DVStudioStyle.statCard(
+        label: 'Needs review',
+        value: '$review',
+        icon: DVStudioIcons.approvals,
+        tone: DVStudioStyle.warning,
+        detail: scheduled == 0
+            ? (review == 0 ? 'Nothing waiting' : 'Waiting on a reviewer')
+            : scheduled == 1
+                ? 'And 1 page scheduled'
+                : 'And $scheduled pages scheduled',
+      ),
+    );
+  }
+
+  /// The most recent publish the workflow recorded, not this session's: a
+  /// publish somebody else made this morning is the one worth knowing about.
+  Widget _lastWorkflowPublish() {
+    DVContentVersion<DVPageDocument>? latest;
+    for (final List<DVContentVersion<DVPageDocument>> versions
+        in _versions.values) {
+      for (final DVContentVersion<DVPageDocument> v in versions) {
+        final DateTime? at = v.publishedAt;
+        if (at != null &&
+            (latest == null || at.isAfter(latest.publishedAt!))) {
+          latest = v;
+        }
+      }
+    }
+    return DVStudioStyle.statCard(
+      label: 'Last publish',
+      value: latest == null ? '—' : _ago(latest.publishedAt!),
+      icon: DVStudioIcons.publish,
+      tone: DVStudioStyle.success,
+      detail: latest == null
+          ? 'Nothing published yet'
+          : '${latest.documentId}${latest.publishedBy == null ? '' : ' by ${latest.publishedBy}'}',
     );
   }
 
@@ -737,6 +999,13 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
                           route: route,
                           document: _documents[route],
                           onOpen: () => unawaited(_open(route)),
+                          state: widget.content == null
+                              ? null
+                              : _stateMarker(
+                                  route,
+                                  key: 'dv-studio-card-state-$route',
+                                  badge: true,
+                                ),
                         ),
                       ),
                   ],
@@ -804,13 +1073,23 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
 
   Widget _editor(DVStudioEditorController controller) {
     final bool narrow = _narrow;
-    return Column(
+    final StudioReviewSession? review = _review;
+    final Widget editor = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         _toolbar(controller),
+        if (review != null) ..._banners(review),
         Expanded(
           child: _showingCode
               ? _code(controller)
+              : review != null && _historyOpen
+                  ? StudioHistoryView(
+                      session: review,
+                      narrow: narrow,
+                      onClose: _toggleHistory,
+                      onRestore: (DVContentVersion<DVPageDocument> version) =>
+                          unawaited(_restoreVersion(review, version)),
+                    )
               : Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
@@ -838,19 +1117,77 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
                       ),
                     ),
                     Container(
-                      width: narrow ? 248 : 300,
+                      width: review != null && _reviewOpen
+                          ? (narrow ? 264 : 320)
+                          : (narrow ? 248 : 300),
                       decoration: const BoxDecoration(
                         color: DVStudioStyle.surface,
                         border:
                             Border(left: BorderSide(color: DVStudioStyle.line)),
                       ),
-                      child: DVStudioInspector(controller: controller),
+                      child: review != null && _reviewOpen
+                          ? StudioReviewPanel(
+                              session: review,
+                              controller: controller,
+                              reviewers: widget.reviewers,
+                              onClose: _toggleReview,
+                              onSchedule: () =>
+                                  setState(() => _scheduling = true),
+                              onHistory: _toggleHistory,
+                            )
+                          : DVStudioInspector(controller: controller),
                     ),
                   ],
                 ),
         ),
       ],
     );
+    if (review == null || !_scheduling) return editor;
+    return Stack(
+      children: <Widget>[
+        Positioned.fill(child: editor),
+        Positioned.fill(
+          child: StudioScheduleDialog(
+            session: review,
+            onClose: () {
+              if (mounted) setState(() => _scheduling = false);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// A refusal, and the warning that the open version changed after its
+  /// approval, across the top of the editor where they cannot be missed. The
+  /// warning moves into the review panel when that is open.
+  List<Widget> _banners(StudioReviewSession review) {
+    final StudioContentProblem? problem = review.problem;
+    final DVContentVersion<DVPageDocument>? open = review.open;
+    return <Widget>[
+      if (problem != null)
+        studioBanner(
+          key: const ValueKey<String>('dv-studio-content-error'),
+          tone: DVStudioStyle.danger,
+          icon: Icons.error_outline,
+          title: problem.title,
+          detail: problem.detail,
+          onDismiss: review.dismissProblem,
+        ),
+      if (open != null && open.changedSinceApproval && !_reviewOpen)
+        studioBanner(
+          key: const ValueKey<String>('dv-studio-content-changed'),
+          tone: DVStudioStyle.warning,
+          icon: Icons.warning_amber_rounded,
+          title: 'Changed since approval',
+          detail: studioChangedDetail(open),
+          action: studioActionControl(
+            'dv-studio-content-changed-review',
+            'Open review',
+            _toggleReview,
+          ),
+        ),
+    ];
   }
 
   /// The site's pages, then the Insert panel or the layer tree.
@@ -956,11 +1293,19 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
                     children: <Widget>[
                       DVStudioStyle.heading(route),
                       const SizedBox(width: DVStudioStyle.space2),
-                      stored
-                          ? DVStudioStyle.badge('Published',
-                              tone: DVStudioStyle.success)
-                          : DVStudioStyle.badge('Draft',
-                              tone: DVStudioStyle.warning),
+                      if (_review != null)
+                        studioStatePill(
+                          _review!,
+                          key: const ValueKey<String>(
+                              'dv-studio-content-state'),
+                          onTap: _toggleReview,
+                        )
+                      else if (stored)
+                        DVStudioStyle.badge('Published',
+                            tone: DVStudioStyle.success)
+                      else
+                        DVStudioStyle.badge('Draft',
+                            tone: DVStudioStyle.warning),
                     ],
                   ),
                 ),
@@ -1026,6 +1371,11 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
       {required bool compact}) {
     final VoidCallback toggleCode =
         () => setState(() => _showingCode = !_showingCode);
+    final StudioReviewSession? review = _review;
+    if (review != null) {
+      return _contentActions(controller, review,
+          compact: compact, toggleCode: toggleCode);
+    }
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
@@ -1063,6 +1413,119 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
           _saving ? null : _publish,
           icon: DVStudioIcons.publish,
           primary: true,
+        ),
+      ],
+    );
+  }
+
+  /// The toolbar's actions with the content workflow attached: history and
+  /// review beside undo and code, Save draft instead of a Publish that would
+  /// not publish, Schedule when a version is ready for it, and one primary
+  /// action that follows the version's state and the actor's policy.
+  Widget _contentActions(
+    DVStudioEditorController controller,
+    StudioReviewSession review, {
+    required bool compact,
+    required VoidCallback toggleCode,
+  }) {
+    final DVContentVersion<DVPageDocument>? open = review.open;
+    final StudioContentAction primary = review.primary(
+      controller.document,
+      openPanel: () => setState(() {
+        _reviewOpen = true;
+        _historyOpen = false;
+        _showingCode = false;
+      }),
+      onSave: () => unawaited(_publish()),
+    );
+    final String? saveReason = review.saveReason(controller.document);
+    final String? scheduleReason = review.scheduleReason();
+    final bool schedulable = open != null &&
+        (open.state == DVContentState.approved ||
+            open.state == DVContentState.scheduled);
+    final Widget divider = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: DVStudioStyle.space2),
+      child: Container(width: 1, height: 24, color: DVStudioStyle.line),
+    );
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        _keyedIcon('dv-studio-undo', DVStudioIcons.undo, 'Undo',
+            controller.canUndo ? controller.undo : null),
+        _keyedIcon('dv-studio-redo', DVStudioIcons.redo, 'Redo',
+            controller.canRedo ? controller.redo : null),
+        divider,
+        _keyedIcon(
+          'dv-studio-view-code',
+          _showingCode ? DVStudioIcons.design : DVStudioIcons.code,
+          _showingCode ? 'Design' : 'Code',
+          toggleCode,
+        ),
+        _keyedIcon('dv-studio-history', DVStudioIcons.history,
+            _historyOpen ? 'Back to the canvas' : 'History', _toggleHistory),
+        _keyedIcon('dv-studio-review', DVStudioIcons.approvals,
+            _reviewOpen ? 'Close review' : 'Review', _toggleReview),
+        if (review.versions.isNotEmpty)
+          _keyedIcon(
+            'dv-studio-revert',
+            DVStudioIcons.revert,
+            open != null ? 'Discard draft' : 'Unpublish',
+            review.busy ? null : _revert,
+          ),
+        divider,
+        if (open != null) ...<Widget>[
+          if (compact)
+            DVStudioStyle.tooltip(
+              saveReason ?? 'Save draft',
+              GestureDetector(
+                key: const ValueKey<String>('dv-studio-save'),
+                onTap: saveReason == null && !review.busy
+                    ? () => unawaited(_publish())
+                    : null,
+                child: SizedBox(
+                  width: 32,
+                  height: 32,
+                  child: Icon(Icons.save_outlined,
+                      size: 18,
+                      color: saveReason == null
+                          ? DVStudioStyle.ink
+                          : DVStudioStyle.faint),
+                ),
+              ),
+            )
+          else
+            studioActionControl(
+              'dv-studio-save',
+              'Save draft',
+              saveReason == null && !review.busy
+                  ? () => unawaited(_publish())
+                  : null,
+              icon: Icons.save_outlined,
+              reason: saveReason,
+            ),
+          const SizedBox(width: DVStudioStyle.space2),
+        ],
+        if (schedulable) ...<Widget>[
+          studioActionControl(
+            'dv-studio-schedule',
+            open.state == DVContentState.scheduled
+                ? 'Reschedule…'
+                : 'Schedule…',
+            scheduleReason == null && !review.busy
+                ? () => setState(() => _scheduling = true)
+                : null,
+            icon: Icons.schedule,
+            reason: scheduleReason,
+          ),
+          const SizedBox(width: DVStudioStyle.space2),
+        ],
+        studioActionControl(
+          'dv-studio-content-primary',
+          primary.label,
+          primary.run,
+          icon: primary.icon,
+          primary: true,
+          reason: primary.reason,
         ),
       ],
     );
@@ -1133,10 +1596,15 @@ class _DVStudioPageCard extends StatefulWidget {
   final DVPageDocument? document;
   final VoidCallback onOpen;
 
+  /// The page's workflow state, when the content workflow is attached. A
+  /// green dot otherwise, because without it every stored page is live.
+  final Widget? state;
+
   const _DVStudioPageCard({
     required this.route,
     required this.document,
     required this.onOpen,
+    this.state,
   });
 
   @override
@@ -1201,7 +1669,7 @@ class _DVStudioPageCardState extends State<_DVStudioPageCard> {
                           .color(DVStudioStyle.ink)
                           .fontWeight(FontWeight.w600)),
                     ),
-                    DVStudioStyle.dot(DVStudioStyle.success),
+                    widget.state ?? DVStudioStyle.dot(DVStudioStyle.success),
                   ],
                 ),
               ),
