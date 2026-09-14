@@ -277,27 +277,38 @@ final class DVSceneRuntime {
     _initialized = true;
     if (_disposed) return _degradation;
     if (initial != DV3DDegradation.none) return _degrade(initial);
-    return _sync();
+    return _sync(_document);
   }
 
   /// Moves to [next], keeping the resources for assets it still uses.
+  ///
+  /// The current scene keeps drawing until [next]'s assets have loaded, and
+  /// then the two swap at once. Swapping first would draw the new nodes
+  /// before their resources exist: a scene with a hole in it for as long as
+  /// the download takes.
   Future<DV3DDegradation> update(DV3DSceneDocument next) async {
     if (_disposed) return _degradation;
-    _document = next;
-    _graph = DVSceneGraph(next);
-    if (_targetCause != null || !_initialized) return _degradation;
-    return _sync();
+    if (_targetCause != null || !_initialized) {
+      // Nothing is drawing, so there is nothing to keep on screen.
+      _document = next;
+      _graph = DVSceneGraph(next);
+      return _degradation;
+    }
+    return _sync(next);
   }
 
-  Future<DV3DDegradation> _sync() async {
+  Future<DV3DDegradation> _sync(DV3DSceneDocument document) async {
     final int generation = ++_generation;
-    final DV3DSceneDocument document = _document;
+    final DVSceneGraph graph =
+        identical(document, _document) ? _graph : DVSceneGraph(document);
     final List<String> keys = _referencedAssets(document);
     final List<DVSceneAssetState> states = await Future.wait(<Future<DVSceneAssetState>>[
       for (final String key in keys) _loader.load(key, document.assets[key]!),
     ]);
     // Disposed, or overtaken by a newer update, while loading.
     if (_disposed || generation != _generation) return _degradation;
+    _document = document;
+    _graph = graph;
 
     final List<String> failed = <String>[
       for (int i = 0; i < keys.length; i++)

@@ -1,5 +1,21 @@
 ## Unreleased
 
+- **3D Scenes: the platform-independent runtime.** `DV3DSceneDocument`
+  states its units, up axis and handedness, keeps node ids, child order and
+  keys a newer version wrote, encodes canonically, and refuses a duplicate id,
+  an undeclared asset or a non-finite or zero-scale transform at decode.
+  `DVSceneGraph` converts that basis into right-handed Y-up metres and picks
+  against each node's true local shape. `DVSceneAssetPolicy` refuses a stored
+  key under another tenant, an unlisted host or an undigested asset before any
+  request; `DVSceneAssetLoader` verifies the digest and reads models with
+  `DVGltf`, which counts triangles and bounds through the node hierarchy
+  without decoding geometry. `DVSceneRuntime` drives a `DVSceneRenderer`
+  adapter -- one upload per asset, every resource released once, the previous
+  scene kept on screen while an update loads, and `DV-3D-001` reported once
+  per boot per cause -- and `DV.Test.fake3D()` substitutes the headless
+  `DVSceneRecordingRenderer`. No renderer is configured by default: until a
+  Flutter GPU adapter exists, every scene presents its poster.
+
 - **Schema Evolution's tracker and Backend Release Management agree on where
   a migration stands and whether it may contract.** Verification is now its
   own recorded state: `DVSchemaEvolution.verify` records that every chunk

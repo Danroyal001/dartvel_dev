@@ -4,6 +4,8 @@
 // resource uploaded and never released, a resource released twice or drawn
 // after release, draw order that changes between runs, and a poster shown
 // without anyone being told why.
+import 'dart:async';
+
 import 'package:dartvel_core/dartvel.dart';
 import 'package:test/test.dart';
 
@@ -218,13 +220,44 @@ void main() {
       expect(runtime.liveResources, 0);
     });
 
-    test('a scene disposed while its assets are still loading leaks nothing',
+    test('a scene disposed while its renderer is starting leaks nothing',
         () async {
       final DVSceneRuntime runtime =
           DVSceneRuntime(document: doc(), renderer: renderer, loader: loader());
       final Future<DV3DDegradation> starting = runtime.start();
       runtime.dispose();
       await starting;
+      expect(renderer.live, isEmpty);
+      expect(fetched, isEmpty);
+    });
+
+    test('a scene disposed while an asset fetch is pending uploads nothing after',
+        () async {
+      // Disposing during the renderer's start is caught before any load
+      // begins; this is the other window, with a fetch in flight.
+      final Completer<List<int>?> pending = Completer<List<int>?>();
+      final Completer<void> requested = Completer<void>();
+      final DVSceneRuntime runtime = DVSceneRuntime(
+        document: doc(),
+        renderer: renderer,
+        loader: DVSceneAssetLoader(
+          tenant: () => 'acme',
+          fetchers: <DVSceneAssetSource, DVSceneAssetFetch>{
+            DVSceneAssetSource.stored: (DVSceneAsset a) {
+              requested.complete();
+              return pending.future;
+            },
+          },
+        ),
+      );
+      final Future<DV3DDegradation> starting = runtime.start();
+      await requested.future;
+
+      runtime.dispose();
+      pending.complete(kart);
+      await starting;
+
+      expect(renderer.uploads, isEmpty);
       expect(renderer.live, isEmpty);
     });
 
@@ -245,6 +278,81 @@ void main() {
           ],
         )),
         throwsStateError,
+      );
+    });
+
+    test('an update while the first load is in flight renders the update, not the original',
+        () async {
+      final Completer<List<int>?> slow = Completer<List<int>?>();
+      final Completer<void> requested = Completer<void>();
+      final DVSceneRuntime runtime = DVSceneRuntime(
+        document: doc(),
+        renderer: renderer,
+        loader: DVSceneAssetLoader(
+          tenant: () => 'acme',
+          fetchers: <DVSceneAssetSource, DVSceneAssetFetch>{
+            DVSceneAssetSource.stored: (DVSceneAsset a) {
+              if (a.reference.endsWith('kart.glb')) {
+                requested.complete();
+                return slow.future;
+              }
+              return Future<List<int>?>.value(kart);
+            },
+          },
+        ),
+      );
+      final Future<DV3DDegradation> starting = runtime.start();
+      await requested.future;
+
+      final Future<DV3DDegradation> updating =
+          runtime.update(doc(models: <String>['crate']));
+      slow.complete(kart);
+      await starting;
+      expect(await updating, DV3DDegradation.none);
+
+      expect(renderer.live.map((DVSceneResource r) => r.assetKey), <String>['crate']);
+      expect(
+        runtime.frame(DVSceneView.orbit(distance: 3), 10, 10)
+            .draws
+            .map((DVSceneDraw d) => d.nodeId),
+        <String>['crate-a', 'crate-b'],
+      );
+    });
+
+    test('while an update loads, the previous scene keeps drawing, with nothing missing',
+        () async {
+      final Completer<List<int>?> slowCrate = Completer<List<int>?>();
+      final DVSceneRuntime runtime = DVSceneRuntime(
+        document: doc(),
+        renderer: renderer,
+        loader: DVSceneAssetLoader(
+          tenant: () => 'acme',
+          fetchers: <DVSceneAssetSource, DVSceneAssetFetch>{
+            DVSceneAssetSource.stored: (DVSceneAsset a) =>
+                a.reference.endsWith('crate.glb')
+                    ? slowCrate.future
+                    : Future<List<int>?>.value(kart),
+          },
+        ),
+      );
+      await runtime.start();
+
+      final Future<DV3DDegradation> updating =
+          runtime.update(doc(models: <String>['kart', 'crate']));
+      await Future<void>.delayed(Duration.zero);
+
+      final DVSceneFrame during =
+          runtime.frame(DVSceneView.orbit(distance: 3), 10, 10);
+      expect(during.draws.map((DVSceneDraw d) => d.nodeId), <String>['kart-a', 'kart-b']);
+      expect(during.draws.every((DVSceneDraw d) => d.resource != null), isTrue);
+
+      slowCrate.complete(kart);
+      await updating;
+      expect(
+        runtime.frame(DVSceneView.orbit(distance: 3), 10, 10)
+            .draws
+            .map((DVSceneDraw d) => d.nodeId),
+        <String>['kart-a', 'kart-b', 'crate-a', 'crate-b'],
       );
     });
 

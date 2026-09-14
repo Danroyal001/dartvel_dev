@@ -23,6 +23,7 @@ import 'src/notifications/web_push.dart';
 import 'src/notifications/web_push_vapid.dart';
 import 'src/observability/observability.dart';
 import 'src/preview/preview_outbound.dart' show DVPreviewOutbound;
+import 'src/scene3d/scene3d.dart' show DV3DDegradation, DVSceneFake;
 import 'src/scheduling/cron.dart';
 import 'src/search/search_tuning.dart';
 import 'src/tenancy/tenants.dart';
@@ -4002,6 +4003,13 @@ class DVCacheTags {
 
 class DVTestHarness {
   const DVTestHarness();
+
+  /// Substitutes a headless 3D backend: every scene created afterwards gets
+  /// its own [DVSceneRecordingRenderer], so scene logic -- signals, picking,
+  /// asset loading, resource lifetime -- tests without a GPU.
+  /// `DVScene3D.reset()` takes it away.
+  DVSceneFake fake3D({DV3DDegradation initialization = DV3DDegradation.none}) =>
+      DVSceneFake.install(initialization: initialization);
 
   /// Answers outbound `DV.Http` requests from [stubs], by declared host name
   /// or by the host of an absolute URL, and refuses any request no stub
