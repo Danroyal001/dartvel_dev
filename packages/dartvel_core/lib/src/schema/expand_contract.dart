@@ -5,18 +5,27 @@
 /// outage it was meant to avoid -- so a release that already ran a phase
 /// cannot run the next one.
 ///
-/// The read switch, from verify to contract, requires three things at once:
-/// every chunk backfilled, every chunk verified, and the dual-write
-/// discrepancy counter at zero for the whole verification window. The
-/// contract, and the later drop of the old column, are refused while any
-/// client inside the protocol window still reads the old shape: the release
-/// that expands raised the protocol, and a client older than it knows only the
-/// old column.
+/// Verification and the read switch are separate. [DVSchemaEvolution.verify]
+/// records that every chunk is backfilled, every chunk verified, and the
+/// dual-write discrepancy counter at zero for the whole verification window;
+/// it is the job's result, not a deploy, and a discrepancy recorded afterwards
+/// takes it away. [DVSchemaEvolution.switchReads] then moves reads to the new
+/// shape in a release of its own, while both shapes are still written, so
+/// every release that reads the old shape is still a safe rollback target.
+///
+/// The contract stops writing the old shape and a later release drops it.
+/// Both are decided by Backend Release Management's [DVContractDecision], the
+/// same decision its contract-step gate makes: refused while any client inside
+/// the protocol window still reads the old shape -- the release that expands
+/// raised the protocol, and a client older than it knows only the old column
+/// -- and while the release being replaced still reads it.
 library dartvel_core.schema.expand_contract;
 
 import 'dart:convert';
 
 import '../database/adapter.dart';
+import '../release/contract_gate.dart'
+    show DVContractDecision, DVContractReplacing;
 import '../release/release_record.dart' show DVReleaseMigrationPhase;
 import '../release/rollback.dart' show DVMigrationPhaseSource;
 import 'backfill.dart';
@@ -33,11 +42,13 @@ enum DVSchemaPhase {
   /// Existing rows are copied, chunk by chunk.
   backfill,
 
-  /// Every chunk is compared on both shapes.
+  /// Every chunk is compared on both shapes. Once they agree for the whole
+  /// window the migration is verified, and a release of its own moves reads
+  /// to the new shape while both shapes are still written.
   verify,
 
-  /// Reads move to the new shape and dual-write stops. The old column is
-  /// dropped in a later release.
+  /// Dual-write stops, so the old shape is no longer kept current. Reads moved
+  /// in an earlier release; the old column is dropped in a later one.
   contract,
 }
 
@@ -59,7 +70,9 @@ final class DVSchemaPhaseResult {
   final List<DVSchemaFinding> findings;
 
   /// Refusals the specification gives no code: a release reused, a backfill
-  /// unfinished, a window not yet elapsed, a client histogram missing.
+  /// unfinished, a window not yet elapsed, verification missing, a client
+  /// histogram missing, a release being replaced that still reads the old
+  /// shape.
   final List<String> reasons;
 }
 
@@ -74,11 +87,15 @@ final class DVSchemaEvolution {
     required Map<DVSchemaPhase, DateTime> enteredAt,
     required List<DateTime> discrepancies,
     required String? dropRelease,
+    required DateTime? verifiedAt,
+    required String? readSwitchRelease,
   }) : _phase = phase,
        _releases = releases,
        _enteredAt = enteredAt,
        _discrepancies = discrepancies,
-       _dropRelease = dropRelease;
+       _dropRelease = dropRelease,
+       _verifiedAt = verifiedAt,
+       _readSwitchRelease = readSwitchRelease;
 
   /// Starts an expand/contract: [release] ran the expand at [at].
   ///
@@ -99,8 +116,12 @@ final class DVSchemaEvolution {
     enteredAt: <DVSchemaPhase, DateTime>{DVSchemaPhase.expand: at},
     discrepancies: <DateTime>[],
     dropRelease: null,
+    verifiedAt: null,
+    readSwitchRelease: null,
   );
 
+  /// Reads a saved state. A state saved before verification and the read
+  /// switch were recorded reads as neither: verified again, not assumed.
   factory DVSchemaEvolution.fromJson(Map<String, Object?> json) {
     DVSchemaPhase phaseNamed(Object? name) => DVSchemaPhase.values.firstWhere(
       (DVSchemaPhase p) => p.name == name,
@@ -110,6 +131,7 @@ final class DVSchemaEvolution {
         json['releases']! as Map<Object?, Object?>;
     final Map<Object?, Object?> entered =
         json['enteredAt']! as Map<Object?, Object?>;
+    final Object? verifiedAt = json['verifiedAt'];
     return DVSchemaEvolution._(
       id: json['id']! as String,
       expandProtocol: (json['expandProtocol']! as num).toInt(),
@@ -130,6 +152,8 @@ final class DVSchemaEvolution {
           DateTime.parse('$at'),
       ],
       dropRelease: json['oldShapeDroppedIn'] as String?,
+      verifiedAt: verifiedAt == null ? null : DateTime.parse('$verifiedAt'),
+      readSwitchRelease: json['readsSwitchedIn'] as String?,
     );
   }
 
@@ -142,37 +166,57 @@ final class DVSchemaEvolution {
   final Map<DVSchemaPhase, DateTime> _enteredAt;
   final List<DateTime> _discrepancies;
   String? _dropRelease;
+  DateTime? _verifiedAt;
+  String? _readSwitchRelease;
 
   DVSchemaPhase get phase => _phase;
 
   /// Dual-write discrepancies recorded so far.
   int get discrepancies => _discrepancies.length;
 
+  /// Every chunk agreed for the whole window, and no discrepancy has been
+  /// recorded since.
+  bool get verified => _verifiedAt != null;
+
+  /// A release has moved reads to the new shape.
+  bool get readsSwitched => _readSwitchRelease != null;
+
   bool get oldShapeDropped => _dropRelease != null;
 
-  /// Where this migration stands in Backend Release Management's terms.
+  /// Where this migration stands in Backend Release Management's terms, which
+  /// its rollback planner reads to decide what a rollback can restore.
   ///
-  /// Release management records a narrower, done-so-far view: `backfilled`
-  /// only once the gate into verify has seen the backfill complete, so the
-  /// backfill phase itself still reads as `dualWriting`; the read switch is
-  /// the move into contract, so `contract` reads as `readSwitched`; and
-  /// `contracted` is the old shape actually dropped. `verified` is never
-  /// reported, because verifying and switching reads are one gate here --
-  /// there is no state in which every chunk agrees and reads have not been
-  /// allowed to move.
+  /// `backfilled` only once the gate into verify has seen the backfill
+  /// complete, so the backfill phase itself still reads as `dualWriting`.
+  /// `verified` while verification stands and reads have not moved, and
+  /// `readSwitched` once they have: both shapes are still written in either,
+  /// so a release reading the old shape is still a safe target. `contracted`
+  /// from the contract on, not only once the old column is dropped: the
+  /// contract stops writing the old shape, and a release that reads a column
+  /// nobody writes is not one a rollback may restore.
   DVReleaseMigrationPhase get releasePhase {
     if (oldShapeDropped) return DVReleaseMigrationPhase.contracted;
     return switch (_phase) {
       DVSchemaPhase.expand => DVReleaseMigrationPhase.expanded,
       DVSchemaPhase.dualWrite => DVReleaseMigrationPhase.dualWriting,
       DVSchemaPhase.backfill => DVReleaseMigrationPhase.dualWriting,
-      DVSchemaPhase.verify => DVReleaseMigrationPhase.backfilled,
-      DVSchemaPhase.contract => DVReleaseMigrationPhase.readSwitched,
+      DVSchemaPhase.verify =>
+        readsSwitched
+            ? DVReleaseMigrationPhase.readSwitched
+            : verified
+            ? DVReleaseMigrationPhase.verified
+            : DVReleaseMigrationPhase.backfilled,
+      DVSchemaPhase.contract => DVReleaseMigrationPhase.contracted,
     };
   }
 
-  /// A write that reached one shape and not the other, seen at [at].
-  void recordDiscrepancy(DateTime at) => _discrepancies.add(at);
+  /// A write that reached one shape and not the other, seen at [at]. It takes
+  /// verification away: the counter has to stay at zero for a whole window
+  /// again before reads may move.
+  void recordDiscrepancy(DateTime at) {
+    _discrepancies.add(at);
+    _verifiedAt = null;
+  }
 
   /// Records every `DV-SCHEMA-007` among [findings] as a discrepancy at [at].
   void recordFindings(Iterable<DVSchemaFinding> findings, DateTime at) {
@@ -181,9 +225,71 @@ final class DVSchemaEvolution {
     }
   }
 
+  /// Records that the backfill verifies: every chunk backfilled, every chunk
+  /// verified, and no dual-write discrepancy for the whole window since the
+  /// verify phase began. Not a deploy, so it names no release.
+  DVSchemaPhaseResult verify({
+    required DateTime now,
+    required DVBackfillProgress? progress,
+  }) {
+    if (_phase != DVSchemaPhase.verify) {
+      return _refused(
+        reasons: <String>[
+          '$id is in its ${_phase.name} phase; verification runs in the '
+              'verify phase.',
+        ],
+      );
+    }
+    final List<String> reasons = <String>[];
+    final List<DVSchemaFinding> findings = <DVSchemaFinding>[];
+    _chunks(progress, reasons, findings);
+    _window(now, reasons, findings);
+    if (reasons.isNotEmpty || findings.isNotEmpty) {
+      return _refused(reasons: reasons, findings: findings);
+    }
+    _verifiedAt = now;
+    return DVSchemaPhaseResult(allowed: true, phase: _phase);
+  }
+
+  /// Moves reads to the new shape in [release], once verified. Both shapes are
+  /// still written, so the old one stays current for any release that reads
+  /// it. [progress] is checked again: a chunk that has since stopped matching
+  /// refuses the switch.
+  DVSchemaPhaseResult switchReads({
+    required String release,
+    required DVBackfillProgress? progress,
+  }) {
+    if (_phase != DVSchemaPhase.verify || readsSwitched) {
+      return _refused(
+        reasons: <String>[
+          readsSwitched
+              ? 'Reads of $id already moved in $_readSwitchRelease.'
+              : '$id is in its ${_phase.name} phase; reads switch in the '
+                    'verify phase.',
+        ],
+      );
+    }
+    final String? reused = _reusedBy(release);
+    if (reused != null) return _refused(reasons: <String>[reused]);
+    final List<String> reasons = <String>[];
+    final List<DVSchemaFinding> findings = <DVSchemaFinding>[];
+    if (!verified) {
+      reasons.add(
+        '$id is not verified: every chunk has to agree on both shapes, with no '
+        'dual-write discrepancy, for the whole verification window.',
+      );
+    }
+    _chunks(progress, reasons, findings);
+    if (reasons.isNotEmpty || findings.isNotEmpty) {
+      return _refused(reasons: reasons, findings: findings);
+    }
+    _readSwitchRelease = release;
+    return DVSchemaPhaseResult(allowed: true, phase: _phase);
+  }
+
   /// Moves to the next phase in [release], if its gate allows.
   ///
-  /// [progress] is the backfill's, needed from backfill onward.
+  /// [progress] is the backfill's, needed to enter verify.
   /// [clientProtocols] is every protocol version seen calling inside the
   /// window, needed for the contract; null means "not known", and is refused
   /// rather than read as "no clients".
@@ -222,8 +328,7 @@ final class DVSchemaEvolution {
           );
         }
       case DVSchemaPhase.contract:
-        _readSwitch(now, progress, reasons, findings);
-        _clientsGate(clientProtocols, reasons, findings);
+        _contract(clientProtocols, reasons, findings);
     }
 
     if (reasons.isNotEmpty || findings.isNotEmpty) {
@@ -245,7 +350,7 @@ final class DVSchemaEvolution {
         reasons: <String>[
           oldShapeDropped
               ? 'The old shape of $id was already dropped in $_dropRelease.'
-              : '$id has not contracted; reads are still on the old shape.',
+              : '$id has not contracted; the old shape is still written.',
         ],
       );
     }
@@ -253,7 +358,7 @@ final class DVSchemaEvolution {
     if (reused != null) return _refused(reasons: <String>[reused]);
     final List<String> reasons = <String>[];
     final List<DVSchemaFinding> findings = <DVSchemaFinding>[];
-    _clientsGate(clientProtocols, reasons, findings);
+    _contract(clientProtocols, reasons, findings);
     if (reasons.isNotEmpty || findings.isNotEmpty) {
       return _refused(reasons: reasons, findings: findings);
     }
@@ -262,18 +367,26 @@ final class DVSchemaEvolution {
   }
 
   String? _reusedBy(String release) {
-    for (final MapEntry<DVSchemaPhase, String> ran in _releases.entries) {
-      if (ran.value == release) {
-        return 'Release $release already ran the ${ran.key.name} phase of '
-            '$id. Each phase is a separate deploy, because a phase boundary '
-            'is where a rollback is still cheap.';
-      }
-    }
-    return null;
+    final Map<String, String> ran = <String, String>{
+      for (final MapEntry<DVSchemaPhase, String> e in _releases.entries)
+        e.value: 'the ${e.key.name} phase',
+      if (_readSwitchRelease != null) _readSwitchRelease!: 'the read switch',
+    };
+    final String? step = ran[release];
+    if (step == null) return null;
+    return 'Release $release already ran $step of $id. Each phase is a '
+        'separate deploy, because a phase boundary is where a rollback is '
+        'still cheap.';
   }
 
-  void _readSwitch(
-    DateTime now,
+  /// The release that ran the latest step: the one a contract replaces.
+  String get _latestRelease =>
+      _dropRelease ??
+      _releases[DVSchemaPhase.contract] ??
+      _readSwitchRelease ??
+      _releases[_phase]!;
+
+  void _chunks(
     DVBackfillProgress? progress,
     List<String> reasons,
     List<DVSchemaFinding> findings,
@@ -281,26 +394,31 @@ final class DVSchemaEvolution {
     if (progress == null || !progress.complete) {
       reasons.add('The backfill of $id is not complete.');
     }
-    if (progress != null) {
-      final List<DVBackfillChunk> unverified = progress.unverified;
-      if (unverified.isNotEmpty) {
-        reasons.add(
-          'Chunks of $id not yet verified: '
-          '${unverified.map((DVBackfillChunk c) => c.name).join(', ')}.',
-        );
-      }
-      for (final DVBackfillChunk chunk in progress.mismatched) {
-        findings.add(
-          DVSchemaFinding(
-            'DV-SCHEMA-004',
-            'Chunk ${chunk.name} of $id does not match on both shapes; the '
-                'read switch is refused until it verifies.',
-            chunk: chunk.name,
-          ),
-        );
-      }
+    if (progress == null) return;
+    final List<DVBackfillChunk> unverified = progress.unverified;
+    if (unverified.isNotEmpty) {
+      reasons.add(
+        'Chunks of $id not yet verified: '
+        '${unverified.map((DVBackfillChunk c) => c.name).join(', ')}.',
+      );
     }
+    for (final DVBackfillChunk chunk in progress.mismatched) {
+      findings.add(
+        DVSchemaFinding(
+          'DV-SCHEMA-004',
+          'Chunk ${chunk.name} of $id does not match on both shapes; the '
+              'read switch is refused until it verifies.',
+          chunk: chunk.name,
+        ),
+      );
+    }
+  }
 
+  void _window(
+    DateTime now,
+    List<String> reasons,
+    List<DVSchemaFinding> findings,
+  ) {
     final DateTime? verifying = _enteredAt[DVSchemaPhase.verify];
     final DateTime windowOpened = now.subtract(verificationWindow);
     if (verifying == null || verifying.isAfter(windowOpened)) {
@@ -327,31 +445,48 @@ final class DVSchemaEvolution {
     }
   }
 
-  void _clientsGate(
+  /// The contract and the drop, decided by [DVContractDecision]: the release
+  /// being replaced is the one that ran the latest step, built for where the
+  /// migration stands now.
+  void _contract(
     Set<int>? clientProtocols,
     List<String> reasons,
     List<DVSchemaFinding> findings,
   ) {
-    if (clientProtocols == null) {
+    final DVContractReplacing replacing = (
+      release: _latestRelease,
+      builtFor: releasePhase,
+    );
+    final DVContractDecision decision = DVContractDecision.evaluate(
+      windowed: clientProtocols,
+      readsOldShape: (int protocol) => protocol < expandProtocol,
+      replacing: replacing,
+    );
+    if (!decision.windowKnown) {
       reasons.add(
         'No client protocol histogram was given for $id, so whether a client '
         'still reads the old shape is unknown. Pass the protocol versions '
         'seen inside the window -- an empty set when there are none.',
       );
-      return;
     }
-    final List<int> old = <int>[
-      for (final int protocol in clientProtocols)
-        if (protocol < expandProtocol) protocol,
-    ]..sort();
-    if (old.isEmpty) return;
-    findings.add(
-      DVSchemaFinding(
-        'DV-SCHEMA-005',
-        'Clients on protocol ${old.join(', ')} are inside the window and read '
-            'the old shape of $id, which protocol $expandProtocol replaced.',
-      ),
-    );
+    if (decision.readers.isNotEmpty) {
+      findings.add(
+        DVSchemaFinding(
+          'DV-SCHEMA-005',
+          'Clients on protocol ${decision.readers.join(', ')} are inside the '
+              'window and read the old shape of $id, which protocol '
+              '$expandProtocol replaced.',
+        ),
+      );
+    }
+    if (decision.replacingReadsOldShape) {
+      reasons.add(
+        '${replacing.release}, the release being replaced, was built for '
+        '${replacing.builtFor!.name} and still reads the old shape of $id. '
+        'Reads move to the new shape with switchReads, in a release before '
+        'the contract.',
+      );
+    }
   }
 
   DVSchemaPhaseResult _refused({
@@ -381,6 +516,8 @@ final class DVSchemaEvolution {
       for (final DateTime at in _discrepancies) at.toIso8601String(),
     ],
     'oldShapeDroppedIn': _dropRelease,
+    'verifiedAt': _verifiedAt?.toIso8601String(),
+    'readsSwitchedIn': _readSwitchRelease,
   };
 }
 

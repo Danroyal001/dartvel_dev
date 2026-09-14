@@ -23,13 +23,16 @@ enum DVReleaseMigrationPhase {
   /// Existing rows have been copied to the new shape.
   backfilled,
 
-  /// Every chunk agrees on both shapes.
+  /// Every chunk agrees on both shapes, and reads have not moved. Every
+  /// release that reads the old shape is still a safe rollback target.
   verified,
 
-  /// Reads have moved to the new shape.
+  /// Reads have moved to the new shape. The old shape is still written, so a
+  /// release that reads it is still a safe rollback target.
   readSwitched,
 
-  /// The old shape has been dropped.
+  /// The old shape is no longer kept current: it has stopped being written,
+  /// or has been dropped. No release built for an earlier phase can read it.
   contracted,
 }
 

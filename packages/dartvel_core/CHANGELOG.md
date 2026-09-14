@@ -1,5 +1,21 @@
 ## Unreleased
 
+- **Schema Evolution's tracker and Backend Release Management agree on where
+  a migration stands and whether it may contract.** Verification is now its
+  own recorded state: `DVSchemaEvolution.verify` records that every chunk
+  agrees for the whole window, a discrepancy recorded afterwards takes it
+  away, and the tracker reports `DVReleaseMigrationPhase.verified` while it
+  stands. Reads then move with `switchReads`, in a release of their own,
+  while both shapes are still written (`readSwitched`). The contract, which
+  stops writing the old shape, now reports `contracted` rather than
+  `readSwitched`. Before, a rollback planned against the tracker could restore
+  a release that reads a column nobody writes any more. The contract and the
+  later drop are decided by `DVContractDecision`, the same decision
+  `DVContractStepGate` makes, so a contract the gate holds because the release
+  being replaced still reads the old shape is refused by the tracker too.
+  Before, the tracker contracted straight from verify. A saved state that has
+  no verification recorded reads as not verified.
+
 - **A Platform Memory arena can be lent to a worker.** `DVPlatformMemory` is
   a `DVWorkerLendable`, so `DV.Workers.run(task, input: slice.addresses,
   lend: [arena])` hands a worker an arena's addresses and the worker writes
