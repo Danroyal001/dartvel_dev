@@ -47,7 +47,7 @@ Future<void> main(List<String> args) async {
     return;
   }
 
-  final runner = CommandRunner<void>('dartvel', 'The Dartvel CLI tool.')
+  final runner = DartvelCommandRunner('dartvel', 'The Dartvel CLI tool.')
     ..addCommand(InitCommand())
     ..addCommand(DoctorCommand())
     ..addCommand(DevCommand())

@@ -1,4 +1,6 @@
+import 'dart:convert' show utf8;
 import 'dart:io';
+import 'package:crypto/crypto.dart' show sha256;
 import 'package:dartvel_core/dartvel.dart'
     show
         dvMiddlewareKeysAlwaysOn,
@@ -28,7 +30,9 @@ class BackendGenerator {
     required String root,
     required String backendDir,
     required String pkgName,
-    required String buildId,
+    /// Accepted and not written anywhere. A build id in generated files
+    /// rewrote every file on every build.
+    String? buildId,
     required String backendHost,
     required int backendPort,
     required String apiBasePath,
@@ -38,17 +42,6 @@ class BackendGenerator {
     await _validateMiddlewareAnnotations(root);
     backendOut.createSync(recursive: true);
     libClientDir.createSync(recursive: true);
-
-    // Backend bind config
-    File(p.join(backendOut.path, 'dartvel_backend.g.dart'))
-        .writeAsStringSync('''
-// GENERATED – do not edit.
-library dartvel_backend_config;
-const String backendHost = '${esc(backendHost)}';
-const int    backendPort = $backendPort;
-const String apiBasePath = '${esc(apiBasePath)}';
-const String dvGenBuildId = '$buildId';
-''');
 
     // Backend routes (functions): the application's own, and every mounted
     // module whose functions this backend is the one that answers them.
@@ -850,10 +843,27 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
     File(p.join(backendOut.path, 'dartvel_backend_routes.g.dart'))
         .writeAsStringSync(backendRoutes);
 
+    // Backend bind config. `dartvel dev` prints dvGenBuildId when the backend
+    // starts, to say which generated backend is the one running. That was a
+    // wall-clock stamp, which changed on every build whether or not the
+    // backend had; a hash of the routes the server runs changes exactly when
+    // they do.
+    final String backendHash =
+        sha256.convert(utf8.encode(backendRoutes)).toString().substring(0, 16);
+    File(p.join(backendOut.path, 'dartvel_backend.g.dart'))
+        .writeAsStringSync('''
+// GENERATED – do not edit.
+library dartvel_backend_config;
+const String backendHost = '${esc(backendHost)}';
+const int    backendPort = $backendPort;
+const String apiBasePath = '${esc(apiBasePath)}';
+/// A hash of the generated backend routes, not a time.
+const String dvGenBuildId = '$backendHash';
+''');
+
     // Client function-style API (tRPC-like): generate convenient call helpers
     final sbClient = StringBuffer();
     sbClient.writeln('// GENERATED – do not edit.');
-    sbClient.writeln('// BUILD: $buildId');
     sbClient.writeln('// ignore_for_file: unused_element');
     sbClient.writeln('library dartvel_client_functions;');
     sbClient.writeln("import 'dart:convert';");
@@ -1378,7 +1388,7 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       if (changed) gitignore.writeAsStringSync('${lines.join('\n')}\n');
     } catch (_) {}
 
-    log('dartvel: generated lib/dartvel_client/* and .dart_tool/dartvel_backend*.g.dart (build $buildId)');
+    log('dartvel: generated lib/dartvel_client/* and .dart_tool/dartvel_backend*.g.dart');
   }
 
   /// The client half, in its own file.

@@ -32,11 +32,10 @@ Future<void> generate({
   final Set<String> done = generated ?? <String>{};
   if (!done.add(File(root).absolute.path)) return;
 
-  // Unique build id for this generation (UTC ISO + epoch millis)
-  final now = DateTime.now().toUtc();
-  final buildId = '${now.toIso8601String()}#${now.millisecondsSinceEpoch}';
-
-  log('dartvel: generator build $buildId');
+  // No build id. A wall-clock stamp written into every file rewrote every
+  // file on every build, so a regeneration with nothing changed was
+  // indistinguishable from a real change. Identical inputs produce identical
+  // bytes; see Generated Code Determinism.
   final DartvelConfig config;
   try {
     config = await DartvelConfig.load(Directory(root));
@@ -119,7 +118,6 @@ Future<void> generate({
     root: root,
     pagesDir: pagesDir,
     pkgName: pkgName,
-    buildId: buildId,
     publicPageModels: publicPageModels,
     modules: modules,
     renderBackends: renderBackends,
@@ -149,7 +147,6 @@ Future<void> generate({
   await ModelGenerator.generate(
     root: root,
     pkgName: pkgName,
-    buildId: buildId,
   );
 
   // Generate job payloads, queue constants and handler registration.
@@ -157,7 +154,6 @@ Future<void> generate({
   await JobGenerator.generate(
     root: root,
     pkgName: pkgName,
-    buildId: buildId,
   );
 
   // Typed flag accessors from @DVFlags() declarations. A flag named by a
@@ -166,7 +162,6 @@ Future<void> generate({
   final List<String> flagWarnings = await FlagGenerator.generate(
     root: root,
     pkgName: pkgName,
-    buildId: buildId,
   );
   for (final String warning in flagWarnings) {
     stderr.writeln(warning);
@@ -178,7 +173,6 @@ Future<void> generate({
   await StaticPathsGenerator.generate(
     root: root,
     pkgName: pkgName,
-    buildId: buildId,
   );
 
   // Generate Backend
@@ -186,7 +180,6 @@ Future<void> generate({
     root: root,
     backendDir: backendDir,
     pkgName: pkgName,
-    buildId: buildId,
     backendHost: backendHost,
     backendPort: backendPort,
     apiBasePath: apiBasePath,

@@ -1,4 +1,16 @@
 ## Unreleased
+- **Generated output is byte-identical for identical inputs, and
+  `dartvel generate --check` fails when it is stale.** Every generated file
+  used to open with a wall-clock `// BUILD:` stamp, so every regeneration
+  rewrote every file whether or not anything had changed. The stamps are gone.
+  The generator version is recorded once, in the
+  `lib/dartvel_client/dartvel_client.dart` header. `dvGenBuildId`, which
+  `dartvel dev` prints when the backend starts, is now a hash of the generated
+  backend routes instead of a time. `--check` regenerates two copies of the
+  project in a scratch location and writes nothing into the project. It exits
+  non-zero and prints `DV-GEN-001` for each path the generator would change,
+  and `DV-GEN-002` for each path that differs between the two copies.
+
 - **`dartvel flags list` and `dartvel flags prune`.** `list` prints every
   declared flag with its type, compiled default, owner, expiry and settle
   mode. `prune` prints the flags past their expiry, each with every

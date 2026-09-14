@@ -17,7 +17,9 @@ class ModelGenerator {
   static Future<void> generate({
     required String root,
     required String pkgName,
-    required String buildId,
+    /// Accepted and not written anywhere. A build id in generated files
+    /// rewrote every file on every build.
+    String? buildId,
   }) async {
     final String searchTuningSrc = _searchTuningSource(root);
     // Null for an ordinary application. Set only when this project is
@@ -62,6 +64,9 @@ class ModelGenerator {
         }
       }
     }
+    // A listing comes back in whatever order the filesystem keeps, and the
+    // models are written in the order they are read.
+    files.sort((File a, File b) => a.path.compareTo(b.path));
 
     final sb = StringBuffer();
     // The public pages' specs, for the backend that cannot import this file.
@@ -2149,7 +2154,7 @@ class ModelGenerator {
         // not const -- a model with a DateTime default cannot be, and the
         // rule is one rule for every model. It only reads as unnecessary on
         // the models whose defaults happen to all be literals.
-        '// GENERATED CODE - DO NOT MODIFY BY HAND\n// ignore_for_file: directives_ordering, non_constant_identifier_names, unused_element, use_super_parameters, unnecessary_nullable_for_final_variable_declarations, unnecessary_import, prefer_const_constructors, unnecessary_string_interpolations\n// Build ID: $buildId\n';
+        '// GENERATED CODE - DO NOT MODIFY BY HAND\n// ignore_for_file: directives_ordering, non_constant_identifier_names, unused_element, use_super_parameters, unnecessary_nullable_for_final_variable_declarations, unnecessary_import, prefer_const_constructors, unnecessary_string_interpolations\n';
     // The no-models stub must still define registerDartvelModels(): the
     // generated dartvel_runtime.dart imports and calls it unconditionally,
     // so an app with no @DVModel inputs otherwise generates a client that
@@ -2177,7 +2182,6 @@ class ModelGenerator {
     schemaFile.parent.createSync(recursive: true);
     schemaFile.writeAsStringSync(
       '${const JsonEncoder.withIndent('  ').convert(<String, Object?>{
-        'build': buildId,
         'tables': schemaTables,
       })}\n',
     );

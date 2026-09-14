@@ -89,7 +89,9 @@ class JobGenerator {
   static Future<void> generate({
     required String root,
     required String pkgName,
-    required String buildId,
+    /// Accepted and not written anywhere. A build id in generated files
+    /// rewrote every file on every build.
+    String? buildId,
   }) async {
     final jobs = <DiscoveredJob>[];
     final handlers = <DiscoveredJobHandler>[];
@@ -110,7 +112,7 @@ class JobGenerator {
       p.join(root, 'lib', 'dartvel_client', 'jobs.g.dart'),
     );
     output.parent.createSync(recursive: true);
-    output.writeAsStringSync(_render(jobs, handlers, buildId));
+    output.writeAsStringSync(_render(jobs, handlers));
   }
 
   static List<File> _dartFiles(String root) {
@@ -250,7 +252,6 @@ class JobGenerator {
   static String _render(
     List<DiscoveredJob> jobs,
     List<DiscoveredJobHandler> handlers,
-    String buildId,
   ) {
     // A lowered handler body can reference anything its own file declares, so
     // that file is imported under an alias and those symbols are qualified.
@@ -269,7 +270,6 @@ class JobGenerator {
       // happens to carry today.
       ..writeln('// ignore_for_file: non_constant_identifier_names, '
           'unused_element, unused_import, unnecessary_import')
-      ..writeln('// Build ID: $buildId')
       ..writeln()
       ..writeln("import 'package:dartvel_core/dartvel.dart';")
       // DV itself lives in dartvel_flutter, and a handler body commonly uses

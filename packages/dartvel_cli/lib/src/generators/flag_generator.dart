@@ -75,7 +75,9 @@ class FlagGenerator {
   static Future<List<String>> generate({
     required String root,
     required String pkgName,
-    required String buildId,
+    /// Accepted and not written anywhere. A build id in generated files
+    /// rewrote every file on every build.
+    String? buildId,
     DateTime? now,
   }) async {
     final DateTime at = now ?? DateTime.now().toUtc();
@@ -85,7 +87,7 @@ class FlagGenerator {
     final File output =
         File(p.join(root, 'lib', 'dartvel_client', 'flags.g.dart'));
     output.parent.createSync(recursive: true);
-    output.writeAsStringSync(_render(flags, buildId));
+    output.writeAsStringSync(_render(flags));
 
     return <String>[
       for (final DiscoveredFlag flag in flags)
@@ -313,7 +315,7 @@ class FlagGenerator {
     return -1;
   }
 
-  static String _render(List<DiscoveredFlag> flags, String buildId) {
+  static String _render(List<DiscoveredFlag> flags) {
     final Map<String, String> aliases = <String, String>{};
     for (final DiscoveredFlag flag in flags) {
       if (flag.isEnum) {
@@ -324,7 +326,6 @@ class FlagGenerator {
     final StringBuffer sb = StringBuffer()
       ..writeln('// GENERATED CODE - DO NOT MODIFY BY HAND')
       ..writeln('// ignore_for_file: unused_import, unnecessary_import')
-      ..writeln('// Build ID: $buildId')
       ..writeln()
       ..writeln("import 'package:dartvel_core/dartvel.dart';");
     for (final MapEntry<String, String> e in aliases.entries) {

@@ -68,13 +68,6 @@ class RouteUtils {
     return out;
   }
 
-  static String obfuscate(String value) {
-    final key = DateTime.now().millisecondsSinceEpoch % 255;
-    final chars = value.codeUnits;
-    final xored = chars.map((c) => c ^ key).toList();
-    return 'const [${xored.join(', ')}], $key';
-  }
-
   static String routeFromRel(String rel, String backendDir) {
     // rel like lib/backend/functions/blog/[id].get.dart
     // Separators are normalised first, and both sides of the comparison are.

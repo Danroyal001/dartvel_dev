@@ -1,7 +1,10 @@
 import 'dart:io';
+import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
+import '../build/render_backends.dart';
+import '../generators/generate_check.dart';
 import '../utils/logger.dart';
 
 class GenerateCommand extends Command<void> {
@@ -9,14 +12,78 @@ class GenerateCommand extends Command<void> {
   final String name = 'generate';
   @override
   final String description =
-      'Generate Dartvel template files for pages, models, forms, and backend functions.';
+      'Generate Dartvel template files for pages, models, forms, and backend '
+      'functions. With --check, fail when generated output is stale.';
 
   GenerateCommand() {
+    argParser
+      ..addFlag(
+        'check',
+        negatable: false,
+        help: 'Regenerate into a scratch location and compare, twice. Exits '
+            'non-zero and prints the paths when the project\'s generated '
+            'output is stale (DV-GEN-001) or generation is not deterministic '
+            '(DV-GEN-002). Writes nothing into the project.',
+      )
+      ..addOption(
+        'render',
+        help: 'The rendering backends the checked output was generated for '
+            '(gui, terminal, or both), as `dartvel routes --render`.',
+      );
     addSubcommand(GeneratePageSubcommand());
     addSubcommand(GenerateModelSubcommand());
     addSubcommand(GenerateBackendSubcommand());
     addSubcommand(GenerateFormSubcommand());
   }
+}
+
+/// The Dartvel command runner.
+///
+/// `dartvel generate --check` is a flag on a command that also has
+/// subcommands, and `args` refuses a command with subcommands that is run
+/// without one before the command itself is reached. So it is dispatched
+/// here instead.
+class DartvelCommandRunner extends CommandRunner<void> {
+  DartvelCommandRunner(super.executableName, super.description);
+
+  @override
+  Future<void> runCommand(ArgResults topLevelResults) async {
+    final ArgResults? generate = topLevelResults.command;
+    if (generate != null &&
+        generate.name == 'generate' &&
+        generate.command == null &&
+        generate.flag('check')) {
+      exitCode = await runGenerateCheck(
+        Directory.current.path,
+        renderBackends:
+            parseRenderBackends(generate.option('render')),
+      );
+      return;
+    }
+    return super.runCommand(topLevelResults);
+  }
+}
+
+/// Runs the check on [root], prints what it found, and returns the exit code.
+Future<int> runGenerateCheck(
+  String root, {
+  Set<DVRenderBackend>? renderBackends,
+}) async {
+  final DVGenerateCheckResult result =
+      await dvGenerateCheck(root, renderBackends: renderBackends);
+  for (final String path in result.unstable) {
+    stderr.writeln('DV-GEN-002: $path: generated output differs between two '
+        'runs on the same input');
+  }
+  for (final String path in result.stale) {
+    stderr.writeln('DV-GEN-001: $path: committed generated output is stale; '
+        'run the generator');
+  }
+  if (result.ok) {
+    Logger.log('Generated output is up to date.');
+    return 0;
+  }
+  return 1;
 }
 
 class GeneratePageSubcommand extends Command<void> {
