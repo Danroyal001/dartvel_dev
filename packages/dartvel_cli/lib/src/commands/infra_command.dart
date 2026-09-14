@@ -152,6 +152,17 @@ class DVInfraCli {
     // before a host is reached.
     final Map<String, DVSecretDeclaration> declared =
         dvParseSecretDeclarations(text);
+    // The same contradictions dartvel build refuses. A client-scoped name
+    // without PUBLIC_, or a backend one spelt with it, is delivered by one
+    // reading and compiled into the bundle by the other.
+    final List<String> contradictions = dvValidateDeclarations(declared);
+    if (contradictions.isNotEmpty) {
+      _out('dartvel.secrets contradicts itself; no host was contacted:');
+      for (final String problem in contradictions) {
+        _out('  $problem');
+      }
+      return null;
+    }
     final DVInfraSecretLookup secret =
         secretLookup ?? _resolveSecrets(declared.keys);
     final Set<String> resolved = <String>{
