@@ -1153,7 +1153,23 @@
     {
       "section": "Backend Release Management",
       "stability": "Draft",
-      "status": "Designed"
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_core/lib/src/release/release_record.dart",
+        "packages/dartvel_core/lib/src/release/deploy_config.dart",
+        "packages/dartvel_core/lib/src/release/release_plan.dart",
+        "packages/dartvel_core/lib/src/release/health_comparison.dart",
+        "packages/dartvel_core/lib/src/release/release_gates.dart",
+        "packages/dartvel_core/lib/src/release/rollout.dart",
+        "packages/dartvel_core/lib/src/release/rollback.dart",
+        "packages/dartvel_core/lib/src/release/contract_gate.dart",
+        "packages/dartvel_core/test/release_record_test.dart",
+        "packages/dartvel_core/test/release_plan_test.dart",
+        "packages/dartvel_core/test/release_gates_test.dart",
+        "packages/dartvel_core/test/release_rollout_test.dart",
+        "packages/dartvel_core/test/release_rollback_test.dart"
+      ],
+      "absent": "Built: provenance records every field of which is required on read, and a release history that reports DV-RELEASE-006 for a deploy without one and never offers a release that was rolled back from as the previous one; dartvel.deploy read strictly; a planner that asks the adapter whether it can weight traffic and degrades a canary to blue-green with DV-RELEASE-002; a health gate comparing error rate, failures at numbered lifecycle stages and p95 latency with the release being replaced, rolling back on a regression and holding on a first deploy (DV-RELEASE-003), an empty or failing source, too few requests, a declared stage not reported or missing latency; the error-budget, crash release-health, protocol compatibility and schema production gates composed as release gates, each holding where its original reads missing data as a pass; composition with per-gate timeouts, a roll back winning, and holds let through only by an override naming a reason and a person, recorded with the evidence overridden; a rollout that moves one planned step at a time, reads the platform's weight back before promoting, holds on a weight nobody planned, reports DV-RELEASE-001 only once the platform confirms the roll back and retries a failed one, and turns named flags off with a false rule; rollback planning to the previous release, a named one or the one serving at a moment, refusing per-function rollback (DV-RELEASE-004), a target without a record, a target a contract has made unreadable or that is ahead of the database, an unreadable migration phase, and a protocol crossing that strands clients unless overridden, and naming backfills to verify again; rollback execution recorded only when confirmed; a contract-step gate refusing with DV-RELEASE-005, not overridable, while a windowed protocol version reads what it drops, and while the release being replaced reads the old shape. Not built: no dartvel deploy --plan or dartvel deploy rollback command, and deploy_command.dart does not use any of this; no platform adapters (Cloud Run revisions, Lambda aliases, Fly.io, Kubernetes ingress, bare metal); nothing produces per-release, per-stage request counts or p95 latency, so the health gate has no real traffic source, and DVRequestStage numbers the section's stages while the runtime's DVRequestLifecycle is an unnumbered state enum; migration phases come from a caller-supplied function rather than the Schema Evolution tracker, and DVReleaseMigrationPhase is a narrow enum still to be reconciled with it; release history and rollout state are memory with JSON, not persisted; DV-RELEASE-005 is not emitted from dartvel analyze or the schema planner, and nothing maps a schema column drop to the protocol fields it removes; read-replica routing and pool sizing per deployment target are not built; dartvel ci init is not built; no Studio view. Where the section and the code disagree: the section does not say whether errorRate: 1% is percentage points or a multiplier on the previous rate, and it is read as points above it (a multiplier would fail every release against a previous rate of zero), while latencyP95: +20% is a multiplier; a gate section left out takes the section example's numbers as defaults rather than no gate; a first deploy is a hold, and that hold is overridable, since otherwise no first deploy could proceed; a contract refused because the release being replaced still reads the old shape has no code of its own; DV-SCHEMA-005 and DV-RELEASE-005 describe the same refusal; crash release health holds rather than rolls back; a rollback onto a release that was itself rolled back from is refused even when named explicitly; a rollout is held while the serving release has no record, which the section does not state."
     },
     {
       "section": "Preview Environments",
