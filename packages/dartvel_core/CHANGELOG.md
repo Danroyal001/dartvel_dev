@@ -1,5 +1,16 @@
 ## Unreleased
 
+- **Sign-ups that hit a taken address count against the source.** A sign-up
+  that signs somebody in cannot hide that an address was free, so
+  `DVCredentialGuard.signUp` makes probing for accounts through it expensive
+  instead: each `accountExists` refusal is recorded against the source that
+  sent it, and a source over its `perSource` budget is refused with
+  `DV-EDGE-005` before the challenge, the breach check or the provider runs.
+  Nothing is counted against the address itself -- a sign-in lockout that
+  only taken addresses could trip would be the same oracle again -- and a
+  sign-up that creates an account counts for nothing. `DVVelocityLimiter`
+  gains `checkSource` and `recordSourceFailure` for limits of that shape.
+
 - **An LDAP username the directory does not hold costs a bind.**
   `DVLdapAuthenticator.authenticate` returned as soon as the user search came
   back empty, skipping the password bind, so a miss answered a whole round
