@@ -70,6 +70,9 @@ final class DVCrashInstallation {
   final ListQueue<_Arrival> _recent = ListQueue<_Arrival>();
   static const int _remembered = 32;
 
+  /// The declared identity, when the application declared one.
+  DVCrashIdentity? _identity;
+
   FlutterExceptionHandler? _previousFlutter;
   FlutterExceptionHandler? _ownFlutter;
   ErrorCallback? _previousDispatcher;
@@ -285,6 +288,8 @@ final class DVCrashes {
     required String release,
     DVCrashStore? store,
     DVCrashSink? sink,
+    String? installId,
+    DVConsentCategory? identityConsent,
     bool evenUnderTest = false,
   }) {
     if (hostedByTestRunner && !evenUnderTest) return null;
@@ -297,21 +302,71 @@ final class DVCrashes {
           'ends the process is lost.');
       resolved = DVMemoryCrashStore();
     }
-    final String installId = platform.dvInstallId(appId);
+    final String install = installId ?? platform.dvInstallId(appId);
     final String os =
         kIsWeb ? 'web' : defaultTargetPlatform.name.toLowerCase();
-    return install(
+    final DVCrashIdentity? identity = identityConsent == null
+        ? null
+        : DVCrashIdentity(category: identityConsent);
+
+    final (String?, DVConsent)? pending = _pendingIdentity;
+    _pendingIdentity = null;
+    if (pending != null) {
+      if (identity == null) {
+        debugPrint('[dartvel] DV.Crashes.identify was called before '
+            'installation, and this application declares no '
+            'dartvel.crashes.identity.consent; no report carries a user id.');
+      } else {
+        identity.identify(pending.$1, consent: pending.$2);
+      }
+    }
+
+    final DVCrashInstallation installation = this.install(
       DVCrashReporting(
         store: resolved,
         sink: sink,
+        // Read when each report is written, so a withdrawal or a changed
+        // flag is on the next crash rather than the next launch.
         context: () => DVCrashContext(
           release: release,
-          installId: installId,
+          installId: install,
           platform: os,
           locale: PlatformDispatcher.instance.locale.toLanguageTag(),
+          userId: identity?.userId,
         ),
+        flags: dvCrashFlagsSnapshot,
       ),
     );
+    installation._identity = identity;
+    return installation;
+  }
+
+  static (String?, DVConsent)? _pendingIdentity;
+
+  /// Ties this install's reports to [userId], for as long as the consent
+  /// category the application declared under `dartvel.crashes.identity` is
+  /// granted in [consent]. Null signs out.
+  ///
+  /// Refused when the application declared no category: a user id with no
+  /// consent behind it is exactly what a crash report must not carry, and
+  /// quietly ignoring the call would look like it worked. Before installation
+  /// the identity is held and applied when crash reporting is installed.
+  void identify(String? userId, {required DVConsent consent}) {
+    final DVCrashInstallation? installation = _installation;
+    if (installation == null) {
+      _pendingIdentity = (userId, consent);
+      return;
+    }
+    final DVCrashIdentity? identity = installation._identity;
+    if (identity == null) {
+      throw StateError(
+        'DV.Crashes.identify needs a consent category to bind the user id '
+        'to. Declare dartvel.crashes.identity.consent in pubspec.yaml with the '
+        'category a crash report may carry a user id under; without one no '
+        'report is tied to an account.',
+      );
+    }
+    identity.identify(userId, consent: consent);
   }
 
   /// The store records for [appId] are kept in on this platform: files in the

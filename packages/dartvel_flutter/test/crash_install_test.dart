@@ -285,4 +285,112 @@ void main() {
       expect(const DVCrashes().record(StateError('early')), isNull);
     });
   });
+
+  group('identity and flags, as the application installs them', () {
+    const DVConsentCategory crashIdentity = DVConsentCategory('crash_identity');
+
+    Future<DVConsent> consent({required bool granted}) async {
+      final DVConsent c = DVConsent(
+        policy: DVConsentPolicy(
+          version: '1',
+          categories: const <DVConsentDeclaration>[
+            DVConsentDeclaration(crashIdentity),
+          ],
+        ),
+        database: MemoryDVDatabaseAdapter(),
+        installId: 'install-1',
+        onDiagnostic: (String code, String message) {},
+      );
+      await c.ensureSchema();
+      await c.load();
+      if (granted) {
+        await c.record(<DVConsentCategory, bool>{crashIdentity: true});
+      }
+      return c;
+    }
+
+    DVCrashInstallation installApp(
+      DVMemoryCrashStore store, {
+      DVConsentCategory? identityConsent,
+    }) =>
+        const DVCrashes().installApplication(
+          appId: 'crash_install_test',
+          release: '1.0.0',
+          store: store,
+          installId: 'install-1',
+          identityConsent: identityConsent,
+          evenUnderTest: true,
+        )!;
+
+    tearDown(DVFlags.resetForTest);
+
+    test('identify is refused when no consent category was declared', () async {
+      installApp(DVMemoryCrashStore());
+
+      expect(
+        () async => const DVCrashes()
+            .identify('user-42', consent: await consent(granted: true)),
+        throwsStateError,
+      );
+    });
+
+    test('declared and not granted: no user id, and the report arrives',
+        () async {
+      final DVMemoryCrashStore store = DVMemoryCrashStore();
+      installApp(store, identityConsent: crashIdentity);
+      const DVCrashes()
+          .identify('user-42', consent: await consent(granted: false));
+
+      FlutterError.reportError(details(StateError('boom')));
+
+      expect(store.pending().single.report!.context.userId, isNull);
+    });
+
+    test('declared and granted: the report carries the user id', () async {
+      final DVMemoryCrashStore store = DVMemoryCrashStore();
+      installApp(store, identityConsent: crashIdentity);
+      const DVCrashes()
+          .identify('user-42', consent: await consent(granted: true));
+
+      FlutterError.reportError(details(StateError('boom')));
+
+      expect(store.pending().single.report!.context.userId, 'user-42');
+    });
+
+    test('an identity given before installation applies once installed',
+        () async {
+      final DVConsent granted = await consent(granted: true);
+      const DVCrashes().identify('user-42', consent: granted);
+      final DVMemoryCrashStore store = DVMemoryCrashStore();
+      installApp(store, identityConsent: crashIdentity);
+
+      FlutterError.reportError(details(StateError('boom')));
+
+      expect(store.pending().single.report!.context.userId, 'user-42');
+    });
+
+    test('the report carries the flags in force when it was written', () {
+      DVFlags.declare(<DVFeatureFlag<Object?>>[
+        DVFeatureFlag<bool>(
+          key: 'newCheckout',
+          defaultValue: false,
+          owner: 'payments',
+          expires: DateTime.utc(2099),
+        ),
+      ]);
+      DVFlags.setRules(const DVFlagRules(
+        rulesVersion: 1,
+        flags: <String, List<DVFlagRule>>{
+          'newCheckout': <DVFlagRule>[DVFlagRule(value: true)],
+        },
+      ));
+      final DVMemoryCrashStore store = DVMemoryCrashStore();
+      installApp(store);
+
+      FlutterError.reportError(details(StateError('boom')));
+
+      expect(store.pending().single.report!.flags,
+          <String, Object?>{'newCheckout': true});
+    });
+  });
 }
