@@ -7,6 +7,24 @@
   with no API to reach is refused at installation rather than sending
   nowhere.
 
+- **A consent banner, a consent settings screen, and App Tracking
+  Transparency.** `DVConsentBanner` asks over the page until somebody answers
+  under the current policy version: drawn only once the stored consent has
+  been read, again when the version changes. Accept all and Reject all record
+  an answer for every category they ask about; Not now closes it for the
+  session and records nothing; Choose opens `DVConsentSettingsPage`, which
+  shows each category where it stands, a required one fixed on, and records
+  only on Save. A choice the database refused is shown as not saved and
+  grants nothing. Both are built from `DVBox` and `DVText` and reached as
+  `DV.Analytics.ConsentBanner(child:)` and `DV.Analytics.ConsentSettingsPage()`.
+  On iOS a `tracking: true` category is granted only when App Tracking
+  Transparency allows it: `dvRecordConsentChoice` asks
+  `DVAppTrackingTransparency.request()` and records the answer under that
+  prompt, a system no as a no, and grants nothing when no prompt could be
+  shown. `tracking.requestAuthorization` is a `dart:ffi` binding that builds
+  the completion block over `NativeCallable` and answers -1 without the
+  framework, `ATTrackingManager` or `NSUserTrackingUsageDescription`.
+
 - **`DV.Crashes.installApplication` applies `dartvel.crashes`.** A build mode
   the configuration disables says `DV-CRASH-009` and installs nothing -- no
   hook, no store, no install id written. Otherwise the sample rate, the

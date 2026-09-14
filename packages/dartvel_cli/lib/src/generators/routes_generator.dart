@@ -53,6 +53,10 @@ Future<void> generate({
   // skipped into a running app that does something other than what the
   // pubspec says.
   final analyticsSettings = AnalyticsGenerator.read(dv);
+  // DV-ANALYTICS-002 for a platform the application builds for that has no
+  // way to ask about a declared category, such as iOS without the usage
+  // description App Tracking Transparency needs.
+  AnalyticsGenerator.checkTargets(root: root, settings: analyticsSettings);
 
   final backendHost = config.backendHost;
   final backendPort = config.backendPort;

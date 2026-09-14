@@ -17,6 +17,7 @@
 /// plain C and thread-safe.
 library dartvel_flutter.platform.ios.ffi;
 
+import 'dart:async';
 import 'dart:ffi';
 import 'dart:io' show Platform;
 
@@ -60,6 +61,42 @@ typedef _MsgSendVoid2Native = Void Function(Pointer<Void> receiver,
     Pointer<Void> selector, Pointer<Void> a, Pointer<Void> b);
 typedef _MsgSendVoid2Dart = void Function(Pointer<Void> receiver,
     Pointer<Void> selector, Pointer<Void> a, Pointer<Void> b);
+
+/// The completion block ATTrackingManager calls:
+/// `void (^)(ATTrackingManagerAuthorizationStatus status)`, whose invoke
+/// function takes the block itself first. The status is an NSUInteger.
+typedef _TrackingCompletionNative = Void Function(
+    Pointer<Void> block, UnsignedLong status);
+
+/// A block's descriptor: reserved, then the size of the block literal.
+final class _DVBlockDescriptor extends Struct {
+  @UnsignedLong()
+  external int reserved;
+
+  @UnsignedLong()
+  external int size;
+}
+
+/// The layout of an Objective-C block literal, as the Blocks ABI defines it.
+///
+/// Built by hand because the request takes a block and dart:ffi has no block
+/// type: the isa of a global block, its flags, the invoke function -- a
+/// NativeCallable, so the framework may call it from any thread -- and the
+/// descriptor. A global block is never copied or released, so nothing but
+/// this process's memory is involved.
+final class _DVBlockLiteral extends Struct {
+  external Pointer<Void> isa;
+
+  @Int32()
+  external int flags;
+
+  @Int32()
+  external int reserved;
+
+  external Pointer<NativeFunction<_TrackingCompletionNative>> invoke;
+
+  external Pointer<_DVBlockDescriptor> descriptor;
+}
 
 /// `AudioServicesPlaySystemSound(SystemSoundID inSystemSoundID)`.
 ///
@@ -119,6 +156,13 @@ class DVIosBindings {
       return _publishWidget(key, '${map['text'] ?? ''}');
     });
 
+    // App Tracking Transparency, which a consent category declared
+    // `tracking: true` is granted through on iOS. Registered whatever the
+    // system version: the handler answers -1 when the prompt cannot be shown,
+    // and the consent flow treats that as no prompt and grants nothing.
+    DVNativeBridge.register(
+        'tracking.requestAuthorization', (Object? _) => _requestTracking());
+
     // AudioToolbox is opened by path out of the dyld shared cache rather than
     // assumed to be linked into the app. If it is not there, registration
     // fails as a whole rather than installing a subset: `implemented` is what
@@ -130,6 +174,7 @@ class DVIosBindings {
       DVNativeBridge.unregister('clipboard.paste');
       DVNativeBridge.unregister('deepLinks.initial');
       DVNativeBridge.unregister('homeWidgets.publish');
+      DVNativeBridge.unregister('tracking.requestAuthorization');
       return false;
     }
     for (final name in const <String>[
@@ -145,6 +190,84 @@ class DVIosBindings {
 
     _registered = true;
     return true;
+  }
+
+  /// `BLOCK_IS_GLOBAL`.
+  static const int _blockIsGlobal = 1 << 28;
+
+  /// Shows the App Tracking Transparency prompt, or answers what it answered
+  /// before, as `ATTrackingManagerAuthorizationStatus`; -1 when it cannot be
+  /// shown.
+  ///
+  /// It cannot be shown without the framework (before iOS 14), without
+  /// `ATTrackingManager`, or without `NSUserTrackingUsageDescription` in
+  /// Info.plist -- and in that last case iOS terminates the application rather
+  /// than failing the call, so the key is read first.
+  static Future<int> _requestTracking() {
+    try {
+      DynamicLibrary.open('/System/Library/Frameworks/'
+          'AppTrackingTransparency.framework/AppTrackingTransparency');
+    } on ArgumentError {
+      return Future<int>.value(-1);
+    }
+    final Pointer<Void> manager = _class('ATTrackingManager');
+    if (manager == nullptr || !_hasTrackingUsageDescription()) {
+      return Future<int>.value(-1);
+    }
+    final Pointer<Void> globalBlockIsa;
+    try {
+      globalBlockIsa = _objc.lookup<Void>('_NSConcreteGlobalBlock');
+    } on ArgumentError {
+      return Future<int>.value(-1);
+    }
+
+    final Completer<int> answered = Completer<int>();
+    final NativeCallable<_TrackingCompletionNative> completion =
+        NativeCallable<_TrackingCompletionNative>.listener(
+      (Pointer<Void> block, int status) {
+        if (!answered.isCompleted) answered.complete(status);
+      },
+    )..keepIsolateAlive = false;
+
+    // Neither allocation is freed, nor the callable closed: the framework may
+    // keep the block past the call, and memory it still reads cannot be given
+    // back. One small allocation per request, and iOS shows the prompt once.
+    final Pointer<_DVBlockDescriptor> descriptor = calloc<_DVBlockDescriptor>();
+    descriptor.ref
+      ..reserved = 0
+      ..size = sizeOf<_DVBlockLiteral>();
+    final Pointer<_DVBlockLiteral> block = calloc<_DVBlockLiteral>();
+    block.ref
+      ..isa = globalBlockIsa
+      ..flags = _blockIsGlobal
+      ..reserved = 0
+      ..invoke = completion.nativeFunction
+      ..descriptor = descriptor;
+
+    final send = _objc
+        .lookupFunction<_MsgSendVoidNative, _MsgSendVoidDart>('objc_msgSend');
+    send(
+      manager,
+      _selector('requestTrackingAuthorizationWithCompletionHandler:'),
+      block.cast<Void>(),
+    );
+    return answered.future;
+  }
+
+  /// Whether Info.plist declares the sentence the prompt shows.
+  static bool _hasTrackingUsageDescription() {
+    final send0 =
+        _objc.lookupFunction<_MsgSend0Native, _MsgSend0Dart>('objc_msgSend');
+    final send1 =
+        _objc.lookupFunction<_MsgSend1Native, _MsgSend1Dart>('objc_msgSend');
+    final Pointer<Void> bundle = send0(_class('NSBundle'), _selector('mainBundle'));
+    if (bundle == nullptr) return false;
+    final Pointer<Void> value = send1(
+      bundle,
+      _selector('objectForInfoDictionaryKey:'),
+      _nsString('NSUserTrackingUsageDescription'),
+    );
+    return value != nullptr;
   }
 
   /// The AudioToolbox entry point, or null when the framework is not present.

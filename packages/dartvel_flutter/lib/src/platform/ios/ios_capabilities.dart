@@ -37,6 +37,15 @@ const Set<String> dvIosImplementedBindings = <String>{
   // that in a process that cannot host a Flutter engine, so the tree and the
   // state are shared at /widgets/<id> and the data is what crosses.
   'homeWidgets.publish',
+  // App Tracking Transparency, which a consent category declared
+  // `tracking: true` is granted through. A completion block built over
+  // NativeCallable, since the request answers asynchronously. Registered
+  // whatever the system version and answering -1 where the prompt cannot be
+  // shown -- no framework, no ATTrackingManager, no
+  // NSUserTrackingUsageDescription, which iOS terminates the app without --
+  // so a category is never granted on a prompt nobody saw.
+  'tracking.requestAuthorization',
+
 };
 
 /// The system sound identifier that produces a given haptic.
