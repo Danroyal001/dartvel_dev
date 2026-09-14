@@ -16,6 +16,7 @@ library;
 import '../../dartvel.dart' show DVDatabaseQueueAdapter, DVQueues;
 import '../database/adapter.dart' show DVDatabase, DVDatabaseAdapter;
 import '../database/connection.dart' show DVDatabaseConnection;
+import '../preview/preview_server.dart' show DVPreviewServer;
 import '../scheduling/scheduler.dart'
     show DVDatabaseScheduleLease, DVScheduleLease;
 import '../secrets/secrets.dart' show DVSecrets;
@@ -25,7 +26,7 @@ import 'process_configuration.dart';
 final class DVProcessStores {
   DVProcessStores._({this.connection, this.database});
 
-  /// The connection `DATABASE_URL` resolved to, or null without one.
+  /// The connection the shared store is on, or null without one.
   final DVDatabaseConnection? connection;
 
   /// The shared database, or null when this process shares none.
@@ -33,43 +34,49 @@ final class DVProcessStores {
 
   /// Installs the shared stores into this process and says what they are.
   ///
-  /// With `DATABASE_URL` set: `DV.Database` is configured from it unless
-  /// something already configured it -- a preview does, before anything else
-  /// runs, and that adapter is reused rather than a second connection opened
-  /// beside it -- and `DVQueues` is put on that database unless an adapter
-  /// was already configured, because an application that chose its queue
-  /// chose it. Without `DATABASE_URL` nothing is installed.
+  /// Outside a preview the store is `DATABASE_URL` alone, on a connection of
+  /// its own. `DV.Database` is left untouched -- production's database is the
+  /// application's to configure -- and `DARTVEL_DATABASE` is ignored: it is a
+  /// preview's variable, and a production deploy copied from a preview's
+  /// settings would otherwise put its jobs on the preview's database.
+  ///
+  /// In a preview, `DVPreviewServer.start` has already chosen the preview's
+  /// own database and configured `DV.Database` with it; that adapter is the
+  /// store, rather than a second connection opened beside it.
+  ///
+  /// `DVQueues` is put on the store unless an adapter was already configured,
+  /// because an application that chose its queue chose it. Without a store
+  /// nothing is installed.
   ///
   /// [read] looks a setting up; `DV.Secrets` by default. Throws
   /// [DVProcessConfigurationError] for a `DATABASE_URL` it cannot read,
   /// without repeating the URL, which carries a password.
   static DVProcessStores install({String? Function(String key)? read}) {
-    final String? Function(String) lookup = read ?? const DVSecrets().maybeGet;
-    final Map<String, String> environment = <String, String>{
-      for (final String key in const <String>[
-        'DATABASE_URL',
-        'DARTVEL_DATABASE',
-      ])
-        if (lookup(key) case final String value) key: value,
-    };
     final DVDatabaseConnection? connection;
-    try {
-      connection = DVDatabaseConnection.fromEnvironment(environment);
-    } on FormatException catch (error) {
-      throw DVProcessConfigurationError(
-        'DATABASE_URL cannot be read: ${error.message}. It is the store this '
-        "deployment's processes share, and the backend does not start on a "
-        'process-local one instead.',
-      );
-    }
-    if (connection == null) return DVProcessStores._();
-
-    const DVDatabase facade = DVDatabase();
-    DVDatabaseAdapter? database = facade.configuredAdapter;
-    if (database == null) {
+    final DVDatabaseAdapter? database;
+    final DVPreviewServer? preview = DVPreviewServer.current;
+    if (preview != null) {
+      connection = preview.connection;
+      database =
+          connection == null ? null : const DVDatabase().configuredAdapter;
+    } else {
+      final String? Function(String) lookup =
+          read ?? const DVSecrets().maybeGet;
+      final String? url = lookup('DATABASE_URL')?.trim();
+      if (url == null || url.isEmpty) return DVProcessStores._();
+      try {
+        connection = DVDatabaseConnection.parse(url);
+      } on FormatException catch (error) {
+        throw DVProcessConfigurationError(
+          'DATABASE_URL cannot be read: ${error.message}. It is the store '
+          "this deployment's processes share, and the backend does not start "
+          'on a process-local one instead.',
+        );
+      }
       database = connection.open();
-      facade.configure(database);
     }
+    if (database == null) return DVProcessStores._();
+
     const DVQueues queues = DVQueues();
     if (!queues.adapterConfigured) {
       queues.useAdapter(DVDatabaseQueueAdapter(database));
