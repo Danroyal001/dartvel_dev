@@ -28,19 +28,19 @@ void main() {
     late Directory temp;
 
     setUp(() {
+      // Read, never set: the package root, which dart test starts every
+      // suite in. The commands are handed [temp] instead.
       previous = Directory.current;
       temp = Directory.systemTemp.createTempSync('dartvel_admin_command');
-      Directory.current = temp;
     });
 
     tearDown(() {
-      Directory.current = previous;
       temp.deleteSync(recursive: true);
     });
 
     test('admin generate creates Dartvel admin pages', () async {
       final runner = CommandRunner<void>('dartvel', 'Test runner')
-        ..addCommand(AdminCommand());
+        ..addCommand(AdminCommand(root: temp.path));
 
       await runner.run(<String>['admin', 'generate']);
 
@@ -63,7 +63,7 @@ void main() {
 
     test('the admin opens the Studio rather than only naming it', () async {
       final runner = CommandRunner<void>('dartvel', 'Test runner')
-        ..addCommand(AdminCommand());
+        ..addCommand(AdminCommand(root: temp.path));
       await runner.run(<String>['admin', 'generate']);
 
       final admin = p.join(temp.path, 'lib', 'pages', '_dartvel_admin');
@@ -210,7 +210,7 @@ void main() {
 
     test('devtools command generates the same admin surface', () async {
       final runner = CommandRunner<void>('dartvel', 'Test runner')
-        ..addCommand(DevtoolsCommand());
+        ..addCommand(DevtoolsCommand(root: temp.path));
 
       await runner.run(<String>['devtools']);
 

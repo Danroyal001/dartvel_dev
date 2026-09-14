@@ -119,7 +119,6 @@ class _User {
 ''';
 
 void main() {
-  late Directory previous;
   late Directory root;
   late MemoryAdapter adapter;
   late List<String> out;
@@ -130,12 +129,10 @@ void main() {
   DateTime now = DateTime.utc(2026, 9, 1, 12);
 
   setUp(() {
-    previous = Directory.current;
     root = Directory.systemTemp.createTempSync('dartvel_preview_cli_');
     File(p.join(root.path, 'pubspec.yaml')).writeAsStringSync(pubspec);
     Directory(p.join(root.path, 'lib', 'models')).createSync(recursive: true);
     File(p.join(root.path, 'lib', 'models', 'user.dart')).writeAsStringSync(userModel);
-    Directory.current = root;
     adapter = MemoryAdapter();
     out = <String>[];
     environment = <String, String>{'PREVIEW_PAYSTACK_SECRET': 'sk_test_preview'};
@@ -148,7 +145,6 @@ void main() {
   });
 
   tearDown(() {
-    Directory.current = previous;
     root.deleteSync(recursive: true);
     exitCode = 0;
     DVSecrets.reset();
@@ -161,6 +157,7 @@ void main() {
     exitCode = 0;
     final CommandRunner<void> runner = CommandRunner<void>('dartvel', 'test')
       ..addCommand(PreviewCommand(
+        root: root.path,
         previewHost: host ??
             (String root) => DVPreviewHost(
                   adapter: adapter,

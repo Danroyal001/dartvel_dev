@@ -58,23 +58,17 @@ Directory project({String pubspec = _pubspec}) {
 }
 
 Future<String> run(List<String> args, Directory root) async {
-  final Directory previous = Directory.current;
-  Directory.current = root;
   final StringBuffer out = StringBuffer();
-  try {
-    await runZoned(
-      () async {
-        final CommandRunner<void> runner =
-            CommandRunner<void>('dartvel', 'Test runner')..addCommand(InspectCommand());
-        await runner.run(<String>['inspect', ...args]);
-      },
-      zoneSpecification: ZoneSpecification(
-        print: (Zone _, ZoneDelegate __, Zone ___, String line) => out.writeln(line),
-      ),
-    );
-  } finally {
-    Directory.current = previous;
-  }
+  await runZoned(
+    () async {
+      final CommandRunner<void> runner = CommandRunner<void>('dartvel', 'Test runner')
+        ..addCommand(InspectCommand(root: root.path));
+      await runner.run(<String>['inspect', ...args]);
+    },
+    zoneSpecification: ZoneSpecification(
+      print: (Zone _, ZoneDelegate __, Zone ___, String line) => out.writeln(line),
+    ),
+  );
   return out.toString();
 }
 

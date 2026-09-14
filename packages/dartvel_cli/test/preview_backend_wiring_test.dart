@@ -175,13 +175,7 @@ Future<String> _ping() async => 'pong';
 ''');
     write('bin/probe.dart', _probe);
 
-    final Directory previous = Directory.current;
-    Directory.current = project;
-    try {
-      await routes.generate();
-    } finally {
-      Directory.current = previous;
-    }
+    await routes.generate(root_: project.path);
 
     final ProcessResult resolved = await Process.run(
       Platform.resolvedExecutable,

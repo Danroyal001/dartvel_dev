@@ -54,7 +54,10 @@ class TaskCommand extends Command<void> {
   @override
   String get description => 'Run a task from pubspec.yaml dartvel.tasks.';
 
-  TaskCommand() {
+  /// [root] is the project the tasks are read from and run in; null reads the
+  /// working directory when the command runs. A test passes its own, because
+  /// that directory is one value shared by every suite in the process.
+  TaskCommand({this._root}) {
     argParser
       ..addFlag('list',
           abbr: 'l', defaultsTo: false, help: 'List available Dartvel tasks.')
@@ -68,9 +71,12 @@ class TaskCommand extends Command<void> {
           help: 'Do not stream child process stdout/stderr.');
   }
 
+  final String? _root;
+
   @override
   Future<void> run() async {
-    final tasks = DartvelTaskFile.load(Directory.current);
+    final Directory root = Directory(_root ?? Directory.current.path);
+    final tasks = DartvelTaskFile.load(root);
     if (argResults?['list'] == true) {
       for (final task in tasks.names) {
         stdout.writeln(task);
@@ -91,6 +97,8 @@ class TaskCommand extends Command<void> {
     final forwardedArgs = argResults!.rest.skip(1).toList(growable: false);
     final result = await DartvelShell.run(
       _appendArgs(command, forwardedArgs),
+      // In the project the task came from, not wherever this process is.
+      workingDirectory: root,
       printCommand: argResults?['print'] == true,
       streamOutput: argResults?['quiet'] != true,
     );

@@ -155,21 +155,16 @@ void main() {
 
   group('the command', () {
     Future<String> run(List<String> args) async {
-      final Directory previous = Directory.current;
-      Directory.current = root;
       final StringBuffer out = StringBuffer();
-      try {
-        await runZoned(
-          () => (CommandRunner<void>('dartvel', 't')..addCommand(InspectCommand()))
-              .run(<String>['inspect', 'adoption', ...args]),
-          zoneSpecification: ZoneSpecification(
-            print: (Zone _, ZoneDelegate __, Zone ___, String line) =>
-                out.writeln(line),
-          ),
-        );
-      } finally {
-        Directory.current = previous;
-      }
+      await runZoned(
+        () => (CommandRunner<void>('dartvel', 't')
+              ..addCommand(InspectCommand(root: root.path)))
+            .run(<String>['inspect', 'adoption', ...args]),
+        zoneSpecification: ZoneSpecification(
+          print: (Zone _, ZoneDelegate __, Zone ___, String line) =>
+              out.writeln(line),
+        ),
+      );
       return out.toString();
     }
 

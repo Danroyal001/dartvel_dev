@@ -35,11 +35,14 @@ class DbCommand extends Command<void> {
   final String description =
       'Manage the Dartvel database schemas, migrations, and seeding.';
 
-  DbCommand() {
-    addSubcommand(DbMigrateSubcommand());
-    addSubcommand(DbPushSubcommand());
-    addSubcommand(DbPullSubcommand());
-    addSubcommand(DbSeedSubcommand());
+  /// [root] is the project; null reads the working directory when the command
+  /// runs. A test passes its own, because that directory is one value shared
+  /// by every suite in the process.
+  DbCommand({String? root}) {
+    addSubcommand(DbMigrateSubcommand(root: root));
+    addSubcommand(DbPushSubcommand(root: root));
+    addSubcommand(DbPullSubcommand(root: root));
+    addSubcommand(DbSeedSubcommand(root: root));
   }
 }
 
@@ -49,7 +52,9 @@ class DbMigrateSubcommand extends Command<void> {
   @override
   final String description = 'Run pending database schema migrations.';
 
-  DbMigrateSubcommand() {
+  final String? _root;
+
+  DbMigrateSubcommand({this._root}) {
     argParser
       ..addOption(
         'tenant',
@@ -192,7 +197,7 @@ class DbMigrateSubcommand extends Command<void> {
   @override
   Future<void> run() async {
     Logger.log('Running database migrations...');
-    final root = Directory.current.path;
+    final root = _root ?? Directory.current.path;
     final bool rehearsing = (argResults?['plan'] as bool? ?? false) ||
         (argResults?['dry-run'] as bool? ?? false);
     if (argResults?['against'] != null && !rehearsing) {
@@ -278,6 +283,10 @@ class DbMigrateSubcommand extends Command<void> {
 }
 
 class DbPushSubcommand extends Command<void> {
+  DbPushSubcommand({this._root});
+
+  final String? _root;
+
   @override
   final String name = 'push';
   @override
@@ -287,7 +296,7 @@ class DbPushSubcommand extends Command<void> {
   @override
   Future<void> run() async {
     Logger.log('Pushing local schemas to database...');
-    final root = Directory.current.path;
+    final root = _root ?? Directory.current.path;
     final snapshot = localSchemaSnapshotFile(root);
     if (!snapshot.existsSync()) {
       Logger.log(
@@ -312,7 +321,9 @@ class DbPullSubcommand extends Command<void> {
       'Pull the remote database schema snapshot, or with --local print model '
       'suggestions from drift, isar and sqflite schemas.';
 
-  DbPullSubcommand() {
+  final String? _root;
+
+  DbPullSubcommand({this._root}) {
     argParser.addFlag(
       'local',
       negatable: false,
@@ -328,11 +339,11 @@ class DbPullSubcommand extends Command<void> {
       // Printed, never applied: see Adoption. A sensitive field is a
       // judgement about meaning, and a tool that wrote one in would guess.
       // ignore: avoid_print
-      dvLocalSchemaReport(Directory.current.path).forEach(print);
+      dvLocalSchemaReport(_root ?? Directory.current.path).forEach(print);
       return;
     }
     Logger.log('Pulling remote schema...');
-    final root = Directory.current.path;
+    final root = _root ?? Directory.current.path;
     final remote = remoteSchemaSnapshotFile(root);
     if (!remote.existsSync()) {
       Logger.log(
@@ -350,6 +361,10 @@ class DbPullSubcommand extends Command<void> {
 }
 
 class DbSeedSubcommand extends Command<void> {
+  DbSeedSubcommand({this._root});
+
+  final String? _root;
+
   @override
   final String name = 'seed';
   @override
@@ -358,7 +373,7 @@ class DbSeedSubcommand extends Command<void> {
   @override
   Future<void> run() async {
     Logger.log('Seeding database...');
-    final root = Directory.current.path;
+    final root = _root ?? Directory.current.path;
     final seeds = discoverSeedFiles(root);
     if (seeds.isEmpty) {
       Logger.log(

@@ -19,20 +19,16 @@ dartvel:
 ''';
 
 void main() {
-  late Directory previous;
   late Directory root;
   late List<List<String>> ran;
 
   setUp(() {
-    previous = Directory.current;
     root = Directory.systemTemp.createTempSync('dartvel_publish_cmd_');
-    Directory.current = root;
     ran = <List<String>>[];
     exitCode = 0;
   });
 
   tearDown(() {
-    Directory.current = previous;
     root.deleteSync(recursive: true);
     exitCode = 0;
   });
@@ -51,7 +47,7 @@ $publish
 
   Future<void> publish(List<String> arguments) async {
     final CommandRunner<void> runner = CommandRunner<void>('dartvel', 'test')
-      ..addCommand(PublishCommand(processRun: (
+      ..addCommand(PublishCommand(root: root.path, processRun: (
         String executable,
         List<String> args, {
         String? workingDirectory,

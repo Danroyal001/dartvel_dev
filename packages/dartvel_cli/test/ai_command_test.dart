@@ -7,18 +7,14 @@ import 'package:test/test.dart';
 
 void main() {
   group('AiCommand', () {
-    late Directory previous;
     late Directory root;
 
     setUp(() {
-      previous = Directory.current;
       root = Directory.systemTemp.createTempSync('dartvel_ai_command_');
-      Directory.current = root;
       exitCode = 0;
     });
 
     tearDown(() {
-      Directory.current = previous;
       root.deleteSync(recursive: true);
       exitCode = 0;
     });
@@ -29,7 +25,7 @@ void main() {
         ..createSync(recursive: true)
         ..writeAsStringSync('void main() {}\n');
 
-      await _runAi(<String>['ai', 'context']);
+      await _runAi(<String>['ai', 'context'], root);
 
       final context = aiContextFile(root.path);
       expect(context.existsSync(), isTrue);
@@ -52,7 +48,7 @@ void main() {
     });
 
     test('generate without provider exits instead of faking success', () async {
-      await _runAi(<String>['ai', 'generate', 'make a page']);
+      await _runAi(<String>['ai', 'generate', 'make a page'], root);
 
       expect(exitCode, 78);
       expect(aiGenerateRequestFile(root.path).existsSync(), isFalse);
@@ -60,7 +56,8 @@ void main() {
   });
 }
 
-Future<void> _runAi(List<String> args) {
-  return (CommandRunner<void>('dartvel', 'test')..addCommand(AiCommand()))
+Future<void> _runAi(List<String> args, Directory root) {
+  return (CommandRunner<void>('dartvel', 'test')
+        ..addCommand(AiCommand(root: root.path)))
       .run(args);
 }
