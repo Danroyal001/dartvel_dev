@@ -183,8 +183,13 @@ dependency_overrides:
     }
     analysis = await Process.run('flutter', <String>['analyze', 'lib'],
         workingDirectory: project.path);
+    // The JSON reporter, because the summary line is the reporter's to word:
+    // under GITHUB_ACTIONS the probe prints "4 tests passed." where a terminal
+    // prints "All tests passed!", and an assertion on either passes on one
+    // machine and fails on the other.
     run = await Process.run(
-        'flutter', <String>['test', 'test/analytics_wiring_test.dart'],
+        'flutter',
+        <String>['test', '--reporter', 'json', 'test/analytics_wiring_test.dart'],
         workingDirectory: project.path);
   });
 
@@ -205,7 +210,44 @@ dependency_overrides:
   });
 
   test('the generated wiring behaves as declared when run', () {
-    expect(run.exitCode, 0, reason: '${run.stdout}\n${run.stderr}');
-    expect('${run.stdout}', contains('All tests passed'));
+    final String output = '${run.stdout}\n${run.stderr}';
+    expect(run.exitCode, 0, reason: output);
+
+    // Each probe test by name, and how it ended. A run that compiled nothing,
+    // or skipped a test, exits 0 too.
+    final Map<int, String> names = <int, String>{};
+    final Map<String, String> results = <String, String>{};
+    bool? success;
+    for (final String line in const LineSplitter().convert('${run.stdout}')) {
+      if (!line.startsWith('{')) continue;
+      final Object? decoded = jsonDecode(line);
+      if (decoded is! Map) continue;
+      switch (decoded['type']) {
+        case 'testStart':
+          final Map<Object?, Object?> test =
+              decoded['test']! as Map<Object?, Object?>;
+          names[test['id']! as int] = '${test['name']}';
+        case 'testDone':
+          if (decoded['hidden'] == true) continue;
+          final String? name = names[decoded['testID']];
+          if (name != null) {
+            results[name] =
+                decoded['skipped'] == true ? 'skipped' : '${decoded['result']}';
+          }
+        case 'done':
+          success = decoded['success'] == true;
+      }
+    }
+    expect(success, isTrue, reason: output);
+    expect(
+      results,
+      <String, String>{
+        'the running policy is the declared one': 'success',
+        'an early event waits for the stored consent': 'success',
+        'the server privacy walk carries the analytics adapters': 'success',
+        'without the key the server configures no privacy walk': 'success',
+      },
+      reason: output,
+    );
   });
 }
