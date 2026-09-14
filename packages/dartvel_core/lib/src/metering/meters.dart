@@ -703,6 +703,56 @@ class DVMeters {
     );
   }
 
+  /// Whether recording [amount] against [meter] for the current tenant would
+  /// be admitted, without recording anything.
+  ///
+  /// For a caller that has to decide before it spends: an AI feature about
+  /// to call a provider cannot use [record], which counts the amount as it
+  /// checks it. Recording the worst case up front bills tokens nobody used,
+  /// and recording afterwards checks a budget that has already been spent.
+  ///
+  /// The answer is for this instant. Nothing is reserved, so a concurrent
+  /// recording can take the room between this check and the [record] that
+  /// follows the call.
+  Future<DVMeterOutcome> admits(DVMeterDefinition meter, num amount) {
+    final bool valid = amount.isFinite &&
+        (meter.kind == DVMeterKind.counter ? amount > 0 : amount >= 0);
+    if (!valid) {
+      throw ArgumentError.value(amount, 'amount',
+          'a meter is asked about a positive, finite amount');
+    }
+    final String tenant = const DVTenants().currentTenant;
+    final DateTime now = _clock().toUtc();
+    return _serialised('$tenant ${meter.name}', () async {
+      final DVMeterPeriod period = await _periodFor(tenant, now, <String>{});
+      final List<num> existing = <num>[
+        for (final DVMeterRecord r in await store.recordsIn(
+            tenant: tenant, meter: meter.name, period: period))
+          r.amount,
+      ];
+      final num before = _aggregate(meter, existing);
+      final num? limit = await _limitFor(meter, tenant);
+      final num after = _aggregate(meter, <num>[...existing, amount]);
+      if (limit == null || after <= limit) {
+        return DVMeterOutcome(
+          recorded: false,
+          admitted: true,
+          total: before,
+          limit: limit,
+          period: period,
+        );
+      }
+      return DVMeterOutcome(
+        recorded: false,
+        admitted: meter.atLimit != DVQuota.block,
+        applied: meter.atLimit,
+        total: before,
+        limit: limit,
+        period: period,
+      );
+    });
+  }
+
   /// Usage of [meter] by [tenant] in [period], defaulting to the open one.
   Future<num> usage(
     DVMeterDefinition meter, {
