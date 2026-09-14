@@ -17,6 +17,20 @@
   to the subject; a row that no longer does is left alone and kept out of
   what record adapters are handed.
 
+- **Native memory lent to a worker by address.** `DVWorkerBuffer.allocate`
+  gives zero-filled memory outside the Dart heap, and
+  `DV.Workers.run(task, input: buffer.lease, lend: [buffer])` hands a worker
+  its address: the worker, or native code it calls, reads and writes it in
+  place, and the caller sees the writes without a byte copied either way. A
+  buffer is passed, not shared -- while it is lent the caller cannot read it,
+  free it or lend it to a second run, which throws in the caller's frame. It
+  comes back with the worker's answer, but a run that was cancelled or timed
+  out keeps it until its isolate has actually exited, because that isolate
+  may still be writing and memory freed under it would crash somewhere else,
+  later. A blocking native call made on a worker leaves the caller its event
+  loop. Web builds get the same names, which refuse, and
+  `capability.zeroCopyNative` is false there.
+
 - **`DV.Workers`: declared offloadable work on a bounded pool.**
   `DVWorkers.run(task, input: ..., onProgress:, cancellation:, timeout:)`
   runs a top-level or static `DVWorkerTask` on its own isolate on the VM, and

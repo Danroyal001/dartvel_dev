@@ -121,9 +121,24 @@ final class DVWorkers {
     void Function(DVProgress progress)? onProgress,
     DVCancellation? cancellation,
     Duration? timeout,
+    Iterable<DVWorkerLendable> lend = const <DVWorkerLendable>[],
   }) {
     if (_closed) {
       throw StateError('DV.Workers is closed; it accepts no more tasks.');
+    }
+    // All or nothing, before anything is queued: a buffer already held by
+    // another run throws here, in the caller's frame.
+    final List<DVWorkerLendable> lent = <DVWorkerLendable>[];
+    try {
+      for (final DVWorkerLendable item in lend) {
+        item.lend();
+        lent.add(item);
+      }
+    } on Object {
+      for (final DVWorkerLendable item in lent) {
+        item.giveBack();
+      }
+      rethrow;
     }
     final _Job<O> job = _Job<O>(
       this,
@@ -131,7 +146,7 @@ final class DVWorkers {
       input,
       onProgress,
       Zone.current,
-    );
+    )..lent = lent;
     if (cancellation != null) {
       if (cancellation.isCancelled) {
         job.end(DVWorkerOutcome.cancelled,
@@ -226,6 +241,20 @@ final class _Job<O> implements DVWorkerSink {
   void Function()? detach;
   bool settled = false;
   bool holdsSlot = false;
+  List<DVWorkerLendable> lent = const <DVWorkerLendable>[];
+
+  /// Hands lent things back. Only once no task code can still be using them:
+  /// when the worker answered (its answer is its last act -- on an isolate,
+  /// `Isolate.exit` or a send immediately followed by it), when the
+  /// execution has exited, or when there never was one. Never merely
+  /// because the caller was answered: a cancelled or timed-out worker may
+  /// still be running, and keeps what it was lent until it is gone.
+  void _giveBack() {
+    for (final DVWorkerLendable item in lent) {
+      item.giveBack();
+    }
+    lent = const <DVWorkerLendable>[];
+  }
 
   DVWorkerMechanism get _mechanism => pool.capability.mechanism;
 
@@ -238,9 +267,11 @@ final class _Job<O> implements DVWorkerSink {
     pool._unqueue(this);
     completer.complete(DVWorkerResult<O>.ended(outcome, _mechanism,
         error: error, stackTrace: stackTrace));
-    if (outcome == DVWorkerOutcome.cancelled ||
+    if (execution == null || outcome == DVWorkerOutcome.failed) {
+      _giveBack();
+    } else if (outcome == DVWorkerOutcome.cancelled ||
         outcome == DVWorkerOutcome.timedOut) {
-      execution?.stop();
+      execution!.stop();
     }
   }
 
@@ -263,6 +294,7 @@ final class _Job<O> implements DVWorkerSink {
     if (settled) return;
     settled = true;
     _tidy();
+    _giveBack();
     completer.complete(DVWorkerResult<O>.completed(value as O, _mechanism));
   }
 
@@ -282,6 +314,7 @@ final class _Job<O> implements DVWorkerSink {
           const DVWorkerFailure(DVWorkerFailureKind.crashed,
               'the worker ended without answering'));
     }
+    _giveBack();
     pool._release(this);
   }
 }

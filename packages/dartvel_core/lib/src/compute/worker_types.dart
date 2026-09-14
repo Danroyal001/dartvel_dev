@@ -132,6 +132,17 @@ final class DVCancellation {
   }
 }
 
+/// Something a caller lends a worker for the length of one run -- native
+/// memory, today. It comes back with the worker's answer, or, when the run
+/// was cancelled or timed out, only once the worker's thread has ended.
+abstract interface class DVWorkerLendable {
+  /// Marks it held. Throws when it is already held or no longer usable.
+  void lend();
+
+  /// Marks it returned.
+  void giveBack();
+}
+
 /// How a run ended.
 enum DVWorkerOutcome { completed, failed, cancelled, timedOut }
 
