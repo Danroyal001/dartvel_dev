@@ -118,6 +118,34 @@
   query is embedded, not quietly answered by keyword search.
   `DVInMemoryVectorAdapter` is the reference adapter for development and
   tests; pgvector and the search services' vector APIs are not built yet.
+
+- **Organizations, memberships and invitations, as a runtime
+  (`DVOrganizations`).** A tenant stays the data boundary and an organization
+  is the group of people on it: one organization per tenant, refused a second
+  (`DVTenantAlreadyOrganized`), and a tenant with none is a personal tenant, on
+  which resolving a membership is `DV-ORG-006` rather than a quiet "no role".
+  Renaming, transferring and closing never touch the tenant, so a personal
+  tenant becomes an organization by creating one on it. Roles are typed
+  (`DVOrgRole`), ordered by declaration, and refuse to compare across two
+  declarations; an undeclared name is `DV-ORG-001`. `DVMembership.grants`
+  checks the organization as well as the rank, so an owner of one organization
+  is nobody in another, and it is what an `authorization` policy calls.
+  Invitations are `DVAuthTokens` magic links or passcodes: single use,
+  expiring by the organization's clock as well as the token store's, never
+  stored, bound to the invited address (a forwarded link is refused and spent,
+  and the invitation stays pending to resend), refused for an existing member
+  (`DV-ORG-002`) and for a role above the inviter's own. Seats are a query over
+  memberships under a declared rule (every member, at roles, active within a
+  period) and a `DVLevelLimit` for `DV.Meter`; a refused acceptance is
+  `DV-METER-004`. Counting and joining run under one lock per organization, so
+  five acceptances racing for two seats admit two. The last owner cannot leave
+  or be demoted, including by two owners demoting each other at once
+  (`DV-ORG-003`). Transfer promotes the successor before demoting the owner and
+  rolls back with an enclosing `DV.transaction`; closing is restorable within a
+  grace period and refuses work meanwhile (`DV-ORG-004`). Verified SSO domains
+  join at their declared role, exact domain only (`DV-ORG-005`). Every
+  membership change carries its actor and transaction in Record History.
+
 - **Crash reporting and release health, as a runtime (`DVCrashReporting`).**
   A crash is written to disk by the handler, synchronously and with nothing
   awaited, and sent by the next launch: a handler runs in a process that is

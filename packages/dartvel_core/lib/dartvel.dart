@@ -47,6 +47,7 @@ export 'src/purchases/purchases.dart';
 export 'src/auth/ldap_unsupported.dart'
     if (dart.library.io) 'src/auth/ldap.dart';
 export 'src/auth/oauth2.dart';
+export 'src/auth/organizations.dart';
 export 'src/auth/password.dart';
 export 'src/auth/saml.dart';
 export 'src/auth/second_factor.dart';
