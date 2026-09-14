@@ -29,6 +29,16 @@
   `@freezed` generated no model at all and said nothing, because the model
   generator's pattern steps over `@pragma` only.
 
+
+- **`dartvel.memory` reaches the running application, and doctor checks it.**
+  The generated client installs the `memory` section and each device
+  profile's `platform`, `ram` and `memory` override with `DVMemory.configure`
+  at startup, so `DV.Memory.allocate` applies the declared defaults and
+  per-target ceilings. A project that declares none generates nothing.
+  `dartvel doctor` reports configuration mistakes, fails a device profile
+  whose resolved memory budget exceeds its declared `ram`, and warns with
+  `DV-MEMORY-004` when `touchPages` is forced on a configured mobile or
+  embedded platform.
 - **`dartvel init` adds Dartvel to a project that already exists, and is no
   longer an alias of `create`.** As an alias it replaced the adopting
   project's pubspec with the scaffold template. It now inserts the Dartvel
