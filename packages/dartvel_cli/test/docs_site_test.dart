@@ -454,6 +454,66 @@ void main() {
         expect(store, contains('auth="inherit"'));
       },
     );
+
+    // The map showed what a module was declared to need, and nothing about
+    // whether it gets it: a reader could not tell a module the parent had
+    // granted from one the build would refuse.
+    Map<String, String> granted({required String egress}) => <String, String>{
+      'pubspec.yaml':
+          '''
+name: shop
+dartvel:
+  modules:
+    store:
+      mount: /store
+      source:
+        path: modules/store
+      grant:
+        secrets: [STORE_KEY]
+        egress: [$egress]
+''',
+      'modules/store/pubspec.yaml': '''
+name: store
+version: 1.0.0
+dartvel:
+  module:
+    capabilities:
+      secrets: [STORE_KEY]
+      egress: ['api.example.com']
+''',
+      'modules/store/lib/pay.dart': '''
+Future<void> pay() async {
+  final String key = DV.Secrets.get('STORE_KEY');
+  await DV.Http.post('https://api.example.com/charge', json: {'k': key});
+}
+''',
+    };
+
+    test('shows the grant, and what the trust evaluation says of it', () async {
+      final DVDocsSite site = await _siteFor(granted(egress: "'stripe.com'"));
+      final String store = _section(
+        site.files['modules.html']!,
+        'module-store',
+      );
+      expect(store, contains('Grant'));
+      expect(store, contains('secrets: STORE_KEY'));
+      expect(store, contains('Trust'));
+      expect(store, contains('DV-MODULE-001'));
+      expect(store, contains('api.example.com'));
+    });
+
+    test('says so when there is nothing to refuse', () async {
+      final DVDocsSite site = await _siteFor(
+        granted(egress: "'api.example.com'"),
+      );
+      final String store = _section(
+        site.files['modules.html']!,
+        'module-store',
+      );
+      expect(store, contains('Trust'));
+      expect(store, isNot(contains('DV-MODULE-00')));
+      expect(store, contains('uses only what it is granted'));
+    });
   });
 
   group('a project with nothing under lib', () {
