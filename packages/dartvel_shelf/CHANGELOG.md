@@ -1,5 +1,14 @@
 ## Unreleased
 
+- **`serve()` installs the preview's access gate around everything it
+  answers.** In a process deployed with `DARTVEL_ENVIRONMENT=preview`, serve
+  uses the preview already started or starts it, and a preview that cannot
+  start is not served. The gate is outermost, so the built site's files and
+  assembled pages get `X-Robots-Tag: noindex`, the disallow-all `robots.txt`,
+  the canonical rewrite and link or members visibility, not just the router's
+  routes. `previewMembership` supplies the membership check a members
+  preview needs. Outside a preview nothing changes.
+
 - **Two servers started at the same moment no longer share a request
   handler.** `0.4.0`'s fix made each server snapshot the registered handler
   at `aw_start`, which closed the request-time half: one global was no longer

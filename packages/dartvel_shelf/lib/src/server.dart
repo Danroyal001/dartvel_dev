@@ -5,7 +5,12 @@ import 'dart:isolate';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:dartvel_core/dartvel.dart'
-    show DVCacheAdapter, DVPageDataResolver, dvConfigureRuntimeLogging;
+    show
+        DVCacheAdapter,
+        DVPageDataResolver,
+        DVPreviewMembership,
+        DVPreviewServer,
+        dvConfigureRuntimeLogging;
 import 'package:path/path.dart' as p;
 
 import 'generated/bindings.dart' as gen; // produced by ffigen via build hook
@@ -106,6 +111,7 @@ Future<ServerHandle> serve(
   DVPageDataResolver? pageData, // The route's data on request, for the page pipeline
   DVCacheAdapter? pageStore, // Where the kept pages live, when they are shared
   bool compression = true, // Enable/disable compression
+  DVPreviewMembership? previewMembership, // Who may open a members-only preview
 }) async {
   // Where a log line actually goes. The runtime's logger keeps records in a
   // bounded buffer and writes nowhere else on its own, because a library that
@@ -116,6 +122,14 @@ Future<ServerHandle> serve(
   // This also decides whether the diagnostics endpoints answer, which is why
   // it runs before the first request can arrive rather than lazily.
   dvConfigureRuntimeLogging(Platform.environment, write: stdout.writeln);
+
+  // Preview Environments. A generated backend starts the preview before
+  // anything else runs; a hand-written entrypoint that calls serve() directly
+  // gets it here. Either way a process deployed as a preview does not serve
+  // until it has established it is one -- and outside a preview this is null
+  // and nothing below changes.
+  final DVPreviewServer? preview = DVPreviewServer.current ??
+      DVPreviewServer.start(Platform.environment, membership: previewMembership);
 
   final subdir = Platform.isMacOS
       ? (Platform.version.contains('arm64') ? 'macos-arm64' : 'macos-x64')
@@ -173,8 +187,13 @@ Future<ServerHandle> serve(
     };
   }
 
-  final effective =
+  final routed =
       (effectiveHandler is Router) ? effectiveHandler.call : effectiveHandler;
+  // The preview's gate goes outermost, around the site's files and assembled
+  // pages as well as the router: installed on the router alone, a link-only
+  // preview's whole web build would be readable by anybody and every file
+  // indexable.
+  final effective = preview == null ? routed : preview.wrap(routed);
 
   final activeSubscriptions = <int, StreamSubscription<List<int>>>{};
 
