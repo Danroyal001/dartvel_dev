@@ -1,5 +1,14 @@
 ## Unreleased
 
+- **An alert's state says who it reached, who it missed and whether it is
+  resolving; an incident entry says who wrote it.** `DVAlertState` gains
+  `deliveredTo`, `missed` (each unreached user, pager or unresolvable team
+  with the reason from the latest attempt), `resolvingSince` and
+  `lastNotifiedAt`, all read-only; `DVAlerting.pendingResolves(rule)` names
+  the pagers still owed a resolve. `DVIncidentEntry.actor` is kept through
+  storage and set by `update(actor:)` and `resolve(actor:)`; the public
+  snapshot never carries it.
+
 - **XR: the platform-independent runtime for presenting a scene in space.**
   `DVSpatialCapability` (with `headset()` and `glasses()`) reads a
   capability report strictly: a field not reported is false, and a member
