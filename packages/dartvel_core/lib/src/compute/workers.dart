@@ -14,7 +14,8 @@ import '../observability/observability.dart' show DVObservability;
 import 'web_worker_protocol.dart' show dvDebugResetCopiedReport;
 import 'worker_types.dart';
 import 'workers_host_stub.dart'
-    if (dart.library.isolate) 'workers_isolate.dart' as host;
+    if (dart.library.isolate) 'workers_isolate.dart'
+    if (dart.library.js_interop) 'workers_web.dart' as host;
 
 /// How many workers a device gets, from what the device is.
 ///

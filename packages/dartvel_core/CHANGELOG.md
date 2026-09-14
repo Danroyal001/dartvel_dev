@@ -34,6 +34,22 @@
   to the subject; a row that no longer does is left alone and kept out of
   what record adapters are handed.
 
+- **`DV.Workers` runs on web workers in a browser.** A web build now picks a
+  web worker per task wherever the page has `Worker`, and runs inline only
+  where it does not. The page sends the task's registered name and its input
+  to a worker script -- `DVWorkerTasks.script`, compiled from an entry that
+  registers the same tasks and calls `dvWebWorkerMain` from
+  `package:dartvel_core/web_worker.dart` -- and a task that is not registered
+  or an input that cannot be cloned fails by name before a worker is started.
+  Cancelling or timing out terminates the worker, and a script that fails to
+  load, or an error nothing in the worker caught, is a crash rather than a
+  page waiting forever. The pool is sized from `navigator.hardwareConcurrency`.
+  Exercised end to end by compiling a page and a worker with dart2js and
+  running them under Node with a `Worker` built on `worker_threads`; that
+  proves the runner through dart2js's real interop and says nothing about any
+  one browser. It found that reading a task through the pool's erased types
+  was a covariance TypeError in dart2js on the first run.
+
 - **What a web worker and its page say to each other.** A web worker is a
   separately loaded script that cannot be handed a Dart function, so a task
   crosses by a name registered on both sides with `DVWorkerTasks.register`,
