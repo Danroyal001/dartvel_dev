@@ -643,16 +643,21 @@ final class DVFlags {
     final void Function(DVFlagExposure)? sink = onExposure;
     if (sink == null) return;
     final String seen = '${flag.key}|${ctx.fingerprint}';
-    if (!_exposed.add(seen)) return;
+    if (_exposed.contains(seen)) return;
     final bool Function()? consent = exposureConsent;
     if (consent != null && !consent()) {
-      onDiagnostic(
-        'DV-FLAGS-007',
-        'exposure of "${flag.key}" not recorded: consent was withheld for the '
-            'declared analytics category',
-      );
+      // Not marked exposed: consent given later in the session has to find
+      // this context still unrecorded. Reported once, not on every read.
+      if (_reportedOnce.add('007:$seen')) {
+        onDiagnostic(
+          'DV-FLAGS-007',
+          'exposure of "${flag.key}" not recorded: consent was withheld for '
+              'the declared analytics category',
+        );
+      }
       return;
     }
+    _exposed.add(seen);
     sink(DVFlagExposure(
       key: flag.key,
       value: resolution.value,
