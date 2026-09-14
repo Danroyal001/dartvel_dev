@@ -26,6 +26,9 @@ final class _Props {
     this.visible,
     this.onTap,
     this.material,
+    this.anchor,
+    this.onGrab,
+    this.onRelease,
   });
 
   final String? id;
@@ -36,6 +39,9 @@ final class _Props {
   final Object? visible;
   final VoidCallback? onTap;
   final DVSceneAsset? material;
+  final DVAnchor? anchor;
+  final VoidCallback? onGrab;
+  final VoidCallback? onRelease;
 
   _Props copyWith({
     String? id,
@@ -46,6 +52,9 @@ final class _Props {
     Object? visible,
     VoidCallback? onTap,
     DVSceneAsset? material,
+    DVAnchor? anchor,
+    VoidCallback? onGrab,
+    VoidCallback? onRelease,
   }) =>
       _Props(
         id: id ?? this.id,
@@ -56,6 +65,9 @@ final class _Props {
         visible: visible ?? this.visible,
         onTap: onTap ?? this.onTap,
         material: material ?? this.material,
+        anchor: anchor ?? this.anchor,
+        onGrab: onGrab ?? this.onGrab,
+        onRelease: onRelease ?? this.onRelease,
       );
 }
 
@@ -156,6 +168,20 @@ mixin DVSceneNodeModifiers<Self extends DVSceneNode> on DVSceneNode {
   /// nearest thing under a tap.
   Self onTap(VoidCallback handler) =>
       _copy(_props.copyWith(onTap: handler)) as Self;
+
+  /// Pins this node to something in the real world. Where the target cannot
+  /// honour [anchor] -- every target that is not presenting the scene in
+  /// space -- the node stays at the scene origin and `DV-XR-002` says so.
+  Self anchor(DVAnchor anchor) => _copy(_props.copyWith(anchor: anchor)) as Self;
+
+  /// Called when a hand or controller grabs this node, or a child with no
+  /// handler of its own, in a spatial session.
+  Self onGrab(VoidCallback handler) =>
+      _copy(_props.copyWith(onGrab: handler)) as Self;
+
+  /// Called when a grab on this node is released, in a spatial session.
+  Self onRelease(VoidCallback handler) =>
+      _copy(_props.copyWith(onRelease: handler)) as Self;
 }
 
 /// A group: a transform its children share.
@@ -364,25 +390,43 @@ class DVLight extends DVSceneNode with DVSceneNodeModifiers<DVLight> {
 
 /// The image-based lighting a scene is lit by.
 class DVEnvironment {
-  const DVEnvironment._(this.asset);
+  const DVEnvironment._(this.asset, [this.isPassthrough = false]);
 
   /// An environment map.
-  const DVEnvironment.asset(DVSceneAsset this.asset);
+  const DVEnvironment.asset(DVSceneAsset this.asset) : isPassthrough = false;
 
   /// The procedural studio environment, needing no asset.
   static const DVEnvironment studio = DVEnvironment._(null);
 
+  /// The real world through a headset's cameras, lit from an environment
+  /// probe where one is available. Presented flat, the studio environment is
+  /// used and `DV-XR-001` says so.
+  static const DVEnvironment passthrough = DVEnvironment._(null, true);
+
   final DVSceneAsset? asset;
+  final bool isPassthrough;
 }
 
 /// What a [DVScene] resolves to on one build.
 final class DVSceneResolved {
-  const DVSceneResolved._(this.document, this.tapHandlers, this.cameraNodeId);
+  const DVSceneResolved._(
+    this.document,
+    this.tapHandlers,
+    this.cameraNodeId, {
+    this.grabHandlers = const <String, VoidCallback>{},
+    this.releaseHandlers = const <String, VoidCallback>{},
+  });
 
   final DV3DSceneDocument document;
 
   /// Tap handlers by node id.
   final Map<String, VoidCallback> tapHandlers;
+
+  /// Grab handlers by node id, which a spatial session delivers.
+  final Map<String, VoidCallback> grabHandlers;
+
+  /// Release handlers by node id, which a spatial session delivers.
+  final Map<String, VoidCallback> releaseHandlers;
 
   /// The first camera node, in document order.
   final String? cameraNodeId;
@@ -424,6 +468,8 @@ class DVScene {
     }
 
     final Map<String, VoidCallback> handlers = <String, VoidCallback>{};
+    final Map<String, VoidCallback> grabs = <String, VoidCallback>{};
+    final Map<String, VoidCallback> releases = <String, VoidCallback>{};
     String? cameraId;
     List<DVSceneNodeData> build(List<DVSceneNode> nodes, String? parent) =>
         <DVSceneNodeData>[
@@ -435,15 +481,19 @@ class DVScene {
                       ? '${node.kindName}#$i'
                       : '$parent/${node.kindName}#$i');
               if (node._props.onTap != null) handlers[id] = node._props.onTap!;
+              if (node._props.onGrab != null) grabs[id] = node._props.onGrab!;
+              if (node._props.onRelease != null) releases[id] = node._props.onRelease!;
               if (node is DVSceneCamera) cameraId ??= id;
               final Object? visible = _read(node._props.visible);
-              return node._data(
+              final DVSceneNodeData data = node._data(
                 id,
                 node._transform(),
                 (visible as bool?) ?? true,
                 build(node.children, id),
                 assetKey,
               );
+              final DVAnchor? anchor = node._props.anchor;
+              return anchor == null ? data : data.copyWith(anchor: anchor);
             })(),
         ];
 
@@ -452,15 +502,19 @@ class DVScene {
     return DVSceneResolved._(
       DV3DSceneDocument(
         id: 'dvbox.scene',
-        environment: environmentAsset == null
-            ? DV3DSceneDocument.studioEnvironment
-            : assetKey(environmentAsset),
+        environment: environment.isPassthrough
+            ? DV3DSceneDocument.passthroughEnvironment
+            : environmentAsset == null
+                ? DV3DSceneDocument.studioEnvironment
+                : assetKey(environmentAsset),
         poster: poster,
         assets: assets,
         nodes: data,
       ),
       handlers,
       cameraId,
+      grabHandlers: grabs,
+      releaseHandlers: releases,
     );
   }
 }
