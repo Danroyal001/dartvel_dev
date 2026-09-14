@@ -178,11 +178,17 @@ abstract final class DVStudioStyle {
             Icon(icon, size: 15, color: foreground),
             const SizedBox(width: 6),
           ],
-          DVText(label).modifier(
-            const DVModifier()
-                .fontSize(13)
-                .color(foreground)
-                .fontWeight(primary ? FontWeight.w600 : FontWeight.w500),
+          // Flexible and one line, so a control given less room than its
+          // label cuts the label short with an ellipsis rather than
+          // overflowing, and is exactly as wide as before where there is room.
+          Flexible(
+            child: DVText(label).modifier(
+              const DVModifier()
+                  .fontSize(13)
+                  .color(foreground)
+                  .fontWeight(primary ? FontWeight.w600 : FontWeight.w500)
+                  .maxLines(1),
+            ),
           ),
         ],
       ),
