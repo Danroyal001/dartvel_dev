@@ -102,6 +102,7 @@ export 'src/http/transport.dart';
 // widget. Server code that wants the full set imports
 // `package:dartvel_core/http.dart`.
 export 'src/http/wintercg.dart' show Request, Response, Headers;
+export 'src/compute/web_worker_protocol.dart' hide dvDebugResetCopiedReport;
 export 'src/compute/worker_buffer_stub.dart'
     if (dart.library.ffi) 'src/compute/worker_buffer_ffi.dart';
 export 'src/compute/worker_types.dart'
