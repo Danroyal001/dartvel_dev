@@ -130,6 +130,25 @@ void main() {
       expect(seen.where((Duration d) => d < const Duration(milliseconds: 1900)),
           isEmpty,
           reason: 'a report from before the seek moved the position back');
+      // And it moves on from there: a scrubber that stopped at the seek
+      // target looks exactly like one that landed.
+      expect(c.position.value, greaterThan(const Duration(milliseconds: 2150)),
+          reason: 'the position stopped updating after the seek');
+    }, skip: skip);
+
+    test('a player that failed never reports playing when asked to play',
+        () async {
+      final DVGStreamerPlayer backend = player();
+      final List<DVMediaBackendEvent> events = <DVMediaBackendEvent>[];
+      final StreamSubscription<DVMediaBackendEvent> sub =
+          backend.events.listen(events.add);
+      addTearDown(sub.cancel);
+      addTearDown(backend.dispose);
+      await backend.open(DVMediaSource.file('${dir.path}/missing.ogg'));
+      await until(() => events.any((DVMediaBackendEvent e) => e is DVMediaFailed));
+      await backend.play();
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      expect(events.whereType<DVMediaPlaying>(), isEmpty);
     }, skip: skip);
 
     test('a file that is not there fails with the decoder\'s reason', () async {
@@ -193,6 +212,24 @@ void main() {
       expect(File(file.path).statSync().modeString(), 'rw-------');
       expect(file.sizeBytes, greaterThan(1000));
       expect(file.duration!.inMilliseconds, closeTo(1000, 400));
+
+      // Finalised, not just stopped: the muxer wrote its last page, flagged
+      // end-of-stream. A stream cut off by tearing the pipeline down still
+      // decodes -- Ogg is forgiving -- so playing it back cannot tell.
+      final List<int> bytes = File(file.path).readAsBytesSync();
+      int last = -1;
+      for (int i = bytes.length - 27; i >= 0; i--) {
+        if (bytes[i] == 0x4F &&
+            bytes[i + 1] == 0x67 &&
+            bytes[i + 2] == 0x67 &&
+            bytes[i + 3] == 0x53) {
+          last = i;
+          break;
+        }
+      }
+      expect(last, isNonNegative, reason: 'no Ogg page in the recording');
+      expect(bytes[last + 5] & 0x04, 0x04,
+          reason: 'the last Ogg page is not flagged end-of-stream');
 
       final DVMediaController c = controllerFor(DVMediaSource.file(file.path));
       await c.attach(player());
