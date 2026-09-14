@@ -824,21 +824,7 @@ class DVCapture {
   /// erasure left of it: a delete when it is gone, or its anonymized values
   /// when a retention kept it. Returns that change, published.
   Future<DVCapturedChange> eraseRecord(DVRecordTable table, Object key) async {
-    await database.execute(
-      'UPDATE $logTable SET row_values = ?, purged = ? '
-      'WHERE model = ? AND record_key = ?',
-      <Object?>[null, 1, table.table, jsonEncode(_jsonSafe(key))],
-    );
-    final DVRecord? current = await table.read(key, withDeleted: true);
-    final bool live = current != null && current.deletedAt == null;
-    final String id = await record(
-      table: table,
-      operation: live ? DVCaptureOp.update : DVCaptureOp.delete,
-      key: key,
-      version: current?.version ?? 0,
-      values: live ? current.values : const <String, Object?>{},
-      erased: true,
-    );
+    final String id = await recordErasure(table, key);
     final List<Map<String, Object?>> rows = await database.query(
       'SELECT * FROM $logTable WHERE change_id = ? AND change_seq IS NOT NULL',
       <Object?>[id],
@@ -850,6 +836,48 @@ class DVCapture {
       );
     }
     return _changeFromRow(rows.first);
+  }
+
+  /// Purges every value the log holds for one record and captures what a
+  /// removal left of it, returning the change id: published at once, or
+  /// staged and published after commit inside `DV.transaction`.
+  ///
+  /// This is what a row removed or anonymized beside [DVRecordTable] -- by an
+  /// erasure, a retention sweep or a replayed erasure -- owes the log. A
+  /// record that is gone is captured as a delete one version past the newest
+  /// the log or [version], the version the caller removed, knows of; a
+  /// destination applies changes by version, and a delete at a version it
+  /// already holds is one it rightly ignores.
+  Future<String> recordErasure(
+    DVRecordTable table,
+    Object key, {
+    int? version,
+  }) async {
+    final String recordKey = jsonEncode(_jsonSafe(key));
+    final List<Map<String, Object?>> newest = await database.query(
+      'SELECT record_version FROM $logTable WHERE model = ? AND record_key = ? '
+      'ORDER BY record_version DESC LIMIT 1',
+      <Object?>[table.table, recordKey],
+    );
+    await database.execute(
+      'UPDATE $logTable SET row_values = ?, purged = ? '
+      'WHERE model = ? AND record_key = ?',
+      <Object?>[null, 1, table.table, recordKey],
+    );
+    final DVRecord? current = await table.read(key, withDeleted: true);
+    final bool live = current != null && current.deletedAt == null;
+    final int known = math.max(
+      version ?? 0,
+      newest.isEmpty ? 0 : _asInt(newest.first['record_version']),
+    );
+    return record(
+      table: table,
+      operation: live ? DVCaptureOp.update : DVCaptureOp.delete,
+      key: key,
+      version: current?.version ?? known + 1,
+      values: live ? current.values : const <String, Object?>{},
+      erased: true,
+    );
   }
 
   // --- jobs -----------------------------------------------------------------
@@ -1644,7 +1672,9 @@ class DVWarehouseSink implements DVCaptureSink {
 /// for them, captures what the erasure left -- a delete, or a retained row's
 /// anonymized values -- so a consumer that is behind receives that and never
 /// the earlier values, and applies the same changes to each destination
-/// directly. A destination that cannot be reached makes the erasure
+/// directly. Without it [DVPrivacy] still purges the log and captures the
+/// removal for every captured model, so delivery reaches every destination;
+/// what this adds is reaching [sinks] now, and knowing when one was not. A destination that cannot be reached makes the erasure
 /// incomplete (`DV-PRIVACY-009`) rather than waiting on delivery that may
 /// never run.
 class DVCapturePrivacyAdapter implements DVPrivacyRecordAdapter {

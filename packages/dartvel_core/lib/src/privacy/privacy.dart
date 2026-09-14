@@ -570,7 +570,12 @@ class DVPrivacy {
     final Map<String, List<DVRecord>> walk = await _walk(subject);
     for (final DVPrivacyModel model in models) {
       for (final DVRecord row in walk[model.name] ?? const <DVRecord>[]) {
-        final _DVRowOutcome outcome = await _eraseRow(model, row, ref);
+        final _DVRowOutcome outcome = await _eraseRow(
+          model,
+          row,
+          ref,
+          capture: !_captureAdapterErases(model.table),
+        );
         switch (outcome) {
           case _DVRowOutcome.deleted:
             deleted.update(model.name, (int n) => n + 1, ifAbsent: () => 1);
@@ -677,14 +682,26 @@ class DVPrivacy {
     );
   }
 
+  /// Whether an adapter erases [table]'s rows from its capture log, which
+  /// then captures the erasure itself: capturing it here as well would
+  /// publish every erasure twice.
+  bool _captureAdapterErases(DVRecordTable table) =>
+      table.capture != null &&
+      adapters.any(
+        (DVPrivacyAdapter a) =>
+            a is DVCapturePrivacyAdapter && identical(a.capture, table.capture),
+      );
+
   /// Applies what [model] declared to one of the subject's rows, and removes
   /// the row's change log either way: a log entry holds earlier values, and a
-  /// revert would put them back.
+  /// revert would put them back. With [capture], a captured model's log is
+  /// purged and the removal captured too.
   Future<_DVRowOutcome> _eraseRow(
     DVPrivacyModel model,
     DVRecord row,
-    DVPrivacySubjectRef ref,
-  ) async {
+    DVPrivacySubjectRef ref, {
+    required bool capture,
+  }) async {
     final DVRecordTable table = model.table;
     final _DVRowOutcome outcome;
     if (model.retain != null || model.anonymizeOnErase.isNotEmpty) {
@@ -701,12 +718,7 @@ class DVPrivacy {
       );
       outcome = _DVRowOutcome.deleted;
     }
-    if (table.historyPolicy != null) {
-      await database.execute(
-        'DELETE FROM ${table.historyTable} WHERE record_key = ?',
-        <Object?>[row.key],
-      );
-    }
+    await _forgetRow(database, table, row, capture: capture);
     return outcome;
   }
 
@@ -823,8 +835,10 @@ class DVPrivacy {
         if (erased.contains(ref.pseudonym)) due.add((model, row, ref));
       }
     }
+    // A restore brings back the capture log with the rows, so the log is
+    // purged again here; no adapter runs on a replay to do it instead.
     for (final (DVPrivacyModel, DVRecord, DVPrivacySubjectRef) item in due) {
-      await _eraseRow(item.$1, item.$2, item.$3);
+      await _eraseRow(item.$1, item.$2, item.$3, capture: true);
     }
     if (due.isNotEmpty) {
       _report(
@@ -1008,12 +1022,9 @@ class DVPrivacy {
           );
           deleted.update(model.name, (int n) => n + 1, ifAbsent: () => 1);
         }
-        if (table.historyPolicy != null) {
-          await database.execute(
-            'DELETE FROM ${table.historyTable} WHERE record_key = ?',
-            <Object?>[row.key],
-          );
-        }
+        // Retention applies to every copy of the row: its change log, and
+        // the capture log and each destination it feeds.
+        await _forgetRow(database, table, row);
       }
       done = end;
       batches++;
@@ -1148,6 +1159,33 @@ class DVPrivacy {
 
 enum _DVRowOutcome { deleted, anonymized, kept }
 
+/// What a row the privacy walk removed or anonymized with SQL of its own owes
+/// the copies [DVRecordTable] would otherwise have kept in step: its change
+/// log removed and, for a captured model with [capture], the capture log's
+/// values purged and the removal captured, so a destination fed by delivery
+/// drops what the source dropped.
+///
+/// The walk writes beside the record table rather than through it -- a
+/// soft-delete table would only mark the row, and a delete would log its
+/// values again -- so nothing reaches those copies unless this does.
+Future<void> _forgetRow(
+  DVDatabaseAdapter database,
+  DVRecordTable table,
+  DVRecord row, {
+  bool capture = true,
+}) async {
+  if (table.historyPolicy != null) {
+    await database.execute(
+      'DELETE FROM ${table.historyTable} WHERE record_key = ?',
+      <Object?>[row.key],
+    );
+  }
+  final DVCapture? log = table.capture;
+  if (capture && log != null) {
+    await log.recordErasure(table, row.key, version: row.version);
+  }
+}
+
 /// The erasure and export of one device's offline copy.
 ///
 /// A local store holds the subject's rows and, in its mutation log, writes not
@@ -1210,12 +1248,7 @@ class DVOfflineStorePrivacyAdapter implements DVPrivacyAdapter {
         'DELETE FROM ${table.table} WHERE ${table.key} = ?',
         <Object?>[row.key],
       );
-      if (table.historyPolicy != null) {
-        await db.execute(
-          'DELETE FROM ${table.historyTable} WHERE record_key = ?',
-          <Object?>[row.key],
-        );
-      }
+      await _forgetRow(db, table, row);
     }
     // A server copy or a queued write can outlive the local row it came from,
     // so each is matched on its own values, not only on a local row's key.
