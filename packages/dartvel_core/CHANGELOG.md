@@ -1,5 +1,17 @@
 ## Unreleased
 
+- **Two workers on one database queue no longer run a job twice.**
+  `DVDatabaseQueueAdapter.reserve` read the next queued row and then marked
+  it by id, so two workers polling one table both read the row before either
+  marked it and both ran the job. It now claims the row with an `UPDATE` that
+  only matches while the row is still queued and counts the claim only when
+  it changed a row; a worker that loses a row reads the next one rather than
+  reporting an empty queue.
+- **`SqliteDVDatabaseAdapter.file` waits for another connection's write
+  lock.** It sets `PRAGMA busy_timeout` (`busyTimeoutMilliseconds`, 5000 by
+  default) before anything else, so a web process, a worker and a cron
+  process sharing one file wait the milliseconds another write takes instead
+  of failing at once with "database is locked".
 - **`dartvel.infra` provisions several backend instances, workers and a cron
   unit.** `DVInfraBackendCapabilities` now defaults every flag to true,
   because the generated backend reads `DARTVEL_PORT` and `DARTVEL_ROLE`; a

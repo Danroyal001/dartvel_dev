@@ -33,6 +33,7 @@ class SqliteDVDatabaseAdapter
     String path, {
     bool walMode = true,
     bool foreignKeys = true,
+    int busyTimeoutMilliseconds = 5000,
   }) =>
       SqliteDVDatabaseAdapter._(path);
 
