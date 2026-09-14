@@ -9202,7 +9202,7 @@ are exactly the ones that get dropped from a hand-edited file.
 
 # Preview Environments
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
 
 Deployment says where a backend runs and Backend Release Management says how a
 new one replaces it. This says how a branch gets one of its own, for as long as
