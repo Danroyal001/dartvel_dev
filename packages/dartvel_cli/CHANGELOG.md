@@ -1,4 +1,14 @@
 ## Unreleased
+- **`dartvel inspect adoption` reports what is Dartvel-managed and what is
+  not: routes, models, screens and functions.** The managed half is generated
+  pages, the graph's models and backend functions. The unmanaged half is host
+  `GoRoute` paths, classes annotated `@freezed`, `@JsonSerializable`,
+  `@MappableClass` or `@collection` and drift tables, files outside
+  `pagesDir` that build a `Scaffold`, and `shelf_router` routes. Each kind
+  says how it was counted and what it cannot see, and a route path that could
+  not be read is listed as not measured instead of being left out of both
+  counts. `--json` emits the same inventory.
+
 - **`dartvel routes` fails on a route both the host router and a page define
   (DV-ADOPT-002), and on a model that already has a generated serializer
   (DV-ADOPT-003).** Both are checked before anything is written. Host routes
