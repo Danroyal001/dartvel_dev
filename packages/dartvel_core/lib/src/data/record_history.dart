@@ -12,6 +12,7 @@ import 'dart:math' as math;
 
 import '../database/adapter.dart';
 import '../transaction/transaction.dart';
+import 'change_capture.dart';
 
 /// How a write that finds its row moved since it was read is resolved.
 ///
@@ -283,6 +284,7 @@ class DVRecordTable {
     DVHistory? history,
     this.versioned = true,
     this.softDelete = false,
+    this.capture,
     DVDatabaseAdapter? database,
   })  : historyPolicy = history,
         columns = List<String>.unmodifiable(columns),
@@ -304,6 +306,7 @@ class DVRecordTable {
         throw ArgumentError.value(name, 'field', 'is not one of the columns');
       }
     }
+    capture?.track(this);
   }
 
   static final RegExp _identifier = RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$');
@@ -334,6 +337,10 @@ class DVRecordTable {
 
   /// Whether delete marks the row rather than removing it.
   final bool softDelete;
+
+  /// The change capture log every write is recorded to, or null when the
+  /// model is not captured. Sensitive fields are left out of it.
+  final DVCapture? capture;
 
   final DVDatabaseAdapter? _database;
 
@@ -489,6 +496,20 @@ class DVRecordTable {
       await _insertRow(current);
       throw DVHistoryWriteError(table: table, key: id, cause: error);
     }
+    try {
+      await capture?.record(
+        table: this,
+        operation: DVCaptureOp.delete,
+        key: id,
+        version: current.version + 1,
+        values: const <String, Object?>{},
+        tenant: tenant,
+      );
+    } catch (error) {
+      await _insertRow(current);
+      await _unlog(entry);
+      throw DVCaptureWriteError(table: table, key: id, cause: error);
+    }
     DVTransactionRunner.activeContext?.compensate(() async {
       await _insertRow(current);
       await _unlog(entry);
@@ -626,6 +647,23 @@ class DVRecordTable {
       );
       throw DVHistoryWriteError(table: table, key: id, cause: error);
     }
+    try {
+      await capture?.record(
+        table: this,
+        operation: DVCaptureOp.insert,
+        key: id,
+        version: 1,
+        values: values,
+        tenant: tenant,
+      );
+    } catch (error) {
+      await database.execute(
+        'DELETE FROM $table WHERE $key = ? AND $versionColumn = ?',
+        <Object?>[id, 1],
+      );
+      await _unlog(entry);
+      throw DVCaptureWriteError(table: table, key: id, cause: error);
+    }
     DVTransactionRunner.activeContext?.compensate(() async {
       await database.execute(
         'DELETE FROM $table WHERE $key = ? AND $versionColumn = ?',
@@ -689,6 +727,24 @@ class DVRecordTable {
     } catch (error) {
       await _setRow(current, expected: next);
       throw DVHistoryWriteError(table: table, key: current.key, cause: error);
+    }
+    try {
+      await capture?.record(
+        table: this,
+        operation: deleted
+            ? DVCaptureOp.delete
+            : restored
+                ? DVCaptureOp.restore
+                : DVCaptureOp.update,
+        key: current.key,
+        version: next,
+        values: deleted ? const <String, Object?>{} : values,
+        tenant: tenant,
+      );
+    } catch (error) {
+      await _setRow(current, expected: next);
+      await _unlog(entry);
+      throw DVCaptureWriteError(table: table, key: current.key, cause: error);
     }
 
     DVTransactionRunner.activeContext?.compensate(() async {

@@ -89,6 +89,7 @@ export 'src/http/transport.dart';
 // widget. Server code that wants the full set imports
 // `package:dartvel_core/http.dart`.
 export 'src/http/wintercg.dart' show Request, Response, Headers;
+export 'src/data/change_capture.dart';
 export 'src/data/import_chunking.dart';
 export 'src/data/offline_store.dart';
 export 'src/data/record_history.dart';
