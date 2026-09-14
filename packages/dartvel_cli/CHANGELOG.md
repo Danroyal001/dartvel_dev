@@ -1,4 +1,12 @@
 ## Unreleased
+- **`dartvel db pull --local` prints `@DVModel` suggestions from the drift
+  tables, isar collections and sqflite `CREATE TABLE` statements a project
+  already has.** Column types map to model field types with nullability kept;
+  a column with no model field type is named as not mapped rather than
+  dropped. Suggestions are printed and never applied, and no sensitive field
+  is guessed: the output says sensitivity was not inferred. `db pull` without
+  the flag is unchanged.
+
 - **`dartvel inspect adoption` reports what is Dartvel-managed and what is
   not: routes, models, screens and functions.** The managed half is generated
   pages, the graph's models and backend functions. The unmanaged half is host
