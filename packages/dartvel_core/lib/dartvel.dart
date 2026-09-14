@@ -26,6 +26,7 @@ import 'src/search/search_tuning.dart';
 import 'src/tenancy/tenants.dart';
 
 export 'src/ai/ai.dart';
+export 'src/ai/ai_features.dart';
 export 'src/ai/mcp.dart';
 export 'src/ai/prompts.dart';
 export 'src/alerting/alerting.dart';
