@@ -106,6 +106,7 @@ class DVSecrets {
     _hooks.clear();
     _redactable.clear();
     env.resetEnvFile();
+    env.resetCredentialsDirectory();
   }
 
   /// Reads local-development values from [path] instead of `./.env`.
@@ -116,6 +117,16 @@ class DVSecrets {
   /// fetching such a file would publish the backend environment to every
   /// visitor. [reset] puts the default back.
   static void useEnvFile(String path) => env.useEnvFile(path);
+
+  /// Reads supervisor credentials from [path] instead of
+  /// `$CREDENTIALS_DIRECTORY`; null reads none.
+  ///
+  /// systemd decrypts a unit's `LoadCredentialEncrypted=` credentials into
+  /// that directory, which is how `dartvel infra` delivers secrets. A
+  /// credential resolves after the process environment and before `.env`.
+  /// For tests; [reset] puts the default back. Does nothing on the web.
+  static void useCredentialsDirectory(String? path) =>
+      env.useCredentialsDirectory(path);
 
   /// Remembers [value] as something [redact] must strike out.
   ///
