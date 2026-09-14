@@ -20,6 +20,7 @@ import 'package:dartvel_core/dartvel.dart'
         DVSignedBundle,
         DVSignedBundleException,
         dvDevClientCompatibility,
+        dvDevClientShellMarker,
         dvDevClientUnreachable,
         dvSendHttpRequest;
 import 'package:flutter/material.dart';
@@ -286,6 +287,10 @@ class DVDevMenu extends StatelessWidget {
           const _Heading('Log'),
           if (log.isEmpty) const Text('Nothing loaded yet.'),
           for (final String line in log.reversed) Text(line),
+          // Referenced here so the compiled shell carries it and `dartvel
+          // publish` can recognise the artifact; see dvDevClientShellMarker.
+          const _Heading('Shell'),
+          const Text(dvDevClientShellMarker),
         ],
       ),
     );
