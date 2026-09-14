@@ -2,6 +2,10 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:dartvel_core/dartvel.dart';
+import 'package:path/path.dart' as p;
+import 'package:yaml/yaml.dart';
+
+import '../generators/routes_generator.dart' as routes;
 
 class QueueCommand extends Command<void> {
   @override
@@ -10,8 +14,10 @@ class QueueCommand extends Command<void> {
   @override
   String get description => 'Work and inspect Dartvel queues.';
 
-  QueueCommand() {
-    addSubcommand(_QueueWorkCommand());
+  /// [root] is the project `queue work` runs the worker of; the working
+  /// directory when null, which is what the CLI passes.
+  QueueCommand({String? root}) {
+    addSubcommand(_QueueWorkCommand(root));
     addSubcommand(_QueueFailedCommand());
     addSubcommand(_QueueRetryCommand());
     addSubcommand(_QueueFlushCommand());
@@ -25,7 +31,10 @@ class _QueueWorkCommand extends Command<void> {
   @override
   String get description => 'Run queued jobs for a queue.';
 
-  _QueueWorkCommand() {
+  /// The project whose worker runs; the working directory when null.
+  final String? _root;
+
+  _QueueWorkCommand(this._root) {
     argParser
       ..addOption('queue', defaultsTo: 'default', help: 'Queue name to work.')
       ..addOption('max-jobs',
@@ -39,11 +48,50 @@ class _QueueWorkCommand extends Command<void> {
     if (maxJobs == null || maxJobs < 1) {
       throw UsageException('--max-jobs must be a positive integer.', usage);
     }
+
+    // In a Dartvel project the jobs, their handlers and the queue are the
+    // application's, and none of them is in this process: working the CLI's
+    // own queue drained a queue nothing had dispatched to and registered no
+    // handler. So the project's generated backend runs as a worker, the same
+    // program a DARTVEL_ROLE=worker unit starts, bounded by --max-jobs.
+    final Directory project = Directory(_root ?? Directory.current.path);
+    if (_isDartvelProject(project)) {
+      await routes.generate(root_: project.path);
+      final Process worker = await Process.start(
+        'dart',
+        <String>[
+          'run',
+          '.dart_tool/dartvel_server.dart',
+          '--max-jobs=$maxJobs',
+        ],
+        workingDirectory: project.path,
+        environment: <String, String>{
+          'DARTVEL_ROLE': 'worker',
+          'DARTVEL_QUEUE': queue,
+        },
+        mode: ProcessStartMode.inheritStdio,
+      );
+      exitCode = await worker.exitCode;
+      return;
+    }
+
+    // Outside a project there is only this process's queue.
     final completed = await const DVQueues().work(
       queue: queue,
       maxJobs: maxJobs,
     );
     stdout.writeln('Processed $completed job(s) from "$queue".');
+  }
+
+  static bool _isDartvelProject(Directory root) {
+    final File pubspec = File(p.join(root.path, 'pubspec.yaml'));
+    if (!pubspec.existsSync()) return false;
+    try {
+      final Object? yaml = loadYaml(pubspec.readAsStringSync());
+      return yaml is YamlMap && yaml.containsKey('dartvel');
+    } on Object {
+      return false;
+    }
   }
 }
 

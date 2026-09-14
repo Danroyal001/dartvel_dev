@@ -410,6 +410,10 @@ Future<void> everyMinute() async {
           await probe(const <String, String>{
             'DARTVEL_ROLE': 'cron',
             'PROBE_QUEUE': 'configured',
+            // No DATABASE_URL here, and a declared cron process with no
+            // shared store now refuses to start; worker_jobs_backend_test
+            // covers that. This one is about what a cron process runs.
+            'DARTVEL_SCHEDULE_LEASE': 'none',
           }),
         );
         expect(r['error'], isNull);

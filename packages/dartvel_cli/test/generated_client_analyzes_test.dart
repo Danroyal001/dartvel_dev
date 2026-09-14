@@ -311,6 +311,7 @@ dependency_overrides:
       'widgets.g.dart',
       'functions.g.dart',
       'jobs.g.dart',
+      'client_jobs.g.dart',
       'dartvel_client.dart',
     ]));
     expect(analysis.exitCode, anyOf(0, 1),
