@@ -5681,7 +5681,7 @@ belongs to.
 
 # Commerce: Tax, Promotions, Disputes and Payouts
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
 
 Billing takes money for a subscription, Purchases and Entitlements takes it
 through a store, and Usage Metering says how much to take. What none of them
