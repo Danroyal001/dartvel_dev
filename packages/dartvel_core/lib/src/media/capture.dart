@@ -327,9 +327,9 @@ final class DVCaptureSession implements Future<DVFile> {
     _runtime._free(this);
     final DVCaptureBackend? backend = _backend;
     _backend = null;
-    await _lifecycle?.cancel();
+    unawaited(_lifecycle?.cancel());
     _lifecycle = null;
-    await _events?.cancel();
+    unawaited(_events?.cancel());
     _events = null;
     await backend?.dispose();
   }

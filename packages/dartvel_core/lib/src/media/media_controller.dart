@@ -490,8 +490,11 @@ final class _DVMediaSession {
       pending.complete();
     }
     _seeks.clear();
-    await _lifecycle?.cancel();
-    await _events?.cancel();
+    // Not awaited. A cancel returns an already-completed future from the
+    // root zone, and waiting on it here held the backend open until some
+    // unrelated turn of the event loop -- forever, under a fake clock.
+    unawaited(_lifecycle?.cancel());
+    unawaited(_events?.cancel());
     await _env.focus.release(owner);
     final DVMediaPlayerBackend? b = backend;
     if (b != null) await b.dispose();
