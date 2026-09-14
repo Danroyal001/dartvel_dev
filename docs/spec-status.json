@@ -869,7 +869,25 @@
     {
       "section": "Platform Memory",
       "stability": "Draft",
-      "status": "Designed"
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_core/lib/src/memory/platform_memory.dart",
+        "packages/dartvel_core/lib/src/memory/config.dart",
+        "packages/dartvel_core/lib/src/memory/memory.dart",
+        "packages/dartvel_core/lib/src/memory/size.dart",
+        "packages/dartvel_core/lib/src/memory/target.dart",
+        "packages/dartvel_core/lib/src/memory/backing.dart",
+        "packages/dartvel_core/lib/src/memory/backing_native.dart",
+        "packages/dartvel_core/test/platform_memory_test.dart",
+        "packages/dartvel_core/test/memory_config_test.dart",
+        "packages/dartvel_core/test/platform_memory_native_test.dart",
+        "packages/dartvel_core/test/platform_memory_web_js_test.dart",
+        "packages/dartvel_flutter/test/memory_facade_test.dart",
+        "packages/dartvel_cli/lib/src/doctor/memory_check.dart",
+        "packages/dartvel_cli/test/memory_doctor_test.dart",
+        "packages/dartvel_cli/test/memory_config_generation_test.dart"
+      ],
+      "absent": "Built: DVPlatformMemory reserves its budget up front in power-of-two segments (native heap through package:ffi malloc on native targets, typed data on web) and hands out DVInt, DVDouble and DVBool scalars and MemorySlice lists over int8 to int64 and float32 and float64 storage, chunked across segments with shift-and-mask indexing and never split when a list fits one segment; native addresses are stable, and a test shows another isolate writing through one with no copy. reset() and dispose() invalidate every earlier handle, including a transformAsync waiting to resume, and new lists are zero-filled. DV-MEMORY-001 (less granted or capped), DV-MEMORY-002 (exhausted, consuming nothing), DV-MEMORY-003 (int64 on web-js) and DV-MEMORY-004 (touchPages refused on mobile or embedded) are emitted and registered. On web-js intList is float64-backed and refuses values past 2^53, checked by compiling with dart2js and running under node. DV.Memory.allocate applies dartvel.memory defaults, per-target ceilings and device-profile overrides and registers each arena for aggregate secured, used, high-water, fragmentation and reset metrics; the generated client installs that configuration at startup; dartvel doctor fails a device profile whose resolved budget exceeds its declared ram and warns on DV-MEMORY-004. Not built: no Studio memory panel, and arena metrics do not feed performance contracts or dartvel analyze performance; the tizen, webos and sony-elinux builds do not pass DARTVEL_PLATFORM, so on those devices the arena takes desktop defaults, including touchPages on, unless DVMemory.configure is given a target; native segments come from package:ffi rather than generated FFI, no Rust binding consumes a slice address, and DV.Workers does not lend arena slices (only DVWorkerBuffer); on web, segments are not aligned to worker transfer boundaries, no SharedArrayBuffer is used, nothing has run in a real browser, and web-wasm has not been executed; JS index math past 2^31 elements is not guarded; dispose() returns native memory when the last view is garbage-collected, not straight away; rawBytes and rawStruct views are not invalidated by reset; an arena allocated in main() before the router is built gets profile defaults; no native target other than Linux has been verified. Where the section and the code disagree: the section lists the DV-MEMORY codes in a text block with no level, so the registry assigns warning, error, error, warning, and the registry check now reads text-block codes; device profiles may override memory settings but no keys are named, and the code reads deviceProfiles.<id>.memory and .ram; allocate() with no size and no configured budget reserves one segment, which the section does not define; segments must be a power of two from 4KB to 1GB; the constructor also takes target and backing."
     },
     {
       "section": "Compute: Workers and Native Offload",
