@@ -1,9 +1,13 @@
 import 'dart:async';
 
+// Not re-exported by the dartvel_flutter barrel, whose core exports are a
+// `show` list.
+import 'package:dartvel_core/dartvel.dart' show DVFlags;
 import 'package:flutter/material.dart' show Icon, IconData, Icons, Material;
 import 'package:flutter/widgets.dart';
 
 import '../../dartvel_flutter.dart';
+import 'studio_flags.dart';
 import 'studio_review.dart';
 
 /// The Studio admin surface: a navigation rail, and the section it opens.
@@ -36,6 +40,11 @@ class DVStudioScreen extends StatefulWidget {
   final Object? actor;
   final List<String> reviewers;
 
+  /// The flag runtime, which adds a Flags section: every declared flag, its
+  /// rules, who gets what, rule edits applied to this running app, and a
+  /// debug-build override. Without it there is no Flags tab.
+  final DVFlags? flags;
+
   const DVStudioScreen({
     super.key,
     this.store = const DVPageStore(),
@@ -45,6 +54,7 @@ class DVStudioScreen extends StatefulWidget {
     this.content,
     this.actor,
     this.reviewers = const <String>[],
+    this.flags,
   });
 
   @override
@@ -113,6 +123,16 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
             key: ValueKey<String>('dv-studio-windows'),
           ),
         ),
+        if (widget.flags case final DVFlags flags)
+          DVStudioSection(
+            id: 'flags',
+            label: 'Flags',
+            icon: DVStudioIcons.flags,
+            build: (BuildContext context) => StudioFlagsSection(
+              key: const ValueKey<String>('dv-studio-flags'),
+              flags: flags,
+            ),
+          ),
         ...widget.sections,
       ];
 

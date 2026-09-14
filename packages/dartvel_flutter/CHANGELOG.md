@@ -1,5 +1,18 @@
 ## Unreleased
 
+- **Studio has a Flags section when it is given the flag runtime.**
+  `DVStudioScreen(flags: const DVFlags())` adds it; without `flags` there is
+  no tab. It lists every declared flag with its type, owner, expiry, default
+  and rule count, marks an expired flag in the list and in its detail, and
+  shows each rule's value and targeting in words. "Who gets what" answers a
+  typed context through `DVFlags.evaluate` with the rules and overrides a read
+  gets, and names the rule that decided. Rules are added, edited, reordered
+  and removed as drafts that refuse a value the flag cannot read, shown as a
+  diff and applied through `DVFlags.setRules` only once confirmed, labelled
+  throughout as local to the running app because nothing publishes rules per
+  environment. A debug build offers a marked process-wide override; a release
+  build offers none.
+
 - **`DVBox.scene`.** A 3D viewport as a box layout mode:
   `DVBox.scene(DVScene(nodes: [...]))` with `DVModel3D`, `DVMesh`, `DVNode`,
   `DVSceneCamera` and `DVLight` as typed scene objects rather than widgets.
