@@ -10874,7 +10874,7 @@ themselves.
 
 # Data Compliance and Lifecycle
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
 
 Sensitive Model Fields says which values are sensitive and who may read them.
 This says how long they are kept, what happens when somebody asks for a copy,
