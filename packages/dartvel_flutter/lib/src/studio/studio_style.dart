@@ -890,6 +890,7 @@ abstract final class DVStudioIcons {
   static const IconData approvals = Icons.fact_check_outlined;
   static const IconData team = Icons.group_outlined;
   static const IconData figma = Icons.draw_outlined;
+  static const IconData flags = Icons.flag_outlined;
   static const IconData settings = Icons.settings_outlined;
   static const IconData section = Icons.extension_outlined;
   static const IconData add = Icons.add;
