@@ -179,10 +179,11 @@ class DVWindowSharedStore {
 
   /// Namespaces an application may not touch.
   ///
-  /// `workspace.` is DVTabWorkspace's layout state; `dv.` is everything else
-  /// the framework keeps here. A prefix rule, not a substring one:
-  /// `myapp.workspace.name` collides with nothing and stays legal.
-  static const List<String> reservedPrefixes = <String>['dv.', 'workspace.'];
+  /// `workspace.` is DVTabWorkspace's layout state; `xr.` holds world anchor
+  /// tokens (`xr.anchors.*`); `dv.` is everything else the framework keeps
+  /// here. A prefix rule, not a substring one: `myapp.workspace.name`
+  /// collides with nothing and stays legal.
+  static const List<String> reservedPrefixes = <String>['dv.', 'workspace.', 'xr.'];
 
   /// Throws if [key] is in a reserved namespace.
   static void _reject(String key) {

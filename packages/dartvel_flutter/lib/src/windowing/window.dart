@@ -56,7 +56,26 @@ class DVWindowingCapability {
     this.applicationModal = false,
     this.displays = false,
     this.displayKiosk = false,
+    this.spatial,
   });
+
+  /// What the target can do in space: null on every target that is not a
+  /// headset or glasses. The one capability application code may branch on
+  /// to decide whether to offer a spatial control.
+  final DVSpatialCapability? spatial;
+
+  /// This capability with [spatial] in it.
+  DVWindowingCapability withSpatial(DVSpatialCapability? spatial) => DVWindowingCapability(
+        multiWindow: multiWindow,
+        sameEngine: sameEngine,
+        tearOut: tearOut,
+        inPageViews: inPageViews,
+        ownedWindows: ownedWindows,
+        applicationModal: applicationModal,
+        displays: displays,
+        displayKiosk: displayKiosk,
+        spatial: spatial,
+      );
 
   /// Whether a window can own a display as a kiosk: pinned, fullscreen, its
   /// policy running. True where real windows and display enumeration are
@@ -85,7 +104,8 @@ class DVWindowingCapability {
   DVWindowingCapability withDisplayCount(int count) => DVWindowingCapability(
         multiWindow: multiWindow,
         sameEngine: sameEngine,
-        tearOut: tearOut,
+        // Tearing a tab out of a workspace on a headset yields a panel.
+        tearOut: tearOut || (spatial?.panels ?? false),
         inPageViews: inPageViews,
         ownedWindows: ownedWindows,
         applicationModal: applicationModal,
@@ -94,10 +114,14 @@ class DVWindowingCapability {
         // terminal build can still enumerate the monitors plugged into the
         // machine, and a workspace reading a bare count would have offered a
         // "move to display" control with nowhere to move anything to.
-        displays: multiWindow && count > 1,
+        //
+        // Displays do not exist in space: a headset reports none, and no
+        // display can be owned by a kiosk there.
+        displays: spatial == null && multiWindow && count > 1,
         // Kept when declared: a test or a host that said a display can be
         // pinned is not overruled by a count read before enumeration ran.
-        displayKiosk: displayKiosk || (multiWindow && count > 1),
+        displayKiosk: spatial == null && (displayKiosk || (multiWindow && count > 1)),
+        spatial: spatial,
       );
 
   /// The capability of the running target.
@@ -217,7 +241,23 @@ class DVWindowingDeclaration {
 }
 
 /// What kind of surface was asked for.
-enum DVWindowKind { regular, dialog, popup, tooltip, satellite, kiosk }
+enum DVWindowKind {
+  regular,
+  dialog,
+  popup,
+  tooltip,
+  satellite,
+  kiosk,
+
+  /// A bounded 3D region in space showing a scene page. Where it cannot be
+  /// presented, the scene as a viewport in a page (`DV-WINDOW-014`).
+  volume,
+
+  /// A scene surrounding the user, passthrough or full. Exclusive, and owned
+  /// by the window that opened it. Where it cannot be presented, a
+  /// fullscreen scene page (`DV-WINDOW-015`).
+  immersive,
+}
 
 extension DVWindowKindX on DVWindowKind {
   /// Whether this kind counts towards the exit policy and can be `main`.
@@ -230,7 +270,14 @@ extension DVWindowKindX on DVWindowKind {
   bool get countsAsPrincipal => this == DVWindowKind.regular || this == DVWindowKind.kiosk;
 
   /// Whether this kind belongs to another window.
-  bool get isOwned => this != DVWindowKind.regular && this != DVWindowKind.kiosk;
+  ///
+  /// A volume coexists with the windows around it and belongs to none; an
+  /// immersive space belongs to the window that opened it.
+  bool get isOwned =>
+      this != DVWindowKind.regular && this != DVWindowKind.kiosk && this != DVWindowKind.volume;
+
+  /// Whether this kind is presented in space where the target can.
+  bool get isSpatial => this == DVWindowKind.volume || this == DVWindowKind.immersive;
 
   /// What this kind blocks when nothing is asked for.
   DVWindowModality get defaultModality => this == DVWindowKind.dialog
@@ -280,7 +327,10 @@ enum DVWindowExitPolicy {
 }
 
 /// How the request was actually presented.
-enum DVWindowPresentation { window, page, dialog, overlay }
+///
+/// `volume` and `immersive` are presentations in space, reached only where
+/// the XR runtime presented the request there.
+enum DVWindowPresentation { window, page, dialog, overlay, volume, immersive }
 
 /// Why a request was presented as something other than a window.
 enum DVWindowDegradation {
@@ -397,6 +447,16 @@ class DVWindowOptions {
   /// For [DVWindowKind.kiosk]: the declared policy the window obeys.
   final DVWindowKiosk? kiosk;
 
+  /// For [DVWindowKind.volume]: the size it asks for. A hint; the OS decides.
+  final DVVolumeOptions? volume;
+
+  /// For [DVWindowKind.immersive]: passthrough or full.
+  final DVImmersion immersion;
+
+  /// For [DVWindowKind.immersive]: the locomotion it offers, under the
+  /// comfort policy.
+  final DVComfortOptions? comfort;
+
   const DVWindowOptions({
     this.size,
     this.constraints,
@@ -408,6 +468,9 @@ class DVWindowOptions {
     this.modality,
     this.isExternal = false,
     this.kiosk,
+    this.volume,
+    this.immersion = DVImmersion.full,
+    this.comfort,
   });
 
   /// An OS-delivered open request.
@@ -464,6 +527,12 @@ class DVWindow {
   /// The kiosk this window is, or null for an ordinary window.
   DVWindowKioskHandle? kiosk;
 
+  /// The session presenting this window in space, for a volume or immersive
+  /// space that got one. Ends when the window closes.
+  DVSpatialSession? spatial;
+
+  bool _closing = false;
+
   void _code(String code, String detail) {
     codes.add(code);
     unawaited(_logCode(code, detail));
@@ -519,6 +588,11 @@ class DVWindow {
       _code('DV-WINDOW-012', 'close refused on a pinned kiosk window');
       return;
     }
+    // A close already under way, or done. A space the system ended closes its
+    // window, and that close ends the space, which would otherwise close the
+    // window a second time.
+    if (_closing || _lifecycle.value == DVWindowLifecycle.closed) return;
+    _closing = true;
     _lifecycle.value = DVWindowLifecycle.closing;
 
     // Owned windows go first, and in reverse open order: the last opened is
@@ -537,6 +611,9 @@ class DVWindow {
         owned: ownedWindows.length,
       );
     }
+    // A space ends with the window that owns it: the camera and tracking stop
+    // before the window is gone, never after.
+    await spatial?.close();
     // A browser window closes through the handle the page opened it with: a
     // browser lets a page close only a window that page opened, and the
     // `window.close` binding it would otherwise ask for does not exist there.
@@ -648,6 +725,7 @@ class DVWindowManager {
     _capabilityOverride = null;
     browserWindowOpener = dvOpenBrowserWindow;
     _shared = null;
+    DVXR.clear();
   }
 
   /// What the windowing layer measures. See [DVWindowPerformance].
@@ -820,8 +898,11 @@ class DVWindowManager {
           },
       ];
 
-  DVWindowingCapability get capability => _detectCapability()
-      .withDisplayCount(_displays.value.length);
+  DVWindowingCapability get capability {
+    final DVWindowingCapability detected = _detectCapability();
+    return (detected.spatial == null ? detected.withSpatial(DVXR.capability) : detected)
+        .withDisplayCount(_displays.value.length);
+  }
 
   /// The best a move between two windows can do on this target.
   ///
@@ -932,6 +1013,7 @@ class DVWindowManager {
         if (existing.route.path == route.path) return existing;
       }
     }
+    if (options.kind.isSpatial) return _openSpatial(route, options);
     final int started = performance.mark();
 
     final cap = capability;
@@ -942,7 +1024,16 @@ class DVWindowManager {
     // Enumerate first when a hint was given and nothing has yet, or the first
     // window of the process would always land on the primary display.
     DVDisplayResolution? display;
-    if (options.display != null) {
+    if (options.display != null && cap.spatial != null) {
+      // Displays do not exist in space: the hint is ignored, and said so, as
+      // on any target with no matching display. Enumerating anyway would
+      // find the headset's own panel and "match" it.
+      display = const DVDisplayResolution(
+        display: null,
+        exact: false,
+        degradation: DVWindowDegradation.displayHintUnmatched,
+      );
+    } else if (options.display != null) {
       if (_displays.value.isEmpty) await refreshDisplays();
       display = DVDisplays.resolve(_displays.value, options.display);
     }
@@ -1123,6 +1214,94 @@ class DVWindowManager {
     return window;
   }
 
+  /// A volume or immersive space: in space where the XR runtime presents it,
+  /// otherwise a page, with the codes that say why.
+  ///
+  /// Not the path the other kinds take. `DV-WINDOW-014` and `DV-WINDOW-015`
+  /// are reported on `codes`, not as degradation members, and the code a
+  /// plain degradation would add -- `DV-WINDOW-001`, "no multi-window" --
+  /// names the wrong thing for a phone asked for an immersive space. The
+  /// degradation still says the request was not honoured, and why in the
+  /// terms every other kind uses.
+  Future<DVWindow> _openSpatial(DVRouteTarget route, DVWindowOptions options) async {
+    final int started = performance.mark();
+    final bool volume = options.kind == DVWindowKind.volume;
+    final String windowCode = volume ? 'DV-WINDOW-014' : 'DV-WINDOW-015';
+    final List<String> codes = <String>[];
+    DVSpatialSession? session;
+    DVWindowDegradation degradation;
+    if (_declared.enabled == false) {
+      degradation = DVWindowDegradation.disabledByConfig;
+      codes.addAll(<String>['DV-WINDOW-005', windowCode]);
+    } else {
+      final DVSpatialPresentation presented = await DVXR.runtime.present(DVSpatialSpaceRequest(
+        kind: volume ? DVSpatialSpaceKind.volume : DVSpatialSpaceKind.immersive,
+        route: route.path,
+        immersion: options.immersion,
+        volume: options.volume,
+        comfort: options.comfort,
+      ));
+      session = presented.session;
+      codes.addAll(presented.codes);
+      degradation = switch (presented.refusal) {
+        null => DVWindowDegradation.none,
+        DVSpatialRefusal.bindingMissing ||
+        DVSpatialRefusal.bindingFailed =>
+          DVWindowDegradation.bindingRefused,
+        DVSpatialRefusal.platformRefused => DVWindowDegradation.platformRefused,
+        DVSpatialRefusal.noCapability ||
+        DVSpatialRefusal.exclusive ||
+        DVSpatialRefusal.backgrounded =>
+          DVWindowDegradation.capabilityUnsupported,
+      };
+    }
+    // An immersive space belongs to the window that opened it: the one named,
+    // or main. A volume belongs to nobody.
+    final DVWindow? requested = volume ? null : (options.owner ?? _main.value);
+    final DVWindow window = DVWindow(
+      route: route,
+      kind: options.kind,
+      presentation: session == null
+          ? DVWindowPresentation.page
+          : volume
+              ? DVWindowPresentation.volume
+              : DVWindowPresentation.immersive,
+      degradation: degradation,
+      owner: requested != null && _windows.contains(requested) ? requested : null,
+      external: options.isExternal,
+    );
+    window.codes.addAll(codes);
+    window.spatial = session;
+    if (degradation == DVWindowDegradation.disabledByConfig) {
+      // The XR runtime was never asked, so nothing has reported these.
+      for (final String code in codes) {
+        unawaited(window._logCode(code, 'windowing is disabled in configuration; presented as a page'));
+      }
+    }
+    _windows.add(window);
+    _all.value = List<DVWindow>.unmodifiable(_windows);
+    if (_shouldExit.value) _shouldExit.value = false;
+    if (session != null) {
+      // The system can end a space -- the home gesture, another application
+      // taking the immersive space -- and the window goes with it.
+      session.state.listen((DVSpatialSessionState state) {
+        if (state == DVSpatialSessionState.ended && _windows.contains(window)) {
+          unawaited(window.close());
+        }
+      });
+    } else if (DV.Navigation.isAttached) {
+      DV.Navigation.navigate(route);
+    }
+    window.setLifecycle(DVWindowLifecycle.ready);
+    performance.recordOpenFrom(
+      started,
+      route: route.path,
+      virtual: session == null,
+      code: codes.isEmpty ? null : codes.last,
+    );
+    return window;
+  }
+
   /// A kind that cannot be a window becomes the nearest thing the platform
   /// can present, so the fallback is the same content rather than a
   /// consolation prize.
@@ -1135,6 +1314,7 @@ class DVWindowManager {
         DVWindowKind.satellite =>
           DVWindowPresentation.overlay,
         DVWindowKind.kiosk => DVWindowPresentation.page,
+        DVWindowKind.volume || DVWindowKind.immersive => DVWindowPresentation.page,
       };
 
   /// The kiosk target this process is: what the enforcement matrix is
