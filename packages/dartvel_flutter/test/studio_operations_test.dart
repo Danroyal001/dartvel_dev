@@ -440,6 +440,18 @@ void main() {
         inKey('dv-studio-slo-exports-state', find.text('No traffic')),
         findsOneWidget,
       );
+
+      // Its budget was not measured, so it is neither full nor green.
+      const String budget = 'dv-studio-slo-exports-budget';
+      expect(inKey(budget, find.text('Not measured')), findsOneWidget);
+      expect(inKey(budget, find.textContaining('%')), findsNothing);
+      expect(inKey(budget, find.textContaining('left')), findsNothing);
+      for (final FractionallySizedBox bar
+          in tester.widgetList<FractionallySizedBox>(
+            inKey(budget, find.byType(FractionallySizedBox)),
+          )) {
+        expect(bar.widthFactor, 0);
+      }
     });
 
     testWidgets(
@@ -459,8 +471,95 @@ void main() {
           findsOneWidget,
         );
         expect(inKey('dv-studio-ops-firing', find.text('2')), findsOneWidget);
+        // exports saw no requests: it is not a budget with room.
+        expect(
+          inKey('dv-studio-ops-slo-count', find.textContaining('1 not measured')),
+          findsOneWidget,
+        );
+        expect(
+          inKey('dv-studio-ops-slo-count', find.textContaining('has room')),
+          findsNothing,
+        );
       },
     );
+
+    testWidgets('with no budget spent, a level that was not measured is not '
+        'counted as having room, and the gate tile names it', (
+      WidgetTester tester,
+    ) async {
+      // The fixture above always has an exhausted level, which hides what the
+      // overview says when nothing is spent and one level was never measured.
+      const DVAppliesTo orders = DVAppliesTo.backendFunction('createOrder');
+      const DVAppliesTo exports = DVAppliesTo.page('/exports');
+      int total = 0;
+      final DVServiceLevels calm =
+          DVServiceLevels(onDiagnostic: (String c, String m) {})
+            ..add(
+              const DVServiceLevel(
+                name: 'checkout',
+                objective: DVObjective.successRate(
+                  0.999,
+                  over: Duration(days: 30),
+                ),
+                applies: orders,
+              ),
+            )
+            ..add(
+              const DVServiceLevel(
+                name: 'exports',
+                objective: DVObjective.successRate(
+                  0.995,
+                  over: Duration(days: 30),
+                ),
+                applies: exports,
+              ),
+            )
+            ..source(
+              orders,
+              () => DVServiceLevelCounts(total: total, failed: 0),
+            )
+            ..source(
+              exports,
+              () => const DVServiceLevelCounts(total: 0, failed: 0),
+            );
+      calm.sample(ago(const Duration(hours: 1)));
+      total = 5000;
+      calm.sample(now);
+
+      await tester.binding.setSurfaceSize(const Size(1440, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Material(
+            child: DVStudioScreen(
+              alerting: DVAlerting(
+                readers: DVSignalReaders(serviceLevels: calm),
+                onDiagnostic: (String c, String m) {},
+              ),
+              actor: 'dana',
+              clock: () => now,
+              statusHealth: () async => health,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(byKey('dv-studio-section-operations'));
+      await tester.pumpAndSettle();
+
+      expect(
+        inKey('dv-studio-ops-slo-count', find.text('1 not measured')),
+        findsOneWidget,
+      );
+      expect(
+        inKey('dv-studio-ops-slo-count', find.textContaining('has room')),
+        findsNothing,
+      );
+      expect(
+        inKey('dv-studio-ops-gate', find.textContaining('not measured: exports')),
+        findsOneWidget,
+      );
+    });
   });
 
   group('alerts', () {

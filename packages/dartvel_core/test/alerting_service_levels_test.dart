@@ -280,6 +280,76 @@ void main() {
       expect(diagnostics.count('DV-ALERT-003'), 2);
     });
 
+    test('a window with samples but no requests is unmeasured, not a full '
+        'budget', () {
+      // A service that stopped answering sends no requests to count. Read as
+      // "nothing consumed" it shows a full, healthy budget for exactly the
+      // outage the budget exists to catch.
+      final _Traffic traffic = _Traffic();
+      final DVServiceLevels levels = DVServiceLevels()
+        ..add(checkout)
+        ..source(checkout.applies, traffic.read);
+      levels.sample(t0);
+      final DateTime now = t0.add(const Duration(hours: 2));
+      levels.sample(now);
+
+      final DVServiceLevelStatus status = levels.status('checkout', now: now);
+      expect(status.requests, 0);
+      expect(status.errorRate, isNull);
+      expect(status.budgetConsumed, isNull);
+      expect(status.budgetRemaining, isNull);
+      expect(status.hasData, isFalse);
+      expect(status.exhausted, isFalse);
+      // The samples were read; it is the traffic that is missing.
+      expect(status.coverage, closeTo(2 / (30 * 24), 1e-12));
+    });
+
+    test('requests counts what the window saw, and is null with nothing read',
+        () {
+      final _Traffic traffic = _Traffic();
+      final DVServiceLevels levels = DVServiceLevels()
+        ..add(checkout)
+        ..source(checkout.applies, traffic.read);
+      levels.sample(t0);
+      expect(levels.status('checkout', now: t0).requests, isNull);
+      traffic.add(ok: 90, failed: 10);
+      final DateTime now = t0.add(const Duration(minutes: 5));
+      levels.sample(now);
+      expect(levels.status('checkout', now: now).requests, 100);
+    });
+
+    test('the gate does not hold on an unmeasured level, and does not count it '
+        'as within budget either', () {
+      const DVServiceLevel quiet = DVServiceLevel(
+        name: 'exports',
+        objective: DVObjective.successRate(0.995, over: Duration(days: 30)),
+        applies: DVAppliesTo.page('/exports'),
+      );
+      const DVServiceLevel unread = DVServiceLevel(
+        name: 'reports',
+        objective: DVObjective.successRate(0.995, over: Duration(days: 30)),
+        applies: DVAppliesTo.page('/reports'),
+      );
+      final _Traffic busy = _Traffic();
+      final _Traffic idle = _Traffic();
+      final DVServiceLevels levels = DVServiceLevels()
+        ..add(checkout)
+        ..add(quiet)
+        ..add(unread)
+        ..source(checkout.applies, busy.read)
+        ..source(quiet.applies, idle.read);
+      levels.sample(t0);
+      busy.add(ok: 1000);
+      final DateTime now = t0.add(const Duration(hours: 1));
+      levels.sample(now);
+
+      final DVErrorBudgetDecision decision =
+          DVErrorBudgetGate(levels).evaluate(now: now);
+      expect(decision.hold, isFalse);
+      expect(decision.exhausted, isEmpty);
+      expect(decision.unmeasured, <String>['exports', 'reports']);
+    });
+
     test('a level with no source has no status rather than a clean one', () {
       final DVServiceLevels levels = DVServiceLevels()..add(checkout);
       levels.sample(t0);

@@ -387,19 +387,30 @@ final class DVErrorBudgetReleaseGate implements DVReleaseGate {
         'no service level is declared, so there is no budget to read',
       );
     }
-    // DVErrorBudgetGate reads a level with no samples as not exhausted, which
-    // is right for an alert and wrong for a rollout.
-    final List<String> unread = <String>[
-      for (final DVServiceLevel level in levels)
-        if (!gate.levels.status(level.name, now: context.now).hasData)
-          level.name,
-    ];
-    if (unread.isNotEmpty) {
+    // DVErrorBudgetGate reads a level with no samples, or no requests in its
+    // window, as not exhausted, which is right for an alert and wrong for a
+    // rollout.
+    final List<String> unsampled = <String>[];
+    final List<String> quiet = <String>[];
+    for (final DVServiceLevel level in levels) {
+      final DVServiceLevelStatus status =
+          gate.levels.status(level.name, now: context.now);
+      if (status.hasData) continue;
+      (status.requests == null ? unsampled : quiet).add(level.name);
+    }
+    if (unsampled.isNotEmpty || quiet.isNotEmpty) {
       return DVGateOutcome.hold(
         name,
-        'service level ${unread.join(', ')} has no samples; an unread budget '
-        'is not an unspent one',
-        evidence: <String, Object?>{'unread': unread},
+        '${<String>[
+          if (unsampled.isNotEmpty)
+            'service level ${unsampled.join(', ')} has no samples',
+          if (quiet.isNotEmpty)
+            'service level ${quiet.join(', ')} saw no requests in its window',
+        ].join('; ')}; an unread budget is not an unspent one',
+        evidence: <String, Object?>{
+          'unread': <String>[...unsampled, ...quiet],
+          if (quiet.isNotEmpty) 'noTraffic': quiet,
+        },
       );
     }
     final DVErrorBudgetDecision decision = gate.evaluate(now: context.now);

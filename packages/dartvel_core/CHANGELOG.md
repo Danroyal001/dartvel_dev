@@ -1,5 +1,18 @@
 ## Unreleased
 
+- **A service level whose window saw no requests has no budget reading, not
+  a full one.** `DVServiceLevels.status` reported `budgetConsumed: 0` when
+  samples were read and no request arrived between them, so a service that
+  stopped answering showed its whole budget left. It is now null, like
+  `errorRate` and `burnRate` already were, and `hasData` is false.
+  `DVServiceLevelStatus.requests` is new: the requests the window saw, 0 for
+  this case and null with fewer than two samples. `DVErrorBudgetDecision`
+  gains `unmeasured`, the levels whose budget could not be read; `hold` is
+  unchanged and still holds only on an exhausted budget.
+  `DVErrorBudgetReleaseGate` already held a rollout on an unread budget and
+  now holds on this one too, saying the level saw no requests rather than
+  that it has no samples (`evidence['noTraffic']`).
+
 - **An incident an alert opened is never published under the alert's name.**
   An alert titles its incident after its rule (`Alert catalog-search-burn`)
   and a crash spike after its release, and `DVStatusSnapshot.build` published
