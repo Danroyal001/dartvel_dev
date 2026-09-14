@@ -456,6 +456,18 @@ void main() {
     );
   });
 
+  group('a project with nothing under lib', () {
+    test('still builds its documentation', () async {
+      // Static-path discovery answers a constant empty list when there is no
+      // lib directory, and the site sorted it in place, so `dartvel docs`
+      // threw on a project that had not written any code yet.
+      final DVDocsSite site = await _siteFor(<String, String>{
+        'pubspec.yaml': 'name: empty\n',
+      });
+      expect(site.files, contains('modules.html'));
+    });
+  });
+
   group('diagnostics glossary', () {
     test('every registered code, from the registry explain reads', () async {
       final DVDocsSite site = await _siteFor(_project);
