@@ -222,11 +222,18 @@ final class DVSceneRuntime {
     required DVSceneRenderer? renderer,
     required DVSceneAssetLoader loader,
     bool enabled = true,
+    this.presentsInSpace = false,
   })  : _document = document,
         _graph = DVSceneGraph(document),
         _renderer = renderer,
         _loader = loader,
         _enabled = enabled;
+
+  /// Whether an XR session presents this scene in space, placing its anchors
+  /// and lighting its passthrough environment. False is a viewport: anchored
+  /// nodes stay at the origin (`DV-XR-002`) and passthrough is drawn with the
+  /// studio environment (`DV-XR-001`), each reported once.
+  final bool presentsInSpace;
 
   DV3DSceneDocument _document;
   DVSceneGraph _graph;
@@ -345,9 +352,35 @@ final class DVSceneRuntime {
         _graph.setLocalBounds(node.id, states[keys.indexOf(node.asset!)].model?.bounds);
       }
     }
+    if (!presentsInSpace) {
+      for (final String id in _graph.anchoredIds) {
+        _reportXR(
+          'DV-XR-002',
+          'anchor type unsupported; node placed at the scene origin',
+          <String, Object?>{
+            'node': id,
+            'anchorType': _graph.data(id).anchor!.type.name,
+            'reason': 'the scene is presented as a viewport, not in space',
+          },
+          once: id,
+        );
+      }
+    }
     _degradation = DV3DDegradation.none;
     _ready = true;
     return _degradation;
+  }
+
+  /// Reports an XR code for this scene once per boot: [once] narrows it to a
+  /// node, because a second anchored node at the origin is news.
+  void _reportXR(String code, String message, Map<String, Object?> context, {String? once}) {
+    if (!_reported.add('$code:${_document.id}:${once ?? ''}')) return;
+    DVObservability.log(
+      '$code: $message',
+      level: DVLogLevel.info,
+      code: code,
+      context: <String, Object?>{'scene': _document.id, ...context},
+    );
   }
 
   static List<String> _referencedAssets(DV3DSceneDocument document) {
@@ -357,7 +390,7 @@ final class DVSceneRuntime {
         if (node.material != null) node.material!,
       ],
       if (document.environment != null &&
-          document.environment != DV3DSceneDocument.studioEnvironment)
+          !DV3DSceneDocument.isBuiltInEnvironment(document.environment))
         document.environment!,
     };
     return keys.toList()..sort();
@@ -393,13 +426,22 @@ final class DVSceneRuntime {
           break;
       }
     }
+    String? environment = _document.environment;
+    if (environment == DV3DSceneDocument.passthroughEnvironment && !presentsInSpace) {
+      environment = DV3DSceneDocument.studioEnvironment;
+      _reportXR(
+        'DV-XR-001',
+        'passthrough unavailable; the studio environment was used',
+        <String, Object?>{'reason': 'the scene is presented as a viewport, not in space'},
+      );
+    }
     final DVSceneFrame frame = DVSceneFrame(
       view: view,
       width: width,
       height: height,
       draws: List<DVSceneDraw>.unmodifiable(draws),
       lights: List<DVSceneLightDraw>.unmodifiable(lights),
-      environment: _document.environment,
+      environment: environment,
       mirrored: _graph.basisMirrors,
     );
     _renderer!.render(frame);
