@@ -12,6 +12,7 @@ import 'client_generator.dart';
 import 'flag_generator.dart';
 import 'job_generator.dart';
 import 'model_generator.dart';
+import 'privacy_declarations.dart';
 import 'static_paths_generator.dart';
 
 /// Generates a Dartvel project, and every module it mounts.
@@ -57,6 +58,19 @@ Future<void> generate({
   // way to ask about a declared category, such as iOS without the usage
   // description App Tracking Transparency needs.
   AnalyticsGenerator.checkTargets(root: root, settings: analyticsSettings);
+
+  // Every model's privacy declaration, before anything is written. A
+  // sensitive field no subject path reaches (DV-PRIVACY-001) is a table an
+  // erasure would leave behind while reporting success, so it stops the
+  // build; personal data kept indefinitely by nobody's decision
+  // (DV-PRIVACY-002) is said and allowed.
+  final privacyDeclarations = DVPrivacyDeclarations.discover(root: root);
+  if (privacyDeclarations.errors.isNotEmpty) {
+    throw StateError(privacyDeclarations.errors.join('\n'));
+  }
+  for (final finding in privacyDeclarations.findings) {
+    stderr.writeln(finding);
+  }
 
   final backendHost = config.backendHost;
   final backendPort = config.backendPort;
@@ -180,7 +194,11 @@ Future<void> generate({
 
   // DV.Analytics and DV.Privacy, which the client runtime and the generated
   // server start from these files.
-  AnalyticsGenerator.generate(root: root, settings: analyticsSettings);
+  AnalyticsGenerator.generate(
+    root: root,
+    settings: analyticsSettings,
+    privacy: privacyDeclarations,
+  );
 
   // Generate Models
   await ModelGenerator.generate(
