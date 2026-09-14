@@ -495,9 +495,14 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
         tone: DVStudioStyle.accent,
         detail: gate == null
             ? 'None declared'
-            : gate.exhausted.isEmpty
+            : gate.exhausted.isEmpty && gate.unmeasured.isEmpty
             ? 'Every budget has room'
-            : '${gate.exhausted.length} out of budget',
+            : <String>[
+                if (gate.exhausted.isNotEmpty)
+                  '${gate.exhausted.length} out of budget',
+                if (gate.unmeasured.isNotEmpty)
+                  '${gate.unmeasured.length} not measured',
+              ].join(' · '),
       ),
       _tile(
         key: 'dv-studio-ops-gate',
@@ -512,6 +517,8 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
             ? DVStudioStyle.muted
             : gate.hold
             ? DVStudioStyle.danger
+            : gate.unmeasured.isNotEmpty
+            ? DVStudioStyle.muted
             : DVStudioStyle.success,
         valueTone: gate == null
             ? DVStudioStyle.muted
@@ -522,6 +529,8 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
             ? 'No service levels to read'
             : gate.hold
             ? 'Budget exhausted: ${gate.exhausted.join(', ')}'
+            : gate.unmeasured.isNotEmpty
+            ? 'Holds nothing; not measured: ${gate.unmeasured.join(', ')}'
             : 'DVErrorBudgetGate holds nothing',
       ),
     ];
@@ -733,8 +742,11 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
 
     final double? remaining = status.budgetRemaining;
     final double? errorRate = status.errorRate;
+    // No requests in the window: the runtime has no budget to report, and a
+    // full green bar here is a service that stopped answering shown as fine.
+    final bool quiet = status.requests == 0;
     final String budget = remaining == null
-        ? 'No data'
+        ? (quiet ? 'Not measured' : 'No data')
         : status.exhausted
         ? 'Exhausted'
         : '${opsNumber(remaining * 100, digits: 1)}% left';
@@ -854,7 +866,11 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
                 opsText(
                   coverage == null
                       ? 'Fewer than two samples: nothing measured yet'
-                      : 'Measured over ${opsLong(Duration(microseconds: (level.objective.over.inMicroseconds * coverage).round()))} '
+                      : quiet
+                      ? 'Sampled over ${opsLong(Duration(microseconds: (level.objective.over.inMicroseconds * coverage).round()))} '
+                            'of ${opsLong(level.objective.over)}, with no '
+                            'requests to measure'
+                      : 'Measured over${opsLong(Duration(microseconds: (level.objective.over.inMicroseconds * coverage).round()))} '
                             'of ${opsLong(level.objective.over)}',
                   size: 11.5,
                   color: DVStudioStyle.faint,
@@ -965,6 +981,17 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
     Duration longWindow,
     Duration shortWindow,
   ) {
+    // Asked first: with no requests the runtime reports no budget at all, and
+    // "fewer than two samples" would be the wrong reason.
+    if (status.requests == 0) {
+      return (
+        'No traffic',
+        DVStudioStyle.muted,
+        'No requests were observed in the window, so its budget is not '
+            'measured. That is not a clean record: a service that stopped '
+            'answering looks the same.',
+      );
+    }
     if (!status.hasData) {
       return (
         'No data',
@@ -979,14 +1006,6 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
         DVStudioStyle.danger,
         'The error budget for the trailing ${opsLong(level.objective.over)} '
             'is spent (DV-ALERT-003), so the deploy gate holds.',
-      );
-    }
-    if (status.errorRate == null) {
-      return (
-        'No traffic',
-        DVStudioStyle.muted,
-        'No requests were observed in the window. That is not a clean '
-            'record: a service that stopped answering looks the same.',
       );
     }
     if (long == null || short == null) {

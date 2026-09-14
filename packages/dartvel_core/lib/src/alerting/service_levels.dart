@@ -85,6 +85,7 @@ class DVServiceLevelStatus {
     this.errorRate,
     this.budgetConsumed,
     this.coverage,
+    this.requests,
   });
 
   final DVServiceLevel level;
@@ -95,13 +96,22 @@ class DVServiceLevelStatus {
 
   /// The share of the window's budget used so far. Above 1 is past it.
   ///
-  /// Null when there is nothing to read -- no source, or fewer than two
-  /// samples -- because an unknown is not a clean month.
+  /// Null when there is nothing to read -- no source, fewer than two samples,
+  /// or samples with no request between them -- because an unknown is not a
+  /// clean month. The last is the one that looks like one: a service that
+  /// stopped answering sends nothing to count, and 0 consumed would show its
+  /// budget full for exactly the outage the budget is there to catch.
   final double? budgetConsumed;
 
   /// The share of the objective's window the samples span, at most 1.
   final double? coverage;
 
+  /// Requests observed across the window; 0 when samples were read and none
+  /// arrived, null when fewer than two samples were read.
+  final double? requests;
+
+  /// Whether the budget was measured. False for each of the unknowns
+  /// [budgetConsumed] describes; [requests] says which one it is.
   bool get hasData => budgetConsumed != null;
 
   double? get budgetRemaining =>
@@ -257,7 +267,7 @@ class DVServiceLevels {
             .toDouble();
     if (observed.total <= 0) {
       return DVServiceLevelStatus(
-          level: level, budgetConsumed: 0, coverage: coverage);
+          level: level, coverage: coverage, requests: 0);
     }
     final double errorRate = observed.failed / observed.total;
     // Scaled by how much of the window was seen. Ten minutes of history read
@@ -269,6 +279,7 @@ class DVServiceLevels {
       errorRate: errorRate,
       budgetConsumed: errorRate * coverage / level.objective.budget,
       coverage: coverage,
+      requests: observed.total,
     );
   }
 
@@ -319,12 +330,25 @@ class DVServiceLevels {
 
 /// What the gate decided.
 class DVErrorBudgetDecision {
-  const DVErrorBudgetDecision({required this.hold, required this.exhausted});
+  const DVErrorBudgetDecision({
+    required this.hold,
+    required this.exhausted,
+    this.unmeasured = const <String>[],
+  });
 
   final bool hold;
 
   /// The levels whose budget is gone, in declaration order.
   final List<String> exhausted;
+
+  /// The levels whose budget could not be read -- no samples, or no request
+  /// in the window -- in declaration order.
+  ///
+  /// They do not hold: this gate holds on a budget known to be spent, and a
+  /// quiet service is not one. They are not within budget either, and a
+  /// reader that takes "not held" to mean "every budget has room" is told so
+  /// here. `DVErrorBudgetReleaseGate` holds a rollout on them.
+  final List<String> unmeasured;
 }
 
 /// An objective with no budget left, read before a deploy rather than after.
@@ -334,13 +358,17 @@ class DVErrorBudgetGate {
   final DVServiceLevels levels;
 
   DVErrorBudgetDecision evaluate({required DateTime now}) {
-    final List<String> exhausted = <String>[
-      for (final DVServiceLevel level in levels.levels)
-        if (levels.status(level.name, now: now).exhausted) level.name,
-    ];
+    final List<String> exhausted = <String>[];
+    final List<String> unmeasured = <String>[];
+    for (final DVServiceLevel level in levels.levels) {
+      final DVServiceLevelStatus status = levels.status(level.name, now: now);
+      if (status.exhausted) exhausted.add(level.name);
+      if (!status.hasData) unmeasured.add(level.name);
+    }
     return DVErrorBudgetDecision(
       hold: exhausted.isNotEmpty,
       exhausted: List<String>.unmodifiable(exhausted),
+      unmeasured: List<String>.unmodifiable(unmeasured),
     );
   }
 }
