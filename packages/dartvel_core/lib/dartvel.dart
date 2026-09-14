@@ -22,6 +22,7 @@ import 'src/mail/smtp.dart';
 import 'src/notifications/web_push.dart';
 import 'src/notifications/web_push_vapid.dart';
 import 'src/observability/observability.dart';
+import 'src/preview/preview_outbound.dart' show DVPreviewOutbound;
 import 'src/scheduling/cron.dart';
 import 'src/search/search_tuning.dart';
 import 'src/tenancy/tenants.dart';
@@ -2809,6 +2810,11 @@ class DVNotificationMail {
   }
 
   Future<void> send(DVMailMessage message) {
+    // A preview captures before a provider is even looked up, so the
+    // application's real provider -- registered before or after the preview
+    // started -- is never handed a message from one (Preview Environments,
+    // DV-PREVIEW-006).
+    if (DVPreviewOutbound.isActive) return DVPreviewOutbound.captureMail(message);
     final provider = _provider;
     if (provider == null) {
       throw StateError(
@@ -3632,7 +3638,11 @@ class DVNotificationsService {
       if (selected == null) {
         throw StateError('No notification provider registered for $provider.');
       }
-      await selected.send(recipient, message);
+      if (DVPreviewOutbound.isActive) {
+        await DVPreviewOutbound.captureNotification(recipient, message, provider);
+      } else {
+        await selected.send(recipient, message);
+      }
       return DVNotificationDelivery(
         recipient: recipient,
         attempts: <DVNotificationAttempt>[
@@ -3788,7 +3798,11 @@ class DVNotificationsService {
       var anyDelivered = false;
       for (final address in addresses) {
         try {
-          await provider.send(address, message);
+          if (DVPreviewOutbound.isActive) {
+            await DVPreviewOutbound.captureNotification(address, message, kind);
+          } else {
+            await provider.send(address, message);
+          }
           anyDelivered = true;
         } catch (error) {
           failure ??= error;
