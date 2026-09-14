@@ -1035,7 +1035,36 @@
     {
       "section": "3D Scenes",
       "stability": "Draft",
-      "status": "Designed"
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_core/lib/src/scene3d/scene_document.dart",
+        "packages/dartvel_core/lib/src/scene3d/scene_graph.dart",
+        "packages/dartvel_core/lib/src/scene3d/scene_camera.dart",
+        "packages/dartvel_core/lib/src/scene3d/gltf.dart",
+        "packages/dartvel_core/lib/src/scene3d/scene_assets.dart",
+        "packages/dartvel_core/lib/src/scene3d/scene_renderer.dart",
+        "packages/dartvel_core/lib/src/scene3d/scene_config.dart",
+        "packages/dartvel_core/lib/src/scene3d/scene_model_field.dart",
+        "packages/dartvel_core/lib/src/scene3d/scene_content.dart",
+        "packages/dartvel_core/test/scene3d_document_test.dart",
+        "packages/dartvel_core/test/scene3d_graph_test.dart",
+        "packages/dartvel_core/test/scene3d_camera_test.dart",
+        "packages/dartvel_core/test/scene3d_gltf_test.dart",
+        "packages/dartvel_core/test/scene3d_assets_test.dart",
+        "packages/dartvel_core/test/scene3d_runtime_test.dart",
+        "packages/dartvel_core/test/scene3d_config_test.dart",
+        "packages/dartvel_core/test/scene3d_model_field_test.dart",
+        "packages/dartvel_core/test/scene3d_content_test.dart",
+        "packages/dartvel_flutter/lib/src/scene3d/scene_nodes.dart",
+        "packages/dartvel_flutter/lib/src/scene3d/scene_viewport.dart",
+        "packages/dartvel_flutter/lib/src/scene3d/model_viewer.dart",
+        "packages/dartvel_flutter/test/scene3d_viewport_test.dart",
+        "packages/dartvel_flutter/test/scene3d_model_viewer_test.dart",
+        "packages/dartvel_cli/lib/src/generators/model_generator.dart",
+        "packages/dartvel_cli/test/model3d_field_generation_test.dart",
+        "packages/dartvel_cli/test/generated_client_analyzes_test.dart"
+      ],
+      "absent": "Built: the platform-independent scene runtime. DV3DSceneDocument round-trips exactly (bit-exact doubles; stated units, up axis and handedness; kept node ids and child order; unknown keys preserved and written in sorted order) and refuses duplicate ids, undeclared or wrong-kind assets, non-finite or zero-scale transforms and non-unit rotations with the path to the value. DVSceneGraph converts the basis to right-handed Y-up metres and says when that mirrors, invalidates subtrees on a transform change, and ray-picks each node's true local shape (box, scaled sphere, or model bounds from its file) with hidden subtrees skipped and ties in document order. DVSceneView converts between pixels and rays in both directions and refuses to project points behind the camera. DVGltf counts drawn triangles and bounds through the node hierarchy without decoding geometry, refusing cycles, truncated files and invalid indices. DVSceneAssetPolicy refuses cross-tenant or unprefixed storage keys, path traversal, http, unlisted hosts, credentials in URLs and undigested assets before any request, and DVSceneAssetLoader verifies digest and size, decodes inline or on DV.Workers, shares concurrent loads and reports typed load states. The DVSceneRenderer adapter interface has a headless reference implementation (DVSceneRecordingRenderer, installed by DV.Test.fake3D()) that throws on a double release or use after release. DVSceneRuntime makes one upload per asset, releases each resource exactly once, keeps the previous scene on screen while an update loads, presents the poster rather than a scene with a missing asset, and logs DV-3D-001 once per boot per cause. DVBox.scene provides typed non-widget nodes whose modifiers take a value or a signal, tap picking that respects occlusion and bubbles to ancestor handlers, drag orbit controls, and the poster labelled with DV3DDegradation. @DVModel.model3dField validates format, size (before parsing) and triangle budget; the generator emits model3dFields, viewer3D(), the viewer in page and card, and field JSON, and the generated client analyzes clean. Scene documents are the content workflow's scene kind, with DV3DSceneStore and bundles applied once with forget-and-reship rollback. Not built: any GPU renderer, so no Flutter GPU or Impeller adapter exists and every target presents the poster; PBR materials, IBL, lights and shadows as rendering (lights and environment are carried in the frame only); animations and DVAnimations handles; physics and DVPhysics; syncTransform; the flame_3d adapter and DVBox.scene.game; the dartvel build import pipeline and the generated DVScenes, DVMaterials and DVEnvironments; shader bundling; KTX2 variants; build-time poster rendering and the poster, compressed-variant and upload-processing jobs for model fields; poster use by static generation, noscript fallback and OG images; the scene3d pubspec configuration and budgets; dartvel inspect scene3d; dartvel analyze performance; golden 3D tests; the Studio inspect-and-edit UI for scene nodes; a router serving stored scenes to a viewport; network asset fetching (no default fetcher, and no hosts allowed until configured); triangle-accurate picking; pinch zoom. Only DV-3D-001 is emitted; DV-3D-002 through DV-3D-008 are registered and nothing emits them. Where the section and the code disagree: the scene camera is DVSceneCamera because DVCamera is already the device camera at DV.Platform.Camera; DVModel3D takes a DVSceneAsset because generated DVScenes handles do not exist; the model3dField field type is DVSceneAsset rather than DVFile, because DVFile carries a local path and mime type but no stored key or digest, which are what make cross-tenant and changed-bytes refusal possible; onTap uses CPU ray picking against local shapes rather than GPU picking; DVEnvironments.studio is DVEnvironment.studio because DVEnvironments is specified as a generated class; DVBox.scene is a static callable on DVBox rather than a constructor, so DVBox.scene.game(...) remains possible; a missing asset at runtime is reported as DV-3D-001 with the asset in context, since the table gives it no code of its own; the example's per-viewport aspect ratio is met by DVScene(aspectRatio:) when height is unbounded."
     },
     {
       "section": "XR — Spatial Presentation",

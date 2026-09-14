@@ -6930,7 +6930,7 @@ a development run, and whatever else Dartvel requires, is work the fork carries
 rather than a reason to wait.
 # 3D Scenes
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
 
 Dartvel applications get real-time 3D — product viewers, configurators,
 data visualization, signage, games — rendered by Impeller through Flutter
