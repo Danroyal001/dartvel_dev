@@ -354,5 +354,9 @@ void main() {
         expect(seen['queue'], 'default');
       },
     );
-  });
+  },
+      // Each probe compiles dartvel_core cold in a child process. Beside another
+      // suite that takes longer than the runner's default 30 seconds, which
+      // timed the tests out before the child's own two-minute bound could.
+      timeout: const Timeout(Duration(minutes: 3)));
 }
