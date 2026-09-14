@@ -3031,7 +3031,7 @@ degradation rather than a broken thumbnail.
 
 # Media Playback and Capture
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
 
 Media Pipeline processes media; Platform can reach a camera. Nothing plays
 anything. For webOS and Tizen — television targets this specification builds
