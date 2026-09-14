@@ -4,4 +4,5 @@ library;
 
 export 'preview_config.dart';
 export 'preview_identity.dart';
+export 'preview_lifecycle.dart';
 export 'preview_secrets.dart';

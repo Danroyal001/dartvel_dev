@@ -92,6 +92,29 @@ final class DVPreviewIdentity {
           ? identifier
           : 'p${identifier.substring(1)}';
 
+  /// Reads back what [toJson] wrote. The names are taken as recorded rather
+  /// than derived again, so a record written before a naming change still
+  /// names the resources that actually exist -- which are the ones a
+  /// teardown has to reach.
+  factory DVPreviewIdentity.fromJson(Map<String, Object?> json) {
+    String field(String key) {
+      final Object? value = json[key];
+      if (value is! String || value.isEmpty) {
+        throw FormatException('a preview identity has no $key');
+      }
+      return value;
+    }
+
+    return DVPreviewIdentity._(
+      branch: field('branch'),
+      name: field('name'),
+      hostLabel: field('hostLabel'),
+      database: field('database'),
+      bucket: field('bucket'),
+      queueNamespace: field('queueNamespace'),
+    );
+  }
+
   Map<String, Object?> toJson() => <String, Object?>{
         'branch': branch,
         'name': name,
