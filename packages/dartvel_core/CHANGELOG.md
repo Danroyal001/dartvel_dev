@@ -1,5 +1,15 @@
 ## Unreleased
 
+- **A flag resolution names the rule that decided it, and a debug override
+  can reach the whole process.** `DVFlagResolution.rule` is the index of the
+  rule that served the value or held the default (`DV-FLAGS-005`/`006`), null
+  for a default or an override. `DVFlags.setDebugOverride(flag, value)` and
+  `clearDebugOverride` put an override in force for every read in a debug
+  build, under any `withOverrides` zone, notify `DVFlags.changes`, refuse a
+  value the flag cannot read, and do nothing in a release build.
+  `DVFlags.overridesInForce` and `overridesAllowed` are what `resolve` hands
+  `evaluate`, so a tool evaluating another context answers as the app does.
+
 - **A preview process starts as a preview or not at all.**
   `DVPreviewServer.start(environment)` returns null and installs nothing
   outside `DARTVEL_ENVIRONMENT=preview`. In a preview it switches capture on

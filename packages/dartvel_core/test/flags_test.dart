@@ -562,4 +562,134 @@ void main() {
       expect(reported.where((String c) => c == 'DV-FLAGS-007'), hasLength(1));
     });
   });
+
+  // What a tool inspecting the rules needs from the runtime, so it never has
+  // to work the answer out a second time: which rule decided, and a debug
+  // override that reaches every read in the process rather than one zone.
+  group('for tools', () {
+    DVFlagRules ordered() => rules(<String, Object?>{
+          'newCheckout': <Object?>[
+            <String, Object?>{
+              'value': true,
+              'target': <String, Object?>{
+                'platforms': <Object?>['android'],
+              },
+            },
+            <String, Object?>{
+              'value': true,
+              'target': <String, Object?>{
+                'tenants': <Object?>['acme'],
+              },
+            },
+            <String, Object?>{'value': false},
+          ],
+          'pageSize': <Object?>[
+            <String, Object?>{'value': '50'},
+          ],
+          'recommender': <Object?>[
+            <String, Object?>{
+              'value': 'ml',
+              'rollout': <String, Object?>{'percentage': 50, 'by': 'user'},
+            },
+          ],
+        });
+
+    test('a resolution names the index of the rule that decided it', () {
+      final DVFlagRules set = ordered();
+      expect(DVFlags.evaluate(newCheckout, set, alice).rule, 1);
+      expect(
+        DVFlags.evaluate(
+          newCheckout,
+          set,
+          const DVFlagContext(platform: 'android'),
+        ).rule,
+        0,
+      );
+      expect(DVFlags.evaluate(newCheckout, set, const DVFlagContext()).rule, 2);
+      // A held answer still names the rule that held it.
+      expect(DVFlags.evaluate(pageSize, set, alice).rule, 0);
+      expect(
+        DVFlags.evaluate(recommenderName, set, const DVFlagContext()).rule,
+        0,
+      );
+    });
+
+    test('a default or an override names no rule', () {
+      expect(DVFlags.evaluate(newCheckout, null, alice).rule, isNull);
+      expect(
+        DVFlags.evaluate(sampleRate, ordered(), alice).rule,
+        isNull,
+      );
+      expect(
+        DVFlags.evaluate(
+          newCheckout,
+          ordered(),
+          alice,
+          overrides: <String, Object?>{'newCheckout': false},
+        ).rule,
+        isNull,
+      );
+    });
+
+    test('a debug override reaches every read in the process until cleared',
+        () async {
+      DVFlags.setRules(ordered());
+      int changes = 0;
+      final StreamSubscription<void> sub =
+          DVFlags.changes.listen((void _) => changes++);
+      addTearDown(sub.cancel);
+
+      DVFlags.setDebugOverride(newCheckout, false);
+      expect(changes, 1);
+      expect(DVFlags.debugOverrides, <String, Object?>{'newCheckout': false});
+      DVFlags.context = () => alice;
+      final DVFlagResolution<bool> read = DVFlags.resolve(newCheckout);
+      expect(read.value, isFalse);
+      expect(read.source, DVFlagSource.override);
+      // Not a zone: code that never ran inside a callback sees it too.
+      await Future<void>.delayed(Duration.zero);
+      expect(DVFlags.resolve(newCheckout).value, isFalse);
+
+      DVFlags.clearDebugOverride(newCheckout);
+      expect(changes, 2);
+      expect(DVFlags.debugOverrides, isEmpty);
+      expect(DVFlags.resolve(newCheckout).value, isTrue);
+    });
+
+    test('a zone override still wins over the process-wide one', () async {
+      DVFlags.setDebugOverride(pageSize, 10);
+      await DVFlags.withOverrides(<String, Object?>{'pageSize': 30}, () async {
+        expect(DVFlags.resolve(pageSize).value, 30);
+      });
+      expect(DVFlags.resolve(pageSize).value, 10);
+    });
+
+    test('an enum override is stored by name, as a rule would carry it', () {
+      DVFlags.setDebugOverride(recommender, Recommender.embeddings);
+      expect(
+        DVFlags.debugOverrides,
+        <String, Object?>{'recommenderKind': 'embeddings'},
+      );
+      expect(DVFlags.resolve(recommender).value, Recommender.embeddings);
+    });
+
+    test('a wrong-typed override is refused, not stored to be ignored', () {
+      final DVFeatureFlag<Object?> loose = pageSize;
+      expect(
+        () => DVFlags.setDebugOverride(loose, '10'),
+        throwsArgumentError,
+      );
+      expect(() => DVFlags.setDebugOverride(loose, 2.5), throwsArgumentError);
+      expect(DVFlags.debugOverrides, isEmpty);
+      expect(DVFlags.resolve(pageSize).value, 20);
+    });
+
+    test('reset clears the process-wide override', () {
+      DVFlags.setDebugOverride(newCheckout, true);
+      DVFlags.resetForTest();
+      DVFlags.onDiagnostic = (String code, String message) {};
+      expect(DVFlags.debugOverrides, isEmpty);
+      expect(DVFlags.resolve(newCheckout).value, isFalse);
+    });
+  });
 }
