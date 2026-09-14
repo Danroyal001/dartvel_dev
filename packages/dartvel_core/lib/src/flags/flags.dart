@@ -698,6 +698,31 @@ final class DVFlags {
     return resolution;
   }
 
+  /// The answer [resolve] would give [flag] now, with nothing recorded.
+  ///
+  /// No exposure, no diagnostic and no pin: for something that has to know
+  /// what the application is running on without taking part in it -- a crash
+  /// report written by a handler. A flag settled on next launch answers with
+  /// the value this process kept once it has been read, because that is the
+  /// value the running code has; a fresh evaluation would name the new rule
+  /// instead.
+  static DVFlagResolution<T> peek<T>(
+    DVFeatureFlag<T> flag, {
+    DVFlagContext? context,
+  }) {
+    if (flag.settle == DVFlagSettle.onNextLaunch &&
+        _pins.containsKey(flag.key)) {
+      return _pins[flag.key]! as DVFlagResolution<T>;
+    }
+    return evaluate(
+      flag,
+      _rules,
+      context ?? DVFlags.context(),
+      overrides: overridesInForce,
+      allowOverrides: overridesAllowed,
+    );
+  }
+
   static void _expose<T>(
     DVFeatureFlag<T> flag,
     DVFlagResolution<T> resolution,

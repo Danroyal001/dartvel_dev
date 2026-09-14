@@ -314,6 +314,12 @@ class DVCrashContext {
   /// cohort.
   final String? cohort;
 
+  /// The account the report is tied to: null by default, and only ever set
+  /// through a [DVCrashIdentity] whose consent category is granted. Absent
+  /// from the JSON when null, so a report with no identity carries no key
+  /// that could be mistaken for one.
+  final String? userId;
+
   const DVCrashContext({
     required this.release,
     required this.installId,
@@ -323,6 +329,7 @@ class DVCrashContext {
     this.deviceClass,
     this.locale,
     this.cohort,
+    this.userId,
   });
 
   Map<String, Object?> toJson() => <String, Object?>{
@@ -334,6 +341,7 @@ class DVCrashContext {
         if (deviceClass != null) 'deviceClass': deviceClass,
         if (locale != null) 'locale': locale,
         if (cohort != null) 'cohort': cohort,
+        if (userId != null) 'userId': userId,
       };
 
   static DVCrashContext fromJson(Map<String, Object?> json) => DVCrashContext(
@@ -345,6 +353,7 @@ class DVCrashContext {
         deviceClass: json['deviceClass'] as String?,
         locale: json['locale'] as String?,
         cohort: json['cohort'] as String?,
+        userId: json['userId'] as String?,
       );
 }
 
