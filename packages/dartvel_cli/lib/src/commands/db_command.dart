@@ -9,6 +9,7 @@ import 'package:dartvel_core/dartvel.dart'
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
+import '../adoption/local_schema.dart';
 import '../generators/annotation_args.dart';
 import '../generators/tenant_column.dart';
 import '../graph/module_mounts.dart';
@@ -159,10 +160,29 @@ class DbPullSubcommand extends Command<void> {
   @override
   final String name = 'pull';
   @override
-  final String description = 'Pull remote database schema and generate models.';
+  final String description = 
+      'Pull the remote database schema snapshot, or with --local print model '
+      'suggestions from drift, isar and sqflite schemas.';
+
+  DbPullSubcommand() {
+    argParser.addFlag(
+      'local',
+      negatable: false,
+      help: 'Print @DVModel suggestions from the drift tables, isar '
+          'collections and sqflite CREATE TABLE statements under lib/. '
+          'Suggestions are printed, never applied.',
+    );
+  }
 
   @override
   Future<void> run() async {
+    if (argResults!['local'] as bool) {
+      // Printed, never applied: see Adoption. A sensitive field is a
+      // judgement about meaning, and a tool that wrote one in would guess.
+      // ignore: avoid_print
+      dvLocalSchemaReport(Directory.current.path).forEach(print);
+      return;
+    }
     Logger.log('Pulling remote schema...');
     final root = Directory.current.path;
     final remote = remoteSchemaSnapshotFile(root);
