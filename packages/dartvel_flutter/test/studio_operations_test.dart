@@ -383,6 +383,13 @@ void main() {
         findsOneWidget,
       );
       expect(
+        inKey(
+          'dv-studio-slo-checkout-budget',
+          find.text('Measured over 2 hours of 30 days'),
+        ),
+        findsOneWidget,
+      );
+      expect(
         inKey('dv-studio-slo-checkout-burn-long', find.text('0.2×')),
         findsOneWidget,
       );
