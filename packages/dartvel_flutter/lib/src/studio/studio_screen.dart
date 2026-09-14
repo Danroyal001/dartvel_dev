@@ -2,12 +2,14 @@ import 'dart:async';
 
 // Not re-exported by the dartvel_flutter barrel, whose core exports are a
 // `show` list.
-import 'package:dartvel_core/dartvel.dart' show DVFlags;
+import 'package:dartvel_core/dartvel.dart'
+    show DVAlerting, DVFlags, DVHealthReport, DVIncidents;
 import 'package:flutter/material.dart' show Icon, IconData, Icons, Material;
 import 'package:flutter/widgets.dart';
 
 import '../../dartvel_flutter.dart';
 import 'studio_flags.dart';
+import 'studio_operations.dart';
 import 'studio_review.dart';
 
 /// The Studio admin surface: a navigation rail, and the section it opens.
@@ -45,6 +47,23 @@ class DVStudioScreen extends StatefulWidget {
   /// debug-build override. Without it there is no Flags tab.
   final DVFlags? flags;
 
+  /// The alert rule engine, which adds an Operations section: service levels
+  /// and their error budgets, rule state and delivery, and analysis findings.
+  final DVAlerting? alerting;
+
+  /// The incidents the Operations section lists and writes to, as [actor].
+  /// Without this, the alerting runtime's own store is used; without either,
+  /// there is no Operations tab.
+  final DVIncidents? incidents;
+
+  /// The clock the Operations section judges burn rates, ages and new
+  /// timeline entries by.
+  final DateTime Function()? clock;
+
+  /// The health report the status page preview is built from. Defaults to
+  /// running the application's registered health checks.
+  final Future<DVHealthReport> Function()? statusHealth;
+
   const DVStudioScreen({
     super.key,
     this.store = const DVPageStore(),
@@ -55,6 +74,10 @@ class DVStudioScreen extends StatefulWidget {
     this.actor,
     this.reviewers = const <String>[],
     this.flags,
+    this.alerting,
+    this.incidents,
+    this.clock,
+    this.statusHealth,
   });
 
   @override
@@ -133,8 +156,32 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
               flags: flags,
             ),
           ),
+        if (widget.alerting != null || widget.incidents != null)
+          DVStudioSection(
+            id: 'operations',
+            label: 'Operations',
+            icon: DVStudioIcons.operations,
+            build: (BuildContext context) => StudioOperationsSection(
+              key: const ValueKey<String>('dv-studio-operations'),
+              alerting: widget.alerting,
+              incidents: widget.incidents ?? widget.alerting?.incidents,
+              actor: _operationsActor,
+              now: widget.clock,
+              health: widget.statusHealth,
+            ),
+          ),
         ...widget.sections,
       ];
+
+  /// The name incident entries are written under: the actor itself when it
+  /// is a string, or the id the content workflow records for it. Anything
+  /// else writes nothing, rather than a timeline signed "Instance of User".
+  String? get _operationsActor {
+    final Object? actor = widget.actor;
+    if (actor is String) return actor.isEmpty ? null : actor;
+    if (actor == null) return null;
+    return widget.content?.actorIdOf(actor);
+  }
 
   @override
   Widget build(BuildContext context) {
