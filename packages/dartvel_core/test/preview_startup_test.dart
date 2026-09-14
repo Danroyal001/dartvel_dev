@@ -335,5 +335,24 @@ void main() {
         expect(seen['queue'], 'default');
       },
     );
+
+    test(
+      'control: a production process carrying a preview\'s variables uses '
+      'production\'s queues',
+      () async {
+        // A production deploy whose settings were copied from a preview's.
+        // DARTVEL_QUEUE_NAMESPACE is a preview deployment's variable, and
+        // outside a preview it must take no effect: honoured here, production
+        // would dispatch into the preview's queues and stop consuming its
+        // own.
+        final Map<String, Object?> seen = await probe(<String, String>{
+          'DARTVEL_ENVIRONMENT': 'production',
+          'DARTVEL_PREVIEW': id.name,
+          'DARTVEL_QUEUE_NAMESPACE': id.queueNamespace,
+        });
+        expect(seen['providerSent'], 1);
+        expect(seen['queue'], 'default');
+      },
+    );
   });
 }
