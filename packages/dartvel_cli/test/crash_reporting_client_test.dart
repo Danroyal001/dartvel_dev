@@ -120,6 +120,77 @@ void main() {
 }
 ''';
 
+/// A launch under the project's dartvel.crashes, in a crash directory of its
+/// own: what the generated runtime does with the declaration, and with the
+/// flags the build generated.
+const String _configured = '''
+$_probeHeader
+void main() {
+  test('configured', () async {
+    final FlutterExceptionHandler? testHandler = FlutterError.onError;
+    final ErrorCallback? testDispatcher = PlatformDispatcher.instance.onError;
+    FlutterError.onError = (FlutterErrorDetails d) {};
+    final Map<String, Object?> out = <String, Object?>{};
+
+    registerDartvelFlags();
+    DVFlags.setRules(const DVFlagRules(
+      rulesVersion: 1,
+      flags: <String, List<DVFlagRule>>{
+        'newCheckout': <DVFlagRule>[DVFlagRule(value: true)],
+      },
+    ));
+    const DVConsentCategory category = DVConsentCategory('crash_identity');
+    final DVConsent consent = DVConsent(
+      policy: DVConsentPolicy(
+        version: '1',
+        categories: const <DVConsentDeclaration>[DVConsentDeclaration(category)],
+      ),
+      database: MemoryDVDatabaseAdapter(),
+      installId: 'probe',
+    );
+    await consent.ensureSchema();
+    await consent.record(<DVConsentCategory, bool>{category: true});
+
+    final DVCrashInstallation installation =
+        installDartvelCrashReporting(evenUnderTest: true)!;
+    DV.Crashes.identify('user-42', consent: consent);
+
+    out['nonFatalKept'] = DV.Crashes.record(StateError('caught')) != null;
+    for (final String message in <String>['one', 'two', 'three']) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: StateError(message),
+        stack: StackTrace.current,
+      ));
+    }
+    final List<Map<String, Object?>> written = records();
+    out['written'] = written.length;
+    out['userId'] =
+        (written.first['context']! as Map<String, Object?>)['userId'];
+    out['flags'] = written.first['flags'];
+
+    installation.uninstall();
+    FlutterError.onError = testHandler;
+    PlatformDispatcher.instance.onError = testDispatcher;
+    // ignore: avoid_print
+    print('PROBE \${jsonEncode(out)}');
+  });
+}
+''';
+
+const String _flags = '''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVFlags()
+@pragma('vm:entry-point')
+abstract class _Flags {
+  @DVFlag(owner: 'payments', expires: '2099-12-01')
+  static const bool newCheckout = false;
+
+  @pragma('vm:entry-point')
+  static List<Object?> get declared => <Object?>[newCheckout];
+}
+''';
+
 const String _indexPage = '''
 import 'package:flutter/widgets.dart';
 
@@ -154,6 +225,8 @@ void main() {
     write(p.join(project.path, 'lib', 'pages', 'index.page.dart'), _indexPage);
     write(p.join(project.path, 'test', 'first_launch_test.dart'), _firstLaunch);
     write(p.join(project.path, 'test', 'next_launch_test.dart'), _nextLaunch);
+    write(p.join(project.path, 'test', 'configured_test.dart'), _configured);
+    write(p.join(project.path, 'lib', 'flags', 'flags.dart'), _flags);
     write(p.join(project.path, 'pubspec.yaml'), '''
 name: crash_probe
 version: 2.3.4+5
@@ -170,6 +243,12 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+dartvel:
+  crashes:
+    nonFatalSampleRate: 0
+    fullReportsPerRelease: 2
+    identity:
+      consent: crash_identity
 ''');
     write(p.join(project.path, 'pubspec_overrides.yaml'), '''
 dependency_overrides:
@@ -195,12 +274,12 @@ dependency_overrides:
     if (project.existsSync()) project.deleteSync(recursive: true);
   });
 
-  Future<Map<String, Object?>> launch(String testFile) async {
+  Future<Map<String, Object?>> launch(String testFile, {String? directory}) async {
     final ProcessResult result = await Process.run(
       'flutter',
       <String>['test', testFile],
       workingDirectory: project.path,
-      environment: <String, String>{'DARTVEL_CRASH_DIR': crashDir},
+      environment: <String, String>{'DARTVEL_CRASH_DIR': directory ?? crashDir},
     ).timeout(const Duration(minutes: 8));
     final String? line = const LineSplitter()
         .convert('${result.stdout}')
@@ -240,6 +319,24 @@ dependency_overrides:
     expect(next['recordsLeft'], 0);
     // One install, two launches, one id.
     expect(next['installIdNow'], first['installId']);
+  });
+
+  test('dartvel.crashes reaches the generated runtime: the sample rate, the '
+      'limit, the identity category, and the generated flags', () async {
+    final Map<String, Object?> r = await launch(
+      'test/configured_test.dart',
+      directory: p.join(project.path, 'configured-records'),
+    );
+
+    // nonFatalSampleRate: 0 drops every non-fatal.
+    expect(r['nonFatalKept'], isFalse);
+    // fullReportsPerRelease: 2 writes two of three crashes and counts the
+    // third.
+    expect(r['written'], 2);
+    // identity.consent names the category identify binds to; it is granted.
+    expect(r['userId'], 'user-42');
+    // The flags the build generated, as the rules answer them.
+    expect((r['flags']! as Map<String, Object?>)['newCheckout'], isTrue);
   });
 
   test('configureDartvelRuntime installs crash reporting', () {

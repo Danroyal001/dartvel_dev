@@ -290,11 +290,29 @@ final class DVCrashes {
     DVCrashSink? sink,
     String? installId,
     DVConsentCategory? identityConsent,
+    DVCrashConfig config = const DVCrashConfig(),
+    void Function(String code, String message)? onDiagnostic,
     bool evenUnderTest = false,
   }) {
     if (hostedByTestRunner && !evenUnderTest) return null;
     final DVCrashInstallation? existing = _installation;
     if (existing != null) return existing;
+    final DVCrashBuildMode mode = kReleaseMode
+        ? DVCrashBuildMode.release
+        : kProfileMode
+            ? DVCrashBuildMode.profile
+            : DVCrashBuildMode.debug;
+    if (!config.enabledIn(mode)) {
+      // Said, and nothing else done: no hook, no store, no install id
+      // written. Off is a declaration, not an accident.
+      (onDiagnostic ?? dvLogCrashDiagnostic)(
+        'DV-CRASH-009',
+        'crash reporting is disabled for ${mode.name} builds, as '
+            'dartvel.crashes declares',
+      );
+      return null;
+    }
+    identityConsent ??= config.identityConsent;
     DVCrashStore? resolved = store ?? defaultStore(appId);
     if (resolved == null) {
       debugPrint('[dartvel] DV.Crashes has nowhere on this platform that '
@@ -335,6 +353,10 @@ final class DVCrashes {
           userId: identity?.userId,
         ),
         flags: dvCrashFlagsSnapshot,
+        breadcrumbs: config.breadcrumbs,
+        nonFatalSampleRate: config.nonFatalSampleRate,
+        fullReportsPerRelease: config.fullReportsPerRelease,
+        onDiagnostic: onDiagnostic,
       ),
     );
     installation._identity = identity;
