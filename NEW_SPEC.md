@@ -5051,7 +5051,7 @@ Embeddings, immediately below.
 
 # Semantic Search and Embeddings
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
 
 Search indexes words. AI answers questions. Between them is retrieval over the
 application's own models — "orders where the customer sounded unhappy" — which
