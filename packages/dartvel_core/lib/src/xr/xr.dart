@@ -6,4 +6,9 @@
 /// The window kinds that ask for it live on `DV.Window` in dartvel_flutter.
 library dartvel.xr;
 
+export 'spatial_capability.dart';
+export 'spatial_comfort.dart';
+export 'spatial_input.dart';
 export 'spatial_pose.dart';
+export 'spatial_session.dart';
+export 'xr_device.dart';
