@@ -133,10 +133,22 @@ class DartvelProjectGraph {
     return found;
   }
 
+  /// A field and the whole annotation stack above it.
+  ///
+  /// The stack, not one annotation directly above the `final`: the model
+  /// generator already skips other annotations standing between a field
+  /// annotation and its declaration, and a graph that required
+  /// `@DVModel.sensitiveField()` to be last, with empty parentheses, described
+  /// `@DVModel.sensitiveField(encrypted: true)` -- and any sensitive field
+  /// with a searchable one under it -- as an ordinary field, to `inspect`, to
+  /// an agent over MCP and to the documentation site alike.
   static final RegExp _fieldPattern = RegExp(
-    r'(@DVModel\.sensitiveField\(\)\s*)?final\s+([A-Za-z0-9_<>, ?]+?)\s+'
-    r'([A-Za-z0-9_]+)\s*;',
+    r'((?:@[A-Za-z_][A-Za-z0-9_.]*\s*(?:\([^)]*\))?\s*)*)'
+    r'final\s+([A-Za-z0-9_<>, ?]+?)\s+([A-Za-z0-9_]+)\s*;',
   );
+
+  static final RegExp _sensitiveAnnotation =
+      RegExp(r'@(?:DVModel\.sensitiveField|DVSensitiveModelField)\s*\(');
 
   static List<DVGraphField> _fieldsIn(String body) {
     return _fieldPattern
@@ -145,7 +157,7 @@ class DartvelProjectGraph {
           (Match m) => DVGraphField(
             name: m.group(3)!,
             type: m.group(2)!.trim(),
-            sensitive: m.group(1) != null,
+            sensitive: _sensitiveAnnotation.hasMatch(m.group(1) ?? ''),
           ),
         )
         .toList(growable: false);
@@ -200,8 +212,13 @@ class DartvelProjectGraph {
     ];
   }
 
+  /// Any annotations may follow `@DVBackendFunction` -- `@DVUseMiddleware`
+  /// most often. The pattern used to step over `@pragma` and nothing else, so
+  /// a function with middleware under its annotation was read as an
+  /// unannotated file named after itself, at line 1.
   static final RegExp _functionPattern = RegExp(
-    r'@DVBackendFunction\s*\([^)]*\)\s*(?:@pragma\([^)]*\)\s*)*'
+    r'@DVBackendFunction\s*\([^)]*\)\s*'
+    r'(?:@[A-Za-z_][A-Za-z0-9_.]*\s*(?:\([^)]*\))?\s*)*'
     r'(?:Future<[^>]*>|Stream<[^>]*>|[A-Za-z_][A-Za-z0-9_<>, ?]*)\s+'
     r'([A-Za-z_][A-Za-z0-9_]*)\s*\(',
     dotAll: true,
