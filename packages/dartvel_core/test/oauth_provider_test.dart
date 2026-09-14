@@ -254,7 +254,8 @@ void main() {
               clientId: mobile.client.id,
               redirectUri: mobileRedirect,
               scopes: const <String>['orders:read'],
-              codeChallenge: _verifier,
+              // Well-formed, so only the method can be why it is refused.
+              codeChallenge: _challenge(_verifier),
               codeChallengeMethod: 'plain',
             ),
             throwsA(_oauthError('invalid_request')),
