@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 
 import 'crash_ingest.dart';
 import 'crash_report.dart';
+import 'crash_server.dart';
 import 'crash_store.dart';
 import 'release_health.dart';
 
@@ -24,6 +25,11 @@ abstract class DVCrashSink {
     Duration timeout,
     void Function(String line)? log,
   }) = DVDartvelCrashSink;
+
+  /// Reports kept in [repository] directly: a backend's own reports, without
+  /// a request to itself.
+  factory DVCrashSink.repository(DVCrashReportRepository repository) =
+      DVRepositoryCrashSink;
 
   Future<void> send(DVCrashReport report);
 }

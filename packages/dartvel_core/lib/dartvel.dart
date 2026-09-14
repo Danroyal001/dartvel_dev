@@ -2440,10 +2440,24 @@ class DVQueues {
         completed++;
       } catch (error, stackTrace) {
         await _adapter.fail(envelope.id, error.toString(), stackTrace);
+        // Only the attempt nothing will retry: an earlier failure is one the
+        // queue still expects to recover from, and reporting each would turn
+        // one poison job into maxAttempts crashes.
+        if (envelope.attempts + 1 >= envelope.maxAttempts) {
+          try {
+            onJobDeadLettered?.call(error, stackTrace);
+          } on Object {
+            // The job is dead-lettered whatever a listener does.
+          }
+        }
       }
     }
     return completed;
   }
+
+  /// Told about a job whose last attempt failed and was dead-lettered. The
+  /// generated backend records it as an unhandled error of the worker.
+  static void Function(Object error, StackTrace stack)? onJobDeadLettered;
 
   Future<List<DVJobEnvelope<DVJobPayload>>> pending([
     String queue = 'default',

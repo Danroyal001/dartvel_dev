@@ -1,5 +1,21 @@
 ## Unreleased
 
+- **A server process records its unhandled errors, with its role.**
+  `DVServerCrashes.install` puts the crash runtime in a web, worker or cron
+  process, and every report it writes carries `DVCrashContext.role` and the
+  device class `server`. `DVServerCrashes.record` records an error as
+  unhandled -- never sampled, written before it returns, never throwing and
+  never re-entering itself -- and sends soon after, because a server does
+  not restart to send; what an earlier process left is sent at install.
+  `DVScheduler` takes `onFailure`, told about each task that throws as it
+  happens, where a failure used to be appended to a list a served process
+  never read. `DVQueues.onJobDeadLettered` is told about the last failed
+  attempt of a job only, so one poison job is one report rather than
+  `maxAttempts`. `DVCrashSink.repository` keeps a backend's own reports in
+  its crash table without a request to itself, and
+  `dvServerCrashDirectoryFor` puts records in `DARTVEL_CRASH_DIR`, else
+  `.dartvel/crashes` beside the application, and never at `/`.
+
 - **`@DVModel` declares a subject path and retention.** `subject:` takes
   `DVSubject.self`, `#field`, `DVSubject.field('column')` or
   `DVSubject.through('column', parent: 'Model')`; `retain:` takes
