@@ -37,6 +37,9 @@ export 'src/billing/money.dart';
 export 'src/billing/paddle.dart';
 export 'src/billing/stripe.dart';
 export 'src/billing/webhooks.dart';
+export 'src/purchases/database_ledger.dart';
+export 'src/purchases/fake_store.dart';
+export 'src/purchases/purchases.dart';
 // LDAP is a raw TCP protocol, so a browser cannot speak it. Exported
 // unconditionally this pulls dart:io into every web build, which is what broke
 // the site build -- as a cascade of unrelated type errors in another file
