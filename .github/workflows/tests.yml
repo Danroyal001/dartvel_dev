@@ -115,7 +115,12 @@ jobs:
           # a StatusNotifierItem and a notification is a D-Bus call, so both
           # suites skipped themselves under `flutter test` alone -- passing
           # while never running a line.
-          sudo apt-get install -y -qq xvfb libxtst6 libgtk-3-0 poppler-utils dbus-x11 dunst
+          # GStreamer's plugins for the media suite. The runner image has
+          # libgstreamer and no plugins-base, so every pipeline the suite
+          # builds (audiotestsrc, vorbisenc, oggmux, playbin, opusenc) was
+          # missing its elements; the suite now refuses to skip on CI.
+          sudo apt-get install -y -qq xvfb libxtst6 libgtk-3-0 poppler-utils dbus-x11 dunst \
+            libgstreamer1.0-0 gstreamer1.0-plugins-base
 
       # A Secret Service for the application-key store. The libsecret store
       # skips itself when nothing answers org.freedesktop.secrets, so `dart
