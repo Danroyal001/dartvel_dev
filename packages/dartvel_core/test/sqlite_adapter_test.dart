@@ -1,6 +1,8 @@
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:dartvel_core/dartvel.dart';
+import 'package:sqlite3/sqlite3.dart' as sqlite;
 import 'package:test/test.dart';
 
 void main() {
@@ -171,6 +173,48 @@ void main() {
       expect(
         (await second.query('SELECT v FROM t')).single['v'],
         'kept',
+      );
+    });
+
+    test('a second connection waits for a write lock rather than failing',
+        () async {
+      // Several processes of one deployment -- a web process dispatching, a
+      // worker reserving, two cron processes claiming one occurrence -- share
+      // a SQLite file. With no busy timeout a write that meets another
+      // connection's lock fails at once with "database is locked", which in a
+      // worker is a crash on the first job dispatched while it polls.
+      final dir = Directory.systemTemp.createTempSync('dartvel_sqlite_busy_');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final path = '${dir.path}/busy.db';
+      final setup = SqliteDVDatabaseAdapter.file(path);
+      await setup.execute('CREATE TABLE t (v INTEGER NOT NULL);');
+      setup.close();
+
+      final ReceivePort locked = ReceivePort();
+      final ReceivePort done = ReceivePort();
+      await Isolate.spawn<List<Object>>(
+        (List<Object> message) {
+          final db = sqlite.sqlite3.open(message[0] as String);
+          db.execute('BEGIN IMMEDIATE');
+          db.execute('INSERT INTO t (v) VALUES (1)');
+          (message[1] as SendPort).send(true);
+          sleep(const Duration(milliseconds: 600));
+          db.execute('COMMIT');
+          db.dispose();
+        },
+        <Object>[path, locked.sendPort],
+        onExit: done.sendPort,
+      );
+      await locked.first;
+
+      final writer = SqliteDVDatabaseAdapter.file(path);
+      addTearDown(writer.close);
+      await writer.execute('INSERT INTO t (v) VALUES (2)');
+      await done.first;
+
+      expect(
+        (await writer.query('SELECT v FROM t ORDER BY v')).map((r) => r['v']),
+        <int>[1, 2],
       );
     });
 

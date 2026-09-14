@@ -39,12 +39,23 @@ class SqliteDVDatabaseAdapter
 
   /// File-backed database. Write-ahead logging is enabled where the platform
   /// supports it, and foreign keys are enforced.
+  ///
+  /// A write that meets another connection's lock waits up to
+  /// [busyTimeoutMilliseconds] for it rather than failing.
   factory SqliteDVDatabaseAdapter.file(
     String path, {
     bool walMode = true,
     bool foreignKeys = true,
+    int busyTimeoutMilliseconds = 5000,
   }) {
     final db = sqlite.sqlite3.open(path);
+    // Before anything else touches the file. A file is shared by every
+    // process of a deployment that runs on one host -- the web process
+    // dispatching, the worker reserving, two cron processes claiming one
+    // occurrence -- and with no busy timeout a write that meets another
+    // connection's lock fails at once with "database is locked" rather than
+    // waiting the milliseconds the other write takes.
+    db.execute('PRAGMA busy_timeout = $busyTimeoutMilliseconds;');
     if (walMode) {
       // WAL is unavailable on some filesystems; SQLite reports the mode it
       // actually applied rather than failing, so this is best effort by design.
