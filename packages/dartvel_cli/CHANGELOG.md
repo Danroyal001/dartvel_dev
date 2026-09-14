@@ -1,4 +1,12 @@
 ## Unreleased
+- **`@DVModel.model3dField()` is generated like any other media field.** The
+  model carries `model3dFields`, the upload limits by field; `viewer3D()`
+  renders the first 3D field in a `DVModel3DViewer`; the generated page and
+  card render that viewer where the field appears; the field is written and
+  read as JSON and gets a bundled factory default. A 3D field declared as
+  anything but `DVSceneAsset`, or an annotation argument other than `poster`,
+  `maxSizeMb` and `maxTriangles` written as a literal, fails generation with
+  the reason rather than generating a field with no limit.
 - **`dartvel db pull --local` prints `@DVModel` suggestions from the drift
   tables, isar collections and sqflite `CREATE TABLE` statements a project
   already has.** Column types map to model field types with nullability kept;

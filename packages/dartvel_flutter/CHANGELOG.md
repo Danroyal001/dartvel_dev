@@ -30,6 +30,12 @@
   Video frames are not yet drawn into Flutter there, and camera capture is not
   implemented.
 
+- **`DVModel3DViewer`.** The orbit viewer a generated `product.viewer3D()`
+  and a generated model page render for a 3D field: `DVBox.scene` with the
+  model, a camera the user can turn, a key light and the studio environment,
+  showing the field's poster where 3D cannot render and nothing for an empty
+  field.
+
 - **`DV.Workers`.** The application's worker pool is reachable from a page as
   `DV.Workers`, the pool `DVWorkers.configure` installed, and the types a run
   hands back -- `DVWorkerResult`, `DVProgress`, `DVCancellation`,

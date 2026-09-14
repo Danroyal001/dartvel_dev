@@ -13,4 +13,5 @@ export 'scene_config.dart';
 export 'scene_document.dart';
 export 'scene_graph.dart';
 export 'scene_math.dart';
+export 'scene_model_field.dart';
 export 'scene_renderer.dart';

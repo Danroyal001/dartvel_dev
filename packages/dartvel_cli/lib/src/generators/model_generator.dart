@@ -375,6 +375,58 @@ class ModelGenerator {
           pageFieldOrder[m.group(2)!] = int.parse(m.group(1)!);
         }
 
+        // Fields declared @DVModel.model3dField(...): a 3D asset, generated
+        // like any other media field. Each maps to the policy expression the
+        // generated model carries. An argument the annotation does not have
+        // is an error rather than something to skip -- `maxSizeMB: 25` read
+        // as no limit at all is the failure nobody would see.
+        final model3dFields = <String, String>{};
+        for (final m in RegExp(
+          r'@DVModel\.model3dField\s*\(([^)]*)\)\s*'
+          '${otherAnnotations}final\\s+(.+?)\\s+([A-Za-z0-9_]+)\\s*;',
+          dotAll: true,
+        ).allMatches(content)) {
+          final String declared = m.group(2)!.trim();
+          final String name = m.group(3)!;
+          if (declared.replaceAll('?', '') != 'DVSceneAsset') {
+            throw StateError(
+              'Dartvel: $sourceClassName.$name is @DVModel.model3dField() '
+              'but is declared $declared. A 3D field holds a DVSceneAsset -- '
+              'the verified reference an upload produces -- so declare it '
+              '`final DVSceneAsset? $name;`.',
+            );
+          }
+          bool poster = true;
+          int? maxSizeMb;
+          int? maxTriangles;
+          for (final String part in m.group(1)!.split(',')) {
+            final String arg = part.trim();
+            if (arg.isEmpty) continue;
+            final Match? kv =
+                RegExp(r'^([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(\S+)$').firstMatch(arg);
+            final String key = kv?.group(1) ?? arg;
+            final String value = kv?.group(2) ?? '';
+            switch (key) {
+              case 'poster' when value == 'true' || value == 'false':
+                poster = value == 'true';
+              case 'maxSizeMb' when int.tryParse(value) != null:
+                maxSizeMb = int.parse(value);
+              case 'maxTriangles' when int.tryParse(value) != null:
+                maxTriangles = int.parse(value);
+              default:
+                throw StateError(
+                  "Dartvel: @DVModel.model3dField on $sourceClassName.$name "
+                  "cannot read '$arg'. It takes poster: true|false, "
+                  'maxSizeMb: <int> and maxTriangles: <int>, each written as '
+                  'a literal.',
+                );
+            }
+          }
+          model3dFields[name] = 'DVModel3DFieldPolicy(poster: $poster, '
+              'maxBytes: ${maxSizeMb == null ? 'null' : maxSizeMb * 1024 * 1024}, '
+              'maxTriangles: ${maxTriangles ?? 'null'})';
+        }
+
         // Inference for anything not annotated. The featured image is the
         // first DVImage field; the title is the first `title`/`name` string,
         // else the first string. Main content cannot be resolved here — the
@@ -501,6 +553,20 @@ class ModelGenerator {
         sb.writeln(
           '  static const Set<String> encryptedFields = <String>{${encryptedFieldNames.map((n) => "'$n'").join(', ')}};',
         );
+        sb.writeln();
+        sb.writeln('  /// Upload limits of each @DVModel.model3dField(), by field.');
+        sb.writeln(
+          '  static const Map<String, DVModel3DFieldPolicy> model3dFields = '
+          '<String, DVModel3DFieldPolicy>{'
+          "${model3dFields.entries.map((MapEntry<String, String> e) => "'${e.key}': ${e.value}").join(', ')}};",
+        );
+        if (model3dFields.isNotEmpty) {
+          final String first = model3dFields.keys.first;
+          sb.writeln();
+          sb.writeln('  /// An orbit viewer for [$first]: DVBox.scene with a');
+          sb.writeln('  /// camera the user can turn and the studio environment.');
+          sb.writeln('  Widget viewer3D() => DVModel3DViewer($first);');
+        }
         sb.writeln();
         sb.writeln('  /// Generated form component for [$className].');
         sb.writeln('  ///');
@@ -707,6 +773,8 @@ class ModelGenerator {
           final type = baseType(field['type']!);
           if (type == 'DVImage') {
             sb.writeln('      DVImageView(model.$name),');
+          } else if (type == 'DVSceneAsset') {
+            sb.writeln('      DVModel3DViewer(model.$name),');
           } else {
             sb.writeln('      DVText(model.$name.toString()),');
           }
@@ -769,6 +837,8 @@ class ModelGenerator {
           );
           if (type == 'DVImage') {
             sb.writeln('      DVImageView(model.$name),');
+          } else if (type == 'DVSceneAsset') {
+            sb.writeln('      DVModel3DViewer(model.$name),');
           } else {
             sb.writeln('      DVText(model.$name.toString()),');
           }
@@ -2253,6 +2323,12 @@ class ModelGenerator {
       // that makes a network request when something renders it.
       return "const DVImage.asset('assets/test_$name.png')";
     }
+    if (baseType == 'DVSceneAsset') {
+      // Bundled, for the same reason: rendering a test model makes no
+      // request and needs no storage.
+      return 'const DVSceneAsset(kind: DVSceneAssetKind.model, '
+          "source: DVSceneAssetSource.bundled, reference: 'assets/models/test_$name.glb')";
+    }
     if (baseType == 'List<String>') return "const <String>['test']";
     if (baseType == 'List<int>') return 'const <int>[1]';
     if (baseType == 'List<double>') return 'const <double>[1.0]';
@@ -2286,6 +2362,10 @@ class ModelGenerator {
     final name = field['name']!;
     final type = field['type']!;
     final nullable = type.endsWith('?');
+    if (type.replaceAll('?', '') == 'DVSceneAsset') {
+      // A value, not JSON: left in the map, jsonEncode throws on the model.
+      return nullable ? '$name?.toJson()' : '$name.toJson()';
+    }
     if (type.replaceAll('?', '') != 'DateTime') return name;
     return nullable ? '$name?.toIso8601String()' : '$name.toIso8601String()';
   }
@@ -2305,6 +2385,9 @@ class ModelGenerator {
       'int' => "_dvAsNum(json['$name']).toInt()",
       'double' => "_dvAsNum(json['$name']).toDouble()",
       'num' => "_dvAsNum(json['$name'])",
+      'DVSceneAsset' => nullable
+          ? "DVSceneAsset.fromJson(json['$name'])"
+          : "DVSceneAsset.fromJson(json['$name'])!",
       _ => "json['$name'] as $type",
     };
     // A plain cast already carries the `?`; a coercion helper does not, so

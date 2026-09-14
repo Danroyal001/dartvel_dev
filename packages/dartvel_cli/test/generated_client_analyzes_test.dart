@@ -99,6 +99,22 @@ class _Account {
 }
 ''';
 
+/// A model with a 3D asset field, whose generated viewer and page component
+/// name widgets from dartvel_flutter and values from dartvel_core.
+const String _product3d = '''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVModel()
+class _Product {
+  final String id;
+  final String name;
+  @DVModel.model3dField(poster: true, maxSizeMb: 25)
+  final DVSceneAsset? asset;
+
+  const _Product({required this.id, required this.name, this.asset});
+}
+''';
+
 const String _indexPage = '''
 import 'package:flutter/widgets.dart';
 
@@ -173,6 +189,7 @@ void main() {
     project = await Directory.systemTemp.createTemp('dartvel_analyze_');
 
     write(p.join(project.path, 'lib', 'models', 'account.dart'), _model);
+    write(p.join(project.path, 'lib', 'models', 'product.dart'), _product3d);
     write(p.join(project.path, 'lib', 'pages', 'index.page.dart'), _indexPage);
     write(p.join(project.path, 'lib', 'pages', 'posts', '[slug].page.dart'),
         _postPage);
@@ -261,6 +278,7 @@ dependency_overrides:
       // generated code, so the analyzer's unused-element warnings about them
       // are the rule working, not a defect.
       .where((String line) => !line.contains('lib/models/account.dart'))
+      .where((String line) => !line.contains('lib/models/product.dart'))
       .where((String line) => !line.contains('lib/backend/'))
       .where((String line) => !line.contains('.page.dart'))
       .toList(growable: false);
@@ -331,6 +349,16 @@ dependency_overrides:
 
     expect(client, contains('DVMemory.configure(DVMemoryConfig.parse('));
     expect(client, contains("'lobby'"));
+  });
+
+  test('a 3D model field and its viewer are in the analyzed client', () {
+    // Without this the two assertions above could pass on a client that
+    // never generated the viewer at all.
+    final String models = File(
+      p.join(project.path, 'lib', 'dartvel_client', 'models.g.dart'),
+    ).readAsStringSync();
+    expect(models, contains('Widget viewer3D() => DVModel3DViewer(asset);'));
+    expect(models, contains('DVModel3DViewer(model.asset)'));
   });
 
   test('the admin pages were generated and analyzed too', () {

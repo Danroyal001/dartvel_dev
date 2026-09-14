@@ -270,6 +270,19 @@ class DVModel {
   /// list -- would be broken by a predicate it never asked for.
   final bool tenantScoped;
 
+  /// Whether this field holds a 3D asset, set by `@DVModel.model3dField()`.
+  final bool isModel3dField;
+
+  /// Whether a 3D field asks for a still of its model, for where 3D cannot
+  /// render.
+  final bool model3dPoster;
+
+  /// A 3D field's upload ceiling, in mebibytes.
+  final int? model3dMaxSizeMb;
+
+  /// A 3D field's triangle budget.
+  final int? model3dMaxTriangles;
+
   const DVModel({
     this.searchable = false,
     this.billable = false,
@@ -284,7 +297,11 @@ class DVModel {
         showInForms = false,
         showInAdmin = false,
         pageRole = null,
-        pageOrderIndex = null;
+        pageOrderIndex = null,
+        isModel3dField = false,
+        model3dPoster = false,
+        model3dMaxSizeMb = null,
+        model3dMaxTriangles = null;
 
   /// Marks a model field as sensitive: `@DVModel.sensitiveField()`.
   ///
@@ -318,7 +335,11 @@ class DVModel {
         pageOrderIndex = null,
         schemaType = null,
         favicon = null,
-        tenantScoped = false;
+        tenantScoped = false,
+        isModel3dField = false,
+        model3dPoster = false,
+        model3dMaxSizeMb = null,
+        model3dMaxTriangles = null;
 
   /// Marks a model field for generated search indexing:
   /// `@DVModel.searchableField()`.
@@ -336,7 +357,11 @@ class DVModel {
         pageOrderIndex = null,
         schemaType = null,
         favicon = null,
-        tenantScoped = false;
+        tenantScoped = false,
+        isModel3dField = false,
+        model3dPoster = false,
+        model3dMaxSizeMb = null,
+        model3dMaxTriangles = null;
 
   /// Marks the field a generated model page uses as its featured image:
   /// `@DVModel.featuredImage()`.
@@ -374,6 +399,38 @@ class DVModel {
   /// every ordered one.
   const DVModel.pageOrder(int order) : this._page(null, order);
 
+  /// Marks a field as a 3D asset: `@DVModel.model3dField()`.
+  ///
+  /// The field holds a `DVSceneAsset`, the verified reference
+  /// `DVModel3DFieldPolicy.accept` makes from an upload. The generated model
+  /// carries the limits as `Model.model3dFields`, `model.viewer3D()` renders
+  /// the field in an orbit viewer, and the generated page renders that
+  /// viewer where the field appears. [maxSizeMb] and [maxTriangles] bound an
+  /// upload; [poster] asks for a still of the model for where 3D cannot
+  /// render.
+  const DVModel.model3dField({
+    bool poster = true,
+    int? maxSizeMb,
+    int? maxTriangles,
+  })  : isModel3dField = true,
+        model3dPoster = poster,
+        model3dMaxSizeMb = maxSizeMb,
+        model3dMaxTriangles = maxTriangles,
+        searchable = false,
+        billable = false,
+        nativePrice = null,
+        pageDataMode = DVModelPageDataMode.auto,
+        generatePublicPages = false,
+        publicPathsResolver = null,
+        encrypted = false,
+        showInForms = false,
+        showInAdmin = false,
+        pageRole = null,
+        pageOrderIndex = null,
+        schemaType = null,
+        favicon = null,
+        tenantScoped = false;
+
   const DVModel._page(this.pageRole, [this.pageOrderIndex])
       : searchable = false,
         billable = false,
@@ -386,7 +443,11 @@ class DVModel {
         showInAdmin = false,
         schemaType = null,
         favicon = null,
-        tenantScoped = false;
+        tenantScoped = false,
+        isModel3dField = false,
+        model3dPoster = false,
+        model3dMaxSizeMb = null,
+        model3dMaxTriangles = null;
 }
 
 /// Marks a model property for generated search indexing.

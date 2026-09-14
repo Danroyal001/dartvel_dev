@@ -66,6 +66,11 @@ export 'package:dartvel_core/dartvel.dart'
         DVGltfFormatException,
         DVGltfSummary,
         DVMat4,
+        DVModel3DFieldPolicy,
+        DVModel3DProblem,
+        DVModel3DProblemKind,
+        DVModel3DRejected,
+        DVModel3DValidation,
         DVQuat,
         DVRay,
         DVScene3D,
@@ -612,6 +617,7 @@ export 'src/routing/page_middleware.dart';
 export 'src/routing/page_policy.dart';
 export 'src/routing/route_prefetch.dart';
 export 'src/routing/url_strategy.dart';
+export 'src/scene3d/model_viewer.dart';
 export 'src/scene3d/scene_nodes.dart';
 export 'src/scene3d/scene_viewport.dart';
 export 'src/studio/page_document.dart';
