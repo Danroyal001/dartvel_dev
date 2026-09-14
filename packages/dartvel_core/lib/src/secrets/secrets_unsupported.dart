@@ -12,6 +12,12 @@ void useEnvFile(String path) {}
 
 void resetEnvFile() {}
 
+/// No supervisor hands a browser credential files, and there is no file
+/// system to read them from.
+void useCredentialsDirectory(String? path) {}
+
+void resetCredentialsDirectory() {}
+
 String missingSecretReason(String key) =>
     'secrets are not read from the environment on the web, because anything '
     'compiled into the bundle ships to every visitor. Fetch "$key" through a '
