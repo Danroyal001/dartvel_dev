@@ -221,6 +221,9 @@ void main() {
       expect(deployed.variables['DARTVEL_DATABASE'], id.database);
       expect(deployed.variables['DARTVEL_STORAGE_BUCKET'], id.bucket);
       expect(deployed.variables['DARTVEL_QUEUE_NAMESPACE'], id.queueNamespace);
+      // Production's database name goes with the deployment, so the running
+      // preview can refuse to start on it.
+      expect(deployed.variables['DARTVEL_PRODUCTION_DATABASE'], 'shop');
 
       expect(outcome.record!.state, DVPreviewState.running);
       expect(outcome.record!.url, contains(id.hostLabel));
@@ -299,6 +302,7 @@ void main() {
       await p.create(
           branch: 'feature/cart', now: t0, secrets: _secrets, migrate: migrate, seed: seed);
       order.clear();
+      adapter.deployments.clear();
       final DVPreviewOutcome again = await p.create(
         branch: 'feature/cart',
         now: t0.add(const Duration(hours: 1)),
@@ -317,6 +321,11 @@ void main() {
       expect(await registry.all(), hasLength(1));
       expect(again.record!.deployedAt, t0.add(const Duration(hours: 1)));
       expect(again.record!.createdAt, t0);
+      expect(
+          adapter.deployments[id.hostLabel]!
+              .variables['DARTVEL_PRODUCTION_DATABASE'],
+          'shop',
+          reason: 'a redeploy writes production\'s database name too');
     });
 
     test('a failed migration takes down what was created and leaves no record',

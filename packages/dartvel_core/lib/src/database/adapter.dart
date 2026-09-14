@@ -3,6 +3,7 @@ library dartvel_core.database.adapter;
 
 import 'dart:async';
 
+import '../preview/preview_database_guard.dart';
 import '../tenancy/tenants.dart';
 
 abstract class DVDatabaseAdapter {
@@ -574,6 +575,8 @@ class DVDatabase {
       <String, DVDatabaseAdapter>{};
 
   void configure(DVDatabaseAdapter adapter) {
+    // In a preview, only the preview's own database.
+    DVPreviewDatabaseGuard.check(adapter);
     _adapter = adapter;
   }
 

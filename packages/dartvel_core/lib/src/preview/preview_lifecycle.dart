@@ -51,6 +51,7 @@ final class DVPreviewDeployment {
     required this.secrets,
     this.linkDigest,
     this.productionOrigin,
+    this.productionDatabase,
     this.schedules = const <String>{},
   });
 
@@ -68,6 +69,10 @@ final class DVPreviewDeployment {
   /// Where the canonical link of every preview page points.
   final String? productionOrigin;
 
+  /// Production's database name -- a name, not a credential -- so the
+  /// running preview can refuse to start on it.
+  final String? productionDatabase;
+
   final Set<String> schedules;
 
   /// The process environment the preview runs with. The Dartvel names are
@@ -84,6 +89,8 @@ final class DVPreviewDeployment {
         if (linkDigest != null) 'DARTVEL_PREVIEW_LINK_DIGEST': linkDigest!,
         if (productionOrigin != null)
           'DARTVEL_PRODUCTION_ORIGIN': productionOrigin!,
+        if (productionDatabase != null)
+          'DARTVEL_PRODUCTION_DATABASE': productionDatabase!,
         'DARTVEL_PREVIEW_SCHEDULES': (schedules.toList()..sort()).join(','),
       };
 }
@@ -497,6 +504,7 @@ final class DVPreviews {
         secrets: secrets.values,
         linkDigest: linkToken == null ? null : _digest(linkToken),
         productionOrigin: productionOrigin,
+        productionDatabase: production.database,
         schedules: config.schedules,
       ));
       record = record.copyWith(
@@ -548,8 +556,10 @@ final class DVPreviews {
       if (migrate != null) {
         await migrate(DVPreviewTarget(identity: existing.identity));
       }
+      final DVPreviewProduction production = await adapter.production();
       final String url = await adapter.deploy(DVPreviewDeployment(
         identity: existing.identity,
+        productionDatabase: production.database,
         visibility: existing.visibility,
         secrets: secrets.values,
         linkDigest:
