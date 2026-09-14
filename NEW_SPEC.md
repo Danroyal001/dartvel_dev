@@ -9371,7 +9371,7 @@ a stale link from the last successful run.
 
 # Dev Client
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
 
 `dartvel dev` reloads a running application. Getting that application onto a
 colleague's phone is the step nobody has specified, and Preview Environments
