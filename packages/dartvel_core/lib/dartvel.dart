@@ -33,6 +33,8 @@ export 'src/ai/mcp.dart';
 export 'src/ai/prompts.dart';
 export 'src/alerting/alerting.dart';
 export 'src/analytics/analytics.dart';
+export 'src/analytics/consent.dart';
+export 'src/analytics/product_analytics.dart';
 export 'src/annotations/annotations.dart';
 export 'src/auth/api_keys.dart';
 export 'src/auth/api_scopes.dart';
