@@ -71,6 +71,10 @@ abstract class DVSharedStoreCipher {
 /// Deliberately not encryption, and it says so: a cipher that pretends would
 /// be worse than one that is honest about doing nothing, because the first
 /// gets trusted.
+///
+/// It governs view state only. The sealed namespaces
+/// ([DVWindowSharedStore.sealedPrefixes]) are encrypted under the application
+/// key whichever cipher a store has.
 class DVNullSharedStoreCipher implements DVSharedStoreCipher {
   const DVNullSharedStoreCipher();
 
@@ -138,6 +142,43 @@ class DVSharedStoreKeyError extends ArgumentError {
   final String prefix;
 }
 
+/// Where a store finds the application key store, or null when this platform
+/// has none.
+///
+/// A function rather than a store, so nothing asks the platform for a key
+/// until a sealed value is first written or read: a keyring probe at startup
+/// would be paid by every application, whether it keeps anything sealed or
+/// not.
+typedef DVAppKeyStoreSource = Future<DVAppKeyStore?> Function();
+
+/// A value under a sealed namespace that was not written, because no
+/// application key could be had to encrypt it under.
+///
+/// Thrown rather than falling back: a sealed value written in plaintext
+/// because the keyring was locked is exactly the write the seal exists to
+/// stop.
+class DVSharedStoreSealUnavailable implements Exception {
+  DVSharedStoreSealUnavailable(this.key, [this.cause]);
+
+  /// The key that was not written.
+  final String key;
+
+  /// What resolving the application key failed with; null when no key store
+  /// answered at all.
+  final Object? cause;
+
+  /// Why, in words that name neither the value nor anything read from the
+  /// key store.
+  String get reason => cause == null
+      ? 'no application key store is available on this platform to encrypt '
+          'it under, and it is never stored in plaintext'
+      : 'the application key could not be read or created '
+          '(${cause.runtimeType}), and it is never stored in plaintext';
+
+  @override
+  String toString() => 'DVSharedStoreSealUnavailable: $key was not written: $reason';
+}
+
 class DVWindowSharedStore {
   DVWindowSharedStore({
     DVSharedStoreBackend? backend,
@@ -145,9 +186,11 @@ class DVWindowSharedStore {
     this.debounce = const Duration(milliseconds: 50),
     this.spillThresholdBytes = 32 * 1024,
     DVFileStorageAdapter? spillStorage,
+    DVAppKeyStoreSource? appKeys,
   })  : _backend = backend ?? DVMemorySharedStoreBackend(),
         _cipher = cipher,
-        _spill = spillStorage {
+        _spill = spillStorage,
+        _appKeys = appKeys {
     _subscription = _backend.changed.listen(_onExternalChange);
   }
 
@@ -165,6 +208,12 @@ class DVWindowSharedStore {
 
   final DVSharedStoreBackend _backend;
   final DVSharedStoreCipher _cipher;
+
+  /// Where this store finds the application key; [defaultAppKeys] when null.
+  final DVAppKeyStoreSource? _appKeys;
+
+  /// The application key cipher, once one has been had.
+  DVAppKeyCipher? _seal;
 
   /// A signal changing per frame must not produce a write per frame.
   final Duration debounce;
@@ -185,6 +234,48 @@ class DVWindowSharedStore {
   /// collides with nothing and stays legal.
   static const List<String> reservedPrefixes = <String>['dv.', 'workspace.', 'xr.'];
 
+  /// Namespaces written only encrypted under the application key, whatever
+  /// cipher the store was given, and refused when no key can be had.
+  ///
+  /// `xr.anchors.` holds world anchor tokens, and a token re-localizes a
+  /// physical place -- often a room in somebody's home. The store's cipher
+  /// is a choice about view state, where the default of none costs a tab
+  /// order; it is not a choice anybody made about that.
+  static const List<String> sealedPrefixes = <String>['xr.anchors.'];
+
+  /// A source with no key store: what a store has until one is configured.
+  static Future<DVAppKeyStore?> noAppKeys() async => null;
+
+  /// Where a store made without `appKeys` finds the application key store.
+  ///
+  /// None by default. A store has no application id to name a platform key
+  /// store by, and guessing one would share a key between applications; so
+  /// until the application sets this, a sealed value is refused rather than
+  /// written. Read when a key is first needed, so a store made before this
+  /// was set still uses it.
+  static DVAppKeyStoreSource defaultAppKeys = noAppKeys;
+
+  static bool _isSealed(String key) => sealedPrefixes.any(key.startsWith);
+
+  /// The application key cipher, resolved on first use, or
+  /// [DVSharedStoreSealUnavailable] naming [key].
+  Future<DVAppKeyCipher> _sealFor(String key) async {
+    final DVAppKeyCipher? known = _seal;
+    if (known != null) return known;
+    final DVAppKeyStore? keys;
+    try {
+      keys = await (_appKeys ?? defaultAppKeys)();
+    } on Object catch (error) {
+      throw DVSharedStoreSealUnavailable(key, error);
+    }
+    if (keys == null) throw DVSharedStoreSealUnavailable(key);
+    try {
+      return _seal = DVAppKeyCipher(await DVAppKey.ensure(keys));
+    } on Object catch (error) {
+      throw DVSharedStoreSealUnavailable(key, error);
+    }
+  }
+
   /// Throws if [key] is in a reserved namespace.
   static void _reject(String key) {
     for (final String prefix in reservedPrefixes) {
@@ -201,26 +292,44 @@ class DVWindowSharedStore {
   @internal
   Future<DVJsonValue?> getReserved(String key) async {
     if (_latest.containsKey(key)) return _latest[key];
-    return _resolve(await _backend.read(key));
+    return _resolve(key, await _backend.read(key));
   }
 
   /// Reads a stored entry, following a spill pointer when it is one.
-  Future<DVJsonValue?> _resolve(String? stored) async {
+  Future<DVJsonValue?> _resolve(String key, String? stored) async {
     if (stored == null) return null;
     final plaintext = _cipher.decrypt(stored);
     if (plaintext == null) return null;
-    if (!plaintext.startsWith(_spillPrefix)) return _parse(plaintext);
+    if (!plaintext.startsWith(_spillPrefix)) return _open(key, plaintext);
 
     final storage = _spill;
     if (storage == null) return null;
     try {
       final bytes = await storage.get(plaintext.substring(_spillPrefix.length));
       final body = _cipher.decrypt(utf8.decode(bytes));
-      return body == null ? null : _parse(body);
+      return body == null ? null : _open(key, body);
     } catch (_) {
       // A pointer whose object is gone is an unreadable value like any other.
       return null;
     }
+  }
+
+  /// Parses [body], opening the application key seal first when [key] is in
+  /// a sealed namespace.
+  ///
+  /// A sealed value that does not open is unreadable like any other --
+  /// including one an earlier version wrote in plaintext, which is not read
+  /// as a value.
+  Future<DVJsonValue?> _open(String key, String body) async {
+    if (!_isSealed(key)) return _parse(body);
+    final DVAppKeyCipher seal;
+    try {
+      seal = await _sealFor(key);
+    } on DVSharedStoreSealUnavailable {
+      return null;
+    }
+    final String? opened = seal.decrypt(body);
+    return opened == null ? null : _parse(opened);
   }
 
   /// Writes [value], coalescing rapid writes to the same key.
@@ -234,8 +343,13 @@ class DVWindowSharedStore {
   }
 
   /// [set] without the namespace check, for the framework's own state.
+  ///
+  /// A value under a sealed namespace throws [DVSharedStoreSealUnavailable]
+  /// when no application key can be had, and nothing is kept -- not even in
+  /// memory, where it would read back as though it had been stored.
   @internal
   Future<void> setReserved(String key, DVJsonValue? value) async {
+    if (value != null && _isSealed(key)) await _sealFor(key);
     DVWindowPerformance.current.recordStoreWrite(key);
     _latest[key] = value;
     _publish(key, value);
@@ -244,8 +358,14 @@ class DVWindowSharedStore {
     final completer = Completer<void>();
     _pending[key] = Timer(debounce, () async {
       _pending.remove(key);
-      await _flush(key, value);
-      if (!completer.isCompleted) completer.complete();
+      try {
+        await _flush(key, value);
+        if (!completer.isCompleted) completer.complete();
+      } catch (error, stackTrace) {
+        // To the caller that asked for the write. Thrown inside the timer,
+        // it reached nobody and the future never completed.
+        if (!completer.isCompleted) completer.completeError(error, stackTrace);
+      }
     });
     return completer.future;
   }
@@ -276,16 +396,21 @@ class DVWindowSharedStore {
       return;
     }
     final encoded = jsonEncode(DVJsonCodec.toJson(value));
+    // Sealed before the store's own cipher sees it, so what reaches the
+    // backend -- or spills to file storage -- is ciphertext under the
+    // application key whichever cipher this store was given.
+    final payload =
+        _isSealed(key) ? (await _sealFor(key)).encrypt(encoded) : encoded;
     final storage = _spill;
-    if (storage != null && encoded.length > spillThresholdBytes) {
+    if (storage != null && payload.length > spillThresholdBytes) {
       DVWindowPerformance.current
-          .recordStoreFlush(key, bytes: encoded.length, spilled: true);
+          .recordStoreFlush(key, bytes: payload.length, spilled: true);
       // The pointer write is what triggers the notification, and the reader
       // follows it — so spilling needs no watcher of its own.
       final objectKey = 'dartvel/window-shared/${_objectName(key)}';
       await storage.put(
         objectKey,
-        utf8.encode(_cipher.encrypt(encoded)),
+        utf8.encode(_cipher.encrypt(payload)),
         contentType: 'application/octet-stream',
       );
       await _backend.write(key, _cipher.encrypt('$_spillPrefix$objectKey'));
@@ -295,8 +420,8 @@ class DVWindowSharedStore {
     // before, the object it left is now unreferenced -- the pointer is about
     // to be overwritten with the value itself.
     await _dropSpill(key);
-    await _backend.write(key, _cipher.encrypt(encoded));
-    DVWindowPerformance.current.recordStoreFlush(key, bytes: encoded.length);
+    await _backend.write(key, _cipher.encrypt(payload));
+    DVWindowPerformance.current.recordStoreFlush(key, bytes: payload.length);
   }
 
   /// Deletes the spilled object for [key], if this key spilled one.
@@ -378,7 +503,7 @@ class DVWindowSharedStore {
   }
 
   Future<void> _onExternalChange(String key) async {
-    final value = await _resolve(await _backend.read(key));
+    final value = await _resolve(key, await _backend.read(key));
     _latest[key] = value;
     _publish(key, value);
   }

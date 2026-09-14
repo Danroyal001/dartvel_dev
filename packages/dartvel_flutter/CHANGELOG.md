@@ -1,5 +1,26 @@
 ## Unreleased
 
+- **World anchor tokens are encrypted at rest whatever the shared store's
+  cipher.** A token under `xr.anchors.*` was encrypted only when the shared
+  store had been given a cipher, and its default has none, so a token that
+  re-localizes a place in somebody's home was written to the preference store
+  as plain JSON. `DVWindowSharedStore.sealedPrefixes` (`xr.anchors.`) are now
+  encrypted with AES-256-GCM under the application key (`DVAppKeyCipher` over
+  `DVAppKey.ensure`) before the store's own cipher sees them, inline and when
+  spilled. The key store comes from the new `appKeys:` parameter or, for a
+  store made without one, `DVWindowSharedStore.defaultAppKeys`, read when a
+  key is first needed. When no key can be had -- no key store configured, one
+  that cannot hold a key, one that throws -- the write throws
+  `DVSharedStoreSealUnavailable` and nothing is kept, not even in memory;
+  `DVSharedStoreAnchorStore` reports it as `DVSpatialAnchorNotStored` and the
+  session leaves the anchor unpersisted. Removing a token needs no key, so a
+  withdrawal can always delete one, and a token an earlier version left in
+  plaintext is not read as a token. No key store is configured by default,
+  so until an application sets `defaultAppKeys` world anchors are refused
+  rather than stored. A write whose flush fails now completes its future with
+  the error instead of never completing. `DVConsentSpatialConsent` and
+  `DVSpatialAnchorNotStored` are exported.
+
 - **Volumes and immersive spaces are window kinds.**
   `DV.Platform.Window.open(route, options: DVWindowOptions(kind:
   DVWindowKind.volume))` and `kind: DVWindowKind.immersive, immersion:
