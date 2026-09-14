@@ -453,6 +453,7 @@ class DVPurchaseChange {
     required this.granted,
     required this.revoked,
     this.notificationId,
+    this.revokedAt,
   });
 
   final String customerKey;
@@ -463,6 +464,15 @@ class DVPurchaseChange {
 
   /// The notification that caused it, or null for a verified receipt.
   final String? notificationId;
+
+  /// When the store took the purchase back -- a refund, a chargeback, a
+  /// revocation -- or null.
+  ///
+  /// What separates a refund from a lapse. Both revoke the same entitlements,
+  /// and only one of them is money going back: a handler that reversed stock
+  /// and credits on every revocation would reverse them for every
+  /// subscription that simply ran out.
+  final DateTime? revokedAt;
 }
 
 /// What a verification or notification did.
@@ -1195,6 +1205,7 @@ class DVPurchases {
             granted: granted,
             revoked: revoked,
             notificationId: notificationId,
+            revokedAt: next.revokedAt,
           )));
     }
 
