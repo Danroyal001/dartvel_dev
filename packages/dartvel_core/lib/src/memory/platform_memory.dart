@@ -6,6 +6,7 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:typed_data';
 
+import '../compute/worker_types.dart' show DVWorkerLendable;
 import 'backing.dart';
 import 'size.dart';
 import 'target.dart';
@@ -71,7 +72,7 @@ final class _Chunk {
 ///
 /// Construct it directly, or through `DV.Memory.allocate`, which applies the
 /// configured defaults and ceilings and registers the arena for diagnostics.
-final class DVPlatformMemory {
+final class DVPlatformMemory implements DVWorkerLendable {
   /// Reserves [gigabytes] or [megabytes] (not both) in segments of
   /// [segment], which must be a power of two.
   ///
@@ -243,6 +244,7 @@ final class DVPlatformMemory {
   /// before this is invalidated and throws [StateError] when touched.
   void reset() {
     _checkNotDisposed();
+    _checkNotLent('reset');
     _generation++;
     _cursorSegment = 0;
     _cursorOffset = 0;
@@ -255,9 +257,43 @@ final class DVPlatformMemory {
   /// segments return to the platform once nothing holds a view of them.
   void dispose() {
     if (_disposed) return;
+    _checkNotLent('dispose');
     _disposed = true;
     _generation++;
     _segments.clear();
+  }
+
+  _B _lent = false;
+
+  /// Whether a worker holds this arena (`DV.Workers.run(..., lend: [arena])`).
+  _B get isLent => _lent;
+
+  /// Marks the arena held by a worker, which is given its addresses.
+  ///
+  /// A worker holding an address holds no Dart view of the segment, and the
+  /// native backing frees a segment when its last view is collected -- so
+  /// while lent, [dispose] and [reset] throw instead of freeing memory or
+  /// handing its bytes out again under a worker still writing them. The pool
+  /// keeps the arena, and so its segments, reachable until it gives it back.
+  @override
+  void lend() {
+    _checkNotDisposed();
+    if (_lent) {
+      throw StateError('This DVPlatformMemory is already lent to a worker. '
+          'Arenas are passed, not shared: two workers writing one arena is a '
+          'data race.');
+    }
+    _lent = true;
+  }
+
+  @override
+  void giveBack() => _lent = false;
+
+  void _checkNotLent(String verb) {
+    if (_lent) {
+      throw StateError('Cannot $verb a DVPlatformMemory while a worker holds '
+          'it; it comes back when the worker has ended.');
+    }
   }
 
   void _checkNotDisposed() {

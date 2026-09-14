@@ -1,5 +1,17 @@
 ## Unreleased
 
+- **A Platform Memory arena can be lent to a worker.** `DVPlatformMemory` is
+  a `DVWorkerLendable`, so `DV.Workers.run(task, input: slice.addresses,
+  lend: [arena])` hands a worker an arena's addresses and the worker writes
+  in place, which the caller reads through the slice without a copy. While
+  lent, `reset()`, `dispose()` and lending it again throw. An address is not
+  a Dart view, and the native backing frees a segment when its last view is
+  collected, so an arena disposed under a worker was a use-after-free, and
+  one reset under it handed the worker's bytes out again. The pool keeps the
+  arena reachable until it gives it back: with the worker's answer, or, for a
+  cancelled or timed-out run, only once the isolate has exited. A disposed
+  arena cannot be lent.
+
 - **Platform memory: a budget reserved once and handed out arena-style.**
   `DVPlatformMemory` reserves its budget up front in power-of-two segments
   (native heap through FFI on native targets, typed data on web) and hands
