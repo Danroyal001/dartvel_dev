@@ -174,11 +174,16 @@ Future<void> generate({
   );
 
   // Generate job payloads, queue constants and handler registration.
-  // @DVJob was an annotation nothing read before this pass.
-  await JobGenerator.generate(
+  // @DVJob was an annotation nothing read before this pass. A handler only a
+  // Flutter process can run is named here, at build time, rather than first
+  // noticed as a worker that cannot run its jobs.
+  final List<String> jobWarnings = await JobGenerator.generate(
     root: root,
     pkgName: pkgName,
   );
+  for (final String warning in jobWarnings) {
+    stderr.writeln(warning);
+  }
 
   // Typed flag accessors from @DVFlags() declarations. A flag named by a
   // string can be misspelt and misses silently; a generated member is a

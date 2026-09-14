@@ -1,4 +1,38 @@
 ## Unreleased
+- **A generated worker runs the application's `@DVJob` handlers.**
+  `jobs.g.dart` imported `dartvel_flutter`, which a server cannot load, so
+  the generated backend registered no handler and every `DARTVEL_ROLE=worker`
+  process refused to start. It is now the server half and imports only
+  `dartvel_core`: payloads, codecs, `DVJobQueues`, the handlers a server can
+  run and `registerDartvelJobs()`, plus `dartvelClientOnlyJobHandlers`, naming
+  each handler that cannot run there and why. A handler goes to the new
+  `client_jobs.g.dart` when its body names `DV`, or when it uses what its own
+  file declares and that file reaches Flutter -- directly, through another
+  file of the application, through the generated barrel, or through a
+  package whose pubspec depends on the Flutter SDK. A handler's file is only
+  imported when its body uses something the file declares, so a handler
+  written against core in a file that imports the barrel still runs on the
+  server. `dartvel routes` warns for each client-only handler. The barrel
+  exports both halves and the client runtime calls
+  `registerDartvelClientJobs()`.
+- **Every generated backend role shares the store `DATABASE_URL` names.**
+  `startBackend` and each role of `dartvelMain` register the job codecs and
+  server handlers and call `DVProcessStores.install()`, so a web process
+  dispatches onto the database queue a worker works; a declared web process
+  with no `DATABASE_URL` says its jobs reach no worker. A worker with no
+  `DATABASE_URL`, or no handler a server can run, exits 78 naming it, and
+  names each client-only job it cannot run. A process that ticks schedules
+  claims each occurrence through `DVDatabaseScheduleLease` on that database;
+  a declared `cron` process with no `DATABASE_URL` exits 78 instead of
+  starting, unless `DARTVEL_SCHEDULE_LEASE=none` says it is the only one, and
+  one on a SQLite file says the claim holds on one host only. A worker or
+  cron process given `DARTVEL_HEALTH_PORT` answers `GET /healthz` there and
+  nothing else; no port, no endpoint. `--max-jobs` bounds a worker.
+- **`dartvel queue work` works the application's queue.** In a Dartvel
+  project it regenerates and runs `.dart_tool/dartvel_server.dart` as a
+  worker on `--queue` bounded by `--max-jobs`, instead of draining the CLI
+  process's own empty queue with no handler registered. Outside a project it
+  still works the process's queue.
 - **No test in the CLI moves the process working directory, and the suite
   runs at the default concurrency again.** Twenty-four suites set
   `Directory.current` so the command under test would find their temporary

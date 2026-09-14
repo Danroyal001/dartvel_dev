@@ -507,6 +507,7 @@ export 'ai_tools.g.dart';
 export 'functions.g.dart';
 export 'flags.g.dart';
 export 'jobs.g.dart';
+export 'client_jobs.g.dart';
 export 'models.g.dart';
 export 'openapi.g.dart';
 export 'policies.g.dart';
@@ -568,7 +569,7 @@ ${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' 
 import 'dartvel_config.g.dart' as cfg;
 import 'home_widgets.g.dart' show dartvelHomeWidgets;
 import 'flags.g.dart' show registerDartvelFlags;
-import 'jobs.g.dart' show registerDartvelJobs;
+import 'client_jobs.g.dart' show registerDartvelClientJobs;
 import 'models.g.dart' show registerDartvelModels;
 import 'modules.g.dart' show registerDartvelModules;
 import 'client_schedules.g.dart' show dartvelStartClientSchedules;
@@ -606,7 +607,8 @@ void configureDartvelRuntime({List<String> arguments = const <String>[]}) {
   // application to remember.
   // Startup, phase by phase: what a device fleet is asked to answer for.
   DVStartupProfile.current.mark('configure');
-  registerDartvelJobs();
+  // Every codec and handler, the ones only a Flutter process can run too.
+  registerDartvelClientJobs();
   // The flags this build declares, so a synced rule set naming one it does
   // not know is reported rather than silently ignored.
   registerDartvelFlags();

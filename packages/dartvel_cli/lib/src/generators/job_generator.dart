@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:file/local.dart';
@@ -48,6 +49,9 @@ class DiscoveredJobHandler {
   /// A `package:`-qualified import for the file declaring the handler.
   final String importPath;
 
+  /// The file declaring the handler, on disk.
+  final String sourcePath;
+
   /// Public top-level symbols the declaring file defines, so the lowered body
   /// can still reach them through the aliased import.
   final Set<String> sourceSymbols;
@@ -58,8 +62,35 @@ class DiscoveredJobHandler {
     required this.publicName,
     required this.body,
     required this.importPath,
+    required this.sourcePath,
     required this.sourceSymbols,
   });
+}
+
+/// A handler with the file it is generated into decided.
+class _PlacedHandler {
+  const _PlacedHandler({
+    required this.handler,
+    required this.alias,
+    required this.rendered,
+    required this.usesOwnFile,
+    required this.clientOnlyBecause,
+  });
+
+  final DiscoveredJobHandler handler;
+
+  /// The alias its declaring file is imported under, where it is imported.
+  final String alias;
+
+  /// The lowered body, with the declaring file's symbols qualified.
+  final String rendered;
+
+  /// Whether the body reaches anything its declaring file declares, which is
+  /// the only reason to import that file.
+  final bool usesOwnFile;
+
+  /// Why only a Flutter process can run it, or null when a server can.
+  final String? clientOnlyBecause;
 }
 
 /// Discovers `@DVJob` payloads and `@DVJob.handler()` functions and generates
@@ -86,7 +117,20 @@ class JobGenerator {
     dotAll: true,
   );
 
-  static Future<void> generate({
+  /// Writes `jobs.g.dart`, the server half, and `client_jobs.g.dart`, the
+  /// Flutter half, and returns a warning for each handler only the client
+  /// can run.
+  ///
+  /// The generated backend imports `jobs.g.dart`, and a server process has
+  /// no dart:ui, so nothing reachable from it may import Flutter. It used to
+  /// import dartvel_flutter for every application, which is why no server
+  /// could register a handler and a worker refused to start. A handler goes
+  /// to the client half when its body names `DV`, which lives in
+  /// dartvel_flutter, or when it uses what its own file declares and that
+  /// file reaches Flutter -- directly, through another file of the
+  /// application, through the generated barrel, or through a package that
+  /// depends on Flutter.
+  static Future<List<String>> generate({
     required String root,
     required String pkgName,
     /// Accepted and not written anywhere. A build id in generated files
@@ -108,11 +152,286 @@ class JobGenerator {
 
     _validate(jobs, handlers);
 
-    final output = File(
-      p.join(root, 'lib', 'dartvel_client', 'jobs.g.dart'),
+    // A lowered handler body can reference anything its own file declares,
+    // so that file is imported under an alias and those symbols qualified.
+    final aliases = <String, String>{};
+    for (final handler in handlers) {
+      aliases.putIfAbsent(handler.importPath, () => 'j${aliases.length}');
+    }
+    final placed = <_PlacedHandler>[
+      for (final handler in handlers)
+        _place(
+          handler,
+          aliases[handler.importPath]!,
+          root: root,
+          pkgName: pkgName,
+        ),
+    ];
+
+    final output = Directory(p.join(root, 'lib', 'dartvel_client'))
+      ..createSync(recursive: true);
+    File(p.join(output.path, 'jobs.g.dart'))
+        .writeAsStringSync(_renderServer(jobs, placed));
+    File(p.join(output.path, 'client_jobs.g.dart'))
+        .writeAsStringSync(_renderClient(placed));
+
+    return <String>[
+      for (final placement in placed)
+        if (placement.clientOnlyBecause != null)
+          'dartvel: @DVJob.handler() _${placement.handler.publicName} in '
+              '${p.relative(placement.handler.sourcePath, from: root)} runs in '
+              'the client only: ${placement.clientOnlyBecause}. A '
+              'DARTVEL_ROLE=worker process cannot run '
+              '${placement.handler.payloadType} jobs; write the handler '
+              'against dartvel_core, without DV, to run it on the server.',
+    ];
+  }
+
+  static final RegExp _namesDV =
+      RegExp(r'(?<![A-Za-z0-9_$.])DV(?![A-Za-z0-9_$])');
+
+  static _PlacedHandler _place(
+    DiscoveredJobHandler handler,
+    String alias, {
+    required String root,
+    required String pkgName,
+  }) {
+    // The handler's own parameter must not be rewritten to the alias, even if
+    // the file happens to declare a top-level symbol with the same name.
+    final symbols = handler.sourceSymbols
+        .where((String symbol) => symbol != handler.parameterName)
+        .toSet();
+    final String raw = handler.body.isBlock
+        ? handler.body.statements!
+        : handler.body.expression!;
+    final String rendered = _qualifySourceSymbols(raw, alias, symbols);
+    final bool usesOwnFile = rendered != raw;
+    String? because;
+    // Against the code alone: a comment saying the handler "leaves DV.Database
+    // to the application" is not a use of DV, and treating it as one put a
+    // core-only handler where no worker could run it.
+    if (_namesDV.hasMatch(_codeOnly(raw))) {
+      because = 'its body names DV, which lives in dartvel_flutter';
+    } else if (usesOwnFile) {
+      final String? reached = _flutterReachedFrom(
+        handler.sourcePath,
+        root: root,
+        pkgName: pkgName,
+        seen: <String>{},
+      );
+      if (reached != null) {
+        because = 'it uses what '
+            '${p.relative(handler.sourcePath, from: root)} declares, and '
+            'that file reaches Flutter through $reached';
+      }
+    }
+    return _PlacedHandler(
+      handler: handler,
+      alias: alias,
+      rendered: rendered,
+      usesOwnFile: usesOwnFile,
+      clientOnlyBecause: because,
     );
-    output.parent.createSync(recursive: true);
-    output.writeAsStringSync(_render(jobs, handlers));
+  }
+
+  /// [source] with comments and the text of string literals blanked, keeping
+  /// the code inside `${...}` and a `$name` interpolation, which is code.
+  static String _codeOnly(String source) {
+    final StringBuffer out = StringBuffer();
+    _scanCode(source, 0, out: out, untilBrace: false);
+    return out.toString();
+  }
+
+  /// Copies code from [start], blanking comments and strings, and returns the
+  /// index after the `}` that closes an interpolation when [untilBrace].
+  static int _scanCode(
+    String s,
+    int start, {
+    required StringBuffer out,
+    required bool untilBrace,
+  }) {
+    int depth = 0;
+    int i = start;
+    while (i < s.length) {
+      final String c = s[i];
+      if (s.startsWith('//', i)) {
+        final int end = s.indexOf('\n', i);
+        i = end < 0 ? s.length : end;
+        out.write(' ');
+        continue;
+      }
+      if (s.startsWith('/*', i)) {
+        int nest = 0;
+        while (i < s.length) {
+          if (s.startsWith('/*', i)) {
+            nest++;
+            i += 2;
+          } else if (s.startsWith('*/', i)) {
+            nest--;
+            i += 2;
+            if (nest == 0) break;
+          } else {
+            i++;
+          }
+        }
+        out.write(' ');
+        continue;
+      }
+      final bool raw = (c == 'r' || c == 'R') &&
+          i + 1 < s.length &&
+          (s[i + 1] == "'" || s[i + 1] == '"') &&
+          (i == 0 || !RegExp(r'[A-Za-z0-9_$]').hasMatch(s[i - 1]));
+      if (raw || c == "'" || c == '"') {
+        i = _scanString(s, raw ? i + 1 : i, out: out, raw: raw);
+        continue;
+      }
+      if (untilBrace) {
+        if (c == '{') depth++;
+        if (c == '}') {
+          if (depth == 0) return i + 1;
+          depth--;
+        }
+      }
+      out.write(c);
+      i++;
+    }
+    return i;
+  }
+
+  /// Blanks the string literal opening at [start] and returns the index
+  /// after it, copying out any interpolated code.
+  static int _scanString(
+    String s,
+    int start, {
+    required StringBuffer out,
+    required bool raw,
+  }) {
+    final String quote = s[start];
+    final String triple = quote * 3;
+    final bool isTriple = s.startsWith(triple, start);
+    final String close = isTriple ? triple : quote;
+    int i = start + close.length;
+    out.write(' ');
+    while (i < s.length) {
+      if (s.startsWith(close, i)) return i + close.length;
+      final String c = s[i];
+      if (!isTriple && c == '\n') return i;
+      if (!raw && c == r'\') {
+        i += 2;
+        continue;
+      }
+      if (!raw && c == r'$') {
+        if (i + 1 < s.length && s[i + 1] == '{') {
+          out.write(' ');
+          i = _scanCode(s, i + 2, out: out, untilBrace: true);
+          out.write(' ');
+          continue;
+        }
+        final Match? name =
+            RegExp(r'[A-Za-z_][A-Za-z0-9_]*').matchAsPrefix(s, i + 1);
+        if (name != null) {
+          out
+            ..write(' ')
+            ..write(name.group(0))
+            ..write(' ');
+          i = name.end;
+          continue;
+        }
+      }
+      i++;
+    }
+    return i;
+  }
+
+  static final RegExp _directive = RegExp(
+    r'''^\s*(?:import|export)\s+['"]([^'"]+)['"]''',
+    multiLine: true,
+  );
+
+  /// Packages that are Flutter whatever their pubspec says.
+  static const Set<String> _flutterPackages = <String>{
+    'flutter',
+    'flutter_test',
+    'flutter_web_plugins',
+    'dartvel_flutter',
+  };
+
+  /// The import through which [path] reaches Flutter, or null when it does
+  /// not.
+  static String? _flutterReachedFrom(
+    String path, {
+    required String root,
+    required String pkgName,
+    required Set<String> seen,
+  }) {
+    final File file = File(path);
+    if (!seen.add(p.normalize(file.absolute.path)) || !file.existsSync()) {
+      return null;
+    }
+    final String clientDir = p.join(root, 'lib', 'dartvel_client');
+    const String generatedClient = 'the generated client, which exports Flutter';
+    for (final match in _directive.allMatches(file.readAsStringSync())) {
+      final String uri = match.group(1)!;
+      if (uri == 'dart:ui') return uri;
+      if (uri.startsWith('dart:')) continue;
+      String? target;
+      if (uri.startsWith('package:')) {
+        final String rest = uri.substring('package:'.length);
+        final int slash = rest.indexOf('/');
+        if (slash < 0) continue;
+        final String package = rest.substring(0, slash);
+        if (package != pkgName) {
+          if (_flutterPackages.contains(package) ||
+              _dependsOnFlutter(root, package)) {
+            return uri;
+          }
+          continue;
+        }
+        target = p.join(root, 'lib', rest.substring(slash + 1));
+      } else {
+        target = p.normalize(p.join(p.dirname(path), uri));
+      }
+      // The generated client is regenerated after this runs, so it is judged
+      // by what it is rather than read: everything in it but this server
+      // half is reached through the barrel, which exports dartvel_flutter.
+      if (p.isWithin(clientDir, target)) {
+        if (p.basename(target) == 'jobs.g.dart') continue;
+        return '$uri, $generatedClient';
+      }
+      final String? reached = _flutterReachedFrom(
+        target,
+        root: root,
+        pkgName: pkgName,
+        seen: seen,
+      );
+      if (reached != null) return reached;
+    }
+    return null;
+  }
+
+  /// Whether [package] declares a Flutter SDK dependency, read through the
+  /// project's package configuration. A package it cannot find is taken not
+  /// to: the server build then names the import it cannot compile.
+  static bool _dependsOnFlutter(String root, String package) {
+    if (package == 'dartvel_core') return false;
+    final File config = File(p.join(root, '.dart_tool', 'package_config.json'));
+    if (!config.existsSync()) return false;
+    try {
+      final Object? json = jsonDecode(config.readAsStringSync());
+      final Object? packages = json is Map ? json['packages'] : null;
+      if (packages is! List) return false;
+      for (final Object? entry in packages) {
+        if (entry is! Map || entry['name'] != package) continue;
+        final Uri base = Uri.file(config.absolute.path)
+            .resolveUri(Uri.parse('${entry['rootUri']}'));
+        final File pubspec = File(p.join(base.toFilePath(), 'pubspec.yaml'));
+        return pubspec.existsSync() &&
+            RegExp(r'sdk:\s*flutter\b').hasMatch(pubspec.readAsStringSync());
+      }
+    } on Object {
+      return false;
+    }
+    return false;
   }
 
   static List<File> _dartFiles(String root) {
@@ -217,6 +536,7 @@ class JobGenerator {
           publicName: declared.substring(1),
           body: body,
           importPath: importPath,
+          sourcePath: path,
           sourceSymbols: _topLevelSourceSymbols(source),
         ),
       );
@@ -249,35 +569,50 @@ class JobGenerator {
     }
   }
 
-  static String _render(
-    List<DiscoveredJob> jobs,
-    List<DiscoveredJobHandler> handlers,
+  static void _writeAliasedImports(
+    StringBuffer sb,
+    Iterable<_PlacedHandler> placed,
   ) {
-    // A lowered handler body can reference anything its own file declares, so
-    // that file is imported under an alias and those symbols are qualified.
-    final handlerAliases = <String, String>{};
-    for (final handler in handlers) {
-      handlerAliases.putIfAbsent(
-        handler.importPath,
-        () => 'j${handlerAliases.length}',
-      );
+    final imports = <String, String>{
+      for (final placement in placed)
+        if (placement.usesOwnFile)
+          placement.handler.importPath: placement.alias,
+    };
+    for (final entry in imports.entries) {
+      sb.writeln("import '${entry.key}' as ${entry.value};");
     }
+  }
+
+  static String _escape(String value) => value
+      .replaceAll(r'\', r'\\')
+      .replaceAll("'", r"\'")
+      .replaceAll(r'$', r'\$');
+
+  /// The half the generated backend imports: dartvel_core and the handlers'
+  /// own files, never Flutter.
+  static String _renderServer(
+    List<DiscoveredJob> jobs,
+    List<_PlacedHandler> placed,
+  ) {
+    final server = placed
+        .where((_PlacedHandler h) => h.clientOnlyBecause == null)
+        .toList();
+    final clientOnly = placed
+        .where((_PlacedHandler h) => h.clientOnlyBecause != null)
+        .toList();
 
     final sb = StringBuffer()
       ..writeln('// GENERATED CODE - DO NOT MODIFY BY HAND')
-      // unnecessary_import: dartvel_flutter re-exports core through a `show`
-      // list, so the core import is only redundant for the symbols that list
-      // happens to carry today.
+      ..writeln('//')
+      ..writeln('// The server half of the jobs: the generated backend imports')
+      ..writeln('// this, and a server has no dart:ui, so nothing reachable from')
+      ..writeln('// it imports Flutter. The handlers only a Flutter process can')
+      ..writeln('// run are in client_jobs.g.dart.')
       ..writeln('// ignore_for_file: non_constant_identifier_names, '
           'unused_element, unused_import, unnecessary_import')
       ..writeln()
-      ..writeln("import 'package:dartvel_core/dartvel.dart';")
-      // DV itself lives in dartvel_flutter, and a handler body commonly uses
-      // it. Importing only core made the generated file fail to compile.
-      ..writeln("import 'package:dartvel_flutter/dartvel_flutter.dart';");
-    for (final entry in handlerAliases.entries) {
-      sb.writeln("import '${entry.key}' as ${entry.value};");
-    }
+      ..writeln("import 'package:dartvel_core/dartvel.dart';");
+    _writeAliasedImports(sb, server);
     sb.writeln();
 
     final queues = <String>{
@@ -300,22 +635,42 @@ class JobGenerator {
       _renderJob(sb, job);
     }
 
-    for (final handler in handlers) {
-      _renderHandler(sb, handler, handlerAliases[handler.importPath]!);
+    for (final placement in server) {
+      _renderHandler(sb, placement);
     }
 
     sb
-      ..writeln('/// Registers every generated job codec and handler.')
+      ..writeln('/// The jobs whose handler only a Flutter process can run, and')
+      ..writeln('/// why. A server registers no handler for them, and a worker')
+      ..writeln('/// names them rather than dead-lettering them in silence.');
+    if (clientOnly.isEmpty) {
+      sb.writeln('const Map<String, String> dartvelClientOnlyJobHandlers = '
+          '<String, String>{};');
+    } else {
+      sb.writeln('const Map<String, String> dartvelClientOnlyJobHandlers = '
+          '<String, String>{');
+      for (final placement in clientOnly) {
+        sb.writeln("  '${placement.handler.payloadType}': "
+            "'${_escape('_${placement.handler.publicName}: '
+                '${placement.clientOnlyBecause}')}',");
+      }
+      sb.writeln('};');
+    }
+    sb
+      ..writeln()
+      ..writeln('/// Registers every generated job codec, and the handlers a')
+      ..writeln('/// server can run.')
       ..writeln('///')
-      ..writeln('/// Called by the generated runtime configuration, so a')
-      ..writeln('/// dispatched job can always be encoded and run.')
+      ..writeln('/// Called by the generated backend in every role, so a job a')
+      ..writeln('/// web process dispatches can be encoded and a worker can run')
+      ..writeln('/// it, and by the client through registerDartvelClientJobs.')
       ..writeln('void registerDartvelJobs() {');
     // Declared only where they are used: an application with no jobs still
     // gets this function, and an unused local is a warning in its build.
     if (jobs.isNotEmpty) {
       sb.writeln('  const codecs = DVJobPayloadCodecs();');
     }
-    if (handlers.isNotEmpty) {
+    if (server.isNotEmpty) {
       sb.writeln('  const queues = DVQueues();');
     }
     for (final job in jobs) {
@@ -328,13 +683,57 @@ class JobGenerator {
         ..writeln('    ),')
         ..writeln('  );');
     }
-    for (final handler in handlers) {
-      sb.writeln(
-        '  queues.register<${handler.payloadType}>(${handler.publicName});',
-      );
+    for (final placement in server) {
+      sb.writeln('  queues.register<${placement.handler.payloadType}>('
+          '${placement.handler.publicName});');
     }
     sb.writeln('}');
 
+    return sb.toString();
+  }
+
+  /// The half only a Flutter process loads: the handlers that need Flutter,
+  /// and the registration the client runtime calls.
+  static String _renderClient(List<_PlacedHandler> placed) {
+    final client = placed
+        .where((_PlacedHandler h) => h.clientOnlyBecause != null)
+        .toList();
+    final sb = StringBuffer()
+      ..writeln('// GENERATED CODE - DO NOT MODIFY BY HAND')
+      ..writeln('//')
+      ..writeln('// The client half of the jobs. Never imported by the generated')
+      ..writeln('// backend: these handlers need Flutter.')
+      // unnecessary_import: dartvel_flutter re-exports core through a `show`
+      // list, so the core import is only redundant for the symbols that list
+      // happens to carry today.
+      ..writeln('// ignore_for_file: non_constant_identifier_names, '
+          'unused_element, unused_import, unnecessary_import')
+      ..writeln()
+      ..writeln("import 'package:dartvel_core/dartvel.dart';");
+    if (client.isNotEmpty) {
+      // DV lives in dartvel_flutter, and it is why most of these are here.
+      sb.writeln("import 'package:dartvel_flutter/dartvel_flutter.dart';");
+    }
+    sb.writeln("import 'jobs.g.dart';");
+    _writeAliasedImports(sb, client);
+    sb.writeln();
+    for (final placement in client) {
+      _renderHandler(sb, placement);
+    }
+    sb
+      ..writeln('/// Registers every job codec and handler, including the ones')
+      ..writeln('/// only the client can run. Called by the client runtime, so a')
+      ..writeln('/// dispatched job can always be encoded and run.')
+      ..writeln('void registerDartvelClientJobs() {')
+      ..writeln('  registerDartvelJobs();');
+    if (client.isNotEmpty) {
+      sb.writeln('  const queues = DVQueues();');
+      for (final placement in client) {
+        sb.writeln('  queues.register<${placement.handler.payloadType}>('
+            '${placement.handler.publicName});');
+      }
+    }
+    sb.writeln('}');
     return sb.toString();
   }
 
@@ -405,25 +804,11 @@ class JobGenerator {
       ..writeln();
   }
 
-  static void _renderHandler(
-    StringBuffer sb,
-    DiscoveredJobHandler handler,
-    String alias,
-  ) {
+  static void _renderHandler(StringBuffer sb, _PlacedHandler placement) {
+    final DiscoveredJobHandler handler = placement.handler;
     final String asyncKeyword =
         handler.body.modifier == null ? '' : ' ${handler.body.modifier}';
-    // The handler's own parameter must not be rewritten to the alias, even if
-    // the file happens to declare a top-level symbol with the same name.
-    final symbols = handler.sourceSymbols
-        .where((String symbol) => symbol != handler.parameterName)
-        .toSet();
-    final String rendered = _qualifySourceSymbols(
-      handler.body.isBlock
-          ? handler.body.statements!
-          : handler.body.expression!,
-      alias,
-      symbols,
-    );
+    final String rendered = placement.rendered;
     sb
       ..writeln('/// Generated public handler for [_${handler.publicName}].')
       ..writeln('Future<void> ${handler.publicName}(')
