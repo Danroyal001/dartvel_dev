@@ -14,6 +14,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
+import '../devclient/dev_client_artifact.dart';
 import '../publish/publish_plan.dart';
 import '../utils/logger.dart';
 
@@ -95,6 +96,21 @@ class PublishCommand extends Command<void> {
       Logger.log('   Build it first, or pass --artifact.');
       exitCode = 66; // EX_NOINPUT
       return;
+    }
+
+    // Before the dry run, which would otherwise print a command that puts a
+    // dev menu in front of the public.
+    if (dvArtifactIsDevClient(artifact)) {
+      final int track = plan.arguments.indexOf('--track');
+      final String? refusal = dvDevClientPublishRefusal(
+        store: store,
+        track: track < 0 ? null : plan.arguments[track + 1],
+      );
+      if (refusal != null) {
+        Logger.log('❌ $refusal');
+        exitCode = 78; // EX_CONFIG
+        return;
+      }
     }
 
     final List<String> arguments = <String>[
