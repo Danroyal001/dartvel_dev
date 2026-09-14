@@ -622,7 +622,12 @@
     {
       "section": "Semantic Search and Embeddings",
       "stability": "Draft",
-      "status": "Designed"
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_core/lib/src/search/semantic_search.dart",
+        "packages/dartvel_core/test/semantic_search_test.dart"
+      ],
+      "absent": "Built: DVSemanticIndex in dartvel_core. A save enqueues an embedding job on DVQueues and embeds nothing inline; long fields are chunked and a record comes back once with the chunk, offset and field that matched; DVEmbedder and DVAIEmbedder refuse vectors of the wrong length; DVVectorAdapter with DVInMemoryVectorAdapter as the reference (exact cosine, real filtering); keyword (default), semantic and hybrid modes; the tenant and where conditions pushed into the vector query and every loaded row re-checked against tenant, conditions and canSee, with a bounded refill (DV-SEMANTIC-005); no default embedder (DV-SEMANTIC-001); generations named by embedder, dimensions and chunking, rebuilt alongside the old one with writes landing in both and queries answered by the old one (DV-SEMANTIC-003, DVSemanticRebuildError); resumable backfill with a checkpoint; DV-SEMANTIC-002 for a scoped model on an adapter that cannot filter; absentRecords() for dead-lettered embeddings (DV-SEMANTIC-004); indexing and queries charged to a DVMeters counter with DVSemanticBudgetExceeded before anything is embedded (DV-SEMANTIC-007); retrieve without sensitive fields, which cannot be embedded. Absent: no @DVModel.searchableField(semantic:) and no generated Model.Search.query(mode:) or retrieve, so the index is wired by hand; the dartvel.search.semantic pubspec block is not read; no pgvector, Meilisearch, OpenSearch or Algolia vector adapter; backfill is a resumable call, not a rate-limited durable job, and Studio shows no progress; no on-device index and no DV-SEMANTIC-006; canSee is a callback, not DV.Auth.authorization policies; retrieve is not wired into AI features. Where the section cannot be followed as written: DV-SEMANTIC-001 and 002 are runtime construction errors, because nothing at build time can see a semantic field yet; the queue has no dead-letter hook and a handler sees only its payload, so DV-SEMANTIC-004 is reported when absentRecords() is called rather than when the job dead-letters; an opaque canSee cannot be pushed into an adapter's query, so a policy-scoped model always takes the refill path."
     },
     {
       "section": "Billing",
