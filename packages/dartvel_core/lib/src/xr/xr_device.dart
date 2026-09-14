@@ -261,6 +261,9 @@ final class DVXRFakeDevice implements DVXRDevice {
   /// Delivers [event] to every observer.
   void emit(DVXRDeviceEvent event) => _events.add(event);
 
+  /// Breaks the event stream, as a binding that failed mid-session does.
+  void emitError(Object error) => _events.addError(error);
+
   Future<T?> _call<T>(String binding, T? Function() body) async {
     calls.add(binding);
     if (failing.contains(binding)) {
