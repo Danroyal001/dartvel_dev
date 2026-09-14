@@ -7230,7 +7230,7 @@ per-target support through the project graph, like every other inspector.
 
 # XR — Spatial Presentation
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
 
 (The `## Bindings` subsection declares Stability `Draft`; every other
 subsection inherits the section labels, per Specification Status. `Draft`
