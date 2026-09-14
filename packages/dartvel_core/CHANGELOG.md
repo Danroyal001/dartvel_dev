@@ -16,6 +16,28 @@
   `DVSceneRecordingRenderer`. No renderer is configured by default: until a
   Flutter GPU adapter exists, every scene presents its poster.
 
+- **A media player and capture runtime that report what the device did.**
+  `DVMediaController` is the platform-independent player behind
+  `DVBox.video`/`DVBox.audio`: `state`, `position`, `duration`, `buffered` and
+  `error` are read-only `DVMediaSignal`s moved only by backend reports. Play is
+  not `playing` until the backend says so; a backend that says playing while
+  the position stops advancing is reported `stalled`; a position measured
+  before a seek completed never moves the scrubber back. Protected content
+  with no `DVDrmAdapter` for its scheme is refused before the backend sees it
+  (`DV-MEDIA-102`); an adaptive stream on a backend without streaming falls
+  back to the source's progressive rendition (`DV-MEDIA-101`) or is refused.
+  Background audio requested without the capability declared warns
+  (`DV-MEDIA-103`) and pauses with the application. Audio focus
+  (`DVAudioFocus`) is taken on play and given back on pause, completion,
+  failure, platform loss and dispose.
+  `DVMediaCapture` records audio and video into a `DVFile`: the capability
+  report is checked before permission is asked, a refusal is
+  `DVCapturePermissionRefused` (`DV-MEDIA-104`), `capturing` follows the
+  device's confirmations, and backgrounding, a revoked permission or a lost
+  device end the session as `DVCaptureInterrupted` with the partial file.
+  Recordings are created 0600 in a 0700 directory before the device writes.
+  Backends, focus, DRM, permissions and timers are interfaces with fakes.
+
 - **Schema Evolution's tracker and Backend Release Management agree on where
   a migration stands and whether it may contract.** Verification is now its
   own recorded state: `DVSchemaEvolution.verify` records that every chunk
