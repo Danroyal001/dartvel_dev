@@ -5,7 +5,20 @@ import 'package:args/command_runner.dart';
 import 'package:file/local.dart';
 import 'package:glob/glob.dart';
 import 'package:dartvel_core/dartvel.dart'
-    show SqliteDVDatabaseAdapter;
+    show
+        DVAddColumn,
+        DVCreateTable,
+        DVSchemaChange,
+        DVSchemaClassifier,
+        DVSchemaDeployGate,
+        DVSchemaFinding,
+        DVSchemaGateResult,
+        DVSchemaOverride,
+        DVSchemaPlan,
+        DVSchemaPlanner,
+        DVSchemaSnapshot,
+        DVSchemaSnapshotTable,
+        SqliteDVDatabaseAdapter;
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
@@ -51,13 +64,148 @@ class DbMigrateSubcommand extends Command<void> {
         help: 'Add the tenant column and leave existing rows belonging to no '
             'tenant, which hides them. For a staging database or a table '
             'being emptied. Never the default.',
+      )
+      ..addFlag(
+        'plan',
+        negatable: false,
+        help: 'Print the class of every change -- instant, online or '
+            'blocking -- and apply none of them.',
+      )
+      ..addFlag(
+        'dry-run',
+        negatable: false,
+        help: 'Plan and gate the migration as if running it, and apply '
+            'nothing.',
+      )
+      ..addOption(
+        'against',
+        allowed: <String>['snapshot'],
+        help: 'Rehearse against a snapshot of production: its server, version, '
+            'columns and row counts. Needs --dry-run or --plan.',
+      )
+      ..addOption(
+        'snapshot',
+        help: 'The snapshot file for --against snapshot. Defaults to '
+            '.dartvel/db/production.snapshot.json.',
+      )
+      ..addFlag(
+        'production',
+        negatable: false,
+        help: 'This migration runs against production: a blocking change is '
+            'refused without --allow-blocking (DV-SCHEMA-002).',
+      )
+      ..addOption(
+        'allow-blocking',
+        valueHelp: 'reason',
+        help: 'Run a blocking change against production anyway. The reason is '
+            'required and is logged to .dartvel/db/schema_overrides.jsonl.',
       );
+  }
+
+  /// Plans and gates the migration; true when it may go on to apply.
+  Future<bool> _gate(String root) async {
+    final bool planOnly = argResults?['plan'] as bool? ?? false;
+    final bool dryRun = argResults?['dry-run'] as bool? ?? false;
+    final bool production = argResults?['production'] as bool? ?? false;
+    final String? against = argResults?['against'] as String?;
+    final String? reason = argResults?['allow-blocking'] as String?;
+    if (!planOnly && !dryRun && !production) return true;
+
+    DVSchemaSnapshot? snapshot;
+    if (against != null) {
+      final String named = argResults?['snapshot'] as String? ??
+          p.join('.dartvel', 'db', 'production.snapshot.json');
+      final File file =
+          File(p.isAbsolute(named) ? named : p.join(root, named));
+      if (!file.existsSync()) {
+        Logger.log(
+          'No snapshot at ${file.path}. A rehearsal against a snapshot that '
+          'is not there would be a rehearsal against an empty production.',
+          isError: true,
+        );
+        exitCode = 1;
+        return false;
+      }
+      try {
+        snapshot = DVSchemaSnapshot.fromJson(
+          jsonDecode(file.readAsStringSync()) as Map<String, Object?>,
+        );
+      } on FormatException catch (error) {
+        Logger.log('The snapshot at ${file.path} is not usable: $error',
+            isError: true);
+        exitCode = 1;
+        return false;
+      }
+    }
+
+    final DVSchemaPlan plan = await dvPlanMigration(root, against: snapshot);
+    Logger.log(snapshot == null
+        ? 'Migration plan:'
+        : 'Migration plan against ${snapshot.provider} '
+            '${snapshot.serverVersion}:');
+    if (plan.steps.isEmpty) Logger.log('  nothing to change');
+    for (final String line in plan.describe().trimRight().split('\n')) {
+      if (line.isNotEmpty) Logger.log('  $line');
+    }
+    if (planOnly && !dryRun) return false;
+
+    // A rehearsal against production's snapshot is gated as production.
+    final DVSchemaGateResult result = const DVSchemaDeployGate().check(
+      plan,
+      production: production || snapshot != null,
+      override: reason == null
+          ? null
+          : DVSchemaOverride(
+              reason: reason,
+              by: Platform.environment['USER'],
+              at: DateTime.now().toUtc(),
+            ),
+    );
+    for (final DVSchemaFinding finding in result.findings) {
+      Logger.log('  $finding', isError: true);
+    }
+    if (!result.allowed) {
+      exitCode = 1;
+      return false;
+    }
+    final Map<String, Object?>? record = result.overrideRecord;
+    if (record != null) {
+      if (dryRun) {
+        Logger.log('  The override would let this through; a dry run logs '
+            'nothing.');
+      } else {
+        final File log = dvSchemaOverrideLog(root);
+        log.parent.createSync(recursive: true);
+        log.writeAsStringSync('${jsonEncode(record)}\n',
+            mode: FileMode.append);
+        Logger.log('  Blocking change overridden: "${record['reason']}", '
+            'logged to ${p.relative(log.path, from: root)}.');
+      }
+    }
+    if (dryRun) {
+      Logger.log('Dry run: nothing applied.');
+      return false;
+    }
+    return true;
   }
 
   @override
   Future<void> run() async {
     Logger.log('Running database migrations...');
     final root = Directory.current.path;
+    final bool rehearsing = (argResults?['plan'] as bool? ?? false) ||
+        (argResults?['dry-run'] as bool? ?? false);
+    if (argResults?['against'] != null && !rehearsing) {
+      // Rehearsing and applying are different requests; a flag that names a
+      // snapshot should not quietly apply against the local database.
+      Logger.log(
+        '--against rehearses a migration; pass --dry-run or --plan with it.',
+        isError: true,
+      );
+      exitCode = 1;
+      return;
+    }
+    if (!await _gate(root)) return;
     final schema = discoverLocalSchema(root);
     writeLocalSchemaSnapshot(root, schema);
 
@@ -642,6 +790,95 @@ Future<void> dvSqliteExecute(String file, String sql) async {
   } finally {
     db.close();
   }
+}
+
+/// Where overrides of the production gate are written down, one JSON record a
+/// line.
+File dvSchemaOverrideLog(String root) =>
+    File(p.join(root, '.dartvel', 'db', 'schema_overrides.jsonl'));
+
+/// The changes `dartvel db migrate` would make, as schema changes.
+///
+/// Exactly what migrate applies and nothing more: a table that is missing is
+/// created and a column that is missing is added as nullable TEXT. A column
+/// the model no longer has is left alone, because migrate never drops one, so
+/// the plan does not claim it would.
+List<DVSchemaChange> dvPendingSchemaChanges(
+  List<Map<String, Object?>> generated,
+  Map<String, List<String>> existing,
+) {
+  final List<DVSchemaChange> changes = <DVSchemaChange>[];
+  for (final Map<String, Object?> table in generated) {
+    final String name = '${table['table']}';
+    final List<String> want = <String>[
+      for (final Object? column
+          in (table['columns'] as List<Object?>? ?? const <Object?>[]))
+        '$column',
+    ];
+    final List<String>? have = existing[name];
+    if (have == null || have.isEmpty) {
+      changes.add(DVCreateTable(name, want));
+      continue;
+    }
+    for (final String column in want) {
+      if (!have.contains(column)) changes.add(DVAddColumn(name, column));
+    }
+  }
+  return changes;
+}
+
+/// Classifies the pending migration.
+///
+/// Against [against], a snapshot of production, the columns and row counts
+/// are production's and the classification is that of production's server
+/// and version. Otherwise the columns are the local SQLite database's and the
+/// classification comes from the SQLite library this process links. A
+/// provider the CLI cannot reach, with no snapshot, has nothing to classify
+/// with, and every change is then blocking.
+Future<DVSchemaPlan> dvPlanMigration(
+  String root, {
+  DVSchemaSnapshot? against,
+}) async {
+  final List<Map<String, Object?>> generated = dvGeneratedSchema(root);
+  const DVSchemaPlanner planner = DVSchemaPlanner();
+  if (against != null) {
+    return planner.plan(
+      dvPendingSchemaChanges(generated, <String, List<String>>{
+        for (final MapEntry<String, DVSchemaSnapshotTable> table
+            in against.tables.entries)
+          table.key: table.value.columns,
+      }),
+      against.classifier,
+      rows: against.rows,
+    );
+  }
+
+  final ({String provider, String path}) settings = dvDatabaseSettings(root);
+  if (settings.provider != 'sqlite') {
+    return planner.plan(
+      dvPendingSchemaChanges(generated, const <String, List<String>>{}),
+      null,
+    );
+  }
+  final String file = p.isAbsolute(settings.path)
+      ? settings.path
+      : p.join(root, settings.path);
+  final Map<String, List<String>> existing = <String, List<String>>{
+    for (final Map<String, Object?> table in generated)
+      // dvSqliteColumns does not open a file that is not there: opening
+      // creates it, and a plan must not create the database it plans for.
+      '${table['table']}': await dvSqliteColumns(file, '${table['table']}'),
+  };
+  // The rules of the library this process links, which is the library that
+  // will run the statements.
+  final SqliteDVDatabaseAdapter linked = SqliteDVDatabaseAdapter.memory();
+  final DVSchemaClassifier rules;
+  try {
+    rules = linked.schemaRules;
+  } finally {
+    linked.close();
+  }
+  return planner.plan(dvPendingSchemaChanges(generated, existing), rules);
 }
 
 /// Reads rows from a SQLite file.
