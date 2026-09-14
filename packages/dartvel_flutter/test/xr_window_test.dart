@@ -267,18 +267,155 @@ void main() {
   });
 
   group('anchors in the shared store', () {
+    // A token that re-localizes a place in somebody's home. Distinctive, so a
+    // copy of it anywhere in the stored bytes is found.
+    const String token = 'token-kitchen-4f2a9c';
+
+    late DVMemoryAppKeyStore keys;
+    late _RawBackend backend;
+
+    setUp(() {
+      keys = DVMemoryAppKeyStore();
+      backend = _RawBackend();
+    });
+
+    DVWindowSharedStore storeWith({DVAppKeyStoreSource? appKeys, bool keyed = true}) =>
+        DVWindowSharedStore(
+          backend: backend,
+          debounce: Duration.zero,
+          appKeys: appKeys ?? (keyed ? () async => keys : null),
+        );
+
     test('tokens live under the reserved xr. namespace an application cannot write', () async {
-      final DVWindowSharedStore shared = DVWindowSharedStore(debounce: Duration.zero);
+      final DVWindowSharedStore shared = storeWith();
       final DVSpatialAnchorStore store = DVSharedStoreAnchorStore(shared);
       await store.write('lobby-sign', 'token-1');
 
       expect(await store.read('lobby-sign'), 'token-1');
       expect(await shared.keys(), contains('xr.anchors.lobby-sign'));
+      expect(await store.ids(), <String>['lobby-sign']);
       expect(() => shared.set('xr.anchors.lobby-sign', const DVJsonString('forged')),
           throwsA(isA<DVSharedStoreKeyError>()));
 
       await store.remove('lobby-sign');
       expect(await store.read('lobby-sign'), isNull);
     });
+
+    test('a store given no cipher still never writes a token in plaintext', () async {
+      await DVSharedStoreAnchorStore(storeWith()).write('lobby-sign', token);
+
+      final String? raw = backend.values['xr.anchors.lobby-sign'];
+      expect(raw, isNotNull);
+      expect(raw, isNot(contains(token)));
+
+      // Encrypted under the application key, not merely encoded: the same
+      // bytes read back under that key, and under no other.
+      expect(await DVSharedStoreAnchorStore(storeWith()).read('lobby-sign'), token);
+      final DVMemoryAppKeyStore otherKey = DVMemoryAppKeyStore();
+      expect(
+        await DVSharedStoreAnchorStore(storeWith(appKeys: () async => otherKey)).read('lobby-sign'),
+        isNull,
+      );
+    });
+
+    test('a token large enough to spill is not written in plaintext either', () async {
+      final DVMemoryFileStorageAdapter files = DVMemoryFileStorageAdapter();
+      final DVWindowSharedStore shared = DVWindowSharedStore(
+        backend: backend,
+        debounce: Duration.zero,
+        spillStorage: files,
+        spillThresholdBytes: 1,
+        appKeys: () async => keys,
+      );
+      await DVSharedStoreAnchorStore(shared).write('lobby-sign', token);
+
+      final List<int> object = await files.get('dartvel/window-shared/xr.anchors.lobby-sign');
+      expect(String.fromCharCodes(object), isNot(contains(token)));
+      expect(backend.values['xr.anchors.lobby-sign'], isNot(contains(token)));
+      shared.evictCache();
+      expect(await DVSharedStoreAnchorStore(shared).read('lobby-sign'), token);
+    });
+
+    test('with no application key on the platform it refuses, and keeps nothing', () async {
+      final List<(String, DVAppKeyStoreSource)> noKey = <(String, DVAppKeyStoreSource)>[
+        ('no key store', () async => null),
+        // What the web key store answers off the web: nothing to read, and a
+        // write that throws.
+        ('a key store that cannot hold a key', () async => const DVWebCryptoAppKeyStore(app: 'shop')),
+        ('a key store that throws', () async => throw StateError('keyring locked')),
+      ];
+      for (final (String why, DVAppKeyStoreSource source) in noKey) {
+        backend = _RawBackend();
+        final DVWindowSharedStore shared = storeWith(appKeys: source);
+        final DVSharedStoreAnchorStore store = DVSharedStoreAnchorStore(shared);
+
+        await expectLater(store.write('lobby-sign', token),
+            throwsA(isA<DVSpatialAnchorNotStored>()), reason: why);
+        await expectLater(shared.setReserved('xr.anchors.lobby-sign', const DVJsonString(token)),
+            throwsA(isA<DVSharedStoreSealUnavailable>()), reason: why);
+        expect(backend.values, isEmpty, reason: why);
+        expect(await store.read('lobby-sign'), isNull,
+            reason: '$why: a token held in memory would read back as if it had been kept');
+      }
+    });
+
+    test('a store nobody configured refuses rather than writing plaintext', () async {
+      await expectLater(DVSharedStoreAnchorStore(storeWith(keyed: false)).write('lobby-sign', token),
+          throwsA(isA<DVSpatialAnchorNotStored>()));
+      expect(backend.values, isEmpty);
+    });
+
+    test('the application key configured once reaches a store made without one', () async {
+      DVWindowSharedStore.defaultAppKeys = () async => keys;
+      addTearDown(() => DVWindowSharedStore.defaultAppKeys = DVWindowSharedStore.noAppKeys);
+
+      await DVSharedStoreAnchorStore(storeWith(keyed: false)).write('lobby-sign', token);
+
+      expect(backend.values['xr.anchors.lobby-sign'], isNot(contains(token)));
+      expect(await DVSharedStoreAnchorStore(storeWith(keyed: false)).read('lobby-sign'), token);
+    });
+
+    test('removing a token needs no key, so a withdrawal can always delete it', () async {
+      await DVSharedStoreAnchorStore(storeWith()).write('lobby-sign', token);
+
+      final DVSharedStoreAnchorStore keyless =
+          DVSharedStoreAnchorStore(storeWith(appKeys: () async => null));
+      await keyless.remove('lobby-sign');
+
+      expect(backend.values, isEmpty);
+      expect(await keyless.ids(), isEmpty);
+    });
+
+    test('a token an earlier version left in plaintext is not read as a token', () async {
+      backend.values['xr.anchors.lobby-sign'] = '"$token"';
+
+      expect(await DVSharedStoreAnchorStore(storeWith()).read('lobby-sign'), isNull);
+    });
+
+    test('view state is untouched: it is still written with the store cipher alone', () async {
+      await storeWith().set('shop.activeTab', const DVJsonString('orders'));
+
+      expect(backend.values['shop.activeTab'], '"orders"');
+    });
   });
+}
+
+/// The bytes a backend was handed, exactly.
+class _RawBackend extends DVSharedStoreBackend {
+  final Map<String, String> values = <String, String>{};
+
+  @override
+  Future<String?> read(String key) async => values[key];
+
+  @override
+  Future<void> write(String key, String? value) async {
+    if (value == null) {
+      values.remove(key);
+    } else {
+      values[key] = value;
+    }
+  }
+
+  @override
+  Future<List<String>> keys() async => values.keys.toList(growable: false);
 }

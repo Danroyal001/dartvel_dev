@@ -147,11 +147,12 @@ final class DVPlatformXRPermissions implements DVCapturePermissions {
   }
 }
 
-/// World anchor tokens under `xr.anchors.*` in the shared window store,
-/// encrypted with whatever cipher the store was given.
+/// World anchor tokens under `xr.anchors.*` in the shared window store.
 ///
-/// `xr.` is a reserved namespace, so an application key can neither read
-/// nor forge one.
+/// The store encrypts that namespace under the application key whatever
+/// cipher it was given, and when no key can be had a token is refused
+/// ([DVSpatialAnchorNotStored]) rather than kept in plaintext. `xr.` is a
+/// reserved namespace, so an application key can neither read nor forge one.
 final class DVSharedStoreAnchorStore implements DVSpatialAnchorStore {
   DVSharedStoreAnchorStore(this.store);
 
@@ -166,8 +167,13 @@ final class DVSharedStoreAnchorStore implements DVSpatialAnchorStore {
   }
 
   @override
-  Future<void> write(String id, String token) =>
-      store.setReserved('$prefix$id', DVJsonString(token));
+  Future<void> write(String id, String token) async {
+    try {
+      await store.setReserved('$prefix$id', DVJsonString(token));
+    } on DVSharedStoreSealUnavailable catch (refused) {
+      throw DVSpatialAnchorNotStored(id, refused.reason);
+    }
+  }
 
   @override
   Future<void> remove(String id) => store.setReserved('$prefix$id', null);
