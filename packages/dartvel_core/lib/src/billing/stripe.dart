@@ -322,22 +322,34 @@ class DVStripeBillingProvider
   @override
   String get signatureHeaderName => 'Stripe-Signature';
 
-  @override
-  Future<DVBillingWebhookResult> handleWebhook(
-    String payload,
-    String signatureHeader,
-  ) async {
+  /// Verifies [signatureHeader] against [payload] and returns the event it
+  /// carries, without applying it.
+  ///
+  /// For events this provider does not act on -- disputes, which Commerce
+  /// applies -- so that a second consumer of the same endpoint checks the
+  /// same signature scheme rather than a copy of it. Throws [DVBillingError]
+  /// for a signature that is missing, wrong or outside [tolerance], and for a
+  /// payload that is not an event.
+  Map<String, Object?> verifyEvent(String payload, String signatureHeader) {
     _verify(payload, signatureHeader);
-
     final Object? decoded;
     try {
       decoded = jsonDecode(payload);
     } on FormatException {
       throw const DVBillingError('The webhook payload is not JSON.');
     }
-    if (decoded is! Map) {
+    if (decoded is! Map<String, Object?>) {
       throw const DVBillingError('The webhook payload is not an event.');
     }
+    return decoded;
+  }
+
+  @override
+  Future<DVBillingWebhookResult> handleWebhook(
+    String payload,
+    String signatureHeader,
+  ) async {
+    final Map<String, Object?> decoded = verifyEvent(payload, signatureHeader);
     final String type = '${decoded['type'] ?? ''}';
     final Object? data = decoded['data'];
     final Object? object = data is Map ? data['object'] : null;
