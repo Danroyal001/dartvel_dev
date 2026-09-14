@@ -21,6 +21,30 @@
   abstract member, so adapters written elsewhere keep compiling; one that
   implements `DVSchemaClassifier` teaches the planner.
 
+- **Alerting, service levels and status pages, as a runtime.** A
+  `DVServiceLevel` samples cumulative counts from a source that already exists
+  and reports burn rate over a trailing window and budget consumed scaled by
+  how much of the window was observed, so ten minutes of history is ten
+  minutes of the month; a restart in either count restarts both, and
+  `DV-ALERT-003` is raised once per exhaustion. `DVErrorBudgetGate` reads
+  exhausted levels before a deploy. `DVSignalRef` resolves metrics (missing
+  when unregistered, no data when quiet), nearest-rank trace percentiles,
+  crash rate from release health, a level's two-window burn, and
+  application-registered queue, kiosk and quota readers. `DVAlerting` moves a
+  `DVAlertRule` through pending and firing only after a positive
+  `forDuration`, resolves after the signal has stayed clear (five minutes at
+  least, so a hovering signal pages once), delivers through
+  `DV.Notifications` to users and teams and through `DVAlertPager` adapters
+  (`DVPagerDutyPager`, Events API v2) under one dedup key per episode, retries
+  only the targets that missed a firing and keeps a refused resolve queued
+  until the pager takes it (`DV-ALERT-001`, `002`, `006`), opens a
+  `DVIncident`, and reports rules with no target or that fire on most days
+  with no action taken (`DV-ALERT-005`). `DVStatusSnapshot` publishes
+  component health without check detail and only public incident updates;
+  `DVStatusPageClient` serves the last snapshot marked stale with the time it
+  was true when the application is unreachable, errors or hangs
+  (`DV-ALERT-004`); `DVStatusSubscribers` announces public updates.
+
 - **Erasure, subject-access export and retention, as a runtime (`DVPrivacy`).**
   Each model declares how its rows reach the person they belong to —
   `DVSubject.self`, `.field(column)`, or `.through(column, parent:)` for a row
