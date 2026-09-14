@@ -2,6 +2,7 @@
 /// is looking at it.
 library;
 
+export 'preview_access.dart';
 export 'preview_config.dart';
 export 'preview_identity.dart';
 export 'preview_lifecycle.dart';
