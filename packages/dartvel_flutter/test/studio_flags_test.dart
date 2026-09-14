@@ -584,6 +584,22 @@ void main() {
       );
     });
 
+    testWidgets('a choice is as wide as its label, not the whole row',
+        (WidgetTester tester) async {
+      await pumpStudio(tester);
+      await openFlag(tester, 'checkoutKind');
+      await tapKey(tester, 'dv-studio-flag-edit');
+      final Finder express = find
+          .ancestor(
+            of: inKey('dv-studio-flag-rule-0-value', find.text('express')),
+            matching: find.byType(GestureDetector),
+          )
+          .first;
+      final double row = tester.getSize(byKey('dv-studio-flag-rule-0-value')).width;
+      expect(tester.getSize(express).width, lessThan(row / 2),
+          reason: 'three options should sit in one row, not stack as bars');
+    });
+
     testWidgets('discarding leaves the rules as they were',
         (WidgetTester tester) async {
       await pumpStudio(tester);
