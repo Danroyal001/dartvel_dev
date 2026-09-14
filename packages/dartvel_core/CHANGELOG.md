@@ -1,4 +1,29 @@
 ## Unreleased
+
+- **Crash reporting and release health, as a runtime (`DVCrashReporting`).**
+  A crash is written to disk by the handler, synchronously and with nothing
+  awaited, and sent by the next launch: a handler runs in a process that is
+  already going down, and a write that waits for a round trip finishes after
+  the process does. Recovery marks a report sent before deleting it, so a
+  process that dies between the two does not send it twice, and a record cut
+  short by the crash that wrote it is dropped and named (`DV-CRASH-005`) rather
+  than sent half-read. Breadcrumbs are a ring buffer redacted on the way in —
+  the logger's key list as substrings, fields declared sensitive as exact names,
+  and resolved secret values in every string — so a card number in a backend
+  call's payload never reaches the stored bytes. Reports group by error type
+  and the top application frames with framework frames trimmed, never by
+  message or line, so an id in a message does not split one bug and the same
+  message from two places does not merge two; an override fingerprint wins
+  where the default is wrong. Past a per-release limit a device's crashes are
+  counted but not written (`DV-CRASH-004`), and the count is kept in the store
+  because a crash loop is a sequence of restarts. Non-fatal errors are sampled
+  (`DV-CRASH-008`); crashes never are. `DVHangWatchdog` files one hang per
+  freeze (`DV-CRASH-007`). `DVReleaseHealth` counts crash-free sessions and
+  users from sessions that started — a device offered a release that never
+  opened it is in its cohort and not its denominator — and
+  `DVReleaseHealthGate` holds a rollout when any cohort falls below threshold,
+  even inside a healthy release average (`DV-CRASH-010`). Reports stored as
+  files on `dart:io` targets and in memory elsewhere.
 - **Outbound webhooks (`DVWebhooks`, `DV.Webhooks`).** Events are declared
   (`DVWebhookEvent`) and emitting a name that is not declared is refused
   (`DV-WEBHOOK-006`), so the catalog a customer reads cannot drift from what
