@@ -72,7 +72,7 @@ Widget _checkoutPage(BuildContext context) => DVText(
 const String _model = '''
 import 'package:dartvel_core/dartvel.dart';
 
-@DVModel()
+@DVModel(subject: DVSubject.self, retain: DVRetention.indefinite)
 class _Account {
   final String id;
   final String email;

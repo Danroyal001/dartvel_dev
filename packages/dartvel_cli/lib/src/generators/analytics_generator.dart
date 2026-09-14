@@ -10,6 +10,8 @@ import 'package:dartvel_core/dartvel.dart'
         DVConsentTarget;
 import 'package:path/path.dart' as p;
 
+import 'privacy_declarations.dart';
+
 /// `dartvel.analytics` read at generation, and the Dart the running
 /// application starts `DV.Analytics` and `DV.Privacy` from.
 ///
@@ -104,12 +106,13 @@ class AnalyticsGenerator {
   static void generate({
     required String root,
     required DVAnalyticsSettings? settings,
+    required DVPrivacyDeclarations privacy,
   }) {
     final Directory out = Directory(p.join(root, 'lib', 'dartvel_client'))
       ..createSync(recursive: true);
     File(p.join(out.path, 'analytics.g.dart'))
         .writeAsStringSync(_analyticsSource(settings));
-    File(p.join(out.path, 'privacy.g.dart')).writeAsStringSync(_privacySource());
+    File(p.join(out.path, 'privacy.g.dart')).writeAsStringSync(privacy.render());
   }
 
   static String _literal(String value) =>
@@ -195,35 +198,6 @@ class AnalyticsGenerator {
       ..writeln('}');
     return sb.toString();
   }
-
-  static String _privacySource() => '''
-// GENERATED CODE - DO NOT MODIFY BY HAND
-
-import 'package:dartvel_core/dartvel.dart';
-
-/// Every declared model as the privacy walk sees it, over [database].
-List<DVPrivacyModel> dartvelPrivacyModels(DVDatabaseAdapter database) =>
-    <DVPrivacyModel>[];
-
-/// Configures `DV.Privacy` over [database] from `${'DARTVEL_PRIVACY_KEY'}` in
-/// [environment], and returns whether it did.
-///
-/// Called by the generated server. With the key unset nothing is configured
-/// and `DV.Privacy` throws naming it; with the key set and no database the
-/// server does not start, because an erasure with nothing to walk would
-/// report success.
-bool configureDartvelBackendPrivacy({
-  required DVDatabaseAdapter? database,
-  required Map<String, String> environment,
-}) =>
-    DVPrivacyRuntime.configureFromEnvironment(
-      environment: environment,
-      database: database,
-      models: database == null
-          ? const <DVPrivacyModel>[]
-          : dartvelPrivacyModels(database),
-    );
-''';
 
   static const Set<String> _reserved = <String>{
     'abstract', 'as', 'assert', 'async', 'await', 'base', 'break', 'case',

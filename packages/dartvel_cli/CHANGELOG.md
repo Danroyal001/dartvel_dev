@@ -1,4 +1,14 @@
 ## Unreleased
+- **Privacy declarations are read at generation.** `dartvel routes` reads
+  every `@DVModel`'s `subject:`, `retain:`, `@DVModel.retain` and `onErase`
+  before writing anything, stops on a sensitive field no subject path reaches
+  (`DV-PRIVACY-001`) and warns on personal data with no retention
+  (`DV-PRIVACY-002`), through `DVPrivacy.check`. It refuses a subject field
+  the model does not declare, one holding a model rather than an id, a path
+  through an undeclared model, a dated retention with no timestamp to
+  measure from, and a subject model with no `id` or `slug` to delete rows
+  by. `privacy.g.dart` registers every declaring model in
+  `dartvelPrivacyModels`, so the generated server's `DV.Privacy` walks them.
 - **The generated backend accepts crash reports when the application sends
   them there.** With `dartvel.crashes.sink: dartvel` the backend serves
   `POST <apiBasePath>/_dartvel/crashes` through `DVCrashIngest`, storing

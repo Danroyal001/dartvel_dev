@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import '../privacy/privacy.dart' show DVRetention;
+
 /// Annotation for a route
 class Route {
   final String path;
@@ -188,6 +190,16 @@ enum DVModelPageRole {
   hidden,
 }
 
+/// What an erasure does to a sensitive field:
+/// `@DVModel.sensitiveField(onErase: DVErase.anonymize)`.
+enum DVErase {
+  /// The row goes with the erasure. The default.
+  delete,
+
+  /// The field is replaced with a tombstone and the row stays.
+  anonymize,
+}
+
 /// Annotation metadata for a Dartvel data model.
 ///
 /// The generator adds serialization and model behavior to the annotated class;
@@ -283,6 +295,33 @@ class DVModel {
   /// A 3D field's triangle budget.
   final int? model3dMaxTriangles;
 
+  /// How this model's rows reach the person they belong to, for erasure and
+  /// export: `DVSubject.self` when a row is the person, `#field` for the
+  /// field holding the person's id, or `DVSubject.through('column', parent:
+  /// 'Model')` for a row that belongs to them through another model's row.
+  ///
+  /// Null for a model holding nobody's data. A model with a sensitive field
+  /// and no subject path fails the build (`DV-PRIVACY-001`): an erasure could
+  /// not reach it, and would report success anyway.
+  final Object? subject;
+
+  /// How long this model's rows are kept: `DVRetention.days(90)`, then
+  /// deleted or anonymized, or `DVRetention.indefinite`, deliberately.
+  ///
+  /// A model with personal data and no retention is kept indefinitely by
+  /// nobody's decision, which the build warns about (`DV-PRIVACY-002`).
+  final DVRetention? retain;
+
+  /// Set by `@DVModel.retain(years:, because:)` on a field a law requires to
+  /// be kept: an erasure keeps the row, anonymizes its personal fields, and
+  /// names [retainBecause] as the reason.
+  final int? retainYears;
+  final String? retainBecause;
+
+  /// What an erasure does to a sensitive field, set by
+  /// `@DVModel.sensitiveField(onErase: ...)`.
+  final DVErase onErase;
+
   const DVModel({
     this.searchable = false,
     this.billable = false,
@@ -293,7 +332,12 @@ class DVModel {
     this.schemaType,
     this.favicon,
     this.tenantScoped = false,
+    this.subject,
+    this.retain,
   })  : encrypted = false,
+        retainYears = null,
+        retainBecause = null,
+        onErase = DVErase.delete,
         showInForms = false,
         showInAdmin = false,
         pageRole = null,
@@ -325,7 +369,12 @@ class DVModel {
     this.encrypted = false,
     this.showInForms = false,
     this.showInAdmin = false,
+    this.onErase = DVErase.delete,
   })  : searchable = false,
+        subject = null,
+        retain = null,
+        retainYears = null,
+        retainBecause = null,
         billable = false,
         nativePrice = null,
         pageDataMode = DVModelPageDataMode.auto,
@@ -345,6 +394,11 @@ class DVModel {
   /// `@DVModel.searchableField()`.
   const DVModel.searchableField()
       : searchable = true,
+        subject = null,
+        retain = null,
+        retainYears = null,
+        retainBecause = null,
+        onErase = DVErase.delete,
         billable = false,
         nativePrice = null,
         pageDataMode = DVModelPageDataMode.auto,
@@ -413,6 +467,11 @@ class DVModel {
     int? maxSizeMb,
     int? maxTriangles,
   })  : isModel3dField = true,
+        subject = null,
+        retain = null,
+        retainYears = null,
+        retainBecause = null,
+        onErase = DVErase.delete,
         model3dPoster = poster,
         model3dMaxSizeMb = maxSizeMb,
         model3dMaxTriangles = maxTriangles,
@@ -431,8 +490,45 @@ class DVModel {
         favicon = null,
         tenantScoped = false;
 
+  /// Marks the field whose row a law requires to be kept:
+  /// `@DVModel.retain(years: 7, because: 'tax law')`.
+  ///
+  /// An erasure that reaches the row keeps it for [years], replaces its
+  /// personal fields, and reports the row with [because] -- which exists so
+  /// the answer to "why do you still have my invoice" is in the codebase
+  /// rather than in somebody's memory.
+  const DVModel.retain({required int years, required String because})
+      : retainYears = years,
+        retainBecause = because,
+        subject = null,
+        retain = null,
+        onErase = DVErase.delete,
+        searchable = false,
+        billable = false,
+        nativePrice = null,
+        pageDataMode = DVModelPageDataMode.auto,
+        generatePublicPages = false,
+        publicPathsResolver = null,
+        encrypted = false,
+        showInForms = false,
+        showInAdmin = false,
+        pageRole = null,
+        pageOrderIndex = null,
+        schemaType = null,
+        favicon = null,
+        tenantScoped = false,
+        isModel3dField = false,
+        model3dPoster = false,
+        model3dMaxSizeMb = null,
+        model3dMaxTriangles = null;
+
   const DVModel._page(this.pageRole, [this.pageOrderIndex])
       : searchable = false,
+        subject = null,
+        retain = null,
+        retainYears = null,
+        retainBecause = null,
+        onErase = DVErase.delete,
         billable = false,
         nativePrice = null,
         pageDataMode = DVModelPageDataMode.auto,

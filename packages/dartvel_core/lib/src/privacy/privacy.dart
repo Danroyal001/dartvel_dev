@@ -61,11 +61,23 @@ enum DVRetentionAction { delete, anonymize }
 /// How long a model's rows are kept before a sweep removes them.
 final class DVRetention {
   /// Kept [days] after the timestamp in column [from], then [then].
+  ///
+  /// [from] may be left out on a model annotation, where the generator
+  /// resolves it to the model's createdAt field and refuses a model without
+  /// one. A [DVPrivacyModel] refuses it missing: a sweep with no timestamp to
+  /// measure an age from deletes nothing.
   const DVRetention.days(
     int this.days, {
-    required String this.from,
+    this.from,
     this.then = DVRetentionAction.delete,
   });
+
+  /// `then: DVRetention.delete`: an expired row is deleted.
+  static const DVRetentionAction delete = DVRetentionAction.delete;
+
+  /// `then: DVRetention.anonymize`: an expired row stays and its personal
+  /// fields are replaced.
+  static const DVRetentionAction anonymize = DVRetentionAction.anonymize;
 
   const DVRetention._indefinite()
     : days = null,
@@ -109,6 +121,15 @@ class DVPrivacyModel {
   }) : personal = Set<String>.unmodifiable(personal),
        anonymizeOnErase = Set<String>.unmodifiable(anonymizeOnErase),
        otherSubjects = Set<String>.unmodifiable(otherSubjects) {
+    final DVRetention? dated = retention;
+    if (dated != null && !dated.isIndefinite && dated.from == null) {
+      throw ArgumentError.value(
+        name,
+        'retention',
+        'keeps rows ${dated.days} days and names no from column to measure '
+            'that from, so no sweep would ever find a row expired',
+      );
+    }
     for (final String field in <String>{
       ...personal,
       ...anonymizeOnErase,
