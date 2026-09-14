@@ -355,6 +355,8 @@ import 'package:$pkgName/dartvel_client/model_pages.g.dart' show dartvelModelPag
 import 'package:$pkgName/dartvel_client/modules_data.g.dart' show registerDartvelModules;
 import 'package:$pkgName/dartvel_client/schedules.g.dart' show dartvelBackendCronEntries, dartvelStartBackendSchedules;
 import 'package:$pkgName/dartvel_client/ai_tools.g.dart' show registerDartvelAITools;
+import 'package:$pkgName/dartvel_client/analytics.g.dart' show configureDartvelAnalytics;
+import 'package:$pkgName/dartvel_client/privacy.g.dart' show configureDartvelBackendPrivacy;
 import 'package:$pkgName/dartvel_client/jobs.g.dart' show dartvelClientOnlyJobHandlers, registerDartvelJobs;
 ${backendImports.join('\n')}
 
@@ -857,6 +859,12 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   // a database where nothing had created it. Backend functions are where
   // model queries actually run.
   registerDartvelModules();$tenancyConfiguration$cspAssignment
+  // DV.Analytics and DV.Privacy over the application's database, when this
+  // process has one. Analytics first, so its adapters are in the privacy
+  // walk; DV.Privacy is configured only where DARTVEL_PRIVACY_KEY is set.
+  final core.DVDatabaseAdapter? dartvelDatabase = const core.DVDatabase().configuredAdapter ?? stores.database;
+  if (dartvelDatabase != null) configureDartvelAnalytics(database: () => dartvelDatabase);
+  configureDartvelBackendPrivacy(database: dartvelDatabase, environment: Platform.environment);
   // Every @DVBackendCron schedule, registered and ticking. Nothing did this
   // before: the schedules were generated into a list and the only thing that
   // ever built a DVScheduler was the scheduler's own unit test, so a job
