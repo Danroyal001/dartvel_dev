@@ -100,6 +100,10 @@ export 'src/http/transport.dart';
 // widget. Server code that wants the full set imports
 // `package:dartvel_core/http.dart`.
 export 'src/http/wintercg.dart' show Request, Response, Headers;
+export 'src/compute/worker_types.dart'
+    hide DVWorkerCall, DVWorkerExecution, DVWorkerRunner, DVWorkerSink,
+        dvCheckedProgress;
+export 'src/compute/workers.dart';
 export 'src/data/change_capture.dart';
 export 'src/data/import_chunking.dart';
 export 'src/data/offline_store.dart';
