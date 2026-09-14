@@ -5,10 +5,18 @@
 /// adapter to use instead.
 library dartvel_core.database.sqlite_unsupported;
 
+import '../schema/schema_change.dart';
 import 'adapter.dart';
 
-class SqliteDVDatabaseAdapter implements DVDatabaseAdapter {
+class SqliteDVDatabaseAdapter
+    implements DVDatabaseAdapter, DVSchemaClassifier {
   final String location;
+
+  DVSqliteSchemaRules get schemaRules =>
+      const DVSqliteSchemaRules(DVDatabaseServerVersion(0));
+
+  @override
+  DVSchemaChangeClass? classify(DVSchemaChange change) => null;
 
   SqliteDVDatabaseAdapter._(this.location) {
     throw UnsupportedError(
