@@ -136,6 +136,20 @@ void main() {
       );
     });
 
+    test('a key pinned and later revoked is no longer pinned', () {
+      // The line that matters is the one added after the first: a key that
+      // leaked stays in known_hosts under @revoked, and trusting the older
+      // plain line anyway is trusting the leaked key.
+      expect(
+        dvKnownHostsPins(
+          'app-1.example.com $rsaKey\n@revoked app-1.example.com $rsaKey\n',
+          'app-1.example.com',
+          22,
+        ),
+        isFalse,
+      );
+    });
+
     test('a revoked key, a CA line, a comment and a wildcard do not pin', () {
       for (final String line in <String>[
         '@revoked app-1.example.com $rsaKey',
