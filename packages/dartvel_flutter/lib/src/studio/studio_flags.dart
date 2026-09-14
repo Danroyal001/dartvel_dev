@@ -1777,10 +1777,12 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
             onTap: () => onChanged(option),
             child: MouseRegion(
               cursor: SystemMouseCursors.click,
+              // No alignment on the Container: one with an alignment fills
+              // its constraints, which inside a Wrap is the whole row, and a
+              // choice of three turns into three full-width bars.
               child: Container(
                 height: 28,
                 padding: const EdgeInsets.symmetric(horizontal: 10),
-                alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: option == value
                       ? DVStudioStyle.accentSoft
