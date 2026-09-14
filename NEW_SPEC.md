@@ -8659,7 +8659,7 @@ and the most likely one to be emailed to somebody outside the tenant.
 
 # Change Data Capture and Warehouse Sync
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
 
 Data Import, Export, and Reporting moves data out of the application on
 request: somebody asks for a CSV, a report runs on a schedule, a PDF is
