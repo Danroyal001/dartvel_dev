@@ -8339,7 +8339,7 @@ await DVPageStore().save(document) // persisted, immediately publishable
 
 # Content Workflow
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
 
 Studio publishes on save, and for one person editing their own site that is
 exactly right — the shortest path from a change to the thing being changed.
