@@ -3780,7 +3780,7 @@ Release safety:
 
 # Protocol Versioning and Client Compatibility
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
 
 The backend deploys daily; installed binaries live for weeks. Migrations handle
 schema change on the server, OTA handles code change on the client, and neither
