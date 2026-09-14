@@ -154,14 +154,16 @@ void main() {
     });
 
     test(
-      'DATABASE_URL puts the queue and DV.Database on that database',
+      'DATABASE_URL puts the queue on that database, and leaves DV.Database',
       () async {
         final DVProcessStores stores = DVProcessStores.install(
           read: reading(<String, String>{'DATABASE_URL': 'sqlite://$file'}),
         );
         expect(stores.database, isNotNull);
         expect(const DVQueues().adapterConfigured, isTrue);
-        expect(identical(const DVDatabase().adapter, stores.database), isTrue);
+        // Outside a preview, production's database is the application's to
+        // configure. The queue and the lease use their own connection.
+        expect(const DVDatabase().configuredAdapter, isNull);
 
         await const DVQueues().dispatch(const Welcome('ada'));
 
@@ -187,18 +189,51 @@ void main() {
       expect(await own.pending('default'), hasLength(1));
     });
 
-    test('a DV.Database already configured -- a preview does -- is reused', () {
-      final SqliteDVDatabaseAdapter configured = SqliteDVDatabaseAdapter.file(
-        '${dir.path}/preview.db',
-      );
-      addTearDown(configured.close);
-      const DVDatabase().configure(configured);
-      final DVProcessStores stores = DVProcessStores.install(
-        read: reading(<String, String>{'DATABASE_URL': 'sqlite://$file'}),
-      );
-      // Not a second connection: two over one SQLite file is two write locks.
-      expect(identical(stores.database, configured), isTrue);
-    });
+    test(
+      'outside a preview an application DV.Database is not the shared store',
+      () async {
+        // Configured by the application, it may be anything -- an in-memory
+        // adapter no other process can see. What the processes share is what
+        // DATABASE_URL names, and the application's choice stays its own.
+        final MemoryDVDatabaseAdapter own = MemoryDVDatabaseAdapter();
+        const DVDatabase().configure(own);
+        final DVProcessStores stores = DVProcessStores.install(
+          read: reading(<String, String>{'DATABASE_URL': 'sqlite://$file'}),
+        );
+        expect(identical(stores.database, own), isFalse);
+        expect(identical(const DVDatabase().configuredAdapter, own), isTrue);
+      },
+    );
+
+    test(
+      "outside a preview a preview's DARTVEL_DATABASE redirects nothing",
+      () async {
+        // A production deploy copied from a preview's settings carries its
+        // DARTVEL_DATABASE. Honoured, production's jobs would go on the
+        // preview's database.
+        final DVProcessStores stores = DVProcessStores.install(
+          read: reading(<String, String>{
+            'DATABASE_URL': 'sqlite://$file',
+            'DARTVEL_DATABASE': 'shop_preview_feature_cart_c39f4dfa',
+          }),
+        );
+        expect(stores.connection?.database, file);
+        await const DVQueues().dispatch(const Welcome('ada'));
+        final SqliteDVDatabaseAdapter other = SqliteDVDatabaseAdapter.file(
+          file,
+        );
+        addTearDown(other.close);
+        expect(
+          await DVDatabaseQueueAdapter(other).pending('default'),
+          hasLength(1),
+        );
+        expect(
+          File('${dir.path}/shop_preview_feature_cart_c39f4dfa.db')
+              .existsSync(),
+          isFalse,
+        );
+      },
+    );
 
     test('a DATABASE_URL it cannot read refuses the start without printing it',
         () {
@@ -216,6 +251,39 @@ void main() {
           ),
         ),
       );
+    });
+  });
+
+  group('DVProcessStores.install in a preview', () {
+    tearDown(DVPreviewServer.reset);
+
+    test('the adapter the preview configured is the store, aimed at its own '
+        'database', () {
+      final DVPreviewIdentity id = DVPreviewIdentity.forBranch(
+        app: 'shop',
+        branch: 'feature/cart',
+      );
+      final Map<String, String> environment = DVPreviewDeployment(
+        identity: id,
+        visibility: DVPreviewVisibility.public,
+        secrets: const <String, String>{
+          'DATABASE_URL': 'postgres://app:pw@db.internal:5432/shop',
+        },
+        productionOrigin: 'https://shop.example',
+        productionDatabase: 'shop',
+      ).variables;
+      DVPreviewServer.start(environment);
+      final DVDatabaseAdapter? configured = const DVDatabase().configuredAdapter;
+      expect(configured, isNotNull);
+
+      final DVProcessStores stores = DVProcessStores.install(
+        read: reading(environment),
+      );
+      // Not a second connection beside the preview's, and not production's
+      // database: the preview already resolved its own.
+      expect(identical(stores.database, configured), isTrue);
+      expect(stores.connection?.database, id.database);
+      expect(const DVQueues().adapterConfigured, isTrue);
     });
   });
 

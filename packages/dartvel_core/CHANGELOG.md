@@ -1,13 +1,16 @@
 ## Unreleased
 
 - **The processes of a deployment share a store, from `DATABASE_URL`.**
-  `DVProcessStores.install` reads `DATABASE_URL` (and `DARTVEL_DATABASE`)
-  through `DV.Secrets` -- environment, then systemd credentials, then `.env`
-  -- configures `DV.Database` from it unless something already did (a
-  preview does, and its adapter is reused rather than a second connection
-  opened), and puts `DVQueues` on that database with `DVDatabaseQueueAdapter`
-  unless an adapter was already configured. Without `DATABASE_URL` it
-  installs nothing; a `DATABASE_URL` it cannot read throws
+  `DVProcessStores.install` puts `DVQueues` on a database with
+  `DVDatabaseQueueAdapter`, unless an adapter was already configured. Outside
+  a preview that database is `DATABASE_URL` alone, read through `DV.Secrets`
+  -- environment, then systemd credentials, then `.env` -- on a connection of
+  its own: `DV.Database` is left for the application to configure, and
+  `DARTVEL_DATABASE`, a preview's variable, is ignored, so a production deploy
+  copied from a preview's settings does not put its jobs on the preview's
+  database. In a preview it is the adapter `DVPreviewServer.start` already
+  configured with the preview's own database. Without a store it installs
+  nothing; a `DATABASE_URL` it cannot read throws
   `DVProcessConfigurationError` without repeating the URL.
   `scheduleLeaseFor(process)` is a `DVDatabaseScheduleLease` on that database
   for any process that ticks the schedules, and null for one that ticks none
