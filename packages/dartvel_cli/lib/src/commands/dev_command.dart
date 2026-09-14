@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 import 'package:watcher/watcher.dart';
 
 import '../config/dartvel_config.dart';
+import '../devclient/dev_client_server.dart';
 import '../generators/routes_generator.dart';
 import '../utils/build_runner.dart';
 import '../utils/linux_utils.dart';
@@ -41,7 +42,14 @@ class DevCommand extends Command<void> {
           help: 'Hostname for the Flutter web-server device')
       ..addOption('web-port', help: 'Port for the Flutter web-server device')
       ..addFlag('verbose',
-          abbr: 'v', defaultsTo: false, help: 'Verbose output');
+          abbr: 'v', defaultsTo: false, help: 'Verbose output')
+      ..addFlag('dev-client',
+          defaultsTo: false,
+          negatable: false,
+          help: 'Serve signed page bundles to a paired dev-client shell and '
+              'print the pairing link.')
+      ..addOption('dev-client-port',
+          defaultsTo: '8787', help: 'Port the dev-client bundles are served on');
   }
 
   @override
@@ -284,6 +292,11 @@ Future<void> main() async {
 
     final config = await DartvelConfig.load(Directory(root));
 
+    DVDevClientBundleServer? devClient;
+    if (argResults?['dev-client'] == true) {
+      devClient = await _startDevClient(root);
+    }
+
     // Keep generated code, the app, the backend and the Rust runtime in step
     // while the loop runs. This used to be `dartvel watch`, a separate command
     // aliased `hotreload` that never asked Flutter to reload anything — so the
@@ -340,6 +353,35 @@ Future<void> main() async {
 
     for (final subscription in watchSubscriptions) {
       await subscription.cancel();
+    }
+    await devClient?.close();
+  }
+
+  /// Starts the dev-client bundle server and prints the link to pair with.
+  ///
+  /// A failure to start is reported and the loop carries on: the app on
+  /// this machine does not need it.
+  Future<DVDevClientBundleServer?> _startDevClient(String root) async {
+    final port =
+        int.tryParse(argResults?['dev-client-port'] as String? ?? '') ?? 8787;
+    String branch = 'HEAD';
+    try {
+      final result = await Process.run(
+          'git', <String>['rev-parse', '--abbrev-ref', 'HEAD'],
+          workingDirectory: root);
+      if (result.exitCode == 0) branch = '${result.stdout}'.trim();
+    } catch (_) {}
+    try {
+      final server = await DVDevClientBundleServer.start(
+          root: root, branch: branch, port: port);
+      Logger.log('Dev client: serving $branch on port ${server.port}.');
+      Logger.log('Dev client pairing link (open it on the device, or encode '
+          'it as a QR code):');
+      Logger.log('  ${server.pairing.link}');
+      return server;
+    } catch (error) {
+      Logger.log('WARN: the dev-client server did not start: $error');
+      return null;
     }
   }
 
