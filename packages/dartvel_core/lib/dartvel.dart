@@ -47,6 +47,7 @@ export 'src/billing/money.dart';
 export 'src/billing/paddle.dart';
 export 'src/billing/stripe.dart';
 export 'src/billing/webhooks.dart';
+export 'src/commerce/tax.dart';
 export 'src/purchases/database_ledger.dart';
 export 'src/purchases/fake_store.dart';
 export 'src/purchases/purchases.dart';
