@@ -7,6 +7,11 @@
   come through `package:dartvel_flutter/dartvel_flutter.dart` like every other
   namespace. A task run through it leaves the UI isolate.
 
+- **`DV.Memory`.** The Platform Memory factory is reachable from a page like
+  every other namespace: `DV.Memory.allocate(megabytes: 512)` returns an
+  independent `DVPlatformMemory`, and `DV.Memory.arenas`/`usage` report the
+  live ones. The arena types are exported from `dartvel_flutter`.
+
 - **Studio is laid out like the tools it has to stand beside.** A dark
   navigation rail replaces the tab strip, with an icon and a label per
   section; `DVStudioSection` takes an optional `icon` for it, and a section

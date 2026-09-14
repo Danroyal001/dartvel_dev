@@ -47,6 +47,25 @@ import 'src/windowing/window.dart';
 
 export 'package:dartvel_core/dartvel.dart'
     show
+        // Platform Memory: DV.Memory and the arenas it creates.
+        DVBool,
+        DVDouble,
+        DVInt,
+        DVMemory,
+        DVMemoryBacking,
+        DVMemoryConfig,
+        DVMemoryDiagnostic,
+        DVMemoryException,
+        DVMemoryHeapBacking,
+        DVMemoryHeapSegment,
+        DVMemoryProfile,
+        DVMemorySegmentStore,
+        DVMemorySettings,
+        DVMemoryTarget,
+        DVMemoryUsage,
+        DVPlatformMemory,
+        DVSize,
+        MemorySlice,
         Analytics,
         AnalyticsEvent,
         AnalyticsProvider,
@@ -6413,6 +6432,10 @@ class DV {
       const DVNotificationsService();
   static DVUpdates get Updates => const DVUpdates();
   static DVSecrets get Secrets => const DVSecrets();
+
+  /// The Platform Memory factory: every `DV.Memory.allocate(...)` is an
+  /// independent arena with its own budget, segments and lifecycle.
+  static DVMemory get Memory => const DVMemory();
   static DVHttp get Http => const DVHttp();
 
   /// `DV.Webhooks`: the events this application sends to its customers'
