@@ -17,6 +17,20 @@
   to the subject; a row that no longer does is left alone and kept out of
   what record adapters are handed.
 
+- **What a web worker and its page say to each other.** A web worker is a
+  separately loaded script that cannot be handed a Dart function, so a task
+  crosses by a name registered on both sides with `DVWorkerTasks.register`,
+  and one name for two functions is refused. `dvWorkerUnportable` names the
+  first value structured clone would refuse and where it sits -- a class
+  instance, a function, a map keyed by something other than a string --
+  where a browser throws a `DataCloneError` naming nothing.
+  `dvWorkerHandle` is the worker's side of a request: progress, then a value
+  or a failure, always a final answer, including for a task the worker does
+  not have, a result that cannot be cloned back, and a request it cannot
+  read. `dvWebWorkerCapability` reports a web worker as supported with
+  limitations and shared memory only on a cross-origin-isolated page, and
+  `DV-WORKER-004` is logged once when bytes were copied because it is not.
+
 - **Native memory lent to a worker by address.** `DVWorkerBuffer.allocate`
   gives zero-filled memory outside the Dart heap, and
   `DV.Workers.run(task, input: buffer.lease, lend: [buffer])` hands a worker

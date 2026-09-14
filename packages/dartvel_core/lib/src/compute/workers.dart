@@ -11,6 +11,7 @@ import 'dart:collection';
 
 import '../observability/logging.dart' show DVLogLevel;
 import '../observability/observability.dart' show DVObservability;
+import 'web_worker_protocol.dart' show dvDebugResetCopiedReport;
 import 'worker_types.dart';
 import 'workers_host_stub.dart'
     if (dart.library.isolate) 'workers_isolate.dart' as host;
@@ -83,7 +84,10 @@ final class DVWorkers {
   static bool _inlineReported = false;
 
   /// Lets a test observe the once-per-boot diagnostics again.
-  static void debugResetOnceDiagnostics() => _inlineReported = false;
+  static void debugResetOnceDiagnostics() {
+    _inlineReported = false;
+    dvDebugResetCopiedReport();
+  }
 
   /// What carries the work here, and what that costs.
   DVWorkerCapability get capability => _runner.capability;
