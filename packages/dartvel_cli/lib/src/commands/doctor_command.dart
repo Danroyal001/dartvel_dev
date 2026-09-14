@@ -42,7 +42,16 @@ class DoctorCommand extends Command<void> {
   final String description =
       'Check your environment and project for common issues.';
 
-  DoctorCommand() {
+  /// [root] is the project checked by `--modules`; the current directory
+  /// when null.
+  DoctorCommand({this.root}) {
+    argParser.addFlag(
+      'modules',
+      negatable: false,
+      help: 'Verify every module pin (digest, signing key, publisher, '
+          'version) and compare what each module uses against what this '
+          'application grants.',
+    );
     argParser.addOption(
       'target',
       allowed: doctorTargets,
@@ -51,8 +60,30 @@ class DoctorCommand extends Command<void> {
     );
   }
 
+  final String? root;
+
+  /// `dartvel doctor --modules`. On its own, like `--target`: the question
+  /// is whether the mounted modules may be built, and it is answered without
+  /// running the SDK checks.
+  void _checkModuleTrust(String root) {
+    final DVModuleCheck check = DVModuleCheck.trust(root);
+    if (check.lines.isEmpty) {
+      Logger.log('[+] Every mounted module verifies against its pin and uses '
+          'only what it is granted.');
+      return;
+    }
+    for (final String line in check.lines) {
+      Logger.log(line);
+    }
+    if (!check.ok) exitCode = 1;
+  }
+
   @override
   Future<void> run() async {
+    if (argResults?['modules'] == true) {
+      _checkModuleTrust(root ?? Directory.current.path);
+      return;
+    }
     final target = argResults?['target'] as String?;
     if (target != null) {
       await _checkTargetToolchain(target);
