@@ -42,6 +42,8 @@ class PreviewCommand extends Command<void> {
         _out = out ?? print,
         _environment = environment ?? Platform.environment {
     _serve
+      ..addFlag('help',
+          abbr: 'h', negatable: false, help: 'Print this usage information.')
       ..addOption('port',
           abbr: 'p', defaultsTo: '8080', help: 'Port to serve on')
       ..addOption('host', defaultsTo: '127.0.0.1', help: 'Host to bind to');
@@ -90,6 +92,10 @@ class PreviewCommand extends Command<void> {
       serve = _serve.parse(rest);
     } on FormatException catch (error) {
       throw UsageException(error.message, usage);
+    }
+    if (serve['help'] == true) {
+      printUsage();
+      return;
     }
     if (serve.rest.isNotEmpty) {
       throw UsageException(
