@@ -637,6 +637,8 @@ export 'src/admin/queue_admin.dart';
 export 'src/admin/route_admin.dart';
 export 'src/admin/route_info.dart';
 export 'src/admin/telemetry_admin.dart';
+export 'src/analytics/app_tracking_transparency.dart';
+export 'src/analytics/consent_ui.dart';
 export 'src/crashes/crashes.dart';
 export 'src/flags/flag_signal.dart';
 export 'src/kiosk/device_kiosk.dart';

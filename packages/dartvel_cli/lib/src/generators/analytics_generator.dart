@@ -1,7 +1,13 @@
 import 'dart:io';
 
 import 'package:dartvel_core/dartvel.dart'
-    show DVAnalyticsConfigurationError, DVAnalyticsSettings, DVConsentDeclaration;
+    show
+        DVAnalyticsConfigurationError,
+        DVAnalyticsFinding,
+        DVAnalyticsSettings,
+        DVConsentDeclaration,
+        DVConsentPrompt,
+        DVConsentTarget;
 import 'package:path/path.dart' as p;
 
 /// `dartvel.analytics` read at generation, and the Dart the running
@@ -45,6 +51,51 @@ class AnalyticsGenerator {
       }
     }
     return settings;
+  }
+
+  /// `DV-ANALYTICS-002`: a declared category with no way to ask on a platform
+  /// this application builds for, which would be denied there for ever.
+  ///
+  /// On iOS a tracking category is asked through App Tracking Transparency,
+  /// and the system will not show that prompt without
+  /// `NSUserTrackingUsageDescription` in `ios/Runner/Info.plist` -- the
+  /// application is terminated instead. A project with that runner and no
+  /// such key has no prompt there, and the policy's own check says what that
+  /// means for each category. A key inside a comment is not a key.
+  static void checkTargets({
+    required String root,
+    required DVAnalyticsSettings? settings,
+  }) {
+    if (settings == null) return;
+    final File plist = File(p.join(root, 'ios', 'Runner', 'Info.plist'));
+    if (!plist.existsSync()) return;
+    final String declared = plist
+        .readAsStringSync()
+        .replaceAll(RegExp(r'<!--[\s\S]*?-->'), '');
+    final bool canPrompt = RegExp(
+      r'<key>\s*NSUserTrackingUsageDescription\s*</key>\s*'
+      r'<string>[^<]*\S[^<]*</string>',
+    ).hasMatch(declared);
+    final List<DVAnalyticsFinding> findings = settings.consent.check(
+      targets: <DVConsentTarget>[
+        DVConsentTarget(
+          'ios',
+          prompts: <DVConsentPrompt>{
+            DVConsentPrompt.settingsScreen,
+            if (canPrompt) DVConsentPrompt.appTrackingTransparency,
+          },
+          tracksWithAppTrackingTransparency: true,
+        ),
+      ],
+    );
+    if (findings.isEmpty) return;
+    throw StateError(
+      '${findings.join('\n')}\n'
+      'ios/Runner/Info.plist has no NSUserTrackingUsageDescription, and iOS '
+      'will not show the App Tracking Transparency prompt without one. Add '
+      'the key with the sentence iOS shows the person, or declare the '
+      'category without tracking: true.',
+    );
   }
 
   /// Writes `analytics.g.dart` and `privacy.g.dart` under

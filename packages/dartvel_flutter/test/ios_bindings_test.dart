@@ -28,6 +28,12 @@ void main() {
         // in a process that cannot host a Flutter engine, which is why the
         // tree and the state are shared at /widgets/<id> instead.
         'homeWidgets.publish',
+        // App Tracking Transparency: the prompt a consent category declared
+        // tracking: true is granted through. Registered whatever the system
+        // version, answering -1 where it cannot be shown, so a category is
+        // never granted on a prompt nobody saw.
+        'tracking.requestAuthorization',
+
       });
     });
 

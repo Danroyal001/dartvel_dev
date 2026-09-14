@@ -1092,7 +1092,10 @@ ${guardRedirectFor(e.directory, e.policy, e.middleware)}      pageBuilder: (cont
         // Inside the route rather than around the router, because two pages
         // are alive at once whenever one is leaving as the next enters, and
         // a single signal would report whichever moved last for both.
-        final withLifecycle = DVPageLifecycleHost(child: overridable);
+        // Under the consent banner when the application declares analytics:
+        // a banner an application had to remember to place is one nobody
+        // sees, and every default-denied category would stay denied.
+        final withLifecycle = DVPageLifecycleHost(child: ${dv['analytics'] != null ? 'DVConsentBanner(child: overridable)' : 'overridable'});
         final withState = DartvelRouteState(params: params, query: query, child: withLifecycle);
 
         // i18n scope using the configured query parameter strategy.

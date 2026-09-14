@@ -66,6 +66,9 @@ const Set<String> dvNativeBindingNames = <String>{
   // and macOS, and neither can host a Flutter engine, so the tree and the
   // state are shared at /widgets/<id> and this carries the data.
   'homeWidgets.publish',
+  // App Tracking Transparency: the system prompt a consent category declared
+  // tracking: true is granted through on iOS.
+  'tracking.requestAuthorization',
 
   // Files. Bound on every target with a filesystem.
   'files.delete',
