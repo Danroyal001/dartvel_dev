@@ -21,6 +21,7 @@ export 'package:dartvel_core/dartvel.dart'
         dvDevClientLinkScheme,
         dvDevClientMissingBinding,
         dvDevClientPublicTrack,
+        dvDevClientShellMarker,
         dvDevClientUnreachable,
         dvSignedBundleFormat;
 

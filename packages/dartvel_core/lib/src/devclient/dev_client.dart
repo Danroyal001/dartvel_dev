@@ -51,6 +51,15 @@ const String dvDevClientBundlePath = '/_dartvel/dev-client/bundle';
 /// The scheme of a pairing link.
 const String dvDevClientLinkScheme = 'dartvel-dev';
 
+/// A string only a dev-client shell's compiled snapshot contains.
+///
+/// The shell's widget references it, so AOT compilation keeps it; nothing an
+/// application reaches references it, so tree shaking drops it from every
+/// release build. `dartvel publish` looks for it in the snapshot inside an
+/// artifact, which recognises a shell by what it is rather than by its
+/// filename.
+const String dvDevClientShellMarker = 'dartvel-dev-client-shell-v1';
+
 /// Why a bundle was not opened.
 class DVSignedBundleException implements Exception {
   const DVSignedBundleException(this.message);
