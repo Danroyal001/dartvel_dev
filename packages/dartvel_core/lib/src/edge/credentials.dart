@@ -130,6 +130,15 @@ class DVVelocityLimiter {
     await store.record(_sourceKey(source), now, keepFor: perSource.window);
   }
 
+  /// The per-source refusal alone, for attempts whose failure must not be
+  /// counted against an account -- a sign-up that hit a taken address, where
+  /// locking the address would announce that it is taken.
+  Future<DVVelocityRefusal?> checkSource({required String source}) =>
+      _over('source', _sourceKey(source), perSource, _clock());
+
+  Future<void> recordSourceFailure({required String source}) => store
+      .record(_sourceKey(source), _clock(), keepFor: perSource.window);
+
   /// Clears the account's failures. The source's stay: one success in a
   /// spray does not make the rest of it innocent.
   Future<void> recordSuccess({required String account}) =>
@@ -349,7 +358,15 @@ class DVCredentialGuard {
         _ => false,
       };
 
-  /// Signs up after the challenge and the breach check pass.
+  /// Signs up after the source limit, the challenge and the breach check
+  /// pass.
+  ///
+  /// A sign-up that signs somebody in cannot hide that an address was free,
+  /// so what the guard can do is make probing expensive: each sign-up that
+  /// hits a taken address counts against the source that sent it, and a
+  /// source over its budget is refused before the provider is asked. The
+  /// count is never kept against the address, because a sign-in lockout that
+  /// only taken addresses can trip would be the oracle again.
   Future<AuthUser?> signUp(
     String email,
     String password, {
@@ -357,6 +374,15 @@ class DVCredentialGuard {
     required String source,
     String? challengeToken,
   }) async {
+    final limited = await velocity.checkSource(source: source);
+    if (limited != null) {
+      DVObservability.log(
+        'A source velocity limit tripped; the sign-up was not tried.',
+        level: DVLogLevel.warn,
+        code: limited.code,
+      );
+      throw limited;
+    }
     final bots = botProtection;
     if (bots != null) {
       final verdict = await DVBotChallenge(bots, action: 'sign-up')
@@ -366,7 +392,14 @@ class DVCredentialGuard {
       }
     }
     await checkNewPassword(password);
-    return provider.signUp(email, password, name: name);
+    try {
+      return await provider.signUp(email, password, name: name);
+    } on AuthException catch (error) {
+      if (error.failure == AuthFailure.accountExists) {
+        await velocity.recordSourceFailure(source: source);
+      }
+      rethrow;
+    }
   }
 
   /// Throws [DVBreachedPasswordRefusal] for a password in the breach corpus.

@@ -295,6 +295,56 @@ void main() {
       expect(missingTook, wrongTook);
     });
 
+    test('sign-ups that hit existing accounts count against the source, and '
+        'never lock the account', () async {
+      final g = guard(
+        velocity: DVVelocityLimiter(
+          perAccount: const DVVelocityBudget(2, Duration(minutes: 15)),
+          perSource: const DVVelocityBudget(2, Duration(minutes: 15)),
+          clock: clock,
+        ),
+      );
+      for (var i = 0; i < 2; i++) {
+        await expectLater(
+          g.signUp('ada@x.com', 'another-phrase', source: 'prober'),
+          throwsA(isA<AuthException>()
+              .having((e) => e.failure, 'failure', AuthFailure.accountExists)),
+        );
+      }
+
+      await expectLater(
+        g.signUp('fresh@x.com', 'a-fresh-phrase', source: 'prober'),
+        throwsA(isA<DVVelocityRefusal>()
+            .having((r) => r.scope, 'scope', 'source')),
+      );
+      expect(local.accounts, isNot(contains('fresh@x.com')),
+          reason: 'a refused source is not tried against the provider');
+
+      expect(
+        await g.signUp('fresh@x.com', 'a-fresh-phrase', source: 'office'),
+        isNotNull,
+      );
+      expect(
+        await g.signIn('ada@x.com', 'correct-horse', source: 'office'),
+        isNotNull,
+        reason: 'counting a taken address per account would make a lockout '
+            'the oracle the refusal hides',
+      );
+    });
+
+    test('a sign-up that creates an account does not count against the '
+        'source', () async {
+      final g = guard(
+        velocity: DVVelocityLimiter(
+          perSource: const DVVelocityBudget(1, Duration(minutes: 15)),
+          clock: clock,
+        ),
+      );
+      await g.signUp('one@x.com', 'a-fresh-phrase', source: 'office');
+      await g.signUp('two@x.com', 'a-fresh-phrase', source: 'office');
+      expect(local.accounts, containsAll(<String>['one@x.com', 'two@x.com']));
+    });
+
     test('a breached password is refused at sign-up, before an account exists',
         () async {
       final g =
