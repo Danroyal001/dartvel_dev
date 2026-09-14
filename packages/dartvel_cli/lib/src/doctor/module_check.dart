@@ -12,6 +12,7 @@
 library;
 
 import '../graph/module_mounts.dart';
+import '../module_trust/module_trust.dart';
 
 class DVModuleCheck {
   const DVModuleCheck({required this.ok, required this.lines});
@@ -35,8 +36,10 @@ class DVModuleCheck {
       final String routes = mount.deployment == DVModuleDeployment.backendOnly
           ? 'no pages, by declaration'
           : '${mount.routes.length} route(s)';
-      lines.add('  ${mount.mounted ? '[ok]' : '[!]'} ${mount.id} at '
-          '${mount.mount} (${mount.deployment.name}, $routes)');
+      lines.add(
+        '  ${mount.mounted ? '[ok]' : '[!]'} ${mount.id} at '
+        '${mount.mount} (${mount.deployment.name}, $routes)',
+      );
       for (final String problem in mount.problems) {
         // A module that still mounts has a problem worth saying and not
         // worth refusing to ship over: a mode that fell back to its default
@@ -46,5 +49,32 @@ class DVModuleCheck {
       if (!mount.mounted) ok = false;
     }
     return DVModuleCheck(ok: ok, lines: lines);
+  }
+
+  /// `dartvel doctor --modules`: every pin verified and every grant compared.
+  ///
+  /// Separate from [run] because it answers a different question. [run] asks
+  /// whether the declaration can be mounted; this asks whether what is
+  /// mounted is the module that was reviewed, and whether it does only what
+  /// the parent granted.
+  static DVModuleCheck trust(
+    String root, {
+    DVModulePublisherDirectory? publishers,
+  }) {
+    final DVModuleTrustReport report = dvEvaluateModuleTrust(
+      root,
+      publishers: publishers,
+    );
+    if (report.findings.isEmpty) {
+      return const DVModuleCheck(ok: true, lines: <String>[]);
+    }
+    return DVModuleCheck(
+      ok: report.ok,
+      lines: <String>[
+        'Module trust',
+        for (final DVModuleTrustFinding finding in report.findings)
+          '  ${finding.isError ? '[!]' : '[~]'} $finding',
+      ],
+    );
   }
 }
