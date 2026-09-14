@@ -5278,7 +5278,7 @@ overridden.
 
 # Purchases and Entitlements
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
 
 Billing sells through a payment gateway. On iOS and Android, digital goods
 sold inside the application must go through StoreKit or Play Billing instead:
