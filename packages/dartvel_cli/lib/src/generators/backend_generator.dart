@@ -1,4 +1,4 @@
-import 'dart:convert' show utf8;
+import 'dart:convert' show jsonEncode, utf8;
 import 'dart:io';
 import 'package:crypto/crypto.dart' show sha256;
 import 'package:dartvel_core/dartvel.dart'
@@ -42,6 +42,16 @@ class BackendGenerator {
         'pubspec.yaml ${error.name}: ${error.message} (got ${error.invalidValue})',
       );
     }
+  }
+
+  /// The pubspec's version, or `unversioned` -- what the generated client
+  /// names the release too.
+  static String _dvCrashRelease(String root) {
+    final File pubspec = File(p.join(root, 'pubspec.yaml'));
+    if (!pubspec.existsSync()) return 'unversioned';
+    final Object? doc = loadYaml(pubspec.readAsStringSync());
+    final Object? version = doc is Map ? doc['version'] : null;
+    return version == null ? 'unversioned' : '$version';
   }
 
   /// The crash endpoint, for an application whose clients send reports to
@@ -383,6 +393,9 @@ $openApiJson\'\'\';
     // serves the crash endpoint, and what it accepts there.
     final DVCrashConfig crashes = _dvCrashConfig(root);
     final bool servesCrashes = crashes.sink == DVCrashSinkChoice.dartvel;
+    // The release a server's crash report names: the pubspec version, as the
+    // client's does, so one release's reports from both ends group together.
+    final String crashRelease = _dvCrashRelease(root);
     final String? corsSource = server.corsSource;
     final String corsConstant = corsSource ?? 'null';
     final String compressionLiteral = server.compression ? 'true' : 'false';
@@ -742,6 +755,8 @@ $requestPrelude$policyGate$contextPrelude
           body: Stream<List<int>>.value(conv.utf8.encode(conv.jsonEncode(result))));
     } catch (e, st) {
 $contextFailed
+      // Written before anything else in the error path, and never throws.
+      core.DVServerCrashes.record(e, st);
       stderr.writeln('[dartvel backend] ERROR in ${method.toUpperCase()} $path: \${e.toString()}');
       stderr.writeln(st);
       return dv.Response(500, body: Stream<List<int>>.value(conv.utf8.encode('Internal Server Error')));
@@ -770,6 +785,8 @@ $requestPrelude$policyGate$contextPrelude
           body: Stream<List<int>>.value(conv.utf8.encode(conv.jsonEncode(result))));
     } catch (e, st) {
 $contextFailed
+      // Written before anything else in the error path, and never throws.
+      core.DVServerCrashes.record(e, st);
       stderr.writeln('[dartvel backend] ERROR in ${method.toUpperCase()} $path: \${e.toString()}');
       stderr.writeln(st);
       return dv.Response(500, body: Stream<List<int>>.value(conv.utf8.encode('Internal Server Error')));
@@ -904,6 +921,9 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   // deployment's processes share -- the database DATABASE_URL names. Without
   // them a job a backend function dispatched went on a queue inside this
   // process, which no worker could see.
+  // Crash reporting, labelled with this process's role, before anything
+  // that can fail a request.
+  _dartvelInstallServerCrashes(processConfiguration.role);
   registerDartvelJobs();
   final core.DVProcessStores stores = core.DVProcessStores.install();
   if (processConfiguration.roleDeclared && !const core.DVQueues().adapterConfigured) {
@@ -956,6 +976,49 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
 /// The schedule timer this process started, so a stopped process stops it.
 Timer? _dartvelScheduleTimer;
 
+bool _dartvelServerCrashesInstalled = false;
+
+/// Installs crash reporting in this server process, as [role].
+///
+/// Records go in DARTVEL_CRASH_DIR, else `.dartvel/crashes` beside the
+/// application, and the server's install id is kept beside them. A request
+/// that answers 500, a schedule that throws and a job dead-lettered after its
+/// last attempt are each recorded as unhandled. A process that cannot install
+/// it says so and serves anyway: crash reporting is not a reason to be down.
+void _dartvelInstallServerCrashes(core.DVProcessRole role) {
+  if (_dartvelServerCrashesInstalled) return;
+  _dartvelServerCrashesInstalled = true;
+  try {
+    final String directory = core.dvServerCrashDirectoryFor(
+      appId: '$pkgName',
+      environment: Platform.environment,
+      currentDirectory: Directory.current.path,
+      tempDirectory: Directory.systemTemp.path,
+    );
+    final File idFile = File('\$directory/install-id');
+    String installId = idFile.existsSync() ? idFile.readAsStringSync().trim() : '';
+    if (!RegExp(r'^[0-9a-f]{32}\$').hasMatch(installId)) {
+      installId = core.dvAnalyticsRandomId();
+      Directory(directory).createSync(recursive: true);
+      idFile.writeAsStringSync(installId, flush: true);
+    }
+    core.DVServerCrashes.install(
+      appId: '$pkgName',
+      release: '${esc(crashRelease)}',
+      role: role,
+      store: core.DVFileCrashStore(directory),
+      installId: installId,
+      // dartvel.crashes, as the build checked it.
+      config: core.DVCrashConfig.parse(conv.jsonDecode(r'${jsonEncode(crashes.toDeclaration())}')),
+      ${servesCrashes ? '// Kept in this application\'s own table, as its clients\' reports are.\n      sink: core.DVCrashSink.repository(core.DVDatabaseCrashReportRepository.application()),' : '// No sink declared: reports are kept here and nowhere else.'}
+      platform: Platform.operatingSystem,
+    );
+    core.DVQueues.onJobDeadLettered = core.DVServerCrashes.record;
+  } on Object catch (error) {
+    stderr.writeln('dartvel: crash reporting could not be installed in this process (\${error.runtimeType}); its unhandled errors are not recorded.');
+  }
+}
+
 /// Runs the backend as what this process was told to be.
 ///
 /// The one entry point every deployment starts: `.dart_tool/dartvel_server.dart`
@@ -995,6 +1058,8 @@ Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPr
       // preview's worker must consume the preview's queues, and a module's
       // models resolve their tables the same way in a job as in a request.
       core.DVPreviewServer.start(Platform.environment, membership: previewMembership);
+      // A job that fails until it is dead-lettered is this worker's crash.
+      _dartvelInstallServerCrashes(process.role);
       registerDartvelModules();$tenancyConfiguration
       registerDartvelAITools();
       // The codecs and the handlers a server can run, and the queue this
@@ -1023,6 +1088,8 @@ Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPr
       }
     case core.DVProcessRole.cron:
       core.DVPreviewServer.start(Platform.environment, membership: previewMembership);
+      // A schedule that throws is this cron process's crash.
+      _dartvelInstallServerCrashes(process.role);
       registerDartvelModules();$tenancyConfiguration
       registerDartvelAITools();
       // A schedule may dispatch a job, and that job has to reach the worker.
@@ -2099,7 +2166,9 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       ..writeln('  DVScheduleLease? lease,')
       ..writeln('}) {')
       ..writeln('  if (dartvelBackendCronEntries.isEmpty) return null;')
-      ..writeln('  final DVScheduler scheduler = DVScheduler(clock: clock, lease: lease)')
+      // A schedule that throws is recorded as the cron process's crash, not
+      // only appended to a list nothing in a served process reads.
+      ..writeln('  final DVScheduler scheduler = DVScheduler(clock: clock, lease: lease, onFailure: DVServerCrashes.recordScheduled)')
       ..writeln('    ..registerAll(')
       ..writeln('      dartvelBackendCronEntries,')
       ..writeln('      handlers: dartvelBackendCronHandlers,')

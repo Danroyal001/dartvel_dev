@@ -320,6 +320,11 @@ class DVCrashContext {
   /// that could be mistaken for one.
   final String? userId;
 
+  /// The role of the server process the report came from -- `web`, `worker`
+  /// or `cron` -- when it came from one. One binary runs as all three, and a
+  /// report that does not say which sends an operator to the wrong logs.
+  final String? role;
+
   const DVCrashContext({
     required this.release,
     required this.installId,
@@ -330,6 +335,7 @@ class DVCrashContext {
     this.locale,
     this.cohort,
     this.userId,
+    this.role,
   });
 
   Map<String, Object?> toJson() => <String, Object?>{
@@ -342,6 +348,7 @@ class DVCrashContext {
         if (locale != null) 'locale': locale,
         if (cohort != null) 'cohort': cohort,
         if (userId != null) 'userId': userId,
+        if (role != null) 'role': role,
       };
 
   static DVCrashContext fromJson(Map<String, Object?> json) => DVCrashContext(
@@ -354,6 +361,7 @@ class DVCrashContext {
         locale: json['locale'] as String?,
         cohort: json['cohort'] as String?,
         userId: json['userId'] as String?,
+        role: json['role'] as String?,
       );
 }
 
