@@ -3228,7 +3228,7 @@ DV.currentTenant // alias for DV.Tenants.currentTenant
 
 # Organizations, Membership and Invitations
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
 
 Multi-tenancy resolves a tenant and filters every query by it. It says nothing
 about the people inside one. Organizations, roles per organization,
