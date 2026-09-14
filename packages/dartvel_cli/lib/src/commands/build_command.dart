@@ -60,6 +60,8 @@ import '../utils/build_runner.dart';
 import '../generators/client_generator.dart' show ClientGenerator;
 import '../utils/logger.dart';
 import '../utils/toolchain.dart';
+import '../utils/android_sdk.dart' show dvAndroidSdkInstalled;
+import '../devclient/dev_client_project.dart';
 
 // Re-exported: DVRenderBackend moved beside the other build helpers so the
 // client generator can name it without importing a command, and every caller
@@ -530,9 +532,65 @@ class BuildCommand extends Command<void> {
     );
   }
 
+  /// Builds a dev-client shell for [target], or says why not before writing
+  /// anything.
+  Future<void> _buildDevClient(String root, String? target) async {
+    if (target == null || target.trim().isEmpty) {
+      Logger.log('❌ Name the platform: dartvel build dev-client --target '
+          '${dvDevClientTargets.join('|')}');
+      exitCode = 64; // EX_USAGE
+      return;
+    }
+    final DVDevClientBuildPlan plan = dvDevClientBuildPlan(
+      root: root,
+      target: target,
+      host: Platform.operatingSystem,
+      onPath: _isOnPath,
+      androidSdkInstalled: target == 'android' && dvAndroidSdkInstalled(),
+    );
+    if (!plan.ok) {
+      Logger.log('❌ Cannot build a $target dev-client shell:');
+      for (final String problem in plan.problems) {
+        Logger.log('   $problem');
+      }
+      exitCode = 78; // EX_CONFIG
+      return;
+    }
+
+    File(plan.entrypointPath)
+      ..createSync(recursive: true)
+      ..writeAsStringSync(plan.entrypointSource);
+    Logger.log('🔨 Building a $target dev-client shell with '
+        '${plan.manifest.bindings.length} recorded bindings...');
+    final ProcessResult result = await _processRun(
+      plan.executable,
+      plan.arguments,
+      workingDirectory: root,
+      runInShell: true,
+    );
+    if (result.exitCode != 0) {
+      Logger.log('❌ ${plan.executable} exited ${result.exitCode}');
+      final String error = '${result.stderr}'.trim();
+      if (error.isNotEmpty) Logger.log(error);
+      exitCode = result.exitCode;
+      return;
+    }
+    Logger.log('✅ Dev-client shell built. It is for internal tracks only; '
+        '`dartvel publish` refuses it anywhere else.');
+  }
+
   @override
   Future<void> run() async {
     final root = Directory.current.path;
+
+    // `dartvel build dev-client --target <platform>`. Here --target names the
+    // platform, as the specification writes it, rather than an entrypoint: a
+    // shell has one entrypoint and it is generated.
+    final List<String> rest = argResults?.rest ?? const <String>[];
+    if (rest.isNotEmpty && rest.first == 'dev-client') {
+      await _buildDevClient(root, argResults?['target'] as String?);
+      return;
+    }
 
     final String rawPlatform;
     try {
