@@ -870,7 +870,7 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
                       ? 'Sampled over ${opsLong(Duration(microseconds: (level.objective.over.inMicroseconds * coverage).round()))} '
                             'of ${opsLong(level.objective.over)}, with no '
                             'requests to measure'
-                      : 'Measured over${opsLong(Duration(microseconds: (level.objective.over.inMicroseconds * coverage).round()))} '
+                      : 'Measured over ${opsLong(Duration(microseconds: (level.objective.over.inMicroseconds * coverage).round()))} '
                             'of ${opsLong(level.objective.over)}',
                   size: 11.5,
                   color: DVStudioStyle.faint,
