@@ -1,4 +1,16 @@
 ## Unreleased
+- **`dartvel routes` fails on a route both the host router and a page define
+  (DV-ADOPT-002), and on a model that already has a generated serializer
+  (DV-ADOPT-003).** Both are checked before anything is written. Host routes
+  are read from `GoRoute(path: ...)` calls, with nested routes joined to their
+  parent, shell routes not prefixing, and parameter names ignored when
+  comparing; a path that is not a plain string literal is logged as unchecked
+  rather than passed. A model conflicts when `@freezed`, `@JsonSerializable`
+  or `@MappableClass` sits anywhere in its annotation stack, or the class
+  refers to generated `_$Name` code. Previously `@DVModel()` above
+  `@freezed` generated no model at all and said nothing, because the model
+  generator's pattern steps over `@pragma` only.
+
 - **`dartvel init` adds Dartvel to a project that already exists, and is no
   longer an alias of `create`.** As an alias it replaced the adopting
   project's pubspec with the scaffold template. It now inserts the Dartvel
