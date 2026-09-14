@@ -4039,7 +4039,7 @@ testable behavior so tests do not pass through ignored or empty AI paths.
 
 # AI Operations
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
 
 The AI section wires intelligence into an application. This is what happens to
 that feature after it ships: the prompt changes and nobody can say what it used
