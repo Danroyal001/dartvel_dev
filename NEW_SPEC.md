@@ -2182,7 +2182,7 @@ No manual endpoint creation, but available if needed.
 
 # Platform API: Keys, Scopes and OAuth Provider
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
 
 APIs generates RPC, REST, GraphQL and OpenAPI for the application's own
 clients, which are trusted: they ship with the application and authenticate as
