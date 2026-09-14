@@ -1,5 +1,43 @@
 ## Unreleased
 
+- **The processes of a deployment share a store, from `DATABASE_URL`.**
+  `DVProcessStores.install` reads `DATABASE_URL` (and `DARTVEL_DATABASE`)
+  through `DV.Secrets` -- environment, then systemd credentials, then `.env`
+  -- configures `DV.Database` from it unless something already did (a
+  preview does, and its adapter is reused rather than a second connection
+  opened), and puts `DVQueues` on that database with `DVDatabaseQueueAdapter`
+  unless an adapter was already configured. Without `DATABASE_URL` it
+  installs nothing; a `DATABASE_URL` it cannot read throws
+  `DVProcessConfigurationError` without repeating the URL.
+  `scheduleLeaseFor(process)` is a `DVDatabaseScheduleLease` on that database
+  for any process that ticks the schedules, and null for one that ticks none
+  or was told `DARTVEL_SCHEDULE_LEASE=none`. A declared `cron` process with no
+  shared store throws instead of starting: nothing in the process can tell
+  whether it is the only cron process, and a second one fires every schedule
+  again rather than failing.
+- **`DVDatabaseScheduleLease` claims an occurrence in the application's
+  database.** A row keyed to the task and the occurrence's instant in UTC in
+  `dartvel_schedule_leases`, so the database's uniqueness decides between two
+  processes on Postgres, MySQL or a SQLite file; an insert that fails is a
+  lost claim only when the row is there afterwards, and otherwise rethrows, so
+  the scheduler records it and runs nothing. Held for `hold` (two days) and
+  never released.
+- **`DVProcessHealth.serve` is the health endpoint of a worker or cron
+  process.** `GET` and `HEAD /healthz` answer `200 {"status": "ok", "role":
+  ...}`; every other path is 404 and every other method 405, so the port
+  serves nothing of the application.
+- **`DVProcessConfiguration` reads `DARTVEL_HEALTH_PORT`,
+  `DARTVEL_SCHEDULE_LEASE` and `--max-jobs`.** `healthPort` is validated like
+  `DARTVEL_PORT` and refused for a web process, which answers on its own
+  port. `scheduleLeaseWaived` takes only `none`, and is refused for a process
+  that ticks nothing. `maxJobs` is a worker's `--max-jobs`, at least 1, and is
+  refused for any other role.
+- **`DVQueueWorker.run` returns how many jobs completed and takes `maxJobs`,**
+  returning once that many completed or a pass completed none.
+- `DVDatabase.configuredAdapter` is the adapter `configure` was given, or
+  null, without resolving a tenant's database or throwing.
+  `DVTestHarness.unconfigureQueues` returns `DVQueues` to a process that
+  configured nothing.
 - **Two workers on one database queue no longer run a job twice.**
   `DVDatabaseQueueAdapter.reserve` read the next queued row and then marked
   it by id, so two workers polling one table both read the row before either

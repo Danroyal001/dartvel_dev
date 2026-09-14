@@ -171,6 +171,8 @@ export 'src/platform_config.dart';
 export 'src/preview/preview.dart';
 export 'src/privacy/privacy.dart';
 export 'src/process/process_configuration.dart';
+export 'src/process/process_health.dart';
+export 'src/process/process_stores.dart';
 export 'src/process/queue_worker.dart';
 export 'src/protocol/protocol.dart';
 export 'src/queues/amqp_queue.dart';
@@ -4167,6 +4169,15 @@ class DVTestHarness {
 
   void resetQueues() {
     fakeQueue();
+  }
+
+  /// Returns queues to a process that configured nothing: the process-local
+  /// default adapter, no handlers, and [DVQueues.adapterConfigured] false.
+  /// [resetQueues] installs a fake, which counts as configured.
+  void unconfigureQueues() {
+    DVQueues._adapter = DVInMemoryQueueAdapter();
+    DVQueues._adapterConfigured = false;
+    DVQueues._handlers.clear();
   }
 
   void resetSignals() {

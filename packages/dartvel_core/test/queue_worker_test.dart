@@ -101,6 +101,34 @@ void main() {
       expect(handled, <String>['good']);
     });
 
+    test('with maxJobs it stops after that many, or once the queues are empty',
+        () async {
+      // `dartvel queue work --max-jobs` drains a bounded number and exits; a
+      // worker that ignored the bound would never return to the shell, and
+      // one that returned early would leave jobs it was told to run.
+      const DVQueues().register<Welcome>((Welcome job) async {
+        handled.add(job.userId);
+      });
+      for (final String id in <String>['a', 'b', 'c']) {
+        await const DVQueues().dispatch(Welcome(id));
+      }
+
+      final int first = await DVQueueWorker(
+        queues: const <String>['default'],
+        idle: const Duration(milliseconds: 5),
+      ).run(maxJobs: 2).timeout(const Duration(seconds: 5));
+      expect(first, 2);
+      expect(handled, hasLength(2));
+      expect(await adapter.pending('default'), hasLength(1));
+
+      final int rest = await DVQueueWorker(
+        queues: const <String>['default'],
+        idle: const Duration(milliseconds: 5),
+      ).run(maxJobs: 5).timeout(const Duration(seconds: 5));
+      expect(rest, 1);
+      expect(handled, unorderedEquals(<String>['a', 'b', 'c']));
+    });
+
     test('no queues is refused', () {
       expect(
         () => DVQueueWorker(queues: const <String>[]),

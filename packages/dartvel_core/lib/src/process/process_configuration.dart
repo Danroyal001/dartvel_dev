@@ -39,6 +39,9 @@ final class DVProcessConfiguration {
     required this.roleDeclared,
     required this.port,
     this.queues = const <String>[],
+    this.healthPort,
+    this.scheduleLeaseWaived = false,
+    this.maxJobs,
   });
 
   final DVProcessRole role;
@@ -51,6 +54,19 @@ final class DVProcessConfiguration {
 
   /// The queues a worker works, in order. Empty for any other role.
   final List<String> queues;
+
+  /// Where a worker or a cron process answers `GET /healthz`, from
+  /// `DARTVEL_HEALTH_PORT`. Null serves no health endpoint, which is the
+  /// default: a port nobody asked for is a port somebody has to firewall.
+  final int? healthPort;
+
+  /// Whether `DARTVEL_SCHEDULE_LEASE=none` said this is the only process
+  /// ticking the schedules, so no lease is claimed.
+  final bool scheduleLeaseWaived;
+
+  /// For a worker, `--max-jobs`: stop once that many jobs have completed or
+  /// a pass completes none, rather than working until stopped.
+  final int? maxJobs;
 
   /// Only the web role answers HTTP.
   bool get servesHttp => role == DVProcessRole.web;
@@ -105,18 +121,9 @@ final class DVProcessConfiguration {
       role = named;
     }
 
-    int port = generatedPort;
     final String? rawPort = environment['DARTVEL_PORT'];
-    if (rawPort != null) {
-      final int? parsed = _digits.hasMatch(rawPort) ? int.parse(rawPort) : null;
-      if (parsed == null || parsed < 1 || parsed > 65535) {
-        throw DVProcessConfigurationError(
-          'DARTVEL_PORT is "$rawPort", which is not a port (a whole number from '
-          '1 to 65535). The backend does not start on another port instead.',
-        );
-      }
-      port = parsed;
-    }
+    final int port =
+        rawPort == null ? generatedPort : _port('DARTVEL_PORT', rawPort);
 
     final String? rawQueues = environment['DARTVEL_QUEUE'];
     List<String> queues = const <String>[];
@@ -140,12 +147,93 @@ final class DVProcessConfiguration {
       queues = const <String>['default'];
     }
 
+    final String? rawHealth = environment['DARTVEL_HEALTH_PORT'];
+    int? healthPort;
+    if (rawHealth != null) {
+      if (role == DVProcessRole.web) {
+        throw const DVProcessConfigurationError(
+          'DARTVEL_HEALTH_PORT is set for a web process, which answers on '
+          'DARTVEL_PORT. Only a worker or a cron process, which serve nothing '
+          'else, serve a separate health endpoint.',
+        );
+      }
+      healthPort = _port('DARTVEL_HEALTH_PORT', rawHealth);
+    }
+
+    final bool ticks = role == DVProcessRole.cron ||
+        (role == DVProcessRole.web && declared == null);
+    final String? rawLease = environment['DARTVEL_SCHEDULE_LEASE'];
+    if (rawLease != null) {
+      if (rawLease != 'none') {
+        throw DVProcessConfigurationError(
+          'DARTVEL_SCHEDULE_LEASE is "$rawLease". The one value it takes is '
+          'none, which says this is the only process ticking the schedules '
+          'and no lease is claimed; unset, the lease is the shared database.',
+        );
+      }
+      if (!ticks) {
+        throw DVProcessConfigurationError(
+          'DARTVEL_SCHEDULE_LEASE is set for a ${role.name} process, which '
+          'ticks no schedule. It belongs on the DARTVEL_ROLE=cron process.',
+        );
+      }
+    }
+
+    final int? maxJobs = _maxJobsArgument(arguments);
+    if (maxJobs != null && role != DVProcessRole.worker) {
+      throw DVProcessConfigurationError(
+        '--max-jobs is given to a ${role.name} process, which works no queue. '
+        'It bounds a DARTVEL_ROLE=worker process.',
+      );
+    }
+
     return DVProcessConfiguration(
       role: role,
       roleDeclared: declared != null,
       port: port,
       queues: queues,
+      healthPort: healthPort,
+      scheduleLeaseWaived: rawLease != null,
+      maxJobs: maxJobs,
     );
+  }
+
+  static int _port(String name, String raw) {
+    final int? parsed = _digits.hasMatch(raw) ? int.parse(raw) : null;
+    if (parsed == null || parsed < 1 || parsed > 65535) {
+      throw DVProcessConfigurationError(
+        '$name is "$raw", which is not a port (a whole number from 1 to '
+        '65535). The backend does not start on another port instead.',
+      );
+    }
+    return parsed;
+  }
+
+  static final RegExp _count = RegExp(r'^[0-9]{1,9}$');
+
+  static int? _maxJobsArgument(List<String> arguments) {
+    int? maxJobs;
+    for (int i = 0; i < arguments.length; i++) {
+      final String argument = arguments[i];
+      String? value;
+      if (argument.startsWith('--max-jobs=')) {
+        value = argument.substring('--max-jobs='.length);
+      } else if (argument == '--max-jobs') {
+        value = i + 1 < arguments.length ? arguments[++i] : null;
+      } else {
+        continue;
+      }
+      final int? parsed =
+          value != null && _count.hasMatch(value) ? int.parse(value) : null;
+      if (parsed == null || parsed < 1) {
+        throw DVProcessConfigurationError(
+          '--max-jobs is ${value == null ? 'given no value' : '"$value"'}. It '
+          'is a whole number of jobs, at least 1.',
+        );
+      }
+      maxJobs = parsed;
+    }
+    return maxJobs;
   }
 
   static String? _roleArgument(List<String> arguments) {
