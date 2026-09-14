@@ -280,7 +280,7 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
               Expanded(
                 child: opsText('Incidents', size: 14, weight: FontWeight.w600),
               ),
-              Flexible(
+              opsTrailing(
                 child: opsBadge(
                   '${open.length + monitoring.length} open',
                   tone: open.isEmpty && monitoring.isEmpty
@@ -478,7 +478,7 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
                 ),
               ),
               const SizedBox(width: DVStudioStyle.space2),
-              Flexible(
+              opsTrailing(
                 child: opsBadge(opsIncidentLabel(incident.status), tone: tone),
               ),
             ],
@@ -857,7 +857,7 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
                         ),
                 ),
                 const SizedBox(width: DVStudioStyle.space2),
-                Flexible(
+                opsTrailing(
                   child: studioActionControl(
                     'dv-studio-incident-post',
                     public ? 'Post public update' : 'Add note',
@@ -993,7 +993,7 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
                   ),
                 ),
                 const SizedBox(width: DVStudioStyle.space2),
-                Flexible(
+                opsTrailing(
                   child: studioActionControl(
                     'dv-studio-incident-rename',
                     'Rename',
@@ -1108,7 +1108,7 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
                   ),
                 ),
                 const SizedBox(width: DVStudioStyle.space2),
-                Flexible(
+                opsTrailing(
                   child: studioActionControl(
                     'dv-studio-incident-resolve',
                     'Resolve incident',
@@ -1456,7 +1456,7 @@ class StudioStatusPreview extends StatelessWidget {
                                   ),
                                 ),
                                 const SizedBox(width: DVStudioStyle.space2),
-                                Flexible(
+                                opsTrailing(
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: <Widget>[
