@@ -355,6 +355,7 @@ import 'package:$pkgName/dartvel_client/model_pages.g.dart' show dartvelModelPag
 import 'package:$pkgName/dartvel_client/modules_data.g.dart' show registerDartvelModules;
 import 'package:$pkgName/dartvel_client/schedules.g.dart' show dartvelBackendCronEntries, dartvelStartBackendSchedules;
 import 'package:$pkgName/dartvel_client/ai_tools.g.dart' show registerDartvelAITools;
+import 'package:$pkgName/dartvel_client/jobs.g.dart' show dartvelClientOnlyJobHandlers, registerDartvelJobs;
 ${backendImports.join('\n')}
 
 // The generated OpenAPI document, served at cfg.apiBasePath + '/openapi.json'.
@@ -840,6 +841,15 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   if (!processConfiguration.servesHttp) {
     throw StateError('This process is DARTVEL_ROLE=\${processConfiguration.role.name}, which serves no HTTP, so startBackend will not serve the application from it. dartvelMain starts what each role runs.');
   }
+  // Every @DVJob codec and every handler a server can run, and the store this
+  // deployment's processes share -- the database DATABASE_URL names. Without
+  // them a job a backend function dispatched went on a queue inside this
+  // process, which no worker could see.
+  registerDartvelJobs();
+  final core.DVProcessStores stores = core.DVProcessStores.install();
+  if (processConfiguration.roleDeclared && !const core.DVQueues().adapterConfigured) {
+    stderr.writeln('dartvel: DARTVEL_ROLE=web and DATABASE_URL is not set, so a job dispatched here goes on a queue inside this process and no DARTVEL_ROLE=worker process will run it.');
+  }
   // The modules this application mounts, before anything is served. The
   // registry decides where a schema-isolated module's tables are and which
   // database its models use, and a backend that registered nothing saw
@@ -862,7 +872,9 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   // them ticking would fire each schedule once per instance.
   if (processConfiguration.ticksSchedules) {
     _dartvelScheduleTimer?.cancel();
-    _dartvelScheduleTimer = dartvelStartBackendSchedules(every: scheduleTick, clock: scheduleClock, lease: scheduleLease);
+    // Claimed in the shared database when there is one: a whole deployment
+    // scaled to two instances is two processes ticking.
+    _dartvelScheduleTimer = dartvelStartBackendSchedules(every: scheduleTick, clock: scheduleClock, lease: scheduleLease ?? stores.scheduleLeaseFor(processConfiguration));
   } else if (dartvelBackendCronEntries.isNotEmpty) {
     stdout.writeln('dartvel: DARTVEL_ROLE=web, so this process does not tick the \${dartvelBackendCronEntries.length} backend schedule(s); the DARTVEL_ROLE=cron process runs them.');
   }
@@ -888,11 +900,18 @@ Timer? _dartvelScheduleTimer;
 ///  * `web`, and a process given no role: serves on DARTVEL_PORT, else the
 ///    generated port. Given no role it is the whole deployment and ticks the
 ///    schedules; declared `web` it leaves them to the cron process.
-///  * `worker`: works the DVQueues jobs in DARTVEL_QUEUE and serves nothing.
-///    It refuses to start with no queue adapter or no job handler registered,
-///    so whatever configures them runs before this.
-///  * `cron`: ticks the schedules, claiming each occurrence through
-///    [scheduleLease] when one is given, and serves nothing.
+///  * `worker`: works the DVQueues jobs in DARTVEL_QUEUE on the database
+///    DATABASE_URL names, with every @DVJob handler a server can run, and
+///    serves nothing. It refuses to start with no DATABASE_URL, where it
+///    could never receive a job, and with no handler it can run. `--max-jobs`
+///    returns once that many completed.
+///  * `cron`: ticks the schedules, claiming each occurrence in that database
+///    (or through [scheduleLease]), and serves nothing. It refuses to start
+///    with no DATABASE_URL, where a second cron process would fire every
+///    schedule again, unless DARTVEL_SCHEDULE_LEASE=none says it is alone.
+///
+/// A worker or cron process given DARTVEL_HEALTH_PORT answers GET /healthz
+/// there, and nothing else.
 ///
 /// Throws core.DVProcessConfigurationError, before anything starts, for a
 /// role, port or queue it cannot honour. Returns when [until] completes.
@@ -913,17 +932,64 @@ Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPr
       core.DVPreviewServer.start(Platform.environment, membership: previewMembership);
       registerDartvelModules();$tenancyConfiguration
       registerDartvelAITools();
+      // The codecs and the handlers a server can run, and the queue this
+      // deployment's processes share. Neither was here, because the jobs
+      // file imported dartvel_flutter, so every worker refused to start.
+      registerDartvelJobs();
+      core.DVProcessStores.install();
+      if (!const core.DVQueues().adapterConfigured) {
+        throw const core.DVProcessConfigurationError('DARTVEL_ROLE=worker has no queue adapter: DATABASE_URL is not set, so no queue is shared with the processes that dispatch jobs, and this worker would never receive one.');
+      }
+      for (final MapEntry<String, String> skipped in dartvelClientOnlyJobHandlers.entries) {
+        stderr.writeln('dartvel worker: \${skipped.key} jobs cannot run in this process: \${skipped.value}.');
+      }
+      if (!const core.DVQueues().hasHandlers) {
+        throw const core.DVProcessConfigurationError('DARTVEL_ROLE=worker and no @DVJob.handler this server can run is registered, so every job it reserved would be dead-lettered.');
+      }
+      final core.DVProcessHealth? workerHealth = await _dartvelServeHealth(process);
       stdout.writeln('dartvel worker working \${process.queues.join(', ')}');
-      await core.DVQueueWorker(queues: process.queues).run(until: stopped);
+      try {
+        final int done = await core.DVQueueWorker(queues: process.queues).run(until: stopped, maxJobs: process.maxJobs);
+        if (process.maxJobs != null) {
+          stdout.writeln('Processed \$done job(s) from \${process.queues.join(', ')}.');
+        }
+      } finally {
+        await workerHealth?.close();
+      }
     case core.DVProcessRole.cron:
       core.DVPreviewServer.start(Platform.environment, membership: previewMembership);
       registerDartvelModules();$tenancyConfiguration
       registerDartvelAITools();
-      final Timer? timer = dartvelStartBackendSchedules(every: scheduleTick, clock: scheduleClock, lease: scheduleLease);
+      // A schedule may dispatch a job, and that job has to reach the worker.
+      registerDartvelJobs();
+      final core.DVProcessStores stores = core.DVProcessStores.install();
+      // Each occurrence claimed in the shared database, so a second cron
+      // process fires nothing twice. With none shared this throws rather than
+      // start, unless DARTVEL_SCHEDULE_LEASE=none says this one is alone.
+      final core.DVScheduleLease? lease = scheduleLease ?? stores.scheduleLeaseFor(process);
+      if (lease == null) {
+        stdout.writeln('dartvel cron: DARTVEL_SCHEDULE_LEASE=none, so no occurrence is claimed; a second cron process would fire every schedule again.');
+      } else if (stores.connection?.engine == core.DVDatabaseEngine.sqlite) {
+        stdout.writeln('dartvel cron: occurrences are claimed in a SQLite file, which only the processes of this host share.');
+      }
+      final core.DVProcessHealth? cronHealth = await _dartvelServeHealth(process);
+      final Timer? timer = dartvelStartBackendSchedules(every: scheduleTick, clock: scheduleClock, lease: lease);
       stdout.writeln(timer == null ? 'dartvel cron: this application declares no backend schedule' : 'dartvel cron ticking \${dartvelBackendCronEntries.length} backend schedule(s)');
       await stopped;
       timer?.cancel();
+      await cronHealth?.close();
   }
+}
+
+/// A worker or cron process's health endpoint, on DARTVEL_HEALTH_PORT when
+/// it was given one. Off by default: a port nobody asked for is a port
+/// somebody has to firewall.
+Future<core.DVProcessHealth?> _dartvelServeHealth(core.DVProcessConfiguration process) async {
+  final int? port = process.healthPort;
+  if (port == null) return null;
+  final core.DVProcessHealth health = await core.DVProcessHealth.serve(host: cfg.backendHost, port: port, role: process.role);
+  stdout.writeln('dartvel \${process.role.name} health on http://\${cfg.backendHost}:\${health.port}/healthz');
+  return health;
 }
 ''';
     File(p.join(backendOut.path, 'dartvel_backend_routes.g.dart'))
@@ -940,7 +1006,9 @@ Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPr
 //   dart compile exe .dart_tool/dartvel_server.dart -o server
 // One binary, run as the web server, a queue worker or the schedules:
 // DARTVEL_ROLE (or --role) is web, worker or cron, DARTVEL_PORT is the port a
-// web process binds, and DARTVEL_QUEUE the queues a worker works.
+// web process binds, and DARTVEL_QUEUE the queues a worker works. DATABASE_URL
+// is what the processes share: the queue, and the claim on each schedule
+// occurrence. DARTVEL_HEALTH_PORT gives a worker or cron process /healthz.
 import 'dart:io';
 
 import 'package:dartvel_core/dartvel.dart' as core;
