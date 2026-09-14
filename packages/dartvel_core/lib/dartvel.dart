@@ -8,6 +8,7 @@ import 'package:http_parser/http_parser.dart';
 import 'package:mime/mime.dart';
 
 import 'src/ai/ai.dart';
+import 'src/auth/api_scopes.dart';
 import 'src/secrets/secrets.dart';
 import 'src/database/adapter.dart';
 import 'src/billing/invoice.dart';
@@ -33,8 +34,11 @@ export 'src/ai/prompts.dart';
 export 'src/alerting/alerting.dart';
 export 'src/analytics/analytics.dart';
 export 'src/annotations/annotations.dart';
+export 'src/auth/api_keys.dart';
+export 'src/auth/api_scopes.dart';
 export 'src/auth/auth.dart';
 export 'src/auth/backend_policy.dart';
+export 'src/auth/secret_hash.dart';
 export 'src/billing/invoice.dart';
 export 'src/billing/money.dart';
 export 'src/billing/paddle.dart';
@@ -3880,9 +3884,25 @@ class DVAuthAuthorization {
     String action,
     TResource resource,
   ) async {
+    if (_outsideScopes<TResource>(user, action) != null) return false;
     final check = _policies['$action:${TResource.toString()}'];
     if (check == null) return false;
     return check(user, resource);
+  }
+
+  /// A third-party caller's scopes are the policy context: an action they do
+  /// not cover is refused here, before the policy runs, so a scope can narrow
+  /// what a policy allows and never widen it (`DV-APIKEY-002`).
+  static DVApiScopeRefused? _outsideScopes<TResource>(
+    Object? user,
+    String action,
+  ) {
+    if (user is! DVScopedPrincipal) return null;
+    final String name = DVApiScopes.actionName('$TResource', action);
+    if (user.permits(name)) return null;
+    final DVApiScopeRefused refused = DVApiScopeRefused(name, user.scopes);
+    DVObservability.logger.warn('$refused');
+    return refused;
   }
 
   Future<void> authorize<TUser, TResource>(
@@ -3890,6 +3910,9 @@ class DVAuthAuthorization {
     String action,
     TResource resource,
   ) async {
+    final DVApiScopeRefused? refused =
+        _outsideScopes<TResource>(user, action);
+    if (refused != null) throw refused;
     if (!await can<TUser, TResource>(user, action, resource)) {
       throw StateError('Action "$action" is not authorized for $TResource.');
     }
