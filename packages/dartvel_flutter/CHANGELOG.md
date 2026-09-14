@@ -13,6 +13,23 @@
   `DVSceneCamera` is not the specification's `DVCamera`, which is already the
   device camera.
 
+- **`DVBox.video` and `DVBox.audio`.** A player is a box mode: the box's
+  element attaches a `DVMediaController` to the player the target registered
+  with `DVMediaBackends`, and disposes it with the page. A parent rebuilding
+  the box hands the new `DVBox.controller` handle to the running player; a new
+  source replaces it; a controller the application passes in outlives the
+  box. A target with no player bound, and the terminal, show the poster and
+  fail the controller with the reason. Standard controls read the signals,
+  media keys drive the player holding audio focus, and select and the arrows
+  map on a television. `DVBox.aspectRatio` holds a box's content to a ratio,
+  and `signal.watch(context)` reads a player signal in a build.
+  `DV.Platform.Media.recordAudio`/`recordVideo` record through the registered
+  capture backend and `DV.Platform.permissions`.
+  On Linux, `DVGStreamerPlayer` and `DVGStreamerCapture` play and record
+  through GStreamer over dart:ffi, registered by `DVLinuxBindings.register`.
+  Video frames are not yet drawn into Flutter there, and camera capture is not
+  implemented.
+
 - **`DV.Workers`.** The application's worker pool is reachable from a page as
   `DV.Workers`, the pool `DVWorkers.configure` installed, and the types a run
   hands back -- `DVWorkerResult`, `DVProgress`, `DVCancellation`,
