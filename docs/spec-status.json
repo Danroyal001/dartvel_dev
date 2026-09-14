@@ -328,7 +328,12 @@
     {
       "section": "Outbound Webhooks",
       "stability": "Draft",
-      "status": "Designed"
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_core/lib/src/webhooks/webhooks.dart",
+        "packages/dartvel_core/test/webhooks_test.dart"
+      ],
+      "absent": "The delivery runtime is built (DVWebhooks: declared events; per-subscription queues on DVQueues that always attempt the oldest undelivered delivery; concurrent drain, so a slow endpoint delays only itself; HTTPS-only endpoints refused at subscribe, at every attempt and at every redirect hop when they resolve to private, loopback, link-local, CGNAT, reserved or metadata addresses; public-JSON payloads with declared sensitive fields stripped; HMAC-SHA256 signing with keys from DVSecrets and a bounded two-signature rotation overlap; dead-lettering; disable after repeated failure; payload retention with the record kept and replay past the window refused). Absent: subscriptions, delivery records and payloads are held in process memory rather than DV.Database, so the record does not survive a restart; the connection is not pinned to the address that was checked, which leaves a DNS rebinding window between check and connect; subscriptions are not generated models and @DVWebhookEvents and @DVWebhookEvent are not generated, so DV-WEBHOOK-006 is raised at runtime rather than at build and DV-WEBHOOK-001 has nothing that emits it; model-lifecycle events are not wired; a subscription records no protocol version; the event catalog and consumer verification docs are not generated; there is no Studio delivery inspector; dartvel.webhooks is not read from pubspec.yaml; onDisabled is not wired to DV.Notifications; retention purge is not a scheduled job; draining is caller-driven with no standing worker and an in-flight depth of one per subscription; tenant is recorded but not enforced."
     },
     {
       "section": "Model Sync and Presence",
