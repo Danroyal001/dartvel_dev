@@ -227,7 +227,8 @@ abstract final class DVRollbackPlanner {
         refusals.add(
           '$migration has been contracted and ${to.id} was built for '
           '${expects?.name ?? 'the shape before it'}; it would read or write '
-          'what the contract dropped, and data is not rolled back',
+          'a shape the contract stopped keeping current, and data is not '
+          'rolled back',
         );
         continue;
       }
