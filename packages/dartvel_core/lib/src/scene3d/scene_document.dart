@@ -23,6 +23,7 @@ library dartvel.scene3d.document;
 import 'dart:convert';
 
 import '../media/image.dart';
+import 'scene_anchor.dart';
 import 'scene_math.dart';
 
 /// Thrown when a scene document is malformed. [path] names the value, e.g.
@@ -443,6 +444,7 @@ final class DVSceneNodeData {
     this.primitive,
     this.light,
     this.camera,
+    this.anchor,
     List<DVSceneNodeData> children = const <DVSceneNodeData>[],
     Map<String, Object?> extra = const <String, Object?>{},
   })  : transform = transform ?? DVTransform.identity,
@@ -546,6 +548,9 @@ final class DVSceneNodeData {
   final DVScenePrimitive? primitive;
   final DVSceneLight? light;
   final DVSceneCameraData? camera;
+
+  /// What in the real world this node is pinned to, if anything.
+  final DVAnchor? anchor;
   final List<DVSceneNodeData> children;
 
   /// Keys this version did not understand, written back unchanged.
@@ -555,13 +560,14 @@ final class DVSceneNodeData {
 
   static const Set<String> _known = <String>{
     'id', 'kind', 'name', 'transform', 'visible', 'asset', 'material',
-    'primitive', 'light', 'camera', 'children',
+    'primitive', 'light', 'camera', 'anchor', 'children',
   };
 
   DVSceneNodeData copyWith({
     DVTransform? transform,
     bool? visible,
     List<DVSceneNodeData>? children,
+    DVAnchor? anchor,
   }) =>
       DVSceneNodeData(
         id: id,
@@ -574,6 +580,7 @@ final class DVSceneNodeData {
         primitive: primitive,
         light: light,
         camera: camera,
+        anchor: anchor ?? this.anchor,
         children: children ?? this.children,
         extra: extra,
       );
@@ -597,6 +604,7 @@ final class DVSceneNodeData {
       if (primitive != null) 'primitive': primitive!.toJson(),
       if (light != null) 'light': light!.toJson(),
       if (camera != null) 'camera': camera!.toJson(),
+      if (anchor != null) 'anchor': anchor!.toJson(),
       if (children.isNotEmpty)
         'children': <Object?>[for (final DVSceneNodeData c in children) c.toJson()],
       ..._canonicalMap(extra),
@@ -640,6 +648,9 @@ final class DVSceneNodeData {
       camera: map['camera'] == null
           ? null
           : DVSceneCameraData.fromJson(map['camera'], '$path.camera'),
+      anchor: map['anchor'] == null
+          ? null
+          : DVAnchor.fromJson(map['anchor'], '$path.anchor'),
       children: <DVSceneNodeData>[
         for (int i = 0; i < childList.length; i++)
           DVSceneNodeData.fromJson(childList[i], '$path.children[$i]'),
