@@ -10,3 +10,4 @@ library dartvel_core.protocol;
 
 export 'compatibility.dart';
 export 'contract.dart';
+export 'handshake.dart';
