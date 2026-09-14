@@ -12,6 +12,7 @@ library dartvel.scheduling.scheduler;
 import 'dart:async';
 
 import '../../dartvel.dart' show DVCronEntry;
+import '../preview/preview_outbound.dart' show DVPreviewOutbound;
 import 'cron.dart';
 
 /// A task that failed, kept so the process can report it.
@@ -175,6 +176,14 @@ class DVScheduler {
       if (due.length >= task.maxCatchUp) break;
     }
     if (due.isEmpty) return;
+
+    // A preview runs only the schedules it declared. The occurrences are
+    // marked done rather than left due, so declaring a schedule later does
+    // not release a backlog of the week the preview sat open.
+    if (!DVPreviewOutbound.allowsSchedule(task.name)) {
+      task.lastRun = due.last;
+      return;
+    }
 
     // Without catch-up only the most recent occurrence runs, and the earlier
     // ones are marked done. Running them all is what turns a four-day absence
