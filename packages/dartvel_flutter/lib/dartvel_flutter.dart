@@ -41,6 +41,7 @@ import 'src/platform/terminal_size_web.dart'
     if (dart.library.io) 'src/platform/terminal_size_io.dart' as terminal_size;
 // DV.Updates.applyPages installs page bundles, which are these types.
 import 'src/pwa/install_prompt.dart';
+import 'src/scene3d/scene_viewport.dart';
 import 'src/seo_platform_memory.dart'
     if (dart.library.html) 'src/seo_platform_web.dart' as seo_platform;
 import 'src/studio/page_document.dart';
@@ -54,6 +55,55 @@ export 'package:dartvel_core/dartvel.dart'
         DVInt,
         DVMemory,
         DVMemoryBacking,
+        // 3D Scenes: the platform-independent runtime DVBox.scene drives --
+        // documents, the graph, cameras, picking, assets, the renderer
+        // adapter and its headless reference implementation.
+        DV3DDegradation,
+        DV3DSceneDocument,
+        DV3DSceneFormatException,
+        DVAabb,
+        DVGltf,
+        DVGltfFormatException,
+        DVGltfSummary,
+        DVMat4,
+        DVQuat,
+        DVRay,
+        DVScene3D,
+        DVSceneAsset,
+        DVSceneAssetChange,
+        DVSceneAssetDecode,
+        DVSceneAssetFailure,
+        DVSceneAssetFetch,
+        DVSceneAssetKind,
+        DVSceneAssetLoader,
+        DVSceneAssetPolicy,
+        DVSceneAssetRefusal,
+        DVSceneAssetSource,
+        DVSceneAssetState,
+        DVSceneAssetStatus,
+        DVSceneCameraData,
+        DVSceneDraw,
+        DVSceneFake,
+        DVSceneFrame,
+        DVSceneGraph,
+        DVSceneHandedness,
+        DVSceneLight,
+        DVSceneLightDraw,
+        DVSceneLightType,
+        DVSceneNodeData,
+        DVSceneNodeKind,
+        DVScenePick,
+        DVScenePrimitive,
+        DVScenePrimitiveShape,
+        DVSceneRecordingRenderer,
+        DVSceneRenderer,
+        DVSceneResource,
+        DVSceneRuntime,
+        DVSceneUnits,
+        DVSceneUpAxis,
+        DVSceneView,
+        DVTransform,
+        DVVec3,
         DVMemoryConfig,
         DVMemoryDiagnostic,
         DVMemoryException,
@@ -562,6 +612,8 @@ export 'src/routing/page_middleware.dart';
 export 'src/routing/page_policy.dart';
 export 'src/routing/route_prefetch.dart';
 export 'src/routing/url_strategy.dart';
+export 'src/scene3d/scene_nodes.dart';
+export 'src/scene3d/scene_viewport.dart';
 export 'src/studio/page_document.dart';
 export 'src/studio/studio_content.dart';
 export 'src/studio/studio_edit.dart';
@@ -1434,6 +1486,10 @@ WrapCrossAlignment dvWrapCrossAlignmentOf(DVCrossAlign align) =>
 typedef DVWidgetBuilder<T> = Widget Function(T item);
 
 class DVBox<T> extends StatelessWidget {
+  /// A 3D viewport: `DVBox.scene(DVScene(nodes: [...]))`. The box owns size,
+  /// modifiers, gestures and semantics; the scene owns the 3D content.
+  static const DVSceneBoxFactory scene = DVSceneBoxFactory();
+
   final Widget? _child;
   final List<Widget>? _children;
   final DVModifier? _modifier;
