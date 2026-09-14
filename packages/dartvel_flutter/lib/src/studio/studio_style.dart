@@ -891,6 +891,7 @@ abstract final class DVStudioIcons {
   static const IconData team = Icons.group_outlined;
   static const IconData figma = Icons.draw_outlined;
   static const IconData flags = Icons.flag_outlined;
+  static const IconData operations = Icons.monitor_heart_outlined;
   static const IconData settings = Icons.settings_outlined;
   static const IconData section = Icons.extension_outlined;
   static const IconData add = Icons.add;

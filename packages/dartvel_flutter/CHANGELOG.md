@@ -21,6 +21,22 @@
   the error instead of never completing. `DVConsentSpatialConsent` and
   `DVSpatialAnchorNotStored` are exported.
 
+- **Studio has an Operations section when it is given alerting or
+  incidents.** `DVStudioScreen(alerting:, incidents:)` adds it; with neither
+  there is no tab. The overview shows each service level's objective, success
+  rate, error budget left and burn over both windows ("No traffic" where the
+  runtime has nothing to divide, never 0×), the budget gate's decision, open
+  incidents and firing alerts. Alerts shows each rule as OK, pending, firing
+  or resolving, its signal against its threshold, its last episode, who each
+  delivery reached and who it missed and why, and `analyze()` findings as
+  warnings. Incidents lists open, monitoring and resolved incidents with their
+  timelines, and writes internal notes, public updates (previewed through
+  `DVStatusSnapshot.build`, so no internal entry can appear), public titles and
+  resolves (offered only in monitoring, as the actor) through `DVIncidents`,
+  showing a refusal where it happened. Status page renders the snapshot as the
+  public sees it, marked as a preview. `clock:` and `statusHealth:` set the
+  clock and the health report it reads.
+
 - **Volumes and immersive spaces are window kinds.**
   `DV.Platform.Window.open(route, options: DVWindowOptions(kind:
   DVWindowKind.volume))` and `kind: DVWindowKind.immersive, immersion:
