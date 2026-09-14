@@ -275,6 +275,31 @@ void main() {
       expect(outcome.verdict, DVGateVerdict.hold);
     });
 
+    test('an error budget whose window saw no requests holds, and says so '
+        'rather than claiming there were no samples', () async {
+      final DVServiceLevels levels = DVServiceLevels(onDiagnostic: (_, _) {});
+      const DVAppliesTo checkout = DVAppliesTo.backendFunction('checkout');
+      levels.add(
+        const DVServiceLevel(
+          name: 'checkout',
+          objective: DVObjective.successRate(0.999, over: Duration(hours: 1)),
+          applies: checkout,
+        ),
+      );
+      levels.source(
+        checkout,
+        () => const DVServiceLevelCounts(total: 0, failed: 0),
+      );
+      levels.sample(t0.subtract(const Duration(hours: 1)));
+      levels.sample(t1);
+      final DVGateOutcome outcome = await DVErrorBudgetReleaseGate(
+        DVErrorBudgetGate(levels),
+      ).evaluate(promotion());
+      expect(outcome.verdict, DVGateVerdict.hold);
+      expect(outcome.reason, contains('no requests'));
+      expect(outcome.reason, isNot(contains('no samples')));
+    });
+
     test('an error budget gate with no service levels holds', () async {
       final DVGateOutcome outcome = await DVErrorBudgetReleaseGate(
         DVErrorBudgetGate(DVServiceLevels(onDiagnostic: (_, _) {})),

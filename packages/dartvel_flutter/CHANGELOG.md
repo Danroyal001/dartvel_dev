@@ -1,5 +1,13 @@
 ## Unreleased
 
+- **A service level with no traffic shows its budget as not measured.** The
+  Operations overview showed "100% left" and a full green bar for a level
+  whose window saw no requests. It now reads "Not measured", with an empty,
+  neutral bar and no percentage, and its note says it was sampled with no
+  requests to measure. The Service levels count names how many are not
+  measured instead of saying every budget has room, and the Deploy gate tile
+  lists them rather than showing a clear green gate.
+
 - **A public update on an incident an alert named asks for a public title
   first.** Studio's composer shows a Public title field for an incident whose
   `titleSource` is not `human`, and Post stays disabled until it is filled;
