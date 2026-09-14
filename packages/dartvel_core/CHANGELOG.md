@@ -9,6 +9,25 @@
   storage and set by `update(actor:)` and `resolve(actor:)`; the public
   snapshot never carries it.
 
+- **Consent to keep world anchors comes from the application's consent
+  records.** `DVConsentSpatialConsent(consent, category:, anchors:)` answers
+  `DVSpatialConsent` from `DVConsent`: keeping a world anchor is agreed to
+  while the declared category is granted under the policy version in force,
+  so a grant recorded under an older version does not count, and sharing an
+  anchor is never agreed to here. A category that is required or granted by
+  default is refused at construction, since either is a grant nobody gave.
+  Its `anchors` store is the one to hand the runtime: a write runs only while
+  the agreement holds (`DVSpatialAnchorNotStored` otherwise), and a token read
+  after the agreement lapsed is deleted rather than returned. A withdrawal --
+  including one `DVConsent` could not record -- deletes every kept token, not
+  only the ones an open scene names; `enforce()`, called after `load()`,
+  deletes tokens kept under an agreement that lapsed while nothing was
+  listening. `privacyAdapter()` is the Data Compliance adapter `xr:anchors`:
+  an erasure of the install, or of a user its consent records name, deletes
+  the tokens, including when Product Analytics' consent adapter has already
+  replaced those ids with the pseudonym; an export lists the anchor ids and
+  never a token.
+
 - **A world anchor token that was not stored is not marked stored.** A
   session wrote the token the OS handed back and marked the anchor persisted
   before the write had succeeded, and the session's queue swallowed the
