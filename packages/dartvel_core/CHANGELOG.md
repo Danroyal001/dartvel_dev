@@ -38,6 +38,13 @@
   Recordings are created 0600 in a 0700 directory before the device writes.
   Backends, focus, DRM, permissions and timers are interfaces with fakes.
 
+- **`@DVModel.model3dField(poster:, maxSizeMb:, maxTriangles:)`.** A model
+  field that holds a `DVSceneAsset`. `DVModel3DFieldPolicy.validate` refuses
+  an upload that is over the size (before parsing it), is not a glTF model, or
+  draws more triangles than the budget, with every reason;
+  `DVModel3DFieldPolicy.accept` turns a valid upload into the field value,
+  pinned to its bytes by SHA-256 and under the tenant's storage key.
+
 - **Schema Evolution's tracker and Backend Release Management agree on where
   a migration stands and whether it may contract.** Verification is now its
   own recorded state: `DVSchemaEvolution.verify` records that every chunk
