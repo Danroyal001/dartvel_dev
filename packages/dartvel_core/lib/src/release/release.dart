@@ -9,3 +9,4 @@ export 'release_diagnostics.dart';
 export 'release_gates.dart';
 export 'release_plan.dart';
 export 'release_record.dart';
+export 'rollout.dart';
