@@ -1,5 +1,16 @@
 ## Unreleased
 
+- **`@DVModel` declares a subject path and retention.** `subject:` takes
+  `DVSubject.self`, `#field`, `DVSubject.field('column')` or
+  `DVSubject.through('column', parent: 'Model')`; `retain:` takes
+  `DVRetention.days(n)` or `DVRetention.indefinite`. `@DVModel.retain(years:,
+  because:)` marks the field whose row a law requires to keep, and
+  `@DVModel.sensitiveField(onErase: DVErase.anonymize)` says an erasure
+  replaces the field and keeps the row. `DVRetention.days` takes `from`
+  optionally, with `DVRetention.delete` and `DVRetention.anonymize` for
+  `then:`, and `DVPrivacyModel` refuses a dated retention with no `from`
+  column: no sweep could ever find such a row expired.
+
 - **Crash reports can go to the deployment's own backend.**
   `DVCrashSink.dartvel(endpoint:)` posts a report and returns when the
   backend has it or has refused it for good (400, 413, 422), so a report the
