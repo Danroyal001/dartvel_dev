@@ -1,0 +1,246 @@
+// The dev server's half of the dev client: what `dartvel dev --dev-client`
+// serves, to whom, and whether what it serves is the current build.
+//
+// Over a real socket, because the failures worth catching are about what goes
+// over the wire: a bundle handed to a device that never scanned the link, a
+// manifest that is empty because nothing resolved the plugins yet, and the
+// bundle from before the last edit.
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:dartvel_cli/src/devclient/dev_client_project.dart';
+import 'package:dartvel_cli/src/devclient/dev_client_server.dart';
+import 'package:dartvel_core/dartvel.dart';
+import 'package:path/path.dart' as p;
+import 'package:test/test.dart';
+
+const String _plugins = '''
+{"plugins":{"android":[
+  {"name":"jni","native_build":true,"dev_dependency":false},
+  {"name":"integration_probe","native_build":true,"dev_dependency":true},
+  {"name":"pure_dart_plugin","native_build":false,"dev_dependency":false}
+],"ios":[]}}
+''';
+
+void writeProject(Directory root, {bool plugins = true}) {
+  File(p.join(root.path, 'pubspec.yaml')).writeAsStringSync('''
+name: shopfront
+dependencies:
+  dartvel_flutter: ^0.4.0
+''');
+  File(p.join(root.path, 'pubspec.lock')).writeAsStringSync('''
+packages:
+  dartvel_flutter:
+    dependency: "direct main"
+    source: path
+    version: "0.4.0"
+''');
+  if (plugins) {
+    File(
+      p.join(root.path, '.flutter-plugins-dependencies'),
+    ).writeAsStringSync(_plugins);
+  }
+  writePage(root, 'about', 'About us');
+}
+
+void writePage(Directory root, String name, String title) {
+  File(p.join(root.path, 'studio', 'pages', '$name.json'))
+    ..createSync(recursive: true)
+    ..writeAsStringSync(
+      jsonEncode(<String, Object?>{
+        'route': '/$name',
+        'title': title,
+        'root': <String, Object?>{'id': 'root', 'type': 'column'},
+      }),
+    );
+}
+
+void main() {
+  late Directory root;
+  late DVDevClientBundleServer server;
+  late HttpClient http;
+
+  setUp(() async {
+    root = Directory.systemTemp.createTempSync('dartvel_dev_client_');
+    writeProject(root);
+    server = await DVDevClientBundleServer.start(
+      root: root.path,
+      branch: 'feature/checkout',
+      address: InternetAddress.loopbackIPv4,
+      port: 0,
+      advertisedHost: '127.0.0.1',
+    );
+    http = HttpClient();
+  });
+
+  tearDown(() async {
+    http.close(force: true);
+    await server.close();
+    root.deleteSync(recursive: true);
+  });
+
+  Future<(int, String)> fetch({
+    String? token,
+    String target = 'android',
+  }) async {
+    final Uri uri = server.pairing.bundleUri(target);
+    final HttpClientRequest request = await http.getUrl(uri);
+    if (token != null) request.headers.set('authorization', 'Bearer $token');
+    final HttpClientResponse response = await request.close();
+    return (response.statusCode, await utf8.decodeStream(response));
+  }
+
+  test('the link a device scans parses and names this server', () {
+    final DVDevClientPairing parsed = DVDevClientPairing.parse(
+      server.pairing.link,
+    );
+    expect(parsed.branch, 'feature/checkout');
+    expect(parsed.server.port, server.port);
+    expect(parsed.token, server.pairing.token);
+  });
+
+  test('a paired device gets a sealed bundle it can open', () async {
+    final (int status, String body) = await fetch(token: server.pairing.token);
+
+    expect(status, 200, reason: body);
+    final DVSignedBundle opened = DVSignedBundle.open(
+      body,
+      publicKey: server.pairing.publicKey,
+      requireContentVersion: true,
+    );
+    expect(opened.channel, 'feature/checkout');
+    expect(
+      (opened.bundle['pages']! as List).single,
+      containsPair('route', '/about'),
+    );
+    // Plugins compiled for Android, and the runtime version; not a dev
+    // dependency, and not a plugin with nothing native in it.
+    expect(opened.requires?.target, 'android');
+    expect(opened.requires?.bindings, <String>[
+      'dartvel_flutter@0.4.0',
+      'plugin:jni',
+    ]);
+  });
+
+  test('no token gets nothing, and no hint of the content', () async {
+    final (int status, String body) = await fetch();
+
+    expect(status, 401);
+    expect(body, isNot(contains('About us')));
+  });
+
+  test('a wrong token gets nothing', () async {
+    final (int status, String body) = await fetch(
+      token: DVDevClientPairing.newToken(),
+    );
+
+    expect(status, 401);
+    expect(body, isNot(contains('About us')));
+  });
+
+  test('an edit is served as a new version with a higher sequence', () async {
+    final (_, String first) = await fetch(token: server.pairing.token);
+    writePage(root, 'about', 'About us, edited');
+    final (_, String second) = await fetch(token: server.pairing.token);
+
+    final DVSignedBundle a = DVSignedBundle.open(
+      first,
+      publicKey: server.pairing.publicKey,
+    );
+    final DVSignedBundle b = DVSignedBundle.open(
+      second,
+      publicKey: server.pairing.publicKey,
+    );
+    expect(b.bundle['version'], isNot(a.bundle['version']));
+    expect(b.sequence, greaterThan(a.sequence!));
+    expect(jsonEncode(b.bundle), contains('About us, edited'));
+  });
+
+  test('nothing changed is served as the same version and sequence', () async {
+    final (_, String first) = await fetch(token: server.pairing.token);
+    final (_, String second) = await fetch(token: server.pairing.token);
+
+    final DVSignedBundle a = DVSignedBundle.open(
+      first,
+      publicKey: server.pairing.publicKey,
+    );
+    final DVSignedBundle b = DVSignedBundle.open(
+      second,
+      publicKey: server.pairing.publicKey,
+    );
+    expect(b.bundle['version'], a.bundle['version']);
+    expect(b.sequence, a.sequence);
+  });
+
+  test('a plugin added to the project is in the next manifest', () async {
+    // The case the manifest exists for: the device's shell predates it.
+    File(p.join(root.path, '.flutter-plugins-dependencies')).writeAsStringSync(
+      _plugins.replaceFirst(
+        '"android":[',
+        '"android":[{"name":"camera","native_build":true,"dev_dependency":false},',
+      ),
+    );
+
+    final (_, String body) = await fetch(token: server.pairing.token);
+
+    final DVSignedBundle opened = DVSignedBundle.open(
+      body,
+      publicKey: server.pairing.publicKey,
+    );
+    expect(opened.requires?.bindings, contains('plugin:camera'));
+  });
+
+  test('plugins that were never resolved refuse rather than serve an empty '
+      'manifest', () async {
+    // An empty manifest would load into any shell, including one missing
+    // every plugin the project uses.
+    File(p.join(root.path, '.flutter-plugins-dependencies')).deleteSync();
+
+    final (int status, String body) = await fetch(token: server.pairing.token);
+
+    expect(status, 503);
+    expect(body, contains('pub get'));
+  });
+
+  test('a target it does not build shells for is refused', () async {
+    final (int status, _) = await fetch(
+      token: server.pairing.token,
+      target: 'plan9',
+    );
+    expect(status, 400);
+  });
+
+  test('a page document with no route is refused, naming the file', () async {
+    File(
+      p.join(root.path, 'studio', 'pages', 'broken.json'),
+    ).writeAsStringSync('{"title":"No route"}');
+
+    final (int status, String body) = await fetch(token: server.pairing.token);
+
+    expect(status, 500);
+    expect(body, contains('broken.json'));
+  });
+
+  group('the address a device is told to use', () {
+    test('a private LAN address over a public or link-local one', () {
+      expect(
+        dvDevClientAdvertisedHost(<InternetAddress>[
+          InternetAddress('127.0.0.1'),
+          InternetAddress('169.254.3.4'),
+          InternetAddress('203.0.113.9'),
+          InternetAddress('192.168.1.20'),
+        ]),
+        '192.168.1.20',
+      );
+    });
+
+    test('loopback only when there is nothing else', () {
+      expect(
+        dvDevClientAdvertisedHost(<InternetAddress>[
+          InternetAddress('127.0.0.1'),
+        ]),
+        '127.0.0.1',
+      );
+    });
+  });
+}
