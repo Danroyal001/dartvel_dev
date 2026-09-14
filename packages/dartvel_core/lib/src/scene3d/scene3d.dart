@@ -7,6 +7,7 @@
 library dartvel.scene3d;
 
 export 'gltf.dart';
+export 'scene_anchor.dart';
 export 'scene_assets.dart';
 export 'scene_camera.dart';
 export 'scene_config.dart';

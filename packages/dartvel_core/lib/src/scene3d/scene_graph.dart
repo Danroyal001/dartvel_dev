@@ -35,6 +35,23 @@ final class _Node {
   late bool visible = data.visible;
   DVAabb? assetBounds;
   DVMat4? world;
+  DVSceneAnchorPlacement placement = DVSceneAnchorPlacement.origin;
+  DVMat4? anchorFrame;
+}
+
+/// Where an anchored node is, as far as the graph knows.
+enum DVSceneAnchorPlacement {
+  /// Not anchored to anything found: at the scene origin, its parent chain
+  /// ignored. What an anchor degrades to where it is unsupported.
+  origin,
+
+  /// Found, and placed at the frame the XR runtime gave.
+  located,
+
+  /// Being looked for, lost, or not re-localized: neither drawn nor picked,
+  /// so it never pops in from the origin or drifts from where it was last
+  /// seen.
+  hidden,
 }
 
 /// A scene graph built from a [DV3DSceneDocument].
@@ -77,12 +94,27 @@ final class DVSceneGraph {
   /// cull the other face or the model renders inside out.
   bool get basisMirrors => basis.determinant3 < 0;
 
-  static DVMat4 _basisFor(DV3DSceneDocument document) {
-    final double u = document.units.metersPerUnit;
-    final bool zUp = document.upAxis == DVSceneUpAxis.z;
+  static DVMat4 _basisFor(DV3DSceneDocument document) => basisFor(
+        units: document.units,
+        upAxis: document.upAxis,
+        handedness: document.handedness,
+      );
+
+  /// The conversion from [units], [upAxis] and [handedness] into world space.
+  ///
+  /// Public so a device reporting poses in its own convention converts
+  /// through the same matrix a document in that convention does, rather than
+  /// a second copy that can disagree with it.
+  static DVMat4 basisFor({
+    required DVSceneUnits units,
+    required DVSceneUpAxis upAxis,
+    required DVSceneHandedness handedness,
+  }) {
+    final double u = units.metersPerUnit;
+    final bool zUp = upAxis == DVSceneUpAxis.z;
     // A left-handed document mirrors its forward axis: the one that is
     // neither X nor up.
-    final bool left = document.handedness == DVSceneHandedness.left;
+    final bool left = handedness == DVSceneHandedness.left;
     final DVVec3 mirror = DVVec3(
       1,
       left && zUp ? -1 : 1,
@@ -142,6 +174,10 @@ final class DVSceneGraph {
   bool isVisibleInWorld(String id) {
     for (int i = _at(id); i >= 0; i = _nodes[i].parent) {
       if (!_nodes[i].visible) return false;
+      if (_nodes[i].data.anchor != null &&
+          _nodes[i].placement == DVSceneAnchorPlacement.hidden) {
+        return false;
+      }
     }
     return true;
   }
@@ -163,8 +199,75 @@ final class DVSceneGraph {
 
   DVMat4 _world(int index) {
     final _Node node = _nodes[index];
-    return node.world ??= (node.parent < 0 ? basis : _world(node.parent)) *
-        node.local.matrix;
+    if (node.world != null) return node.world!;
+    final DVMat4 above;
+    if (node.data.anchor != null) {
+      // An anchor pins the node to the world: its parents stop applying. The
+      // document basis still does, beneath the frame, because the node's own
+      // numbers are still in the document's units and handedness.
+      final DVMat4? frame = node.anchorFrame;
+      above = node.placement == DVSceneAnchorPlacement.located && frame != null
+          ? frame * basis
+          : basis;
+    } else {
+      above = node.parent < 0 ? basis : _world(node.parent);
+    }
+    return node.world = above * node.local.matrix;
+  }
+
+  _Node _anchored(String id) {
+    final _Node node = _nodes[_at(id)];
+    if (node.data.anchor == null) {
+      throw ArgumentError.value(id, 'id', 'this node has no anchor');
+    }
+    return node;
+  }
+
+  void _invalidate(String id) {
+    final int index = _at(id);
+    for (int i = index; i < _nodes[index].end; i++) {
+      _nodes[i].world = null;
+    }
+  }
+
+  DVSceneAnchorPlacement anchorPlacementOf(String id) => _anchored(id).placement;
+
+  /// Every anchored node id, in document order.
+  List<String> get anchoredIds => <String>[
+        for (final _Node n in _nodes)
+          if (n.data.anchor != null) n.data.id,
+      ];
+
+  /// Places an anchored node at [frame], a world-space rigid transform.
+  ///
+  /// A frame that mirrors or scales is refused: an anchor comes from a pose,
+  /// and a pose with a negative determinant is one converted in the wrong
+  /// handedness, which would render the node inside out.
+  void placeAnchor(String id, DVMat4 frame) {
+    final _Node node = _anchored(id);
+    final double det = frame.determinant3;
+    if (!det.isFinite || (det - 1).abs() > 1e-6 || !frame.translation.isFinite) {
+      throw ArgumentError.value(frame, 'frame',
+          'an anchor frame must be a rigid transform (determinant 1), not $det');
+    }
+    node
+      ..anchorFrame = frame
+      ..placement = DVSceneAnchorPlacement.located;
+    _invalidate(id);
+  }
+
+  /// Hides an anchored node until it is placed again.
+  void hideAnchor(String id) {
+    _anchored(id).placement = DVSceneAnchorPlacement.hidden;
+    _invalidate(id);
+  }
+
+  /// Puts an anchored node at the scene origin, unanchored.
+  void anchorAtOrigin(String id) {
+    _anchored(id)
+      ..placement = DVSceneAnchorPlacement.origin
+      ..anchorFrame = null;
+    _invalidate(id);
   }
 
   DVVec3 worldPosition(String id) => worldMatrix(id).translation;

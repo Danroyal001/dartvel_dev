@@ -180,6 +180,7 @@ export 'src/queues/redis_queue.dart';
 export 'src/queues/sqs_queue.dart';
 export 'src/release/release.dart';
 export 'src/scene3d/scene3d.dart';
+export 'src/xr/xr.dart';
 export 'src/scheduling/cron.dart';
 export 'src/scheduling/scheduler.dart';
 export 'src/schema/schema.dart';
