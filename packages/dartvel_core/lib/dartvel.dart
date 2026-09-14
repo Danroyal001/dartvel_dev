@@ -129,6 +129,7 @@ export 'src/queues/redis_queue.dart';
 export 'src/queues/sqs_queue.dart';
 export 'src/scheduling/cron.dart';
 export 'src/scheduling/scheduler.dart';
+export 'src/schema/schema.dart';
 export 'src/search/postgres_search.dart';
 export 'src/search/search_tuning.dart';
 export 'src/search/semantic_search.dart';

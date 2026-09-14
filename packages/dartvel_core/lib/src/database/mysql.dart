@@ -8,6 +8,7 @@ import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart' as crypto;
 
+import '../schema/schema_change.dart';
 import 'adapter.dart';
 import 'mysql_socket_unsupported.dart'
     if (dart.library.io) 'mysql_socket_io.dart';
@@ -68,7 +69,8 @@ class DVMySqlException implements Exception {
 /// interpolated into SQL — the same guarantee the Postgres adapter makes.
 /// `?` is MySQL's own placeholder, so the adapter contract's SQL needs no
 /// translation at all here.
-class DVMySqlDatabaseAdapter implements DVDatabaseAdapter {
+class DVMySqlDatabaseAdapter
+    implements DVDatabaseAdapter, DVSchemaClassifier {
   final String host;
   final int port;
   final String database;
@@ -98,6 +100,23 @@ class DVMySqlDatabaseAdapter implements DVDatabaseAdapter {
 
   /// How much this connection insists on encryption.
   final DVSslMode sslMode;
+
+  DVMySqlSchemaRules? _schemaRules;
+
+  /// What each schema change costs on the server this adapter is connected
+  /// to, read from the version it reports. A MariaDB server or anything but
+  /// MySQL 8 classifies nothing, which the planner treats as blocking.
+  Future<DVMySqlSchemaRules> schemaRules() async {
+    final DVMySqlSchemaRules? known = _schemaRules;
+    if (known != null) return known;
+    final List<Map<String, Object?>> rows =
+        await query('SELECT VERSION() AS v');
+    return _schemaRules = DVMySqlSchemaRules.forServer('${rows.single['v']}');
+  }
+
+  @override
+  Future<DVSchemaChangeClass?> classify(DVSchemaChange change) async =>
+      (await schemaRules()).classify(change);
 
   /// CLIENT_PROTOCOL_41, LONG_PASSWORD, LONG_FLAG, CONNECT_WITH_DB,
   /// SECURE_CONNECTION, PLUGIN_AUTH and MULTI_RESULTS.
