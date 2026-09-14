@@ -1,5 +1,31 @@
 ## Unreleased
 
+- **Volumes and immersive spaces are window kinds.**
+  `DV.Platform.Window.open(route, options: DVWindowOptions(kind:
+  DVWindowKind.volume))` and `kind: DVWindowKind.immersive, immersion:
+  DVImmersion.passthrough` present in space where the XR runtime can, with
+  `presentation` `volume` or `immersive` and the session on `window.spatial`,
+  and otherwise as a page with `DV-WINDOW-014` or `DV-WINDOW-015` on `codes`
+  -- never `DV-WINDOW-001`, which names a different cause. An immersive space
+  belongs to the window that opened it and closes with it, a space the system
+  ends closes its window, and closing a window ends its space before the
+  window is gone. `capability.spatial` is null unless `DVXR.refresh()` found
+  an `xr.capability.query` binding reporting a headset or glasses; with it,
+  `displays` and `displayKiosk` are false, `tearOut` is true and a `display:`
+  hint is ignored with `DV-WINDOW-013`. `DVXRBindingDevice` reaches the
+  device only through `DVNativeBridge` and fails typed (`DV-XR-006`); no
+  target registers the `xr.*` bindings yet. World anchor tokens live under
+  the reserved `xr.anchors.*` namespace of the shared store.
+  `DV.Test.fakeXR(capability)` installs a headless device and returns it;
+  `DV.Test.fakeXR(null)` is a phone.
+
+- **Scene nodes take `.anchor(...)`, `.onGrab(...)` and `.onRelease(...)`,
+  and `DVScene(environment: DVEnvironment.passthrough)`.** The anchor is
+  typed data in the resolved document; grab and release handlers are
+  delivered by a spatial session. A flat `DVBox.scene` draws anchored nodes
+  at the origin and passthrough with the studio environment, and reports each
+  once.
+
 - **Studio has a Flags section when it is given the flag runtime.**
   `DVStudioScreen(flags: const DVFlags())` adds it; without `flags` there is
   no tab. It lists every declared flag with its type, owner, expiry, default
