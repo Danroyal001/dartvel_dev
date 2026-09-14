@@ -3214,10 +3214,16 @@ class DVUpdates {
   ///
   /// A no-op is not a failure: an OTA patch can be delivered more than once,
   /// and a device under a version lock is declining on purpose.
+  ///
+  /// With [signedBy] -- the P-256 public key the bundles are sealed with --
+  /// only a sealed bundle that verifies against it is applied, and anything
+  /// else throws. The dev client opens its bundles with the same check, so a
+  /// bundle is trusted the same way whichever mechanism delivered it.
   Future<DVPageUpdateResult> applyPages({
     required Uri from,
     Map<String, String> headers = const <String, String>{},
     DVPageBundleInstaller installer = const DVPageBundleInstaller(),
+    List<int>? signedBy,
   }) async {
     final response = await dvSendHttpRequest(
       DVHttpRequest(url: from, method: 'GET', headers: headers),
@@ -3233,10 +3239,24 @@ class DVUpdates {
     }
 
     final DVPageBundle bundle;
-    try {
-      bundle = DVPageBundle.decode(response.body);
-    } on FormatException catch (error) {
-      throw StateError('$from did not return a page bundle: ${error.message}');
+    if (signedBy != null) {
+      try {
+        bundle = DVPageBundle.fromJson(
+          DVSignedBundle.open(response.body, publicKey: signedBy).bundle,
+        );
+      } on DVSignedBundleException catch (error) {
+        throw StateError(
+          '$from served a page bundle that was refused: ${error.message}',
+        );
+      }
+    } else {
+      try {
+        bundle = DVPageBundle.decode(response.body);
+      } on FormatException catch (error) {
+        throw StateError(
+          '$from did not return a page bundle: ${error.message}',
+        );
+      }
     }
 
     // Page bundles obey the same lock and skip the code path does. A kiosk
