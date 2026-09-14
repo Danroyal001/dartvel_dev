@@ -28,7 +28,16 @@ class DVStudioContent {
     Duration missedAfter = const Duration(minutes: 5),
     DateTime Function()? clock,
     DVPageStore store = const DVPageStore(),
-  }) : workflow = DVContentWorkflow<DVPageDocument>(
+    Uri Function(String route, String token)? previewUrl,
+  })  : _authorization = authorization,
+        _actorId = actorId,
+        _clock = clock ?? (() => DateTime.now().toUtc()),
+        _previewUrl = previewUrl ??
+            ((String route, String token) => Uri(
+                  path: route,
+                  queryParameters: <String, String>{'preview': token},
+                )),
+        workflow = DVContentWorkflow<DVPageDocument>(
          kind: kind,
          encode: (DVPageDocument document) => document.toJson(),
          decode: DVPageDocument.fromJson,
@@ -56,6 +65,62 @@ class DVStudioContent {
 
   /// Policies register against `DVPageDocument` for the [DVContentAction]s.
   final DVContentWorkflow<DVPageDocument> workflow;
+
+  final DVAuthAuthorization _authorization;
+  final String Function(Object? user) _actorId;
+  final DateTime Function() _clock;
+  final Uri Function(String route, String token) _previewUrl;
+
+  /// The id the workflow records for [user].
+  String actorIdOf(Object? user) => _actorId(user);
+
+  /// The workflow's clock, so a schedule picked in Studio is judged against
+  /// the same "now" the workflow refuses a past slot by.
+  DateTime now() => _clock();
+
+  /// Whether [user] holds [action] on [document], asked of the same policies
+  /// the workflow checks.
+  ///
+  /// For showing an action as unavailable before it is tried. It is never the
+  /// check: the workflow asks again at the transition, so a role removed after
+  /// Studio asked is still refused.
+  Future<bool> can(Object? user, String action, DVPageDocument document) =>
+      _authorization.can<Object?, DVPageDocument>(user, action, document);
+
+  /// Every route with at least one page version, sorted.
+  ///
+  /// The page store holds only what is published, so a page that has only
+  /// ever been a draft is not in it -- and is still a page somebody is
+  /// writing.
+  Future<List<String>> routes() async {
+    await workflow.ensureSchema();
+    final List<Map<String, Object?>> rows = await workflow.database.query(
+      'SELECT DISTINCT document_id FROM ${DVContentWorkflow.table} '
+      'WHERE kind = ?',
+      <Object?>[kind],
+    );
+    return <String>{
+      for (final Map<String, Object?> row in rows) '${row['document_id']}',
+    }.toList()
+      ..sort();
+  }
+
+  /// A signed, expiring link to [version] on the application's own routes.
+  ///
+  /// `previewUrl` shapes it; the default is the route with the token as its
+  /// `preview` query parameter, which [DVContentWorkflow.resolve] takes.
+  Future<Uri> previewLink(
+    DVContentVersion<DVPageDocument> version, {
+    required Object? as,
+    Duration expiresIn = const Duration(hours: 1),
+  }) async {
+    final String token = await workflow.previewToken(
+      version,
+      as: as,
+      expiresIn: expiresIn,
+    );
+    return _previewUrl(version.documentId, token);
+  }
 
   /// Makes [controller]'s save open or edit a draft as [as], rather than
   /// publishing.
