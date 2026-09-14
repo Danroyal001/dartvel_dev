@@ -9,6 +9,18 @@
   storage and set by `update(actor:)` and `resolve(actor:)`; the public
   snapshot never carries it.
 
+- **A world anchor token that was not stored is not marked stored.** A
+  session wrote the token the OS handed back and marked the anchor persisted
+  before the write had succeeded, and the session's queue swallowed the
+  failure: `isPersisted` said true, nothing was on disk, and the mark stopped
+  every later attempt. A failed write now leaves the anchor unpersisted and
+  logs an error naming the anchor and, for a `DVSpatialAnchorNotStored`, the
+  store's reason -- never the token. Consent is asked again once the OS hands
+  the token over, so a withdrawal made while the OS was persisting stops that
+  token too. `DVSpatialAnchorStore` gains `ids()`, so a withdrawal or an
+  erasure can reach tokens no open scene names; an implementation outside
+  Dartvel has to add it.
+
 - **XR: the platform-independent runtime for presenting a scene in space.**
   `DVSpatialCapability` (with `headset()` and `glasses()`) reads a
   capability report strictly: a field not reported is false, and a member
