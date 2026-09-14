@@ -180,7 +180,6 @@ export 'src/queues/redis_queue.dart';
 export 'src/queues/sqs_queue.dart';
 export 'src/release/release.dart';
 export 'src/scene3d/scene3d.dart';
-export 'src/xr/xr.dart';
 export 'src/scheduling/cron.dart';
 export 'src/scheduling/scheduler.dart';
 export 'src/schema/schema.dart';
@@ -208,6 +207,7 @@ export 'src/web/seo_head.dart';
 export 'src/webhooks/webhooks.dart';
 export 'src/widgets/home_widget.dart';
 export 'src/windowing/single_instance.dart';
+export 'src/xr/xr.dart';
 
 typedef RequestType = dv.Request;
 typedef ResponseType = dv.Response;
