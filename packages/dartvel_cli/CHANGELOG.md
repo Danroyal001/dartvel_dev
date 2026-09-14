@@ -1,4 +1,12 @@
 ## Unreleased
+- **`dartvel.crashes` is checked when the client is generated.** `dartvel
+  routes` parses the section with the runtime's own `DVCrashConfig.parse`
+  before it writes anything, and refuses a value it cannot honour naming the
+  key, where the runtime would have found out on a device. A build mode it
+  disables is reported as `DV-CRASH-009`. The generated
+  `installDartvelCrashReporting` hands the checked declaration to the
+  runtime, so the sample rate, the breadcrumb size, the per-release limit and
+  the identity consent category are the ones the pubspec declares.
 - **The generated client installs crash reporting.** `configureDartvelRuntime`
   calls the new `installDartvelCrashReporting()`, after the platform
   bindings (on Android they find the directory records are kept in), which

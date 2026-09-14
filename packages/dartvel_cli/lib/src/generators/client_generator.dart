@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:dartvel_core/dartvel.dart'
     show
+        DVCrashBuildMode,
+        DVCrashConfig,
         DVHomeWidgetSpec,
         dvHomeWidgetAnnotationArgs,
         dvHomeWidgetDeclaration,
@@ -134,6 +136,27 @@ class ClientGenerator {
     Set<DVRenderBackend>? renderBackends,
     required YamlMap dv,
   }) async {
+    // dartvel.crashes, checked before anything is written, with the parser
+    // the runtime uses at startup. Refused at startup is too late: the
+    // application is on a device, and its crash reporting goes down with the
+    // configuration on the one launch nobody is watching.
+    final DVCrashConfig crashConfig;
+    try {
+      crashConfig = DVCrashConfig.parse(_plain(dv['crashes']));
+    } on ArgumentError catch (error) {
+      throw StateError(
+        'pubspec.yaml ${error.name}: ${error.message} (got ${error.invalidValue})',
+      );
+    }
+    final List<String> crashesOff = <String>[
+      for (final DVCrashBuildMode mode in DVCrashBuildMode.values)
+        if (!crashConfig.enabledIn(mode)) mode.name,
+    ];
+    if (crashesOff.isNotEmpty) {
+      log('dartvel: DV-CRASH-009 crash reporting is disabled for '
+          '${crashesOff.join(', ')} builds, as dartvel.crashes declares.');
+    }
+
     // Scan pages
     final pageGlob = Glob('$pagesDir/**.dart');
     final pageFiles = <File>[];
@@ -576,7 +599,7 @@ import 'dart:async' show unawaited;
 import 'package:flutter/foundation.dart' show kReleaseMode, kIsWeb, defaultTargetPlatform, TargetPlatform, debugPrint;
 import 'dart:io' show exit${dualMode ? ', stdin, stdout, stderr, File, Platform, Process, ProcessStartMode' : ''};
 import 'package:flutter/widgets.dart' show WidgetsFlutterBinding;
-import 'package:dartvel_core/dartvel.dart' show DVCrashSink, DVCrashStore, DVStartupProfile, dvLiveWindowsPathFor;
+import 'package:dartvel_core/dartvel.dart' show DVCrashConfig, DVCrashSink, DVCrashStore, DVStartupProfile, dvLiveWindowsPathFor;
 ${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVAppLifecycle, DVCrashInstallation, DVPageStore, dvStartAppLifecycleBridge,${_hasMemoryConfig(dv) ? ' DVMemory, DVMemoryConfig,' : ''}${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''}${_hasDeviceProfileDisplays(dv) || _hasSharedStoreTuning(dv) || _hasWindowingDeclaration(dv) ? ' DVWindowManager,' : ''} DVWindowSharedStore, dvAppKeyStoreFor,${_hasWindowingDeclaration(dv) ? ' DVWindowingDeclaration,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAndroidBindings, DVAppLaunch, DVHomeWidgets, DVNativeBridge, DVRouteTarget, DVWindowOptions, DVRenderSurface${dualMode ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''}${terminalOnly ? ', DVTerminalSurface' : ''};
 import 'dartvel_config.g.dart' as cfg;
 import 'home_widgets.g.dart' show dartvelHomeWidgets;
@@ -705,6 +728,8 @@ DVCrashInstallation? installDartvelCrashReporting({DVCrashStore? store, DVCrashS
     DV.Crashes.installApplication(
       appId: '$pkgName',
       release: '${esc(crashRelease)}',
+      // dartvel.crashes, as the build checked it.
+      config: DVCrashConfig.parse(${_dartLiteral(crashConfig.toDeclaration(), 3)}),
       store: store,
       sink: sink,
       evenUnderTest: evenUnderTest,

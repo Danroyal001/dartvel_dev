@@ -1,5 +1,11 @@
 ## Unreleased
 
+- **`DV.Crashes.installApplication` applies `dartvel.crashes`.** A build mode
+  the configuration disables says `DV-CRASH-009` and installs nothing -- no
+  hook, no store, no install id written. Otherwise the sample rate, the
+  breadcrumb size and the per-release limit reach the reporter, and the
+  identity category comes from the configuration.
+
 - **`DV.Crashes.identify` ties reports to an account only under consent.**
   `installApplication` takes the consent category the application declares
   (`identityConsent`), and every report carries the flags in force when it
