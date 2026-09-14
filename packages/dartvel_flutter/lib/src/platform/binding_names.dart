@@ -159,4 +159,21 @@ const Set<String> dvNativeBindingNames = <String>{
   'window.restore',
   'window.setSize',
   'window.setTitle',
+
+  // XR: volumes and immersive spaces, anchors, input and passthrough, as the
+  // specification's XR Bindings subsection names them. Registered by
+  // generated JNI bindings over Jetpack XR or the Spatial SDK, FFI over the
+  // native spatial frameworks, or generated bindings over WebXR -- none of
+  // which exists yet, so nothing registers these on any target today.
+  'xr.anchor.create',
+  'xr.anchor.persist',
+  'xr.anchor.resolve',
+  'xr.capability.query',
+  'xr.environment.probe',
+  'xr.input.observe',
+  'xr.passthrough.set',
+  'xr.session.close',
+  'xr.session.open',
+  'xr.space.close',
+  'xr.space.open',
 };
